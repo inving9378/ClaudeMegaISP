@@ -34,7 +34,7 @@
 
 <script>
 import Datatable from "../../../../base/shared/Datatable";
-import { onBeforeMount, onMounted, reactive, ref, watch } from "vue";
+import { onBeforeMount, onMounted, reactive, ref, watch, onUnmounted, getCurrentInstance } from "vue";
 import DatatableHelper from "../../../../../helpers/datatableHelper";
 import Modal from "../../../../../helpers/modal";
 import ClientCrudBundleService from "./ClientCrudBundleService";
@@ -63,6 +63,10 @@ export default {
         ChangeBundleService,
     },
     setup(props, { emit }) {
+        const ns = `.leak983-bundleService-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const datatable = reactive({
             table: new DatatableHelper({}),
         });
@@ -104,7 +108,7 @@ export default {
                 hasPermission.data.canView("client_service_bundle_add_client")
             ) {
                 $(document).on(
-                    "click",
+                    "click" + ns,
                     "#buttonmodalbundleservice",
                     function () {
                         showAddModal();
@@ -112,7 +116,7 @@ export default {
                 );
             }
 
-            $(document).on("click", `#change_tarif_bundle`, function (e) {
+            $(document).on("click" + ns, `#change_tarif_bundle`, function (e) {
                 showModalChangeTarif(
                     $(e.target).parent().attr("id-item")
                 );

@@ -242,6 +242,10 @@ class PortalPagoController extends Controller
                     'payment'      => $nuevoPaymentField,
                     'updated_at'   => now(),
                 ]);
+
+            // Dual-write Fase 2 (roadmap #721) — espejo best-effort, no afecta el cobro real.
+            app(\App\Services\Finance\Invoice\InvoiceMirrorService::class)
+                ->mirrorPaid($factura->id, $clientId, $amount, $payment->id);
         });
     }
 

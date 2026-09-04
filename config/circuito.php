@@ -182,6 +182,28 @@ return [
     | (con semáforo de builds). `max_builds` = builds npm simultáneos máx (CPU de 4 cores).
     */
     'paralelismo'      => (int) env('CIRCUITO_PARALELISMO', 6),
+
+    /*
+    | Item #916 (sub-item de #911) — CUÁNTAS terminales pueden trabajar el MISMO módulo a la vez.
+    |
+    | `1` = comportamiento histórico (un módulo, una terminal). Subirlo destraba la flota cuando la
+    | cola se concentra en un módulo —el caso real: 31 items despachables, TODOS de
+    | `Roadmap / Circuito CC`, con 4 terminales libres y 0 reclamables—, porque el techo de
+    | ocupación no lo marcaba el trabajo disponible sino la variedad de módulos.
+    |
+    | La serialización por módulo es un PRE-FILTRO conservador, no la protección real: la colisión
+    | de verdad la detecta `detectarColisionesEnVuelo()` comparando el diff de archivos de cada rama
+    | en vuelo, agnóstico de módulo, en cada pasada del scheduler.
+    |
+    | PRECONDICIÓN CUMPLIDA para subirlo de 1: el candado de esquema de #915
+    | (`GuardedMigrateCommand::conCandadoDeEsquema`) serializa los `migrate` entre worktrees, que es
+    | el único riesgo de CORRUPCIÓN real (la base `megaisp` es compartida por los 6 worktrees).
+    | PENDIENTE #913: el detector sólo ve trabajo ya COMMITEADO, así que dos terminales del mismo
+    | módulo pueden editar el mismo archivo sin verse hasta el merge. Ese riesgo es ACOTADO
+    | (conflicto de merge y una vuelta perdida, nunca corrupción: cada worktree es un checkout
+    | aparte), y por eso este valor sube GRADUALMENTE y se mide antes de subirlo más.
+    */
+    'paralelo_mismo_modulo' => max(1, (int) env('CIRCUITO_PARALELO_MISMO_MODULO', 1)),
     'max_builds'       => (int) env('CIRCUITO_MAX_BUILDS', 3),
 
     // #938 — límite real de una vuelta (lo aplica `timeout` en deploy/circuito/vuelta.sh vía
@@ -246,6 +268,21 @@ return [
     'freno' => [
         'centinela' => env('CIRCUITO_FRENO_CENTINELA', '/var/www/megaisp/storage/app/circuito/PAUSA'),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | CANDADO DE ESQUEMA — migrate entre worktrees (#915, bug de #916 documentado abajo)
+    |--------------------------------------------------------------------------
+    |
+    | MISMO patrón que el freno de arriba: ruta ABSOLUTA al storage/ del checkout PRINCIPAL,
+    | jamás `storage_path()`. El primer intento de #915 (commit c1ee65f1) usó `storage_path()`
+    | dentro de `GuardedMigrateCommand` — como cada worktree tiene su propio `storage/` real,
+    | cada terminal tomaba SU PROPIO candado y nunca veía el de las demás: el lock no serializaba
+    | nada entre worktrees, exactamente el mismo error que ya advertía el comentario del freno de
+    | mano. `paralelo_mismo_modulo` (#916, abajo) subió a 2 confiando en esta precondición —
+    | mientras el candado no apunte aquí, ese riesgo de corrupción de esquema está VIVO.
+    */
+    'candado_migraciones' => env('CIRCUITO_CANDADO_MIGRACIONES', '/var/www/megaisp/storage/app/circuito/migrate-esquema.lock'),
 
     'autopilot' => [
         'enabled'             => (bool) env('CIRCUITO_AUTOPILOT', true),
@@ -333,6 +370,9 @@ return [
             'raiz_worktrees' => env('CIRCUITO_RUNTIME', '/home/meganet/circuito'),
 
             // Log del checkout principal — el único que se medía hasta hoy.
+            // Desde #175/#653: `medirLogs()` solo usa el DIRECTORIO de esta ruta (dirname) para
+            // buscar ahí los `laravel-*.log` diarios reales — el nombre de archivo legacy
+            // (`laravel.log` a secas) ya no se lee ni tiene que existir.
             'log_principal' => env('CIRCUITO_LOG_PRINCIPAL', '/var/www/megaisp/storage/logs/laravel.log'),
 
             // Un `claude` interactivo más viejo que esto es sospechoso de sesión abandonada.
@@ -354,6 +394,95 @@ return [
             // una base realmente caída al arranque tardaría en frenar; bajarlo a 0 restaura el
             // comportamiento anterior (frenar siempre que no se pueda medir).
             'gracia_arranque_seg' => (int) env('CIRCUITO_JARVIS_GRACIA_ARRANQUE', 180),
+
+            // FAMILIA "RECLAMOS" (#704, sub-item de #208) — invariantes sobre quién tiene
+            // reclamado cada item en_progreso. Umbral del gap entre `claimed_at` (heartbeat vivo,
+            // lo renueva `RoadmapCircuitoService::renovarLease()` con un UPDATE crudo que a
+            // propósito NO toca `updated_at`) y `updated_at` (última escritura real sobre el
+            // item): pasado esto, el heartbeat sigue vivo pero el trabajo no avanza, y el reaper
+            // lento (`circuito:reap-stuck`, que exige AMBAS señales frías) no lo ve. 300 s cubre
+            // el caso real medido en #191 Fase 3 (25-ago, gap de ~8 min invisible para el reaper).
+            'reclamos_claimed_sin_avance_umbral_seg' => (int) env('CIRCUITO_JARVIS_RECLAMOS_GAP_UMBRAL', 300),
+
+            // Gracia antes de juzgar "en_progreso sin proceso vivo": un reclamo recién hecho
+            // todavía no tiene su PID registrado por `vuelta.sh` (registro de #334 A). Propia y
+            // separada de `circuito.reaper.gracia_minutos` (que vive en base) porque esta familia
+            // tiene que poder medir aunque la base sea justo lo que está fallando.
+            'reclamos_gracia_seg' => (int) env('CIRCUITO_JARVIS_RECLAMOS_GRACIA', 180),
+
+            // FAMILIA "GIT" (#706, sub-item de #208) — ningún worktree del circuito debe quedar
+            // con HEAD desatado apuntando a un commit que NINGUNA rama referencia. El flujo sano
+            // deja cada worktree detached-en-main un instante (`vuelta.sh`: `checkout --detach -f
+            // main`) hasta que `circuito:rama` lo ata a `circuito/item-N-...`; en ese estado
+            // `git branch --contains` siempre devuelve al menos `main`. La anomalía es un COMMIT
+            // hecho mientras seguía desatado (nadie corrió `circuito:rama` antes): ese commit no
+            // es ancestro de ninguna rama, y el SIGUIENTE `checkout --detach -f main` de otra
+            // vuelta en ese mismo worktree lo deja inalcanzable. Caso real: #191 Fase 3, 25-ago
+            // 15:38:45, el pool continuo abandonó el worktree 32 s después; se rescató a mano en
+            // `rescate/bitacora-item-191`. Gracia corta: le da tiempo a `circuito:rama` de atar el
+            // commit recién hecho antes de que se le juzgue huérfano (en operación sana nunca se
+            // usa, porque el flujo normal jamás commitea en detached).
+            'git_huerfano_gracia_seg' => (int) env('CIRCUITO_JARVIS_GIT_GRACIA', 20),
+
+            // FAMILIA "COLA: JOBS VARADOS" (#772, fase 2 de #705) — filas de la tabla `jobs`
+            // con `created_at` más viejo que este umbral Y `reserved_at` NULL (nunca tomadas por
+            // un worker). Caso medido: 9 varados desde 24-ago con 0 de 3 workers vivos, efecto
+            // colateral: ningún item recibía `nivel_riesgo` (vía `ClasificarRiesgoJob`). 600 s da
+            // margen a un pico normal de cola sin disparar ruido.
+            'jobs_varados_umbral_seg' => (int) env('CIRCUITO_JARVIS_JOBS_VARADOS_UMBRAL', 600),
+
+            // FAMILIA "COLA: FALSO VERDE" (#771, fase 1 de #705) — `RoadmapItem::despachable()`
+            // dice que hay trabajo listo (>0) pero `RoadmapCircuitoService::ejecutablesParalelo()`
+            // —la MISMA puerta que usa el scheduler para tomar trabajo— no elige a nadie ([]).
+            // Caso medido item #192: despachable=12, ejecutablesParalelo=0, compuerta en VERDE.
+            // Igual que bd_integra, "sostenido en el tiempo" se lee del `$anterior` en archivo
+            // (sin tabla nueva): un desfase de un minuto es normal (footprint desconocido en
+            // vuelo, colisión de módulo), sostenido más de esto ya no lo es. 300 s = cinco
+            // corridas del cron de un minuto.
+            'falso_verde_umbral_seg' => (int) env('CIRCUITO_JARVIS_FALSO_VERDE_UMBRAL', 300),
+
+            // FAMILIA "GASTO" (#706, sub-item de #208) — invocaciones de `claude -p` por hora
+            // contra un umbral configurable. Fuente: `arranques-claude.log`, un JSONL
+            // append-only que escribe `vuelta.sh` en cada arranque — aparte del registro de PIDs
+            // VIVOS de `RegistroPids` (que el `trap EXIT` borra al terminar la vuelta): este
+            // archivo es histórico, no de estado vivo, y por diseño nunca se trunca ahí.
+            // Con `paralelismo`=6 (arriba) y `CIRCUITO_TIMEOUT`=600s, el techo teórico corriendo
+            // sin pausa es 36/h; el default deja margen sobre eso.
+            'gasto_arranques_log' => env(
+                'CIRCUITO_JARVIS_GASTO_LOG',
+                '/var/www/megaisp/storage/app/circuito/jarvis/arranques-claude.log'
+            ),
+            'gasto_umbral_hora' => (int) env('CIRCUITO_JARVIS_GASTO_UMBRAL_HORA', 60),
+
+            // FAMILIA "ERRORES POR MINUTO" (#774, fase 4 de #705) — mismo regex que ya prueba
+            // `CompuertasSondaCommand::medirLogs()` en producción (nivel ERROR/CRITICAL/ALERT/
+            // EMERGENCY), pero aplicado a CADA uno de los 7 `laravel-*.log` (uno por worktree
+            // más el principal), no solo al log principal. Un error masivo en un worktree no
+            // debe quedar enmascarado por el resto tranquilo — ver medirLogs() y alertas().
+            'errores_por_minuto_umbral' => (int) env('CIRCUITO_JARVIS_ERRORES_MINUTO_UMBRAL', 20),
+
+            // CANAL DE ALERTA FUERA DE LA TORRE (#707, sub-item de #208, parte 3/3) — el
+            // vigilante SOLO AVISA, nunca corrige. Reusa el gateway WhatsApp ÚNICO ya designado
+            // (`EvolutionApiService`, ver CLAUDE.md §"SERVICIOS COMPARTIDOS ÚNICOS"), nunca un
+            // cliente HTTP propio. Apagado por default A PROPÓSITO (mismo patrón que
+            // PAYMENTS_AUTO_APPLY_ENABLED/DOMICILIACION_COBRO_LIVE_ENABLED): sin `enabled=true`
+            // Y `destino` configurados explícitamente, este canal jamás manda un mensaje.
+            'alerta_externa' => [
+                'enabled' => (bool) env('CIRCUITO_JARVIS_ALERTA_WHATSAPP', false),
+
+                // Número/JID de WhatsApp destino (solo dígitos, sin '+'; o un JID de grupo).
+                'destino' => env('CIRCUITO_JARVIS_ALERTA_DESTINO', ''),
+
+                // Empresa/instancia Evolution a usar — mismo patrón que el resto de consumidores
+                // de EvolutionApiService (Flotas, etc). 1 = instancia principal Meganet.
+                'company_id' => (int) env('CIRCUITO_JARVIS_ALERTA_COMPANY_ID', 1),
+
+                // Ningún hallazgo repite aviso antes de esto, aunque `alertas()` lo siga
+                // reportando cada vuelta (cron de 1 min): sin cooldown, un reinicio normal (que
+                // dispara varias alertas de golpe y las mantiene activas unos minutos) floodearía
+                // el WhatsApp. Lo pidió el propio revisor del #208. 1800s = 30 min.
+                'cooldown_seg' => (int) env('CIRCUITO_JARVIS_ALERTA_COOLDOWN', 1800),
+            ],
         ],
 
         /*
@@ -786,6 +915,14 @@ return [
         'min_intervalo_minutos' => (int) env('CIRCUITO_AUDITOR_INTERVALO', 15),
 
         /*
+        | Slots libres mínimos para que el auditor dispare (Torre 24/7 Pieza 5a-ii, item #981).
+        | Default de fábrica que la migración de `torre_config` lee al sembrar la fila. Editable
+        | después desde Torre → Configuración (columna `auditor_slots_libres_min`), que manda una
+        | vez migrada.
+        */
+        'slots_libres_min_disparo' => (int) env('CIRCUITO_AUDITOR_SLOTS_LIBRES_MIN', 2),
+
+        /*
         | LOS DOS CARRILES (inventario de módulos, 2026-08-08).
         |
         | `paralelo`: módulos con acoplamiento ~0 (nadie los consume, no consumen a nadie) → sus
@@ -867,6 +1004,18 @@ return [
         |  - sin_clasificar: items de la Hoja de Ruta con footprint desconocido, que por diseño
         |    corren SOLOS y bloquean a las 6 terminales (#526). Clasificarlos libera la flota.
         |  - semilla:       pendientes del inventario 2026-08-08 que el escaneo no puede ver.
+        |  - jquery_sin_off: componentes Vue con `$(document).on(...)` delegado sin su `.off()`
+        |    correspondiente en el mismo archivo → handlers jQuery que se acumulan en cada remount
+        |    de la SPA (#899). Cross-cutting (resources/js/, no un $dir de módulo PHP): se emite
+        |    UNA vez bajo el ancla 'Roadmap / Circuito CC', igual que sin_clasificar.
+        |  - env_runtime:   llamadas a `env()` en tiempo de ejecución fuera de `config/`, la misma
+        |    lista que vigila `php artisan config:auditar-env` (#790) antes de permitir
+        |    `config:cache`. Consume ese escaneo vía `EnvRuntimeScanner` (#901), no lo reimplementa.
+        |    Cross-cutting (app/, routes/, bootstrap/): se emite UNA vez bajo el ancla
+        |    'Roadmap / Circuito CC', igual que sin_clasificar/jquery_sin_off.
+        |  - null_safety:   dos patrones sin guard contra null (#900/#973): `auth()->user()->` sin
+        |    `?->` inmediatamente después, y `$var = json_decode(...)` usado (`$var->`/`$var[`) sin
+        |    comprobar null en la ventana de las ~15 líneas siguientes (heurística aproximada).
         */
         'detectores' => [
             'hueco_ruteado'  => (bool) env('CIRCUITO_AUDITOR_D_HUECOS', true),
@@ -875,6 +1024,9 @@ return [
             'andamiaje'      => (bool) env('CIRCUITO_AUDITOR_D_ANDAMIAJE', true),
             'sin_clasificar' => (bool) env('CIRCUITO_AUDITOR_D_SINCLAS', true),
             'semilla'        => (bool) env('CIRCUITO_AUDITOR_D_SEMILLA', true),
+            'jquery_sin_off' => (bool) env('CIRCUITO_AUDITOR_D_JQUERYOFF', true),
+            'env_runtime'    => (bool) env('CIRCUITO_AUDITOR_D_ENVRUNTIME', true),
+            'null_safety'    => (bool) env('CIRCUITO_AUDITOR_D_NULLSAFE', true),
         ],
 
         /*
@@ -1009,7 +1161,63 @@ return [
             // sólo más espaciado), y un cambio real de código lo revive de inmediato (cualquier
             // corrida con nuevos > 0 resetea la racha a 0).
             'intervalo_max_minutos' => (int) env('CIRCUITO_AUDITOR_SEQUIA_MAX', 120),
+
+            // #712 (Thomas Parte 2) — NIVEL 2, "EL GASTO": distinto de lo de arriba (que sólo
+            // ALARGA el intervalo de LA SONDA y nunca deja de escanear). Tras esta racha de
+            // ciclos EN VIVO seguidos con 0 nuevos, el generador se APAGA del todo (deja de
+            // ocupar terminales) hasta que un item REAL (sin `auditor_fingerprint`, no generado
+            // por este motor) se complete — ver `AuditorService::gastoApagado()`. Umbral de #590
+            // restituido ("dos corridas por hambre consecutivas").
+            'gasto_racha_umbral' => (int) env('CIRCUITO_AUDITOR_SEQUIA_GASTO_UMBRAL', 2),
+
+            // #891 Fase 3a — HALF-OPEN del gasto: en vez de esperar indefinidamente a un item
+            // real completado, cada `gasto_reintento_min` minutos se deja pasar UN sondeo (sin
+            // rearmar el timestamp) para ver si la fuente revivió. Si el sondeo vuelve a salir
+            // seco, `evaluarApagarGasto()` renueva el timestamp y el freno sigue frenando otros
+            // `gasto_reintento_min` minutos más — el costo queda acotado, nunca indefinido.
+            // Son solo el DEFAULT DE FÁBRICA; si `torre_config` trae estas columnas (Fase 3b), el
+            // valor de la BD manda, igual que pasa hoy con `auditor_cooldown_min`.
+            'gasto_reintento_min'    => (int) env('CIRCUITO_AUDITOR_SEQUIA_GASTO_REINTENTO_MIN', 30),
+            'gasto_reintento_activo' => (bool) env('CIRCUITO_AUDITOR_SEQUIA_GASTO_REINTENTO_ACTIVO', true),
         ],
+    ],
+
+    /*
+    |---------------------------------------------------------------------------------------------
+    | "MODO BARRIDO" — Torre 24/7 Pieza 5b (#908), FASE 2a (#985): disparador + candado de un solo
+    | barrido + rotación de módulo. NO espera a que #907/#980 (slots_libres como disparador de
+    | primera clase del auditor) estén implementados — usa directo los métodos públicos ya vivos de
+    | `AuditorService` (`slotsLibres()`, `rachaSeca()`, `profundidadCola()`).
+    |
+    | El barrido en sí (explorar el módulo elegido y crear hallazgos, FASE 2b/#986) y el despacho
+    | FIFO de esos hallazgos (FASE 3/#987) son items aparte. Este bloque sólo gobierna CUÁNDO entrar
+    | en modo barrido, que SÓLO una terminal lo haga a la vez, y QUÉ módulo le toca.
+    |---------------------------------------------------------------------------------------------
+    */
+    'barrido' => [
+        // Pool "seco" = cola reclamable (AuditorService::profundidadCola()) en o por debajo de
+        // esto. Con cola real, barrer no tiene sentido: sobra trabajo de verdad que despachar.
+        'cola_max_para_barrer' => (int) env('CIRCUITO_BARRIDO_COLA_MAX', 0),
+
+        // Además de la cola vacía, exige que la racha seca del auditor (misma señal que ya alarga
+        // su intervalo, #1015) haya cruzado esto — evita disparar barrido por un valle momentáneo
+        // de la cola que se vuelve a llenar al minuto siguiente.
+        'racha_seca_min' => (int) env('CIRCUITO_BARRIDO_RACHA_MIN', 1),
+
+        // Terminales libres (AuditorService::slotsLibres()) mínimas para que valga la pena
+        // dedicar una a explorar en vez de esperar.
+        'slots_libres_min' => (int) env('CIRCUITO_BARRIDO_SLOTS_MIN', 1),
+
+        // TTL del candado single-flight (`circuito_barrido_en_curso` en `settings`): un barrido
+        // que no se libera en este tiempo se trata como HUÉRFANO (terminal caída a medio barrido)
+        // y deja de bloquear — ver `BarridoService::leerCandado()`.
+        'candado_ttl_min' => (int) env('CIRCUITO_BARRIDO_CANDADO_TTL_MIN', 25),
+
+        // #9990032 (FASE 2b-i) — tope de hallazgos que `BarridoService::explorar()` devuelve por
+        // corrida. Inspirado en `circuito.auditor.items_por_modulo_por_ciclo`: no tiene sentido
+        // que una sola exploración genere de un jalón más hallazgos de los que el despacho FIFO
+        // (Fase 3/#987) pueda repartir sin dejar terminales ociosas.
+        'hallazgos_max_por_barrida' => (int) env('CIRCUITO_BARRIDO_HALLAZGOS_MAX', 3),
     ],
 
     /*

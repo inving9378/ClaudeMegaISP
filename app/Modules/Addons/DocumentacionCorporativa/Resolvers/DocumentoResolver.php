@@ -50,6 +50,7 @@ class DocumentoResolver extends BaseResolver
         }
 
         $filas = $documentos->map(fn (DcDocumento $d) => [
+            'id'              => $d->id,
             'titulo'          => $d->titulo,
             'archivo'         => $d->archivo_nombre_original,
             'version'         => $d->version_actual,

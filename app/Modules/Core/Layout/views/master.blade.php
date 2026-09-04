@@ -69,7 +69,7 @@
         {{-- Ayuda contextual por pantalla (panel flotante estilo Splynx) --}}
         <help-float url="{{ url('/') }}"></help-float>
     </div>
-    @can('usar-ia-chat')
+    @if(auth()->user() && auth()->user()->can('usar-ia-chat'))
         <div id="ia-chat-float-root">
             {{-- Chat IA flotante (#9 / #636): gateado por permiso, costo real de API por mensaje.
                  ⚠️ APAGADO desde el 2026-08-27 (#649): contestaba desde `ModuleRegistry::getAiContext()`
@@ -78,16 +78,16 @@
                  el montaje se deja porque partes de este panel se reusan en la Capa 1 del chat. --}}
             <ia-chat-float url="{{ url('/') }}"></ia-chat-float>
         </div>
-    @endcan
+    @endif
 
-    @can('torre.config.view')
+    @if(auth()->user() && auth()->user()->can('torre.config.view'))
         <div id="jarvis-burbuja-root">
             {{-- LA CARA DE JARVIS (#651): presencia + estado en cualquier pantalla.
                  El anillo es el interruptor de hombre muerto — si el medidor deja de latir, lo dice
                  solo, en la esquina, sin que nadie entre a la Torre a buscarlo. --}}
             <jarvis-burbuja url="{{ url('/') }}"></jarvis-burbuja>
         </div>
-    @endcan
+    @endif
     <!-- JAVASCRIPT -->
     @include('core-layout::vendor-scripts')
 

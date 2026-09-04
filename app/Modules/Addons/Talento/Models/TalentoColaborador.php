@@ -13,7 +13,7 @@ class TalentoColaborador extends BaseModel
     protected $table = 'talento_colaboradores';
 
     protected $fillable = [
-        'user_id', 'type', 'department', 'supervisor_id', 'level_id',
+        'user_id', 'type', 'categoria_externo', 'department', 'supervisor_id', 'level_id',
         'hire_date', 'status', 'base_salary', 'notes',
         // Expediente RH (item #199 — Hijo A)
         'birth_date', 'curp', 'nss', 'emergency_contact_name', 'emergency_contact_phone',

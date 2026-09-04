@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Roadmap\Console;
 
+use App\Modules\Addons\Roadmap\Models\VigilanteDiscrepancia;
 use Illuminate\Console\Command;
 
 /**
@@ -134,7 +135,17 @@ class CompuertasSondaCommand extends Command
         ];
     }
 
-    /** Workers de supervisor: lo que de verdad corre, no lo que supervisor cree. */
+    /**
+     * Workers de supervisor: lo que de verdad corre, no lo que supervisor cree.
+     *
+     * Fase 3 (#773, sub-item de #705): además del conteo separado de siempre, correlaciona por
+     * PROGRAMA cuál línea de `supervisorctl status` trae un PID vivo de verdad. Extrae el PID de
+     * la línea (si viene) y lo verifica con `/proc/{pid}` — sin depender de `posix_kill`, que
+     * exige el mismo usuario dueño del proceso. Discrepancia en cualquiera de los dos sentidos:
+     * declarado RUNNING sin proceso vivo con ese PID, o declarado no-RUNNING con un proceso vivo
+     * con ese PID (el incidente del 24-ago fue justo el primer caso). SOLO REPORTA — no mata ni
+     * reinicia nada — y se persiste en `vigilante_discrepancias` para que sea auditable.
+     */
     private function medirWorkers(): array
     {
         $raw = (string) $this->sh("ps -eo pid,etimes,cmd 2>/dev/null | grep 'artisan queue:work' | grep -v grep");
@@ -145,12 +156,36 @@ class CompuertasSondaCommand extends Command
         $ctlLegible = $ctl !== null && ! str_contains((string) $ctl, 'Permission denied');
 
         $declarados = [];
+        $discrepancias = [];
         if ($ctlLegible) {
             foreach (array_filter(explode("\n", (string) $ctl)) as $l) {
-                if (preg_match('/^(\S+)\s+(\S+)/', $l, $m)) {
-                    $declarados[$m[1]] = $m[2];
+                if (! preg_match('/^(\S+)\s+(\S+)/', $l, $m)) {
+                    continue;
+                }
+                $programa = $m[1];
+                $estado   = $m[2];
+                $declarados[$programa] = $estado;
+
+                if (! preg_match('/pid (\d+)/', $l, $mp)) {
+                    continue; // sin PID en la línea: nada que correlacionar para este programa
+                }
+                $pid  = (int) $mp[1];
+                $vivo = file_exists("/proc/{$pid}");
+
+                if ($estado === 'RUNNING' && ! $vivo) {
+                    $discrepancias[] = [
+                        'programa' => $programa, 'estado_supervisor' => $estado,
+                        'estado_real' => 'sin_proceso', 'pid' => $pid,
+                    ];
+                } elseif ($estado !== 'RUNNING' && $vivo) {
+                    $discrepancias[] = [
+                        'programa' => $programa, 'estado_supervisor' => $estado,
+                        'estado_real' => 'proceso_vivo', 'pid' => $pid,
+                    ];
                 }
             }
+
+            $this->registrarDiscrepancias($discrepancias);
         }
 
         return [
@@ -158,7 +193,50 @@ class CompuertasSondaCommand extends Command
             'ctl_legible'       => $ctlLegible,
             'declarados'        => $declarados,
             'esperados'         => 3,
+            'discrepancias'     => $discrepancias,
         ];
+    }
+
+    /**
+     * Persiste las discrepancias de esta corrida en `vigilante_discrepancias` (dedup: una fila
+     * abierta por programa+estado_real no se duplica cada minuto) y cierra sola (`resuelto_at`)
+     * cualquier fila abierta de un programa que ya dejó de ser discrepante. Solo se llama con
+     * `ctl_legible=true` — si esta corrida no pudo leer supervisor, no se toca lo ya registrado.
+     * Try/catch: un fallo de base NUNCA debe tumbar el snapshot del resto del comando.
+     */
+    private function registrarDiscrepancias(array $discrepancias): void
+    {
+        try {
+            $programasActuales = array_column($discrepancias, 'programa');
+
+            $cerrar = VigilanteDiscrepancia::whereNull('resuelto_at');
+            if ($programasActuales) {
+                $cerrar->whereNotIn('programa', $programasActuales);
+            }
+            $cerrar->update(['resuelto_at' => now()]);
+
+            foreach ($discrepancias as $d) {
+                $yaAbierta = VigilanteDiscrepancia::whereNull('resuelto_at')
+                    ->where('programa', $d['programa'])
+                    ->where('estado_real', $d['estado_real'])
+                    ->exists();
+
+                if ($yaAbierta) {
+                    continue;
+                }
+
+                VigilanteDiscrepancia::create([
+                    'programa'          => $d['programa'],
+                    'estado_supervisor' => $d['estado_supervisor'],
+                    'estado_real'       => $d['estado_real'],
+                    'pids_supervisor'   => (string) $d['pid'],
+                    'pids_reales'       => $d['estado_real'] === 'proceso_vivo' ? (string) $d['pid'] : '',
+                    'detectado_at'      => now(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            // Best-effort: la sonda no depende de la base para su snapshot principal.
+        }
     }
 
     /** Slots: un worktree libre = su flock wt-K.lock NO tomado. */

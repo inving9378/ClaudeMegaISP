@@ -65,6 +65,19 @@ class Kernel extends ConsoleKernel
         // #921 Fase 2 / #957 — reactiva items del Roadmap con agendado_para ya vencido (vuelven al pool).
         $schedule->command('circuito:reactivar-agendados')->dailyAt('00:05')->withoutOverlapping();
 
+        // MR-32 (#971) — LIBERADOR EN CASCADA ACOTADO de la épica MAPA DE RED (#936).
+        //
+        // Libera el freno del SIGUIENTE item de MR-01→MR-07 sólo cuando el anterior cerró limpio, y
+        // se autodesactiva al llegar al techo #943. Nunca pasa de ahí: de MR-08 en adelante empieza
+        // el modelo de datos, donde una decisión mal tomada se arrastra a diez items.
+        //
+        // Sólo mueve `excluir_pool_automatico` de true a false. No despacha, no cierra items y no
+        // vuelve a frenar nada. Verifica en cada vuelta que la red de guards de datos siga vigente
+        // (GuardBaseDePruebas + phpunit.xml en _test + MigrationGuardService) y se detiene si falta.
+        $schedule->command('circuito:liberar-cascada-mapa-red')
+            ->everyTenMinutes()
+            ->withoutOverlapping();
+
         // #634 — el freno del CLASIFICADOR caduca solo a los N días sin confirmar (2A.4), pero nada
         // corría `circuito:re-triage --apply`: los frenos se quedaban bloqueados para siempre en vez
         // de liberarse. El freno HUMANO nunca caduca (el propio comando es fail-closed sobre eso),
@@ -74,6 +87,18 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->onOneServer()
             ->appendOutputTo(storage_path('logs/circuito-retriage.log'));
+
+        // Pieza 1b (#765, sub-item de #672) — INVOCADOR REAL del backfill de #764. Reconciliación
+        // diaria de `torre_frontera_dura_eventos` sobre TODO `roadmap_items.log` (idempotente, ver
+        // BackfillFronteraDuraEventosCommand). Cubre las dos vías que la captura en vivo de
+        // `TorreAutomationPolicy::estadoInicial()` no ve (excluidas a propósito de su docblock):
+        // el alta directa de un humano (`RoadmapController::store`) y la vía externa/MCP
+        // (`RoadmapCircuitoService::guard()`). Sin este `schedule`, el comando quedaría igual que
+        // #902 (`MedirValvulaContextoCommand`): escrito y nunca invocado por nadie.
+        $schedule->command('circuito:backfill-frontera-dura-eventos')
+            ->dailyAt('03:35')
+            ->withoutOverlapping()
+            ->onOneServer();
 
         // Regeneración semanal del manual de usuario vía Claude API
         $schedule->command('manual:regenerate')->weekly()->sundays()->at('03:00')->withoutOverlapping();
@@ -158,6 +183,13 @@ class Kernel extends ConsoleKernel
             ->dailyAt('04:30')
             ->withoutOverlapping()
             ->onOneServer();
+
+        // DocumentacionCorporativa Fase 2b (item #735) — marca recordatorio_enviado_at
+        // en pendientes vencidos o por vencer. Sólo marca; el envío real es aparte.
+        $schedule->command('dc:pendientes-recordatorio')
+            ->dailyAt('08:30')
+            ->withoutOverlapping()
+            ->onOneServer();
     }
 
     protected function commands(): void
@@ -165,6 +197,7 @@ class Kernel extends ConsoleKernel
         $this->load(__DIR__ . '/Commands/Active');
         $this->load(__DIR__ . '/Commands/Scripts');
         $this->load(__DIR__ . '/Commands/Olts');
+        $this->load(__DIR__ . '/Commands/Schema');
 
         require base_path('routes/console.php');
     }

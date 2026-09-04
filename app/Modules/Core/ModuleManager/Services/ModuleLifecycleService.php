@@ -349,6 +349,9 @@ class ModuleLifecycleService
             // Auto-sync al rol base: super-administrator + DESARROLLADOR siempre;
             // permisos .view también a todos los demás roles (decisión 2026-06-04).
             $syncService->syncPermissionToBaseRoles($perm['name']);
+
+            // Item #851 (Fase A) — declara el criterio de scope "propios" si el módulo lo trae.
+            $syncService->syncScopeDeclaration($perm['name'], $perm['scope_propios'] ?? null);
         }
     }
 

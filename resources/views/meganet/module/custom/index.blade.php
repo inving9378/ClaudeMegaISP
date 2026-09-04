@@ -8,9 +8,9 @@
     <Datatable
         module="custom"
         model="Custom"
-        @can($group.'_add_'.$module)
+        @if(auth()->user() && auth()->user()->can($group.'_add_'.$module))
         add="Agregar Plan Custom"
-        @endcan
+        @endif
         list="Listado de Planes Personalizados"
     ></Datatable>
     @if(session()->has('message'))

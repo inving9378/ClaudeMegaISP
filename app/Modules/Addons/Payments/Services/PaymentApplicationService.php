@@ -123,6 +123,9 @@ class PaymentApplicationService
                 'payment_date' => now()->toDateString(),
             ]);
             event(new \App\Events\InvoicePaid($invoice));
+            // Dual-write Fase 2 (roadmap #721) — espejo best-effort, no afecta el cobro real.
+            app(\App\Services\Finance\Invoice\InvoiceMirrorService::class)
+                ->mirrorPaid($invoice->id, $client->id, (float) $data['amount'], $payment->id);
             Log::info('SPEI: factura aplicada', [
                 'client_id'  => $client->id,
                 'invoice_id' => $invoice->id,

@@ -6,26 +6,26 @@
         <i class="fas fa-eye"></i>
     </a>
 
-    @can('inventory_supplier_vendors_edit_supplier_vendors')
-        <a class="me-2 uil-pen-modal" 
-           href="javascript:void(0);" 
-           id-item="{{ $id }}" 
+    @if(auth()->user() && auth()->user()->can('inventory_supplier_vendors_edit_supplier_vendors'))
+        <a class="me-2 uil-pen-modal"
+           href="javascript:void(0);"
+           id-item="{{ $id }}"
            supplier-id="{{ $supplier_id }}"
            toggle-modal="crud-supplier-vendor"
-           data-toggle="tooltip" 
+           data-toggle="tooltip"
            title="Editar Vendedor">
             <i class="far fa-edit"></i>
         </a>
-    @endcan
+    @endif
 
-    @can('inventory_supplier_vendors_delete_supplier_vendors')
-        <a href="javascript:void(0);" 
+    @if(auth()->user() && auth()->user()->can('inventory_supplier_vendors_delete_supplier_vendors'))
+        <a href="javascript:void(0);"
            class="btn-delete-supplier-vendor"
-           id-item="{{ $id }}" 
+           id-item="{{ $id }}"
            supplier-id="{{ $supplier_id }}"
-           data-toggle="tooltip" 
+           data-toggle="tooltip"
            title="Eliminar Vendedor">
             <i class="fas fa-trash text-danger"></i>
         </a>
-    @endcan
+    @endif
 </td>

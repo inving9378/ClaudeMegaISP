@@ -112,6 +112,13 @@ FLUJO (haz EXACTAMENTE esto para el item #__ITEM_ID__)
 3. Crea su rama:  php artisan circuito:rama __ITEM_ID__ --sid=__SID__
 4. Implementa el cambio (Edit/Write en tu worktree). Add SELECTIVO + commit por sub-paso, en español.
    Registra con `circuito:reportar --tipo=decision` cada decisión de criterio que hayas tomado sola.
+   AVISO TEMPRANO DE COLISIÓN (#914): después de CADA commit, corre
+     php artisan circuito:estado-item __ITEM_ID__ --sid=__SID__
+   Exit 0 = sigue libre, continúa. Exit 1 = otra terminal ya te ganó una colisión de archivos en
+   vuelo (candado #438): DETENTE ahí mismo — no sigas editando, no corras `circuito:integrar`, deja
+   lo ya commiteado tal cual (tu rama se reanuda sola cuando el ganador termine) y salta directo al
+   META (paso 7) con `ejecuto:false` y el resumen "pausado por colisión con #<id del ganador>". No
+   hace falta `circuito:reportar` para esto: el scheduler ya dejó la marca en el log del item.
 5. VERIFICA regresión (según lo que tocaste):
    - Frontend (.vue/.js/.css): compila con el SEMÁFORO, NO con npm directo:
        bash deploy/circuito/npm-build.sh

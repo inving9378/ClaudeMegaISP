@@ -57,6 +57,7 @@ class CompuertasService
             $this->cAuditor(),
             $this->cReservadosMuertos($so),
             $this->cCascadaErrores($so),
+            ...$this->cJarvisHallazgos(),
         ];
 
         // Punto 1 — por qué está gris cada control. Se resuelve en una sola pasada para
@@ -800,6 +801,70 @@ class CompuertasService
             clave: 'jarvis', nombre: 'Vigilancia de JARVIS', semaforo: 'verde',
             valor: "midió hace {$edad}s · {$alertas} alerta(s)", origen: 'so',
         );
+    }
+
+    /**
+     * HALLAZGOS DE JARVIS, UNO POR FILA (#707, sub-item de #208, parte 1/3).
+     *
+     * `cJarvis()` (arriba) es el interruptor de hombre muerto: dice SI el vigilante sigue vivo.
+     * Esta fila es la otra mitad que el item pedía: publicar, del mismo snapshot en archivo que
+     * escribe `circuito:jarvis-vigilar`, el motivo+acción de cada hallazgo ACTIVO — sin eso, el
+     * tablero sabía que Jarvis estaba vivo pero no qué había visto.
+     *
+     * Lee `JarvisVigilia::estado()['alertas']`, la MISMA lista que ya arma
+     * `JarvisVigilarCommand::alertas()` (disco, swap, log grande, vueltas colgadas, cola de
+     * workers, base caída, bd_integra, reclamos, git huérfano, gasto). No se recalcula nada aquí:
+     * este método solo traduce cada entrada a una fila del tablero.
+     *
+     * FAIL-CLOSED, igual que `cJarvis()`: sin latido reciente ningún hallazgo se puede afirmar
+     * como del presente, así que se colapsa a UNA fila roja en vez de mostrar datos viejos. Lee
+     * SIEMPRE de archivo — nunca de BD — para que esto también funcione con MySQL caído.
+     *
+     * @return array<int,Compuerta>
+     */
+    private function cJarvisHallazgos(): array
+    {
+        $edad   = JarvisVigilia::edadSeg();
+        $umbral = JarvisVigilia::umbralLatidoSeg();
+
+        if ($edad === null || $edad > $umbral) {
+            return [new Compuerta(
+                clave: 'jarvis_hallazgos', nombre: 'Hallazgos de JARVIS', semaforo: 'rojo',
+                valor: $edad === null ? 'sin latido: no hay hallazgos que mostrar' : "latido de hace {$edad}s (umbral {$umbral}s)",
+                origen: 'so',
+                porQue: 'Sin un latido reciente del vigilante, cualquier hallazgo que se mostrara podría no '
+                    . 'describir el presente. Ver la fila «Vigilancia de JARVIS» arriba.',
+            )];
+        }
+
+        $estado  = JarvisVigilia::estado();
+        $alertas = is_array($estado) ? ($estado['alertas'] ?? []) : [];
+
+        if ($alertas === []) {
+            return [new Compuerta(
+                clave: 'jarvis_hallazgos', nombre: 'Hallazgos de JARVIS', semaforo: 'verde',
+                valor: 'sin hallazgos activos', origen: 'so',
+            )];
+        }
+
+        $filas = [];
+        foreach ($alertas as $a) {
+            $clave = (string) ($a['clave'] ?? 'desconocido');
+            $nivel = (string) ($a['nivel'] ?? 'me_pregunta');
+
+            $filas[] = new Compuerta(
+                clave: 'jarvis_hallazgo_' . $clave,
+                nombre: 'JARVIS: ' . $clave,
+                // 'alarma' es el escalón más alto de `JarvisVigilarCommand::alertas()`; el resto
+                // ('actua_y_avisa', 'me_pregunta') pasa pero con advertencia, igual que cualquier
+                // otra fila ámbar del tablero.
+                semaforo: $nivel === 'alarma' ? 'rojo' : 'ambar',
+                valor: $nivel, origen: 'so',
+                porQue: (string) ($a['texto'] ?? ''),
+            );
+        }
+
+        return $filas;
     }
 
     /** 268.896 excepciones en dos días sin que nadie se enterara. */

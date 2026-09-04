@@ -45,7 +45,7 @@ class AuditorCommand extends Command
         $g = $auditor->debeCorrer((bool) $this->option('forzar'));
         $this->line('');
         $this->line('<options=bold>MOTOR DE AUDITORÍA CONTINUA (#559)</>');
-        $this->line(sprintf('  cola reclamable=%d  ·  umbral=%d  ·  terminales libres=%d  ·  racha seca=%d', $g['cola'], $g['umbral'], $g['slots_libres'], $g['racha_seca']));
+        $this->line(sprintf('  cola reclamable=%d  ·  umbral=%d  ·  terminales libres=%d  ·  racha seca=%d  ·  gasto apagado=%s', $g['cola'], $g['umbral'], $g['slots_libres'], $g['racha_seca'], $g['gasto_apagado'] ? 'sí' : 'no'));
         $this->line('  ' . $g['motivo']);
 
         if (! $g['corre']) {

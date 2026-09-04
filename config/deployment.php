@@ -144,6 +144,10 @@ return [
         'author_email' => env('GIT_AUTHOR_EMAIL', 'releases@meganet.com'),
     ],
 
+    // Passphrase de la llave SSH usada por el worker de deploy para git push/fetch.
+    // El secreto sigue viviendo únicamente en .env; esto solo mueve el punto de lectura.
+    'ssh_key_passphrase' => env('SSH_KEY_PASSPHRASE', ''),
+
     // Integración con GitHub API (para publicar releases y detectar actualizaciones)
     'github' => [
         'token' => env('GITHUB_TOKEN', ''),

@@ -33,6 +33,9 @@ class PendienteResolver extends BaseResolver
             'obligatorio'         => (bool) $concepto->obligatorio,
             'tiene_responsable'   => $pendiente?->responsable_user_id !== null,
             'fecha_compromiso'    => optional($pendiente?->fecha_compromiso)->toDateString(),
+            // Id del pendiente abierto (o null): así el frontend sabe si debe
+            // crear uno nuevo o editar el existente sin una consulta aparte.
+            'pendiente_id'        => $pendiente?->id,
         ];
 
         $mensaje = 'Sin fuente configurada. Este concepto todavía no lee de ningún módulo '

@@ -488,6 +488,30 @@ class JarvisService
     }
 
     /**
+     * #978 — Defecto 2 de #902 (FASE 4a). Antes los dos carriles («ya decidido» y mecánico) usaban
+     * el MISMO mensaje fijo cuando `TorreAutomationPolicy::estadoInicial()` devolvía
+     * `requiere_irving`, sin decir si la retención fue por una FRONTERA DURA real (dinero/seguridad/
+     * permisos/producción) o simplemente porque el `nivel_riesgo` del item excede el techo
+     * configurado de ese carril — dos causas muy distintas que en la bandeja de Irving se veían
+     * idénticas. Decisión de Irving (opción 1 del brief, `circuito:reportar --tipo=decision`):
+     * prefijo `[FRONTERA DURA]` / `[TECHO NIVEL X]` + razón corta, sin tocar veredicto ni política.
+     */
+    private function mensajeTechoOFrontera(RoadmapItem $item, string $actor, string $etiquetaCarril): string
+    {
+        $det = $this->fronteraDuraDeItemDetalle($item);
+
+        if ($det['categoria'] !== null) {
+            return "[FRONTERA DURA] La política de la Torre no autoriza este nivel por el carril «{$etiquetaCarril}»: "
+                . "retenido por frontera dura «{$det['categoria_detectada']}», término «{$det['termino']}» — {$det['motivo']}";
+        }
+
+        $techo = app(TorreAutomationPolicy::class)->nivelEfectivo($actor) ?? 'manual';
+
+        return "[TECHO NIVEL {$item->nivel_riesgo}] La política de la Torre no autoriza este nivel por el carril «{$etiquetaCarril}»: "
+            . "el item es {$item->nivel_riesgo}, el techo del carril es {$techo}.";
+    }
+
+    /**
      * #566 E2 — LA DECISIÓN YA ESTÁ TOMADA, el item sólo no avanzó.
      *
      * El autopilot audita 25 items de la bandeja y 11 salen con «no quedan preguntas sin responder
@@ -605,6 +629,21 @@ class JarvisService
                     . '(rama/opción/nivel/preguntas distintos) lo destraba.');
             }
         }
+        // #757 — un PARAGUAS con sub-items abiertos no está retenido por una decisión pendiente:
+        // puede tener el brief 100% contestado (a veces desde hace días, sin cambiar nunca) y aun
+        // así seguir sin poder avanzar porque sus hijos (`origen_item_id`) no cerraron. Sin este
+        // guard, `aprobarYaDecidido()` veía «brief contestado», reseteaba el master switch
+        // `excluir_pool_automatico`/`bloqueado_por_bucle` (pensado para soltar SOLO lo que esperaba
+        // una decisión) y lo devolvía al pool; un worker lo reclamaba, no encontraba nada reclamable
+        // en sus hijos (regla #341: un item = un dueño) y lo volvía a parquear a mano — bucle sin
+        // avance real (#722, 4 ocurrencias verificadas entre wt-2/wt-4/wt-6, ~10 min de worker cada
+        // vuelta). Misma condición estructural que ya usa el guard (2b) de `RoadmapItem::saving()`
+        // para impedir que un paraguas se cierre con hijos abiertos — aquí se aplica ANTES de tocar
+        // estado/flags, no sólo al momento de cerrar.
+        if ($item->tieneSubItemsAbiertos()) {
+            return $no('Paraguas con sub-items abiertos: lo retiene la descomposición pendiente de '
+                . 'cerrar, no una decisión sin tomar. Cierra solo cuando sus hijos cierren.');
+        }
         // MISMO texto que el carril mecánico (título + descripción + prompt): antes este carril
         // miraba sólo título+descripción y un término de frontera que viviera en el `prompt` se le
         // escapaba, así que dos carriles con la misma regla daban veredictos distintos.
@@ -707,7 +746,7 @@ class JarvisService
         // sub-techo nace en `C` justamente para no apagar ese comportamiento al construir el panel.
         $estado = app(TorreAutomationPolicy::class)->estadoInicial($item, 'jarvis.ya_decidido');
         if ($estado === 'requiere_irving') {
-            return $no('La política de la Torre no autoriza este nivel por el carril «ya decidido».');
+            return $no($this->mensajeTechoOFrontera($item, 'jarvis.ya_decidido', 'ya decidido'));
         }
 
         return [
@@ -812,7 +851,7 @@ class JarvisService
         $estado = app(TorreAutomationPolicy::class)->estadoInicial($item, 'jarvis.mecanico');
         if ($estado === 'requiere_irving') {
             return ['aprobado' => false, 'estado' => null,
-                'motivo' => 'La política de la Torre no autoriza este nivel por el carril mecánico.'];
+                'motivo' => $this->mensajeTechoOFrontera($item, 'jarvis.mecanico', 'mecánico')];
         }
 
         $log = $item->log ?: [];
@@ -959,6 +998,34 @@ class JarvisService
         if (! config('circuito.jarvis.automerge.enabled', true)) {
             return $no('El auto-merge está apagado (circuito.jarvis.automerge.enabled).');
         }
+
+        // #756 — GUARD nivel_riesgo=C / preguntas[].requiere_irving: `elegibleAutoMerge()` decidía
+        // mirando el diff (rutas sensibles, migraciones, frontera dura por texto) pero NUNCA estos
+        // dos campos, así que un item C o con una pregunta que se escaló a Irving podía marcarse
+        // "elegible" igual que uno A/B limpio (bypass real: #753 llegó a encolarse así). Empata con
+        // lo que `IntegrarItemCommand` ya asume por comentario propio ("nivel C: nunca auto-integra,
+        // solo Irving con botón/--force") y con CLAUDE.md #507 (lo escalado a Irving se queda en su
+        // bandeja). Va ANTES de `isPaused()`/diff para que sea incondicional — "SIEMPRE, sin
+        // importar qué tan limpio esté el diff" — y sin excepción por "ya la respondió": que una
+        // pregunta se haya marcado `requiere_irving=true` alguna vez es la señal de que ESE punto
+        // lo decidió (o lo decide) un humano, no el diff que sigue.
+        if ($item->nivel_riesgo === 'C') {
+            Log::channel('roadmap_externo')->info('jarvis-automerge-bloqueado', [
+                'item' => $item->id, 'motivo' => 'nivel_riesgo_c',
+            ]);
+
+            return $no('Nivel de riesgo C: lo mergea Irving (botón/--force), el auto-merge no decide sobre frontera dura.');
+        }
+        foreach ((array) $item->preguntas as $p) {
+            if (is_array($p) && filter_var($p['requiere_irving'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+                Log::channel('roadmap_externo')->info('jarvis-automerge-bloqueado', [
+                    'item' => $item->id, 'motivo' => 'pregunta_requiere_irving', 'pregunta' => $p['id'] ?? null,
+                ]);
+
+                return $no('Tiene una pregunta marcada requiere_irving: lo mergea Irving, no el auto-merge.');
+            }
+        }
+
         if ($this->circuito->isPaused()) {
             return $no('Circuito en pausa (kill switch): no se auto-mergea nada.');
         }
@@ -1018,6 +1085,21 @@ class JarvisService
                 if ($p !== '' && stripos($cuerpo, $p) !== false) {
                     return $no("Trae una migración con «{$p}»: no se deshace con git revert, lo revisa Irving.");
                 }
+            }
+        }
+
+        // #746 — APROBACIÓN FRESCA (#279 q1): si la rama recibió commits DESPUÉS de la última vez
+        // que el item se revisó/aprobó (`revisado_at`), esa aprobación ya no cubre lo que se va a
+        // mergear — el commit aprobado no es el mismo que el que se integraría. Sin `revisado_at`
+        // no hay «antes» contra qué comparar: no bloquea (no es este el guard que exige que el
+        // item esté revisado, otros checks de arriba ya lo cubren).
+        if ($item->revisado_at) {
+            $ultimoCommit = $this->circuito->fechaUltimoCommitDeRama((string) $item->branch);
+            if ($ultimoCommit === null) {
+                return $no('No se pudo leer la fecha del último commit de la rama: fail-closed, lo revisa Irving.');
+            }
+            if ($ultimoCommit->gt($item->revisado_at)) {
+                return $no('La rama recibió commits después de la última aprobación de Irving (revisado_at): no se auto-mergea sin que la vea de nuevo.');
             }
         }
 

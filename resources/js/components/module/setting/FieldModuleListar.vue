@@ -39,7 +39,7 @@
 
 <script>
 import Datatable from "../../base/shared/Datatable";
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted, getCurrentInstance } from "vue";
 import DatatableHelper from "../../../helpers/datatableHelper";
 import SelectModule from "./components/SelectModule.vue";
 import { resetDatatable } from "../../../helpers/filters";
@@ -62,6 +62,10 @@ export default {
         module: String,
     },
     setup(props) {
+        const ns = `.leak983-fieldModuleListar-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const title = ref("Crear");
         const datatable = reactive({
             table: new DatatableHelper({}),
@@ -77,7 +81,7 @@ export default {
 
         onMounted(() => {
             modal.value = new Modal("crudEditFieldModule");
-            $(document).on("click", ".uil-pen-modal", function () {
+            $(document).on("click" + ns, ".uil-pen-modal", function () {
                 let idItem = $(this).parent().attr("id-item");
                 let modal = $(this).parent().attr("toggle-modal");
                 showEditModal(idItem, modal);

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Addons\Roadmap\Models\CircuitoEjecucion;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Services\AutopilotService;
+use App\Modules\Addons\Roadmap\Services\FronterasService;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use App\Modules\Addons\Roadmap\Services\SessionTreeService;
 use App\Modules\Addons\Roadmap\Services\SupervisorService;
@@ -52,6 +53,12 @@ class RoadmapController extends Controller
         'estado_aprobacion', 'target_version', 'eta_minutos', 'eta_asignada_at',
         'automatizacion_override', 'subtasks', 'prompt', 'position', 'worker_sid', 'branch',
         'created_at', 'updated_at',
+        // #675 (Pieza 4) — el veredicto de la válvula de nacimiento (`mencion`/`accion`/null) ya se
+        // pintaba como badge en "Tu bandeja" (TorreControl.vue, desde el commit 96cf38f2) pero
+        // desaparecía al pasar el item a "Hoja de ruta": un item ejecutado vía válvula-mención se
+        // veía IGUAL que uno que nunca tocó la frontera. Columna varchar(16) indexada, no TEXT — no
+        // reintroduce el problema de sort-memory de #878 (prompt, mucho más pesado, ya está arriba).
+        'frontera_valvula',
     ];
 
     // #890 (Torre fase 6) — MISMA lista que `RoadmapItem::COLUMNAS_COMPACT` (la usa `$this->svc->
@@ -165,6 +172,10 @@ class RoadmapController extends Controller
             'auditor_activo'          => ['sometimes', 'boolean'],
             'auditor_max_por_corrida' => ['sometimes', 'integer', 'min:1', 'max:20'],
             'auditor_cooldown_min'    => ['sometimes', 'integer', 'min:5', 'max:1440'],
+            'auditor_slots_libres_min' => ['sometimes', 'integer', 'min:0', 'max:6'],
+            'auditor_gasto_reintento_min'    => ['sometimes', 'integer', 'min:5', 'max:240'],
+            'auditor_gasto_reintento_activo' => ['sometimes', 'boolean'],
+            'paralelo_mismo_modulo'   => ['sometimes', 'nullable', 'integer', 'min:1', 'max:6'],
         ]);
 
         $diff = app(\App\Modules\Addons\Roadmap\Services\TorreConfigService::class)
@@ -339,7 +350,7 @@ class RoadmapController extends Controller
         $log   = $item->log ?: [];
         $log[] = [
             'ts'         => now()->toIso8601String(),
-            'por'        => 'irving:' . (auth()->user()->login_user ?? auth()->id()),
+            'por'        => 'irving:' . (auth()->user()?->login_user ?? auth()->id()),
             'estado'     => $item->estado_aprobacion,
             'decision'   => 'override_automatizacion',
             'comentario' => "Automatización del item: {$previo} → {$data['override']}"
@@ -350,7 +361,7 @@ class RoadmapController extends Controller
 
         Log::channel('torre_config')->{$sube ? 'warning' : 'info'}('override-item', [
             'item' => $item->id, 'de' => $previo, 'a' => $data['override'],
-            'por'  => auth()->user()->login_user ?? auth()->id(),
+            'por'  => auth()->user()?->login_user ?? auth()->id(),
         ]);
 
         return response()->json(['ok' => true, 'override' => $item->automatizacion_override, 'subida' => $sube]);
@@ -481,6 +492,22 @@ class RoadmapController extends Controller
         $data = $request->validate(['comando' => ['required', 'string', 'max:80']]);
 
         return response()->json($this->svc->detalleFallo($data['comando']));
+    }
+
+    /**
+     * GET /api/roadmap/torre/frontera-dura (#766, Pieza 1c hija de #672) — la KPI card «Frontera
+     * dura» del dashboard: total de aperturas de la válvula + últimos 7 días + desglose por
+     * categoría + listado detallado (item/término/categoría/veredicto/razón/cuándo/ejecutado).
+     * Lee `torre_frontera_dura_eventos` (Pieza 1a, #764) vía {@see FronterasService::resumenTorreFronteraDura()}
+     * — solo lectura, mismo gate que el resto del panorama de la Torre.
+     */
+    public function torreFronteraDura(FronterasService $fronteras): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $data = Cache::remember('roadmap:torre:frontera-dura', 30, fn () => $fronteras->resumenTorreFronteraDura());
+
+        return response()->json(['ok' => true] + $data);
     }
 
     public function historialAcciones(Request $request): JsonResponse
@@ -1865,6 +1892,7 @@ class RoadmapController extends Controller
             'archivado'         => ! empty($i->archivado_at),
             'archivado_at'      => optional($i->archivado_at)->toIso8601String(),
             'archivado_por'     => $i->archivado_por,
+            'frontera_control'  => $this->fronteraControlBadge($i),   // #675 (Pieza 4 de #646): control verificado vs autodeclaración
             'modulo'            => $i->modulo,
             'modulo_url'        => $this->moduloUrl($i->modulo),   // "Ver más" → pantalla del módulo (fallback)
             'enlace_revision'   => $i->enlace_revision,            // #432 ADENDA B — deep-link REAL (preferente en "Ver")
@@ -1878,6 +1906,70 @@ class RoadmapController extends Controller
             // El TEXTO del diff ya no viaja aquí: lo sirve `integracionDiff()` cuando el visor lo
             // abre. `tiene_diff` es lo único que la lista necesita para decidir si ofrece el botón.
             'tiene_diff'        => $git['existe'] && ! empty($git['archivos']),
+        ];
+    }
+
+    /**
+     * #675 (Pieza 4 de #646) — LA TORRE DISTINGUE CONTROL VERIFICADO DE AUTODECLARACIÓN.
+     *
+     * `frontera_valvula` (columna ya sellada, hecho histórico) SOLO se llena al nacer el item si
+     * el detector determinista disparó (ver `store()`: se asigna únicamente dentro del `else` de
+     * `$frontera === null`). Cruzarlo con una RELECTURA en vivo del mismo detector
+     * (`JarvisService::fronteraDuraDeItemDetalle()`, la misma fuente que `categoriaFronteraDura()`,
+     * anclada a palabra, sin modelo) da las 3 combinaciones que pidió el item, más la anomalía de
+     * un disparo sin sello (item de antes de que la válvula existiera, o categoría hoy en «avisar»):
+     *
+     *   sin_frontera       → el detector no encuentra nada: no hubo nada que autodeclarar.
+     *   mencion            → SÍ disparó; la válvula (autodeclaración del modelo) lo dejó pasar/ablandó.
+     *   accion             → SÍ disparó; la válvula NO lo abrió — pasó por Irving, sin atajo del modelo.
+     *   avisar / disparo_sin_sello → dispara HOY pero el item no tiene veredicto de válvula guardado.
+     *
+     * Solo lectura: no cambia ningún flujo de decisión, es únicamente lo que la Torre muestra.
+     *
+     * @return array{estado:string, label:string, detalle:string}
+     */
+    private function fronteraControlBadge(RoadmapItem $i): array
+    {
+        $det = app(JarvisService::class)->fronteraDuraDeItemDetalle($i);
+
+        if ($det['categoria_detectada'] === null) {
+            return [
+                'estado'  => 'sin_frontera',
+                'label'   => 'Sin frontera',
+                'detalle' => 'El detector determinista (DetectorTerminos, sin modelo) no encuentra ningún término de frontera dura en este item: no hubo nada que autodeclarar.',
+            ];
+        }
+
+        $termino = $det['termino'] ? "«{$det['termino']}» ({$det['categoria_detectada']})" : $det['categoria_detectada'];
+
+        if ($i->frontera_valvula === 'mencion') {
+            return [
+                'estado'  => 'mencion',
+                'label'   => 'Disparó · autodeclaración',
+                'detalle' => "El detector determinista encontró {$termino}; la válvula de nacimiento lo leyó como MENCIÓN (el modelo se autodeclaró reversible) y lo dejó avanzar por el camino normal.",
+            ];
+        }
+
+        if ($i->frontera_valvula === 'accion') {
+            return [
+                'estado'  => 'accion',
+                'label'   => 'Disparó · control verificado',
+                'detalle' => "El detector determinista encontró {$termino}; la válvula confirmó que SÍ toca la frontera y lo retuvo — pasó por la decisión de Irving, sin atajo del modelo.",
+            ];
+        }
+
+        if ($det['efecto'] === 'avisar') {
+            return [
+                'estado'  => 'avisar',
+                'label'   => 'Disparó · solo avisar',
+                'detalle' => "El detector determinista encontró {$termino}, pero esa categoría está configurada en modo «solo avisar»: se registra y no retiene a nadie.",
+            ];
+        }
+
+        return [
+            'estado'  => 'disparo_sin_sello',
+            'label'   => 'Disparó · sin veredicto de válvula',
+            'detalle' => "El detector determinista encuentra {$termino} en una relectura actual, pero este item no tiene un veredicto de válvula guardado (nació antes de que existiera, o no llegó a evaluarse).",
         ];
     }
 
@@ -2042,6 +2134,70 @@ class RoadmapController extends Controller
         $item->save();
         Log::channel('roadmap_externo')->info('integracion-marcar-version', ['item' => $item->id, 'marcado' => $item->marcado_version, 'por' => $this->actor()]);
         return response()->json(['ok' => true, 'marcado_version' => $item->marcado_version]);
+    }
+
+    /**
+     * GET /api/roadmap/integracion/version-candidatos — #933 Fase 2: items integrados a main desde
+     * el último tag (candidatos a entrar en la próxima versión), con su estado de marcado.
+     */
+    public function integracionVersionCandidatos(): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+        $items = $this->svc->itemsCandidatosVersion()->map(fn (RoadmapItem $i) => [
+            'id' => $i->id,
+            'title' => $i->title,
+            'modulo' => $i->modulo,
+            'branch' => $i->branch,
+            'merge_commit' => $i->merge_commit,
+            'marcado_version' => (bool) $i->marcado_version,
+            'origen_item_id' => $i->origen_item_id,
+        ])->values();
+
+        return response()->json(['ok' => true, 'items' => $items]);
+    }
+
+    /**
+     * GET /api/roadmap/integracion/version-dependencias — #933 Fase 3: detector de dependencias/
+     * colisiones de lo marcado ahora mismo, ANTES de construir la rama de versión (Fase 4, no
+     * implementada aquí). Solo lectura.
+     */
+    public function integracionVersionDependencias(): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+
+        return response()->json(['ok' => true, 'violaciones' => $this->svc->detectarDependenciasVersion()]);
+    }
+
+    /**
+     * POST /api/roadmap/integracion/version-construir-rama — #966 Fase 4: construye la rama de
+     * release por cherry-pick de lo marcado (`marcado_version=true`). Operación AISLADA e invocada
+     * a demanda por Irving desde el modal de crear release; NO forma parte del pipeline de deploy
+     * automático. `ignorar_avisos=true` permite continuar aunque `detectarDependenciasVersion()`
+     * haya encontrado violaciones (bajo responsabilidad explícita de quien lo pide).
+     */
+    public function integracionVersionConstruirRama(Request $request): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+        $data = $request->validate([
+            'version'         => ['required', 'string', 'max:80'],
+            'nombre_rama'     => ['nullable', 'string', 'max:120'],
+            'ignorar_avisos'  => ['nullable', 'boolean'],
+        ]);
+
+        $version    = trim($data['version']);
+        $nombreRama = trim((string) ($data['nombre_rama'] ?? ''));
+        if ($nombreRama === '') {
+            $nombreRama = 'release/' . preg_replace('/[^A-Za-z0-9_.\-]/', '-', $version);
+        }
+
+        $resultado = $this->svc->construirRamaVersion($nombreRama, $version, (bool) ($data['ignorar_avisos'] ?? false));
+
+        Log::channel('roadmap_externo')->info('integracion-version-construir-rama', [
+            'rama' => $nombreRama, 'version' => $version, 'ok' => $resultado['ok'] ?? false,
+            'motivo' => $resultado['motivo'] ?? null, 'por' => $this->actor(),
+        ]);
+
+        return response()->json($resultado);
     }
 
     /** POST /api/roadmap/integracion/merge — Irving mergea la rama a dev (autoridad → --force). */

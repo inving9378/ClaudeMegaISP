@@ -120,10 +120,34 @@ registrar_pid(){  # $1 = item (puede venir vacío)
 
 borrar_pid(){ rm -f "$PIDFILE" 2>/dev/null || true; }
 
+# ── HISTÓRICO DE ARRANQUES DE claude -p (familia GASTO, #706 sub-item de #208) ──────────────
+# APPEND-ONLY, a propósito distinto de $PIDFILE de arriba: ese es estado VIVO (una fila por SID,
+# se borra al terminar por el trap EXIT); esto es HISTORIA (una línea por arranque, nunca se
+# borra ni se trunca aquí) — es lo único que le permite a la vigilia contar "invocaciones/hora"
+# más allá de la vuelta que está corriendo ahora mismo. JSONL para que el lector en PHP no tenga
+# que parsear texto libre.
+JARVIS_ARRANQUES="${CIRCUITO_JARVIS_ARRANQUES_LOG:-$(dirname "$JARVIS_PIDS")/arranques-claude.log}"
+registrar_arranque(){  # $1 = item (puede venir vacío)
+  mkdir -p "$(dirname "$JARVIS_ARRANQUES")" 2>/dev/null || return 0
+  printf '{"ts":%s,"sid":"%s","item":"%s","modelo":"%s"}\n' \
+    "$(date +%s)" "$SID" "${1:-}" "${MODEL:-}" >> "$JARVIS_ARRANQUES" 2>/dev/null || true
+}
+
 # El trap cubre timeout, kill y error: si la vuelta muere de cualquier forma, el registro no queda
 # mintiendo. Y si aun así quedara colgado, el propio vigilante lo detecta por `starttime` y lo
 # reporta como entrada colgada en vez de creerle.
-trap borrar_pid EXIT
+
+# #927 — RED DE ÚLTIMO RECURSO. El bloque de fin anormal de `ejecutar_una` cubre a `claude -p`
+# cuando devuelve, pero NO cubre que muera el script entero (SIGKILL del padre, OOM, kill switch a
+# media vuelta): ahí el item se queda `en_progreso` con el worker_sid pegado y nadie lo suelta.
+# Este trap sólo actúa si el item SIGUE reclamado por ESTE sid — si la vuelta cerró bien, o si ya
+# lo parqueó el bloque de arriba, no hace nada. Best-effort: nunca cambia el código de salida.
+soltar_claim_huerfano(){
+  [ -z "${ITEM:-}" ] && return 0
+  php artisan circuito:soltar-claim "$ITEM" --sid="$SID" >>"$LOG" 2>&1 || true
+}
+limpiar_al_salir(){ borrar_pid; soltar_claim_huerfano; }
+trap limpiar_al_salir EXIT
 
 # Registra la fila de ejecución (#319). Nunca tumba la vuelta si falla.
 registrar(){  # started finished modo pausado rc meta modelo
@@ -198,6 +222,7 @@ ejecutar_una() {
     PROMPT_TEXT="$(cat "$PROMPT_FILE")"
   fi
   registrar_pid "${ITEM:-}"
+  registrar_arranque "${ITEM:-}"
   log "===== inicio de la vuelta (claude -p) ====="
 
   local START FIN RC HB_PID META
@@ -234,9 +259,22 @@ ejecutar_una() {
   # Bonus que se conserva: su META quedó en blanco (no emitió CIRCUITO_META), así que el grep de
   # arriba arrastraría el META del item ANTERIOR del pool-continuo (mal-atribución real:
   # #224→#203); en timeout forzamos la atribución al item verdadero ($ITEM).
-  if [ "$RC" -eq 124 ] && [ -n "${ITEM:-}" ]; then
-    META="{\"items_tocados\":[$ITEM],\"n_propuestas\":0,\"n_decisiones\":0,\"ejecuto\":false,\"resumen\":\"Timeout ${TIMEOUT}s — ver circuito:parquear-timeout (reanudado si la rama tiene commits; a la bandeja si no).\"}"
-    php artisan circuito:parquear-timeout "$ITEM" --segundos="$TIMEOUT" >>"$LOG" 2>&1 || log "aviso: no pude parquear #$ITEM tras timeout."
+  # #927 — CIERRE POR RESULTADO, NO POR CAUSA. Antes esta rama sólo corría con RC=124 (timeout),
+  # así que una vuelta muerta por `Reached max turns` (RC=1) se iba de largo: el item se quedaba
+  # `en_progreso` con el worker_sid pegado, el worker seguía al siguiente item, y minutos después
+  # el reaper lo veía como «reclamo huérfano» — causa equivocada en el log y un slot comido.
+  # Medido el 2026-09-03: 4 claims huérfanos en un día (#842, #875, #871 x2, este último con
+  # reap_count=9 rebotando entre el reaper y jarvis-ya-decidido).
+  # La regla ahora es: la vuelta terminó MAL (RC != 0), sea cual sea el motivo → decide y suelta.
+  # Quien decide sigue siendo `circuito:parquear-timeout` (PHP, testeable); aquí sólo se le dice
+  # la causa real para que el motivo del log no mienta.
+  if [ "$RC" -ne 0 ] && [ -n "${ITEM:-}" ]; then
+    if [ "$RC" -eq 124 ]; then CAUSA="timeout"; DESC="Timeout ${TIMEOUT}s"
+    elif grep -aq 'Reached max turns' "$LOG"; then CAUSA="max_turns"; DESC="Agotó sus turnos (max-turns)"
+    else CAUSA="error"; DESC="Terminó con código $RC"; fi
+    META="{\"items_tocados\":[$ITEM],\"n_propuestas\":0,\"n_decisiones\":0,\"ejecuto\":false,\"resumen\":\"${DESC} — ver circuito:parquear-timeout (reanudado si la rama tiene commits; a la bandeja si no).\"}"
+    php artisan circuito:parquear-timeout "$ITEM" --segundos="$TIMEOUT" --causa="$CAUSA" >>"$LOG" 2>&1 \
+      || log "aviso: no pude parquear #$ITEM tras fin anormal (causa=$CAUSA)."
   fi
 
   registrar "$START" "$FIN" "${MODO:-aviso_previo}" "0" "$RC" "$META" "$MODEL"

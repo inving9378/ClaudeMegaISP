@@ -39,9 +39,14 @@
 <script setup>
 import InformationCrmCrud from "./InformationCrmCrud";
 import DocumentCrmCrud from "./document/DocumentCrmCrud";
-import { onBeforeMount, onMounted, ref } from "vue";
+import { onBeforeMount, onMounted, ref, onUnmounted, getCurrentInstance } from "vue";
 import { editModal, showEditModal } from "../../../hook/modalHook";
 import { useTabs } from "../../../composables/useTabs";
+
+const ns = `.leak983-crmCrud-${getCurrentInstance().uid}`;
+onUnmounted(() => {
+    $(document).off(ns);
+});
 
 const props = defineProps({
     id: {
@@ -64,7 +69,7 @@ onBeforeMount(() => {
 });
 
 onMounted(() => {
-    $(document).on("click", ".uil-pen-modal", function () {
+    $(document).on("click" + ns, ".uil-pen-modal", function () {
         let idItem = $(this).parent().attr("id-item");
         let modal = $(this).parent().attr("toggle-modal");
         showEditModal(idItem, modal);

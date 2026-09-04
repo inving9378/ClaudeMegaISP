@@ -25,7 +25,12 @@ class BitacoraService
         return $this->registrar(DcAccesoLog::ACCION_VER, $empresaId, $apartadoId, $conceptoId, null, $contexto);
     }
 
-    public function descargar(int $empresaId, int $documentoId, ?int $conceptoId = null, array $contexto = []): DcAccesoLog
+    /**
+     * `$documentoId` es nullable (la columna `dc_accesos_log.documento_id` ya lo es):
+     * una descarga puede no referenciar un `DcDocumento` — p.ej. el ZIP/acta de una
+     * `DcEntrega` (item roadmap #812), que se identifica vía `$contexto['entrega_id']`.
+     */
+    public function descargar(int $empresaId, ?int $documentoId, ?int $conceptoId = null, array $contexto = []): DcAccesoLog
     {
         return $this->registrar(DcAccesoLog::ACCION_DESCARGAR, $empresaId, null, $conceptoId, $documentoId, $contexto);
     }

@@ -2,6 +2,9 @@
 
 namespace App\Modules\Addons\Roadmap\Console;
 
+use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
+use App\Modules\Addons\Roadmap\Support\AlertaExterna;
 use App\Modules\Addons\Roadmap\Support\FrenoCircuito;
 use App\Modules\Addons\Roadmap\Support\GraciaDeArranque;
 use App\Modules\Addons\Roadmap\Support\RegistroPids;
@@ -40,6 +43,22 @@ class JarvisVigilarCommand extends Command
 
     protected $description = 'Vigilia de Jarvis: mide disco, memoria, logs, procesos y registro SIN depender de la base.';
 
+    /**
+     * TABLAS CLAVE DEL CIRCUITO (item #775, fase 5 de #705/#228) — lista fija verificada por
+     * NOMBRE, no por conteo. medirBdIntegra() ve el esquema completo (cientos de tablas): si sólo
+     * se caen estas 4, el porcentaje nunca cruza ni el umbral de alerta. Los 4 nombres vienen de
+     * sus migraciones (`create_roadmap_items_table`, `create_roadmap_item_reports_table`,
+     * `create_roadmap_item_memory_table`, `create_circuito_motor_pulsos_table`): las 2 primeras
+     * son el mínimo indiscutible que nombra el item; las otras 2 son igual de críticas para el
+     * propio circuito (memoria de items y pulsos del motor) y entran también.
+     */
+    private const TABLAS_CLAVE_CIRCUITO = [
+        'roadmap_items',
+        'roadmap_item_reports',
+        'roadmap_item_memory',
+        'circuito_motor_pulsos',
+    ];
+
     public function handle(): int
     {
         if (! config('circuito.jarvis.vigilia.enabled', true)) {
@@ -61,9 +80,12 @@ class JarvisVigilarCommand extends Command
             'carga'     => $this->medirCarga(),
             'logs'      => $this->medirLogs(),
             'procesos'  => $this->medirProcesos($ps),
+            'cola_workers' => $this->medirColaWorkers($ps),
             'registro'  => $this->medirRegistro(),
             'freno'     => $this->medirFreno(),
             'sonda'     => $this->medirSonda(),
+            'git'       => $this->medirGit(),
+            'gasto'     => $this->medirGasto(),
         ];
 
         $estado['bd_integra'] = $this->medirBdIntegra($anterior);
@@ -81,7 +103,21 @@ class JarvisVigilarCommand extends Command
             }
         }
 
+        // CHEQUEO PUNTUAL (item #775, hermano de bd_integra) — ausencia de una tabla nombrada es
+        // síntoma suficiente por sí solo, sin esperar caída porcentual. Mismo orden freno→aviso.
+        $estado['tablas_clave'] = $this->medirTablasClaveCircuito($estado['bd_integra']);
+        if (! $this->option('seco') && $estado['tablas_clave']['escalon'] === 'critico' && ! FrenoCircuito::activo()) {
+            try {
+                FrenoCircuito::poner($this->motivoTablasClaveCircuito($estado['tablas_clave']), 'jarvis:tablas_clave');
+            } catch (\Throwable $e) {
+                FrenoCircuito::registrarFallo('jarvis:tablas_clave', $e);
+            }
+        }
+
         $estado['base'] = $this->medirBase($estado);
+        $estado['reclamos'] = $this->medirReclamos();
+        $estado['jobs_varados'] = $this->medirJobsVarados();
+        $estado['cola_falso_verde'] = $this->medirColaFalsoVerde($anterior);
         $estado['modo'] = $estado['base']['responde'] ? 'completo' : 'minimo';
         $estado['alertas'] = $this->alertas($estado);
 
@@ -94,6 +130,16 @@ class JarvisVigilarCommand extends Command
                 $this->error('No se pudo guardar la vigilia: ' . $e->getMessage());
 
                 return self::FAILURE;
+            }
+
+            // CANAL DE ALERTA FUERA DE LA TORRE (#707, sub-item de #208, parte 3/3). Aparte del
+            // guardado del latido/estado: si el aviso falla, la vigilia YA quedó registrada en
+            // archivo. `--seco` nunca dispara esto (es justo su propósito: inspeccionar sin
+            // efectos secundarios). Apagado por default — ver `AlertaExterna`.
+            try {
+                AlertaExterna::avisar($estado['alertas']);
+            } catch (\Throwable $e) {
+                $this->warn('No se pudo avisar por el canal externo: ' . $e->getMessage());
             }
         }
 
@@ -172,31 +218,44 @@ class JarvisVigilarCommand extends Command
         return ['1min' => (float) ($c[0] ?? 0), '5min' => (float) ($c[1] ?? 0), '15min' => (float) ($c[2] ?? 0)];
     }
 
-    /** LOS SIETE `laravel.log`, no uno. Ver la nota de cabecera. */
+    /**
+     * LOS SIETE `laravel.log`, no uno. Ver la nota de cabecera.
+     *
+     * El #175 cambió el canal 'stack' de single a daily: nadie escribe ya a `laravel.log` a
+     * secas (queda CONGELADO desde el cambio), el archivo real es `laravel-{fecha}.log` rotado
+     * a diario. Mismo incidente que #176 arregló en `CompuertasSondaCommand`, aquí en el hermano
+     * de la vigilia: se busca `laravel-*.log` por worktree y se toma el MÁS GRANDE de cada uno
+     * como representante (el que dispararía 'log_grande' si alguno lo hace), preservando la
+     * semántica de una entrada por worktree que ya usaba este método.
+     */
     private function medirLogs(): array
     {
-        $rutas = [];
+        $mayores = []; // etiqueta => ['ruta' => string, 'bytes' => int]
+
         $principal = (string) config('circuito.jarvis.vigilia.log_principal');
         if ($principal !== '') {
-            $rutas['principal'] = $principal;
+            foreach (glob(dirname($principal) . '/laravel-*.log') ?: [] as $r) {
+                $this->quedateConElMayor($mayores, 'principal', $r);
+            }
         }
+
         $raiz = rtrim((string) config('circuito.jarvis.vigilia.raiz_worktrees'), '/');
-        foreach (glob($raiz . '/*/storage/logs/laravel.log') ?: [] as $r) {
-            $rutas[basename(dirname($r, 3))] = $r;   // .../wt-2/storage/logs/laravel.log → wt-2
+        foreach (glob($raiz . '/*/storage/logs/laravel-*.log') ?: [] as $r) {
+            // .../wt-2/storage/logs/laravel-2026-08-28.log → wt-2
+            $this->quedateConElMayor($mayores, basename(dirname($r, 3)), $r);
         }
 
         $archivos = [];
         $total = 0;
-        foreach ($rutas as $etiqueta => $ruta) {
-            clearstatcache(true, $ruta);
-            $b = is_readable($ruta) ? (int) @filesize($ruta) : 0;
-            $total += $b;
+        foreach ($mayores as $etiqueta => $info) {
+            $total += $info['bytes'];
             $archivos[] = [
                 'donde'    => $etiqueta,
-                'ruta'     => $ruta,
-                'bytes'    => $b,
-                'legible'  => $this->humano($b),
-                'mtime'    => is_readable($ruta) ? date('c', (int) @filemtime($ruta)) : null,
+                'ruta'     => $info['ruta'],
+                'bytes'    => $info['bytes'],
+                'legible'  => $this->humano($info['bytes']),
+                'mtime'    => is_readable($info['ruta']) ? date('c', (int) @filemtime($info['ruta'])) : null,
+                'errores_ult_min' => $this->erroresUltimoMinuto($info['ruta']),
             ];
         }
         usort($archivos, fn ($a, $b) => $b['bytes'] <=> $a['bytes']);
@@ -208,6 +267,34 @@ class JarvisVigilarCommand extends Command
             'mayor'        => $archivos[0] ?? null,
             'archivos'     => $archivos,
         ];
+    }
+
+    /** Dentro de un mismo worktree/checkout, conserva solo el `laravel-*.log` más grande como representante. */
+    private function quedateConElMayor(array &$mayores, string $etiqueta, string $ruta): void
+    {
+        clearstatcache(true, $ruta);
+        $bytes = is_readable($ruta) ? (int) @filesize($ruta) : 0;
+        if (! isset($mayores[$etiqueta]) || $bytes > $mayores[$etiqueta]['bytes']) {
+            $mayores[$etiqueta] = ['ruta' => $ruta, 'bytes' => $bytes];
+        }
+    }
+
+    /**
+     * Líneas de nivel ERROR/CRITICAL/ALERT/EMERGENCY en el último minuto de UN log — mismo
+     * regex que `CompuertasSondaCommand::medirLogs()` ya prueba en producción, aquí aplicado
+     * por worktree (#774, fase 4 de #705) en vez de solo al log principal. `tail -c` para no
+     * leer archivos de gigabytes completos; `sh()` ya es tolerante a fallo (null, no excepción).
+     */
+    private function erroresUltimoMinuto(string $ruta): int
+    {
+        if (! is_readable($ruta)) {
+            return 0;
+        }
+
+        return (int) trim((string) $this->sh(
+            'tail -c 2000000 ' . escapeshellarg($ruta) . ' 2>/dev/null | grep -cE '
+            . escapeshellarg('^\[' . now()->format('Y-m-d H:i') . '[^]]*\]\s+\S+\.(ERROR|CRITICAL|ALERT|EMERGENCY):')
+        ));
     }
 
     // ── PROCESOS ────────────────────────────────────────────────────────────────────────────
@@ -270,6 +357,25 @@ class JarvisVigilarCommand extends Command
         ];
     }
 
+    /**
+     * #641 — workers de `queue:work` caídos y nadie se entera hasta que alguien mira la Torre.
+     * El indicador PASIVO ya existe ahí (`EnvironmentHealthService::queueWorkers()`, #884); esto
+     * es el ACTIVO: corre cada minuto por cron sin depender de que alguien abra el panel. Mismo
+     * umbral (`torre_salud.umbrales.queue_workers.minimo_esperado`) para no tener dos números de
+     * verdad — y se cuenta sobre el `$ps` ya capturado por `psCrudo()`, sin otro `ps` aparte.
+     */
+    private function medirColaWorkers(array $ps): array
+    {
+        $minimo = (int) config('torre_salud.umbrales.queue_workers.minimo_esperado', 1);
+        $cantidad = count(array_filter($ps, fn ($p) => str_contains($p['cmd'], 'artisan queue:work')));
+
+        return [
+            'cantidad' => $cantidad,
+            'esperado' => $minimo,
+            'estado'   => $cantidad >= $minimo ? 'verde' : 'rojo',
+        ];
+    }
+
     private function medirRegistro(): array
     {
         $todos = RegistroPids::todos();
@@ -296,18 +402,142 @@ class JarvisVigilarCommand extends Command
         ];
     }
 
+    /**
+     * Fase 3 (#773, "opción B liviana"): además de la frescura de siempre, lee el campo
+     * `workers.discrepancias` que ahora escribe `CompuertasSondaCommand::medirWorkers()` — la
+     * correlación por PID ya la hizo la sonda, aquí solo se traduce a alerta si el dato no está
+     * viejo (ver `alertas()`).
+     */
     private function medirSonda(): array
     {
         $ruta = '/var/www/megaisp/storage/app/' . CompuertasSondaCommand::SNAPSHOT;
         clearstatcache(true, $ruta);
         if (! is_readable($ruta)) {
-            return ['disponible' => false, 'edad_seg' => null];
+            return ['disponible' => false, 'edad_seg' => null, 'discrepancias' => []];
         }
         $j = json_decode((string) @file_get_contents($ruta), true);
 
         return [
-            'disponible' => is_array($j),
-            'edad_seg'   => is_array($j) ? max(0, time() - (int) ($j['medido_ts'] ?? 0)) : null,
+            'disponible'    => is_array($j),
+            'edad_seg'      => is_array($j) ? max(0, time() - (int) ($j['medido_ts'] ?? 0)) : null,
+            'discrepancias' => is_array($j) ? (array) ($j['workers']['discrepancias'] ?? []) : [],
+        ];
+    }
+
+    /**
+     * FAMILIA "GIT" (#706, sub-item de #208) — ningún worktree del circuito debe quedar con HEAD
+     * desatado apuntando a un commit que NINGUNA rama referencia. El flujo sano deja cada
+     * worktree detached-en-main un instante (`vuelta.sh`: `checkout --detach -f main`) hasta que
+     * `circuito:rama` lo ata a `circuito/item-N-...`; en ese estado `git for-each-ref --contains`
+     * siempre devuelve al menos `main`. La anomalía es un COMMIT hecho mientras seguía desatado
+     * (nadie corrió `circuito:rama` antes de commitear): ese commit no es ancestro de ninguna
+     * rama, y el SIGUIENTE `checkout --detach -f main` de otra vuelta en ese mismo worktree lo
+     * deja inalcanzable. Caso real: #191 Fase 3, 25-ago 15:38:45, el pool continuo abandonó el
+     * worktree 32 s después; se rescató a mano en `rescate/bitacora-item-191`.
+     *
+     * Filesystem + subprocesos `git` sobre CADA worktree — sin BD, puede correr con la base caída.
+     */
+    private function medirGit(): array
+    {
+        $raiz = rtrim((string) config('circuito.jarvis.vigilia.raiz_worktrees'), '/');
+        $graciaSeg = max(0, (int) config('circuito.jarvis.vigilia.git_huerfano_gracia_seg', 20));
+
+        $huerfanos = [];
+        $evaluados = 0;
+
+        foreach (glob($raiz . '/wt-*', GLOB_ONLYDIR) ?: [] as $wt) {
+            if (! file_exists($wt . '/.git')) {
+                continue; // no es un worktree git (o está a medio provisionar)
+            }
+            $evaluados++;
+
+            $rama = $this->sh('git -C ' . escapeshellarg($wt) . ' symbolic-ref -q --short HEAD 2>/dev/null');
+            if ($rama !== null && trim($rama) !== '') {
+                continue; // atado a una rama: el estado sano de "trabajando" (circuito:rama ya corrió)
+            }
+
+            $sha = trim((string) $this->sh('git -C ' . escapeshellarg($wt) . ' rev-parse HEAD 2>/dev/null'));
+            if ($sha === '') {
+                continue; // worktree sin commits o ilegible; nada que evaluar
+            }
+
+            // `for-each-ref --contains`, NUNCA `branch --contains`: en detached HEAD, `branch
+            // --contains` imprime el pseudo-renglón "* (HEAD desacoplado en ...)" incluso cuando
+            // NINGUNA rama real contiene el commit — con eso el trim() de abajo saldría no-vacío
+            // y el huérfano real pasaría desapercibido. `for-each-ref` solo lista refs de verdad.
+            $ramas = $this->sh('git -C ' . escapeshellarg($wt) . ' for-each-ref --contains ' . escapeshellarg($sha) . " --format='%(refname)' refs/heads/ 2>/dev/null");
+            if (trim((string) $ramas) !== '') {
+                continue; // alguna rama (main u otra) contiene este commit: detached-en-main normal
+            }
+
+            $tsRaw = trim((string) $this->sh('git -C ' . escapeshellarg($wt) . ' log -1 --format=%ct ' . escapeshellarg($sha) . ' 2>/dev/null'));
+            $edadSeg = ctype_digit($tsRaw) ? max(0, time() - (int) $tsRaw) : null;
+
+            if ($edadSeg !== null && $edadSeg < $graciaSeg) {
+                continue; // recién commiteado: se le da la gracia a que `circuito:rama` lo ate
+            }
+
+            $huerfanos[] = [
+                'worktree'  => basename($wt),
+                'sha'       => $sha,
+                'sha_corto' => substr($sha, 0, 12),
+                'edad_seg'  => $edadSeg,
+            ];
+        }
+
+        return [
+            'evaluados'  => $evaluados,
+            'gracia_seg' => $graciaSeg,
+            'huerfanos'  => $huerfanos,
+        ];
+    }
+
+    /**
+     * FAMILIA "GASTO" (#706, sub-item de #208) — invocaciones de `claude -p` en la última hora
+     * contra un umbral configurable. Fuente: `arranques-claude.log`, el histórico JSONL
+     * append-only que escribe `vuelta.sh` en cada arranque (distinto del registro de PIDs VIVOS
+     * de `RegistroPids`, que el `trap EXIT` de la vuelta borra al terminar).
+     */
+    private function medirGasto(): array
+    {
+        $ruta = (string) config('circuito.jarvis.vigilia.gasto_arranques_log');
+        $umbral = max(1, (int) config('circuito.jarvis.vigilia.gasto_umbral_hora', 60));
+
+        clearstatcache(true, $ruta);
+        if ($ruta === '' || ! is_readable($ruta)) {
+            return ['medido' => false, 'ruta' => $ruta, 'umbral_hora' => $umbral, 'invocaciones_hora' => 0];
+        }
+
+        $fh = @fopen($ruta, 'r');
+        if ($fh === false) {
+            return ['medido' => false, 'ruta' => $ruta, 'umbral_hora' => $umbral, 'invocaciones_hora' => 0];
+        }
+
+        $desde = time() - 3600;
+        $conteo = 0;
+        $ultimoTs = null;
+
+        while (($linea = fgets($fh)) !== false) {
+            $j = json_decode(trim($linea), true);
+            $ts = is_array($j) ? (int) ($j['ts'] ?? 0) : 0;
+            if ($ts <= 0) {
+                continue;
+            }
+            if ($ultimoTs === null || $ts > $ultimoTs) {
+                $ultimoTs = $ts;
+            }
+            if ($ts >= $desde) {
+                $conteo++;
+            }
+        }
+        fclose($fh);
+
+        return [
+            'medido'             => true,
+            'ruta'               => $ruta,
+            'umbral_hora'        => $umbral,
+            'invocaciones_hora'  => $conteo,
+            'ultimo_arranque_ts' => $ultimoTs,
         ];
     }
 
@@ -404,6 +634,59 @@ class JarvisVigilarCommand extends Command
     }
 
     /**
+     * CHEQUEO tablas_clave (item #775, fase 5 de #705) — hermano de medirBdIntegra(): en vez de
+     * comparar un conteo total contra un porcentaje, verifica por NOMBRE que las tablas de
+     * self::TABLAS_CLAVE_CIRCUITO sigan existiendo. Cualquier ausencia es escalón crítico
+     * inmediato, sin necesidad de caída porcentual — la ausencia misma es el síntoma.
+     *
+     * Solo corre la consulta si `$bdIntegra['medido']` ya probó que la base responde: si la
+     * conexión falló, medirBdIntegra() ya decidió escalón/freno/gracia-de-arranque para ese caso,
+     * y repetir aquí la misma consulta fallida sería ruido, no una señal nueva.
+     */
+    private function medirTablasClaveCircuito(array $bdIntegra): array
+    {
+        if (($bdIntegra['medido'] ?? false) !== true) {
+            return [
+                'medido' => false, 'escalon' => 'no_aplica', 'faltantes' => [],
+                'esperadas' => self::TABLAS_CLAVE_CIRCUITO, 'error' => null,
+            ];
+        }
+
+        try {
+            $esquema = (string) config('database.connections.mysql.database');
+            $placeholders = implode(',', array_fill(0, count(self::TABLAS_CLAVE_CIRCUITO), '?'));
+            $filas = DB::select(
+                "SELECT table_name AS nombre FROM information_schema.tables "
+                    . "WHERE table_schema = ? AND table_name IN ({$placeholders})",
+                array_merge([$esquema], self::TABLAS_CLAVE_CIRCUITO)
+            );
+            $presentes = array_map(fn ($f) => $f->nombre, $filas);
+        } catch (\Throwable $e) {
+            return [
+                'medido' => false, 'escalon' => 'critico', 'faltantes' => self::TABLAS_CLAVE_CIRCUITO,
+                'esperadas' => self::TABLAS_CLAVE_CIRCUITO, 'error' => substr($e->getMessage(), 0, 200),
+            ];
+        }
+
+        $faltantes = array_values(array_diff(self::TABLAS_CLAVE_CIRCUITO, $presentes));
+
+        return [
+            'medido' => true,
+            'escalon' => count($faltantes) > 0 ? 'critico' : 'ok',
+            'faltantes' => $faltantes,
+            'esperadas' => self::TABLAS_CLAVE_CIRCUITO,
+            'error' => null,
+        ];
+    }
+
+    private function motivoTablasClaveCircuito(array $t): string
+    {
+        $lista = implode(', ', $t['faltantes']);
+
+        return "Freno automático (item #775): falta(n) tabla(s) clave del circuito: {$lista}.";
+    }
+
+    /**
      * Lo único que necesita MySQL, y por eso va al final y entre try/catch. Si no responde, se
      * dice —no se omite ni se rellena con ceros, que es como un panel en ceros se vuelve
      * indistinguible de un sistema sano (la lección del 1038 en `roadmap_items`).
@@ -424,6 +707,218 @@ class JarvisVigilarCommand extends Command
                 'error'    => substr($e->getMessage(), 0, 200),
             ];
         }
+    }
+
+    /**
+     * FAMILIA "RECLAMOS" (#704, sub-item de #208) — invariantes sobre el reclamo de items
+     * `en_progreso`:
+     *   1) `claimed_at` renovándose mientras `updated_at` no avanza — el heartbeat de
+     *      `RoadmapCircuitoService::renovarLease()` escribe con un UPDATE crudo que a propósito
+     *      NO toca `updated_at` (ver su docblock), así que un worker vivo-pero-atascado puede
+     *      mantener el lease caliente sin producir ningún avance real. `circuito:reap-stuck`
+     *      exige AMBAS señales frías para liberar → mientras el heartbeat siga, ese reaper no lo
+     *      ve (caso real: #191 Fase 3, 25-ago, claimed_at renovado 15:39-15:47 con updated_at
+     *      congelado en 15:36:34).
+     *   2) `en_progreso` sin `worker_sid` — reclamo sin dueño identificable (caso real:
+     *      #81/#109/#126 desde el 24-ago).
+     *   3) `en_progreso` con `worker_sid` pero sin proceso vivo que lo respalde — se cruza contra
+     *      `RegistroPids` (identidad por PID+starttime, #334 A). Solo aplica a sids con forma
+     *      `wt-K`: sesiones legacy sin slot ('main'/'wt-exec') nunca tienen registro de PID, y
+     *      es el mismo criterio que ya usa `RoadmapCircuitoService::normalizaSid()`.
+     *
+     * Al revés que el resto de la vigilia, esta familia SÍ necesita `roadmap_items` en base. Va
+     * en su propio try/catch: si la base no responde, se marca `medido=false` aquí y las demás
+     * mediciones (disco/memoria/procesos/registro/freno) siguen intactas — el mismo principio que
+     * ya aplica `medirBase()` para el bloque `base`. NO corrige nada, solo detecta.
+     */
+    private function medirReclamos(): array
+    {
+        $umbralGap = max(60, (int) config('circuito.jarvis.vigilia.reclamos_claimed_sin_avance_umbral_seg', 300));
+        $graciaSeg = max(30, (int) config('circuito.jarvis.vigilia.reclamos_gracia_seg', 180));
+
+        try {
+            $items = RoadmapItem::query()
+                ->where('estado_aprobacion', 'en_progreso')
+                ->where('en_desarrollo_humano', false)
+                ->get(['id', 'worker_sid', 'claimed_at', 'updated_at']);
+        } catch (\Throwable $e) {
+            return [
+                'medido' => false,
+                'error'  => substr($e->getMessage(), 0, 200),
+                'umbral_claimed_sin_avance_seg' => $umbralGap,
+                'gracia_seg' => $graciaSeg,
+            ];
+        }
+
+        $sinWorkerSid = [];
+        $claimedSinAvance = [];
+        $candidatosProceso = [];
+
+        foreach ($items as $it) {
+            if (empty($it->worker_sid)) {
+                $sinWorkerSid[] = [
+                    'id'         => (int) $it->id,
+                    'updated_at' => optional($it->updated_at)->toIso8601String(),
+                ];
+                continue;
+            }
+
+            if ($it->claimed_at !== null && $it->updated_at !== null) {
+                $gap = $it->claimed_at->gt($it->updated_at) ? $it->claimed_at->diffInSeconds($it->updated_at) : 0;
+                if ($gap > $umbralGap) {
+                    $claimedSinAvance[] = [
+                        'id'         => (int) $it->id,
+                        'worker_sid' => $it->worker_sid,
+                        'claimed_at' => $it->claimed_at->toIso8601String(),
+                        'updated_at' => $it->updated_at->toIso8601String(),
+                        'gap_seg'    => $gap,
+                    ];
+                }
+
+                if (preg_match('/^wt-\d+$/', $it->worker_sid) && $it->claimed_at->lt(now()->subSeconds($graciaSeg))) {
+                    $candidatosProceso[] = $it;
+                }
+            }
+        }
+
+        $vivosPorSid = [];
+        foreach (RegistroPids::todos() as $e) {
+            if ($e['vivo']) {
+                $vivosPorSid[$e['sid']] = true;
+            }
+        }
+
+        $sinProcesoVivo = [];
+        foreach ($candidatosProceso as $it) {
+            if (empty($vivosPorSid[$it->worker_sid])) {
+                $sinProcesoVivo[] = [
+                    'id'         => (int) $it->id,
+                    'worker_sid' => $it->worker_sid,
+                    'claimed_at' => $it->claimed_at->toIso8601String(),
+                ];
+            }
+        }
+
+        return [
+            'medido' => true,
+            'error'  => null,
+            'umbral_claimed_sin_avance_seg' => $umbralGap,
+            'gracia_seg' => $graciaSeg,
+            'en_progreso_evaluados' => $items->count(),
+            'sin_worker_sid'        => $sinWorkerSid,
+            'claimed_sin_avance'    => $claimedSinAvance,
+            'sin_proceso_vivo'      => $sinProcesoVivo,
+        ];
+    }
+
+    /**
+     * FAMILIA "COLA: JOBS VARADOS" (#772, fase 2 de #705) — filas de `jobs` con `created_at`
+     * más viejo que el umbral configurable Y `reserved_at` NULL: nunca fueron tomadas por ningún
+     * worker. Se cruza en `alertas()` con `medirColaWorkers()` (ya calculado sobre el mismo `$ps`
+     * de `psCrudo()`, sin correr otro `ps` aparte): 0 workers vivos explica por qué nadie las
+     * toma; con workers vivos y aun así varadas podría ser lentitud normal de cola, NO lo mismo.
+     * Caso medido: 9 varados desde el 24-ago con 0 de 3 workers vivos, efecto colateral ningún
+     * item recibía `nivel_riesgo` (vía `ClasificarRiesgoJob`, que despacha por esa misma cola).
+     *
+     * NO corrige nada (no reintenta, no libera, no mata). La tabla `jobs` guarda `created_at` y
+     * `reserved_at` como enteros unix (no datetime) — se compara directo contra `time()`. Va en
+     * su PROPIO try/catch: aunque comparte conexión con `roadmap_items` (`medirReclamos()`), es
+     * una medición independiente y un fallo aquí no debe tumbar esa ni viceversa.
+     */
+    private function medirJobsVarados(): array
+    {
+        $umbral = max(1, (int) config('circuito.jarvis.vigilia.jobs_varados_umbral_seg', 600));
+        $corte = time() - $umbral;
+
+        try {
+            $varados = DB::table('jobs')
+                ->whereNull('reserved_at')
+                ->where('created_at', '<', $corte)
+                ->get(['id', 'queue', 'attempts', 'created_at']);
+
+            return [
+                'medido'     => true,
+                'error'      => null,
+                'umbral_seg' => $umbral,
+                'cantidad'   => $varados->count(),
+                'detalle'    => $varados->map(fn ($j) => [
+                    'id'       => (int) $j->id,
+                    'queue'    => $j->queue,
+                    'attempts' => (int) $j->attempts,
+                    'edad_seg' => max(0, time() - (int) $j->created_at),
+                ])->all(),
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'medido'     => false,
+                'error'      => substr($e->getMessage(), 0, 200),
+                'umbral_seg' => $umbral,
+                'cantidad'   => 0,
+                'detalle'    => [],
+            ];
+        }
+    }
+
+    /**
+     * FAMILIA "COLA: FALSO VERDE" (item #771, fase 1 de #705) — `RoadmapItem::despachable()`
+     * dice que hay trabajo listo para tomar (>0) pero `RoadmapCircuitoService::ejecutablesParalelo()`
+     * —la MISMA puerta que usa el scheduler (`SchedulerCommand`) para asignar terminales— no elige
+     * a ninguno ([]). Caso medido item #192: despachable=12, ejecutablesParalelo=0, la compuerta
+     * seguía en VERDE. NO corrige nada (no reasigna, no reintenta): solo detecta.
+     *
+     * "Sostenido en el tiempo": mismo patrón que `medirBdIntegra()` — sin tabla nueva, se lee el
+     * `$anterior` (el `estado.json` de la vuelta previa) para saber DESDE CUÁNDO viene la
+     * discrepancia. Un desfase de una sola vuelta (footprint desconocido en vuelo, colisión de
+     * módulo entre rondas) es ruido normal; sostenido más allá del umbral configurable ya no lo es.
+     *
+     * Va en su PROPIO try/catch (mismo principio que `medirReclamos()`/`medirJobsVarados()`): una
+     * familia que falla no tumba las demás.
+     */
+    private function medirColaFalsoVerde(?array $anterior): array
+    {
+        $umbralSeg = max(60, (int) config('circuito.jarvis.vigilia.falso_verde_umbral_seg', 300));
+
+        try {
+            $despachables = RoadmapItem::query()->despachable()->count();
+            $ejecutables  = count(app(RoadmapCircuitoService::class)->ejecutablesParalelo([], 200));
+        } catch (\Throwable $e) {
+            return [
+                'medido' => false,
+                'error' => substr($e->getMessage(), 0, 200),
+                'umbral_seg' => $umbralSeg,
+                'discrepante' => false,
+                'discrepante_desde' => null,
+                'duracion_seg' => 0,
+                'escalon' => 'no_aplica',
+            ];
+        }
+
+        $discrepante = $despachables > 0 && $ejecutables === 0;
+
+        $anteriorFV = (array) ($anterior['cola_falso_verde'] ?? []);
+        $veniaDiscrepante = (bool) ($anteriorFV['discrepante'] ?? false);
+        $desdeAnterior = $anteriorFV['discrepante_desde'] ?? null;
+
+        $desde = null;
+        if ($discrepante) {
+            $desde = ($veniaDiscrepante && is_string($desdeAnterior) && $desdeAnterior !== '')
+                ? $desdeAnterior
+                : date('c');
+        }
+
+        $duracionSeg = ($discrepante && $desde !== null) ? max(0, time() - strtotime($desde)) : 0;
+
+        return [
+            'medido'               => true,
+            'error'                => null,
+            'despachables'         => $despachables,
+            'ejecutables_paralelo' => $ejecutables,
+            'discrepante'          => $discrepante,
+            'discrepante_desde'    => $desde,
+            'duracion_seg'         => $duracionSeg,
+            'umbral_seg'           => $umbralSeg,
+            'escalon'              => ($discrepante && $duracionSeg >= $umbralSeg) ? 'critico' : 'ok',
+        ];
     }
 
     /**
@@ -451,6 +946,17 @@ class JarvisVigilarCommand extends Command
             $a[] = ['clave' => 'log_grande', 'nivel' => 'actua_y_avisa',
                 'texto' => "El log de {$m['donde']} pesa {$m['legible']} ({$m['ruta']}).", ];
         }
+        // FAMILIA "ERRORES POR MINUTO" (#774, fase 4 de #705) — por WORKTREE, no un total: un
+        // error masivo en uno solo no debe quedar enmascarado por el resto tranquilo (el mismo
+        // problema que motivó medir los 7 logs en vez de uno solo, ver docblock de la clase).
+        $umbralErrores = (int) config('circuito.jarvis.vigilia.errores_por_minuto_umbral', 20);
+        foreach ($e['logs']['archivos'] ?? [] as $log) {
+            if (($log['errores_ult_min'] ?? 0) > $umbralErrores) {
+                $a[] = ['clave' => 'errores_por_minuto:' . $log['donde'], 'nivel' => 'alarma',
+                    'texto' => "{$log['errores_ult_min']} error(es)/critical(es) en el último minuto en "
+                        . "el log de {$log['donde']} (umbral {$umbralErrores}): {$log['ruta']}.", ];
+            }
+        }
         if (($e['procesos']['vueltas_colgadas'] ?? 0) > 0) {
             $umbral = (int) config('circuito.vuelta_colgada_seg', 3600);
             $a[] = ['clave' => 'colgadas', 'nivel' => 'actua_y_avisa',
@@ -467,6 +973,37 @@ class JarvisVigilarCommand extends Command
             $a[] = ['clave' => 'timeout', 'nivel' => 'actua_y_avisa',
                 'texto' => "{$n} vuelta(s) pasada(s) de su propio timeout.", ];
         }
+        if (($e['cola_workers']['estado'] ?? 'verde') === 'rojo') {
+            $cw = $e['cola_workers'];
+            $a[] = ['clave' => 'cola_workers', 'nivel' => 'alarma',
+                'texto' => "{$cw['cantidad']} worker(s) de cola activos (esperados {$cw['esperado']}+): "
+                    . 'los jobs pendientes (pagos capturados en mostrador, notificaciones de geocercas, '
+                    . 'cobranza) no se procesan.', ];
+        }
+        $jv = $e['jobs_varados'] ?? [];
+        if (($jv['medido'] ?? true) === false) {
+            $a[] = ['clave' => 'jobs_varados', 'nivel' => 'me_pregunta',
+                'texto' => 'No pude auditar jobs varados en la cola (#772): la base no respondió para esta familia.', ];
+        } elseif (($jv['cantidad'] ?? 0) > 0) {
+            $sinWorkers = ($e['cola_workers']['estado'] ?? 'verde') === 'rojo';
+            $a[] = ['clave' => 'jobs_varados', 'nivel' => $sinWorkers ? 'alarma' : 'me_pregunta',
+                'texto' => $sinWorkers
+                    ? "{$jv['cantidad']} job(s) varado(s) en la cola (creados hace más de {$jv['umbral_seg']}s, "
+                        . 'nunca tomados) Y 0 workers vivos: nadie los va a procesar.'
+                    : "{$jv['cantidad']} job(s) varado(s) en la cola (creados hace más de {$jv['umbral_seg']}s, "
+                        . 'nunca tomados) con workers vivos: podría ser lentitud normal, revisar.', ];
+        }
+        $fv = $e['cola_falso_verde'] ?? [];
+        if (($fv['medido'] ?? true) === false) {
+            $a[] = ['clave' => 'cola_falso_verde', 'nivel' => 'me_pregunta',
+                'texto' => 'No pude auditar el falso verde de la cola (#771): la base no respondió para esta familia.', ];
+        } elseif (($fv['escalon'] ?? 'ok') === 'critico') {
+            $a[] = ['clave' => 'cola_falso_verde', 'nivel' => 'actua_y_avisa',
+                'texto' => "Falso verde en la cola (#771): {$fv['despachables']} item(s) despachable(s) pero "
+                    . "ejecutablesParalelo() no eligió ninguno desde hace {$fv['duracion_seg']}s "
+                    . "(umbral {$fv['umbral_seg']}s). La compuerta puede seguir en VERDE sin que nadie avance.", ];
+        }
+
         if (! ($e['base']['responde'] ?? false)) {
             $a[] = ['clave' => 'base', 'nivel' => 'alarma',
                 'texto' => 'Estoy en modo mínimo: la base no responde. Esto es lo que sé desde archivo.', ];
@@ -486,9 +1023,67 @@ class JarvisVigilarCommand extends Command
                 'texto' => "La base cayó a {$bd['tablas']} tabla(s) (antes {$bd['ultimo_conteo_bueno']}, "
                     . "-{$bd['caida_pct']}%). Todavía no es crítico (>50%), pero ya no es ruido.", ];
         }
+        $tc = $e['tablas_clave'] ?? [];
+        if (($tc['escalon'] ?? 'ok') === 'critico') {
+            $a[] = ['clave' => 'tablas_clave_circuito', 'nivel' => 'alarma',
+                'texto' => 'CRÍTICO — ' . $this->motivoTablasClaveCircuito($tc) . ' Freno puesto automáticamente.', ];
+        }
         if (($e['sonda']['edad_seg'] ?? null) !== null && $e['sonda']['edad_seg'] > 180) {
             $a[] = ['clave' => 'sonda', 'nivel' => 'me_pregunta',
                 'texto' => "El snapshot del SO tiene {$e['sonda']['edad_seg']} s: la Torre está midiendo con datos viejos.", ];
+        }
+        // Fase 3 (#773): discrepancia programa-por-programa entre lo que supervisor declara y el
+        // proceso real (correlación por PID, ya calculada por CompuertasSondaCommand). Un worker
+        // de cola/cobranza fantasma es blast radius real (pagos, notificaciones) — solo se avisa,
+        // no se toca nada. Se ignora si el snapshot ya está viejo (esa alarma la da el bloque de
+        // arriba, no hay que duplicarla aquí).
+        $discSonda = $e['sonda']['discrepancias'] ?? [];
+        if ($discSonda && ($e['sonda']['edad_seg'] ?? null) !== null && $e['sonda']['edad_seg'] <= 180) {
+            $detalle = implode(', ', array_map(
+                fn ($d) => "{$d['programa']} (supervisor: {$d['estado_supervisor']}, PID {$d['pid']} "
+                    . ($d['estado_real'] === 'proceso_vivo' ? 'vivo' : 'sin proceso') . ')',
+                $discSonda
+            ));
+            $a[] = ['clave' => 'sonda_discrepancia_worker', 'nivel' => 'alarma',
+                'texto' => "Supervisor y proceso real no coinciden: {$detalle}. Posible worker fantasma "
+                    . '(pagos, notificaciones) — no se tocó nada, solo se avisa.', ];
+        }
+
+        $rec = $e['reclamos'] ?? [];
+        if (($rec['medido'] ?? true) === false) {
+            $a[] = ['clave' => 'reclamos', 'nivel' => 'me_pregunta',
+                'texto' => 'No pude auditar los invariantes de Reclamos (#704): la base no respondió para esta familia.', ];
+        }
+        if (count($rec['sin_worker_sid'] ?? []) > 0) {
+            $ids = implode(', ', array_map(fn ($r) => '#' . $r['id'], $rec['sin_worker_sid']));
+            $a[] = ['clave' => 'reclamos_sin_worker_sid', 'nivel' => 'actua_y_avisa',
+                'texto' => "Item(s) en_progreso sin worker_sid: {$ids}. Reclamo sin dueño identificable.", ];
+        }
+        if (count($rec['claimed_sin_avance'] ?? []) > 0) {
+            $ids = implode(', ', array_map(fn ($r) => "#{$r['id']} ({$r['gap_seg']}s)", $rec['claimed_sin_avance']));
+            $a[] = ['clave' => 'reclamos_claimed_sin_avance', 'nivel' => 'actua_y_avisa',
+                'texto' => "Item(s) con claimed_at renovándose sin que updated_at avance: {$ids}. "
+                    . 'El reaper lento (circuito:reap-stuck) no los ve mientras el latido siga vivo.', ];
+        }
+        if (count($rec['sin_proceso_vivo'] ?? []) > 0) {
+            $ids = implode(', ', array_map(fn ($r) => "#{$r['id']} ({$r['worker_sid']})", $rec['sin_proceso_vivo']));
+            $a[] = ['clave' => 'reclamos_sin_proceso_vivo', 'nivel' => 'actua_y_avisa',
+                'texto' => "Item(s) en_progreso cuyo worker_sid no tiene proceso vivo en el registro de PIDs: {$ids}.", ];
+        }
+
+        $git = $e['git'] ?? [];
+        if (count($git['huerfanos'] ?? []) > 0) {
+            $detalle = implode(', ', array_map(fn ($h) => "{$h['worktree']} ({$h['sha_corto']})", $git['huerfanos']));
+            $a[] = ['clave' => 'git_huerfano', 'nivel' => 'alarma',
+                'texto' => "Worktree(s) con HEAD desatado y commit(s) que ninguna rama referencia: {$detalle}. "
+                    . 'Se pierden en el siguiente checkout a main si nadie los rescata con una rama.', ];
+        }
+
+        $gasto = $e['gasto'] ?? [];
+        if (($gasto['medido'] ?? false) && $gasto['invocaciones_hora'] > $gasto['umbral_hora']) {
+            $a[] = ['clave' => 'gasto_claude', 'nivel' => 'me_pregunta',
+                'texto' => "{$gasto['invocaciones_hora']} invocaciones de claude -p en la última hora "
+                    . "(umbral {$gasto['umbral_hora']}).", ];
         }
 
         return $a;

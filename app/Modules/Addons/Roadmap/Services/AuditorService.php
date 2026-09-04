@@ -4,8 +4,10 @@ namespace App\Modules\Addons\Roadmap\Services;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Support\InventarioSemilla;
+use App\Services\EnvRuntimeScanner;
 use FilesystemIterator;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route as RouteFacade;
@@ -45,6 +47,9 @@ class AuditorService
 
     /** #1015 — corridas EN VIVO seguidas con 0 nuevos en TODO el ciclo (fuente "código"). */
     private const SETTING_RACHA_SECA = 'circuito_auditor_racha_seca';
+
+    /** #712 — Nivel 2 ("EL GASTO"): ISO8601 de cuándo se apagó, o ausente = armado. */
+    private const SETTING_GASTO_APAGADO_DESDE = 'circuito_auditor_gasto_apagado_desde';
 
     /** Cache por-request del índice de rutas registradas. */
     private ?array $indiceRutas = null;
@@ -128,7 +133,15 @@ class AuditorService
         $umbral = (int) config('circuito.auditor.umbral_cola', 3);
         $racha  = $this->rachaSeca();
 
-        $base = ['cola' => $cola, 'slots_libres' => $slots, 'umbral' => $umbral, 'racha_seca' => $racha];
+        // #712 — NIVEL 2 ("EL GASTO"). Se evalúa (y, si toca, se RE-ARMA) una sola vez aquí: el
+        // propio chequeo intenta reactivarse si ya se completó un item real desde que se apagó —
+        // así una corrida del scheduler basta, sin depender de un observer.
+        $gastoApagado = $this->gastoApagado();
+
+        $base = [
+            'cola' => $cola, 'slots_libres' => $slots, 'umbral' => $umbral, 'racha_seca' => $racha,
+            'gasto_apagado' => $gastoApagado,
+        ];
 
         if (! $this->habilitado()) {
             return $base + ['corre' => false, 'motivo' => 'Motor APAGADO (auditor_activo = false en Torre → Configuración).'];
@@ -137,7 +150,17 @@ class AuditorService
             return $base + ['corre' => false, 'motivo' => 'Circuito en PAUSA (kill switch global): el motor no crea nada.'];
         }
         if ($forzar) {
-            return $base + ['corre' => true, 'motivo' => 'Forzado (--forzar): se ignoran umbral e intervalo.'];
+            return $base + ['corre' => true, 'motivo' => 'Forzado (--forzar): se ignoran umbral, intervalo y el apagado por sequía.'];
+        }
+
+        // Gate DURO, previo a cola/intervalo: si está apagado, no genera nada, ocupe o no la cola
+        // terminales libres.
+        if ($gastoApagado) {
+            $umbralGasto = (int) config('circuito.auditor.sequia.gasto_racha_umbral', 2);
+
+            return $base + ['corre' => false, 'motivo' => "Generador APAGADO por sequía (Nivel 2, #712): "
+                . "{$racha} ciclo(s) seguido(s) sin hallazgos nuevos (≥ {$umbralGasto}). Se re-arma solo "
+                . 'cuando un item REAL (sin auditor_fingerprint, no generado por este motor) se complete.'];
         }
 
         $base_min  = (int) $this->torreConfig->get()->auditor_cooldown_min;
@@ -152,8 +175,18 @@ class AuditorService
             return $base + ['corre' => false, 'motivo' => "Escaneado hace poco: faltan ~{$faltan} min para el próximo (intervalo {$intervalo} min{$sequia})."];
         }
 
+        // #980 (Torre 24/7 Pieza 5a-i) — slots_libres AHORA cuenta como razón de disparo por sí
+        // solo: con >= N terminales libres el motor corre aunque la cola no haya bajado del umbral
+        // (pool continuo sin valles, decisión de Irving en #907/#980). Umbral configurable; hasta
+        // que el sub-item de config Torre (#981) exista, usa el fallback inline.
+        $slotsMinDisparo = (int) config('circuito.auditor.slots_libres_min_disparo', 2);
+
+        if ($cola >= $umbral && $slots < $slotsMinDisparo) {
+            return $base + ['corre' => false, 'motivo' => "Cola con {$cola} item(s) reclamables (umbral {$umbral}) y solo {$slots} terminal(es) libre(s) (< {$slotsMinDisparo}): hay trabajo, no hace falta generar."];
+        }
+
         if ($cola >= $umbral) {
-            return $base + ['corre' => false, 'motivo' => "Cola con {$cola} item(s) reclamables (umbral {$umbral}): hay trabajo, no hace falta generar."];
+            return $base + ['corre' => true, 'motivo' => "Cola con {$cola} item(s) reclamables (umbral {$umbral}), pero {$slots} terminal(es) libre(s) (≥ {$slotsMinDisparo}): se dispara para no dejarlas ociosas."];
         }
 
         return $base + ['corre' => true, 'motivo' => "Cola en {$cola} (< umbral {$umbral}) con {$slots} terminal(es) libre(s)."];
@@ -186,6 +219,147 @@ class AuditorService
         return min($max, $base + $exceso * $incremento);
     }
 
+    /**
+     * #712 (Thomas Parte 2) — NIVEL 2, "EL GASTO": ¿el generador está apagado?
+     *
+     * Distinto de `intervaloEfectivo()` (Nivel 1, LA SONDA): eso sólo ALARGA cada cuánto se
+     * escanea y nunca deja de escanear del todo. Esto es un apagado DURO — tras
+     * `sequia.gasto_racha_umbral` ciclos EN VIVO seguidos sin hallazgos nuevos, deja de ocupar
+     * terminales por completo, aunque la cola esté seca y haya slots libres.
+     *
+     * Antes de responder, intenta RE-ARMARSE: si ya se completó un item REAL desde que se apagó,
+     * se reactiva aquí mismo y responde `false`. Sin esto habría que enganchar un observer sólo
+     * para una condición que un query ya resuelve en cada chequeo del scheduler.
+     */
+    public function gastoApagado(): bool
+    {
+        $desde = $this->gastoApagadoDesde();
+        if ($desde === null) {
+            return false;
+        }
+        if ($this->huboItemRealCompletadoDesde($desde)) {
+            $this->rearmarGasto();
+
+            return false;
+        }
+
+        // #891 Fase 3a — HALF-OPEN: deja pasar UN sondeo cada `gasto_reintento_min` minutos sin
+        // rearmar el timestamp. Si el ciclo vuelve a salir seco, `evaluarApagarGasto()` lo renueva
+        // al cierre — así el costo queda acotado a un sondeo por ventana, nunca indefinido.
+        if ($this->reintentoActivo() && $this->venceReintento($desde)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * #891 Fase 3a — estado del freno para UI (Fase 3b lo consume, sin duplicar esta lectura):
+     * `armado` = nunca se apagó; `disparado` = apagado y el sondeo aún no toca (o el half-open
+     * está desactivado); `medio_abierto` = apagado pero la ventana de reintento YA venció, el
+     * próximo sondeo pasará. `reintento_en_segundos` es el countdown hasta ese punto (null si no
+     * aplica: armado, o half-open desactivado).
+     */
+    public function estadoGastoUi(): array
+    {
+        $desde = $this->gastoApagadoDesde();
+        if ($desde === null) {
+            return ['estado' => 'armado', 'desde' => null, 'reintento_en_segundos' => null];
+        }
+
+        if (! $this->reintentoActivo()) {
+            return ['estado' => 'disparado', 'desde' => $desde, 'reintento_en_segundos' => null];
+        }
+
+        $vence = Carbon::parse($desde)->addMinutes($this->reintentoMinutos());
+        if ($vence->isPast()) {
+            return ['estado' => 'medio_abierto', 'desde' => $desde, 'reintento_en_segundos' => 0];
+        }
+
+        return [
+            'estado' => 'disparado',
+            'desde' => $desde,
+            'reintento_en_segundos' => now()->diffInSeconds($vence),
+        ];
+    }
+
+    /**
+     * #891 Fase 3b-i — ¿el half-open está activo? Fuente única = `torre_config.auditor_gasto_
+     * reintento_activo` (panel de la Torre → Configuración), mismo patrón que `habilitado()` con
+     * `auditor_activo`.
+     */
+    private function reintentoActivo(): bool
+    {
+        return (bool) $this->torreConfig->get()->auditor_gasto_reintento_activo;
+    }
+
+    /** #891 Fase 3b-i — minutos de la ventana de reintento, resueltos desde `torre_config`. */
+    private function reintentoMinutos(): int
+    {
+        return (int) $this->torreConfig->get()->auditor_gasto_reintento_min;
+    }
+
+    /** #891 Fase 3a — ¿ya venció la ventana de reintento desde que se apagó el gasto? */
+    private function venceReintento(string $desde): bool
+    {
+        return Carbon::parse($desde)->addMinutes($this->reintentoMinutos())->isPast();
+    }
+
+    /** ISO8601 de cuándo se apagó el gasto, o null si está armado. */
+    private function gastoApagadoDesde(): ?string
+    {
+        $v = DB::table('settings')->where('key', self::SETTING_GASTO_APAGADO_DESDE)->value('value');
+
+        return $v !== null && $v !== '' ? (string) $v : null;
+    }
+
+    /**
+     * ¿Se completó un item REAL después de `$desde`? "Real" = SIN `auditor_fingerprint` — el
+     * motor sella esa columna en TODO lo que él mismo crea (`crear()` más abajo), así que su
+     * ausencia es justo la señal de "no lo generó Thomas". Usa `completed_at` (no `updated_at`):
+     * el modelo lo sella UNA sola vez al completar (`RoadmapItem::booted()`), así que no se
+     * dispara por una edición posterior cualquiera del mismo item.
+     */
+    private function huboItemRealCompletadoDesde(string $desde): bool
+    {
+        return RoadmapItem::where('estado_aprobacion', 'completado')
+            ->whereNull('auditor_fingerprint')
+            ->where('completed_at', '>', $desde)
+            ->exists();
+    }
+
+    private function rearmarGasto(): void
+    {
+        DB::table('settings')->where('key', self::SETTING_GASTO_APAGADO_DESDE)->delete();
+        Log::channel('roadmap_externo')->info('auditor-gasto-rearmado', [
+            'motivo' => 'item real completado desde el apagado',
+        ]);
+    }
+
+    /**
+     * Apaga el gasto si la racha (ya actualizada) cruzó el umbral de Nivel 2. Se llama SOLO al
+     * cierre de un ciclo COMPLETO en vivo (mismo punto donde ya se actualiza `racha_seca`) — un
+     * `--modulo` parcial no dice nada sobre si la fuente está agotada.
+     *
+     * #891 Fase 3a — idempotente A PROPÓSITO (ya no corta si ya estaba apagado): así el sondeo del
+     * half-open, cuando vuelve a salir seco, RENUEVA el timestamp en vez de dejarlo viejo — es lo
+     * que acota el costo a un sondeo cada `gasto_reintento_min` minutos en vez de indefinido. Si la
+     * racha volvió a 0 (hubo hallazgo nuevo), esta función ni se dispara: el guard corta antes.
+     */
+    private function evaluarApagarGasto(int $racha): void
+    {
+        $umbral = (int) config('circuito.auditor.sequia.gasto_racha_umbral', 2);
+        if ($racha < $umbral) {
+            return;
+        }
+
+        DB::table('settings')->updateOrInsert(
+            ['key' => self::SETTING_GASTO_APAGADO_DESDE],
+            ['value' => now()->toIso8601String(), 'updated_at' => now()]
+        );
+        Log::channel('roadmap_externo')->info('auditor-gasto-apagado', ['racha_seca' => $racha, 'umbral' => $umbral]);
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════════════════════
     // ORDEN DE TRABAJO — los dos carriles
     // ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -197,10 +371,20 @@ class AuditorService
      */
     public function modulosAAuditar(): array
     {
+        return $this->modulosOrdenadosPorCobertura($this->cobertura());
+    }
+
+    /**
+     * Lista candidata de módulos (carriles menos excluidos), SIN ordenar por cobertura. Insumo
+     * compartido de cualquier rotación por módulo — hoy el auditor mecánico (`modulosAAuditar()`),
+     * y desde #985 también el "modo barrido" (`BarridoService::elegirModulo()`, Torre 24/7 Pieza
+     * 5b): ambos recorren el MISMO universo de módulos, pero con su propia memoria de cobertura.
+     */
+    public function modulosCandidatos(): array
+    {
         $c          = (array) config('circuito.auditor.carriles', []);
         $excluir    = array_map('mb_strtolower', (array) config('circuito.auditor.excluir_modulos', []));
-        $serializado = (array) ($c['serializado'] ?? []);
-        $ordenado   = array_merge((array) ($c['paralelo'] ?? []), $serializado);
+        $ordenado   = array_merge((array) ($c['paralelo'] ?? []), (array) ($c['serializado'] ?? []));
 
         $modulos = array_values(array_filter(
             array_unique($ordenado),
@@ -222,15 +406,25 @@ class AuditorService
             }
         }
 
-        // #1015 — MEMORIA DE COBERTURA: dentro de cada carril (el carril sigue mandando — la base
-        // acoplada sigue yendo siempre después de la paralela, esa propiedad no se toca), prioriza
-        // los módulos NUNCA auditados y luego los de auditoría más VIEJA, en vez de recorrer
-        // siempre la lista en el mismo orden fijo. `usort` es estable desde PHP 8.0: sin cobertura
-        // registrada (recién desplegado), el orden de config se conserva tal cual.
-        $cobertura = $this->cobertura();
-        $esSerial  = array_flip(array_map('mb_strtolower', $serializado));
-        $carrilDe  = fn (string $m) => isset($esSerial[mb_strtolower($m)]) ? 1 : 0;
-        $ultimaDe  = fn (string $m) => $cobertura[$m]['ultima_auditoria_at'] ?? null;
+        return $modulos;
+    }
+
+    /**
+     * `modulosCandidatos()` ordenados por PRIORIDAD DE CARRIL (paralelo antes que serializado,
+     * esa propiedad no se toca) y luego por la `$cobertura` dada: primero los módulos NUNCA
+     * cubiertos, luego los de fecha más VIEJA. `$campoFecha` es el nombre de la llave de fecha
+     * dentro de cada entrada de `$cobertura` — el auditor mecánico usa `ultima_auditoria_at`
+     * (#1015); el barrido (#985) usa su propia `ultima_barrida_at` sobre su propia memoria, para
+     * que un ciclo no pise la cobertura que usa el otro. `usort` es estable desde PHP 8.0: sin
+     * cobertura registrada, el orden de config se conserva tal cual.
+     */
+    public function modulosOrdenadosPorCobertura(array $cobertura, string $campoFecha = 'ultima_auditoria_at'): array
+    {
+        $modulos     = $this->modulosCandidatos();
+        $serializado = array_map('mb_strtolower', (array) config('circuito.auditor.carriles.serializado', []));
+        $esSerial    = array_flip($serializado);
+        $carrilDe    = fn (string $m) => isset($esSerial[mb_strtolower($m)]) ? 1 : 0;
+        $ultimaDe    = fn (string $m) => $cobertura[$m][$campoFecha] ?? null;
 
         usort($modulos, function (string $a, string $b) use ($carrilDe, $ultimaDe) {
             $ca = $carrilDe($a);
@@ -244,7 +438,7 @@ class AuditorService
                 return 0;
             }
             if ($ua === null) {
-                return -1;   // nunca auditado → primero
+                return -1;   // nunca cubierto → primero
             }
             if ($ub === null) {
                 return 1;
@@ -689,6 +883,9 @@ class AuditorService
             if (($det['andamiaje'] ?? true)) {
                 $gaps = array_merge($gaps, $this->detAndamiaje($modulo, $dir));
             }
+            if (($det['null_safety'] ?? true)) {
+                $gaps = array_merge($gaps, $this->detNullSafety($modulo, $dir));
+            }
         }
 
         if (($det['sin_clasificar'] ?? true)) {
@@ -696,6 +893,12 @@ class AuditorService
         }
         if (($det['semilla'] ?? true)) {
             $gaps = array_merge($gaps, $this->detSemilla($modulo));
+        }
+        if (($det['jquery_sin_off'] ?? true)) {
+            $gaps = array_merge($gaps, $this->detJquerySinOff($modulo));
+        }
+        if (($det['env_runtime'] ?? true)) {
+            $gaps = array_merge($gaps, $this->detEnvRuntime($modulo));
         }
 
         $gaps = array_merge($gaps, $this->medirContraSpec($modulo));
@@ -938,6 +1141,264 @@ class AuditorService
         ]];
     }
 
+    // ── Detector 9: null-safety — auth()->user()->, json_decode() y Module::…->getfields() sin
+    //    guard (#900/#973/#974) ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Tres patrones sin guard contra null. Patrones 1-2 vía tokenizador `token_get_all` (no
+     * regex — frágil con saltos de línea/comentarios/strings), misma técnica que
+     * `EnvRuntimeScanner::llamadasEnv()` (#790): tokeniza, filtra whitespace/comentarios a un
+     * array de índices significativos, camina la secuencia de tokens. Patrón 3 vía regex de línea
+     * (más simple, acotado a un solo nombre de clase — ver `moduleGetfieldsSinGuard()`).
+     *
+     *  1. `auth()->user()->` SIN `?->` inmediatamente después — el caso real que ya mordió el
+     *     repo (ver CLAUDE.md "DefaultValueRepository.php:35"). Acotado ESTRICTAMENTE a esa
+     *     secuencia exacta (NO se generaliza a "cualquier método que pueda devolver null").
+     *  2. `$var = json_decode(...)` cuyo resultado se usa (`$var->`/`$var[`) sin comprobar null
+     *     antes (caso real: `Module.php` líneas 186/190, ya corregidas). Heurística APROXIMADA:
+     *     ventana de las ~15 líneas siguientes del mismo archivo, no análisis de flujo real —
+     *     la limitación se documenta en el `detalle` de cada gap.
+     *  3. `$var = Module::find(...)` / `Module::where(...)->first()` cuyo resultado se usa
+     *     (`$var->getfields()`/`$var->getColumns...`) sin `abort_if`/`if (!$var)` antes (caso real
+     *     ya corregido en `HelperController.php` con 8 guards `abort_if(!$module, 404, ...)`, y
+     *     AÚN VIVO sin guard en `ClientBundleServiceController.php` — verificado #974). Acotado
+     *     ESTRICTAMENTE a la clase `Module` (NO "cualquier `->first()` de cualquier modelo" — el
+     *     item padre #900 ya advirtió que generalizar más allá es trabajo de una iteración
+     *     futura). Misma heurística de ventana aproximada que el patrón 2.
+     */
+    private function detNullSafety(string $modulo, string $dir): array
+    {
+        $porArchivo = [];
+
+        foreach ($this->archivosPhp($dir) as $file) {
+            $src = @file_get_contents($file);
+            $lineasSrc = $src !== false ? @file($file) : false;
+            if (! $src || ! $lineasSrc) {
+                continue;
+            }
+
+            $tokens = @token_get_all($src);
+            $sig    = [];
+            foreach ($tokens as $i => $t) {
+                if (is_array($t) && in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+                    continue;
+                }
+                $sig[] = $i;
+            }
+
+            $hallazgos = [];
+            foreach ($this->authUserSinGuard($tokens, $sig) as $linea) {
+                $hallazgos[] = ['linea' => $linea, 'patron' => 'auth()->user()-> sin ?->', 'contexto' => trim($lineasSrc[$linea - 1] ?? '')];
+            }
+            foreach ($this->jsonDecodeSinGuard($tokens, $sig, $lineasSrc) as $linea) {
+                $hallazgos[] = ['linea' => $linea, 'patron' => 'json_decode() sin guard', 'contexto' => trim($lineasSrc[$linea - 1] ?? '')];
+            }
+            foreach ($this->moduleGetfieldsSinGuard($lineasSrc) as $linea) {
+                $hallazgos[] = ['linea' => $linea, 'patron' => 'Module::.../getfields() sin guard', 'contexto' => trim($lineasSrc[$linea - 1] ?? '')];
+            }
+            if (! $hallazgos) {
+                continue;
+            }
+            usort($hallazgos, fn ($a, $b) => $a['linea'] <=> $b['linea']);
+            $porArchivo[$file] = $hallazgos;
+        }
+
+        $gaps = [];
+        foreach ($porArchivo as $file => $hallazgos) {
+            $rel   = $this->relativo($file);
+            $lista = '';
+            foreach ($hallazgos as $h) {
+                $lista .= "  - L{$h['linea']} [{$h['patron']}] {$h['contexto']}\n";
+            }
+            $n = count($hallazgos);
+
+            $gaps[] = [
+                'modulo'  => $modulo,
+                'tipo'    => 'null_safety',
+                'clase'   => 'mecanico',
+                'clave'   => 'null-safety:' . $rel,
+                'titulo'  => "{$modulo}: {$n} patrón(es) null-safety sin guard en " . basename($file),
+                'detalle' => "Tres patrones sin guard contra null: `auth()->user()->` sin `?->` inmediatamente "
+                    . "después (el caso real que ya mordió el repo, ver CLAUDE.md \"DefaultValueRepository.php:35\"), "
+                    . "`\$var = json_decode(...)` cuyo resultado se usa (`\$var->`/`\$var[`) sin comprobar null "
+                    . "antes (caso real: `Module.php` líneas 186/190, ya corregidas), y `\$var = Module::find(...)`"
+                    . "/`Module::where(...)->first()` cuyo resultado se usa (`\$var->getfields()`/`\$var->getColumns...`) "
+                    . "sin `abort_if`/`if (!\$var)` antes (caso real: 8 guards ya agregados en HelperController.php, "
+                    . "acotado ESTRICTAMENTE a la clase `Module` — no se generaliza a cualquier `->first()`). Los "
+                    . "patrones de json_decode y Module son heurísticas APROXIMADAS (ventana de las ~15 líneas "
+                    . "siguientes, no análisis de flujo real): puede haber falsos positivos/negativos — revisar "
+                    . "manualmente cada hallazgo antes de corregir.\n\n"
+                    . "Archivo: `{$rel}`\n\nHallazgos:\n{$lista}\n"
+                    . "Corrección aditiva, SIN tocar lógica de negocio: agrega `?->` en el caso 1, un guard "
+                    . "`if (\$var !== null)` (o `?->`/`??`/`isset()`) antes del uso en el caso 2, o `abort_if(!\$var, "
+                    . "404, ...)` antes del uso en el caso 3.",
+            ];
+        }
+
+        return $gaps;
+    }
+
+    /**
+     * `auth()->user()->` SIN `?->` inmediatamente después. Descarta `->auth(`/`::auth(` (no es
+     * el helper global) igual que `EnvRuntimeScanner` descarta `->env(`/`::env(`.
+     *
+     * @return int[] líneas del token `auth` donde se encontró el patrón
+     */
+    private function authUserSinGuard(array $tokens, array $sig): array
+    {
+        $lineas = [];
+        foreach ($sig as $k => $i) {
+            $t = $tokens[$i];
+            if (! is_array($t) || $t[0] !== T_STRING || strtolower($t[1]) !== 'auth') {
+                continue;
+            }
+            $prev = $k > 0 ? $tokens[$sig[$k - 1]] : null;
+            if (is_array($prev) && in_array($prev[0], [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR,
+                T_DOUBLE_COLON, T_FUNCTION, T_NEW], true)) {
+                continue;
+            }
+            if (($tokens[$sig[$k + 1] ?? $i] ?? null) !== '(') {
+                continue;
+            }
+            if (($tokens[$sig[$k + 2] ?? $i] ?? null) !== ')') {
+                continue;
+            }
+            $opUser = $tokens[$sig[$k + 3] ?? $i] ?? null;
+            if (! is_array($opUser) || $opUser[0] !== T_OBJECT_OPERATOR) {
+                continue;
+            }
+            $userTok = $tokens[$sig[$k + 4] ?? $i] ?? null;
+            if (! is_array($userTok) || $userTok[0] !== T_STRING || strtolower($userTok[1]) !== 'user') {
+                continue;
+            }
+            if (($tokens[$sig[$k + 5] ?? $i] ?? null) !== '(') {
+                continue;
+            }
+            if (($tokens[$sig[$k + 6] ?? $i] ?? null) !== ')') {
+                continue;
+            }
+            $opFinal = $tokens[$sig[$k + 7] ?? $i] ?? null;
+            if (is_array($opFinal) && $opFinal[0] === T_OBJECT_OPERATOR) {
+                $lineas[] = (int) $t[2];
+            }
+        }
+
+        return $lineas;
+    }
+
+    /**
+     * `$var = json_decode(...)` cuyo resultado se usa sin guard en la ventana de las siguientes
+     * ~15 líneas. Solo rastrea asignación DIRECTA (`$var = json_decode(`) — si el resultado se
+     * pasa inline a otra expresión no se puede identificar la variable de forma mecánica, así
+     * que ese caso se omite (lado seguro: no generar ruido que no se puede verificar).
+     *
+     * @return int[] líneas del `json_decode(` donde se encontró el patrón
+     */
+    private function jsonDecodeSinGuard(array $tokens, array $sig, array $lineasSrc): array
+    {
+        $lineas = [];
+        foreach ($sig as $k => $i) {
+            $t = $tokens[$i];
+            if (! is_array($t) || $t[0] !== T_STRING || strtolower($t[1]) !== 'json_decode') {
+                continue;
+            }
+            $prev = $k > 0 ? $tokens[$sig[$k - 1]] : null;
+            if (is_array($prev) && in_array($prev[0], [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR,
+                T_DOUBLE_COLON, T_FUNCTION, T_NEW], true)) {
+                continue;
+            }
+            if (($tokens[$sig[$k + 1] ?? $i] ?? null) !== '(') {
+                continue;
+            }
+            // ¿Asignación directa `$var = json_decode(`?
+            $prevPrev = $k > 1 ? ($tokens[$sig[$k - 2]] ?? null) : null;
+            if ($prev !== '=' || ! is_array($prevPrev) || $prevPrev[0] !== T_VARIABLE) {
+                continue;
+            }
+
+            $var         = $prevPrev[1];
+            $lineaDecode = (int) $t[2];
+            if ($this->usoSinGuardEnVentana($var, $lineaDecode, $lineasSrc)) {
+                $lineas[] = $lineaDecode;
+            }
+        }
+
+        return $lineas;
+    }
+
+    /** ¿`$var` se usa (`->`/`[`) en la ventana de 15 líneas siguientes SIN guard previo en esa misma ventana? */
+    private function usoSinGuardEnVentana(string $var, int $lineaDecode, array $lineasSrc): bool
+    {
+        $fin    = min(count($lineasSrc), $lineaDecode + 15);
+        $varEsc = preg_quote($var, '/');
+
+        for ($ln = $lineaDecode + 1; $ln <= $fin; $ln++) {
+            $texto = $lineasSrc[$ln - 1] ?? '';
+
+            if (preg_match("/{$varEsc}\s*(!==|===)\s*null/", $texto)
+                || preg_match("/{$varEsc}\s*\?->/", $texto)
+                || str_contains($texto, '??')
+                || preg_match("/is_null\(\s*{$varEsc}\s*\)/", $texto)
+                || preg_match("/isset\(\s*{$varEsc}\b/", $texto)
+                || str_contains($texto, 'json_last_error(')) {
+                return false; // guard antes del uso, dentro de la ventana → no es hallazgo
+            }
+            if (preg_match("/{$varEsc}\s*->/", $texto) || preg_match("/{$varEsc}\s*\[/", $texto)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * PATRÓN 3 — `$var = Module::find(...)` / `Module::where(...)->first()` seguido de
+     * `$var->getfields()`/`$var->getColumns...` sin `abort_if`/`if (!$var)` en la ventana de las
+     * ~15 líneas siguientes. Acotado ESTRICTAMENTE a la clase `Module` (no cualquier `->first()`
+     * de cualquier modelo) — ver docblock de `detNullSafety()`.
+     *
+     * @return int[] líneas de la asignación `Module::find/where(...)->first()` donde se encontró
+     */
+    private function moduleGetfieldsSinGuard(array $lineasSrc): array
+    {
+        $lineas = [];
+        foreach ($lineasSrc as $idx => $texto) {
+            if (! preg_match('/\$(\w+)\s*=\s*Module::(?:find\(|where\(.*\)\s*->\s*first\()/', $texto, $m)) {
+                continue;
+            }
+            $linea = $idx + 1;
+            if ($this->usoModuleSinGuardEnVentana($m[1], $linea, $lineasSrc)) {
+                $lineas[] = $linea;
+            }
+        }
+
+        return $lineas;
+    }
+
+    /** ¿`$var->getfields()`/`$var->getColumns...` se usa en la ventana de 15 líneas siguientes SIN `abort_if`/`if (!$var)` previo en esa misma ventana? */
+    private function usoModuleSinGuardEnVentana(string $var, int $lineaAsignacion, array $lineasSrc): bool
+    {
+        $fin       = min(count($lineasSrc), $lineaAsignacion + 15);
+        $varDollar = '\\$' . preg_quote($var, '/'); // el capture group no incluye el `$` (a diferencia del token T_VARIABLE de los patrones 1-2), se agrega aquí
+
+        for ($ln = $lineaAsignacion + 1; $ln <= $fin; $ln++) {
+            $texto = $lineasSrc[$ln - 1] ?? '';
+
+            if (preg_match("/abort_if\(\s*!\s*{$varDollar}\b/", $texto)
+                || preg_match("/if\s*\(\s*!\s*{$varDollar}\b/", $texto)
+                || preg_match("/{$varDollar}\s*\?->/", $texto)
+                || preg_match("/{$varDollar}\s*(!==|===)\s*null/", $texto)
+                || preg_match("/is_null\(\s*{$varDollar}\s*\)/", $texto)) {
+                return false; // guard antes del uso, dentro de la ventana → no es hallazgo
+            }
+            if (preg_match("/{$varDollar}\s*->\s*(getfields|getColumns\w*)\s*\(/", $texto)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     // ── Detector 5: items de la Hoja de Ruta sin footprint ─────────────────────────────────────
 
     private function detSinClasificar(string $modulo): array
@@ -1016,6 +1477,145 @@ class AuditorService
         }
 
         return $gaps;
+    }
+
+    // ── Detector 7: jQuery $(document).on() delegado sin su .off() correspondiente (#899) ─────
+
+    /**
+     * `$(document).on(...)` delega el handler en `document`. La navegación SPA sólo intercambia
+     * `#init-vue` (no recarga el bundle JS), así que un componente sin `.off()` en su cleanup deja
+     * vivo el handler viejo cada vez que se vuelve a montar — se acumulan sin límite.
+     *
+     * Cross-cutting: los componentes Vue no viven bajo el `$dir` PHP de ningún módulo de negocio
+     * (viven en resources/js/components/...), así que este detector escanea ESE árbol una sola vez
+     * por ciclo y emite el hallazgo bajo el ancla del circuito — mismo patrón que detSinClasificar().
+     */
+    private function detJquerySinOff(string $modulo): array
+    {
+        if ($modulo !== 'Roadmap / Circuito CC') {
+            return [];
+        }
+
+        $dir = base_path('resources/js/components');
+        if (! is_dir($dir)) {
+            return [];
+        }
+
+        $afectados = [];
+        foreach ($this->archivosVue($dir) as $file) {
+            $lineas = @file($file);
+            if (! $lineas) {
+                continue;
+            }
+            $onLineas = [];
+            $tieneOff = false;
+            foreach ($lineas as $i => $linea) {
+                if (str_contains($linea, '$(document).off(')) {
+                    $tieneOff = true;
+                }
+                if (str_contains($linea, '$(document).on(')) {
+                    $onLineas[] = $i + 1;
+                }
+            }
+            if ($onLineas && ! $tieneOff) {
+                $afectados[$this->relativo($file)] = $onLineas;
+            }
+        }
+
+        if (! $afectados) {
+            return [];
+        }
+
+        ksort($afectados);
+        $n     = count($afectados);
+        $lista = '';
+        foreach ($afectados as $rel => $onLineas) {
+            $lista .= "  - {$rel}: L" . implode(', L', $onLineas) . "\n";
+        }
+
+        return [[
+            'modulo'  => $modulo,
+            'tipo'    => 'jquery_sin_off',
+            'clase'   => 'mecanico',
+            'clave'   => 'jquery-sin-off:lote',
+            'titulo'  => "Circuito: {$n} componente(s) Vue con \$(document).on() global sin su .off() (memory leak SPA)",
+            'detalle' => "`\$(document).on(...)` delega el handler en `document` — la navegación SPA sólo "
+                . "reemplaza `#init-vue` (no recarga el bundle), así que cada vez que el componente se "
+                . "vuelve a montar se acumula OTRO handler vivo encima del anterior, nunca limpiado.\n\n"
+                . "Patrón ya corregido de referencia (namespace de evento + `.off()` en cleanup): "
+                . "`resources/js/shared/TextTemplate.vue` y `resources/js/shared/ContractTemplate.vue`.\n\n"
+                . "Componentes afectados ({$n}):\n{$lista}\n"
+                . "Cerrar = namespacear el evento ('click.miComponente', no 'click' a secas) y llamar "
+                . "\$(document).off(ns) en onUnmounted/beforeUnmount. Verifica montando/desmontando el "
+                . "componente y confirmando que la funcionalidad original sigue viva.",
+        ]];
+    }
+
+    // ── Detector 8: env() en tiempo de ejecución fuera de config/ (#901) ──────────────────────
+
+    /**
+     * Cross-cutting (app/, routes/, bootstrap/, no un $dir de módulo PHP): se emite UNA vez bajo
+     * el ancla 'Roadmap / Circuito CC', igual que detSinClasificar()/detJquerySinOff(). Consume el
+     * mismo escaneo que `config:auditar-env` (#790) vía EnvRuntimeScanner — NO reimplementa el
+     * tokenizador.
+     */
+    private function detEnvRuntime(string $modulo): array
+    {
+        if ($modulo !== 'Roadmap / Circuito CC') {
+            return [];
+        }
+
+        $hallazgos = (new EnvRuntimeScanner())->escanear();
+        if (! $hallazgos) {
+            return [];
+        }
+
+        $porArchivo = [];
+        foreach ($hallazgos as $h) {
+            $porArchivo[$h['file']][] = $h;
+        }
+        ksort($porArchivo);
+
+        $n     = count($hallazgos);
+        $lista = '';
+        foreach ($porArchivo as $file => $hits) {
+            $claves = array_map(
+                fn ($h) => ':' . $h['linea'] . ' ' . ($h['clave'] ?? '(clave dinámica)'),
+                $hits
+            );
+            $lista .= "  - {$file}: " . implode(', ', $claves) . "\n";
+        }
+
+        return [[
+            'modulo'  => $modulo,
+            'tipo'    => 'env_runtime',
+            'clase'   => 'mecanico',
+            'clave'   => 'env-runtime:lote',
+            'titulo'  => "Circuito: {$n} llamada(s) a env() en tiempo de ejecución fuera de config/",
+            'detalle' => "Una llamada a `env()` fuera de `config/*.php` sólo funciona mientras nadie corra "
+                . "`config:cache` — hoy el checklist de cierre lo evita con `php artisan config:auditar-env` "
+                . "(#790), pero la lista de llamadas sigue sin vaciarse. Cada una se mueve a una clave de "
+                . "`config/<archivo>.php` (donde `env()` sí es el patrón correcto) y el llamador pasa a usar "
+                . "`config('...')` en su lugar — mismo cambio mecánico ya aplicado en #792/#793.\n\n"
+                . "Verificación de cierre: `php artisan config:auditar-env` debe bajar de {$n} hallazgo(s) "
+                . "tras el cambio; en 0 el checklist queda desbloqueado.\n\n"
+                . "Llamadas ({$n}):\n{$lista}",
+        ]];
+    }
+
+    /**
+     * #986 (Torre 24/7 Pieza 5b, FASE 2b) — los dos detectores cross-cutting YA MERGEADOS
+     * (#899/#901), expuestos para que el barrido exploratorio (`BarridoService`) los reuse SIN
+     * reimplementarlos. Ambos se autolimitan a `modulo === 'Roadmap / Circuito CC'` (ver sus
+     * doc-blocks); para cualquier otro módulo devuelven vacío — "si aplican al módulo barrido"
+     * queda resuelto adentro, el llamador no necesita filtrar nada.
+     */
+    public function detectoresCrossCutting(string $modulo): array
+    {
+        return array_merge(
+            $this->detJquerySinOff($modulo),
+            $this->detEnvRuntime($modulo)
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -1380,10 +1980,15 @@ class AuditorService
             // general está agotada.
             if ($soloModulo === null) {
                 $totalNuevos = array_sum(array_column($resumen, 'nuevos'));
+                $racha       = $totalNuevos > 0 ? 0 : $this->rachaSeca() + 1;
                 DB::table('settings')->updateOrInsert(
                     ['key' => self::SETTING_RACHA_SECA],
-                    ['value' => (string) ($totalNuevos > 0 ? 0 : $this->rachaSeca() + 1), 'updated_at' => now()]
+                    ['value' => (string) $racha, 'updated_at' => now()]
                 );
+
+                // #712 — Nivel 2: sólo APAGA, nunca reactiva por su cuenta (el re-arme es
+                // EXCLUSIVO de `gastoApagado()`, disparado por un item real completado).
+                $this->evaluarApagarGasto($racha);
             }
         }
 
@@ -1395,6 +2000,7 @@ class AuditorService
             'creados'   => $creados,
             'por_modulo' => $resumen,
             'racha_seca' => $this->rachaSeca(),   // #1015 — visible sin tocar UI, ver comentario abajo
+            'gasto_apagado' => $this->gastoApagadoDesde() !== null,   // #712 — ídem, Nivel 2
         ];
 
         // Reporte VISIBLE sin tocar UI: queda en `settings` (la Torre ya lee de ahí) y en el log
@@ -1441,13 +2047,18 @@ class AuditorService
         return $alias[$modulo] ?? $modulo;
     }
 
-    private function relativo(string $abs): string
+    /** #986 — público: lo reusa BarridoService (Torre 24/7 Pieza 5b) para no reimplementarlo. */
+    public function relativo(string $abs): string
     {
         return str_replace(base_path() . '/', '', $abs);
     }
 
-    /** @return string[] */
-    private function archivosPhp(string $dir): array
+    /**
+     * @return string[]
+     *
+     * #986 — público: lo reusa BarridoService (Torre 24/7 Pieza 5b) para no reimplementarlo.
+     */
+    public function archivosPhp(string $dir): array
     {
         if (! is_dir($dir)) {
             return [];
@@ -1456,6 +2067,24 @@ class AuditorService
         $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS));
         foreach ($it as $f) {
             if ($f->isFile() && strtolower($f->getExtension()) === 'php') {
+                $out[] = $f->getPathname();
+            }
+        }
+        sort($out);
+
+        return $out;
+    }
+
+    /** @return string[] */
+    private function archivosVue(string $dir): array
+    {
+        if (! is_dir($dir)) {
+            return [];
+        }
+        $out = [];
+        $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS));
+        foreach ($it as $f) {
+            if ($f->isFile() && strtolower($f->getExtension()) === 'vue') {
                 $out[] = $f->getPathname();
             }
         }
