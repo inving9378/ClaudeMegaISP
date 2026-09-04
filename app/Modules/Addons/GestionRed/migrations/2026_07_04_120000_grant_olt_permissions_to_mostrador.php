@@ -14,7 +14,7 @@ use Spatie\Permission\PermissionRegistrar;
  *
  * No existe un mapa declarativo rol→permiso: PermissionSyncService solo reparte
  * los .view (y estos son olt_view/onu_add/onu_edit, guion bajo, NO .view) y da
- * TODO a super-administrator/DESARROLLADOR. Por eso el grant permanente vive aquí,
+ * todos los permisos a super-administrator/DESARROLLADOR. Por eso el grant permanente vive aquí,
  * como migración idempotente (mismo patrón que portal.colaborador / grant_apply_
  * payments_to_megaisp). Corre en cada deploy (migrate --force), sobrevive re-syncs
  * (el sync nunca revoca) y es portable (resuelve rol y permiso por NOMBRE, nunca
