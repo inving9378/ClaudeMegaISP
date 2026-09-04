@@ -52,8 +52,8 @@ class SubItemCommand extends Command
         $maxPosicionHermanos = RoadmapItem::where('origen_item_id', $padre->id)->max('position');
         $position = max((int) $maxPosicionHermanos, 0) + 1;
 
-        // Parseo de --depende-de: CSV de posiciones de hermanos. Sin detección de ciclos todavía
-        // (siguiente sub-item de la Fase 1b, ver DependenciaGate::tieneCiclo()).
+        // Parseo de --depende-de: CSV de posiciones de hermanos. La detección de ciclos corre
+        // más abajo, contra el grafo completo de hermanos (ver DependenciaGate::tieneCiclo()).
         $posiciones = [];
         $rawDependeDe = trim((string) $this->option('depende-de'));
         if ($rawDependeDe !== '') {
