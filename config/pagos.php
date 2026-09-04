@@ -44,4 +44,24 @@ return [
     // Pendiente validación legal — NO implementar cobro de comisión a sub-ISPs sin autorización CNBV
     'medussa_fees_enabled' => (bool) env('PAGOS_MEDUSSA_FEES_ENABLED', false),
 
+    /**
+     * Kill-switch del cron de recurrencia asistida (pagos:enviar-recurrentes,
+     * ver app/Console/Kernel.php). El comando NO cobra (genera ligas de pago y
+     * las loguea para envío manual — no hay auto-débito), pero el schedule
+     * diario solo se activa si esto es true. Mismo patrón que
+     * domiciliacion.cobro_live_enabled: false por default, --dry-run siempre
+     * funciona para simular sin este flag. Flip a true SOLO por decisión
+     * explícita de Irving al activar el cron en el servidor de producción (.198).
+     */
+    'recurrentes_cron_enabled' => (bool) env('PAGOS_RECURRENTES_CRON_ENABLED', false),
+
+    /**
+     * Resumen diario de pagos:enviar-recurrentes (ligas generadas/fallidas +
+     * montos), enviado por correo y/o WhatsApp. Vacíos por default: sin
+     * destinatario configurado, el resumen queda solo en el log dedicado
+     * (storage/logs/pagos-recurrentes.log).
+     */
+    'recurrentes_resumen_email'    => env('PAGOS_RECURRENTES_RESUMEN_EMAIL'),
+    'recurrentes_resumen_whatsapp' => env('PAGOS_RECURRENTES_RESUMEN_WHATSAPP'),
+
 ];
