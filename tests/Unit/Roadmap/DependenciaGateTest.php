@@ -94,4 +94,49 @@ class DependenciaGateTest extends TestCase
             'Si no hay información de la predecesora, se bloquea (fail-closed).'
         );
     }
+
+    /** (a) Sin aristas -> no hay ciclo. */
+    public function test_tiene_ciclo_sin_aristas(): void
+    {
+        $this->assertFalse($this->gate->tieneCiclo(1, []));
+        $this->assertSame([], $this->gate->caminoCiclo(1, []));
+    }
+
+    /** (b) Cadena lineal 3->2->1 sin ciclo -> false. */
+    public function test_tiene_ciclo_cadena_lineal_sin_ciclo(): void
+    {
+        $edges = [3 => [2], 2 => [1]];
+
+        $this->assertFalse($this->gate->tieneCiclo(3, $edges));
+        $this->assertSame([], $this->gate->caminoCiclo(3, $edges));
+    }
+
+    /** (c) Ciclo directo 1->2->1 -> true, con el camino exacto. */
+    public function test_tiene_ciclo_directo(): void
+    {
+        $edges = [1 => [2], 2 => [1]];
+
+        $this->assertTrue($this->gate->tieneCiclo(1, $edges));
+        $this->assertSame([1, 2, 1], $this->gate->caminoCiclo(1, $edges));
+    }
+
+    /** (d) Ciclo indirecto 1->2->3->1 -> true, con el camino exacto. */
+    public function test_tiene_ciclo_indirecto(): void
+    {
+        $edges = [1 => [2], 2 => [3], 3 => [1]];
+
+        $this->assertTrue($this->gate->tieneCiclo(1, $edges));
+        $this->assertSame([1, 2, 3, 1], $this->gate->caminoCiclo(1, $edges));
+    }
+
+    /** (e) Múltiples componentes: solo detecta el ciclo alcanzable DESDE el nodo de interés. */
+    public function test_tiene_ciclo_solo_detecta_lo_alcanzable_desde_el_nodo(): void
+    {
+        // Componente A: 1<->2 con ciclo. Componente B: 10->11 sin ciclo, sin conexión con A.
+        $edges = [1 => [2], 2 => [1], 10 => [11], 11 => []];
+
+        $this->assertTrue($this->gate->tieneCiclo(1, $edges), 'Desde el nodo 1 sí se alcanza el ciclo de su componente.');
+        $this->assertFalse($this->gate->tieneCiclo(10, $edges), 'Desde el nodo 10 NO se alcanza el ciclo de la otra componente.');
+        $this->assertSame([], $this->gate->caminoCiclo(10, $edges));
+    }
 }

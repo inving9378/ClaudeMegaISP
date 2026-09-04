@@ -67,6 +67,66 @@ class DependenciaGate
         ));
     }
 
+    /**
+     * PURO — ¿hay un ciclo alcanzable DESDE $desde siguiendo $edges (adjacencia dirigida
+     * posición => [posiciones de las que depende])? DFS con pila de recursión (visitados + en
+     * pila) para detectar back-edges. Solo mira lo alcanzable desde $desde: un ciclo en otro
+     * componente del grafo no cuenta (para eso sirve pasar el nodo de interés, no analizar todo
+     * el grafo).
+     *
+     * @param array<int,int[]> $edges  posición => [posiciones predecesoras] (p.ej. la nueva
+     *                                 sección 5 depende de la 3 ⇒ $edges[5] = [3])
+     */
+    public function tieneCiclo(int $desde, array $edges): bool
+    {
+        return $this->caminoCiclo($desde, $edges) !== [];
+    }
+
+    /**
+     * PURO — camino del ciclo alcanzable desde $desde (p.ej. [3, 5, 3]), o [] si no hay ciclo.
+     * Mismo DFS que tieneCiclo(); expuesto aparte para que el llamador arme un mensaje de error
+     * con el camino exacto ("la posición 3 dependería circularmente de 3 -> 5 -> 3").
+     *
+     * @param array<int,int[]> $edges
+     * @return int[]
+     */
+    public function caminoCiclo(int $desde, array $edges): array
+    {
+        $visitados = [];
+        $enPila = [];
+        $pila = [];
+
+        $dfs = function (int $nodo) use (&$dfs, &$visitados, &$enPila, &$pila, $edges): array {
+            $visitados[$nodo] = true;
+            $enPila[$nodo] = true;
+            $pila[] = $nodo;
+
+            foreach ($edges[$nodo] ?? [] as $vecino) {
+                $vecino = (int) $vecino;
+
+                if (! empty($enPila[$vecino])) {
+                    $idx = array_search($vecino, $pila, true);
+
+                    return array_merge(array_slice($pila, $idx), [$vecino]);
+                }
+
+                if (empty($visitados[$vecino])) {
+                    $encontrado = $dfs($vecino);
+                    if ($encontrado !== []) {
+                        return $encontrado;
+                    }
+                }
+            }
+
+            array_pop($pila);
+            $enPila[$nodo] = false;
+
+            return [];
+        };
+
+        return $dfs($desde);
+    }
+
     /** Lee las posiciones predecesoras persistidas en el sub-item (subtasks.descomposicion.depende_de). */
     public function dependeDeDe(RoadmapItem $sub): array
     {
