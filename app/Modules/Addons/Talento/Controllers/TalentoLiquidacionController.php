@@ -51,7 +51,7 @@ class TalentoLiquidacionController extends Controller
             'period_end'     => 'required|date|after_or_equal:period_start',
         ]);
 
-        // Guard anti-recálculo (2.2): no re-liquidar semanas ya cerradas/pagadas con el método
+        // Guard anti-recálculo: no re-liquidar semanas ya cerradas/pagadas con el método
         // viejo. La línea es el inicio de la semana de transición (PayWeek::transitionStart(),
         // = cutover − 7d). Se compara contra el period_start CANÓNICO que realmente se liquidaría.
         $canonical = PayWeek::boundsFor(Carbon::parse($data['period_start'])->copy()->addDay());
