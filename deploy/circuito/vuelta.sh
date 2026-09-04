@@ -144,7 +144,15 @@ registrar_arranque(){  # $1 = item (puede venir vacío)
 # lo parqueó el bloque de arriba, no hace nada. Best-effort: nunca cambia el código de salida.
 soltar_claim_huerfano(){
   [ -z "${ITEM:-}" ] && return 0
-  php artisan circuito:soltar-claim "$ITEM" --sid="$SID" >>"$LOG" 2>&1 || true
+  # #927b — DESDE EL CHECKOUT PRINCIPAL, no desde el worktree. `vuelta.sh` viene de `main` (lo
+  # invoca el scheduler con `base_path()`), pero hace `cd "$WT"`, así que `php artisan` resolvía
+  # contra la app del WORKTREE — que va al commit con el que se provisionó y puede ir atrasada.
+  # Falla real medida el 2026-09-04 06:01: «Command "circuito:soltar-claim" is not defined», el
+  # claim de #923 no se soltó y 9 min después el reaper lo escaló a la bandeja. El `|| true` lo
+  # hizo fallar en SILENCIO, que es justo lo que un último recurso no debe hacer.
+  # Esto es infraestructura del circuito, no trabajo del item: va contra la app canónica.
+  (cd "$PROJ" && php artisan circuito:soltar-claim "$ITEM" --sid="$SID") >>"$LOG" 2>&1 \
+    || log "aviso: no se pudo soltar el claim de #$ITEM (sid=$SID)."
 }
 limpiar_al_salir(){ borrar_pid; soltar_claim_huerfano; }
 trap limpiar_al_salir EXIT
@@ -273,7 +281,9 @@ ejecutar_una() {
     elif grep -aq 'Reached max turns' "$LOG"; then CAUSA="max_turns"; DESC="Agotó sus turnos (max-turns)"
     else CAUSA="error"; DESC="Terminó con código $RC"; fi
     META="{\"items_tocados\":[$ITEM],\"n_propuestas\":0,\"n_decisiones\":0,\"ejecuto\":false,\"resumen\":\"${DESC} — ver circuito:parquear-timeout (reanudado si la rama tiene commits; a la bandeja si no).\"}"
-    php artisan circuito:parquear-timeout "$ITEM" --segundos="$TIMEOUT" --causa="$CAUSA" >>"$LOG" 2>&1 \
+    # #927b — también desde el checkout principal, por el mismo desfase de versión: hoy este
+    # comando SÍ existe en los worktrees, pero depende de con qué commit se provisionaron.
+    (cd "$PROJ" && php artisan circuito:parquear-timeout "$ITEM" --segundos="$TIMEOUT" --causa="$CAUSA") >>"$LOG" 2>&1 \
       || log "aviso: no pude parquear #$ITEM tras fin anormal (causa=$CAUSA)."
   fi
 
