@@ -13,7 +13,7 @@
                     <li><a href="{{ url('/megafamilia/planes') }}"><span><small><i class="fa fa-fw fa-layer-group"></i></small> Planes</span></a></li>
                     <li><a href="{{ url('/megafamilia/perfiles') }}"><span><small><i class="fa fa-fw fa-child"></i></small> Perfiles</span></a></li>
                 @endif
-                <li><a href="{{ url('/megafamilia/dispositivos') }}"><span><small><i class="fa fa-fw fa-mobile-screen"></i></small> Dispositivos</span></a></li>
+                <li><a href="{{ url('/megafamilia/dispositivos') }}"><span><small><i class="fa fa-fw fa-mobile-alt"></i></small> Dispositivos</span></a></li>
                 <li><a href="{{ url('/megafamilia/solicitudes') }}"><span><small><i class="fa fa-fw fa-inbox"></i></small> Solicitudes</span></a></li>
                 <li><a href="{{ url('/megafamilia/alertas') }}"><span><small><i class="fa fa-fw fa-bell"></i></small> Alertas</span></a></li>
                 <li><a href="{{ url('/megafamilia/tareas') }}"><span><small><i class="fa fa-fw fa-tasks"></i></small> Tareas</span></a></li>

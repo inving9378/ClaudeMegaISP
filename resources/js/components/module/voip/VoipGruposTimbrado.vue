@@ -17,7 +17,7 @@
                     <i class="fa fa-spinner fa-spin me-1"></i> Cargando…
                 </div>
                 <div v-else-if="grupos.length === 0" class="text-center py-5 text-muted">
-                    <i class="fa fa-users-slash fa-2x mb-2 d-block"></i>
+                    <i class="fa fa-user-slash fa-2x mb-2 d-block"></i>
                     Sin grupos de timbrado.<br>
                     <small>Crea el primero con el botón <strong>Nuevo grupo</strong>.</small>
                 </div>
