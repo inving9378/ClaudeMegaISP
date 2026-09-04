@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Storage;
  *   php artisan conciliacion:demo          → crea 3 casos (propuesto, multi-servicio, escalado)
  *   php artisan conciliacion:demo --clean  → borra los demo y REVIERTE lo aplicado (saldo intacto)
  *
- * Todo se marca con la clave DEMO-F6-* para poder limpiarlo sin tocar datos reales.
+ * Cada dato generado se marca con la clave DEMO-F6-* para poder limpiarlo sin tocar datos reales.
  * El cliente de prueba es el 17. Si Irving CONFIRMA un demo, --clean revierte el
  * pago (borra payment + transaction + reported_payment y ajusta el saldo).
  */
