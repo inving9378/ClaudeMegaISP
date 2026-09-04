@@ -109,6 +109,76 @@
                         </q-list>
                     </div>
                 </template>
+
+                <q-separator class="q-my-md" />
+
+                <div>
+                    <div class="text-subtitle2 q-mb-xs">
+                        Otros pendientes ({{ otrosCompletados }}/{{ otrosItems.length }})
+                    </div>
+                    <q-list bordered separator>
+                        <q-item v-for="item in otrosItems" :key="'otro-' + item.clave">
+                            <q-item-section side top>
+                                <q-checkbox
+                                    v-hasPermission="'documentacion-corporativa.offboarding.gestionar'"
+                                    v-model="item.completado"
+                                    :disable="guardandoOtro === item.clave"
+                                    @update:model-value="guardarOtroItem(item)"
+                                />
+                            </q-item-section>
+                            <q-item-section>
+                                <q-item-label>
+                                    {{ item.etiqueta }}
+                                    <q-badge v-if="item.completado" outline color="positive" class="q-ml-xs" label="Completado" />
+                                </q-item-label>
+                                <q-item-label caption v-if="item.completado">
+                                    Completado el {{ item.fecha }}
+                                    <span v-if="item.evidencia_path"> · <i class="bi bi-paperclip"></i> evidencia adjunta</span>
+                                </q-item-label>
+
+                                <div
+                                    v-hasPermission="'documentacion-corporativa.offboarding.gestionar'"
+                                    class="row q-col-gutter-sm q-mt-xs"
+                                >
+                                    <q-input
+                                        v-if="item.completado"
+                                        class="col-12 col-md-4"
+                                        dense
+                                        outlined
+                                        type="date"
+                                        v-model="item.fecha"
+                                        label="Fecha"
+                                        @blur="guardarOtroItem(item)"
+                                    />
+                                    <q-input
+                                        class="col-12 col-md-5"
+                                        dense
+                                        outlined
+                                        v-model="item.notas"
+                                        label="Nota"
+                                        @blur="guardarOtroItem(item)"
+                                    />
+                                    <q-file
+                                        class="col-12 col-md-3"
+                                        dense
+                                        outlined
+                                        v-model="item._archivo"
+                                        label="Evidencia (opcional)"
+                                        accept=".pdf,.jpg,.jpeg,.png"
+                                        :max-file-size="10 * 1024 * 1024"
+                                        @update:model-value="guardarOtroItem(item)"
+                                        @rejected="onEvidenciaRechazada"
+                                    >
+                                        <template #prepend><i class="bi bi-paperclip"></i></template>
+                                    </q-file>
+                                </div>
+                            </q-item-section>
+                            <q-item-section side v-if="guardandoOtro === item.clave">
+                                <q-spinner size="20px" color="primary" />
+                            </q-item-section>
+                        </q-item>
+                    </q-list>
+                </div>
             </q-card-section>
         </q-card>
     </q-dialog>
@@ -122,6 +192,11 @@
  * (scopeDeCustodio/scopeDeResponsable, item #761) que aún no esté revocado, y
  * permite marcar cada fila como revocada UNA POR UNA. Nunca revocación
  * masiva/automática (Opción C de #667 descartada explícitamente).
+ *
+ * Sección "Otros pendientes" (item roadmap #840, Fase 5d-2b): los 6 ítems
+ * fijos sin tabla propia (correo, VPN, WhatsApp, equipo, respaldo, finiquito
+ * RH) que sirve `OffboardingOtrosItemsController`/`OffboardingOtrosItemsService`
+ * (item #839). Registro manual únicamente — sin acciones automáticas.
  */
 const ETIQUETAS_TIPO_ACTIVO_DIGITAL = {
     sistema: 'Sistema',
@@ -162,12 +237,18 @@ export default {
             opcionesColaborador: [],
             accesos: [],
             activos: [],
+            otrosItems: [],
+            guardandoOtro: null,
         };
     },
 
     computed: {
         sinPendientes() {
             return this.accesos.length === 0 && this.activos.length === 0;
+        },
+
+        otrosCompletados() {
+            return this.otrosItems.filter((item) => item.completado).length;
         },
     },
 
@@ -178,6 +259,7 @@ export default {
             this.colaborador = null;
             this.accesos = [];
             this.activos = [];
+            this.otrosItems = [];
         },
 
         async buscarColaboradores(val, update) {
@@ -195,6 +277,7 @@ export default {
             if (!this.colaborador) {
                 this.accesos = [];
                 this.activos = [];
+                this.otrosItems = [];
                 return;
             }
             await this.cargarPendientes();
@@ -203,16 +286,53 @@ export default {
         async cargarPendientes() {
             this.cargando = true;
             try {
-                const { data } = await axios.get('/documentacion-corporativa/api/offboarding/pendientes', {
-                    params: { user_id: this.colaborador.id },
-                });
-                this.accesos = data.accesos;
-                this.activos = data.activos;
+                const [pendientes, otros] = await Promise.all([
+                    axios.get('/documentacion-corporativa/api/offboarding/pendientes', {
+                        params: { user_id: this.colaborador.id },
+                    }),
+                    axios.get('/documentacion-corporativa/api/offboarding/otros-items', {
+                        params: { user_id: this.colaborador.id },
+                    }),
+                ]);
+                this.accesos = pendientes.data.accesos;
+                this.activos = pendientes.data.activos;
+                this.otrosItems = otros.data.map((item) => ({ ...item, _archivo: null }));
             } catch (e) {
                 this.aviso('No se pudo cargar el checklist de este colaborador.', 'negative');
             } finally {
                 this.cargando = false;
             }
+        },
+
+        async guardarOtroItem(item) {
+            if (!this.colaborador || this.guardandoOtro === item.clave) {
+                return;
+            }
+
+            this.guardandoOtro = item.clave;
+            try {
+                const formData = new FormData();
+                formData.append('user_id', this.colaborador.id);
+                formData.append('item_clave', item.clave);
+                formData.append('completado', item.completado ? '1' : '0');
+                if (item.fecha) formData.append('fecha', item.fecha);
+                if (item.notas) formData.append('notas', item.notas);
+                if (item._archivo) formData.append('evidencia', item._archivo);
+
+                const { data } = await axios.post('/documentacion-corporativa/api/offboarding/otros-items', formData);
+
+                Object.assign(item, data);
+                item._archivo = null;
+                this.aviso(`"${item.etiqueta}" actualizado.`, 'positive');
+            } catch (e) {
+                this.aviso(`No se pudo guardar "${item.etiqueta}". Intenta de nuevo.`, 'negative');
+            } finally {
+                this.guardandoOtro = null;
+            }
+        },
+
+        onEvidenciaRechazada() {
+            this.aviso('El archivo no cumple con el tipo o tamaño permitido (máx. 10MB).', 'negative');
         },
 
         async revocar(tipo, fila) {
