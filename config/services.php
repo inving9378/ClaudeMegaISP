@@ -56,6 +56,9 @@ return [
     'firebase' => [
         'project_id'       => env('FIREBASE_PROJECT_ID'),
         'credentials_path' => env('FIREBASE_CREDENTIALS_PATH'),
+        // Server key legacy FCM (HTTP API), compartida por MegaFamilia (FcmService)
+        // y Talento (TalentoMobileApiController) — una sola clave, un solo lugar.
+        'server_key'       => env('FCM_SERVER_KEY'),
     ],
 
     // Huawei OLT (motor propio — B1b-4). Sin valores hasta validar B1c.
