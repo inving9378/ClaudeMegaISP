@@ -179,4 +179,42 @@ class DependenciaGate
             ->values()
             ->all();
     }
+
+    /**
+     * DB-facing — ids de TODOS los sub-items actualmente BLOQUEADOS por dependencia (#9990274),
+     * en 2 queries sin N+1. Para consumo de `RoadmapItem::scopeDespachable()`, que necesita
+     * excluir estos ids del pool despachable en una sola pasada.
+     *
+     * @return int[]
+     */
+    public function idsBloqueados(): array
+    {
+        $conDependencia = RoadmapItem::whereNotNull('origen_item_id')
+            ->whereNotNull('subtasks')
+            ->get(['id', 'origen_item_id', 'subtasks'])
+            ->filter(fn (RoadmapItem $item) => $this->dependeDeDe($item) !== []);
+
+        if ($conDependencia->isEmpty()) {
+            return [];
+        }
+
+        $origenIds = $conDependencia->pluck('origen_item_id')->unique()->values()->all();
+
+        $estadoPorPadre = [];
+        RoadmapItem::whereIn('origen_item_id', $origenIds)
+            ->get(['id', 'origen_item_id', 'position', 'estado_aprobacion'])
+            ->each(function (RoadmapItem $hermano) use (&$estadoPorPadre) {
+                $estadoPorPadre[$hermano->origen_item_id][(int) $hermano->position] = (string) $hermano->estado_aprobacion;
+            });
+
+        return $conDependencia
+            ->reject(fn (RoadmapItem $item) => $this->elegiblePorEstados(
+                $this->dependeDeDe($item),
+                $estadoPorPadre[$item->origen_item_id] ?? []
+            ))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+    }
 }
