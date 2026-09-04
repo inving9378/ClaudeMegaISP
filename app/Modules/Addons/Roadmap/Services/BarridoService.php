@@ -206,8 +206,12 @@ class BarridoService
      * `php -l` como proceso externo, nunca `require`/`include`.
      *
      * Combina:
-     *   1. `AuditorService::detectoresCrossCutting()` (ya expuesto en #986; se autolimita a
-     *      `modulo === 'Roadmap / Circuito CC'`, vacío para cualquier otro).
+     *   1. `AuditorService::detectoresDeCodigo()` (#9990232) — los TRES detectores de código que
+     *      comparte con el auditor: `detNullSafety` (por módulo) y los dos cross-cutting
+     *      `detJquerySinOff` + `detEnvRuntime`, que se autolimitan a `Roadmap / Circuito CC`
+     *      porque los componentes Vue no viven bajo el `$dir` PHP de un módulo de negocio.
+     *      Sustituye a la llamada anterior a `detectoresCrossCutting()`, que era un SUBCONJUNTO
+     *      de éste: mantener las dos duplicaba jQuery y env_runtime.
      *   2. Grep de TODO/FIXME/deprecated + `php -l` sobre los archivos PHP reales del módulo
      *      (resuelto vía `AuditorService::rutaModulo()`).
      *
@@ -217,9 +221,14 @@ class BarridoService
      */
     public function explorar(string $modulo): array
     {
-        $hallazgos = $this->auditor->detectoresCrossCutting($modulo);
+        // #9990232 — UNA sola llamada. `detectoresCrossCutting()` (jQuery + env_runtime) es un
+        // SUBCONJUNTO de `detectoresDeCodigo()`, que además trae `detNullSafety` — el único de los
+        // tres que el barrido no alcanzaba. Llamar a los dos duplicaba jQuery y env_runtime en el
+        // módulo del circuito (los únicos donde esos dos emiten: son cross-cutting y se autolimitan
+        // a 'Roadmap / Circuito CC' porque los componentes Vue no viven bajo el $dir de un módulo).
+        $dir       = $this->auditor->rutaModulo($modulo);
+        $hallazgos = $this->auditor->detectoresDeCodigo($modulo, $dir);
 
-        $dir = $this->auditor->rutaModulo($modulo);
         if ($dir !== null) {
             $hallazgos = array_merge(
                 $hallazgos,
@@ -227,6 +236,7 @@ class BarridoService
                 $this->detErrorSintaxis($modulo, $dir)
             );
         }
+
 
         $cap = max(0, (int) config('circuito.barrido.hallazgos_max_por_barrida', 3));
 
