@@ -1753,3 +1753,27 @@ pool/reaper hasta que el hook de cierre en cascada (`RoadmapItem.php:459-491`) l
 cuando #9990063 cierre. Detalle en `docs/roadmap-bucle-reap-item-9990012-verificacion.md`. **Sin
 cambio de código de negocio** — el trabajo real (reproducir la carrera y confirmar el mecanismo
 exacto) sigue en #9990063 (`pendiente_revision`, pendiente de que el revisor lo trie).
+
+## Item #917 — Circuito CC #911 Fase 6 (verificación con números del aflojo) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012. #917
+(sub-item de #911) pedía medir 4 números del aflojo del scheduler (ocupación media, timing de
+colisiones, vueltas perdidas vs. ganancia, incidentes de merge no detectados) tras varias horas de
+operación real con la Fase 5 (#916) integrada. Una vuelta previa (`wt-2`, 2026-09-03 22:40) ya hizo
+lo correcto: confirmó que la ventana real ya estaba disponible (perilla en 2 desde `c1ee65f1`,
+~7h de operación), corrió `circuito:cabida` (NO CABE, histórico ~501s) y descompuso el trabajo en
+**#9990195** (Fase 6a: métricas 1+2, ocupación/colisiones), **#9990196** (Fase 6b: métricas 3+4,
+vueltas perdidas/merge no detectado) y **#9990197** (Fase 6c: redactar el doc final, depende de 6a
+y 6b). Pero esa vuelta nunca intentó **cerrar** #917 tras crear los sub-items — quedó `en_progreso`
+colgado con su `worker_sid`; al morir el proceso, `soltar-claim` lo devolvió a `aprobado_revisor`
+(log: `claim_liberado_al_morir_la_vuelta`), y el pool lo repartió de nuevo sin trabajo propio que
+hacer. Verificado esta vuelta: los 3 hijos (`origen_item_id=917`) siguen intactos,
+`pendiente_revision`, sin reclamar — la descomposición original seguía siendo correcta, nadie más
+la tocó. Corrección: esta vuelta ejecuta el intento de cierre faltante; el guard (`RoadmapItem.php`
+bloque "(2b) PARAGUAS", ~301-332) lo reenruta a `aprobado_irving` + `excluir_pool_automatico=true`
+(evento `paraguas_abierto` en el log), sacándolo del pool/reaper hasta que el hook de cierre en
+cascada (`RoadmapItem.php:459-491`) lo complete solo cuando #9990195, #9990196 y #9990197 cierren.
+Detalle en `docs/roadmap-bucle-reap-item-917-verificacion.md`. **Sin cambio de código de negocio**
+— el trabajo real (medir ocupación/colisiones/vueltas perdidas/incidentes de merge y redactar la
+conclusión sobre la perilla del aflojo) sigue en #9990195/#9990196/#9990197, pendientes de que el
+revisor los tríe.
