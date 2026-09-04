@@ -2,6 +2,7 @@
 
 use App\Modules\Core\CRM\Controllers\CrmController;
 use App\Modules\Core\CRM\Controllers\CrmInformationController;
+use App\Modules\Core\CRM\Controllers\CrmOrphanDocumentController;
 use App\Modules\Core\CRM\Controllers\DashboardController;
 use App\Modules\Core\CRM\Controllers\DocumentCrmController;
 use Illuminate\Support\Facades\Route;
@@ -39,6 +40,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::post('/destroy/{id}', [CrmController::class, 'destroy']);
         Route::post('/table', [CrmController::class, 'table']);
         Route::post('information/{crmId}/get-crm-main-information-id-and-crm-lead-information-id', [CrmController::class, 'getCrmMainInformationIdAndCrmLeadInformationId']);
+
+        Route::get('/documentos-huerfanos', [CrmOrphanDocumentController::class, 'index']);
+        Route::get('/documentos-huerfanos/data', [CrmOrphanDocumentController::class, 'data']);
+        Route::get('/documentos-huerfanos/csv', [CrmOrphanDocumentController::class, 'csv']);
 
         Route::group(['prefix' => 'document'], function () {
             Route::post('/add/{idCrm}', [DocumentCrmController::class, 'store']);
