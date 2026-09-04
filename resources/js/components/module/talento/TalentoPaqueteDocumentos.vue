@@ -34,7 +34,7 @@
 
     <div v-else>
       <!-- Selector de puesto (superficie glass) -->
-      <div class="pkg-docs__glass mb-3">
+      <div class="pkg-docs__panel mb-3">
         <div class="row">
           <div class="col-md-5">
             <label class="form-label fw-semibold">Puesto</label>
@@ -60,7 +60,7 @@
 
       <div v-else>
         <!-- Barra de acciones (superficie glass) -->
-        <div class="pkg-docs__glass pkg-docs__toolbar mb-3">
+        <div class="pkg-docs__panel pkg-docs__toolbar mb-3">
           <div class="btn-group btn-group-sm" role="group">
             <button type="button" class="btn btn-outline-secondary" @click="marcarTodos">
               Marcar todos
@@ -289,24 +289,31 @@ export default {
 <style scoped>
 /* Raíz propia del componente: cualquier estilo de esta hoja vive bajo .pkg-docs
    o sus descendientes. `scoped` además ata cada regla al data-attribute de este
-   componente, así que nada se fuga a otras pantallas (ver incidente Flotas). */
+   componente, así que nada se fuga a otras pantallas (ver incidente Flotas).
+
+   TEMA CLARO/OSCURO — todo el color sale de los tokens canónicos de
+   `resources/css/dark-light-tokens.css` (importados en `resources/sass/app.scss`),
+   que conmutan solos con `data-layout-mode="light|dark"` en el <body>. NADA de
+   color hardcodeado aquí: esa era justamente la causa de que la pantalla fuera
+   ilegible en oscuro. */
 .pkg-docs {
   position: relative;
-  padding: 1.25rem;
-  border-radius: 22px;
-  background: linear-gradient(135deg, #eef2f8 0%, #e6ebf4 50%, #eef2f8 100%);
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
-/* Superficie "glass": necesita un fondo detrás para que el blur se note,
-   por eso vive dentro del degradado de .pkg-docs y no del <body>. */
-.pkg-docs__glass {
-  padding: 1rem 1.25rem;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.65);
-  box-shadow: 0 8px 24px rgba(148, 163, 184, 0.25);
+/* Antes era una superficie "glass" (blanco translúcido + blur). Se retiró: el
+   blanco al 55% sobre el fondo oscuro daba un panel lechoso con texto ilegible,
+   y el blur no aportaba nada funcional. Ahora es una superficie OPACA que toma
+   su color del tema. */
+.pkg-docs__panel {
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .pkg-docs__toolbar {
@@ -314,49 +321,51 @@ export default {
   align-items: center;
 }
 
+/* Sin `max-width`: la rejilla ocupa TODO el ancho disponible y deja que
+   `auto-fill` decida cuántas columnas caben. Antes un max-width de 760px la
+   dejaba encajonada en la mitad izquierda por ancha que fuera la pantalla. */
 .pkg-docs__doc-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 0.75rem;
-  max-width: 760px;
+  width: 100%;
 }
 
-/* Neumorfismo: sombra doble (clara arriba-izq / oscura abajo-der) en reposo,
-   e "inset" al marcar, para dar sensación física de tecla presionada. */
+/* Antes: neumorfismo (sombra clara arriba-izq + oscura abajo-der). Ese efecto
+   sólo funciona sobre un gris claro concreto — sobre fondo oscuro se veía como
+   un halo sucio. Se sustituye por superficie + borde + sombra del tema, que
+   funciona igual en claro y en oscuro. */
 .pkg-docs__doc-pill {
   display: flex;
   align-items: center;
   gap: 0.65rem;
   padding: 0.7rem 1rem;
-  border-radius: 14px;
-  background: #eef1f6;
-  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   cursor: pointer;
-  box-shadow:
-    6px 6px 12px rgba(163, 177, 198, 0.5),
-    -6px -6px 12px rgba(255, 255, 255, 0.85);
   transition: box-shadow 150ms ease, transform 150ms ease,
     background-color 150ms ease, border-color 150ms ease;
 }
 
 .pkg-docs__doc-pill:hover {
   transform: translateY(-1px);
-  box-shadow:
-    8px 8px 16px rgba(163, 177, 198, 0.45),
-    -8px -8px 16px rgba(255, 255, 255, 0.9);
+  background: var(--bg-hover);
+  border-color: var(--accent);
 }
 
+/* Marcado: el color NO es la única señal (el indicador de la derecha pasa de
+   círculo hueco a círculo relleno con check), así que sigue siendo legible en
+   alto contraste y para daltonismo. */
 .pkg-docs__doc-pill.is-checked {
-  background: #e8f0ff;
-  border-color: rgba(61, 107, 255, 0.4);
-  box-shadow:
-    inset 4px 4px 8px rgba(148, 163, 184, 0.45),
-    inset -4px -4px 8px rgba(255, 255, 255, 0.85);
+  background: var(--bg-hover);
+  border-color: var(--accent);
 }
 
-/* El neumorfismo tiende a comerse el :focus nativo → se restituye con anillo propio. */
+/* El borde de foco nativo se pierde con fondo propio → se restituye. */
 .pkg-docs__doc-pill:focus-within {
-  outline: 2px solid #3d6bff;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -365,7 +374,7 @@ export default {
   height: 1rem;
   margin: 0;
   cursor: pointer;
-  accent-color: #3d6bff;
+  accent-color: var(--accent);
   flex-shrink: 0;
 }
 
@@ -378,7 +387,7 @@ export default {
   width: 1.35rem;
   height: 1.35rem;
   border-radius: 50%;
-  border: 1.5px solid rgba(100, 116, 139, 0.45);
+  border: 1.5px solid var(--border-default);
   color: transparent;
   font-size: 0.65rem;
   flex-shrink: 0;
@@ -386,15 +395,39 @@ export default {
 }
 
 .pkg-docs__doc-pill.is-checked .pkg-docs__doc-indicator {
-  background: #3d6bff;
-  border-color: #3d6bff;
-  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg-primary);
+}
+
+/* Mismo tratamiento que los encabezados de sección de la Torre (.tc-h2):
+   versalitas pequeñas en color secundario. */
+.pkg-docs :deep(h5) {
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--text-secondary);
 }
 
 .pkg-docs__doc-name {
-  color: #1f2937;
+  color: var(--text-primary);
   font-size: 0.92rem;
   line-height: 1.3;
+}
+
+/* Bootstrap fija `.text-muted` a un gris pensado para fondo claro; en oscuro
+   queda casi invisible. Se reapunta al token secundario SOLO dentro de este
+   componente (scoped: no toca el resto del sistema). */
+.pkg-docs :deep(.text-muted) {
+  color: var(--text-secondary) !important;
+}
+
+/* Mismo caso con el <select> de Bootstrap: fondo blanco fijo sobre tema oscuro. */
+.pkg-docs :deep(.form-select) {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border-color: var(--border-default);
 }
 
 .pkg-docs__save-btn {
@@ -404,6 +437,6 @@ export default {
 
 .pkg-docs__save-btn:not(:disabled):hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 14px rgba(61, 107, 255, 0.35);
+  box-shadow: var(--shadow-card);
 }
 </style>
