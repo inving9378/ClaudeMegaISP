@@ -91,4 +91,12 @@ return [
         'enabled' => (bool) env('MIKROTIK_RECONNECT_SYNC_ENABLED', true),
         'batch_limit_per_router' => (int) env('MIKROTIK_RECONNECT_SYNC_BATCH_LIMIT', 100),
     ],
+
+    /*
+     * Credencial de dev usada por CreateFilesToRectifyMikrotikCommand fuera de producción
+     * (item roadmap #41 — rotar credencial MikroTik). Sin definir en .env, el comando cae a
+     * la credencial real del router (login_api/password_api) ya cargada.
+     */
+    'dev_login' => env('MIKROTIK_DEV_LOGIN'),
+    'dev_password' => env('MIKROTIK_DEV_PASSWORD'),
 ];
