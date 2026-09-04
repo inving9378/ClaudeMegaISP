@@ -723,7 +723,7 @@ class DeploymentService
     private function buildEnv(): array
     {
         $gitConfig  = config('deployment.git', []);
-        $passphrase = env('SSH_KEY_PASSPHRASE', '');
+        $passphrase = config('deployment.ssh_key_passphrase', '');
 
         // HOME = home del usuario que corre el worker (no hardcodeado a /root), para que
         // git y ssh encuentren ~/.gitconfig, ~/.ssh/config y la llave de push de ese usuario.
