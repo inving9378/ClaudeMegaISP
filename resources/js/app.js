@@ -190,6 +190,7 @@ import TalentoEscalafon from "./components/module/talento/TalentoEscalafon.vue";
 import TalentoEmbajadores from "./components/module/talento/TalentoEmbajadores.vue";
 import TalentoEvidenciaConfig from "./components/module/talento/TalentoEvidenciaConfig.vue";
 import TalentoPaqueteDocumentos from "./components/module/talento/TalentoPaqueteDocumentos.vue";
+import TalentoPuestos from "./components/module/talento/TalentoPuestos.vue";
 
 //Mapas
 import GoogleMap from "./components/base/googlemap/GoogleMap";
@@ -641,6 +642,7 @@ const app = createApp({
         'talento-embajadores': TalentoEmbajadores,
         'talento-evidencia-config': TalentoEvidenciaConfig,
         'talento-paquete-documentos': TalentoPaqueteDocumentos,
+        'talento-puestos': TalentoPuestos,
         ImportListar,
         ImportCrud,
         ServiceInAddressListListar,
