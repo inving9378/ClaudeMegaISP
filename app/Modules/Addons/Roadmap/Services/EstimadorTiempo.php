@@ -52,7 +52,10 @@ class EstimadorTiempo
         $metodo   = $segundos !== null ? 'historico' : 'heuristico';
         $crudo    = $segundos ?? (self::BUCKETS[$nivelRiesgo] ?? self::BUCKET_DEFAULT);
 
-        $techo = (int) config('circuito.vuelta_timeout_seg', 600);
+        // #9990338 — el techo real por nivel_riesgo (antes uniforme a 600s vía config() directo,
+        // aunque el guard real de la vuelta —SchedulerCommand::vidaMaximaSegundos()— permita más
+        // para B/C). Mismo punto de verdad que usa el propio guard.
+        $techo = RoadmapCircuitoService::vidaMaximaSegundos($nivelRiesgo);
 
         return [
             'eta_segundos'       => min($crudo, $techo),

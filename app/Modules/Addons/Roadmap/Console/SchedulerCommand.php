@@ -280,13 +280,13 @@ class SchedulerCommand extends Command
      * #9990302 — segundero del guard de vida máxima por nivel_riesgo (decisión de Irving en
      * #9990295, q2 opción 2: A=10min/B=20min/C=45min). Nivel desconocido/null cae al default
      * histórico de nivel A (600s) — ver el docblock de `config('circuito.vida_maxima')`.
+     * #9990338 — lógica movida a RoadmapCircuitoService::vidaMaximaSegundos() (mismo punto de
+     * verdad que usan ahora EstimadorTiempo y buildSesion); este método queda como delegado fino
+     * para no romper las llamadas internas de esta clase.
      */
     private static function vidaMaximaSegundos(?string $nivelRiesgo): int
     {
-        $mapa  = (array) config('circuito.vida_maxima.segundos', []);
-        $nivel = strtoupper((string) $nivelRiesgo);
-
-        return (int) ($mapa[$nivel] ?? $mapa['A'] ?? 600);
+        return RoadmapCircuitoService::vidaMaximaSegundos($nivelRiesgo);
     }
 
     /** Lanza vuelta.sh en modo por-item, detached, en el worktree del slot. */

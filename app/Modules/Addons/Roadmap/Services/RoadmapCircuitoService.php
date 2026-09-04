@@ -1674,8 +1674,9 @@ class RoadmapCircuitoService
             'restante_segundos'     => $restante,
             // El techo real de la vuelta viaja con el reloj (2026-08-26): el ETA ya sale topado a
             // este número, y tenerlo aquí permite rotular el reloj como lo que es —un límite— sin
-            // que nadie tenga que recordar cuánto vale.
-            'techo_segundos'        => (int) config('circuito.vuelta_timeout_seg', 600),
+            // que nadie tenga que recordar cuánto vale. #9990338 — por nivel_riesgo del item EN
+            // CURSO (antes uniforme a 600s para todos, aunque B/C tengan más margen real).
+            'techo_segundos'        => self::vidaMaximaSegundos($eta['nivel_riesgo'] ?? null),
         ];
     }
 
@@ -1702,12 +1703,13 @@ class RoadmapCircuitoService
         }
 
         return RoadmapItem::whereIn('id', $ids)
-            ->get(['id', 'eta_segundos', 'trabajo_iniciado_at', 'eta_metodo'])
+            ->get(['id', 'eta_segundos', 'trabajo_iniciado_at', 'eta_metodo', 'nivel_riesgo'])
             ->keyBy('id')
             ->map(fn (RoadmapItem $i) => [
                 'eta_segundos'        => $i->eta_segundos,
                 'trabajo_iniciado_at' => $i->trabajo_iniciado_at,   // Carbon|null (cast)
                 'eta_metodo'          => $i->eta_metodo,
+                'nivel_riesgo'        => $i->nivel_riesgo,   // #9990338 — techo real de buildSesion
             ])->all();
     }
 
@@ -2499,6 +2501,21 @@ class RoadmapCircuitoService
     public function estimarEtaTrabajo(?string $modulo, ?string $nivelRiesgo): array
     {
         return app(EstimadorTiempo::class)->estimar($modulo, $nivelRiesgo);
+    }
+
+    /**
+     * #9990338 — techo real de una vuelta por nivel_riesgo (antes duplicado config() suelto en
+     * EstimadorTiempo y buildSesion, ambos topando siempre a A aunque el guard real de
+     * SchedulerCommand::vidaMaximaSegundos() (#9990302) permita más para B/C). Único punto de
+     * verdad: A=10min/B=20min/C=45min vía config('circuito.vida_maxima.segundos'); nivel
+     * desconocido/null cae al default histórico de nivel A (600s).
+     */
+    public static function vidaMaximaSegundos(?string $nivelRiesgo): int
+    {
+        $mapa  = (array) config('circuito.vida_maxima.segundos', []);
+        $nivel = strtoupper((string) $nivelRiesgo);
+
+        return (int) ($mapa[$nivel] ?? $mapa['A'] ?? 600);
     }
 
     /** Normaliza un id de worker a la forma `wt-K` (o null si no viene / inválido). #334 A */
