@@ -1133,6 +1133,28 @@ class RoadmapItem extends Model
                 'error' => 'Una terminal ya lo tiene en progreso' . ($this->worker_sid ? ' (' . $this->worker_sid . ')' : '') . '.'];
         }
 
+        // FASE 2B (#9990276) — traduce el mismo gate que ya excluye este item de scopeDespachable()
+        // (#9990274) a un motivo explicable: sólo AÑADE el mensaje, no cambia ningún sí/no. Se
+        // resuelve solo (cuando la(s) predecesora(s) pase(n) a completado), por eso va junto a
+        // 'en_progreso' y antes del fallback genérico.
+        if (config('circuito.dependencia_gate.enabled', true) && $this->origen_item_id) {
+            $gate = app(\App\Modules\Addons\Roadmap\Services\Descomposicion\DependenciaGate::class);
+            $dependeDe = $gate->dependeDeDe($this);
+            if ($dependeDe !== []) {
+                $estados = static::where('origen_item_id', $this->origen_item_id)
+                    ->whereIn('position', $dependeDe)
+                    ->pluck('estado_aprobacion', 'position')
+                    ->map(fn ($e) => (string) $e)
+                    ->all();
+                $bloqueantes = $gate->bloqueadaPor($dependeDe, $estados);
+                if ($bloqueantes !== []) {
+                    return ['code' => 'bloqueado_por_dependencia', 'accion' => 'esperar',
+                        'error' => 'Esperando a que termine(n) la(s) sección(es) posición ' . implode(', ', $bloqueantes)
+                            . ' de esta misma fase (#' . $this->origen_item_id . '). Se libera solo cuando esa(s) sección(es) pase(n) a completado — no hace falta aprobar de nuevo.'];
+                }
+            }
+        }
+
         return ['code' => 'no_despachable', 'accion' => 'revisar',
             'error' => 'La decisión quedó registrada, pero el item sigue sin ser reclamable por el circuito '
                 . '(estado ' . ($this->estado_aprobacion ?: '—') . ', nivel ' . ($this->nivel_riesgo ?: '—') . '). Revísalo en su detalle.'];
