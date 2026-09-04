@@ -9,6 +9,13 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // talento_work_order_types vive en el módulo Talento (app/Modules/Addons/Talento/migrations),
+        // no en database/migrations: en la reconstrucción aislada de schema:rebuild-dryrun esa
+        // migración no corre, así que la tabla puede no existir todavía. En dev/prod reales sí existe.
+        if (!Schema::hasTable('talento_work_order_types')) {
+            return;
+        }
+
         Schema::table('talento_work_order_types', function (Blueprint $table) {
             // Indica si completar esta OT activa el período de garantía del cliente.
             $table->boolean('inicia_garantia')->default(false)->after('requires_validation');
@@ -61,6 +68,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (!Schema::hasTable('talento_work_order_types')) {
+            return;
+        }
+
         // Revertir datos (best-effort)
         DB::table('talento_work_order_types')->where('id', 1)->update([
             'name' => 'Instalación', 'points' => 3, 'inicia_garantia' => false,
