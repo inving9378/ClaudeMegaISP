@@ -2,6 +2,7 @@
 
 use App\Modules\Addons\Talento\Controllers\TalentoColaboradorController;
 use App\Modules\Addons\Talento\Controllers\TalentoCustodiaController;
+use App\Modules\Addons\Talento\Controllers\TalentoEmployeeDocumentController;
 use App\Modules\Addons\Talento\Controllers\TalentoDeviceController;
 use App\Modules\Addons\Talento\Controllers\TalentoRoadmapController;
 use App\Modules\Addons\Talento\Controllers\TalentoWorkOrderController;
@@ -60,6 +61,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/config/evidencias',  [TalentoEvidenciaConfigController::class, 'index']);
         Route::get('/expediente/paquetes', [TalentoPaqueteDocumentoController::class, 'index']);
 
+        // ── Documentos del expediente (Hijo D2, fase C) — HTML ya generado, solo lectura ────
+        Route::get('/colaboradores/{id}/documentos/{docId}', [TalentoEmployeeDocumentController::class, 'show']);
+
         // ── API JSON ─────────────────────────────────────────────────────────
         Route::prefix('api')->group(function () {
 
@@ -74,6 +78,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
             // ── Custodia (solo lectura) ───────────────────────────────────────
             Route::get('/colaboradores/{id}/custodia',     [TalentoCustodiaController::class, 'show']);
+
+            // ── Documentos del expediente (Hijo D2, fase C — solo lectura) ────
+            Route::get('/colaboradores/{id}/documentos',   [TalentoEmployeeDocumentController::class, 'forColaborador']);
 
             // ── Dispositivos ─────────────────────────────────────────────────
             Route::get('/colaboradores/{id}/dispositivos',                    [TalentoDeviceController::class, 'forColaborador']);
