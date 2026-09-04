@@ -70,7 +70,9 @@ class RoadmapIntakeService
         // crea no lo declara, que es lo correcto para un sub-item de seguimiento.
         $item->modulo         = $this->recorta($datos['modulo'] ?? $padre?->modulo, 100);
         $item->target_version = $this->recorta($datos['target_version'] ?? null, 20);
-        $item->priority       = $prioridad;
+        // #214 — mismo patrón que `modulo`: si quien crea no declara priority, hereda la del padre
+        // (un sub-item de un item `alta` no debe degradar a NULL en la cola solo por descomponerse).
+        $item->priority       = $prioridad ?? $padre?->priority;
         $item->origen_item_id = $padre?->id;
 
         // El nivel puede venir declarado, pero SIEMPRE queda sellado con su origen real.
