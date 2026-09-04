@@ -4,6 +4,7 @@ use App\Modules\Addons\DocumentacionCorporativa\Controllers\BitacoraController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ConcesionController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\DcSolicitudController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\DocumentoController;
+use App\Modules\Addons\DocumentacionCorporativa\Controllers\EntregaController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ExpedienteController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\OffboardingOtrosItemsController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\PendienteController;
@@ -79,6 +80,11 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/documentos/{id}/versiones/{version}/descargar', [DocumentoController::class, 'descargarVersion'])->name('documentos.versiones.descargar');
             Route::get('/documentos/{id}/descargar', [DocumentoController::class, 'descargar'])->name('documentos.descargar');
             Route::delete('/documentos/{id}', [DocumentoController::class, 'destroy'])->name('documentos.destroy');
+
+            // Entregas (Fase 5b.3, apartado XIV, item #812) — descarga del ZIP y
+            // del acta de una DcEntrega, con bitácora + contador (ver EntregaController).
+            Route::get('/entregas/{id}/zip', [EntregaController::class, 'descargarZip'])->name('entregas.zip');
+            Route::get('/entregas/{id}/acta', [EntregaController::class, 'descargarActa'])->name('entregas.acta');
 
             // Solicitudes de información recibidas (Fase 5a, apartado XIV, item #758).
             Route::get('/solicitudes', [DcSolicitudController::class, 'index'])->name('solicitudes.index');
