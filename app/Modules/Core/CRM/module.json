@@ -65,6 +65,21 @@
                 "Guarda y asígnale un responsable de seguimiento."
             ],
             "actions": ["Capturar contacto", "Definir origen", "Asignar responsable", "Guardar"]
+        },
+        {
+            "key": "crm_documentos_huerfanos",
+            "label": "CRM — Documentos huérfanos",
+            "url": "/crm/documentos-huerfanos",
+            "permission": "crm_document_view_huerfanos",
+            "terms": [
+                { "term": "Documento huérfano", "definition": "Registro de documento del CRM sin archivo físico asociado en disco." }
+            ],
+            "steps": [
+                "Accede desde Clientes potenciales → botón Documentos huérfanos.",
+                "Busca por id de prospecto o título y revisa el motivo del hallazgo.",
+                "Exporta el listado a CSV si necesitas compartirlo o depurarlo."
+            ],
+            "actions": ["Buscar", "Exportar CSV"]
         }
     ],
     "client_tab": null,
