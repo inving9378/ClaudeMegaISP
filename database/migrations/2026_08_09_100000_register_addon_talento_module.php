@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Da de alta addon-talento en module_registry (estaba en disco pero invisible
@@ -13,6 +14,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasTable('module_registry')) {
+            return;
+        }
+
         DB::table('module_registry')->updateOrInsert(
             ['slug' => 'addon-talento'],
             [
@@ -29,6 +34,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (!Schema::hasTable('module_registry')) {
+            return;
+        }
+
         DB::table('module_registry')->where('slug', 'addon-talento')->delete();
     }
 };
