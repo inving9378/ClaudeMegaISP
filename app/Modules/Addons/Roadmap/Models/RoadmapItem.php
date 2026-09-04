@@ -270,6 +270,21 @@ class RoadmapItem extends Model
         // de nivel C a "esperando merge", el #420 (que reacciona a estado==='completado') ya no debe
         // forzarle status=done.
         static::saving(function (self $item) {
+            // #9990109 INSTRUMENTACIÓN TEMPORAL (Fase 2b) — retirar antes del cierre final del
+            // sub-item de Fase 2b-ii (ver comentario del item #9990109 con los comandos del repro).
+            if ($item->isDirty('estado_aprobacion') && $item->estado_aprobacion === 'completado') {
+                Log::debug('[REPRO9990109] guard1 ENTRADA', [
+                    'pid'                 => getmypid(),
+                    'item_id'             => $item->id,
+                    'cierreManualIrving'  => $item->cierreManualIrving,
+                    'cierreParaguas'      => $item->cierreParaguas,
+                    'merge_commit'        => $item->merge_commit,
+                    'nivel_riesgo'        => $item->nivel_riesgo,
+                    'branch'              => $item->branch,
+                ]);
+            }
+            // FIN INSTRUMENTACIÓN TEMPORAL #9990109
+
             // (1) Un nivel C CON rama que intenta cerrar a 'completado' SIN merge real
             // (merge_commit vacío) NO está terminado: su trabajo espera el merge MANUAL de Irving.
             // Se PARQUEA (esperando_merge_irving + fuera del pool) en vez de cerrarse o volver a la
@@ -281,6 +296,11 @@ class RoadmapItem extends Model
                 && empty($item->merge_commit)
                 && $item->nivel_riesgo === 'C'
                 && ! empty($item->branch)) {
+                // #9990109 INSTRUMENTACIÓN TEMPORAL — ver nota arriba.
+                Log::debug('[REPRO9990109] guard1 DISPARO — reroute a aprobado_irving', [
+                    'pid' => getmypid(), 'item_id' => $item->id,
+                ]);
+                // FIN INSTRUMENTACIÓN TEMPORAL #9990109
                 $item->estado_aprobacion       = 'aprobado_irving';   // sigue autorizado; NO es bandeja
                 $item->esperando_merge_irving  = true;
                 $item->decision_resuelta       = true;
@@ -505,6 +525,18 @@ class RoadmapItem extends Model
             }
 
             $padre = static::find($item->origen_item_id);
+
+            // #9990109 INSTRUMENTACIÓN TEMPORAL (Fase 2b) — retirar antes del cierre final del
+            // sub-item de Fase 2b-ii (ver comentario del item #9990109 con los comandos del repro).
+            Log::debug('[REPRO9990109] cascade saved() hijo cerrado', [
+                'pid'                          => getmypid(),
+                'hijo_id'                      => $item->id,
+                'padre_id'                     => $item->origen_item_id,
+                'padre_estado_aprobacion_fresco' => $padre?->estado_aprobacion,
+                'padre_tiene_subitems_abiertos'  => $padre?->tieneSubItemsAbiertos(),
+            ]);
+            // FIN INSTRUMENTACIÓN TEMPORAL #9990109
+
             // Sólo cierra al padre que está RETENIDO como paraguas: si sigue en la bandeja o lo está
             // trabajando alguien, no es asunto de este hook.
             if (! $padre || $padre->estado_aprobacion !== 'aprobado_irving' || $padre->tieneSubItemsAbiertos()) {
@@ -522,6 +554,13 @@ class RoadmapItem extends Model
             $padre->log = $log;
             $padre->cierreParaguas   = true;   // habilita el guard de arriba para ESTE save
             $padre->estado_aprobacion = 'completado';
+
+            // #9990109 INSTRUMENTACIÓN TEMPORAL — ver nota arriba.
+            Log::debug('[REPRO9990109] cascade saved() DISPARA cierre del padre', [
+                'pid' => getmypid(), 'padre_id' => $padre->id,
+            ]);
+            // FIN INSTRUMENTACIÓN TEMPORAL #9990109
+
             $padre->save();
         });
 
