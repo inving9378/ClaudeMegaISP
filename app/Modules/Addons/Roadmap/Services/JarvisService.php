@@ -474,10 +474,41 @@ class JarvisService
                 ]);
             }
 
+            // #9990210 — ABLANDAMIENTO POR CATEGORÍA (decisión de Irving, 2026-09-04).
+            //
+            // Hasta aquí, «ablandar» no ablandaba nada: una mención conservaba la categoría y
+            // retenía igual que un hit, así que la válvula gastaba una llamada de IA por un
+            // veredicto que no movía ninguna decisión. Ahora una MENCIÓN deja de retener, SALVO
+            // en las categorías de `circuito.mencion_retiene_categorias` (por defecto `dinero` y
+            // `credenciales`), donde se conserva el comportamiento anterior.
+            //
+            // FALLA-SEGURA, igual que el modo: si la config no se puede leer o viene vacía por un
+            // error, se retiene. Un fallo al leer una perilla nunca puede ser la vía por la que
+            // una frontera dura se abra sola.
+            // La decisión vive en `Support\MencionFrontera` (pura, sin Laravel) para que su candado
+            // de regresión pueda correr sin bootear la app ni tocar la base.
+            try {
+                $retienen = config('circuito.mencion_retiene_categorias');
+                $retienen = is_array($retienen) ? $retienen : null;   // null = no se pudo leer → default
+            } catch (\Throwable) {
+                $retienen = null;
+            }
+
+            if (! \App\Modules\Addons\Roadmap\Support\MencionFrontera::retiene($det['categoria'], $retienen)) {
+                return array_merge($base, [
+                    'categoria' => null,
+                    'ablandada' => true,
+                    'motivo'    => "La válvula lo selló como MENCIÓN y «{$det['categoria']}» no está entre las "
+                                 . 'categorías que retienen una mención (' . implode(', ', $retienen) . '): '
+                                 . 'el item sigue su curso. Una ACCIÓN real sobre esa frontera sí lo retendría.',
+                ]);
+            }
+
             return array_merge($base, [
                 'categoria' => $det['categoria'],
                 'ablandada' => true,
-                'motivo'    => "La válvula lo selló como MENCIÓN, así que la frontera «{$det['categoria']}» se ablandó a «requiere Irving» — nunca a «pasa».",
+                'motivo'    => "La válvula lo selló como MENCIÓN, pero «{$det['categoria']}» retiene aunque sea "
+                             . 'mención (decisión de Irving, #9990210): se ablandó a «requiere Irving» — nunca a «pasa».',
             ]);
         }
 

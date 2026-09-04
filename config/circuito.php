@@ -284,6 +284,36 @@ return [
     */
     'candado_migraciones' => env('CIRCUITO_CANDADO_MIGRACIONES', '/var/www/megaisp/storage/app/circuito/migrate-esquema.lock'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Item #9990210 — QUÉ CATEGORÍAS RETIENEN AUNQUE SEAN SÓLO UNA MENCIÓN
+    |--------------------------------------------------------------------------
+    | La válvula de contexto distingue un item que TOCA una frontera dura de uno
+    | que sólo la NOMBRA de paso (ej. «falta permiso» describiendo un catálogo de
+    | gaps, o citar `deploy:dry-run-migrations` para reusarlo). Hasta este item,
+    | esa distinción no cambiaba NADA: en modo «ablandar» una mención seguía
+    | reteniendo igual que un hit, así que el circuito pagaba una llamada de IA
+    | por un veredicto que no movía ninguna decisión.
+    |
+    | DECISIÓN DE IRVING (2026-09-04): una MENCIÓN deja de retener, SALVO en las
+    | categorías de esta lista, que retienen igual que un hit. Elegido a propósito
+    | más conservador que «toda mención pasa»: se acepta que algún hallazgo
+    | legítimo siga cayendo en la bandeja con tal de no tocar nunca dinero ni
+    | credenciales sin que Irving lo vea.
+    |
+    | ⚠️ Esto gobierna SÓLO las menciones. Una ACCIÓN real (`frontera_valvula` =
+    | 'accion') sigue reteniendo en las CUATRO categorías, pase lo que pase, y
+    | eso no es configurable desde aquí a propósito.
+    |
+    | Mover una categoría de un lado a otro es cambiar esta lista — sin redeploy
+    | ni tocar código. Vaciarla = toda mención pasa. Ponerlas las cuatro =
+    | comportamiento anterior a este item.
+    */
+    'mencion_retiene_categorias' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env('CIRCUITO_MENCION_RETIENE', 'dinero,credenciales'))
+    ))),
+
     'autopilot' => [
         'enabled'             => (bool) env('CIRCUITO_AUTOPILOT', true),
 
