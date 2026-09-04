@@ -5,12 +5,16 @@
       <div>
         <h5 class="mb-0">Paquete de documentos por puesto</h5>
         <small class="text-muted">
-          Elige un puesto y marca qué plantillas del expediente le corresponden
-          (ej. técnico recibe el paquete completo, un puesto de oficina solo el suyo).
+          Elige un puesto, marca qué plantillas del expediente le corresponden
+          (ej. técnico recibe el paquete completo, un puesto de oficina solo el suyo)
+          y guarda: todos los cambios se mandan en un solo request.
         </small>
       </div>
       <span v-if="saving" class="badge bg-warning text-dark ms-3">
         <i class="fas fa-spinner fa-spin me-1"></i>Guardando…
+      </span>
+      <span v-else-if="dirty" class="badge bg-info text-dark ms-3">
+        <i class="fas fa-circle me-1"></i>Cambios sin guardar
       </span>
       <span v-else-if="lastSaved" class="badge bg-success ms-3">
         <i class="fas fa-check me-1"></i>Guardado
@@ -33,7 +37,7 @@
       <div class="row mb-3">
         <div class="col-md-5">
           <label class="form-label fw-semibold">Puesto</label>
-          <select class="form-select" v-model="puestoSeleccionado" @change="loadAsignaciones">
+          <select class="form-select" v-model="puestoSeleccionado">
             <option :value="null" disabled>Selecciona un puesto…</option>
             <option v-for="p in puestos" :key="p.id" :value="p.id">{{ p.nombre }}</option>
           </select>
@@ -52,32 +56,58 @@
         <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
       </div>
 
-      <div v-else class="table-responsive">
-        <table class="table table-bordered table-sm align-middle" style="max-width:640px">
-          <thead class="table-dark">
-            <tr>
-              <th style="width:60px" class="text-center">Aplica</th>
-              <th>Documento</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="tpl in templates" :key="tpl.id">
-              <td class="text-center">
-                <div class="form-check d-flex justify-content-center mb-0">
-                  <input
-                    class="form-check-input"
-                    type="checkbox"
-                    style="width:1.2rem;height:1.2rem;cursor:pointer"
-                    :checked="isAssigned(tpl.id)"
-                    :disabled="pendingId === tpl.id"
-                    @change="toggle(tpl.id, $event.target.checked)"
-                  />
-                </div>
-              </td>
-              <td>{{ tpl.name }}</td>
-            </tr>
-          </tbody>
-        </table>
+      <div v-else>
+        <div class="mb-2">
+          <div class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-outline-secondary" @click="marcarTodos">
+              Marcar todos
+            </button>
+            <button type="button" class="btn btn-outline-secondary" @click="marcarNinguno">
+              Marcar ninguno
+            </button>
+            <button type="button" class="btn btn-outline-secondary" @click="invertirSeleccion">
+              Invertir selección
+            </button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-bordered table-sm align-middle" style="max-width:640px">
+            <thead class="table-dark">
+              <tr>
+                <th style="width:60px" class="text-center">Aplica</th>
+                <th>Documento</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="tpl in templates" :key="tpl.id">
+                <td class="text-center">
+                  <div class="form-check d-flex justify-content-center mb-0">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      style="width:1.2rem;height:1.2rem;cursor:pointer"
+                      :checked="isAssigned(tpl.id)"
+                      @change="toggleLocal(tpl.id, $event.target.checked)"
+                    />
+                  </div>
+                </td>
+                <td>{{ tpl.name }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <button
+          type="button"
+          class="btn btn-primary"
+          :disabled="!dirty || saving"
+          @click="guardar"
+        >
+          <i class="fas fa-spinner fa-spin me-1" v-if="saving"></i>
+          <i class="fas fa-save me-1" v-else></i>
+          Guardar
+        </button>
       </div>
     </div>
 
@@ -106,22 +136,65 @@ export default {
       saving:    false,
       lastSaved: false,
       saveError: null,
-      pendingId: null,
 
       puestos:   [],   // [{id, nombre}]
       templates: [],   // [{id, name, category}]
 
       puestoSeleccionado:   null,
       loadingAsignaciones:  false,
-      assignedSet:          new Set(), // template_id asignados al puesto actual
+      savedSet:             new Set(), // último estado confirmado por el servidor
+      workingSet:           new Set(), // estado local editable (lo que ve/marca el usuario)
+      suprimirSiguienteCambioPuesto: false, // evita el confirm() al revertir el <select> por watcher
     };
+  },
+
+  computed: {
+    dirty() {
+      if (this.savedSet.size !== this.workingSet.size) return true;
+      for (const id of this.workingSet) {
+        if (!this.savedSet.has(id)) return true;
+      }
+      return false;
+    },
+  },
+
+  watch: {
+    puestoSeleccionado(nuevo, anterior) {
+      if (this.suprimirSiguienteCambioPuesto) {
+        this.suprimirSiguienteCambioPuesto = false;
+        return;
+      }
+      if (anterior && this.dirty) {
+        const confirma = window.confirm(
+          'Tienes cambios sin guardar en el puesto anterior. ¿Descartarlos y cambiar de puesto?'
+        );
+        if (!confirma) {
+          this.suprimirSiguienteCambioPuesto = true;
+          this.puestoSeleccionado = anterior;
+          return;
+        }
+      }
+      this.loadAsignaciones();
+    },
   },
 
   mounted() {
     this.load();
+    window.addEventListener('beforeunload', this.onBeforeUnload);
+  },
+
+  beforeUnmount() {
+    window.removeEventListener('beforeunload', this.onBeforeUnload);
   },
 
   methods: {
+    onBeforeUnload(e) {
+      if (!this.dirty) return;
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    },
+
     async load() {
       this.loading  = true;
       this.errorMsg = null;
@@ -147,7 +220,9 @@ export default {
         const res = await axios.get('/talento/api/expediente/paquetes/asignaciones', {
           params: { puesto_id: this.puestoSeleccionado },
         });
-        this.assignedSet = new Set(res.data ?? []);
+        this.savedSet   = new Set(res.data ?? []);
+        this.workingSet = new Set(this.savedSet);
+        this.lastSaved  = false;
       } catch (e) {
         this.saveError = e?.response?.data?.message ?? 'No se pudo cargar el paquete de este puesto.';
       } finally {
@@ -156,44 +231,58 @@ export default {
     },
 
     isAssigned(templateId) {
-      return this.assignedSet.has(templateId);
+      return this.workingSet.has(templateId);
     },
 
-    async toggle(templateId, checked) {
-      this.pendingId = templateId;
-      this.saving    = true;
-      this.lastSaved = false;
-      this.saveError = null;
-
-      // Optimistic update
+    toggleLocal(templateId, checked) {
       if (checked) {
-        this.assignedSet.add(templateId);
+        this.workingSet.add(templateId);
       } else {
-        this.assignedSet.delete(templateId);
+        this.workingSet.delete(templateId);
       }
-      this.assignedSet = new Set(this.assignedSet);
+      this.workingSet = new Set(this.workingSet);
+      this.lastSaved  = false;
+    },
+
+    marcarTodos() {
+      this.workingSet = new Set(this.templates.map((t) => t.id));
+      this.lastSaved  = false;
+    },
+
+    marcarNinguno() {
+      this.workingSet = new Set();
+      this.lastSaved  = false;
+    },
+
+    invertirSeleccion() {
+      const nuevo = new Set();
+      for (const tpl of this.templates) {
+        if (!this.workingSet.has(tpl.id)) nuevo.add(tpl.id);
+      }
+      this.workingSet = nuevo;
+      this.lastSaved  = false;
+    },
+
+    async guardar() {
+      if (!this.puestoSeleccionado || this.saving) return;
+      this.saving    = true;
+      this.saveError = null;
+      this.lastSaved = false;
 
       try {
-        await axios.post('/talento/api/expediente/paquetes/toggle', {
-          puesto_id:   this.puestoSeleccionado,
-          template_id: templateId,
-          asignado:    checked,
+        const res = await axios.post('/talento/api/expediente/paquetes/sincronizar', {
+          puesto_id:    this.puestoSeleccionado,
+          template_ids: Array.from(this.workingSet),
         });
+        this.savedSet = new Set(res.data?.template_ids ?? Array.from(this.workingSet));
+        this.workingSet = new Set(this.savedSet);
         this.lastSaved = true;
         setTimeout(() => { this.lastSaved = false; }, 2500);
       } catch (e) {
-        // Revertir
-        if (checked) {
-          this.assignedSet.delete(templateId);
-        } else {
-          this.assignedSet.add(templateId);
-        }
-        this.assignedSet = new Set(this.assignedSet);
-
-        this.saveError = e?.response?.data?.message ?? 'Error al guardar.';
+        // NO se revierte workingSet: la selección marcada se conserva para reintentar.
+        this.saveError = e?.response?.data?.message ?? 'Error al guardar. Tu selección se conservó, puedes reintentar.';
       } finally {
-        this.saving    = false;
-        this.pendingId = null;
+        this.saving = false;
       }
     },
   },
