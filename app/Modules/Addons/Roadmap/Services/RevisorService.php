@@ -7,6 +7,7 @@ use App\Modules\Addons\Roadmap\Jobs\ProponerOpcionesJob;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Support\HuecosDelSpec;
 use App\Modules\Addons\Roadmap\Support\DetectorTerminos;
+use App\Modules\Addons\Roadmap\Support\CarrilSeguridad;
 use App\Modules\Addons\Roadmap\Services\ValvulaContextoService;
 use App\Modules\Addons\Roadmap\Services\TorreAutomationPolicy;
 use Illuminate\Support\Facades\DB;
@@ -986,7 +987,11 @@ TXT;
      * con la clasificación) — solo devuelve datos. FRONTERA DURA: seguridad/dinero/negocio/prod NO
      * se auto-ejecutan; van a Irving. Devuelve:
      *   { categoria: seguridad|dinero|negocio|prod|no_aplica, subcat, severidad: critica|alta|media|baja,
-     *     titulo_corto, texto_brief (markdown), modelo }
+     *     titulo_corto, texto_brief (markdown), modelo, carril: auto|bandeja|null }
+     *
+     * `carril` (#9990060, wiring de #918): SOLO para categoria=seguridad, determinista (sin segunda
+     * llamada a IA) vía `CarrilSeguridad::calcular()` sobre subcat+texto_brief. `null` para las demás
+     * categorías — el comando decide su estado por su camino actual, sin tocarlo.
      */
     public function briefarSeguridad(RoadmapItem $item): array
     {
@@ -1029,6 +1034,8 @@ TXT;
             $v['texto_brief'] = '(Auditor de riesgo no concluyente: ' . mb_strimwidth($e->getMessage(), 0, 140, '…') . ' → queda para Irving.)';
             $v['categoria'] = 'seguridad'; // falla-segura: ante fallo, trátalo como sensible (a Irving), no lo bajes
         }
+
+        $v['carril'] = CarrilSeguridad::calcular($v, (array) config('circuito_hardening'));
 
         return $v;
     }

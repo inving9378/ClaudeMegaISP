@@ -83,7 +83,7 @@ return [
     'bandeja_terminos_existentes' => [
         'permiso', 'rol', 'spatie', 'auth', 'login', 'password', 'contraseña', 'credencial',
         'bcrypt', 'idor', '.env', 'secret', 'dinero', 'pago', 'cobro', 'factura', 'nómina',
-        'comisión',
+        'comisión', 'openpay', 'spei',
     ],
 
 ];
