@@ -1,0 +1,46 @@
+{
+    "slug": "addon-mapa-red",
+    "name": "Mapa de Red",
+    "version": "0.1.0",
+    "description": "Esqueleto del módulo Mapa de Red — pantalla base viva, sin funcionalidad todavía (MR-03).",
+    "type": "addon",
+    "dependencies": [],
+    "active": true,
+
+    "permissions": [
+        { "name": "mapa_red_view", "description": "Ver módulo Mapa de Red" }
+    ],
+
+    "menu": [
+        {
+            "label": "MAPA DE RED",
+            "icon": "map",
+            "permission": "mapa_red_view",
+            "url": "/mapa-red"
+        }
+    ],
+
+    "admin_cards": [
+        {
+            "title": "Mapa de Red",
+            "description": "Mapa de Red — pantalla base, próximamente funcionalidad completa.",
+            "icon": "map",
+            "url": "/mapa-red",
+            "permission": "mapa_red_view"
+        }
+    ],
+
+    "sidebar": { "location": "main" },
+    "config_sections": [],
+    "api_endpoints": [
+        {
+            "method": "GET",
+            "path": "/mapa-red",
+            "description": "Pantalla del módulo Mapa de Red",
+            "scope": "mapa_red.read",
+            "permission": "mapa_red_view"
+        }
+    ],
+    "client_tab": null,
+    "service_type": null
+}

@@ -2452,4 +2452,15 @@ return [
         '/documentacion-corporativa/**',
     ],
 
+    // ══════════════════════════════════════════════════════════════════════════
+    // Mapa de Red (addon-mapa-red) — MR-03, esqueleto (item roadmap #9990081)
+    // ══════════════════════════════════════════════════════════════════════════
+    // La key debe ser EXACTAMENTE el nombre del permiso Spatie (mapa_red_view):
+    // CheckRoutePermission compara `isset($permissions[$key])` contra los
+    // permisos del usuario, no contra un slug de ruta.
+    'mapa_red_view' => [
+        '/mapa-red',
+        '/mapa-red/**',
+    ],
+
 ];
