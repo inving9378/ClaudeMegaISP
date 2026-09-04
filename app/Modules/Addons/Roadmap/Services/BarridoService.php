@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Roadmap\Services;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\Process\Process;
 
 /**
  * "MODO BARRIDO" — Torre 24/7 Pieza 5b (#908), FASE 2a (#985).
@@ -191,5 +192,100 @@ class BarridoService
             ['key' => self::SETTING_COBERTURA],
             ['value' => json_encode($cobertura, JSON_UNESCAPED_UNICODE), 'updated_at' => now()]
         );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+    // 4. EXPLORACIÓN — FASE 2b-i (#9990032): hallazgos crudos, SOLO LECTURA, sin crear items
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Hallazgos CRUDOS de `$modulo` (mismo formato `$gap` que los detectores de `AuditorService`:
+     * modulo/tipo/clase/clave/titulo/detalle/pregunta?) — SIN crear ningún item (eso es la Fase
+     * 2b-ii, sub-item hermano) y SIN tocar el código del módulo barrido: sólo lee archivos y corre
+     * `php -l` como proceso externo, nunca `require`/`include`.
+     *
+     * Combina:
+     *   1. `AuditorService::detectoresCrossCutting()` (ya expuesto en #986; se autolimita a
+     *      `modulo === 'Roadmap / Circuito CC'`, vacío para cualquier otro).
+     *   2. Grep de TODO/FIXME/deprecated + `php -l` sobre los archivos PHP reales del módulo
+     *      (resuelto vía `AuditorService::rutaModulo()`).
+     *
+     * Capado por `circuito.barrido.hallazgos_max_por_barrida` para no generar de un jalón más
+     * hallazgos de los que un solo ciclo de despacho (Fase 3/#987) pueda repartir sin dejar
+     * terminales ociosas.
+     */
+    public function explorar(string $modulo): array
+    {
+        $hallazgos = $this->auditor->detectoresCrossCutting($modulo);
+
+        $dir = $this->auditor->rutaModulo($modulo);
+        if ($dir !== null) {
+            $hallazgos = array_merge(
+                $hallazgos,
+                $this->detTodoFixme($modulo, $dir),
+                $this->detErrorSintaxis($modulo, $dir)
+            );
+        }
+
+        $cap = max(0, (int) config('circuito.barrido.hallazgos_max_por_barrida', 3));
+
+        return array_slice($hallazgos, 0, $cap);
+    }
+
+    /** Grep case-insensitive de TODO/FIXME/deprecated — un hallazgo por ocurrencia (archivo+línea). */
+    private function detTodoFixme(string $modulo, string $dir): array
+    {
+        $hallazgos = [];
+        foreach ($this->auditor->archivosPhp($dir) as $file) {
+            $lineas = @file($file);
+            if (! $lineas) {
+                continue;
+            }
+            $rel = $this->auditor->relativo($file);
+            foreach ($lineas as $i => $linea) {
+                if (! preg_match('/\b(TODO|FIXME|deprecated)\b/i', $linea, $m)) {
+                    continue;
+                }
+                $n = $i + 1;
+                $hallazgos[] = [
+                    'modulo'  => $modulo,
+                    'tipo'    => 'barrido_todo_fixme',
+                    'clase'   => 'mecanico',
+                    'clave'   => "barrido-todo:{$rel}:{$n}",
+                    'titulo'  => "Barrido: {$m[1]} en {$rel}:{$n}",
+                    'detalle' => "Encontrado durante el barrido exploratorio del módulo «{$modulo}»:\n\n"
+                        . "  {$rel}:{$n}: " . trim($linea) . "\n\n"
+                        . "Revisar si sigue vigente y resolver o eliminar el comentario.",
+                ];
+            }
+        }
+
+        return $hallazgos;
+    }
+
+    /** `php -l` por archivo, como proceso externo (jamás `require`/`include` del archivo). */
+    private function detErrorSintaxis(string $modulo, string $dir): array
+    {
+        $hallazgos = [];
+        foreach ($this->auditor->archivosPhp($dir) as $file) {
+            $lint = new Process(['php', '-l', $file], base_path());
+            $lint->setTimeout(10);
+            $lint->run();
+            if ($lint->isSuccessful()) {
+                continue;
+            }
+            $rel = $this->auditor->relativo($file);
+            $hallazgos[] = [
+                'modulo'  => $modulo,
+                'tipo'    => 'barrido_error_sintaxis',
+                'clase'   => 'mecanico',
+                'clave'   => "barrido-sintaxis:{$rel}",
+                'titulo'  => "Barrido: error de sintaxis en {$rel}",
+                'detalle' => "`php -l` falló durante el barrido exploratorio del módulo «{$modulo}»:\n\n"
+                    . trim($lint->getErrorOutput() . $lint->getOutput()),
+            ];
+        }
+
+        return $hallazgos;
     }
 }

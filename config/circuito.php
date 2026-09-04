@@ -1212,6 +1212,12 @@ return [
         // que no se libera en este tiempo se trata como HUÉRFANO (terminal caída a medio barrido)
         // y deja de bloquear — ver `BarridoService::leerCandado()`.
         'candado_ttl_min' => (int) env('CIRCUITO_BARRIDO_CANDADO_TTL_MIN', 25),
+
+        // #9990032 (FASE 2b-i) — tope de hallazgos que `BarridoService::explorar()` devuelve por
+        // corrida. Inspirado en `circuito.auditor.items_por_modulo_por_ciclo`: no tiene sentido
+        // que una sola exploración genere de un jalón más hallazgos de los que el despacho FIFO
+        // (Fase 3/#987) pueda repartir sin dejar terminales ociosas.
+        'hallazgos_max_por_barrida' => (int) env('CIRCUITO_BARRIDO_HALLAZGOS_MAX', 3),
     ],
 
     /*
