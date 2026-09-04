@@ -3718,3 +3718,25 @@ complete solo.
 Detalle en `docs/roadmap-bucle-reap-item-907-verificacion.md`. Sin cambio de código de negocio —
 el trabajo real (condición de disparo, toggle configurable, métrica de ocupación) sigue en #980
 (pendiente de aprobación de Irving) y #981/#982 (`aprobado_revisor`, listos para tomarse).
+
+## 2026-09-04 00:42 — Item #924: cierre del bucle reap sobre paraguas ya descompuesto (root-cause del cierre-en-cascada que dejó pasar a #32)
+
+`#924` ("Root-cause: paraguas cierre-en-cascada dejó pasar un nivel-C sin merge a 'completado' —
+item #32", sub-item de #883) venía en bucle de reap: una vuelta previa (`wt-2`) ya había
+descompuesto correctamente el trabajo aprobado por Irving (sus 3 preguntas estructuradas, todas
+Opción 1) en **#9990012** (reproducir en dev la carrera exacta que esquivó el guard bloque (1)) y
+**#9990013** (endurecer el punto confirmado + test de regresión, bloqueado a propósito hasta tener
+la causa exacta), tras `circuito:cabida`=NO CABE, pero nunca intentó cerrar al padre. El reaper lo
+re-encoló y un timeout adicional lo escaló de nuevo sin trabajo propio que hacer — misma familia de
+bug que #738/#745/#830/#816/#818/#848/#905/#878/#906/#907.
+
+Esta vuelta verificó que los 2 hijos seguían intactos y sin reclamar, y ejecutó el intento de
+cierre faltante (`estado_aprobacion = 'completado'`). El guard de paraguas del modelo lo reenrutó
+a `aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto`, 2 sub-items
+abiertos), sacándolo del pool hasta que #9990012/#9990013 cierren y el hook de cierre en cascada
+lo complete solo.
+
+Detalle en `docs/roadmap-bucle-reap-item-924-verificacion.md`. Sin cambio de código de negocio —
+el trabajo real de investigación (reproducir la carrera de #32 y endurecer el guard con test de
+regresión) sigue en #9990012 (`aprobado_revisor`, listo para tomarse) y #9990013
+(`requiere_irving`, bloqueado hasta tener la causa confirmada).

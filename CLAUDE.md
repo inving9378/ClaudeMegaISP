@@ -1646,3 +1646,27 @@ forzarla sería el falso-positivo que la propia Opción 1 señala como contra); 
 de corte en 3 fases escrita en su log para el próximo ejecutor, si vuelve a agotar turnos. Detalle
 completo en `docs/circuito-maxturns-cabida-item-930-verificacion.md`. **Sin cambio de código de
 aplicación** — el mecanismo que satisface la Opción 1 ya existía en `main` antes de este item.
+
+## Item #924 — Root-cause del paraguas cierre-en-cascada que dejó pasar a #32 (nivel-C sin merge) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#905/#878/#906/#907. #924 (sub-item de #883) pedía
+investigar por qué el hook de cierre en cascada dejó completar a `#32` (nivel-C, con rama propia y
+sin `merge_commit`) esquivando el guard bloque (1), y — según la causa confirmada — endurecer el
+punto exacto + test de regresión. Irving aprobó las 3 preguntas estructuradas del item, todas con
+la Opción 1 recomendada (investigar primero, reabrir #32 y re-cerrarlo por el flujo normal, y
+agregar un guard pre-cierre que valide `merge_commit` de todos los sub-items nivel-C). Una vuelta
+previa (`wt-2`) ya hizo lo correcto: corrió `circuito:cabida` (NO CABE) y descompuso el trabajo en
+**#9990012** (reproducir en dev la carrera exacta que esquivó el guard) y **#9990013** (endurecer
+el punto confirmado + test de regresión, correctamente bloqueado hasta tener la causa exacta de
+#9990012). Pero esa vuelta nunca intentó **cerrar** #924 tras crear los sub-items — quedó colgado;
+el reaper lo re-encoló y un timeout lo escaló de nuevo sin trabajo propio que hacer. Verificado esta
+vuelta: #9990012/#9990013 siguen intactos, sin reclamar — la descomposición original seguía siendo
+correcta, nadie más la tocó. Corrección: esta vuelta ejecuta el intento de cierre faltante; el guard
+(`RoadmapItem.php` bloque "(2b) PARAGUAS", ~301-326) lo reenruta a `aprobado_irving` +
+`excluir_pool_automatico=true` (evento `paraguas_abierto` en el log, "le quedan 2 sub-item(s)
+abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
+(`RoadmapItem.php:459-491`) lo complete solo cuando #9990012 y #9990013 cierren. Detalle en
+`docs/roadmap-bucle-reap-item-924-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo real de investigación (reproducir la carrera de #32 y endurecer el guard con test de
+regresión) sigue en #9990012 (`aprobado_revisor`, listo para tomarse) y #9990013 (`requiere_irving`,
+bloqueado hasta tener la causa confirmada).
