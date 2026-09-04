@@ -237,7 +237,6 @@ class BarridoService
             );
         }
 
-
         $cap = max(0, (int) config('circuito.barrido.hallazgos_max_por_barrida', 3));
 
         return array_slice($hallazgos, 0, $cap);
