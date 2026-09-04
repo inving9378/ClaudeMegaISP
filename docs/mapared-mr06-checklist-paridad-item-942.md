@@ -60,14 +60,15 @@ Fuente: métodos reales (`grep "public function"`) + cruce vivo/muerto de MR-01c
 - [ ] `loadKMZ` (parseo KML/KMZ → `parseKmlToJson`/`saveKMZ`/`saveNode`/`saveLayersFromNode`/`normalizeNode`/`normalizeLayer` son privados internos del parser, no rutas propias)
 - [ ] `getKML($path)` — verificar si tiene ruta o es interno
 
-### LayersController (`/maps/layers*`, el más grande — 21 métodos)
-- [ ] `index` · `store` · `update` · `destroy` · `destroyMultiple`
-- [ ] `configuration` · `coords` · `changeClassification`
-- [ ] `addClientToServiceBox` · `moveMarker`
-- [ ] `convertLayersFromProject` · `convertLayerFromLayer` · `convertLayersFromTickeds`
-- [ ] `avaiablesRoutes` · `assignRoutes` · `unassignRoute` · `changeRoutePosition`
-- [ ] `createInput` · `updateInput` · `updateMarkersDistanceFromRoute`
-- [ ] `updateConnections($layer,$route)` — verificar si expuesto por ruta
+### LayersController (`/maps/layers*`, el más grande — 21 métodos) — ✅ portado (MR-06a-4, item #9990336)
+- [x] `index` · `store` · `update` · `destroy` · `destroyMultiple`
+- [x] `configuration` · `coords` · `changeClassification`
+- [x] `addClientToServiceBox` · `moveMarker`
+- [x] `convertLayersFromProject` · `convertLayerFromLayer` · `convertLayersFromTickeds`
+- [x] `avaiablesRoutes` · `assignRoutes` · `unassignRoute` · `changeRoutePosition`
+- [x] `createInput` · `updateInput` · `updateMarkersDistanceFromRoute`
+- [x] `updateConnections($layer,$route)` — helper interno sin ruta propia, igual que el original;
+  portado como método público invocado desde `assignRoutes`
 - ⚠️ **`devicesFromRack`** (ruta `GET /maps/layers/devices/{id}`) — **el método NO EXISTE en el
   controller** (confirmado MR-01c). Ruta rota y sin caller. **NO portar** — no hay comportamiento
   que igualar (portar un 500 no es paridad útil).
