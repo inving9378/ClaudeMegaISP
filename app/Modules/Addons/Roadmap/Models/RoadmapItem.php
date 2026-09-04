@@ -1001,7 +1001,7 @@ class RoadmapItem extends Model
             ? []                                                    // `manual`: nada automático despacha
             : array_slice(['A', 'B', 'C'], 0, self::ORDEN_NIVEL[$base] ?? 1);
 
-        return $query
+        $query = $query
             ->tomablePorCircuito()
             ->elegibleParaPool()
             ->whereNotIn('status', ['done'])
@@ -1036,6 +1036,19 @@ class RoadmapItem extends Model
                     $w->orWhere('automatizacion_override', 'auto');
                 }
             });
+
+        // GATE DE DEPENDENCIAS (#9990274) — excluye sub-items cuyas predecesoras declaradas
+        // (`subtasks.descomposicion.depende_de`) aún no están `completado`. Flag apagable sin
+        // redeploy (`config('circuito.dependencia_gate.enabled')`); en `false` restaura el
+        // comportamiento anterior byte-idéntico.
+        if (config('circuito.dependencia_gate.enabled', true)) {
+            $bloqueados = app(\App\Modules\Addons\Roadmap\Services\Descomposicion\DependenciaGate::class)->idsBloqueados();
+            if ($bloqueados !== []) {
+                $query->whereNotIn('id', $bloqueados);
+            }
+        }
+
+        return $query;
     }
 
     /**
