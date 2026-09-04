@@ -461,6 +461,21 @@ return [
             // debe quedar enmascarado por el resto tranquilo — ver medirLogs() y alertas().
             'errores_por_minuto_umbral' => (int) env('CIRCUITO_JARVIS_ERRORES_MINUTO_UMBRAL', 20),
 
+            // CHEQUEO cert_dev (item #226, paso 5) — vigencia del certificado TLS de
+            // dev.meganett.com.mx, verificada por handshake real (openssl s_client), sin
+            // depender de sudo ni de ninguna credencial: los certs de Let's Encrypt en
+            // /etc/letsencrypt son root:root, ilegibles para este usuario, así que se mide
+            // por red, igual que lo vería cualquier cliente. El cert se emitió con
+            // `certbot --manual` y NO auto-renueva; si expira, la API HTTPS que consume
+            // Cowork se cae y el circuito entero se apaga sin que ninguna otra sonda lo note
+            // (es tráfico saliente a otra máquina, no un proceso local). 21/7 días = alerta
+            // con margen de sobra / crítico ya en la última semana.
+            'cert_dev' => [
+                'dominio' => env('CIRCUITO_JARVIS_CERT_DEV_DOMINIO', 'dev.meganett.com.mx'),
+                'umbral_alerta_dias' => (int) env('CIRCUITO_JARVIS_CERT_DEV_ALERTA_DIAS', 21),
+                'umbral_critico_dias' => (int) env('CIRCUITO_JARVIS_CERT_DEV_CRITICO_DIAS', 7),
+            ],
+
             // CANAL DE ALERTA FUERA DE LA TORRE (#707, sub-item de #208, parte 3/3) — el
             // vigilante SOLO AVISA, nunca corrige. Reusa el gateway WhatsApp ÚNICO ya designado
             // (`EvolutionApiService`, ver CLAUDE.md §"SERVICIOS COMPARTIDOS ÚNICOS"), nunca un

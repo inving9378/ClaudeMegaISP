@@ -86,6 +86,7 @@ class JarvisVigilarCommand extends Command
             'sonda'     => $this->medirSonda(),
             'git'       => $this->medirGit(),
             'gasto'     => $this->medirGasto(),
+            'cert_dev'  => $this->medirCertDev(),
         ];
 
         $estado['bd_integra'] = $this->medirBdIntegra($anterior);
@@ -538,6 +539,63 @@ class JarvisVigilarCommand extends Command
             'umbral_hora'        => $umbral,
             'invocaciones_hora'  => $conteo,
             'ultimo_arranque_ts' => $ultimoTs,
+        ];
+    }
+
+    /**
+     * CHEQUEO cert_dev (item #226, paso 5) — vigencia del certificado TLS de
+     * `dev.meganett.com.mx`, la máquina de la que depende la API HTTPS que consume Cowork.
+     * Se emitió con `certbot --manual`, así que NO auto-renueva; su expiración apaga el
+     * circuito entero sin que ninguna otra sonda lo note (es tráfico saliente a otra máquina,
+     * no un proceso local). Handshake TLS real (`openssl s_client` + `openssl x509`), NO
+     * lectura de `/etc/letsencrypt` (esos certs son `root:root`, ilegibles para este usuario):
+     * así no hace falta sudo ni ninguna credencial, se mide igual que lo vería cualquier
+     * cliente. Va en su propio `try/catch` implícito (no lanza: `sh()` ya tolera fallo) y no
+     * frena nada (a diferencia de bd_integra/tablas_clave): solo avisa.
+     */
+    private function medirCertDev(): array
+    {
+        $dominio = (string) config('circuito.jarvis.vigilia.cert_dev.dominio', 'dev.meganett.com.mx');
+        $alertaDias = (int) config('circuito.jarvis.vigilia.cert_dev.umbral_alerta_dias', 21);
+        $criticoDias = (int) config('circuito.jarvis.vigilia.cert_dev.umbral_critico_dias', 7);
+
+        $salida = trim((string) $this->sh(
+            'echo | timeout 8 openssl s_client -connect ' . escapeshellarg($dominio . ':443')
+            . ' -servername ' . escapeshellarg($dominio) . ' 2>/dev/null'
+            . ' | openssl x509 -noout -enddate 2>/dev/null'
+        ));
+
+        if (! preg_match('/notAfter=(.+)$/', $salida, $m)) {
+            return [
+                'medido' => false, 'escalon' => 'critico', 'dominio' => $dominio,
+                'vence_en' => null, 'dias_restantes' => null,
+                'error' => 'No se pudo leer el certificado por handshake TLS.',
+                'umbral_alerta_dias' => $alertaDias, 'umbral_critico_dias' => $criticoDias,
+            ];
+        }
+
+        $vence = strtotime(trim($m[1]));
+        if ($vence === false) {
+            return [
+                'medido' => false, 'escalon' => 'critico', 'dominio' => $dominio,
+                'vence_en' => null, 'dias_restantes' => null,
+                'error' => 'Fecha de vencimiento ilegible: ' . trim($m[1]),
+                'umbral_alerta_dias' => $alertaDias, 'umbral_critico_dias' => $criticoDias,
+            ];
+        }
+
+        $dias = (int) floor(($vence - time()) / 86400);
+        $escalon = $dias <= $criticoDias ? 'critico' : ($dias <= $alertaDias ? 'alerta' : 'ok');
+
+        return [
+            'medido' => true,
+            'escalon' => $escalon,
+            'dominio' => $dominio,
+            'vence_en' => date('c', $vence),
+            'dias_restantes' => $dias,
+            'error' => null,
+            'umbral_alerta_dias' => $alertaDias,
+            'umbral_critico_dias' => $criticoDias,
         ];
     }
 
@@ -1084,6 +1142,26 @@ class JarvisVigilarCommand extends Command
             $a[] = ['clave' => 'gasto_claude', 'nivel' => 'me_pregunta',
                 'texto' => "{$gasto['invocaciones_hora']} invocaciones de claude -p en la última hora "
                     . "(umbral {$gasto['umbral_hora']}).", ];
+        }
+
+        // CHEQUEO cert_dev (item #226, paso 5) — el cert de dev.meganett.com.mx no auto-renueva
+        // (certbot --manual) y sostiene la API HTTPS que consume Cowork. 'alarma' en vez de
+        // 'me_pregunta' para el escalón crítico a propósito: es la misma severidad que
+        // bd_integra/tablas_clave porque el efecto es el mismo (el circuito se apaga), aunque
+        // aquí no se ponga freno (nada que frenar: es un certificado externo, no el propio box).
+        $cd = $e['cert_dev'] ?? [];
+        if (($cd['escalon'] ?? 'ok') === 'critico') {
+            $a[] = ['clave' => 'cert_dev', 'nivel' => 'alarma',
+                'texto' => ($cd['medido'] ?? false)
+                    ? "CRÍTICO — el certificado de {$cd['dominio']} vence en {$cd['dias_restantes']} día(s) "
+                        . "({$cd['vence_en']}). Se emitió con certbot --manual y NO auto-renueva (item #226): "
+                        . 'sin acción, la API HTTPS que consume Cowork se cae y el circuito se apaga.'
+                    : "CRÍTICO — no pude verificar por TLS el certificado de {$cd['dominio']}: {$cd['error']}", ];
+        } elseif (($cd['escalon'] ?? 'ok') === 'alerta') {
+            $a[] = ['clave' => 'cert_dev', 'nivel' => 'me_pregunta',
+                'texto' => "El certificado de {$cd['dominio']} vence en {$cd['dias_restantes']} día(s) "
+                    . "({$cd['vence_en']}). No auto-renueva (item #226) — renovar a mano si el hook DNS-01 "
+                    . 'sigue sin credenciales.', ];
         }
 
         return $a;
