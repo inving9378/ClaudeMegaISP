@@ -84,7 +84,7 @@ class DocumentTemplateController extends Controller
             'name' => $nameTemplate,
             'html' => $request->html,
             'type' => $request->type,
-            'created_by' => auth()->user()->id
+            'created_by' => auth()->user()?->id
         ]);
 
         return response()->json([
