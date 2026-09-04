@@ -1638,21 +1638,6 @@ class AuditorService
         ]];
     }
 
-    /**
-     * #986 (Torre 24/7 Pieza 5b, FASE 2b) — los dos detectores cross-cutting YA MERGEADOS
-     * (#899/#901), expuestos para que el barrido exploratorio (`BarridoService`) los reuse SIN
-     * reimplementarlos. Ambos se autolimitan a `modulo === 'Roadmap / Circuito CC'` (ver sus
-     * doc-blocks); para cualquier otro módulo devuelven vacío — "si aplican al módulo barrido"
-     * queda resuelto adentro, el llamador no necesita filtrar nada.
-     */
-    public function detectoresCrossCutting(string $modulo): array
-    {
-        return array_merge(
-            $this->detJquerySinOff($modulo),
-            $this->detEnvRuntime($modulo)
-        );
-    }
-
     // ═══════════════════════════════════════════════════════════════════════════════════════════
     // CLASIFICACIÓN — frontera dura y olor a decisión de producto
     // ═══════════════════════════════════════════════════════════════════════════════════════════
