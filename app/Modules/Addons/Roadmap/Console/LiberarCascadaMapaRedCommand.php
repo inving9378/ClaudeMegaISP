@@ -168,6 +168,18 @@ class LiberarCascadaMapaRedCommand extends Command
             return self::SUCCESS;
         }
 
+        // #939 — un item en aprobado_irving+excluir_pool_automatico=true puede ser un PARAGUAS
+        // parqueado por el guard de RoadmapItem::saving() (2b), no el freno normal esperando a que
+        // el anterior de la secuencia cierre. Liberarlo aquí lo devuelve al pool sin trabajo propio
+        // (sus sub-items siguen abiertos) → bucle de reap. El paraguas se cierra solo cuando el
+        // último sub-item cierre (mismo guard); esta cascada no debe adelantarlo.
+        if ($siguiente->tieneSubItemsAbiertos()) {
+            $this->line("#{$siguienteId} es un paraguas con sub-item(s) abierto(s). No se toca "
+                . '(cierra solo cuando el último sub-item cierre).');
+
+            return self::SUCCESS;
+        }
+
         if (! $siguiente->excluir_pool_automatico) {
             $this->line("#{$siguienteId} ya está liberado. Nada que hacer.");
 
