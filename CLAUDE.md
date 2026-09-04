@@ -1516,6 +1516,30 @@ solo cuando #855, #856 y #857 cierren. Detalle en
 `docs/roadmap-bucle-reap-item-848-verificacion.md`. **Sin cambio de código de negocio** — el
 trabajo real de la Fase 2 del sidebar sigue en #855/#856/#857, pendiente de triaje/aprobación.
 
+## Item #852 — Item 2 Fase A (permisos.description + sync-roles + 34 módulos) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848, sub-item de seguimiento de #842 (fix de la columna
+`permissions.description` faltante + comando de sincronización + registro de permisos de los 34
+módulos que ya los declaran en su `module.json`). Una vuelta previa (`wt-3`, 2026-09-01 15:59) ya
+hizo lo correcto: `circuito:cabida` devolvió NO CABE (ya había timeouteado sin commits) →
+descompuso el trabajo real en **#858** (fix de columna + backfill + extender el glob de
+`PermissionSyncService` a `Core/*/module.json`), **#859** (correr `permissions:sync-roles
+--manifests` en dev tras el fix + verificar diff), **#860** (exponer `description` en el catálogo
+`/administracion/permisos/catalog`) y **#861** (documentar la convivencia de nomenclaturas de
+permisos). De paso corrigió una premisa falsa del spec original: el comando
+`permissions:sync-roles` **ya existía** (`SyncPermissionsCommand.php`, con `--manifests`) — no
+había que crearlo desde cero, solo corría el fix de columna antes. Pero el proceso nunca intentó
+cerrar al padre tras descomponerlo — el item se quedó `en_progreso` con el `worker_sid` de esa
+sesión; el reaper (`reaper-rapido`) vio el slot libre, re-encoló #852 a `aprobado_irving`
+(`reap_count=1`), y el pool lo repartió de nuevo sin trabajo propio que hacer. Verificado esta
+vuelta: los 4 hijos (`origen_item_id=852`) existen intactos, sin reclamar — la descomposición
+original seguía siendo correcta, nadie más la tocó. Corrección: esta vuelta ejecuta el intento de
+cierre faltante; el guard (`RoadmapItem.php` bloque "(2b) PARAGUAS") lo reenruta a
+`aprobado_irving` + `excluir_pool_automatico=true`, sacándolo del pool/reaper hasta que el hook de
+cierre en cascada (`RoadmapItem.php:459-491`) lo complete solo cuando #858, #859, #860 y #861
+cierren. Detalle en `docs/roadmap-bucle-reap-item-852-verificacion.md`. **Sin cambio de código de
+negocio** — el trabajo real (columna, comando, UI, documentación) sigue en
+#858/#859/#860/#861, pendiente de que una terminal los reclame.
 ## Item #905 — Válvula: sellar frontera_valvula + backfill + test de regresión (Defecto 1 de #902) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
 
 Mismo patrón que #738/#745/#830/#816/#818/#848/#878. #905 pedía sellar `frontera_valvula` en el
