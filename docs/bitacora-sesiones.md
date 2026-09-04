@@ -3740,3 +3740,43 @@ Detalle en `docs/roadmap-bucle-reap-item-924-verificacion.md`. Sin cambio de có
 el trabajo real de investigación (reproducir la carrera de #32 y endurecer el guard con test de
 regresión) sigue en #9990012 (`aprobado_revisor`, listo para tomarse) y #9990013
 (`requiere_irving`, bloqueado hasta tener la causa confirmada).
+
+## 2026-09-03 19:54 — Item #9990061: auditoría de 13 completados sin mergear + causa raíz del auto-merge de Jarvis
+
+Auditoría 100% solo-lectura (sin mergear nada). Verificados uno por uno los 13 items `completado`
+con `branch` poblada y `merge_commit` NULL: **6 no tienen nada que perder** (rama = main, cero
+commits propios — la investigación quedó solo en campos de BD), **5 tienen una nota `docs/` de
+cierre huérfana** (bajo impacto) y **2 tienen código funcional real varado** (#806 backend del
+chat de Jarvis Parte 3b, #971 el liberador en cascada de la épica MAPA DE RED — el que el propio
+item señala como bloqueante desde MR-01).
+
+**Causa raíz, dos rutas de cierre que nunca encolan merge:** (A) el hook de cascada de paraguas
+(`RoadmapItem.php:472-501`, `static::saved`) pone `estado_aprobacion='completado'` directo vía
+`save()`, sin llamar nunca `JarvisService::enqueueMerge()` — afecta a 8 de los 13 (#279/#646/#672/
+#705/#739/#740/#797/#900/#933, el mismo patrón ya parcheado caso-por-caso en items previos
+#738/#745/#830/etc. sin tocar la causa estructural del hook). (B) cierre manual por `tinker` sin
+pasar antes por `circuito:integrar` — #971 solo se intentó mergear 5h después (probablemente
+click manual de Irving en la Torre) y topó con un **conflicto de contenido real**; #806 y #825
+nunca se encolaron ni entonces ni después (cero trazas de `merge-runner` en su log).
+
+**El archivo caliente:** el 100% de los 7 commits huérfanos toca `docs/bitacora-sesiones.md` (la
+propia REGLA PERMANENTE de este archivo) — con N terminales en paralelo es el punto de choque más
+disputado del repo; 10 reintentos de merge de #705 fallaron seguidos por árbol sucio en el checkout
+principal sobre ESTE archivo, hasta que el anti-bucle lo excluyó del pool para siempre.
+
+**`circuito:destrabar-bandeja` (#566):** confirmado NO agendado en crontab (hay un comando
+`circuito:destrabe` parecido en nombre pero de función totalmente distinta — fácil de confundir).
+Pero aunque se hubiera agendado, no habría movido estos 13 items: su lógica (`pendienteReal()`)
+trata cualquier `estado_aprobacion=completado` como `'cierre'` (nada que hacer) antes de llegar a
+la rama de decisión de merge. Sí vale la pena agendarlo (recomendado cada 10 min) para la bolsa
+real que atiende: items `aprobado_irving`/`esperando_merge_irving` aún no completados.
+
+**Fix mínimo propuesto (no aplicado — decisión de diseño sobre un mecanismo compartido, queda
+para que Irving decida):** un barrido nuevo (opción nueva de `destrabar-bandeja` o comando
+dedicado, agendado cada 10-15 min) que busque
+`completado AND branch NOT NULL AND merge_commit NULL AND archivado_at NULL` y llame
+`enqueueMerge()` por cada uno — idempotente vía `MergeRunner::performMerge` (si la rama ya es
+ancestro de main, solo rellena `merge_commit` sin tocar nada). Detalle completo, tabla de los 13
+con hash/fecha/causa, y el trade-off de tocar el hook de cascada directamente (descartado por
+riesgo de reentrancia) en
+`docs/circuito-auditoria-13-completados-sin-mergear-item-9990061.md`.
