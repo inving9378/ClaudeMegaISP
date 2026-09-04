@@ -2378,7 +2378,6 @@ return [
         '/talento/api/expediente/paquetes/puestos',
         '/talento/api/expediente/paquetes/templates',
         '/talento/api/expediente/paquetes/asignaciones',
-        '/talento/api/expediente/paquetes/toggle',
         '/talento/api/expediente/paquetes/sincronizar',
     ],
     'talento.activations.manage' => [

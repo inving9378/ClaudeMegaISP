@@ -51,34 +51,6 @@ class TalentoPaqueteDocumentoController extends Controller
         return response()->json($templateIds);
     }
 
-    // ── API: toggle asignación ──────────────────────────────────────────────
-
-    public function toggle(Request $request)
-    {
-        $data = $request->validate([
-            'puesto_id'   => 'required|integer|exists:talento_puestos,id',
-            'template_id' => 'required|integer|exists:talento_document_templates,id',
-            'asignado'    => 'required|boolean',
-        ]);
-
-        if ($data['asignado']) {
-            // Dual-write (item #923): `puesto` (string) se conserva como snapshot legible hasta
-            // la contracción que retire la columna vieja; `puesto_id` es la fuente de verdad.
-            $nombre = TalentoPuesto::whereKey($data['puesto_id'])->value('nombre');
-
-            TalentoPuestoDocumentTemplate::firstOrCreate(
-                ['puesto_id' => $data['puesto_id'], 'template_id' => $data['template_id']],
-                ['puesto' => $nombre]
-            );
-        } else {
-            TalentoPuestoDocumentTemplate::where('puesto_id', $data['puesto_id'])
-                ->where('template_id', $data['template_id'])
-                ->delete();
-        }
-
-        return response()->json(['ok' => true, 'asignado' => (bool) $data['asignado']]);
-    }
-
     // ── API: sincronizar paquete completo en una sola escritura ────────────
 
     public function sincronizar(Request $request)
