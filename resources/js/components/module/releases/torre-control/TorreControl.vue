@@ -1477,6 +1477,12 @@ export default {
 <style scoped>
 .tc-wrap{
   --tc-surface:#fff; --tc-ink:#111827; --tc-muted:#6b7280; --tc-line:#e5e7eb;
+  /* Segundo nivel de fondo: bloques embebidos DENTRO de una .tc-card (p. ej. la lista
+     de agendados), que necesitan separarse de la superficie sin parecer otra tarjeta.
+     Se usaba como var(--tc-bg2, rgba(0,0,0,.02)) sin estar definido en ninguna de las
+     dos paletas: el fallback tiraba SIEMPRE, así que en oscuro pintaba negro traslúcido
+     sobre un fondo ya oscuro en vez de aclarar. Falla callada: no rompe, sólo se ve mal. */
+  --tc-bg2:#f8fafc;
   --tc-ok:#16a34a; --tc-info:#2563eb; --tc-warn:#d97706; --tc-bad:#dc2626; --tc-slate:#64748b; --tc-accent:#0d9488;
   max-width:1160px;margin:0 auto;color:var(--tc-ink);
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -1724,6 +1730,9 @@ export default {
 
 .tc-dark{
   --tc-surface:#151d2e; --tc-ink:#e8edf6; --tc-muted:#8b97ab; --tc-line:#2a3550;
+  /* En oscuro el segundo nivel ACLARA (no oscurece): sobre #151d2e, bajar más lo
+     volvería indistinguible del fondo de página. */
+  --tc-bg2:#1b2437;
   --tc-ok:#4ade80; --tc-info:#60a5fa; --tc-warn:#fbbf24; --tc-bad:#f87171; --tc-slate:#94a3b8; --tc-accent:#2dd4bf;
 }
 .tc-dark .tc-statusbar,.tc-dark .tc-kpi,.tc-dark .tc-card{box-shadow:0 1px 2px rgba(0,0,0,.35);}
