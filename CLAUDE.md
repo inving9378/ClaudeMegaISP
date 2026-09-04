@@ -1603,6 +1603,25 @@ sub-item(s) abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre
 técnico real (condición de disparo, toggle configurable, métrica de ocupación) sigue en #980
 (pendiente de que Irving lo apruebe) y #981/#982 (`aprobado_revisor`, listos para tomarse).
 
+## Item #9990003 — Candado de esquema de #915 usaba `storage_path()` por-worktree (RESUELTO — ya corregido bajo #915)
+
+Sub-item de seguimiento de #915 (creado 2026-09-03 16:27), reportaba que
+`GuardedMigrateCommand::conCandadoDeEsquema()` usaba `storage_path('app/circuito')` — ruta que
+resuelve DENTRO de cada worktree (`readlink -f` confirmó rutas físicas distintas en `wt-1..wt-6`)
+→ el candado no serializaba nada entre terminales, el mismo riesgo que #915 debía cerrar. Al
+llegar a este item, el fix **ya estaba en `main`**: commit `1e83e7cc` (mismo día, 16:29:38 —
+minutos después de que este sub-item se creara), integrado vía `1631905d`, cambió la ruta a
+`config('circuito.candado_migraciones')` = ruta absoluta al checkout principal
+(`/var/www/megaisp/storage/app/circuito/migrate-esquema.lock`), mismo patrón que
+`freno.centinela`. Carrera de timing entre el sub-item de seguimiento y la sesión que ya estaba
+corrigiendo el item padre — el trabajo real se hizo ANTES de que el seguimiento terminara de
+escalarse (variante inversa del gap de bookkeeping de #733/#738/#745/etc.). Reverificado en esta
+vuelta: `php -l` limpio + **prueba de concurrencia real** (dos procesos PHP lanzados desde `wt-3`
+y `wt-1`, `flock(LOCK_EX)` sobre la misma ruta resuelta por `config()`) confirmó exclusión mutua
+real entre worktrees; fallback silencioso (archivo no abrible → warn + continúa) intacto. Detalle
+en `docs/circuito-candado-esquema-storage-path-item-9990003-verificacion.md`. **Sin cambio de
+código** — el fix ya estaba aplicado.
+
 ## Item #930 — FASE 4 de #927: ¿debe agotar los 60 turnos disparar la misma descomposición (`circuito:cabida`) que un timeout? (RESUELTO — el mecanismo ya estaba en vigor)
 
 Sub-item de evaluación/reporte de #927 (causa raíz de los claims huérfanos por `Reached max turns`).
