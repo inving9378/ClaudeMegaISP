@@ -1560,6 +1560,42 @@ return [
             'cadencia'    => 'cada 5 min (cron) · gated por cola seca / racha seca / slots libres, '
                 . 'igual que el Auditor',
         ],
+
+        // #9990238 (FASE 4 de #9990235) — cron propio (`*/10 * * * * .../cron-wrap.sh
+        // circuito:liberar-cascada-mapa-red`, tag `# mr-32`), no estaba en este registro: si esa
+        // línea se rompía, la cascada MR-01→MR-07 dejaba de avanzar sin que ningún panel lo pintara
+        // en rojo. A diferencia de `circuito:compuertas-sonda` (ver la nota que sigue), este comando
+        // NO deja rastro de "sigo vivo" en ninguna otra parte — su archivo de estado
+        // (`circuito/liberador-mapa-red.json`) solo se escribe cuando la cascada se DETIENE, no en
+        // cada tick sano — así que el latido genérico de `CommandFinished` es la única señal de que
+        // el cron sigue corriendo.
+        //
+        // `excluye_opciones`: las 3 banderas manuales (`--dry-run` no escribe nada, `--estado` y
+        // `--reactivar` son inspección/intervención humana) NUNCA las manda el cron — pero si
+        // alguien las corre a mano para revisar la cascada, no deben sellar el latido como si el
+        // cron hubiera corrido: sería la misma mentira que ya evitan `re-triage`/`priorizar-seguridad`
+        // arriba.
+        'circuito:liberar-cascada-mapa-red' => [
+            'motor'         => 'Liberador cascada Mapa de Red (MR-32)',
+            'cadencia_horas' => 10 / 60,
+            'max_horas'   => 1,
+            'excluye_opciones' => ['dry-run', 'estado', 'reactivar'],
+            'si_no_corre' => 'la cascada MR-01→MR-07 deja de avanzar sola aunque el item anterior '
+                . 'ya haya cerrado, y nadie lo nota hasta revisar a mano',
+            'cadencia'    => 'cada 10 min (cron-wrap.sh)',
+        ],
+
+        // #9990238 (FASE 4 de #9990235) — `circuito:compuertas-sonda` también tiene cron PROPIO
+        // (`* * * * * ... circuito:compuertas-sonda`, cada minuto) y tampoco estaba aquí, pero a
+        // propósito NO se agrega: a diferencia de `liberar-cascada-mapa-red` de arriba, esta sonda
+        // YA es su propio latido, uno mejor que el genérico de este archivo. Cada corrida escribe
+        // `storage/app/torre/compuertas-so.json` con `medido_ts`, y `CompuertasService` (el ÚNICO
+        // consumidor, junto al panel de la Torre) lo lee DIRECTO y calcula su propia antigüedad
+        // (`SNAPSHOT_FRESCO_SEG=180`) con su propio mensaje de remediación ("revisar su línea en el
+        // crontab de meganet"). Duplicarlo aquí sería un segundo reloj del mismo hecho — la deriva
+        // que este mismo archivo advierte evitar más arriba (ver `circuito:scheduler`) — sin ganar
+        // nada: el panel de Compuertas seguiría sin usar `latidos()`, así que un segundo latido acá
+        // seria una fuente muerta, más código de vigilancia para el mismo dato.
     ],
 
     'retriage' => [
