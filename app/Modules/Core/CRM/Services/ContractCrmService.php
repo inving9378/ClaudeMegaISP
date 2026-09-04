@@ -57,7 +57,7 @@ class ContractCrmService
             'title' => $nameTemplate,
             'crm_id' => $idCrm,
             'description' => $nameTemplate,
-            'added_by_id' => auth()->user()->id,
+            'added_by_id' => auth()->user()?->id,
             'show' => true,
         ];
         $documentClient = $DocumentCrmRepository->create($document);
