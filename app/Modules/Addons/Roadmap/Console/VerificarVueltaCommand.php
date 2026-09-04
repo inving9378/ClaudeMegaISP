@@ -124,10 +124,16 @@ class VerificarVueltaCommand extends Command
      */
     private function checkTests(string $modulo): void
     {
-        $candidatos = array_values(array_filter([
-            "tests/Feature/{$modulo}",
-            "tests/Unit/{$modulo}",
-        ], fn (string $dir) => is_dir(base_path($dir))));
+        $variantes = array_unique([$modulo, ucfirst(strtolower($modulo))]);
+        $posibles = [];
+        foreach ($variantes as $variante) {
+            $posibles[] = "tests/Feature/{$variante}";
+            $posibles[] = "tests/Unit/{$variante}";
+        }
+        $candidatos = array_values(array_unique(array_filter(
+            $posibles,
+            fn (string $dir) => is_dir(base_path($dir))
+        )));
 
         $usaFallback = empty($candidatos);
         if ($usaFallback) {
