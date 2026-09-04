@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Roadmap\Services;
 
+use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -36,7 +37,7 @@ class BarridoService
     /** Memoria de cobertura PROPIA del barrido: JSON {modulo: {ultima_barrida_at}}. */
     private const SETTING_COBERTURA = 'circuito_barrido_cobertura_modulos';
 
-    public function __construct(private AuditorService $auditor)
+    public function __construct(private AuditorService $auditor, private RoadmapIntakeService $intake)
     {
     }
 
@@ -287,5 +288,168 @@ class BarridoService
         }
 
         return $hallazgos;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+    // 5. CREACIÓN DE HALLAZGOS — FASE 2b-ii (#9990033): items reales, SIN duplicar
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Crea un item por cada hallazgo NUEVO de `$hallazgos` (formato `$gap` de `explorar()`).
+     *
+     * DEDUP: reusa `AuditorService::yaExiste()/huella()` TAL CUAL — misma columna
+     * `auditor_fingerprint`, así un hallazgo de barrido y uno del auditor mecánico sobre el MISMO
+     * gap (huella = tipo+módulo+clave, ambos motores comparten formato `$gap`) no se duplican
+     * entre sí, y una segunda corrida de barrido sobre el mismo módulo sin cambios no repite nada.
+     *
+     * Cada hallazgo trae SU PROPIO 'modulo' (no el del módulo barrido en bloque): si algún día
+     * `explorar()` mezcla hallazgos cross-cutting de otro módulo, cada item nace con el módulo real
+     * del hallazgo — nunca se agrupan bajo uno solo (evita que items de módulos distintos dejen
+     * terminales ociosas por compartir footprint, #986).
+     */
+    public function crearHallazgos(array $hallazgos, ?int $itemMadreId = null): array
+    {
+        $creados = [];
+        foreach ($hallazgos as $gap) {
+            // Segunda comprobación justo antes de escribir (igual que `AuditorService::ciclo()`):
+            // entre el escaneo y aquí pudo entrar el mismo gap por otra vía (Irving, Cowork, el
+            // auditor mecánico, otra terminal en barrido).
+            if ($this->auditor->yaExiste($gap)) {
+                continue;
+            }
+            try {
+                $item = $this->crearItemDeHallazgo($gap, $itemMadreId);
+                $creados[] = [
+                    'id' => $item->id, 'modulo' => $gap['modulo'], 'tipo' => $gap['tipo'],
+                    'clase' => $gap['clase'], 'titulo' => $item->title,
+                ];
+            } catch (\Throwable $e) {
+                Log::channel('roadmap_externo')->warning('barrido-alta-fallo', [
+                    'modulo' => $gap['modulo'] ?? null, 'clave' => $gap['clave'] ?? null,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $creados;
+    }
+
+    /**
+     * Un item del hallazgo. MECÁNICO → nivel A ejecutable (mismo trato que `AuditorService::crear()`
+     * — reversible/aditivo, cola normal). PRODUCTO → bandeja de Irving con la pregunta, nunca
+     * autoejecutable. Título con el prefijo '[BARRIDO] ' LITERAL para que la Fase 3 (#987, despacho
+     * FIFO de estos hallazgos) los identifique sin ambigüedad frente a los del auditor mecánico.
+     */
+    private function crearItemDeHallazgo(array $gap, ?int $itemMadreId): RoadmapItem
+    {
+        $esProducto = $gap['clase'] === 'producto';
+
+        $item = $this->intake->crear([
+            'title'          => '[BARRIDO] ' . $gap['titulo'],
+            'description'    => $gap['detalle'],
+            'prompt'         => $esProducto ? null : $this->promptEjecutable($gap),
+            'modulo'         => $gap['modulo'],
+            'nivel_riesgo'   => $esProducto ? 'C' : 'A',
+            'priority'       => 'media',
+            'origen_item_id' => $itemMadreId,
+        ], 'barrido', true);
+
+        $item->auditor_fingerprint = $this->auditor->huella($gap);
+
+        if ($esProducto) {
+            // Bandeja de Irving. `requiere_irving: true` impide que el autopilot la tome, y el
+            // estado `requiere_irving` lo deja fuera del pool de reclamo.
+            $item->estado_aprobacion = 'requiere_irving';
+            $item->preguntas = [[
+                'id'              => 'q1',
+                'pregunta'        => $gap['pregunta'] ?? ('¿Cómo procedemos con: ' . $gap['titulo'] . '?'),
+                'fase'            => null,
+                'requiere_irving' => true,
+                'opciones'        => [],
+                'opcion_elegida'  => null,
+            ]];
+        }
+
+        $item->save();
+
+        Log::channel('roadmap_externo')->info('barrido-item-creado', [
+            'id' => $item->id, 'modulo' => $gap['modulo'], 'tipo' => $gap['tipo'],
+            'clase' => $gap['clase'], 'huella' => $item->auditor_fingerprint,
+        ]);
+
+        return $item;
+    }
+
+    /** Spec ejecutable para la terminal que tome el item mecánico (equivalente barrido del de AuditorService). */
+    private function promptEjecutable(array $gap): string
+    {
+        return "Este item lo generó el MODO BARRIDO (Torre 24/7 Pieza 5b, #908) al explorar SOLO "
+            . "LECTURA el módulo {$gap['modulo']} durante un valle de pool seco. Es un gap MECÁNICO: "
+            . "aditivo/reversible, sin decisión de producto de por medio.\n\n"
+            . "QUÉ CERRAR\n{$gap['detalle']}\n\n"
+            . "CÓMO CERRARLO\n"
+            . "- Cambio mínimo que resuelve el gap. Nada de refactors de paso.\n"
+            . "- Si al abrirlo resulta que SÍ hay una decisión de producto detrás (qué debe hacer la "
+            . "pantalla, qué política aplica), NO la inventes: consulta a Jarvis.\n"
+            . "- Verifica: `php -l` de lo que toques + `php artisan --version` (que bootee). Si tocas "
+            . "frontend, compila con `bash deploy/circuito/npm-build.sh`.\n"
+            . "- DoD del item: el gap ya no aparece si se vuelve a correr el barrido sobre este módulo.";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+    // 6. CICLO COMPLETO — FASE 2b-ii (#9990033): el punto de entrada real del "modo barrido"
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+
+    /**
+     * `tomarCandado` → `elegirModulo` → `explorar` → crear hallazgos (o "sin hallazgos", sin
+     * inventar ruido) → `marcarBarrido` → `liberarCandado`. SIEMPRE libera el candado al salir
+     * (try/finally) — un barrido que se queda sin liberar bloquea a cualquier otra terminal hasta
+     * que expire el TTL (`candado_ttl_min`), y eso es justo lo que este método existe para evitar.
+     *
+     * `$apply=false` recorre el mismo camino (toma candado real, explora) pero NO crea items ni
+     * marca cobertura — sirve para probar el cableado sin ensuciar la Hoja de Ruta.
+     */
+    public function ciclo(string $workerSid, bool $apply = true): array
+    {
+        if (! $this->tomarCandado($workerSid)) {
+            return ['tomo_candado' => false, 'modulo' => null, 'hallazgos' => 0, 'creados' => [],
+                'motivo' => 'Ya hay otra terminal en modo barrido (candado activo): no se toma turno.'];
+        }
+
+        try {
+            $modulo = $this->elegirModulo();
+            if ($modulo === null) {
+                Log::channel('roadmap_externo')->info('barrido-sin-modulo', ['worker_sid' => $workerSid]);
+
+                return ['tomo_candado' => true, 'modulo' => null, 'hallazgos' => 0, 'creados' => []];
+            }
+
+            $hallazgos = $this->explorar($modulo);
+
+            if (! $hallazgos) {
+                // Honesto: nada que reportar no es un hallazgo. Se libera igual el candado (en el
+                // finally) para que la siguiente terminal libre pueda tomar el turno de barrido.
+                Log::channel('roadmap_externo')->info('barrido-sin-hallazgos', [
+                    'worker_sid' => $workerSid, 'modulo' => $modulo,
+                ]);
+                if ($apply) {
+                    $this->marcarBarrido($modulo);
+                }
+
+                return ['tomo_candado' => true, 'modulo' => $modulo, 'hallazgos' => 0, 'creados' => []];
+            }
+
+            $creados = $apply ? $this->crearHallazgos($hallazgos) : [];
+            if ($apply) {
+                $this->marcarBarrido($modulo);
+            }
+
+            return [
+                'tomo_candado' => true, 'modulo' => $modulo, 'hallazgos' => count($hallazgos),
+                'creados' => $creados, 'gaps' => $hallazgos,
+            ];
+        } finally {
+            $this->liberarCandado($workerSid);
+        }
     }
 }
