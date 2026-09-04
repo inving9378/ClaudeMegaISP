@@ -26,4 +26,7 @@ return [
     | — sube en false, se activa aparte cuando Irving lo confirme).
     */
     'pilot_campaign_send_enabled' => env('MARKETING_PILOT_CAMPAIGN_SEND_ENABLED', false),
+
+    // Token de API de Replicate (ImageGeneratorService — generación de imágenes SDXL).
+    'replicate_api_token' => env('REPLICATEAPITOKEN', ''),
 ];

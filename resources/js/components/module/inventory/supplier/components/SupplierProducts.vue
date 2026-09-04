@@ -54,7 +54,7 @@ import Datatable from "../../../../base/shared/Datatable.vue";
 import DatatableHelper from "../../../../../helpers/datatableHelper";
 import SupplierProductPricesCrud from "./SupplierProductPricesCrud.vue";
 import Swal from "sweetalert2";
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted, getCurrentInstance } from "vue";
 
 export default {
     name: "SupplierProducts",
@@ -70,6 +70,10 @@ export default {
         },
     },
     setup(props) {
+        const ns = `.leak983-supplierProducts-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const title = ref("Agregar Producto al Catálogo");
         const action = ref(
             `/inventory/supplier/${props.supplierId}/product-prices/add`
@@ -146,20 +150,20 @@ export default {
         };
 
         onMounted(() => {
-            $(document).on("click", ".uil-pen-modal", function (e) {
+            $(document).on("click" + ns, ".uil-pen-modal", function (e) {
                 e.stopPropagation();
                 const idItem = $(this).attr("id-item");
                 showEditModal(idItem);
             });
 
-            $(document).on("click", ".btn-delete-price", function (e) {
+            $(document).on("click" + ns, ".btn-delete-price", function (e) {
                 e.stopPropagation();
                 e.preventDefault();
                 const idItem = $(this).attr("id-item");
                 if (idItem) deletePrice(idItem);
             });
 
-            $(document).on("click", "#table-datatable tbody tr", function (e) {
+            $(document).on("click" + ns, "#table-datatable tbody tr", function (e) {
                 if (
                     $(e.target).closest(
                         "a, button, input[type='checkbox'], .fa-trash, .uil-pen-modal"

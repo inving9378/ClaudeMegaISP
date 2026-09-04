@@ -370,8 +370,8 @@ class KMZController extends Controller
         return [
             'classification' => 'project',
             'name' => $n['name'],
-            'created_by' => auth()->user()->id,
-            'updated_by' => auth()->user()->id,
+            'created_by' => auth()->user()?->id,
+            'updated_by' => auth()->user()?->id,
             'parent_id' => $id,
             'created_at' => now(),
             'updated_at' => now()

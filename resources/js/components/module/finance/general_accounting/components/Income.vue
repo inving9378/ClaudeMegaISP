@@ -41,7 +41,7 @@
 </template>
 
 <script>
-import { onMounted, ref, watch, computed, reactive } from "vue";
+import { onMounted, ref, watch, computed, reactive, onUnmounted, getCurrentInstance } from "vue";
 import { showLoading, hideLoading } from "../../../../../helpers/loading";
 import { darkMode } from "../../../../../hook/appConfig";
 import Swal from "sweetalert2";
@@ -62,6 +62,10 @@ export default {
         AddIncome,
     },
     setup(props, { emit }) {
+        const ns = `.leak983-income-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const datatable = reactive({
             table: new DatatableHelper({}),
         });
@@ -83,7 +87,7 @@ export default {
 
         onMounted(() => {
             initComponent();
-            $(document).on("click", "#button_add_income", function () {
+            $(document).on("click" + ns, "#button_add_income", function () {
                 showModal();
             });
         });

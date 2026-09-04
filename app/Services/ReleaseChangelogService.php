@@ -53,10 +53,15 @@ class ReleaseChangelogService
      * Metadatos de cobertura (item roadmap #892 — antes el truncamiento a 40 commits era
      * silencioso): 'total_commits', 'resumidos_commits', 'desde_tag', 'truncado' y, si
      * truncado=true, 'aviso_truncamiento' con el texto listo para mostrar en la UI.
+     *
+     * #966 Fase 5 — $branch opcional: rama/commit a describir en vez de HEAD (por defecto). Pensado
+     * para la rama de release recién construida por `construirRamaVersion()` (Fase 4), así el
+     * resumen describe SOLO lo que de verdad entra en esa versión, no todo lo mergeado a main desde
+     * el último tag. Sin $branch el comportamiento es IDÉNTICO al de antes (HEAD).
      */
-    public function generate(string $newVersion): array
+    public function generate(string $newVersion, ?string $branch = null): array
     {
-        $git   = $this->gatherGitData($newVersion);
+        $git   = $this->gatherGitData($newVersion, $branch);
         $total = $git['total'];
 
         if ($total === 0) {
@@ -124,20 +129,22 @@ class ReleaseChangelogService
     /**
      * Trae TODOS los commits del rango (sin tope) — el tope de cobertura se aplica después,
      * en generate(), como lotes explícitos (Fase 2), nunca como un --max-count silencioso.
+     *
+     * #966 Fase 5 — $targetRef reemplaza el HEAD implícito de antes; null (default) = 'HEAD',
+     * idéntico al comportamiento previo.
      */
-    private function gatherGitData(string $newVersion): array
+    private function gatherGitData(string $newVersion, ?string $targetRef = null): array
     {
         $env  = $this->buildEnv();
         $base = base_path();
+        $ref  = $targetRef ?: 'HEAD';
 
         $prevTag = $this->findPreviousTag($env, $base, $newVersion);
-        $range   = $prevTag ? "{$prevTag}..HEAD" : null;
+        $range   = $prevTag ? "{$prevTag}..{$ref}" : $ref;
         $excludePathspec = $this->buildExcludePathspec();
 
         $rawLog = $this->runGit(
-            $range
-                ? "git log {$range} --oneline --no-merges -- . {$excludePathspec}"
-                : "git log --oneline --no-merges -- . {$excludePathspec}",
+            "git log {$range} --oneline --no-merges -- . {$excludePathspec}",
             $env,
             $base
         );

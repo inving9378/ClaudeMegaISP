@@ -3715,3 +3715,146 @@ Estado real intacto tras las pruebas; `--dry-run` no persiste archivo de estado 
 25 de agosto), por el mismo mecanismo. Lo que hace aceptable automatizar esto es el **orden** —MR-02
 respalda antes de que MR-04/MR-05 escriban nada— y el **techo**, que impide que la cadena alcance lo
 destructivo. Si la red de guards se cae, el liberador prefiere no arrancar.
+## 2026-09-03 15:23 — Item #905: cierre del bucle reap sobre paraguas ya descompuesto (Válvula frontera_valvula)
+
+`#905` ("Válvula: sellar frontera_valvula en el mismo acto que el log + backfill de 112 items +
+test de regresión — Defecto 1 de #902") venía en bucle de reap: una vuelta previa (`wt-2`) ya lo
+había descompuesto correctamente en **#975** (Fase 2 — sellar la columna en
+`RevisorService::aplicarTriajeNull()`), **#976** (Fase 3 — backfill de 112 items) y **#977**
+(Fase 5 — test de regresión), pero nunca intentó cerrar al padre. El reaper lo re-encoló y el pool
+lo repartió de nuevo sin trabajo propio que hacer — misma familia de bug que #738/#745/#830/#816/
+#818/#848/#878.
+
+Esta vuelta verificó que los 3 hijos seguían intactos y sin reclamar, y ejecutó el intento de
+cierre faltante (`estado_aprobacion = 'completado'`). El guard de paraguas del modelo lo reenrutó
+a `aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto`, 3 sub-items
+abiertos), sacándolo del pool hasta que #975/#976/#977 cierren y el hook de cierre en cascada lo
+complete solo.
+
+Detalle en `docs/roadmap-bucle-reap-item-905-verificacion.md`. Sin cambio de código de negocio —
+el trabajo real (sellado de frontera_valvula, backfill, test) sigue en #975/#976/#977.
+
+## 2026-09-03 15:28 — Item #906: cierre del bucle reap sobre paraguas ya descompuesto (Defecto 2 de #902 — mensajes de escalada)
+
+`#906` ("4 mensajes de escalada nombran el candado equivocado: frontera dura vs. techo de nivel —
+Defecto 2 de #902") venía en bucle de reap: una vuelta previa (`wt-2`) ya lo había descompuesto
+correctamente por archivo en **#978** (`JarvisService.php`: carriles "ya decidido" y "mecánico") y
+**#979** (`RevisorService.php`: `aplicarVeredicto()` y el carril des-trabador), tras
+`circuito:cabida`=NO CABE, pero nunca intentó cerrar al padre. El reaper lo re-encoló y el pool lo
+repartió de nuevo sin trabajo propio que hacer — misma familia de bug que #738/#745/#830/#816/
+#818/#848/#905/#878.
+
+Esta vuelta verificó que los 2 hijos seguían intactos y sin reclamar, y ejecutó el intento de
+cierre faltante (`estado_aprobacion = 'completado'`). El guard de paraguas del modelo lo reenrutó
+a `aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto`, 2 sub-items
+abiertos), sacándolo del pool hasta que #978/#979 cierren y el hook de cierre en cascada lo
+complete solo.
+
+Detalle en `docs/roadmap-bucle-reap-item-906-verificacion.md`. Sin cambio de código de negocio —
+el trabajo real (distinguir frontera dura vs. techo de nivel en los 4 mensajes) sigue en #978
+(pendiente de aprobación de Irving) y #979 (`aprobado_revisor`, listo para tomarse).
+
+## 2026-09-03 15:44 — Item #907: cierre del bucle reap sobre paraguas ya descompuesto (Torre 24/7 Pieza 5a — slots_libres como disparador)
+
+`#907` ("Torre 24/7 · Pieza 5a — slots_libres como disparador de primera clase en
+AuditorService::debeCorrer()", sub-item de #904) venía en bucle de reap: una vuelta previa (`wt-2`)
+ya lo había descompuesto correctamente por fase en **#980** (condición de disparo: slots_libres
+cuenta aunque la cola no baje del umbral), **#981** (nuevo parámetro configurable en Torre →
+Configuración) y **#982** (métrica "N de 6 terminales trabajando" en la Torre), tras
+`circuito:cabida`=NO CABE, pero nunca intentó cerrar al padre. El reaper lo re-encoló 2 veces y el
+pool lo repartió de nuevo sin trabajo propio que hacer — misma familia de bug que #738/#745/#830/
+#816/#818/#848/#905/#878/#906.
+
+Esta vuelta verificó que los 3 hijos seguían intactos y sin reclamar, y ejecutó el intento de
+cierre faltante (`estado_aprobacion = 'completado'`). El guard de paraguas del modelo lo reenrutó
+a `aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto`, 3 sub-items
+abiertos), sacándolo del pool hasta que #980/#981/#982 cierren y el hook de cierre en cascada lo
+complete solo.
+
+Detalle en `docs/roadmap-bucle-reap-item-907-verificacion.md`. Sin cambio de código de negocio —
+el trabajo real (condición de disparo, toggle configurable, métrica de ocupación) sigue en #980
+(pendiente de aprobación de Irving) y #981/#982 (`aprobado_revisor`, listos para tomarse).
+
+## 2026-09-04 00:42 — Item #924: cierre del bucle reap sobre paraguas ya descompuesto (root-cause del cierre-en-cascada que dejó pasar a #32)
+
+`#924` ("Root-cause: paraguas cierre-en-cascada dejó pasar un nivel-C sin merge a 'completado' —
+item #32", sub-item de #883) venía en bucle de reap: una vuelta previa (`wt-2`) ya había
+descompuesto correctamente el trabajo aprobado por Irving (sus 3 preguntas estructuradas, todas
+Opción 1) en **#9990012** (reproducir en dev la carrera exacta que esquivó el guard bloque (1)) y
+**#9990013** (endurecer el punto confirmado + test de regresión, bloqueado a propósito hasta tener
+la causa exacta), tras `circuito:cabida`=NO CABE, pero nunca intentó cerrar al padre. El reaper lo
+re-encoló y un timeout adicional lo escaló de nuevo sin trabajo propio que hacer — misma familia de
+bug que #738/#745/#830/#816/#818/#848/#905/#878/#906/#907.
+
+Esta vuelta verificó que los 2 hijos seguían intactos y sin reclamar, y ejecutó el intento de
+cierre faltante (`estado_aprobacion = 'completado'`). El guard de paraguas del modelo lo reenrutó
+a `aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto`, 2 sub-items
+abiertos), sacándolo del pool hasta que #9990012/#9990013 cierren y el hook de cierre en cascada
+lo complete solo.
+
+Detalle en `docs/roadmap-bucle-reap-item-924-verificacion.md`. Sin cambio de código de negocio —
+el trabajo real de investigación (reproducir la carrera de #32 y endurecer el guard con test de
+regresión) sigue en #9990012 (`aprobado_revisor`, listo para tomarse) y #9990013
+(`requiere_irving`, bloqueado hasta tener la causa confirmada).
+
+## 2026-09-03 19:54 — Item #9990061: auditoría de 13 completados sin mergear + causa raíz del auto-merge de Jarvis
+
+Auditoría 100% solo-lectura (sin mergear nada). Verificados uno por uno los 13 items `completado`
+con `branch` poblada y `merge_commit` NULL: **6 no tienen nada que perder** (rama = main, cero
+commits propios — la investigación quedó solo en campos de BD), **5 tienen una nota `docs/` de
+cierre huérfana** (bajo impacto) y **2 tienen código funcional real varado** (#806 backend del
+chat de Jarvis Parte 3b, #971 el liberador en cascada de la épica MAPA DE RED — el que el propio
+item señala como bloqueante desde MR-01).
+
+**Causa raíz, dos rutas de cierre que nunca encolan merge:** (A) el hook de cascada de paraguas
+(`RoadmapItem.php:472-501`, `static::saved`) pone `estado_aprobacion='completado'` directo vía
+`save()`, sin llamar nunca `JarvisService::enqueueMerge()` — afecta a 8 de los 13 (#279/#646/#672/
+#705/#739/#740/#797/#900/#933, el mismo patrón ya parcheado caso-por-caso en items previos
+#738/#745/#830/etc. sin tocar la causa estructural del hook). (B) cierre manual por `tinker` sin
+pasar antes por `circuito:integrar` — #971 solo se intentó mergear 5h después (probablemente
+click manual de Irving en la Torre) y topó con un **conflicto de contenido real**; #806 y #825
+nunca se encolaron ni entonces ni después (cero trazas de `merge-runner` en su log).
+
+**El archivo caliente:** el 100% de los 7 commits huérfanos toca `docs/bitacora-sesiones.md` (la
+propia REGLA PERMANENTE de este archivo) — con N terminales en paralelo es el punto de choque más
+disputado del repo; 10 reintentos de merge de #705 fallaron seguidos por árbol sucio en el checkout
+principal sobre ESTE archivo, hasta que el anti-bucle lo excluyó del pool para siempre.
+
+**`circuito:destrabar-bandeja` (#566):** confirmado NO agendado en crontab (hay un comando
+`circuito:destrabe` parecido en nombre pero de función totalmente distinta — fácil de confundir).
+Pero aunque se hubiera agendado, no habría movido estos 13 items: su lógica (`pendienteReal()`)
+trata cualquier `estado_aprobacion=completado` como `'cierre'` (nada que hacer) antes de llegar a
+la rama de decisión de merge. Sí vale la pena agendarlo (recomendado cada 10 min) para la bolsa
+real que atiende: items `aprobado_irving`/`esperando_merge_irving` aún no completados.
+
+**Fix mínimo propuesto (no aplicado — decisión de diseño sobre un mecanismo compartido, queda
+para que Irving decida):** un barrido nuevo (opción nueva de `destrabar-bandeja` o comando
+dedicado, agendado cada 10-15 min) que busque
+`completado AND branch NOT NULL AND merge_commit NULL AND archivado_at NULL` y llame
+`enqueueMerge()` por cada uno — idempotente vía `MergeRunner::performMerge` (si la rama ya es
+ancestro de main, solo rellena `merge_commit` sin tocar nada). Detalle completo, tabla de los 13
+con hash/fecha/causa, y el trade-off de tocar el hook de cascada directamente (descartado por
+riesgo de reentrancia) en
+`docs/circuito-auditoria-13-completados-sin-mergear-item-9990061.md`.
+
+## 2026-09-04 01:56 — Item #9990012: cierre del bucle reap sobre paraguas ya descompuesto (carrera del cierre-en-cascada de #32)
+
+`#9990012` (sub-item de seguimiento de #924) venía en bucle de reap: una vuelta previa (`wt-2`)
+ya había hecho el forense estático completo (guard(1)/guard(2b)/hook de cascada en
+`RoadmapItem.php`, los 3 `save()` de `MergeRunner.php`) y confirmado en el log real de #32 que el
+bug sí se escribió en BD, y descompuso el repro ejecutable en **#9990063** (transacción+rollback,
+instrumentación temporal con `Log::debug`, spec detallado que ya descarta la hipótesis de merge
+directo del padre), tras `circuito:cabida`=NO CABE. Pero el proceso murió a media escritura del
+comentario de decisión, antes de intentar cerrar al padre — el log solo registra
+`claim_liberado_al_morir_la_vuelta`, y el pool lo repartió de nuevo sin trabajo propio que hacer —
+misma familia de bug que #738/#745/#830/#816/#818/#848/#905/#878/#906/#907.
+
+Esta vuelta verificó que #9990063 seguía intacto y sin reclamar, y ejecutó el intento de cierre
+faltante (`estado_aprobacion = 'completado'`). El guard de paraguas del modelo lo reenrutó a
+`aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto`, 1 sub-item
+abierto), sacándolo del pool hasta que #9990063 cierre y el hook de cierre en cascada lo complete
+solo.
+
+Detalle en `docs/roadmap-bucle-reap-item-9990012-verificacion.md`. Sin cambio de código de
+negocio — el trabajo técnico real (reproducir la carrera y confirmar el mecanismo exacto) sigue en
+#9990063 (`pendiente_revision`, pendiente de que el revisor lo trie).

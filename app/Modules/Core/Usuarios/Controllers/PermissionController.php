@@ -44,7 +44,7 @@ class PermissionController extends Controller
 
     public function userPermissions()
     {
-        $permissions = auth()->user()->getAllPermissions()->pluck('name');
+        $permissions = auth()->user()?->getAllPermissions()->pluck('name');
         return response()->json($permissions);
     }
 

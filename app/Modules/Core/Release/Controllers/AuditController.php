@@ -160,8 +160,8 @@ class AuditController extends Controller
 
         // 5. Evolution API
         try {
-            $apiUrl = env('WHATSAPP_API_URL', '');
-            $apiKey = env('WHATSAPP_API_KEY', '');
+            $apiUrl = config('whatsapp.api_url', '');
+            $apiKey = config('whatsapp.api_key', '');
             if ($apiUrl && $apiKey) {
                 $ch = curl_init("{$apiUrl}/instance/fetchInstances");
                 curl_setopt_array($ch, [
@@ -174,7 +174,7 @@ class AuditController extends Controller
                 curl_close($ch);
 
                 $state    = 'desconocido';
-                $instName = env('WHATSAPP_DEFAULT_INSTANCE', '');
+                $instName = config('whatsapp.default_instance', '');
                 if ($code === 200) {
                     $instances = json_decode($body, true) ?? [];
                     foreach ($instances as $inst) {
