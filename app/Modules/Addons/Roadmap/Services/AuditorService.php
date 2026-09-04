@@ -271,7 +271,7 @@ class AuditorService
             return ['estado' => 'disparado', 'desde' => $desde, 'reintento_en_segundos' => null];
         }
 
-        $vence = Carbon::parse($desde)->addMinutes((int) config('circuito.auditor.sequia.gasto_reintento_min', 30));
+        $vence = Carbon::parse($desde)->addMinutes($this->reintentoMinutos());
         if ($vence->isPast()) {
             return ['estado' => 'medio_abierto', 'desde' => $desde, 'reintento_en_segundos' => 0];
         }
@@ -284,29 +284,25 @@ class AuditorService
     }
 
     /**
-     * #891 Fase 3a — ¿el half-open está activo? Lee de `torre_config` si la Fase 3b ya agregó la
-     * columna; si no, cae al default de fábrica en `config/circuito.php` (mismo patrón que usa
-     * `debeCorrer()` con `auditor_cooldown_min`, línea ~165).
-     *
-     * TODO(#925 Fase 3b): cuando exista `torre_config.auditor_gasto_reintento_activo`, cambiar a
-     * `(bool) $this->torreConfig->get()->auditor_gasto_reintento_activo`.
+     * #891 Fase 3b-i — ¿el half-open está activo? Fuente única = `torre_config.auditor_gasto_
+     * reintento_activo` (panel de la Torre → Configuración), mismo patrón que `habilitado()` con
+     * `auditor_activo`.
      */
     private function reintentoActivo(): bool
     {
-        return (bool) config('circuito.auditor.sequia.gasto_reintento_activo', true);
+        return (bool) $this->torreConfig->get()->auditor_gasto_reintento_activo;
     }
 
-    /**
-     * #891 Fase 3a — ¿ya venció la ventana de reintento desde que se apagó el gasto? Mismo
-     * fallback que `reintentoActivo()`: `torre_config` cuando exista (Fase 3b), config por ahora.
-     *
-     * TODO(#925 Fase 3b): cambiar a `(int) $this->torreConfig->get()->auditor_gasto_reintento_min`.
-     */
+    /** #891 Fase 3b-i — minutos de la ventana de reintento, resueltos desde `torre_config`. */
+    private function reintentoMinutos(): int
+    {
+        return (int) $this->torreConfig->get()->auditor_gasto_reintento_min;
+    }
+
+    /** #891 Fase 3a — ¿ya venció la ventana de reintento desde que se apagó el gasto? */
     private function venceReintento(string $desde): bool
     {
-        $minutos = (int) config('circuito.auditor.sequia.gasto_reintento_min', 30);
-
-        return Carbon::parse($desde)->addMinutes($minutos)->isPast();
+        return Carbon::parse($desde)->addMinutes($this->reintentoMinutos())->isPast();
     }
 
     /** ISO8601 de cuándo se apagó el gasto, o null si está armado. */
