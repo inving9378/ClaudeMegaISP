@@ -347,7 +347,7 @@ class RoadmapController extends Controller
         $log   = $item->log ?: [];
         $log[] = [
             'ts'         => now()->toIso8601String(),
-            'por'        => 'irving:' . (auth()->user()->login_user ?? auth()->id()),
+            'por'        => 'irving:' . (auth()->user()?->login_user ?? auth()->id()),
             'estado'     => $item->estado_aprobacion,
             'decision'   => 'override_automatizacion',
             'comentario' => "Automatización del item: {$previo} → {$data['override']}"
@@ -358,7 +358,7 @@ class RoadmapController extends Controller
 
         Log::channel('torre_config')->{$sube ? 'warning' : 'info'}('override-item', [
             'item' => $item->id, 'de' => $previo, 'a' => $data['override'],
-            'por'  => auth()->user()->login_user ?? auth()->id(),
+            'por'  => auth()->user()?->login_user ?? auth()->id(),
         ]);
 
         return response()->json(['ok' => true, 'override' => $item->automatizacion_override, 'subida' => $sube]);
