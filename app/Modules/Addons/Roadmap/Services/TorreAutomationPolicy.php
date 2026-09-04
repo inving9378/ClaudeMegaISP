@@ -173,15 +173,30 @@ class TorreAutomationPolicy
      * NO gobierna la aprobación iniciada por un HUMANO (`RoadmapController::store`, donde la
      * autorización es Irving mismo) ni la vía externa (`RoadmapCircuitoService::guard()`, token
      * Cowork/MCP). Esas dos quedan fuera por decisión explícita.
+     *
+     * #9990246 (Fase 3 de #9990210) — los pasos 1-4 hacían UNA llamada a `tocaFronteraDura()`
+     * (que internamente ya corre `fronteraDuraDeItemDetalle()`) y, si retenía, una SEGUNDA llamada
+     * a `fronteraDuraDeItemDetalle()` dentro de `registrarFronteraDuraVivo()` — el mismo cálculo
+     * dos veces. Ahora se calcula UNA sola vez aquí y el detalle se reparte a los dos caminos:
+     * retiene igual que siempre, o —si la válvula lo ablandó y por eso `categoria` salió `null`—
+     * deja el rastro en `torre_frontera_dura_eventos` con `veredicto='ablandamiento_paso'` antes
+     * de seguir de largo. Ver el docblock de `registrarAblandamientoPaso()`.
      */
     public function estadoInicial(RoadmapItem $item, string $actor, ?string $subTechoSimulado = null): string
     {
         // (1-4) FRONTERA DURA. Gana siempre, por delante de todo. No se levanta desde ninguna
         // configuración: ni con `autonomo`, ni con `override = auto`.
-        if ($this->tocaFronteraDura($item) !== null) {
-            $this->registrarFronteraDuraVivo($item);
+        $detFrontera = $this->jarvis->fronteraDuraDeItemDetalle($item);
+
+        if ($detFrontera['categoria'] !== null) {
+            $this->registrarFronteraDuraVivo($item, $detFrontera);
 
             return 'requiere_irving';
+        }
+
+        $eventoAblandamiento = \App\Modules\Addons\Roadmap\Support\AblandamientoFrontera::evento($detFrontera);
+        if ($eventoAblandamiento !== null) {
+            $this->registrarAblandamientoPaso($item, $eventoAblandamiento, $detFrontera['motivo'] ?? null);
         }
 
         // (5) `manual` ES ABSOLUTO. Ningún override lo sobrepasa.
@@ -307,17 +322,14 @@ class TorreAutomationPolicy
      *
      * Nunca debe tumbar la decisión real: cualquier fallo de lectura/escritura se traga (es
      * instrumentación, no la frontera misma).
+     *
+     * #9990246 — recibe el `$det` ya calculado por `estadoInicial()` (antes lo recalculaba aquí
+     * dentro, una segunda llamada a `fronteraDuraDeItemDetalle()` para el mismo item).
      */
-    private function registrarFronteraDuraVivo(RoadmapItem $item): void
+    private function registrarFronteraDuraVivo(RoadmapItem $item, array $det): void
     {
         if (! $item->exists) {
             return; // sin id no hay a qué colgar el evento (no debería pasar: ver docblock de estadoInicial).
-        }
-
-        try {
-            $det = $this->jarvis->fronteraDuraDeItemDetalle($item);
-        } catch (\Throwable) {
-            return;
         }
 
         $categoria = $det['categoria'] ?? null;
@@ -328,8 +340,58 @@ class TorreAutomationPolicy
 
         $veredicto = ($det['ablandada'] ?? false) ? 'mencion' : 'accion';
 
+        // Dedup SOLO mientras el item sigue retenido: si NO estaba ya `requiere_irving`, es una
+        // apertura NUEVA de la frontera (siempre se registra); si ya lo estaba, cada re-evaluación
+        // es la MISMA retención y sólo cuenta una vez por ventana reciente.
+        $dedupReciente = $item->estado_aprobacion === 'requiere_irving';
+
+        $this->insertarEventoFronteraDura($item, $categoria, $termino, $veredicto, $det['motivo'] ?? null, $dedupReciente);
+    }
+
+    /**
+     * #9990246 (Fase 3 de #9990210) — el otro lado del ablandamiento.
+     *
+     * `fronteraDuraDeItemDetalle()` puede devolver `categoria=null` (nada retiene al item) con
+     * `categoria_detectada` no-null y `ablandada=true`: la válvula selló el item como MENCIÓN (o,
+     * en modo `apagar`, cualquier mención) y esa categoría concreta NO está entre las que retienen
+     * una mención (`circuito.mencion_retiene_categorias`) — el item SIGUE, no se frena. Hasta este
+     * item ese camino no dejaba ningún rastro en `torre_frontera_dura_eventos`: se veía igual que
+     * un item que nunca disparó ninguna frontera, y la auditoría de "cuántas veces el ablandamiento
+     * dejó pasar algo" no tenía de dónde leerlo.
+     *
+     * La DECISIÓN de si corresponde («¿`categoria` salió null porque la válvula lo ablandó?») y con
+     * qué datos (`categoria`/`termino`/`veredicto='ablandamiento_paso'`) vive en la parte PURA,
+     * `Support\AblandamientoFrontera::evento()` — sin Laravel ni BD, para que su candado de
+     * regresión no necesite bootear la app (ver su docblock). Este método sólo hace el `INSERT` con
+     * lo que esa función ya decidió.
+     *
+     * IDEMPOTENCIA: a diferencia de `registrarFronteraDuraVivo()`, este item NUNCA queda en
+     * `requiere_irving` (por definición: es el camino donde avanza) — así que el estado del item no
+     * sirve para distinguir "apertura nueva" de "misma retención re-evaluándose". Por eso aquí SIEMPRE
+     * se hace el chequeo de ventana reciente, sin condicionarlo al estado.
+     *
+     * @param  array{categoria:string, termino:string, veredicto:string}  $evento  ya validado por `AblandamientoFrontera::evento()`
+     */
+    private function registrarAblandamientoPaso(RoadmapItem $item, array $evento, ?string $motivo): void
+    {
+        $this->insertarEventoFronteraDura($item, $evento['categoria'], $evento['termino'], $evento['veredicto'], $motivo, true);
+    }
+
+    /**
+     * Escritura compartida por `registrarFronteraDuraVivo()` y `registrarAblandamientoPaso()`.
+     * Nunca debe tumbar la decisión real: cualquier fallo de lectura/escritura se traga (es
+     * instrumentación, no la frontera misma).
+     */
+    private function insertarEventoFronteraDura(
+        RoadmapItem $item,
+        string $categoria,
+        string $termino,
+        string $veredicto,
+        ?string $motivo,
+        bool $dedupReciente
+    ): void {
         try {
-            if ($item->estado_aprobacion === 'requiere_irving') {
+            if ($dedupReciente) {
                 $yaRegistrado = TorreFronteraDuraEvento::query()
                     ->where('roadmap_item_id', $item->id)
                     ->where('termino', $termino)
@@ -348,7 +410,7 @@ class TorreAutomationPolicy
                 'categoria'       => $categoria,
                 'termino'         => $termino,
                 'veredicto'       => $veredicto,
-                'razon'           => $det['motivo'] ?? null,
+                'razon'           => $motivo,
                 'ocurrido_at'     => now(),
                 'origen'          => 'vivo',
             ]);
