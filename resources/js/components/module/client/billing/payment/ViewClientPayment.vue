@@ -33,7 +33,7 @@
 
 <script>
 import DatatableHelper from "../../../../../helpers/datatableHelper";
-import { onMounted, reactive, ref, watch,nextTick } from "vue";
+import { onMounted, reactive, ref, watch, nextTick, onUnmounted, getCurrentInstance } from "vue";
 import Datatable from "../../../../base/shared/Datatable";
 import Modal from "../../../../../helpers/modal";
 import ClientCrudPayment from "./ClientCrudPayment";
@@ -51,6 +51,10 @@ export default {
     },
     components: { Datatable, ClientCrudPayment, ViewTotalPayment },
     setup(props) {
+        const ns = `.leak983-viewClientPayment-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const datatable = reactive({
             table: new DatatableHelper({}),
         });
@@ -72,7 +76,7 @@ export default {
             modal.value = new Modal("modalpayment");
             payment.value = await payments(props.id);
 
-            $(document).on("click", "#buttonmodalpayment", function () {
+            $(document).on("click" + ns, "#buttonmodalpayment", function () {
                 showAddModal();
             });
         });

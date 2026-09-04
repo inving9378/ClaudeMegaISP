@@ -19,7 +19,7 @@ class TalentoColaboradorController extends Controller
     {
         $this->authorize('talento.view');
 
-        $q = TalentoColaborador::with(['user', 'supervisor.user'])
+        $q = TalentoColaborador::with(['user', 'supervisor.user', 'puesto'])
             ->when($request->search, fn($q, $s) =>
                 $q->whereHas('user', fn($u) => $u->where('name', 'like', "%$s%")->orWhere('email', 'like', "%$s%"))
             )
@@ -66,7 +66,7 @@ class TalentoColaboradorController extends Controller
     {
         $this->authorize('talento.view');
 
-        $colaborador = TalentoColaborador::with(['user', 'supervisor.user', 'subordinados.user'])
+        $colaborador = TalentoColaborador::with(['user', 'supervisor.user', 'subordinados.user', 'puesto'])
             ->findOrFail($id);
 
         // Enrich with Spatie roles (read-only display — roles are managed in Administradores)

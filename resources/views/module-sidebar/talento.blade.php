@@ -1,4 +1,4 @@
-@if(auth()->user()->canAny(['talento.view','talento.work_orders.view','talento.compensation.view','talento.liquidation.view','talento.attendance.view','talento.location.view','talento.work_sites.view','talento.custody.view','talento.devices.view','talento.roadmap.view']))
+@if(auth()->user()->canAny(['talento.view','talento.work_orders.view','talento.compensation.view','talento.liquidation.view','talento.attendance.view','talento.location.view','talento.work_sites.view','talento.custody.view','talento.devices.view','talento.roadmap.view','talento.caja.view','talento.routes.view','talento.projects.view','talento.quality.view','talento.penalties.view','talento.credentials.view','talento.loans.view','talento.academy.view','talento.levels.view','talento.dashboard.view','talento.escalafon.view','talento.embajadores.view']))
 <li>
     <a href="javascript: void(0);" class="has-arrow">
         <i data-feather="users"></i>
@@ -41,6 +41,9 @@
         @if(auth()->user()->can('talento.credentials.view'))
             <li><a href="{{ url('/talento/credenciales') }}"><span><small><i class="fa fa-fw fa-id-card"></i></small> Credenciales</span></a></li>
         @endif
+        @if(auth()->user()->can('talento.expediente.paquetes.manage'))
+            <li><a href="{{ url('/talento/expediente/paquetes') }}"><span><small><i class="fa fa-fw fa-folder-open"></i></small> Paquetes de documentos</span></a></li>
+        @endif
         @if(auth()->user()->can('talento.loans.view'))
             <li><a href="{{ url('/talento/finiquito') }}"><span><small><i class="fa fa-fw fa-hand-holding-usd"></i></small> Préstamos y finiquito</span></a></li>
         @endif
@@ -77,7 +80,10 @@
 
         {{-- Hijos dinámicos desde module_sidebar_config (Fase 2.3/3.5) --}}
         @foreach($item->dynamic_children ?? collect() as $child)
+            @php($childPermission = $child->permission ?? $item->permission ?? null)
+            @if(!$childPermission || auth()->user()->can($childPermission))
             <li><a href="{{ $child->sidebar_url ? url($child->sidebar_url) : url('/' . $child->module_key) }}"><span>@if($child->sidebar_icon)<small><i class="{{ $child->sidebar_icon }}"></i></small> @endif{{ $child->sidebar_label ?? $child->module_key }}</span></a></li>
+            @endif
         @endforeach
     </ul>
 </li>

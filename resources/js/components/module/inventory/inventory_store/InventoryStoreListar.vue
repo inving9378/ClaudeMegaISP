@@ -1,4 +1,10 @@
 <template>
+    <div
+        class="alert alert-warning"
+        v-if="noOwnStores"
+    >
+        No tienes almacenes asignados.
+    </div>
     <div class="d-flex flex-wrap gap-2 mb-2">
         <button
             type="button"
@@ -8,6 +14,7 @@
             Refrescar
         </button>
         <button
+            v-if="!noOwnStores"
             type="button"
             class="btn btn-outline-primary waves-effect waves-light"
             data-bs-toggle="modal"
@@ -17,6 +24,7 @@
         </button>
     </div>
     <Datatable
+        v-if="!noOwnStores"
         module="inventory/inventory_store"
         model="InventoryStore"
         list="Listado de Almacenes"
@@ -48,7 +56,7 @@
 <script>
 import Datatable from "../../../base/shared/Datatable";
 import InventoryStoreCrud from "./InventoryStoreCrud";
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted, getCurrentInstance } from "vue";
 import DatatableHelper from "../../../../helpers/datatableHelper";
 
 export default {
@@ -57,19 +65,31 @@ export default {
     props: {
     },
     setup(props) {
+        const ns = `.leak983-inventoryStoreListar-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const title = ref("Crear Almacen");
         const datatable = reactive({
             table: new DatatableHelper({}),
         });
         const action = ref("/inventory/inventory_store/add");
         const reloadCrud = ref(true);
+        const noOwnStores = ref(false);
 
         onMounted(() => {
-            $(document).on("click", ".uil-pen-modal", function () {
+            $(document).on("click" + ns, ".uil-pen-modal", function () {
                 let idItem = $(this).parent().attr("id-item");
                 let modal = $(this).parent().attr("toggle-modal");
                 showEditModal(idItem, modal);
             });
+
+            axios
+                .get("/inventory/inventory_store/scope-status")
+                .then(({ data }) => {
+                    noOwnStores.value = !!(data.scope_active && !data.has_own_stores);
+                })
+                .catch(() => {});
         });
 
         const closeModal = () => {
@@ -101,6 +121,7 @@ export default {
             table,
             reload,
             reloadCrud,
+            noOwnStores,
         };
     },
 };

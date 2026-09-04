@@ -272,16 +272,26 @@ class ReleaseController extends Controller
     public function generateChangelog(Request $request)
     {
         $version = trim($request->input('version', 'nueva'));
+        // #966 Fase 5 — rama opcional (la rama de release recién construida en Fase 4): sin ella,
+        // el comportamiento es idéntico al de antes (describe HEAD/main).
+        $branch  = trim((string) $request->input('branch', '')) ?: null;
 
         try {
             $service = app(ReleaseChangelogService::class);
-            $result  = $service->generate($version); // ['title','summary','improvements']
+            $result  = $service->generate($version, $branch); // ['title','summary','improvements', + cobertura]
 
             return response()->json([
-                'success'      => true,
-                'title'        => $result['title'] ?? '',
-                'summary'      => $result['summary'] ?? '',
-                'improvements' => $result['improvements'] ?? '',
+                'success'            => true,
+                'title'              => $result['title'] ?? '',
+                'summary'            => $result['summary'] ?? '',
+                'improvements'       => $result['improvements'] ?? '',
+                // Cobertura del rango (item roadmap #892): permite a la UI avisar si el resumen
+                // quedó incompleto en vez de presentarlo como si cubriera todo el rango.
+                'total_commits'      => $result['total_commits'] ?? 0,
+                'resumidos_commits'  => $result['resumidos_commits'] ?? 0,
+                'desde_tag'          => $result['desde_tag'] ?? null,
+                'truncado'           => $result['truncado'] ?? false,
+                'aviso_truncamiento' => $result['aviso_truncamiento'] ?? null,
             ]);
         } catch (\Throwable $e) {
             Log::error("generateChangelog error: {$e->getMessage()}");

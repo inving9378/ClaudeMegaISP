@@ -78,7 +78,7 @@
                                 <td><code>{{ t.host }}:{{ t.puerto }}</code></td>
                                 <td>
                                     <span v-if="t.provisionado_at" class="text-success">
-                                        <i class="fa fa-circle-dot me-1"></i>
+                                        <i class="fa fa-dot-circle me-1"></i>
                                         Provisionada
                                     </span>
                                     <span v-else class="text-warning">
@@ -89,7 +89,7 @@
                                     <template v-if="verificaciones[t.id]">
                                         <span v-if="verificaciones[t.id].status === 'Registered'"
                                               class="badge bg-success ms-2">
-                                            <i class="fa fa-circle-check me-1"></i>Registered
+                                            <i class="fa fa-check-circle me-1"></i>Registered
                                         </span>
                                         <span v-else-if="verificaciones[t.id].status === 'Registering'"
                                               class="badge bg-warning text-dark ms-2">
@@ -98,7 +98,7 @@
                                         <span v-else-if="verificaciones[t.id].status === 'Rejected'"
                                               class="badge bg-danger ms-2"
                                               :title="verificaciones[t.id].last_error">
-                                            <i class="fa fa-circle-xmark me-1"></i>Rejected
+                                            <i class="fa fa-times-circle me-1"></i>Rejected
                                         </span>
                                         <span v-else-if="verificaciones[t.id].status === 'n/a'"
                                               class="badge bg-secondary ms-2">
@@ -126,7 +126,7 @@
                                                 :disabled="verificando === t.id"
                                                 @click="verificar(t)"
                                                 title="Verificar estado en Asterisk">
-                                            <i class="fa fa-magnifying-glass"></i>
+                                            <i class="fa fa-search"></i>
                                         </button>
                                         <button v-if="canEdit"
                                                 class="btn btn-outline-secondary"
@@ -306,7 +306,7 @@
                     <div class="modal-body" v-if="troncalAEliminar">
                         <p>¿Eliminar la troncal <strong>{{ troncalAEliminar.nombre }}</strong>?</p>
                         <p v-if="troncalAEliminar.provisionado_at" class="text-warning small">
-                            <i class="fa fa-triangle-exclamation me-1"></i>
+                            <i class="fa fa-exclamation-triangle me-1"></i>
                             Esta troncal está provisionada. Se desprovisionará automáticamente de Asterisk.
                         </p>
                         <p class="text-danger small">Esta acción no se puede deshacer.</p>
@@ -328,7 +328,7 @@
             <div class="modal-dialog">
                 <div class="modal-content border-warning">
                     <div class="modal-header bg-warning text-dark">
-                        <h5 class="modal-title"><i class="fa fa-triangle-exclamation me-2"></i>Confirmar</h5>
+                        <h5 class="modal-title"><i class="fa fa-exclamation-triangle me-2"></i>Confirmar</h5>
                         <button type="button" class="btn-close" @click="cancelarConfirm"></button>
                     </div>
                     <div class="modal-body">

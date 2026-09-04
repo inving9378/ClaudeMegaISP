@@ -587,7 +587,13 @@ class CompuertasService
     {
         try {
             $conteo = [];
-            foreach (RoadmapItem::query()->whereNull('archivado_at')->get(['id', 'status', 'estado_aprobacion', 'branch', 'archivado_at']) as $i) {
+            // #196 — el accessor `estacion` también lee nivel_riesgo/opcion_elegida/
+            // en_desarrollo_humano/esperando_merge_irving/origen_bloqueo/title (vía
+            // tieneFrenoHumano()); un select() más corto que ese hace que Eloquent los
+            // resuelva como null y la rama de nivel A/B nunca se cumpla, en silencio.
+            // Se reusa la misma constante que ya evita este defecto en RoadmapController
+            // (COLUMNAS_ACTIVIDAD/COLUMNAS_LISTADO) y en RoadmapCircuitoService::compact().
+            foreach (RoadmapItem::query()->whereNull('archivado_at')->get(RoadmapItem::COLUMNAS_COMPACT) as $i) {
                 $e = $i->estacion;
                 $conteo[$e] = ($conteo[$e] ?? 0) + 1;
             }
@@ -686,27 +692,40 @@ class CompuertasService
                 ->whereNotNull('worker_sid')
                 ->where('estado_aprobacion', 'en_progreso')
                 ->get(['id', 'worker_sid', 'updated_at']);
+
+            // #195 — un en_progreso SIN worker_sid Y SIN claimed_at no tiene ninguna señal de
+            // vida (ni sid que cruzar contra el SO, ni latido). La compuerta los omitía por
+            // completo porque solo miraba whereNotNull('worker_sid'); son huérfanos igual, y
+            // no necesitan snapshot del SO para saber que están muertos.
+            $sinSenal = RoadmapItem::query()
+                ->whereNull('worker_sid')
+                ->whereNull('claimed_at')
+                ->where('estado_aprobacion', 'en_progreso')
+                ->get(['id', 'updated_at']);
         } catch (\Throwable $e) {
             return $this->sinMedir('reservados', 'Items reservados por terminales muertas', 'php artisan circuito:reap-stuck --minutes=25', 'Irving');
         }
 
-        if ($reservados->isEmpty()) {
+        $totalEnProgreso = $reservados->count() + $sinSenal->count();
+
+        if ($totalEnProgreso === 0) {
             return new Compuerta(
                 clave: 'reservados', nombre: 'Items reservados por terminales muertas', semaforo: 'verde',
                 valor: 'ninguno reservado', origen: 'bd',
             );
         }
 
-        // Cruce con el SO: un sid reservado cuyo slot está LIBRE es una terminal muerta.
+        // Cruce con el SO: un sid reservado cuyo slot está LIBRE es una terminal muerta. Los
+        // sin señal ya están muertos por definición (no hay sid que cruzar).
         $ocupados = $so['slots']['ocupados'] ?? null;
-        $muertos  = [];
+        $muertos  = $sinSenal->all();
         foreach ($reservados as $r) {
             if ($ocupados !== null && ! in_array($r->worker_sid, $ocupados, true)) {
                 $muertos[] = $r;
             }
         }
 
-        if ($ocupados === null) {
+        if ($ocupados === null && $muertos === []) {
             return new Compuerta(
                 clave: 'reservados', nombre: 'Items reservados por terminales muertas', semaforo: 'ambar',
                 valor: $reservados->count() . ' reservados (sin snapshot no se sabe si viven)', origen: 'bd',
@@ -721,7 +740,7 @@ class CompuertasService
                 clave: 'reservados', nombre: 'Items reservados por terminales muertas', semaforo: 'rojo',
                 valor: count($muertos) . ' item(s) atrapados: #' . implode(', #', array_column($muertos, 'id')),
                 origen: 'bd+so',
-                porQue: 'Su terminal ya no existe (el slot está libre) pero el item sigue marcado en progreso: nadie más lo puede tomar.',
+                porQue: 'Su terminal ya no existe (el slot está libre, o el item nunca tuvo sid ni latido) pero sigue marcado en progreso: nadie más lo puede tomar.',
                 acciones: [[
                     'clave'     => 'soltar_items',
                     'etiqueta'  => 'Soltar estos items',
@@ -736,7 +755,7 @@ class CompuertasService
 
         return new Compuerta(
             clave: 'reservados', nombre: 'Items reservados por terminales muertas', semaforo: 'verde',
-            valor: $reservados->count() . ' en progreso, todos con terminal viva', origen: 'bd+so',
+            valor: $totalEnProgreso . ' en progreso, todos con terminal viva', origen: 'bd+so',
         );
     }
 

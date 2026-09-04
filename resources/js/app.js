@@ -189,6 +189,7 @@ import TalentoDashboard from "./components/module/talento/TalentoDashboard.vue";
 import TalentoEscalafon from "./components/module/talento/TalentoEscalafon.vue";
 import TalentoEmbajadores from "./components/module/talento/TalentoEmbajadores.vue";
 import TalentoEvidenciaConfig from "./components/module/talento/TalentoEvidenciaConfig.vue";
+import TalentoPaqueteDocumentos from "./components/module/talento/TalentoPaqueteDocumentos.vue";
 
 //Mapas
 import GoogleMap from "./components/base/googlemap/GoogleMap";
@@ -372,6 +373,7 @@ import ReleasesDescription from "./components/module/releases/ReleasesDescriptio
 import RoadmapTab from "./components/module/releases/torre-control/RoadmapTab.vue";
 import TorreConfigPanel from "./components/module/releases/torre-control/TorreConfigPanel.vue";
 import TorreConfiguracion from "./components/module/releases/torre-control/TorreConfiguracion.vue";
+import JarvisChatDrawer from "./components/module/releases/torre-control/JarvisChatDrawer.vue";
 import DeployProgressModal from "./components/module/releases/DeployProgressModal.vue";
 import UpdateBanner from "./components/module/releases/UpdateBanner.vue";
 import RoadmapItemDetalle from "./components/module/roadmap/RoadmapItemDetalle.vue";
@@ -638,6 +640,7 @@ const app = createApp({
         'talento-escalafon': TalentoEscalafon,
         'talento-embajadores': TalentoEmbajadores,
         'talento-evidencia-config': TalentoEvidenciaConfig,
+        'talento-paquete-documentos': TalentoPaqueteDocumentos,
         ImportListar,
         ImportCrud,
         ServiceInAddressListListar,
@@ -744,6 +747,7 @@ const app = createApp({
         RoadmapTab,
         TorreConfigPanel,
         TorreConfiguracion,
+        JarvisChatDrawer,
         DeployProgressModal,
         UpdateBanner,
         RoadmapItemDetalle,

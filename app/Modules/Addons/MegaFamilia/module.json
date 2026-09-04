@@ -41,7 +41,7 @@
             "label": "MegaFamilia — Control Parental",
             "type": "general",
             "category": "Sistema",
-            "icon": "shield",
+            "icon": "shield-alt",
             "url": "/megafamilia",
             "permission": "megafamilia_admin",
             "description": "Control parental y servicios familiares para clientes del ISP.",

@@ -456,6 +456,7 @@ class ClientBundleServiceController extends Controller
     public function getPlansById(Request $request, $bundleId)
     {
         $module = Module::where('name', 'ClientBundleService')->first();
+        abort_if(!$module, 404, "Module ClientBundleService no existe");
         $fields = $module->getfields();
         $bundle = Bundle::find($bundleId)->load(['planes_internet', 'planes_voz', 'planes_custom']);
 
@@ -563,6 +564,7 @@ class ClientBundleServiceController extends Controller
         $clientAdditional = ClientAdditionalInformation::where('client_id', $clientBundleService->client_id)->first();
 
         $module = Module::where('name', 'ClientBundleService')->first();
+        abort_if(!$module, 404, "Module ClientBundleService no existe");
         $fields = $module->getfields();
         $bundle = Bundle::find($bundleId)->load(['planes_internet', 'planes_voz', 'planes_custom']);
 
@@ -1059,12 +1061,12 @@ class ClientBundleServiceController extends Controller
 
         $logService->log(
             $clientBundleService->client,
-            "Se le cambia el Paquete: {$clientBundleService->description} por el Paquete {$newBundle->description} desde el ClientBundleServiceController::changeBundle por el usuario " . auth()->user()->name
+            "Se le cambia el Paquete: {$clientBundleService->description} por el Paquete {$newBundle->description} desde el ClientBundleServiceController::changeBundle por el usuario " . auth()->user()?->name
         );
 
         $logService->log(
             $clientBundleService->client,
-            "Se elimina el Paquete anterior ({$clientBundleService->description}) desde el ClientBundleServiceController::changeBundle por el usuario " . auth()->user()->name
+            "Se elimina el Paquete anterior ({$clientBundleService->description}) desde el ClientBundleServiceController::changeBundle por el usuario " . auth()->user()?->name
         );
 
         return $clientBundleService;
@@ -1099,6 +1101,7 @@ class ClientBundleServiceController extends Controller
     public function getEqualsPlansById(Request $request, $bundleId)
     {
         $module = Module::where('name', 'ClientBundleService')->first();
+        abort_if(!$module, 404, "Module ClientBundleService no existe");
         $fields = $module->getfields();
         $bundle = Bundle::find($bundleId)->load(['planes_internet', 'planes_voz', 'planes_custom']);
 
@@ -1139,6 +1142,7 @@ class ClientBundleServiceController extends Controller
         $bundleId = $clientBundleService->bundle_id;
 
         $module = Module::where('name', 'ClientBundleService')->first();
+        abort_if(!$module, 404, "Module ClientBundleService no existe");
         $fields = $module->getfields();
         $bundle = Bundle::find($bundleId);
         if (!$bundle) {

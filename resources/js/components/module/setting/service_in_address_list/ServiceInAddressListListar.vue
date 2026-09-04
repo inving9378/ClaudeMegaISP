@@ -18,7 +18,7 @@
 
 <script>
 import Datatable from "../../../base/shared/Datatable";
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted, getCurrentInstance } from "vue";
 import DatatableHelper from "../../../../helpers/datatableHelper";
 
 export default {
@@ -26,6 +26,10 @@ export default {
     components: { Datatable },
     props: {},
     setup(props) {
+        const ns = `.leak983-serviceInAddressListListar-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const title = ref("Crear Equipo");
         const datatable = reactive({
             table: new DatatableHelper({}),
@@ -34,7 +38,7 @@ export default {
         const reloadCrud = ref(true);
 
         onMounted(() => {
-            $(document).on("click", `.fa-edit`, function (e) {
+            $(document).on("click" + ns, `.fa-edit`, function (e) {
                 if (
                     confirm(
                         "Esta seguro que desea sacar del address list a este cliente"

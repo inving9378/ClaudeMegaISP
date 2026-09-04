@@ -4,8 +4,10 @@ use App\Modules\Addons\DocumentacionCorporativa\Controllers\BitacoraController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ConcesionController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\DcSolicitudController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\DocumentoController;
+use App\Modules\Addons\DocumentacionCorporativa\Controllers\EntregaController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\ExpedienteController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\OffboardingController;
+use App\Modules\Addons\DocumentacionCorporativa\Controllers\OffboardingOtrosItemsController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\PendienteController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\PlantillaController;
 use App\Modules\Addons\DocumentacionCorporativa\Controllers\RegistroEstructuradoController;
@@ -80,11 +82,21 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/documentos/{id}/descargar', [DocumentoController::class, 'descargar'])->name('documentos.descargar');
             Route::delete('/documentos/{id}', [DocumentoController::class, 'destroy'])->name('documentos.destroy');
 
+            // Entregas (Fase 5b.3, apartado XIV, item #812) — descarga del ZIP y
+            // del acta de una DcEntrega, con bitácora + contador (ver EntregaController).
+            Route::get('/entregas/{id}/zip', [EntregaController::class, 'descargarZip'])->name('entregas.zip');
+            Route::get('/entregas/{id}/acta', [EntregaController::class, 'descargarActa'])->name('entregas.acta');
+
             // Solicitudes de información recibidas (Fase 5a, apartado XIV, item #758).
             Route::get('/solicitudes', [DcSolicitudController::class, 'index'])->name('solicitudes.index');
             Route::post('/solicitudes', [DcSolicitudController::class, 'store'])->name('solicitudes.store');
             Route::put('/solicitudes/{id}', [DcSolicitudController::class, 'update'])->name('solicitudes.update');
             Route::delete('/solicitudes/{id}', [DcSolicitudController::class, 'destroy'])->name('solicitudes.destroy');
+
+            // Entregas de una solicitud (Fase 5c.2a, item #834) — armar (POST)
+            // y consultar (GET) las DcEntrega de esa solicitud puntual.
+            Route::post('/solicitudes/{id}/entregas', [EntregaController::class, 'store'])->name('solicitudes.entregas.store');
+            Route::get('/solicitudes/{id}/entregas', [EntregaController::class, 'index'])->name('solicitudes.entregas.index');
 
             // Bitácora consultable/exportable (Fase 5c, item #760) — data/*
             // y exportar ANTES de la ruta base, mismo criterio que el resto.
@@ -98,5 +110,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/offboarding/data/colaboradores', [OffboardingController::class, 'colaboradores'])->name('offboarding.colaboradores');
             Route::get('/offboarding/pendientes', [OffboardingController::class, 'pendientes'])->name('offboarding.pendientes');
             Route::post('/offboarding/revocar', [OffboardingController::class, 'revocar'])->name('offboarding.revocar');
+            // Checklist de los 6 ítems fijos de offboarding sin tabla propia
+            // (Fase 5d-2a, item #839). Backend independiente de #815/#840
+            // (UI del apartado XII, aún sin mergear).
+            Route::get('/offboarding/otros-items', [OffboardingOtrosItemsController::class, 'index'])->name('offboarding.otros_items.index');
+            Route::post('/offboarding/otros-items', [OffboardingOtrosItemsController::class, 'marcar'])->name('offboarding.otros_items.marcar');
         });
     });

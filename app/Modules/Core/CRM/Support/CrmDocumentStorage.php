@@ -22,8 +22,29 @@ class CrmDocumentStorage
 {
     public static function deleteFileSafely(?string $path): bool
     {
-        if (!$path) {
+        $real = self::resolveExistingFile($path);
+        if ($real === null) {
             return false;
+        }
+
+        return @unlink($real);
+    }
+
+    /**
+     * Solo-lectura (#9990084): true si `path` resuelve a un archivo regular
+     * existente dentro de storage/app/public. Reusa la MISMA resolución que
+     * deleteFileSafely(), sin tocar nada.
+     */
+    public static function fileExists(?string $path): bool
+    {
+        return self::resolveExistingFile($path) !== null;
+    }
+
+    /** Resuelve `files.path` a un realpath dentro de storage/app/public, o null si no aplica. */
+    private static function resolveExistingFile(?string $path): ?string
+    {
+        if (!$path) {
+            return null;
         }
 
         $rel  = preg_replace('#^/?storage/#', '', $path);
@@ -32,18 +53,18 @@ class CrmDocumentStorage
         $real = realpath($abs);
 
         if ($real === false || $base === false) {
-            return false; // no existe / no resoluble
+            return null; // no existe / no resoluble
         }
         if (strpos($real, $base . DIRECTORY_SEPARATOR) !== 0) {
             Log::warning("[CrmDocumentStorage] saltado (fuera de storage/app/public): {$path}");
-            return false;
+            return null;
         }
         if (!is_file($real)) {
             // Directorio o no-archivo -> jamás tocar (evita borrar carpetas client/{id}).
             Log::warning("[CrmDocumentStorage] saltado (no es archivo regular): {$path}");
-            return false;
+            return null;
         }
 
-        return @unlink($real);
+        return $real;
     }
 }

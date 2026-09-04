@@ -107,7 +107,7 @@
 
 <script>
 import Datatable from "../../../base/shared/Datatable.vue";
-import { onMounted, nextTick, reactive, ref, watch } from "vue";
+import { onMounted, nextTick, reactive, ref, watch, onUnmounted, getCurrentInstance } from "vue";
 import DatatableHelper from "../../../../helpers/datatableHelper";
 import TaskCrud from "./TaskCrud.vue";
 import SelectComponentWithCheckbox from "../../../../shared/SelectComponentWithCheckbox.vue";
@@ -143,6 +143,10 @@ export default {
         },
     },
     setup(props) {
+        const ns = `.leak983-taskListar-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const title = ref("Crear Tarea");
         const datatable = reactive({
             table: new DatatableHelper({}),
@@ -175,17 +179,17 @@ export default {
             if (props.filters) {
                 filtersUser.value = JSON.parse(props.filters);
             }
-            $(document).on("click", ".uil-pen-modal", function () {
+            $(document).on("click" + ns, ".uil-pen-modal", function () {
                 let idItem = $(this).parent().attr("id-item");
                 let modal = $(this).parent().attr("toggle-modal");
                 showEditModal(idItem, modal);
             });
 
-            $(document).on("click", ".btn_add_task_list", function () {
+            $(document).on("click" + ns, ".btn_add_task_list", function () {
                 showModal();
             });
 
-            $(document).on("click", ".unarchive", function (e) {
+            $(document).on("click" + ns, ".unarchive", function (e) {
                 let idItem = $(e.target).parent().attr("id-item");
                 unArchiveTask(idItem);
             });

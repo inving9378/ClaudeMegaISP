@@ -42,7 +42,7 @@ class ClientSendReminderNotification extends Notification
     public function toMail($notifiable)
     {
         return (new MailMessage)
-            ->from(env('MAIL_FROM_ADDRESS'))
+            ->from(config('mail.from.address'))
             ->markdown('emails.notificate.client_reminder',
                 ['client_reminder' => $this->clientReminder]);
     }

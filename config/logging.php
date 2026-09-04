@@ -181,6 +181,20 @@ return [
             'level'  => 'debug',
             'days'   => 30,
         ],
+
+        'dryrun_contention' => [
+            'driver' => 'daily',
+            'path'   => storage_path('logs/dryrun-contention.log'),
+            'level'  => 'debug',
+            'days'   => 30,
+        ],
+
+        'permisos_accion' => [
+            'driver' => 'daily',
+            'path'   => storage_path('logs/permisos-accion.log'),
+            'level'  => 'debug',
+            'days'   => 30,
+        ],
     ],
 
 ];

@@ -25,6 +25,7 @@ use App\Modules\Addons\Talento\Controllers\TalentoEscalafonController;
 use App\Modules\Addons\Talento\Controllers\TalentoEmbajadoresController;
 use App\Modules\Addons\Talento\Controllers\TalentoMobileApiController;
 use App\Modules\Addons\Talento\Controllers\TalentoEvidenciaConfigController;
+use App\Modules\Addons\Talento\Controllers\TalentoPaqueteDocumentoController;
 use App\Modules\Addons\Talento\Controllers\PortalTecnicoController;
 use Illuminate\Support\Facades\Route;
 
@@ -57,6 +58,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/escalafon',      [TalentoEscalafonController::class, 'index']);
         Route::get('/embajadores-colabs', [TalentoEmbajadoresController::class, 'index']);
         Route::get('/config/evidencias',  [TalentoEvidenciaConfigController::class, 'index']);
+        Route::get('/expediente/paquetes', [TalentoPaqueteDocumentoController::class, 'index']);
 
         // ── API JSON ─────────────────────────────────────────────────────────
         Route::prefix('api')->group(function () {
@@ -340,6 +342,12 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             // ── Config: evidencias por tipo de OT ─────────────────────────
             Route::get('/config/evidencias',       [TalentoEvidenciaConfigController::class, 'catalogo']);
             Route::post('/config/evidencias/toggle', [TalentoEvidenciaConfigController::class, 'toggle']);
+
+            // ── Expediente RH: paquete de documentos por puesto (Hijo D1) ──
+            Route::get('/expediente/paquetes/puestos',      [TalentoPaqueteDocumentoController::class, 'puestos']);
+            Route::get('/expediente/paquetes/templates',    [TalentoPaqueteDocumentoController::class, 'templates']);
+            Route::get('/expediente/paquetes/asignaciones', [TalentoPaqueteDocumentoController::class, 'asignaciones']);
+            Route::post('/expediente/paquetes/sincronizar',  [TalentoPaqueteDocumentoController::class, 'sincronizar']);
         });
     });
 

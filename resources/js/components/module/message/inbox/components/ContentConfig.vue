@@ -69,7 +69,7 @@
 </template>
 
 <script>
-import { onMounted, ref, watch, reactive } from "vue";
+import { onMounted, ref, watch, reactive, onUnmounted, getCurrentInstance } from "vue";
 import Datatable from "../../../../base/shared/Datatable.vue";
 import SelectComponentWithCheckbox from "../../../../../shared/SelectComponentWithCheckbox.vue";
 import { filters } from "../../../../../helpers/filters";
@@ -92,6 +92,10 @@ export default {
     },
     emits: [""],
     setup(props, { emit }) {
+        const ns = `.leak983-contentConfig-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const dataForm = reactive({
             data: new Form({}),
         });
@@ -103,7 +107,7 @@ export default {
         const date_created = ref("");
 
         const initComponent = async () => {
-            $(document).on("click", ".send_message", function () {
+            $(document).on("click" + ns, ".send_message", function () {
                 let id = $(this).parent().attr("data-id");
                 sendMessageIfAcepted(id);
             });

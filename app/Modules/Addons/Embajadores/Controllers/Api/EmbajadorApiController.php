@@ -10,12 +10,15 @@ use App\Models\Referrals\ClientReferralProfile;
 use App\Models\Referrals\ReferralCommission;
 use App\Models\Referrals\ReferralSetting;
 use App\Models\Referrals\ReferralShareLog;
+use App\Modules\Core\Security\Traits\ChecksActionPermission;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class EmbajadorApiController extends Controller
 {
+    use ChecksActionPermission;
+
     // ---- helpers -----------------------------------------------------------
 
     private function resolveClient(): ?ClientModel
@@ -102,6 +105,8 @@ class EmbajadorApiController extends Controller
      */
     public function activate(Request $request): JsonResponse
     {
+        $this->verificarPermisoAccion('embajadores.programa.activar', 'api/megafamilia/embajadores/activate');
+
         $client = $this->resolveClient();
         if (! $client) return $this->noClient();
 

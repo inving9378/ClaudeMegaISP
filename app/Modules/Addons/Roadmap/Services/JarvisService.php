@@ -474,10 +474,41 @@ class JarvisService
                 ]);
             }
 
+            // #9990210 — ABLANDAMIENTO POR CATEGORÍA (decisión de Irving, 2026-09-04).
+            //
+            // Hasta aquí, «ablandar» no ablandaba nada: una mención conservaba la categoría y
+            // retenía igual que un hit, así que la válvula gastaba una llamada de IA por un
+            // veredicto que no movía ninguna decisión. Ahora una MENCIÓN deja de retener, SALVO
+            // en las categorías de `circuito.mencion_retiene_categorias` (por defecto `dinero` y
+            // `credenciales`), donde se conserva el comportamiento anterior.
+            //
+            // FALLA-SEGURA, igual que el modo: si la config no se puede leer o viene vacía por un
+            // error, se retiene. Un fallo al leer una perilla nunca puede ser la vía por la que
+            // una frontera dura se abra sola.
+            // La decisión vive en `Support\MencionFrontera` (pura, sin Laravel) para que su candado
+            // de regresión pueda correr sin bootear la app ni tocar la base.
+            try {
+                $retienen = config('circuito.mencion_retiene_categorias');
+                $retienen = is_array($retienen) ? $retienen : null;   // null = no se pudo leer → default
+            } catch (\Throwable) {
+                $retienen = null;
+            }
+
+            if (! \App\Modules\Addons\Roadmap\Support\MencionFrontera::retiene($det['categoria'], $retienen)) {
+                return array_merge($base, [
+                    'categoria' => null,
+                    'ablandada' => true,
+                    'motivo'    => "La válvula lo selló como MENCIÓN y «{$det['categoria']}» no está entre las "
+                                 . 'categorías que retienen una mención (' . implode(', ', $retienen) . '): '
+                                 . 'el item sigue su curso. Una ACCIÓN real sobre esa frontera sí lo retendría.',
+                ]);
+            }
+
             return array_merge($base, [
                 'categoria' => $det['categoria'],
                 'ablandada' => true,
-                'motivo'    => "La válvula lo selló como MENCIÓN, así que la frontera «{$det['categoria']}» se ablandó a «requiere Irving» — nunca a «pasa».",
+                'motivo'    => "La válvula lo selló como MENCIÓN, pero «{$det['categoria']}» retiene aunque sea "
+                             . 'mención (decisión de Irving, #9990210): se ablandó a «requiere Irving» — nunca a «pasa».',
             ]);
         }
 
@@ -485,6 +516,30 @@ class JarvisService
             'categoria' => $det['categoria'],
             'motivo'    => "Dispara «{$det['termino']}» ({$det['categoria']}), efecto «{$det['efecto']}».",
         ]);
+    }
+
+    /**
+     * #978 — Defecto 2 de #902 (FASE 4a). Antes los dos carriles («ya decidido» y mecánico) usaban
+     * el MISMO mensaje fijo cuando `TorreAutomationPolicy::estadoInicial()` devolvía
+     * `requiere_irving`, sin decir si la retención fue por una FRONTERA DURA real (dinero/seguridad/
+     * permisos/producción) o simplemente porque el `nivel_riesgo` del item excede el techo
+     * configurado de ese carril — dos causas muy distintas que en la bandeja de Irving se veían
+     * idénticas. Decisión de Irving (opción 1 del brief, `circuito:reportar --tipo=decision`):
+     * prefijo `[FRONTERA DURA]` / `[TECHO NIVEL X]` + razón corta, sin tocar veredicto ni política.
+     */
+    private function mensajeTechoOFrontera(RoadmapItem $item, string $actor, string $etiquetaCarril): string
+    {
+        $det = $this->fronteraDuraDeItemDetalle($item);
+
+        if ($det['categoria'] !== null) {
+            return "[FRONTERA DURA] La política de la Torre no autoriza este nivel por el carril «{$etiquetaCarril}»: "
+                . "retenido por frontera dura «{$det['categoria_detectada']}», término «{$det['termino']}» — {$det['motivo']}";
+        }
+
+        $techo = app(TorreAutomationPolicy::class)->nivelEfectivo($actor) ?? 'manual';
+
+        return "[TECHO NIVEL {$item->nivel_riesgo}] La política de la Torre no autoriza este nivel por el carril «{$etiquetaCarril}»: "
+            . "el item es {$item->nivel_riesgo}, el techo del carril es {$techo}.";
     }
 
     /**
@@ -722,7 +777,7 @@ class JarvisService
         // sub-techo nace en `C` justamente para no apagar ese comportamiento al construir el panel.
         $estado = app(TorreAutomationPolicy::class)->estadoInicial($item, 'jarvis.ya_decidido');
         if ($estado === 'requiere_irving') {
-            return $no('La política de la Torre no autoriza este nivel por el carril «ya decidido».');
+            return $no($this->mensajeTechoOFrontera($item, 'jarvis.ya_decidido', 'ya decidido'));
         }
 
         return [
@@ -827,7 +882,7 @@ class JarvisService
         $estado = app(TorreAutomationPolicy::class)->estadoInicial($item, 'jarvis.mecanico');
         if ($estado === 'requiere_irving') {
             return ['aprobado' => false, 'estado' => null,
-                'motivo' => 'La política de la Torre no autoriza este nivel por el carril mecánico.'];
+                'motivo' => $this->mensajeTechoOFrontera($item, 'jarvis.mecanico', 'mecánico')];
         }
 
         $log = $item->log ?: [];
@@ -1436,6 +1491,57 @@ class JarvisService
 
             return $requiere && ! $elegida;
         }));
+    }
+
+    /**
+     * #753 — corta la cadena de seguimientos idénticos (#218→#733→#741→#753…). El generador de
+     * abajo lee `preguntas[]` del padre en el mismo `saving()` en que se cierra: si quien cerró el
+     * padre respondió la pregunta en prosa (`reporte_coloquial`) pero no reflejó esa respuesta en
+     * `preguntas[].opcion_elegida`, se genera un hijo idéntico ya-respondido. Eso se repitió 3 veces
+     * seguidas sobre la MISMA pregunta textual — el propio `docs/inventario-seguimiento-733-item-741-verificacion.md`
+     * anotó que a la tercera repetición valía la pena frenar el mecanismo en vez de seguir generando
+     * hijos. Camina la cadena `origen_item_id` contando cuántos ancestros ya cargan la misma
+     * pregunta (texto exacto, trim); a partir de `$max` generaciones, deja de crear hijos nuevos
+     * (el ítem que se está cerrando ya trae la respuesta real — ver su `reporte_coloquial` — así que
+     * no hay nada nuevo que perder).
+     */
+    public function cadenaSeguimientoRepetida(RoadmapItem $item, array $pregunta, int $max = 3): bool
+    {
+        $texto = trim((string) ($pregunta['pregunta'] ?? ''));
+        if ($texto === '') {
+            return false;
+        }
+
+        $actual      = $item;
+        $generaciones = 0;
+        $visitados    = [];
+
+        while ($actual && $actual->origen_item_id && ! in_array($actual->id, $visitados, true)) {
+            $visitados[] = $actual->id;
+
+            $padre = RoadmapItem::find($actual->origen_item_id);
+            if (! $padre) {
+                break;
+            }
+
+            $preguntasPadre = is_array($padre->preguntas) ? $padre->preguntas : [];
+            $coincide       = collect($preguntasPadre)->contains(
+                fn ($p) => is_array($p) && trim((string) ($p['pregunta'] ?? '')) === $texto
+            );
+
+            if (! $coincide) {
+                break;
+            }
+
+            $generaciones++;
+            if ($generaciones >= $max) {
+                return true;
+            }
+
+            $actual = $padre;
+        }
+
+        return false;
     }
 
     /**

@@ -182,6 +182,28 @@ return [
     | (con semáforo de builds). `max_builds` = builds npm simultáneos máx (CPU de 4 cores).
     */
     'paralelismo'      => (int) env('CIRCUITO_PARALELISMO', 6),
+
+    /*
+    | Item #916 (sub-item de #911) — CUÁNTAS terminales pueden trabajar el MISMO módulo a la vez.
+    |
+    | `1` = comportamiento histórico (un módulo, una terminal). Subirlo destraba la flota cuando la
+    | cola se concentra en un módulo —el caso real: 31 items despachables, TODOS de
+    | `Roadmap / Circuito CC`, con 4 terminales libres y 0 reclamables—, porque el techo de
+    | ocupación no lo marcaba el trabajo disponible sino la variedad de módulos.
+    |
+    | La serialización por módulo es un PRE-FILTRO conservador, no la protección real: la colisión
+    | de verdad la detecta `detectarColisionesEnVuelo()` comparando el diff de archivos de cada rama
+    | en vuelo, agnóstico de módulo, en cada pasada del scheduler.
+    |
+    | PRECONDICIÓN CUMPLIDA para subirlo de 1: el candado de esquema de #915
+    | (`GuardedMigrateCommand::conCandadoDeEsquema`) serializa los `migrate` entre worktrees, que es
+    | el único riesgo de CORRUPCIÓN real (la base `megaisp` es compartida por los 6 worktrees).
+    | PENDIENTE #913: el detector sólo ve trabajo ya COMMITEADO, así que dos terminales del mismo
+    | módulo pueden editar el mismo archivo sin verse hasta el merge. Ese riesgo es ACOTADO
+    | (conflicto de merge y una vuelta perdida, nunca corrupción: cada worktree es un checkout
+    | aparte), y por eso este valor sube GRADUALMENTE y se mide antes de subirlo más.
+    */
+    'paralelo_mismo_modulo' => max(1, (int) env('CIRCUITO_PARALELO_MISMO_MODULO', 1)),
     'max_builds'       => (int) env('CIRCUITO_MAX_BUILDS', 3),
 
     // #938 — límite real de una vuelta (lo aplica `timeout` en deploy/circuito/vuelta.sh vía
@@ -246,6 +268,51 @@ return [
     'freno' => [
         'centinela' => env('CIRCUITO_FRENO_CENTINELA', '/var/www/megaisp/storage/app/circuito/PAUSA'),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | CANDADO DE ESQUEMA — migrate entre worktrees (#915, bug de #916 documentado abajo)
+    |--------------------------------------------------------------------------
+    |
+    | MISMO patrón que el freno de arriba: ruta ABSOLUTA al storage/ del checkout PRINCIPAL,
+    | jamás `storage_path()`. El primer intento de #915 (commit c1ee65f1) usó `storage_path()`
+    | dentro de `GuardedMigrateCommand` — como cada worktree tiene su propio `storage/` real,
+    | cada terminal tomaba SU PROPIO candado y nunca veía el de las demás: el lock no serializaba
+    | nada entre worktrees, exactamente el mismo error que ya advertía el comentario del freno de
+    | mano. `paralelo_mismo_modulo` (#916, abajo) subió a 2 confiando en esta precondición —
+    | mientras el candado no apunte aquí, ese riesgo de corrupción de esquema está VIVO.
+    */
+    'candado_migraciones' => env('CIRCUITO_CANDADO_MIGRACIONES', '/var/www/megaisp/storage/app/circuito/migrate-esquema.lock'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Item #9990210 — QUÉ CATEGORÍAS RETIENEN AUNQUE SEAN SÓLO UNA MENCIÓN
+    |--------------------------------------------------------------------------
+    | La válvula de contexto distingue un item que TOCA una frontera dura de uno
+    | que sólo la NOMBRA de paso (ej. «falta permiso» describiendo un catálogo de
+    | gaps, o citar `deploy:dry-run-migrations` para reusarlo). Hasta este item,
+    | esa distinción no cambiaba NADA: en modo «ablandar» una mención seguía
+    | reteniendo igual que un hit, así que el circuito pagaba una llamada de IA
+    | por un veredicto que no movía ninguna decisión.
+    |
+    | DECISIÓN DE IRVING (2026-09-04): una MENCIÓN deja de retener, SALVO en las
+    | categorías de esta lista, que retienen igual que un hit. Elegido a propósito
+    | más conservador que «toda mención pasa»: se acepta que algún hallazgo
+    | legítimo siga cayendo en la bandeja con tal de no tocar nunca dinero ni
+    | credenciales sin que Irving lo vea.
+    |
+    | ⚠️ Esto gobierna SÓLO las menciones. Una ACCIÓN real (`frontera_valvula` =
+    | 'accion') sigue reteniendo en las CUATRO categorías, pase lo que pase, y
+    | eso no es configurable desde aquí a propósito.
+    |
+    | Mover una categoría de un lado a otro es cambiar esta lista — sin redeploy
+    | ni tocar código. Vaciarla = toda mención pasa. Ponerlas las cuatro =
+    | comportamiento anterior a este item.
+    */
+    'mencion_retiene_categorias' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env('CIRCUITO_MENCION_RETIENE', 'dinero,credenciales'))
+    ))),
 
     'autopilot' => [
         'enabled'             => (bool) env('CIRCUITO_AUTOPILOT', true),
@@ -424,6 +491,21 @@ return [
             // debe quedar enmascarado por el resto tranquilo — ver medirLogs() y alertas().
             'errores_por_minuto_umbral' => (int) env('CIRCUITO_JARVIS_ERRORES_MINUTO_UMBRAL', 20),
 
+            // CHEQUEO cert_dev (item #226, paso 5) — vigencia del certificado TLS de
+            // dev.meganett.com.mx, verificada por handshake real (openssl s_client), sin
+            // depender de sudo ni de ninguna credencial: los certs de Let's Encrypt en
+            // /etc/letsencrypt son root:root, ilegibles para este usuario, así que se mide
+            // por red, igual que lo vería cualquier cliente. El cert se emitió con
+            // `certbot --manual` y NO auto-renueva; si expira, la API HTTPS que consume
+            // Cowork se cae y el circuito entero se apaga sin que ninguna otra sonda lo note
+            // (es tráfico saliente a otra máquina, no un proceso local). 21/7 días = alerta
+            // con margen de sobra / crítico ya en la última semana.
+            'cert_dev' => [
+                'dominio' => env('CIRCUITO_JARVIS_CERT_DEV_DOMINIO', 'dev.meganett.com.mx'),
+                'umbral_alerta_dias' => (int) env('CIRCUITO_JARVIS_CERT_DEV_ALERTA_DIAS', 21),
+                'umbral_critico_dias' => (int) env('CIRCUITO_JARVIS_CERT_DEV_CRITICO_DIAS', 7),
+            ],
+
             // CANAL DE ALERTA FUERA DE LA TORRE (#707, sub-item de #208, parte 3/3) — el
             // vigilante SOLO AVISA, nunca corrige. Reusa el gateway WhatsApp ÚNICO ya designado
             // (`EvolutionApiService`, ver CLAUDE.md §"SERVICIOS COMPARTIDOS ÚNICOS"), nunca un
@@ -446,6 +528,23 @@ return [
                 // el WhatsApp. Lo pidió el propio revisor del #208. 1800s = 30 min.
                 'cooldown_seg' => (int) env('CIRCUITO_JARVIS_ALERTA_COOLDOWN', 1800),
             ],
+
+            // CHEQUEO auto_increment_roadmap (item #9990206) — un `id` explícito insertado a
+            // mano (p.ej. para probar un comando) despega el AUTO_INCREMENT de `roadmap_items`
+            // para SIEMPRE: MySQL nunca lo baja por debajo de `max(id)+1`, ni borrando la fila
+            // después. Así nació el salto real de 990 a 1.000.000 y luego a 9.990.000. El guard
+            // del modelo (`RoadmapItem::booted()`) ya cierra la puerta hacia adelante; esto
+            // detecta si algo la vuelve a abrir (escritura cruda, `DB::table()->insert()`,
+            // import, etc. — caminos que NO pasan por el modelo y por tanto no ven el guard).
+            //
+            // El salto se mide como `AUTO_INCREMENT actual − MAX(id) actual`: en operación sana
+            // es 1 (el próximo id sería max+1). Un salto mayor a este umbral es anómalo.
+            //
+            // TRAMPA DE DIAGNÓSTICO (medida en vivo, ver el propio item): `SHOW TABLE STATUS` e
+            // `information_schema.tables` devuelven el AUTO_INCREMENT de una ESTADÍSTICA
+            // CACHEADA de InnoDB, que puede quedar desactualizada. `SHOW CREATE TABLE` es el
+            // único que da el valor REAL — el medidor debe usar ese, nunca el otro.
+            'auto_increment_salto_umbral' => (int) env('CIRCUITO_JARVIS_AUTOINCREMENT_SALTO_UMBRAL', 1000),
         ],
 
         /*
@@ -878,6 +977,14 @@ return [
         'min_intervalo_minutos' => (int) env('CIRCUITO_AUDITOR_INTERVALO', 15),
 
         /*
+        | Slots libres mínimos para que el auditor dispare (Torre 24/7 Pieza 5a-ii, item #981).
+        | Default de fábrica que la migración de `torre_config` lee al sembrar la fila. Editable
+        | después desde Torre → Configuración (columna `auditor_slots_libres_min`), que manda una
+        | vez migrada.
+        */
+        'slots_libres_min_disparo' => (int) env('CIRCUITO_AUDITOR_SLOTS_LIBRES_MIN', 2),
+
+        /*
         | LOS DOS CARRILES (inventario de módulos, 2026-08-08).
         |
         | `paralelo`: módulos con acoplamiento ~0 (nadie los consume, no consumen a nadie) → sus
@@ -959,6 +1066,18 @@ return [
         |  - sin_clasificar: items de la Hoja de Ruta con footprint desconocido, que por diseño
         |    corren SOLOS y bloquean a las 6 terminales (#526). Clasificarlos libera la flota.
         |  - semilla:       pendientes del inventario 2026-08-08 que el escaneo no puede ver.
+        |  - jquery_sin_off: componentes Vue con `$(document).on(...)` delegado sin su `.off()`
+        |    correspondiente en el mismo archivo → handlers jQuery que se acumulan en cada remount
+        |    de la SPA (#899). Cross-cutting (resources/js/, no un $dir de módulo PHP): se emite
+        |    UNA vez bajo el ancla 'Roadmap / Circuito CC', igual que sin_clasificar.
+        |  - env_runtime:   llamadas a `env()` en tiempo de ejecución fuera de `config/`, la misma
+        |    lista que vigila `php artisan config:auditar-env` (#790) antes de permitir
+        |    `config:cache`. Consume ese escaneo vía `EnvRuntimeScanner` (#901), no lo reimplementa.
+        |    Cross-cutting (app/, routes/, bootstrap/): se emite UNA vez bajo el ancla
+        |    'Roadmap / Circuito CC', igual que sin_clasificar/jquery_sin_off.
+        |  - null_safety:   dos patrones sin guard contra null (#900/#973): `auth()->user()->` sin
+        |    `?->` inmediatamente después, y `$var = json_decode(...)` usado (`$var->`/`$var[`) sin
+        |    comprobar null en la ventana de las ~15 líneas siguientes (heurística aproximada).
         */
         'detectores' => [
             'hueco_ruteado'  => (bool) env('CIRCUITO_AUDITOR_D_HUECOS', true),
@@ -967,6 +1086,9 @@ return [
             'andamiaje'      => (bool) env('CIRCUITO_AUDITOR_D_ANDAMIAJE', true),
             'sin_clasificar' => (bool) env('CIRCUITO_AUDITOR_D_SINCLAS', true),
             'semilla'        => (bool) env('CIRCUITO_AUDITOR_D_SEMILLA', true),
+            'jquery_sin_off' => (bool) env('CIRCUITO_AUDITOR_D_JQUERYOFF', true),
+            'env_runtime'    => (bool) env('CIRCUITO_AUDITOR_D_ENVRUNTIME', true),
+            'null_safety'    => (bool) env('CIRCUITO_AUDITOR_D_NULLSAFE', true),
         ],
 
         /*
@@ -1109,7 +1231,55 @@ return [
             // por este motor) se complete — ver `AuditorService::gastoApagado()`. Umbral de #590
             // restituido ("dos corridas por hambre consecutivas").
             'gasto_racha_umbral' => (int) env('CIRCUITO_AUDITOR_SEQUIA_GASTO_UMBRAL', 2),
+
+            // #891 Fase 3a — HALF-OPEN del gasto: en vez de esperar indefinidamente a un item
+            // real completado, cada `gasto_reintento_min` minutos se deja pasar UN sondeo (sin
+            // rearmar el timestamp) para ver si la fuente revivió. Si el sondeo vuelve a salir
+            // seco, `evaluarApagarGasto()` renueva el timestamp y el freno sigue frenando otros
+            // `gasto_reintento_min` minutos más — el costo queda acotado, nunca indefinido.
+            // Son solo el DEFAULT DE FÁBRICA; si `torre_config` trae estas columnas (Fase 3b), el
+            // valor de la BD manda, igual que pasa hoy con `auditor_cooldown_min`.
+            'gasto_reintento_min'    => (int) env('CIRCUITO_AUDITOR_SEQUIA_GASTO_REINTENTO_MIN', 30),
+            'gasto_reintento_activo' => (bool) env('CIRCUITO_AUDITOR_SEQUIA_GASTO_REINTENTO_ACTIVO', true),
         ],
+    ],
+
+    /*
+    |---------------------------------------------------------------------------------------------
+    | "MODO BARRIDO" — Torre 24/7 Pieza 5b (#908), FASE 2a (#985): disparador + candado de un solo
+    | barrido + rotación de módulo. NO espera a que #907/#980 (slots_libres como disparador de
+    | primera clase del auditor) estén implementados — usa directo los métodos públicos ya vivos de
+    | `AuditorService` (`slotsLibres()`, `rachaSeca()`, `profundidadCola()`).
+    |
+    | El barrido en sí (explorar el módulo elegido y crear hallazgos, FASE 2b/#986) y el despacho
+    | FIFO de esos hallazgos (FASE 3/#987) son items aparte. Este bloque sólo gobierna CUÁNDO entrar
+    | en modo barrido, que SÓLO una terminal lo haga a la vez, y QUÉ módulo le toca.
+    |---------------------------------------------------------------------------------------------
+    */
+    'barrido' => [
+        // Pool "seco" = cola reclamable (AuditorService::profundidadCola()) en o por debajo de
+        // esto. Con cola real, barrer no tiene sentido: sobra trabajo de verdad que despachar.
+        'cola_max_para_barrer' => (int) env('CIRCUITO_BARRIDO_COLA_MAX', 0),
+
+        // Además de la cola vacía, exige que la racha seca del auditor (misma señal que ya alarga
+        // su intervalo, #1015) haya cruzado esto — evita disparar barrido por un valle momentáneo
+        // de la cola que se vuelve a llenar al minuto siguiente.
+        'racha_seca_min' => (int) env('CIRCUITO_BARRIDO_RACHA_MIN', 1),
+
+        // Terminales libres (AuditorService::slotsLibres()) mínimas para que valga la pena
+        // dedicar una a explorar en vez de esperar.
+        'slots_libres_min' => (int) env('CIRCUITO_BARRIDO_SLOTS_MIN', 1),
+
+        // TTL del candado single-flight (`circuito_barrido_en_curso` en `settings`): un barrido
+        // que no se libera en este tiempo se trata como HUÉRFANO (terminal caída a medio barrido)
+        // y deja de bloquear — ver `BarridoService::leerCandado()`.
+        'candado_ttl_min' => (int) env('CIRCUITO_BARRIDO_CANDADO_TTL_MIN', 25),
+
+        // #9990032 (FASE 2b-i) — tope de hallazgos que `BarridoService::explorar()` devuelve por
+        // corrida. Inspirado en `circuito.auditor.items_por_modulo_por_ciclo`: no tiene sentido
+        // que una sola exploración genere de un jalón más hallazgos de los que el despacho FIFO
+        // (Fase 3/#987) pueda repartir sin dejar terminales ociosas.
+        'hallazgos_max_por_barrida' => (int) env('CIRCUITO_BARRIDO_HALLAZGOS_MAX', 3),
     ],
 
     /*
@@ -1255,6 +1425,31 @@ return [
             'cadencia'    => 'dentro del scheduler · cola < 3 y ≥ 15 min desde la última',
         ],
 
+        // #9990235 — EL BARRIDO CONTINUO. Corría por cron cada 5 min (línea añadida el 2026-09-04
+        // al ponerlo en modo continuo) SIN estar aquí: si esa línea se rompía, el 24/7 dejaba de
+        // barrer y el panel no lo habría pintado en rojo — ni siquiera lo habría pintado. Es
+        // exactamente el fallo que documenta la auditoría del 2026-08-19 unas líneas más arriba:
+        // «ausente es peor que rojo».
+        //
+        // `exige_opciones => ['apply']` es lo que hace honesto este latido: el barrido se corre a
+        // mano en DRY-RUN a menudo (para ver qué encontraría sin crear nada), y esas corridas NO
+        // deben sellar el pulso. Si lo hicieran, un cron muerto quedaría enmascarado por la primera
+        // exploración manual que alguien hiciera — la mentira precisa que este vigilante evita.
+        //
+        // El latido lo sella el listener de `ModuleServiceProvider` con la clave por defecto
+        // (`circuito_beat_circuito_barrido`); NO se toca `circuito_barrido_cobertura_modulos`, que
+        // es otra cosa: la cobertura POR MÓDULO que usa el propio barrido para rotar. Dos fuentes
+        // de la misma verdad se desincronizan, así que cada una conserva su propósito.
+        'circuito:barrido' => [
+            'motor'          => 'Barrido',
+            'cadencia_horas' => 5 / 60,
+            'max_horas'      => 1,
+            'exige_opciones' => ['apply'],
+            'si_no_corre'    => 'con la cola seca las terminales se quedan ociosas y nadie descubre '
+                . 'defectos nuevos en el código: el modo 24/7 deja de explorar sin avisar',
+            'cadencia'       => 'cada 5 min (cron)',
+        ],
+
         'circuito:watchdog' => [
             'motor'         => 'Watchdog',
             'cadencia_horas' => 2 / 60,
@@ -1339,6 +1534,68 @@ return [
             // a 3: con cadencia de 10 min, media hora sin latir ya es señal de que el cron murió.
             'cadencia'    => 'cada 10 min (crontab del circuito) + 00:05 diario (Kernel.php, donde haya schedule:run)',
         ],
+
+        // #9990235 — cron propio (`*/5 * * * * … circuito:barrido --apply`, añadido 2026-09-04),
+        // pero GATEADO igual que el Auditor (cola seca + racha seca + slots libres): sólo resella
+        // cobertura cuando de verdad barrió un módulo. Por eso `cadencia_horas => null` (umbral por
+        // `max_horas`, no un múltiplo de cadencia fija): con cadencia fija de 5 min, un 3× (15 min)
+        // pintaría 🔴 cada vez que la cola trae trabajo real por más de un cuarto de hora — que es
+        // justo el caso SANO que el gating existe para respetar (no hace falta barrer si sobra
+        // trabajo real). `max_horas` holgado da margen a rachas ocupadas legítimas.
+        //
+        // `formato => 'json_cobertura_max'` (opción (a) del item): el barrido NO sella un reloj
+        // plano, escribe `circuito_barrido_cobertura_modulos` = JSON {modulo: {ultima_barrida_at}}
+        // (`BarridoService::marcarBarrido()`). En vez de sumar una segunda escritura sólo para que
+        // este vigilante la lea (dos fuentes de la misma verdad se desincronizan), `latidos()`
+        // aprende a leer ESE JSON y tomar la marca MÁS RECIENTE de cualquier módulo como el latido.
+        'circuito:barrido' => [
+            'motor'         => 'Barrido',
+            'cadencia_horas' => null,
+            'max_horas'   => 24,
+            'beat_key'    => 'circuito_barrido_cobertura_modulos',
+            'formato'     => 'json_cobertura_max',
+            'campo'       => 'ultima_barrida_at',
+            'si_no_corre' => 'con la cola seca las terminales se quedan ociosas y nadie descubre '
+                . 'defectos nuevos en el código',
+            'cadencia'    => 'cada 5 min (cron) · gated por cola seca / racha seca / slots libres, '
+                . 'igual que el Auditor',
+        ],
+
+        // #9990238 (FASE 4 de #9990235) — cron propio (`*/10 * * * * .../cron-wrap.sh
+        // circuito:liberar-cascada-mapa-red`, tag `# mr-32`), no estaba en este registro: si esa
+        // línea se rompía, la cascada MR-01→MR-07 dejaba de avanzar sin que ningún panel lo pintara
+        // en rojo. A diferencia de `circuito:compuertas-sonda` (ver la nota que sigue), este comando
+        // NO deja rastro de "sigo vivo" en ninguna otra parte — su archivo de estado
+        // (`circuito/liberador-mapa-red.json`) solo se escribe cuando la cascada se DETIENE, no en
+        // cada tick sano — así que el latido genérico de `CommandFinished` es la única señal de que
+        // el cron sigue corriendo.
+        //
+        // `excluye_opciones`: las 3 banderas manuales (`--dry-run` no escribe nada, `--estado` y
+        // `--reactivar` son inspección/intervención humana) NUNCA las manda el cron — pero si
+        // alguien las corre a mano para revisar la cascada, no deben sellar el latido como si el
+        // cron hubiera corrido: sería la misma mentira que ya evitan `re-triage`/`priorizar-seguridad`
+        // arriba.
+        'circuito:liberar-cascada-mapa-red' => [
+            'motor'         => 'Liberador cascada Mapa de Red (MR-32)',
+            'cadencia_horas' => 10 / 60,
+            'max_horas'   => 1,
+            'excluye_opciones' => ['dry-run', 'estado', 'reactivar'],
+            'si_no_corre' => 'la cascada MR-01→MR-07 deja de avanzar sola aunque el item anterior '
+                . 'ya haya cerrado, y nadie lo nota hasta revisar a mano',
+            'cadencia'    => 'cada 10 min (cron-wrap.sh)',
+        ],
+
+        // #9990238 (FASE 4 de #9990235) — `circuito:compuertas-sonda` también tiene cron PROPIO
+        // (`* * * * * ... circuito:compuertas-sonda`, cada minuto) y tampoco estaba aquí, pero a
+        // propósito NO se agrega: a diferencia de `liberar-cascada-mapa-red` de arriba, esta sonda
+        // YA es su propio latido, uno mejor que el genérico de este archivo. Cada corrida escribe
+        // `storage/app/torre/compuertas-so.json` con `medido_ts`, y `CompuertasService` (el ÚNICO
+        // consumidor, junto al panel de la Torre) lo lee DIRECTO y calcula su propia antigüedad
+        // (`SNAPSHOT_FRESCO_SEG=180`) con su propio mensaje de remediación ("revisar su línea en el
+        // crontab de meganet"). Duplicarlo aquí sería un segundo reloj del mismo hecho — la deriva
+        // que este mismo archivo advierte evitar más arriba (ver `circuito:scheduler`) — sin ganar
+        // nada: el panel de Compuertas seguiría sin usar `latidos()`, así que un segundo latido acá
+        // seria una fuente muerta, más código de vigilancia para el mismo dato.
     ],
 
     'retriage' => [

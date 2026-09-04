@@ -41,7 +41,7 @@ class GeneralAccountingExpenseController extends Controller
             $data = [
                 'amount' => $request->amount,
                 'description' => $request->description,
-                'created_by' => auth()->user()->id,
+                'created_by' => auth()->user()?->id,
                 'category' => 'Gasto Manual',
                 'reference_number' => $generalAccountingService->generateReferenceNumber('EXP'),
             ];

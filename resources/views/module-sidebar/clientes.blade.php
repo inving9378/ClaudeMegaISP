@@ -1,10 +1,9 @@
+@if(auth()->user()->canAny(['client_view_dashboard', 'client_view_client', 'client_add_client']))
 <li>
-    @if(auth()->user()->canAny(['client_view_dashboard', 'client_view_client', 'client_add_client']))
-        <a href="javascript: void(0);" class="has-arrow">
-            <i data-feather="user-check"></i>
-            <span data-key="t-cliente">{{ $item->sidebar_label ?? 'Clientes' }}</span>
-        </a>
-    @endcanany
+    <a href="javascript: void(0);" class="has-arrow">
+        <i data-feather="user-check"></i>
+        <span data-key="t-cliente">{{ $item->sidebar_label ?? 'Clientes' }}</span>
+    </a>
     <ul class="sub-menu" aria-expanded="false">
         @if(auth()->user()->can('client_view_dashboard'))
             <li>
@@ -30,11 +29,15 @@
 
         {{-- Hijos dinámicos desde module_sidebar_config (Fase 2.3/3.5) --}}
         @foreach($item->dynamic_children ?? collect() as $child)
+            @php($childPermission = $child->permission ?? $item->permission ?? null)
+            @if(!$childPermission || auth()->user()->can($childPermission))
             <li>
                 <a href="{{ $child->sidebar_url ? url($child->sidebar_url) : url('/' . $child->module_key) }}">
                     <span>@if($child->sidebar_icon)<small><i class="{{ $child->sidebar_icon }}"></i></small> @endif{{ $child->sidebar_label ?? $child->module_key }}</span>
                 </a>
             </li>
+            @endif
         @endforeach
     </ul>
 </li>
+@endif

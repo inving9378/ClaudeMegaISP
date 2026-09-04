@@ -86,6 +86,7 @@ class JarvisVigilarCommand extends Command
             'sonda'     => $this->medirSonda(),
             'git'       => $this->medirGit(),
             'gasto'     => $this->medirGasto(),
+            'cert_dev'  => $this->medirCertDev(),
         ];
 
         $estado['bd_integra'] = $this->medirBdIntegra($anterior);
@@ -118,6 +119,7 @@ class JarvisVigilarCommand extends Command
         $estado['reclamos'] = $this->medirReclamos();
         $estado['jobs_varados'] = $this->medirJobsVarados();
         $estado['cola_falso_verde'] = $this->medirColaFalsoVerde($anterior);
+        $estado['auto_increment_roadmap'] = $this->medirAutoIncrementRoadmapItems();
         $estado['modo'] = $estado['base']['responde'] ? 'completo' : 'minimo';
         $estado['alertas'] = $this->alertas($estado);
 
@@ -538,6 +540,63 @@ class JarvisVigilarCommand extends Command
             'umbral_hora'        => $umbral,
             'invocaciones_hora'  => $conteo,
             'ultimo_arranque_ts' => $ultimoTs,
+        ];
+    }
+
+    /**
+     * CHEQUEO cert_dev (item #226, paso 5) — vigencia del certificado TLS de
+     * `dev.meganett.com.mx`, la máquina de la que depende la API HTTPS que consume Cowork.
+     * Se emitió con `certbot --manual`, así que NO auto-renueva; su expiración apaga el
+     * circuito entero sin que ninguna otra sonda lo note (es tráfico saliente a otra máquina,
+     * no un proceso local). Handshake TLS real (`openssl s_client` + `openssl x509`), NO
+     * lectura de `/etc/letsencrypt` (esos certs son `root:root`, ilegibles para este usuario):
+     * así no hace falta sudo ni ninguna credencial, se mide igual que lo vería cualquier
+     * cliente. Va en su propio `try/catch` implícito (no lanza: `sh()` ya tolera fallo) y no
+     * frena nada (a diferencia de bd_integra/tablas_clave): solo avisa.
+     */
+    private function medirCertDev(): array
+    {
+        $dominio = (string) config('circuito.jarvis.vigilia.cert_dev.dominio', 'dev.meganett.com.mx');
+        $alertaDias = (int) config('circuito.jarvis.vigilia.cert_dev.umbral_alerta_dias', 21);
+        $criticoDias = (int) config('circuito.jarvis.vigilia.cert_dev.umbral_critico_dias', 7);
+
+        $salida = trim((string) $this->sh(
+            'echo | timeout 8 openssl s_client -connect ' . escapeshellarg($dominio . ':443')
+            . ' -servername ' . escapeshellarg($dominio) . ' 2>/dev/null'
+            . ' | openssl x509 -noout -enddate 2>/dev/null'
+        ));
+
+        if (! preg_match('/notAfter=(.+)$/', $salida, $m)) {
+            return [
+                'medido' => false, 'escalon' => 'critico', 'dominio' => $dominio,
+                'vence_en' => null, 'dias_restantes' => null,
+                'error' => 'No se pudo leer el certificado por handshake TLS.',
+                'umbral_alerta_dias' => $alertaDias, 'umbral_critico_dias' => $criticoDias,
+            ];
+        }
+
+        $vence = strtotime(trim($m[1]));
+        if ($vence === false) {
+            return [
+                'medido' => false, 'escalon' => 'critico', 'dominio' => $dominio,
+                'vence_en' => null, 'dias_restantes' => null,
+                'error' => 'Fecha de vencimiento ilegible: ' . trim($m[1]),
+                'umbral_alerta_dias' => $alertaDias, 'umbral_critico_dias' => $criticoDias,
+            ];
+        }
+
+        $dias = (int) floor(($vence - time()) / 86400);
+        $escalon = $dias <= $criticoDias ? 'critico' : ($dias <= $alertaDias ? 'alerta' : 'ok');
+
+        return [
+            'medido' => true,
+            'escalon' => $escalon,
+            'dominio' => $dominio,
+            'vence_en' => date('c', $vence),
+            'dias_restantes' => $dias,
+            'error' => null,
+            'umbral_alerta_dias' => $alertaDias,
+            'umbral_critico_dias' => $criticoDias,
         ];
     }
 
@@ -1086,7 +1145,97 @@ class JarvisVigilarCommand extends Command
                     . "(umbral {$gasto['umbral_hora']}).", ];
         }
 
+        // CHEQUEO cert_dev (item #226, paso 5) — el cert de dev.meganett.com.mx no auto-renueva
+        // (certbot --manual) y sostiene la API HTTPS que consume Cowork. 'alarma' en vez de
+        // 'me_pregunta' para el escalón crítico a propósito: es la misma severidad que
+        // bd_integra/tablas_clave porque el efecto es el mismo (el circuito se apaga), aunque
+        // aquí no se ponga freno (nada que frenar: es un certificado externo, no el propio box).
+        $cd = $e['cert_dev'] ?? [];
+        if (($cd['escalon'] ?? 'ok') === 'critico') {
+            $a[] = ['clave' => 'cert_dev', 'nivel' => 'alarma',
+                'texto' => ($cd['medido'] ?? false)
+                    ? "CRÍTICO — el certificado de {$cd['dominio']} vence en {$cd['dias_restantes']} día(s) "
+                        . "({$cd['vence_en']}). Se emitió con certbot --manual y NO auto-renueva (item #226): "
+                        . 'sin acción, la API HTTPS que consume Cowork se cae y el circuito se apaga.'
+                    : "CRÍTICO — no pude verificar por TLS el certificado de {$cd['dominio']}: {$cd['error']}", ];
+        } elseif (($cd['escalon'] ?? 'ok') === 'alerta') {
+            $a[] = ['clave' => 'cert_dev', 'nivel' => 'me_pregunta',
+                'texto' => "El certificado de {$cd['dominio']} vence en {$cd['dias_restantes']} día(s) "
+                    . "({$cd['vence_en']}). No auto-renueva (item #226) — renovar a mano si el hook DNS-01 "
+                    . 'sigue sin credenciales.', ];
+        }
+
+        // CHEQUEO auto_increment_roadmap (item #9990206) — el guard del modelo
+        // (`RoadmapItem::booted()`) ya cierra la puerta hacia adelante para quien escribe por
+        // Eloquent; esto detecta si algo la vuelve a abrir por un camino que el guard no ve
+        // (escritura cruda, `DB::table()->insert()`, import).
+        $ai = $e['auto_increment_roadmap'] ?? [];
+        if (($ai['medido'] ?? true) === false) {
+            $a[] = ['clave' => 'auto_increment_roadmap', 'nivel' => 'me_pregunta',
+                'texto' => 'No pude auditar el AUTO_INCREMENT de roadmap_items (#9990206): la base no respondió para esta familia.', ];
+        } elseif (($ai['escalon'] ?? 'ok') === 'critico') {
+            $a[] = ['clave' => 'auto_increment_roadmap', 'nivel' => 'alarma',
+                'texto' => "AUTO_INCREMENT de roadmap_items saltó {$ai['salto']} por encima de MAX(id)+1 "
+                    . "(umbral {$ai['umbral']}): auto_increment={$ai['auto_increment']}, max_id={$ai['max_id']}. "
+                    . 'Algo insertó con id explícito por fuera del guard del modelo (#9990206) — el daño ya '
+                    . 'es permanente (MySQL no baja el contador), esto es solo para enterarse a tiempo.', ];
+        }
+
         return $a;
+    }
+
+    /**
+     * CHEQUEO auto_increment_roadmap (item #9990206) — detector de recurrencia del salto que
+     * motivó el guard de `RoadmapItem::booted()`: una escritura CRUDA (fuera del modelo, que no
+     * ve ese guard) volvió a insertar con id explícito y desincronizó el AUTO_INCREMENT de
+     * `MAX(id)`. El salto real medido fue de +999.010 y luego +8.989.990 — un umbral de 1000 lo
+     * atrapa con margen de sobra sin falsos positivos por operación normal.
+     *
+     * TRAMPA DE DIAGNÓSTICO (medida en vivo, ver el propio item): `SHOW TABLE STATUS` e
+     * `information_schema.tables` devuelven el AUTO_INCREMENT de una ESTADÍSTICA CACHEADA de
+     * InnoDB, que puede quedar desactualizada y mostrar "ya está arreglado" cuando no es cierto.
+     * `SHOW CREATE TABLE` es el único que da el valor REAL — el único que se usa aquí.
+     *
+     * Va en su PROPIO try/catch (mismo principio que `medirReclamos()`/`medirJobsVarados()`):
+     * necesita la base, y un fallo aquí no debe tumbar las demás familias.
+     */
+    private function medirAutoIncrementRoadmapItems(): array
+    {
+        $umbral = max(1, (int) config('circuito.jarvis.vigilia.auto_increment_salto_umbral', 1000));
+
+        try {
+            $create = DB::selectOne('SHOW CREATE TABLE roadmap_items');
+            $ddl    = $create->{'Create Table'} ?? ($create->{'Create View'} ?? '');
+
+            if (! preg_match('/AUTO_INCREMENT=(\d+)/', (string) $ddl, $m)) {
+                // MySQL no imprime `AUTO_INCREMENT=` hasta la primera fila insertada: tabla
+                // recién creada, no una anomalía.
+                return [
+                    'medido' => true, 'auto_increment' => null, 'max_id' => null,
+                    'salto' => 0, 'umbral' => $umbral, 'escalon' => 'ok', 'error' => null,
+                ];
+            }
+
+            $autoIncrement = (int) $m[1];
+            $maxId         = (int) DB::table('roadmap_items')->max('id');
+            // 0 en operación sana: el próximo id sería exactamente max+1.
+            $salto = $autoIncrement - $maxId - 1;
+
+            return [
+                'medido'         => true,
+                'auto_increment' => $autoIncrement,
+                'max_id'         => $maxId,
+                'salto'          => $salto,
+                'umbral'         => $umbral,
+                'escalon'        => $salto > $umbral ? 'critico' : 'ok',
+                'error'          => null,
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'medido' => false, 'auto_increment' => null, 'max_id' => null, 'salto' => 0,
+                'umbral' => $umbral, 'escalon' => 'no_aplica', 'error' => substr($e->getMessage(), 0, 200),
+            ];
+        }
     }
 
     private function humano(int $bytes): string

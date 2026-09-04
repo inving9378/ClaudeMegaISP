@@ -437,8 +437,12 @@ class RoadmapCircuitoService
         // corrieron y terminaron bien; el pulso lo refleja, aunque no mueva la beat).
         $this->registrarPulso($comando, true, null);
 
-        if (($cfg['formato'] ?? 'datetime') === 'unix') {
-            return;   // ese proceso sella su propio latido (no duplicar el reloj)
+        // #9990235 — cualquier formato distinto de 'datetime' (hoy 'unix' y 'json_cobertura_max')
+        // significa que el proceso sella su propio latido en su propio formato — no duplicar el
+        // reloj aquí. Generalizado desde el chequeo puntual de 'unix' para que un formato nuevo se
+        // auto-selle sin tener que enumerarlo también en este `if`.
+        if (($cfg['formato'] ?? 'datetime') !== 'datetime') {
+            return;
         }
 
         // Sólo cuenta la corrida que HIZO EL TRABAJO. Un dry-run, o la variante por-item de un
@@ -594,6 +598,39 @@ class RoadmapCircuitoService
     }
 
     /**
+     * #9990235 — lee un latido "cobertura por módulo" (JSON `{modulo: {campo: iso8601}}`, formato
+     * `json_cobertura_max`) y devuelve la marca MÁS RECIENTE de cualquier módulo: la actividad más
+     * nueva ES el latido real del motor, sin sumarle un segundo reloj plano que se pueda desviar
+     * del JSON que el motor ya escribe (ver `config/circuito.php` → `procesos_programados`).
+     * Devuelve null si el JSON está vacío/inválido o ningún módulo trae el campo esperado.
+     */
+    private function maxDeCobertura(string $raw, string $campo): ?Carbon
+    {
+        $d = json_decode($raw, true);
+        if (! is_array($d)) {
+            return null;
+        }
+
+        $max = null;
+        foreach ($d as $entrada) {
+            $v = is_array($entrada) ? ($entrada[$campo] ?? null) : null;
+            if (! $v) {
+                continue;
+            }
+            try {
+                $ts = Carbon::parse($v);
+            } catch (\Throwable) {
+                continue;
+            }
+            if ($max === null || $ts->gt($max)) {
+                $max = $ts;
+            }
+        }
+
+        return $max;
+    }
+
+    /**
      * Estado de TODOS los procesos vigilados. `at = null` significa **nunca ha corrido**, que es
      * distinto de "corrió hace mucho" y suele ser el caso interesante: la regla existe pero no está
      * agendada.
@@ -609,9 +646,13 @@ class RoadmapCircuitoService
 
             $at = null;
             if ($raw !== null && $raw !== '') {
-                $at = ($cfg['formato'] ?? 'datetime') === 'unix'
-                    ? \Illuminate\Support\Carbon::createFromTimestamp((int) $raw)
-                    : \Illuminate\Support\Carbon::parse($raw);
+                $at = match ($cfg['formato'] ?? 'datetime') {
+                    'unix' => \Illuminate\Support\Carbon::createFromTimestamp((int) $raw),
+                    // #9990235 — cobertura por módulo (barrido): el latido real es la marca MÁS
+                    // RECIENTE de cualquier módulo, no el JSON entero interpretado como fecha.
+                    'json_cobertura_max' => $this->maxDeCobertura($raw, (string) ($cfg['campo'] ?? 'ultima_barrida_at')),
+                    default => \Illuminate\Support\Carbon::parse($raw),
+                };
             }
 
             $maxH  = (int) ($cfg['max_horas'] ?? 48);
@@ -2256,12 +2297,25 @@ class RoadmapCircuitoService
         RoadmapItem::sqlElegibleParaPool($q);
     }
 
-    public function claimNextParalelo(?string $workerSid = null): ?int
+    /**
+     * #198 — `$itemId` opcional: DESPACHO DIRIGIDO. Salta el picker (`ejecutablesParalelo`) y
+     * reclama ESE item concreto para el worker que llama, en vez del que la política elegiría.
+     * Sin `$itemId`, comportamiento IDÉNTICO al de siempre. El candado atómico de abajo (mismo
+     * `guardReclamoAtomico` + estados elegibles) es el único guard: si el item no es elegible
+     * ahora mismo (freno, ya tomado, nivel fuera de política), el UPDATE afecta 0 filas y esto
+     * devuelve null — igual que "no había nada que reclamar".
+     */
+    public function claimNextParalelo(?string $workerSid = null, ?int $itemId = null, string $origen = 'claim-next', bool $once = false): ?int
     {
         if ($this->isPaused()) {
             return null;
         }
-        $items = $this->ejecutablesParalelo($this->modulosEnVuelo(), 1);
+        if ($itemId !== null) {
+            $row = RoadmapItem::where('id', $itemId)->first(['id', 'modulo']);
+            $items = $row ? [['id' => $row->id, 'modulo' => $row->modulo]] : [];
+        } else {
+            $items = $this->ejecutablesParalelo($this->modulosEnVuelo(), 1);
+        }
         if (! $items) {
             return null;
         }
@@ -2332,6 +2386,15 @@ class RoadmapCircuitoService
         }
 
         $this->avisarSiTocaProduccion($id, $sid ?? null);
+
+        // #198 — deja rastro de que este reclamo fue DIRIGIDO (saltó el picker) y por quién slot.
+        // Sin esto la vía quedaría siendo exactamente el "puenteo manual sin rastro" que el item
+        // pedía cerrar.
+        if ($itemId !== null) {
+            // #211 — si vino con `once`, queda sellado en el log: esta vuelta NO encadenó el pool
+            // continuo tras este item (a diferencia del despacho dirigido normal, que sí lo hace).
+            $this->appendLog($id, $sid ?? ($workerSid ?: 'cli'), 'despacho_dirigido', ['via' => $origen, 'once' => $once]);
+        }
 
         return $id;
     }
@@ -2455,6 +2518,26 @@ class RoadmapCircuitoService
     }
 
     /**
+     * #916 — cuántos items EN VUELO tiene cada módulo (no la lista única de `modulosEnVuelo()`).
+     * Es lo que permite topar «N terminales por módulo» de verdad: sin este conteo, tres items del
+     * mismo módulo en vuelo se veían como uno solo.
+     *
+     * @return array<string,int> modulo => items en vuelo
+     */
+    private function itemsEnVueloPorModulo(): array
+    {
+        return DB::table('roadmap_items')
+            ->where('estado_aprobacion', 'en_progreso')
+            ->whereNotNull('modulo')
+            ->where('modulo', '!=', '')
+            ->where('modulo', '!=', self::MODULO_DESCONOCIDO)
+            ->selectRaw('modulo, count(*) as n')
+            ->groupBy('modulo')
+            ->pluck('n', 'modulo')
+            ->all();
+    }
+
+    /**
      * #432 B2 — ¿hay un item con footprint DESCONOCIDO (null/vacío/'Sin clasificar') en vuelo? Si lo
      * hay, no podemos garantizar que nada más se pise con él → nadie más se despacha hasta que integre.
      */
@@ -2515,6 +2598,25 @@ class RoadmapCircuitoService
             ->get(['id', 'modulo', 'urgente']);
 
         $taken     = array_map('strval', $excludeModulos);
+
+        // #916 (fix) — `modulosEnVuelo()` devuelve módulos ÚNICOS: si 3 items del mismo módulo
+        // están en vuelo, llega UNA sola entrada. Contar entradas de `$taken` subestimaba, y con
+        // la perilla en 2 habría dejado entrar un CUARTO. Para topes > 1 se expande `$taken` al
+        // conteo REAL por módulo (una entrada por item en vuelo) para que el conteo de abajo sea
+        // el número de terminales que ese módulo ya tiene.
+        // Con la perilla en 1 este bloque NO corre: comportamiento histórico byte-idéntico.
+        // #9990005 — la perilla ya no se lee de `config()` directo: `TorreConfig::paraleloMismoModulo()`
+        // es la fuente única (columna `torre_config` si Irving la fijó en pantalla, si no cae al
+        // mismo `config('circuito.paralelo_mismo_modulo', 1)` de siempre).
+        if (app(TorreConfigService::class)->get()->paraleloMismoModulo() > 1) {
+            foreach ($this->itemsEnVueloPorModulo() as $m => $n) {
+                $m       = (string) $m;
+                $faltan  = (int) $n - count(array_keys($taken, $m, true));
+                for ($j = 0; $j < $faltan; $j++) {
+                    $taken[] = $m;
+                }
+            }
+        }
         $out       = [];
         $diferido  = (bool) config('circuito.desconocido_diferido', true);
         $candidato = null;   // primer item sin footprint que aparece en la cola
@@ -2549,7 +2651,15 @@ class RoadmapCircuitoService
             // Módulo conocido: serializa contra mismo módulo (en vuelo/elegido) y contra un desconocido
             // EN VUELO (podría pisar cualquier archivo). Ya no existe el caso "desconocido elegido esta
             // ronda": el desconocido nunca se mezcla con trabajo conocido — o va solo, o espera.
-            if (in_array($mod, $taken, true) || $unknownEnVuelo) {
+            // #916 — el pre-filtro deja de ser booleano: cuenta cuántas terminales tiene ya ese
+            // módulo (en vuelo + elegidas esta ronda) y lo compara contra la perilla
+            // `circuito.paralelo_mismo_modulo`. Con la perilla en 1 el comportamiento es
+            // EXACTAMENTE el histórico (in_array === conteo >= 1), así que subir la perilla es el
+            // único cambio de conducta y bajarla a 1 lo revierte sin tocar código.
+            // #9990005 — misma fuente única que arriba: `TorreConfig::paraleloMismoModulo()`.
+            $tope = app(TorreConfigService::class)->get()->paraleloMismoModulo();
+            $yaEnEseModulo = count(array_keys($taken, $mod, true));
+            if ($yaEnEseModulo >= $tope || $unknownEnVuelo) {
                 continue;
             }
             $out[]   = ['id' => (int) $r->id, 'modulo' => $mod];
@@ -2586,20 +2696,98 @@ class RoadmapCircuitoService
      * sigan corriendo en paralelo.
      */
 
-    /** Archivos que cambia una rama vs su punto de partida en main (solo lectura, nunca falla fuerte). */
-    public function footprintDeRama(string $branch): array
+    /**
+     * Archivos que cambia una rama vs su punto de partida en main (solo lectura, nunca falla fuerte).
+     *
+     * #933 — una rama YA fusionada a main tiene `merge-base(main, branch) === branch` (su propia
+     * punta es ancestro de main), así que el diff de arriba da SIEMPRE vacío para ramas fusionadas
+     * (verificado con git real). Ese es justo el caso de los items ya integrados (candidatos a
+     * versión): $mergeCommitSiFusionado permite pedir el diff correcto (merge_commit^1..merge_commit,
+     * el mainline justo antes de esa fusión) SIN tocar el comportamiento existente — si se omite,
+     * el método es idéntico al de antes (usado por detectarColisionesEnVuelo() con ramas en vuelo).
+     */
+    public function footprintDeRama(string $branch, ?string $mergeCommitSiFusionado = null): array
     {
         $base = $this->git(['merge-base', 'main', $branch]);
         if (! $base->isSuccessful()) {
             return [];
         }
         $sha = trim($base->getOutput());
+
+        if ($mergeCommitSiFusionado) {
+            $tip = $this->git(['rev-parse', $branch]);
+            if ($tip->isSuccessful() && trim($tip->getOutput()) === $sha) {
+                $diff = $this->git(['diff', '--name-only', $mergeCommitSiFusionado . '^1', $mergeCommitSiFusionado]);
+                return $diff->isSuccessful()
+                    ? array_values(array_filter(preg_split('/\R/', trim($diff->getOutput()))))
+                    : [];
+            }
+        }
+
         $diff = $this->git(['diff', '--name-only', $sha, $branch]);
         if (! $diff->isSuccessful()) {
             return [];
         }
 
         return array_values(array_filter(preg_split('/\R/', trim($diff->getOutput()))));
+    }
+
+    /**
+     * #913 — archivos MODIFICADOS SIN COMMITEAR en el worktree de una terminal en vuelo
+     * (`git status --porcelain`), para complementar el diff ya commiteado de footprintDeRama().
+     * Solo lectura: nunca hace checkout/add/commit en el worktree ajeno.
+     *
+     * Devuelve `null` cuando el árbol NO se pudo leer (worktree inexistente, o `git status` cae a
+     * mitad de un add/commit de esa terminal): la llamante DEBE tratar `null` como footprint
+     * DESCONOCIDO (colisiona con todo lo que esté en vuelo), NUNCA como "no toca nada" — es el
+     * requisito explícito del item, distinto de `esFootprintDesconocido()` (esa es sobre la
+     * columna `modulo`; esta es la semántica local de `detectarColisionesEnVuelo()`).
+     */
+    public function footprintEnVivo(string $sid): ?array
+    {
+        $sid = trim($sid);
+        // Mismo candado que slotLibre(): nunca construir un path con texto arbitrario del item.
+        if (! preg_match('/^wt-\d+$/', $sid)) {
+            return null;
+        }
+
+        $dir = self::RUNTIME_DIR . "/{$sid}";
+        if (! is_dir($dir)) {
+            return null;
+        }
+
+        try {
+            $p = new \Symfony\Component\Process\Process(['git', '-C', $dir, 'status', '--porcelain'], $dir);
+            $p->setTimeout(15);
+            $p->run();
+        } catch (\Throwable $e) {
+            return null;
+        }
+        if (! $p->isSuccessful()) {
+            return null;
+        }
+
+        $archivos = [];
+        // rtrim SOLO del final: la primera columna de porcelain suele ser un espacio literal
+        // ("modificado sin stage") — un trim() normal se lo come y desalinea el substr(3) de abajo.
+        foreach (preg_split('/\R/', rtrim($p->getOutput(), "\r\n")) as $linea) {
+            if ($linea === '') {
+                continue;
+            }
+            // Porcelain: 2 columnas de estado + espacio + ruta (índice 3 en adelante). Renombres
+            // ('R  origen -> destino') traen DOS rutas en la misma línea — hay que separarlas o el
+            // archivo de destino (el que realmente existe ahora) se pierde del footprint.
+            $resto = mb_substr($linea, 3);
+            if (str_contains($resto, ' -> ')) {
+                foreach (explode(' -> ', $resto, 2) as $ruta) {
+                    $archivos[] = trim($ruta, '"');
+                }
+            } else {
+                $archivos[] = trim($resto, '"');
+            }
+        }
+
+        return array_values(array_unique(array_filter($archivos)));
     }
 
     /**
@@ -2617,50 +2805,195 @@ class RoadmapCircuitoService
             ->whereNotNull('branch')
             ->where('branch', '!=', '')
             ->whereNull('colision_pausada_por')
-            ->get(['id', 'branch', 'updated_at']);
+            ->get(['id', 'branch', 'updated_at', 'worker_sid']);
 
         if ($rows->count() < 2) {
             return [];
         }
 
-        $footprints = [];
+        // #913 — footprint EN VIVO: el commiteado (footprintDeRama) UNIDO a lo sin commitear del
+        // worktree de la terminal (footprintEnVivo). Si el árbol en vivo no se pudo leer, el item
+        // queda marcado DESCONOCIDO — se trata como si colisionara con TODO lo que esté en vuelo
+        // (nunca como "no toca nada"), tal como exige el requisito del item.
+        $footprints   = [];
+        $desconocidos = [];
         foreach ($rows as $r) {
             $footprints[$r->id] = $this->footprintDeRama($r->branch);
+
+            if (! $r->worker_sid) {
+                continue; // sin sid registrado no hay worktree que inspeccionar; queda solo el commiteado
+            }
+            $enVivo = $this->footprintEnVivo($r->worker_sid);
+            if ($enVivo === null) {
+                $desconocidos[$r->id] = true;
+            } else {
+                $footprints[$r->id] = array_values(array_unique(array_merge($footprints[$r->id], $enVivo)));
+            }
         }
 
-        $detectadas = [];
+        // #9990004 (q2 de #915) — colisión por TABLA: dos ramas pueden tocar la misma tabla desde
+        // migraciones con nombres de archivo DISTINTOS (invisible para el diff de archivos de
+        // arriba). Se parsean solo las migraciones dentro del footprint ya calculado.
+        $tablas = [];
+        foreach ($rows as $r) {
+            if (isset($desconocidos[$r->id])) {
+                continue; // footprint desconocido ya fuerza colisión por sí solo; no hace falta leer tablas
+            }
+            $tablas[$r->id] = $this->tablasPendientesDeRama($footprints[$r->id] ?? [], $r->branch, $r->worker_sid);
+        }
+
+        $detectadas = $this->decidirColisiones(
+            $rows->map(fn ($r) => ['id' => (int) $r->id, 'updated_at' => $r->updated_at])->all(),
+            $footprints,
+            $tablas,
+            $desconocidos
+        );
+
         $porId = $rows->keyBy('id');
+        foreach ($detectadas as $d) {
+            $ganador  = $porId[$d['ganador']];
+            $perdedor = $porId[$d['perdedor']];
+
+            DB::table('roadmap_items')->where('id', $perdedor->id)->whereNull('colision_pausada_por')->update([
+                'colision_pausada_por' => $ganador->id,
+                'colision_pausada_at'  => now(),
+                'updated_at'           => now(),
+            ]);
+            $this->appendLog((int) $perdedor->id, 'colision-check', 'colision_pausada', [
+                'ganador' => $ganador->id, 'archivos' => array_slice($d['comunes'], 0, 10),
+            ]);
+        }
+
+        return array_map(fn ($d) => ['ganador' => $d['ganador'], 'perdedor' => $d['perdedor'], 'archivos' => $d['comunes']], $detectadas);
+    }
+
+    /**
+     * #9990004 (q2 de #915) — nombres de tabla tocados por `Schema::create/table/dropIfExists/drop`
+     * (y ambos lados de `Schema::rename`) dentro del contenido de UNA migración. Regex sobre texto:
+     * nunca ejecuta el archivo. Los `$table->addColumn()/dropColumn()` que van DENTRO del closure de
+     * `Schema::table(...)` ya quedan cubiertos por la tabla que abre ese closure — no hace falta
+     * parsearlos aparte.
+     */
+    public function tablasEnMigracion(string $contenido): array
+    {
+        $tablas = [];
+
+        if (preg_match_all('/Schema::(?:create|table|dropIfExists|drop)\s*\(\s*[\'"]([a-zA-Z0-9_]+)[\'"]/', $contenido, $m)) {
+            $tablas = array_merge($tablas, $m[1]);
+        }
+        if (preg_match_all('/Schema::rename\s*\(\s*[\'"]([a-zA-Z0-9_]+)[\'"]\s*,\s*[\'"]([a-zA-Z0-9_]+)[\'"]/', $contenido, $m)) {
+            $tablas = array_merge($tablas, $m[1], $m[2]);
+        }
+
+        return array_values(array_unique($tablas));
+    }
+
+    /**
+     * #9990004 (q2 de #915) — tablas tocadas por las migraciones PENDIENTES de una rama en vuelo:
+     * filtra el footprint (ya calculado por `footprintDeRama`+`footprintEnVivo`) a rutas de
+     * migración (`.../migrations/*.php`, core o de módulo) y parsea cada una.
+     *
+     * Lee el contenido del WORKTREE en vivo cuando existe (así ve tanto lo commiteado como lo aún
+     * sin commitear de esa terminal, sin depender de `git show`); si el worktree ya no existe
+     * (rama fusionada / terminal liberada) cae a `git show rama:archivo`. Solo lectura — nunca
+     * ejecuta ni hace checkout.
+     */
+    public function tablasPendientesDeRama(array $footprint, string $branch, ?string $sid = null): array
+    {
+        $archivosMigracion = array_values(array_filter(
+            $footprint,
+            fn ($f) => preg_match('#(^|/)migrations/[^/]+\.php$#', $f) === 1
+        ));
+        if (! $archivosMigracion) {
+            return [];
+        }
+
+        $dir = null;
+        if ($sid && preg_match('/^wt-\d+$/', $sid)) {
+            $candidato = self::RUNTIME_DIR . "/{$sid}";
+            if (is_dir($candidato)) {
+                $dir = $candidato;
+            }
+        }
+
+        $tablas = [];
+        foreach ($archivosMigracion as $archivo) {
+            $contenido = null;
+            if ($dir && is_file("{$dir}/{$archivo}")) {
+                $contenido = @file_get_contents("{$dir}/{$archivo}");
+            }
+            if ($contenido === null || $contenido === false) {
+                $show = $this->git(['show', "{$branch}:{$archivo}"]);
+                $contenido = $show->isSuccessful() ? $show->getOutput() : null;
+            }
+            if (! $contenido) {
+                continue; // archivo borrado/no legible desde ningún lado: no hay texto que parsear
+            }
+
+            $tablas = array_merge($tablas, $this->tablasEnMigracion($contenido));
+        }
+
+        return array_values(array_unique($tablas));
+    }
+
+    /**
+     * #438 / #9990004 — desempate determinístico entre dos items en colisión: pierde el que
+     * reclamó MÁS TARDE (`updated_at` mayor); empate exacto → pierde el de mayor id. Extraído a
+     * método puro (sin BD) para poder probarlo con datos sintéticos.
+     *
+     * @return array{0:int,1:int} [idGanador, idPerdedor]
+     */
+    public static function ganadorPerdedor(int $idA, string $updatedAtA, int $idB, string $updatedAtB): array
+    {
+        $ta = Carbon::parse($updatedAtA)->timestamp;
+        $tb = Carbon::parse($updatedAtB)->timestamp;
+
+        if ($ta === $tb) {
+            return $idA > $idB ? [$idB, $idA] : [$idA, $idB];
+        }
+
+        return $ta > $tb ? [$idB, $idA] : [$idA, $idB];
+    }
+
+    /**
+     * #9990004 (q2+q3 de #915) — núcleo PURO (sin BD ni git) de `detectarColisionesEnVuelo()`: dado
+     * el listado de items en vuelo y sus footprints de archivo + tablas de migración ya resueltos,
+     * decide qué pares colisionan (por archivo común, por tabla común, o por footprint desconocido)
+     * y quién de cada par pierde. Extraído para el test de estrés (#9990004/q3): simula N ramas
+     * concurrentes sin tocar BD ni git real.
+     *
+     * @param array<int,array{id:int,updated_at:string}> $rows
+     * @param array<int,string[]> $footprints  archivos por id de item
+     * @param array<int,string[]> $tablas      tablas de migración por id de item
+     * @param array<int,true> $desconocidos    ids cuyo footprint en vivo no se pudo leer
+     * @return array<int,array{ganador:int,perdedor:int,comunes:string[]}>
+     */
+    public function decidirColisiones(array $rows, array $footprints, array $tablas, array $desconocidos = []): array
+    {
+        $detectadas = [];
+
         foreach ($rows as $a) {
             foreach ($rows as $b) {
-                if ($a->id >= $b->id) {
+                if ($a['id'] >= $b['id']) {
                     continue; // cada par una sola vez
                 }
-                $comunes = array_values(array_intersect($footprints[$a->id] ?? [], $footprints[$b->id] ?? []));
+
+                if (isset($desconocidos[$a['id']]) || isset($desconocidos[$b['id']])) {
+                    // Conservador a propósito (#913): no se pudo leer el árbol en vivo de uno de
+                    // los dos → no se puede garantizar que sean disjuntos, se trata como colisión.
+                    $comunes = ['(footprint en vivo desconocido)'];
+                } else {
+                    $archivosComunes = array_values(array_intersect($footprints[$a['id']] ?? [], $footprints[$b['id']] ?? []));
+                    $tablasComunes   = array_values(array_intersect($tablas[$a['id']] ?? [], $tablas[$b['id']] ?? []));
+                    $comunes = array_merge($archivosComunes, array_map(fn ($t) => "tabla:{$t}", $tablasComunes));
+                }
                 if (! $comunes) {
                     continue;
                 }
 
-                // Perdedor = el que reclamó más tarde (updated_at mayor); empate → mayor id.
-                $ta = Carbon::parse($a->updated_at)->timestamp;
-                $tb = Carbon::parse($b->updated_at)->timestamp;
-                if ($ta === $tb) {
-                    $perdedor = $a->id > $b->id ? $porId[$a->id] : $porId[$b->id];
-                    $ganador  = $a->id > $b->id ? $porId[$b->id] : $porId[$a->id];
-                } else {
-                    $perdedor = $ta > $tb ? $a : $b;
-                    $ganador  = $ta > $tb ? $b : $a;
-                }
+                [$ganadorId, $perdedorId] = self::ganadorPerdedor($a['id'], $a['updated_at'], $b['id'], $b['updated_at']);
 
-                DB::table('roadmap_items')->where('id', $perdedor->id)->whereNull('colision_pausada_por')->update([
-                    'colision_pausada_por' => $ganador->id,
-                    'colision_pausada_at'  => now(),
-                    'updated_at'           => now(),
-                ]);
-                $this->appendLog((int) $perdedor->id, 'colision-check', 'colision_pausada', [
-                    'ganador' => $ganador->id, 'archivos' => array_slice($comunes, 0, 10),
-                ]);
-
-                $detectadas[] = ['ganador' => (int) $ganador->id, 'perdedor' => (int) $perdedor->id, 'archivos' => $comunes];
+                $detectadas[] = ['ganador' => $ganadorId, 'perdedor' => $perdedorId, 'comunes' => $comunes];
             }
         }
 
@@ -2965,5 +3298,251 @@ class RoadmapCircuitoService
         $p->run();
 
         return $p;
+    }
+
+    /** Último tag publicado (orden semver descendente), o null si no hay ninguno. Solo lectura. */
+    private function ultimoTag(): ?string
+    {
+        $p = $this->git(['tag', '--sort=-version:refname']);
+        if (! $p->isSuccessful()) {
+            return null;
+        }
+        $tags = array_values(array_filter(preg_split('/\R/', trim($p->getOutput()))));
+
+        return $tags[0] ?? null;
+    }
+
+    /**
+     * #933 Fase 2 — candidatos a "armado de versión": items YA integrados a main cuyo `merge_commit`
+     * todavía NO forma parte del último tag publicado (lo no elegido en una versión queda disponible
+     * para la siguiente, tal cual pidió Irving). Un solo `git log {tag}..HEAD --merges` calcula el
+     * set de commits nuevos desde el tag — evita una llamada git por item (cientos de candidatos
+     * posibles). Solo lectura.
+     *
+     * @return \Illuminate\Support\Collection<int,RoadmapItem>
+     */
+    public function itemsCandidatosVersion(): \Illuminate\Support\Collection
+    {
+        $items = RoadmapItem::whereNotNull('merge_commit')
+            ->where('merge_commit', '!=', '')
+            ->orderByDesc('id')
+            ->get(['id', 'title', 'branch', 'merge_commit', 'marcado_version', 'origen_item_id', 'modulo']);
+
+        $tag = $this->ultimoTag();
+        if ($tag === null) {
+            return $items->values(); // sin tag previo: todo lo mergeado es candidato
+        }
+
+        $log = $this->git(['log', $tag . '..HEAD', '--format=%H', '--merges']);
+        if (! $log->isSuccessful()) {
+            return $items->values(); // git falló: falla-abierto (mejor mostrar de más que de menos)
+        }
+        $hashes = array_flip(array_values(array_filter(preg_split('/\R/', trim($log->getOutput())))));
+
+        return $items->filter(fn (RoadmapItem $i) => isset($hashes[$i->merge_commit]))->values();
+    }
+
+    /**
+     * #933 Fase 3 — detector de dependencias/colisiones ANTES de construir una rama de versión
+     * (la Fase 4 de cherry-pick no se implementa en este item; este detector es la pieza de
+     * seguridad que la habilita). Sobre los candidatos actuales, separa marcados
+     * (`marcado_version=true`) de no-marcados y busca dos señales de riesgo real:
+     *
+     *   a) jerarquía — `origen_item_id`: un item marcado cuyo padre es candidato pero NO está
+     *      marcado probablemente depende de su código (caso real citado en el item: la cadena
+     *      #199→#200→#201→#870→#871→#872).
+     *   b) archivos — un candidato NO marcado que toca los mismos archivos que uno marcado y cuyo
+     *      merge es CRONOLÓGICAMENTE ANTERIOR: el cherry-pick del marcado, aplicado sobre el
+     *      último tag sin el commit del excluido, puede conflictuar.
+     *
+     * Solo lectura; no cambia ningún estado. Devuelve un array de violaciones para mostrar en
+     * pantalla ANTES de permitir construir la rama (bloqueante por defecto, con opción explícita
+     * de continuar — eso lo decide la UI, no este método).
+     */
+    public function detectarDependenciasVersion(): array
+    {
+        $candidatos = $this->itemsCandidatosVersion();
+        $porId = $candidatos->keyBy('id');
+        $marcados = $candidatos->where('marcado_version', true);
+        if ($marcados->isEmpty()) {
+            return [];
+        }
+
+        $violaciones = [];
+
+        // a) jerarquía (origen_item_id)
+        foreach ($marcados as $item) {
+            $padreId = $item->origen_item_id;
+            if (! $padreId || ! isset($porId[$padreId])) {
+                continue; // sin padre, o el padre ya no es candidato (ya iba en un tag anterior)
+            }
+            $padre = $porId[$padreId];
+            if (! $padre->marcado_version) {
+                $violaciones[] = [
+                    'tipo' => 'jerarquia',
+                    'item_id' => (int) $item->id,
+                    'item_title' => $item->title,
+                    'depende_de_id' => (int) $padre->id,
+                    'depende_de_title' => $padre->title,
+                    'detalle' => "#{$item->id} es hijo de #{$padre->id} (origen_item_id) y #{$padre->id} NO está marcado para esta versión.",
+                ];
+            }
+        }
+
+        // b) archivos, respetando el orden cronológico real del merge (no el id del item)
+        $conRama = $candidatos->filter(fn (RoadmapItem $i) => ! empty($i->branch) && ! empty($i->merge_commit));
+        if ($conRama->count() >= 2) {
+            $mergedAt = [];
+            foreach ($conRama as $i) {
+                $p = $this->git(['log', '-1', '--format=%ct', $i->merge_commit]);
+                $mergedAt[$i->id] = $p->isSuccessful() ? (int) trim($p->getOutput()) : 0;
+            }
+
+            $footprints = [];
+            $footprintDe = function (RoadmapItem $i) use (&$footprints) {
+                if (! isset($footprints[$i->id])) {
+                    $footprints[$i->id] = $this->footprintDeRama($i->branch, $i->merge_commit);
+                }
+
+                return $footprints[$i->id];
+            };
+
+            foreach ($marcados as $m) {
+                if (empty($m->branch) || empty($m->merge_commit)) {
+                    continue;
+                }
+                foreach ($conRama as $c) {
+                    if ($c->id === $m->id || $c->marcado_version) {
+                        continue; // no es "excluido": es el propio item, o ya está marcado también
+                    }
+                    if (($mergedAt[$c->id] ?? 0) >= ($mergedAt[$m->id] ?? PHP_INT_MAX)) {
+                        continue; // el excluido no mergeó antes: no aplica el riesgo de cherry-pick
+                    }
+                    $comunes = array_values(array_intersect($footprintDe($m), $footprintDe($c)));
+                    if (! $comunes) {
+                        continue;
+                    }
+                    $violaciones[] = [
+                        'tipo' => 'archivos',
+                        'item_id' => (int) $m->id,
+                        'item_title' => $m->title,
+                        'depende_de_id' => (int) $c->id,
+                        'depende_de_title' => $c->title,
+                        'detalle' => "#{$m->id} toca los mismos archivos que #{$c->id} (mergeado antes, NO marcado): "
+                            . implode(', ', array_slice($comunes, 0, 5)) . (count($comunes) > 5 ? '…' : ''),
+                        'archivos' => $comunes,
+                    ];
+                }
+            }
+        }
+
+        return $violaciones;
+    }
+
+    /**
+     * #966 Fase 4 — construye la rama de release por cherry-pick de los candidatos marcados
+     * (`marcado_version=true`), en orden CRONOLÓGICO de merge ascendente (mismo `%ct` de
+     * `detectarDependenciasVersion()` — fuera de orden multiplica conflictos, según el propio
+     * item padre). Antes de tocar nada corre `detectarDependenciasVersion()`: con violaciones y
+     * `$ignorarAvisos=false` no construye nada y las devuelve para que el llamador (UI/Irving)
+     * decida "continuar bajo tu responsabilidad" explícitamente.
+     *
+     * Manejo de conflicto — decisión explícita de Irving en el brief de #966 (pregunta "qué
+     * hacer cuando un cherry-pick falla"): NO aborta la construcción entera. Aborta SOLO ese
+     * pick (`cherry-pick --abort`), lo reporta en `fallidos` y CONTINÚA con el resto de los
+     * marcados — la release no queda bloqueada por un item conflictivo, Irving decide después
+     * qué hacer con lo caído. Si NINGÚN marcado logra aplicarse, la rama queda vacía: se borra
+     * (nada que revisar) y el resultado se reporta como fallo total.
+     *
+     * Operación AISLADA e invocada a demanda (su propio endpoint — ver
+     * `RoadmapController::integracionVersionConstruirRama`): NO forma parte del pipeline de
+     * `config/deployment.php`, no hace push, no toca `git_tag`/`git_push` del pipeline existente.
+     * Solo git LOCAL sobre `base_path()` (mismo patrón que `MergeRunner`/`footprintDeRama`).
+     */
+    public function construirRamaVersion(string $nombreRama, string $version, bool $ignorarAvisos = false): array
+    {
+        $violaciones = $this->detectarDependenciasVersion();
+        if ($violaciones !== [] && ! $ignorarAvisos) {
+            return ['ok' => false, 'motivo' => 'dependencias_sin_resolver', 'violaciones' => $violaciones];
+        }
+
+        $marcados = $this->itemsCandidatosVersion()->where('marcado_version', true)->values();
+        if ($marcados->isEmpty()) {
+            return ['ok' => false, 'motivo' => 'sin_candidatos_marcados'];
+        }
+
+        if ($this->git(['rev-parse', '--verify', $nombreRama])->isSuccessful()) {
+            return ['ok' => false, 'motivo' => 'rama_ya_existe', 'rama' => $nombreRama];
+        }
+
+        // Orden cronológico ascendente por fecha real de merge (mismo patrón que $mergedAt en
+        // detectarDependenciasVersion()).
+        $mergedAt = [];
+        foreach ($marcados as $i) {
+            if (empty($i->merge_commit)) {
+                continue;
+            }
+            $p = $this->git(['log', '-1', '--format=%ct', $i->merge_commit]);
+            $mergedAt[$i->id] = $p->isSuccessful() ? (int) trim($p->getOutput()) : 0;
+        }
+        $ordenados = $marcados->sortBy(fn (RoadmapItem $i) => $mergedAt[$i->id] ?? 0)->values();
+
+        $ramaOrigen = trim($this->git(['rev-parse', '--abbrev-ref', 'HEAD'])->getOutput());
+        if ($ramaOrigen === '' || $ramaOrigen === 'HEAD') {
+            $ramaOrigen = 'main';
+        }
+
+        $tag  = $this->ultimoTag();
+        $base = $tag ?: 'main';
+
+        if (! $this->git(['checkout', '-b', $nombreRama, $base])->isSuccessful()) {
+            return ['ok' => false, 'motivo' => 'no_se_pudo_crear_rama', 'base' => $base];
+        }
+
+        $incluidos = [];
+        $fallidos  = [];
+        foreach ($ordenados as $item) {
+            if (empty($item->merge_commit)) {
+                $fallidos[] = ['item_id' => (int) $item->id, 'title' => $item->title, 'motivo' => 'sin_merge_commit'];
+                continue;
+            }
+
+            $pick = $this->git(['cherry-pick', '-m', '1', $item->merge_commit]);
+            if ($pick->isSuccessful()) {
+                $incluidos[] = ['item_id' => (int) $item->id, 'title' => $item->title, 'merge_commit' => $item->merge_commit];
+                continue;
+            }
+
+            $conflicto = trim($this->git(['diff', '--name-only', '--diff-filter=U'])->getOutput());
+            $this->git(['cherry-pick', '--abort']);
+            $fallidos[] = [
+                'item_id'      => (int) $item->id,
+                'title'        => $item->title,
+                'merge_commit' => $item->merge_commit,
+                'motivo'       => 'conflicto_cherry_pick',
+                'archivos'     => array_values(array_filter(preg_split('/\R/', $conflicto))),
+            ];
+        }
+
+        if ($incluidos === []) {
+            $this->git(['checkout', $ramaOrigen]);
+            $this->git(['branch', '-D', $nombreRama]);
+
+            return ['ok' => false, 'motivo' => 'ningun_cherry_pick_aplico', 'fallidos' => $fallidos, 'base' => $base];
+        }
+
+        // Tag SOBRE la rama de release (HEAD sigue ahí), nunca sobre main.
+        $tagResult = $this->git(['tag', '-a', $version, '-m', "Release {$version}"]);
+        $this->git(['checkout', $ramaOrigen]);
+
+        return [
+            'ok'         => true,
+            'rama'       => $nombreRama,
+            'base'       => $base,
+            'version'    => $version,
+            'tag_creado' => $tagResult->isSuccessful(),
+            'incluidos'  => $incluidos,
+            'fallidos'   => $fallidos,
+        ];
     }
 }

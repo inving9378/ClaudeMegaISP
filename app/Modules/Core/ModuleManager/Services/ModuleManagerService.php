@@ -65,7 +65,7 @@ class ModuleManagerService
                 continue;
             }
             $data = json_decode(file_get_contents($manifest), true);
-            if (is_array($data)) {
+            if ($data !== null && is_array($data)) {
                 $data['_dir'] = $dir;
                 $out[] = $data;
             }

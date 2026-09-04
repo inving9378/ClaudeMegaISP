@@ -152,7 +152,7 @@
 </template>
 
 <script>
-import { onMounted, ref, watch, reactive } from "vue";
+import { onMounted, ref, watch, reactive, onUnmounted, getCurrentInstance } from "vue";
 import Datatable from "../../../../base/shared/Datatable.vue";
 import InventoryItemCrud from "../../inventory_item_stock/InventoryItemCrud.vue";
 import DatatableHelper from "../../../../../helpers/datatableHelper";
@@ -190,6 +190,10 @@ export default {
         StoreZoneCrud,
     },
     setup(props, { emit }) {
+        const ns = `.leak983-inventoryItems-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         onMounted(() => {});
 
         const title = ref("Crear Articulo");
@@ -203,20 +207,20 @@ export default {
         });
 
         onMounted(() => {
-            $(document).on("click", ".uil-pen-modal", function () {
+            $(document).on("click" + ns, ".uil-pen-modal", function () {
                 let id = $(this).parent().attr("id-item");
                 let modal = $(this).parent().attr("toggle-modal");
                 showEditModal(id, modal);
             });
-            $(document).on("click", ".change_item_store", function () {
+            $(document).on("click" + ns, ".change_item_store", function () {
                 let id = $(this).parent().attr("id-item");
                 showChangeStoreModal(id);
             });
-            $(document).on("click", ".change_item_stock", function () {
+            $(document).on("click" + ns, ".change_item_stock", function () {
                 let id = $(this).parent().attr("id-item");
                 showChangeItemStock(id);
             });
-            $(document).on("click", ".change_zone", function () {
+            $(document).on("click" + ns, ".change_zone", function () {
                 const $a = $(this).closest("a");
                 showEditZone({
                     inventory_store_id: $a.data("inventory-store-id"),
@@ -226,7 +230,7 @@ export default {
             });
 
 
-            $(document).on("click", ".inventory_item_image", function () {
+            $(document).on("click" + ns, ".inventory_item_image", function () {
                 let id = $(this).parent().attr("id-item");
                 showMediaItem(id);
             });

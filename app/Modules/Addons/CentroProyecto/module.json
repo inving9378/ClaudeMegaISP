@@ -25,7 +25,7 @@
         {
             "title": "Centro de Proyecto",
             "description": "Observabilidad del proyecto: salud del sistema, KPIs y mapa de arquitectura.",
-            "icon": "activity",
+            "icon": "project-diagram",
             "url": "/centro-proyecto",
             "permission": "centro-proyecto.view"
         }

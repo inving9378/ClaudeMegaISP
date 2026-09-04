@@ -44,7 +44,7 @@ class PermissionController extends Controller
 
     public function userPermissions()
     {
-        $permissions = auth()->user()->getAllPermissions()->pluck('name');
+        $permissions = auth()->user()?->getAllPermissions()->pluck('name');
         return response()->json($permissions);
     }
 
@@ -61,10 +61,13 @@ class PermissionController extends Controller
         // Reforma de permisos B3: se agrega `contexts` (nombre => panel|portal) para
         // la pantalla de rol a dos columnas. `permissions` (solo nombres) se conserva
         // idéntico para no romper el contrato del catálogo existente.
-        $permissions = Permission::orderBy('name')->get(['name', 'context']);
+        // Item #860: se agrega `descriptions` (nombre => description) con el mismo
+        // patrón, aditivo — no cambia el significado de las llaves ya consumidas.
+        $permissions = Permission::orderBy('name')->get(['name', 'context', 'description']);
         return response()->json([
-            'permissions' => $permissions->pluck('name'),
-            'contexts'    => $permissions->pluck('context', 'name'),
+            'permissions'  => $permissions->pluck('name'),
+            'contexts'     => $permissions->pluck('context', 'name'),
+            'descriptions' => $permissions->pluck('description', 'name'),
         ], 200);
     }
 

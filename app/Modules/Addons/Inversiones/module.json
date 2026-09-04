@@ -45,7 +45,7 @@
         {
             "title": "Inversiones",
             "description": "Plataforma personal de inversión automatizada en paper trading (Fase 1).",
-            "icon": "trending-up",
+            "icon": "chart-line",
             "url": "/inversiones",
             "permission": "inversiones.view"
         }
