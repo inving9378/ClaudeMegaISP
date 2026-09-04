@@ -26,6 +26,7 @@ use App\Modules\Addons\Talento\Controllers\TalentoEmbajadoresController;
 use App\Modules\Addons\Talento\Controllers\TalentoMobileApiController;
 use App\Modules\Addons\Talento\Controllers\TalentoEvidenciaConfigController;
 use App\Modules\Addons\Talento\Controllers\TalentoPaqueteDocumentoController;
+use App\Modules\Addons\Talento\Controllers\TalentoPuestoController;
 use App\Modules\Addons\Talento\Controllers\PortalTecnicoController;
 use Illuminate\Support\Facades\Route;
 
@@ -59,6 +60,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/embajadores-colabs', [TalentoEmbajadoresController::class, 'index']);
         Route::get('/config/evidencias',  [TalentoEvidenciaConfigController::class, 'index']);
         Route::get('/expediente/paquetes', [TalentoPaqueteDocumentoController::class, 'index']);
+        Route::get('/puestos',        [TalentoPuestoController::class, 'index']);
 
         // ── API JSON ─────────────────────────────────────────────────────────
         Route::prefix('api')->group(function () {
@@ -348,6 +350,11 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/expediente/paquetes/templates',    [TalentoPaqueteDocumentoController::class, 'templates']);
             Route::get('/expediente/paquetes/asignaciones', [TalentoPaqueteDocumentoController::class, 'asignaciones']);
             Route::post('/expediente/paquetes/sincronizar',  [TalentoPaqueteDocumentoController::class, 'sincronizar']);
+
+            // ── Catálogo de puestos (item #923 Fase 2) ─────────────────────
+            Route::get('/puestos',           [TalentoPuestoController::class, 'data']);
+            Route::post('/puestos',          [TalentoPuestoController::class, 'store']);
+            Route::put('/puestos/{id}',      [TalentoPuestoController::class, 'update']);
         });
     });
 
