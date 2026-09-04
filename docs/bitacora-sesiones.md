@@ -3571,6 +3571,28 @@ solo. Detalle en `docs/roadmap-bucle-reap-item-878-verificacion.md`. Sin cambio 
 negocio — el trabajo técnico real (implementar el re-armado del freno de sequía) sigue en #891,
 pendiente de que Irving decida su brief.
 
+## 2026-09-03 12:52 — Item #880 cierra el bucle reap sobre el paraguas ya descompuesto en #918/#919/#920
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#878: una vuelta previa (`wt-1`, 12:29-12:44) corrió
+`circuito:cabida` sobre #880 (Torre 24/7 · Pieza 4 — auto-corregir hardening de código en dos
+carriles AUTO/BANDEJA), obtuvo NO CABE (ya había timeouteado antes con la rama sin commits) y
+descompuso correctamente el trabajo en tres sub-items siguiendo las fases del prompt: **#918**
+(Fase 2 — criterio AUTO/BANDEJA en `config/circuito.php`), **#919** (Fase 3+4 — activar el carril
+AUTO en `circuito:priorizar-seguridad` + candado de regresión bloqueante) y **#920** (Fase 5 —
+verificación contra items de seguridad reales), documentando la Fase 1 (lectura de la política
+actual) directamente en `comentarios_claude` del propio #880. Esa vuelta nunca intentó *cerrar*
+#880 — quedó `en_progreso` colgado, el reaper lo re-encoló (`reap_count=1`), y el pool lo repartió
+de nuevo (a la misma terminal `wt-1`) sin trabajo propio que hacer.
+
+Esta vuelta verificó que los 3 hijos siguen intactos (sin reclamar, `requiere_irving`,
+`nivel_riesgo=B`) y ejecutó el intento de cierre faltante:
+`RoadmapItem::find(880)->estado_aprobacion='completado'` → el guard de paraguas (`RoadmapItem.php`
+~301-326) lo reenrutó a `aprobado_irving` + `excluir_pool_automatico=true` +
+`esperando_merge_irving=true`. #880 queda fuera del pool/reaper hasta que #918, #919 y #920
+cierren los tres — la cascada existente (`RoadmapItem.php:459-491`) lo completará solo. Detalle en
+`docs/roadmap-bucle-reap-item-880-verificacion.md`. Sin cambio de código de negocio — el trabajo
+técnico real (criterio AUTO/BANDEJA + carril AUTO con candado de regresión + verificación) sigue
+en #918/#919/#920, pendiente de triaje/aprobación.
 ## 2026-09-03 19:50 — Item #883: auditoría completa de los `esperando_merge_irving` (60 vivos)
 
 Sub-item de #873. Una vuelta previa (mismo slot wt-2, 13:19) ya había clasificado 57/58 items
