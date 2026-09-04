@@ -209,6 +209,26 @@ log "Ejecutor aislado en worktree $WT (sid=$SID)."
 # Ejecuta UNA vuelta para el $ITEM (o backlog) actual: sincroniza el worktree a main limpio,
 # arma el prompt, corre claude -p con latido en vivo y registra la ejecución.
 ejecutar_una() {
+  # #213 — RESCATE DE BITÁCORA. Si la vuelta anterior dejó el worktree en HEAD DESATADO con
+  # commits que main todavía no tiene (p.ej. commiteó un reporte de descomposición sin crear
+  # rama — el protocolo "NO CABE" pide explícitamente NO crear rama), el `checkout --detach -f
+  # main` de abajo los abandona sin ninguna referencia y el garbage collector se los come en
+  # silencio; el único rastro queda enterrado en un log que nadie lee (medido en #213, incidente
+  # real con #191: commit 1983a888 perdido a los 32s). Antes de saltar a main: si HEAD está
+  # desatado y trae commits que main no tiene, los rescato en una rama dedicada — así nunca se
+  # pierde nada, sea cual sea la razón por la que quedaron ahí (no solo la bitácora).
+  if ! git -C "$WT" symbolic-ref -q HEAD >/dev/null 2>&1; then
+    STRAY_SHA="$(git -C "$WT" rev-parse HEAD 2>/dev/null || true)"
+    if [ -n "$STRAY_SHA" ] && ! git -C "$WT" merge-base --is-ancestor "$STRAY_SHA" main 2>/dev/null; then
+      RESCUE_BRANCH="circuito/bitacora-rescate-$(date +%Y%m%d-%H%M%S)-${SID}"
+      if git -C "$WT" branch "$RESCUE_BRANCH" "$STRAY_SHA" >>"$LOG" 2>&1; then
+        log "RESCATE #213: HEAD desatado traía commits sin rama ($STRAY_SHA) — salvados en $RESCUE_BRANCH antes de saltar a main."
+      else
+        log "aviso: no pude rescatar el HEAD desatado ($STRAY_SHA) en una rama — revisar a mano."
+      fi
+    fi
+  fi
+
   # Cada item arranca de MAIN fresco (con lo ya mergeado por los otros workers). `checkout
   # --detach -f main` NO checa la rama main (vive en $PROJ) → git lo permite en el worktree.
   git -C "$WT" checkout --detach -f main >>"$LOG" 2>&1 || log "aviso: no pude sincronizar $WT a main."
