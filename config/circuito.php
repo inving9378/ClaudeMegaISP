@@ -1534,6 +1534,32 @@ return [
             // a 3: con cadencia de 10 min, media hora sin latir ya es señal de que el cron murió.
             'cadencia'    => 'cada 10 min (crontab del circuito) + 00:05 diario (Kernel.php, donde haya schedule:run)',
         ],
+
+        // #9990235 — cron propio (`*/5 * * * * … circuito:barrido --apply`, añadido 2026-09-04),
+        // pero GATEADO igual que el Auditor (cola seca + racha seca + slots libres): sólo resella
+        // cobertura cuando de verdad barrió un módulo. Por eso `cadencia_horas => null` (umbral por
+        // `max_horas`, no un múltiplo de cadencia fija): con cadencia fija de 5 min, un 3× (15 min)
+        // pintaría 🔴 cada vez que la cola trae trabajo real por más de un cuarto de hora — que es
+        // justo el caso SANO que el gating existe para respetar (no hace falta barrer si sobra
+        // trabajo real). `max_horas` holgado da margen a rachas ocupadas legítimas.
+        //
+        // `formato => 'json_cobertura_max'` (opción (a) del item): el barrido NO sella un reloj
+        // plano, escribe `circuito_barrido_cobertura_modulos` = JSON {modulo: {ultima_barrida_at}}
+        // (`BarridoService::marcarBarrido()`). En vez de sumar una segunda escritura sólo para que
+        // este vigilante la lea (dos fuentes de la misma verdad se desincronizan), `latidos()`
+        // aprende a leer ESE JSON y tomar la marca MÁS RECIENTE de cualquier módulo como el latido.
+        'circuito:barrido' => [
+            'motor'         => 'Barrido',
+            'cadencia_horas' => null,
+            'max_horas'   => 24,
+            'beat_key'    => 'circuito_barrido_cobertura_modulos',
+            'formato'     => 'json_cobertura_max',
+            'campo'       => 'ultima_barrida_at',
+            'si_no_corre' => 'con la cola seca las terminales se quedan ociosas y nadie descubre '
+                . 'defectos nuevos en el código',
+            'cadencia'    => 'cada 5 min (cron) · gated por cola seca / racha seca / slots libres, '
+                . 'igual que el Auditor',
+        ],
     ],
 
     'retriage' => [

@@ -437,8 +437,12 @@ class RoadmapCircuitoService
         // corrieron y terminaron bien; el pulso lo refleja, aunque no mueva la beat).
         $this->registrarPulso($comando, true, null);
 
-        if (($cfg['formato'] ?? 'datetime') === 'unix') {
-            return;   // ese proceso sella su propio latido (no duplicar el reloj)
+        // #9990235 — cualquier formato distinto de 'datetime' (hoy 'unix' y 'json_cobertura_max')
+        // significa que el proceso sella su propio latido en su propio formato — no duplicar el
+        // reloj aquí. Generalizado desde el chequeo puntual de 'unix' para que un formato nuevo se
+        // auto-selle sin tener que enumerarlo también en este `if`.
+        if (($cfg['formato'] ?? 'datetime') !== 'datetime') {
+            return;
         }
 
         // Sólo cuenta la corrida que HIZO EL TRABAJO. Un dry-run, o la variante por-item de un
@@ -594,6 +598,39 @@ class RoadmapCircuitoService
     }
 
     /**
+     * #9990235 — lee un latido "cobertura por módulo" (JSON `{modulo: {campo: iso8601}}`, formato
+     * `json_cobertura_max`) y devuelve la marca MÁS RECIENTE de cualquier módulo: la actividad más
+     * nueva ES el latido real del motor, sin sumarle un segundo reloj plano que se pueda desviar
+     * del JSON que el motor ya escribe (ver `config/circuito.php` → `procesos_programados`).
+     * Devuelve null si el JSON está vacío/inválido o ningún módulo trae el campo esperado.
+     */
+    private function maxDeCobertura(string $raw, string $campo): ?Carbon
+    {
+        $d = json_decode($raw, true);
+        if (! is_array($d)) {
+            return null;
+        }
+
+        $max = null;
+        foreach ($d as $entrada) {
+            $v = is_array($entrada) ? ($entrada[$campo] ?? null) : null;
+            if (! $v) {
+                continue;
+            }
+            try {
+                $ts = Carbon::parse($v);
+            } catch (\Throwable) {
+                continue;
+            }
+            if ($max === null || $ts->gt($max)) {
+                $max = $ts;
+            }
+        }
+
+        return $max;
+    }
+
+    /**
      * Estado de TODOS los procesos vigilados. `at = null` significa **nunca ha corrido**, que es
      * distinto de "corrió hace mucho" y suele ser el caso interesante: la regla existe pero no está
      * agendada.
@@ -609,9 +646,13 @@ class RoadmapCircuitoService
 
             $at = null;
             if ($raw !== null && $raw !== '') {
-                $at = ($cfg['formato'] ?? 'datetime') === 'unix'
-                    ? \Illuminate\Support\Carbon::createFromTimestamp((int) $raw)
-                    : \Illuminate\Support\Carbon::parse($raw);
+                $at = match ($cfg['formato'] ?? 'datetime') {
+                    'unix' => \Illuminate\Support\Carbon::createFromTimestamp((int) $raw),
+                    // #9990235 — cobertura por módulo (barrido): el latido real es la marca MÁS
+                    // RECIENTE de cualquier módulo, no el JSON entero interpretado como fecha.
+                    'json_cobertura_max' => $this->maxDeCobertura($raw, (string) ($cfg['campo'] ?? 'ultima_barrida_at')),
+                    default => \Illuminate\Support\Carbon::parse($raw),
+                };
             }
 
             $maxH  = (int) ($cfg['max_horas'] ?? 48);
