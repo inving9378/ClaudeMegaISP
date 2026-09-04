@@ -77,6 +77,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | DependenciaGate — cablear el gate de dependencias entre sub-items (#9990274)
+    |--------------------------------------------------------------------------
+    |
+    | `DependenciaGate` (Services/Descomposicion/DependenciaGate.php) ya existía como pieza PURA
+    | y testeable, sin cablear al scheduler vivo. Con este flag en `true` (default — si no, el
+    | item no cumple su propósito, decisión de Irving q1), `RoadmapItem::scopeDespachable()`
+    | excluye del despacho a los sub-items cuyas predecesoras (`subtasks.descomposicion.depende_de`)
+    | aún no están `completado`, así que una sección de FRONTEND ya no puede tomarse antes que el
+    | BACKEND del que depende.
+    |
+    | Aditivo con feature flag: `false` restaura el comportamiento actual byte-idéntico, sin
+    | redeploy — apagar SOLO si genera deadlocks en el pool paralelo N=6.
+    |
+    */
+    'dependencia_gate' => [
+        'enabled' => (bool) env('CIRCUITO_DEPENDENCIA_GATE', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Agente REVISOR (#338)
     |--------------------------------------------------------------------------
     |
