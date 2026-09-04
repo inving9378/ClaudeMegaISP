@@ -2764,45 +2764,169 @@ class RoadmapCircuitoService
             }
         }
 
-        $detectadas = [];
+        // #9990004 (q2 de #915) — colisión por TABLA: dos ramas pueden tocar la misma tabla desde
+        // migraciones con nombres de archivo DISTINTOS (invisible para el diff de archivos de
+        // arriba). Se parsean solo las migraciones dentro del footprint ya calculado.
+        $tablas = [];
+        foreach ($rows as $r) {
+            if (isset($desconocidos[$r->id])) {
+                continue; // footprint desconocido ya fuerza colisión por sí solo; no hace falta leer tablas
+            }
+            $tablas[$r->id] = $this->tablasPendientesDeRama($footprints[$r->id] ?? [], $r->branch, $r->worker_sid);
+        }
+
+        $detectadas = $this->decidirColisiones(
+            $rows->map(fn ($r) => ['id' => (int) $r->id, 'updated_at' => $r->updated_at])->all(),
+            $footprints,
+            $tablas,
+            $desconocidos
+        );
+
         $porId = $rows->keyBy('id');
+        foreach ($detectadas as $d) {
+            $ganador  = $porId[$d['ganador']];
+            $perdedor = $porId[$d['perdedor']];
+
+            DB::table('roadmap_items')->where('id', $perdedor->id)->whereNull('colision_pausada_por')->update([
+                'colision_pausada_por' => $ganador->id,
+                'colision_pausada_at'  => now(),
+                'updated_at'           => now(),
+            ]);
+            $this->appendLog((int) $perdedor->id, 'colision-check', 'colision_pausada', [
+                'ganador' => $ganador->id, 'archivos' => array_slice($d['comunes'], 0, 10),
+            ]);
+        }
+
+        return array_map(fn ($d) => ['ganador' => $d['ganador'], 'perdedor' => $d['perdedor'], 'archivos' => $d['comunes']], $detectadas);
+    }
+
+    /**
+     * #9990004 (q2 de #915) — nombres de tabla tocados por `Schema::create/table/dropIfExists/drop`
+     * (y ambos lados de `Schema::rename`) dentro del contenido de UNA migración. Regex sobre texto:
+     * nunca ejecuta el archivo. Los `$table->addColumn()/dropColumn()` que van DENTRO del closure de
+     * `Schema::table(...)` ya quedan cubiertos por la tabla que abre ese closure — no hace falta
+     * parsearlos aparte.
+     */
+    public function tablasEnMigracion(string $contenido): array
+    {
+        $tablas = [];
+
+        if (preg_match_all('/Schema::(?:create|table|dropIfExists|drop)\s*\(\s*[\'"]([a-zA-Z0-9_]+)[\'"]/', $contenido, $m)) {
+            $tablas = array_merge($tablas, $m[1]);
+        }
+        if (preg_match_all('/Schema::rename\s*\(\s*[\'"]([a-zA-Z0-9_]+)[\'"]\s*,\s*[\'"]([a-zA-Z0-9_]+)[\'"]/', $contenido, $m)) {
+            $tablas = array_merge($tablas, $m[1], $m[2]);
+        }
+
+        return array_values(array_unique($tablas));
+    }
+
+    /**
+     * #9990004 (q2 de #915) — tablas tocadas por las migraciones PENDIENTES de una rama en vuelo:
+     * filtra el footprint (ya calculado por `footprintDeRama`+`footprintEnVivo`) a rutas de
+     * migración (`.../migrations/*.php`, core o de módulo) y parsea cada una.
+     *
+     * Lee el contenido del WORKTREE en vivo cuando existe (así ve tanto lo commiteado como lo aún
+     * sin commitear de esa terminal, sin depender de `git show`); si el worktree ya no existe
+     * (rama fusionada / terminal liberada) cae a `git show rama:archivo`. Solo lectura — nunca
+     * ejecuta ni hace checkout.
+     */
+    public function tablasPendientesDeRama(array $footprint, string $branch, ?string $sid = null): array
+    {
+        $archivosMigracion = array_values(array_filter(
+            $footprint,
+            fn ($f) => preg_match('#(^|/)migrations/[^/]+\.php$#', $f) === 1
+        ));
+        if (! $archivosMigracion) {
+            return [];
+        }
+
+        $dir = null;
+        if ($sid && preg_match('/^wt-\d+$/', $sid)) {
+            $candidato = self::RUNTIME_DIR . "/{$sid}";
+            if (is_dir($candidato)) {
+                $dir = $candidato;
+            }
+        }
+
+        $tablas = [];
+        foreach ($archivosMigracion as $archivo) {
+            $contenido = null;
+            if ($dir && is_file("{$dir}/{$archivo}")) {
+                $contenido = @file_get_contents("{$dir}/{$archivo}");
+            }
+            if ($contenido === null || $contenido === false) {
+                $show = $this->git(['show', "{$branch}:{$archivo}"]);
+                $contenido = $show->isSuccessful() ? $show->getOutput() : null;
+            }
+            if (! $contenido) {
+                continue; // archivo borrado/no legible desde ningún lado: no hay texto que parsear
+            }
+
+            $tablas = array_merge($tablas, $this->tablasEnMigracion($contenido));
+        }
+
+        return array_values(array_unique($tablas));
+    }
+
+    /**
+     * #438 / #9990004 — desempate determinístico entre dos items en colisión: pierde el que
+     * reclamó MÁS TARDE (`updated_at` mayor); empate exacto → pierde el de mayor id. Extraído a
+     * método puro (sin BD) para poder probarlo con datos sintéticos.
+     *
+     * @return array{0:int,1:int} [idGanador, idPerdedor]
+     */
+    public static function ganadorPerdedor(int $idA, string $updatedAtA, int $idB, string $updatedAtB): array
+    {
+        $ta = Carbon::parse($updatedAtA)->timestamp;
+        $tb = Carbon::parse($updatedAtB)->timestamp;
+
+        if ($ta === $tb) {
+            return $idA > $idB ? [$idB, $idA] : [$idA, $idB];
+        }
+
+        return $ta > $tb ? [$idB, $idA] : [$idA, $idB];
+    }
+
+    /**
+     * #9990004 (q2+q3 de #915) — núcleo PURO (sin BD ni git) de `detectarColisionesEnVuelo()`: dado
+     * el listado de items en vuelo y sus footprints de archivo + tablas de migración ya resueltos,
+     * decide qué pares colisionan (por archivo común, por tabla común, o por footprint desconocido)
+     * y quién de cada par pierde. Extraído para el test de estrés (#9990004/q3): simula N ramas
+     * concurrentes sin tocar BD ni git real.
+     *
+     * @param array<int,array{id:int,updated_at:string}> $rows
+     * @param array<int,string[]> $footprints  archivos por id de item
+     * @param array<int,string[]> $tablas      tablas de migración por id de item
+     * @param array<int,true> $desconocidos    ids cuyo footprint en vivo no se pudo leer
+     * @return array<int,array{ganador:int,perdedor:int,comunes:string[]}>
+     */
+    public function decidirColisiones(array $rows, array $footprints, array $tablas, array $desconocidos = []): array
+    {
+        $detectadas = [];
+
         foreach ($rows as $a) {
             foreach ($rows as $b) {
-                if ($a->id >= $b->id) {
+                if ($a['id'] >= $b['id']) {
                     continue; // cada par una sola vez
                 }
-                if (isset($desconocidos[$a->id]) || isset($desconocidos[$b->id])) {
+
+                if (isset($desconocidos[$a['id']]) || isset($desconocidos[$b['id']])) {
                     // Conservador a propósito (#913): no se pudo leer el árbol en vivo de uno de
                     // los dos → no se puede garantizar que sean disjuntos, se trata como colisión.
                     $comunes = ['(footprint en vivo desconocido)'];
                 } else {
-                    $comunes = array_values(array_intersect($footprints[$a->id] ?? [], $footprints[$b->id] ?? []));
+                    $archivosComunes = array_values(array_intersect($footprints[$a['id']] ?? [], $footprints[$b['id']] ?? []));
+                    $tablasComunes   = array_values(array_intersect($tablas[$a['id']] ?? [], $tablas[$b['id']] ?? []));
+                    $comunes = array_merge($archivosComunes, array_map(fn ($t) => "tabla:{$t}", $tablasComunes));
                 }
                 if (! $comunes) {
                     continue;
                 }
 
-                // Perdedor = el que reclamó más tarde (updated_at mayor); empate → mayor id.
-                $ta = Carbon::parse($a->updated_at)->timestamp;
-                $tb = Carbon::parse($b->updated_at)->timestamp;
-                if ($ta === $tb) {
-                    $perdedor = $a->id > $b->id ? $porId[$a->id] : $porId[$b->id];
-                    $ganador  = $a->id > $b->id ? $porId[$b->id] : $porId[$a->id];
-                } else {
-                    $perdedor = $ta > $tb ? $a : $b;
-                    $ganador  = $ta > $tb ? $b : $a;
-                }
+                [$ganadorId, $perdedorId] = self::ganadorPerdedor($a['id'], $a['updated_at'], $b['id'], $b['updated_at']);
 
-                DB::table('roadmap_items')->where('id', $perdedor->id)->whereNull('colision_pausada_por')->update([
-                    'colision_pausada_por' => $ganador->id,
-                    'colision_pausada_at'  => now(),
-                    'updated_at'           => now(),
-                ]);
-                $this->appendLog((int) $perdedor->id, 'colision-check', 'colision_pausada', [
-                    'ganador' => $ganador->id, 'archivos' => array_slice($comunes, 0, 10),
-                ]);
-
-                $detectadas[] = ['ganador' => (int) $ganador->id, 'perdedor' => (int) $perdedor->id, 'archivos' => $comunes];
+                $detectadas[] = ['ganador' => $ganadorId, 'perdedor' => $perdedorId, 'comunes' => $comunes];
             }
         }
 
