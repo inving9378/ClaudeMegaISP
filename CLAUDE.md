@@ -1670,3 +1670,25 @@ abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
 trabajo real de investigación (reproducir la carrera de #32 y endurecer el guard con test de
 regresión) sigue en #9990012 (`aprobado_revisor`, listo para tomarse) y #9990013 (`requiere_irving`,
 bloqueado hasta tener la causa confirmada).
+
+## Item #9990012 — Reproducir la carrera del cierre-en-cascada de #32 — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#905/#878/#906/#907/#924, un nivel más abajo:
+#9990012 (sub-item de #924) pedía reproducir en dev la carrera del cierre-en-cascada de #32 con
+transacción+rollback e instrumentación temporal del guard, y confirmar el mecanismo exacto que lo
+esquivó. Una vuelta previa (`wt-2`) ya hizo lo correcto: corrió `circuito:cabida` (NO CABE,
+`ya_timeouteo_antes`), hizo el forense estático completo (localizó guard(1)/guard(2b)/hook de
+cascada en `RoadmapItem.php` y los 3 `save()` de `MergeRunner.php`, confirmó en el log real de #32
+que el bug sí se escribió en BD) y descompuso el repro ejecutable en **#9990063** con spec
+detallado (transacción+rollback, `Log::debug` temporal, descarta ya la hipótesis de merge directo
+del padre). Pero el proceso murió a media escritura del comentario de decisión, antes de intentar
+**cerrar** #9990012 — el log solo registra `claim_liberado_al_morir_la_vuelta`, y el pool lo
+repartió de nuevo sin trabajo propio que hacer. Verificado esta vuelta: #9990063 sigue intacto,
+`pendiente_revision`, sin reclamar — la descomposición original seguía siendo correcta, nadie más
+la tocó. Corrección: esta vuelta ejecuta el intento de cierre faltante; el guard (`RoadmapItem.php`
+bloque "(2b) PARAGUAS", ~301-332) lo reenruta a `aprobado_irving` + `excluir_pool_automatico=true`
+(evento `paraguas_abierto` en el log, "le quedan 1 sub-item(s) abierto(s)"), sacándolo del
+pool/reaper hasta que el hook de cierre en cascada (`RoadmapItem.php:459-491`) lo complete solo
+cuando #9990063 cierre. Detalle en `docs/roadmap-bucle-reap-item-9990012-verificacion.md`. **Sin
+cambio de código de negocio** — el trabajo real (reproducir la carrera y confirmar el mecanismo
+exacto) sigue en #9990063 (`pendiente_revision`, pendiente de que el revisor lo trie).

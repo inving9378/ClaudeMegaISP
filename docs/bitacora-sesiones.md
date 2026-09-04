@@ -3780,3 +3780,25 @@ ancestro de main, solo rellena `merge_commit` sin tocar nada). Detalle completo,
 con hash/fecha/causa, y el trade-off de tocar el hook de cascada directamente (descartado por
 riesgo de reentrancia) en
 `docs/circuito-auditoria-13-completados-sin-mergear-item-9990061.md`.
+
+## 2026-09-04 01:56 — Item #9990012: cierre del bucle reap sobre paraguas ya descompuesto (carrera del cierre-en-cascada de #32)
+
+`#9990012` (sub-item de seguimiento de #924) venía en bucle de reap: una vuelta previa (`wt-2`)
+ya había hecho el forense estático completo (guard(1)/guard(2b)/hook de cascada en
+`RoadmapItem.php`, los 3 `save()` de `MergeRunner.php`) y confirmado en el log real de #32 que el
+bug sí se escribió en BD, y descompuso el repro ejecutable en **#9990063** (transacción+rollback,
+instrumentación temporal con `Log::debug`, spec detallado que ya descarta la hipótesis de merge
+directo del padre), tras `circuito:cabida`=NO CABE. Pero el proceso murió a media escritura del
+comentario de decisión, antes de intentar cerrar al padre — el log solo registra
+`claim_liberado_al_morir_la_vuelta`, y el pool lo repartió de nuevo sin trabajo propio que hacer —
+misma familia de bug que #738/#745/#830/#816/#818/#848/#905/#878/#906/#907.
+
+Esta vuelta verificó que #9990063 seguía intacto y sin reclamar, y ejecutó el intento de cierre
+faltante (`estado_aprobacion = 'completado'`). El guard de paraguas del modelo lo reenrutó a
+`aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto`, 1 sub-item
+abierto), sacándolo del pool hasta que #9990063 cierre y el hook de cierre en cascada lo complete
+solo.
+
+Detalle en `docs/roadmap-bucle-reap-item-9990012-verificacion.md`. Sin cambio de código de
+negocio — el trabajo técnico real (reproducir la carrera y confirmar el mecanismo exacto) sigue en
+#9990063 (`pendiente_revision`, pendiente de que el revisor lo trie).
