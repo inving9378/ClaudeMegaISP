@@ -136,7 +136,7 @@ class ApiIntegrationService
 
     private function validateEvolution(string $key, array $config): bool
     {
-        $url = rtrim($config['endpoint'] ?? env('WHATSAPP_API_URL', ''), '/');
+        $url = rtrim($config['endpoint'] ?? config('whatsapp.api_url', ''), '/');
         if (!$url) {
             return false;
         }
