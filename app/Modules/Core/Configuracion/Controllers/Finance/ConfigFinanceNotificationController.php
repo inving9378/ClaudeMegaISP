@@ -87,7 +87,7 @@ class ConfigFinanceNotificationController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Ocurrió un error al procesar la solicitud',
-                'error' => env('APP_DEBUG') ? $e->getMessage() : null // Solo muestra el error en desarrollo
+                'error' => config('app.debug') ? $e->getMessage() : null // Solo muestra el error en desarrollo
             ], 500);
         }
     }
