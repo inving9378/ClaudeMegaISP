@@ -40,16 +40,26 @@ class ReapStuckCommand extends Command
         // el reclamo es huérfano, punto. La gracia corta solo evita pisar una vuelta que apenas
         // arranca (el scheduler reclama el item ANTES de que vuelta.sh tome el flock).
         $gracia = max(1, (int) config('circuito.reaper.gracia_minutos', 3));
+        // Un claim SIN FIRMA (`worker_sid` NULL) también es huérfano — de hecho es el peor: ninguna
+        // red lo veía. El filtro `whereNotNull('worker_sid')` de antes lo dejaba fuera de este
+        // reaper, y `circuito:soltar-claim` exige que el sid coincida, así que tampoco. Resultado
+        // medido el 2026-09-04: #9990337 pasó 16 min reclamado por nadie, con el módulo «Mapa de
+        // Red» en vuelo y la flota entera parada detrás.
+        // `claimNextParalelo()` ya no puede crearlos (aborta el reclamo sin firma), pero esta red
+        // se queda por si aparecen por otra vía — es justo el tipo de agujero que reaparece.
         $huerfanos = RoadmapItem::where('estado_aprobacion', 'en_progreso')
             ->where('en_desarrollo_humano', false)
-            ->whereNotNull('worker_sid')
             ->where('claimed_at', '<', now()->subMinutes($gracia))
             ->get()
-            ->filter(fn (RoadmapItem $i) => $svc->slotLibre((string) $i->worker_sid));
+            ->filter(fn (RoadmapItem $i) => $i->worker_sid === null
+                || $i->worker_sid === ''
+                || $svc->slotLibre((string) $i->worker_sid));
 
         $rapidos = 0;
         foreach ($huerfanos as $i) {
-            $motivo = "el slot {$i->worker_sid} está libre (ninguna vuelta corriendo ahí): reclamo huérfano";
+            $motivo = ($i->worker_sid === null || $i->worker_sid === '')
+                ? 'reclamado SIN FIRMA (worker_sid vacío): ninguna terminal puede reclamarlo como suyo ni soltarlo'
+                : "el slot {$i->worker_sid} está libre (ninguna vuelta corriendo ahí): reclamo huérfano";
             $r = $svc->reencolarHuerfano($i, 'reaper-rapido', $motivo);
             $rapidos++;
             $this->line($r['resultado'] === 'escalado'

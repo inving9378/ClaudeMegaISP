@@ -2356,9 +2356,27 @@ class RoadmapCircuitoService
                 "CASE WHEN automatizacion_override = 'auto' THEN 'hereda' ELSE automatizacion_override END"
             ),
         ];
-        if ($sid = $this->normalizaSid($workerSid)) {
-            $update['worker_sid'] = $sid;   // firma del worker (#334 A)
+        // NUNCA reclamar sin firma. Un item `en_progreso` con `worker_sid` NULL es invisible para
+        // las DOS redes de seguridad —`circuito:reap-stuck` filtra por `whereNotNull('worker_sid')`
+        // y `circuito:soltar-claim` exige que el sid coincida—, así que nadie puede soltarlo: se
+        // queda reclamado indefinidamente y, peor, mantiene su MÓDULO en vuelo bloqueando a todos
+        // sus hermanos. Medido el 2026-09-04: #9990337 llevaba 16 min así y tenía parada la flota
+        // entera con el módulo «Mapa de Red» ocupado por un claim que no existía.
+        //
+        // Antes esto era `if ($sid = ...) { ... }`: sin `--sid` válido el UPDATE seguía adelante y
+        // dejaba el claim huérfano. Ahora se ABORTA el reclamo: es preferible no despachar a
+        // despachar algo que nadie podrá recuperar.
+        $sid = $this->normalizaSid($workerSid);
+        if ($sid === null || $sid === '') {
+            Log::channel('roadmap_externo')->warning('claim-abortado-sin-sid', [
+                'item' => $id,
+                'sid_recibido' => $workerSid,
+                'motivo' => 'reclamar sin worker_sid deja un claim que ninguna red puede soltar',
+            ]);
+
+            return null;
         }
+        $update['worker_sid'] = $sid;   // firma del worker (#334 A)
         $claimed = DB::table('roadmap_items')
             ->where('id', $id)
             // #507 — CANDADO ATÓMICO anti-reclamo de un item parqueado. El candidato ya viene filtrado
