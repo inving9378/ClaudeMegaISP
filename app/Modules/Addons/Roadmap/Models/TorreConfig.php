@@ -41,6 +41,7 @@ class TorreConfig extends Model
         'auditor_max_por_corrida',
         'auditor_cooldown_min',
         'auditor_slots_libres_min',
+        'paralelo_mismo_modulo',
         'valvula_activa',
         'valvula_modo',
         'valvula_guarda_termino',
@@ -53,6 +54,7 @@ class TorreConfig extends Model
         'auditor_max_por_corrida' => 'integer',
         'auditor_cooldown_min'    => 'integer',
         'auditor_slots_libres_min' => 'integer',
+        'paralelo_mismo_modulo'   => 'integer',
         'valvula_activa'          => 'boolean',
         'valvula_guarda_termino'  => 'boolean',
         'valvula_guarda_razon'    => 'boolean',
@@ -82,6 +84,35 @@ class TorreConfig extends Model
         return in_array(strtoupper((string) $this->autopilot_max_nivel), ['A', 'B', 'C'], true)
             ? 'tabla torre_config (lo fijaste en pantalla)'
             : 'config/circuito.php → circuito.autopilot.max_nivel';
+    }
+
+    /**
+     * Cuántas terminales pueden trabajar el MISMO módulo a la vez. `null` en la columna = **lo
+     * gobierna `config/circuito.php`** (estado de fábrica, 1 = comportamiento histórico); sólo
+     * cuando Irving mueve la perilla en pantalla la columna manda. Rango sano 1-6 (tope de
+     * terminales del circuito); fuera de rango se sanea al default de config.
+     *
+     * Se resuelve aquí y no en el llamador para que no haya dos lugares decidiendo qué gana —
+     * mismo patrón que `autopilotMaxNivel()`.
+     */
+    public function paraleloMismoModulo(): int
+    {
+        $col = (int) $this->paralelo_mismo_modulo;
+        if ($this->paralelo_mismo_modulo !== null && $col >= 1 && $col <= 6) {
+            return $col;
+        }
+
+        return max(1, (int) config('circuito.paralelo_mismo_modulo', 1));
+    }
+
+    /** De dónde salió el tope vigente — la pantalla lo muestra junto al valor. */
+    public function paraleloMismoModuloFuente(): string
+    {
+        $col = (int) $this->paralelo_mismo_modulo;
+
+        return ($this->paralelo_mismo_modulo !== null && $col >= 1 && $col <= 6)
+            ? 'tabla torre_config (lo fijaste en pantalla)'
+            : 'config/circuito.php → circuito.paralelo_mismo_modulo';
     }
 
     /** El modo vigente de la válvula, saneado. */

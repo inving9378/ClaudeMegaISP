@@ -503,6 +503,18 @@
                 <input type="number" min="0" max="6" class="form-control form-control-sm"
                        v-model.number="form.auditor_slots_libres_min" :disabled="!puedeEditar"></label>
             </div>
+            <div class="col-md-6">
+              <label class="small d-block">Terminales por el mismo módulo <em>(1–6)</em>
+                <input type="number" min="1" max="6" class="form-control form-control-sm"
+                       v-model.number="form.paralelo_mismo_modulo" :disabled="!puedeEditar"></label>
+              <span class="text-muted small">
+                Cuántas terminales pueden trabajar el mismo módulo a la vez; 1 = comportamiento
+                histórico, default de fábrica.
+                <template v-if="config?.politica?.paralelo_mismo_modulo">
+                  Fuente vigente: {{ config.politica.paralelo_mismo_modulo.fuente }}.
+                </template>
+              </span>
+            </div>
           </div>
 
           <button class="btn btn-sm btn-primary mt-3" :disabled="!puedeEditar || guardando" @click="guardarConfig">
@@ -930,6 +942,7 @@ export default {
             auditor_max_por_corrida: 10,
             auditor_cooldown_min: 15,
             auditor_slots_libres_min: 2,
+            paralelo_mismo_modulo: 1,
         });
 
         const nuevoTermino = reactive({});
@@ -963,6 +976,7 @@ export default {
                 form.auditor_max_por_corrida = c.data.politica.auditor.max_por_corrida;
                 form.auditor_cooldown_min = c.data.politica.auditor.cooldown_min;
                 form.auditor_slots_libres_min = c.data.politica.auditor.slots_libres_min;
+                form.paralelo_mismo_modulo = c.data.politica.paralelo_mismo_modulo?.valor ?? 1;
             } catch (e) {
                 error.value = "No se pudo leer la configuración: " + (e?.response?.data?.message || e.message);
             } finally {

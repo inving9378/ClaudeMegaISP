@@ -2542,7 +2542,10 @@ class RoadmapCircuitoService
         // conteo REAL por módulo (una entrada por item en vuelo) para que el conteo de abajo sea
         // el número de terminales que ese módulo ya tiene.
         // Con la perilla en 1 este bloque NO corre: comportamiento histórico byte-idéntico.
-        if (max(1, (int) config('circuito.paralelo_mismo_modulo', 1)) > 1) {
+        // #9990005 — la perilla ya no se lee de `config()` directo: `TorreConfig::paraleloMismoModulo()`
+        // es la fuente única (columna `torre_config` si Irving la fijó en pantalla, si no cae al
+        // mismo `config('circuito.paralelo_mismo_modulo', 1)` de siempre).
+        if (app(TorreConfigService::class)->get()->paraleloMismoModulo() > 1) {
             foreach ($this->itemsEnVueloPorModulo() as $m => $n) {
                 $m       = (string) $m;
                 $faltan  = (int) $n - count(array_keys($taken, $m, true));
@@ -2590,7 +2593,8 @@ class RoadmapCircuitoService
             // `circuito.paralelo_mismo_modulo`. Con la perilla en 1 el comportamiento es
             // EXACTAMENTE el histórico (in_array === conteo >= 1), así que subir la perilla es el
             // único cambio de conducta y bajarla a 1 lo revierte sin tocar código.
-            $tope = max(1, (int) config('circuito.paralelo_mismo_modulo', 1));
+            // #9990005 — misma fuente única que arriba: `TorreConfig::paraleloMismoModulo()`.
+            $tope = app(TorreConfigService::class)->get()->paraleloMismoModulo();
             $yaEnEseModulo = count(array_keys($taken, $mod, true));
             if ($yaEnEseModulo >= $tope || $unknownEnVuelo) {
                 continue;
