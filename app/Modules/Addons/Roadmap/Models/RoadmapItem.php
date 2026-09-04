@@ -217,6 +217,33 @@ class RoadmapItem extends Model
 
     protected static function booted(): void
     {
+        // #9990206 — GUARD CONTRA IDs EXPLÍCITOS. Una sola inserción con `id` puesto a mano
+        // (p.ej. `id=999999` para probar un comando) despega el AUTO_INCREMENT de InnoDB para
+        // SIEMPRE: MySQL nunca lo baja por debajo de `max(id)+1`, ni borrando la fila después.
+        // Así nació el salto de 990 a 1.000.000 (y luego a 9.990.000) que motivó este item.
+        //
+        // Excepción: la suite de tests siembra ids fijos a propósito (p.ej.
+        // `DiagnosticoItemServiceTest`) sobre una base descartable (`migrate:fresh` por test) —
+        // ahí un id explícito es legítimo y no toca la base compartida de dev.
+        static::creating(function (self $item) {
+            $idExplicito = $item->getAttribute($item->getKeyName());
+            if ($idExplicito === null || app()->runningUnitTests()) {
+                return;
+            }
+
+            throw new \RuntimeException(
+                "roadmap_items: no se puede insertar con id explícito (id={$idExplicito}). "
+                . 'Borrar la fila después NO repara el AUTO_INCREMENT: MySQL nunca lo baja por '
+                . 'debajo de max(id)+1, así que una sola inserción con id fijo salta el contador '
+                . 'para siempre (así nació el salto de miles a millones documentado en el item '
+                . '#9990206). Para crear un item de prueba real, usa '
+                . '\App\Modules\Addons\Roadmap\Services\RoadmapIntakeService::crear() (el punto '
+                . 'único de alta) y bórralo al terminar: el contador solo avanza de uno en uno, '
+                . 'que es inofensivo. Si hace falta aislamiento total, envuélvelo en una '
+                . 'transacción con rollback.'
+            );
+        });
+
         // #456: guardia simétrica al #420 — causa raíz de la bandeja pendiente_revision llenándose de
         // items done/in_progress. Las acciones MANUALES del Kanban legado (RoadmapController::start/
         // complete/cancel, disparadas por el toggle de estado en RoadmapTab.vue) solo mutan `status` y

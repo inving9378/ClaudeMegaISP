@@ -528,6 +528,23 @@ return [
                 // el WhatsApp. Lo pidió el propio revisor del #208. 1800s = 30 min.
                 'cooldown_seg' => (int) env('CIRCUITO_JARVIS_ALERTA_COOLDOWN', 1800),
             ],
+
+            // CHEQUEO auto_increment_roadmap (item #9990206) — un `id` explícito insertado a
+            // mano (p.ej. para probar un comando) despega el AUTO_INCREMENT de `roadmap_items`
+            // para SIEMPRE: MySQL nunca lo baja por debajo de `max(id)+1`, ni borrando la fila
+            // después. Así nació el salto real de 990 a 1.000.000 y luego a 9.990.000. El guard
+            // del modelo (`RoadmapItem::booted()`) ya cierra la puerta hacia adelante; esto
+            // detecta si algo la vuelve a abrir (escritura cruda, `DB::table()->insert()`,
+            // import, etc. — caminos que NO pasan por el modelo y por tanto no ven el guard).
+            //
+            // El salto se mide como `AUTO_INCREMENT actual − MAX(id) actual`: en operación sana
+            // es 1 (el próximo id sería max+1). Un salto mayor a este umbral es anómalo.
+            //
+            // TRAMPA DE DIAGNÓSTICO (medida en vivo, ver el propio item): `SHOW TABLE STATUS` e
+            // `information_schema.tables` devuelven el AUTO_INCREMENT de una ESTADÍSTICA
+            // CACHEADA de InnoDB, que puede quedar desactualizada. `SHOW CREATE TABLE` es el
+            // único que da el valor REAL — el medidor debe usar ese, nunca el otro.
+            'auto_increment_salto_umbral' => (int) env('CIRCUITO_JARVIS_AUTOINCREMENT_SALTO_UMBRAL', 1000),
         ],
 
         /*
