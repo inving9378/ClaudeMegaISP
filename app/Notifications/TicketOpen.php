@@ -48,7 +48,7 @@ class TicketOpen extends Notification
     public function toMail($notifiable)
     {
         return (new MailMessage)
-            ->from(env('MAIL_FROM_ADDRESS'))
+            ->from(config('mail.from.address'))
             ->markdown('emails.notificate.ticket_open',
                 ['ticket' => $this->ticket, 'ticket_thread' => $this->ticket_thread
                 ]);

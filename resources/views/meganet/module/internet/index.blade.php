@@ -8,9 +8,9 @@
     <Datatable
         module="internet"
         model="Internet"
-        @can($group.'_add_'.$module)
+        @if(auth()->user() && auth()->user()->can($group.'_add_'.$module))
         add="Agregar plan de Internet"
-        @endcan
+        @endif
         list="Listado de planes de Internet"
     ></Datatable>
     @if(session()->has('message'))

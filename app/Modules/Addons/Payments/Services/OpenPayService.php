@@ -193,7 +193,8 @@ class OpenPayService
                 'auth'  => [$cfg['api_key'], ''],
                 'query' => ['external_id' => (string) $client->id, 'limit' => 1],
             ]);
-            $list = json_decode((string) $found->getBody(), true) ?? [];
+            $list = json_decode((string) $found->getBody(), true);
+            $list = is_array($list) ? $list : [];
             if (!empty($list[0]['id'])) {
                 return $list[0]['id'];
             }

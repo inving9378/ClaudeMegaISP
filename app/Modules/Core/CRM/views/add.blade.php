@@ -2,9 +2,9 @@
 @section('title') @lang('translation.Dashboard') @endsection
 
 @section('content')
-    @can('crm_add_crm')
+    @if(auth()->user() && auth()->user()->can('crm_add_crm'))
         <add-crm-crud
             action="add"
         ></add-crm-crud>
-    @endcan
+    @endif
 @endsection

@@ -2833,9 +2833,10 @@ export const prettyPermissionLabel = (name) => {
  * Así ningún permiso (presente o futuro) queda fuera de la sección.
  *
  * @param {string[]} catalogNames  nombres de permisos desde el backend
+ * @param {Object.<string,string>} [descriptionsByName]  nombre => description (item #860)
  * @returns {{fields: object[], accordions: object[]}}
  */
-export const buildUncategorizedTab = (catalogNames) => {
+export const buildUncategorizedTab = (catalogNames, descriptionsByName) => {
     const covered = new Set();
     for (const key in fieldsJson) {
         if (key === "otros") continue; // no recontar lo ya inyectado
@@ -2860,6 +2861,7 @@ export const buildUncategorizedTab = (catalogNames) => {
                 fields.push({
                     field: name,
                     label: prettyPermissionLabel(name),
+                    description: descriptionsByName?.[name] || "",
                     value: false,
                     ...(i === 0 ? {} : { depend: anchor }),
                 });

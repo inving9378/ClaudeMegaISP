@@ -154,6 +154,10 @@ class OpenpayWebhookController extends Controller
                     'updated_at'   => now(),
                 ]);
 
+            // Dual-write Fase 2 (roadmap #721) — espejo best-effort, no afecta el cobro real.
+            app(\App\Services\Finance\Invoice\InvoiceMirrorService::class)
+                ->mirrorPaid($factura->id, $intento->client_id, (float) $factura->total, $paymentId);
+
             DB::table('portal_payment_attempts')
                 ->where('id', $intento->id)
                 ->update([

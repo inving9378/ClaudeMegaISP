@@ -68,6 +68,7 @@ class TorreAutomationPolicy
     public function __construct(
         private TorreConfigService $config,
         private JarvisService $jarvis,
+        private AuditorService $auditor,
     ) {
     }
 
@@ -414,9 +415,22 @@ class TorreAutomationPolicy
             // que ya no están vigentes.
             'topes_duros'          => array_keys(app(FronterasService::class)->mapa()),
             'auditor'              => [
-                'activo'          => $cfg->auditor_activo,
-                'max_por_corrida' => $cfg->auditor_max_por_corrida,
-                'cooldown_min'    => $cfg->auditor_cooldown_min,
+                'activo'            => $cfg->auditor_activo,
+                'max_por_corrida'   => $cfg->auditor_max_por_corrida,
+                'cooldown_min'      => $cfg->auditor_cooldown_min,
+                'slots_libres_min'  => $cfg->auditor_slots_libres_min,
+                // #891 Fase 3b-i — half-open del freno de sequía N2: config del reintento +
+                // estado resuelto (`estadoGastoUi()`, misma lectura que consume el auditor).
+                'gasto_reintento_min'    => $cfg->auditor_gasto_reintento_min,
+                'gasto_reintento_activo' => $cfg->auditor_gasto_reintento_activo,
+                'gasto'                  => $this->auditor->estadoGastoUi(),
+            ],
+            // #9990005 — misma forma que el sub-techo del autopilot: valor RESUELTO (columna si
+            // Irving la fijó, si no el default de config) + de dónde salió, para que la pantalla
+            // lo pinte sin tener que repetir la lógica de resolución.
+            'paralelo_mismo_modulo' => [
+                'valor'  => $cfg->paraleloMismoModulo(),
+                'fuente' => $cfg->paraleloMismoModuloFuente(),
             ],
         ];
     }

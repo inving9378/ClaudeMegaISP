@@ -182,14 +182,14 @@
                 {{-- 13. War Room — accesible desde el panel de Administración (/administracion), no como ítem suelto del sidebar. --}}
 
                 {{-- 13.2 Manual General de la Empresa — item #796. Ítem suelto, sin submenú. --}}
-                @can('empresa_manual_view')
+                @if(auth()->user() && auth()->user()->can('empresa_manual_view'))
                     <li>
                         <a href="{{ url('/empresa/manual') }}">
                             <i data-feather="book"></i>
                             <span>Manual de la Empresa</span>
                         </a>
                     </li>
-                @endcan
+                @endif
 
                 {{--
                     13.5 Módulos dinámicos desde ModuleRegistry::getMenu() (item #44 → #68).

@@ -2373,6 +2373,13 @@ return [
         '/talento/api/config/evidencias',
         '/talento/api/config/evidencias/toggle',
     ],
+    'talento.expediente.paquetes.manage' => [
+        '/talento/expediente/paquetes',
+        '/talento/api/expediente/paquetes/puestos',
+        '/talento/api/expediente/paquetes/templates',
+        '/talento/api/expediente/paquetes/asignaciones',
+        '/talento/api/expediente/paquetes/toggle',
+    ],
     'talento.activations.manage' => [
         '/talento/api/campo/{workOrderId}/activacion',
         '/talento/api/campo/{workOrderId}/activar',

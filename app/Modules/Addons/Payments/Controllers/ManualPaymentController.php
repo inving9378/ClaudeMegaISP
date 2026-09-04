@@ -9,6 +9,7 @@ use App\Modules\Addons\Payments\Services\PaymentApplicationService;
 use App\Modules\Addons\Payments\Services\ReconciliationService;
 use App\Modules\Addons\PortalPago\Models\PortalPagoAccount;
 use App\Modules\Core\Clientes\Models\Client;
+use App\Modules\Core\Security\Traits\ChecksActionPermission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -24,6 +25,8 @@ use Illuminate\Support\Facades\Storage;
  */
 class ManualPaymentController extends Controller
 {
+    use ChecksActionPermission;
+
     private const PERM = 'payments_capture_manage';
 
     public function create()
@@ -84,6 +87,7 @@ class ManualPaymentController extends Controller
     public function store(Request $request)
     {
         abort_unless(auth()->user()?->can(self::PERM), 403);
+        $this->verificarPermisoAccion('payments.captura.aplicar', 'captura-pago.store');
 
         $data = $request->validate([
             'client_id'            => ['required', 'integer', 'exists:clients,id'],
