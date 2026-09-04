@@ -146,7 +146,7 @@ class MetaOAuthController extends Controller
                 }
             }
 
-            // 6. Guardar todo en el config del Hub
+            // 6. Guardar los datos obtenidos en el config del Hub
             $config['user_access_token']      = $longToken;
             $config['user_id']                = $userId;
             $config['pages']                  = $pages;
