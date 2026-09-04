@@ -24,6 +24,12 @@ LOGDIR="$RUNTIME/logs"
 ITEM="${CIRCUITO_ITEM:-}"
 WT="${CIRCUITO_WT:-$RUNTIME/wt-exec}"
 SID="${CIRCUITO_SID:-wt-exec}"           # id de sesión para el estado live por-sesión (#334)
+# #211 — MODO DIRIGIDO DE UNA SOLA VUELTA. El pool continuo (más abajo) es diseño deliberado:
+# mantiene el slot lleno pidiendo el siguiente item apenas termina el actual. Pero no había forma
+# de pedirle "solo ESTE item y para" — cualquier verificación supervisada de un item concreto se
+# llevaba trabajo ajeno detrás. CIRCUITO_ONCE=1 corta el `while` después de $ITEM sin tocar el
+# comportamiento por defecto (ONCE=0 = idéntico a como era siempre).
+ONCE="${CIRCUITO_ONCE:-0}"
 LOCK="$RUNTIME/${SID}.lock"              # lock POR worktree → N vueltas en paralelo (una por slot)
 # #170 — CENTINELA DEL FRENO DE MANO. Ruta ABSOLUTA: este script hace `cd` al worktree del slot,
 # y cada worktree tiene su propio storage/ real — una ruta relativa daría un freno por terminal.
@@ -380,6 +386,13 @@ if [ -n "$ITEM" ]; then
     ELAPSED=$(( $(date +%s) - PARENT_START ))
     if [ "$ELAPSED" -ge "$PARENT_TIMEOUT" ]; then
       log "TOPE DE TIEMPO DEL PADRE alcanzado durante la vuelta (${PARENT_TIMEOUT}s): $SID no reclama el siguiente."
+      break
+    fi
+
+    # #211 — modo dirigido de una sola vuelta: no pide el siguiente item, suelta el slot tal cual.
+    if [ "$ONCE" = "1" ]; then
+      log "modo ONCE (CIRCUITO_ONCE=1): $SID no pide el siguiente item. Corrí solo lo que se pidió; suelto el slot."
+      php artisan circuito:vivo --end --sid="$SID" >>"$LOG" 2>&1 || true
       break
     fi
 

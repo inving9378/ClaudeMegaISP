@@ -2264,7 +2264,7 @@ class RoadmapCircuitoService
      * ahora mismo (freno, ya tomado, nivel fuera de política), el UPDATE afecta 0 filas y esto
      * devuelve null — igual que "no había nada que reclamar".
      */
-    public function claimNextParalelo(?string $workerSid = null, ?int $itemId = null, string $origen = 'claim-next'): ?int
+    public function claimNextParalelo(?string $workerSid = null, ?int $itemId = null, string $origen = 'claim-next', bool $once = false): ?int
     {
         if ($this->isPaused()) {
             return null;
@@ -2350,7 +2350,9 @@ class RoadmapCircuitoService
         // Sin esto la vía quedaría siendo exactamente el "puenteo manual sin rastro" que el item
         // pedía cerrar.
         if ($itemId !== null) {
-            $this->appendLog($id, $sid ?? ($workerSid ?: 'cli'), 'despacho_dirigido', ['via' => $origen]);
+            // #211 — si vino con `once`, queda sellado en el log: esta vuelta NO encadenó el pool
+            // continuo tras este item (a diferencia del despacho dirigido normal, que sí lo hace).
+            $this->appendLog($id, $sid ?? ($workerSid ?: 'cli'), 'despacho_dirigido', ['via' => $origen, 'once' => $once]);
         }
 
         return $id;
