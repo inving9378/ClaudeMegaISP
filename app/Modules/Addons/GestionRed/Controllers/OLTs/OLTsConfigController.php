@@ -108,7 +108,7 @@ class OLTsConfigController extends Controller
                 'base_uri' => 'https://' . trim($request->api_domain) . '.smartolt.com/api/',
                 'headers'  => ['X-Token' => $token],
                 'timeout'  => 10,
-                'verify'   => env('VERIFY_SSL', true),
+                'verify'   => config('services.smartolt.verify_ssl'),
             ]);
             $response = $client->get('system/get_olts');
             $body     = json_decode($response->getBody()->getContents(), true);

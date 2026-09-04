@@ -15,6 +15,10 @@ return [
 
     'name' => env('APP_NAME', 'MegaISP'),
 
+    // Título mostrado en <title> (title-meta.blade.php). Antes leía env('title', ...)
+    // en minúscula, que nunca matcheaba ningún env var real (siempre caía al default).
+    'display_title' => env('APP_TITLE', 'Meganet'),
+
     // Coordenadas de la oficina central — stat "distancia a oficina" en la ficha de cliente.
     // Si quedan vacías, la stat muestra "Configura coords de oficina" (degradación elegante).
     'office_lat' => env('OFFICE_LAT'),

@@ -70,7 +70,7 @@ class TalentoFieldFlowController extends Controller
     {
         $this->authorize('talento.media.view');
 
-        $canViewSensitive = auth()->user()->can('talento.media.view_sensitive');
+        $canViewSensitive = auth()->user()?->can('talento.media.view_sensitive');
 
         $media = TalentoWorkOrderMedia::where('work_order_id', $workOrderId)
             ->orderBy('created_at')
@@ -299,7 +299,7 @@ class TalentoFieldFlowController extends Controller
         $this->authorize('talento.work_orders.view');
 
         $order = TalentoWorkOrder::with(['colaborador.user', 'type'])->findOrFail($workOrderId);
-        $canViewSensitive = auth()->user()->can('talento.media.view_sensitive');
+        $canViewSensitive = auth()->user()?->can('talento.media.view_sensitive');
 
         $media = TalentoWorkOrderMedia::where('work_order_id', $workOrderId)
             ->orderBy('created_at')

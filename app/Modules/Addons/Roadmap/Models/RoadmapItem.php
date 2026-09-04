@@ -311,6 +311,12 @@ class RoadmapItem extends Model
                 $item->estado_aprobacion       = 'aprobado_irving';
                 $item->status                  = 'pending';
                 $item->excluir_pool_automatico = true;
+                // #898 — sin esto el `worker_sid`/`claimed_at` de la sesión que disparó el intento
+                // de cierre se queda pegado: `status` ya no es 'done' aquí, así que
+                // `reclamosHuerfanosPorSid()` (solo mira status='done') nunca lo ve y el botón
+                // "Liberar reclamo" de la Torre no lo alcanza. Se libera aquí mismo, al parquear.
+                $item->worker_sid              = null;
+                $item->claimed_at              = null;
 
                 $log = $item->log ?: [];
                 $log[] = [
@@ -400,6 +406,10 @@ class RoadmapItem extends Model
                     $item->status                  = 'pending';
                     $item->excluir_pool_automatico  = true;
                     $item->decision_resuelta        = true;
+                    // #898 — mismo fix que el bloque (2b) PARAGUAS de arriba: liberar el reclamo
+                    // al parquear, no dejarlo pegado.
+                    $item->worker_sid               = null;
+                    $item->claimed_at               = null;
                 } else {
                     Log::warning('roadmap: cierre incompleto (modo advertencia, no bloquea todavía)', [
                         'item' => $item->id, 'faltantes' => $verificacion['faltantes'],
@@ -1796,6 +1806,14 @@ class RoadmapItem extends Model
                 'describe' => fn ($v) => 'su prioridad es ' . $v,
             ],
             [
+                // #987 (Pieza 5b FASE 3) — este es el mecanismo que hace FIFO a los hallazgos del
+                // barrido: ni `RoadmapIntakeService::crear()` ni `circuito:sub-item` tocan
+                // `position` (queda en su default de columna, 0), así que entre hallazgos —y entre
+                // cualquier item sin `position` explícita— el desempate real es `id ASC` = orden de
+                // creación. No hace falta cola dedicada: verificado con prueba real (transacción con
+                // rollback) que 3 hallazgos de módulos distintos salen de `ejecutablesParalelo()` en
+                // el mismo orden en que se crearon, y que una `priority` puesta a mano SÍ los
+                // adelanta (criterio de arriba) — comportamiento vigente y deseado, no un bug.
                 'label'    => 'antigüedad',
                 'orderBy'  => fn ($q) => $q->orderBy('position')->orderBy('id'),
                 'valor'    => fn (self $i) => $i->position,

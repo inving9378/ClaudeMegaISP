@@ -28,7 +28,7 @@ class InstallationController extends Controller
             $installations = $box->installations->pluck('client_id');
             $news = ClientMainInformation::where('seller_id', $box->user_id)->whereDate('activation_date', $box->created_at->format('Y-m-d'))->whereNotIn('id', $installations)->get();
             $data = [];
-            $user_id = auth()->user()->id;
+            $user_id = auth()->user()?->id;
             $now = now();
             $branch_id = $box->user->sucursal_id;
             $client_repository = new ClientRepository();

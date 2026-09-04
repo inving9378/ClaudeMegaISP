@@ -412,7 +412,7 @@ class TaskController extends Controller
         $this->data['model']::findOrFail($id)->update([
             'archived' => true,
             'archived_at' => now(),
-            'archived_by' => auth()->user()->id,
+            'archived_by' => auth()->user()?->id,
             'finish_at' => now(),
             'status' => 'Done',
         ]);
@@ -439,7 +439,7 @@ class TaskController extends Controller
         $newObservation = [
             'observation' => $request->observation,
             'task_id' => $id,
-            'created_by' => auth()->user()->id
+            'created_by' => auth()->user()?->id
         ];
 
         ObservationTask::create($newObservation);

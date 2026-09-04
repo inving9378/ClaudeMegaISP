@@ -30,7 +30,7 @@
 
 <script>
 import Datatable from "../../../base/shared/Datatable.vue";
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted, getCurrentInstance } from "vue";
 import DatatableHelper from "../../../../helpers/datatableHelper";
 import InventoryItemCustomModelCrud from "./InventoryItemCustomModelCrud.vue";
 import Permission from "../../../../helpers/Permission";
@@ -47,6 +47,10 @@ export default {
         url_base: String
     },
     setup(props) {
+        const ns = `.leak983-inventoryItemCustomModelListar-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const title = ref("Crear Tipo de Articulo");
         const action = ref("/inventory/inventory_item_custom_model/add");
         const reloadCrud = ref(true);
@@ -61,7 +65,7 @@ export default {
 
         onMounted(async () => {
             hasPermission.data = new Permission(await allViewHasPermission());
-            $(document).on("click", ".uil-pen-modal", function () {
+            $(document).on("click" + ns, ".uil-pen-modal", function () {
                 let idItem = $(this).parent().attr("id-item");
                 showEditModal(idItem);
             });

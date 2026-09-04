@@ -91,11 +91,16 @@
 
 <script setup>
 import Datatable from "../../../base/shared/Datatable";
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted, getCurrentInstance } from "vue";
 import DatatableHelper from "../../../../helpers/datatableHelper";
 import Swal from "sweetalert2";
 import axios from "axios";
 import { showLoading, hideLoading } from "../../../../helpers/loading";
+
+const ns = `.leak983-rulesListar-${getCurrentInstance().uid}`;
+onUnmounted(() => {
+    $(document).off(ns);
+});
 
 defineOptions({
     name: "RulesListar",
@@ -115,7 +120,7 @@ const formData = ref({
 });
 
 onMounted(() => {
-    $(document).on("click", ".uil-pen-modal", function () {
+    $(document).on("click" + ns, ".uil-pen-modal", function () {
         let idItem = $(this).parent().attr("id-item");
         let modal = $(this).parent().attr("toggle-modal");
         showEditModal(idItem, modal);

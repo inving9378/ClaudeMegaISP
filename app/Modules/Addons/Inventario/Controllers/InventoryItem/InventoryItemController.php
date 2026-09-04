@@ -59,7 +59,7 @@ class InventoryItemController extends CrudModalController
             $inventoryStore = (new InventoryStoreRepository())->getModelById($request->inventory_store_id);
             $to = get_class($inventoryStore);
             $from = 'App\Models\User';
-            $fromId = auth()->user()->id;
+            $fromId = auth()->user()?->id;
             $storeZoneId = $request->store_zone_id;
 
             $inventoryService->addMovementInventoryItemByType($model->id, $request->initial_stock, ComunConstantsController::INVENTORY_MOVEMENT_TYPE_ENTRADA, 'Ingreso Inicial', $inventoryStore->id, $to, $fromId, $from, $storeZoneId, true);
@@ -106,7 +106,7 @@ class InventoryItemController extends CrudModalController
                 $inventoryStore = (new InventoryStoreRepository())->getModelById($request->inventory_store_id);
                 $to = get_class($inventoryStore);
                 $from = 'App\Models\User';
-                $fromId = auth()->user()->id;
+                $fromId = auth()->user()?->id;
                 $storeZoneId = $request->store_zone_id;
                 $inventoryService->addMovementInventoryItemByType($model->id, 1, ComunConstantsController::INVENTORY_MOVEMENT_TYPE_ENTRADA, 'Ingreso Inicial', $inventoryStore->id, $to, $fromId, $from, $storeZoneId, true);
                 $inventoryService->updateQuantityInventoryStoreByZoneEntrada($model->id, 1, $inventoryStore->id, $to, $storeZoneId, true);
