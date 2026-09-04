@@ -4,6 +4,8 @@ namespace App\Modules\Addons\Talento\Observers;
 
 use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
+use App\Modules\Addons\Talento\Services\EmployeeDocumentPackageService;
+use Illuminate\Support\Facades\Log;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
@@ -21,6 +23,7 @@ class TalentoColaboradorObserver
     public function created(TalentoColaborador $colaborador): void
     {
         $this->sync($colaborador);
+        $this->generarDocumentos($colaborador);
     }
 
     public function updated(TalentoColaborador $colaborador): void
@@ -47,5 +50,21 @@ class TalentoColaboradorObserver
         }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+
+    /**
+     * Item #871 (Expediente RH — Hijo D2). Un fallo aqui NUNCA debe bloquear el alta del
+     * colaborador (best-effort, try/catch propio, solo se registra en log).
+     */
+    private function generarDocumentos(TalentoColaborador $colaborador): void
+    {
+        try {
+            app(EmployeeDocumentPackageService::class)->generateForColaborador($colaborador);
+        } catch (\Throwable $e) {
+            Log::warning('Talento: fallo al generar paquete de documentos (Hijo D2) al alta del colaborador', [
+                'colaborador_id' => $colaborador->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }
