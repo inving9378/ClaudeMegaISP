@@ -2256,12 +2256,25 @@ class RoadmapCircuitoService
         RoadmapItem::sqlElegibleParaPool($q);
     }
 
-    public function claimNextParalelo(?string $workerSid = null): ?int
+    /**
+     * #198 — `$itemId` opcional: DESPACHO DIRIGIDO. Salta el picker (`ejecutablesParalelo`) y
+     * reclama ESE item concreto para el worker que llama, en vez del que la política elegiría.
+     * Sin `$itemId`, comportamiento IDÉNTICO al de siempre. El candado atómico de abajo (mismo
+     * `guardReclamoAtomico` + estados elegibles) es el único guard: si el item no es elegible
+     * ahora mismo (freno, ya tomado, nivel fuera de política), el UPDATE afecta 0 filas y esto
+     * devuelve null — igual que "no había nada que reclamar".
+     */
+    public function claimNextParalelo(?string $workerSid = null, ?int $itemId = null, string $origen = 'claim-next'): ?int
     {
         if ($this->isPaused()) {
             return null;
         }
-        $items = $this->ejecutablesParalelo($this->modulosEnVuelo(), 1);
+        if ($itemId !== null) {
+            $row = RoadmapItem::where('id', $itemId)->first(['id', 'modulo']);
+            $items = $row ? [['id' => $row->id, 'modulo' => $row->modulo]] : [];
+        } else {
+            $items = $this->ejecutablesParalelo($this->modulosEnVuelo(), 1);
+        }
         if (! $items) {
             return null;
         }
@@ -2332,6 +2345,13 @@ class RoadmapCircuitoService
         }
 
         $this->avisarSiTocaProduccion($id, $sid ?? null);
+
+        // #198 — deja rastro de que este reclamo fue DIRIGIDO (saltó el picker) y por quién slot.
+        // Sin esto la vía quedaría siendo exactamente el "puenteo manual sin rastro" que el item
+        // pedía cerrar.
+        if ($itemId !== null) {
+            $this->appendLog($id, $sid ?? ($workerSid ?: 'cli'), 'despacho_dirigido', ['via' => $origen]);
+        }
 
         return $id;
     }

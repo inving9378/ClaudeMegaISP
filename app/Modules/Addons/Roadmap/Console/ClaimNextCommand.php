@@ -10,10 +10,14 @@ use Illuminate\Console\Command;
  * siguiente item elegible SIN esperar al cron. Imprime SOLO el id reclamado (o nada si no hay
  * trabajo / pausa). SERIALIZADO por flock (claim.lock) → dos workers nunca toman items del mismo
  * módulo a la vez. Respeta el kill switch (pausa → no reclama).
+ *
+ * #198 — `--item=N`: DESPACHO DIRIGIDO. En vez de dejar que el picker elija, reclama ESE item
+ * concreto para este worker (si sigue elegible — mismo candado atómico de siempre; si no, no
+ * reclama nada, igual que "no había trabajo"). Mismo contrato de salida (id o nada).
  */
 class ClaimNextCommand extends Command
 {
-    protected $signature = 'circuito:claim-next {--sid= : id del worker (traza)}';
+    protected $signature = 'circuito:claim-next {--sid= : id del worker (traza)} {--item= : despacho dirigido de un item concreto (#198), salta el picker}';
 
     protected $description = 'Reclama atómicamente el siguiente item elegible para un worker del pool (#334 F1).';
 
@@ -26,7 +30,8 @@ class ClaimNextCommand extends Command
             return self::SUCCESS; // sin lock → no reclama (imprime nada)
         }
         try {
-            $id = $svc->claimNextParalelo($this->option('sid'));
+            $item = $this->option('item');
+            $id = $svc->claimNextParalelo($this->option('sid'), $item !== null ? (int) $item : null);
             if ($id !== null) {
                 $this->output->write((string) $id); // SOLO el id, sin salto → fácil de capturar en shell
             }
