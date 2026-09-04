@@ -9,6 +9,7 @@ use App\Modules\Addons\Roadmap\Models\TorreConfig;
 use App\Modules\Addons\Roadmap\Services\AutopilotService;
 use App\Modules\Addons\Roadmap\Services\FronterasService;
 use App\Modules\Addons\Roadmap\Services\TorreConfigService;
+use App\Modules\Addons\Roadmap\Support\MencionFrontera;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -128,6 +129,16 @@ class TorreFronterasController extends Controller
                 ),
                 'resumen'        => $metricas['valvula'] ?? [],
             ],
+            // #9990256 — qué categorías siguen reteniendo un item aunque la válvula lo haya
+            // sellado como MENCIÓN (`MencionFrontera::retiene()`). Sólo aplica dentro del modo
+            // «ablandar»: en «apagar» la frontera desaparece entera y esta lista no se consulta.
+            'mencion' => [
+                'categorias' => array_map(fn ($cat) => [
+                    'clave'   => $cat,
+                    'retiene' => in_array($cat, $cfg->mencionRetieneCategorias(), true),
+                ], MencionFrontera::CATEGORIAS),
+                'fuente' => $cfg->mencionRetieneCategoriasFuente(),
+            ],
             'autopilot'    => app(AutopilotService::class)->simulacionTechos(),
             'metricas'     => [
                 'calculado_en' => $metricas['calculado_en'] ?? null,
@@ -142,7 +153,7 @@ class TorreFronterasController extends Controller
     {
         return TorreCompuertaCambio::query()
             ->where(fn ($q) => $q->where('compuerta', 'like', 'frontera:%')
-                ->orWhereIn('compuerta', ['valvula', 'autopilot_techo']))
+                ->orWhereIn('compuerta', ['valvula', 'autopilot_techo', 'mencion_categorias']))
             ->orderByDesc('id')->limit(40)->get()
             ->map(fn ($c) => [
                 'cuando'    => optional($c->created_at)->toDateTimeString(),
@@ -316,6 +327,51 @@ class TorreFronterasController extends Controller
             'ok'        => true,
             'mensaje'   => $diff === [] ? 'Sin cambios.' : "Techo del autopilot: {$antes} → {$despues}.",
             'autopilot' => app(AutopilotService::class)->simulacionTechos(),
+        ]);
+    }
+
+    /**
+     * POST — item #9990256. Fija QUÉ categorías retienen un item aunque la válvula lo haya sellado
+     * como MENCIÓN (`MencionFrontera::retiene()`). Se manda la lista COMPLETA de las que deben
+     * quedar marcadas (no agrega/quita una por una) — mandar `[]` es la decisión EXPLÍCITA de que
+     * ninguna categoría retiene una mención, distinta de no tocar la perilla nunca (que deja la
+     * columna en NULL y sigue gobernando `config/circuito.php`).
+     */
+    public function mencionCategorias(Request $request): JsonResponse
+    {
+        if ($r = $this->autorizarEscribir($request)) {
+            return $r;
+        }
+
+        $datos = $request->validate([
+            'categorias'   => ['required', 'array'],
+            'categorias.*' => ['string', Rule::in(MencionFrontera::CATEGORIAS)],
+            'confirmado'   => ['required', 'boolean'],
+        ]);
+
+        $antes = $this->config->get()->mencionRetieneCategorias();
+
+        $diff = $this->config->update(
+            ['mencion_retiene_categorias' => array_values(array_unique($datos['categorias']))],
+            auth()->user()
+        );
+
+        $despues = $this->config->get()->mencionRetieneCategorias();
+
+        if ($diff !== []) {
+            TorreCompuertaCambio::registrar(
+                'mencion_categorias',
+                'lista',
+                $antes === [] ? '(ninguna)' : implode(', ', $antes),
+                $despues === [] ? '(ninguna)' : implode(', ', $despues),
+            );
+        }
+
+        return response()->json([
+            'ok'      => true,
+            'mensaje' => $diff === []
+                ? 'Sin cambios.'
+                : 'Categorías que retienen una mención: ' . ($despues === [] ? '(ninguna)' : implode(', ', $despues)) . '.',
         ]);
     }
 }
