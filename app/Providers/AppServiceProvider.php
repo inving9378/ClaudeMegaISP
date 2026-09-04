@@ -113,10 +113,10 @@ class AppServiceProvider extends ServiceProvider
             $data = [
                 'base_uri' => "https://{$domain}.smartolt.com/api/",
                 'headers'  => ['X-Token' => $token],
-                'verify'   => env('VERIFY_SSL', true),
+                'verify'   => config('services.smartolt.verify_ssl'),
             ];
-            if (env('PROXY') !== null) {
-                $data['proxy'] = env('PROXY');
+            if (config('services.smartolt.proxy') !== null) {
+                $data['proxy'] = config('services.smartolt.proxy');
             }
             return new Client($data);
         });

@@ -40,6 +40,8 @@ return [
         'token'         => env('SMARTOLT_TOKEN'),
         'ttl'           => env('SMARTOLT_TTL', 120),
         'hourly_budget' => env('SMARTOLT_HOURLY_BUDGET', 1000),
+        'verify_ssl'    => env('VERIFY_SSL', true),
+        'proxy'         => env('PROXY'),
     ],
 
     'anthropic' => [
