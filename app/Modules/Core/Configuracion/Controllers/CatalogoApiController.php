@@ -60,7 +60,7 @@ class CatalogoApiController extends Controller
             ? now()->addDays($request->expires_in_days)
             : null;
 
-        $token = auth()->user()->createToken(
+        $token = auth()->user()?->createToken(
             $request->name,
             $request->abilities,
             $expiresAt
