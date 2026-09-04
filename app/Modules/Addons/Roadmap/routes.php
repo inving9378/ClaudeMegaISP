@@ -142,6 +142,7 @@ Route::middleware(['web', 'auth'])
         Route::post('/torre/fronteras/termino',           [TorreFronterasController::class, 'termino']);
         Route::post('/torre/fronteras/valvula',           [TorreFronterasController::class, 'valvula']);
         Route::post('/torre/fronteras/techo-autopilot',   [TorreFronterasController::class, 'techoAutopilot']);
+        Route::post('/torre/fronteras/mencion-categorias', [TorreFronterasController::class, 'mencionCategorias']);
         // #766 (Pieza 1c hija de #672) — KPI card del panorama: cuántas veces abrió la válvula,
         // sobre qué items y por qué término, leído de `torre_frontera_dura_eventos` (#764).
         Route::get('/torre/frontera-dura',                [RoadmapController::class, 'torreFronteraDura']);
