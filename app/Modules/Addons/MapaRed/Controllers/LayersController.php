@@ -11,8 +11,7 @@ use App\Modules\Addons\MapaRed\Models\MapaRedLayerRoute;
 use App\Modules\Addons\MapaRed\Models\MapaRedProyect;
 use App\Modules\Addons\MapaRed\Repositories\MapaRedLayerRepository;
 use App\Modules\Addons\MapaRed\Repositories\MapaRedProyectRepository;
-use App\Modules\Addons\MapaRed\Traits\LayerConfig;
-use App\Modules\Addons\MapaRed\Traits\LayerRoutes;
+use App\Modules\Addons\MapaRed\Support\LayerConfig;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -28,7 +27,6 @@ use Illuminate\Support\Facades\DB;
 class LayersController extends Controller
 {
     use LayerConfig;
-    use LayerRoutes;
 
     protected $repository;
     protected $projectsRepository;
