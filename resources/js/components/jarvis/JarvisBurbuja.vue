@@ -14,7 +14,7 @@
                  encendido deja de mirarse a los tres días. -->
             <span v-if="estado !== 'normal'" class="jv-punto" :class="'jv-punto-' + estado">
                 <span v-if="estado === 'pregunta' && preguntas > 0" class="jv-n">{{ preguntas > 99 ? '99+' : preguntas }}</span>
-                <i v-else-if="estado === 'sin_medir'" class="fas fa-heart-crack"></i>
+                <i v-else-if="estado === 'sin_medir'" class="fas fa-heart-broken"></i>
                 <i v-else class="fas fa-exclamation"></i>
             </span>
         </button>

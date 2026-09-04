@@ -21,7 +21,7 @@
                     title="Reordenar módulos del sidebar (drag-and-drop)"
                     @click="reorderModal.show = true"
                 >
-                    <i class="fa fa-arrows-up-down me-1"></i>Reordenar sidebar
+                    <i class="fa fa-arrows-alt-v me-1"></i>Reordenar sidebar
                 </button>
                 <button class="btn btn-sm btn-outline-secondary" @click="reload">
                     <i class="fa fa-sync-alt" :class="{ 'fa-spin': loading }"></i>

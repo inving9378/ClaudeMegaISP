@@ -21,7 +21,7 @@
     <!-- Tabs -->
     <ul class="nav nav-tabs mb-3">
       <li class="nav-item"><a class="nav-link" :class="{active:tab==='produccion'}" href="#" @click.prevent="tab='produccion'"><i class="fa fa-chart-bar me-1"></i>Producción diaria</a></li>
-      <li class="nav-item"><a class="nav-link" :class="{active:tab==='tecnico'}" href="#" @click.prevent="tab='tecnico'"><i class="fa fa-user-hard-hat me-1"></i>Mi panel</a></li>
+      <li class="nav-item"><a class="nav-link" :class="{active:tab==='tecnico'}" href="#" @click.prevent="tab='tecnico'"><i class="fa fa-hard-hat me-1"></i>Mi panel</a></li>
       <li class="nav-item"><a class="nav-link" :class="{active:tab==='calculadora'}" href="#" @click.prevent="tab='calculadora'"><i class="fa fa-calculator me-1"></i>Calculadora de pago</a></li>
       <li class="nav-item"><a class="nav-link" :class="{active:tab==='supervisor'}" href="#" @click.prevent="tab='supervisor'"><i class="fa fa-users me-1"></i>Mi equipo</a></li>
     </ul>

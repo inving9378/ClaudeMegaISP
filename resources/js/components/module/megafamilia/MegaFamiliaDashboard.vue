@@ -96,7 +96,7 @@ export default {
         kpiList() {
             return [
                 { key: 'total_clients', tourId: 'mf-kpi-cuentas',      label: 'Cuentas', value: this.kpis.total_clients ?? 0, sub: `${this.kpis.active_clients ?? 0} activas`, icon: 'fa-users', color: 'text-primary' },
-                { key: 'total_devices', tourId: 'mf-kpi-dispositivos', label: 'Dispositivos', value: this.kpis.total_devices ?? 0, sub: `${this.kpis.online_devices ?? 0} online`, icon: 'fa-mobile-screen', color: 'text-info' },
+                { key: 'total_devices', tourId: 'mf-kpi-dispositivos', label: 'Dispositivos', value: this.kpis.total_devices ?? 0, sub: `${this.kpis.online_devices ?? 0} online`, icon: 'fa-mobile-alt', color: 'text-info' },
                 { key: 'unread_alerts', tourId: 'mf-kpi-alertas',      label: 'Alertas sin leer', value: this.kpis.unread_alerts ?? 0, icon: 'fa-bell', color: 'text-warning' },
                 { key: 'total_plans',   tourId: 'mf-kpi-planes',       label: 'Planes activos', value: this.kpis.total_plans ?? 0, icon: 'fa-layer-group', color: 'text-secondary' },
             ];
