@@ -24,6 +24,9 @@ final class MencionFrontera
     /** Lista por defecto si la config no se puede leer. Es el lado que RETIENE: falla-segura. */
     public const RETIENEN_POR_DEFECTO = ['dinero', 'credenciales'];
 
+    /** Las cuatro categorías de frontera dura que evalúa la válvula (`config('circuito.jarvis.escalamiento')`). */
+    public const CATEGORIAS = ['produccion', 'borrar_datos', 'dinero', 'credenciales'];
+
     /**
      * ¿Una MENCIÓN de esta categoría sigue reteniendo al item?
      *

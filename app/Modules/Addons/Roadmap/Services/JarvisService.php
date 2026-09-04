@@ -487,19 +487,25 @@ class JarvisService
             // una frontera dura se abra sola.
             // La decisión vive en `Support\MencionFrontera` (pura, sin Laravel) para que su candado
             // de regresión pueda correr sin bootear la app ni tocar la base.
+            //
+            // #9990256 — la lista ya no se lee directo de `config/circuito.php`: se resuelve por
+            // `TorreConfig::mencionRetieneCategorias()` (misma fila que la válvula, arriba), que
+            // cae al default de config cuando la columna es NULL — Torre → Configuración manda
+            // sólo cuando Irving mueve la perilla en pantalla.
             try {
-                $retienen = config('circuito.mencion_retiene_categorias');
-                $retienen = is_array($retienen) ? $retienen : null;   // null = no se pudo leer → default
+                $retienen = app(TorreConfigService::class)->get()->mencionRetieneCategorias();
             } catch (\Throwable) {
-                $retienen = null;
+                $retienen = null;   // ni tabla ni config legibles → MencionFrontera::retiene() usa su default, que RETIENE
             }
 
             if (! \App\Modules\Addons\Roadmap\Support\MencionFrontera::retiene($det['categoria'], $retienen)) {
+                $listaMostrada = $retienen ?? \App\Modules\Addons\Roadmap\Support\MencionFrontera::RETIENEN_POR_DEFECTO;
+
                 return array_merge($base, [
                     'categoria' => null,
                     'ablandada' => true,
                     'motivo'    => "La válvula lo selló como MENCIÓN y «{$det['categoria']}» no está entre las "
-                                 . 'categorías que retienen una mención (' . implode(', ', $retienen) . '): '
+                                 . 'categorías que retienen una mención (' . implode(', ', $listaMostrada) . '): '
                                  . 'el item sigue su curso. Una ACCIÓN real sobre esa frontera sí lo retendría.',
                 ]);
             }
