@@ -1368,6 +1368,18 @@ originales de #218 siguen clasificadas igual que documentó #733 (sin regresione
 (la carrera del generador entre cierre del padre y lectura de `preguntas[]`) queda anotada como
 deuda de bajo costo si se repite una tercera vez — no se toca en este item.
 
+## Item #753 — Seguimiento de la pregunta sin resolver de #741 (RESUELTO — tercera repetición; generador CORREGIDO)
+
+Tercera vuelta de la misma carrera (#218→#733→#741→#753), sobre la pregunta textualmente idéntica.
+Reverificado contra la BD de dev (2026-08-29): las 17 entradas originales de #218 siguen
+clasificadas igual (sin regresiones); `POWER` sigue `NULL` a propósito. A diferencia de #733/#741,
+aquí SÍ se tocó código: `JarvisService::cadenaSeguimientoRepetida()` (nuevo) camina la cadena
+`origen_item_id` y, si la misma pregunta textual ya generó 3+ seguimientos en cadena, el hook
+`RoadmapItem::saving()` (`#1008`) deja de crear un hijo más — solo anota
+`seguimiento_omitido_cadena_repetida` en el log del item que se cierra. Además #753 se cerró con
+`preguntas[0].opcion_elegida` fijado a la respuesta real, así que aunque el guard fallara la
+pregunta ya no cuenta como "sin resolver". Detalle completo en
+`docs/inventario-seguimiento-741-item-753-verificacion.md`.
 ## Item #738 — Deriva de esquema #216 Fase 1 — bucle reap sobre paraguas nunca aparcado (RESUELTO — se completa el cierre-intento faltante)
 
 Una sesión previa ya había hecho lo correcto: al recibir `circuito:cabida` = NO CABE, descompuso

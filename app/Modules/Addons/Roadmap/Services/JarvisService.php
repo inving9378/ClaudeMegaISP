@@ -1463,6 +1463,57 @@ class JarvisService
     }
 
     /**
+     * #753 — corta la cadena de seguimientos idénticos (#218→#733→#741→#753…). El generador de
+     * abajo lee `preguntas[]` del padre en el mismo `saving()` en que se cierra: si quien cerró el
+     * padre respondió la pregunta en prosa (`reporte_coloquial`) pero no reflejó esa respuesta en
+     * `preguntas[].opcion_elegida`, se genera un hijo idéntico ya-respondido. Eso se repitió 3 veces
+     * seguidas sobre la MISMA pregunta textual — el propio `docs/inventario-seguimiento-733-item-741-verificacion.md`
+     * anotó que a la tercera repetición valía la pena frenar el mecanismo en vez de seguir generando
+     * hijos. Camina la cadena `origen_item_id` contando cuántos ancestros ya cargan la misma
+     * pregunta (texto exacto, trim); a partir de `$max` generaciones, deja de crear hijos nuevos
+     * (el ítem que se está cerrando ya trae la respuesta real — ver su `reporte_coloquial` — así que
+     * no hay nada nuevo que perder).
+     */
+    public function cadenaSeguimientoRepetida(RoadmapItem $item, array $pregunta, int $max = 3): bool
+    {
+        $texto = trim((string) ($pregunta['pregunta'] ?? ''));
+        if ($texto === '') {
+            return false;
+        }
+
+        $actual      = $item;
+        $generaciones = 0;
+        $visitados    = [];
+
+        while ($actual && $actual->origen_item_id && ! in_array($actual->id, $visitados, true)) {
+            $visitados[] = $actual->id;
+
+            $padre = RoadmapItem::find($actual->origen_item_id);
+            if (! $padre) {
+                break;
+            }
+
+            $preguntasPadre = is_array($padre->preguntas) ? $padre->preguntas : [];
+            $coincide       = collect($preguntasPadre)->contains(
+                fn ($p) => is_array($p) && trim((string) ($p['pregunta'] ?? '')) === $texto
+            );
+
+            if (! $coincide) {
+                break;
+            }
+
+            $generaciones++;
+            if ($generaciones >= $max) {
+                return true;
+            }
+
+            $actual = $padre;
+        }
+
+        return false;
+    }
+
+    /**
      * #1008 — crea el sub-item de seguimiento (mismo mecanismo que `circuito:sub-item` /
      * `RoadmapIntakeService::crear`, sin pasar por ahí porque ya estamos dentro del `saving()` del
      * padre) para que la(s) pregunta(s) sin resolver no queden enterradas. Nace DIRECTO en la

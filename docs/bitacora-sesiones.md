@@ -3298,6 +3298,25 @@ cerrará solo cuando el último de los 3 hijos cierre. Decisión registrada tamb
 `circuito:reportar 216 --tipo=decision` (reporte #2247). Sin cambio de código de aplicación — los 3
 sub-items quedan disponibles para que el pool los reclame normalmente.
 
+## 2026-08-28 22:41 — wt-5: #753 cierra la cadena de seguimientos repetidos (Inventario)
+
+**wt-5.** #753 ("Seguimiento: pregunta sin resolver de #741") era la 3ra repetición consecutiva de
+la misma pregunta heredada de #218 (clasificación herramienta/material/equipo_cliente en
+Inventario), vía la carrera del generador de seguimientos ya documentada en #733/#741
+(`docs/inventario-seguimiento-733-item-741-verificacion.md`, que anotaba: "si se repite una
+tercera vez vale la pena frenar el mecanismo"). Reverifiqué la BD: las 17 entradas originales de
+#218 siguen clasificadas igual (ONT/MODEM/TELEFONOS DE CASA/ELIMINADOR=`equipo_cliente`, el resto
+`material`, POWER sigue `NULL` a propósito) — nada nuevo que decidir sobre inventario.
+
+A diferencia de los dos cierres anteriores (que solo documentaron el hallazgo), esta vez corregí
+la causa raíz: `JarvisService::cadenaSeguimientoRepetida()` (nuevo) camina la cadena
+`origen_item_id` del item que se cierra y, si la misma pregunta textual ya generó 3+ generaciones
+de seguimiento, el hook `RoadmapItem::saving()` (`#1008`) deja de crear un hijo más — solo anota
+`seguimiento_omitido_cadena_repetida` en el log, auditable sin ensuciar la bandeja. #753 se cerró
+con `preguntas[0].opcion_elegida` fijado a la respuesta real (defensa en profundidad, por si el
+guard fallara). Detalle en `docs/inventario-seguimiento-741-item-753-verificacion.md`. Commit
+`a7b3bf44` en la rama `circuito/item-753-...`, integrado vía `circuito:integrar` (nivel C, queda
+`aprobado_irving`+`esperando_merge_irving=true` a la espera del runner de merge on-box).
 ## 2026-08-31 17:57 — Item #830 (Fase 1a-ii parte 2/2, ciclo fix-drift 555 migraciones): reconfirmado como paraguas ya descompuesto, sin código nuevo
 
 **wt-1.** #830 volvió a `en_progreso` reclamado para mí (había pasado por dos ciclos de
