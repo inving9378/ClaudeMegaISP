@@ -419,6 +419,13 @@ class TorreAutomationPolicy
                 'cooldown_min'      => $cfg->auditor_cooldown_min,
                 'slots_libres_min'  => $cfg->auditor_slots_libres_min,
             ],
+            // #9990005 — misma forma que el sub-techo del autopilot: valor RESUELTO (columna si
+            // Irving la fijó, si no el default de config) + de dónde salió, para que la pantalla
+            // lo pinte sin tener que repetir la lógica de resolución.
+            'paralelo_mismo_modulo' => [
+                'valor'  => $cfg->paraleloMismoModulo(),
+                'fuente' => $cfg->paraleloMismoModuloFuente(),
+            ],
         ];
     }
 }
