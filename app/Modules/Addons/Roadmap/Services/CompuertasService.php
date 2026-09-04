@@ -587,7 +587,13 @@ class CompuertasService
     {
         try {
             $conteo = [];
-            foreach (RoadmapItem::query()->whereNull('archivado_at')->get(['id', 'status', 'estado_aprobacion', 'branch', 'archivado_at']) as $i) {
+            // #196 — el accessor `estacion` también lee nivel_riesgo/opcion_elegida/
+            // en_desarrollo_humano/esperando_merge_irving/origen_bloqueo/title (vía
+            // tieneFrenoHumano()); un select() más corto que ese hace que Eloquent los
+            // resuelva como null y la rama de nivel A/B nunca se cumpla, en silencio.
+            // Se reusa la misma constante que ya evita este defecto en RoadmapController
+            // (COLUMNAS_ACTIVIDAD/COLUMNAS_LISTADO) y en RoadmapCircuitoService::compact().
+            foreach (RoadmapItem::query()->whereNull('archivado_at')->get(RoadmapItem::COLUMNAS_COMPACT) as $i) {
                 $e = $i->estacion;
                 $conteo[$e] = ($conteo[$e] ?? 0) + 1;
             }
