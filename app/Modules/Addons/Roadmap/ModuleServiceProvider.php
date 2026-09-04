@@ -125,6 +125,9 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 // #988 — motor de detección de una vuelta: php -l + boot + tests del módulo +
                 // dry-run de migraciones. Solo detecta y reporta, no revierte ni escala.
                 \App\Modules\Addons\Roadmap\Console\VerificarVueltaCommand::class,
+                // #9990346 — detector READ-ONLY de items completados sin mergear cuyo trabajo fue
+                // re-implementado desde cero por otro item. Solo informa; la confirmación es humana.
+                \App\Modules\Addons\Roadmap\Console\DetectarReimplementadosCommand::class,
             ]);
         }
     }
