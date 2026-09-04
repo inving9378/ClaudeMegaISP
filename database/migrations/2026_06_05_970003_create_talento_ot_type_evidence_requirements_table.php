@@ -8,6 +8,13 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // talento_work_order_types vive en el módulo Talento (app/Modules/Addons/Talento/migrations),
+        // no en database/migrations: en la reconstrucción aislada de schema:rebuild-dryrun esa
+        // migración no corre, así que la tabla puede no existir todavía. En dev/prod reales sí existe.
+        if (!Schema::hasTable('talento_work_order_types')) {
+            return;
+        }
+
         Schema::create('talento_ot_type_evidence_requirements', function (Blueprint $table) {
             $table->id();
             $table->foreignId('ot_type_id')
