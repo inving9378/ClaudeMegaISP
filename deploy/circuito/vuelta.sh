@@ -24,6 +24,12 @@ LOGDIR="$RUNTIME/logs"
 ITEM="${CIRCUITO_ITEM:-}"
 WT="${CIRCUITO_WT:-$RUNTIME/wt-exec}"
 SID="${CIRCUITO_SID:-wt-exec}"           # id de sesión para el estado live por-sesión (#334)
+# #211 — MODO DIRIGIDO DE UNA SOLA VUELTA. El pool continuo (más abajo) es diseño deliberado:
+# mantiene el slot lleno pidiendo el siguiente item apenas termina el actual. Pero no había forma
+# de pedirle "solo ESTE item y para" — cualquier verificación supervisada de un item concreto se
+# llevaba trabajo ajeno detrás. CIRCUITO_ONCE=1 corta el `while` después de $ITEM sin tocar el
+# comportamiento por defecto (ONCE=0 = idéntico a como era siempre).
+ONCE="${CIRCUITO_ONCE:-0}"
 LOCK="$RUNTIME/${SID}.lock"              # lock POR worktree → N vueltas en paralelo (una por slot)
 # #170 — CENTINELA DEL FRENO DE MANO. Ruta ABSOLUTA: este script hace `cd` al worktree del slot,
 # y cada worktree tiene su propio storage/ real — una ruta relativa daría un freno por terminal.
@@ -44,7 +50,16 @@ fi
 
 PROMPT_FILE="$PROJ/deploy/circuito/prompt.txt"
 PROMPT_ITEM_FILE="$PROJ/deploy/circuito/prompt-item.txt"
-TIMEOUT="${CIRCUITO_TIMEOUT:-600}"      # segundos por vuelta (10 min)
+# #9990302 — GUARD DE VIDA MÁXIMA POR-TIPO DE BRIEF (decisión de Irving en #9990295, q2 opción 2).
+# El scheduler (SchedulerCommand::lanzarVueltaItem) ya resuelve este valor por nivel_riesgo del
+# item (A=600s/B=1200s/C=2700s, config('circuito.vida_maxima')) y lo manda por env; el default de
+# aquí solo cubre invocaciones manuales/legacy sin scheduler (modo backlog, CIRCUITO_ITEM vacío).
+TIMEOUT="${CIRCUITO_TIMEOUT:-600}"      # segundos por vuelta (10 min por default)
+# Cortesía de SIGTERM→SIGKILL: si el proceso ignora el SIGTERM del timeout, `-k` manda un SIGKILL
+# de respaldo tras este margen (antes no había respaldo — un proceso sordo a la señal quedaba vivo
+# indefinidamente). Ver más abajo: RC=137 (necesitó el SIGKILL) es la señal que dispara la
+# escalación SIEMPRE-a-la-bandeja de q3, distinta del RC=124 normal (SIGTERM bastó).
+GRACE="${CIRCUITO_VIDA_MAXIMA_GRACE:-30}"
 MAXTURNS="${CIRCUITO_MAXTURNS:-60}"
 # MODEL se resuelve MÁS ABAJO desde `circuito:flags` (settings circuito_modelo_rutina/forzar, #336).
 # CIRCUITO_MODEL sigue siendo el override manual de más prioridad (pruebas ad-hoc sin tocar settings).
@@ -120,10 +135,42 @@ registrar_pid(){  # $1 = item (puede venir vacío)
 
 borrar_pid(){ rm -f "$PIDFILE" 2>/dev/null || true; }
 
+# ── HISTÓRICO DE ARRANQUES DE claude -p (familia GASTO, #706 sub-item de #208) ──────────────
+# APPEND-ONLY, a propósito distinto de $PIDFILE de arriba: ese es estado VIVO (una fila por SID,
+# se borra al terminar por el trap EXIT); esto es HISTORIA (una línea por arranque, nunca se
+# borra ni se trunca aquí) — es lo único que le permite a la vigilia contar "invocaciones/hora"
+# más allá de la vuelta que está corriendo ahora mismo. JSONL para que el lector en PHP no tenga
+# que parsear texto libre.
+JARVIS_ARRANQUES="${CIRCUITO_JARVIS_ARRANQUES_LOG:-$(dirname "$JARVIS_PIDS")/arranques-claude.log}"
+registrar_arranque(){  # $1 = item (puede venir vacío)
+  mkdir -p "$(dirname "$JARVIS_ARRANQUES")" 2>/dev/null || return 0
+  printf '{"ts":%s,"sid":"%s","item":"%s","modelo":"%s"}\n' \
+    "$(date +%s)" "$SID" "${1:-}" "${MODEL:-}" >> "$JARVIS_ARRANQUES" 2>/dev/null || true
+}
+
 # El trap cubre timeout, kill y error: si la vuelta muere de cualquier forma, el registro no queda
 # mintiendo. Y si aun así quedara colgado, el propio vigilante lo detecta por `starttime` y lo
 # reporta como entrada colgada en vez de creerle.
-trap borrar_pid EXIT
+
+# #927 — RED DE ÚLTIMO RECURSO. El bloque de fin anormal de `ejecutar_una` cubre a `claude -p`
+# cuando devuelve, pero NO cubre que muera el script entero (SIGKILL del padre, OOM, kill switch a
+# media vuelta): ahí el item se queda `en_progreso` con el worker_sid pegado y nadie lo suelta.
+# Este trap sólo actúa si el item SIGUE reclamado por ESTE sid — si la vuelta cerró bien, o si ya
+# lo parqueó el bloque de arriba, no hace nada. Best-effort: nunca cambia el código de salida.
+soltar_claim_huerfano(){
+  [ -z "${ITEM:-}" ] && return 0
+  # #927b — DESDE EL CHECKOUT PRINCIPAL, no desde el worktree. `vuelta.sh` viene de `main` (lo
+  # invoca el scheduler con `base_path()`), pero hace `cd "$WT"`, así que `php artisan` resolvía
+  # contra la app del WORKTREE — que va al commit con el que se provisionó y puede ir atrasada.
+  # Falla real medida el 2026-09-04 06:01: «Command "circuito:soltar-claim" is not defined», el
+  # claim de #923 no se soltó y 9 min después el reaper lo escaló a la bandeja. El `|| true` lo
+  # hizo fallar en SILENCIO, que es justo lo que un último recurso no debe hacer.
+  # Esto es infraestructura del circuito, no trabajo del item: va contra la app canónica.
+  (cd "$PROJ" && php artisan circuito:soltar-claim "$ITEM" --sid="$SID") >>"$LOG" 2>&1 \
+    || log "aviso: no se pudo soltar el claim de #$ITEM (sid=$SID)."
+}
+limpiar_al_salir(){ borrar_pid; soltar_claim_huerfano; }
+trap limpiar_al_salir EXIT
 
 # Registra la fila de ejecución (#319). Nunca tumba la vuelta si falla.
 registrar(){  # started finished modo pausado rc meta modelo
@@ -177,6 +224,26 @@ log "Ejecutor aislado en worktree $WT (sid=$SID)."
 # Ejecuta UNA vuelta para el $ITEM (o backlog) actual: sincroniza el worktree a main limpio,
 # arma el prompt, corre claude -p con latido en vivo y registra la ejecución.
 ejecutar_una() {
+  # #213 — RESCATE DE BITÁCORA. Si la vuelta anterior dejó el worktree en HEAD DESATADO con
+  # commits que main todavía no tiene (p.ej. commiteó un reporte de descomposición sin crear
+  # rama — el protocolo "NO CABE" pide explícitamente NO crear rama), el `checkout --detach -f
+  # main` de abajo los abandona sin ninguna referencia y el garbage collector se los come en
+  # silencio; el único rastro queda enterrado en un log que nadie lee (medido en #213, incidente
+  # real con #191: commit 1983a888 perdido a los 32s). Antes de saltar a main: si HEAD está
+  # desatado y trae commits que main no tiene, los rescato en una rama dedicada — así nunca se
+  # pierde nada, sea cual sea la razón por la que quedaron ahí (no solo la bitácora).
+  if ! git -C "$WT" symbolic-ref -q HEAD >/dev/null 2>&1; then
+    STRAY_SHA="$(git -C "$WT" rev-parse HEAD 2>/dev/null || true)"
+    if [ -n "$STRAY_SHA" ] && ! git -C "$WT" merge-base --is-ancestor "$STRAY_SHA" main 2>/dev/null; then
+      RESCUE_BRANCH="circuito/bitacora-rescate-$(date +%Y%m%d-%H%M%S)-${SID}"
+      if git -C "$WT" branch "$RESCUE_BRANCH" "$STRAY_SHA" >>"$LOG" 2>&1; then
+        log "RESCATE #213: HEAD desatado traía commits sin rama ($STRAY_SHA) — salvados en $RESCUE_BRANCH antes de saltar a main."
+      else
+        log "aviso: no pude rescatar el HEAD desatado ($STRAY_SHA) en una rama — revisar a mano."
+      fi
+    fi
+  fi
+
   # Cada item arranca de MAIN fresco (con lo ya mergeado por los otros workers). `checkout
   # --detach -f main` NO checa la rama main (vive en $PROJ) → git lo permite en el worktree.
   git -C "$WT" checkout --detach -f main >>"$LOG" 2>&1 || log "aviso: no pude sincronizar $WT a main."
@@ -198,6 +265,7 @@ ejecutar_una() {
     PROMPT_TEXT="$(cat "$PROMPT_FILE")"
   fi
   registrar_pid "${ITEM:-}"
+  registrar_arranque "${ITEM:-}"
   log "===== inicio de la vuelta (claude -p) ====="
 
   local START FIN RC HB_PID META
@@ -206,7 +274,7 @@ ejecutar_una() {
   php artisan circuito:vivo --watch --sid="$SID" --log="$LOG" >/dev/null 2>&1 &
   HB_PID=$!
 
-  timeout "$TIMEOUT" claude -p "$PROMPT_TEXT" \
+  timeout -k "$GRACE" "$TIMEOUT" claude -p "$PROMPT_TEXT" \
     --model "$MODEL" \
     --allowed-tools $TOOLS \
     --max-turns "$MAXTURNS" \
@@ -218,7 +286,8 @@ ejecutar_una() {
   php artisan circuito:vivo --end --sid="$SID" >>"$LOG" 2>&1 || log "aviso: no se pudo marcar fin live."
 
   log "===== fin de la vuelta ====="
-  if [ "$RC" -eq 124 ]; then log "Vuelta cortada por timeout (${TIMEOUT}s)."
+  if [ "$RC" -eq 137 ]; then log "Vuelta forzada con SIGKILL (guard de vida máxima: ignoró SIGTERM a los ${TIMEOUT}s, ${GRACE}s de cortesía)."
+  elif [ "$RC" -eq 124 ]; then log "Vuelta cortada por timeout (${TIMEOUT}s)."
   elif [ "$RC" -ne 0 ]; then log "claude terminó con código $RC."
   else log "Vuelta OK."; fi
 
@@ -234,9 +303,29 @@ ejecutar_una() {
   # Bonus que se conserva: su META quedó en blanco (no emitió CIRCUITO_META), así que el grep de
   # arriba arrastraría el META del item ANTERIOR del pool-continuo (mal-atribución real:
   # #224→#203); en timeout forzamos la atribución al item verdadero ($ITEM).
-  if [ "$RC" -eq 124 ] && [ -n "${ITEM:-}" ]; then
-    META="{\"items_tocados\":[$ITEM],\"n_propuestas\":0,\"n_decisiones\":0,\"ejecuto\":false,\"resumen\":\"Timeout ${TIMEOUT}s — ver circuito:parquear-timeout (reanudado si la rama tiene commits; a la bandeja si no).\"}"
-    php artisan circuito:parquear-timeout "$ITEM" --segundos="$TIMEOUT" >>"$LOG" 2>&1 || log "aviso: no pude parquear #$ITEM tras timeout."
+  # #927 — CIERRE POR RESULTADO, NO POR CAUSA. Antes esta rama sólo corría con RC=124 (timeout),
+  # así que una vuelta muerta por `Reached max turns` (RC=1) se iba de largo: el item se quedaba
+  # `en_progreso` con el worker_sid pegado, el worker seguía al siguiente item, y minutos después
+  # el reaper lo veía como «reclamo huérfano» — causa equivocada en el log y un slot comido.
+  # Medido el 2026-09-03: 4 claims huérfanos en un día (#842, #875, #871 x2, este último con
+  # reap_count=9 rebotando entre el reaper y jarvis-ya-decidido).
+  # La regla ahora es: la vuelta terminó MAL (RC != 0), sea cual sea el motivo → decide y suelta.
+  # Quien decide sigue siendo `circuito:parquear-timeout` (PHP, testeable); aquí sólo se le dice
+  # la causa real para que el motivo del log no mienta.
+  if [ "$RC" -ne 0 ] && [ -n "${ITEM:-}" ]; then
+    # #9990302 — RC=137 (necesitó el SIGKILL de respaldo, no solo SIGTERM) es la causa dedicada
+    # `sigkill`: `circuito:parquear-timeout` la trata distinto (SIEMPRE escala, nunca reanuda solo
+    # — decisión q3 de Irving), a diferencia de un RC=124 normal (SIGTERM bastó), que sigue la
+    # reanudación-si-avanzó de siempre.
+    if [ "$RC" -eq 137 ]; then CAUSA="sigkill"; DESC="Guard de vida máxima: SIGKILL de respaldo (${TIMEOUT}s + ${GRACE}s de cortesía)"
+    elif [ "$RC" -eq 124 ]; then CAUSA="timeout"; DESC="Timeout ${TIMEOUT}s"
+    elif grep -aq 'Reached max turns' "$LOG"; then CAUSA="max_turns"; DESC="Agotó sus turnos (max-turns)"
+    else CAUSA="error"; DESC="Terminó con código $RC"; fi
+    META="{\"items_tocados\":[$ITEM],\"n_propuestas\":0,\"n_decisiones\":0,\"ejecuto\":false,\"resumen\":\"${DESC} — ver circuito:parquear-timeout (reanudado si la rama tiene commits; a la bandeja si no).\"}"
+    # #927b — también desde el checkout principal, por el mismo desfase de versión: hoy este
+    # comando SÍ existe en los worktrees, pero depende de con qué commit se provisionaron.
+    (cd "$PROJ" && php artisan circuito:parquear-timeout "$ITEM" --segundos="$TIMEOUT" --causa="$CAUSA") >>"$LOG" 2>&1 \
+      || log "aviso: no pude parquear #$ITEM tras fin anormal (causa=$CAUSA)."
   fi
 
   registrar "$START" "$FIN" "${MODO:-aviso_previo}" "0" "$RC" "$META" "$MODEL"
@@ -312,6 +401,13 @@ if [ -n "$ITEM" ]; then
     ELAPSED=$(( $(date +%s) - PARENT_START ))
     if [ "$ELAPSED" -ge "$PARENT_TIMEOUT" ]; then
       log "TOPE DE TIEMPO DEL PADRE alcanzado durante la vuelta (${PARENT_TIMEOUT}s): $SID no reclama el siguiente."
+      break
+    fi
+
+    # #211 — modo dirigido de una sola vuelta: no pide el siguiente item, suelta el slot tal cual.
+    if [ "$ONCE" = "1" ]; then
+      log "modo ONCE (CIRCUITO_ONCE=1): $SID no pide el siguiente item. Corrí solo lo que se pidió; suelto el slot."
+      php artisan circuito:vivo --end --sid="$SID" >>"$LOG" 2>&1 || true
       break
     fi
 

@@ -71,6 +71,7 @@
                         >
                             {{ add }}
                         </a>
+                        <slot name="header-extra"></slot>
                     </div>
                     <div class="row">
                         <div class="col d-flex justify-content-end">
@@ -366,7 +367,7 @@
 </template>
 
 <script setup>
-import { ref, watch, reactive, onMounted, computed } from "vue";
+import { ref, watch, reactive, onMounted, computed, onUnmounted, getCurrentInstance } from "vue";
 import { debounce } from "lodash";
 import { initHelperFormField } from "../../../helpers/module/setting_additional_field/helper";
 import {
@@ -388,6 +389,11 @@ import Swal from "sweetalert2";
 import { darkMode, rowStatusStyle, setRowStatusStyle } from "../../../hook/appConfig";
 import { useDataTable } from "../../../composables/useDataTable";
 import { cloneDeep } from "lodash";
+
+const ns = `.leak983-crmDatatable-${getCurrentInstance().uid}`;
+onUnmounted(() => {
+    $(document).off(ns);
+});
 
 defineOptions({
     name: "Datatable",
@@ -573,7 +579,7 @@ onMounted(async () => {
     columns.value = await requestColumnsDatatableByModule(props.model);
     await getColumnsTable();
     await getRowsByModule(columns.value, filters.value);
-    $(document).on("click", `#${props.idTable} .fa-trash`, function (e) {
+    $(document).on("click" + ns, `#${props.idTable} .fa-trash`, function (e) {
         Swal.fire({
             title: "Esta seguro que desea eliminar?",
             text: "No podrás deshacer esta acción.",

@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Roadmap\Console;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Addons\Roadmap\Services\Descomposicion\DependenciaGate;
 use App\Modules\Addons\Roadmap\Services\RoadmapIntakeService;
 use Illuminate\Console\Command;
 
@@ -23,11 +24,12 @@ class SubItemCommand extends Command
         {padre : ID del item del que cuelga}
         {--sid= : tu slot de terminal (wt-K)}
         {--titulo= : título del sub-item}
-        {--spec= : qué hay que hacer, con el detalle que ya conoces}';
+        {--spec= : qué hay que hacer, con el detalle que ya conoces}
+        {--depende-de= : posiciones (CSV) de hermanos de los que depende esta sección}';
 
     protected $description = 'Crea un sub-item de seguimiento colgando de un item (nace pendiente_revision).';
 
-    public function handle(RoadmapIntakeService $intake): int
+    public function handle(RoadmapIntakeService $intake, DependenciaGate $gate): int
     {
         $padre = RoadmapItem::find($this->argument('padre'));
         if (! $padre) {
@@ -45,6 +47,60 @@ class SubItemCommand extends Command
 
         $autor = trim((string) $this->option('sid')) ?: (string) ($padre->worker_sid ?: 'terminal');
 
+        // #9990266 — posición propia del nuevo sub-item: siguiente a la más alta entre sus
+        // hermanos actuales, sin arrastrar el 0 legacy (default de columna) hacia negativos.
+        $maxPosicionHermanos = RoadmapItem::where('origen_item_id', $padre->id)->max('position');
+        $position = max((int) $maxPosicionHermanos, 0) + 1;
+
+        // Parseo de --depende-de: CSV de posiciones de hermanos. La detección de ciclos corre
+        // más abajo, contra el grafo completo de hermanos (ver DependenciaGate::tieneCiclo()).
+        $posiciones = [];
+        $rawDependeDe = trim((string) $this->option('depende-de'));
+        if ($rawDependeDe !== '') {
+            $posiciones = array_values(array_filter(array_map('intval', explode(',', $rawDependeDe))));
+        }
+
+        if ($posiciones !== []) {
+            $existentes = RoadmapItem::where('origen_item_id', $padre->id)
+                ->whereIn('position', $posiciones)
+                ->count();
+
+            if ($existentes !== count($posiciones)) {
+                $encontradas = RoadmapItem::where('origen_item_id', $padre->id)
+                    ->whereIn('position', $posiciones)
+                    ->pluck('position')
+                    ->all();
+                $faltantes = array_diff($posiciones, $encontradas);
+                $this->error(
+                    "Posición(es) inexistente(s) entre los hermanos de #{$padre->id}: ".
+                    implode(', ', $faltantes)
+                );
+
+                return self::FAILURE;
+            }
+        }
+
+        // #9990278 — grafo de dependencia de TODOS los hermanos + la arista nueva, antes de crear
+        // el sub-item: si la nueva posición cerraría un ciclo, no se crea nada.
+        if ($posiciones !== []) {
+            $edges = [];
+            RoadmapItem::where('origen_item_id', $padre->id)
+                ->get()
+                ->each(function (RoadmapItem $hermano) use (&$edges, $gate) {
+                    $edges[(int) $hermano->position] = $gate->dependeDeDe($hermano);
+                });
+            $edges[$position] = $posiciones;
+
+            if ($gate->tieneCiclo($position, $edges)) {
+                $camino = implode(' -> ', $gate->caminoCiclo($position, $edges));
+                $this->error(
+                    "La posición {$position} dependería circularmente: {$camino}"
+                );
+
+                return self::FAILURE;
+            }
+        }
+
         try {
             $sub = $intake->crear([
                 'title'          => $titulo,
@@ -56,6 +112,10 @@ class SubItemCommand extends Command
 
             return self::FAILURE;
         }
+
+        $sub->position = $position;
+        $sub->subtasks = ['descomposicion' => ['depende_de' => $posiciones]];
+        $sub->save();
 
         $this->info("Sub-item #{$sub->id} creado bajo #{$padre->id} (módulo «{$sub->modulo}», pendiente_revision).");
 

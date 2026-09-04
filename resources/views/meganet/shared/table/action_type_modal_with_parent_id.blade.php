@@ -3,11 +3,11 @@
         @php
             $viewPermission = 'inventory_' . $group . '_view_' . $submodule;
         @endphp
-        @can($viewPermission)
+        @if(auth()->user() && auth()->user()->can($viewPermission))
             <a class="mr-2" href="/{{ $parent_route }}/{{ $parent_id }}/{{ $submodule }}" data-toggle="tooltip" data-placement="top" title="Ver">
                 <i class="fas fa-eye"></i>
             </a>
-        @endcan
+        @endif
     @elseif(isset($href))
         <a class="mr-2" href="{{ $href }}" data-toggle="tooltip" data-placement="top" title="Ver">
             <i class="fas fa-eye"></i>

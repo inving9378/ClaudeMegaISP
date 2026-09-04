@@ -103,6 +103,11 @@ import { darkMode } from "../../../hook/appConfig";
 import Statistics from "./statistics/Statistics.vue";
 import PromotionsComponent from "./PromotionsComponent.vue";
 
+const ns = `.leak983-clientCrud-${getCurrentInstance().uid}`;
+onUnmounted(() => {
+    $(document).off(ns);
+});
+
 defineOptions({ name: "ClientCrud" });
 
 const props = defineProps({
@@ -197,7 +202,7 @@ const allTabs = {
 
 onMounted(() => {
     setInitialTab();
-    $(document).on("click", ".uil-pen-modal", function () {
+    $(document).on("click" + ns, ".uil-pen-modal", function () {
         let idItem = $(this).parent().attr("id-item");
         let modal = $(this).parent().attr("toggle-modal");
         showEditModal(idItem, modal);

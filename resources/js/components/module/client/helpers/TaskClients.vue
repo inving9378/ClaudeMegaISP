@@ -85,7 +85,7 @@ export default {
         };
 
         const closeModal = () => {
-            $("#crudTask").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudTask'))?.hide();
         };
 
         const updateThisField = ({ field, value }) => {

@@ -47,6 +47,7 @@ class RoadmapItem extends Model
     protected $fillable = [
         'title', 'description', 'status', 'priority',
         'target_version', 'prompt', 'position',
+        'depende_de',   // MR-36 (#9990332): ids que deben estar cerrados antes de reclamar éste
         'started_at', 'completed_at',
         'subtasks', 'log',
         // Circuito de mejora continua (Parte 1.1)
@@ -100,6 +101,9 @@ class RoadmapItem extends Model
         'trabajo_iniciado_at', 'eta_segundos', 'eta_metodo',
         // #559 — huella del Motor de Auditoría Continua (dedup contra abiertos Y cerrados)
         'auditor_fingerprint',
+        // #744 — mecanismo de reconstrucción de items P0 no-mergeados: id original referenciado
+        // (SIN FK, ver migración) por el item nuevo que lo reconstruye.
+        'reabre_item_id',
     ];
 
     protected $casts = [
@@ -120,6 +124,7 @@ class RoadmapItem extends Model
         'huecos_spec'  => 'array',
         'huecos_medidos_at' => 'datetime',
         'marcado_version' => 'boolean',
+        'depende_de'      => 'array',
         'urgente'      => 'boolean',
         'urgente_at'   => 'datetime',
         'en_desarrollo_humano' => 'boolean',
@@ -214,6 +219,33 @@ class RoadmapItem extends Model
 
     protected static function booted(): void
     {
+        // #9990206 — GUARD CONTRA IDs EXPLÍCITOS. Una sola inserción con `id` puesto a mano
+        // (p.ej. `id=999999` para probar un comando) despega el AUTO_INCREMENT de InnoDB para
+        // SIEMPRE: MySQL nunca lo baja por debajo de `max(id)+1`, ni borrando la fila después.
+        // Así nació el salto de 990 a 1.000.000 (y luego a 9.990.000) que motivó este item.
+        //
+        // Excepción: la suite de tests siembra ids fijos a propósito (p.ej.
+        // `DiagnosticoItemServiceTest`) sobre una base descartable (`migrate:fresh` por test) —
+        // ahí un id explícito es legítimo y no toca la base compartida de dev.
+        static::creating(function (self $item) {
+            $idExplicito = $item->getAttribute($item->getKeyName());
+            if ($idExplicito === null || app()->runningUnitTests()) {
+                return;
+            }
+
+            throw new \RuntimeException(
+                "roadmap_items: no se puede insertar con id explícito (id={$idExplicito}). "
+                . 'Borrar la fila después NO repara el AUTO_INCREMENT: MySQL nunca lo baja por '
+                . 'debajo de max(id)+1, así que una sola inserción con id fijo salta el contador '
+                . 'para siempre (así nació el salto de miles a millones documentado en el item '
+                . '#9990206). Para crear un item de prueba real, usa '
+                . '\App\Modules\Addons\Roadmap\Services\RoadmapIntakeService::crear() (el punto '
+                . 'único de alta) y bórralo al terminar: el contador solo avanza de uno en uno, '
+                . 'que es inofensivo. Si hace falta aislamiento total, envuélvelo en una '
+                . 'transacción con rollback.'
+            );
+        });
+
         // #456: guardia simétrica al #420 — causa raíz de la bandeja pendiente_revision llenándose de
         // items done/in_progress. Las acciones MANUALES del Kanban legado (RoadmapController::start/
         // complete/cancel, disparadas por el toggle de estado en RoadmapTab.vue) solo mutan `status` y
@@ -308,6 +340,12 @@ class RoadmapItem extends Model
                 $item->estado_aprobacion       = 'aprobado_irving';
                 $item->status                  = 'pending';
                 $item->excluir_pool_automatico = true;
+                // #898 — sin esto el `worker_sid`/`claimed_at` de la sesión que disparó el intento
+                // de cierre se queda pegado: `status` ya no es 'done' aquí, así que
+                // `reclamosHuerfanosPorSid()` (solo mira status='done') nunca lo ve y el botón
+                // "Liberar reclamo" de la Torre no lo alcanza. Se libera aquí mismo, al parquear.
+                $item->worker_sid              = null;
+                $item->claimed_at              = null;
 
                 $log = $item->log ?: [];
                 $log[] = [
@@ -397,6 +435,10 @@ class RoadmapItem extends Model
                     $item->status                  = 'pending';
                     $item->excluir_pool_automatico  = true;
                     $item->decision_resuelta        = true;
+                    // #898 — mismo fix que el bloque (2b) PARAGUAS de arriba: liberar el reclamo
+                    // al parquear, no dejarlo pegado.
+                    $item->worker_sid               = null;
+                    $item->claimed_at               = null;
                 } else {
                     Log::warning('roadmap: cierre incompleto (modo advertencia, no bloquea todavía)', [
                         'item' => $item->id, 'faltantes' => $verificacion['faltantes'],
@@ -410,21 +452,46 @@ class RoadmapItem extends Model
             // 'completado' aquí y este bloque no dispara — correcto: el item ni siquiera terminó de
             // cerrarse todavía.
             if ($item->estado_aprobacion === 'completado') {
-                $sinResolver = app(\App\Modules\Addons\Roadmap\Services\JarvisService::class)
-                    ->preguntasSinResolver($item);
+                $jarvis      = app(\App\Modules\Addons\Roadmap\Services\JarvisService::class);
+                $sinResolver = $jarvis->preguntasSinResolver($item);
 
-                if ($sinResolver !== []) {
-                    $hijo = app(\App\Modules\Addons\Roadmap\Services\JarvisService::class)
-                        ->generarSeguimientoPreguntas($item, $sinResolver);
+                // #753 — separa las que ya formaron una cadena de 3+ seguimientos idénticos (esas
+                // NO generan un hijo más, ver `cadenaSeguimientoRepetida()`) de las genuinamente
+                // nuevas.
+                $porGenerar = [];
+                $omitidas   = [];
+                foreach ($sinResolver as $p) {
+                    if ($jarvis->cadenaSeguimientoRepetida($item, $p)) {
+                        $omitidas[] = $p;
+                    } else {
+                        $porGenerar[] = $p;
+                    }
+                }
 
-                    $log   = $item->log ?: [];
+                $log = $item->log ?: [];
+
+                if ($porGenerar !== []) {
+                    $hijo  = $jarvis->generarSeguimientoPreguntas($item, $porGenerar);
                     $log[] = [
                         'ts'        => now()->toIso8601String(),
                         'por'       => 'jarvis:generarSeguimientoPreguntas',
                         'evento'    => 'seguimiento_generado',
                         'hijo'      => $hijo->id,
-                        'preguntas' => count($sinResolver),
+                        'preguntas' => count($porGenerar),
                     ];
+                }
+
+                if ($omitidas !== []) {
+                    $log[] = [
+                        'ts'        => now()->toIso8601String(),
+                        'por'       => 'jarvis:generarSeguimientoPreguntas',
+                        'evento'    => 'seguimiento_omitido_cadena_repetida',
+                        'preguntas' => count($omitidas),
+                        'motivo'    => 'La misma pregunta ya generó 3+ seguimientos en cadena sin resolverse; se detiene para no crear otro item — la respuesta real queda en el reporte_coloquial de este cierre.',
+                    ];
+                }
+
+                if ($porGenerar !== [] || $omitidas !== []) {
                     $item->log = $log;
                 }
             }
@@ -936,7 +1003,7 @@ class RoadmapItem extends Model
             ? []                                                    // `manual`: nada automático despacha
             : array_slice(['A', 'B', 'C'], 0, self::ORDEN_NIVEL[$base] ?? 1);
 
-        return $query
+        $query = $query
             ->tomablePorCircuito()
             ->elegibleParaPool()
             ->whereNotIn('status', ['done'])
@@ -971,6 +1038,19 @@ class RoadmapItem extends Model
                     $w->orWhere('automatizacion_override', 'auto');
                 }
             });
+
+        // GATE DE DEPENDENCIAS (#9990274) — excluye sub-items cuyas predecesoras declaradas
+        // (`subtasks.descomposicion.depende_de`) aún no están `completado`. Flag apagable sin
+        // redeploy (`config('circuito.dependencia_gate.enabled')`); en `false` restaura el
+        // comportamiento anterior byte-idéntico.
+        if (config('circuito.dependencia_gate.enabled', true)) {
+            $bloqueados = app(\App\Modules\Addons\Roadmap\Services\Descomposicion\DependenciaGate::class)->idsBloqueados();
+            if ($bloqueados !== []) {
+                $query->whereNotIn('id', $bloqueados);
+            }
+        }
+
+        return $query;
     }
 
     /**
@@ -1053,6 +1133,28 @@ class RoadmapItem extends Model
         if ($this->estado_aprobacion === 'en_progreso') {
             return ['code' => 'en_progreso', 'accion' => 'esperar',
                 'error' => 'Una terminal ya lo tiene en progreso' . ($this->worker_sid ? ' (' . $this->worker_sid . ')' : '') . '.'];
+        }
+
+        // FASE 2B (#9990276) — traduce el mismo gate que ya excluye este item de scopeDespachable()
+        // (#9990274) a un motivo explicable: sólo AÑADE el mensaje, no cambia ningún sí/no. Se
+        // resuelve solo (cuando la(s) predecesora(s) pase(n) a completado), por eso va junto a
+        // 'en_progreso' y antes del fallback genérico.
+        if (config('circuito.dependencia_gate.enabled', true) && $this->origen_item_id) {
+            $gate = app(\App\Modules\Addons\Roadmap\Services\Descomposicion\DependenciaGate::class);
+            $dependeDe = $gate->dependeDeDe($this);
+            if ($dependeDe !== []) {
+                $estados = static::where('origen_item_id', $this->origen_item_id)
+                    ->whereIn('position', $dependeDe)
+                    ->pluck('estado_aprobacion', 'position')
+                    ->map(fn ($e) => (string) $e)
+                    ->all();
+                $bloqueantes = $gate->bloqueadaPor($dependeDe, $estados);
+                if ($bloqueantes !== []) {
+                    return ['code' => 'bloqueado_por_dependencia', 'accion' => 'esperar',
+                        'error' => 'Esperando a que termine(n) la(s) sección(es) posición ' . implode(', ', $bloqueantes)
+                            . ' de esta misma fase (#' . $this->origen_item_id . '). Se libera solo cuando esa(s) sección(es) pase(n) a completado — no hace falta aprobar de nuevo.'];
+                }
+            }
         }
 
         return ['code' => 'no_despachable', 'accion' => 'revisar',
@@ -1793,6 +1895,14 @@ class RoadmapItem extends Model
                 'describe' => fn ($v) => 'su prioridad es ' . $v,
             ],
             [
+                // #987 (Pieza 5b FASE 3) — este es el mecanismo que hace FIFO a los hallazgos del
+                // barrido: ni `RoadmapIntakeService::crear()` ni `circuito:sub-item` tocan
+                // `position` (queda en su default de columna, 0), así que entre hallazgos —y entre
+                // cualquier item sin `position` explícita— el desempate real es `id ASC` = orden de
+                // creación. No hace falta cola dedicada: verificado con prueba real (transacción con
+                // rollback) que 3 hallazgos de módulos distintos salen de `ejecutablesParalelo()` en
+                // el mismo orden en que se crearon, y que una `priority` puesta a mano SÍ los
+                // adelanta (criterio de arriba) — comportamiento vigente y deseado, no un bug.
                 'label'    => 'antigüedad',
                 'orderBy'  => fn ($q) => $q->orderBy('position')->orderBy('id'),
                 'valor'    => fn (self $i) => $i->position,

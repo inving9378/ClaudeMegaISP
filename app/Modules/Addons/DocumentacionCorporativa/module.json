@@ -30,10 +30,17 @@
         { "name": "documentacion-corporativa.documento.download", "description": "Descargar documentos del expediente corporativo" },
         { "name": "documentacion-corporativa.documento.delete",   "description": "Eliminar (soft delete) documentos del expediente corporativo" },
         { "name": "documentacion-corporativa.concepto.manage",    "description": "Administrar el catálogo de conceptos del expediente" },
+        { "name": "documentacion-corporativa.concesion.manage",   "description": "Crear y editar concesiones, permisos y sus pagos (apartado XIII)" },
+        { "name": "documentacion-corporativa.registro.manage",    "description": "Crear y editar registros estructurados (accionistas, capital, actas, poderes, contratos — apartados I y VI)" },
+        { "name": "documentacion-corporativa.inventario.manage",  "description": "Crear y editar activos, activos digitales e inventario de accesos (apartados V, VIII, IX, XI y XII)" },
         { "name": "documentacion-corporativa.pendiente.assign",   "description": "Asignar responsables y fechas compromiso a conceptos pendientes" },
         { "name": "documentacion-corporativa.inventario.accesos.view", "description": "Ver el inventario de accesos (nunca credenciales: el valor no se almacena)" },
         { "name": "documentacion-corporativa.bitacora.view",      "description": "Consultar la bitácora de accesos al expediente corporativo" },
-        { "name": "documentacion-corporativa.entrega.create",     "description": "Armar paquetes de entrega y generar actas de entrega-recepción" }
+        { "name": "documentacion-corporativa.bitacora.export",    "description": "Exportar a CSV la bitácora de accesos al expediente corporativo" },
+        { "name": "documentacion-corporativa.entrega.create",     "description": "Armar paquetes de entrega y generar actas de entrega-recepción" },
+        { "name": "documentacion-corporativa.offboarding.ver",       "description": "Ver el checklist de offboarding de un colaborador (apartado XII)" },
+        { "name": "documentacion-corporativa.offboarding.gestionar", "description": "Marcar accesos y activos como revocados en el checklist de offboarding" },
+        { "name": "documentacion-corporativa.solicitud.manage",   "description": "Crear, editar y eliminar solicitudes de información recibidas (apartado XIV)" }
     ],
 
     "menu": [

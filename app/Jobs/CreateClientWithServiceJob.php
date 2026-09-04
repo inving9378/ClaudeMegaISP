@@ -37,6 +37,14 @@ class CreateClientWithServiceJob implements ShouldQueue
     protected $forceCreate;
 
     /**
+     * Item roadmap #676: reintentos nativos de Laravel ante fallo (router caído/timeout).
+     * Backoff exponencial vía backoff(); si las 5 tentativas se agotan, el job queda en
+     * failed_jobs y la fila ya quedó marcada mikrotik_sync_status=failed (ver
+     * markMikrotikSyncStatus) para que mikrotik:reintentar-sync la recoja más tarde.
+     */
+    public $tries = 5;
+
+    /**
      * Create a new job instance.
      *
      * @return void
@@ -46,6 +54,14 @@ class CreateClientWithServiceJob implements ShouldQueue
         $this->clientInternetService = $clientInternetService;
         $this->model = $model;
         $this->forceCreate = $forceCreate;
+    }
+
+    /**
+     * Backoff exponencial nativo de Laravel (30s, 1m, 2m, 5m, 10m) — sin loop manual.
+     */
+    public function backoff(): array
+    {
+        return [30, 60, 120, 300, 600];
     }
 
     /**

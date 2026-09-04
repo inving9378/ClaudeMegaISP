@@ -18,7 +18,7 @@ class DcDocumento extends Model
     protected $table = 'dc_documentos';
 
     protected $fillable = [
-        'empresa_id', 'concepto_id', 'titulo', 'archivo_uuid', 'archivo_nombre_original',
+        'empresa_id', 'concepto_id', 'titulo', 'archivo_uuid', 'ruta_archivo', 'archivo_nombre_original',
         'mime', 'bytes', 'hash', 'version_actual', 'vigencia_inicio', 'vigencia_fin',
         'folio', 'contraparte', 'confidencialidad', 'notas', 'subido_por',
     ];

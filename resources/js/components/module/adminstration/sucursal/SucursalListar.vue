@@ -47,9 +47,14 @@
 
 <script setup>
 import Datatable from "../../../base/shared/Datatable";
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted, getCurrentInstance } from "vue";
 import DatatableHelper from "../../../../helpers/datatableHelper";
 import SucursalCrud from "./SucursalCrud.vue";
+
+const ns = `.leak983-sucursalListar-${getCurrentInstance().uid}`;
+onUnmounted(() => {
+    $(document).off(ns);
+});
 const title = ref("Crear sucursal");
 const datatable = reactive({
     table: new DatatableHelper({}),
@@ -58,7 +63,7 @@ const action = ref("/administracion/sucursal/add");
 const reloadCrud = ref(true);
 
 onMounted(() => {
-    $(document).on("click", ".uil-pen-modal", function () {
+    $(document).on("click" + ns, ".uil-pen-modal", function () {
         let idItem = $(this).parent().attr("id-item");
         let modal = $(this).parent().attr("toggle-modal");
         showEditModal(idItem, modal);
@@ -66,7 +71,7 @@ onMounted(() => {
 });
 
 const closeModal = (reload) => {
-    $("#crudlocation").modal("hide");
+    window.bootstrap.Modal.getInstance(document.getElementById('crudlocation'))?.hide();
     reloadCrud.value = !reloadCrud.value;
     title.value = "Crear sucursal";
     action.value = "/administracion/sucursal/add";
@@ -76,7 +81,7 @@ const closeModal = (reload) => {
 };
 
 const showEditModal = (idItem) => {
-    $("#crudlocation").modal("show");
+    window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudlocation')).show();
     title.value = "Editar sucursal";
     action.value = `/administracion/sucursal/update/${idItem}`;
 };

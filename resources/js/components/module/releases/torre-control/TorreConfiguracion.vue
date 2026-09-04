@@ -172,6 +172,36 @@
         </div>
       </div>
 
+      <!-- #9990256 — qué categorías retienen aunque la válvula selle sólo MENCIÓN -------- -->
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center py-2">
+          <b><i class="bi bi-shield-exclamation me-1"></i>Qué retiene aunque sólo sea mención</b>
+          <span class="small text-muted">Fuente: <code>{{ fronteras.mencion?.fuente }}</code></span>
+        </div>
+        <div class="card-body">
+          <p class="small text-muted">
+            Cuando la válvula sella un item como <b>MENCIÓN</b> (el término se nombra, no se
+            ejecuta), el item deja de retenerse — salvo en las categorías marcadas aquí, que
+            retienen siempre aunque sea sólo mención. Sólo aplica en modo <b>Ablandar</b>: en modo
+            <b>Apagar</b> la frontera desaparece entera y esta lista no se consulta.
+          </p>
+          <div v-if="fronteras.valvula?.modo === 'apagar'" class="alert alert-secondary py-1 px-2 small mb-2">
+            <i class="bi bi-info-circle me-1"></i>
+            La válvula está en modo «Apagar» — esta lista no tiene efecto ahora mismo.
+          </div>
+          <div class="row g-2">
+            <div class="col-md-6 col-lg-3" v-for="cat in (fronteras.mencion?.categorias || [])" :key="cat.clave">
+              <label class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" :disabled="!puedeEditar"
+                       :checked="cat.retiene"
+                       @change="toggleMencionCategoria(cat.clave)">
+                <span class="form-check-label"><b>{{ cat.clave }}</b></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Techo del autopilot ------------------------------------------------------------ -->
       <div class="card mb-3">
         <div class="card-header py-2">
@@ -498,6 +528,50 @@
                 <input type="number" min="5" max="1440" class="form-control form-control-sm"
                        v-model.number="form.auditor_cooldown_min" :disabled="!puedeEditar"></label>
             </div>
+            <div class="col-md-6">
+              <label class="small d-block">Slots libres mínimos para disparar el auditor <em>(0–6)</em>
+                <input type="number" min="0" max="6" class="form-control form-control-sm"
+                       v-model.number="form.auditor_slots_libres_min" :disabled="!puedeEditar"></label>
+            </div>
+            <div class="col-md-6">
+              <label class="small d-block">Terminales por el mismo módulo <em>(1–6)</em>
+                <input type="number" min="1" max="6" class="form-control form-control-sm"
+                       v-model.number="form.paralelo_mismo_modulo" :disabled="!puedeEditar"></label>
+              <span class="text-muted small">
+                Cuántas terminales pueden trabajar el mismo módulo a la vez; 1 = comportamiento
+                histórico, default de fábrica.
+                <template v-if="config?.politica?.paralelo_mismo_modulo">
+                  Fuente vigente: {{ config.politica.paralelo_mismo_modulo.fuente }}.
+                </template>
+              </span>
+            </div>
+            <div class="col-md-6">
+              <label class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" :disabled="!puedeEditar" v-model="form.auditor_gasto_reintento_activo">
+                <span class="form-check-label"><b>Reintento del freno de sequía N2 (#712)</b>
+                  <span class="d-block text-muted small">Permite un sondeo del auditor cada tantos minutos aunque el generador esté apagado por gasto.</span></span>
+              </label>
+            </div>
+            <div class="col-md-6">
+              <label class="small d-block">Minutos entre sondeos del freno de sequía N2 <em>(5–240)</em>
+                <input type="number" min="5" max="240" class="form-control form-control-sm"
+                       v-model.number="form.auditor_gasto_reintento_min" :disabled="!puedeEditar"></label>
+              <span class="text-muted small">
+                Cada cuántos minutos se permite un sondeo aunque el generador esté apagado por
+                sequía Nivel 2 (#712).
+              </span>
+            </div>
+          </div>
+
+          <div class="mt-3" v-if="config?.politica?.auditor?.gasto">
+            <span class="small text-muted d-block mb-1">Estado del freno de sequía N2 (solo lectura):</span>
+            <span class="badge" :class="badgeGasto(config.politica.auditor.gasto.estado)">
+              <template v-if="config.politica.auditor.gasto.estado === 'armado'">Freno armado</template>
+              <template v-else-if="config.politica.auditor.gasto.estado === 'disparado'">
+                Apagado desde {{ config.politica.auditor.gasto.desde }}<template v-if="config.politica.auditor.gasto.reintento_en_segundos !== null">, próximo sondeo en {{ config.politica.auditor.gasto.reintento_en_segundos }}s</template><template v-else>, reintento desactivado</template>
+              </template>
+              <template v-else-if="config.politica.auditor.gasto.estado === 'medio_abierto'">Sondeo disponible en el próximo ciclo</template>
+            </span>
           </div>
 
           <button class="btn btn-sm btn-primary mt-3" :disabled="!puedeEditar || guardando" @click="guardarConfig">
@@ -924,6 +998,10 @@ export default {
             auditor_activo: true,
             auditor_max_por_corrida: 10,
             auditor_cooldown_min: 15,
+            auditor_slots_libres_min: 2,
+            paralelo_mismo_modulo: 1,
+            auditor_gasto_reintento_min: 30,
+            auditor_gasto_reintento_activo: true,
         });
 
         const nuevoTermino = reactive({});
@@ -956,6 +1034,10 @@ export default {
                 form.auditor_activo = !!c.data.politica.auditor.activo;
                 form.auditor_max_por_corrida = c.data.politica.auditor.max_por_corrida;
                 form.auditor_cooldown_min = c.data.politica.auditor.cooldown_min;
+                form.auditor_slots_libres_min = c.data.politica.auditor.slots_libres_min;
+                form.paralelo_mismo_modulo = c.data.politica.paralelo_mismo_modulo?.valor ?? 1;
+                form.auditor_gasto_reintento_min = c.data.politica.auditor.gasto_reintento_min;
+                form.auditor_gasto_reintento_activo = !!c.data.politica.auditor.gasto_reintento_activo;
             } catch (e) {
                 error.value = "No se pudo leer la configuración: " + (e?.response?.data?.message || e.message);
             } finally {
@@ -1010,6 +1092,26 @@ export default {
         const guardarTecho = (nivel) => post("/api/roadmap/torre/fronteras/techo-autopilot", { nivel });
         const guardarTermino = (categoria, termino, accion, palabraCompleta = false) =>
             post("/api/roadmap/torre/fronteras/termino", { categoria, termino, accion, palabra_completa: palabraCompleta });
+        const guardarMencion = (categorias) => post("/api/roadmap/torre/fronteras/mencion-categorias", { categorias });
+
+        // #9990256 — el endpoint recibe la lista COMPLETA de categorías que retienen, no un toggle
+        // de una sola; se arma a partir del estado vigente antes de mandarla.
+        function toggleMencionCategoria(clave) {
+            const actuales = (fronteras.value?.mencion?.categorias || [])
+                .filter((c) => c.retiene).map((c) => c.clave);
+            const retiene = actuales.includes(clave);
+            const nuevas = retiene ? actuales.filter((c) => c !== clave) : [...actuales, clave];
+            pedirConfirmacion({
+                titulo: retiene
+                    ? `Dejar de retener menciones de «${clave}»`
+                    : `Retener menciones de «${clave}»`,
+                cuerpo: retiene
+                    ? "A partir de ahora, un item que sólo MENCIONE este tema (sin ejecutar la acción) dejará de retenerse — pasa aunque la válvula lo haya sellado como mención."
+                    : "A partir de ahora, un item que sólo MENCIONE este tema seguirá reteniéndose, igual que si fuera una acción real.",
+                afloja: retiene,
+                accion: () => guardarMencion(nuevas),
+            });
+        }
 
         function agregarTermino(categoria) {
             const t = (nuevoTermino[categoria] || "").trim();
@@ -1136,6 +1238,9 @@ export default {
         const badgeEfecto = (e) => ({
             bloquear: "bg-danger", bandeja: "bg-warning text-dark", avisar: "bg-info text-dark",
         }[e] || "bg-secondary");
+        const badgeGasto = (estado) => ({
+            armado: "bg-success", disparado: "bg-danger", medio_abierto: "bg-warning text-dark",
+        }[estado] || "bg-secondary");
 
         onMounted(() => cargarTodo());
 
@@ -1145,9 +1250,10 @@ export default {
             confirmacion, toast, toastError, valorSel, etiquetaControl, etiquetaOrigen,
             cargarTodo, pedirConfirmacion, cancelarConfirmacion, confirmar,
             guardarValvula, guardarCategoria, guardarTecho, guardarTermino, agregarTermino,
+            guardarMencion, toggleMencionCategoria,
             guardarConfig, togglePermiso, ejecutarAccion, previsualizar, guardarIcono,
             controlesEditables, controlesUmbral, controlesSoloLectura,
-            techoDeNivel, nivelOrden, durezaEfecto, badgeEfecto, dg,
+            techoDeNivel, nivelOrden, durezaEfecto, badgeEfecto, badgeGasto, dg,
         };
     },
 };

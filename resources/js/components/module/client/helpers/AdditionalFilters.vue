@@ -73,7 +73,7 @@ export default {
         };
 
         const showModalFilters = () => {
-            $(`#modaleAdditionalFilters`).modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modaleAdditionalFilters')).show();
         };
         return {
             options,

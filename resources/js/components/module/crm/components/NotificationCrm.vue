@@ -190,7 +190,7 @@ export default {
                 .submit("post", `/crm/send-notification/${props.id}`)
                 .then((response) => {
                     disabled.value = false;
-                    $("#notification_crm").modal("hide");
+                    window.bootstrap.Modal.getInstance(document.getElementById('notification_crm'))?.hide();
                     emit("reset");
                 })
                 .catch((e) => {

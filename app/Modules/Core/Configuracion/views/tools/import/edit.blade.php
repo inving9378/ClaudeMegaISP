@@ -2,7 +2,7 @@
 @section('title') @lang('translation.Dashboard') @endsection
 
 @section('content')
-    @can('client_edit_client')
+    @if(auth()->user() && auth()->user()->can('client_edit_client'))
         <Breadcrumb
             list="{{ $breadcrumb }}"
         ></Breadcrumb>
@@ -11,5 +11,5 @@
             show="{{ $show }}"
             id="{{ $id }}"
         ></client-crud>
-    @endcan
+    @endif
 @endsection

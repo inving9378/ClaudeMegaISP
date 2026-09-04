@@ -3,6 +3,7 @@
 use App\Modules\Addons\Roadmap\Controllers\RoadmapController;
 use App\Modules\Addons\Roadmap\Controllers\TorreCompuertasController;
 use App\Modules\Addons\Roadmap\Controllers\JarvisIdentidadController;
+use App\Modules\Addons\Roadmap\Controllers\JarvisChatController;
 use App\Modules\Addons\Roadmap\Controllers\TorreFronterasController;
 use App\Modules\Addons\Roadmap\Controllers\RoadmapExternalController;
 use App\Modules\Addons\Roadmap\Controllers\RoadmapMcpController;
@@ -126,11 +127,25 @@ Route::middleware(['web', 'auth'])
         Route::get('/torre/jarvis-identidad',  [JarvisIdentidadController::class, 'identidad']);
         Route::post('/torre/jarvis-identidad', [JarvisIdentidadController::class, 'guardar']);
 
+        // #806 (Jarvis Parte 3b) — chat donde Irving conversa el brief de una sugerencia de
+        // Jarvis (#805) antes de convertirla en item. "Generar item" reusa `POST /items` de
+        // abajo (misma ruta que el botón "Agregar item"), este bloque solo abre/sostiene el
+        // hilo y lo liga al item resultante.
+        Route::get('/jarvis-chat/sugerencias',    [JarvisChatController::class, 'sugerencias']);
+        Route::post('/jarvis-chat/conversaciones', [JarvisChatController::class, 'abrir']);
+        Route::get('/jarvis-chat/conversaciones/{id}', [JarvisChatController::class, 'mostrar'])->whereNumber('id');
+        Route::post('/jarvis-chat/conversaciones/{id}/mensajes', [JarvisChatController::class, 'mensaje'])->whereNumber('id');
+        Route::post('/jarvis-chat/conversaciones/{id}/vincular-item', [JarvisChatController::class, 'vincularItem'])->whereNumber('id');
+
         Route::get('/torre/fronteras',                    [TorreFronterasController::class, 'index']);
         Route::post('/torre/fronteras/categoria',         [TorreFronterasController::class, 'categoria']);
         Route::post('/torre/fronteras/termino',           [TorreFronterasController::class, 'termino']);
         Route::post('/torre/fronteras/valvula',           [TorreFronterasController::class, 'valvula']);
         Route::post('/torre/fronteras/techo-autopilot',   [TorreFronterasController::class, 'techoAutopilot']);
+        Route::post('/torre/fronteras/mencion-categorias', [TorreFronterasController::class, 'mencionCategorias']);
+        // #766 (Pieza 1c hija de #672) — KPI card del panorama: cuántas veces abrió la válvula,
+        // sobre qué items y por qué término, leído de `torre_frontera_dura_eventos` (#764).
+        Route::get('/torre/frontera-dura',                [RoadmapController::class, 'torreFronteraDura']);
         // #890 (Torre fase 6) — cola ejecutable REAL: orden exacto de despacho + excluidos con
         // causa. Solo lectura (`torre.cola.ver`, self-authorized dentro del controller).
         Route::get('/torre/cola',          [RoadmapController::class, 'torreCola']);
@@ -187,6 +202,11 @@ Route::middleware(['web', 'auth'])
         Route::post('/integracion/revert',    [RoadmapController::class, 'integracionRevert']);
         Route::post('/integracion/modo',          [RoadmapController::class, 'integracionModo']);
         Route::post('/integracion/marcar-version', [RoadmapController::class, 'integracionMarcarVersion']);
+        // #933 — armado de versión: candidatos desde el último tag + detector de dependencias.
+        Route::get('/integracion/version-candidatos',   [RoadmapController::class, 'integracionVersionCandidatos']);
+        Route::get('/integracion/version-dependencias', [RoadmapController::class, 'integracionVersionDependencias']);
+        // #966 Fase 4 — construye la rama de release por cherry-pick de lo marcado (aislado, a demanda).
+        Route::post('/integracion/version-construir-rama', [RoadmapController::class, 'integracionVersionConstruirRama']);
         // Voz (es-*) para 🔊 Escuchar en la Torre (#424).
         Route::post('/integracion/voz',            [RoadmapController::class, 'integracionVoz']);
         // Ciclo de vida / archivo (#334): historial + archivar (individual/masivo) + desarchivar ("quiero verlo")

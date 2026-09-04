@@ -25,6 +25,7 @@ import CrmCrud from "./components/module/crm/CrmCrud";
 import AddCrmCrud from "./components/module/crm/AddCrmCrud";
 import ConvertToClient from "./components/module/crm/components/ConvertToClient";
 import CrmDatatable from "./components/module/crm/CrmDatatable";
+import CrmOrphanDocuments from "./components/module/crm/CrmOrphanDocuments.vue";
 
 //Client
 import ClientCrud from "./components/module/client/ClientCrud";
@@ -103,6 +104,13 @@ import PagosCuentas from "./components/module/portalpago/PagosCuentas.vue";
 import PagosLinks from "./components/module/portalpago/PagosLinks.vue";
 // Documentación Corporativa (addon-documentacion-corporativa)
 import DcExpediente from "./components/module/documentacion-corporativa/DcExpediente.vue";
+import DcConcesiones from "./components/module/documentacion-corporativa/DcConcesiones.vue";
+import DcPendientesBandeja from "./components/module/documentacion-corporativa/DcPendientesBandeja.vue";
+import DcRegistros from "./components/module/documentacion-corporativa/DcRegistros.vue";
+import DcActivosMapa from "./components/module/documentacion-corporativa/DcActivosMapa.vue";
+import DcSolicitudes from "./components/module/documentacion-corporativa/DcSolicitudes.vue";
+import DcBitacora from "./components/module/documentacion-corporativa/DcBitacora.vue";
+import DcOffboarding from "./components/module/documentacion-corporativa/DcOffboarding.vue";
 import MegaFamiliaIngresos from "./components/module/megafamilia/MegaFamiliaIngresos.vue";
 import MegaFamiliaAlertas from "./components/module/megafamilia/MegaFamiliaAlertas.vue";
 import MegaFamiliaSolicitudes from "./components/module/megafamilia/MegaFamiliaSolicitudes.vue";
@@ -154,6 +162,7 @@ import FleetGeofenceForm from "./components/module/flotas/FleetGeofenceForm.vue"
 import FleetGeofenceShow from "./components/module/flotas/FleetGeofenceShow.vue";
 import FleetNotificationLog from "./components/module/flotas/FleetNotificationLog.vue";
 import FleetRuleList from "./components/module/flotas/FleetRuleList.vue";
+import FleetExpenseComparison from "./components/module/flotas/FleetExpenseComparison.vue";
 import FleetDocumentsDashboard from "./components/module/flotas/FleetDocumentsDashboard.vue";
 import FleetClientPlanTab from "./components/module/flotas/FleetClientPlanTab.vue";
 import FleetSubscriptionDashboard from "./components/module/flotas/FleetSubscriptionDashboard.vue";
@@ -181,6 +190,8 @@ import TalentoDashboard from "./components/module/talento/TalentoDashboard.vue";
 import TalentoEscalafon from "./components/module/talento/TalentoEscalafon.vue";
 import TalentoEmbajadores from "./components/module/talento/TalentoEmbajadores.vue";
 import TalentoEvidenciaConfig from "./components/module/talento/TalentoEvidenciaConfig.vue";
+import TalentoPaqueteDocumentos from "./components/module/talento/TalentoPaqueteDocumentos.vue";
+import TalentoPuestos from "./components/module/talento/TalentoPuestos.vue";
 
 //Mapas
 import GoogleMap from "./components/base/googlemap/GoogleMap";
@@ -364,6 +375,7 @@ import ReleasesDescription from "./components/module/releases/ReleasesDescriptio
 import RoadmapTab from "./components/module/releases/torre-control/RoadmapTab.vue";
 import TorreConfigPanel from "./components/module/releases/torre-control/TorreConfigPanel.vue";
 import TorreConfiguracion from "./components/module/releases/torre-control/TorreConfiguracion.vue";
+import JarvisChatDrawer from "./components/module/releases/torre-control/JarvisChatDrawer.vue";
 import DeployProgressModal from "./components/module/releases/DeployProgressModal.vue";
 import UpdateBanner from "./components/module/releases/UpdateBanner.vue";
 import RoadmapItemDetalle from "./components/module/roadmap/RoadmapItemDetalle.vue";
@@ -484,6 +496,7 @@ const app = createApp({
         AddCrmCrud,
         ConvertToClient,
         CrmDatatable,
+        "crm-orphan-documents": CrmOrphanDocuments,
 
         //CLIENT
         ClientCrud,
@@ -602,6 +615,7 @@ const app = createApp({
         'fleet-geofence-show': FleetGeofenceShow,
         'fleet-notification-log': FleetNotificationLog,
         'fleet-rule-list': FleetRuleList,
+        'fleet-expense-comparison': FleetExpenseComparison,
         'fleet-documents-dashboard': FleetDocumentsDashboard,
         'FleetClientPlanTab': FleetClientPlanTab,
         'fleet-subscription-dashboard': FleetSubscriptionDashboard,
@@ -629,6 +643,8 @@ const app = createApp({
         'talento-escalafon': TalentoEscalafon,
         'talento-embajadores': TalentoEmbajadores,
         'talento-evidencia-config': TalentoEvidenciaConfig,
+        'talento-paquete-documentos': TalentoPaqueteDocumentos,
+        'talento-puestos': TalentoPuestos,
         ImportListar,
         ImportCrud,
         ServiceInAddressListListar,
@@ -735,6 +751,7 @@ const app = createApp({
         RoadmapTab,
         TorreConfigPanel,
         TorreConfiguracion,
+        JarvisChatDrawer,
         DeployProgressModal,
         UpdateBanner,
         RoadmapItemDetalle,
@@ -789,6 +806,13 @@ const app = createApp({
         'pagos-links': PagosLinks,
         // Documentación Corporativa (addon-documentacion-corporativa)
         'dc-expediente': DcExpediente,
+        'dc-concesiones': DcConcesiones,
+        'dc-pendientes-bandeja': DcPendientesBandeja,
+        'dc-registros': DcRegistros,
+        'dc-activos-mapa': DcActivosMapa,
+        'dc-solicitudes': DcSolicitudes,
+        'dc-bitacora': DcBitacora,
+        'dc-offboarding': DcOffboarding,
         // Marketing Fase 4.5b — Director Creativo IA
         'marketing-campaign-generator-view': MarketingCampaignGeneratorView,
         'voice-comparator-view': VoiceComparatorView,

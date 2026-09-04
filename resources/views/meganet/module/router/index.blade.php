@@ -8,9 +8,9 @@
     <Datatable
         module="red/router"
         model="Router"
-        @can($group.'_add_'.\Illuminate\Support\Str::lower($module))
+        @if(auth()->user() && auth()->user()->can($group.'_add_'.\Illuminate\Support\Str::lower($module)))
         add="Agregar Router"
-        @endcan
+        @endif
         list="Listado Routers"
     ></Datatable>
     @if(session()->has('message'))

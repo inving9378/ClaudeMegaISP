@@ -20,7 +20,7 @@
     <!-- Tabs -->
     <ul class="nav nav-tabs mb-3">
       <li class="nav-item"><a class="nav-link" :class="{active:tab==='ranking'}" href="#" @click.prevent="tab='ranking'"><i class="fa fa-list-ol me-1"></i>Posiciones</a></li>
-      <li class="nav-item"><a class="nav-link" :class="{active:tab==='improved'}" href="#" @click.prevent="tab='improved'"><i class="fa fa-arrow-trend-up me-1"></i>Más mejorado</a></li>
+      <li class="nav-item"><a class="nav-link" :class="{active:tab==='improved'}" href="#" @click.prevent="tab='improved'"><i class="fa fa-chart-line me-1"></i>Más mejorado</a></li>
     </ul>
 
     <div v-if="loading" class="text-center py-5"><div class="spinner-border text-warning"></div></div>

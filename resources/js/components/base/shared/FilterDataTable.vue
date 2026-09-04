@@ -117,7 +117,7 @@ export default {
             filters.value = {};
             dataFilters.filters = {};
             emit("resetFilters");
-            $(`#${props.id}`).modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById(props.id))?.hide();
         };
 
         return {

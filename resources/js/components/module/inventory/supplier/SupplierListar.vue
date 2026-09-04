@@ -46,7 +46,7 @@
 </template>
 
 <script>
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted, getCurrentInstance } from "vue";
 import Datatable from "../../../base/shared/Datatable.vue";
 import DatatableHelper from "../../../../helpers/datatableHelper";
 import SupplierCrud from "./SupplierCrud.vue";
@@ -55,6 +55,10 @@ export default {
     name: "SupplierListar",
     components: { Datatable, SupplierCrud },
     setup() {
+        const ns = `.leak983-supplierListar-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const title = ref("Crear Proveedor");
         const action = ref("/inventory/supplier/add");
         const editId = ref(null);
@@ -62,12 +66,12 @@ export default {
         const datatable = reactive({ table: new DatatableHelper({}) });
 
         onMounted(() => {
-            $(document).on("click", ".uil-pen-modal", function () {
+            $(document).on("click" + ns, ".uil-pen-modal", function () {
                 const idItem = $(this).attr("id-item");
                 showEditModal(idItem);
             });
 
-            $(document).on("click", "#table-datatable tbody tr", function (e) {
+            $(document).on("click" + ns, "#table-datatable tbody tr", function (e) {
                 if (
                     $(e.target).closest("a, button, input[type='checkbox']")
                         .length
@@ -78,7 +82,7 @@ export default {
             });
 
             $(document).on(
-                "mouseenter",
+                "mouseenter" + ns,
                 "#table-datatable tbody tr",
                 function () {
                     $(this).css("cursor", "pointer");
@@ -91,11 +95,11 @@ export default {
             reloadCrud.value = !reloadCrud.value;
             title.value = "Editar Proveedor";
             action.value = `/inventory/supplier/update/${idItem}`;
-            $("#crudsupplier").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudsupplier')).show();
         };
 
         const closeModal = () => {
-            $("#crudsupplier").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudsupplier'))?.hide();
             editId.value = null;
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Proveedor";

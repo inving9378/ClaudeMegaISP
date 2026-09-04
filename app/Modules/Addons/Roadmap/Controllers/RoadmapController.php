@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Addons\Roadmap\Models\CircuitoEjecucion;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Services\AutopilotService;
+use App\Modules\Addons\Roadmap\Services\FronterasService;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use App\Modules\Addons\Roadmap\Services\SessionTreeService;
 use App\Modules\Addons\Roadmap\Services\SupervisorService;
@@ -52,6 +53,12 @@ class RoadmapController extends Controller
         'estado_aprobacion', 'target_version', 'eta_minutos', 'eta_asignada_at',
         'automatizacion_override', 'subtasks', 'prompt', 'position', 'worker_sid', 'branch',
         'created_at', 'updated_at',
+        // #675 (Pieza 4) — el veredicto de la válvula de nacimiento (`mencion`/`accion`/null) ya se
+        // pintaba como badge en "Tu bandeja" (TorreControl.vue, desde el commit 96cf38f2) pero
+        // desaparecía al pasar el item a "Hoja de ruta": un item ejecutado vía válvula-mención se
+        // veía IGUAL que uno que nunca tocó la frontera. Columna varchar(16) indexada, no TEXT — no
+        // reintroduce el problema de sort-memory de #878 (prompt, mucho más pesado, ya está arriba).
+        'frontera_valvula',
     ];
 
     // #890 (Torre fase 6) — MISMA lista que `RoadmapItem::COLUMNAS_COMPACT` (la usa `$this->svc->
@@ -165,6 +172,10 @@ class RoadmapController extends Controller
             'auditor_activo'          => ['sometimes', 'boolean'],
             'auditor_max_por_corrida' => ['sometimes', 'integer', 'min:1', 'max:20'],
             'auditor_cooldown_min'    => ['sometimes', 'integer', 'min:5', 'max:1440'],
+            'auditor_slots_libres_min' => ['sometimes', 'integer', 'min:0', 'max:6'],
+            'auditor_gasto_reintento_min'    => ['sometimes', 'integer', 'min:5', 'max:240'],
+            'auditor_gasto_reintento_activo' => ['sometimes', 'boolean'],
+            'paralelo_mismo_modulo'   => ['sometimes', 'nullable', 'integer', 'min:1', 'max:6'],
         ]);
 
         $diff = app(\App\Modules\Addons\Roadmap\Services\TorreConfigService::class)
@@ -339,7 +350,7 @@ class RoadmapController extends Controller
         $log   = $item->log ?: [];
         $log[] = [
             'ts'         => now()->toIso8601String(),
-            'por'        => 'irving:' . (auth()->user()->login_user ?? auth()->id()),
+            'por'        => 'irving:' . (auth()->user()?->login_user ?? auth()->id()),
             'estado'     => $item->estado_aprobacion,
             'decision'   => 'override_automatizacion',
             'comentario' => "Automatización del item: {$previo} → {$data['override']}"
@@ -350,7 +361,7 @@ class RoadmapController extends Controller
 
         Log::channel('torre_config')->{$sube ? 'warning' : 'info'}('override-item', [
             'item' => $item->id, 'de' => $previo, 'a' => $data['override'],
-            'por'  => auth()->user()->login_user ?? auth()->id(),
+            'por'  => auth()->user()?->login_user ?? auth()->id(),
         ]);
 
         return response()->json(['ok' => true, 'override' => $item->automatizacion_override, 'subida' => $sube]);
@@ -481,6 +492,22 @@ class RoadmapController extends Controller
         $data = $request->validate(['comando' => ['required', 'string', 'max:80']]);
 
         return response()->json($this->svc->detalleFallo($data['comando']));
+    }
+
+    /**
+     * GET /api/roadmap/torre/frontera-dura (#766, Pieza 1c hija de #672) — la KPI card «Frontera
+     * dura» del dashboard: total de aperturas de la válvula + últimos 7 días + desglose por
+     * categoría + listado detallado (item/término/categoría/veredicto/razón/cuándo/ejecutado).
+     * Lee `torre_frontera_dura_eventos` (Pieza 1a, #764) vía {@see FronterasService::resumenTorreFronteraDura()}
+     * — solo lectura, mismo gate que el resto del panorama de la Torre.
+     */
+    public function torreFronteraDura(FronterasService $fronteras): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $data = Cache::remember('roadmap:torre:frontera-dura', 30, fn () => $fronteras->resumenTorreFronteraDura());
+
+        return response()->json(['ok' => true] + $data);
     }
 
     public function historialAcciones(Request $request): JsonResponse
@@ -1865,6 +1892,7 @@ class RoadmapController extends Controller
             'archivado'         => ! empty($i->archivado_at),
             'archivado_at'      => optional($i->archivado_at)->toIso8601String(),
             'archivado_por'     => $i->archivado_por,
+            'frontera_control'  => $this->fronteraControlBadge($i),   // #675 (Pieza 4 de #646): control verificado vs autodeclaración
             'modulo'            => $i->modulo,
             'modulo_url'        => $this->moduloUrl($i->modulo),   // "Ver más" → pantalla del módulo (fallback)
             'enlace_revision'   => $i->enlace_revision,            // #432 ADENDA B — deep-link REAL (preferente en "Ver")
@@ -1878,6 +1906,70 @@ class RoadmapController extends Controller
             // El TEXTO del diff ya no viaja aquí: lo sirve `integracionDiff()` cuando el visor lo
             // abre. `tiene_diff` es lo único que la lista necesita para decidir si ofrece el botón.
             'tiene_diff'        => $git['existe'] && ! empty($git['archivos']),
+        ];
+    }
+
+    /**
+     * #675 (Pieza 4 de #646) — LA TORRE DISTINGUE CONTROL VERIFICADO DE AUTODECLARACIÓN.
+     *
+     * `frontera_valvula` (columna ya sellada, hecho histórico) SOLO se llena al nacer el item si
+     * el detector determinista disparó (ver `store()`: se asigna únicamente dentro del `else` de
+     * `$frontera === null`). Cruzarlo con una RELECTURA en vivo del mismo detector
+     * (`JarvisService::fronteraDuraDeItemDetalle()`, la misma fuente que `categoriaFronteraDura()`,
+     * anclada a palabra, sin modelo) da las 3 combinaciones que pidió el item, más la anomalía de
+     * un disparo sin sello (item de antes de que la válvula existiera, o categoría hoy en «avisar»):
+     *
+     *   sin_frontera       → el detector no encuentra nada: no hubo nada que autodeclarar.
+     *   mencion            → SÍ disparó; la válvula (autodeclaración del modelo) lo dejó pasar/ablandó.
+     *   accion             → SÍ disparó; la válvula NO lo abrió — pasó por Irving, sin atajo del modelo.
+     *   avisar / disparo_sin_sello → dispara HOY pero el item no tiene veredicto de válvula guardado.
+     *
+     * Solo lectura: no cambia ningún flujo de decisión, es únicamente lo que la Torre muestra.
+     *
+     * @return array{estado:string, label:string, detalle:string}
+     */
+    private function fronteraControlBadge(RoadmapItem $i): array
+    {
+        $det = app(JarvisService::class)->fronteraDuraDeItemDetalle($i);
+
+        if ($det['categoria_detectada'] === null) {
+            return [
+                'estado'  => 'sin_frontera',
+                'label'   => 'Sin frontera',
+                'detalle' => 'El detector determinista (DetectorTerminos, sin modelo) no encuentra ningún término de frontera dura en este item: no hubo nada que autodeclarar.',
+            ];
+        }
+
+        $termino = $det['termino'] ? "«{$det['termino']}» ({$det['categoria_detectada']})" : $det['categoria_detectada'];
+
+        if ($i->frontera_valvula === 'mencion') {
+            return [
+                'estado'  => 'mencion',
+                'label'   => 'Disparó · autodeclaración',
+                'detalle' => "El detector determinista encontró {$termino}; la válvula de nacimiento lo leyó como MENCIÓN (el modelo se autodeclaró reversible) y lo dejó avanzar por el camino normal.",
+            ];
+        }
+
+        if ($i->frontera_valvula === 'accion') {
+            return [
+                'estado'  => 'accion',
+                'label'   => 'Disparó · control verificado',
+                'detalle' => "El detector determinista encontró {$termino}; la válvula confirmó que SÍ toca la frontera y lo retuvo — pasó por la decisión de Irving, sin atajo del modelo.",
+            ];
+        }
+
+        if ($det['efecto'] === 'avisar') {
+            return [
+                'estado'  => 'avisar',
+                'label'   => 'Disparó · solo avisar',
+                'detalle' => "El detector determinista encontró {$termino}, pero esa categoría está configurada en modo «solo avisar»: se registra y no retiene a nadie.",
+            ];
+        }
+
+        return [
+            'estado'  => 'disparo_sin_sello',
+            'label'   => 'Disparó · sin veredicto de válvula',
+            'detalle' => "El detector determinista encuentra {$termino} en una relectura actual, pero este item no tiene un veredicto de válvula guardado (nació antes de que existiera, o no llegó a evaluarse).",
         ];
     }
 
@@ -2044,6 +2136,70 @@ class RoadmapController extends Controller
         return response()->json(['ok' => true, 'marcado_version' => $item->marcado_version]);
     }
 
+    /**
+     * GET /api/roadmap/integracion/version-candidatos — #933 Fase 2: items integrados a main desde
+     * el último tag (candidatos a entrar en la próxima versión), con su estado de marcado.
+     */
+    public function integracionVersionCandidatos(): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+        $items = $this->svc->itemsCandidatosVersion()->map(fn (RoadmapItem $i) => [
+            'id' => $i->id,
+            'title' => $i->title,
+            'modulo' => $i->modulo,
+            'branch' => $i->branch,
+            'merge_commit' => $i->merge_commit,
+            'marcado_version' => (bool) $i->marcado_version,
+            'origen_item_id' => $i->origen_item_id,
+        ])->values();
+
+        return response()->json(['ok' => true, 'items' => $items]);
+    }
+
+    /**
+     * GET /api/roadmap/integracion/version-dependencias — #933 Fase 3: detector de dependencias/
+     * colisiones de lo marcado ahora mismo, ANTES de construir la rama de versión (Fase 4, no
+     * implementada aquí). Solo lectura.
+     */
+    public function integracionVersionDependencias(): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+
+        return response()->json(['ok' => true, 'violaciones' => $this->svc->detectarDependenciasVersion()]);
+    }
+
+    /**
+     * POST /api/roadmap/integracion/version-construir-rama — #966 Fase 4: construye la rama de
+     * release por cherry-pick de lo marcado (`marcado_version=true`). Operación AISLADA e invocada
+     * a demanda por Irving desde el modal de crear release; NO forma parte del pipeline de deploy
+     * automático. `ignorar_avisos=true` permite continuar aunque `detectarDependenciasVersion()`
+     * haya encontrado violaciones (bajo responsabilidad explícita de quien lo pide).
+     */
+    public function integracionVersionConstruirRama(Request $request): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+        $data = $request->validate([
+            'version'         => ['required', 'string', 'max:80'],
+            'nombre_rama'     => ['nullable', 'string', 'max:120'],
+            'ignorar_avisos'  => ['nullable', 'boolean'],
+        ]);
+
+        $version    = trim($data['version']);
+        $nombreRama = trim((string) ($data['nombre_rama'] ?? ''));
+        if ($nombreRama === '') {
+            $nombreRama = 'release/' . preg_replace('/[^A-Za-z0-9_.\-]/', '-', $version);
+        }
+
+        $resultado = $this->svc->construirRamaVersion($nombreRama, $version, (bool) ($data['ignorar_avisos'] ?? false));
+
+        Log::channel('roadmap_externo')->info('integracion-version-construir-rama', [
+            'rama' => $nombreRama, 'version' => $version, 'ok' => $resultado['ok'] ?? false,
+            'motivo' => $resultado['motivo'] ?? null, 'por' => $this->actor(),
+        ]);
+
+        return response()->json($resultado);
+    }
+
     /** POST /api/roadmap/integracion/merge — Irving mergea la rama a dev (autoridad → --force). */
     public function integracionMerge(Request $request): JsonResponse
     {
@@ -2071,6 +2227,14 @@ class RoadmapController extends Controller
      *     pending; se descarta el puntero a la rama —la rama queda en git— para que el circuito
      *     cree una nueva al re-tomarlo). El comentario le dice al próximo intento POR QUÉ se rechazó.
      *   • accion=borrar   → cancelado + archivado (fila CONSERVADA, NO hard-delete).
+     *
+     * #630 — si el item YA fue integrado (merge_commit no nulo), rechazarlo revierte el código real
+     * en main con el MISMO `git revert -m1` del botón manual "Revertir" (integracionRevert), en vez
+     * de solo limpiar metadata y dejar el código huérfano viviendo en main hasta un segundo clic
+     * aparte (rama huérfana C2, jul-13, nunca mergeada — recuperada aquí). Aplica a ambas acciones:
+     * "reciclar" también competiría con el próximo intento si el código viejo se queda. Falla-cerrado:
+     * si el revert no se puede aplicar (árbol sucio/conflicto) NO se rechaza nada — se devuelve el
+     * motivo para resolverlo a mano y reintentar.
      */
     public function integracionRechazar(Request $request): JsonResponse
     {
@@ -2087,11 +2251,30 @@ class RoadmapController extends Controller
 
         $por        = $this->actor();
         $comentario = trim($data['comentario']);
+
+        $mergeRevertido = null;
+        $revertCommit   = null;
+        if ($item->merge_commit) {
+            $res = $this->revertirMergeCommit($item->merge_commit);
+            if (! $res['ok']) {
+                return response()->json(['error' => 'No se pudo revertir el merge ya integrado: ' . $res['error']], 409);
+            }
+            $mergeRevertido      = $item->merge_commit;
+            $revertCommit        = $res['revert_commit'];
+            $item->merge_commit  = null;
+        }
+
         $item->comentarios_claude = (string) $item->comentarios_claude
             . "\n\n--- RECHAZADA ({$data['accion']}, " . now()->toDateTimeString() . ", {$por}) ---\n" . $comentario;
         $item->aprobado_por = $por;
         $item->revisado_at  = now();
         $log = $item->log ?: [];
+
+        if ($mergeRevertido) {
+            $log[] = ['ts' => now()->toIso8601String(), 'por' => $por, 'evento' => 'revert_merge',
+                'revert_commit' => $revertCommit, 'merge_revertido' => $mergeRevertido,
+                'motivo' => "rechazo ({$data['accion']})"];
+        }
 
         if ($data['accion'] === 'reciclar') {
             $log[] = ['ts' => now()->toIso8601String(), 'por' => $por, 'evento' => 'rechazo_reciclar',
@@ -2112,9 +2295,9 @@ class RoadmapController extends Controller
             $this->sellarArchivo($item, $por . ' (rechazo/borrar)');
         }
 
-        Log::channel('roadmap_externo')->info('integracion-rechazo', ['item' => $item->id, 'accion' => $data['accion'], 'por' => $por]);
+        Log::channel('roadmap_externo')->info('integracion-rechazo', ['item' => $item->id, 'accion' => $data['accion'], 'por' => $por, 'revert_commit' => $revertCommit]);
 
-        return response()->json(['ok' => true, 'item' => ['id' => $item->id, 'estado_aprobacion' => $item->estado_aprobacion, 'accion' => $data['accion']]]);
+        return response()->json(['ok' => true, 'item' => ['id' => $item->id, 'estado_aprobacion' => $item->estado_aprobacion, 'accion' => $data['accion']], 'revert_commit' => $revertCommit]);
     }
 
     /** POST /api/roadmap/integracion/revert — revierte un merge ya integrado a dev. */
@@ -2127,28 +2310,45 @@ class RoadmapController extends Controller
             return response()->json(['error' => 'No hay merge que revertir para este item'], 422);
         }
 
-        if (trim($this->git(['status', '--porcelain', '--untracked-files=no'])->getOutput()) !== '') {
-            return response()->json(['error' => 'El árbol de trabajo tiene cambios sin commitear'], 409);
+        $res = $this->revertirMergeCommit($item->merge_commit);
+        if (! $res['ok']) {
+            return response()->json(['error' => $res['error']], 409);
         }
 
-        $this->git(['checkout', 'main']);
-        $rev = $this->git(['revert', '--no-edit', '-m', '1', $item->merge_commit]);
-        if (! $rev->isSuccessful()) {
-            $this->git(['revert', '--abort']);
-            return response()->json(['error' => 'No se pudo revertir (conflicto): ' . $rev->getErrorOutput()], 409);
-        }
-
-        $sha = trim($this->git(['rev-parse', 'HEAD'])->getOutput());
         $log = $item->log ?: [];
-        $log[] = ['ts' => now()->toIso8601String(), 'por' => $this->actor(), 'evento' => 'revert_merge', 'revert_commit' => $sha, 'merge_revertido' => $item->merge_commit];
+        $log[] = ['ts' => now()->toIso8601String(), 'por' => $this->actor(), 'evento' => 'revert_merge', 'revert_commit' => $res['revert_commit'], 'merge_revertido' => $item->merge_commit];
         $item->log = $log;
         $item->merge_commit = null;
         $item->estado_aprobacion = 'requiere_irving';
         $item->save();
 
-        Log::channel('roadmap_externo')->info('integracion-revert', ['item' => $item->id, 'por' => $this->actor(), 'revert' => $sha]);
+        Log::channel('roadmap_externo')->info('integracion-revert', ['item' => $item->id, 'por' => $this->actor(), 'revert' => $res['revert_commit']]);
 
-        return response()->json(['ok' => true, 'revert_commit' => $sha]);
+        return response()->json(['ok' => true, 'revert_commit' => $res['revert_commit']]);
+    }
+
+    /**
+     * Revierte UN merge_commit en main con `git revert -m1` (mismo mecanismo para el botón manual
+     * "Revertir" y para el rechazo automático de un item ya integrado, #630). Fail-closed: árbol
+     * sucio o conflicto → aborta sin tocar nada y devuelve el motivo; nunca deja el revert a medias.
+     *
+     * @return array{ok: bool, revert_commit?: string, error?: string}
+     */
+    private function revertirMergeCommit(string $mergeCommit): array
+    {
+        if (trim($this->git(['status', '--porcelain', '--untracked-files=no'])->getOutput()) !== '') {
+            return ['ok' => false, 'error' => 'El árbol de trabajo tiene cambios sin commitear'];
+        }
+
+        $this->git(['checkout', 'main']);
+        $rev = $this->git(['revert', '--no-edit', '-m', '1', $mergeCommit]);
+        if (! $rev->isSuccessful()) {
+            $this->git(['revert', '--abort']);
+
+            return ['ok' => false, 'error' => 'No se pudo revertir (conflicto): ' . $rev->getErrorOutput()];
+        }
+
+        return ['ok' => true, 'revert_commit' => trim($this->git(['rev-parse', 'HEAD'])->getOutput())];
     }
 
     /**

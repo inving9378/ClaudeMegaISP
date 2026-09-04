@@ -86,7 +86,7 @@ export default {
                 toastr.success(`Balance Cambiado Correctamente`, props.module);
                 emit("updateInformation");
                 cleanForm();
-                $(`#modaleditUpdateBalance`).modal("hide");
+                window.bootstrap.Modal.getInstance(document.getElementById('modaleditUpdateBalance'))?.hide();
             } catch (error) {
                 if (
                     error.response &&

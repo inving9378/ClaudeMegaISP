@@ -2042,6 +2042,8 @@ return [
         '/talento/api/colaboradores/{id}/certifications',
         '/talento/api/colaboradores/{id}/credentials',
         '/talento/api/colaboradores/{id}/custodia',
+        '/talento/api/colaboradores/{id}/documentos',
+        '/talento/colaboradores/{id}/documentos/{docId}',
         '/talento/api/colaboradores/{id}/dispositivos',
         '/talento/api/colaboradores/{id}/embajador-data',
         '/talento/api/colaboradores/{id}/funds',
@@ -2373,6 +2375,13 @@ return [
         '/talento/api/config/evidencias',
         '/talento/api/config/evidencias/toggle',
     ],
+    'talento.expediente.paquetes.manage' => [
+        '/talento/expediente/paquetes',
+        '/talento/api/expediente/paquetes/puestos',
+        '/talento/api/expediente/paquetes/templates',
+        '/talento/api/expediente/paquetes/asignaciones',
+        '/talento/api/expediente/paquetes/sincronizar',
+    ],
     'talento.activations.manage' => [
         '/talento/api/campo/{workOrderId}/activacion',
         '/talento/api/campo/{workOrderId}/activar',
@@ -2441,6 +2450,17 @@ return [
     'documentacion-corporativa.view' => [
         '/documentacion-corporativa',
         '/documentacion-corporativa/**',
+    ],
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Mapa de Red (addon-mapa-red) — MR-03, esqueleto (item roadmap #9990081)
+    // ══════════════════════════════════════════════════════════════════════════
+    // La key debe ser EXACTAMENTE el nombre del permiso Spatie (mapa_red_view):
+    // CheckRoutePermission compara `isset($permissions[$key])` contra los
+    // permisos del usuario, no contra un slug de ruta.
+    'mapa_red_view' => [
+        '/mapa-red',
+        '/mapa-red/**',
     ],
 
 ];

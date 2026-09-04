@@ -28,7 +28,7 @@
 </template>
 
 <script>
-import { onMounted, ref, watch } from "vue";
+import { onMounted, ref, watch, onUnmounted, getCurrentInstance } from "vue";
 import {
     getfieldsJson,
     getfieldsEdited,
@@ -50,13 +50,17 @@ export default {
         ModalCentrado,
     },
     setup(props, { emit }) {
+        const ns = `.leak983-editCommandConfig-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const idModal = ref(`modalEditCommandConfig`);
         const modalTitle = ref("Editar Comando");
         const frequenciesTime = ref(JSON.parse(props.frequency_has_time));
         const idCommand = ref("");
 
         onMounted(async () => {
-            $(document).on("click", ".btnEditCommandConfig", function () {
+            $(document).on("click" + ns, ".btnEditCommandConfig", function () {
                 let dataId = JSON.parse($(this).attr("data-id"));
                 openModal(idModal.value, dataId);
             });
@@ -68,7 +72,7 @@ export default {
             //TODO Quitar despues que se arreglen todos los comandos
             fieldsJson.value.status.include = false;
             setIncludeTrueOrFalseToExecutionTime(dataForm.data["frequency_id"]);
-            $(`#${idModal}`).modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById(idModal)).show();
         };
 
         const updateThisField = ({ field, value }) => {
@@ -108,7 +112,7 @@ export default {
                         "update"
                     )
                     .then((response) => {
-                        $(`#${idModal.value}`).modal("hide");
+                        window.bootstrap.Modal.getInstance(document.getElementById(idModal.value))?.hide();
                     });
             }
         };

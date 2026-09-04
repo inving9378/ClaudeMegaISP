@@ -64,6 +64,14 @@
             <span v-else class="ig-pending">○ sin mergear</span>
             <span v-if="r.revision_ui === true" class="ig-clz ig-clz-ui" title="Toca la interfaz — verifícalo en el navegador.">👁 Revisar visual</span>
             <span v-else-if="r.revision_ui === false" class="ig-clz ig-clz-bk" title="Backend/interno — verificado por comprobaciones automáticas.">⚙ Backend/interno</span>
+            <!-- #675 (Pieza 4 de #646): control verificado (detector determinista) vs autodeclaración
+                 (el modelo se autocalificó reversible y la válvula lo dejó pasar). "sin_frontera" no
+                 pinta nada, igual que el resto de badges de esta fila cuando no aplican. -->
+            <span v-if="r.frontera_control && r.frontera_control.estado !== 'sin_frontera'"
+                  class="ig-clz" :class="fronteraControlClass(r.frontera_control.estado)"
+                  :title="r.frontera_control.detalle">
+              {{ fronteraControlIcon(r.frontera_control.estado) }} {{ r.frontera_control.label }}
+            </span>
           </div>
         </div>
       </div>
@@ -180,6 +188,13 @@ export default {
         const archivadasCount = ref(0);
 
         const lvClass = (n) => (n === 'A' ? 'ig-lvA' : n === 'B' ? 'ig-lvB' : n === 'C' ? 'ig-lvC' : 'ig-lvNone');
+        // #675 (Pieza 4 de #646): estilo del distintivo control-verificado / autodeclaración.
+        const fronteraControlClass = (estado) => ({
+            mencion: 'ig-clz-mencion', accion: 'ig-clz-accion', avisar: 'ig-clz-avisar',
+        }[estado] || 'ig-clz-huerfano');
+        const fronteraControlIcon = (estado) => ({
+            mencion: '🗣', accion: '⛔', avisar: 'ℹ',
+        }[estado] || '❓');
         const toggle = (id) => { open[id] = !open[id]; };
 
         // ── DIFF BAJO DEMANDA ────────────────────────────────────────────────────────────────
@@ -430,7 +445,8 @@ export default {
         onBeforeUnmount(() => document.removeEventListener('keydown', onEsc));
 
         return {
-            darkMode, loading, ramas, open, busy, msg, lvClass, toggle, load, merge, rechazar, revert,
+            darkMode, loading, ramas, open, busy, msg, lvClass, fronteraControlClass, fronteraControlIcon,
+            toggle, load, merge, rechazar, revert,
             modoIntegracion, autoMerge, hablando, toggleAutoMerge, leer, verMas, estadoBadge, marcarVersion,
             vista, archivadasCount, algunoMergeado, fechaCorta,
             verRadar, verHistorial, archivar, archivarMergeados, desarchivar,
@@ -526,6 +542,11 @@ export default {
 .ig-clz{margin-left:7px;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:6px;}
 .ig-clz-ui{background:#eff6ff;color:#1d4ed8;}
 .ig-clz-bk{background:#f1f5f9;color:#475569;}
+/* #675 (Pieza 4 de #646): control verificado (accion) vs autodeclaración (mencion) */
+.ig-clz-mencion{background:#ecfdf5;color:#047857;}
+.ig-clz-accion{background:#fef2f2;color:#b91c1c;}
+.ig-clz-avisar{background:#fffbeb;color:#b45309;}
+.ig-clz-huerfano{background:#f1f5f9;color:#475569;}
 .ig-uihint{margin:8px 0 0 32px;padding:8px 11px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:8px;font-size:12px;color:#1e40af;line-height:1.45;}
 .ig-btn-arch{background:#eef2ff;color:#4338ca;border-color:#c7d2fe;}
 .ig-worker{margin-left:6px;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:6px;background:rgba(13,148,136,.12);color:var(--ig-accent);}
@@ -564,6 +585,10 @@ export default {
 .ig-dark .ig-arch-mass{background:#0f172a;color:#a5b4fc;border-color:#3b3f6b;}
 .ig-dark .ig-clz-ui{background:rgba(96,165,250,.14);color:#60a5fa;}
 .ig-dark .ig-clz-bk{background:rgba(148,163,184,.14);color:#94a3b8;}
+.ig-dark .ig-clz-mencion{background:rgba(74,222,128,.15);color:#4ade80;}
+.ig-dark .ig-clz-accion{background:rgba(248,113,113,.15);color:#f87171;}
+.ig-dark .ig-clz-avisar{background:rgba(251,191,36,.15);color:#fbbf24;}
+.ig-dark .ig-clz-huerfano{background:rgba(148,163,184,.14);color:#94a3b8;}
 .ig-dark .ig-uihint{background:rgba(96,165,250,.10);border-color:#2b3f5b;color:#93c5fd;}
 .ig-dark .ig-btn-arch{background:rgba(129,140,248,.14);color:#a5b4fc;border-color:#3b3f6b;}
 </style>

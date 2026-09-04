@@ -90,7 +90,7 @@ export default {
             try {
                 showLoading("showTextDef");
                 const response = await axios.post(url, data);
-                $(`#modaleChangeClientNomenclature`).modal("hide");
+                window.bootstrap.Modal.getInstance(document.getElementById('modaleChangeClientNomenclature'))?.hide();
                 errorEditId.value = false; // Maneja la salida del comando
                 toastr.success(`Cliente Cambiado correctamente`, "Cliente");
                 cleanForm();

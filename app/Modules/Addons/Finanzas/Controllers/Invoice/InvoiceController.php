@@ -8,6 +8,7 @@ use App\Http\HelpersModule\module\finance\InvoiceDatatableHelper;
 use App\Http\Repository\ClientRepository;
 use App\Modules\Core\Configuracion\Repositories\CompanyInformationRepository;
 use App\Modules\Core\Configuracion\Repositories\ConfigFinanceNotificationRepository;
+use App\Modules\Core\Security\Traits\ChecksActionPermission;
 use App\Http\Requests\module\finance\invoice\InvoiceCreateRequest;
 use App\Models\Client;
 use App\Models\Invoice;
@@ -28,6 +29,8 @@ use Illuminate\Support\Facades\Notification;
 
 class InvoiceController extends CrudModalController
 {
+    use ChecksActionPermission;
+
     public function __construct(InvoiceDatatableHelper $helper)
     {
         parent::__construct($helper, new InvoiceCreateRequest());
@@ -40,6 +43,8 @@ class InvoiceController extends CrudModalController
     public function createForClient(Request $request, $clientId)
     {
         try {
+            $this->verificarPermisoAccion('finanzas.invoice.crear', 'invoice.createForClient');
+
             $client = Client::find($clientId);
             $fecha = $request->fecha_corte;
             if (!$client) {
@@ -173,6 +178,8 @@ class InvoiceController extends CrudModalController
     public function markAsPaid(Request $request, $id)
     {
         try {
+            $this->verificarPermisoAccion('finanzas.invoice.marcar_pagada', 'invoice.markAsPaid');
+
             $model = $this->data['model']::find($id);
             if (!$model) {
                 return response()->json([
@@ -279,6 +286,8 @@ class InvoiceController extends CrudModalController
 
     public function destroy($id)
     {
+        $this->verificarPermisoAccion('finanzas.invoice.cancelar', 'invoice.destroy');
+
         return  $this->data['model']::findOrFail($id)->delete();
     }
 

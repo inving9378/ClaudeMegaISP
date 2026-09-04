@@ -38,7 +38,7 @@ class FleetDocumentController extends FleetBaseController
     {
         $this->authorize('fleet.documents.manage');
 
-        // multipart/form-data envía todo como string; decodificar antes de validar
+        // multipart/form-data serializa cada campo como string; decodificar antes de validar
         $this->preprocessMultipart($request);
 
         $data = $request->validate([
@@ -368,7 +368,7 @@ class FleetDocumentController extends FleetBaseController
 
     private function preprocessMultipart(Request $request): void
     {
-        // multipart/form-data serializa todo a string; normalizar antes de validar.
+        // multipart/form-data serializa cada campo a string; normalizar antes de validar.
         if (is_string($request->input('alert_channels'))) {
             $decoded = json_decode($request->input('alert_channels'), true);
             $request->merge(['alert_channels' => is_array($decoded) ? $decoded : []]);

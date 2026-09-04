@@ -290,6 +290,12 @@ Route::prefix('api/megafamilia')->middleware(['log_api_mobile', 'force_json'])->
         Route::get('/devices/{id}/rules', [ApiController::class, 'deviceRules'])->whereNumber('id');
         Route::put('/devices/{id}/rules', [ApiController::class, 'updateDeviceRules'])->whereNumber('id');
 
+        // Geocercas del Panel del Padre (item roadmap #32), scoped por perfil.
+        Route::get('/profiles/{id}/geofences', [ApiController::class, 'profileGeofences'])->whereNumber('id');
+        Route::post('/profiles/{id}/geofences', [ApiController::class, 'storeProfileGeofence'])->whereNumber('id');
+        Route::put('/geofences/{id}', [ApiController::class, 'updateProfileGeofence'])->whereNumber('id');
+        Route::delete('/geofences/{id}', [ApiController::class, 'destroyProfileGeofence'])->whereNumber('id');
+
         Route::post('/tasks/{id}/complete', [ApiController::class, 'completeTask'])->whereNumber('id');
 
         Route::get('/tecnico/ordenes', [ApiController::class, 'tecnicoOrdenes']);
@@ -298,6 +304,7 @@ Route::prefix('api/megafamilia')->middleware(['log_api_mobile', 'force_json'])->
         Route::get('/hijo/tareas', [ApiController::class, 'hijoTareas']);
         Route::post('/hijo/tareas/{id}/completar', [ApiController::class, 'completeTask'])->whereNumber('id');
         Route::get('/hijo/logros', [ApiController::class, 'hijoLogros']);
+        Route::get('/hijo/apps-permitidas', [ApiController::class, 'hijoAppsPermitidas']);
         Route::post('/hijo/solicitudes', [ApiController::class, 'hijoStoreRequest']);
 
         Route::post('/requests', [ApiController::class, 'storeRequest']);

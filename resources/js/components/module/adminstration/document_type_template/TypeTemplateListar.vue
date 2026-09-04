@@ -48,13 +48,17 @@
 <script>
 import Datatable from "../../../base/shared/Datatable";
 import TypeTemplateCrud from "./TypeTemplateCrud";
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, onUnmounted, getCurrentInstance } from "vue";
 import DatatableHelper from "../../../../helpers/datatableHelper";
 
 export default {
     name: "TypeTemplateListar",
     components: { Datatable, TypeTemplateCrud },
     setup() {
+        const ns = `.leak983-typeTemplateListar-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const title = ref("Crear Tipo de Plantilla");
         const datatable = reactive({
             table: new DatatableHelper({}),
@@ -63,7 +67,7 @@ export default {
         const reloadCrud = ref(true);
 
         onMounted(() => {
-            $(document).on("click", ".uil-pen-modal", function () {
+            $(document).on("click" + ns, ".uil-pen-modal", function () {
                 let idItem = $(this).parent().attr("id-item");
                 let modal = $(this).parent().attr("toggle-modal");
                 showEditModal(idItem, modal);
@@ -71,7 +75,7 @@ export default {
         });
 
         const closeModal = () => {
-            $("#crudTypeTemplate").modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('crudTypeTemplate'))?.hide();
             reloadCrud.value = !reloadCrud.value;
             title.value = "Crear Tipo de Plantilla";
             action.value = "/administracion/document_type_template/add";
@@ -79,7 +83,7 @@ export default {
         };
 
         const showEditModal = (idItem) => {
-            $("#crudTypeTemplate").modal("show");
+            window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crudTypeTemplate')).show();
             title.value = "Editar Tipo de Plantilla";
             action.value = `/administracion/document_type_template/update/${idItem}`;
         };

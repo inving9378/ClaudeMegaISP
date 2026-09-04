@@ -113,7 +113,7 @@
 </template>
 
 <script>
-import { onMounted, reactive, ref, watch } from "vue";
+import { onMounted, reactive, ref, watch, onUnmounted, getCurrentInstance } from "vue";
 import Form from "../../../../helpers/Form";
 import { requestFieldsByModule } from "../../../../helpers/Request";
 import ComponentFormDefault from "../../../ComponentFormDefault";
@@ -139,6 +139,10 @@ export default {
         TextTemplate,
     },
     setup(props, { emit }) {
+        const ns = `.leak983-crmTemplate-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const title = ref("Generar Contrato");
         const fieldsJson = ref({});
         const dataForm = reactive({
@@ -149,9 +153,9 @@ export default {
         const showPreviewButton = ref(false);
 
         onMounted(() => {
-            $(document).on("click", `#generateContract`, function (e) {
+            $(document).on("click" + ns, `#generateContract`, function (e) {
                 getfieldsJson("DocumentTemplateClient");
-                $(`#modalDocumentPlantillas`).modal("show");
+                window.bootstrap.Modal.getOrCreateInstance(document.getElementById('modalDocumentPlantillas')).show();
             });
         });
 
@@ -165,7 +169,7 @@ export default {
             getfieldsJson("DocumentTemplateClient");
             cleanHtml.value = true;
             resetDatatable.value = true;
-            $(`#modalDocumentPlantillas`).modal("hide");
+            window.bootstrap.Modal.getInstance(document.getElementById('modalDocumentPlantillas'))?.hide();
         };
 
         const updateThisField = ({ field, value }) => {

@@ -57,6 +57,7 @@ class CompuertasService
             $this->cAuditor(),
             $this->cReservadosMuertos($so),
             $this->cCascadaErrores($so),
+            ...$this->cJarvisHallazgos(),
         ];
 
         // Punto 1 — por qué está gris cada control. Se resuelve en una sola pasada para
@@ -586,7 +587,13 @@ class CompuertasService
     {
         try {
             $conteo = [];
-            foreach (RoadmapItem::query()->whereNull('archivado_at')->get(['id', 'status', 'estado_aprobacion', 'branch', 'archivado_at']) as $i) {
+            // #196 — el accessor `estacion` también lee nivel_riesgo/opcion_elegida/
+            // en_desarrollo_humano/esperando_merge_irving/origen_bloqueo/title (vía
+            // tieneFrenoHumano()); un select() más corto que ese hace que Eloquent los
+            // resuelva como null y la rama de nivel A/B nunca se cumpla, en silencio.
+            // Se reusa la misma constante que ya evita este defecto en RoadmapController
+            // (COLUMNAS_ACTIVIDAD/COLUMNAS_LISTADO) y en RoadmapCircuitoService::compact().
+            foreach (RoadmapItem::query()->whereNull('archivado_at')->get(RoadmapItem::COLUMNAS_COMPACT) as $i) {
                 $e = $i->estacion;
                 $conteo[$e] = ($conteo[$e] ?? 0) + 1;
             }
@@ -685,27 +692,40 @@ class CompuertasService
                 ->whereNotNull('worker_sid')
                 ->where('estado_aprobacion', 'en_progreso')
                 ->get(['id', 'worker_sid', 'updated_at']);
+
+            // #195 — un en_progreso SIN worker_sid Y SIN claimed_at no tiene ninguna señal de
+            // vida (ni sid que cruzar contra el SO, ni latido). La compuerta los omitía por
+            // completo porque solo miraba whereNotNull('worker_sid'); son huérfanos igual, y
+            // no necesitan snapshot del SO para saber que están muertos.
+            $sinSenal = RoadmapItem::query()
+                ->whereNull('worker_sid')
+                ->whereNull('claimed_at')
+                ->where('estado_aprobacion', 'en_progreso')
+                ->get(['id', 'updated_at']);
         } catch (\Throwable $e) {
             return $this->sinMedir('reservados', 'Items reservados por terminales muertas', 'php artisan circuito:reap-stuck --minutes=25', 'Irving');
         }
 
-        if ($reservados->isEmpty()) {
+        $totalEnProgreso = $reservados->count() + $sinSenal->count();
+
+        if ($totalEnProgreso === 0) {
             return new Compuerta(
                 clave: 'reservados', nombre: 'Items reservados por terminales muertas', semaforo: 'verde',
                 valor: 'ninguno reservado', origen: 'bd',
             );
         }
 
-        // Cruce con el SO: un sid reservado cuyo slot está LIBRE es una terminal muerta.
+        // Cruce con el SO: un sid reservado cuyo slot está LIBRE es una terminal muerta. Los
+        // sin señal ya están muertos por definición (no hay sid que cruzar).
         $ocupados = $so['slots']['ocupados'] ?? null;
-        $muertos  = [];
+        $muertos  = $sinSenal->all();
         foreach ($reservados as $r) {
             if ($ocupados !== null && ! in_array($r->worker_sid, $ocupados, true)) {
                 $muertos[] = $r;
             }
         }
 
-        if ($ocupados === null) {
+        if ($ocupados === null && $muertos === []) {
             return new Compuerta(
                 clave: 'reservados', nombre: 'Items reservados por terminales muertas', semaforo: 'ambar',
                 valor: $reservados->count() . ' reservados (sin snapshot no se sabe si viven)', origen: 'bd',
@@ -720,7 +740,7 @@ class CompuertasService
                 clave: 'reservados', nombre: 'Items reservados por terminales muertas', semaforo: 'rojo',
                 valor: count($muertos) . ' item(s) atrapados: #' . implode(', #', array_column($muertos, 'id')),
                 origen: 'bd+so',
-                porQue: 'Su terminal ya no existe (el slot está libre) pero el item sigue marcado en progreso: nadie más lo puede tomar.',
+                porQue: 'Su terminal ya no existe (el slot está libre, o el item nunca tuvo sid ni latido) pero sigue marcado en progreso: nadie más lo puede tomar.',
                 acciones: [[
                     'clave'     => 'soltar_items',
                     'etiqueta'  => 'Soltar estos items',
@@ -735,7 +755,7 @@ class CompuertasService
 
         return new Compuerta(
             clave: 'reservados', nombre: 'Items reservados por terminales muertas', semaforo: 'verde',
-            valor: $reservados->count() . ' en progreso, todos con terminal viva', origen: 'bd+so',
+            valor: $totalEnProgreso . ' en progreso, todos con terminal viva', origen: 'bd+so',
         );
     }
 
@@ -800,6 +820,70 @@ class CompuertasService
             clave: 'jarvis', nombre: 'Vigilancia de JARVIS', semaforo: 'verde',
             valor: "midió hace {$edad}s · {$alertas} alerta(s)", origen: 'so',
         );
+    }
+
+    /**
+     * HALLAZGOS DE JARVIS, UNO POR FILA (#707, sub-item de #208, parte 1/3).
+     *
+     * `cJarvis()` (arriba) es el interruptor de hombre muerto: dice SI el vigilante sigue vivo.
+     * Esta fila es la otra mitad que el item pedía: publicar, del mismo snapshot en archivo que
+     * escribe `circuito:jarvis-vigilar`, el motivo+acción de cada hallazgo ACTIVO — sin eso, el
+     * tablero sabía que Jarvis estaba vivo pero no qué había visto.
+     *
+     * Lee `JarvisVigilia::estado()['alertas']`, la MISMA lista que ya arma
+     * `JarvisVigilarCommand::alertas()` (disco, swap, log grande, vueltas colgadas, cola de
+     * workers, base caída, bd_integra, reclamos, git huérfano, gasto). No se recalcula nada aquí:
+     * este método solo traduce cada entrada a una fila del tablero.
+     *
+     * FAIL-CLOSED, igual que `cJarvis()`: sin latido reciente ningún hallazgo se puede afirmar
+     * como del presente, así que se colapsa a UNA fila roja en vez de mostrar datos viejos. Lee
+     * SIEMPRE de archivo — nunca de BD — para que esto también funcione con MySQL caído.
+     *
+     * @return array<int,Compuerta>
+     */
+    private function cJarvisHallazgos(): array
+    {
+        $edad   = JarvisVigilia::edadSeg();
+        $umbral = JarvisVigilia::umbralLatidoSeg();
+
+        if ($edad === null || $edad > $umbral) {
+            return [new Compuerta(
+                clave: 'jarvis_hallazgos', nombre: 'Hallazgos de JARVIS', semaforo: 'rojo',
+                valor: $edad === null ? 'sin latido: no hay hallazgos que mostrar' : "latido de hace {$edad}s (umbral {$umbral}s)",
+                origen: 'so',
+                porQue: 'Sin un latido reciente del vigilante, cualquier hallazgo que se mostrara podría no '
+                    . 'describir el presente. Ver la fila «Vigilancia de JARVIS» arriba.',
+            )];
+        }
+
+        $estado  = JarvisVigilia::estado();
+        $alertas = is_array($estado) ? ($estado['alertas'] ?? []) : [];
+
+        if ($alertas === []) {
+            return [new Compuerta(
+                clave: 'jarvis_hallazgos', nombre: 'Hallazgos de JARVIS', semaforo: 'verde',
+                valor: 'sin hallazgos activos', origen: 'so',
+            )];
+        }
+
+        $filas = [];
+        foreach ($alertas as $a) {
+            $clave = (string) ($a['clave'] ?? 'desconocido');
+            $nivel = (string) ($a['nivel'] ?? 'me_pregunta');
+
+            $filas[] = new Compuerta(
+                clave: 'jarvis_hallazgo_' . $clave,
+                nombre: 'JARVIS: ' . $clave,
+                // 'alarma' es el escalón más alto de `JarvisVigilarCommand::alertas()`; el resto
+                // ('actua_y_avisa', 'me_pregunta') pasa pero con advertencia, igual que cualquier
+                // otra fila ámbar del tablero.
+                semaforo: $nivel === 'alarma' ? 'rojo' : 'ambar',
+                valor: $nivel, origen: 'so',
+                porQue: (string) ($a['texto'] ?? ''),
+            );
+        }
+
+        return $filas;
     }
 
     /** 268.896 excepciones en dos días sin que nadie se enterara. */

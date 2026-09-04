@@ -4,6 +4,7 @@ namespace App\Modules\Addons\DocumentacionCorporativa\Resolvers;
 
 use App\Modules\Addons\DocumentacionCorporativa\Contracts\ResultadoConcepto;
 use App\Modules\Addons\DocumentacionCorporativa\Models\DcConcepto;
+use App\Modules\Addons\DocumentacionCorporativa\Models\DcInventarioAcceso;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -61,7 +62,19 @@ class InventarioResolver extends BaseResolver
     public function resolver(DcConcepto $concepto, int $empresaId): ResultadoConcepto
     {
         $tabla    = $concepto->config['tabla'] ?? null;
-        $metricas = ['obligatorio' => (bool) $concepto->obligatorio, 'tabla' => $tabla];
+        $metricas = [
+            'obligatorio' => (bool) $concepto->obligatorio,
+            'tabla'       => $tabla,
+            // Filtros declarativos del concepto (p.ej. {tipo: 'consejo'}): el
+            // frontend los usa para saber con qué tabla/filtro administrar
+            // los registros de ESTE concepto sin tener que adivinarlo.
+            'filtros'     => $concepto->config['filtros'] ?? [],
+            // Fase 3.3 (item #752): `config.mapa=true` marca los conceptos de
+            // dc_activos que además de la lista deben ofrecer un mapa Leaflet
+            // (torres, postería, fibra, redes troncales, centros de
+            // distribución, almacenes y bodegas).
+            'mapa'        => (bool) ($concepto->config['mapa'] ?? false),
+        ];
 
         if (! $this->disponible($concepto, $empresaId)) {
             return ResultadoConcepto::sinFuente(
@@ -71,22 +84,33 @@ class InventarioResolver extends BaseResolver
             );
         }
 
-        $query = DB::table($tabla)->where('empresa_id', $empresaId);
+        // `dc_inventario_accesos` pasa por el modelo Eloquent, no por DB::table:
+        // es la única tabla de este resolvedor con atributos CALCULADOS
+        // (`credencial`, `credencial_leyenda` — ver DcInventarioAcceso). Leerla
+        // con DB::table devolvería solo columnas físicas y la leyenda de la
+        // regla de credenciales nunca llegaría a la tabla ni a sus
+        // exportaciones (PDF/Excel/CSV), que es justo donde la solicitud exige
+        // que viaje siempre.
+        if ($tabla === 'dc_inventario_accesos') {
+            $filas = $this->filasInventarioAccesos($concepto, $empresaId);
+        } else {
+            $query = DB::table($tabla)->where('empresa_id', $empresaId);
 
-        if (Schema::hasColumn($tabla, 'deleted_at')) {
-            $query->whereNull('deleted_at');
-        }
-
-        // Filtros declarativos del concepto: `config.filtros` = {columna: valor}.
-        foreach (($concepto->config['filtros'] ?? []) as $columna => $valor) {
-            if (Schema::hasColumn($tabla, (string) $columna)) {
-                is_array($valor)
-                    ? $query->whereIn($columna, $valor)
-                    : $query->where($columna, $valor);
+            if (Schema::hasColumn($tabla, 'deleted_at')) {
+                $query->whereNull('deleted_at');
             }
-        }
 
-        $filas = $query->limit(500)->get()->map(fn ($f) => (array) $f)->all();
+            // Filtros declarativos del concepto: `config.filtros` = {columna: valor}.
+            foreach (($concepto->config['filtros'] ?? []) as $columna => $valor) {
+                if (Schema::hasColumn($tabla, (string) $columna)) {
+                    is_array($valor)
+                        ? $query->whereIn($columna, $valor)
+                        : $query->where($columna, $valor);
+                }
+            }
+
+            $filas = $query->limit(500)->get()->map(fn ($f) => (array) $f)->all();
+        }
 
         $metricas['registros'] = count($filas);
 
@@ -99,5 +123,23 @@ class InventarioResolver extends BaseResolver
         }
 
         return ResultadoConcepto::resuelto('dc-concepto-tabla', $filas, $metricas);
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function filasInventarioAccesos(DcConcepto $concepto, int $empresaId): array
+    {
+        $query = DcInventarioAcceso::deEmpresa($empresaId)->with('custodio:id,name');
+
+        foreach (($concepto->config['filtros'] ?? []) as $columna => $valor) {
+            if (Schema::hasColumn('dc_inventario_accesos', (string) $columna)) {
+                is_array($valor)
+                    ? $query->whereIn($columna, $valor)
+                    : $query->where($columna, $valor);
+            }
+        }
+
+        return $query->limit(500)->get()
+            ->map(fn (DcInventarioAcceso $fila) => $fila->toArray())
+            ->all();
     }
 }

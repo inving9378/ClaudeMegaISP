@@ -153,6 +153,55 @@
             "description": "Circuito CC: agrega un reporte nuevo al historial del item (se acumula, no pisa el anterior)",
             "scope": "roadmap_externo_write",
             "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/mcp/{secret}",
+            "description": "Conector MCP (Streamable HTTP / JSON-RPC 2.0) de la Hoja de Ruta: expone el roadmap como custom connector de claude.ai para Claude Cowork (initialize / tools/list / tools/call), protegido por secreto en el path",
+            "scope": "mcp_roadmap",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/api/jarvis/estado",
+            "description": "Estado que pinta el anillo de la burbuja JARVIS (normal/pregunta/sin_medir/alerta); la burbuja lo consulta desde cualquier pantalla del sistema, solo requiere sesión",
+            "scope": "jarvis_estado",
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/api/roadmap/torre",
+            "description": "Torre de Control del Circuito: dashboard en vivo (bandeja de decisiones, kill switch, estado de compuertas)",
+            "scope": "roadmap_view",
+            "permission": "roadmap_view"
+        },
+        {
+            "method": "GET",
+            "path": "/api/roadmap/circuito/estado",
+            "description": "Estado en vivo ligero para el polling de la Torre (circuito_pausado/modo/live/log_tail/trabajando ahora)",
+            "scope": "roadmap_view",
+            "permission": "roadmap_view"
+        },
+        {
+            "method": "GET",
+            "path": "/roadmap/item/{id}",
+            "description": "Página de detalle read-only de un item (destino real de «Ver más» en Integración/Ramas)",
+            "scope": "roadmap_view",
+            "permission": "roadmap_view"
+        },
+        {
+            "method": "GET",
+            "path": "/api/roadmap/validacion",
+            "description": "Cambios pendientes de validación funcional por Irving (Fase 1)",
+            "scope": "roadmap_view",
+            "permission": "roadmap_view"
+        },
+        {
+            "method": "GET",
+            "path": "/api/roadmap/torre/semaforo",
+            "description": "Semáforo de motores del circuito: una fila por motor con su estado 🟢/🟡/🔴/⚫",
+            "scope": "roadmap_view",
+            "permission": "roadmap_view"
         }
     ],
     "ai": {

@@ -19,7 +19,7 @@ class ExtensionController extends Controller
 
     public function index()
     {
-        if (! auth()->user()->can('voip.extensiones.view')) {
+        if (! auth()->user()?->can('voip.extensiones.view')) {
             abort(403);
         }
         return view('addon-voip::extensiones.index');
@@ -27,7 +27,7 @@ class ExtensionController extends Controller
 
     public function data(): JsonResponse
     {
-        if (! auth()->user()->can('voip.extensiones.view')) {
+        if (! auth()->user()?->can('voip.extensiones.view')) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
@@ -53,13 +53,13 @@ class ExtensionController extends Controller
 
     public function usuarios(): JsonResponse
     {
-        if (! auth()->user()->can('voip.extensiones.view')) {
+        if (! auth()->user()?->can('voip.extensiones.view')) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
         // "whereHas any role AND whereDoesntHave client" omite colaboradores que
         // también tienen el rol client asignado (datos mixtos en producción).
-        // La lista explícita es la única que captura correctamente a todo el staff.
+        // La lista explícita es la única que captura correctamente al personal completo.
         // Al agregar un rol de staff nuevo: actualizar esta lista.
         $rolesStaff = [
             'Administrador', 'ADMINISTRADOR_COMPLETO', 'Almacen', 'conductor', 'CONTADOR',
@@ -81,7 +81,7 @@ class ExtensionController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        if (! auth()->user()->can('voip.extensiones.create')) {
+        if (! auth()->user()?->can('voip.extensiones.create')) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
@@ -111,7 +111,7 @@ class ExtensionController extends Controller
 
     public function update(Request $request, Extension $extension): JsonResponse
     {
-        if (! auth()->user()->can('voip.extensiones.edit')) {
+        if (! auth()->user()?->can('voip.extensiones.edit')) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
@@ -145,7 +145,7 @@ class ExtensionController extends Controller
 
     public function destroy(Extension $extension): JsonResponse
     {
-        if (! auth()->user()->can('voip.extensiones.delete')) {
+        if (! auth()->user()?->can('voip.extensiones.delete')) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
@@ -164,7 +164,7 @@ class ExtensionController extends Controller
 
     public function provisionar(Extension $extension): JsonResponse
     {
-        if (! auth()->user()->can('voip.extensiones.provision')) {
+        if (! auth()->user()?->can('voip.extensiones.provision')) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
@@ -182,7 +182,7 @@ class ExtensionController extends Controller
 
     public function desprovisionar(Extension $extension): JsonResponse
     {
-        if (! auth()->user()->can('voip.extensiones.provision')) {
+        if (! auth()->user()?->can('voip.extensiones.provision')) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
@@ -197,7 +197,7 @@ class ExtensionController extends Controller
 
     public function estados(): JsonResponse
     {
-        if (! auth()->user()->can('voip.extensiones.view')) {
+        if (! auth()->user()?->can('voip.extensiones.view')) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
@@ -285,7 +285,7 @@ class ExtensionController extends Controller
 
     public function toggle(Extension $extension): JsonResponse
     {
-        if (! auth()->user()->can('voip.extensiones.edit')) {
+        if (! auth()->user()?->can('voip.extensiones.edit')) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
@@ -308,7 +308,7 @@ class ExtensionController extends Controller
 
     public function verificar(Extension $extension): JsonResponse
     {
-        if (! auth()->user()->can('voip.extensiones.test')) {
+        if (! auth()->user()?->can('voip.extensiones.test')) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 

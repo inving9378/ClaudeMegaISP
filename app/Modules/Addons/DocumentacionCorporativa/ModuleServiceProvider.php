@@ -2,7 +2,13 @@
 
 namespace App\Modules\Addons\DocumentacionCorporativa;
 
+use App\Modules\Addons\DocumentacionCorporativa\Console\PendientesRecordatorioCommand;
 use App\Modules\Addons\DocumentacionCorporativa\Contracts\FuenteRegistry;
+use App\Modules\Addons\DocumentacionCorporativa\Fuentes\FinanzasFuentes;
+use App\Modules\Addons\DocumentacionCorporativa\Fuentes\FlotasFuentes;
+use App\Modules\Addons\DocumentacionCorporativa\Fuentes\PropiaFuentes;
+use App\Modules\Addons\DocumentacionCorporativa\Fuentes\RedFuentes;
+use App\Modules\Addons\DocumentacionCorporativa\Fuentes\TalentoFuentes;
 use App\Modules\BaseModuleServiceProvider;
 
 class ModuleServiceProvider extends BaseModuleServiceProvider
@@ -21,5 +27,32 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
         // llegarían nunca al resolvedor — el concepto seguiría diciendo "sin fuente
         // configurada" para siempre, sin ningún error que lo delatara.
         $this->app->singleton(FuenteRegistry::class);
+    }
+
+    public function boot(): void
+    {
+        parent::boot();
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                PendientesRecordatorioCommand::class,
+            ]);
+        }
+
+        // Fase 1.1 (item #728): fuentes vivas de finanzas del Apartado IV.
+        // Cada fase posterior agrega su propio `Fuentes\*::registrar()` aquí.
+        FinanzasFuentes::registrar($this->app->make(FuenteRegistry::class));
+
+        // Fase 1.3 (item #730): fuentes vivas de talento humano del Apartado VII.
+        TalentoFuentes::registrar($this->app->make(FuenteRegistry::class));
+
+        // Fase 1.4 (item #731): fuentes vivas de flota vehicular y equipos de
+        // telecomunicaciones (red OLT/ONU) del Apartado V.
+        FlotasFuentes::registrar($this->app->make(FuenteRegistry::class));
+        RedFuentes::registrar($this->app->make(FuenteRegistry::class));
+
+        // Fase 2d (item #737): estructura accionaria — fuente propia del módulo
+        // (namespace `dc.*`), lee `dc_accionistas` (Fase 2c, item #736).
+        PropiaFuentes::registrar($this->app->make(FuenteRegistry::class));
     }
 }
