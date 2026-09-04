@@ -172,6 +172,36 @@
         </div>
       </div>
 
+      <!-- #9990256 — qué categorías retienen aunque la válvula selle sólo MENCIÓN -------- -->
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center py-2">
+          <b><i class="bi bi-shield-exclamation me-1"></i>Qué retiene aunque sólo sea mención</b>
+          <span class="small text-muted">Fuente: <code>{{ fronteras.mencion?.fuente }}</code></span>
+        </div>
+        <div class="card-body">
+          <p class="small text-muted">
+            Cuando la válvula sella un item como <b>MENCIÓN</b> (el término se nombra, no se
+            ejecuta), el item deja de retenerse — salvo en las categorías marcadas aquí, que
+            retienen siempre aunque sea sólo mención. Sólo aplica en modo <b>Ablandar</b>: en modo
+            <b>Apagar</b> la frontera desaparece entera y esta lista no se consulta.
+          </p>
+          <div v-if="fronteras.valvula?.modo === 'apagar'" class="alert alert-secondary py-1 px-2 small mb-2">
+            <i class="bi bi-info-circle me-1"></i>
+            La válvula está en modo «Apagar» — esta lista no tiene efecto ahora mismo.
+          </div>
+          <div class="row g-2">
+            <div class="col-md-6 col-lg-3" v-for="cat in (fronteras.mencion?.categorias || [])" :key="cat.clave">
+              <label class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" :disabled="!puedeEditar"
+                       :checked="cat.retiene"
+                       @change="toggleMencionCategoria(cat.clave)">
+                <span class="form-check-label"><b>{{ cat.clave }}</b></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Techo del autopilot ------------------------------------------------------------ -->
       <div class="card mb-3">
         <div class="card-header py-2">
@@ -1062,6 +1092,26 @@ export default {
         const guardarTecho = (nivel) => post("/api/roadmap/torre/fronteras/techo-autopilot", { nivel });
         const guardarTermino = (categoria, termino, accion, palabraCompleta = false) =>
             post("/api/roadmap/torre/fronteras/termino", { categoria, termino, accion, palabra_completa: palabraCompleta });
+        const guardarMencion = (categorias) => post("/api/roadmap/torre/fronteras/mencion-categorias", { categorias });
+
+        // #9990256 — el endpoint recibe la lista COMPLETA de categorías que retienen, no un toggle
+        // de una sola; se arma a partir del estado vigente antes de mandarla.
+        function toggleMencionCategoria(clave) {
+            const actuales = (fronteras.value?.mencion?.categorias || [])
+                .filter((c) => c.retiene).map((c) => c.clave);
+            const retiene = actuales.includes(clave);
+            const nuevas = retiene ? actuales.filter((c) => c !== clave) : [...actuales, clave];
+            pedirConfirmacion({
+                titulo: retiene
+                    ? `Dejar de retener menciones de «${clave}»`
+                    : `Retener menciones de «${clave}»`,
+                cuerpo: retiene
+                    ? "A partir de ahora, un item que sólo MENCIONE este tema (sin ejecutar la acción) dejará de retenerse — pasa aunque la válvula lo haya sellado como mención."
+                    : "A partir de ahora, un item que sólo MENCIONE este tema seguirá reteniéndose, igual que si fuera una acción real.",
+                afloja: retiene,
+                accion: () => guardarMencion(nuevas),
+            });
+        }
 
         function agregarTermino(categoria) {
             const t = (nuevoTermino[categoria] || "").trim();
@@ -1200,6 +1250,7 @@ export default {
             confirmacion, toast, toastError, valorSel, etiquetaControl, etiquetaOrigen,
             cargarTodo, pedirConfirmacion, cancelarConfirmacion, confirmar,
             guardarValvula, guardarCategoria, guardarTecho, guardarTermino, agregarTermino,
+            guardarMencion, toggleMencionCategoria,
             guardarConfig, togglePermiso, ejecutarAccion, previsualizar, guardarIcono,
             controlesEditables, controlesUmbral, controlesSoloLectura,
             techoDeNivel, nivelOrden, durezaEfecto, badgeEfecto, badgeGasto, dg,
