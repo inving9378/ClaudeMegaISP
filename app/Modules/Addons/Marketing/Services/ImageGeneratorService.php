@@ -17,7 +17,7 @@ class ImageGeneratorService
 
     public function __construct()
     {
-        $this->apiToken = env('REPLICATEAPITOKEN', '');
+        $this->apiToken = config('marketing.replicate_api_token', '');
     }
 
     /**
