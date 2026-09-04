@@ -515,6 +515,33 @@
                 </template>
               </span>
             </div>
+            <div class="col-md-6">
+              <label class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" :disabled="!puedeEditar" v-model="form.auditor_gasto_reintento_activo">
+                <span class="form-check-label"><b>Reintento del freno de sequía N2 (#712)</b>
+                  <span class="d-block text-muted small">Permite un sondeo del auditor cada tantos minutos aunque el generador esté apagado por gasto.</span></span>
+              </label>
+            </div>
+            <div class="col-md-6">
+              <label class="small d-block">Minutos entre sondeos del freno de sequía N2 <em>(5–240)</em>
+                <input type="number" min="5" max="240" class="form-control form-control-sm"
+                       v-model.number="form.auditor_gasto_reintento_min" :disabled="!puedeEditar"></label>
+              <span class="text-muted small">
+                Cada cuántos minutos se permite un sondeo aunque el generador esté apagado por
+                sequía Nivel 2 (#712).
+              </span>
+            </div>
+          </div>
+
+          <div class="mt-3" v-if="config?.politica?.auditor?.gasto">
+            <span class="small text-muted d-block mb-1">Estado del freno de sequía N2 (solo lectura):</span>
+            <span class="badge" :class="badgeGasto(config.politica.auditor.gasto.estado)">
+              <template v-if="config.politica.auditor.gasto.estado === 'armado'">Freno armado</template>
+              <template v-else-if="config.politica.auditor.gasto.estado === 'disparado'">
+                Apagado desde {{ config.politica.auditor.gasto.desde }}<template v-if="config.politica.auditor.gasto.reintento_en_segundos !== null">, próximo sondeo en {{ config.politica.auditor.gasto.reintento_en_segundos }}s</template><template v-else>, reintento desactivado</template>
+              </template>
+              <template v-else-if="config.politica.auditor.gasto.estado === 'medio_abierto'">Sondeo disponible en el próximo ciclo</template>
+            </span>
           </div>
 
           <button class="btn btn-sm btn-primary mt-3" :disabled="!puedeEditar || guardando" @click="guardarConfig">
@@ -943,6 +970,8 @@ export default {
             auditor_cooldown_min: 15,
             auditor_slots_libres_min: 2,
             paralelo_mismo_modulo: 1,
+            auditor_gasto_reintento_min: 30,
+            auditor_gasto_reintento_activo: true,
         });
 
         const nuevoTermino = reactive({});
@@ -977,6 +1006,8 @@ export default {
                 form.auditor_cooldown_min = c.data.politica.auditor.cooldown_min;
                 form.auditor_slots_libres_min = c.data.politica.auditor.slots_libres_min;
                 form.paralelo_mismo_modulo = c.data.politica.paralelo_mismo_modulo?.valor ?? 1;
+                form.auditor_gasto_reintento_min = c.data.politica.auditor.gasto_reintento_min;
+                form.auditor_gasto_reintento_activo = !!c.data.politica.auditor.gasto_reintento_activo;
             } catch (e) {
                 error.value = "No se pudo leer la configuración: " + (e?.response?.data?.message || e.message);
             } finally {
@@ -1157,6 +1188,9 @@ export default {
         const badgeEfecto = (e) => ({
             bloquear: "bg-danger", bandeja: "bg-warning text-dark", avisar: "bg-info text-dark",
         }[e] || "bg-secondary");
+        const badgeGasto = (estado) => ({
+            armado: "bg-success", disparado: "bg-danger", medio_abierto: "bg-warning text-dark",
+        }[estado] || "bg-secondary");
 
         onMounted(() => cargarTodo());
 
@@ -1168,7 +1202,7 @@ export default {
             guardarValvula, guardarCategoria, guardarTecho, guardarTermino, agregarTermino,
             guardarConfig, togglePermiso, ejecutarAccion, previsualizar, guardarIcono,
             controlesEditables, controlesUmbral, controlesSoloLectura,
-            techoDeNivel, nivelOrden, durezaEfecto, badgeEfecto, dg,
+            techoDeNivel, nivelOrden, durezaEfecto, badgeEfecto, badgeGasto, dg,
         };
     },
 };
