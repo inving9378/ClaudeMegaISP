@@ -863,6 +863,45 @@ class AuditorService
         return strtoupper($metodo) . ' ' . rtrim(preg_replace('/\{[^}]+\}/', '{}', $p), '/');
     }
 
+    /**
+     * #9990232 — LOS TRES DETECTORES DE CÓDIGO, en un solo punto para los dos consumidores.
+     *
+     * `detectarGaps()` (auditor) y `BarridoService::explorar()` (barrido) los invocan por aquí. El
+     * barrido antes no los tenía —eran `private` y su `explorar()` sólo corría TODO/FIXME y
+     * `php -l`—, así que un barrido sobre `Inventario` devolvía CERO hallazgos y sobre `GestionRed`
+     * uno solo (un TODO). Buscar TODOs no es «ver qué se puede mejorar o corregir».
+     *
+     * Se expone agrupado y NO copiado a propósito: una copia en el barrido se desincroniza el día
+     * que alguien mejore un detector, y nadie se entera hasta que el barrido deje de encontrar algo
+     * que el auditor sí ve.
+     *
+     * Respeta los mismos flags de `circuito.auditor.detectores` que antes: apagar uno lo apaga en
+     * los DOS caminos, que es lo que se espera de una perilla.
+     *
+     * `$dir` = raíz del módulo en disco (`rutaModulo()`), o null si no se pudo resolver. Igual que
+     * antes, `null_safety` sólo corre con `$dir` (necesita los archivos); los otros dos resuelven
+     * su propio alcance a partir del nombre del módulo.
+     *
+     * @return array lista de `$gap` en el formato estándar (modulo/tipo/clase/clave/titulo/detalle)
+     */
+    public function detectoresDeCodigo(string $modulo, ?string $dir = null): array
+    {
+        $det  = (array) config('circuito.auditor.detectores', []);
+        $gaps = [];
+
+        if ($dir !== null && ($det['null_safety'] ?? true)) {
+            $gaps = array_merge($gaps, $this->detNullSafety($modulo, $dir));
+        }
+        if (($det['jquery_sin_off'] ?? true)) {
+            $gaps = array_merge($gaps, $this->detJquerySinOff($modulo));
+        }
+        if (($det['env_runtime'] ?? true)) {
+            $gaps = array_merge($gaps, $this->detEnvRuntime($modulo));
+        }
+
+        return $gaps;
+    }
+
     /** Todos los gaps de un módulo, ya clasificados en mecanico|producto. */
     public function detectarGaps(string $modulo): array
     {
@@ -883,10 +922,13 @@ class AuditorService
             if (($det['andamiaje'] ?? true)) {
                 $gaps = array_merge($gaps, $this->detAndamiaje($modulo, $dir));
             }
-            if (($det['null_safety'] ?? true)) {
-                $gaps = array_merge($gaps, $this->detNullSafety($modulo, $dir));
-            }
         }
+
+        // #9990232 — los tres detectores DE CÓDIGO se invocan por un único punto, que el BARRIDO
+        // también consume (`BarridoService::explorar()`). Antes vivían aquí sueltos y el barrido no
+        // los alcanzaba: por eso sólo encontraba TODOs. Una copia allá se habría desincronizado el
+        // día que alguien mejorara uno; con un solo punto, los dos caminos ven siempre lo mismo.
+        $gaps = array_merge($gaps, $this->detectoresDeCodigo($modulo, $dir));
 
         if (($det['sin_clasificar'] ?? true)) {
             $gaps = array_merge($gaps, $this->detSinClasificar($modulo));
@@ -894,13 +936,6 @@ class AuditorService
         if (($det['semilla'] ?? true)) {
             $gaps = array_merge($gaps, $this->detSemilla($modulo));
         }
-        if (($det['jquery_sin_off'] ?? true)) {
-            $gaps = array_merge($gaps, $this->detJquerySinOff($modulo));
-        }
-        if (($det['env_runtime'] ?? true)) {
-            $gaps = array_merge($gaps, $this->detEnvRuntime($modulo));
-        }
-
         $gaps = array_merge($gaps, $this->medirContraSpec($modulo));
 
         // FRONTERA DURA — última palabra. Un gap que toque producción / borrar datos / dinero /
