@@ -50,6 +50,12 @@ return [
         'endpoint' => env('CLAUDE_API_ENDPOINT', 'https://api.anthropic.com/v1/messages'),
     ],
 
+    // Respaldo #2 (tras el Hub api_integrations) de UsesApiIntegration::resolveApiKey()
+    // para el provider 'openai' — ver el mapa ENV_FALLBACK_CONFIG_MAP en ese trait.
+    'openai' => [
+        'key' => env('OPENAI_API_KEY'),
+    ],
+
     // Firebase Cloud Messaging (item #101/#72) — sin valores hasta que #72 (greenfield)
     // provea el proyecto real. Con project_id vacío, PushChannel (Flotas) rechaza el
     // envío en vez de fingir éxito.
