@@ -39,7 +39,7 @@ class HomeController extends Controller
     public function index()
     {
         $this->data['notifications'] = $this->userNotification();
-        if (auth()->user()->isClient()) {
+        if (auth()->user()?->isClient()) {
             return view('core-dashboard::started-page-client', $this->data);
         } else {
             return view('core-dashboard::started-page', $this->data);

@@ -13,6 +13,7 @@ use App\Models\Referrals\ReferralReward;
 use App\Models\Referrals\ReferralSetting;
 use App\Models\Referrals\ReferralShareLog;
 use App\Modules\Addons\Embajadores\Events\ReferralShareRequested;
+use App\Modules\Core\Security\Traits\ChecksActionPermission;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -21,6 +22,8 @@ use Illuminate\Support\Facades\Log;
 
 class EmbajadorExtApiController extends Controller
 {
+    use ChecksActionPermission;
+
     // ---- helpers -----------------------------------------------------------
 
     private function resolveClient(): ?ClientModel
@@ -147,6 +150,8 @@ class EmbajadorExtApiController extends Controller
      */
     public function aplicarRecompensa(int $id): JsonResponse
     {
+        $this->verificarPermisoAccion('embajadores.recompensa.aplicar', 'api/megafamilia/embajadores/recompensas.aplicar');
+
         $client = $this->resolveClient();
         if (! $client) return $this->noClient();
 

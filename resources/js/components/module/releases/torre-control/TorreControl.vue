@@ -899,7 +899,14 @@ export default {
         const bandejaTruncada = computed(() => (contadores.value.total || 0) > cola.value.length);
 
         const terminalesActivas = computed(() => sesiones.value.filter((s) => s.running).length);
-        const terminalesLibres = computed(() => sesiones.value.filter((s) => s.idle && !s.running).length);
+        // #982 — NO usar "idle" (solo true cuando el slot nunca tuvo sesión viva): una terminal que
+        // acaba de terminar su vuelta trae sesión viva con running=false E idle=false (ver
+        // buildSesion() en RoadmapCircuitoService), y quedaba sin contar en ningún lado — el header
+        // mostraba menos "libres" que JarvisService::diagnostico()['terminales'] y que
+        // AuditorService::slotsLibres(), que sí la cuentan libre. "Libre" = todo lo que no está
+        // corriendo ahora mismo, así activas+libres siempre suma el total (misma invariante que esas
+        // dos fuentes) y las tres dejan de poder divergir.
+        const terminalesLibres = computed(() => sesiones.value.length - terminalesActivas.value);
 
         async function cargarContadores() {
             try {

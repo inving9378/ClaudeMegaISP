@@ -88,7 +88,7 @@
 </template>
 
 <script>
-import { onMounted, reactive, ref, watch } from "vue";
+import { onMounted, reactive, ref, watch, onUnmounted, getCurrentInstance } from "vue";
 import DatatableHelper from "../../../../../helpers/datatableHelper";
 import Swal from "sweetalert2";
 import { showLoading, hideLoading } from "../../../../../helpers/loading";
@@ -118,6 +118,10 @@ export default {
         },
     },
     setup(props) {
+        const ns = `.leak983-clientInvoice-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const datatable = reactive({
             table: new DatatableHelper({}),
         });
@@ -142,29 +146,29 @@ export default {
 
         onMounted(() => {
             clientId.value = getClientIdByUrl();
-            $(document).on("click", ".invoice-send", function () {
+            $(document).on("click" + ns, ".invoice-send", function () {
                 let idItem = $(this).parent().attr("id-item");
                 sendEmail(idItem);
             });
-            $(document).on("click", ".invoice-print", function () {
+            $(document).on("click" + ns, ".invoice-print", function () {
                 let idItem = $(this).parent().attr("id-item");
                 printInvoice(idItem);
             });
-            $(document).on("click", ".invoice-paid", function () {
+            $(document).on("click" + ns, ".invoice-paid", function () {
                 clientId.value = $(this).attr("client-id");
                 paidInvoice();
             });
 
-            $(document).on("click", ".mark-as-paid", function () {
+            $(document).on("click" + ns, ".mark-as-paid", function () {
                 let idItem = $(this).parent().attr("id-item");
                 markAsPaid(idItem);
             });
 
-            $(document).on("click", "#showCreateInvoiceModal", function () {
+            $(document).on("click" + ns, "#showCreateInvoiceModal", function () {
                 showCreateInvoiceModal();
             });
 
-            $(document).on("click", ".edit-period", function () {
+            $(document).on("click" + ns, ".edit-period", function () {
                 let periodoAactual = $(this).parent().attr("id-period");
                 showEditPeriodInvoiceModal(periodoAactual);
             });

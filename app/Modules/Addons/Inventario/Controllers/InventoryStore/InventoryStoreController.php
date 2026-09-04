@@ -6,6 +6,8 @@ namespace App\Modules\Addons\Inventario\Controllers\InventoryStore;
 use App\Http\Controllers\Controller;
 use App\Http\HelpersModule\module\inventory\inventorystore\InventoryStoreDatatableHelper;
 use App\Http\Requests\module\inventory\inventory_store\InventoryStoreCreateRequest;
+use App\Models\InventoryStore;
+use App\Modules\Core\Security\Scopes\OwnScopeFilter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -135,5 +137,23 @@ class InventoryStoreController extends Controller
     public function getAll()
     {
         return $this->data['model']::all();
+    }
+
+    /**
+     * Item #865 (Fase B) — le dice al frontend si el Global Scope de alcance
+     * propio está activo para el usuario actual y si eso lo deja sin
+     * almacenes (requisitos c/d: mensaje explícito + ocultar "Crear
+     * almacén"). `own_count` usa el modelo con el Global Scope aplicado tal
+     * cual (misma query que verá el listado real).
+     */
+    public function scopeStatus()
+    {
+        $user = auth()->user();
+        $scopeActive = OwnScopeFilter::isActiveFor($user, 'inventory_store_view_inventory_store');
+
+        return response()->json([
+            'scope_active' => $scopeActive,
+            'has_own_stores' => $scopeActive ? InventoryStore::count() > 0 : true,
+        ]);
     }
 }

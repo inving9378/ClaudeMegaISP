@@ -69,6 +69,7 @@
                 { "label": "Calidad de caja",  "url": "/talento/calidad",            "permission": "talento.quality.view" },
                 { "label": "Penalizaciones",   "url": "/talento/penalizaciones",     "permission": "talento.penalties.view" },
                 { "label": "Credenciales",     "url": "/talento/credenciales",       "permission": "talento.credentials.view" },
+                { "label": "Paquetes de documentos", "url": "/talento/expediente/paquetes", "permission": "talento.expediente.paquetes.manage" },
                 { "label": "Préstamos",        "url": "/talento/finiquito",          "permission": "talento.loans.view" },
                 { "label": "Finiquito",        "url": "/talento/finiquito",          "permission": "talento.settlement.view" },
                 { "label": "Academia",         "url": "/talento/academia",           "permission": "talento.academy.view" },

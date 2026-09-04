@@ -28,7 +28,7 @@
 </template>
 
 <script>
-import { onMounted, ref, watch, computed, reactive } from "vue";
+import { onMounted, ref, watch, computed, reactive, onUnmounted, getCurrentInstance } from "vue";
 import Datatable from "../../../../base/shared/Datatable.vue";
 import Form from "../../../../../helpers/Form";
 import DatatableHelper from "../../../../../helpers/datatableHelper";
@@ -46,6 +46,10 @@ export default {
         AddExpense,
     },
     setup(props, { emit }) {
+        const ns = `.leak983-expense-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const CATEGORY_EXPENSE_DEFAULT = "Gasto Manual";
         const amountByExpenseManual = ref(0);
         const amountTotal = ref(0);
@@ -61,7 +65,7 @@ export default {
 
         onMounted(() => {
             initComponent();
-            $(document).on("click", "#button_add_expense", function () {
+            $(document).on("click" + ns, "#button_add_expense", function () {
                 showModal();
             });
         });
