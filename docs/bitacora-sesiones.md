@@ -3387,6 +3387,34 @@ comando `schema:rebuild-dryrun` ya está completo y mergeado desde #821/#822; la
 ciclo fix-drift (555 migraciones corriendo limpias de punta a punta) es descendiente de #822, no
 de #818, y sigue su curso aparte en #830/#833.
 
+## 2026-09-01 14:33 — Item #843 (Enforcement real de permisos en el portal): reconfirmado como paraguas ya descompuesto, sin código nuevo
+
+**wt-3.** #843 volvió a `en_progreso` reclamado para mí vía `reaper-rapido` (`reap_count=2`, dos
+ciclos de timeout→re-escalación→reap→re-aprobación). Al leer el item: una vuelta anterior (también
+wt-3, 2026-09-01 14:17) ya había corrido `circuito:cabida` (`NO CABE`, ya había timeouteado antes
+con 0 commits), investigado que las decisiones de motor de permisos del prompt (Spatie `can()`,
+sin copia rol→directo) ya estaban resueltas por trabajo previo (Fase 3a, Permisos B1.1), y
+descompuesto el trabajo real pendiente en 5 sub-items — #847 (tests de resolución de permisos),
+#848 (menú de una sola fuente de verdad), #849 (auditoría Blade `@can` vs `@if(can())`), #850
+(checks explícitos en controladores/APIs) y #851 (alcance de datos por módulo). El rebote: esa
+vuelta se cortó a mitad de la descomposición (`comentarios_claude` termina literalmente en
+"Descom…") y nunca intentó el cierre del padre, así que #843 se quedó `en_progreso` colgado y el
+reaper lo re-escaló dos veces.
+
+Mismo mecanismo de "paraguas" ya usado en #208/#216/#738/#745/#830/#816/#818/#841 (guard `saving`
+de `RoadmapItem`): intenté cerrar #843 a `completado` y el guard lo reenrutó a `aprobado_irving` +
+`excluir_pool_automatico=true`. Matiz de esta vuelta: disparó el guard (1) —"nivel C con rama sin
+merge_commit"— en vez del guard (2b) específico de paraguas, porque #843 conserva un campo
+`branch` de una vuelta aún más antigua; verificado con `git log main..<rama>` que esa rama tiene
+**0 commits propios** (nada esperando merge de verdad), así que el efecto es el mismo (fuera del
+pool) aunque la etiqueta interna (`esperando_merge_irving=true`) no sea la más precisa. Un intento
+de limpiar ese campo vía tinker para forzar el guard específico fue bloqueado por el clasificador
+de auto-mode (candado de guardrail) — correcto no insistir, es puramente cosmético y sin riesgo.
+Con esto #843 sale del pool de reclamo y se cerrará solo cuando #847-#851 cierren. Decisión
+registrada también en `circuito:reportar 843 --tipo=decision` (reporte #3927). Detalle completo en
+`docs/roadmap-bucle-reap-item-843-verificacion.md`. Sin cambio de código de aplicación — #847-#851
+quedan disponibles para que el pool los reclame normalmente (#847 ya fue reclamado por otra
+terminal durante esta misma vuelta).
 ## 2026-09-01 16:03 — Item #848: cierre del bucle reap sobre paraguas ya descompuesto (sub-items #855/#856/#857)
 
 Worktree `wt-2`. #848 (sub-item de #843, "Fase 2 - Menu de una sola fuente de verdad: ocultar
