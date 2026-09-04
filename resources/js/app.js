@@ -25,6 +25,7 @@ import CrmCrud from "./components/module/crm/CrmCrud";
 import AddCrmCrud from "./components/module/crm/AddCrmCrud";
 import ConvertToClient from "./components/module/crm/components/ConvertToClient";
 import CrmDatatable from "./components/module/crm/CrmDatatable";
+import CrmOrphanDocuments from "./components/module/crm/CrmOrphanDocuments.vue";
 
 //Client
 import ClientCrud from "./components/module/client/ClientCrud";
@@ -495,6 +496,7 @@ const app = createApp({
         AddCrmCrud,
         ConvertToClient,
         CrmDatatable,
+        "crm-orphan-documents": CrmOrphanDocuments,
 
         //CLIENT
         ClientCrud,
