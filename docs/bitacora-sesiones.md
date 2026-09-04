@@ -3141,6 +3141,31 @@ encolado al runner on-box). Sin cambio de código funcional — solo documentaci
 del pool automático) por el guard `(2b)` de `RoadmapItem` — cierra solo cuando los 3 hijos cierren.
 Mismo patrón que #75/#123/#639.
 
+## 2026-08-28 22:55 — Item #103: GPS por celular del conductor, ya estaba implementado (wt-5)
+
+Item #103 pedía UI de APK (botón tracking, permiso de ubicación, loop de envío) sobre un
+backend que la premisa daba por existente. Investigado a fondo: **ambas mitades ya estaban
+construidas y funcionando**, solo que repartidas entre este repo y `megafamilia-rn` (checkout
+separado, solo leído, nunca tocado — mismo criterio de aislamiento #334 que #639).
+
+- Backend real: `ConductorApiController::reportarPosicion` en `app/Modules/Addons/MegaFamilia/`
+  (NO en `Flotas/FleetGpsController` como suponía el item), self-scoped por `FleetAssignment`,
+  con anti-salto GPS, reusa `FleetPositionService::saveBatch` sin tocarla. Un commit previo
+  (`6ff9bad1`) había agregado un endpoint duplicado en Flotas y el siguiente (`a3d38742`,
+  mismo día) lo revirtió al encontrar el real — regla "servicios compartidos únicos".
+- UI real en `megafamilia-rn`: rol `conductor` → tab "Mapa" → `MapaTab.tsx` con botón
+  "Iniciar tracking", `PermissionsAndroid.request(ACCESS_FINE_LOCATION)` y polling cada 30s
+  (comentario del propio código: "mismo intervalo que Flutter" — se portó de la app Flutter
+  predecesora al hacer el RN rewrite).
+- Rol `conductor` existe en BD (id=19) con 0 usuarios asignados — alta de negocio, fuera de
+  alcance del item.
+
+**Sin cambio de código.** Se documentó en `docs/flotas-conductor-gps-item-103-verificacion.md`
++ nota en `CLAUDE.md`, se commiteó en la rama del item (`circuito/item-103-...`) y se marcó
+`sin_ui=true` (la pantalla real es de app móvil, no ruta web de este deploy) con
+`sin_ui_motivo` explicando la verificación. `circuito:integrar` lo parqueó como nivel C
+terminado → `esperando_merge_irving=true` (fuera del pool, espera el merge manual de Irving).
+Mismo patrón de cierre que #75/#123/#639.
 ## 2026-08-28 18:15 — Item #215: circuito:cortar-vuelta (fin del pkill -f autoinmune)
 
 Worker wt-2. El item documentaba un incidente real del 2026-08-25: para cortar una vuelta se corrió
