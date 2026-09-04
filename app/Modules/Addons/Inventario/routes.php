@@ -83,6 +83,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('inventory'
         Route::get('/my-store/{id}', [InventoryStoreController::class, 'myStore'])->name('inventory.inventory_store.my-store');
         Route::get('/get-all', [InventoryStoreController::class, 'getAll']);
         Route::get('/get-by-id/{id}', [InventoryStoreController::class, 'getById']);
+        Route::get('/scope-status', [InventoryStoreController::class, 'scopeStatus']);
     });
 
     Route::prefix('store_zone')->group(function () {
