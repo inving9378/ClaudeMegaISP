@@ -173,6 +173,7 @@ class RoadmapController extends Controller
             'auditor_max_por_corrida' => ['sometimes', 'integer', 'min:1', 'max:20'],
             'auditor_cooldown_min'    => ['sometimes', 'integer', 'min:5', 'max:1440'],
             'auditor_slots_libres_min' => ['sometimes', 'integer', 'min:0', 'max:6'],
+            'paralelo_mismo_modulo'   => ['sometimes', 'nullable', 'integer', 'min:1', 'max:6'],
         ]);
 
         $diff = app(\App\Modules\Addons\Roadmap\Services\TorreConfigService::class)
