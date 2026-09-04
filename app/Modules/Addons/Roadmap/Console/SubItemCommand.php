@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Roadmap\Console;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Addons\Roadmap\Services\Descomposicion\DependenciaGate;
 use App\Modules\Addons\Roadmap\Services\RoadmapIntakeService;
 use Illuminate\Console\Command;
 
@@ -28,7 +29,7 @@ class SubItemCommand extends Command
 
     protected $description = 'Crea un sub-item de seguimiento colgando de un item (nace pendiente_revision).';
 
-    public function handle(RoadmapIntakeService $intake): int
+    public function handle(RoadmapIntakeService $intake, DependenciaGate $gate): int
     {
         $padre = RoadmapItem::find($this->argument('padre'));
         if (! $padre) {
@@ -73,6 +74,27 @@ class SubItemCommand extends Command
                 $this->error(
                     "Posición(es) inexistente(s) entre los hermanos de #{$padre->id}: ".
                     implode(', ', $faltantes)
+                );
+
+                return self::FAILURE;
+            }
+        }
+
+        // #9990278 — grafo de dependencia de TODOS los hermanos + la arista nueva, antes de crear
+        // el sub-item: si la nueva posición cerraría un ciclo, no se crea nada.
+        if ($posiciones !== []) {
+            $edges = [];
+            RoadmapItem::where('origen_item_id', $padre->id)
+                ->get()
+                ->each(function (RoadmapItem $hermano) use (&$edges, $gate) {
+                    $edges[(int) $hermano->position] = $gate->dependeDeDe($hermano);
+                });
+            $edges[$position] = $posiciones;
+
+            if ($gate->tieneCiclo($position, $edges)) {
+                $camino = implode(' -> ', $gate->caminoCiclo($position, $edges));
+                $this->error(
+                    "La posición {$position} dependería circularmente: {$camino}"
                 );
 
                 return self::FAILURE;
