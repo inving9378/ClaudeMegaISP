@@ -12,10 +12,12 @@ use Symfony\Component\Process\Process;
  * (`deploy:dry-run-migrations`, reusado tal cual). Cada paso corre y reporta
  * INDEPENDIENTE aunque otro ya haya fallado — el resumen final es FAIL si CUALQUIERA
  * falló de verdad. ESTA FASE NO REVIERTE NI ESCALA, solo detecta y reporta.
+ * `--json` emite el mismo resultado como un solo objeto JSON (modulo/pasos/resultado)
+ * en vez del texto con iconos, para consumo por otro proceso.
  */
 class VerificarVueltaCommand extends Command
 {
-    protected $signature = 'circuito:verificar-vuelta {modulo : Módulo tocado por la vuelta (ej. Flotas, Talento, Payments, Portal)}';
+    protected $signature = 'circuito:verificar-vuelta {modulo : Módulo tocado por la vuelta (ej. Flotas, Talento, Payments, Portal)} {--json : Salida en JSON en vez de texto}';
 
     protected $description = 'Motor de detección de una vuelta: php -l + boot + tests del módulo + dry-run de migraciones.';
 
@@ -25,27 +27,38 @@ class VerificarVueltaCommand extends Command
     public function handle(): int
     {
         $modulo = trim((string) $this->argument('modulo'));
+        $json = (bool) $this->option('json');
 
-        $this->line("Verificando vuelta — módulo: {$modulo}");
-        $this->line(str_repeat('-', 70));
+        if (! $json) {
+            $this->line("Verificando vuelta — módulo: {$modulo}");
+            $this->line(str_repeat('-', 70));
+        }
 
         $this->checkPhpLint();
         $this->checkBoot();
         $this->checkTests($modulo);
         $this->checkMigrateDryRun();
 
+        $fallo = collect($this->resultados)->contains(fn (array $r) => $r['estado'] === 'fail');
+
+        if ($json) {
+            $this->line(json_encode([
+                'modulo' => $modulo,
+                'pasos' => $this->resultados,
+                'resultado' => $fallo ? 'fail' : 'ok',
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+            return $fallo ? self::FAILURE : self::SUCCESS;
+        }
+
         $this->line(str_repeat('-', 70));
-        $fallo = false;
         foreach ($this->resultados as $r) {
             $icono = match ($r['estado']) {
                 'ok'   => '✅',
-                'skip' => '⚠️ ',
+                'skip' => '⏭️ ',
                 default => '❌',
             };
             $this->line("{$icono} {$r['paso']}" . ($r['detalle'] !== '' ? " — {$r['detalle']}" : ''));
-            if ($r['estado'] === 'fail') {
-                $fallo = true;
-            }
         }
         $this->line(str_repeat('-', 70));
         $this->line($fallo ? '❌ VERIFICACIÓN FALLÓ' : '✅ VERIFICACIÓN OK');
