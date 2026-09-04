@@ -13,6 +13,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (!Schema::hasTable('roadmap_items')) {
+            return;
+        }
+
         Schema::table('roadmap_items', function (Blueprint $t) {
             if (! Schema::hasColumn('roadmap_items', 'worker_sid')) {
                 $t->string('worker_sid', 16)->nullable()->after('en_desarrollo_humano');
@@ -22,6 +26,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (!Schema::hasTable('roadmap_items')) {
+            return;
+        }
+
         Schema::table('roadmap_items', function (Blueprint $t) {
             if (Schema::hasColumn('roadmap_items', 'worker_sid')) {
                 $t->dropColumn('worker_sid');
