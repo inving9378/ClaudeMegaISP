@@ -135,6 +135,20 @@ class MergeRunner
             return $this->fail('No se pudo cambiar a main en el checkout principal.', true);
         }
 
+        // #9990345 — el checkout puede reportar éxito y aun así no dejar HEAD en main si otro
+        // proceso (sesión interactiva, u otro drain) lo mueve justo después; confirma antes de
+        // tocar nada más, en vez de mergear a ciegas asumiendo que seguimos en main.
+        $headTrasCheckout = trim($this->git(['rev-parse', '--abbrev-ref', 'HEAD'])->getOutput());
+        if ($headTrasCheckout !== 'main') {
+            $this->registrarFalloAterrizaje($item, 'checkout_no_quedo_en_main', $branch, $headTrasCheckout, null);
+
+            return $this->fail(
+                "El checkout principal no quedó en main (HEAD='{$headTrasCheckout}'); otro proceso lo "
+                . 'movió justo después del checkout. Merge abortado antes de tocar nada.',
+                true
+            );
+        }
+
         // FASE 1: merge staged SIN commitear → detecta conflictos sin dejar rastro.
         $merge = $this->git(['merge', '--no-ff', '--no-commit', $branch]);
         if (! $merge->isSuccessful()) {
@@ -170,6 +184,7 @@ class MergeRunner
         }
 
         // FASE 3: finaliza el merge (commit).
+        $this->antesDeCommitParaPruebas(); // no-op en producción; seam de prueba (#9990345), ver abajo.
         $commit = $this->git(['commit', '--no-edit', '-m', "Integra circuito #{$item->id} ({$branch}) a main"]);
         if (! $commit->isSuccessful()) {
             $this->git(['merge', '--abort']);
@@ -178,6 +193,28 @@ class MergeRunner
         }
 
         $sha = trim($this->git(['rev-parse', 'HEAD'])->getOutput());
+
+        // #9990345 — ESTE es el candado que habría atajado el incidente real: el commit se creó con
+        // éxito (git no reporta error alguno), pero si HEAD ya no estaba en main en el momento del
+        // commit (otro proceso lo movió durante el merge), el commit queda huérfano de main aunque
+        // todo lo anterior haya "funcionado". Verifica que main de verdad lo contiene ANTES de
+        // marcar el item como integrado; si no, NO se toca el item ni se reescribe nada — se deja el
+        // commit donde quedó y se escala para revisión manual.
+        $contiene = $this->git(['branch', '--contains', $sha, '--list', 'main']);
+        $aterrizoEnMain = $contiene->isSuccessful() && trim($contiene->getOutput()) !== '';
+        if (! $aterrizoEnMain) {
+            $headReal = trim($this->git(['rev-parse', '--abbrev-ref', 'HEAD'])->getOutput());
+            $this->registrarFalloAterrizaje($item, 'merge_no_aterrizo_en_main', $branch, $headReal, $sha);
+
+            return $this->fail(
+                "El merge de {$branch} se commiteó ({$sha}) pero NO quedó en main — HEAD terminó en "
+                . "'{$headReal}' (otro proceso movió el checkout principal durante el merge). El item "
+                . 'NO se marca integrado; el commit se deja donde quedó (sin reescribir historia ni '
+                . 'borrar ramas) para revisión manual.',
+                true
+            );
+        }
+
         $this->markMerged($item, $sha, $branch);
 
         // #711 (Jarvis Parte 1) — "al cambiar main" y "al cerrarse un item" son el MISMO evento
@@ -201,8 +238,44 @@ class MergeRunner
             'salida' => "Integrada a dev (merge {$sha}). Regresión OK.{$rebuild}", 'escalado' => false, 'at' => time()];
     }
 
+    /**
+     * No-op en producción. Seam de prueba (#9990345): un test lo sobreescribe para simular que
+     * otro proceso movió HEAD a otra rama justo antes de que el runner commitee el merge — el
+     * punto exacto donde ocurrió el incidente real (el commit se crea, pero con HEAD en otro lado).
+     */
+    protected function antesDeCommitParaPruebas(): void
+    {
+    }
+
+    /**
+     * Deja rastro en el log del item cuando una verificación de aterrizaje en main falla, con la
+     * rama real donde quedó HEAD — para que el diagnóstico no dependa de reconstruir el grafo a
+     * mano (#9990345). `$sha` es null cuando la verificación es previa al commit.
+     */
+    private function registrarFalloAterrizaje(RoadmapItem $item, string $evento, string $branch, string $headReal, ?string $sha): void
+    {
+        $log = $item->log ?: [];
+        $log[] = ['ts' => now()->toIso8601String(), 'por' => 'merge-runner', 'evento' => $evento,
+            'branch' => $branch, 'head_branch_real' => $headReal, 'commit_huerfano' => $sha];
+        $item->log = $log;
+        $item->save();
+
+        Log::channel('roadmap_externo')->error($evento, ['item' => $item->id, 'branch' => $branch,
+            'head_real' => $headReal, 'commit' => $sha]);
+    }
+
+    /**
+     * Ruta del checkout donde corre el merge. En producción SIEMPRE `base_path()` (el checkout
+     * principal). Un test la sobreescribe para apuntar a un repo temporal aislado, sin tocar el
+     * checkout real (#9990345).
+     */
+    protected function workDir(): string
+    {
+        return base_path();
+    }
+
     /** Verificación de regresión ligera sobre el árbol fusionado (sin correr la suite destructiva). */
-    private function regression(): array
+    protected function regression(): array
     {
         // (a) php -l de los .php cambiados por el merge (staged).
         $changed = array_filter(preg_split('/\R/', trim(
@@ -431,7 +504,7 @@ class MergeRunner
 
     private function git(array $args): Process
     {
-        $p = new Process(array_merge(['git'], $args), base_path());
+        $p = new Process(array_merge(['git'], $args), $this->workDir());
         $p->setTimeout(120);
         $p->run();
 
