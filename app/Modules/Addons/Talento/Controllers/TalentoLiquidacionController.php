@@ -9,11 +9,14 @@ use App\Modules\Addons\Talento\Models\TalentoLiquidation;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
 use App\Modules\Addons\Talento\Services\LiquidationService;
 use App\Modules\Addons\Talento\Support\PayWeek;
+use App\Modules\Core\Security\Traits\ChecksActionPermission;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class TalentoLiquidacionController extends Controller
 {
+    use ChecksActionPermission;
+
     public function __construct(private LiquidationService $service) {}
 
     public function index()
@@ -40,6 +43,7 @@ class TalentoLiquidacionController extends Controller
     public function calcular(Request $request)
     {
         $this->authorize('talento.liquidation.manage');
+        $this->verificarPermisoAccion('talento.liquidacion.calcular', 'liquidacion.calcular');
 
         $data = $request->validate([
             'colaborador_id' => 'required|exists:talento_colaboradores,id',
@@ -47,7 +51,7 @@ class TalentoLiquidacionController extends Controller
             'period_end'     => 'required|date|after_or_equal:period_start',
         ]);
 
-        // Guard anti-recálculo (2.2): no re-liquidar semanas ya cerradas/pagadas con el método
+        // Guard anti-recálculo: no re-liquidar semanas ya cerradas/pagadas con el método
         // viejo. La línea es el inicio de la semana de transición (PayWeek::transitionStart(),
         // = cutover − 7d). Se compara contra el period_start CANÓNICO que realmente se liquidaría.
         $canonical = PayWeek::boundsFor(Carbon::parse($data['period_start'])->copy()->addDay());

@@ -38,6 +38,17 @@
             />
 
             <q-btn
+                v-hasPermission="'documentacion-corporativa.bitacora.view'"
+                flat
+                dense
+                icon="history"
+                color="primary"
+                label="Bitácora de accesos"
+                class="q-mr-sm"
+                @click="$refs.bitacora.abrir()"
+            />
+
+            <q-btn
                 flat
                 dense
                 icon="refresh"
@@ -182,6 +193,31 @@
                         class="text-h5 text-weight-bold q-mr-md"
                         :style="{ color: colorSemaforo(detalle.semaforo) }"
                     >{{ detalle.medible === false ? '—' : detalle.porcentaje + '%' }}</div>
+
+                    <!-- Exportación agregada del apartado (Fase 1.5c, item #787,
+                         backend #785): TODOS los conceptos ya resueltos en un solo
+                         archivo, PDF o Excel. -->
+                    <q-btn-dropdown
+                        flat
+                        dense
+                        icon="download"
+                        label="Exportar apartado"
+                        color="primary"
+                        class="q-mr-sm"
+                        :loading="!!exportandoApartado"
+                    >
+                        <q-list>
+                            <q-item clickable v-close-popup @click="exportarApartado('pdf')">
+                                <q-item-section avatar><q-icon name="picture_as_pdf" /></q-item-section>
+                                <q-item-section>PDF</q-item-section>
+                            </q-item>
+                            <q-item clickable v-close-popup @click="exportarApartado('excel')">
+                                <q-item-section avatar><q-icon name="table_view" /></q-item-section>
+                                <q-item-section>Excel</q-item-section>
+                            </q-item>
+                        </q-list>
+                    </q-btn-dropdown>
+
                     <q-btn flat dense icon="close" v-close-popup />
                 </q-card-section>
 
@@ -224,6 +260,76 @@
                                     <span v-if="c.periodicidad"> · revisión {{ c.periodicidad }}</span>
                                     <span v-if="c.base_legal"> · {{ c.base_legal }}</span>
                                 </q-item-label>
+
+                                <!-- Repositorio documental (Fase 2a, item #767): subir,
+                                     versionar y descargar sólo para conceptos tipo 'documento'. -->
+                                <div v-if="c.tipo_resolvedor === 'documento'" class="q-mt-sm dc-repo">
+                                    <div
+                                        class="dc-dropzone"
+                                        :class="{ 'dc-dropzone--over': dragOverConceptoId === c.id }"
+                                        @dragover.prevent="dragOverConceptoId = c.id"
+                                        @dragleave.prevent="dragOverConceptoId = null"
+                                        @drop.prevent="onDrop($event, c)"
+                                    >
+                                        <q-btn
+                                            v-hasPermission="'documentacion-corporativa.documento.upload'"
+                                            size="sm"
+                                            dense
+                                            outline
+                                            color="primary"
+                                            icon="upload"
+                                            label="Subir documento"
+                                            :loading="subiendoConceptoId === c.id"
+                                            @click="abrirSelector(c)"
+                                        />
+                                        <span class="text-caption text-grey q-ml-sm">o arrastra el archivo aquí</span>
+                                    </div>
+
+                                    <q-list v-if="c.datos && c.datos.length" dense bordered separator class="q-mt-xs">
+                                        <q-item v-for="d in c.datos" :key="d.id" dense>
+                                            <q-item-section>
+                                                <q-item-label class="text-caption">
+                                                    {{ d.archivo }}
+                                                    <q-badge color="grey-7" class="q-ml-xs" :label="'v' + d.version" />
+                                                    <q-badge
+                                                        v-if="d.estado !== 'vigente'"
+                                                        :color="d.estado === 'vencido' ? 'negative' : 'warning'"
+                                                        class="q-ml-xs"
+                                                        :label="d.estado === 'vencido' ? 'vencido' : 'por vencer'"
+                                                    />
+                                                </q-item-label>
+                                                <q-item-label caption class="text-grey-6" v-if="d.vigencia_fin">
+                                                    vigencia hasta {{ d.vigencia_fin }}
+                                                </q-item-label>
+                                            </q-item-section>
+
+                                            <q-item-section side>
+                                                <div class="row no-wrap q-gutter-xs">
+                                                    <q-btn
+                                                        v-hasPermission="'documentacion-corporativa.documento.upload'"
+                                                        dense flat round size="sm" icon="upload_file"
+                                                        @click="abrirSelector(c, d)"
+                                                    >
+                                                        <q-tooltip>Subir nueva versión</q-tooltip>
+                                                    </q-btn>
+                                                    <q-btn dense flat round size="sm" icon="history" @click="verVersiones(d)">
+                                                        <q-tooltip>Ver versiones</q-tooltip>
+                                                    </q-btn>
+                                                    <q-btn dense flat round size="sm" icon="download" @click="descargarDocumento(d.id)">
+                                                        <q-tooltip>Descargar</q-tooltip>
+                                                    </q-btn>
+                                                    <q-btn
+                                                        v-hasPermission="'documentacion-corporativa.documento.delete'"
+                                                        dense flat round size="sm" icon="delete" color="negative"
+                                                        @click="eliminarDocumento(d)"
+                                                    >
+                                                        <q-tooltip>Eliminar</q-tooltip>
+                                                    </q-btn>
+                                                </div>
+                                            </q-item-section>
+                                        </q-item>
+                                    </q-list>
+                                </div>
                             </q-item-section>
 
                             <q-item-section side>
@@ -255,6 +361,28 @@
                                     @click="$refs.registros.abrirParaConcepto(c)"
                                 />
                                 <q-btn
+                                    v-if="esMapaGestionable(c)"
+                                    flat
+                                    dense
+                                    size="sm"
+                                    icon="map"
+                                    color="primary"
+                                    class="q-mt-xs"
+                                    label="Ver mapa"
+                                    @click="$refs.mapaActivos.abrirParaConcepto(c)"
+                                />
+                                <q-btn
+                                    v-if="esSolicitudesGestionable(c)"
+                                    flat
+                                    dense
+                                    size="sm"
+                                    icon="mail"
+                                    color="primary"
+                                    class="q-mt-xs"
+                                    :label="'Gestionar solicitudes' + (c.metricas && c.metricas.registros !== undefined ? ' (' + c.metricas.registros + ')' : '')"
+                                    @click="$refs.solicitudes.abrir()"
+                                />
+                                <q-btn
                                     v-if="esPlantillaGenerable(c)"
                                     flat
                                     dense
@@ -266,10 +394,139 @@
                                     label="Generar documento"
                                     @click="generarDocumento(c)"
                                 />
+                                <!-- Detalle nominal de cartera (Fase 1.5c, item #787,
+                                     backend #786): expone identidad de clientes, por
+                                     eso pide permiso de descarga + justificación. -->
+                                <q-btn
+                                    v-if="esCarteraNominal(c)"
+                                    v-hasPermission="'documentacion-corporativa.documento.download'"
+                                    flat
+                                    dense
+                                    size="sm"
+                                    icon="badge"
+                                    color="primary"
+                                    class="q-mt-xs"
+                                    label="Ver detalle nominal"
+                                    @click="abrirDetalleNominal()"
+                                />
                             </q-item-section>
                         </q-item>
                     </q-list>
                 </q-card-section>
+            </q-card>
+        </q-dialog>
+
+        <!-- Input de archivo único, reusado por todos los conceptos tipo
+             'documento': evita un <input> por fila. `documentoActivo` decide
+             si la subida crea un documento nuevo (null) o una versión nueva
+             (id del documento sobre el que se hizo clic). -->
+        <input
+            ref="inputArchivo"
+            type="file"
+            style="display: none"
+            @change="onArchivoSeleccionado"
+        />
+
+        <!-- Timeline de versiones de un documento -------------------------->
+        <q-dialog v-model="dialogoVersiones">
+            <q-card style="min-width: 420px; max-width: 600px">
+                <q-card-section class="row items-center">
+                    <div class="text-subtitle1">
+                        Versiones — {{ versionesInfo.documento ? versionesInfo.documento.archivo_nombre_original : '' }}
+                    </div>
+                    <q-space />
+                    <q-btn flat dense icon="close" v-close-popup />
+                </q-card-section>
+
+                <q-separator />
+
+                <q-card-section style="max-height: 55vh" class="scroll">
+                    <q-inner-loading :showing="cargandoVersiones">
+                        <q-spinner size="30px" color="primary" />
+                    </q-inner-loading>
+
+                    <q-timeline v-if="!cargandoVersiones" color="primary">
+                        <q-timeline-entry
+                            v-for="v in versionesInfo.versiones"
+                            :key="v.id"
+                            :title="'Versión ' + v.version"
+                            :subtitle="formatoFecha(v.created_at) + (v.subido_por ? ' · ' + v.subido_por.name : '')"
+                        >
+                            <div class="text-caption text-grey">
+                                {{ v.archivo_nombre_original }} · {{ formatoBytes(v.bytes) }}
+                            </div>
+                            <div v-if="v.nota_cambio" class="text-caption q-mt-xs">{{ v.nota_cambio }}</div>
+                            <q-btn
+                                class="q-mt-xs"
+                                size="sm"
+                                dense
+                                outline
+                                color="primary"
+                                icon="download"
+                                label="Descargar esta versión"
+                                @click="descargarDocumento(versionesInfo.documento.id, v.version)"
+                            />
+                        </q-timeline-entry>
+                    </q-timeline>
+                </q-card-section>
+            </q-card>
+        </q-dialog>
+
+        <!-- Justificación para el detalle nominal de cartera (Fase 1.5c, item #787,
+             backend #786) — regla LFPDPPP: no se genera el archivo sin motivo. -->
+        <q-dialog v-model="dialogoNominal" persistent>
+            <q-card style="min-width: 420px; max-width: 520px">
+                <q-card-section class="row items-center">
+                    <div class="text-subtitle1">Detalle nominal — Cartera de clientes</div>
+                    <q-space />
+                    <q-btn flat dense icon="close" v-close-popup :disable="exportandoNominal" />
+                </q-card-section>
+
+                <q-separator />
+
+                <q-card-section>
+                    <div class="text-caption text-grey q-mb-sm">
+                        Este archivo incluye nombre y saldo de cada cliente con adeudo. Indica el
+                        motivo de la consulta antes de generarlo.
+                    </div>
+
+                    <q-input
+                        v-model="justificacionNominal"
+                        type="textarea"
+                        autogrow
+                        outlined
+                        dense
+                        label="Justificación *"
+                        :error="!!erroresNominal"
+                        :error-message="erroresNominal"
+                        @update:model-value="erroresNominal = null"
+                    />
+
+                    <q-option-group
+                        v-model="formatoNominal"
+                        :options="[
+                            { label: 'Excel', value: 'excel' },
+                            { label: 'PDF', value: 'pdf' },
+                        ]"
+                        color="primary"
+                        inline
+                        dense
+                        class="q-mt-sm"
+                    />
+                </q-card-section>
+
+                <q-separator />
+
+                <q-card-actions align="right">
+                    <q-btn flat label="Cancelar" v-close-popup :disable="exportandoNominal" />
+                    <q-btn
+                        unelevated
+                        color="primary"
+                        label="Confirmar y descargar"
+                        :loading="exportandoNominal"
+                        @click="confirmarDetalleNominal"
+                    />
+                </q-card-actions>
             </q-card>
         </q-dialog>
 
@@ -290,8 +547,21 @@
 
         <!-- Registros estructurados (Fase 2c): alta/edición desde la tarjeta de
              un concepto tipo "inventario" (accionistas, capital, actas, poderes,
-             contratos). -->
+             contratos, activos, activos digitales, inventario de accesos). -->
         <dc-registros ref="registros" @guardado="alGuardarPendiente" />
+
+        <!-- Mapa Leaflet (Fase 3.3): conceptos de dc_activos con config.mapa=true
+             (torres, postería, fibra, redes troncales, centros de distribución,
+             almacenes y bodegas). -->
+        <dc-activos-mapa ref="mapaActivos" />
+
+        <!-- Solicitudes de información recibidas (Fase 5a, item #758) — desde
+             la tarjeta del concepto "Registro de solicitudes de información
+             recibidas" (apartado XIV). -->
+        <dc-solicitudes ref="solicitudes" @guardado="alGuardarPendiente" />
+
+        <!-- Bitácora consultable/exportable (Fase 5c, item #760). -->
+        <dc-bitacora ref="bitacora" />
     </div>
 </template>
 
@@ -322,6 +592,23 @@ export default {
             alertasXIII: null,
             // slug del concepto cuyo documento se está generando (spinner del botón).
             generandoSlug: null,
+
+            // Repositorio documental (Fase 2a, item #767).
+            conceptoActivo: null,
+            documentoActivo: null,
+            dragOverConceptoId: null,
+            subiendoConceptoId: null,
+            dialogoVersiones: false,
+            cargandoVersiones: false,
+            versionesInfo: { documento: null, versiones: [] },
+
+            // Exportación de apartado + detalle nominal (Fase 1.5c, item #787).
+            exportandoApartado: null,
+            dialogoNominal: false,
+            justificacionNominal: '',
+            formatoNominal: 'excel',
+            erroresNominal: null,
+            exportandoNominal: false,
         };
     },
 
@@ -458,10 +745,23 @@ export default {
             }[e] || 'help_outline';
         },
 
-        /** Conceptos "inventario" cuya tabla ya tiene CRUD propio (Fase 2c, item #736). */
+        /** Conceptos "inventario" cuya tabla ya tiene CRUD propio (Fase 2c/3.3, items #736/#752). */
         esRegistroGestionable(c) {
-            const TABLAS_CON_CRUD = ['dc_accionistas', 'dc_capital_variaciones', 'dc_actas', 'dc_poderes', 'dc_contratos'];
+            const TABLAS_CON_CRUD = [
+                'dc_accionistas', 'dc_capital_variaciones', 'dc_actas', 'dc_poderes', 'dc_contratos',
+                'dc_activos', 'dc_activos_digitales', 'dc_inventario_accesos',
+            ];
             return c.tipo_resolvedor === 'inventario' && c.metricas && TABLAS_CON_CRUD.includes(c.metricas.tabla);
+        },
+
+        /** Conceptos de dc_activos con mapa Leaflet (Fase 3.3, item #752/#783). */
+        esMapaGestionable(c) {
+            return !!(c.metricas && c.metricas.mapa === true);
+        },
+
+        /** Concepto "Registro de solicitudes de información recibidas" (Fase 5a, item #758). */
+        esSolicitudesGestionable(c) {
+            return c.tipo_resolvedor === 'inventario' && c.metricas && c.metricas.tabla === 'dc_solicitudes';
         },
 
         /**
@@ -503,6 +803,205 @@ export default {
                 this.$q.notify({ message: mensaje, color, position: 'top' });
             }
         },
+
+        // ---- Repositorio documental (Fase 2a, item #767) -------------------
+
+        /** Abre el selector de archivo. Sin `documento` = documento nuevo; con `documento` = versión nueva sobre ese. */
+        abrirSelector(concepto, documento = null) {
+            this.conceptoActivo = concepto;
+            this.documentoActivo = documento;
+            this.$refs.inputArchivo.value = '';
+            this.$refs.inputArchivo.click();
+        },
+
+        onArchivoSeleccionado(evento) {
+            const archivo = evento.target.files && evento.target.files[0];
+            if (archivo) {
+                this.subirArchivo(archivo);
+            }
+        },
+
+        onDrop(evento, concepto) {
+            this.dragOverConceptoId = null;
+            const archivo = evento.dataTransfer.files && evento.dataTransfer.files[0];
+            if (!archivo) return;
+            this.conceptoActivo = concepto;
+            this.documentoActivo = null;
+            this.subirArchivo(archivo);
+        },
+
+        async subirArchivo(archivo) {
+            const concepto = this.conceptoActivo;
+            if (!concepto) return;
+
+            this.subiendoConceptoId = concepto.id;
+
+            const formData = new FormData();
+            formData.append('archivo', archivo);
+            formData.append('concepto_id', concepto.id);
+            if (this.documentoActivo) {
+                formData.append('documento_id', this.documentoActivo.id);
+            }
+
+            try {
+                await axios.post('/documentacion-corporativa/api/documentos', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
+                this.aviso('Documento subido correctamente.', 'positive');
+                await this.alGuardarPendiente();
+            } catch (e) {
+                const mensaje = e.response && e.response.data && e.response.data.message
+                    ? e.response.data.message
+                    : 'No se pudo subir el documento.';
+                this.aviso(mensaje, 'negative');
+            } finally {
+                this.subiendoConceptoId = null;
+                this.conceptoActivo = null;
+                this.documentoActivo = null;
+            }
+        },
+
+        async verVersiones(documento) {
+            this.dialogoVersiones = true;
+            this.cargandoVersiones = true;
+            try {
+                const { data } = await axios.get(
+                    `/documentacion-corporativa/api/documentos/${documento.id}/versiones`
+                );
+                this.versionesInfo = data;
+            } catch (e) {
+                this.aviso('No se pudieron cargar las versiones.', 'negative');
+                this.dialogoVersiones = false;
+            } finally {
+                this.cargandoVersiones = false;
+            }
+        },
+
+        descargarDocumento(documentoId, version = null) {
+            const base = `/documentacion-corporativa/api/documentos/${documentoId}`;
+            const url = version ? `${base}/versiones/${version}/descargar` : `${base}/descargar`;
+            window.open(url, '_blank');
+        },
+
+        async eliminarDocumento(documento) {
+            if (!confirm(`¿Eliminar "${documento.archivo}"? Podrás verlo en la papelera de datos, no en esta vista.`)) {
+                return;
+            }
+            try {
+                await axios.delete(`/documentacion-corporativa/api/documentos/${documento.id}`);
+                this.aviso('Documento eliminado.', 'positive');
+                await this.alGuardarPendiente();
+            } catch (e) {
+                const mensaje = e.response && e.response.data && e.response.data.message
+                    ? e.response.data.message
+                    : 'No se pudo eliminar el documento.';
+                this.aviso(mensaje, 'negative');
+            }
+        },
+
+        formatoBytes(bytes) {
+            if (!bytes) return '0 B';
+            const unidades = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), unidades.length - 1);
+            return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${unidades[i]}`;
+        },
+
+        formatoFecha(fecha) {
+            if (!fecha) return '';
+            return new Date(fecha).toLocaleString('es-MX', {
+                day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+            });
+        },
+
+        // ---- Exportación de apartado + detalle nominal (Fase 1.5c, item #787) --
+
+        /** Sólo el concepto "Cartera de clientes" del apartado IV (item #786). */
+        esCarteraNominal(c) {
+            return this.detalle.clave === 'IV' && c.slug === 'cartera-de-clientes';
+        },
+
+        async exportarApartado(formato) {
+            if (!this.detalle.clave || this.exportandoApartado) return;
+            this.exportandoApartado = formato;
+            try {
+                const response = await axios.get(
+                    `/documentacion-corporativa/api/apartado/${this.detalle.clave}/exportar`,
+                    { params: { formato }, responseType: 'blob' }
+                );
+                const ext = formato === 'excel' ? 'xlsx' : 'pdf';
+                this.descargarBlob(response, `dc-apartado-${this.detalle.clave.toLowerCase()}.${ext}`);
+            } catch (e) {
+                this.aviso(await this.mensajeErrorBlob(e, 'No se pudo exportar el apartado.'), 'negative');
+            } finally {
+                this.exportandoApartado = null;
+            }
+        },
+
+        abrirDetalleNominal() {
+            this.justificacionNominal = '';
+            this.formatoNominal = 'excel';
+            this.erroresNominal = null;
+            this.dialogoNominal = true;
+        },
+
+        async confirmarDetalleNominal() {
+            const justificacion = (this.justificacionNominal || '').trim();
+            if (!justificacion) {
+                this.erroresNominal = 'La justificación es obligatoria.';
+                return;
+            }
+
+            this.exportandoNominal = true;
+            try {
+                const response = await axios.get(
+                    '/documentacion-corporativa/api/apartado/iv/cartera/detalle-nominal',
+                    { params: { justificacion, formato: this.formatoNominal }, responseType: 'blob' }
+                );
+                const ext = this.formatoNominal === 'excel' ? 'xlsx' : 'pdf';
+                this.descargarBlob(response, `dc-cartera-detalle-nominal.${ext}`);
+                this.dialogoNominal = false;
+            } catch (e) {
+                // 422 (falta justificación) o 403 (sin permiso, por si el botón
+                // igual llegó a mostrarse): mensaje inline, el modal NO se cierra.
+                this.erroresNominal = await this.mensajeErrorBlob(e, 'No se pudo generar el detalle nominal.');
+            } finally {
+                this.exportandoNominal = false;
+            }
+        },
+
+        /** El backend responde JSON de error pero `responseType: 'blob'` lo envuelve en un Blob. */
+        async mensajeErrorBlob(e, fallback) {
+            const data = e.response && e.response.data;
+            if (data instanceof Blob) {
+                try {
+                    const json = JSON.parse(await data.text());
+                    if (json && json.message) return json.message;
+                } catch (err) {
+                    // No era JSON: se queda con el fallback.
+                }
+            } else if (data && data.message) {
+                return data.message;
+            }
+            return fallback;
+        },
+
+        /** Descarga un blob de axios como archivo, usando el filename del header si viene. */
+        descargarBlob(response, filenameFallback) {
+            const disposition = response.headers && response.headers['content-disposition'];
+            let filename = filenameFallback;
+            if (disposition) {
+                const match = disposition.match(/filename="?([^"; ]+)"?/i);
+                if (match && match[1]) filename = match[1];
+            }
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        },
     },
 };
 </script>
@@ -527,5 +1026,17 @@ export default {
 }
 .dc-card:hover {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+}
+.dc-dropzone {
+    border: 1px dashed #b0bec5;
+    border-radius: 6px;
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    transition: border-color 0.15s, background-color 0.15s;
+}
+.dc-dropzone--over {
+    border-color: #0057a8;
+    background-color: rgba(0, 87, 168, 0.06);
 }
 </style>

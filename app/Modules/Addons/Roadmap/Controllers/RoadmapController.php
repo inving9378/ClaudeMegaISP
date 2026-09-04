@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Addons\Roadmap\Models\CircuitoEjecucion;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Services\AutopilotService;
+use App\Modules\Addons\Roadmap\Services\FronterasService;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use App\Modules\Addons\Roadmap\Services\SessionTreeService;
 use App\Modules\Addons\Roadmap\Services\SupervisorService;
@@ -171,6 +172,10 @@ class RoadmapController extends Controller
             'auditor_activo'          => ['sometimes', 'boolean'],
             'auditor_max_por_corrida' => ['sometimes', 'integer', 'min:1', 'max:20'],
             'auditor_cooldown_min'    => ['sometimes', 'integer', 'min:5', 'max:1440'],
+            'auditor_slots_libres_min' => ['sometimes', 'integer', 'min:0', 'max:6'],
+            'auditor_gasto_reintento_min'    => ['sometimes', 'integer', 'min:5', 'max:240'],
+            'auditor_gasto_reintento_activo' => ['sometimes', 'boolean'],
+            'paralelo_mismo_modulo'   => ['sometimes', 'nullable', 'integer', 'min:1', 'max:6'],
         ]);
 
         $diff = app(\App\Modules\Addons\Roadmap\Services\TorreConfigService::class)
@@ -345,7 +350,7 @@ class RoadmapController extends Controller
         $log   = $item->log ?: [];
         $log[] = [
             'ts'         => now()->toIso8601String(),
-            'por'        => 'irving:' . (auth()->user()->login_user ?? auth()->id()),
+            'por'        => 'irving:' . (auth()->user()?->login_user ?? auth()->id()),
             'estado'     => $item->estado_aprobacion,
             'decision'   => 'override_automatizacion',
             'comentario' => "Automatización del item: {$previo} → {$data['override']}"
@@ -356,7 +361,7 @@ class RoadmapController extends Controller
 
         Log::channel('torre_config')->{$sube ? 'warning' : 'info'}('override-item', [
             'item' => $item->id, 'de' => $previo, 'a' => $data['override'],
-            'por'  => auth()->user()->login_user ?? auth()->id(),
+            'por'  => auth()->user()?->login_user ?? auth()->id(),
         ]);
 
         return response()->json(['ok' => true, 'override' => $item->automatizacion_override, 'subida' => $sube]);
@@ -487,6 +492,22 @@ class RoadmapController extends Controller
         $data = $request->validate(['comando' => ['required', 'string', 'max:80']]);
 
         return response()->json($this->svc->detalleFallo($data['comando']));
+    }
+
+    /**
+     * GET /api/roadmap/torre/frontera-dura (#766, Pieza 1c hija de #672) — la KPI card «Frontera
+     * dura» del dashboard: total de aperturas de la válvula + últimos 7 días + desglose por
+     * categoría + listado detallado (item/término/categoría/veredicto/razón/cuándo/ejecutado).
+     * Lee `torre_frontera_dura_eventos` (Pieza 1a, #764) vía {@see FronterasService::resumenTorreFronteraDura()}
+     * — solo lectura, mismo gate que el resto del panorama de la Torre.
+     */
+    public function torreFronteraDura(FronterasService $fronteras): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $data = Cache::remember('roadmap:torre:frontera-dura', 30, fn () => $fronteras->resumenTorreFronteraDura());
+
+        return response()->json(['ok' => true] + $data);
     }
 
     public function historialAcciones(Request $request): JsonResponse
@@ -2113,6 +2134,70 @@ class RoadmapController extends Controller
         $item->save();
         Log::channel('roadmap_externo')->info('integracion-marcar-version', ['item' => $item->id, 'marcado' => $item->marcado_version, 'por' => $this->actor()]);
         return response()->json(['ok' => true, 'marcado_version' => $item->marcado_version]);
+    }
+
+    /**
+     * GET /api/roadmap/integracion/version-candidatos — #933 Fase 2: items integrados a main desde
+     * el último tag (candidatos a entrar en la próxima versión), con su estado de marcado.
+     */
+    public function integracionVersionCandidatos(): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+        $items = $this->svc->itemsCandidatosVersion()->map(fn (RoadmapItem $i) => [
+            'id' => $i->id,
+            'title' => $i->title,
+            'modulo' => $i->modulo,
+            'branch' => $i->branch,
+            'merge_commit' => $i->merge_commit,
+            'marcado_version' => (bool) $i->marcado_version,
+            'origen_item_id' => $i->origen_item_id,
+        ])->values();
+
+        return response()->json(['ok' => true, 'items' => $items]);
+    }
+
+    /**
+     * GET /api/roadmap/integracion/version-dependencias — #933 Fase 3: detector de dependencias/
+     * colisiones de lo marcado ahora mismo, ANTES de construir la rama de versión (Fase 4, no
+     * implementada aquí). Solo lectura.
+     */
+    public function integracionVersionDependencias(): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+
+        return response()->json(['ok' => true, 'violaciones' => $this->svc->detectarDependenciasVersion()]);
+    }
+
+    /**
+     * POST /api/roadmap/integracion/version-construir-rama — #966 Fase 4: construye la rama de
+     * release por cherry-pick de lo marcado (`marcado_version=true`). Operación AISLADA e invocada
+     * a demanda por Irving desde el modal de crear release; NO forma parte del pipeline de deploy
+     * automático. `ignorar_avisos=true` permite continuar aunque `detectarDependenciasVersion()`
+     * haya encontrado violaciones (bajo responsabilidad explícita de quien lo pide).
+     */
+    public function integracionVersionConstruirRama(Request $request): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+        $data = $request->validate([
+            'version'         => ['required', 'string', 'max:80'],
+            'nombre_rama'     => ['nullable', 'string', 'max:120'],
+            'ignorar_avisos'  => ['nullable', 'boolean'],
+        ]);
+
+        $version    = trim($data['version']);
+        $nombreRama = trim((string) ($data['nombre_rama'] ?? ''));
+        if ($nombreRama === '') {
+            $nombreRama = 'release/' . preg_replace('/[^A-Za-z0-9_.\-]/', '-', $version);
+        }
+
+        $resultado = $this->svc->construirRamaVersion($nombreRama, $version, (bool) ($data['ignorar_avisos'] ?? false));
+
+        Log::channel('roadmap_externo')->info('integracion-version-construir-rama', [
+            'rama' => $nombreRama, 'version' => $version, 'ok' => $resultado['ok'] ?? false,
+            'motivo' => $resultado['motivo'] ?? null, 'por' => $this->actor(),
+        ]);
+
+        return response()->json($resultado);
     }
 
     /** POST /api/roadmap/integracion/merge — Irving mergea la rama a dev (autoridad → --force). */

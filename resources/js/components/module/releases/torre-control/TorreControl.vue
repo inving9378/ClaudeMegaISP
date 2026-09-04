@@ -519,6 +519,52 @@
         </div>
       </div>
 
+      <!-- Frontera dura — aperturas de la válvula (#766, Pieza 1c hija de #672) -->
+      <div class="tc-card" style="margin-top:14px">
+        <h2 class="tc-h2">Frontera dura — aperturas de la válvula</h2>
+        <div class="tc-chartrow" style="justify-content:flex-start; gap:32px">
+          <div class="tc-col" style="min-width:100px">
+            <div class="tc-coln">{{ fronteraDura.total }}</div>
+            <div class="tc-coll">Total histórico</div>
+          </div>
+          <div class="tc-col" style="min-width:100px">
+            <div class="tc-coln">{{ fronteraDura.ultimos_7_dias }}</div>
+            <div class="tc-coll">Últimos 7 días</div>
+          </div>
+        </div>
+        <div class="tc-meta" style="margin-top:10px" v-if="Object.keys(fronteraDura.por_categoria).length">
+          <span v-for="(n, cat) in fronteraDura.por_categoria" :key="cat" style="margin-right:16px">
+            <b>{{ n }}</b> {{ cat }}
+          </span>
+        </div>
+        <div class="tc-meta" v-else>Sin aperturas registradas todavía.</div>
+        <button class="tc-btn" style="margin-top:10px"
+          @click="fronteraDuraDetalleAbierto = !fronteraDuraDetalleAbierto">
+          {{ fronteraDuraDetalleAbierto ? '✕ Ocultar listado' : '🔎 Ver listado detallado' }}
+        </button>
+        <div v-if="fronteraDuraDetalleAbierto" style="margin-top:10px; max-height:360px; overflow:auto;">
+          <div v-if="!fronteraDura.listado.length" class="tc-meta">Sin aperturas registradas todavía.</div>
+          <table v-else class="table table-sm">
+            <thead>
+              <tr>
+                <th>Item</th><th>Término</th><th>Categoría</th><th>Veredicto</th><th>Razón</th><th>Cuándo</th><th>¿Se ejecutó?</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(e, i) in fronteraDura.listado" :key="i">
+                <td><a href="#" @click.prevent="verItemAuto(e)">#{{ e.item_id }}</a> {{ e.item_title }}</td>
+                <td>{{ e.termino }}</td>
+                <td>{{ e.categoria }}</td>
+                <td>{{ e.veredicto }}</td>
+                <td>{{ e.razon }}</td>
+                <td>{{ rel(e.cuando) }}</td>
+                <td>{{ e.ejecutado === true ? '✓ sí' : (e.ejecutado === false ? '— no' : '?') }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Ejecuciones del cron (#319) -->
       <div class="tc-card" style="margin-top:14px">
         <h2 class="tc-h2">Ejecuciones del circuito (cron)</h2>
@@ -582,6 +628,10 @@ export default {
         const auditItem = ref(null);
         const ejecuciones = ref([]);
         const modo = ref('aviso_previo');
+
+        // #766 (Pieza 1c hija de #672) — KPI "Frontera dura": aperturas de la válvula.
+        const fronteraDura = ref({ total: 0, ultimos_7_dias: 0, por_categoria: {}, listado: [] });
+        const fronteraDuraDetalleAbierto = ref(false);
 
         // Estado EN VIVO de la vuelta (#335)
         const live = ref({ running: false, stale: false, started_at: null, heartbeat_at: null, current_item: null });
@@ -849,7 +899,14 @@ export default {
         const bandejaTruncada = computed(() => (contadores.value.total || 0) > cola.value.length);
 
         const terminalesActivas = computed(() => sesiones.value.filter((s) => s.running).length);
-        const terminalesLibres = computed(() => sesiones.value.filter((s) => s.idle && !s.running).length);
+        // #982 — NO usar "idle" (solo true cuando el slot nunca tuvo sesión viva): una terminal que
+        // acaba de terminar su vuelta trae sesión viva con running=false E idle=false (ver
+        // buildSesion() en RoadmapCircuitoService), y quedaba sin contar en ningún lado — el header
+        // mostraba menos "libres" que JarvisService::diagnostico()['terminales'] y que
+        // AuditorService::slotsLibres(), que sí la cuentan libre. "Libre" = todo lo que no está
+        // corriendo ahora mismo, así activas+libres siempre suma el total (misma invariante que esas
+        // dos fuentes) y las tres dejan de poder divergir.
+        const terminalesLibres = computed(() => sesiones.value.length - terminalesActivas.value);
 
         async function cargarContadores() {
             try {
@@ -857,6 +914,21 @@ export default {
                 contadores.value = data || contadores.value;
             } catch (e) {
                 // Las bombitas son accesorias: si fallan, la bandeja sigue funcionando igual.
+            }
+        }
+
+        // #766 — endpoint propio, no bloquea el resto del panorama si falla.
+        async function cargarFronteraDura() {
+            try {
+                const { data } = await axios.get('/api/roadmap/torre/frontera-dura');
+                fronteraDura.value = {
+                    total: data.total || 0,
+                    ultimos_7_dias: data.ultimos_7_dias || 0,
+                    por_categoria: data.por_categoria || {},
+                    listado: data.listado || [],
+                };
+            } catch (e) {
+                // KPI accesoria: si falla, el resto de la Torre sigue funcionando igual.
             }
         }
 
@@ -1084,6 +1156,7 @@ export default {
                 applyEstado(data);
                 cargarContadores();   // #507 bombitas por módulo (endpoint propio, no bloquea)
                 cargarDecisionesAuto();   // #878 "Decidido sin ti" (endpoint propio, no bloquea)
+                cargarFronteraDura();   // #766 KPI "Frontera dura" (endpoint propio, no bloquea)
                 maybeDeepLink();   // #torre: deep-link /releases?item=NNN tras poblar la bandeja
             } catch (e) {
                 // #878 — ANTES no había catch: la excepción se tragaba y los refs se quedaban en su
@@ -1394,6 +1467,8 @@ export default {
             contadores, moduloFiltro, moduloFiltroLabel, filtrarModulo, colaFiltrada, SIN_MODULO, bandejaTruncada,
             itemEnRevision, pregIdx, pregActual, pregPrev, pregNext, irAPregunta,
             preguntaRespondida, faltanPreguntas,
+            // #766 — KPI "Frontera dura": aperturas de la válvula.
+            fronteraDura, fronteraDuraDetalleAbierto,
         };
     },
 };

@@ -32,10 +32,10 @@ class CrearSqlConTodasLasTablasVaciasExceptoLasDeConfig extends Command
         set_time_limit(0);
         ini_set('memory_limit', '8912M');
 
-        $db = env('DB_DATABASE', 'forge');
-        $user = env('DB_USERNAME', 'forge');
-        $pass = env('DB_PASSWORD', '');
-        $host = env('DB_HOST', 'localhost');
+        $db = config('database.connections.mysql.database', 'forge');
+        $user = config('database.connections.mysql.username', 'forge');
+        $pass = config('database.connections.mysql.password', '');
+        $host = config('database.connections.mysql.host', 'localhost');
 
         //la tabla network_ips debe hacerse el vaciar ip antes
 
@@ -136,7 +136,7 @@ class CrearSqlConTodasLasTablasVaciasExceptoLasDeConfig extends Command
 
             // Dump con datos completos excepto las tablas vacías
             $dumpFull = new \Ifsnop\Mysqldump\Mysqldump(
-                "mysql:host=$host;port=" . env('DB_PORT', 3306) . ";dbname=$db",
+                "mysql:host=$host;port=" . config('database.connections.mysql.port', 3306) . ";dbname=$db",
                 $user,
                 $pass,
                 [
@@ -149,7 +149,7 @@ class CrearSqlConTodasLasTablasVaciasExceptoLasDeConfig extends Command
 
             // Dump solo con estructuras de tablas vacías
             $dumpStructure = new \Ifsnop\Mysqldump\Mysqldump(
-                "mysql:host=$host;port=" . env('DB_PORT', 3306) . ";dbname=$db",
+                "mysql:host=$host;port=" . config('database.connections.mysql.port', 3306) . ";dbname=$db",
                 $user,
                 $pass,
                 [

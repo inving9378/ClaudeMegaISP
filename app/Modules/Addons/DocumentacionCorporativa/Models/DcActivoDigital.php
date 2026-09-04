@@ -28,12 +28,14 @@ class DcActivoDigital extends Model
         'empresa_id', 'tipo', 'nombre', 'descripcion', 'proveedor', 'titular',
         'titularidad_estado', 'url', 'fecha_alta', 'vigencia_fin',
         'costo_periodico', 'periodicidad_costo', 'responsable_user_id', 'notas',
+        'revocado_at', 'revocado_por_user_id',
     ];
 
     protected $casts = [
         'fecha_alta'       => 'date',
         'vigencia_fin'     => 'date',
         'costo_periodico'  => 'decimal:2',
+        'revocado_at'      => 'datetime',
     ];
 
     public const TIPOS = [
@@ -94,9 +96,25 @@ class DcActivoDigital extends Model
         return $this->belongsTo(User::class, 'responsable_user_id');
     }
 
+    public function revocadoPor()
+    {
+        return $this->belongsTo(User::class, 'revocado_por_user_id');
+    }
+
     public function scopeDeEmpresa($query, int $empresaId)
     {
         return $query->where('empresa_id', $empresaId);
+    }
+
+    /** Checklist de offboarding (item #761): activos digitales a cargo de un colaborador. */
+    public function scopeDeResponsable($query, int $userId)
+    {
+        return $query->where('responsable_user_id', $userId);
+    }
+
+    public function estaRevocado(): bool
+    {
+        return $this->revocado_at !== null;
     }
 
     /**

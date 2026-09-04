@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Roadmap\Console;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Services\RevisorService;
+use App\Modules\Addons\Roadmap\Services\TorreAutomationPolicy;
 use Illuminate\Console\Command;
 
 /**
@@ -15,6 +16,11 @@ use Illuminate\Console\Command;
  *
  * FRONTERA DURA: seguridad/dinero/negocio/prod NO se auto-ejecutan; van a Irving. Solo dev.
  * Idempotente: sella cada item procesado (⟪SEG-TRIAGE⟫) y lo salta en re-corridas → drenable por cron.
+ *
+ * CARRIL AUTO (#9990060, wiring de #918): dentro de `seguridad`, si `RevisorService::briefarSeguridad()`
+ * marcó `carril=auto` (criterio determinista de `CarrilSeguridad` sobre `config/circuito_hardening.php`),
+ * el estado lo decide `TorreAutomationPolicy::estadoInicial()` (misma política que ya usa el des-trabe)
+ * en vez de forzar `requiere_irving` a ciegas. `dinero` sigue SIEMPRE a Irving — fuera de alcance.
  */
 class PriorizarSeguridadCommand extends Command
 {
@@ -128,15 +134,25 @@ class PriorizarSeguridadCommand extends Command
             default     => null,
         };
 
-        // SEGURIDAD/DINERO real → ALTA + atacar primero + escalar a la bandeja.
+        // SEGURIDAD/DINERO real → ALTA + atacar primero + escalar a la bandeja (salvo carril AUTO).
         if (in_array($cat, ['seguridad', 'dinero'], true)) {
             $item->priority = 'alta';
             // Fase 0 (anti-rebote): si Irving ya decidió este item, NO se devuelve a requiere_irving
             // (su decisión vigente manda); solo se sube prioridad. Guard redundante con el filtro de la
             // query — belt & suspenders para el caso de un item requiere_irving ya aprobado en bitácora.
             if (! $item->tieneDecisionVigenteDeIrving()) {
-                $item->estado_aprobacion = 'requiere_irving';   // frontera dura → a Irving
-                $item->aprobado_por = 'priorizacion-riesgo(opus)';
+                // #9990060 — wiring del carril AUTO de #918: SOLO seguridad, y solo si el criterio
+                // determinista de CarrilSeguridad (ya calculado en $r['carril']) lo marcó 'auto'.
+                // 'dinero' NUNCA pasa por aquí — sigue forzando requiere_irving siempre, fuera de
+                // alcance de este item.
+                if ($cat === 'seguridad' && ($r['carril'] ?? null) === 'auto') {
+                    $item->estado_aprobacion = app(TorreAutomationPolicy::class)
+                        ->estadoInicial($item, 'priorizar_seguridad');
+                    $item->aprobado_por = 'priorizacion-riesgo(opus)-carril-auto';
+                } else {
+                    $item->estado_aprobacion = 'requiere_irving';   // frontera dura → a Irving
+                    $item->aprobado_por = 'priorizacion-riesgo(opus)';
+                }
             }
         }
         // negocio/prod: NO se cambia prioridad ni estado (solo se etiqueta y separa).

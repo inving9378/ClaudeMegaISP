@@ -1,22 +1,20 @@
+@if(auth()->user()->canAny(['inventory_view_inventory', 'inventory_item_view_inventory_item',
+         'inventory_item_type_view_inventory_item_type', 'inventory_movement_view_inventory_movement',
+         'inventory_store_view_inventory_store', 'inventory_item_custom_model_view_inventory_item_custom_model',
+         'inventory_supplier_view_supplier', 'inventory_supplier_add_supplier',
+         'inventory_valuation_view_inventory_valuation']))
 <li>
-    @if(auth()->user()->canAny(['inventory_view_inventory', 'inventory_item_view_inventory_item',
-             'inventory_item_type_view_inventory_item_type', 'inventory_movement_view_inventory_movement',
-             'inventory_store_view_inventory_store', 'inventory_item_custom_model_view_inventory_item_custom_model',
-             'inventory_supplier_view_supplier', 'inventory_supplier_add_supplier',
-             'inventory_valuation_view_inventory_valuation']))
-        <a href="javascript: void(0);" class="has-arrow">
-            <i data-feather="archive"></i>
-            <span data-key="t-inventario">{{ $item->sidebar_label ?? 'Inventario' }}</span>
-        </a>
-    @endcanany
+    <a href="javascript: void(0);" class="has-arrow">
+        <i data-feather="archive"></i>
+        <span data-key="t-inventario">{{ $item->sidebar_label ?? 'Inventario' }}</span>
+    </a>
     <ul class="sub-menu" aria-expanded="false">
+        @if(auth()->user()->canAny(['inventory_store_view_inventory_store']))
         <li>
-            @if(auth()->user()->canAny(['inventory_store_view_inventory_store']))
-                <a href="javascript: void(0);" class="has-arrow">
-                    <i data-feather="layers"></i>
-                    <span data-key="t-almacenes">Almacenes</span>
-                </a>
-            @endcanany
+            <a href="javascript: void(0);" class="has-arrow">
+                <i data-feather="layers"></i>
+                <span data-key="t-almacenes">Almacenes</span>
+            </a>
             <ul class="sub-menu" aria-expanded="false">
                 @if(auth()->user()->can('inventory_store_view_inventory_store'))
                     <li>
@@ -27,13 +25,13 @@
                 @endif
             </ul>
         </li>
+        @endif
+        @if(auth()->user()->canAny(['inventory_item_view_inventory_item']))
         <li>
-            @if(auth()->user()->canAny(['inventory_item_view_inventory_item']))
-                <a href="javascript: void(0);" class="has-arrow">
-                    <i data-feather="layers"></i>
-                    <span data-key="t-tipos-art">Tipo de Artículos</span>
-                </a>
-            @endcanany
+            <a href="javascript: void(0);" class="has-arrow">
+                <i data-feather="layers"></i>
+                <span data-key="t-tipos-art">Tipo de Artículos</span>
+            </a>
             <ul class="sub-menu" aria-expanded="false">
                 @if(auth()->user()->can('inventory_item_view_inventory_item'))
                     <li>
@@ -44,13 +42,13 @@
                 @endif
             </ul>
         </li>
+        @endif
+        @if(auth()->user()->canAny(['inventory_item_view_inventory_item', 'inventory_item_custom_model_view_inventory_item_custom_model']))
         <li>
-            @if(auth()->user()->canAny(['inventory_item_view_inventory_item', 'inventory_item_custom_model_view_inventory_item_custom_model']))
-                <a href="javascript: void(0);" class="has-arrow">
-                    <i data-feather="package"></i>
-                    <span data-key="t-articulos">Artículos</span>
-                </a>
-            @endcanany
+            <a href="javascript: void(0);" class="has-arrow">
+                <i data-feather="package"></i>
+                <span data-key="t-articulos">Artículos</span>
+            </a>
             <ul class="sub-menu" aria-expanded="false">
                 @if(auth()->user()->can('inventory_item_view_inventory_item'))
                     <li>
@@ -68,13 +66,13 @@
                 @endif
             </ul>
         </li>
+        @endif
+        @if(auth()->user()->canAny(['inventory_movement_view_inventory_movement']))
         <li>
-            @if(auth()->user()->canAny(['inventory_movement_view_inventory_movement']))
-                <a href="javascript: void(0);" class="has-arrow">
-                    <i data-feather="shuffle"></i>
-                    <span data-key="t-movimientos">Movimientos</span>
-                </a>
-            @endcanany
+            <a href="javascript: void(0);" class="has-arrow">
+                <i data-feather="shuffle"></i>
+                <span data-key="t-movimientos">Movimientos</span>
+            </a>
             <ul class="sub-menu" aria-expanded="false">
                 @if(auth()->user()->can('inventory_movement_view_inventory_movement'))
                     <li>
@@ -85,13 +83,13 @@
                 @endif
             </ul>
         </li>
+        @endif
+        @if(auth()->user()->canAny(['inventory_supplier_view_supplier', 'inventory_supplier_add_supplier']))
         <li>
-            @if(auth()->user()->canAny(['inventory_supplier_view_supplier', 'inventory_supplier_add_supplier']))
-                <a href="javascript: void(0);" class="has-arrow">
-                    <i data-feather="truck"></i>
-                    <span data-key="t-proveedores">Proveedores</span>
-                </a>
-            @endcanany
+            <a href="javascript: void(0);" class="has-arrow">
+                <i data-feather="truck"></i>
+                <span data-key="t-proveedores">Proveedores</span>
+            </a>
             <ul class="sub-menu" aria-expanded="false">
                 @if(auth()->user()->can('inventory_supplier_add_supplier'))
                     <li>
@@ -131,6 +129,7 @@
                 @endif
             </ul>
         </li>
+        @endif
         @if(auth()->user()->can('inventory_valuation_view_inventory_valuation'))
             <li>
                 <a href="{{ url('/inventory/inventory-valuation') }}">
@@ -142,11 +141,15 @@
 
         {{-- Hijos dinámicos desde module_sidebar_config (Fase 2.3/3.5) --}}
         @foreach($item->dynamic_children ?? collect() as $child)
+            @php($childPermission = $child->permission ?? $item->permission ?? null)
+            @if(!$childPermission || auth()->user()->can($childPermission))
             <li>
                 <a href="{{ $child->sidebar_url ? url($child->sidebar_url) : url('/' . $child->module_key) }}">
                     <span>@if($child->sidebar_icon)<small><i class="{{ $child->sidebar_icon }}"></i></small> @endif{{ $child->sidebar_label ?? $child->module_key }}</span>
                 </a>
             </li>
+            @endif
         @endforeach
     </ul>
 </li>
+@endif

@@ -106,6 +106,9 @@ import DcExpediente from "./components/module/documentacion-corporativa/DcExpedi
 import DcConcesiones from "./components/module/documentacion-corporativa/DcConcesiones.vue";
 import DcPendientesBandeja from "./components/module/documentacion-corporativa/DcPendientesBandeja.vue";
 import DcRegistros from "./components/module/documentacion-corporativa/DcRegistros.vue";
+import DcActivosMapa from "./components/module/documentacion-corporativa/DcActivosMapa.vue";
+import DcSolicitudes from "./components/module/documentacion-corporativa/DcSolicitudes.vue";
+import DcBitacora from "./components/module/documentacion-corporativa/DcBitacora.vue";
 import MegaFamiliaIngresos from "./components/module/megafamilia/MegaFamiliaIngresos.vue";
 import MegaFamiliaAlertas from "./components/module/megafamilia/MegaFamiliaAlertas.vue";
 import MegaFamiliaSolicitudes from "./components/module/megafamilia/MegaFamiliaSolicitudes.vue";
@@ -185,6 +188,7 @@ import TalentoDashboard from "./components/module/talento/TalentoDashboard.vue";
 import TalentoEscalafon from "./components/module/talento/TalentoEscalafon.vue";
 import TalentoEmbajadores from "./components/module/talento/TalentoEmbajadores.vue";
 import TalentoEvidenciaConfig from "./components/module/talento/TalentoEvidenciaConfig.vue";
+import TalentoPaqueteDocumentos from "./components/module/talento/TalentoPaqueteDocumentos.vue";
 
 //Mapas
 import GoogleMap from "./components/base/googlemap/GoogleMap";
@@ -368,6 +372,7 @@ import ReleasesDescription from "./components/module/releases/ReleasesDescriptio
 import RoadmapTab from "./components/module/releases/torre-control/RoadmapTab.vue";
 import TorreConfigPanel from "./components/module/releases/torre-control/TorreConfigPanel.vue";
 import TorreConfiguracion from "./components/module/releases/torre-control/TorreConfiguracion.vue";
+import JarvisChatDrawer from "./components/module/releases/torre-control/JarvisChatDrawer.vue";
 import DeployProgressModal from "./components/module/releases/DeployProgressModal.vue";
 import UpdateBanner from "./components/module/releases/UpdateBanner.vue";
 import RoadmapItemDetalle from "./components/module/roadmap/RoadmapItemDetalle.vue";
@@ -634,6 +639,7 @@ const app = createApp({
         'talento-escalafon': TalentoEscalafon,
         'talento-embajadores': TalentoEmbajadores,
         'talento-evidencia-config': TalentoEvidenciaConfig,
+        'talento-paquete-documentos': TalentoPaqueteDocumentos,
         ImportListar,
         ImportCrud,
         ServiceInAddressListListar,
@@ -740,6 +746,7 @@ const app = createApp({
         RoadmapTab,
         TorreConfigPanel,
         TorreConfiguracion,
+        JarvisChatDrawer,
         DeployProgressModal,
         UpdateBanner,
         RoadmapItemDetalle,
@@ -797,6 +804,9 @@ const app = createApp({
         'dc-concesiones': DcConcesiones,
         'dc-pendientes-bandeja': DcPendientesBandeja,
         'dc-registros': DcRegistros,
+        'dc-activos-mapa': DcActivosMapa,
+        'dc-solicitudes': DcSolicitudes,
+        'dc-bitacora': DcBitacora,
         // Marketing Fase 4.5b — Director Creativo IA
         'marketing-campaign-generator-view': MarketingCampaignGeneratorView,
         'voice-comparator-view': VoiceComparatorView,

@@ -72,6 +72,14 @@
                         <div v-if="campoTipoFijo" class="col-12 text-caption text-grey">
                             {{ campoTipoFijo.label }}: <strong>{{ etiquetaFijo(campoTipoFijo) }}</strong>
                         </div>
+                        <div v-if="recurso === 'activos_digitales' && form.titularidad_estado === 'titularidad_a_regularizar'" class="col-12">
+                            <q-banner dense class="bg-warning text-dark rounded-borders">
+                                <template v-slot:avatar>
+                                    <q-icon name="warning" color="dark" />
+                                </template>
+                                Titularidad a regularizar
+                            </q-banner>
+                        </div>
                         <template v-for="campo in camposEditables">
                             <q-select
                                 v-if="campo.tipo === 'seleccion'"
@@ -90,6 +98,18 @@
                                 :key="campo.key"
                                 class="col-12"
                                 dense
+                                v-model="form[campo.key]"
+                                :label="campo.label"
+                            />
+                            <q-input
+                                v-else-if="campo.tipo === 'solo_lectura'"
+                                :key="campo.key"
+                                class="col-12"
+                                outlined
+                                dense
+                                readonly
+                                autogrow
+                                type="textarea"
                                 v-model="form[campo.key]"
                                 :label="campo.label"
                             />
@@ -151,6 +171,59 @@ const ETIQUETAS_TIPO_CONTRATO = {
     interconexion: 'Interconexión',
 };
 
+/** Fase 3.3 (item #752) — enums de DcActivo/DcActivoDigital/DcInventarioAcceso, en español. */
+const ETIQUETAS_CATEGORIA_ACTIVO = {
+    torre: 'Torre',
+    antena: 'Antena',
+    posteria: 'Postería',
+    fibra: 'Fibra óptica',
+    red_troncal: 'Red troncal',
+    equipo_transmision: 'Equipo de transmisión',
+    vehiculo: 'Vehículo',
+    computo: 'Cómputo',
+    herramienta: 'Herramienta',
+    centro_distribucion: 'Centro de distribución',
+    bodega: 'Bodega',
+    otro: 'Otro',
+};
+
+const ETIQUETAS_ESTADO_ACTIVO = {
+    activo: 'Activo',
+    baja: 'Baja',
+    mantenimiento: 'Mantenimiento',
+};
+
+const ETIQUETAS_TIPO_ACTIVO_DIGITAL = {
+    sistema: 'Sistema',
+    plataforma: 'Plataforma',
+    software_propio: 'Software propio',
+    servidor: 'Servidor',
+    base_datos: 'Base de datos',
+    app_movil: 'Aplicación móvil',
+    sitio_web: 'Sitio web',
+    panel: 'Panel de administración',
+    licencia: 'Licencia',
+    respaldo: 'Respaldo',
+    dominio: 'Dominio',
+    correo_corporativo: 'Correo corporativo',
+    red_social: 'Red social',
+    plataforma_marketing: 'Plataforma de marketing',
+};
+
+const ETIQUETAS_TIPO_INVENTARIO_ACCESO = {
+    cuenta_bancaria: 'Cuenta bancaria',
+    linea_credito: 'Línea de crédito',
+    cuenta_inversion: 'Cuenta de inversión',
+    terminal_pv: 'Terminal punto de venta',
+    usuario_sistema: 'Usuario de sistema',
+    firma_autorizada: 'Firma autorizada',
+    token: 'Token',
+};
+
+function opcionesDe(etiquetas) {
+    return Object.entries(etiquetas).map(([value, label]) => ({ value, label }));
+}
+
 function formatoMoneda(valor) {
     if (valor === null || valor === undefined || valor === '') return '—';
     return '$' + Number(valor).toLocaleString('es-MX', { minimumFractionDigits: 2 });
@@ -163,6 +236,9 @@ const TABLA_A_RECURSO = {
     dc_actas: 'actas',
     dc_poderes: 'poderes',
     dc_contratos: 'contratos',
+    dc_activos: 'activos',
+    dc_activos_digitales: 'activos_digitales',
+    dc_inventario_accesos: 'inventario_accesos',
 };
 
 /** Config por recurso: columnas de la lista + campos del formulario. */
@@ -250,6 +326,65 @@ const RECURSOS = {
             { key: 'monto', label: 'Monto', tipo: 'decimal' },
         ],
     },
+    activos: {
+        columnas: [
+            { name: 'nombre', label: 'Nombre', field: 'nombre' },
+            { name: 'categoria', label: 'Categoría', field: (r) => ETIQUETAS_CATEGORIA_ACTIVO[r.categoria] || r.categoria },
+            { name: 'ubicacion', label: 'Ubicación', field: (r) => r.ubicacion || '—' },
+            { name: 'estado', label: 'Estado', field: (r) => ETIQUETAS_ESTADO_ACTIVO[r.estado] || (r.estado || '—') },
+        ],
+        campos: [
+            { key: 'categoria', label: 'Categoría', tipo: 'seleccion', requerido: true, opciones: opcionesDe(ETIQUETAS_CATEGORIA_ACTIVO) },
+            { key: 'nombre', label: 'Nombre', tipo: 'texto', requerido: true },
+            { key: 'descripcion', label: 'Descripción', tipo: 'texto_largo' },
+            { key: 'identificador', label: 'Identificador', tipo: 'texto' },
+            { key: 'ubicacion', label: 'Ubicación', tipo: 'texto' },
+            { key: 'lat', label: 'Latitud', tipo: 'decimal' },
+            { key: 'lng', label: 'Longitud', tipo: 'decimal' },
+            { key: 'fecha_adquisicion', label: 'Fecha de adquisición', tipo: 'fecha' },
+            { key: 'valor_adquisicion', label: 'Valor de adquisición', tipo: 'decimal' },
+            { key: 'estado', label: 'Estado', tipo: 'seleccion', opciones: opcionesDe(ETIQUETAS_ESTADO_ACTIVO) },
+            { key: 'notas', label: 'Notas', tipo: 'texto_largo' },
+        ],
+    },
+    activos_digitales: {
+        columnas: [
+            { name: 'nombre', label: 'Nombre', field: 'nombre' },
+            { name: 'tipo', label: 'Tipo', field: (r) => ETIQUETAS_TIPO_ACTIVO_DIGITAL[r.tipo] || r.tipo },
+            { name: 'titular', label: 'Titular', field: (r) => r.titular || '—' },
+            { name: 'vigencia_fin', label: 'Vigencia', field: (r) => r.vigencia_fin || 'Indefinida' },
+        ],
+        campos: [
+            { key: 'tipo', label: 'Tipo', tipo: 'seleccion', requerido: true, opciones: opcionesDe(ETIQUETAS_TIPO_ACTIVO_DIGITAL) },
+            { key: 'nombre', label: 'Nombre', tipo: 'texto', requerido: true },
+            { key: 'descripcion', label: 'Descripción', tipo: 'texto_largo' },
+            { key: 'proveedor', label: 'Proveedor', tipo: 'texto' },
+            { key: 'titular', label: 'Titular', tipo: 'texto', requerido: true },
+            { key: 'url', label: 'URL', tipo: 'texto' },
+            { key: 'fecha_alta', label: 'Fecha de alta', tipo: 'fecha' },
+            { key: 'vigencia_fin', label: 'Vigencia hasta', tipo: 'fecha' },
+            { key: 'costo_periodico', label: 'Costo periódico', tipo: 'decimal' },
+            { key: 'periodicidad_costo', label: 'Periodicidad del costo', tipo: 'texto' },
+            { key: 'notas', label: 'Notas', tipo: 'texto_largo' },
+        ],
+    },
+    inventario_accesos: {
+        columnas: [
+            { name: 'institucion_o_sistema', label: 'Institución / sistema', field: 'institucion_o_sistema' },
+            { name: 'tipo', label: 'Tipo', field: (r) => ETIQUETAS_TIPO_INVENTARIO_ACCESO[r.tipo] || r.tipo },
+            { name: 'titular', label: 'Titular', field: (r) => r.titular || '—' },
+            { name: 'custodio_user_id', label: 'Custodio', field: (r) => (r.custodio_user_id ?? '—') },
+        ],
+        campos: [
+            { key: 'tipo', label: 'Tipo', tipo: 'seleccion', requerido: true, opciones: opcionesDe(ETIQUETAS_TIPO_INVENTARIO_ACCESO) },
+            { key: 'institucion_o_sistema', label: 'Institución / sistema', tipo: 'texto', requerido: true },
+            { key: 'identificador_publico', label: 'Identificador (últimos 4 caracteres)', tipo: 'texto' },
+            { key: 'titular', label: 'Titular', tipo: 'texto' },
+            { key: 'ubicacion_resguardo', label: 'Ubicación de resguardo', tipo: 'texto' },
+            { key: 'fecha_ultima_revision', label: 'Última revisión', tipo: 'fecha' },
+            { key: 'notas', label: 'Notas', tipo: 'texto_largo' },
+        ],
+    },
 };
 
 export default {
@@ -283,6 +418,12 @@ export default {
             }
             if (this.recurso === 'contratos') {
                 campos.unshift(this.campoTipoDinamico(this.filtro.tipo, ETIQUETAS_TIPO_CONTRATO));
+            }
+            // Credencial: SOLO en edición (en alta no existe fila todavía), y SIEMPRE
+            // de solo lectura con el texto que ya calcula el backend (nunca un input
+            // editable de secreto — regla de credenciales del item #665).
+            if (this.recurso === 'inventario_accesos' && this.form.id) {
+                campos.push({ key: 'credencial_leyenda', label: 'Credencial', tipo: 'solo_lectura' });
             }
 
             return campos;
@@ -385,6 +526,12 @@ export default {
             delete payload.updated_at;
             delete payload.deleted_at;
             delete payload.empresa_id;
+            // DcActivoDigital/DcInventarioAcceso (Fase 3.3): calculados en el backend,
+            // nunca se mandan de vuelta (titularidad_estado no es fillable; credencial/
+            // credencial_leyenda son la constante de asteriscos + su leyenda, jamás datos reales).
+            delete payload.titularidad_estado;
+            delete payload.credencial;
+            delete payload.credencial_leyenda;
 
             try {
                 if (this.form.id) {
@@ -428,7 +575,10 @@ export default {
         },
 
         colorEstadoVigencia(estado) {
-            return { vigente: 'positive', por_vencer: 'warning', vencido: 'negative' }[estado] || 'grey-6';
+            return {
+                vigente: 'positive', por_vencer: 'warning', vencido: 'negative',
+                activo: 'positive', baja: 'grey-6', mantenimiento: 'warning',
+            }[estado] || 'grey-6';
         },
 
         tipoInput(tipo) {

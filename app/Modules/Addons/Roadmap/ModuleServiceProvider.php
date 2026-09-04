@@ -17,6 +17,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
 
         if ($this->app->runningInConsole()) {
             $this->commands([
+                \App\Modules\Addons\Roadmap\Console\SembrarMapaRedCommand::class,
+                \App\Modules\Addons\Roadmap\Console\LiberarCascadaMapaRedCommand::class,
                 \App\Modules\Addons\Roadmap\Console\RamaItemCommand::class,
                 \App\Modules\Addons\Roadmap\Console\IntegrarItemCommand::class,
                 \App\Modules\Addons\Roadmap\Console\FlagsCommand::class,
@@ -65,6 +67,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 // Autopilot: decide solo lo respaldado, deja a Irving lo indispensable (#507)
                 \App\Modules\Addons\Roadmap\Console\AutopilotCommand::class,
                 \App\Modules\Addons\Roadmap\Console\ParquearTimeoutCommand::class,
+                \App\Modules\Addons\Roadmap\Console\SoltarClaimCommand::class,
                 // Backfill de briefs de la bandeja para poblar confianza/reversible (#507)
                 \App\Modules\Addons\Roadmap\Console\RebriefBandejaCommand::class,
                 // TORRE V2 — Jarvis (autoridad intermedia) y el kit de la terminal:
@@ -84,10 +87,17 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 // #559 — MOTOR DE AUDITORÍA CONTINUA: el generador de trabajo. Cierra el hueco que
                 // quedaba (repartir y juzgar ya existían; generar, no), para que la cola no se vacíe.
                 \App\Modules\Addons\Roadmap\Console\AuditorCommand::class,
+                // #9990033 (FASE 2b-ii de #908) — modo barrido: punto de entrada del ciclo completo
+                // (tomarCandado → elegirModulo → explorar → crear hallazgos → marcarBarrido → liberarCandado).
+                \App\Modules\Addons\Roadmap\Console\BarridoCommand::class,
                 // #921 Fase 2 / #957 — reactiva diario los items agendados cuya fecha ya pasó.
                 \App\Modules\Addons\Roadmap\Console\ReactivarAgendadosCommand::class,
                 // #902 — mide disparos/aflojos por término de la válvula de contexto; read-only.
                 \App\Modules\Addons\Roadmap\Console\MedirValvulaContextoCommand::class,
+                // #764 (Pieza 1a de #672) — backfill histórico de torre_frontera_dura_eventos.
+                \App\Modules\Addons\Roadmap\Console\BackfillFronteraDuraEventosCommand::class,
+                // #976 (Fase 3 de #905) — backfill de frontera_valvula para items existentes.
+                \App\Modules\Addons\Roadmap\Console\BackfillFronteraValvulaCommand::class,
                 // #674 (Pieza 3 de #646) — cruza reversible/confianza autodeclarados contra
                 // revert/escalada/reabertura reales; read-only.
                 \App\Modules\Addons\Roadmap\Console\MedirAutodeclaracionCommand::class,
@@ -100,6 +110,21 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 // #711 (Jarvis Parte 1) — índice vivo derivado del sistema real + su consulta.
                 \App\Modules\Addons\Roadmap\Console\JarvisIndexarCommand::class,
                 \App\Modules\Addons\Roadmap\Console\JarvisPreguntarCommand::class,
+                // #805 (Jarvis Parte 3a, sub-item de #713) — motor de sugerencias, solo lectura.
+                \App\Modules\Addons\Roadmap\Console\JarvisSugerirCommand::class,
+                // #744 (Fase 3 de #624) — mecanismo de reconstrucción de items P0 no-mergeados
+                // (reabre_item_id). Solo el mecanismo: la ejecución real es una vuelta posterior.
+                \App\Modules\Addons\Roadmap\Console\ReconstruirP0Command::class,
+                // #747 (sub-item de #279) — auditoría retroactiva READ-ONLY de merges que pudieron
+                // entrar sin aprobación fresca de Irving. Nunca revierte nada (opción descartada).
+                \App\Modules\Addons\Roadmap\Console\AuditarMergesPostAprobacionCommand::class,
+                // #914 (Fase 3 de #911) — aviso temprano al perdedor de una colisión en vuelo: la
+                // terminal lo consulta en puntos naturales de su vuelta en vez de enterarse hasta
+                // circuito:integrar.
+                \App\Modules\Addons\Roadmap\Console\EstadoItemCommand::class,
+                // #988 — motor de detección de una vuelta: php -l + boot + tests del módulo +
+                // dry-run de migraciones. Solo detecta y reporta, no revierte ni escala.
+                \App\Modules\Addons\Roadmap\Console\VerificarVueltaCommand::class,
             ]);
         }
     }

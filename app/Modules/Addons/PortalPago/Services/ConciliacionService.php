@@ -70,6 +70,10 @@ class ConciliacionService
             // 3. Disparar InvoicePaid (comisiones de Embajadores). UN solo argumento.
             event(new InvoicePaid($invoice));
 
+            // Dual-write Fase 2 (roadmap #721) — espejo best-effort, no afecta el cobro real.
+            app(\App\Services\Finance\Invoice\InvoiceMirrorService::class)
+                ->mirrorPaid($invoice->id, $link->client_id, (float) $link->monto_esperado, $payment->id);
+
             // 4. Cerrar la liga como conciliada.
             $link->update(['estado' => PortalPagoPaymentLink::ESTADO_CONCILIADO]);
 

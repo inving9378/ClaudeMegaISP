@@ -33,7 +33,7 @@
 
 <script>
 import Datatable from "../../../../base/shared/Datatable.vue";
-import { nextTick, onBeforeMount, onMounted, reactive, ref, watch } from "vue";
+import { nextTick, onBeforeMount, onMounted, reactive, ref, watch, onUnmounted, getCurrentInstance } from "vue";
 import DatatableHelper from "../../../../../helpers/datatableHelper";
 import Modal from "../../../../../helpers/modal";
 import ClientCrudInternetService from "./ClientCrudInternetService";
@@ -64,6 +64,10 @@ export default {
         ChangeInternetService,
     },
     setup(props, { emit }) {
+        const ns = `.leak983-internetService-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const datatable = reactive({
             table: new DatatableHelper({}),
         });
@@ -103,7 +107,7 @@ export default {
 
             if (hasPermission.data.canView("client_service_internet_add_client")) {
                 $(document).on(
-                    "click",
+                    "click" + ns,
                     "#buttonmodalinternetservice",
                     function () {
                         showAddModal();
@@ -111,11 +115,11 @@ export default {
                 );
             }
 
-            $(document).on("click", `#change_tarif_internet`, function (e) {
+            $(document).on("click" + ns, `#change_tarif_internet`, function (e) {
                 showModalChangeTarif($(e.target).parent().attr("id-item"));
             });
 
-            $(document).on("click", `#refresh_ip`, function (e) {
+            $(document).on("click" + ns, `#refresh_ip`, function (e) {
                 $(e.target).parent().attr("id-item");
                 let idItem = $(e.target).parent().attr("id-item");
                 refreshIp(idItem);

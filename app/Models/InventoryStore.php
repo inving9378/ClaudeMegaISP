@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Modules\Core\Security\Scopes\OwnScopeFilter;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -13,6 +14,18 @@ class InventoryStore extends Model
         'description',
         'user_id',
     ];
+
+    /**
+     * Item #865 (Fase B) — piloto del primer Eloquent Global Scope real del
+     * proyecto: filtra por responsable (user_id) SOLO si el rol del usuario
+     * tiene scope='propios' asignado para `inventory_store_view_inventory_store`
+     * (tabla role_permission_scopes). Sin asignación → no filtra (ve todos,
+     * comportamiento actual intacto).
+     */
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new OwnScopeFilter('inventory_store_view_inventory_store'));
+    }
 
 
     public function inventory_item_stocks()

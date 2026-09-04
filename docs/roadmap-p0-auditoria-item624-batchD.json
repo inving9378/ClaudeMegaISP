@@ -1,0 +1,242 @@
+[
+  {
+    "id": 1019,
+    "titulo": "Sub-item de #1012 (paraguas \"rollback a versión previa\", 5 fases) — tema específico no capturado en los snippets disponibles",
+    "estado_final": "escalado_a_irving",
+    "razon_no_merge": "Sub-item de #1012 (paraguas de rollback a versión previa en 5 fases, descompuesto en #1017-#1021). Dos intentos de ejecución (wt-1 el 2026-08-21 18:40, wt-2 el 2026-08-22 11:09) se cortaron a los 600s sin crear rama ni commits (rama=—, commits=0); ambos terminaron con el mismo mensaje \"a la bandeja de Irving\" por timeout sin avance, sin llegar a picar código.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — dos timeouts consecutivos sin ejecutar código ni generar preguntas de brief"
+  },
+  {
+    "id": 1031,
+    "titulo": "IPv6 Fase 5.1 — Esquema de datos aditivo (tablas propias, sin FK a la fundación inexistente) — sub-item de #956",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Item paraguas: no cabía en una vuelta (`circuito:cabida` = historico_excede_umbral) y se descompuso más en sub-items #1064/#1065 (fuera del rango de este lote), que contienen el trabajo real. #1031 quedó parqueado como `aprobado_irving` fuera del pool automático, esperando a que esos dos hijos cierren; nunca tuvo código ni rama propios. Verificado repetidamente por al menos 4 workers distintos entre 2026-08-21 y 2026-08-22 sin que cambiara.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — item paraguas re-descompuesto en sub-items ajenos al lote (#1064/#1065), sin evaluación de riesgo propia"
+  },
+  {
+    "id": 1034,
+    "titulo": "IPv6 Fase 5.4 — Enganche real con el módulo Addons/Ipv6 + simulacro de aceptación — sub-item de #956",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Explícitamente bloqueado por su propio spec hasta que sus 4 dependencias (#955, #984, #985, #986) estén completadas de verdad. Verificado y reafirmado 3 veces (2026-08-21 18:02, 2026-08-22 01:04 y 07:08) sin que ninguna dependencia cerrara. Cada vuelta aplicó la Opción 1 ya elegida por Irving (diferir vía `agendado_para` +6h) sin tocar código ni crear rama.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — bloqueado por dependencias sin cerrar, deferido repetidamente sin código ni brief propio evaluado"
+  },
+  {
+    "id": 1039,
+    "titulo": "IPv6 — crear y registrar el módulo Addons/Ipv6 + permisos — sub-item de #984",
+    "estado_final": "escalado_a_irving",
+    "razon_no_merge": "Al reclamarse (2026-08-22 11:59) se detectó una contradicción de spec: el set de nombres de permisos que pide la descripción del item (genérico) difiere del que la propia respuesta de Irving en la pregunta q2 de este mismo item #1039 seleccionó. Sembrar el set equivocado habría roto la verificación de #1040 y el resto de la épica IPv6 que ya referencia esos nombres. Se consultó a Thomas, que escaló formalmente a la bandeja de Irving (`requiere_irving`, 12:02); no se tocó código ni la rama huérfana existente.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": true,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — brief con q2 ya respondida por Irving, pero sin nivel A/B/C explícito en los logs disponibles; escalado por contradicción de spec antes de evaluar riesgo"
+  },
+  {
+    "id": 1040,
+    "titulo": "IPv6 — verificar y cerrar el registro del módulo (depende de que #1039 esté mergeado) — sub-item de #984",
+    "estado_final": "escalado_a_irving",
+    "razon_no_merge": "Su precondición dura (que #1039 esté mergeado a main) nunca se cumplió: el scaffold del módulo (migración + ModuleServiceProvider con los 8 permisos que #1040 esperaba) solo existe en la rama huérfana `circuito/item-984-ipv6-11-registro-del-modulo-addonsipv`, nunca mergeada a main. Escalado formalmente a la bandeja de Irving vía Thomas (2026-08-22 12:02) sin tocar código, dejando constancia de que main y la BD de dev habían divergido.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — bloqueado por precondición de otro item sin cerrar (#1039), sin ejecución propia"
+  },
+  {
+    "id": 1042,
+    "titulo": "Fix accordeón procedencia/consecuencia — pintar los 4 controles verdes faltantes — sub-item de #989",
+    "estado_final": "completado",
+    "razon_no_merge": "Sub-item creado con el diagnóstico exacto y el fix ya diseñado (archivo, líneas, helper) tras un `circuito:cabida` = NO CABE en #989. Al reclamarse de nuevo (2026-08-21 20:32) se confirmó que #989 (el item padre) ya estaba mergeado a main con el mismo fix shippeado por otro camino; #1042 se cerró como sub-item duplicado consumado (no generó código propio porque hubiera sido redundante) y se completó el paraguas #989 sin código nuevo.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — cerrado por redundancia (fix ya shippeado vía #989), sin evaluación de riesgo propia sobre #1042"
+  },
+  {
+    "id": 1044,
+    "titulo": "IPv6 — tablas cliente/despliegue: clientes_ipv6_prefijos/config/excepciones + ipv6_despliegues — sub-item de #985",
+    "estado_final": "en_curso_interrumpido",
+    "razon_no_merge": "Nivel C explícito en el log (\"rama integrada esperando merge manual de Irving (nivel C)\"). Bloqueado varias vueltas por precondiciones (#984 y el sub-item hermano de infraestructura) hasta que 2026-08-22 12:12 se crearon y migraron en dev las 4 migraciones aditivas (commit `87aa536b` en la rama `circuito/item-1044-ipv6-12b-migraciones-clientes-ipv6-p`) y se encoló la integración. Verificado directo en git (`merge-base --is-ancestor`): esa rama NUNCA se mergeó a main — quedó esperando el merge manual que Irving nunca ejecutó.",
+    "nivel_riesgo": "C",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": null
+  },
+  {
+    "id": 1048,
+    "titulo": "IPv6 — integración real de despliegue con el router (frontera dura: producción + seguridad de red) — sub-item de #991",
+    "estado_final": "escalado_a_irving",
+    "razon_no_merge": "Descrito desde su creación como frontera dura explícita (producción + seguridad de red + corte de servicio a clientes), bloqueado además por el prerrequisito técnico #953 (sigue `pending`). Al reclamarse (2026-08-22 12:20) se decodificó el hash de respuestas ya registrado por Irving y se descompuso en 3 sub-items técnicos (#1076/#1077/#1078) siguiendo esa decisión, sin tocar producción. Una vuelta posterior (12:35) confirmó la frontera dura y escaló formalmente vía `circuito:consultar` → `requiere_irving`, rompiendo un bucle de reap-huérfano que lo había reencolado dos veces.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": true,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — frontera dura de producción/seguridad descrita en prosa (\"nivel B o C\" típico de este patrón) pero sin la letra explícita en los logs disponibles; brief con respuestas de Irving ya registradas"
+  },
+  {
+    "id": 1052,
+    "titulo": "IPv6 — retomar cuando existan datos reales de #952/#953/#954 — sub-item diferido, spec no detallado en los snippets",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Creado explícitamente como \"retomar cuando esas fases cierren\" (sin datos simulados), con su propio brief pendiente de respuesta de Irving. Reafirmado 2026-08-22 12:37: los prerrequisitos #952/#953/#954 seguían sin completar, así que se aplicó la deferencia ya aprobada por Irving (`agendado_para=2026-09-05`) sin tocar código.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — brief propio queda descrito como \"pendiente\" (no completo); deferido por dependencias sin cerrar"
+  },
+  {
+    "id": 1054,
+    "titulo": "Fase 4.4a — prevuelo read-only — sub-item de #998",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Uno de 4 sub-items (#1054-#1057) creados juntos en la descomposición de #998 (no cabía en una vuelta, histórico ~23min), cubriendo el desglose a/b/c/d con notas de frontera dura y la dependencia de #949 ya señaladas. Reconfirmados como el desglose correcto por una segunda vuelta (2026-08-21 22:04) tras interrupción del reaper, pero sin que ninguno fuera reclamado de nuevo ni generara rama/commits en la ventana de logs disponible.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — sub-item recién creado, nunca reclamado de nuevo en los logs disponibles"
+  },
+  {
+    "id": 1055,
+    "titulo": "Fase 4.4b — plantillas versionadas en BD — sub-item de #998",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Uno de 4 sub-items (#1054-#1057) creados juntos en la descomposición de #998, cubriendo el desglose a/b/c/d con notas de frontera dura y la dependencia de #949 ya señaladas. Reconfirmado como parte del desglose correcto por una segunda vuelta (2026-08-21 22:04), pero nunca reclamado de nuevo ni con rama/commits en la ventana de logs disponible.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — sub-item recién creado, nunca reclamado de nuevo en los logs disponibles"
+  },
+  {
+    "id": 1056,
+    "titulo": "Fase 4.4c — reversión acotada por despliegue — sub-item de #998",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Uno de 4 sub-items (#1054-#1057) creados juntos en la descomposición de #998, cubriendo el desglose a/b/c/d con notas de frontera dura y la dependencia de #949 ya señaladas. Reconfirmado como parte del desglose correcto por una segunda vuelta (2026-08-21 22:04), pero nunca reclamado de nuevo ni con rama/commits en la ventana de logs disponible.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — sub-item recién creado, nunca reclamado de nuevo en los logs disponibles"
+  },
+  {
+    "id": 1057,
+    "titulo": "Fase 4.4d — estado visible del proyecto — sub-item de #998",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Uno de 4 sub-items (#1054-#1057) creados juntos en la descomposición de #998, cubriendo el desglose a/b/c/d con notas de frontera dura y la dependencia de #949 ya señaladas, con specs alineados a las decisiones q1-q4 que Irving ya había aprobado para el padre. Reconfirmado por una segunda vuelta (2026-08-21 22:04), pero nunca reclamado de nuevo ni con rama/commits en la ventana de logs disponible.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — sub-item recién creado, nunca reclamado de nuevo en los logs disponibles"
+  },
+  {
+    "id": 1058,
+    "titulo": "IPv6 — Backend: Ipv6ConfigController + rutas (routers/detectar-version/mapear-zonas/vista-previa) — sub-item de descomposición IPv6",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Creado (2026-08-21 22:14) como la mitad backend de una descomposición en 2 sub-items (#1058 backend, #1059 frontend) tras un `circuito:cabida` que excedía el umbral histórico, con investigación de servicios existentes y decisiones de contradicción de spec ya resueltas y documentadas. No hay evidencia de que se reclamara de nuevo, generara rama ni commits en la ventana de logs disponible.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — sub-item recién creado, nunca reclamado de nuevo en los logs disponibles"
+  },
+  {
+    "id": 1060,
+    "titulo": "IPv6 — Pantalla 1: Alta del bloque — sub-item de #1000",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Creado (2026-08-21 22:44) junto con #1061 en la descomposición de #1000 (histórico ~557s, no cabía en una vuelta), con el detalle técnico ya investigado (rutas, servicios, drivers de versión). El item #1000 quedó como paraguas sin tocar código; no hay evidencia de que #1060 se reclamara de nuevo, generara rama ni commits en la ventana de logs disponible.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — sub-item recién creado, nunca reclamado de nuevo en los logs disponibles"
+  },
+  {
+    "id": 1063,
+    "titulo": "IPv6 — Pantalla 4 real con datos reales (bloqueada hasta #949/984/985/986) — sub-item de #1002",
+    "estado_final": "escalado_a_irving",
+    "razon_no_merge": "Explícitamente bloqueada desde su creación (2026-08-21 23:28) hasta que #949/984/985/986 mergeen. Reconfirmado el bloqueo en al menos 5 vueltas distintas (23:38, 23:50, 23:51, 23:59, 00:02, 00:03) sin recrear duplicados porque #1062/#1063 ya cubrían la descomposición y porque Irving ya había decidido esperar (Opción 1, 2026-08-21 16:36). Última mención (2026-08-22 06:07): \"#1063 correctamente en la bandeja de Irving\", con `agendado_para` extendido a 24h; nunca generó rama ni commits propios.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — bloqueado por dependencias sin cerrar y por decisión ya tomada por Irving de esperar, sin evaluación de riesgo propia"
+  },
+  {
+    "id": 1066,
+    "titulo": "IPv6 Fase 5.2 — esquema propio del motor de renumeración — sub-item de #1032",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Uno de 3 sub-items (#1066 esquema propio, #1067 servicio FSM, #1068 timers+flag) creados en la descomposición de #1032 (no cabía en una vuelta), documentando que la Fase 5.1 seguía sin ejecutar. Reconfirmado como vivo y sin implementar por al menos 3 vueltas distintas hasta 2026-08-22 00:56 (\"todavía no existe en código\"); el paraguas #1032 se cerrará solo cuando sus 3 hijos cierren. Sin rama ni commits propios en la ventana de logs disponible.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — sub-item de un paraguas, pendiente sin implementar, sin evaluación de riesgo propia"
+  },
+  {
+    "id": 1068,
+    "titulo": "IPv6 Fase 5.2 — timers + flag del motor de renumeración — sub-item de #1032",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Uno de 3 sub-items (#1066 esquema propio, #1067 servicio FSM, #1068 timers+flag) creados en la descomposición de #1032 (no cabía en una vuelta), documentando que la Fase 5.1 seguía sin ejecutar. Reconfirmado como vivo y sin implementar por al menos 3 vueltas distintas hasta 2026-08-22 00:56; el paraguas #1032 se cerrará solo cuando sus 3 hijos cierren. Sin rama ni commits propios en la ventana de logs disponible.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — sub-item de un paraguas, pendiente sin implementar, sin evaluación de riesgo propia"
+  },
+  {
+    "id": 1069,
+    "titulo": "IPv6 Fase 5.3 — servicio simulador + endpoint (backend, 4 fases RFC4192 + comandos generados) — sub-item de #1033",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Creado (2026-08-22 00:56) junto con #1070 (UI) al detectar que la dependencia dada por sentada (\"motor de 5.2\", #1066/#1067/#1068) todavía no existía en código. Confirmado por git: el commit que sí se mergeó a main (`cff03faf`, correspondiente al sub-item hermano #1070) declara explícitamente que \"la dependencia #1069 aún no está implementada\" y construye la UI 100% client-side para no depender de ella — #1069 nunca generó su propio commit ni rama.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — sub-item backend nunca implementado (confirmado por el commit del hermano #1070 que lo da explícitamente por pendiente)"
+  },
+  {
+    "id": 1074,
+    "titulo": "IPv6 — backend (bloqueado, tablas clientes_ipv6_* inexistentes en dev) — sub-item de #995",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Creado (2026-08-22 11:28) junto con #1075 (frontend) al confirmar que las tablas `clientes_ipv6_prefijos`/`ipv6_bloques` no existen en la BD de dev. Reconfirmado el mismo bloqueo por al menos 3 vueltas más (11:37, 11:42, 11:48) que optaron por no duplicar el trabajo ya documentado en #1074/#1075 en vez de repetir la investigación; sin rama ni commits propios en la ventana de logs disponible.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — bloqueado por fundación IPv6 sin mergear, sin evaluación de riesgo propia"
+  },
+  {
+    "id": 1075,
+    "titulo": "IPv6 — frontend (bloqueado, tablas clientes_ipv6_* inexistentes en dev) — sub-item de #995",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Creado (2026-08-22 11:28) junto con #1074 (backend) al confirmar que las tablas `clientes_ipv6_prefijos`/`ipv6_bloques` no existen en la BD de dev. Reconfirmado el mismo bloqueo por al menos 3 vueltas más (11:37, 11:42, 11:48) que optaron por no duplicar el trabajo ya documentado en #1074/#1075 en vez de repetir la investigación; sin rama ni commits propios en la ventana de logs disponible.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — bloqueado por fundación IPv6 sin mergear, sin evaluación de riesgo propia"
+  },
+  {
+    "id": 1076,
+    "titulo": "IPv6 — reglas de firewall v6 — sub-item de #1048",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Uno de 3 sub-items técnicos (#1076 reglas firewall v6, #1077 corte transaccional dual-stack v4+v6, #1078 pruebas ping -4/-6) creados 2026-08-22 12:20 al descomponer #1048, cada uno con su spec técnico completo y bloqueo documentado. El padre #1048 quedó escalado a `requiere_irving` por frontera dura de producción; los 3 hijos quedaron pendientes, sin código de producción ni router de borde tocado, sin rama ni commits propios en la ventana de logs disponible.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — sub-item técnico de una frontera dura de producción, pendiente sin evaluación de riesgo propia"
+  },
+  {
+    "id": 1077,
+    "titulo": "IPv6 — corte transaccional dual-stack v4+v6 atómico — sub-item de #1048",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Uno de 3 sub-items técnicos (#1076 reglas firewall v6, #1077 corte transaccional dual-stack v4+v6, #1078 pruebas ping -4/-6) creados 2026-08-22 12:20 al descomponer #1048, cada uno con su spec técnico completo y bloqueo documentado. El padre #1048 quedó escalado a `requiere_irving` por frontera dura de producción; los 3 hijos quedaron pendientes, sin código de producción ni router de borde tocado, sin rama ni commits propios en la ventana de logs disponible.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — sub-item técnico de una frontera dura de producción, pendiente sin evaluación de riesgo propia"
+  },
+  {
+    "id": 1078,
+    "titulo": "IPv6 — pruebas ping -4/-6 — sub-item de #1048",
+    "estado_final": "indeterminado",
+    "razon_no_merge": "Uno de 3 sub-items técnicos (#1076 reglas firewall v6, #1077 corte transaccional dual-stack v4+v6, #1078 pruebas ping -4/-6) creados 2026-08-22 12:20 al descomponer #1048, cada uno con su spec técnico completo y bloqueo documentado. El padre #1048 quedó escalado a `requiere_irving` por frontera dura de producción; los 3 hijos quedaron pendientes, sin código de producción ni router de borde tocado, sin rama ni commits propios en la ventana de logs disponible.",
+    "nivel_riesgo": "indeterminado",
+    "brief_completo": false,
+    "incluir": false,
+    "motivo_exclusion": "evidencia insuficiente para nivel_riesgo — sub-item técnico de una frontera dura de producción, pendiente sin evaluación de riesgo propia"
+  }
+]

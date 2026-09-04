@@ -23,8 +23,8 @@ class EvaluacionEmpresarialMail extends Mailable
         return $this
             ->mailer('ventas')
             ->from(
-                config('mail.mailers.ventas.from.address', env('MAIL_VENTAS_FROM_ADDRESS')),
-                config('mail.mailers.ventas.from.name', env('MAIL_VENTAS_FROM_NAME', 'MegaNet Ventas'))
+                config('mail.ventas_from.address'),
+                config('mail.ventas_from.name')
             )
             ->subject('Resultado de tu evaluación empresarial — MegaNet')
             ->view('addon-evaluador-empresarial::emails.evaluacion-empresarial')

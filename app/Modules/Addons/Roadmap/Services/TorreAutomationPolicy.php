@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Roadmap\Services;
 
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Models\TorreConfig;
+use App\Modules\Addons\Roadmap\Models\TorreFronteraDuraEvento;
 
 /**
  * EL CORAZÓN — un solo lugar donde vive la decisión de «¿esto puede avanzar sin Irving?».
@@ -67,6 +68,7 @@ class TorreAutomationPolicy
     public function __construct(
         private TorreConfigService $config,
         private JarvisService $jarvis,
+        private AuditorService $auditor,
     ) {
     }
 
@@ -177,6 +179,8 @@ class TorreAutomationPolicy
         // (1-4) FRONTERA DURA. Gana siempre, por delante de todo. No se levanta desde ninguna
         // configuración: ni con `autonomo`, ni con `override = auto`.
         if ($this->tocaFronteraDura($item) !== null) {
+            $this->registrarFronteraDuraVivo($item);
+
             return 'requiere_irving';
         }
 
@@ -289,6 +293,72 @@ class TorreAutomationPolicy
     }
 
     /**
+     * Pieza 1b (#765, sub-item de #672) — CAPTURA EN VIVO. Proyecta a `torre_frontera_dura_eventos`
+     * (creada en la Pieza 1a, #764) el mismo instante en que `estadoInicial()` retiene un item por
+     * frontera dura, con `origen='vivo'` — a diferencia del backfill (#764), que sólo reconstruye lo
+     * ya escrito en `roadmap_items.log`.
+     *
+     * IDEMPOTENCIA: este método se llama en CADA re-evaluación de un item que sigue retenido (cada
+     * intento de despacho automático de cada actor). No cada llamada es un evento nuevo:
+     *   - Si el item **no estaba ya** en `requiere_irving` (viene de otro estado) → es una apertura
+     *     NUEVA de la frontera → siempre se registra.
+     *   - Si el item **ya estaba** en `requiere_irving` → es la misma retención re-evaluándose →
+     *     sólo se registra si no hay ya un evento reciente (mismo item+término+veredicto, `vivo`).
+     *
+     * Nunca debe tumbar la decisión real: cualquier fallo de lectura/escritura se traga (es
+     * instrumentación, no la frontera misma).
+     */
+    private function registrarFronteraDuraVivo(RoadmapItem $item): void
+    {
+        if (! $item->exists) {
+            return; // sin id no hay a qué colgar el evento (no debería pasar: ver docblock de estadoInicial).
+        }
+
+        try {
+            $det = $this->jarvis->fronteraDuraDeItemDetalle($item);
+        } catch (\Throwable) {
+            return;
+        }
+
+        $categoria = $det['categoria'] ?? null;
+        $termino   = trim((string) ($det['termino'] ?? ''));
+        if ($categoria === null || $termino === '') {
+            return;
+        }
+
+        $veredicto = ($det['ablandada'] ?? false) ? 'mencion' : 'accion';
+
+        try {
+            if ($item->estado_aprobacion === 'requiere_irving') {
+                $yaRegistrado = TorreFronteraDuraEvento::query()
+                    ->where('roadmap_item_id', $item->id)
+                    ->where('termino', $termino)
+                    ->where('veredicto', $veredicto)
+                    ->where('origen', 'vivo')
+                    ->where('ocurrido_at', '>=', now()->subHours(6))
+                    ->exists();
+
+                if ($yaRegistrado) {
+                    return;
+                }
+            }
+
+            TorreFronteraDuraEvento::create([
+                'roadmap_item_id' => $item->id,
+                'categoria'       => $categoria,
+                'termino'         => $termino,
+                'veredicto'       => $veredicto,
+                'razon'           => $det['motivo'] ?? null,
+                'ocurrido_at'     => now(),
+                'origen'          => 'vivo',
+            ]);
+        } catch (\Throwable) {
+            // Colisión de unique (mismo item+término+timestamp) u otro fallo de escritura: la
+            // instrumentación se pierde, la decisión real (arriba) ya se tomó y no se toca.
+        }
+    }
+
+    /**
      * El estado aprobado que corresponde al nivel. Reusa los que el pool YA reconoce
      * (A → `aprobado_claude`, B/C → `aprobado_revisor`): no se inventa un estado nuevo.
      */
@@ -345,9 +415,22 @@ class TorreAutomationPolicy
             // que ya no están vigentes.
             'topes_duros'          => array_keys(app(FronterasService::class)->mapa()),
             'auditor'              => [
-                'activo'          => $cfg->auditor_activo,
-                'max_por_corrida' => $cfg->auditor_max_por_corrida,
-                'cooldown_min'    => $cfg->auditor_cooldown_min,
+                'activo'            => $cfg->auditor_activo,
+                'max_por_corrida'   => $cfg->auditor_max_por_corrida,
+                'cooldown_min'      => $cfg->auditor_cooldown_min,
+                'slots_libres_min'  => $cfg->auditor_slots_libres_min,
+                // #891 Fase 3b-i — half-open del freno de sequía N2: config del reintento +
+                // estado resuelto (`estadoGastoUi()`, misma lectura que consume el auditor).
+                'gasto_reintento_min'    => $cfg->auditor_gasto_reintento_min,
+                'gasto_reintento_activo' => $cfg->auditor_gasto_reintento_activo,
+                'gasto'                  => $this->auditor->estadoGastoUi(),
+            ],
+            // #9990005 — misma forma que el sub-techo del autopilot: valor RESUELTO (columna si
+            // Irving la fijó, si no el default de config) + de dónde salió, para que la pantalla
+            // lo pinte sin tener que repetir la lógica de resolución.
+            'paralelo_mismo_modulo' => [
+                'valor'  => $cfg->paraleloMismoModulo(),
+                'fuente' => $cfg->paraleloMismoModuloFuente(),
             ],
         ];
     }

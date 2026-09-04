@@ -152,6 +152,7 @@
                                                                         'portal'
                                                             )"
                                                             :key="perm.field"
+                                                            :title="perm.description || ''"
                                                         >
                                                             <input
                                                                 class="form-check-input"
@@ -165,6 +166,12 @@
                                                             >
                                                                 {{ perm.label }}
                                                             </label>
+                                                            <div
+                                                                v-if="perm.description"
+                                                                class="small text-muted perm-description"
+                                                            >
+                                                                {{ perm.description }}
+                                                            </div>
                                                         </div>
                                                     </template>
                                                 </div>
@@ -411,9 +418,9 @@ const applyPermissions = () => {
 
 // Pestaña dinámica "Otros": expone cualquier permiso de BD no curado (item #71)
 const loadCatalog = async () => {
-    const { permissions: catalog, contexts } = await getPermissionsCatalog();
+    const { permissions: catalog, contexts, descriptions } = await getPermissionsCatalog();
     contextByName.value = contexts || {};
-    const { fields, accordions: accs } = buildUncategorizedTab(catalog);
+    const { fields, accordions: accs } = buildUncategorizedTab(catalog, descriptions);
     if (!fields.length) return;
     fieldsJson.value.otros = fields;
     accordions.value.otros = accs;
@@ -526,5 +533,11 @@ const updateShow = (newValue) => {
     margin-right: 0.75rem;
     padding-left: 0.6rem;
     border-left: 2px solid var(--bs-border-color, #e5e7eb);
+}
+/* Item #860 — subtítulo de description bajo el checkbox, solo en la pestaña
+   dinámica "Otros" (únicos campos que traen `description` poblado). */
+.perm-description {
+    margin-left: 1.6rem;
+    line-height: 1.2;
 }
 </style>

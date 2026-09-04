@@ -5,6 +5,7 @@ namespace App\Modules\Addons\DocumentacionCorporativa\Seeders;
 use App\Models\DocumentTemplate;
 use App\Modules\Addons\DocumentacionCorporativa\Models\DcConcepto;
 use App\Modules\Addons\DocumentacionCorporativa\Models\DcEmpresa;
+use App\Modules\Addons\DocumentacionCorporativa\Services\ActaEntregaService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -30,6 +31,11 @@ use Illuminate\Support\Facades\DB;
  * `Fuentes\PropiaFuentes`) y "Carátula de expediente" no tiene concepto propio
  * hoy (probablemente para el paquete de entrega de Fase 5, item #667). Ambas
  * quedan en `document_templates` sin enlazar, listas para cuando se necesiten.
+ *
+ * Fase 5b.2 (item #811) suma una 5ª plantilla, "Acta de entrega-recepción":
+ * tampoco se enlaza a un concepto — `ActaEntregaService` la busca directo por
+ * `name` (constante `ActaEntregaService::TEMPLATE_NAME`) al cerrar una
+ * `DcEntrega` (apartado XIV).
  */
 class PlantillasSeeder extends Seeder
 {
@@ -57,6 +63,11 @@ class PlantillasSeeder extends Seeder
         DocumentTemplate::updateOrCreate(
             ['name' => 'Carátula de expediente'],
             ['html' => $this->htmlCaratula(), 'type' => self::TYPE_DOCUMENTOS, 'created_by' => $creadoPor]
+        );
+
+        DocumentTemplate::updateOrCreate(
+            ['name' => ActaEntregaService::TEMPLATE_NAME],
+            ['html' => $this->htmlActaEntrega(), 'type' => self::TYPE_DOCUMENTOS, 'created_by' => $creadoPor]
         );
 
         $this->enlazar($organigrama->id, 'organigrama-corporativo');
@@ -261,6 +272,88 @@ h1 { font-size: 22px; color: #0057A8; margin: 0 0 6px; }
 
 <div class="pie">
 Carátula de expediente generada desde la plantilla del módulo de Documentación Corporativa.
+</div>
+</body>
+</html>
+HTML;
+    }
+
+    /**
+     * Los tokens `{{DC_*}}` NO son del catálogo Comun de `DocumentTemplateService`
+     * (son propios de la entrega: empresa documentada, fecha, solicitante,
+     * índice, hash, quién lo generó) — los resuelve `ActaEntregaService` con
+     * `str_replace` después de `validateAndReplaceTemplate()`.
+     */
+    private function htmlActaEntrega(): string
+    {
+        return <<<'HTML'
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<style>
+body { font-family: DejaVu Sans, sans-serif; font-size: 11px; color: #222; }
+.membrete { border-bottom: 2px solid #0057A8; padding-bottom: 8px; margin-bottom: 16px; }
+.membrete img { max-height: 46px; }
+h1 { font-size: 16px; color: #0057A8; margin: 4px 0 2px; }
+.sub { color: #666; font-size: 10px; }
+h2 { font-size: 12px; margin: 16px 0 4px; color: #0057A8; }
+table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; }
+th { background: #f2f2f2; font-weight: bold; }
+.datos th { width: 26%; }
+.clausula { margin-top: 18px; text-align: justify; }
+.firmas { width: 100%; margin-top: 60px; }
+.firmas td { border: none; text-align: center; padding-top: 6px; }
+.firma-linea { border-top: 1px solid #222; width: 80%; margin: 0 auto 4px; }
+.pie { margin-top: 22px; color: #888; font-size: 9px; border-top: 1px solid #ddd; padding-top: 6px; }
+</style>
+</head>
+<body>
+<div class="membrete">
+<img src="${data.url_logo}">
+<h1>Acta de entrega-recepción</h1>
+<div class="sub">${data.company_name} · RFC ${data.rfc}</div>
+</div>
+
+<table class="datos">
+<tr><th>Expediente correspondiente a</th><td>{{DC_EMPRESA_RAZON_SOCIAL}}</td></tr>
+<tr><th>Fecha de entrega</th><td>{{DC_FECHA}}</td></tr>
+<tr><th>Solicitante</th><td>{{DC_SOLICITANTE}}</td></tr>
+<tr><th>Generado por</th><td>{{DC_GENERADO_POR}}</td></tr>
+<tr><th>Hash SHA-256 del paquete</th><td>{{DC_HASH}}</td></tr>
+</table>
+
+<h2>Índice de apartados y conceptos entregados</h2>
+<table>
+<thead><tr><th>Apartado</th><th>Concepto</th><th>Estado</th></tr></thead>
+<tbody>
+{{DC_INDICE_HTML}}
+</tbody>
+</table>
+
+<div class="clausula">
+Quien entrega y quien recibe manifiestan que el contenido descrito en el índice anterior corresponde
+exactamente al paquete identificado por el hash SHA-256 señalado arriba, y firman de conformidad la
+presente acta de entrega-recepción del expediente corporativo y societario.
+</div>
+
+<table class="firmas">
+<tr>
+<td style="width:50%;">
+<div class="firma-linea"></div>
+Quien entrega
+</td>
+<td style="width:50%;">
+<div class="firma-linea"></div>
+Quien recibe
+</td>
+</tr>
+</table>
+
+<div class="pie">
+Acta generada desde el módulo de Documentación Corporativa (apartado XIV). El paquete y su hash se
+conservan como acuse de la entrega.
 </div>
 </body>
 </html>

@@ -72,12 +72,12 @@
                                         </template>
                                     </template>
                                     <span v-else class="text-muted small">
-                                        <i class="fa fa-circle-xmark me-1"></i>Sin registrar
+                                        <i class="fa fa-times-circle me-1"></i>Sin registrar
                                     </span>
                                 </td>
                                 <td>
                                     <span v-if="e.provisionado_at" class="text-success">
-                                        <i class="fa fa-circle-dot me-1"></i>Provisionada
+                                        <i class="fa fa-dot-circle me-1"></i>Provisionada
                                     </span>
                                     <span v-else class="text-warning">
                                         <i class="fa fa-circle-notch me-1"></i>Sin provisionar
@@ -124,7 +124,7 @@
                                                 :disabled="verificando === e.id"
                                                 @click="verificar(e)"
                                                 title="Verificar en Asterisk">
-                                            <i class="fa fa-magnifying-glass"></i>
+                                            <i class="fa fa-search"></i>
                                         </button>
                                         <button v-if="canEdit"
                                                 class="btn btn-outline-secondary"
@@ -267,7 +267,7 @@
                     <div class="modal-body" v-if="extAEliminar">
                         <p>¿Eliminar la extensión <strong>{{ extAEliminar.numero }} — {{ extAEliminar.nombre }}</strong>?</p>
                         <p v-if="extAEliminar.provisionado_at" class="text-warning small">
-                            <i class="fa fa-triangle-exclamation me-1"></i>
+                            <i class="fa fa-exclamation-triangle me-1"></i>
                             Se desprovisionará automáticamente de Asterisk.
                         </p>
                         <p class="text-danger small">Esta acción no se puede deshacer.</p>

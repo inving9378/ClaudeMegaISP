@@ -42,6 +42,12 @@ class CompletitudService
         );
     }
 
+    /** Tira el caché del tablero: llamarlo tras subir/eliminar un documento (Fase 2a, item #767). */
+    public function invalidar(int $empresaId): void
+    {
+        cache()->forget("dc:completitud:{$empresaId}");
+    }
+
     /** Un solo apartado, siempre en vivo (son ~10 conceptos, no 139). */
     public function apartado(DcApartado $apartado, int $empresaId): array
     {
@@ -129,6 +135,11 @@ class CompletitudService
                 'mensaje'         => $resultado->mensaje,
                 'resuelto'        => $cuenta,
                 'metricas'        => $resultado->metricas,
+                // Filas del resolvedor (ej. documentos de un concepto tipo
+                // 'documento'): mismos datos que ya usa la exportación
+                // CSV/PDF, expuestos aquí para que el detalle del apartado
+                // los pinte sin una segunda llamada (Fase 2a, item #767).
+                'datos'           => $resultado->datos,
             ];
 
             if (! $concepto->obligatorio) {

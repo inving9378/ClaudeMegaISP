@@ -1368,6 +1368,39 @@ originales de #218 siguen clasificadas igual que documentó #733 (sin regresione
 (la carrera del generador entre cierre del padre y lectura de `preguntas[]`) queda anotada como
 deuda de bajo costo si se repite una tercera vez — no se toca en este item.
 
+## Item #753 — Seguimiento de la pregunta sin resolver de #741 (RESUELTO — tercera repetición; generador CORREGIDO)
+
+Tercera vuelta de la misma carrera (#218→#733→#741→#753), sobre la pregunta textualmente idéntica.
+Reverificado contra la BD de dev (2026-08-29): las 17 entradas originales de #218 siguen
+clasificadas igual (sin regresiones); `POWER` sigue `NULL` a propósito. A diferencia de #733/#741,
+aquí SÍ se tocó código: `JarvisService::cadenaSeguimientoRepetida()` (nuevo) camina la cadena
+`origen_item_id` y, si la misma pregunta textual ya generó 3+ seguimientos en cadena, el hook
+`RoadmapItem::saving()` (`#1008`) deja de crear un hijo más — solo anota
+`seguimiento_omitido_cadena_repetida` en el log del item que se cierra. Además #753 se cerró con
+`preguntas[0].opcion_elegida` fijado a la respuesta real, así que aunque el guard fallara la
+pregunta ya no cuenta como "sin resolver". Detalle completo en
+`docs/inventario-seguimiento-741-item-753-verificacion.md`.
+## Item #738 — Deriva de esquema #216 Fase 1 — bucle reap sobre paraguas nunca aparcado (RESUELTO — se completa el cierre-intento faltante)
+
+Una sesión previa ya había hecho lo correcto: al recibir `circuito:cabida` = NO CABE, descompuso
+#738 en **#797** (Fase 1a: vaciar+migrar `megaisp_dryrun` desde cero) y **#798** (Fase 1b: exportar
+a `storage/schema/reference.sql` vía `schema:build-reference`), y terminó su vuelta sin ejecutar
+más código. Pero nunca **intentó cerrar** al padre — y el guard de paraguas del modelo
+(`RoadmapItem.php` bloque "(2b) PARAGUAS") solo aparca un ítem descompuesto (`aprobado_irving` +
+`excluir_pool_automatico`) cuando algo intenta activamente `estado_aprobacion = 'completado'` y
+detecta hijos abiertos. Sin ese intento, #738 se quedó en `en_progreso` con el `worker_sid` de esa
+sesión, sin nadie liberando el claim; el reaper (que solo sabe re-encolar huérfanos a su estado
+previo) lo devolvió a `aprobado_revisor` dos veces (`reap_count=2`), y el pool lo repartió de nuevo
+sin que hubiera trabajo propio que hacer — mismo síntoma que #745/#664, un nivel más abajo (ahí el
+paraguas SÍ estaba aparcado y el problema era que nadie despachaba a los hijos; aquí el paraguas
+nunca llegó a aparcarse). Verificado: #797/#798 seguían intactos (`aprobado_revisor`, `pending`,
+sin reclamar) — nadie los tocó, la descomposición original seguía siendo la correcta. Corrección:
+esta vuelta ejecuta el paso que faltaba (intento de cierre a `completado`), el guard lo reenruta
+solo a `aprobado_irving`+`excluir_pool_automatico=true`, sacándolo del pool/reaper para siempre
+hasta que el hook de cierre en cascada (ya existente, `RoadmapItem.php:459-491`) lo complete solo
+cuando #797 y #798 cierren. Detalle en `docs/roadmap-bucle-reap-item-738-verificacion.md`. **Sin
+cambio de código de negocio** — el trabajo técnico real del esquema de referencia sigue en #797/#798.
+
 ## Item #745 — [RESPUESTA] DocumentaciónCorporativa Fase 2 — bucle reap/escalación en paraguas ya descompuesto (RESUELTO — cerrado no-accionable, decisión de Irving)
 
 El item #664 ("DocumentaciónCorporativa — Fase 2") ya fue descompuesto en 4 sub-items (#734
@@ -1384,3 +1417,389 @@ item = un dueño) y los 4 hijos siguen aprobados sin `worker_sid`. Detalle compl
 deuda de fondo sobre por qué el pool no despacha los hijos solos, en
 `docs/roadmap-bucle-reap-item-745-verificacion.md`. **Sin cambio de código** (cierre documental
 ejecutando la decisión ya tomada por Irving).
+
+## Item #830 — Fase 1a-ii parte 2/2 (ciclo fix-drift, 555 migraciones) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745, un nivel más abajo en la Fase 1a-ii (ciclo fix-drift de
+`schema:rebuild-dryrun` sobre las 555 migraciones, continuación de #822). Una vuelta previa
+(2026-08-31 17:36) ya había hecho lo correcto: verificó que los fixes de #822 (`ab7804e0` crea la
+tabla `migrations` en dryrun, `8c938dd1` guard `Schema::hasTable` en `create_jobs_table`) ya están
+en `main`, corrió `circuito:cabida` (NO CABE, `ya_timeouteo_antes`) y descompuso el siguiente tramo
+de trabajo en **#833** (resolver la colisión `failed_jobs` — posible carrera con #831 sobre
+`megaisp_dryrun` compartida, o drift real con el mismo guard `hasTable` — y seguir el ciclo por el
+siguiente lote), con la política de ejecución ya aprobada por Irving (lotes, un commit por fix,
+stop-and-escalate en frontera dura). Pero nunca intentó **cerrar** al padre — el guard de paraguas
+del modelo (`RoadmapItem.php` bloque "(2b) PARAGUAS") solo aparca un item descompuesto cuando algo
+intenta activamente `estado_aprobacion = 'completado'` y detecta hijos abiertos. Sin ese intento,
+#830 se quedó `en_progreso` colgado; el reaper lo devolvió a `aprobado_revisor`, el pool lo repartió
+de nuevo sin trabajo propio que hacer, timeouteó otra vez sin commits y volvió a escalar — mismo
+síntoma que #738/#745. Verificado: #833 sigue `requiere_irving`, único hijo (`origen_item_id=830`),
+sin reclamar — la descomposición original seguía siendo correcta, nadie más la tocó. Corrección:
+esta vuelta ejecuta el intento de cierre faltante; el guard lo reenruta a `aprobado_irving` +
+`excluir_pool_automatico=true` (evento `paraguas_abierto` en el log), sacándolo del pool/reaper
+hasta que el hook de cierre en cascada (ya existente, `RoadmapItem.php:459-491`) lo complete solo
+cuando #833 cierre. Detalle en `docs/roadmap-bucle-reap-item-830-verificacion.md`. **Sin cambio de
+código de negocio** — el trabajo técnico real del ciclo fix-drift sigue en #833, pendiente de que
+Irving resuelva sus preguntas estructuradas.
+
+## Item #816 — DocumentaciónCorporativa Fase 5d-2 (checklist offboarding, ítems sin tabla propia) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830, esta vez en la Fase 5d-2 de DocumentaciónCorporativa (ampliar el
+checklist de offboarding de #815 con los 6 ítems sin tabla propia: correo, VPN, WhatsApp, equipo,
+respaldo, finiquito RH). Una vuelta previa (2026-09-01 13:09) ya había hecho lo correcto: corrió
+`circuito:cabida` (NO CABE, `ya_timeouteo_antes`) y descompuso el trabajo en **#839** (backend de
+los 6 ítems fijos, ejecutable ya) + **#840** (wire de "Otros pendientes" en `DcOffboarding.vue`,
+bloqueado a propósito hasta que #815 tenga `merge_commit` en `main` — la contradicción de spec
+"#816 depende de #815 cerrada" ya la había escalado una vuelta aún anterior, `wt-2`, e Irving la
+resolvió reaprobando #816 sin mergear #815). Pero nunca intentó **cerrar** al padre — el guard de
+paraguas del modelo (`RoadmapItem.php` bloque "(2b) PARAGUAS") solo aparca un item descompuesto
+cuando algo intenta activamente `estado_aprobacion = 'completado'` y detecta hijos abiertos. Sin
+ese intento, #816 se quedó `en_progreso` colgado con el `worker_sid` de esa sesión; el reaper de
+huérfanos lo devolvió a `aprobado_irving` (`reap_count=1`) sin que hubiera trabajo propio que
+hacer — mismo síntoma que #738/#745/#830. Verificado: #839 y #840 siguen `requiere_irving`, únicos
+hijos (`origen_item_id=816`), sin reclamar — la descomposición original seguía siendo correcta,
+nadie más la tocó; #815 sigue `aprobado_irving` con rama propia pero sin `merge_commit`, confirma
+que #840 sigue correctamente bloqueado. Corrección: esta vuelta ejecuta el intento de cierre
+faltante; el guard lo reenruta a `aprobado_irving` + `excluir_pool_automatico=true`, sacándolo del
+pool/reaper hasta que el hook de cierre en cascada (ya existente, `RoadmapItem.php:459-491`) lo
+complete solo cuando #839 y #840 cierren. Detalle en
+`docs/roadmap-bucle-reap-item-816-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo técnico real (backend de los 6 ítems y su wire en la UI de #815) sigue en #839/#840,
+pendiente de que Irving los resuelva.
+
+## Item #818 — Fase 1a-ii (schema:rebuild-dryrun completo) — bucle reap sobre paraguas cuyos hijos YA cerraron (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816, pero con una variante de timing: aquí los dos hijos
+directos (`origen_item_id=818`) llevaban **días** cerrados y archivados (**#821** "construir el
+comando completo", `completado` 2026-08-29 17:18; **#822** "correrlo contra megaisp_dryrun real
++ catalogar drift", `completado` 2026-08-29 17:45) — no es que faltara descomponer nada. El
+bucle nació de una carrera de timing distinta: el hook de cierre en cascada
+(`RoadmapItem.php:462-491`) sólo completa al padre en el instante exacto en que el ÚLTIMO hijo
+cierra, y sólo si en ESE momento el padre ya está en `aprobado_irving`. `#822` no cerró de un
+tirón — quedó parqueado como paraguas propio de sus propios nietos (`#830`/`#831`, ver
+`docs/roadmap-bucle-reap-item-830-verificacion.md`) y sólo alcanzó `completado` real cuando
+`#831` cerró el 2026-08-31 18:05:52. En ese instante `#818` estaba en `requiere_irving` (lo
+había escalado un timeout a las 17:32:09) — la cascada lo descartó como candidato y nunca se
+disparó. Irving volvió a aprobar `#818` el 2026-09-01 13:04:12, pero nadie volvió a *intentar*
+el cierre después: el hook sólo reacciona al `saved` de un hijo, no a un cambio posterior del
+padre. Sin ese intento, `#818` quedó colgado (5 timeouts, 2 reanudaciones, `reap_count=1`) y el
+pool lo repartió una y otra vez sin trabajo propio que hacer, porque el trabajo real ya estaba
+hecho. Verificado esta vuelta: `tieneSubItemsAbiertos()` para #818 = `false` (#821 y #822 ambos
+`completado`/`done`/archivados). Corrección: esta vuelta ejecuta el intento de cierre faltante;
+como ya no quedan hijos abiertos, el guard NO lo parquea esta vez — cierra de verdad a
+`completado`. Detalle en `docs/roadmap-bucle-reap-item-818-verificacion.md`. **Sin cambio de
+código de aplicación** — el comando `schema:rebuild-dryrun` (candados + drop/recreate + bloque
+Migrator + 2 fixes de drift) ya está completo y mergeado desde #821/#822; la continuación del
+ciclo fix-drift hasta que las 555 migraciones corran limpias de punta a punta es descendiente de
+`#822` (no de #818) y sigue su curso aparte en `#830`/`#833`.
+
+## Item #848 — Fase 2 del menú de una sola fuente de verdad — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818, sub-item de seguimiento de #843 (ocultar módulo
+completo del sidebar si 0 entradas visibles). Una vuelta previa (`wt-2`, 2026-09-01 15:56) ya hizo
+lo correcto: `circuito:cabida` devolvió NO CABE (ya había timeouteado 2 veces sin commits) →
+descompuso el trabajo real en **#855** (envolver el `<li>`/`<ul>` completo del bloque hardcodeado
+en el `@if` de permiso, evita shell huérfano vacío), **#856** (los `dynamic_children` de
+`module_sidebar_config` no tienen chequeo de permiso individual — hallazgo nuevo, fila
+`gestion-red-mikrotik-sync` sin permiso ni guard de ruta) y **#857** (aplicar la decisión de
+Irving de la pregunta `q2` sobre módulos con landing propia sin hijos visibles). Pero el proceso se
+cortó a media escritura del reporte (comentario truncado en "Verificado y") antes de intentar
+cerrar al padre — el reaper (`reaper-rapido`) vio el slot `wt-2` libre, re-encoló #848 a
+`aprobado_irving` (`reap_count=1`), y el pool lo repartió de nuevo sin trabajo propio que hacer.
+Verificado esta vuelta: los 3 hijos (`origen_item_id=848`) existen intactos, todos
+`requiere_irving`, sin reclamar — la descomposición original seguía siendo correcta, nadie más la
+tocó. Corrección: esta vuelta ejecuta el intento de cierre faltante; el guard (`RoadmapItem.php`
+bloque "(2b) PARAGUAS", ~301-326) lo reenruta a `aprobado_irving` + `excluir_pool_automatico=true`
+(evento `paraguas_abierto` en el log, confirmado: "le quedan 3 sub-item(s) abierto(s)"), sacándolo
+del pool/reaper hasta que el hook de cierre en cascada (`RoadmapItem.php:459-491`) lo complete
+solo cuando #855, #856 y #857 cierren. Detalle en
+`docs/roadmap-bucle-reap-item-848-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo real de la Fase 2 del sidebar sigue en #855/#856/#857, pendiente de triaje/aprobación.
+
+## Item #852 — Item 2 Fase A (permisos.description + sync-roles + 34 módulos) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848, sub-item de seguimiento de #842 (fix de la columna
+`permissions.description` faltante + comando de sincronización + registro de permisos de los 34
+módulos que ya los declaran en su `module.json`). Una vuelta previa (`wt-3`, 2026-09-01 15:59) ya
+hizo lo correcto: `circuito:cabida` devolvió NO CABE (ya había timeouteado sin commits) →
+descompuso el trabajo real en **#858** (fix de columna + backfill + extender el glob de
+`PermissionSyncService` a `Core/*/module.json`), **#859** (correr `permissions:sync-roles
+--manifests` en dev tras el fix + verificar diff), **#860** (exponer `description` en el catálogo
+`/administracion/permisos/catalog`) y **#861** (documentar la convivencia de nomenclaturas de
+permisos). De paso corrigió una premisa falsa del spec original: el comando
+`permissions:sync-roles` **ya existía** (`SyncPermissionsCommand.php`, con `--manifests`) — no
+había que crearlo desde cero, solo corría el fix de columna antes. Pero el proceso nunca intentó
+cerrar al padre tras descomponerlo — el item se quedó `en_progreso` con el `worker_sid` de esa
+sesión; el reaper (`reaper-rapido`) vio el slot libre, re-encoló #852 a `aprobado_irving`
+(`reap_count=1`), y el pool lo repartió de nuevo sin trabajo propio que hacer. Verificado esta
+vuelta: los 4 hijos (`origen_item_id=852`) existen intactos, sin reclamar — la descomposición
+original seguía siendo correcta, nadie más la tocó. Corrección: esta vuelta ejecuta el intento de
+cierre faltante; el guard (`RoadmapItem.php` bloque "(2b) PARAGUAS") lo reenruta a
+`aprobado_irving` + `excluir_pool_automatico=true`, sacándolo del pool/reaper hasta que el hook de
+cierre en cascada (`RoadmapItem.php:459-491`) lo complete solo cuando #858, #859, #860 y #861
+cierren. Detalle en `docs/roadmap-bucle-reap-item-852-verificacion.md`. **Sin cambio de código de
+negocio** — el trabajo real (columna, comando, UI, documentación) sigue en
+#858/#859/#860/#861, pendiente de que una terminal los reclame.
+## Item #905 — Válvula: sellar frontera_valvula + backfill + test de regresión (Defecto 1 de #902) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#878. #905 pedía sellar `frontera_valvula` en el
+mismo acto que el log de válvula (`RevisorService::aplicarTriajeNull()`, que arma el log de
+`valvula_contexto` pero nunca setea la columna, a diferencia de la válvula de nacimiento en
+`RoadmapController.php:2688-2689` que sí la sella), el backfill de los 112 items ya afectados y un
+test de regresión. Una vuelta previa (`wt-2`, 2026-09-03 15:18) ya hizo lo correcto: corrió
+`circuito:cabida` (NO CABE, `historico_excede_umbral`) y descompuso el trabajo en **#975** (Fase 2
+— sellar la columna en `aplicarTriajeNull()`, cubriendo tanto `mencion` como `accion`), **#976**
+(Fase 3 — backfill de los 112 items con `frontera_valvula` NULL, depende de que #975 esté
+commiteado) y **#977** (Fase 5 — test de regresión que falle si un veredicto de válvula escribe el
+log sin sellar la columna). Pero esa vuelta nunca intentó **cerrar** al padre — el guard de
+paraguas del modelo (`RoadmapItem.php` bloque "(2b) PARAGUAS") solo aparca un item descompuesto
+cuando algo intenta activamente `estado_aprobacion = 'completado'` y detecta hijos abiertos. Sin
+ese intento, #905 se quedó `en_progreso` colgado; el reaper lo devolvió a `aprobado_revisor`
+(`reap_count=1`, log `huerfano_reencolado`), y el pool lo repartió de nuevo sin trabajo propio que
+hacer — mismo síntoma que los items anteriores de esta misma familia. Verificado: los 3 hijos
+(`origen_item_id=905`) siguen intactos y sin reclamar (`#975` en `requiere_irving`, `#976`/`#977`
+en `pendiente_revision`) — la descomposición original seguía siendo correcta, nadie más la tocó.
+Corrección: esta vuelta ejecuta el intento de cierre faltante; el guard lo reenruta a
+`aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto` en el log, "le
+quedan 3 sub-item(s) abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en
+cascada (`RoadmapItem.php:459-491`) lo complete solo cuando #975, #976 y #977 cierren. Detalle en
+`docs/roadmap-bucle-reap-item-905-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo técnico real (sellado de `frontera_valvula`, backfill y test de regresión) sigue en
+#975/#976/#977, pendiente de que Irving apruebe #975 (`requiere_irving`) y de que corra el resto
+de la cadena.
+
+## Item #878 — Torre 24/7 Pieza 2, deadlock del freno de sequía — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848. #878 pedía documentar el deadlock del freno de
+sequía Nivel 2 (#712) de `circuito:auditor` y diseñar+implementar una vía de re-armado que no
+dependa de completar un item real. Una vuelta previa (`wt-2`, 2026-09-03 11:06-11:12) ya hizo lo
+correcto: FASE 1 (documentó `AuditorService::gastoApagado()`/`rachaSeca()`/`debeCorrer()`) + FASE 2
+(diseño — eligió candidato **(c) caducidad temporal/half-open**, descartando (a)/(b)/(d) con
+justificación) en modo solo-lectura, y descompuso FASE 3 (implementar) + FASE 4 (verificar) en
+**#891** con spec completo (archivos/líneas exactas: `config/circuito.php`,
+`AuditorService.php`, migración de `torre_config`, `TorreAutomationPolicy`, `RoadmapController`,
+`TorreConfiguracion.vue`). #891 pasó el triaje y el revisor lo **escaló a Irving** (categoría
+negocio: define umbrales/tiempos de un guardrail del propio circuito) con un brief completo de 4
+preguntas estructuradas (TTL, mecanismo de disparo, qué exponer en Torre, dónde persistir el
+estado), cada una con opciones/pros/contras/recomendación. Pero esa vuelta nunca intentó **cerrar**
+#878 tras crear el sub-item — quedó `en_progreso` colgado con el `worker_sid` de esa sesión; el
+reaper lo vio con el slot libre y lo re-encoló (`reap_count=1`), y el pool lo repartió de nuevo sin
+trabajo propio que hacer. Verificado esta vuelta: #891 (único hijo, `origen_item_id=878`) sigue
+intacto, `requiere_irving`, brief completo, sin reclamar — la descomposición original seguía
+siendo correcta, nadie más la tocó. Corrección: esta vuelta ejecuta el intento de cierre faltante;
+el guard (`RoadmapItem.php` bloque "(2b) PARAGUAS", ~301-326) lo reenruta a `aprobado_irving` +
+`excluir_pool_automatico=true` (evento `paraguas_abierto` en el log, "le quedan 1 sub-item(s)
+abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
+(`RoadmapItem.php:459-491`) lo complete solo cuando #891 cierre. Detalle en
+`docs/roadmap-bucle-reap-item-878-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo técnico real (implementar el re-armado del freno de sequía + exponerlo en Torre →
+Configuración) sigue en #891, pendiente de que Irving decida su brief de 4 preguntas.
+
+## Item #880 — Torre 24/7 Pieza 4, auto-corregir hardening de código — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#878. #880 pedía partir la clasificación de
+"seguridad" en dos carriles (AUTO endurece sin tocar autorización; BANDEJA queda intacto para
+permisos/auth/dinero) siguiendo 5 fases. Una vuelta previa (`wt-1`, 2026-09-03 12:29-12:44) ya
+hizo lo correcto: corrió `circuito:cabida` (NO CABE, ya había timeouteado antes con la rama sin
+commits) y descompuso el trabajo en **#918** (Fase 2 — declarar el criterio AUTO/BANDEJA en
+`config/circuito.php`, sin wiring), **#919** (Fase 3+4 — activar el carril AUTO en
+`circuito:priorizar-seguridad` + candado de regresión, bloqueante en el mismo merge) y **#920**
+(Fase 5 — verificar el clasificador contra items de seguridad reales ya cerrados), documentando
+la Fase 1 (lectura de la política actual) directamente en `comentarios_claude` del propio #880
+para que ningún hijo tuviera que re-investigar. Pero esa vuelta nunca intentó **cerrar** #880
+tras crear los sub-items — quedó `en_progreso` colgado con el `worker_sid` de esa sesión; el
+reaper lo vio con el slot libre y lo re-encoló (`reap_count=1`), y el pool lo repartió de nuevo
+(a la misma terminal `wt-1`) sin trabajo propio que hacer. Verificado esta vuelta: los 3 hijos
+(`origen_item_id=880`) siguen intactos, `requiere_irving`, `nivel_riesgo=B`, sin reclamar — la
+descomposición original seguía siendo correcta, nadie más la tocó; la rama del item existe pero
+sin commits propios (coincide con el `commits_rama:0` del timeout previo). Corrección: esta
+vuelta ejecuta el intento de cierre faltante; el guard (`RoadmapItem.php` bloque "(2b) PARAGUAS",
+~301-326) lo reenruta a `aprobado_irving` + `excluir_pool_automatico=true` (+
+`esperando_merge_irving=true`), sacándolo del pool/reaper hasta que el hook de cierre en cascada
+(`RoadmapItem.php:459-491`) lo complete solo cuando #918, #919 y #920 cierren los tres. Detalle en
+`docs/roadmap-bucle-reap-item-880-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo técnico real (criterio AUTO/BANDEJA + carril AUTO con su candado de regresión +
+verificación contra casos reales) sigue en #918/#919/#920, pendiente de triaje/aprobación.
+## Item #906 — Defecto 2 de #902 (mensajes de escalada nombran el candado equivocado) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#905/#878. #906 pedía corregir los 4 mensajes de
+escalada del circuito que siempre dicen "la política no permite este nivel" aunque la causa real
+sea una frontera dura y no un techo de nivel (`RevisorService.php:224` y `:1077`,
+`JarvisService.php:725` y `:830`). Una vuelta previa (`wt-2`, 2026-09-03 15:24) ya hizo lo correcto:
+corrió `circuito:cabida` (NO CABE, histórico ~2399s) y descompuso el trabajo **por archivo** para
+que no se pisaran entre sí — **#978** (`JarvisService.php`: carriles "ya decidido" y "mecánico") y
+**#979** (`RevisorService.php`: `aplicarVeredicto()` y el carril des-trabador), cada uno con el
+detalle de `fronteraDuraDeItemDetalle()`/`nivelEfectivo()` a usar y su propia verificación. Pero esa
+vuelta nunca intentó **cerrar** #906 tras crear los sub-items — quedó `en_progreso` colgado con el
+`worker_sid` de esa sesión; el reaper lo vio con el slot libre y lo re-encoló (`reap_count=1`), y el
+pool lo repartió de nuevo sin trabajo propio que hacer. Verificado esta vuelta: #978
+(`origen_item_id=906`) sigue `requiere_irving` sin reclamar, #979 sigue `aprobado_revisor` sin
+reclamar — la descomposición original seguía siendo correcta, nadie más la tocó. Corrección: esta
+vuelta ejecuta el intento de cierre faltante; el guard (`RoadmapItem.php` bloque "(2b) PARAGUAS",
+~301-326) lo reenruta a `aprobado_irving` + `excluir_pool_automatico=true` (evento
+`paraguas_abierto` en el log, "le quedan 2 sub-item(s) abierto(s)"), sacándolo del pool/reaper hasta
+que el hook de cierre en cascada (`RoadmapItem.php:459-491`) lo complete solo cuando #978 y #979
+cierren. Detalle en `docs/roadmap-bucle-reap-item-906-verificacion.md`. **Sin cambio de código de
+negocio** — el trabajo técnico real (distinguir frontera dura vs. techo de nivel en los 4 mensajes)
+sigue en #978 (pendiente de que Irving lo apruebe) y #979 (`aprobado_revisor`, listo para tomarse).
+
+## Item #907 — Torre 24/7 Pieza 5a (slots_libres como disparador de primera clase) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#905/#878/#906. #907 (sub-item de #904) pedía tratar
+`slots_libres` como disparador de primera clase en `AuditorService::debeCorrer()`: (a) condición de
+disparo, (b) toggle configurable en Torre → Configuración con el patrón de
+`auditor_activo`/`auditor_cooldown_min`, (c) métrica "N de 6 terminales trabajando" en la Torre. Una
+vuelta previa (`wt-2`, 2026-09-03 12:10) ya hizo lo correcto: corrió `circuito:cabida` (NO CABE) y
+descompuso el trabajo por fase — **#980** (condición de disparo), **#981** (toggle configurable),
+**#982** (métrica de ocupación en la Torre). Pero esa vuelta nunca intentó **cerrar** #907 tras crear
+los sub-items — quedó colgado; el reaper lo vio con el slot libre dos veces y lo re-encoló
+(`reap_count=2`), y el pool lo repartió de nuevo sin trabajo propio que hacer. Verificado esta vuelta:
+#980/#981/#982 (`origen_item_id=907`) siguen intactos, sin reclamar — la descomposición original
+seguía siendo correcta, nadie más la tocó. Corrección: esta vuelta ejecuta el intento de cierre
+faltante; el guard (`RoadmapItem.php` bloque "(2b) PARAGUAS", ~301-326) lo reenruta a
+`aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto` en el log, "le quedan 3
+sub-item(s) abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
+(`RoadmapItem.php:459-491`) lo complete solo cuando #980, #981 y #982 cierren. Detalle en
+`docs/roadmap-bucle-reap-item-907-verificacion.md`. **Sin cambio de código de negocio** — el trabajo
+técnico real (condición de disparo, toggle configurable, métrica de ocupación) sigue en #980
+(pendiente de que Irving lo apruebe) y #981/#982 (`aprobado_revisor`, listos para tomarse).
+
+## Item #9990003 — Candado de esquema de #915 usaba `storage_path()` por-worktree (RESUELTO — ya corregido bajo #915)
+
+Sub-item de seguimiento de #915 (creado 2026-09-03 16:27), reportaba que
+`GuardedMigrateCommand::conCandadoDeEsquema()` usaba `storage_path('app/circuito')` — ruta que
+resuelve DENTRO de cada worktree (`readlink -f` confirmó rutas físicas distintas en `wt-1..wt-6`)
+→ el candado no serializaba nada entre terminales, el mismo riesgo que #915 debía cerrar. Al
+llegar a este item, el fix **ya estaba en `main`**: commit `1e83e7cc` (mismo día, 16:29:38 —
+minutos después de que este sub-item se creara), integrado vía `1631905d`, cambió la ruta a
+`config('circuito.candado_migraciones')` = ruta absoluta al checkout principal
+(`/var/www/megaisp/storage/app/circuito/migrate-esquema.lock`), mismo patrón que
+`freno.centinela`. Carrera de timing entre el sub-item de seguimiento y la sesión que ya estaba
+corrigiendo el item padre — el trabajo real se hizo ANTES de que el seguimiento terminara de
+escalarse (variante inversa del gap de bookkeeping de #733/#738/#745/etc.). Reverificado en esta
+vuelta: `php -l` limpio + **prueba de concurrencia real** (dos procesos PHP lanzados desde `wt-3`
+y `wt-1`, `flock(LOCK_EX)` sobre la misma ruta resuelta por `config()`) confirmó exclusión mutua
+real entre worktrees; fallback silencioso (archivo no abrible → warn + continúa) intacto. Detalle
+en `docs/circuito-candado-esquema-storage-path-item-9990003-verificacion.md`. **Sin cambio de
+código** — el fix ya estaba aplicado.
+
+## Item #930 — FASE 4 de #927: ¿debe agotar los 60 turnos disparar la misma descomposición (`circuito:cabida`) que un timeout? (RESUELTO — el mecanismo ya estaba en vigor)
+
+Sub-item de evaluación/reporte de #927 (causa raíz de los claims huérfanos por `Reached max turns`).
+Irving aprobó la Opción 1 de la pregunta estructurada: "sí, tratar max-turns como timeout y disparar
+`circuito:cabida`". Verificado contra el código real de `main` (ya con #927-FASE1-3 y #928
+mergeados): **esa decisión ya está implementada, sin necesitar código nuevo**. `deploy/circuito/vuelta.sh`
+(líneas 262-278) ya llama `circuito:parquear-timeout --causa=max_turns` al detectar `Reached max
+turns` en el log, igual que hace con timeout; `ParquearTimeoutCommand` incrementa `veces_timeouteo`
+para ambas causas por igual; y `JarvisService::caberEnVuelta()` (línea 1279) devuelve `NO CABE
+[ya_timeouteo_antes]` en cuanto `veces_timeouteo >= 1`, sin mirar la causa — y `circuito:cabida` es
+paso obligatorio (2) de cada vuelta (`prompt-item.txt:103-106`). Efecto neto: un item que agota sus
+60 turnos topa con la descomposición obligatoria en su siguiente intento, sea cual sea el motivo por
+el que se reencola. **Q1** (¿max-turns = item grande?): no por sí solo — criterio de distinción es el
+artefacto dejado (commits/decisión/sub-item), no el conteo de turnos; el único caso medido de #871
+agotó 60 turnos en ~5 min (~5s/turno), ritmo compatible con bucle/exploración, no con trabajo
+sostenido. **Q3** (aplicación a #871, caso de prueba real con `reap_count=10`): revisado su historial
+completo — solo 1 de ~10 ciclos agotó max-turns (con el `vuelta.sh` viejo, sin registro por el propio
+bug que #927 corrigió); los otros ~9 fueron un bloqueo externo distinto (#870 sin mergear, ya
+resuelto el 2026-09-03 14:22) + bucle reaper↔jarvis-ya-decidido, fuera de alcance de este item
+(#897/#898). No se fuerza la descomposición de #871 (el análisis de Q1 no la hace inequívoca —
+forzarla sería el falso-positivo que la propia Opción 1 señala como contra); se dejó la recomendación
+de corte en 3 fases escrita en su log para el próximo ejecutor, si vuelve a agotar turnos. Detalle
+completo en `docs/circuito-maxturns-cabida-item-930-verificacion.md`. **Sin cambio de código de
+aplicación** — el mecanismo que satisface la Opción 1 ya existía en `main` antes de este item.
+
+## Item #924 — Root-cause del paraguas cierre-en-cascada que dejó pasar a #32 (nivel-C sin merge) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#905/#878/#906/#907. #924 (sub-item de #883) pedía
+investigar por qué el hook de cierre en cascada dejó completar a `#32` (nivel-C, con rama propia y
+sin `merge_commit`) esquivando el guard bloque (1), y — según la causa confirmada — endurecer el
+punto exacto + test de regresión. Irving aprobó las 3 preguntas estructuradas del item, todas con
+la Opción 1 recomendada (investigar primero, reabrir #32 y re-cerrarlo por el flujo normal, y
+agregar un guard pre-cierre que valide `merge_commit` de todos los sub-items nivel-C). Una vuelta
+previa (`wt-2`) ya hizo lo correcto: corrió `circuito:cabida` (NO CABE) y descompuso el trabajo en
+**#9990012** (reproducir en dev la carrera exacta que esquivó el guard) y **#9990013** (endurecer
+el punto confirmado + test de regresión, correctamente bloqueado hasta tener la causa exacta de
+#9990012). Pero esa vuelta nunca intentó **cerrar** #924 tras crear los sub-items — quedó colgado;
+el reaper lo re-encoló y un timeout lo escaló de nuevo sin trabajo propio que hacer. Verificado esta
+vuelta: #9990012/#9990013 siguen intactos, sin reclamar — la descomposición original seguía siendo
+correcta, nadie más la tocó. Corrección: esta vuelta ejecuta el intento de cierre faltante; el guard
+(`RoadmapItem.php` bloque "(2b) PARAGUAS", ~301-326) lo reenruta a `aprobado_irving` +
+`excluir_pool_automatico=true` (evento `paraguas_abierto` en el log, "le quedan 2 sub-item(s)
+abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
+(`RoadmapItem.php:459-491`) lo complete solo cuando #9990012 y #9990013 cierren. Detalle en
+`docs/roadmap-bucle-reap-item-924-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo real de investigación (reproducir la carrera de #32 y endurecer el guard con test de
+regresión) sigue en #9990012 (`aprobado_revisor`, listo para tomarse) y #9990013 (`requiere_irving`,
+bloqueado hasta tener la causa confirmada).
+
+## Item #9990012 — Reproducir la carrera del cierre-en-cascada de #32 — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#905/#878/#906/#907/#924, un nivel más abajo:
+#9990012 (sub-item de #924) pedía reproducir en dev la carrera del cierre-en-cascada de #32 con
+transacción+rollback e instrumentación temporal del guard, y confirmar el mecanismo exacto que lo
+esquivó. Una vuelta previa (`wt-2`) ya hizo lo correcto: corrió `circuito:cabida` (NO CABE,
+`ya_timeouteo_antes`), hizo el forense estático completo (localizó guard(1)/guard(2b)/hook de
+cascada en `RoadmapItem.php` y los 3 `save()` de `MergeRunner.php`, confirmó en el log real de #32
+que el bug sí se escribió en BD) y descompuso el repro ejecutable en **#9990063** con spec
+detallado (transacción+rollback, `Log::debug` temporal, descarta ya la hipótesis de merge directo
+del padre). Pero el proceso murió a media escritura del comentario de decisión, antes de intentar
+**cerrar** #9990012 — el log solo registra `claim_liberado_al_morir_la_vuelta`, y el pool lo
+repartió de nuevo sin trabajo propio que hacer. Verificado esta vuelta: #9990063 sigue intacto,
+`pendiente_revision`, sin reclamar — la descomposición original seguía siendo correcta, nadie más
+la tocó. Corrección: esta vuelta ejecuta el intento de cierre faltante; el guard (`RoadmapItem.php`
+bloque "(2b) PARAGUAS", ~301-332) lo reenruta a `aprobado_irving` + `excluir_pool_automatico=true`
+(evento `paraguas_abierto` en el log, "le quedan 1 sub-item(s) abierto(s)"), sacándolo del
+pool/reaper hasta que el hook de cierre en cascada (`RoadmapItem.php:459-491`) lo complete solo
+cuando #9990063 cierre. Detalle en `docs/roadmap-bucle-reap-item-9990012-verificacion.md`. **Sin
+cambio de código de negocio** — el trabajo real (reproducir la carrera y confirmar el mecanismo
+exacto) sigue en #9990063 (`pendiente_revision`, pendiente de que el revisor lo trie).
+
+## Item #917 — Circuito CC #911 Fase 6 (verificación con números del aflojo) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012. #917
+(sub-item de #911) pedía medir 4 números del aflojo del scheduler (ocupación media, timing de
+colisiones, vueltas perdidas vs. ganancia, incidentes de merge no detectados) tras varias horas de
+operación real con la Fase 5 (#916) integrada. Una vuelta previa (`wt-2`, 2026-09-03 22:40) ya hizo
+lo correcto: confirmó que la ventana real ya estaba disponible (perilla en 2 desde `c1ee65f1`,
+~7h de operación), corrió `circuito:cabida` (NO CABE, histórico ~501s) y descompuso el trabajo en
+**#9990195** (Fase 6a: métricas 1+2, ocupación/colisiones), **#9990196** (Fase 6b: métricas 3+4,
+vueltas perdidas/merge no detectado) y **#9990197** (Fase 6c: redactar el doc final, depende de 6a
+y 6b). Pero esa vuelta nunca intentó **cerrar** #917 tras crear los sub-items — quedó `en_progreso`
+colgado con su `worker_sid`; al morir el proceso, `soltar-claim` lo devolvió a `aprobado_revisor`
+(log: `claim_liberado_al_morir_la_vuelta`), y el pool lo repartió de nuevo sin trabajo propio que
+hacer. Verificado esta vuelta: los 3 hijos (`origen_item_id=917`) siguen intactos,
+`pendiente_revision`, sin reclamar — la descomposición original seguía siendo correcta, nadie más
+la tocó. Corrección: esta vuelta ejecuta el intento de cierre faltante; el guard (`RoadmapItem.php`
+bloque "(2b) PARAGUAS", ~301-332) lo reenruta a `aprobado_irving` + `excluir_pool_automatico=true`
+(evento `paraguas_abierto` en el log), sacándolo del pool/reaper hasta que el hook de cierre en
+cascada (`RoadmapItem.php:459-491`) lo complete solo cuando #9990195, #9990196 y #9990197 cierren.
+Detalle en `docs/roadmap-bucle-reap-item-917-verificacion.md`. **Sin cambio de código de negocio**
+— el trabajo real (medir ocupación/colisiones/vueltas perdidas/incidentes de merge y redactar la
+conclusión sobre la perilla del aflojo) sigue en #9990195/#9990196/#9990197, pendientes de que el
+revisor los tríe.
+
+## Item #210 — El latido sobrevive al proceso que lo lanzó y renueva el lease de un item abandonado (RESUELTO — ya corregido por trabajo posterior)
+
+Item MEDIDO el 2026-08-25 (auditoría de #191 Fase 3): dos fallos del propio Circuito CC — (1) el
+pool continuo abandonaba el item anterior sin limpiar `worker_sid`/`estado_aprobacion` al saltar
+al siguiente, y (2) el latido (`circuito:vivo --watch`, hijo en background de `vuelta.sh`) no
+moría con su padre y seguía renovando el `claimed_at` del item abandonado indefinidamente,
+blindándolo frente al reaper. Pedía decidir si el latido debe morir con su padre y si el pool debe
+liberar el item anterior antes de reclamar el siguiente. Verificado contra el código real de
+`main`: la causa raíz (fallo 2) ya está corregida por **#640** (sub-item de #188 que citó
+explícitamente a #210) — `RoadmapCircuitoService::renovarLease()` acota el `UPDATE` de
+`claimed_at` al `current_item` de la vuelta activa, no solo `worker_sid`+estado, así que un item
+abandonado deja de recibir renovaciones falsas desde el instante mismo del abandono. Con eso, el
+reaper existente (`circuito:reap-stuck`, que ya exige `claimed_at` **y** `updated_at` fríos,
+`#507` sub-paso 3) lo detecta y re-encola dentro de su ventana normal (~25 min), resolviendo
+también el fallo 1 sin necesitar lógica nueva en `vuelta.sh` — es una corrección más general que
+"liberar antes de avanzar" porque cubre cualquier camino que deje un item `en_progreso` sin
+cerrar. Refuerzos adicionales ya en `main`: **#927** (trap + manejo de fin anormal en
+`vuelta.sh` suelta el reclamo), **#215** (`circuito:cortar-vuelta`, corte manual seguro por PGID
+que mata el heartbeat CON la vuelta, reemplazó el `pkill -f` que causó el incidente original) y
+**#704** (`JarvisVigilarCommand::medirReclamos()`, detección activa de cualquier variante
+residual del patrón). La pregunta "A DECIDIR" del item quedó resuelta por una vía más robusta que
+depender de que el proceso muera limpio: se quitó el efecto dañino de que el latido siguiera vivo,
+en vez de intentar matarlo de forma fiable. Detalle completo en
+`docs/circuito-heartbeat-lease-item-210-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo real ya está hecho y mergeado en `main` desde antes de que se tomara este item.
