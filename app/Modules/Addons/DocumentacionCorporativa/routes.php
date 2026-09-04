@@ -92,6 +92,11 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::put('/solicitudes/{id}', [DcSolicitudController::class, 'update'])->name('solicitudes.update');
             Route::delete('/solicitudes/{id}', [DcSolicitudController::class, 'destroy'])->name('solicitudes.destroy');
 
+            // Entregas de una solicitud (Fase 5c.2a, item #834) — armar (POST)
+            // y consultar (GET) las DcEntrega de esa solicitud puntual.
+            Route::post('/solicitudes/{id}/entregas', [EntregaController::class, 'store'])->name('solicitudes.entregas.store');
+            Route::get('/solicitudes/{id}/entregas', [EntregaController::class, 'index'])->name('solicitudes.entregas.index');
+
             // Bitácora consultable/exportable (Fase 5c, item #760) — data/*
             // y exportar ANTES de la ruta base, mismo criterio que el resto.
             Route::get('/bitacora/data/empresas', [BitacoraController::class, 'empresasFiltro'])->name('bitacora.empresas');
