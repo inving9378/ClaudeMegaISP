@@ -676,7 +676,7 @@ class ApiController extends Controller
 
     /**
      * ID fijo de "Transferencia Bancaria" en method_of_payments — mismo valor
-     * que usa ManualPaymentController (mostrador) como método por defecto.
+     * que usa ManualPaymentController (mostrador) por defecto (defaultMethodId).
      */
     private const METHOD_TRANSFERENCIA = 2;
 
