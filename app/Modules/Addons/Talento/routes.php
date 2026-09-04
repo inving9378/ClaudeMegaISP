@@ -348,6 +348,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/expediente/paquetes/templates',    [TalentoPaqueteDocumentoController::class, 'templates']);
             Route::get('/expediente/paquetes/asignaciones', [TalentoPaqueteDocumentoController::class, 'asignaciones']);
             Route::post('/expediente/paquetes/toggle',      [TalentoPaqueteDocumentoController::class, 'toggle']);
+            Route::post('/expediente/paquetes/sincronizar',  [TalentoPaqueteDocumentoController::class, 'sincronizar']);
         });
     });
 
