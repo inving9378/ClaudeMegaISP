@@ -18,6 +18,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 \App\Modules\Addons\Roadmap\Console\SembrarMapaRedCommand::class,
+                \App\Modules\Addons\Roadmap\Console\LiberarCascadaMapaRedCommand::class,
                 \App\Modules\Addons\Roadmap\Console\RamaItemCommand::class,
                 \App\Modules\Addons\Roadmap\Console\IntegrarItemCommand::class,
                 \App\Modules\Addons\Roadmap\Console\FlagsCommand::class,
