@@ -86,6 +86,9 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 // #559 — MOTOR DE AUDITORÍA CONTINUA: el generador de trabajo. Cierra el hueco que
                 // quedaba (repartir y juzgar ya existían; generar, no), para que la cola no se vacíe.
                 \App\Modules\Addons\Roadmap\Console\AuditorCommand::class,
+                // #9990033 (FASE 2b-ii de #908) — modo barrido: punto de entrada del ciclo completo
+                // (tomarCandado → elegirModulo → explorar → crear hallazgos → marcarBarrido → liberarCandado).
+                \App\Modules\Addons\Roadmap\Console\BarridoCommand::class,
                 // #921 Fase 2 / #957 — reactiva diario los items agendados cuya fecha ya pasó.
                 \App\Modules\Addons\Roadmap\Console\ReactivarAgendadosCommand::class,
                 // #902 — mide disparos/aflojos por término de la válvula de contexto; read-only.
