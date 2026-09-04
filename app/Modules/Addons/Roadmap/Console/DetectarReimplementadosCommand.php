@@ -107,6 +107,23 @@ class DetectarReimplementadosCommand extends Command
 
     private function evaluar(RoadmapItem $item, RoadmapCircuitoService $circuito): array
     {
+        // Rama sin diferencias propias contra main (branch ≈ main, 0 commits reales): es el
+        // patrón normal de un paraguas que decompuso en sub-items y cerró por cascada (documentado
+        // extensamente en CLAUDE.md — "bucle reap"), NO un caso de trabajo re-implementado: no había
+        // ningún trabajo propio que alguien más pudiera haber rehecho. Ese hueco de tracking
+        // (merge_commit nunca poblado) es el dominio de #9990061, no de este item.
+        $footprintPropio = $circuito->footprintDeRama($item->branch);
+        if ($footprintPropio === []) {
+            return [
+                'id' => $item->id,
+                'title' => $item->title,
+                'branch' => $item->branch,
+                'senales' => [],
+                'candidato' => 'rama sin diferencias propias contra main (paraguas sin contenido — ver #9990061)',
+                'veredicto' => 'sin_senal',
+            ];
+        }
+
         $senales = [];
         $candidatos = [];
 
@@ -148,7 +165,7 @@ class DetectarReimplementadosCommand extends Command
         }
 
         // Señal 4 — solapamiento de archivos (débil).
-        $archivosComunes = $this->solapamientoArchivos($item, $circuito);
+        $archivosComunes = $this->solapamientoArchivos($item, $footprintPropio);
         if ($archivosComunes !== []) {
             $senales[] = 'archivos';
             $candidatos[] = 'archivos en común: ' . implode(', ', array_slice($archivosComunes, 0, 5))
@@ -169,7 +186,16 @@ class DetectarReimplementadosCommand extends Command
         ];
     }
 
-    /** @return array{hash:string,subject:string}|null */
+    /**
+     * Busca en main un commit que mencione "#<id>" y NO sea el propio commit del item (su tag
+     * `xxx(circuito#<id>)`/`xxx(talento#<id>)`). Prefiere un commit con tag de OTRO item (evidencia
+     * limpia de quién lo reemplazó, ej. #758 → "feat(circuito#760): trae ... de #758"); si sólo
+     * existen commits con el tag propio del item ya viviendo en main, los reporta igual (más débil:
+     * puede ser una re-implementación copiada con el mensaje original, o el drift de #9990345 —
+     * la confirmación humana decide cuál es), salvo el banner literal de fusión del propio item.
+     *
+     * @return array{hash:string,subject:string}|null
+     */
     private function buscarCommitEnMain(int $itemId): ?array
     {
         $p = $this->git(['log', 'main', '--format=%H%x1f%s', '-F', '--grep=#' . $itemId]);
@@ -177,6 +203,7 @@ class DetectarReimplementadosCommand extends Command
             return null;
         }
 
+        $conTagPropio = [];
         foreach (preg_split('/\R/', trim($p->getOutput())) as $linea) {
             if ($linea === '') {
                 continue;
@@ -191,20 +218,24 @@ class DetectarReimplementadosCommand extends Command
                 continue;
             }
 
-            return ['hash' => substr($hash, 0, 10), 'subject' => $subject];
+            $commit = ['hash' => substr($hash, 0, 10), 'subject' => $subject];
+            $tagPropio = preg_match('/\([a-zA-Z]+#' . $itemId . '\)/', $subject) === 1;
+            if (! $tagPropio) {
+                return $commit; // evidencia clara: OTRO item mencionó a este en su propio commit
+            }
+            $conTagPropio[] = $commit;
         }
 
-        return null;
+        return $conTagPropio[0] ?? null;
     }
 
-    /** @return string[] */
-    private function solapamientoArchivos(RoadmapItem $item, RoadmapCircuitoService $circuito): array
+    /**
+     * @param string[] $footprint archivos que la rama del item modifica respecto a main (ya
+     *                            calculado por el llamador — evita repetir el `git diff`).
+     * @return string[]
+     */
+    private function solapamientoArchivos(RoadmapItem $item, array $footprint): array
     {
-        $footprint = $circuito->footprintDeRama($item->branch);
-        if ($footprint === []) {
-            return [];
-        }
-
         $base = $this->git(['merge-base', 'main', $item->branch]);
         if (! $base->isSuccessful()) {
             return [];
