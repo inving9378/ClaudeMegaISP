@@ -290,7 +290,7 @@ class WhatsAppPanelController extends Controller
 
     /**
      * Vendedor solo accede a conversaciones con seller_id == auth user id.
-     * Otros roles autorizados acceden a todo.
+     * Los demás roles autorizados acceden sin restricción.
      */
     private function canAccess(WhatsAppConversation $conversation): bool
     {
