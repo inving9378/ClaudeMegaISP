@@ -2524,6 +2524,38 @@ class RoadmapCircuitoService
      *
      * @return array<string,int> modulo => items en vuelo
      */
+    /**
+     * MR-36 (#9990332) — ¿este item tiene sus dependencias CERRADAS?
+     *
+     * «Cerrada» = `completado` Y con `merge_commit` (el código en main). Ver el docblock de
+     * `Support\DependenciaItems` para por qué `completado` a secas no basta.
+     *
+     * Sin `depende_de` el comportamiento es EXACTAMENTE el de siempre: ni una consulta extra.
+     */
+    private function dependenciasCerradas(object $fila): bool
+    {
+        $raw = $fila->depende_de ?? null;
+        if ($raw === null || $raw === '' || $raw === '[]') {
+            return true;
+        }
+
+        $ids = is_array($raw) ? $raw : json_decode((string) $raw, true);
+        $ids = array_values(array_filter(array_map('intval', (array) $ids)));
+        if ($ids === []) {
+            return true;
+        }
+
+        $cerrados = [];
+        foreach (
+            DB::table('roadmap_items')->whereIn('id', $ids)
+                ->get(['id', 'estado_aprobacion', 'merge_commit']) as $d
+        ) {
+            $cerrados[(int) $d->id] = $d->estado_aprobacion === 'completado' && ! empty($d->merge_commit);
+        }
+
+        return \App\Modules\Addons\Roadmap\Support\DependenciaItems::evaluar($ids, $cerrados)['puede'];
+    }
+
     private function itemsEnVueloPorModulo(): array
     {
         return DB::table('roadmap_items')
@@ -2595,7 +2627,10 @@ class RoadmapCircuitoService
             ->limit(200)
             // `urgente` viaja para que la ronda dedicada del footprint desconocido respete la
             // prioridad que `ordenCola()` ya le dio (ver el cierre del barrido).
-            ->get(['id', 'modulo', 'urgente']);
+            // MR-36 (#9990332): `depende_de` viaja en el SELECT — sin ella el guard de
+            // dependencias no vería nada y fallaría EN SILENCIO, que es el modo de fallo que
+            // este item viene a cerrar.
+            ->get(['id', 'modulo', 'urgente', 'depende_de']);
 
         $taken     = array_map('strval', $excludeModulos);
 
@@ -2660,6 +2695,16 @@ class RoadmapCircuitoService
             $tope = app(TorreConfigService::class)->get()->paraleloMismoModulo();
             $yaEnEseModulo = count(array_keys($taken, $mod, true));
             if ($yaEnEseModulo >= $tope || $unknownEnVuelo) {
+                continue;
+            }
+
+            // MR-36 (#9990332) — DEPENDENCIAS LÓGICAS. El pre-filtro de módulo y
+            // `detectarColisionesEnVuelo()` sólo saben de ARCHIVOS: dos items que dependen uno del
+            // otro pero tocan archivos distintos no colisionan, y se despachaban a la vez. Pasó el
+            // 2026-09-04 con MR-04/05/06 (MR-05 copiando a un esquema que MR-04 aún no creaba).
+            // Aquí el orden deja de ser prosa en el prompt —que el despachador nunca lee— y pasa a
+            // ser una condición de reclamo.
+            if (! $this->dependenciasCerradas($r)) {
                 continue;
             }
             $out[]   = ['id' => (int) $r->id, 'modulo' => $mod];

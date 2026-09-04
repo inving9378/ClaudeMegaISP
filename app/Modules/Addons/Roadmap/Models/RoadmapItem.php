@@ -47,6 +47,7 @@ class RoadmapItem extends Model
     protected $fillable = [
         'title', 'description', 'status', 'priority',
         'target_version', 'prompt', 'position',
+        'depende_de',   // MR-36 (#9990332): ids que deben estar cerrados antes de reclamar éste
         'started_at', 'completed_at',
         'subtasks', 'log',
         // Circuito de mejora continua (Parte 1.1)
@@ -123,6 +124,7 @@ class RoadmapItem extends Model
         'huecos_spec'  => 'array',
         'huecos_medidos_at' => 'datetime',
         'marcado_version' => 'boolean',
+        'depende_de'      => 'array',
         'urgente'      => 'boolean',
         'urgente_at'   => 'datetime',
         'en_desarrollo_humano' => 'boolean',
