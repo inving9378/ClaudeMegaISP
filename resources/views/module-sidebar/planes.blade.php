@@ -1,10 +1,9 @@
+@if(auth()->user()->canAny(['plan_view_internet', 'plan_view_voz', 'plan_view_custom', 'plan_view_package', 'contratables.manage']))
 <li>
-    @if(auth()->user()->canAny(['plan_view_internet', 'plan_view_voz', 'plan_view_custom', 'plan_view_package', 'contratables.manage']))
-        <a href="javascript: void(0);" class="has-arrow">
-            <i data-feather="layers"></i>
-            <span data-key="t-planes">{{ $item->sidebar_label ?? 'Planes' }}</span>
-        </a>
-    @endcanany
+    <a href="javascript: void(0);" class="has-arrow">
+        <i data-feather="layers"></i>
+        <span data-key="t-planes">{{ $item->sidebar_label ?? 'Planes' }}</span>
+    </a>
     <ul class="sub-menu" aria-expanded="false">
         @if(auth()->user()->can('plan_view_internet'))
             <li>
@@ -44,11 +43,15 @@
 
         {{-- Hijos dinámicos desde module_sidebar_config (Fase 2.3/3.5) --}}
         @foreach($item->dynamic_children ?? collect() as $child)
+            @php($childPermission = $child->permission ?? $item->permission ?? null)
+            @if(!$childPermission || auth()->user()->can($childPermission))
             <li>
                 <a href="{{ $child->sidebar_url ? url($child->sidebar_url) : url('/' . $child->module_key) }}">
                     <span>@if($child->sidebar_icon)<small><i class="{{ $child->sidebar_icon }}"></i></small> @endif{{ $child->sidebar_label ?? $child->module_key }}</span>
                 </a>
             </li>
+            @endif
         @endforeach
     </ul>
 </li>
+@endif

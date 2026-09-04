@@ -150,7 +150,7 @@
 </template>
 
 <script>
-import { onMounted, ref, watch, computed, reactive } from "vue";
+import { onMounted, ref, watch, computed, reactive, onUnmounted, getCurrentInstance } from "vue";
 import Swal from "sweetalert2";
 import Datatable from "../../../../base/shared/Datatable.vue";
 import Form from "../../../../../helpers/Form";
@@ -172,6 +172,10 @@ export default {
         AddCategory,
     },
     setup(props, { emit }) {
+        const ns = `.leak983-balance-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const datatable = reactive({
             table: new DatatableHelper({}),
         });
@@ -192,14 +196,14 @@ export default {
         });
 
         const initComponent = async () => {
-            $(document).on("click", "#button_add_operation", function () {
+            $(document).on("click" + ns, "#button_add_operation", function () {
                 showModal("modaloperation");
             });
-            $(document).on("click", ".uil-pen-modal", function () {
+            $(document).on("click" + ns, ".uil-pen-modal", function () {
                 let idItem = $(this).parent().attr("id-item");
                 showModal("modaloperation", idItem);
             });
-            $(document).on("click", "#button_add_category", function () {
+            $(document).on("click" + ns, "#button_add_category", function () {
                 showModal("modalcategory");
             });
             await getGeneralData();

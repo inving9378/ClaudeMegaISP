@@ -2,7 +2,9 @@
 
 namespace App\Modules\Core\Security\Services;
 
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
@@ -111,6 +113,7 @@ class PermissionSyncService
                 }
 
                 $this->syncPermissionToBaseRoles($name);
+                $this->syncScopeDeclaration($name, is_array($permDef) ? ($permDef['scope_propios'] ?? null) : null);
                 $synced++;
             }
         }
@@ -118,6 +121,38 @@ class PermissionSyncService
         $this->resetCache();
 
         return ['created' => $created, 'synced' => $synced];
+    }
+
+    /**
+     * Item #851 (Fase A) — declara (o actualiza) el criterio de "alcance propio" de un
+     * permiso, leído de la clave opcional `scope_propios` en module.json. Puramente
+     * declarativo: NO filtra nada (eso lo hace el Global Scope de una fase posterior).
+     * Permisos sin esa clave no tocan `permission_scopes` — siguen viéndose "todos" igual
+     * que hoy. Idempotente (upsert por permission_id).
+     */
+    public function syncScopeDeclaration(string $permissionName, ?string $criterioPropios): void
+    {
+        if (!$criterioPropios || !Schema::hasTable('permission_scopes')) {
+            return;
+        }
+
+        $perm = Permission::where('name', $permissionName)->where('guard_name', 'web')->first();
+        if (!$perm) {
+            return;
+        }
+
+        $existing = DB::table('permission_scopes')->where('permission_id', $perm->id)->first();
+        if ($existing) {
+            DB::table('permission_scopes')->where('permission_id', $perm->id)
+                ->update(['criterio_propios' => $criterioPropios, 'updated_at' => now()]);
+        } else {
+            DB::table('permission_scopes')->insert([
+                'permission_id'    => $perm->id,
+                'criterio_propios' => $criterioPropios,
+                'created_at'       => now(),
+                'updated_at'       => now(),
+            ]);
+        }
     }
 
     // ── Helpers privados ───────────────────────────────────────────────────────

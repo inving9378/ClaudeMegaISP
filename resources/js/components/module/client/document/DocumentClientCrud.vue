@@ -35,7 +35,7 @@ import Permission from "../../../../helpers/Permission";
 import DatatableHelper from "../../../../helpers/datatableHelper";
 import Datatable from "../../../base/shared/Datatable";
 import UploadDocumentClient from "./UploadDocumentClient.vue";
-import { reactive, ref, onMounted, watch, onBeforeMount } from "vue";
+import { reactive, ref, onMounted, watch, onBeforeMount, onUnmounted, getCurrentInstance } from "vue";
 import { allViewHasPermission } from "../../../../helpers/Request";
 import PlantillasClientes from "./PlantillasClientes.vue";
 import InventoryItemClient from "./inventory_items/index.vue"
@@ -57,6 +57,10 @@ export default {
     },
     emits: ["cleanModal", "documenttable"],
     setup(props) {
+        const ns = `.leak983-documentClientCrud-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const datatable = reactive({
             table: new DatatableHelper({}),
         });
@@ -81,7 +85,7 @@ export default {
             hasPermission.data = new Permission(await allViewHasPermission());
             modal.data = new Modal("modalDocument");
 
-            $(document).on("click", "#buttonmodaluploaddocument", function () {
+            $(document).on("click" + ns, "#buttonmodaluploaddocument", function () {
                 showAddModal();
             });
         });

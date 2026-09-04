@@ -33,7 +33,7 @@
 
 <script>
 import Datatable from "../../../../base/shared/Datatable";
-import { onBeforeMount, onMounted, reactive, ref, watch } from "vue";
+import { onBeforeMount, onMounted, reactive, ref, watch, onUnmounted, getCurrentInstance } from "vue";
 import DatatableHelper from "../../../../../helpers/datatableHelper";
 import Modal from "../../../../../helpers/modal";
 import ClientCrudCustomService from "./ClientCrudCustomService";
@@ -62,6 +62,10 @@ export default {
         ChangeCustomService,
     },
     setup(props, { emit }) {
+        const ns = `.leak983-customService-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const datatable = reactive({
             table: new DatatableHelper({}),
         });
@@ -99,11 +103,11 @@ export default {
             hasPermission.data = new Permission(await allViewHasPermission());
             modal.value = new Modal("modalcustomservice");
 
-            $(document).on("click", "#buttonmodalcustomservice", function () {
+            $(document).on("click" + ns, "#buttonmodalcustomservice", function () {
                 showAddModal();
             });
 
-            $(document).on("click", `#change_tarif_custom`, function (e) {
+            $(document).on("click" + ns, `#change_tarif_custom`, function (e) {
                 showModalChangeTarif($(e.target).parent().attr("id-item"));
             });
 

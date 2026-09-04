@@ -82,7 +82,7 @@ class FcmService
     {
         $key = $this->settings->get('firebase_server_key');
         if (! $key) {
-            $key = env('FCM_SERVER_KEY');
+            $key = config('services.firebase.server_key');
         }
         return $key ?: null;
     }

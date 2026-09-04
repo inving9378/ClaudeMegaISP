@@ -111,7 +111,7 @@ class FleetGpsController extends FleetBaseController
 
         // Instrucciones para apuntar el dispositivo físico al listener TCP.
         $listener = $isMock ? null : [
-            'ip'   => env('GPS_LISTENER_PUBLIC_IP', '[IP pública del servidor]'),
+            'ip'   => config('gps.listener_public_ip'),
             'port' => 5027,
             'protocol' => 'TCP',
         ];

@@ -1,4 +1,4 @@
-@if(auth()->user()->can('voip.view'))
+@if(auth()->user()->canAny(['voip.view', 'voip.troncales.view', 'voip.extensiones.view', 'voip.grupos.view', 'voip.ia-bot.view']))
     <li>
         <a href="javascript: void(0);" class="has-arrow">
             <i data-feather="phone"></i>
@@ -36,6 +36,8 @@
 
             {{-- Hijos dinámicos desde module_sidebar_config --}}
             @foreach($item->dynamic_children ?? collect() as $child)
+                @php($childPermission = $child->permission ?? $item->permission ?? null)
+                @if(!$childPermission || auth()->user()->can($childPermission))
                 <li>
                     <a href="{{ $child->sidebar_url ? url($child->sidebar_url) : url('/' . $child->module_key) }}">
                         <span>
@@ -44,6 +46,7 @@
                         </span>
                     </a>
                 </li>
+                @endif
             @endforeach
         </ul>
     </li>

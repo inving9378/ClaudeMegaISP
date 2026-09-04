@@ -31,7 +31,7 @@ import Permission from "../../../../helpers/Permission";
 import DatatableHelper from "../../../../helpers/datatableHelper";
 import Datatable from "../../../base/shared/Datatable";
 import UploadDocumentCrm from "./UploadDocumentCrm";
-import {reactive, ref, onMounted, watch, onBeforeMount} from "vue";
+import { reactive, ref, onMounted, watch, onBeforeMount, onUnmounted, getCurrentInstance } from "vue";
 import {allViewHasPermission} from '../../../../helpers/Request';
 import CrmTemplate from "./CrmTemplate.vue";
 
@@ -50,6 +50,10 @@ export default {
         CrmTemplate
     },
     setup(props) {
+        const ns = `.leak983-documentCrmCrud-${getCurrentInstance().uid}`;
+        onUnmounted(() => {
+            $(document).off(ns);
+        });
         const datatable = reactive({
             table: new DatatableHelper({}),
         });
@@ -74,7 +78,7 @@ export default {
             hasPermission.data = new Permission(await allViewHasPermission());
             modal.data = new Modal("modalDocument");
             if (hasPermission.data.canView('crm_document_add_crm')){
-                $(document).on("click", "#buttonmodaluploaddocument", function () {
+                $(document).on("click" + ns, "#buttonmodaluploaddocument", function () {
                     showAddModal();
                 });
             }

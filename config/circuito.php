@@ -182,6 +182,28 @@ return [
     | (con semáforo de builds). `max_builds` = builds npm simultáneos máx (CPU de 4 cores).
     */
     'paralelismo'      => (int) env('CIRCUITO_PARALELISMO', 6),
+
+    /*
+    | Item #916 (sub-item de #911) — CUÁNTAS terminales pueden trabajar el MISMO módulo a la vez.
+    |
+    | `1` = comportamiento histórico (un módulo, una terminal). Subirlo destraba la flota cuando la
+    | cola se concentra en un módulo —el caso real: 31 items despachables, TODOS de
+    | `Roadmap / Circuito CC`, con 4 terminales libres y 0 reclamables—, porque el techo de
+    | ocupación no lo marcaba el trabajo disponible sino la variedad de módulos.
+    |
+    | La serialización por módulo es un PRE-FILTRO conservador, no la protección real: la colisión
+    | de verdad la detecta `detectarColisionesEnVuelo()` comparando el diff de archivos de cada rama
+    | en vuelo, agnóstico de módulo, en cada pasada del scheduler.
+    |
+    | PRECONDICIÓN CUMPLIDA para subirlo de 1: el candado de esquema de #915
+    | (`GuardedMigrateCommand::conCandadoDeEsquema`) serializa los `migrate` entre worktrees, que es
+    | el único riesgo de CORRUPCIÓN real (la base `megaisp` es compartida por los 6 worktrees).
+    | PENDIENTE #913: el detector sólo ve trabajo ya COMMITEADO, así que dos terminales del mismo
+    | módulo pueden editar el mismo archivo sin verse hasta el merge. Ese riesgo es ACOTADO
+    | (conflicto de merge y una vuelta perdida, nunca corrupción: cada worktree es un checkout
+    | aparte), y por eso este valor sube GRADUALMENTE y se mide antes de subirlo más.
+    */
+    'paralelo_mismo_modulo' => max(1, (int) env('CIRCUITO_PARALELO_MISMO_MODULO', 1)),
     'max_builds'       => (int) env('CIRCUITO_MAX_BUILDS', 3),
 
     // #938 — límite real de una vuelta (lo aplica `timeout` en deploy/circuito/vuelta.sh vía
@@ -246,6 +268,21 @@ return [
     'freno' => [
         'centinela' => env('CIRCUITO_FRENO_CENTINELA', '/var/www/megaisp/storage/app/circuito/PAUSA'),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | CANDADO DE ESQUEMA — migrate entre worktrees (#915, bug de #916 documentado abajo)
+    |--------------------------------------------------------------------------
+    |
+    | MISMO patrón que el freno de arriba: ruta ABSOLUTA al storage/ del checkout PRINCIPAL,
+    | jamás `storage_path()`. El primer intento de #915 (commit c1ee65f1) usó `storage_path()`
+    | dentro de `GuardedMigrateCommand` — como cada worktree tiene su propio `storage/` real,
+    | cada terminal tomaba SU PROPIO candado y nunca veía el de las demás: el lock no serializaba
+    | nada entre worktrees, exactamente el mismo error que ya advertía el comentario del freno de
+    | mano. `paralelo_mismo_modulo` (#916, abajo) subió a 2 confiando en esta precondición —
+    | mientras el candado no apunte aquí, ese riesgo de corrupción de esquema está VIVO.
+    */
+    'candado_migraciones' => env('CIRCUITO_CANDADO_MIGRACIONES', '/var/www/megaisp/storage/app/circuito/migrate-esquema.lock'),
 
     'autopilot' => [
         'enabled'             => (bool) env('CIRCUITO_AUTOPILOT', true),
@@ -878,6 +915,14 @@ return [
         'min_intervalo_minutos' => (int) env('CIRCUITO_AUDITOR_INTERVALO', 15),
 
         /*
+        | Slots libres mínimos para que el auditor dispare (Torre 24/7 Pieza 5a-ii, item #981).
+        | Default de fábrica que la migración de `torre_config` lee al sembrar la fila. Editable
+        | después desde Torre → Configuración (columna `auditor_slots_libres_min`), que manda una
+        | vez migrada.
+        */
+        'slots_libres_min_disparo' => (int) env('CIRCUITO_AUDITOR_SLOTS_LIBRES_MIN', 2),
+
+        /*
         | LOS DOS CARRILES (inventario de módulos, 2026-08-08).
         |
         | `paralelo`: módulos con acoplamiento ~0 (nadie los consume, no consumen a nadie) → sus
@@ -959,6 +1004,18 @@ return [
         |  - sin_clasificar: items de la Hoja de Ruta con footprint desconocido, que por diseño
         |    corren SOLOS y bloquean a las 6 terminales (#526). Clasificarlos libera la flota.
         |  - semilla:       pendientes del inventario 2026-08-08 que el escaneo no puede ver.
+        |  - jquery_sin_off: componentes Vue con `$(document).on(...)` delegado sin su `.off()`
+        |    correspondiente en el mismo archivo → handlers jQuery que se acumulan en cada remount
+        |    de la SPA (#899). Cross-cutting (resources/js/, no un $dir de módulo PHP): se emite
+        |    UNA vez bajo el ancla 'Roadmap / Circuito CC', igual que sin_clasificar.
+        |  - env_runtime:   llamadas a `env()` en tiempo de ejecución fuera de `config/`, la misma
+        |    lista que vigila `php artisan config:auditar-env` (#790) antes de permitir
+        |    `config:cache`. Consume ese escaneo vía `EnvRuntimeScanner` (#901), no lo reimplementa.
+        |    Cross-cutting (app/, routes/, bootstrap/): se emite UNA vez bajo el ancla
+        |    'Roadmap / Circuito CC', igual que sin_clasificar/jquery_sin_off.
+        |  - null_safety:   dos patrones sin guard contra null (#900/#973): `auth()->user()->` sin
+        |    `?->` inmediatamente después, y `$var = json_decode(...)` usado (`$var->`/`$var[`) sin
+        |    comprobar null en la ventana de las ~15 líneas siguientes (heurística aproximada).
         */
         'detectores' => [
             'hueco_ruteado'  => (bool) env('CIRCUITO_AUDITOR_D_HUECOS', true),
@@ -967,6 +1024,9 @@ return [
             'andamiaje'      => (bool) env('CIRCUITO_AUDITOR_D_ANDAMIAJE', true),
             'sin_clasificar' => (bool) env('CIRCUITO_AUDITOR_D_SINCLAS', true),
             'semilla'        => (bool) env('CIRCUITO_AUDITOR_D_SEMILLA', true),
+            'jquery_sin_off' => (bool) env('CIRCUITO_AUDITOR_D_JQUERYOFF', true),
+            'env_runtime'    => (bool) env('CIRCUITO_AUDITOR_D_ENVRUNTIME', true),
+            'null_safety'    => (bool) env('CIRCUITO_AUDITOR_D_NULLSAFE', true),
         ],
 
         /*
@@ -1109,7 +1169,55 @@ return [
             // por este motor) se complete — ver `AuditorService::gastoApagado()`. Umbral de #590
             // restituido ("dos corridas por hambre consecutivas").
             'gasto_racha_umbral' => (int) env('CIRCUITO_AUDITOR_SEQUIA_GASTO_UMBRAL', 2),
+
+            // #891 Fase 3a — HALF-OPEN del gasto: en vez de esperar indefinidamente a un item
+            // real completado, cada `gasto_reintento_min` minutos se deja pasar UN sondeo (sin
+            // rearmar el timestamp) para ver si la fuente revivió. Si el sondeo vuelve a salir
+            // seco, `evaluarApagarGasto()` renueva el timestamp y el freno sigue frenando otros
+            // `gasto_reintento_min` minutos más — el costo queda acotado, nunca indefinido.
+            // Son solo el DEFAULT DE FÁBRICA; si `torre_config` trae estas columnas (Fase 3b), el
+            // valor de la BD manda, igual que pasa hoy con `auditor_cooldown_min`.
+            'gasto_reintento_min'    => (int) env('CIRCUITO_AUDITOR_SEQUIA_GASTO_REINTENTO_MIN', 30),
+            'gasto_reintento_activo' => (bool) env('CIRCUITO_AUDITOR_SEQUIA_GASTO_REINTENTO_ACTIVO', true),
         ],
+    ],
+
+    /*
+    |---------------------------------------------------------------------------------------------
+    | "MODO BARRIDO" — Torre 24/7 Pieza 5b (#908), FASE 2a (#985): disparador + candado de un solo
+    | barrido + rotación de módulo. NO espera a que #907/#980 (slots_libres como disparador de
+    | primera clase del auditor) estén implementados — usa directo los métodos públicos ya vivos de
+    | `AuditorService` (`slotsLibres()`, `rachaSeca()`, `profundidadCola()`).
+    |
+    | El barrido en sí (explorar el módulo elegido y crear hallazgos, FASE 2b/#986) y el despacho
+    | FIFO de esos hallazgos (FASE 3/#987) son items aparte. Este bloque sólo gobierna CUÁNDO entrar
+    | en modo barrido, que SÓLO una terminal lo haga a la vez, y QUÉ módulo le toca.
+    |---------------------------------------------------------------------------------------------
+    */
+    'barrido' => [
+        // Pool "seco" = cola reclamable (AuditorService::profundidadCola()) en o por debajo de
+        // esto. Con cola real, barrer no tiene sentido: sobra trabajo de verdad que despachar.
+        'cola_max_para_barrer' => (int) env('CIRCUITO_BARRIDO_COLA_MAX', 0),
+
+        // Además de la cola vacía, exige que la racha seca del auditor (misma señal que ya alarga
+        // su intervalo, #1015) haya cruzado esto — evita disparar barrido por un valle momentáneo
+        // de la cola que se vuelve a llenar al minuto siguiente.
+        'racha_seca_min' => (int) env('CIRCUITO_BARRIDO_RACHA_MIN', 1),
+
+        // Terminales libres (AuditorService::slotsLibres()) mínimas para que valga la pena
+        // dedicar una a explorar en vez de esperar.
+        'slots_libres_min' => (int) env('CIRCUITO_BARRIDO_SLOTS_MIN', 1),
+
+        // TTL del candado single-flight (`circuito_barrido_en_curso` en `settings`): un barrido
+        // que no se libera en este tiempo se trata como HUÉRFANO (terminal caída a medio barrido)
+        // y deja de bloquear — ver `BarridoService::leerCandado()`.
+        'candado_ttl_min' => (int) env('CIRCUITO_BARRIDO_CANDADO_TTL_MIN', 25),
+
+        // #9990032 (FASE 2b-i) — tope de hallazgos que `BarridoService::explorar()` devuelve por
+        // corrida. Inspirado en `circuito.auditor.items_por_modulo_por_ciclo`: no tiene sentido
+        // que una sola exploración genere de un jalón más hallazgos de los que el despacho FIFO
+        // (Fase 3/#987) pueda repartir sin dejar terminales ociosas.
+        'hallazgos_max_por_barrida' => (int) env('CIRCUITO_BARRIDO_HALLAZGOS_MAX', 3),
     ],
 
     /*

@@ -818,8 +818,7 @@ class TalentoMobileApiController extends Controller
         // FCM v1 API — las credenciales (service account JSON) se configuran
         // en el servidor de cada empresa. Esta implementación es el esqueleto
         // de disparo; el adaptador FCM real va en un servicio dedicado.
-        $fcmKey = config('services.fcm.server_key')
-            ?? env('FCM_SERVER_KEY');
+        $fcmKey = config('services.firebase.server_key');
 
         if (! $fcmKey) {
             // Sin clave FCM configurada — log y salir (no lanzar excepción)
