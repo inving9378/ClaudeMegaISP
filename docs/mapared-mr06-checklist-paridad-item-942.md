@@ -73,14 +73,14 @@ Fuente: métodos reales (`grep "public function"`) + cruce vivo/muerto de MR-01c
   controller** (confirmado MR-01c). Ruta rota y sin caller. **NO portar** — no hay comportamiento
   que igualar (portar un 500 no es paridad útil).
 
-### ProyectsController (`/maps/projects*`, `/maps/get-clients`, `/maps/clients-without-project`)
-- [ ] `index` · `store` · `update` · `destroy`
-- [ ] `clients` — `/maps/get-clients`
-- [ ] `clientsWithoutProject` — `/maps/clients-without-project`
-- [ ] `moveFolder`
+### ProyectsController (`/maps/projects*`, `/maps/get-clients`, `/maps/clients-without-project`) — ✅ portado (MR-06a-5, item #9990337)
+- [x] `index` · `store` · `update` · `destroy`
+- [x] `clients` — `/maps/get-clients`
+- [x] `clientsWithoutProject` — `/maps/clients-without-project`
+- [x] `moveFolder`
 
-### ServiceBoxController (`/maps/service-box/*`)
-- [ ] `getSelectedClients` · `getAvaiablesClients` · `removeClients` · `removeClient` · `addClients` · `removeClientFromDrop`
+### ServiceBoxController (`/maps/service-box/*`) — ✅ portado (MR-06a-5, item #9990337)
+- [x] `getSelectedClients` · `getAvaiablesClients` · `removeClients` · `removeClient` · `addClients` · `removeClientFromDrop`
 - ⚠️ **`savePort`** (ruta `POST /maps/service-box/save-port/{id}`) — método existe pero **sin
   ningún caller** en frontend (MR-01c). **NO portar como acción activa** — documentar que existe
   en el viejo sin uso; si Irving confirma que debe usarse, es un hallazgo aparte, no bloquea MR-06.

@@ -4,6 +4,8 @@ use App\Modules\Addons\MapaRed\Controllers\ConnectionsController;
 use App\Modules\Addons\MapaRed\Controllers\DevicesController;
 use App\Modules\Addons\MapaRed\Controllers\LayersController;
 use App\Modules\Addons\MapaRed\Controllers\MapaRedController;
+use App\Modules\Addons\MapaRed\Controllers\ProyectsController;
+use App\Modules\Addons\MapaRed\Controllers\ServiceBoxController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -60,4 +62,22 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     Route::post('/client-to-service-box/{client}/{box}', [LayersController::class, 'addClientToServiceBox']);
     Route::post('/projects/move-marker/{node}/{to}', [LayersController::class, 'moveMarker']);
     Route::post('/projects/move-marker/{node}', [LayersController::class, 'moveMarker']);
+
+    // MR-06a-5 (item #9990337) — port de ProyectsController + ServiceBoxController.
+    // EXCLUYE ServiceBoxController::savePort (sin caller en frontend, confirmado MR-01c).
+    Route::post('/projects/get-clients', [ProyectsController::class, 'clients'])->name('mapa-red.api.projects.get-clients');
+    Route::post('/projects/clients-without-project', [ProyectsController::class, 'clientsWithoutProject'])->name('mapa-red.api.projects.clients-without-project');
+    Route::get('/projects', [ProyectsController::class, 'index'])->name('mapa-red.api.projects.index');
+    Route::post('/projects', [ProyectsController::class, 'store'])->name('mapa-red.api.projects.store');
+    Route::put('/projects/{project}', [ProyectsController::class, 'update'])->name('mapa-red.api.projects.update');
+    Route::delete('/projects/{project}', [ProyectsController::class, 'destroy'])->name('mapa-red.api.projects.destroy');
+    Route::post('/projects/move-folder/{node}/{to}', [ProyectsController::class, 'moveFolder'])->name('mapa-red.api.projects.move-folder-to');
+    Route::post('/projects/move-folder/{node}', [ProyectsController::class, 'moveFolder'])->name('mapa-red.api.projects.move-folder');
+
+    Route::post('/service-box/selected-clients/{id}', [ServiceBoxController::class, 'getSelectedClients'])->name('mapa-red.api.service-box.selected-clients');
+    Route::post('/service-box/avaiables-clients', [ServiceBoxController::class, 'getAvaiablesClients'])->name('mapa-red.api.service-box.avaiables-clients');
+    Route::post('/service-box/remove-clients', [ServiceBoxController::class, 'removeClients'])->name('mapa-red.api.service-box.remove-clients');
+    Route::post('/service-box/remove-client/{id}', [ServiceBoxController::class, 'removeClient'])->name('mapa-red.api.service-box.remove-client');
+    Route::post('/service-box/add-clients/{id}', [ServiceBoxController::class, 'addClients'])->name('mapa-red.api.service-box.add-clients');
+    Route::post('/service-box/remove-client-from-drop/{id}', [ServiceBoxController::class, 'removeClientFromDrop'])->name('mapa-red.api.service-box.remove-client-from-drop');
 });
