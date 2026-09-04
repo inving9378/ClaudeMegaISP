@@ -128,6 +128,7 @@ class TalentoColaboradorController extends Controller
             'emergency_contact_name'  => 'nullable|string|max:150',
             'emergency_contact_phone' => 'nullable|string|max:20',
             'job_title'               => 'nullable|string|max:100',
+            'puesto_id'               => 'nullable|exists:talento_puestos,id',
             'relation_type'           => 'nullable|in:indeterminada,determinada,obra',
             'relation_end_date'       => 'nullable|date',
             'pay_frequency'           => 'nullable|in:semanal,quincenal,mensual',
