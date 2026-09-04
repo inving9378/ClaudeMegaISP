@@ -110,7 +110,7 @@
             <template v-else-if="s.idle"><i class="tt-muted">slot libre</i></template>
             <template v-else><i class="tt-muted">triaje / sin item fijo</i></template>
           </span>
-          <span v-if="!s.idle" class="tt-term-clock" :class="roundClockClass(s)" :title="roundClockTooltip(s)">⏱ {{ fmtClock(secsSince(s.started_at)) }}<span class="tt-clock-limit" v-if="s.running"> / {{ fmtClock(vueltaLimiteSeg) }}</span><span v-if="s.running" class="tt-beat" :class="{ 'tt-beat-cold': s.stale }"> · ♥ {{ secsSince(s.heartbeat_at) }}s</span></span>
+          <span v-if="!s.idle" class="tt-term-clock" :class="roundClockClass(s)" :title="roundClockTooltip(s)">⏱ {{ fmtClock(secsSince(s.started_at)) }}<span class="tt-clock-limit" v-if="s.running"> / {{ fmtClock(techoDe(s)) }}</span><span v-if="s.running" class="tt-beat" :class="{ 'tt-beat-cold': s.stale }"> · ♥ {{ secsSince(s.heartbeat_at) }}s</span></span>
           <button v-if="!s.idle" class="tt-fs-btn" :title="expandedSid === s.sid ? 'Contraer' : 'Expandir a ancho completo'" @click="toggleExpand(s.sid)">{{ expandedSid === s.sid ? '⤡' : '⤢' }}</button>
         </div>
 
@@ -216,9 +216,10 @@ export default {
         const stretchUntil = {};  // #475: sid -> ms hasta el que se muestra el gesto de estirarse
         let pollTimer = null, tickTimer = null;
 
-        // #938: límite real de una vuelta (config circuito.vuelta_timeout_seg, mismo payload del
-        // poll) — el reloj de cada terminal se pinta CONTRA este número real, nunca inventado.
-        const vueltaLimiteSeg = ref(600);
+        // #9990339: el techo real YA NO es global — cada sesión trae el suyo (techo_segundos,
+        // #9990338) según el nivel_riesgo del item que tiene en curso. Fallback 600 inline para
+        // terminal idle sin item o item viejo sin nivel_riesgo (mismo default histórico de nivel A).
+        const techoDe = (s) => (s && s.techo_segundos != null) ? s.techo_segundos : 600;
 
         // #938 criterio 8: expansión EN LÍNEA (grid-column:1/-1, como el mockup) en vez de overlay
         // modal — una sola tarjeta a la vez, y el estado sobrevive al refresco de la página (persiste
@@ -263,7 +264,7 @@ export default {
         // #938 criterio 5: reloj de la RONDA (transcurrido desde started_at) contra el límite real
         // de la vuelta — ámbar al 80%, rojo al 95%. Distinto del ETA del item (arriba): ese es el
         // presupuesto estimado de la tarea; este es el timeout duro de `vuelta.sh`.
-        const roundClockRatio = (s) => (s && s.running && vueltaLimiteSeg.value > 0) ? (secsSince(s.started_at) / vueltaLimiteSeg.value) : 0;
+        const roundClockRatio = (s) => (s && s.running && techoDe(s) > 0) ? (secsSince(s.started_at) / techoDe(s)) : 0;
         const roundClockClass = (s) => {
             const r = roundClockRatio(s);
             if (r >= 0.95) return "tt-clock-red";
@@ -271,7 +272,7 @@ export default {
             return "";
         };
         const roundClockTooltip = (s) => (s && s.running)
-            ? `${fmtClock(secsSince(s.started_at))} de ${fmtClock(vueltaLimiteSeg.value)} · límite real de la vuelta`
+            ? `${fmtClock(secsSince(s.started_at))} de ${fmtClock(techoDe(s))} · límite real de la vuelta (por nivel de riesgo)`
             : "";
 
         // #546: reloj en regresión del ETA — reusa el mismo tickTimer/nowMs global (sin timers nuevos).
@@ -480,7 +481,6 @@ export default {
             try {
                 const { data } = await axios.get("/api/roadmap/circuito/estado");
                 const nuevas = (data.trabajando && data.trabajando.sesiones) || [];
-                vueltaLimiteSeg.value = Number(data.vuelta_limite_segundos) || 600;   // #938 criterio 5
                 // #475: detecta running→terminado por sesión para disparar el gesto de "estirarse".
                 // #938 criterio 4: detecta si REALMENTE llegó contenido nuevo de consola (no solo late).
                 nuevas.forEach((s) => {
@@ -532,7 +532,7 @@ export default {
             etaVisible, etaClass, etaIcon, etaLabel, etaPct, etaTooltip,
             liberando, accionAviso, liberarReclamo,
             reasignando, reasignarDestino, terminalesLibres, reasignarReclamo,
-            vueltaLimiteSeg, roundClockClass, roundClockTooltip,
+            techoDe, roundClockClass, roundClockTooltip,
             scrolledUp, onConsoleScroll, goToBottom, consoleLive,
         };
     },
