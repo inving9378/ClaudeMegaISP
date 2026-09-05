@@ -3,9 +3,12 @@
 namespace App\Modules\Addons\Flotas\Controllers;
 
 use App\Modules\Addons\Flotas\Models\FleetAssignment;
+use App\Modules\Addons\Talento\Models\TalentoColaborador;
+use App\Modules\Addons\Talento\Services\EmployeeDocumentPackageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class FleetAssignmentController extends FleetBaseController
 {
@@ -53,11 +56,30 @@ class FleetAssignmentController extends FleetBaseController
             ]));
         });
 
+        $this->regenerarDocumentosColaborador($data['user_id']);
+
         return response()->json([
             'assignment' => array_merge($assignment->load('operator')->toArray(), [
                 'is_active'     => $assignment->is_active,
                 'operator_name' => $assignment->operator?->name,
             ]),
         ], 201);
+    }
+
+    /**
+     * Item roadmap #872 (Hijo D3). Al asignar vehiculo a un colaborador, su responsiva vehicular
+     * (si el catalogo de su puesto la incluye) debe reflejar placas/marca/modelo sin recapturar
+     * nada. Best-effort: un fallo aqui jamas debe tumbar la asignacion del vehiculo.
+     */
+    private function regenerarDocumentosColaborador(int $userId): void
+    {
+        try {
+            $colaborador = TalentoColaborador::where('user_id', $userId)->first();
+            if ($colaborador) {
+                app(EmployeeDocumentPackageService::class)->generateForColaborador($colaborador);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo regenerar documentos del colaborador tras asignar vehiculo: ' . $e->getMessage());
+        }
     }
 }
