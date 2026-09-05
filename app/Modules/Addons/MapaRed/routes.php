@@ -2,6 +2,7 @@
 
 use App\Modules\Addons\MapaRed\Controllers\ConnectionsController;
 use App\Modules\Addons\MapaRed\Controllers\DevicesController;
+use App\Modules\Addons\MapaRed\Controllers\KMZController;
 use App\Modules\Addons\MapaRed\Controllers\LayersController;
 use App\Modules\Addons\MapaRed\Controllers\MapaRedController;
 use App\Modules\Addons\MapaRed\Controllers\ProyectsController;
@@ -37,6 +38,14 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     Route::post('/devices/save-port/{id}', [DevicesController::class, 'savePort'])->name('mapa-red.api.devices.save-port');
     Route::post('/devices/add-ports/{id}', [DevicesController::class, 'addPorts'])->name('mapa-red.api.devices.add-ports');
     Route::post('/devices/change-card-olt-direction/{id}', [DevicesController::class, 'changeCardOLTDirection'])->name('mapa-red.api.devices.change-card-olt-direction');
+
+    /*
+     * MR-06a-3 (item #9990335) — port de KMZController. La ruta vieja /maps/kmz (módulo
+     * Mapas) queda intacta escribiendo en map_* (sigue siendo el motor vivo hasta que
+     * MR-05 migre los datos); esta es aditiva y apunta a mapared_*.
+     */
+    Route::post('/kmz/{id}', [KMZController::class, 'loadKMZ'])->name('mapa-red.api.kmz.load-with-parent');
+    Route::post('/kmz', [KMZController::class, 'loadKMZ'])->name('mapa-red.api.kmz.load');
 
     Route::get('/layers', [LayersController::class, 'index']);
     Route::post('/layers', [LayersController::class, 'store']);
