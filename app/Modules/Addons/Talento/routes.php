@@ -352,6 +352,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/config/evidencias',       [TalentoEvidenciaConfigController::class, 'catalogo']);
             Route::post('/config/evidencias/toggle', [TalentoEvidenciaConfigController::class, 'toggle']);
 
+            // ── Catálogo de puestos (item #923 Fase 3) — select de la ficha de colaborador ──
+            Route::get('/puestos', [TalentoPuestoController::class, 'data']);
+
             // ── Expediente RH: paquete de documentos por puesto (Hijo D1) ──
             Route::get('/expediente/paquetes/puestos',      [TalentoPaqueteDocumentoController::class, 'puestos']);
             Route::get('/expediente/paquetes/templates',    [TalentoPaqueteDocumentoController::class, 'templates']);
