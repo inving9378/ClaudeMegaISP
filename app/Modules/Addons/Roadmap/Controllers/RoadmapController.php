@@ -564,6 +564,184 @@ class RoadmapController extends Controller
         ]);
     }
 
+    /**
+     * GET /api/roadmap/torre/actividad-equipo (#9990375) — "quién trabaja, cómo y cuánto tiempo",
+     * por rango de fechas. Solo lectura, agrega datos que ya existen (nada de instrumentación
+     * nueva): `roadmap_items` (reclamos/cierres/tiempo en tarea por `worker_sid`), vueltas del
+     * circuito (`circuito_ejecuciones`), `activity_log` (acciones de UI por `causer_id`) y commits
+     * de git por autor.
+     *
+     * DOS GRUPOS separados a propósito en la respuesta (pedido explícito del item, no cosmético):
+     *  - `medido`: sesión/terminal/tiempo/conteos — dato duro, no admite duda.
+     *  - `inferido`: qué PERSONA hay detrás de cada `worker_sid`/commit — con login compartido
+     *    (Irving y David entran con el mismo usuario) esto es una pista, no una certeza. El
+     *    frontend debe rotularlo así, nunca como hecho.
+     */
+    public function actividadEquipo(Request $request): JsonResponse
+    {
+        $this->authorize('torre.actividad.view');
+
+        $data = $request->validate([
+            'fecha_inicio' => ['sometimes', 'nullable', 'date'],
+            'fecha_fin'    => ['sometimes', 'nullable', 'date'],
+        ]);
+
+        $fin    = !empty($data['fecha_fin']) ? \Carbon\Carbon::parse($data['fecha_fin'])->endOfDay() : now()->endOfDay();
+        $inicio = !empty($data['fecha_inicio']) ? \Carbon\Carbon::parse($data['fecha_inicio'])->startOfDay() : $fin->copy()->subDays(6)->startOfDay();
+
+        // ── 1) roadmap_items: reclamos/cierres/tiempo en tarea por worker_sid, + eventos del log ──
+        $items = RoadmapItem::query()
+            ->where(function ($q) use ($inicio, $fin) {
+                $q->whereBetween('claimed_at', [$inicio, $fin])
+                    ->orWhereBetween('completed_at', [$inicio, $fin])
+                    ->orWhereBetween('updated_at', [$inicio, $fin]);
+            })
+            ->get(['id', 'title', 'worker_sid', 'claimed_at', 'trabajo_iniciado_at', 'completed_at', 'estado_aprobacion', 'log']);
+
+        $porTerminal = []; // worker_sid => métricas duras
+        $porQuien    = []; // "por" del log (inferido) => conteo de eventos + terminales vistas
+
+        $terminal = function (string $sid) use (&$porTerminal) {
+            return $porTerminal[$sid] ??= [
+                'worker_sid' => $sid, 'items_reclamados' => 0, 'items_completados' => 0,
+                'segundos_en_tarea' => 0, 'items' => [],
+            ];
+        };
+
+        foreach ($items as $item) {
+            $sid = $item->worker_sid;
+
+            if ($sid && $item->claimed_at && $item->claimed_at->between($inicio, $fin)) {
+                $t = $terminal($sid);
+                $t['items_reclamados']++;
+                $porTerminal[$sid] = $t;
+            }
+
+            if ($sid && $item->completed_at && $item->completed_at->between($inicio, $fin)) {
+                $t = $terminal($sid);
+                $t['items_completados']++;
+                $desde = $item->trabajo_iniciado_at ?: $item->claimed_at;
+                if ($desde) {
+                    $t['segundos_en_tarea'] += max(0, $item->completed_at->diffInSeconds($desde));
+                }
+                $t['items'][] = ['id' => $item->id, 'title' => $item->title, 'estado_aprobacion' => $item->estado_aprobacion];
+                $porTerminal[$sid] = $t;
+            }
+
+            foreach ((array) $item->log as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                $ts = $entry['ts'] ?? null;
+                if (!$ts) {
+                    continue;
+                }
+                try {
+                    $tsCarbon = \Carbon\Carbon::parse($ts);
+                } catch (\Throwable $e) {
+                    continue;
+                }
+                if (!$tsCarbon->between($inicio, $fin)) {
+                    continue;
+                }
+                $por = $entry['por'] ?? $entry['autor'] ?? null;
+                if (!$por) {
+                    continue;
+                }
+                $porQuien[$por] ??= ['por' => $por, 'eventos' => 0, 'terminales' => []];
+                $porQuien[$por]['eventos']++;
+                if ($sid && !in_array($sid, $porQuien[$por]['terminales'], true)) {
+                    $porQuien[$por]['terminales'][] = $sid;
+                }
+            }
+        }
+
+        // ── 2) circuito_ejecuciones: vueltas del cron, sin worker_sid (es "por vuelta", no por terminal) ──
+        $ejecuciones = CircuitoEjecucion::query()
+            ->whereBetween('started_at', [$inicio, $fin])
+            ->orderByDesc('started_at')
+            ->limit(500)
+            ->get(['id', 'started_at', 'finished_at', 'duracion_seg', 'modo', 'ejecuto', 'resumen']);
+
+        // ── 3) activity_log: acciones de UI atribuidas a un usuario (causer_id) ──
+        $actividadUi = \App\Models\ActivityLog::query()
+            ->whereBetween('created_at', [$inicio, $fin])
+            ->get(['id', 'causer_id', 'description', 'created_at']);
+
+        $porUsuarioUi = [];
+        foreach ($actividadUi as $a) {
+            $key = $a->causer_id ?: 0;
+            $porUsuarioUi[$key] ??= ['causer_id' => $a->causer_id, 'nombre' => $a->user_name, 'acciones' => 0];
+            $porUsuarioUi[$key]['acciones']++;
+        }
+
+        // ── 4) commits de git por autor, en el rango (solo lectura, sin comando destructivo) ──
+        $commits = [];
+        try {
+            $env = [
+                'PATH'               => '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+                'HOME'               => '/root',
+                'GIT_CONFIG_COUNT'   => '1',
+                'GIT_CONFIG_KEY_0'   => 'safe.directory',
+                'GIT_CONFIG_VALUE_0' => base_path(),
+            ];
+            $p = new Process([
+                'git', 'log',
+                '--since=' . $inicio->toDateTimeString(),
+                '--until=' . $fin->toDateTimeString(),
+                '--pretty=format:%H|%an|%ad|%s',
+                '--date=iso-strict',
+            ], base_path(), $env);
+            $p->setTimeout(15);
+            $p->run();
+            if ($p->isSuccessful()) {
+                foreach (explode("\n", trim($p->getOutput())) as $line) {
+                    if ($line === '') {
+                        continue;
+                    }
+                    [$hash, $autor, $fecha, $mensaje] = array_pad(explode('|', $line, 4), 4, null);
+                    $commits[] = ['hash' => substr((string) $hash, 0, 10), 'autor' => $autor, 'fecha' => $fecha, 'mensaje' => $mensaje];
+                }
+            }
+        } catch (\Throwable $e) {
+            // Solo lectura, best-effort: si git no responde, el resto del tablero igual se muestra.
+        }
+
+        $porAutorCommit = [];
+        foreach ($commits as $c) {
+            $key = $c['autor'] ?: '—';
+            $porAutorCommit[$key] ??= ['autor' => $key, 'commits' => 0];
+            $porAutorCommit[$key]['commits']++;
+        }
+
+        return response()->json([
+            'ok'     => true,
+            'rango'  => ['inicio' => $inicio->toDateString(), 'fin' => $fin->toDateString()],
+            'medido' => [
+                'aviso'         => 'Sesión/terminal, tiempos y conteos leídos directo de la base de datos y de git — dato duro.',
+                'por_terminal'  => array_values($porTerminal),
+                'ejecuciones'   => [
+                    'total'      => $ejecuciones->count(),
+                    'con_cambio' => $ejecuciones->where('ejecuto', true)->count(),
+                    'segundos_totales' => (int) $ejecuciones->sum('duracion_seg'),
+                    'vueltas'    => $ejecuciones->values(),
+                ],
+                'commits' => [
+                    'total'      => count($commits),
+                    'por_autor'  => array_values($porAutorCommit),
+                    'recientes'  => array_slice($commits, 0, 100),
+                ],
+            ],
+            'inferido' => [
+                'aviso' => 'La cuenta de login es COMPARTIDA (Irving y David entran igual) — esto es una PISTA de '
+                    . 'qué persona pudo estar detrás de cada terminal/commit/acción de UI, NO una certeza. Solo se '
+                    . 'vuelve confiable con logins individuales.',
+                'por_quien_en_log' => array_values($porQuien),
+                'por_usuario_ui'   => array_values($porUsuarioUi),
+            ],
+        ]);
+    }
+
     public function torre(): JsonResponse
     {
         $this->authorize('roadmap_view');
