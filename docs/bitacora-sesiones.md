@@ -3971,3 +3971,30 @@ solo.
 Detalle en `docs/roadmap-bucle-reap-item-9990012-verificacion.md`. Sin cambio de código de
 negocio — el trabajo técnico real (reproducir la carrera y confirmar el mecanismo exacto) sigue en
 #9990063 (`pendiente_revision`, pendiente de que el revisor lo trie).
+
+## 2026-09-04 18:13 — Item #165: regeneración del Manual encolada (recuperado de un merge escalado)
+
+El trabajo real de este item ya se había hecho el 2026-08-26 (sesión `wt-3`): el fix literal del
+título (`ModuleObserver` con `Artisan::call` síncrono) ya estaba resuelto desde antes (commit
+`6a455e2b`, 2026-07-11), pero esa sesión encontró y corrigió 2 llamadas síncronas equivalentes que
+seguían vivas — `RegenerateManualAfterMigrate` (listener post-migrate) y
+`ManualController::generate` (endpoint HTTP del botón "Regenerar todo") — moviéndolas a un job
+nuevo `RegenerateManualJob` (queued, `tries=3`, backoff 30s/2min/10min). Pero el intento de merge
+de esa rama chocó en `docs/bitacora-sesiones.md` (conflicto de contenido, archivo append-only que
+había crecido mucho desde entonces) y el `merge-runner` abortó dejando `main` intacto; el item
+quedó con reclamo huérfano y acabó de vuelta en la bandeja, con `status` residual en `done` que lo
+hacía invisible para el pool hasta que Irving lo resincronizó hoy.
+
+Esta vuelta verificó que el código de esa rama seguía sin aplicar en `main` (`Artisan::call`
+síncrono todavía vivo en el listener, `RegenerateManualJob` inexistente) y que los 2 commits de
+código seguían aplicando limpio. La rama vieja estaba basada en un `main` de hace semanas
+(cientos de archivos de diff) — en vez de arrastrar todo eso, se creó la rama del item de nuevo
+sobre el `main` actual y se hizo cherry-pick de únicamente los 2 commits de código (`e1d7e78a`,
+`bc0ea091`; el tercero, el de bitácora vieja, se descartó — este mismo párrafo lo reemplaza).
+Ambos aplicaron sin conflicto (el único archivo compartido, `ManualIndex.vue`, había cambiado por
+otro ítem del menú del wiki en líneas no solapadas). Verificado: `php -l` en los 4 archivos PHP/JS
+tocados, `php artisan --version` bootea, y `npm run prod` (vía el semáforo de build) compiló sin
+errores.
+
+Sin cambio de código nuevo de esta vuelta — el mérito es de `wt-3`; esta sesión solo repitió el
+merge que había fallado, aplicándolo sobre `main` actual.
