@@ -133,6 +133,18 @@ class SchedulerCommand extends Command
                 } catch (\Throwable $e) {
                     Log::channel('roadmap_externo')->warning('auditor-fallo', ['error' => $e->getMessage()]);
                 }
+
+                // PIEZA 4 (#9990365) — si aun después del barrido de arriba la hambruna sigue viva
+                // porque TODO lo encolado está atascado en dependencias que sólo Irving puede
+                // cerrar (merge manual pendiente, o un "fantasma" completado sin `merge_commit`),
+                // no dejarlo en silencio: escala a su bandeja con los bloqueadores concretos. Dedup
+                // propio (misma huella que un gap cualquiera), así que este tick no repite nada
+                // mientras el atasco no cambie. Best-effort, igual que los bloques de arriba.
+                try {
+                    $auditor->escalarCuelloBotellaSiAplica();
+                } catch (\Throwable $e) {
+                    Log::channel('roadmap_externo')->warning('auditor-cuello-botella-fallo', ['error' => $e->getMessage()]);
+                }
             }
 
             $n = $svc->getParalelismo();

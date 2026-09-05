@@ -123,6 +123,29 @@ class AuditorService
     }
 
     /**
+     * PIEZA 1 (#9990365) — ¿hay hambruna REAL ahora mismo? Slots libres > 0 Y lo que el scheduler
+     * despacharía en ESTA MISMA vuelta (`ejecutablesParalelo`, módulo-disjunto, excluyendo lo que
+     * ya está en vuelo) es MENOS que esos slots. No es "la cola está corta": una cola larga pero
+     * toda del mismo módulo en vuelo también es hambruna — las terminales libres igual se quedan
+     * ociosas, que es la señal que este item viene a cerrar.
+     */
+    public function hambruna(?int $slots = null): array
+    {
+        $slots ??= $this->slotsLibres();
+        if ($slots <= 0) {
+            return ['hambruna' => false, 'slots_libres' => 0, 'ejecutables' => 0];
+        }
+
+        $ejecutables = count($this->circuito->ejecutablesParalelo($this->circuito->modulosEnVuelo(), $slots));
+
+        return [
+            'hambruna'     => $ejecutables < $slots,
+            'slots_libres' => $slots,
+            'ejecutables'  => $ejecutables,
+        ];
+    }
+
+    /**
      * ¿Debe correr un ciclo? Devuelve el diagnóstico completo para que el comando lo reporte
      * (que NO corra es información tan útil como que corra).
      */
@@ -163,10 +186,26 @@ class AuditorService
                 . 'cuando un item REAL (sin auditor_fingerprint, no generado por este motor) se complete.'];
         }
 
+        // PIEZA 2 (#9990365) — LA SEQUÍA CEDE ANTE LA HAMBRUNA REAL. Medido: con 4 slots libres,
+        // el intervalo alargado por sequía (hasta 120 min) devolvía `corre:false` igual, dejando
+        // la flota ociosa hasta 2h en silencio ("faltan 20 min para el próximo" con terminales
+        // libres esperando). Sólo cede ESTE gate (Nivel 1 "la sonda", de abajo); el Nivel 2 ("el
+        // gasto", ya evaluado arriba) sigue siendo un apagado duro — forzar generación cuando la
+        // fuente de código ya se demostró agotada no es "que no haya terminales ociosas", es
+        // "generar sin parar", que el propio item prohíbe.
+        $hambruna       = $this->hambruna($slots);
+        $base['hambruna'] = $hambruna['hambruna'];
+
         $base_min  = (int) $this->torreConfig->get()->auditor_cooldown_min;
         $intervalo = $this->intervaloEfectivo($base_min, $racha);
         $ultima    = $this->ultimaCorrida();
         if ($ultima !== null && (time() - $ultima) < $intervalo * 60) {
+            if ($hambruna['hambruna']) {
+                return $base + ['corre' => true, 'motivo' => "Hambruna real ({$hambruna['slots_libres']} terminal(es) "
+                    . "libre(s), sólo {$hambruna['ejecutables']} item(s) ejecutable(s) ahora mismo): la sequía cede "
+                    . "aunque falte el intervalo ({$intervalo} min) — no se deja la flota ociosa."];
+            }
+
             $faltan  = (int) ceil(($intervalo * 60 - (time() - $ultima)) / 60);
             $sequia  = $intervalo > $base_min
                 ? " (alargado por sequía: {$racha} corrida(s) seguidas sin hallazgos nuevos, base {$base_min} min)"
@@ -1886,6 +1925,146 @@ class AuditorService
             . "- Verifica: `php -l` de lo que toques + `php artisan --version` (que bootee). Si tocas "
             . "frontend, compila con `bash deploy/circuito/npm-build.sh`.\n"
             . "- DoD del item: el gap ya no aparece si se vuelve a correr `php artisan circuito:auditor --dry`.";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+    // PIEZA 4 (#9990365) — EL CUELLO DE BOTELLA QUE NINGÚN BARRIDO RESUELVE
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+
+    /**
+     * ¿La hambruna es un cuello de botella DE VERDAD, no un valle pasajero? "De verdad" = hay
+     * backlog con `depende_de` sin cerrar, cuyos bloqueadores son de los DOS tipos que ningún
+     * barrido puede resolver por su cuenta: nivel C esperando un merge manual de Irving
+     * (`esperando_merge_irving`), o "fantasma" (`completado` sin `merge_commit` — el código nunca
+     * llegó a `main`). Sólo se evalúa con la cola general en CERO: con cola > 0 la hambruna puede
+     * deberse al pre-filtro de módulo-disjunto (diseño normal del pool), no a esto.
+     *
+     * @return array{atascados:array}|null null = nada que escalar.
+     */
+    public function diagnosticoCuelloBotellaDependencias(): ?array
+    {
+        if ($this->profundidadCola() > 0) {
+            return null;
+        }
+
+        $candidatos = RoadmapItem::query()
+            ->whereNull('archivado_at')
+            ->whereNotNull('depende_de')
+            ->whereJsonLength('depende_de', '>', 0)
+            ->where(fn ($q) => RoadmapItem::sqlElegibleParaPool($q))
+            ->whereIn('estado_aprobacion', ['aprobado_claude', 'aprobado_revisor', 'aprobado_irving', 'pendiente_revision'])
+            ->limit(200)
+            ->get(['id', 'title']);
+
+        if ($candidatos->isEmpty()) {
+            return null;
+        }
+
+        $bloqueadoresPorId = [];
+        $atascados = [];
+
+        foreach ($candidatos as $item) {
+            $espera = $this->circuito->esperandoDependencias($item->id);
+            if ($espera === null || ! $espera['faltan']) {
+                continue;
+            }
+
+            $malos = [];
+            $todosMalos = true;
+            foreach ($espera['faltan'] as $bid) {
+                if (! array_key_exists($bid, $bloqueadoresPorId)) {
+                    $bloqueadoresPorId[$bid] = DB::table('roadmap_items')->where('id', $bid)
+                        ->first(['id', 'title', 'estado_aprobacion', 'merge_commit', 'esperando_merge_irving']);
+                }
+                $b = $bloqueadoresPorId[$bid];
+                if ($b === null) {
+                    $todosMalos = false; // borrado/desaparecido: no se clasifica como "malo" a ciegas
+                    continue;
+                }
+                $esFantasma  = $b->estado_aprobacion === 'completado' && empty($b->merge_commit);
+                $esperaMerge = (bool) $b->esperando_merge_irving;
+                if ($esFantasma || $esperaMerge) {
+                    $malos[] = ['id' => (int) $b->id, 'titulo' => (string) $b->title,
+                        'motivo' => $esFantasma ? 'fantasma (completado sin merge_commit)' : 'esperando merge manual de Irving'];
+                } else {
+                    $todosMalos = false;
+                }
+            }
+
+            if ($todosMalos && $malos) {
+                $atascados[] = ['id' => $item->id, 'titulo' => $item->title, 'bloqueadores' => $malos];
+            }
+        }
+
+        return $atascados ? ['atascados' => $atascados] : null;
+    }
+
+    /**
+     * Si el cuello de botella es real, escala a la BANDEJA DE IRVING con el MISMO mecanismo que
+     * cualquier gap 'producto' (`crear()`: nivel C, `estado_aprobacion=requiere_irving`) en vez de
+     * dejarlo en silencio — nada de un segundo botón. Dedup vía la MISMA huella que cualquier otro
+     * gap (`yaExiste()`): mientras el conjunto de atascados/bloqueadores no cambie, no se repite en
+     * cada tick del scheduler.
+     */
+    public function escalarCuelloBotellaSiAplica(): ?RoadmapItem
+    {
+        if ($this->circuito->isPaused()) {
+            return null;
+        }
+
+        $diag = $this->diagnosticoCuelloBotellaDependencias();
+        if ($diag === null) {
+            return null;
+        }
+
+        $idsAtascados = array_column($diag['atascados'], 'id');
+        sort($idsAtascados);
+
+        $bloqueadoresUnicos = [];
+        foreach ($diag['atascados'] as $a) {
+            foreach ($a['bloqueadores'] as $b) {
+                $bloqueadoresUnicos[$b['id']] = $b;
+            }
+        }
+        ksort($bloqueadoresUnicos);
+
+        $detalleBloqueadores = '';
+        foreach ($bloqueadoresUnicos as $b) {
+            $detalleBloqueadores .= "  · #{$b['id']} — {$b['motivo']}: " . mb_substr($b['titulo'], 0, 80) . "\n";
+        }
+        $detalleAtascados = '';
+        foreach ($diag['atascados'] as $a) {
+            $ids = implode(', ', array_map(fn ($b) => '#' . $b['id'], $a['bloqueadores']));
+            $detalleAtascados .= "  · #{$a['id']} " . mb_substr($a['titulo'], 0, 80) . " → espera a {$ids}\n";
+        }
+
+        $gap = [
+            'modulo'   => 'Roadmap / Circuito CC',
+            'tipo'     => 'cuello_botella_dependencias',
+            'clase'    => 'producto',
+            'clave'    => 'cuello-botella#' . substr(sha1(implode(',', $idsAtascados) . '|' . implode(',', array_keys($bloqueadoresUnicos))), 0, 12),
+            'titulo'   => 'Flota parada: ' . count($diag['atascados']) . ' item(s) atascado(s) en dependencias que sólo Irving puede destrabar',
+            'detalle'  => "Hambruna real: cola en 0 y terminales libres, pero TODO lo encolado que se revisó está "
+                . "bloqueado por dependencias que ningún barrido puede resolver por su cuenta (merge manual "
+                . "pendiente, o item \"fantasma\" — `completado` sin `merge_commit`, el código nunca llegó a "
+                . "`main`).\n\n"
+                . "**Items atascados:**\n{$detalleAtascados}\n"
+                . "**Bloqueadores concretos (esto es lo que hay que resolver):**\n{$detalleBloqueadores}\n"
+                . 'Mergear el pendiente (o resolver el fantasma: completar su merge o reabrirlo) libera la cadena.',
+            'pregunta' => 'La flota está parada por dependencias que sólo tú puedes cerrar (detalle arriba). '
+                . '¿Mergeas/resuelves los bloqueadores, o alguno ya no aplica?',
+        ];
+
+        if ($this->yaExiste($gap)) {
+            return null;
+        }
+
+        $item = $this->crear($gap);
+        Log::channel('roadmap_externo')->warning('auditor-cuello-botella-escalado', [
+            'item_creado' => $item->id, 'atascados' => $idsAtascados, 'bloqueadores' => array_keys($bloqueadoresUnicos),
+        ]);
+
+        return $item;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════════════════
