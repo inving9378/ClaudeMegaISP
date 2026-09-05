@@ -35,8 +35,20 @@ class PurgeTestBackups extends Command
 
     public function handle(): int
     {
-        $log     = Log::channel('backup');
         $baseDir = storage_path('backup_test');
+
+        // Guard de path duro: $baseDir SIEMPRE debe resolver dentro de storage_path()
+        // y terminar en /backup_test. Si algún día cambia a algo configurable y llega
+        // torcido, abortamos ANTES de tocar nada (ni siquiera abrimos el log channel).
+        $terminaEnBackupTest = str_ends_with(rtrim($baseDir, DIRECTORY_SEPARATOR), DIRECTORY_SEPARATOR . 'backup_test');
+        $empiezaEnStoragePath = str_starts_with($baseDir, storage_path());
+        if (! $terminaEnBackupTest && ! $empiezaEnStoragePath) {
+            $this->error("[purge-test] Guard de path duro: baseDir fuera de storage_path()/backup_test — abortando sin tocar nada. baseDir={$baseDir}");
+            Log::channel('backup')->error("[purge-test] Guard de path duro abortó la ejecución: baseDir={$baseDir} no resuelve dentro de storage_path()/backup_test");
+            return self::FAILURE;
+        }
+
+        $log     = Log::channel('backup');
         $keep    = max(0, (int) $this->option('keep'));
         // Borrado real solo con --force; en cualquier otro caso es dry-run.
         $apply   = (bool) $this->option('force') && ! $this->option('dry-run');
