@@ -55,6 +55,13 @@
                     <i class="bi bi-heart-pulse me-1"></i> Salud del entorno
                 </a>
             </li>
+            <!-- Item #9990375 — gateada aparte de la Torre en general: torre.actividad.view,
+                 por defecto solo super-administrator + DESARROLLADOR. -->
+            <li class="nav-item" v-if="hasPermission.data.canView('torre.actividad.view')">
+                <a class="nav-link" :class="{ active: tab === 'actividad-equipo' }" href="#" @click.prevent="tab = 'actividad-equipo'">
+                    <i class="bi bi-people me-1"></i> Actividad del equipo
+                </a>
+            </li>
             <li class="nav-item">
                 <a class="nav-link" :class="{ active: tab === 'cola' }" href="#" @click.prevent="tab = 'cola'">
                     <i class="bi bi-list-ol me-1"></i> Cola
@@ -118,6 +125,9 @@
 
         <!-- ── Sub-sección: Salud del entorno (Fase 7, Épica #874, #891) ── -->
         <torre-salud-entorno v-if="tab === 'salud'" />
+
+        <!-- ── Sub-sección: Actividad del equipo (#9990375) ── -->
+        <torre-actividad-equipo v-if="tab === 'actividad-equipo' && hasPermission.data.canView('torre.actividad.view')" />
 
         <!-- ── Sub-sección: Cola ejecutable, solo lectura (Fase 6, Épica #874, #890/#940) ── -->
         <torre-cola-ejecutable v-if="tab === 'cola'" />
@@ -310,6 +320,7 @@ import TorreControl from "./torre-control/TorreControl.vue";
 import TorreTerminales from "./torre-control/TorreTerminales.vue";
 import TorreHistorialAcciones from "./torre-control/TorreHistorialAcciones.vue";
 import TorreSaludEntorno from "./torre-control/TorreSaludEntorno.vue";
+import TorreActividadEquipo from "./torre-control/TorreActividadEquipo.vue";
 import TorreColaEjecutable from "./torre-control/TorreColaEjecutable.vue";
 import IntegracionRamas from "./torre-control/IntegracionRamas.vue";
 import JarvisChatDrawer from "./torre-control/JarvisChatDrawer.vue";
@@ -320,7 +331,7 @@ import { allViewHasPermission } from "../../../helpers/Request";
 
 export default {
     name: "ReleasesIndex",
-    components: { ReleasesCrud, AuditReport, RoadmapTab, TorreControl, TorreTerminales, TorreHistorialAcciones, TorreSaludEntorno, TorreColaEjecutable, IntegracionRamas, JarvisChatDrawer, DeployProgressModal },
+    components: { ReleasesCrud, AuditReport, RoadmapTab, TorreControl, TorreTerminales, TorreHistorialAcciones, TorreSaludEntorno, TorreActividadEquipo, TorreColaEjecutable, IntegracionRamas, JarvisChatDrawer, DeployProgressModal },
     props: {
         releases: { type: String },
         next_page_url: { type: String },
@@ -330,7 +341,7 @@ export default {
         // Es lo que usan los engranes de fuera de esta pantalla para traer aquí en vez de abrir cada
         // uno su propio tablero. Un valor desconocido cae a 'panorama'.
         const TABS_VALIDAS = ['panorama', 'roadmap', 'terminales', 'integracion', 'acciones',
-            'salud', 'cola', 'historial', 'reporte', 'configuracion'];
+            'salud', 'actividad-equipo', 'cola', 'historial', 'reporte', 'configuracion'];
         const tabInicial = (() => {
             try {
                 const q = new URLSearchParams(window.location.search).get('tab');
