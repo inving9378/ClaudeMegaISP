@@ -139,18 +139,33 @@ class SchedulerCommand extends Command
 
             // Slots libres = worktrees wt-1..wt-N cuyo flock NO está tomado por una vuelta viva.
             $freeSlots = [];
+            $busySlots = [];
             for ($k = 1; $k <= $n; $k++) {
                 if ($this->slotFree("wt-{$k}")) {
                     $freeSlots[] = $k;
+                } else {
+                    $busySlots[] = $k;
                 }
             }
+
+            // #9990349 — detalle completo detrás de --dry o -v; sin ellos, a lo sumo el veredicto.
+            $detallado = (bool) $this->option('dry') || $this->output->isVerbose();
+
             if (! $freeSlots) {
+                if ($detallado) {
+                    $this->line("Slots libres: 0 de {$n} (todas ocupadas: wt-" . implode(', wt-', $busySlots) . ').');
+                }
+                $this->info('VEREDICTO: 0 vueltas — sin slots libres.');
+
                 return self::SUCCESS;
             }
 
             // Items ejecutables módulo-disjuntos (excluye módulos en vuelo), hasta #slots libres.
-            $items = $svc->ejecutablesParalelo($svc->modulosEnVuelo(), count($freeSlots));
+            $modulosEnVuelo = $svc->modulosEnVuelo();
+            $items = $svc->ejecutablesParalelo($modulosEnVuelo, count($freeSlots));
             if (! $items) {
+                $this->reportarCeroDespacho($svc, $n, $freeSlots, $busySlots, $modulosEnVuelo, $detallado);
+
                 return self::SUCCESS;
             }
 
@@ -257,6 +272,55 @@ class SchedulerCommand extends Command
             } catch (\Throwable) {
             }
         }
+    }
+
+    /**
+     * #9990349 — hace VISIBLE por qué el reparto decidió despachar CERO pese a tener slot(s)
+     * libre(s). Sin `--dry`/`-v` sólo imprime el VEREDICTO (una línea): el detalle completo no
+     * debe llenar el log del cron cada minuto. No cambia qué se despacha ni el orden — sólo
+     * reporta lo que `RoadmapCircuitoService::diagnosticoCeroDespacho()` ya reconstruyó.
+     */
+    private function reportarCeroDespacho(
+        RoadmapCircuitoService $svc,
+        int $n,
+        array $freeSlots,
+        array $busySlots,
+        array $modulosEnVuelo,
+        bool $detallado
+    ): void {
+        $diag        = $svc->diagnosticoCeroDespacho($modulosEnVuelo);
+        $descartados = $diag['descartados'];
+
+        if ($detallado) {
+            $this->line('Slots libres: ' . count($freeSlots) . " de {$n} (wt-" . implode(', wt-', $freeSlots) . ').'
+                . ($busySlots ? ' Ocupados: wt-' . implode(', wt-', $busySlots) . '.' : ''));
+            $this->line("Candidatos abiertos: {$diag['candidatos']}. Despachables (regla de item): {$diag['despachables']}.");
+
+            if (! $descartados) {
+                $this->line('Sin candidatos frenados: no hay trabajo pendiente ahora mismo.');
+            }
+            foreach ($descartados as $d) {
+                $mod = $d['modulo'] ? " (modulo={$d['modulo']})" : '';
+                $this->line("  #{$d['id']}{$mod} — {$d['motivo']}");
+            }
+        }
+
+        if (! $descartados) {
+            $this->info('VEREDICTO: 0 vueltas — no hay candidatos pendientes.');
+
+            return;
+        }
+
+        $conteo = [];
+        foreach ($descartados as $d) {
+            $conteo[$d['codigo']] = ($conteo[$d['codigo']] ?? 0) + 1;
+        }
+        $resumen = [];
+        foreach ($conteo as $codigo => $veces) {
+            $resumen[] = "{$codigo}×{$veces}";
+        }
+        $this->info('VEREDICTO: 0 vueltas — ' . count($descartados) . ' candidato(s), todos frenados por: '
+            . implode(', ', $resumen) . '.');
     }
 
     /** ¿El slot (worktree) está libre? = su flock no lo tiene una vuelta viva. */
