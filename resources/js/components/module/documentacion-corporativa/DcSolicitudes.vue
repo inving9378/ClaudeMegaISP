@@ -175,9 +175,118 @@
                 <q-separator />
 
                 <q-card-actions align="right">
+                    <q-btn
+                        v-if="ficha.id && form.estado !== 'rechazada'"
+                        v-hasPermission="'documentacion-corporativa.entrega.create'"
+                        flat
+                        color="secondary"
+                        icon="inventory_2"
+                        label="Armar entrega"
+                        @click="abrirEntrega()"
+                    />
+                    <q-space />
                     <q-btn flat label="Cancelar" v-close-popup />
                     <q-btn color="primary" label="Guardar" :loading="guardando" @click="guardarFicha" />
                 </q-card-actions>
+            </q-card>
+        </q-dialog>
+
+        <!-- Armar entrega desde una solicitud (Fase 5c.2b, item #835) --------->
+        <q-dialog v-model="dialogoEntrega">
+            <q-card style="min-width: 480px; max-width: 720px">
+                <q-card-section class="row items-center">
+                    <div class="text-h6">
+                        <i class="bi bi-box-seam"></i>
+                        Armar entrega — {{ ficha.solicitante }}
+                    </div>
+                    <q-space />
+                    <q-btn flat dense icon="close" v-close-popup />
+                </q-card-section>
+
+                <q-separator />
+
+                <q-card-section style="max-height: 70vh" class="scroll">
+                    <div class="text-caption text-grey q-mb-sm">
+                        Recibida {{ ficha.fecha_recepcion }} ·
+                        {{ ficha.fecha_limite ? 'límite ' + ficha.fecha_limite : 'sin plazo' }} ·
+                        apartados pedidos: {{ (ficha.apartados || []).join(', ') }}
+                    </div>
+
+                    <div class="text-subtitle2 q-mb-xs">Apartados a incluir</div>
+                    <q-inner-loading :showing="cargandoApartados">
+                        <q-spinner size="24px" color="primary" />
+                    </q-inner-loading>
+                    <div v-if="!cargandoApartados" class="row q-col-gutter-xs q-mb-md">
+                        <div v-for="ap in apartadosVisibles" :key="ap.clave" class="col-6 col-md-4">
+                            <q-checkbox
+                                dense
+                                :model-value="entregaForm.apartados.includes(ap.clave)"
+                                :label="ap.clave + ' — ' + ap.nombre"
+                                @update:model-value="toggleApartadoEntrega(ap.clave)"
+                            />
+                        </div>
+                        <div v-if="apartadosVisibles.length === 0" class="col-12 text-grey text-caption">
+                            No tienes permiso para ver ningún apartado.
+                        </div>
+                    </div>
+
+                    <q-select
+                        outlined
+                        dense
+                        class="q-mb-md"
+                        v-model="entregaForm.nivel_detalle"
+                        :options="opcionesNivelDetalle"
+                        emit-value
+                        map-options
+                        label="Nivel de detalle"
+                    />
+
+                    <q-btn
+                        color="primary"
+                        icon="add_box"
+                        label="Generar"
+                        :loading="generandoEntrega"
+                        @click="generarEntrega"
+                    />
+
+                    <q-separator class="q-my-md" />
+
+                    <div class="text-subtitle2 q-mb-xs">Entregas de esta solicitud</div>
+                    <q-inner-loading :showing="cargandoEntregas">
+                        <q-spinner size="24px" color="primary" />
+                    </q-inner-loading>
+
+                    <div v-if="!cargandoEntregas && entregas.length === 0" class="text-grey text-caption">
+                        Aún no se ha armado ninguna entrega para esta solicitud.
+                    </div>
+
+                    <q-list v-else bordered separator>
+                        <q-item v-for="e in entregas" :key="e.id">
+                            <q-item-section avatar>
+                                <q-icon :name="iconoEstadoEntrega(e.estado)" :color="colorEstadoEntrega(e.estado)" />
+                            </q-item-section>
+                            <q-item-section>
+                                <q-item-label>
+                                    Entrega #{{ e.id }} · {{ (e.apartados || []).join(', ') }}
+                                </q-item-label>
+                                <q-item-label caption>
+                                    {{ e.fecha_entrega || 'sin fecha' }} ·
+                                    {{ e.descargas_zip_count }} descarga(s) ZIP ·
+                                    {{ e.descargas_acta_count }} descarga(s) acta
+                                </q-item-label>
+                                <q-item-label v-if="e.estado === 'fallida' && e.error" caption class="text-negative">
+                                    {{ e.error }}
+                                </q-item-label>
+                            </q-item-section>
+                            <q-item-section side v-if="e.estado === 'generada'">
+                                <div class="row q-gutter-xs">
+                                    <q-btn dense flat icon="download" label="ZIP" @click="descargarZip(e.id)" />
+                                    <q-btn dense flat icon="description" label="Acta" @click="descargarActa(e.id)" />
+                                </div>
+                            </q-item-section>
+                        </q-item>
+                    </q-list>
+                </q-card-section>
             </q-card>
         </q-dialog>
     </div>
@@ -228,12 +337,28 @@ export default {
                 entregada: 'Entregada',
                 rechazada: 'Rechazada',
             },
+            // Armar entrega (Fase 5c.2b, item #835) ---------------------------
+            dialogoEntrega: false,
+            apartadosVisibles: [],
+            cargandoApartados: false,
+            entregaForm: { apartados: [], nivel_detalle: 'agregado' },
+            generandoEntrega: false,
+            entregas: [],
+            cargandoEntregas: false,
         };
     },
 
     computed: {
         opcionesEstado() {
             return Object.entries(this.estadosLabel).map(([value, label]) => ({ value, label }));
+        },
+
+        opcionesNivelDetalle() {
+            return [
+                { value: 'agregado', label: 'Agregado (solo métricas)' },
+                { value: 'detallado', label: 'Detallado (CSV)' },
+                { value: 'integro', label: 'Íntegro (CSV + PDF)' },
+            ];
         },
     },
 
@@ -371,6 +496,93 @@ export default {
             if (this.$q && this.$q.notify) {
                 this.$q.notify({ message: mensaje, color, position: 'top' });
             }
+        },
+
+        // Armar entrega (Fase 5c.2b, item #835) -------------------------------
+
+        /** Abre "armar entrega" para la solicitud actual (this.ficha, ya abierta en el dialogo de edición). */
+        abrirEntrega() {
+            this.entregaForm = { apartados: [...(this.ficha.apartados || [])], nivel_detalle: 'agregado' };
+            this.dialogoEntrega = true;
+            this.cargarApartadosVisibles();
+            this.cargarEntregas();
+        },
+
+        /** Reusa el tablero (ya filtrado por permiso) en vez de duplicar la lógica de permisos aquí. */
+        async cargarApartadosVisibles() {
+            this.cargandoApartados = true;
+            try {
+                const { data } = await axios.get('/documentacion-corporativa/api/tablero');
+                this.apartadosVisibles = data.apartados || [];
+            } catch (e) {
+                this.aviso('No se pudieron cargar los apartados visibles.', 'negative');
+            } finally {
+                this.cargandoApartados = false;
+            }
+        },
+
+        toggleApartadoEntrega(clave) {
+            const idx = this.entregaForm.apartados.indexOf(clave);
+            if (idx === -1) {
+                this.entregaForm.apartados.push(clave);
+            } else {
+                this.entregaForm.apartados.splice(idx, 1);
+            }
+        },
+
+        async generarEntrega() {
+            if (this.entregaForm.apartados.length === 0) {
+                this.aviso('Selecciona al menos un apartado.', 'warning');
+                return;
+            }
+
+            this.generandoEntrega = true;
+            try {
+                await axios.post(`/documentacion-corporativa/api/solicitudes/${this.ficha.id}/entregas`, this.entregaForm);
+                this.aviso('Entrega generada.', 'positive');
+                await this.cargarEntregas();
+                if (this.dialogo) this.cargar();
+            } catch (e) {
+                this.aviso(e.response?.data?.message || 'No se pudo generar la entrega.', 'negative');
+            } finally {
+                this.generandoEntrega = false;
+            }
+        },
+
+        async cargarEntregas() {
+            this.cargandoEntregas = true;
+            try {
+                const { data } = await axios.get(`/documentacion-corporativa/api/solicitudes/${this.ficha.id}/entregas`);
+                this.entregas = data.data || [];
+            } catch (e) {
+                this.aviso('No se pudieron cargar las entregas.', 'negative');
+            } finally {
+                this.cargandoEntregas = false;
+            }
+        },
+
+        descargarZip(entregaId) {
+            window.open(`/documentacion-corporativa/api/entregas/${entregaId}/zip`, '_blank');
+        },
+
+        descargarActa(entregaId) {
+            window.open(`/documentacion-corporativa/api/entregas/${entregaId}/acta`, '_blank');
+        },
+
+        iconoEstadoEntrega(e) {
+            return {
+                generando: 'autorenew',
+                generada: 'check_circle',
+                fallida: 'error',
+            }[e] || 'help_outline';
+        },
+
+        colorEstadoEntrega(e) {
+            return {
+                generando: 'primary',
+                generada: 'positive',
+                fallida: 'negative',
+            }[e] || 'grey-6';
         },
     },
 };
