@@ -2560,10 +2560,38 @@ class RoadmapCircuitoService
      * @return array<string,int> modulo => items en vuelo
      */
     /**
+     * MR-36 (#9990373) — ¿este id cuenta como CERRADO para efectos de `depende_de`?
+     *
+     * Único punto de verdad, compartido por `dependenciasCerradas()` y `esperandoDependencias()`
+     * (antes armaban el mismo mapa por separado y podían divergir). Dos casos:
+     *
+     *  (a) hoja: `completado` + `merge_commit` propio — protege el incidente original de MR-03
+     *      (#9990081), una rama que quedó `completado` sin llegar nunca a `main`.
+     *  (b) paraguas cerrado de verdad: `completado`, tiene hijos (`origen_item_id`) y ninguno
+     *      sigue abierto — su código llegó a `main` por las ramas YA mergeadas de esos hijos
+     *      (hook de cascada, RoadmapItem.php ~545-574, evento 'paraguas_cerrado'), así que NUNCA
+     *      tendrá `merge_commit` propio y exigirlo lo bloquea para siempre (caso real: #9990329
+     *      esperando a #942, paraguas de #9990328+#9990329, ambos con su trabajo ya en main).
+     */
+    private function estaCerradoParaDependencia(object $d): bool
+    {
+        if (($d->estado_aprobacion ?? null) !== 'completado') {
+            return false;
+        }
+        if (! empty($d->merge_commit)) {
+            return true;
+        }
+
+        $item = RoadmapItem::find((int) $d->id);
+
+        return $item !== null && $item->yaFueDescompuesto() && ! $item->tieneSubItemsAbiertos();
+    }
+
+    /**
      * MR-36 (#9990332) — ¿este item tiene sus dependencias CERRADAS?
      *
-     * «Cerrada» = `completado` Y con `merge_commit` (el código en main). Ver el docblock de
-     * `Support\DependenciaItems` para por qué `completado` a secas no basta.
+     * «Cerrada» = ver `estaCerradoParaDependencia()`. Ver el docblock de `Support\DependenciaItems`
+     * para por qué `completado` a secas no basta.
      *
      * Sin `depende_de` el comportamiento es EXACTAMENTE el de siempre: ni una consulta extra.
      */
@@ -2585,7 +2613,7 @@ class RoadmapCircuitoService
             DB::table('roadmap_items')->whereIn('id', $ids)
                 ->get(['id', 'estado_aprobacion', 'merge_commit']) as $d
         ) {
-            $cerrados[(int) $d->id] = $d->estado_aprobacion === 'completado' && ! empty($d->merge_commit);
+            $cerrados[(int) $d->id] = $this->estaCerradoParaDependencia($d);
         }
 
         return \App\Modules\Addons\Roadmap\Support\DependenciaItems::evaluar($ids, $cerrados)['puede'];
@@ -2614,7 +2642,7 @@ class RoadmapCircuitoService
             DB::table('roadmap_items')->whereIn('id', $ids)
                 ->get(['id', 'title', 'estado_aprobacion', 'merge_commit']) as $d
         ) {
-            $cerrados[(int) $d->id] = $d->estado_aprobacion === 'completado' && ! empty($d->merge_commit);
+            $cerrados[(int) $d->id] = $this->estaCerradoParaDependencia($d);
             $titulos[(int) $d->id]  = (string) $d->title;
         }
 
