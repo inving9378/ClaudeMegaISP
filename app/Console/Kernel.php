@@ -59,6 +59,11 @@ class Kernel extends ConsoleKernel
         // Backup diario de la base de datos (mysqldump + gzip, retención 14 días)
         $schedule->command('backup_db:process')->dailyAt('02:00')->withoutOverlapping();
 
+        // #146 — retención de los respaldos de release (storage/backup_test/{version}.zip):
+        // conserva las últimas 7 versiones y borra el resto, análogo a la retención de
+        // backup_db:process. Comando ya blindado (solo toca {V}/{V}.zip con match exacto).
+        $schedule->command('backups:purge-test --force')->dailyAt('02:20')->withoutOverlapping();
+
         // Archivar activity_logs con más de 90 días a la BD meganet_logs
         $schedule->command('activitylog:archive --days=90')->dailyAt('02:00')->withoutOverlapping();
 
