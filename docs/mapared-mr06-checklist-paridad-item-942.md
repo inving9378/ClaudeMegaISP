@@ -105,20 +105,49 @@ configuration/{ServiceBoxConfiguration,SiteConfiguration,RackConfiguration,Junct
 SiteComponent
 ```
 
-**Pendiente (para MR-06b, no resuelto aquí):** trazar el árbol nivel 2+ dentro de esos 22
-componentes para separar vivo/muerto en el resto del directorio (`components/devices/*` —
-Switch/Organizer/Olt/Router/Splitter/RouteComponent/Form*/DropOut/BufferRoute —,
-`components/others/*`, `AwesomeMarkerIcon`, `PortNoteComponent`, `ClientToServiceBoxComponent`).
+### Trazado nivel 2+ (MR-06b, 2026-09-04) — completo
 
-**Ya confirmado muerto/roto por MR-01c (no portar tal cual, documentar la excepción):**
-- `helper/site-request.js::saveRack` → `POST /maps/sites/racks` — **ruta inexistente hoy**
-  (bug real, vivo: `RackComponent.vue` sí lo llama). Paridad = portar el mismo bug (el botón
-  falla igual) **o** decidir corregirlo — es una mejora, no paridad; si se corrige debe ser un
-  item aparte, no colarse en MR-06 ("todavía sin mejoras").
-- `helper/olt-request.js`, `helper/organizers-request.js`, `helper/switch-request.js`, y
-  `saveSplitter`/`destroySplitter`/`splittersFromBox` de `helper/request.js` → apuntan a
-  `/maps/olts`, `/maps/organizers`, `/maps/switchs`, `/maps/splitters*`, ninguna existe como
-  ruta. **Sin importadores `.vue`** (código muerto en ambos lados) — no portar.
+Grafo de imports `from "...vue"` resuelto por BFS desde `LeafletMap.vue` sobre los 54 `.vue` del
+módulo (`resources/js/components/module/maps/`, incluye `ApiKey.vue` suelto en la raíz). Resultado:
+**52 de 54 alcanzables → VIVOS**; solo **2 inalcanzables**:
+
+| Archivo | Estado | Motivo |
+|---|---|---|
+| `ApiKey.vue` | Vivo, pero **fuera del árbol de `LeafletMap.vue`** | No lo importa ningún `.vue`; se registra global en `app.js:246` como `ApiKeyConfig` y se monta por su propio tag Blade, no por el mapa. Fuera de alcance de MR-06b (no es parte de "lo que `LeafletMap.vue` porta"), no requiere acción aquí. |
+| `components/configuration/RackComponent.vue` | **MUERTO** (⚠️ corrige un hallazgo previo, ver abajo) | Cero importadores en todo `resources/js/` (ni `.vue` ni `app.js`) y `grep -rn "RackComponent"` en `resources/`+`app/` no devuelve nada fuera de su propia definición (`name: "RackComponent"`, línea 86). No confundir con `RackConfiguration.vue` (otro archivo, sí vivo, importado directo por `LeafletMap.vue`) — nombres casi idénticos. |
+
+**Todo `components/devices/*` (16 archivos) y `components/others/*` (10 archivos) están VIVOS**
+— alcanzables transitivamente desde `LeafletMap.vue` vía las 4 `configuration/*Configuration.vue`
+(`ServiceBoxConfiguration`, `SiteConfiguration`, `RackConfiguration`, `JunctionBoxConfiguration`).
+`AwesomeMarkerIcon.vue`, `PortNoteComponent.vue` y `ClientToServiceBoxComponent.vue` — los 3
+también VIVOS (el primero importado por 11 componentes distintos; `PortNoteComponent` por
+`devices/SplitterComponent.vue` y `devices/ClientComponent.vue`; `ClientToServiceBoxComponent`
+por `JunctionBoxConfiguration.vue` y `ServiceBoxConfiguration.vue`).
+
+**⚠️ Corrección a un hallazgo previo (MR-01c, `docs/mapas-rutas-permisos-item-1000002-verificacion.md`
+punto 3):** ese audit clasificó el bug de `saveRack`→`/maps/sites/racks` como "vivo: `RackComponent.vue`
+importado y usado". Verificado ahora con grafo completo + grep directo: **es código muerto**, no
+vivo — probable confusión de nombre con `RackConfiguration.vue` (sí vivo) en el audit original. Como
+consecuencia, `helper/site-request.js` completo (`saveRack`+`destroyRack`, únicos exports, único
+importador es el propio `RackComponent.vue`) también es 100% muerto — no solo la ruta backend, todo
+el par frontend+backend. **Efecto en el alcance de MR-06b:** ni `RackComponent.vue` ni
+`site-request.js` se portan (no hay comportamiento vivo que igualar); el "bug real vivo" que el
+checklist original pedía documentar/replicar **no existe como tal** — era un bug en código ya muerto.
+
+**Helpers (`helper/*.js`) — vivo/muerto verificado por grep de importadores:**
+- `connections-request.js`, `devices-request.js`, `layers-request.js`, `mapUtils.js`, `request.js`
+  (salvo 3 funciones puntuales, ver abajo) → **VIVOS**, múltiples importadores reales.
+- `olt-request.js`, `organizers-request.js`, `switch-request.js` → **0 importadores** en ningún
+  `.vue` — muertos (ya documentado, confirmado de nuevo).
+- `site-request.js` → **muerto** (corrección de arriba: su único importador, `RackComponent.vue`,
+  también está muerto).
+- `request.js::saveSplitter`/`destroySplitter`/`splittersFromBox` → 0 llamadas en ningún `.vue`
+  (`grep` sin resultados) — muertas dentro de un archivo por lo demás vivo; no portar solo esas 3.
+
+**Conclusión para el port de MR-06b:** el conjunto a portar es `LeafletMap.vue` + los 51 `.vue`
+vivos bajo `components/` (excluyendo `RackComponent.vue`) + los 6 helpers vivos (excluyendo
+`olt-request.js`, `organizers-request.js`, `switch-request.js`, `site-request.js`, y las 3
+funciones muertas de `request.js`). `ApiKey.vue` queda fuera por no ser parte del árbol del mapa.
 
 ---
 
