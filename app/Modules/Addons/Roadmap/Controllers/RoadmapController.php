@@ -657,8 +657,13 @@ class RoadmapController extends Controller
         }
 
         // ── 2) circuito_ejecuciones: vueltas del cron, sin worker_sid (es "por vuelta", no por terminal) ──
-        $ejecuciones = CircuitoEjecucion::query()
-            ->whereBetween('started_at', [$inicio, $fin])
+        // El conteo/suma corren SIN el limit (para no reportar 500 como si fuera el total real
+        // cuando el rango trae más); el limit solo acota la lista `vueltas` que viaja en la respuesta.
+        $ejecucionesQuery   = CircuitoEjecucion::query()->whereBetween('started_at', [$inicio, $fin]);
+        $ejecucionesTotal   = (clone $ejecucionesQuery)->count();
+        $ejecucionesConCambio = (clone $ejecucionesQuery)->where('ejecuto', true)->count();
+        $ejecucionesSegundos  = (int) (clone $ejecucionesQuery)->sum('duracion_seg');
+        $ejecuciones = $ejecucionesQuery
             ->orderByDesc('started_at')
             ->limit(500)
             ->get(['id', 'started_at', 'finished_at', 'duracion_seg', 'modo', 'ejecuto', 'resumen']);
@@ -721,9 +726,9 @@ class RoadmapController extends Controller
                 'aviso'         => 'Sesión/terminal, tiempos y conteos leídos directo de la base de datos y de git — dato duro.',
                 'por_terminal'  => array_values($porTerminal),
                 'ejecuciones'   => [
-                    'total'      => $ejecuciones->count(),
-                    'con_cambio' => $ejecuciones->where('ejecuto', true)->count(),
-                    'segundos_totales' => (int) $ejecuciones->sum('duracion_seg'),
+                    'total'      => $ejecucionesTotal,
+                    'con_cambio' => $ejecucionesConCambio,
+                    'segundos_totales' => $ejecucionesSegundos,
                     'vueltas'    => $ejecuciones->values(),
                 ],
                 'commits' => [
