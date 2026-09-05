@@ -4,10 +4,13 @@
 
 @section('content')
     @if(auth()->user()->can('mapa_red_view'))
-        <div class="text-center py-5">
-            <i class="fa fa-map fa-3x text-muted mb-3"></i>
-            <h4>Mapa de Red — próximamente</h4>
-            <p class="text-muted">Esta pantalla es el esqueleto del módulo. La funcionalidad se agrega en las siguientes fases.</p>
-        </div>
+        <leaflet-map-red />
+        @if (session()->has('message'))
+            <Message message="{{ session()->get('message') }}"></Message>
+        @endif
     @endif
 @endsection
+@push('scripts')
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <script src="https://unpkg.com/dom-to-image@2.6.0/dist/dom-to-image.min.js"></script>
+@endpush
