@@ -1827,3 +1827,20 @@ depender de que el proceso muera limpio: se quitó el efecto dañino de que el l
 en vez de intentar matarlo de forma fiable. Detalle completo en
 `docs/circuito-heartbeat-lease-item-210-verificacion.md`. **Sin cambio de código de negocio** — el
 trabajo real ya está hecho y mergeado en `main` desde antes de que se tomara este item.
+
+## Item #9990353 — Guard de path duro en `backups:purge-test` (RESUELTO — ya aplicado por #9990352)
+
+Sub-item de seguimiento de #9990352 (mismo item raíz del #146 de retención de respaldos de
+release), con spec exacto: reordenar `PurgeTestBackups::handle()` para calcular `$baseDir`
+antes de abrir el log channel, e insertar un guard de path duro que aborte si `$baseDir` no
+resuelve dentro de `storage_path()`/termina en `/backup_test`. Al llegar a este item, el código
+**ya tenía exactamente ese cambio** — commit `aaa74666` ("Agrega guard de path duro en
+backups:purge-test"), mergeado a `main` vía `926e1823` ("Integra circuito #9990352 ... a main")
+por la sesión que trabajó el propio item padre. Mismo patrón de carrera de timing ya documentado
+varias veces arriba (#733/#741/#738/#745/#830/#816/#818/#848/#905/#878/#906/#907/#9990003): el
+seguimiento se generó a partir del spec original sin ver que ya se había resuelto en la misma
+vuelta. Reverificado: `php -l` limpio; `php artisan backups:purge-test --dry-run` con el path
+real (`storage_path('backup_test')`) **no bloquea** — cae directo al mensaje normal "no existe,
+nada que hacer", sin el error del guard; orden y lógica del resto del método intactos. Detalle en
+`docs/backups-purge-test-guard-path-item-9990353-verificacion.md`. **Sin cambio de código** — el
+fix ya estaba aplicado.
