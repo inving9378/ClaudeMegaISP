@@ -2806,6 +2806,75 @@ class RoadmapCircuitoService
     }
 
     /**
+     * #9990349 — DIAGNÓSTICO de por qué el reparto decide despachar CERO pese a tener slot(s)
+     * libre(s). Sólo LEE: no cambia qué se despacha, el orden de `ordenCola()` ni los topes de
+     * paralelismo — reconstruye, para cada candidato abierto, la MISMA razón que ya deciden
+     * `despachable()` + `RoadmapItem::motivoNoDespachable()` + los filtros de RONDA de
+     * `ejecutablesParalelo()` (dependencia `depende_de` de MR-36, tope `paralelo_mismo_modulo`,
+     * serialización del footprint desconocido). Antes de esto, distinguir "no hay trabajo" de
+     * "hay N candidatos frenados por N causas distintas" exigía reconstruir esos predicados a mano
+     * en tinker — medido el 2026-09-04: costó más que arreglarlo.
+     *
+     * @return array{candidatos:int, despachables:int, descartados:array<int,array{id:int,modulo:?string,codigo:string,motivo:string}>}
+     */
+    public function diagnosticoCeroDespacho(array $modulosEnVuelo): array
+    {
+        $candidatos = RoadmapItem::query()
+            ->whereNull('archivado_at')
+            ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'rechazado', 'en_progreso'])
+            ->elegibleParaPool()
+            ->get();
+
+        $despachablesIds = RoadmapItem::query()->despachable()->pluck('id')->all();
+        $ganadoresRonda  = array_column($this->ejecutablesParalelo($modulosEnVuelo, max(1, $candidatos->count())), 'id');
+
+        $descartados = [];
+        foreach ($candidatos as $c) {
+            $id = (int) $c->id;
+            if (in_array($id, $ganadoresRonda, true)) {
+                continue; // esta ronda SÍ lo despacharía si hubiera slot — no es un descarte.
+            }
+
+            if (! in_array($id, $despachablesIds, true)) {
+                $r = $c->motivoNoDespachable(false);
+                $descartados[] = ['id' => $id, 'modulo' => $c->modulo,
+                    'codigo' => $r['code'] ?? 'no_despachable', 'motivo' => $r['error'] ?? 'sin motivo determinado'];
+                continue;
+            }
+
+            // Pasa la regla del ITEM (`despachable()`) pero no ganó la ronda: dependencia MR-36,
+            // tope de módulo o serialización del footprint desconocido — las tres reglas de RONDA
+            // que aplica `ejecutablesParalelo()` y que `motivoNoDespachable()` no ve (no son
+            // propiedad del item, son de la ronda actual).
+            $dep = $this->esperandoDependencias($id);
+            if ($dep !== null) {
+                $descartados[] = ['id' => $id, 'modulo' => $c->modulo,
+                    'codigo' => 'dependencia_sin_cerrar', 'motivo' => $dep['texto']];
+                continue;
+            }
+
+            $modUnknown = $this->esFootprintDesconocido((string) $c->modulo);
+            if ($modUnknown) {
+                $descartados[] = ['id' => $id, 'modulo' => $c->modulo, 'codigo' => 'footprint_desconocido',
+                    'motivo' => 'Footprint desconocido: el circuito despacha uno a la vez '
+                        . '(ya hay otro en vuelo, o esta ronda priorizó otro trabajo módulo-disjunto).'];
+                continue;
+            }
+
+            $tope = app(TorreConfigService::class)->get()->paraleloMismoModulo();
+            $descartados[] = ['id' => $id, 'modulo' => $c->modulo, 'codigo' => 'tope_modulo',
+                'motivo' => "Módulo '{$c->modulo}' ya cubre el tope de paralelismo por módulo "
+                    . "(paralelo_mismo_modulo={$tope}) entre lo en vuelo y lo elegido esta ronda."];
+        }
+
+        return [
+            'candidatos'   => $candidatos->count(),
+            'despachables' => count($despachablesIds),
+            'descartados'  => $descartados,
+        ];
+    }
+
+    /**
      * #438 — colisión EN VUELO (footprint que no se conocía al despachar): dos items `en_progreso`
      * en distinto módulo/worktree cuyas ramas terminan tocando el(los) mismo(s) archivo(s). El
      * pre-filtro de `ejecutablesParalelo` (mismo módulo / desconocido) es conservador pero NO puede
