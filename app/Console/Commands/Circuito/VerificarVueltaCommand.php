@@ -11,17 +11,38 @@ use Symfony\Component\Process\Process;
  * (3) suite de tests del módulo (si hay sandbox seguro), (4) dry-run de migraciones
  * (`deploy:dry-run-migrations`, reusado tal cual). Cada paso corre y reporta
  * INDEPENDIENTE aunque otro ya haya fallado — el resumen final es FAIL si CUALQUIERA
- * falló de verdad. ESTA FASE NO REVIERTE NI ESCALA, solo detecta y reporta.
+ * falló de verdad.
  * `--json` emite el mismo resultado como un solo objeto JSON (modulo/pasos/resultado)
  * en vez del texto con iconos, para consumo por otro proceso.
  * `--archivos` (item #9990053, q4): lista explícita de archivos para el Check 1, en vez
  * de derivarlos de `git diff main...HEAD` (útil quien ya sabe qué tocó, ej. otro comando).
+ *
+ * #989 — capa de acción sobre ese resultado. Si el motor da OK, no se hace nada extra
+ * (se pasa el exit 0 tal cual). Si da FAIL:
+ *   (a) GUARD DURO: si la rama de la vuelta (actual o --branch) es "main", se ABORTA
+ *       sin tocar nada — este comando JAMÁS hace reset/checkout destructivo sobre main.
+ *   (b) con --auto-revert: se calcula el merge-base con main y se hace
+ *       `git reset --hard` a ese punto SOLO en la rama de la vuelta (nunca checkout de
+ *       main), descartando exactamente los commits que esa vuelta agregó.
+ *   (c) sin --auto-revert (default, el modo más seguro): en vez de revertir solo, se
+ *       invoca `circuito:consultar {--item}` con dos opciones (revertir | investigar
+ *       antes) y se devuelve el mismo exit code que ese comando.
+ *
+ * CONTRATO PARA QUIEN INVOQUE ESTE COMANDO: si devuelve exit 1 — sea por FAIL sin
+ * resolver (guard/error) o por escalada de circuito:consultar — el caller NUNCA debe
+ * llamar circuito:integrar sobre esa rama.
  */
 class VerificarVueltaCommand extends Command
 {
-    protected $signature = 'circuito:verificar-vuelta {modulo : Módulo tocado por la vuelta (ej. Flotas, Talento, Payments, Portal)} {--json : Salida en JSON en vez de texto} {--archivos=* : Lista explícita de archivos .php a lintear (Check 1), en vez de derivarlos de git diff}';
+    protected $signature = 'circuito:verificar-vuelta
+        {modulo : Módulo tocado por la vuelta (ej. Flotas, Talento, Payments, Portal)}
+        {--branch= : rama de la vuelta a considerar si falla (default: rama actual, git branch --show-current)}
+        {--item= : id del item del roadmap de esa vuelta (requerido para consultar si falla sin --auto-revert)}
+        {--auto-revert : si falla, revierte automáticamente la rama al merge-base con main (default apagado = modo más seguro)}
+        {--json : Salida en JSON en vez de texto}
+        {--archivos=* : Lista explícita de archivos .php a lintear (Check 1), en vez de derivarlos de git diff}';
 
-    protected $description = 'Motor de detección de una vuelta: php -l + boot + tests del módulo + dry-run de migraciones.';
+    protected $description = 'Motor de detección de una vuelta (php -l + boot + tests + dry-run) y su capa de acción: revierte la rama o escala vía circuito:consultar si falla.';
 
     /** @var array<int, array{paso:string, estado:string, detalle:string}> */
     private array $resultados = [];
@@ -49,23 +70,139 @@ class VerificarVueltaCommand extends Command
                 'pasos' => $this->resultados,
                 'resultado' => $fallo ? 'fail' : 'ok',
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-
-            return $fallo ? self::FAILURE : self::SUCCESS;
+        } else {
+            $this->line(str_repeat('-', 70));
+            foreach ($this->resultados as $r) {
+                $icono = match ($r['estado']) {
+                    'ok'   => '✅',
+                    'skip' => '⏭️ ',
+                    default => '❌',
+                };
+                $this->line("{$icono} {$r['paso']}" . ($r['detalle'] !== '' ? " — {$r['detalle']}" : ''));
+            }
+            $this->line(str_repeat('-', 70));
+            $this->line($fallo ? '❌ VERIFICACIÓN FALLÓ' : '✅ VERIFICACIÓN OK');
         }
 
-        $this->line(str_repeat('-', 70));
-        foreach ($this->resultados as $r) {
-            $icono = match ($r['estado']) {
-                'ok'   => '✅',
-                'skip' => '⏭️ ',
-                default => '❌',
-            };
-            $this->line("{$icono} {$r['paso']}" . ($r['detalle'] !== '' ? " — {$r['detalle']}" : ''));
+        // OK: el motor no encontró nada — no hay acción que tomar, se pasa el exit 0 tal cual.
+        if (! $fallo) {
+            return self::SUCCESS;
         }
-        $this->line(str_repeat('-', 70));
-        $this->line($fallo ? '❌ VERIFICACIÓN FALLÓ' : '✅ VERIFICACIÓN OK');
 
-        return $fallo ? self::FAILURE : self::SUCCESS;
+        // FAIL: #989 — capa de acción (ver contrato completo en el docblock de la clase).
+        return $this->accionAlFallar();
+    }
+
+    /**
+     * #989 — qué hacer cuando el motor de detección dio FAIL: guard duro sobre main,
+     * luego auto-revert o consulta a Jarvis según --auto-revert.
+     */
+    private function accionAlFallar(): int
+    {
+        $branch = trim((string) $this->option('branch')) ?: $this->ramaActual();
+
+        if ($branch === '') {
+            $this->error('No se pudo determinar la rama actual (git branch --show-current vacío) y no se dio --branch. Abortando sin tocar nada.');
+
+            return self::FAILURE;
+        }
+
+        if ($branch === 'main') {
+            $this->error('🛑 GUARD DURO: la rama de la vuelta (actual o --branch) es "main" — este comando JAMÁS hace reset/checkout destructivo sobre main. Abortando sin tocar nada.');
+
+            return self::FAILURE;
+        }
+
+        if ($this->option('auto-revert')) {
+            return $this->autoRevertir($branch);
+        }
+
+        return $this->consultarAntesDeRevertir($branch);
+    }
+
+    /**
+     * (b) --auto-revert: descarta en la rama de la vuelta exactamente los commits que
+     * agregó, dejándola idéntica a main (nunca toca main ni hace checkout de main).
+     */
+    private function autoRevertir(string $branch): int
+    {
+        $mergeBase = $this->git(['merge-base', 'main', $branch]);
+        if (! $mergeBase->isSuccessful()) {
+            $this->error('No se pudo calcular el merge-base con main: ' . trim($mergeBase->getErrorOutput()));
+
+            return self::FAILURE;
+        }
+        $base = trim($mergeBase->getOutput());
+
+        if ($this->ramaActual() !== $branch) {
+            $checkout = $this->git(['checkout', $branch]);
+            if (! $checkout->isSuccessful()) {
+                $this->error("No se pudo hacer checkout a la rama «{$branch}»: " . trim($checkout->getErrorOutput()));
+
+                return self::FAILURE;
+            }
+        }
+
+        $reset = $this->git(['reset', '--hard', $base]);
+        if (! $reset->isSuccessful()) {
+            $this->error('git reset --hard falló: ' . trim($reset->getErrorOutput()));
+
+            return self::FAILURE;
+        }
+
+        $this->line("🔁 --auto-revert: rama «{$branch}» reseteada al merge-base con main ({$base}). Los commits de esta vuelta quedaron descartados.");
+
+        return self::FAILURE;
+    }
+
+    /**
+     * (c) sin --auto-revert (default): no revierte sola, invoca circuito:consultar con
+     * las dos opciones del item y devuelve el mismo exit code que ese comando
+     * (0=procede con la opción dada, 1=escalado — ver ConsultarSupervisorCommand).
+     */
+    private function consultarAntesDeRevertir(string $branch): int
+    {
+        $itemOpt = trim((string) $this->option('item'));
+        if ($itemOpt === '' || ! ctype_digit($itemOpt)) {
+            $this->error('Falta --item: sin el id del item no se puede consultar a Jarvis. No se revierte nada (modo más seguro).');
+
+            return self::FAILURE;
+        }
+
+        $resumen = "verificar-vuelta detectó (rama «{$branch}»): " . $this->resumenDeFallas();
+
+        $p = new Process([
+            'php', 'artisan', 'circuito:consultar', $itemOpt,
+            '--pregunta=' . $resumen,
+            '--opcion=Revertir la rama de esta vuelta (git reset al merge-base con main)|recomendada|reversible',
+            '--opcion=Investigar antes de revertir',
+        ], base_path());
+        $p->setTimeout(30);
+        $p->run();
+
+        $salida = trim($p->getOutput() ?: $p->getErrorOutput());
+        if ($salida !== '') {
+            $this->line($salida);
+        }
+
+        return $p->getExitCode() === 0 ? self::SUCCESS : self::FAILURE;
+    }
+
+    private function resumenDeFallas(): string
+    {
+        $fallos = collect($this->resultados)
+            ->where('estado', 'fail')
+            ->map(fn (array $r) => "{$r['paso']}: {$r['detalle']}")
+            ->implode(' | ');
+
+        return $fallos !== '' ? $fallos : 'verificación falló sin detalle disponible';
+    }
+
+    private function ramaActual(): string
+    {
+        $p = $this->git(['branch', '--show-current']);
+
+        return $p->isSuccessful() ? trim($p->getOutput()) : '';
     }
 
     /**
