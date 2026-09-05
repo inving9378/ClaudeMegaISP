@@ -56,9 +56,9 @@ Fuente: métodos reales (`grep "public function"`) + cruce vivo/muerto de MR-01c
 - [ ] `addPorts` — `/maps/devices/add-ports/{id}`
 - [ ] `changeCardOLTDirection` — `/maps/devices/change-card-olt-direction/{id}`
 
-### KMZController (`/maps/kmz`)
-- [ ] `loadKMZ` (parseo KML/KMZ → `parseKmlToJson`/`saveKMZ`/`saveNode`/`saveLayersFromNode`/`normalizeNode`/`normalizeLayer` son privados internos del parser, no rutas propias)
-- [ ] `getKML($path)` — verificar si tiene ruta o es interno
+### KMZController (`/maps/kmz`) — ✅ portado a MapaRed (item #9990335, `/mapa-red/api/kmz`)
+- [x] `loadKMZ` (parseo KML/KMZ → `parseKmlToJson`/`saveKMZ`/`saveNode`/`saveLayersFromNode`/`normalizeNode`/`normalizeLayer` son privados internos del parser, no rutas propias)
+- [x] `getKML($path)` — confirmado interno (llamado solo desde `loadKMZ`, sin ruta propia)
 
 ### LayersController (`/maps/layers*`, el más grande — 21 métodos) — ✅ portado (MR-06a-4, item #9990336)
 - [x] `index` · `store` · `update` · `destroy` · `destroyMultiple`
