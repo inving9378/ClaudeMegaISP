@@ -15,6 +15,8 @@ use App\Models\InventoryItemMedia;
 use App\Models\InventoryReservation;
 use App\Models\SupplierInvoice;
 use App\Models\User;
+use App\Modules\Addons\Talento\Models\TalentoColaborador;
+use App\Modules\Addons\Talento\Services\EmployeeDocumentPackageService;
 use App\Services\FileUploadService;
 use App\Services\InventoryItemMediaService;
 use App\Services\InventoryService;
@@ -84,6 +86,8 @@ class InventoryItemStockController extends CrudModalController
 
             $inventoryService->updateInventoryStock($inventoryItemId, $quantity, $typeChange === 'increment' ? ComunConstantsController::INVENTORY_MOVEMENT_TYPE_ENTRADA : ComunConstantsController::INVENTORY_MOVEMENT_TYPE_SALIDA, $idTo, $modelableTo, $idTo, $modelableTo);
 
+            $this->regenerarDocumentosSiEsColaborador($modelableTo, $idTo);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Los datos se ha guardado con éxito.',
@@ -117,6 +121,26 @@ class InventoryItemStockController extends CrudModalController
             return true;
         }
         return $user->can('inventory_movement_edit_inventory_movement');
+    }
+
+    /**
+     * Item roadmap #872 (Hijo D3). Alta/ajuste de custodia de herramienta hacia un colaborador
+     * debe reflejarse en su responsiva de herramientas sin recapturar nada. Best-effort: un
+     * fallo aqui jamas debe tumbar el movimiento de inventario ya aceptado/ajustado.
+     */
+    private function regenerarDocumentosSiEsColaborador(?string $modelableType, $modelableId): void
+    {
+        if ($modelableType !== User::class || !$modelableId) {
+            return;
+        }
+        try {
+            $colaborador = TalentoColaborador::where('user_id', $modelableId)->first();
+            if ($colaborador) {
+                app(EmployeeDocumentPackageService::class)->generateForColaborador($colaborador);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo regenerar documentos del colaborador tras movimiento de inventario: ' . $e->getMessage());
+        }
     }
 
     public function getItemsByUser($id, Request $request)
@@ -245,6 +269,9 @@ class InventoryItemStockController extends CrudModalController
                 }
 
                 DB::commit();
+
+                $this->regenerarDocumentosSiEsColaborador($model->movementable_to_type, $model->movementable_to_id);
+
                 return response()->json(['success' => true]);
             }
             DB::rollBack();
