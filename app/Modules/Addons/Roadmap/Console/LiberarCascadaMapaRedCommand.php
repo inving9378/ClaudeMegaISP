@@ -8,22 +8,32 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
 /**
- * MR-32 (#971) — LIBERADOR EN CASCADA ACOTADO de la épica MAPA DE RED (#936).
+ * MR-32 (#971) — LIBERADOR EN CASCADA de la épica MAPA DE RED (#936).
  *
- * Libera el `excluir_pool_automatico` del SIGUIENTE item de la secuencia MR-01 → MR-07 sólo cuando
- * el anterior cerró limpio, y **se detiene solo** al llegar al techo.
+ * Libera el `excluir_pool_automatico` del SIGUIENTE item pendiente de la secuencia DESCUBIERTA
+ * de la épica (todos los `origen_item_id=936`, ordenados por su número MR) sólo cuando el anterior
+ * cerró limpio, y **se detiene solo** — de forma transitoria, no permanente — cuando no queda
+ * ningún pendiente EN ESE MOMENTO.
  *
- * POR QUÉ ACOTADO. Liberar a mano no escala; soltar el freno de todos entrega la épica entera a
- * terminales autónomas. El punto medio es esta cascada, con un techo duro en #943 (MR-07):
- * hasta ahí nada toca las tablas del módulo viejo y todo lo que se escribe va a tablas `mapared_*`
- * nuevas. De #944 (MR-08) en adelante empieza el modelo de datos de verdad, donde una decisión mal
- * tomada se arrastra a diez items — ese tramo no se libera sin Irving.
+ * POR QUÉ YA NO HAY TECHO FIJO (#9990374, sub-item de #9990366). Este comando nació (MR-32, #971)
+ * con un techo duro en #943 (MR-07): hasta ahí nada tocaba las tablas del módulo viejo y todo lo
+ * que se escribía iba a tablas `mapared_*` nuevas; de #944 (MR-08) en adelante empezaba el modelo
+ * de datos de verdad, donde una decisión mal tomada se arrastra a diez items. Ese techo ya sirvió
+ * su propósito — MR-08 en adelante se liberó a mano, un item a la vez, con la MISMA cascada
+ * corriendo detrás y sin que ninguna decisión mala se propagara — así que ahora la cascada
+ * descubre y recorre TODA la épica sin un límite fijo. Quitar el techo NO afloja ningún candado:
+ * las 5 condiciones de parada fina siguen intactas, igual que `verificaRedDeSeguridad()` en cada
+ * vuelta. La secuencia PUEDE CRECER entre corridas (ya pasó: MR-33/34/35/36 nacieron después de
+ * que este comando se escribiera con 7 items) — por eso "no queda nada pendiente" nunca se marca
+ * como una detención permanente: si nace un item nuevo bajo la épica, la siguiente vuelta lo
+ * recoge sola, sin que nadie tenga que reactivar nada.
  *
  * EL CONTEXTO QUE LO JUSTIFICA. La BD de dev se borró dos veces por terminales autónomas (22 y 25
  * de agosto), por el mismo mecanismo. Lo que hace aceptable automatizar esto es el ORDEN —MR-02
- * respalda antes de que MR-04/MR-05 escriban nada— y el techo, que impide que la cadena alcance lo
- * destructivo. Por eso `verificaRedDeSeguridad()` corre en CADA vuelta, no una sola vez al activar:
- * si la red se cae después, la cascada se detiene sola.
+ * respalda antes de que MR-04/MR-05 escriban nada— y las 5 condiciones de parada fina, que
+ * impiden que la cadena avance sobre algo mal cerrado, atascado o con una decisión pendiente. Por
+ * eso `verificaRedDeSeguridad()` corre en CADA vuelta, no una sola vez al activar: si la red se
+ * cae después, la cascada se detiene sola.
  *
  * DIRECCIÓN ÚNICA: este comando sólo pasa `excluir_pool_automatico` de `true` a `false`. Nunca
  * cambia `estado_aprobacion`, nunca despacha, nunca cierra items y nunca vuelve a frenar nada.
@@ -35,16 +45,10 @@ class LiberarCascadaMapaRedCommand extends Command
                             {--reactivar : Irving levanta la detención y la cascada vuelve a correr}
                             {--estado : Sólo informa en qué punto va la cascada}';
 
-    protected $description = 'MR-32: libera en cascada MR-01→MR-07 de la épica MAPA DE RED, con techo duro en #943.';
+    protected $description = 'MR-32: libera en cascada TODOS los items pendientes de la épica MAPA DE RED (#936), descubiertos dinámicamente.';
 
     /** La épica paraguas. */
     public const EPICA = 936;
-
-    /** Secuencia EXACTA y cerrada. Que sea una constante y no una consulta es el primer candado. */
-    public const SECUENCIA = [937, 938, 939, 940, 941, 942, 943];
-
-    /** Techo absoluto. Nada más allá de este id se libera por ninguna vía. */
-    public const TECHO = 943;
 
     /** Múltiplo de `eta_minutos` a partir del cual un item se considera atascado. */
     public const FACTOR_ATASCO = 3;
@@ -54,14 +58,14 @@ class LiberarCascadaMapaRedCommand extends Command
 
     public function handle(RoadmapCircuitoService $svc): int
     {
-        // Candado estructural: si alguien edita SECUENCIA y mete un id por encima del techo, el
-        // comando no arranca. El techo manda sobre la lista, no al revés.
-        foreach (self::SECUENCIA as $id) {
-            if ($id > self::TECHO) {
-                $this->error("SECUENCIA contiene #{$id}, por encima del techo #" . self::TECHO . '. Abortado.');
+        $secuencia = $this->secuenciaEpica();
 
-                return self::FAILURE;
-            }
+        // Candado de cordura: ya no hay un techo fijo que pueda violarse, pero sin ningún id
+        // descubierto no hay nada que la cascada pueda hacer.
+        if ($secuencia === []) {
+            $this->error('La épica #' . self::EPICA . ' no tiene sub-items (origen_item_id). Abortado.');
+
+            return self::FAILURE;
         }
 
         if ($this->option('reactivar')) {
@@ -71,7 +75,7 @@ class LiberarCascadaMapaRedCommand extends Command
         $estado = $this->leeEstado();
 
         if ($this->option('estado')) {
-            return $this->informaEstado($estado);
+            return $this->informaEstado($estado, $secuencia);
         }
 
         if (($estado['detenido'] ?? false) === true) {
@@ -84,7 +88,7 @@ class LiberarCascadaMapaRedCommand extends Command
 
         // ── Red de seguridad de datos: se comprueba en CADA vuelta ─────────────────────────────
         if ($fallo = $this->verificaRedDeSeguridad()) {
-            return $this->detener('red_de_seguridad', $fallo);
+            return $this->detener('red_de_seguridad', $fallo, $secuencia);
         }
 
         // ── Frenos globales ────────────────────────────────────────────────────────────────────
@@ -101,34 +105,38 @@ class LiberarCascadaMapaRedCommand extends Command
         }
 
         // ── Frenos duros: detienen la cascada hasta que Irving la reactive ─────────────────────
-        if ($motivo = $this->buscaFrenoDuro()) {
-            return $this->detener($motivo['tipo'], $motivo['detalle']);
+        if ($motivo = $this->buscaFrenoDuro($secuencia)) {
+            return $this->detener($motivo['tipo'], $motivo['detalle'], $secuencia);
         }
 
         // ── ¿Dónde va la cascada? ──────────────────────────────────────────────────────────────
-        $items = $this->itemsSecuencia();
+        $items = $this->itemsSecuencia($secuencia);
 
         $pendientes = array_values(array_filter(
-            self::SECUENCIA,
+            $secuencia,
             fn ($id) => ! $this->estaCompletado($items[$id] ?? null)
         ));
 
         if ($pendientes === []) {
-            // Todo el tramo cerró: TECHO ALCANZADO. Bitácora de cierre y autodesactivación.
-            return $this->detener('techo_alcanzado',
-                'MR-01→MR-07 cerró completo hasta el techo #' . self::TECHO . '. '
-                . 'De #944 (MR-08) en adelante no se libera nada sin decisión de Irving.');
+            // No queda ningún pendiente EN ESTE MOMENTO. Transitorio, no un freno permanente: la
+            // secuencia se re-descubre en cada vuelta, así que un item nuevo bajo la épica se
+            // recoge solo sin que nadie tenga que reactivar nada.
+            $this->line('La épica #' . self::EPICA . ' no tiene más items pendientes en la secuencia '
+                . 'directa POR AHORA (' . count($secuencia) . ' descubiertos, todos cerrados). '
+                . 'Si nace un item nuevo bajo la épica, la próxima vuelta lo recoge sola.');
+
+            return self::SUCCESS;
         }
 
         $siguienteId = $pendientes[0];
         $siguiente   = $items[$siguienteId] ?? null;
 
         if (! $siguiente) {
-            return $this->detener('item_ausente', "El item #{$siguienteId} de la secuencia no existe.");
+            return $this->detener('item_ausente', "El item #{$siguienteId} de la secuencia no existe.", $secuencia);
         }
 
         // El primero de la secuencia lo libera Irving a mano: la cascada arranca DESPUÉS de él.
-        $posicion = array_search($siguienteId, self::SECUENCIA, true);
+        $posicion = array_search($siguienteId, $secuencia, true);
         if ($posicion === 0) {
             $this->line("La cascada aún no arranca: #{$siguienteId} (el primero) sigue abierto.");
             $this->line('Estado: ' . $siguiente->estado_aprobacion
@@ -137,7 +145,7 @@ class LiberarCascadaMapaRedCommand extends Command
             return self::SUCCESS;
         }
 
-        $anteriorId = self::SECUENCIA[$posicion - 1];
+        $anteriorId = $secuencia[$posicion - 1];
         $anterior   = $items[$anteriorId] ?? null;
 
         // ── Las 5 condiciones, TODAS obligatorias ──────────────────────────────────────────────
@@ -151,7 +159,7 @@ class LiberarCascadaMapaRedCommand extends Command
         if ($this->respuestasDe($anteriorId) > 0) {
             return $this->detener('respuesta_del_anterior',
                 "#{$anteriorId} cerró pero generó un item [RESPUESTA]: hay una decisión pendiente "
-                . 'antes de seguir.');
+                . 'antes de seguir.', $secuencia);
         }
 
         if ($ids = $this->epicaEnRequiereIrving()) {
@@ -198,13 +206,12 @@ class LiberarCascadaMapaRedCommand extends Command
         if ($this->option('dry-run')) {
             $this->info("[DRY-RUN] Liberaría #{$siguienteId} (" . $this->codigo($siguiente) . ').');
             $this->line('   Evidencia: ' . $evidencia);
-            $this->line('   Techo: #' . self::TECHO . ' — #944 en adelante nunca es candidato.');
+            $this->line('   Secuencia descubierta: ' . count($secuencia) . ' items directos de la épica #' . self::EPICA . '.');
 
             return self::SUCCESS;
         }
 
-        $motivo = "Liberado por la cascada de MR-32: {$evidencia}. "
-            . 'Techo de la cascada: #' . self::TECHO . ' (MR-07).';
+        $motivo = "Liberado por la cascada de MR-32: {$evidencia}.";
 
         // Sin rastro no hay liberación: si el log no se puede escribir, no se toca el freno.
         try {
@@ -239,10 +246,11 @@ class LiberarCascadaMapaRedCommand extends Command
             'evidencia'   => $evidencia,
         ]);
 
-        // Si el que acabamos de liberar es el techo, la cascada ya no tiene a quién seguir.
-        if ($siguienteId === self::TECHO) {
-            $this->line('Era el último del tramo: al cerrar #' . self::TECHO
-                . ' la cascada se autodesactiva.');
+        // Si era el último pendiente descubierto en esta vuelta, avisar — sin marcarlo como un
+        // freno permanente: si nace un item nuevo bajo la épica, la próxima vuelta lo recoge sola.
+        if (count($pendientes) === 1) {
+            $this->line('Era el último pendiente descubierto en esta vuelta. Si nace un item nuevo '
+                . 'bajo la épica #' . self::EPICA . ', la cascada seguirá con él solo.');
         }
 
         return self::SUCCESS;
@@ -282,13 +290,15 @@ class LiberarCascadaMapaRedCommand extends Command
 
     /**
      * Frenos que DETIENEN la cascada (a diferencia de la pausa, que sólo salta la vuelta).
+     *
+     * @param  array<int,int>  $secuencia  ids de la secuencia descubierta EN ESTA VUELTA
      */
-    private function buscaFrenoDuro(): ?array
+    private function buscaFrenoDuro(array $secuencia): ?array
     {
-        $items = $this->itemsSecuencia();
+        $items = $this->itemsSecuencia($secuencia);
 
         // (1) Item de la secuencia rechazado o cancelado.
-        foreach (self::SECUENCIA as $id) {
+        foreach ($secuencia as $id) {
             $i = $items[$id] ?? null;
             if (! $i) {
                 continue;
@@ -302,9 +312,9 @@ class LiberarCascadaMapaRedCommand extends Command
 
         // (2) Cualquier [RESPUESTA] en la épica — una decisión pendiente detiene todo el tramo.
         $resp = RoadmapItem::where('title', 'like', '[RESPUESTA]%')
-            ->where(function ($q) {
+            ->where(function ($q) use ($secuencia) {
                 $q->where('origen_item_id', self::EPICA)
-                  ->orWhereIn('origen_item_id', self::SECUENCIA);
+                  ->orWhereIn('origen_item_id', $secuencia);
             })
             ->pluck('id')->all();
 
@@ -314,7 +324,7 @@ class LiberarCascadaMapaRedCommand extends Command
         }
 
         // (3) Item atascado: más de FACTOR_ATASCO × su eta_minutos sin cerrar.
-        foreach (self::SECUENCIA as $id) {
+        foreach ($secuencia as $id) {
             $i = $items[$id] ?? null;
             if (! $i || $this->estaCompletado($i) || empty($i->eta_minutos)) {
                 continue;
@@ -352,10 +362,36 @@ class LiberarCascadaMapaRedCommand extends Command
             ->count();
     }
 
-    /** @return array<int,RoadmapItem> */
-    private function itemsSecuencia(): array
+    /**
+     * Descubre la secuencia COMPLETA de la épica: todos los items directos de #936
+     * (`origen_item_id`), ordenados por el número MR de su título. Mismo criterio de
+     * descubrimiento que ya usa MR-36 en este módulo (`origen_item_id=936` + orden) — no se
+     * inventa un tercer mecanismo.
+     *
+     * Se re-consulta en CADA vuelta, nunca se cachea: la secuencia PUEDE CRECER entre corridas
+     * (ya pasó con MR-33/34/35/36), así que un id nuevo debe aparecer sin reiniciar nada. Un
+     * título sin prefijo `MR-NN` se ordena al final (no debería pasar en esta épica, pero no es
+     * motivo para excluirlo).
+     *
+     * @return array<int,int> ids en orden MR-01, MR-02, …
+     */
+    private function secuenciaEpica(): array
     {
-        return RoadmapItem::whereIn('id', self::SECUENCIA)->get()->keyBy('id')->all();
+        return RoadmapItem::where('origen_item_id', self::EPICA)
+            ->get(['id', 'title'])
+            ->sortBy(fn (RoadmapItem $i) => preg_match('/^MR-(\d+)/', (string) $i->title, $m) ? (int) $m[1] : PHP_INT_MAX)
+            ->pluck('id')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int,int>  $ids
+     * @return array<int,RoadmapItem>
+     */
+    private function itemsSecuencia(array $ids): array
+    {
+        return RoadmapItem::whereIn('id', $ids)->get()->keyBy('id')->all();
     }
 
     private function estaCompletado(?RoadmapItem $i): bool
@@ -373,10 +409,12 @@ class LiberarCascadaMapaRedCommand extends Command
     /**
      * Detiene la cascada, deja el motivo persistido y entrega el resumen por el canal del digest.
      * Devuelve SUCCESS: detenerse es el diseño funcionando, no un fallo del comando.
+     *
+     * @param  array<int,int>  $secuencia  ids de la secuencia descubierta EN ESTA VUELTA (para el resumen)
      */
-    private function detener(string $tipo, string $detalle): int
+    private function detener(string $tipo, string $detalle, array $secuencia): int
     {
-        $resumen = $this->armaResumen($tipo, $detalle);
+        $resumen = $this->armaResumen($tipo, $detalle, $secuencia);
 
         if ($this->option('dry-run')) {
             $this->warn("[DRY-RUN] Se detendría por: {$tipo}");
@@ -447,12 +485,13 @@ class LiberarCascadaMapaRedCommand extends Command
         return RoadmapItem::where('title', 'like', 'MR-32 —%')->value('id');
     }
 
-    private function armaResumen(string $tipo, string $detalle): string
+    /** @param  array<int,int>  $secuencia */
+    private function armaResumen(string $tipo, string $detalle, array $secuencia): string
     {
-        $items  = $this->itemsSecuencia();
+        $items  = $this->itemsSecuencia($secuencia);
         $hechos = $faltan = [];
 
-        foreach (self::SECUENCIA as $id) {
+        foreach ($secuencia as $id) {
             $i     = $items[$id] ?? null;
             $linea = '#' . $id . ' ' . $this->codigo($i) . ' — ' . ($i->estado_aprobacion ?? 'AUSENTE');
             $this->estaCompletado($i) ? $hechos[] = $linea : $faltan[] = $linea;
@@ -462,24 +501,25 @@ class LiberarCascadaMapaRedCommand extends Command
             'CASCADA MAPA DE RED — detenida (' . $tipo . ')',
             'Motivo: ' . $detalle,
             '',
-            'Completados (' . count($hechos) . '/' . count(self::SECUENCIA) . '):',
+            'Completados (' . count($hechos) . '/' . count($secuencia) . '):',
             $hechos ? '  ' . implode("\n  ", $hechos) : '  (ninguno)',
             '',
             'Pendientes:',
             $faltan ? '  ' . implode("\n  ", $faltan) : '  (ninguno)',
             '',
-            'Techo: #' . self::TECHO . ' (MR-07). De #944 (MR-08) en adelante no se libera nada sin Irving.',
+            'Secuencia descubierta dinámicamente de la épica #' . self::EPICA . ' (sin techo fijo).',
             'Reactivar: php artisan circuito:liberar-cascada-mapa-red --reactivar',
         ]));
     }
 
-    private function informaEstado(array $estado): int
+    /** @param  array<int,int>  $secuencia */
+    private function informaEstado(array $estado, array $secuencia): int
     {
-        $items = $this->itemsSecuencia();
+        $items = $this->itemsSecuencia($secuencia);
 
-        $this->line('<comment>CASCADA MAPA DE RED — secuencia MR-01 → MR-07</comment>');
+        $this->line('<comment>CASCADA MAPA DE RED — secuencia descubierta de la épica #' . self::EPICA . '</comment>');
         $filas = [];
-        foreach (self::SECUENCIA as $id) {
+        foreach ($secuencia as $id) {
             $i = $items[$id] ?? null;
             $filas[] = [
                 $id,
@@ -494,7 +534,7 @@ class LiberarCascadaMapaRedCommand extends Command
         $this->line(($estado['detenido'] ?? false)
             ? '<error>DETENIDA</error> desde ' . ($estado['detenido_at'] ?? '?') . ' — ' . ($estado['motivo'] ?? '')
             : '<info>Activa.</info>');
-        $this->line('Techo: #' . self::TECHO . ' (MR-07).');
+        $this->line('Sin techo fijo — ' . count($secuencia) . ' items descubiertos de la épica ahora mismo.');
 
         return self::SUCCESS;
     }
@@ -513,7 +553,6 @@ class LiberarCascadaMapaRedCommand extends Command
 
         $this->info('Cascada REACTIVADA. Se detuvo por: ' . ($estado['tipo'] ?? '?')
             . ' — ' . ($estado['motivo'] ?? ''));
-        $this->warn('El techo #' . self::TECHO . ' sigue vigente: reactivar NO lo levanta.');
 
         Log::channel('roadmap_externo')->info('liberador-mapa-red-reactivado', [
             'motivo_previo' => $estado['motivo'] ?? null,

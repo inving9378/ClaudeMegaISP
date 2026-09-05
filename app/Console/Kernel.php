@@ -70,11 +70,15 @@ class Kernel extends ConsoleKernel
         // #921 Fase 2 / #957 — reactiva items del Roadmap con agendado_para ya vencido (vuelven al pool).
         $schedule->command('circuito:reactivar-agendados')->dailyAt('00:05')->withoutOverlapping();
 
-        // MR-32 (#971) — LIBERADOR EN CASCADA ACOTADO de la épica MAPA DE RED (#936).
+        // MR-32 (#971, extendido en #9990374) — LIBERADOR EN CASCADA de la épica MAPA DE RED (#936).
         //
-        // Libera el freno del SIGUIENTE item de MR-01→MR-07 sólo cuando el anterior cerró limpio, y
-        // se autodesactiva al llegar al techo #943. Nunca pasa de ahí: de MR-08 en adelante empieza
-        // el modelo de datos, donde una decisión mal tomada se arrastra a diez items.
+        // Libera el freno del SIGUIENTE item pendiente de la secuencia DESCUBIERTA de la épica
+        // (todos los `origen_item_id=936`, ordenados por su número MR) sólo cuando el anterior
+        // cerró limpio. Ya no hay techo fijo: el techo original en #943 (MR-07) sirvió su propósito
+        // mientras el modelo de datos de #944 (MR-08) en adelante se liberaba a mano; la cascada
+        // ahora recorre toda la épica sola, y se detiene de forma transitoria (no permanente) cuando
+        // no queda ningún pendiente EN ESE MOMENTO — si nace un item nuevo bajo la épica, la
+        // siguiente vuelta lo recoge sin que nadie reactive nada.
         //
         // Sólo mueve `excluir_pool_automatico` de true a false. No despacha, no cierra items y no
         // vuelve a frenar nada. Verifica en cada vuelta que la red de guards de datos siga vigente
