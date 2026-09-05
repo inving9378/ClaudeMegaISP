@@ -192,6 +192,7 @@ import TalentoEmbajadores from "./components/module/talento/TalentoEmbajadores.v
 import TalentoEvidenciaConfig from "./components/module/talento/TalentoEvidenciaConfig.vue";
 import TalentoPaqueteDocumentos from "./components/module/talento/TalentoPaqueteDocumentos.vue";
 import TalentoPuestos from "./components/module/talento/TalentoPuestos.vue";
+import TalentoExpedienteDocumentos from "./components/module/talento/TalentoExpedienteDocumentos.vue";
 
 //Mapas
 import GoogleMap from "./components/base/googlemap/GoogleMap";
@@ -943,6 +944,10 @@ app.component("MegaFamiliaClientTab", MegaFamiliaClientTab);
 app.component("DomiciliacionClientTab", DomiciliacionClientTab);
 app.component("ContratablesClientTab", ContratablesClientTab);
 app.component("EmbajadoresClientTab", EmbajadoresClientTab);
+
+// Item #9990358: TalentoExpedienteDocumentos es global porque lo usa TalentoColaboradores.vue
+// (descendiente) dentro de su modal de Documentos.
+app.component("talento-expediente-documentos", TalentoExpedienteDocumentos);
 
 // Fleet tab sub-components: deben ser globales porque los usa FleetVehicleShow (descendiente)
 app.component("fleet-tab-info",           FleetTabInfo);
