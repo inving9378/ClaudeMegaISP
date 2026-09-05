@@ -398,21 +398,16 @@ export default {
         },
         async regenerateAll() {
             if (!this.isDeveloper || this.generating) return;
-            if (!confirm('¿Regenerar el manual completo? Esto consumirá tokens de la API de Claude y puede tardar varios minutos.')) {
+            if (!confirm('¿Regenerar el manual completo? Esto consumirá tokens de la API de Claude y puede tardar varios minutos (se procesa en segundo plano).')) {
                 return;
             }
             this.generating = true;
             try {
                 const { data } = await axios.post('/api/manual/generate');
-                if (data.errors && data.errors.length) {
-                    alert('Se generaron ' + data.generated + ' secciones con ' + data.errors.length + ' errores.');
-                } else {
-                    alert('Manual regenerado: ' + data.generated + ' secciones.');
-                }
-                await this.loadSections();
+                alert(data.message || 'Regeneración encolada.');
             } catch (e) {
-                console.error('[Manual] Error al regenerar', e);
-                alert('Error al regenerar el manual: ' + (e.response?.data?.message || e.message));
+                console.error('[Manual] Error al encolar la regeneración', e);
+                alert('Error al encolar la regeneración del manual: ' + (e.response?.data?.message || e.message));
             } finally {
                 this.generating = false;
             }

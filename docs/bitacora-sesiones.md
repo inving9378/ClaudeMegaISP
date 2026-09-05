@@ -3994,3 +3994,30 @@ eliminó y dejó las 2 más recientes, con `rmdir` del directorio vacío; fixtur
 **Commits:** `6fe21599` (cron en Kernel.php) + `76db1865` (doc CLAUDE.md). Rama integrada vía
 `circuito:integrar` (auto-merge encolado al runner on-box). Item marcado `sin_ui=true` (es un
 cron interno, sin pantalla propia) con `sin_ui_motivo` describiendo la verificación.
+
+## 2026-09-05 00:14 — Item #165: regeneración del Manual encolada (recuperado de un merge escalado, 2º intento)
+
+El trabajo de código de este item ya se había hecho el 2026-08-26 (sesión `wt-3`, commits
+`c7d47407` + `ae0f0cf0`): el fix literal del título (`ModuleObserver` con `Artisan::call`
+síncrono) ya estaba resuelto desde antes (commit `6a455e2b`, 2026-07-11), pero esa sesión
+encontró y corrigió 2 llamadas síncronas equivalentes que seguían vivas —
+`RegenerateManualAfterMigrate` (listener post-migrate) y `ManualController::generate` (endpoint
+HTTP del botón "Regenerar todo") — moviéndolas a un job nuevo `RegenerateManualJob` (queued,
+`tries=3`, backoff 30s/2min/10min). El intento de merge de esa rama chocó en
+`docs/bitacora-sesiones.md` (archivo append-only, conflicto de contenido) y el `merge-runner`
+abortó dejando `main` intacto; el item quedó con reclamo huérfano.
+
+Una vuelta anterior de esta misma terminal (`wt-6`, 2026-09-04 18:13) ya había verificado que el
+código seguía sin aplicar en `main` y dejó escrito un plan (recrear la rama + cherry-pick) que no
+llegó a ejecutarse antes de que el proceso muriera a medias — el commit que quedó (`18e801a1`)
+solo alcanzó a tocar esta bitácora, no el código. Esta vuelta retoma: en vez de recrear la rama,
+se resolvió el conflicto real de `docs/bitacora-sesiones.md` directamente sobre la rama existente
+(`git merge main`, conflicto solo en este archivo — el resto de los 5 archivos de código/frontend
+aplicó limpio sin tocar nada) combinando ambos lados del log sin perder contenido. Verificado tras
+el merge: `php -l` en los 3 archivos PHP tocados (`ManualController.php`,
+`RegenerateManualJob.php`, `RegenerateManualAfterMigrate.php`) limpio, `php artisan --version`
+bootea, y build de frontend vía el semáforo (`bash deploy/circuito/npm-build.sh`) compiló sin
+errores.
+
+Sin cambio de código nuevo de esta vuelta — el mérito es de `wt-3`; esta sesión resolvió el
+conflicto de merge que había bloqueado la integración dos veces.
