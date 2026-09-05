@@ -1,7 +1,7 @@
 export const getLayerConfig = async (id) => {
     let data = null;
     await axios
-        .post(`/maps/layers/configuration/${id}`)
+        .post(`/mapa-red/api/layers/configuration/${id}`)
         .then((response) => {
             data = response.data;
         })
@@ -14,7 +14,7 @@ export const getLayerConfig = async (id) => {
 export const getAvaiablesRoutes = async (id, all = false) => {
     let data = null;
     await axios
-        .post(`/maps/layers/avaiables-routes${id ? `/${id}` : ""}`, { all })
+        .post(`/mapa-red/api/layers/avaiables-routes${id ? `/${id}` : ""}`, { all })
         .then((response) => {
             data = response.data;
         })
@@ -27,7 +27,7 @@ export const getAvaiablesRoutes = async (id, all = false) => {
 export const assignRoutes = async (id, routes) => {
     let data = null;
     await axios
-        .post(`/maps/layers/assign-routes/${id}`, {
+        .post(`/mapa-red/api/layers/assign-routes/${id}`, {
             routes,
         })
         .then((response) => {
@@ -42,7 +42,7 @@ export const assignRoutes = async (id, routes) => {
 export const unassignRoute = async (id) => {
     let data = null;
     await axios
-        .delete(`/maps/layers/unassign-route/${id}`)
+        .delete(`/mapa-red/api/layers/unassign-route/${id}`)
         .then((response) => {
             data = response.data;
         })
@@ -55,7 +55,7 @@ export const unassignRoute = async (id) => {
 export const changeRoutePosition = async (id, params) => {
     let data = null;
     await axios
-        .post(`/maps/layers/change-route-position/${id}`, params)
+        .post(`/mapa-red/api/layers/change-route-position/${id}`, params)
         .then((response) => {
             data = response.data;
         })
@@ -68,7 +68,7 @@ export const changeRoutePosition = async (id, params) => {
 export const createInput = async (id, params) => {
     let data = null;
     await axios
-        .post(`/maps/layers/create-input/${id}`, params)
+        .post(`/mapa-red/api/layers/create-input/${id}`, params)
         .then((response) => {
             data = response.data;
         })
@@ -81,7 +81,7 @@ export const createInput = async (id, params) => {
 export const updateInput = async (id, params) => {
     let data = null;
     await axios
-        .post(`/maps/layers/update-input/${id}`, params)
+        .post(`/mapa-red/api/layers/update-input/${id}`, params)
         .then((response) => {
             data = response.data;
         })
@@ -94,7 +94,7 @@ export const updateInput = async (id, params) => {
 export const updateMarkersDistanceFromRoute = async (id, markers) => {
     let data = null;
     await axios
-        .post(`/maps/layers/update-markers-distance-from-route/${id}`, {
+        .post(`/mapa-red/api/layers/update-markers-distance-from-route/${id}`, {
             markers,
         })
         .then((response) => {

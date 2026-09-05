@@ -44,7 +44,7 @@ export const deleteMap = async (id) => {
 
 export const getProjects = async () => {
     let data = [];
-    await axios["get"]("/maps/projects")
+    await axios["get"]("/mapa-red/api/projects")
         .then((response) => {
             data = response.data;
         })
@@ -57,7 +57,7 @@ export const getProjects = async () => {
 export const saveProject = async (id = null, params) => {
     let data = null;
     await axios[id ? "put" : "post"](
-        `/maps/projects${id ? `/${id}` : ""}`,
+        `/mapa-red/api/projects${id ? `/${id}` : ""}`,
         params
     )
         .then((response) => {
@@ -71,7 +71,7 @@ export const saveProject = async (id = null, params) => {
 
 export const destroyLayers = async (layers) => {
     let data = null;
-    await axios["post"]("/maps/layers/destroy-multiple", { layers })
+    await axios["post"]("/mapa-red/api/layers/destroy-multiple", { layers })
         .then((response) => {
             data = response.data;
         })
@@ -83,7 +83,7 @@ export const destroyLayers = async (layers) => {
 
 export const updateCoordinates = async (id, layer) => {
     let data = null;
-    await axios["post"](`/maps/layers/coords/${id}`, layer)
+    await axios["post"](`/mapa-red/api/layers/coords/${id}`, layer)
         .then((response) => {
             data = response.data;
         })
@@ -96,7 +96,7 @@ export const updateCoordinates = async (id, layer) => {
 export const saveObject = async (object) => {
     let data = null;
     await axios[object.id ? "put" : "post"](
-        `/maps/layers${object.id ? `/${object.id}` : ""}`,
+        `/mapa-red/api/layers${object.id ? `/${object.id}` : ""}`,
         object
     )
         .then((response) => {
@@ -110,7 +110,7 @@ export const saveObject = async (object) => {
 
 export const getLayers = async () => {
     let data = [];
-    await axios["get"]("/maps/layers")
+    await axios["get"]("/mapa-red/api/layers")
         .then((response) => {
             data = response.data;
         })
@@ -122,7 +122,7 @@ export const getLayers = async () => {
 
 export const getClientsWithoutProject = async () => {
     let data = [];
-    await axios["post"]("/maps/clients-without-project")
+    await axios["post"]("/mapa-red/api/projects/clients-without-project")
         .then((response) => {
             data = response.data;
         })
@@ -136,7 +136,7 @@ export const destroyObject = async (node) => {
     let data = null,
         route = node.coords ? "layers" : "projects",
         id = node.layer ? node.layer.id : node.id;
-    await axios["delete"](`/maps/${route}/${id}`)
+    await axios["delete"](`/mapa-red/api/${route}/${id}`)
         .then((response) => {
             data = response.data;
         })
@@ -150,7 +150,7 @@ export const loadKMZ = async (node, file) => {
     let data = null;
     const formData = new FormData();
     formData.append("file", file);
-    await axios["post"](`/maps/kmz${node ? "/" + node : ""}`, formData, {
+    await axios["post"](`/mapa-red/api/kmz${node ? "/" + node : ""}`, formData, {
         headers: {
             "Content-Type": "multipart/form-data",
             "X-CSRF-TOKEN": document
@@ -169,7 +169,7 @@ export const loadKMZ = async (node, file) => {
 
 export const convertToNetwork = async (props) => {
     let data = null;
-    await axios["post"]("/maps/change-classification", props)
+    await axios["post"]("/mapa-red/api/change-classification", props)
         .then((response) => {
             data = response.data;
         })
@@ -182,7 +182,7 @@ export const convertToNetwork = async (props) => {
 export const addClientToServiceBox = async (client, box) => {
     let data = null;
     await axios
-        .post(`/maps/client-to-service-box/${client}/${box}`)
+        .post(`/mapa-red/api/client-to-service-box/${client}/${box}`)
         .then((response) => {
             data = response.data;
         })
@@ -195,7 +195,7 @@ export const addClientToServiceBox = async (client, box) => {
 export const removeClientFromServiceBox = async (id, params) => {
     let data = null;
     await axios
-        .post(`/maps/service-box/remove-client/${id}`, params)
+        .post(`/mapa-red/api/service-box/remove-client/${id}`, params)
         .then((response) => {
             data = response.data;
         })
@@ -208,7 +208,7 @@ export const removeClientFromServiceBox = async (id, params) => {
 export const getSelectedClients = async (box, params) => {
     let data = null;
     await axios
-        .post(`/maps/service-box/selected-clients/${box}`, params)
+        .post(`/mapa-red/api/service-box/selected-clients/${box}`, params)
         .then((response) => {
             data = response.data;
         })
@@ -221,7 +221,7 @@ export const getSelectedClients = async (box, params) => {
 export const getAvaiablesClients = async (params) => {
     let data = null;
     await axios
-        .post(`/maps/service-box/avaiables-clients`, params)
+        .post(`/mapa-red/api/service-box/avaiables-clients`, params)
         .then((response) => {
             data = response.data;
         })
@@ -234,7 +234,7 @@ export const getAvaiablesClients = async (params) => {
 export const addClientsToServiceBox = async (box, params) => {
     let data = null;
     await axios
-        .post(`/maps/service-box/add-clients/${box}`, params)
+        .post(`/mapa-red/api/service-box/add-clients/${box}`, params)
         .then((response) => {
             data = response.data;
         })
@@ -247,7 +247,7 @@ export const addClientsToServiceBox = async (box, params) => {
 export const removeClientsFromServiceBox = async (clients) => {
     let data = null;
     await axios
-        .post(`/maps/service-box/remove-clients`, { clients })
+        .post(`/mapa-red/api/service-box/remove-clients`, { clients })
         .then((response) => {
             data = response.data;
         })
@@ -260,7 +260,7 @@ export const removeClientsFromServiceBox = async (clients) => {
 export const moveNode = async (node, to, type, positions) => {
     let data = null;
     await axios
-        .post(`/maps/projects/move-${type}/${node}${to ? "/" + to : ""}`, {
+        .post(`/mapa-red/api/projects/move-${type}/${node}${to ? "/" + to : ""}`, {
             positions,
         })
         .then((response) => {
@@ -275,7 +275,7 @@ export const moveNode = async (node, to, type, positions) => {
 export const convertFromProject = async (id, to) => {
     let data = null;
     await axios
-        .post(`/maps/layers/convert-from-project/${id}`, {
+        .post(`/mapa-red/api/layers/convert-from-project/${id}`, {
             to,
         })
         .then((response) => {
@@ -290,7 +290,7 @@ export const convertFromProject = async (id, to) => {
 export const convertFromLayer = async (id, to) => {
     let data = null;
     await axios
-        .post(`/maps/layers/convert-from-layer/${id}`, {
+        .post(`/mapa-red/api/layers/convert-from-layer/${id}`, {
             to,
         })
         .then((response) => {
@@ -305,7 +305,7 @@ export const convertFromLayer = async (id, to) => {
 export const convertFromTickeds = async (ids, to) => {
     let data = null;
     await axios
-        .post(`/maps/layers/convert-from-tickeds`, {
+        .post(`/mapa-red/api/layers/convert-from-tickeds`, {
             ids,
             to,
         })
@@ -321,7 +321,7 @@ export const convertFromTickeds = async (ids, to) => {
 export const zones = async () => {
     let data = null;
     await axios
-        .get(`/maps/zones`)
+        .get(`/mapa-red/api/zones`)
         .then((response) => {
             data = response.data;
         })
