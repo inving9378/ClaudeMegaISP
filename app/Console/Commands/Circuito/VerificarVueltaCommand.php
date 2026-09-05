@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Modules\Addons\Roadmap\Console;
+namespace App\Console\Commands\Circuito;
 
 use Illuminate\Console\Command;
 use Symfony\Component\Process\Process;
@@ -14,10 +14,12 @@ use Symfony\Component\Process\Process;
  * falló de verdad. ESTA FASE NO REVIERTE NI ESCALA, solo detecta y reporta.
  * `--json` emite el mismo resultado como un solo objeto JSON (modulo/pasos/resultado)
  * en vez del texto con iconos, para consumo por otro proceso.
+ * `--archivos` (item #9990053, q4): lista explícita de archivos para el Check 1, en vez
+ * de derivarlos de `git diff main...HEAD` (útil quien ya sabe qué tocó, ej. otro comando).
  */
 class VerificarVueltaCommand extends Command
 {
-    protected $signature = 'circuito:verificar-vuelta {modulo : Módulo tocado por la vuelta (ej. Flotas, Talento, Payments, Portal)} {--json : Salida en JSON en vez de texto}';
+    protected $signature = 'circuito:verificar-vuelta {modulo : Módulo tocado por la vuelta (ej. Flotas, Talento, Payments, Portal)} {--json : Salida en JSON en vez de texto} {--archivos=* : Lista explícita de archivos .php a lintear (Check 1), en vez de derivarlos de git diff}';
 
     protected $description = 'Motor de detección de una vuelta: php -l + boot + tests del módulo + dry-run de migraciones.';
 
@@ -67,10 +69,19 @@ class VerificarVueltaCommand extends Command
     }
 
     /**
-     * (1) php -l sobre los .php modificados en la rama actual vs main.
+     * (1) php -l sobre los .php a revisar: si se pasó --archivos, esa lista explícita;
+     * si no, los modificados en la rama actual vs main (git diff).
      */
     private function checkPhpLint(): void
     {
+        $explicitos = array_values(array_filter(array_map('trim', (array) $this->option('archivos'))));
+
+        if (! empty($explicitos)) {
+            $this->lintearArchivos($explicitos, 'lista --archivos');
+
+            return;
+        }
+
         $diff = $this->git(['diff', '--name-only', 'main...HEAD', '--', '*.php']);
         if (! $diff->isSuccessful()) {
             $this->registrar('php -l', 'skip', 'no se pudo diffear contra main (¿sin rama/ref main?)');
@@ -79,8 +90,16 @@ class VerificarVueltaCommand extends Command
         }
 
         $archivos = array_values(array_filter(array_map('trim', explode("\n", $diff->getOutput()))));
+        $this->lintearArchivos($archivos, 'sin archivos .php modificados vs main');
+    }
+
+    /**
+     * @param array<int, string> $archivos
+     */
+    private function lintearArchivos(array $archivos, string $mensajeVacio): void
+    {
         if (empty($archivos)) {
-            $this->registrar('php -l', 'ok', 'sin archivos .php modificados vs main');
+            $this->registrar('php -l', 'ok', $mensajeVacio);
 
             return;
         }
