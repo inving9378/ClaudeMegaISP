@@ -154,6 +154,7 @@ class EntregaController extends Controller
                 'descargas_acta_count' => $entrega->descargas_acta_count,
                 'zip_listo'            => (bool) $entrega->ruta_zip,
                 'acta_lista'           => (bool) $entrega->ruta_acta_pdf,
+                'error'                => $entrega->error,
             ]);
 
         return response()->json(['data' => $entregas]);
