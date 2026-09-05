@@ -508,6 +508,25 @@ class RoadmapItem extends Model
             }
         });
 
+        // #9990348 — sentido INVERSO del guard de arriba. El de arriba sólo sincroniza
+        // `completado → done`; si el item vuelve atrás (escalado por timeout, conflicto de merge o
+        // un reclamo huérfano liberado desde la Torre) nadie devolvía `status` a `pending`, y
+        // `scopeDespachable()` (el predicado que de verdad gobierna el despacho, más estricto que
+        // `sqlElegibleParaPool()`) hace `whereNotIn('status', ['done'])` — el item quedaba vivo y
+        // autorizado pero invisible para el pool. Se enforcea en CADA save (no sólo cuando cambia
+        // `estado_aprobacion`): status='done' + estado_aprobacion vivo + sin merge_commit + sin
+        // archivar es SIEMPRE una desincronización, igual que hizo la reparación manual del
+        // 2026-09-04. No toca un item archivado ni uno con `merge_commit` (ya entregado por el
+        // MergeRunner, que lo cierra a `completado` en el mismo save).
+        static::saving(function (self $item) {
+            if ($item->status === 'done'
+                && ! in_array($item->estado_aprobacion, ['completado', 'cancelado', 'rechazado'], true)
+                && empty($item->merge_commit)
+                && ! $item->archivado_at) {
+                $item->status = 'pending';
+            }
+        });
+
         // #427: todo item nuevo nace con reporte_coloquial + modulo (nunca null). nivel_riesgo
         // se deja fuera a propósito: null es su estado "sin triajear" y el circuito solo puede
         // ENDURECERLO (A→B→C) después — forzar un default lo dejaría atascado para siempre.
@@ -925,6 +944,13 @@ class RoadmapItem extends Model
      * Excluye: parqueados esperando merge manual, excluidos del pool (sesión supervisada, bucle) y
      * los rotulados [BLOCKED-…]/[PARKED-…] (frontera dura: desbloquear = QUITAR el rótulo, no
      * aprobar con el rótulo puesto).
+     *
+     * ⚠️ #9990348 — este scope (y `sqlElegibleParaPool()` que lo respalda) NO filtra por `status`:
+     * un item con `status='done'` puede seguir siendo "elegible" aquí aunque esté desincronizado.
+     * NO es un bug de este método — es que `scopeDespachable()` (abajo) es quien AÑADE
+     * `whereNotIn('status', ['done'])` encima de este scope, y `scopeDespachable()` es el que
+     * gobierna el despacho real (ver su docblock). Los dos predicados a propósito no coinciden;
+     * si necesitas "¿puede tomarse AHORA?" usa `scopeDespachable()`, nunca este por sí solo.
      */
     public function scopeElegibleParaPool($query)
     {
