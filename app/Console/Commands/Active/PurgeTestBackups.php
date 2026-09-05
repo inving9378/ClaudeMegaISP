@@ -42,7 +42,7 @@ class PurgeTestBackups extends Command
         // torcido, abortamos ANTES de tocar nada (ni siquiera abrimos el log channel).
         $terminaEnBackupTest = str_ends_with(rtrim($baseDir, DIRECTORY_SEPARATOR), DIRECTORY_SEPARATOR . 'backup_test');
         $empiezaEnStoragePath = str_starts_with($baseDir, storage_path());
-        if (! $terminaEnBackupTest && ! $empiezaEnStoragePath) {
+        if (! $terminaEnBackupTest || ! $empiezaEnStoragePath) {
             $this->error("[purge-test] Guard de path duro: baseDir fuera de storage_path()/backup_test — abortando sin tocar nada. baseDir={$baseDir}");
             Log::channel('backup')->error("[purge-test] Guard de path duro abortó la ejecución: baseDir={$baseDir} no resuelve dentro de storage_path()/backup_test");
             return self::FAILURE;
