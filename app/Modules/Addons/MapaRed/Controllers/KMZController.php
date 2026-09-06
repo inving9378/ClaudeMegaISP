@@ -5,10 +5,9 @@ namespace App\Modules\Addons\MapaRed\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\MapaRed\Repositories\MapaRedLayerRepository;
 use App\Modules\Addons\MapaRed\Repositories\MapaRedProyectRepository;
+use App\Modules\Addons\MapaRed\Services\KmlParserService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use XMLReader;
-use Illuminate\Support\Str;
 
 /**
  * Espejo de App\Modules\Addons\Mapas\Controllers\Geo\KMZController, apuntando a
@@ -34,278 +33,31 @@ class KMZController extends Controller
         $file = $request->file('file');
         $path = $file->getRealPath();
         $mimeType = $file->getMimeType();
-        if (in_array($mimeType, ['application/zip', 'application/vnd.google-earth.kmz'])) {
-            $kml = $this->getKML($path);
-            if (!isset($kml)) {
-                return response()->json(['error' => 'No se encontró archivo KML dentro del KMZ'], 400);
-            }
-        } elseif (in_array($mimeType, ['application/vnd.google-earth.kml+xml', 'text/xml'])) {
-            $kml = file_get_contents($path);
-        } else {
-            return response()->json(['error' => 'Formato de archivo no soportado'], 400);
+        try {
+            $kml = KmlParserService::extraerKmlDeArchivo($path, $mimeType);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['error' => $e->getMessage()], 400);
         }
         $geojson = $this->parseKmlToJson($kml);
         return $this->saveKMZ($id, $geojson);
     }
 
+    /**
+     * @deprecated usar KmlParserService::getKML() — se conserva como delegador delgado
+     * porque es público y podría tener consumidores fuera de este controller.
+     */
     public function getKML($path)
     {
-        $kml = null;
-        $zip = new \ZipArchive;
-        if ($zip->open($path) === TRUE) {
-            for ($i = 0; $i < $zip->numFiles; $i++) {
-                $filename = $zip->getNameIndex($i);
-                if (pathinfo($filename, PATHINFO_EXTENSION) == 'kml') {
-                    $kml = $zip->getFromIndex($i);
-                    break;
-                }
-            }
-            $zip->close();
-        }
-        return $kml;
+        return KmlParserService::getKML($path);
     }
 
+    /**
+     * @deprecated usar KmlParserService::parseKmlToJson() — se conserva como delegador
+     * delgado porque es público y podría tener consumidores fuera de este controller.
+     */
     public function parseKmlToJson($filePath)
     {
-        $reader = new XMLReader();
-        $reader->xml($filePath);
-        $result = [];
-        while ($reader->read()) {
-            if ($reader->nodeType == XMLReader::ELEMENT) {
-                if ($reader->name == 'Folder' || $reader->name == 'Document') {
-                    $result[] = $this->parseNode($reader);
-                }
-            }
-        }
-        $reader->close();
-        return $result;
-    }
-
-    protected function parseNode($reader, $parentName = null)
-    {
-        $node = [
-            'id' => null,
-            'key' => null,
-            'parent_key' => null,
-            'name' => null,
-            'icon' => 'mdi-folder-outline',
-            'text_node' => null,
-            'classification' => 'kmz',
-            'parent_id' => null,
-            'description' => null,
-            'children' => [],
-            'extended_data' => [],
-            'text' => 'Objeto KMZ',
-            'is_layer' => false
-        ];
-
-        $currentName = $reader->name;
-
-        if ($reader->hasAttributes) {
-            while ($reader->moveToNextAttribute()) {
-                if ($reader->name == 'id') {
-                    $node['id'] = $reader->value;
-                }
-            }
-            $reader->moveToElement();
-        }
-
-        $depth = $reader->depth;
-
-        while ($reader->read() && !($reader->nodeType == XMLReader::END_ELEMENT && $reader->name == $currentName && $reader->depth == $depth)) {
-            if ($reader->nodeType == XMLReader::ELEMENT) {
-                switch ($reader->name) {
-                    case 'name':
-                        $reader->read();
-                        $node['name'] = $reader->value;
-                        $node['text_node'] = $reader->value;
-                        break;
-
-                    case 'description':
-                        $reader->read();
-                        $node['description'] = $reader->value;
-                        break;
-
-                    case 'Folder':
-                    case 'Document':
-                        $node['children'][] = $this->parseNode($reader, $node['name']);
-                        break;
-
-                    case 'Placemark':
-                        $placemark = $this->parsePlacemark($reader);
-                        if (isset($placemark['coords']) && isset($placemark['name']) && $placemark['name'] !== '') {
-                            $node['children'][] = $placemark;
-                        }
-                        break;
-
-                    case 'ExtendedData':
-                        $node['extended_data'] = $this->parseExtendedData($reader);
-                        break;
-                }
-                $uuid = Str::uuid();
-                $node['id'] = sprintf('kmz-%s', $uuid);
-                $node['key'] = sprintf('kmz-%s', $uuid);
-            }
-        }
-        if (!isset($node['name'])) {
-            $node['name'] = 'Objetos KMZ';
-        }
-        return $node;
-    }
-
-    protected function parsePlacemark($reader)
-    {
-        $placemark = [
-            'id' => null,
-            'key' => null,
-            'parent_key' => null,
-            'name' => '',
-            'icon' => null,
-            'text_node' => null,
-            'classification' => 'kmz',
-            'parent_id' => null,
-            'children' => [],
-            'extended_data' => [],
-            'look_at' => null,
-            'data' => null,
-            'properties' => null,
-            'color' => '#5bc0de',
-            'text' => 'Objeto KMZ',
-            'is_layer' => true
-        ];
-
-        $depth = $reader->depth;
-
-        while ($reader->read() && !($reader->nodeType == XMLReader::END_ELEMENT && $reader->name == 'Placemark' && $reader->depth == $depth)) {
-            if ($reader->nodeType == XMLReader::ELEMENT) {
-                switch ($reader->name) {
-                    case 'name':
-                        $reader->read();
-                        $placemark['name'] = $reader->value;
-                        $placemark['text_node'] = $reader->value;
-                        $placemark['data']['name'] = $reader->value;
-                        $placemark['properties']['name'] = $reader->value;
-                        break;
-
-                    case 'description':
-                        $reader->read();
-                        $placemark['data']['description'] = $reader->value;
-                        $placemark['properties']['description'] = $reader->value;
-                        break;
-
-                    case 'Point':
-                        $placemark['icon'] = 'mdi-map-marker';
-                        $placemark = [...$placemark, ...$this->parseGeometry($reader)];
-                        break;
-                    case 'LineString':
-                        $placemark['icon'] = 'mdi-chart-timeline-variant';
-                        $placemark = [...$placemark, ...$this->parseGeometry($reader)];
-                        break;
-                    case 'Polygon':
-                        $placemark['icon'] = 'mdi-vector-polygon';
-                        $placemark = [...$placemark, ...$this->parseGeometry($reader)];
-                        break;
-                    case 'MultiGeometry':
-                        $placemark['icon'] = 'mdi-vector-polygon';
-                        $placemark = [...$placemark, ...$this->parseGeometry($reader)];
-                        break;
-
-                    case 'ExtendedData':
-                        $placemark['extended_data'] = $this->parseExtendedData($reader);
-                        break;
-
-                    case 'LookAt':
-                        $placemark['look_at'] = $this->parseLookAt($reader);
-                        break;
-                }
-                $uuid = Str::uuid();
-                $placemark['id'] = $uuid;
-                $placemark['key'] = $uuid;
-            }
-        }
-
-        return $placemark;
-    }
-
-    protected function parseGeometry($reader)
-    {
-        $geometry = [
-            'type' => $reader->name,
-            'coords' => null,
-        ];
-
-        $depth = $reader->depth;
-
-        while ($reader->read() && !($reader->nodeType == XMLReader::END_ELEMENT && $reader->name == $geometry['type'] && $reader->depth == $depth)) {
-            if ($reader->nodeType == XMLReader::ELEMENT) {
-                switch ($reader->name) {
-                    case 'coordinates':
-                        $reader->read();
-                        $coords = trim($reader->value);
-                        $coordSet = explode(' ', $coords);
-                        $coords = [];
-                        foreach ($coordSet as $c) {
-                            if (!empty($c)) {
-                                $parts = explode(',', trim($c));
-                                if (count($parts) >= 2) {
-                                    $coords[] = [
-                                        'lat' => (float)$parts[1],
-                                        'lng' => (float)$parts[0]
-                                    ];
-                                }
-                            }
-                        }
-                        $geometry['coords'] = count($coords) > 1 ? $coords : $coords[0] ?? null;
-                        break;
-                }
-            }
-        }
-
-        $normalizedGeometry = [
-            'LineString' => 'polyline',
-            'Point' => 'marker',
-            'Polygon' => 'polygon'
-        ];
-
-        $geometry['type'] = $normalizedGeometry[$geometry['type']];
-
-        return $geometry;
-    }
-
-    protected function parseExtendedData($reader)
-    {
-        $data = [];
-        $depth = $reader->depth;
-
-        while ($reader->read() && !($reader->nodeType == XMLReader::END_ELEMENT && $reader->name == 'ExtendedData' && $reader->depth == $depth)) {
-            if ($reader->nodeType == XMLReader::ELEMENT && $reader->name == 'Data') {
-                $name = $reader->getAttribute('name');
-                if ($reader->read() && $reader->name == 'value') {
-                    $reader->read();
-                    $data[$name] = $reader->value;
-                }
-            }
-        }
-
-        return $data;
-    }
-
-    protected function parseLookAt($reader)
-    {
-        $lookAt = [];
-        $depth = $reader->depth;
-
-        while ($reader->read() && !($reader->nodeType == XMLReader::END_ELEMENT && $reader->name == 'LookAt' && $reader->depth == $depth)) {
-            if ($reader->nodeType == XMLReader::ELEMENT) {
-                $elementName = $reader->name;
-                $reader->read();
-                if ($reader->nodeType == XMLReader::TEXT) {
-                    $lookAt[$elementName] = $reader->value;
-                }
-            }
-        }
-
-        return $lookAt;
+        return KmlParserService::parseKmlToJson($filePath);
     }
 
     public function saveKMZ($id, $kmz)
