@@ -377,6 +377,7 @@ import JunctionBoxConfiguration from "./components/configuration/JunctionBoxConf
 import { darkMode } from "../../../hook/appConfig";
 
 import { getClientsWithoutProject, getMapRenderConfig, saveObject } from "./helper/request";
+import { getOcupacionLote } from "./helper/naps-request";
 
 import Swal from "sweetalert2";
 import {
@@ -972,6 +973,31 @@ const initMap = async () => {
         ],
     }).addTo(map);
 
+    // MR-20 (item #956) — filtro "solo NAPs con puertos libres" (decisión q2: cliente-side,
+    // sobre los marcadores ya cargados, sin round-trip).
+    L.easyButton({
+        states: [
+            {
+                stateName: "solo-naps-libres-off",
+                icon: "fa-filter",
+                title: "Mostrar solo NAPs con puertos libres",
+                onClick: function (btn) {
+                    toggleFiltroPuertosLibres(true);
+                    btn.state("solo-naps-libres-on");
+                },
+            },
+            {
+                stateName: "solo-naps-libres-on",
+                icon: "fa-filter",
+                title: "Mostrar todas las NAPs",
+                onClick: function (btn) {
+                    toggleFiltroPuertosLibres(false);
+                    btn.state("solo-naps-libres-off");
+                },
+            },
+        ],
+    }).addTo(map);
+
     map.on("click", async function (e) {
         if (addInSerie.value) {
             let { color, data, icon_color, project_id, type, start } =
@@ -1292,6 +1318,79 @@ const removeLayerOnCascade = (object) => {
     });
 };
 
+// MR-20 (item roadmap #956) — semáforo de ocupación de puertos por NAP (D16).
+// Fuente de datos: MapaRedNapOcupacionService (mismo servicio del dashboard D16, decisión q1).
+const MAPA_RED_LAYER_MODEL = "App\\Modules\\Addons\\MapaRed\\Models\\MapaRedLayer";
+const soloNapsConPuertosLibres = ref(false);
+const ocupacionSemaforoColor = {
+    gris: "gray",
+    amarillo: "beige",
+    naranja: "orange",
+    rojo: "red",
+};
+
+const aplicarFiltroACapa = (layer) => {
+    if (layer.properties?.dialog !== "service_box" || typeof layer.setOpacity !== "function") {
+        return;
+    }
+    const ocupacion = layer.properties.ocupacion;
+    if (!soloNapsConPuertosLibres.value || !ocupacion) {
+        layer.setOpacity(1);
+        return;
+    }
+    const tienePuertosLibres = ocupacion.puertos_usados < ocupacion.puertos_totales;
+    layer.setOpacity(tienePuertosLibres ? 1 : 0);
+};
+
+const toggleFiltroPuertosLibres = (activo) => {
+    soloNapsConPuertosLibres.value = activo;
+    drawnItems.eachLayer((layer) => aplicarFiltroACapa(layer));
+};
+
+// Color del marcador según la escala D16 + tooltip "usados/totales (%)" (decisión q3: hover mínimo).
+const aplicarSemaforoOcupacion = (layer, ocupacion) => {
+    if (!layer || !ocupacion || layer.properties?.dialog !== "service_box") {
+        return;
+    }
+    if (!layer.properties.text_node_base) {
+        layer.properties.text_node_base = layer.properties.text_node;
+    }
+    layer.properties.ocupacion = ocupacion;
+    if (layer.properties.type === "marker" && typeof layer.setIcon === "function") {
+        layer.setIcon(
+            L.AwesomeMarkers.icon({
+                icon: layer.properties.icon,
+                markerColor: ocupacionSemaforoColor[ocupacion.semaforo] ?? "gray",
+                iconColor: layer.properties.icon_color ?? "#FFFFFF",
+                prefix: "mdi",
+            })
+        );
+    }
+    layer.properties.text_node = `${layer.properties.text_node_base} · ${ocupacion.puertos_usados}/${ocupacion.puertos_totales} puertos (${ocupacion.porcentaje}%)`;
+    layer.bindTooltip(layer.properties.text_node);
+    aplicarFiltroACapa(layer);
+};
+
+// Lote (decisión q1): una sola llamada por tanda de `drawLayers`, no una por marcador.
+const aplicarOcupacionNaps = async (nodes) => {
+    const napIds = nodes
+        .filter((o) => o.dialog === "service_box" && o.id != null)
+        .map((o) => o.id);
+    if (napIds.length === 0) {
+        return;
+    }
+    const ocupacionPorId = await getOcupacionLote(MAPA_RED_LAYER_MODEL, napIds);
+    if (!ocupacionPorId) {
+        return;
+    }
+    napIds.forEach((id) => {
+        const layer = getLayerByKeyProperty(`layer-${id}`);
+        if (layer && ocupacionPorId[id]) {
+            aplicarSemaforoOcupacion(layer, ocupacionPorId[id]);
+        }
+    });
+};
+
 const drawLayers = (selectedLayers, noSelectedLayers = []) => {
     processInBatches(selectedLayers, 500, (batch) => {
         batch.forEach((o) => {
@@ -1324,6 +1423,8 @@ const drawLayers = (selectedLayers, noSelectedLayers = []) => {
                 return layer;
             }
         });
+    }).then(() => {
+        aplicarOcupacionNaps(selectedLayers);
     });
     noSelectedLayers.forEach((key) => {
         removeLayerByKey(key);
