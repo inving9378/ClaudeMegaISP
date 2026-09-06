@@ -28,6 +28,7 @@ import {
 import { eq, isEqual } from "lodash";
 import { hideLoading, showLoading } from "../../../../helpers/loading";
 import { updateMarkersDistanceFromRoute } from "./layers-request";
+import { openElementSidePanel } from "../../../../composables/useElementSidePanel";
 
 const permissions = reactive({
     data: new Permission({}),
@@ -369,6 +370,14 @@ export const createLayerFromObject = (obj, searched = false) => {
     layer.on("click", async function (e) {
         const layer = e.target;
         currentMarker.value = layer.properties;
+        if (
+            layer.properties.type === "marker" &&
+            layer.properties.id != null &&
+            layer.properties.classification != null &&
+            layer.properties.classification !== "kmz"
+        ) {
+            openElementSidePanel(layer.properties);
+        }
         if (obj.dialog === "service_box" && clientToBoxService) {
             const data = await addClientToServiceBox(
                 clientToBoxService.properties.id,
