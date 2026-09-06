@@ -1844,3 +1844,29 @@ real (`storage_path('backup_test')`) **no bloquea** — cae directo al mensaje n
 nada que hacer", sin el error del guard; orden y lógica del resto del método intactos. Detalle en
 `docs/backups-purge-test-guard-path-item-9990353-verificacion.md`. **Sin cambio de código** — el
 fix ya estaba aplicado.
+
+## Item #910 — Torre 24/7 Pieza 5d (medición honesta de ocupación y ratio señal/ruido del barrido) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917.
+#910 (Fase 5d de #904) depende de que las Piezas 5a (#907), 5b (#908) y 5c (#909) estén
+mergeadas a `main` y corriendo un tiempo antes de poder medir algo real — el propio spec pide
+esperar y no forzar si alguna sigue abierta, y varias vueltas anteriores (`wt-3`/`wt-2`/`wt-1`)
+respetaron eso correctamente, liberando el claim y reagendando mientras 5b/5c seguían
+incompletas. Un timeout por `max_turns` sin commits disparó el mecanismo "DES-TRABE (Opus)"
+("ANTI-LOOP: ya corrió 5× y no lo ejecutó"), y la vuelta siguiente (`wt-1`, 2026-09-06 06:20) ya
+hizo lo correcto: reverificó que #907/#908/#909 estaban `completado`+mergeados desde
+2026-09-03 (908 vía sus sub-items #985/#986/#987) y, sin tocar código, descompuso la medición
+en **#9990393** (inventario del barrido + snapshots de ocupación) y **#9990394** (ratio
+útil/ruido + reporte final y cierre de #910). Pero ese proceso **murió a media escritura** del
+comentario de decisión (texto cortado en `comentarios_claude`) antes de intentar **cerrar** al
+padre — el log solo registra `claim_liberado_al_morir_la_vuelta`, y el pool lo repartió de
+nuevo sin trabajo propio que hacer. Verificado esta vuelta: #9990393 y #9990394 siguen intactos,
+`pendiente_revision`, sin reclamar — la descomposición original seguía siendo correcta, nadie
+más la tocó. Corrección: esta vuelta ejecuta el intento de cierre faltante; el guard
+(`RoadmapItem.php` bloque "(2b) PARAGUAS") lo reenruta a `aprobado_irving` +
+`excluir_pool_automatico=true` (evento `paraguas_abierto` en el log, "le quedan 2 sub-item(s)
+abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
+(`RoadmapItem.php:459-491`) lo complete solo cuando #9990393 y #9990394 cierren. Detalle en
+`docs/roadmap-bucle-reap-item-910-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo real (inventario del barrido, snapshots de ocupación, ratio útil/ruido, reporte final)
+sigue en #9990393/#9990394, pendientes de que una terminal los reclame.
