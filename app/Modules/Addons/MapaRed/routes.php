@@ -7,6 +7,7 @@ use App\Modules\Addons\MapaRed\Controllers\HilosController;
 use App\Modules\Addons\MapaRed\Controllers\KMZController;
 use App\Modules\Addons\MapaRed\Controllers\LayersController;
 use App\Modules\Addons\MapaRed\Controllers\MapaRedController;
+use App\Modules\Addons\MapaRed\Controllers\NapOcupacionController;
 use App\Modules\Addons\MapaRed\Controllers\NapSaludController;
 use App\Modules\Addons\MapaRed\Controllers\ProyectsController;
 use App\Modules\Addons\MapaRed\Controllers\ServiceBoxController;
@@ -105,6 +106,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     // MR-21 (item #957) — semáforo de salud por NAP alimentado por MultiOLT (D18).
     Route::get('/naps/salud', [NapSaludController::class, 'dashboard'])->name('mapa-red.api.naps.salud');
     Route::get('/naps/salud-lote', [NapSaludController::class, 'lote'])->name('mapa-red.api.naps.salud-lote');
+
+    // MR-20 (item #956) — semáforo de ocupación de puertos por NAP (D16).
+    Route::get('/naps/ocupacion-lote', [NapOcupacionController::class, 'lote'])->name('mapa-red.api.naps.ocupacion-lote');
 
     // MR-18 (item #954) — presupuesto óptico automático desde el trazo.
     Route::get('/enlaces-servicio/{id}/presupuesto-optico', [EnlacesServicioController::class, 'presupuestoOptico'])->name('mapa-red.api.enlaces-servicio.presupuesto-optico');
