@@ -194,38 +194,6 @@
                     </q-item-section>
                     <q-item-section
                         avatar
-                        side
-                        style="padding-left: 2px !important"
-                        v-if="
-                            prop.node.parent_key !== 'root-node' &&
-                            prop.node.classification === 'project' &&
-                            permissons.data.canView(
-                                `maps_${prop.node.dialog}_edit`
-                            )
-                        "
-                    >
-                        <q-btn
-                            icon="edit"
-                            size="sm"
-                            flat
-                            dense
-                            color="primary"
-                            :disable="loading || hasLayerEdit"
-                            @click.stop="editNode(prop.node)"
-                            ><q-tooltip
-                                class="bg-primary"
-                                :offset="[10, 10]"
-                                v-if="!loading && !hasLayerEdit"
-                            >
-                                Editar
-                                {{
-                                    prop.node.text?.toLowerCase() ?? "proyecto"
-                                }}
-                            </q-tooltip></q-btn
-                        >
-                    </q-item-section>
-                    <q-item-section
-                        avatar
                         style="padding-left: 2px !important"
                         v-if="
                             permissons.data.canView(`maps_folder_edit`) &&
@@ -295,39 +263,6 @@
                                 </q-list>
                             </q-menu>
                         </q-btn>
-                    </q-item-section>
-                    <q-item-section
-                        avatar
-                        side
-                        style="padding-left: 2px !important"
-                        v-if="
-                            prop.node.parent_key !== 'root-node' &&
-                            prop.node.classification === 'project' &&
-                            permissons.data.canView(
-                                `maps_${prop.node.dialog}_remove`
-                            )
-                        "
-                    >
-                        <q-btn
-                            icon="delete"
-                            size="sm"
-                            flat
-                            dense
-                            color="negative"
-                            :loading="loading && keyId === prop.node.key"
-                            :disable="loading || hasLayerEdit"
-                            @click.stop="deleteObject(prop.node)"
-                            ><q-tooltip
-                                class="bg-negative"
-                                :offset="[10, 10]"
-                                v-if="!loading && !hasLayerEdit"
-                            >
-                                Eliminar
-                                {{
-                                    prop.node.text?.toLowerCase() ?? "proyecto"
-                                }}
-                            </q-tooltip></q-btn
-                        >
                     </q-item-section>
                     <q-item-section
                         avatar
@@ -431,30 +366,6 @@
                                     </q-item>
                                 </q-list>
                             </q-menu>
-                        </q-btn>
-                    </q-item-section>
-                    <q-item-section
-                        avatar
-                        side
-                        style="padding-left: 2px !important"
-                        v-if="prop.node.coords"
-                    >
-                        <q-btn
-                            icon="map"
-                            size="sm"
-                            flat
-                            dense
-                            color="info"
-                            :disable="loading || hasLayerEdit"
-                            @click.stop="showOnMap(prop.node)"
-                        >
-                            <q-tooltip
-                                class="bg-info"
-                                :offset="[10, 10]"
-                                v-if="!loading && !hasLayerEdit"
-                            >
-                                Mostrar en el mapa
-                            </q-tooltip>
                         </q-btn>
                     </q-item-section>
                     <div
