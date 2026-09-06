@@ -49,12 +49,66 @@
                     <div>{{ classificationLabel }}</div>
                 </div>
 
+                <template v-if="sidePanelNode.coords">
+                    <div class="element-side-panel__section">
+                        <div class="element-side-panel__label">Puertos</div>
+                        <div v-if="loadingResumen" class="text-caption text-grey">
+                            Cargando…
+                        </div>
+                        <div v-else-if="resumen">
+                            {{ resumen.puertos.ocupados }} ocupados /
+                            {{ resumen.puertos.total }} total
+                            <div class="text-caption text-grey">
+                                {{ resumen.puertos.libres }} libres
+                            </div>
+                        </div>
+                        <div v-else class="text-caption text-grey">
+                            Sin datos disponibles
+                        </div>
+                    </div>
+
+                    <div class="element-side-panel__section">
+                        <div class="element-side-panel__label">Empalmes</div>
+                        <div v-if="loadingResumen" class="text-caption text-grey">
+                            Cargando…
+                        </div>
+                        <div v-else-if="resumen">
+                            {{ resumen.empalmes.total }}
+                        </div>
+                        <div v-else class="text-caption text-grey">
+                            Sin datos disponibles
+                        </div>
+                    </div>
+
+                    <div class="element-side-panel__section">
+                        <div class="element-side-panel__label">
+                            Clientes colgados
+                        </div>
+                        <div v-if="loadingResumen" class="text-caption text-grey">
+                            Cargando…
+                        </div>
+                        <div v-else-if="resumen">
+                            {{ resumen.clientes.activos }} activos /
+                            {{ resumen.clientes.total }} total
+                        </div>
+                        <div v-else class="text-caption text-grey">
+                            Sin datos disponibles
+                        </div>
+                    </div>
+                </template>
+
                 <div
                     class="element-side-panel__section text-caption text-grey"
                 >
-                    Puertos, empalmes, clientes colgados, fotos e historial de
-                    cambios se incorporan en una fase siguiente de esta
-                    ficha.
+                    <template v-if="sidePanelNode.coords">
+                        Fotos e historial de cambios se incorporan en una fase
+                        siguiente de esta ficha.
+                    </template>
+                    <template v-else>
+                        Puertos, empalmes, clientes colgados, fotos e
+                        historial de cambios aplican solo a elementos
+                        ubicados en el mapa.
+                    </template>
                 </div>
             </div>
 
@@ -94,13 +148,14 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import {
     sidePanelNode,
     sidePanelOpen,
     closeElementSidePanel,
 } from "../../../../../composables/useElementSidePanel";
 import { darkMode } from "../../../../../hook/appConfig";
+import { getLayerResumen } from "../../helper/layers-request";
 
 defineOptions({
     name: "ElementSidePanel",
@@ -109,6 +164,24 @@ defineOptions({
 const props = defineProps({
     permissons: Object,
 });
+
+// Puertos/empalmes/clientes colgados (MR-23 fase 3, item #9990428): se
+// consultan bajo demanda al seleccionar un elemento con coordenadas (los
+// nodos de organización de árbol —carpetas/proyectos— no tienen puertos).
+const resumen = ref(null);
+const loadingResumen = ref(false);
+
+watch(
+    () => (sidePanelOpen.value ? sidePanelNode.value?.id : null),
+    async (id) => {
+        resumen.value = null;
+        if (!id || !sidePanelNode.value?.coords) return;
+        loadingResumen.value = true;
+        resumen.value = await getLayerResumen(id);
+        loadingResumen.value = false;
+    },
+    { immediate: true }
+);
 
 defineEmits(["edit", "delete", "show-on-map"]);
 

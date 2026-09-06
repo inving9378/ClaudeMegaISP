@@ -11,6 +11,19 @@ export const getLayerConfig = async (id) => {
     return data;
 };
 
+export const getLayerResumen = async (id) => {
+    let data = null;
+    await axios
+        .get(`/mapa-red/api/layers/${id}/resumen`)
+        .then((response) => {
+            data = response.data;
+        })
+        .catch((e) => {
+            data = null;
+        });
+    return data;
+};
+
 export const getAvaiablesRoutes = async (id, all = false) => {
     let data = null;
     await axios
