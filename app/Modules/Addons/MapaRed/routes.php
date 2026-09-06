@@ -2,6 +2,7 @@
 
 use App\Modules\Addons\MapaRed\Controllers\ConnectionsController;
 use App\Modules\Addons\MapaRed\Controllers\DevicesController;
+use App\Modules\Addons\MapaRed\Controllers\HilosController;
 use App\Modules\Addons\MapaRed\Controllers\KMZController;
 use App\Modules\Addons\MapaRed\Controllers\LayersController;
 use App\Modules\Addons\MapaRed\Controllers\MapaRedController;
@@ -89,4 +90,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     Route::post('/service-box/remove-client/{id}', [ServiceBoxController::class, 'removeClient'])->name('mapa-red.api.service-box.remove-client');
     Route::post('/service-box/add-clients/{id}', [ServiceBoxController::class, 'addClients'])->name('mapa-red.api.service-box.add-clients');
     Route::post('/service-box/remove-client-from-drop/{id}', [ServiceBoxController::class, 'removeClientFromDrop'])->name('mapa-red.api.service-box.remove-client-from-drop');
+
+    // MR-11 (item #947) — hilos como entidad propia, ocupación por cable.
+    Route::get('/cables/{cable}/hilos', [HilosController::class, 'porCable'])->name('mapa-red.api.hilos.por-cable');
+    Route::put('/hilos/{id}', [HilosController::class, 'update'])->name('mapa-red.api.hilos.update');
 });
