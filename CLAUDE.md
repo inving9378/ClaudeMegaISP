@@ -1889,3 +1889,28 @@ resuelve correctamente por razones reales de trabajo pendiente (`#943` espera a 
 a `#941`; `#9990329` espera a su último hijo `#9990391`), no por el bug de MR-36. Detalle completo
 en `docs/circuito-mr36-seguimiento-item-9990385-verificacion.md`. **Sin cambio de código de
 negocio** — solo se dejó constancia escrita de la verificación.
+
+## Item #936 — bucle reap sobre el paraguas raíz de la épica MAPA DE RED (MR-00) (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#878/#905/#906/#907/#924/#9990012/#917/#910, esta
+vez sobre el paraguas RAÍZ de toda la épica MAPA DE RED. #936 llegó a reclamarse pese a que su
+propio `prompt` advierte explícitamente "no lo reclames para 'hacerlo'" y cita la lista de items
+previos con este mismo bug. Causa: el 2026-09-04 `circuito:liberar-cascada-mapa-red` detuvo la
+cascada en un item atascado (techo en MR-07); el driver `#9990366` que debía subir ese techo
+cerró en falso ("no registró rama de trabajo"); Irving, el 2026-09-06, dio la directiva
+`destapado_mapa` — "construir el mapa completo sin pacing" — y **quitó `excluir_pool_automatico`
+de #936 mismo** para destrabarlo. Minutos después el pool reclamó **al padre**, no a sus hijos:
+con el freno quitado y `estado_aprobacion=aprobado_irving`, el paraguas volvió a ser un
+candidato normal de dispatch. Verificado contra la BD real: cada hijo (`origen_item_id=936`)
+tiene su **propio** `excluir_pool_automatico` independiente del padre — la mayoría de los
+liberados por la cascada (MR-04 en adelante) ya estaban en `false` desde antes de la directiva
+(solo MR-33/34/35 siguen congelados a propósito, como dice la propia `description` de #936); el
+padre nunca debió ser el objetivo de "destapar". Corrección: se ejecutó el intento de cierre
+faltante (`estado_aprobacion='completado'`); el guard (`RoadmapItem.php` bloque "(2b) PARAGUAS")
+lo reenrutó a `aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto`, "le
+quedan 29 sub-item(s) abierto(s)"), liberando `worker_sid`/`claimed_at` y sacándolo del
+pool/reaper otra vez — sin tocar el flag individual de ningún hijo, así que la directiva de
+Irving de avanzar "sin pacing" en MR-04 en adelante sigue vigente. Detalle en
+`docs/roadmap-bucle-reap-item-936-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo técnico real de la épica sigue en sus ~29 sub-items abiertos (MR-05 y MR-07 en
+adelante).
