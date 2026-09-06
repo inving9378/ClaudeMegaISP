@@ -317,14 +317,24 @@ ejecutar_una() {
     # `sigkill`: `circuito:parquear-timeout` la trata distinto (SIEMPRE escala, nunca reanuda solo
     # — decisión q3 de Irving), a diferencia de un RC=124 normal (SIGTERM bastó), que sigue la
     # reanudación-si-avanzó de siempre.
+    HORA_RESET=""
     if [ "$RC" -eq 137 ]; then CAUSA="sigkill"; DESC="Guard de vida máxima: SIGKILL de respaldo (${TIMEOUT}s + ${GRACE}s de cortesía)"
     elif [ "$RC" -eq 124 ]; then CAUSA="timeout"; DESC="Timeout ${TIMEOUT}s"
     elif grep -aq 'Reached max turns' "$LOG"; then CAUSA="max_turns"; DESC="Agotó sus turnos (max-turns)"
+    elif grep -aq 'session limit' "$LOG"; then
+      # #9990426 — límite de sesión de la CUENTA (no del item): el texto real medido es
+      # "You've hit your session limit . resets 12pm (America/Mexico_City)". Matcheamos SOLO
+      # el fragmento estable 'session limit', nunca la hora/zona (cambian cada día). La hora de
+      # reset es un extra best-effort: si no se puede leer con confianza, se omite el flag.
+      CAUSA="limite_cuenta"; DESC="Límite de sesión de la cuenta (Claude) alcanzado"
+      HORA_RESET=$(grep -aoiE 'resets [0-9]{1,2}(am|pm)' "$LOG" | head -1 | grep -oiE '[0-9]{1,2}(am|pm)')
     else CAUSA="error"; DESC="Terminó con código $RC"; fi
     META="{\"items_tocados\":[$ITEM],\"n_propuestas\":0,\"n_decisiones\":0,\"ejecuto\":false,\"resumen\":\"${DESC} — ver circuito:parquear-timeout (reanudado si la rama tiene commits; a la bandeja si no).\"}"
     # #927b — también desde el checkout principal, por el mismo desfase de versión: hoy este
     # comando SÍ existe en los worktrees, pero depende de con qué commit se provisionaron.
-    (cd "$PROJ" && php artisan circuito:parquear-timeout "$ITEM" --segundos="$TIMEOUT" --causa="$CAUSA") >>"$LOG" 2>&1 \
+    HORA_RESET_FLAG=""
+    if [ -n "$HORA_RESET" ]; then HORA_RESET_FLAG="--hora-reset=$HORA_RESET"; fi
+    (cd "$PROJ" && php artisan circuito:parquear-timeout "$ITEM" --segundos="$TIMEOUT" --causa="$CAUSA" $HORA_RESET_FLAG) >>"$LOG" 2>&1 \
       || log "aviso: no pude parquear #$ITEM tras fin anormal (causa=$CAUSA)."
   fi
 
