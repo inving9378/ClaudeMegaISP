@@ -4162,3 +4162,23 @@ decide caso por caso qué se documenta-y-deja, qué se resuelve con `ALTER`, y q
 | users | password_legacy | migraciones | — (sin consumidores) | desconocido — sin migración en database/migrations/ ni migrations_old/; cero referencias en app/ (incluido app/Services/Security/PasswordService.php, el servicio real de migración de contraseñas) |
 | users | password_migrated_at | migraciones | — (sin consumidores) | desconocido — sin migración en database/migrations/ ni migrations_old/; cero referencias en app/ (incluido app/Services/Security/PasswordService.php, el servicio real de migración de contraseñas) |
 
+
+## 2026-09-06 17:07 — Item #9990422: cierre del bucle reap sobre sub-item ya descompuesto (FASE 1 retomada: causa=limite_cuenta en vuelta.sh)
+
+`#9990422` (sub-item de #9990415, spec exacta de ~5 líneas en `deploy/circuito/vuelta.sh` para
+detectar `causa=limite_cuenta`) venía en bucle de reap: una vuelta previa (misma terminal `wt-6`)
+ya había corrido `circuito:cabida` → NO CABE (`historico_excede_umbral`, umbral al filo del módulo
+Roadmap/Circuito CC nivel B, no por tamaño real del cambio) y descompuesto correctamente en
+**#9990426** con la spec intacta, pero murió antes de intentar cerrar al padre (log:
+`claim_liberado_al_morir_la_vuelta` en el mismo minuto de la decisión). El pool lo repartió de
+nuevo sin trabajo propio que hacer — misma familia de bug que #738/#745/#830/#816/#818/#848/#905/
+#878/#906/#907/#924/#9990012/#917/#910/#936.
+
+Esta vuelta verificó que #9990426 seguía intacto y sin reclamar, y ejecutó el intento de cierre
+faltante (`estado_aprobacion = 'completado'`). El guard de paraguas del modelo lo reenrutó a
+`aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto`, 1 sub-item abierto),
+sacándolo del pool hasta que #9990426 cierre y el hook de cierre en cascada lo complete solo.
+
+Detalle en `docs/roadmap-bucle-reap-item-9990422-verificacion.md`. Sin cambio de código de
+negocio — el trabajo real (insertar la rama `limite_cuenta` en `vuelta.sh`) sigue en #9990426,
+`pendiente_revision`.
