@@ -62,17 +62,27 @@ class FrenoCircuito
      * Pone el freno. Escritura ATÓMICA (tmp + rename en el mismo filesystem): un lector nunca ve
      * un centinela a medio escribir, y un corte a media escritura deja el freno puesto o no puesto,
      * jamás un archivo corrupto que haya que interpretar.
+     *
+     * `$expiraEn` es OPCIONAL (#9990417 — FASE 4a). Con `null` el JSON queda IDÉNTICO al de
+     * siempre: el freno manual (#342, botón de la Torre / `setPaused()`) y `circuito:pausar` NO
+     * pasan este argumento y nunca se autolimpian. Solo un freno que declaró explícitamente cuándo
+     * vence puede expirar solo — ver `expirado()`.
      */
-    public static function poner(string $motivo, string $quien): void
+    public static function poner(string $motivo, string $quien, ?string $expiraEn = null): void
     {
         $ruta = self::ruta();
         @mkdir(dirname($ruta), 0775, true);
 
-        $carga = json_encode([
+        $datos = [
             'motivo' => $motivo,
             'quien'  => $quien,
             'cuando' => date('c'),
-        ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        ];
+        if ($expiraEn !== null) {
+            $datos['expira_en'] = $expiraEn;
+        }
+
+        $carga = json_encode($datos, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 
         $tmp = $ruta . '.tmp.' . getmypid();
         if (@file_put_contents($tmp, $carga . "\n") === false || ! @rename($tmp, $ruta)) {
@@ -108,6 +118,27 @@ class FrenoCircuito
             'quien'  => null,
             'cuando' => null,
         ];
+    }
+
+    /**
+     * ¿Ya venció este freno? (#9990417 — FASE 4a)
+     *
+     * Un freno SIN `expira_en` (el manual de #342, `circuito:pausar`) nunca vence: devuelve
+     * `false` siempre, sin importar cuánto tiempo lleve puesto. Tolerante ante datos corruptos —
+     * una fecha ilegible NO autolimpia el freno (ante la duda, sigue frenado).
+     */
+    public static function expirado(): bool
+    {
+        $d = self::detalle();
+        if (! is_array($d) || ! isset($d['expira_en'])) {
+            return false;
+        }
+
+        try {
+            return \Carbon\Carbon::parse($d['expira_en'])->isPast();
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /**

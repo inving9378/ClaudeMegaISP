@@ -151,7 +151,15 @@ class RoadmapCircuitoService
     {
         try {
             if (FrenoCircuito::activo()) {
-                return true;
+                // FASE 4a (#9990417): un freno CON `expira_en` vencido se autolimpia aquí mismo,
+                // en el primer isPaused() posterior al vencimiento — sin cron ni comando nuevo. El
+                // freno manual (#342, sin expira_en) nunca entra a esta rama: `expirado()` es
+                // `false` para él siempre.
+                if (FrenoCircuito::expirado()) {
+                    FrenoCircuito::quitar();
+                } else {
+                    return true;
+                }
             }
 
             return (string) DB::table('settings')->where('key', self::PAUSE_KEY)->value('value') === '1';

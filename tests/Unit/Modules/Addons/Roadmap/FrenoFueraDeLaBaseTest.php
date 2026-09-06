@@ -2,6 +2,10 @@
 
 namespace Tests\Unit\Modules\Addons\Roadmap;
 
+use App\Modules\Addons\Roadmap\Support\FrenoCircuito;
+use Carbon\Carbon;
+use Illuminate\Config\Repository;
+use Illuminate\Container\Container;
 use PHPUnit\Framework\TestCase; // TestCase PURO: NO bootea Laravel, NO toca BD.
 
 /**
@@ -131,5 +135,97 @@ class FrenoFueraDeLaBaseTest extends TestCase
                 "`circuito:pausar` no puede tocar la base ({$prohibido}): tiene que poder frenar "
                 . 'el circuito precisamente cuando MySQL es el problema.');
         }
+    }
+
+    /**
+     * Corre `$fn` con un centinela AISLADO en un directorio temporal, nunca en la ruta real
+     * compartida (`/var/www/megaisp/storage/app/circuito/PAUSA`) que ven las seis terminales.
+     *
+     * `FrenoCircuito::ruta()` resuelve por `config('circuito.freno.centinela', ...)`, y este
+     * archivo es un `PHPUnit\Framework\TestCase` puro (no bootea Laravel) — llamar `config()` sin
+     * contenedor lanza `BindingResolutionException`. Se arma aquí el contenedor MÍNIMO que ese
+     * helper necesita (sin base, sin resto del framework) apuntando a un archivo desechable, así
+     * los 3 casos de abajo ejercitan el código REAL (no solo su forma) sin riesgo de tocar el
+     * freno compartido de producción.
+     */
+    private function conFrenoTemporal(callable $fn): void
+    {
+        $dir       = sys_get_temp_dir() . '/freno-fase4a-' . uniqid('', true);
+        $centinela = $dir . '/PAUSA';
+
+        $contenedor = new Container();
+        $contenedor->instance('config', new Repository([
+            'circuito' => ['freno' => ['centinela' => $centinela]],
+        ]));
+        Container::setInstance($contenedor);
+
+        try {
+            $fn();
+        } finally {
+            Container::setInstance(null);
+            // file_exists() antes de borrar: algunos casos ya hacen FrenoCircuito::quitar() dentro
+            // de $fn(), y un unlink() sobre un archivo ya borrado dispara un warning de PHP que
+            // Collision (el runner de `artisan test`) reporta como WARN aunque esté sobre `@`.
+            if (file_exists($centinela)) {
+                @unlink($centinela);
+            }
+            if (is_dir($dir)) {
+                @rmdir($dir);
+            }
+        }
+    }
+
+    /**
+     * 5a — Freno SIN `expira_en` (#9990417): el freno manual (#342, `circuito:pausar`) sigue
+     * activo para siempre. `expirado()` tiene que decir `false` aunque el freno lleve puesto lo
+     * que sea, porque nada en el JSON le dice cuándo debe irse.
+     */
+    public function test_freno_sin_expira_en_nunca_se_autolimpia(): void
+    {
+        $this->conFrenoTemporal(function () {
+            FrenoCircuito::poner('Freno manual de prueba', 'test:irving');
+
+            $this->assertTrue(FrenoCircuito::activo());
+            $this->assertFalse(FrenoCircuito::expirado(),
+                'Un freno sin expira_en jamás debe reportarse como expirado: es el freno manual de #342.');
+            $this->assertTrue(FrenoCircuito::activo(),
+                'expirado()=false no debe tocar el centinela: el freno manual sigue puesto.');
+        });
+    }
+
+    /**
+     * 5b — Freno CON `expira_en` en el PASADO: `expirado()` debe decir `true`, y aplicando lo que
+     * hace `RoadmapCircuitoService::isPaused()` (quitar el centinela al detectarlo vencido), el
+     * freno desaparece. Éste es el autolimpiado que motiva la fase.
+     */
+    public function test_freno_con_expira_en_pasado_se_autolimpia(): void
+    {
+        $this->conFrenoTemporal(function () {
+            FrenoCircuito::poner('Freno temporal vencido', 'test:jarvis', Carbon::now()->subMinute()->toIso8601String());
+
+            $this->assertTrue(FrenoCircuito::activo());
+            $this->assertTrue(FrenoCircuito::expirado(),
+                'Un expira_en en el pasado debe marcar el freno como expirado.');
+
+            FrenoCircuito::quitar(); // lo que hace isPaused() al ver expirado()===true.
+            $this->assertFalse(FrenoCircuito::activo(),
+                'El freno vencido debe desaparecer: así es como isPaused() deja de bloquear.');
+        });
+    }
+
+    /**
+     * 5c — Freno CON `expira_en` en el FUTURO: sigue activo, no se autolimpia antes de tiempo.
+     */
+    public function test_freno_con_expira_en_futuro_sigue_activo(): void
+    {
+        $this->conFrenoTemporal(function () {
+            FrenoCircuito::poner('Freno temporal futuro', 'test:jarvis', Carbon::now()->addHour()->toIso8601String());
+
+            $this->assertTrue(FrenoCircuito::activo());
+            $this->assertFalse(FrenoCircuito::expirado(),
+                'Un expira_en que todavía no llega no debe autolimpiar el freno antes de tiempo.');
+            $this->assertTrue(FrenoCircuito::activo(),
+                'Sigue puesto: expirado()=false no debe tocar el centinela.');
+        });
     }
 }
