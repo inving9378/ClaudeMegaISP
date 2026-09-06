@@ -1704,4 +1704,26 @@ return [
         'log_cap' => (int) env('CIRCUITO_WATCHDOG_LOG_CAP', 60),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Visor de actividad — Fase 2, atribución por PERSONA (item #9990386)
+    |--------------------------------------------------------------------------
+    |
+    | Decisión de Irving (2026-09-05): medir por login real desde ya. Regla: cualquier login que
+    | NO esté en `logins_compartidos` se trata como una persona individual (aunque hoy solo exista
+    | esa única cuenta) — no hay que esperar altas nuevas. Los que SÍ están aquí son cuentas que
+    | hoy usa más de una persona (ej. Irving y quien más entre con esa sesión); su actividad va al
+    | bucket "cuenta compartida · sin atribuir" y no cuenta para nadie. Ajustable sin redeploy.
+    */
+    'atribucion' => [
+        'logins_compartidos' => array_values(array_filter(array_map('trim', explode(',',
+            (string) env('CIRCUITO_LOGINS_COMPARTIDOS', 'admin,Irving')
+        )))),
+
+        // Identidad de git local que comparten TODAS las terminales del circuito en esta máquina
+        // (mismo `git config user.name` para todas) — sus commits van al bucket "circuito", no a
+        // una persona. Un autor de git DISTINTO a este ya cuenta como persona real bajo su nombre.
+        'git_autor_circuito' => (string) env('CIRCUITO_GIT_AUTOR_CIRCUITO', 'Irving MegaISP'),
+    ],
+
 ];
