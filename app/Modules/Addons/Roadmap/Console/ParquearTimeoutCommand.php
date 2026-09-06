@@ -45,7 +45,8 @@ class ParquearTimeoutCommand extends Command
     protected $signature = 'circuito:parquear-timeout
         {item : id del item cuya vuelta se cortó}
         {--segundos=600 : duración de la vuelta que se cortó (sólo para el motivo)}
-        {--causa=timeout : cómo terminó la vuelta: timeout|max_turns|error (sólo para el motivo, #927)}
+        {--causa=timeout : cómo terminó la vuelta: timeout|max_turns|error|sigkill|limite_cuenta (sólo para el motivo, #927/#9990416)}
+        {--hora-reset= : hora de reset del límite de cuenta si se conoce (sólo con causa=limite_cuenta, #9990416); dato informativo, nunca bloqueante}
         {--dry : no escribe, sólo dice qué haría}';
 
     protected $description = 'Decide si un item que timeouteó se reanuda (avanzó) o pasa a la bandeja de Irving.';
@@ -69,6 +70,9 @@ class ParquearTimeoutCommand extends Command
             // #9990302 — el guard de vida máxima necesitó el SIGKILL de respaldo: el proceso
             // ignoró el SIGTERM del timeout normal.
             'sigkill'   => "El guard de vida máxima forzó el cierre con SIGKILL (ignoró SIGTERM tras {$segs}s)",
+            // #9990416 — la cuenta de Claude se quedó sin límite de sesión: no es un fallo del
+            // item ni de la vuelta, es un límite externo. Ver tercer camino más abajo.
+            'limite_cuenta' => 'La cuenta de Claude se quedó sin límite de sesión',
             default     => "La vuelta se cortó a los {$segs}s",
         };
 
@@ -82,6 +86,51 @@ class ParquearTimeoutCommand extends Command
         // Cerrado a mitad de la vuelta: no hay nada que parquear.
         if (in_array($item->estado_aprobacion, ['completado', 'cancelado'], true)) {
             $this->info("#{$id}: ya está {$item->estado_aprobacion}; no se toca.");
+
+            return self::SUCCESS;
+        }
+
+        // #9990416 — TERCER CAMINO, paralelo a reanudar/bandeja: la cuenta de Claude se quedó sin
+        // límite de sesión. NO es señal de que el item sea grande o esté atorado, así que NO toca
+        // veces_timeouteo/reanudaciones_timeout (eso enseñaría a JarvisService::caberEnVuelta() que
+        // un item sano es problemático) ni escalaciones_fingerprint (no es una escalación). Siempre
+        // vuelve a la cola en su estado previo, sin importar si hubo avance o no.
+        if ($causa === 'limite_cuenta') {
+            $destino   = $circuito->estadoAprobadoPrevio($item);
+            $horaReset = trim((string) $this->option('hora-reset'));
+
+            $this->line(sprintf(
+                '#%d · límite de cuenta agotado · destino=%s%s',
+                $id, $destino, $horaReset !== '' ? " · reset={$horaReset}" : ''
+            ));
+
+            if ($dry) {
+                $this->info('DRY: volvería a la cola sin penalización (límite de cuenta).');
+
+                return self::SUCCESS;
+            }
+
+            $motivo = "{$comoTermino}. Vuelve a la cola como {$destino} sin contar como timeout"
+                . ($horaReset !== '' ? " (reset estimado: {$horaReset})." : '.');
+
+            $item->estado_aprobacion = $destino;
+            $item->aprobado_por      = 'limite_cuenta:reanudado';
+            $item->worker_sid        = null; // libera el slot: cualquier terminal puede retomarlo
+            $item->claimed_at        = null;
+
+            $log   = $item->log ?: [];
+            $log[] = [
+                'ts'         => now()->toIso8601String(),
+                'por'        => 'limite_cuenta',
+                'evento'     => 'limite_cuenta_detectado',
+                'estado'     => $destino,
+                'hora_reset' => $horaReset !== '' ? $horaReset : null,
+                'motivo'     => $motivo,
+            ];
+            $item->log = $log;
+            $item->save();
+
+            $this->info("#{$id}: vuelve a {$destino} por límite de cuenta, sin penalización.");
 
             return self::SUCCESS;
         }
