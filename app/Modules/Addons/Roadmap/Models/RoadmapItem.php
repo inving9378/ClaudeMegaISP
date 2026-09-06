@@ -62,6 +62,9 @@ class RoadmapItem extends Model
         'reporte_tecnico', 'reporte_coloquial', 'enlace_revision',
         // #1005 — escape valve del gate de cierre para items sin pantalla (migraciones/refactors/tests)
         'sin_ui', 'sin_ui_motivo',
+        // #9990403 — justificación explícita de un cierre SIN rama/merge_commit cuya naturaleza no
+        // implicaba producir código (investigación/premisa incorrecta/duplicado ya entregado)
+        'cierre_sin_codigo_motivo',
         // Bandeja de decisiones interactiva (#313) + brief multi-pregunta (#432 Fase 3)
         'opciones', 'opcion_elegida', 'preguntas', 'huecos_spec', 'huecos_medidos_at',
         // Aislamiento por rama (#311)
@@ -410,9 +413,14 @@ class RoadmapItem extends Model
         // de solo-warning antes de bloquear duro": esto afecta el cierre de CUALQUIER item de
         // CUALQUIER terminal en paralelo). `circuito.jarvis.cierre.bloquea` (default false) por ahora
         // SOLO deja el hueco escrito en el log del item (visible/auditable, no bloqueante — hoy ni
-        // eso pasaba). Flip a `true` cuando quede validado en vivo, y este mismo bloque empieza a
-        // parquear el cierre incompleto a `aprobado_irving` (mismo patrón que (1)/(2b) de arriba) en
-        // vez de dejarlo completar con huecos.
+        // eso pasaba) para los `faltantes` blandos (reporte_coloquial/enlace_revision). Flip a `true`
+        // cuando quede validado en vivo, y este mismo bloque empieza a parquear también esos cierres
+        // incompletos a `aprobado_irving` (mismo patrón que (1)/(2b) de arriba) en vez de dejarlos
+        // completar con huecos.
+        //
+        // #9990403 — los `bloqueantes` (cierre SIN rama y SIN merge_commit, sin justificación de
+        // cierre-sin-código) NO entran en ese rollout: siempre parquean, desde ya. Ese fue justo el
+        // incidente #9990366 — un cierre hueco que el modo advertencia dejó completar.
         static::saving(function (self $item) {
             if (! $item->isDirty('estado_aprobacion') || $item->estado_aprobacion !== 'completado') {
                 return;
@@ -420,17 +428,25 @@ class RoadmapItem extends Model
 
             $verificacion = app(\App\Modules\Addons\Roadmap\Services\JarvisService::class)->verificarCierre($item);
             if (! $verificacion['ok']) {
+                // #9990403 — un `bloqueante` (cierre hueco: sin rama, sin merge_commit, sin
+                // justificación) frena SIEMPRE, sin importar el rollout de `cierre.bloquea` de abajo
+                // (ese rollout es para los `faltantes` más blandos — reporte_coloquial/enlace_revision
+                // — que sí conviene dejar en solo-advertencia mientras maduran). El incidente #9990366
+                // fue exactamente un cierre hueco que el modo advertencia dejó pasar.
+                $tieneBloqueantes = ($verificacion['bloqueantes'] ?? []) !== [];
+
                 $log = $item->log ?: [];
                 $log[] = [
-                    'ts'        => now()->toIso8601String(),
-                    'por'       => 'jarvis:verificarCierre',
-                    'evento'    => 'cierre_incompleto',
-                    'faltantes' => $verificacion['faltantes'],
-                    'bloqueado' => (bool) config('circuito.jarvis.cierre.bloquea', false),
+                    'ts'          => now()->toIso8601String(),
+                    'por'         => 'jarvis:verificarCierre',
+                    'evento'      => 'cierre_incompleto',
+                    'faltantes'   => $verificacion['faltantes'],
+                    'bloqueantes' => $verificacion['bloqueantes'] ?? [],
+                    'bloqueado'   => (bool) config('circuito.jarvis.cierre.bloquea', false) || $tieneBloqueantes,
                 ];
                 $item->log = $log;
 
-                if (config('circuito.jarvis.cierre.bloquea', false)) {
+                if (config('circuito.jarvis.cierre.bloquea', false) || $tieneBloqueantes) {
                     $item->estado_aprobacion       = 'aprobado_irving';
                     $item->status                  = 'pending';
                     $item->excluir_pool_automatico  = true;

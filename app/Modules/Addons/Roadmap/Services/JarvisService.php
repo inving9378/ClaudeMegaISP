@@ -1416,16 +1416,29 @@ class JarvisService
      * valida que el path resuelva contra el registro de rutas — un link con typo ya no pasa en
      * silencio.
      *
-     * Devuelve ['ok' => bool, 'faltantes' => string[]]. No muta nada: decidir qué hacer con un
-     * cierre incompleto es del llamador.
+     * Devuelve ['ok' => bool, 'faltantes' => string[], 'bloqueantes' => string[]]. No muta nada:
+     * decidir qué hacer con un cierre incompleto es del llamador.
+     *
+     * `bloqueantes` (#9990403) es una categoría aparte de `faltantes`: mientras que `faltantes` sigue
+     * el rollout en dos fases de `cierre.bloquea` (solo-advertencia hasta que se active), un
+     * `bloqueante` SIEMPRE frena el cierre — nace del incidente real #9990366, donde un item se marcó
+     * `completado` sin rama de trabajo ni merge_commit (no produjo NADA) y el modo advertencia lo dejó
+     * pasar. La regla distingue "no hizo el trabajo" de "el trabajo era no-código / ya estaba hecho"
+     * exigiendo una justificación EXPLÍCITA (`cierre_sin_codigo_motivo`) para la segunda categoría —
+     * sin rama, sin merge_commit y sin esa justificación, se rebota siempre.
      */
     public function verificarCierre(RoadmapItem $item): array
     {
-        $cfg       = (array) config('circuito.jarvis.cierre', []);
-        $faltantes = [];
+        $cfg         = (array) config('circuito.jarvis.cierre', []);
+        $faltantes   = [];
+        $bloqueantes = [];
 
-        if (empty($item->branch)) {
-            $faltantes[] = 'no registró rama de trabajo';
+        if (empty($item->branch) && empty($item->merge_commit)) {
+            if (trim((string) $item->cierre_sin_codigo_motivo) === '') {
+                $bloqueantes[] = 'cierre sin rama de trabajo ni merge_commit, y sin justificación de '
+                    . 'cierre-sin-código (usa cierre_sin_codigo_motivo si de verdad era investigación, '
+                    . 'premisa incorrecta o duplicado ya entregado por otro item)';
+            }
         }
 
         if (($cfg['exige_reporte_coloquial'] ?? true) && trim((string) $item->reporte_coloquial) === '') {
@@ -1446,7 +1459,11 @@ class JarvisService
             $faltantes[] = 'cerró con una consulta a Jarvis todavía sin resolver';
         }
 
-        return ['ok' => $faltantes === [], 'faltantes' => $faltantes];
+        return [
+            'ok'          => $faltantes === [] && $bloqueantes === [],
+            'faltantes'   => $faltantes,
+            'bloqueantes' => $bloqueantes,
+        ];
     }
 
     /**
