@@ -36,8 +36,12 @@ paraguas correctamente descompuesto que nunca recibió el intento de cierre que 
 - Intento de cierre: `RoadmapItem::find(9990412)->estado_aprobacion = 'completado'; ->save();` →
   el guard `saving` (2b, `RoadmapItem.php` ~301-326) lo reenrutó automáticamente a
   `aprobado_irving` + `excluir_pool_automatico=true`, agregando al log el evento
-  `paraguas_abierto` ("le quedan 2 sub-item(s) abierto(s): no se completa"). Confirmado leyendo
-  `$item->log` tras el save.
+  `paraguas_abierto` ("le queda 1 sub-item abierto: no se completa"). Confirmado leyendo
+  `$item->log` tras el save. El conteo real es 1 y no 2 porque `subItemsAbiertos()`
+  (`RoadmapItem.php:1758-1764`) excluye con `whereNull('archivado_at')` a los hijos ya
+  archivados — #9990417 tiene `archivado_at` seteado (se archivó al mergear `7b74322e`), así que
+  no cuenta como "abierto" para este guard aunque su `estado_aprobacion` siga en
+  `aprobado_irving` en vez de `completado`. El único hijo que sí bloquea el conteo es #9990418.
 
 ### Hallazgo adicional (fuera de alcance de #9990412, NO tocado)
 
@@ -57,9 +61,9 @@ anotado para que el próximo item que reclame #9990417/#9990424/#9990425 lo resu
 ## Resultado
 
 #9990412 queda **fuera del pool de reclamo** (no más timeouts ni re-escalaciones en bucle) hasta
-que #9990417 y #9990418 cierren — en ese momento el hook `saved` (`RoadmapItem.php:459-491`, ya
-existente y verificado en las sesiones de #738/#745/#830) completa #9990412 solo, sin
-intervención manual.
+que #9990418 cierre — en ese momento el hook `saved` (`RoadmapItem.php:459-491`, ya existente y
+verificado en las sesiones de #738/#745/#830) completa #9990412 solo, sin intervención manual
+(el guard de conteo ya no espera a #9990417 por estar archivado, ver arriba).
 
 **Sin cambio de código de negocio.** El trabajo técnico real (enganchar el freno-con-expiración
 en `vuelta.sh`) sigue en #9990418, bloqueado hasta que #9990411 y #9990417 cierren — y #9990417
