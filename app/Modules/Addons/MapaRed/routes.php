@@ -7,6 +7,7 @@ use App\Modules\Addons\MapaRed\Controllers\HilosController;
 use App\Modules\Addons\MapaRed\Controllers\KMZController;
 use App\Modules\Addons\MapaRed\Controllers\LayersController;
 use App\Modules\Addons\MapaRed\Controllers\MapaRedController;
+use App\Modules\Addons\MapaRed\Controllers\NapSaludController;
 use App\Modules\Addons\MapaRed\Controllers\ProyectsController;
 use App\Modules\Addons\MapaRed\Controllers\ServiceBoxController;
 use Illuminate\Support\Facades\Route;
@@ -100,4 +101,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     Route::get('/enlaces-servicio/por-nap', [EnlacesServicioController::class, 'porNap'])->name('mapa-red.api.enlaces-servicio.por-nap');
     Route::post('/enlaces-servicio', [EnlacesServicioController::class, 'store'])->name('mapa-red.api.enlaces-servicio.store');
     Route::put('/enlaces-servicio/{id}', [EnlacesServicioController::class, 'update'])->name('mapa-red.api.enlaces-servicio.update');
+
+    // MR-21 (item #957) — semáforo de salud por NAP alimentado por MultiOLT (D18).
+    Route::get('/naps/salud', [NapSaludController::class, 'dashboard'])->name('mapa-red.api.naps.salud');
+    Route::get('/naps/salud-lote', [NapSaludController::class, 'lote'])->name('mapa-red.api.naps.salud-lote');
 });
