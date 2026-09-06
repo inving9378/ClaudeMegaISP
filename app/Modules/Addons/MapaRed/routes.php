@@ -58,6 +58,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     Route::delete('/layers/{id}', [LayersController::class, 'destroy']);
 
     Route::post('/layers/configuration/{id}', [LayersController::class, 'configuration']);
+    Route::get('/layers/{id}/resumen', [LayersController::class, 'resumen'])->name('mapa-red.api.layers.resumen');
     Route::post('/layers/convert-from-project/{id}', [LayersController::class, 'convertLayersFromProject']);
     Route::post('/layers/convert-from-layer/{id}', [LayersController::class, 'convertLayerFromLayer']);
     Route::post('/layers/convert-from-tickeds', [LayersController::class, 'convertLayersFromTickeds']);

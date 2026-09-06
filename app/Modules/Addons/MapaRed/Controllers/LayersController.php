@@ -4,6 +4,8 @@ namespace App\Modules\Addons\MapaRed\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\ClientMainInformation;
+use App\Modules\Addons\MapaRed\Models\MapaRedDevice;
+use App\Modules\Addons\MapaRed\Models\MapaRedDevicePort;
 use App\Modules\Addons\MapaRed\Models\MapaRedDevicePortConnection;
 use App\Modules\Addons\MapaRed\Models\MapaRedFiber;
 use App\Modules\Addons\MapaRed\Models\MapaRedLayer;
@@ -41,6 +43,44 @@ class LayersController extends Controller
     {
         $layer = MapaRedLayer::find($id);
         return $this->layerConfig($layer);
+    }
+
+    /**
+     * Resumen de puertos/empalmes/clientes colgados para la ficha lateral del árbol
+     * (MR-23 fase 3, item #9990428). Reusa el mismo esquema legacy mapared_devices*
+     * que ya alimenta ServiceBox/JunctionBox/RackConfiguration — el esquema de dominio
+     * nuevo (mapared_puertos/mapared_empalmes/mapared_enlaces_servicio) sigue sin
+     * backfill de datos reales, así que no aplica todavía como fuente aquí.
+     */
+    public function resumen($id)
+    {
+        $deviceIds = MapaRedDevice::where('layer_id', $id)->pluck('id');
+        $ports = MapaRedDevicePort::whereIn('device_id', $deviceIds)->get(['client_id', 'connected']);
+
+        $puertosTotal = $ports->count();
+        $puertosOcupados = $ports->where('connected', true)->count();
+
+        $clienteIds = $ports->pluck('client_id')->filter()->unique()->values();
+        $clientesActivos = $clienteIds->isEmpty()
+            ? 0
+            : ClientMainInformation::whereIn('id', $clienteIds)->where('estado', 'Activo')->count();
+
+        $empalmes = MapaRedDevicePortConnection::where('layer_id', $id)->count();
+
+        return response()->json([
+            'puertos' => [
+                'total' => $puertosTotal,
+                'ocupados' => $puertosOcupados,
+                'libres' => $puertosTotal - $puertosOcupados,
+            ],
+            'empalmes' => [
+                'total' => $empalmes,
+            ],
+            'clientes' => [
+                'total' => $clienteIds->count(),
+                'activos' => $clientesActivos,
+            ],
+        ]);
     }
 
     public function index(Request $request)
