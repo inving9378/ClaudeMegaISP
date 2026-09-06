@@ -64,7 +64,7 @@ class OpticalBudgetService
         $motivoCorte = null;
         $puertoPon = null;
 
-        $nodo = $this->nodoInicial($enlace, $segmentos);
+        $nodo = $this->nodoInicial($enlace);
 
         $saltos = 0;
         while ($nodo !== null) {
@@ -131,6 +131,20 @@ class OpticalBudgetService
             if (! $hilo) {
                 $motivoCorte = 'hilo_inexistente';
                 break;
+            }
+
+            // Cada hilo visitado (el inicial del enlace y cualquier otro alcanzado aguas
+            // arriba: feeder, distribución) aporta su propio tramo de cable. Antes solo se
+            // sumaba el cable del hilo inicial (lo hacía `nodoInicial()` una sola vez) y el
+            // resto de la ruta perdía por completo la longitud de los cables intermedios —
+            // justo lo que el DoD de #954 pide acumular ("atenuación por km" de TODA la ruta).
+            if ($hilo->cable) {
+                $segmentos[] = [
+                    'tipo' => 'cable',
+                    'cable_id' => $hilo->cable_id,
+                    'hilo_id' => $hilo->id,
+                    'metros' => (float) $hilo->cable->longitud_metros,
+                ];
             }
 
             // `mapared_empalmes::hiloDisponible()` (MR-12/#948, ya mergeado) limita CADA hilo a
@@ -232,22 +246,15 @@ class OpticalBudgetService
         ];
     }
 
-    private function nodoInicial(MapaRedEnlaceServicio $enlace, array &$segmentos): ?array
+    /**
+     * Nodo de arranque del trazo. No suma segmentos aquí: el hilo inicial se procesa como
+     * cualquier otro nodo 'hilo' dentro del bucle de `trazarRuta()`, que es quien le suma su
+     * propio tramo de cable (ver el comentario ahí sobre por qué esto se unificó).
+     */
+    private function nodoInicial(MapaRedEnlaceServicio $enlace): ?array
     {
-        if ($enlace->hilo_id) {
-            $hilo = MapaRedHilo::with('cable')->find($enlace->hilo_id);
-            if ($hilo) {
-                if ($hilo->cable) {
-                    $segmentos[] = [
-                        'tipo' => 'cable',
-                        'cable_id' => $hilo->cable_id,
-                        'hilo_id' => $hilo->id,
-                        'metros' => (float) $hilo->cable->longitud_metros,
-                    ];
-                }
-
-                return $this->siguienteHilo($hilo->id);
-            }
+        if ($enlace->hilo_id && MapaRedHilo::whereKey($enlace->hilo_id)->exists()) {
+            return $this->siguienteHilo($enlace->hilo_id);
         }
 
         if ($enlace->puerto_nap_id) {
