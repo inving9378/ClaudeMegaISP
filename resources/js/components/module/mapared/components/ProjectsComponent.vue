@@ -531,6 +531,13 @@
         @rejected="onRejectedKMZ"
         @update:model-value="onSelectKMZ"
     />
+
+    <element-side-panel
+        :permissons="permissons"
+        @edit="editNode"
+        @delete="deleteObject"
+        @show-on-map="showOnMap"
+    />
 </template>
 
 <script setup>
@@ -548,6 +555,8 @@ import {
 } from "../helper/request";
 import { message } from "../../../../helpers/toastMsg";
 import { menuOptions, hasLayerEdit, currentMarker } from "../helper/mapUtils";
+import ElementSidePanel from "./others/ElementSidePanel.vue";
+import { openElementSidePanel } from "../../../../composables/useElementSidePanel";
 import Swal from "sweetalert2";
 import { darkMode } from "../../../../hook/appConfig";
 import { isFullScreen } from "../../../../composables/useFullScreen";
@@ -744,6 +753,9 @@ const loadData = async () => {
 
 const onSelectedNode = async (key) => {
     let node = nodeMap.value[key];
+    if (node && node.id != null && node.classification != null) {
+        openElementSidePanel(node);
+    }
     if (node && node.classification === "project" && !node.coords) {
         projectNode.value = node;
         emits("selected", node);
