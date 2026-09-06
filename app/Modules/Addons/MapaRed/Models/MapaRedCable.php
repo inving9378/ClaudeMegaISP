@@ -62,5 +62,11 @@ class MapaRedCable extends BaseModel
         static::saved(function (self $cable) {
             CableStructureService::sincronizarHilos($cable);
         });
+
+        // Cascada a nivel aplicación (no FK real: mapared_hilos es compartida con MR-11/#947,
+        // trabajo concurrente sobre la misma BD de dev; ver comentario de la migración).
+        static::deleting(function (self $cable) {
+            $cable->hilos()->delete();
+        });
     }
 }
