@@ -324,9 +324,17 @@ class LiberarCascadaMapaRedCommand extends Command
         }
 
         // (3) Item atascado: más de FACTOR_ATASCO × su eta_minutos sin cerrar.
+        // Solo cuenta si de verdad sigue en_progreso ahora mismo -- si ya se
+        // soltó el claim (p.ej. volvió a aprobado_revisor/aprobado_irving), su
+        // trabajo_iniciado_at/claimed_at es un timestamp residual del intento
+        // viejo, no evidencia de que siga atascado (mismo criterio que ya usa
+        // circuito:reap-stuck para distinguir estado real de timestamp fantasma).
         foreach ($secuencia as $id) {
             $i = $items[$id] ?? null;
             if (! $i || $this->estaCompletado($i) || empty($i->eta_minutos)) {
+                continue;
+            }
+            if ($i->estado_aprobacion !== 'en_progreso') {
                 continue;
             }
             $arranque = $i->trabajo_iniciado_at ?: $i->claimed_at;
