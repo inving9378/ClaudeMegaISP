@@ -1870,3 +1870,22 @@ abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
 `docs/roadmap-bucle-reap-item-910-verificacion.md`. **Sin cambio de código de negocio** — el
 trabajo real (inventario del barrido, snapshots de ocupación, ratio útil/ruido, reporte final)
 sigue en #9990393/#9990394, pendientes de que una terminal los reclame.
+
+## Item #9990385 — Seguimiento: 2 preguntas sin resolver de #9990373 (MR-36 depende_de sobre paraguas) (RESUELTO — ya aplicado antes de que Irving aprobara)
+
+Sub-item de seguimiento de #9990373 con 2 preguntas `requiere_irving` sin `opcion_elegida`: (q1)
+cómo resolver que `depende_de` no cierre sobre un paraguas sin `merge_commit` propio, y (q2) cómo
+desbloquear `#9990329`→`#942` MIENTRAS se aplica el fix. Irving aprobó la Opción 1 recomendada en
+ambas (paraguas "transparente" para q1; override manual puntual para q2). Verificado: **q1 ya
+estaba en `main`** — commit `1f872e15` (integrado vía `93a88800`), el mismo día que se generó
+`#9990385` y ANTES de que Irving llegara a aprobarlo, así que la decisión de Irving coincidió con
+lo ya implementado por pura carrera de timing (mismo patrón que #733/#741/#753/#9990003/#9990353).
+El método único `RoadmapCircuitoService::estaCerradoParaDependencia()` ya implementa exactamente la
+Opción 1: un id de `depende_de` cuenta como cerrado si es hoja con `merge_commit` propio, o si es un
+paraguas `completado` sin sub-items abiertos. **q2 resultó innecesaria** — no se aplicó ningún
+override manual (verificado: el log de `#942`/`#9990329` no tiene esa entrada); ambos ya tienen
+`merge_commit` propio (llegaron a `main` por sus propias ramas) y hoy la cadena de dependencias
+resuelve correctamente por razones reales de trabajo pendiente (`#943` espera a `#942`, que espera
+a `#941`; `#9990329` espera a su último hijo `#9990391`), no por el bug de MR-36. Detalle completo
+en `docs/circuito-mr36-seguimiento-item-9990385-verificacion.md`. **Sin cambio de código de
+negocio** — solo se dejó constancia escrita de la verificación.
