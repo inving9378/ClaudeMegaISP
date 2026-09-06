@@ -4,6 +4,7 @@ namespace App\Modules\Addons\MapaRed\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\MapaRed\Models\MapaRedEnlaceServicio;
+use App\Modules\Addons\MapaRed\Services\OpticalBudgetService;
 use Illuminate\Http\Request;
 
 /**
@@ -59,5 +60,23 @@ class EnlacesServicioController extends Controller
         $enlace->save();
 
         return response()->json($enlace);
+    }
+
+    /**
+     * MR-18 (item #954) — presupuesto óptico acumulado desde el trazo hasta la OLT, comparado
+     * contra el RX real de MultiOLT. Ver `OpticalBudgetService` para el detalle y las
+     * limitaciones (sin MR-16/#952, sin catálogo de equipos de MR-08/#944).
+     */
+    public function presupuestoOptico(Request $request, $id, OpticalBudgetService $service)
+    {
+        $enlace = MapaRedEnlaceServicio::findOrFail($id);
+
+        $data = $request->validate([
+            'ventana' => 'sometimes|in:1310,1490,1550',
+        ]);
+
+        return response()->json(
+            $service->calcular($enlace, $data['ventana'] ?? OpticalBudgetService::VENTANA_DEFAULT)
+        );
     }
 }

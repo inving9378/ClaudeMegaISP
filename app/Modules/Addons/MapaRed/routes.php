@@ -105,4 +105,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     // MR-21 (item #957) — semáforo de salud por NAP alimentado por MultiOLT (D18).
     Route::get('/naps/salud', [NapSaludController::class, 'dashboard'])->name('mapa-red.api.naps.salud');
     Route::get('/naps/salud-lote', [NapSaludController::class, 'lote'])->name('mapa-red.api.naps.salud-lote');
+
+    // MR-18 (item #954) — presupuesto óptico automático desde el trazo.
+    Route::get('/enlaces-servicio/{id}/presupuesto-optico', [EnlacesServicioController::class, 'presupuestoOptico'])->name('mapa-red.api.enlaces-servicio.presupuesto-optico');
 });
