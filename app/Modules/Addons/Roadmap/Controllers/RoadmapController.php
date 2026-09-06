@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Roadmap\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Modules\Addons\Roadmap\Models\CircuitoEjecucion;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Services\AutopilotService;
@@ -719,6 +720,106 @@ class RoadmapController extends Controller
             $porAutorCommit[$key]['commits']++;
         }
 
+        // ── 5) Fase 2 (#9990386): atribución ESTRICTA por PERSONA sobre las mismas fuentes ──
+        // SOLO 3 buckets, siempre rotulados: persona (login individual real) / cuenta_compartida
+        // (login usado hoy por más de una persona, decisión de Irving) / circuito (trabajo
+        // autónomo: terminales wt-*, actores de sistema del circuito, usuario is_system). Nunca
+        // se reparte ni se adivina — lo que no se puede atribuir con certeza cae en su bucket
+        // explícito, no en una persona.
+        $loginsCompartidos = array_map('strtolower', (array) config('circuito.atribucion.logins_compartidos', []));
+        $gitAutorCircuito  = (string) config('circuito.atribucion.git_autor_circuito', 'Irving MegaISP');
+
+        $personas = [];
+        $cuentaCompartida = ['acciones_ui' => 0, 'eventos_log' => 0, 'commits' => 0, 'logins' => []];
+        $circuitoBucket = ['acciones_ui' => 0, 'eventos_log' => 0, 'commits' => 0, 'items_completados' => 0, 'segundos_en_tarea' => 0];
+
+        // (a) roadmap_items.log → "por": SOLO el patrón `irving:<login>` (el que produce
+        // `actor()`, el único punto que ata un log a una sesión web autenticada) cuenta como
+        // posible persona/cuenta compartida. Cualquier otro valor (jarvis-*, thomas-*, wt-N,
+        // merge-runner, reaper*, etc.) es trabajo autónomo del circuito, sin login detrás.
+        foreach ($items as $item) {
+            foreach ((array) $item->log as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                $ts = $entry['ts'] ?? null;
+                if (!$ts) {
+                    continue;
+                }
+                try {
+                    $tsCarbon = \Carbon\Carbon::parse($ts);
+                } catch (\Throwable $e) {
+                    continue;
+                }
+                if (!$tsCarbon->between($inicio, $fin)) {
+                    continue;
+                }
+                $por = $entry['por'] ?? $entry['autor'] ?? null;
+                if (!$por) {
+                    continue;
+                }
+                if (preg_match('/irving:([A-Za-z0-9_\-]+)/i', (string) $por, $m)) {
+                    $login = $m[1];
+                    $u = User::whereRaw('LOWER(login_user) = ?', [strtolower($login)])->first();
+                    if ($u && !$u->is_system && !in_array(strtolower($u->login_user), $loginsCompartidos, true)) {
+                        $personas[$u->login_user] ??= ['login_user' => $u->login_user, 'nombre' => $u->name ?: $u->login_user, 'acciones_ui' => 0, 'eventos_log' => 0, 'commits' => 0];
+                        $personas[$u->login_user]['eventos_log']++;
+                    } else {
+                        // Login compartido conocido, o cadena `irving:algo` que no cruza contra
+                        // ningún usuario real (texto libre escrito a mano): no se puede afirmar
+                        // que sea una persona distinta, así que no se inventa — va a compartida.
+                        $cuentaCompartida['eventos_log']++;
+                        $loginVisto = $u ? $u->login_user : $login;
+                        if (!in_array($loginVisto, $cuentaCompartida['logins'], true)) {
+                            $cuentaCompartida['logins'][] = $loginVisto;
+                        }
+                    }
+                } else {
+                    $circuitoBucket['eventos_log']++;
+                }
+            }
+        }
+
+        // (b) activity_log.causer_id: usuario web real autenticado detrás de la acción.
+        foreach ($actividadUi as $a) {
+            $u = $a->user;
+            if (!$u || $u->is_system) {
+                $circuitoBucket['acciones_ui']++;
+                continue;
+            }
+            $login = $u->login_user ?: (string) $u->id;
+            if (in_array(strtolower($login), $loginsCompartidos, true)) {
+                $cuentaCompartida['acciones_ui']++;
+                if (!in_array($login, $cuentaCompartida['logins'], true)) {
+                    $cuentaCompartida['logins'][] = $login;
+                }
+            } else {
+                $personas[$login] ??= ['login_user' => $login, 'nombre' => $u->name ?: $login, 'acciones_ui' => 0, 'eventos_log' => 0, 'commits' => 0];
+                $personas[$login]['acciones_ui']++;
+            }
+        }
+
+        // (c) commits de git: el autor DISTINTO a la identidad compartida de las terminales del
+        // circuito ya es una persona real bajo su propio nombre de git (aún sin login_user que
+        // cruzar — se atribuye por nombre, tal como pide el prompt del item).
+        foreach ($commits as $c) {
+            $autor = trim((string) ($c['autor'] ?? ''));
+            if ($autor === '' || strcasecmp($autor, $gitAutorCircuito) === 0) {
+                $circuitoBucket['commits']++;
+                continue;
+            }
+            $personas[$autor] ??= ['login_user' => $autor, 'nombre' => $autor, 'acciones_ui' => 0, 'eventos_log' => 0, 'commits' => 0];
+            $personas[$autor]['commits']++;
+        }
+
+        // (d) roadmap_items reclamados/completados: SIEMPRE circuito (worker_sid = terminal
+        // autónoma wt-N; ya agregado por terminal arriba en $porTerminal — jamás se le adivina
+        // una persona detrás, es justo la regla del item).
+        foreach ($porTerminal as $t) {
+            $circuitoBucket['items_completados'] += $t['items_completados'];
+            $circuitoBucket['segundos_en_tarea'] += $t['segundos_en_tarea'];
+        }
+
         return response()->json([
             'ok'     => true,
             'rango'  => ['inicio' => $inicio->toDateString(), 'fin' => $fin->toDateString()],
@@ -743,6 +844,16 @@ class RoadmapController extends Controller
                     . 'vuelve confiable con logins individuales.',
                 'por_quien_en_log' => array_values($porQuien),
                 'por_usuario_ui'   => array_values($porUsuarioUi),
+            ],
+            'por_persona' => [
+                'aviso' => 'Atribución ESTRICTA por login real (decisión de Irving, 2026-09-05): una cuenta '
+                    . 'usada por más de una persona no cuenta para nadie ("cuenta compartida · sin atribuir"), '
+                    . 'y el trabajo autónomo de las terminales del circuito tampoco se atribuye a una persona '
+                    . '("circuito"). Solo entra al bucket "persona" un login individual real.',
+                'logins_compartidos' => array_values((array) config('circuito.atribucion.logins_compartidos', [])),
+                'personas' => array_values($personas),
+                'cuenta_compartida' => $cuentaCompartida,
+                'circuito' => $circuitoBucket,
             ],
         ]);
     }

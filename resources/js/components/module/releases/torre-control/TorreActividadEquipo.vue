@@ -144,6 +144,39 @@
         </tbody>
       </table>
     </section>
+
+    <!-- ═══ POR PERSONA — atribución estricta (item #9990386) ═══ -->
+    <section class="ae-section ae-section-persona">
+      <h3 class="ae-h3"><i class="bi bi-person-check-fill ae-ico-persona"></i> Por persona <span class="ae-tag ae-tag-persona">atribución estricta</span></h3>
+      <p class="ae-aviso">{{ personaAviso }}</p>
+
+      <h4 class="ae-h4">Personas (login individual real)</h4>
+      <div v-if="!personas.length" class="ae-empty-mini">Sin login individual con actividad en este rango — todo cayó en cuenta compartida o circuito.</div>
+      <table v-else class="ae-table">
+        <thead><tr><th>Persona</th><th>Acciones UI</th><th>Eventos en items</th><th>Commits</th></tr></thead>
+        <tbody>
+          <tr v-for="p in personas" :key="p.login_user">
+            <td>{{ p.nombre }}</td>
+            <td>{{ p.acciones_ui }}</td>
+            <td>{{ p.eventos_log }}</td>
+            <td>{{ p.commits }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h4 class="ae-h4">Cuenta compartida · sin atribuir</h4>
+      <p class="ae-mini-stats">
+        Logins: {{ (cuentaCompartida.logins || []).join(', ') || '—' }} ·
+        {{ cuentaCompartida.acciones_ui }} acción(es) UI · {{ cuentaCompartida.eventos_log }} evento(s) en items ·
+        {{ cuentaCompartida.commits }} commit(s)
+      </p>
+
+      <h4 class="ae-h4">Circuito (trabajo autónomo)</h4>
+      <p class="ae-mini-stats">
+        {{ circuitoBucket.items_completados }} item(s) completado(s) · {{ fmtDuracion(circuitoBucket.segundos_en_tarea) }} en tarea ·
+        {{ circuitoBucket.acciones_ui }} acción(es) UI · {{ circuitoBucket.eventos_log }} evento(s) en items · {{ circuitoBucket.commits }} commit(s)
+      </p>
+    </section>
   </div>
 </template>
 
@@ -166,6 +199,10 @@ export default {
         const commits = ref({ total: 0, por_autor: [], recientes: [] });
         const porQuienLog = ref([]);
         const porUsuarioUi = ref([]);
+        const personaAviso = ref("");
+        const personas = ref([]);
+        const cuentaCompartida = ref({ acciones_ui: 0, eventos_log: 0, commits: 0, logins: [] });
+        const circuitoBucket = ref({ acciones_ui: 0, eventos_log: 0, commits: 0, items_completados: 0, segundos_en_tarea: 0 });
 
         const hoy = new Date();
         const hace7 = new Date(hoy.getTime() - 6 * 86400000);
@@ -213,6 +250,11 @@ export default {
                 commits.value = medido.commits || { total: 0, por_autor: [], recientes: [] };
                 porQuienLog.value = inferido.por_quien_en_log || [];
                 porUsuarioUi.value = inferido.por_usuario_ui || [];
+                const porPersona = data.por_persona || {};
+                personaAviso.value = porPersona.aviso || "";
+                personas.value = porPersona.personas || [];
+                cuentaCompartida.value = porPersona.cuenta_compartida || { acciones_ui: 0, eventos_log: 0, commits: 0, logins: [] };
+                circuitoBucket.value = porPersona.circuito || { acciones_ui: 0, eventos_log: 0, commits: 0, items_completados: 0, segundos_en_tarea: 0 };
                 cargado.value = true;
             } catch (e) {
                 error.value = (e.response && e.response.data && (e.response.data.error || e.response.data.message)) || "No se pudo cargar la actividad del equipo.";
@@ -234,6 +276,7 @@ export default {
         return {
             cargando, cargado, error, rango, medidoAviso, inferidoAviso,
             porTerminal, ejecuciones, commits, porQuienLog, porUsuarioUi,
+            personaAviso, personas, cuentaCompartida, circuitoBucket,
             fechaInicio, fechaFin, totalCompletados,
             fmtTs, fmtDuracion, cargar, ultimos, dark: darkMode,
         };
@@ -244,12 +287,12 @@ export default {
 <style scoped>
 .ae-wrap{
   --ae-bg:#f8fafc; --ae-surface:#fff; --ae-ink:#0f172a; --ae-muted:#64748b; --ae-line:#e5e7eb;
-  --ae-accent:#0d9488; --ae-medido:#0d9488; --ae-inferido:#b45309;
+  --ae-accent:#0d9488; --ae-medido:#0d9488; --ae-inferido:#b45309; --ae-persona:#4f46e5;
   color:var(--ae-ink);
 }
 .ae-wrap.ae-dark{
   --ae-bg:#0b1220; --ae-surface:#0f172a; --ae-ink:#e2e8f0; --ae-muted:#94a3b8; --ae-line:#1e293b;
-  --ae-accent:#2dd4bf; --ae-medido:#2dd4bf; --ae-inferido:#fbbf24;
+  --ae-accent:#2dd4bf; --ae-medido:#2dd4bf; --ae-inferido:#fbbf24; --ae-persona:#818cf8;
 }
 
 .ae-bar{ display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap; }
@@ -289,9 +332,11 @@ export default {
 .ae-h4:first-of-type{ margin-top:10px; }
 .ae-ico-medido{ color:var(--ae-medido); }
 .ae-ico-inferido{ color:var(--ae-inferido); }
+.ae-ico-persona{ color:var(--ae-persona); }
 .ae-tag{ font-size:10px; font-weight:700; padding:2px 8px; border-radius:999px; text-transform:uppercase; letter-spacing:.03em; }
 .ae-tag-medido{ background:color-mix(in srgb, var(--ae-medido) 18%, transparent); color:var(--ae-medido); }
 .ae-tag-inferido{ background:color-mix(in srgb, var(--ae-inferido) 18%, transparent); color:var(--ae-inferido); }
+.ae-tag-persona{ background:color-mix(in srgb, var(--ae-persona) 18%, transparent); color:var(--ae-persona); }
 .ae-aviso{ font-size:12px; color:var(--ae-muted); margin:0 0 8px; }
 .ae-aviso-inferido{ font-style:italic; }
 .ae-mini-stats{ font-size:12px; color:var(--ae-muted); margin:0 0 8px; }
