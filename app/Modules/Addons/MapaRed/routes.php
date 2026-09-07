@@ -8,6 +8,7 @@ use App\Modules\Addons\MapaRed\Controllers\ConnectionsController;
 use App\Modules\Addons\MapaRed\Controllers\DevicesController;
 use App\Modules\Addons\MapaRed\Controllers\EmpalmesController;
 use App\Modules\Addons\MapaRed\Controllers\EnlacesServicioController;
+use App\Modules\Addons\MapaRed\Controllers\FotosController;
 use App\Modules\Addons\MapaRed\Controllers\HilosController;
 use App\Modules\Addons\MapaRed\Controllers\ImportadorController;
 use App\Modules\Addons\MapaRed\Controllers\KMZController;
@@ -179,4 +180,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     Route::post('/sectores/import/csv/preview', [SectoresController::class, 'previsualizarCsv'])->name('mapa-red.api.sectores.import.csv.preview');
     Route::post('/sectores/import/geojson/preview', [SectoresController::class, 'previsualizarGeoJson'])->name('mapa-red.api.sectores.import.geojson.preview');
     Route::post('/sectores/import/commit', [SectoresController::class, 'confirmar'])->name('mapa-red.api.sectores.import.commit');
+
+    // MR-23 fase 4c (item #9990455) — fotos de nodos/enlaces (tabla polimórfica mapared_fotos).
+    Route::get('/fotos/{tipo}/{id}', [FotosController::class, 'index'])->name('mapa-red.api.fotos.index');
+    Route::post('/fotos/{tipo}/{id}', [FotosController::class, 'store'])->name('mapa-red.api.fotos.store');
+    Route::delete('/fotos/{id}', [FotosController::class, 'destroy'])->name('mapa-red.api.fotos.destroy');
 });

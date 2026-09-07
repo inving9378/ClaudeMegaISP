@@ -8,7 +8,10 @@
     "active": true,
 
     "permissions": [
-        { "name": "mapa_red_view", "description": "Ver módulo Mapa de Red" }
+        { "name": "mapa_red_view", "description": "Ver módulo Mapa de Red" },
+        { "name": "mapa_red_fotos_ver", "description": "Ver fotos de nodos/enlaces del Mapa de Red" },
+        { "name": "mapa_red_fotos_subir", "description": "Subir fotos a nodos/enlaces del Mapa de Red" },
+        { "name": "mapa_red_fotos_eliminar", "description": "Eliminar fotos de nodos/enlaces del Mapa de Red" }
     ],
 
     "menu": [
