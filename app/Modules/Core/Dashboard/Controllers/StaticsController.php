@@ -160,9 +160,12 @@ class StaticsController extends Controller
         return response()->json($total_sales);
     }
 
-    public function getLostSales()
+    public function getLostSales($id = null)
     {
-        $total_lost_sales = ClientMainInformation::where('activation_date', '>=', '2024-06-01')->where('estado', 'Perdido')->count();
-        return response()->json($total_lost_sales);
+        $query = ClientMainInformation::where('activation_date', '>=', '2024-06-01')->where('estado', 'Perdido');
+        if ($id !== null) {
+            $query->where('seller_id', $id);
+        }
+        return response()->json($query->count());
     }
 }

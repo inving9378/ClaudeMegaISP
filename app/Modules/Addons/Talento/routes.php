@@ -24,6 +24,7 @@ use App\Modules\Addons\Talento\Controllers\TalentoLevelController;
 use App\Modules\Addons\Talento\Controllers\TalentoDashboardController;
 use App\Modules\Addons\Talento\Controllers\TalentoEscalafonController;
 use App\Modules\Addons\Talento\Controllers\TalentoEmbajadoresController;
+use App\Modules\Addons\Talento\Controllers\TalentoVentasController;
 use App\Modules\Addons\Talento\Controllers\TalentoMobileApiController;
 use App\Modules\Addons\Talento\Controllers\TalentoEvidenciaConfigController;
 use App\Modules\Addons\Talento\Controllers\TalentoPaqueteDocumentoController;
@@ -59,6 +60,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/dashboard',      [TalentoDashboardController::class, 'index']);
         Route::get('/escalafon',      [TalentoEscalafonController::class, 'index']);
         Route::get('/embajadores-colabs', [TalentoEmbajadoresController::class, 'index']);
+        Route::get('/mis-ventas',     [TalentoVentasController::class, 'index']);
         Route::get('/config/evidencias',  [TalentoEvidenciaConfigController::class, 'index']);
         Route::get('/expediente/paquetes', [TalentoPaqueteDocumentoController::class, 'index']);
         Route::get('/puestos',        [TalentoPuestoController::class, 'index']);
@@ -347,6 +349,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             // ── Embajadores cross-link ────────────────────────────────────
             Route::get('/colaboradores/{id}/embajador-data',   [TalentoEmbajadoresController::class, 'embajadorData']);
             Route::get('/colaboradores/{id}/seller-data',      [TalentoEmbajadoresController::class, 'sellerData']);
+
+            // ── Mis ventas (self-scoped, reusa StaticsController) ─────────
+            Route::get('/mis-ventas', [TalentoVentasController::class, 'misVentas']);
 
             // ── Config: evidencias por tipo de OT ─────────────────────────
             Route::get('/config/evidencias',       [TalentoEvidenciaConfigController::class, 'catalogo']);
