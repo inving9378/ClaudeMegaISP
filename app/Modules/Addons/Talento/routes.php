@@ -86,6 +86,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             // ── Documentos del expediente (Hijo D2, fase C — solo lectura) ────
             Route::get('/colaboradores/{id}/documentos',   [TalentoEmployeeDocumentController::class, 'forColaborador']);
 
+            // ── Expediente ligero de Vendedor (Hijo E3, item #9990360) ────────
+            Route::get('/vendedores/{sellerId}/expediente', [TalentoColaboradorController::class, 'expedienteVendedor']);
+
             // ── Dispositivos ─────────────────────────────────────────────────
             Route::get('/colaboradores/{id}/dispositivos',                    [TalentoDeviceController::class, 'forColaborador']);
             Route::post('/colaboradores/{id}/dispositivos',                   [TalentoDeviceController::class, 'bind']);

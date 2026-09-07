@@ -2379,6 +2379,10 @@ return [
         '/talento/api/config/evidencias',
         '/talento/api/config/evidencias/toggle',
     ],
+    // Card "Documentos" en la ficha de Vendedor (Hijo E3, item #9990360)
+    'talento.expediente.documentos.ver' => [
+        '/talento/api/vendedores/{sellerId}/expediente',
+    ],
     'talento.expediente.paquetes.manage' => [
         '/talento/expediente/paquetes',
         '/talento/api/expediente/paquetes/puestos',
