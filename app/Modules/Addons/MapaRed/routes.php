@@ -118,4 +118,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     // MR-25 (item #961) — importador con previsualización, mapeo de tipo y duplicados.
     Route::post('/import/kml/preview', [ImportadorController::class, 'previsualizarKml'])->name('mapa-red.api.import.kml.preview');
     Route::post('/import/kml/commit', [ImportadorController::class, 'confirmarKml'])->name('mapa-red.api.import.kml.commit');
+
+    // MR-25 Fase 3a (item #9990443) — mismo contrato preview/commit, parser GeoJSON.
+    Route::post('/import/geojson/preview', [ImportadorController::class, 'previsualizarGeoJson'])->name('mapa-red.api.import.geojson.preview');
+    Route::post('/import/geojson/commit', [ImportadorController::class, 'confirmarGeoJson'])->name('mapa-red.api.import.geojson.commit');
 });

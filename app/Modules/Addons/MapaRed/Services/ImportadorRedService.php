@@ -85,6 +85,24 @@ class ImportadorRedService
         $tree = KmlParserService::parseKmlToJson($kml);
         $placemarks = KmlParserService::aplanar($tree);
 
+        return $this->clasificarPlacemarks($placemarks);
+    }
+
+    /**
+     * MR-25 Fase 3a (item #9990443) — mismo contrato de `previsualizar()`, solo cambia el
+     * parser de entrada (GeoJSON en vez de KML/KMZ). `clasificarPlacemark()`/`buscarDuplicado()`
+     * son formato-agnósticas, se reusan tal cual.
+     */
+    public function previsualizarGeoJson(string $path): array
+    {
+        $geojson = GeoJsonParserService::decodificarArchivo($path);
+        $placemarks = GeoJsonParserService::aplanar($geojson);
+
+        return $this->clasificarPlacemarks($placemarks);
+    }
+
+    private function clasificarPlacemarks(array $placemarks): array
+    {
         $items = [];
         foreach ($placemarks as $placemark) {
             $items[] = $this->clasificarPlacemark($placemark);
