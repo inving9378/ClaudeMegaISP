@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Talento\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\Seller;
 use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoRoleDepartment;
@@ -165,6 +166,27 @@ class TalentoColaboradorController extends Controller
         } else {
             $items->user?->makeHidden(self::USER_EXPEDIENTE_FIELDS);
         }
+    }
+
+    /**
+     * Item roadmap #9990360 (Hijo E3 de #203). Resuelve el `talento_colaboradores.id` de un
+     * Vendedor para el card "Documentos" de su ficha (InformationSeller.vue); si el vendedor
+     * no tiene expediente RH todavía (caso vendedor externo), lo crea "ligero" al vuelo
+     * (decisión ya tomada por Irving en #203, q3). Idempotente vía el UNIQUE existente en
+     * `talento_colaboradores.user_id` — llamadas repetidas devuelven siempre la misma fila.
+     */
+    public function expedienteVendedor($sellerId)
+    {
+        $this->authorize('talento.expediente.documentos.ver');
+
+        $seller = Seller::findOrFail($sellerId);
+
+        $colaborador = TalentoColaborador::firstOrCreate(
+            ['user_id' => $seller->user_id],
+            ['type' => 'externo', 'categoria_externo' => 'vendedor_externo']
+        );
+
+        return response()->json(['id' => $colaborador->id]);
     }
 
     public function roleDepartments()
