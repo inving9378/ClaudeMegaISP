@@ -11,6 +11,7 @@ use App\Models\MapLayer;
 use App\Models\MediumOfSale;
 use App\Models\Municipality;
 use App\Models\Partner;
+use App\Models\Payment;
 use App\Models\PaymentDetail;
 use App\Models\Seller;
 use App\Models\State;
