@@ -204,6 +204,12 @@
 .navbar-header > .d-flex:last-child > * {
     display: flex;
     align-items: center;
+    /* #9990529: .d-inline-block de Bootstrap trae display:inline-block!important, que
+       gana sobre el display:flex de arriba y saca a ese wrapper (el del engrane, entre
+       otros) de la negociación de flex del row salvo por align-self (heredado de
+       align-items). Fijar align-self explícito aquí blinda la altura contra cualquier
+       diferencia de caja entre wrappers hermanos (<a> vs <button>, con/sin .dropdown). */
+    align-self: center !important;
 }
 .navbar-header > .d-flex:last-child .header-item {
     display: flex;
@@ -219,13 +225,16 @@
 }
 /* alinear verticalmente TODO el clúster derecho (el engrane salía más alto) */
 .navbar-header > .d-flex:last-child { align-items: center; }
-/* contadores del header como superposición VISIBLE en la esquina sup-der del icono,
-   sin salirse (translate-middle los cortaba contra el borde) */
+/* contadores del header como superposición VISIBLE DENTRO de la esquina sup-der del
+   icono (v2, #9990529): el translate(25%,-25%) de la v1 empujaba el badge hacia
+   afuera/arriba y, al estar el botón pegado al borde superior del header, lo cortaba.
+   Sin transform, apoyado 2px adentro del botón, queda sobre el icono y visible entero. */
 .hdr-badge-corner {
+    top: 2px !important;
+    right: 2px !important;
     left: auto !important;
-    right: 0 !important;
-    top: 0 !important;
-    transform: translate(25%, -25%) !important;
+    bottom: auto !important;
+    transform: none !important;
 }
 </style>
 
