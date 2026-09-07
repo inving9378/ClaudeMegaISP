@@ -7,6 +7,7 @@ use App\Modules\Addons\MapaRed\Models\MapaRedDevice;
 use App\Modules\Addons\MapaRed\Models\MapaRedEmpalme;
 use App\Modules\Addons\MapaRed\Models\MapaRedEnlaceServicio;
 use App\Modules\Addons\MapaRed\Models\MapaRedHilo;
+use App\Modules\Addons\MapaRed\Models\MapaRedLayer;
 use App\Modules\Addons\MapaRed\Models\MapaRedPuerto;
 use App\Modules\Addons\MapaRed\Models\MapaRedSplitter;
 use Illuminate\Support\Facades\Cache;
@@ -134,6 +135,46 @@ class RedGraphService
                 ];
             }
         );
+    }
+
+    /**
+     * MR-17 Fase 1 (item roadmap #9990552) — motor de trazo AGUAS ABAJO (fan-out): dado
+     * cualquier elemento de la red, devuelve TODOS los `mapared_enlaces_servicio` alcanzables
+     * hacia el cliente. A diferencia de `trazar()`/`trazarDesdePuertoPon()` (que solo conocen lo
+     * YA caminado hacia arriba desde un enlace concreto, best-effort), esto es un recorrido
+     * recursivo COMPLETO en tiempo real (decisión ya tomada por Irving en #953 q1: sin tabla
+     * materializada) — por eso NO se cachea, a propósito.
+     *
+     * El único punto real de ramificación es el splitter (1 entrada -> N salidas); todo lo demás
+     * es una continuación 1:1 sobre la MISMA relación no dirigida que usa `caminar()` (el
+     * empalme de un hilo), solo que aquí se sigue "hacia el lado que no es por donde llegamos"
+     * en vez de "hacia el puerto PON".
+     *
+     * Tipos de `$tipo` soportados: `cable` (MapaRedCable — expande a todos sus hilos: cortar un
+     * feeder afecta a todas sus fibras), `hilo` (MapaRedHilo), `puerto` (MapaRedPuerto),
+     * `splitter` (MapaRedSplitter — expande a su(s) puerto(s) de entrada) y `nap`/`mufa`
+     * (MapaRedLayer — expande a sus puertos propios, típicamente `nap_salida`).
+     *
+     * @return array{enlace_ids: int[], advertencias: string[]} `advertencias` documenta ciclos o
+     *         límites de profundidad alcanzados (diagnóstico, no bloquea: el resto de ramas sigue).
+     */
+    public function fanOutDesde(string $tipo, int $id, int $maxSaltos = 64): array
+    {
+        $visitados = [];
+        $enlaceIds = [];
+        $advertencias = [];
+
+        foreach ($this->nodosInicialesFanOut($tipo, $id) as $nodo) {
+            $this->recorrerAguasAbajo($nodo, $visitados, $enlaceIds, $advertencias, $maxSaltos, 0);
+        }
+
+        $enlaceIds = array_values(array_unique($enlaceIds));
+        sort($enlaceIds);
+
+        return [
+            'enlace_ids' => $enlaceIds,
+            'advertencias' => $advertencias,
+        ];
     }
 
     /**
@@ -446,6 +487,246 @@ class RedGraphService
             $conocidos[] = $enlaceId;
             Cache::put($clave, $conocidos, $this->ttl());
         }
+    }
+
+    /**
+     * Resuelve los nodos de ARRANQUE del fan-out según el tipo de elemento de entrada de
+     * `fanOutDesde()`. Todos devuelven la misma forma de nodo que usa `recorrerAguasAbajo()`.
+     */
+    private function nodosInicialesFanOut(string $tipo, int $id): array
+    {
+        return match ($tipo) {
+            'cable' => $this->nodosDesdeCable($id),
+            'hilo' => [['tipo' => 'hilo', 'id' => (int) MapaRedHilo::findOrFail($id)->id]],
+            'puerto' => [['tipo' => 'puerto', 'id' => (int) MapaRedPuerto::findOrFail($id)->id]],
+            'splitter' => $this->nodosDesdeSplitter(MapaRedSplitter::findOrFail($id)),
+            'nap', 'mufa' => $this->nodosDesdeNap(MapaRedLayer::findOrFail($id)),
+            default => throw new InvalidArgumentException("Tipo de elemento no soportado para fan-out: \"{$tipo}\"."),
+        };
+    }
+
+    /**
+     * Un cable es un haz de hilos: cortarlo afecta a TODOS, cada uno pudiendo ir a un splitter/
+     * NAP distinto aguas abajo. Cada hilo es su propia rama de arranque.
+     */
+    private function nodosDesdeCable(int $cableId): array
+    {
+        if (! MapaRedCable::whereKey($cableId)->exists()) {
+            throw new InvalidArgumentException("El cable #{$cableId} no existe.");
+        }
+
+        return MapaRedHilo::query()
+            ->where('cable_id', $cableId)
+            ->pluck('id')
+            ->map(fn ($hiloId) => ['tipo' => 'hilo', 'id' => (int) $hiloId])
+            ->all();
+    }
+
+    /**
+     * Arranca en el/los puerto(s) `splitter_in` del splitter: el recorrido de puerto ya sabe
+     * expandir un `splitter_in` a todas sus salidas (fan-out real).
+     */
+    private function nodosDesdeSplitter(MapaRedSplitter $splitter): array
+    {
+        return MapaRedPuerto::query()
+            ->delDueno(MapaRedSplitter::class, $splitter->id)
+            ->where('rol', MapaRedPuerto::ROL_SPLITTER_IN)
+            ->pluck('id')
+            ->map(fn ($puertoId) => ['tipo' => 'puerto', 'id' => (int) $puertoId])
+            ->all();
+    }
+
+    /**
+     * Arranca en los puertos propios de la NAP/mufa (típicamente `nap_salida` — cubre el caso
+     * trivial de NAP final, hoja directa al cliente).
+     *
+     * LIMITACIÓN CONOCIDA (mismo hallazgo ya documentado en `EmpalmesController`): un splitter
+     * "adentro" de la mufa/NAP no tiene puertos con `puertable_type=MapaRedLayer` (sus puertos
+     * son propios, `puertable_type=MapaRedSplitter`) — no existe relación directa Layer->Splitter.
+     * Se resuelve igual el caso real vía `MapaRedDevice.layer_id` -> `MapaRedSplitter.device_id`,
+     * que es la única relación que sí existe entre una NAP y los splitters que contiene.
+     */
+    private function nodosDesdeNap(MapaRedLayer $nap): array
+    {
+        $nodos = MapaRedPuerto::query()
+            ->delDueno(MapaRedLayer::class, $nap->id)
+            ->pluck('id')
+            ->map(fn ($puertoId) => ['tipo' => 'puerto', 'id' => (int) $puertoId])
+            ->all();
+
+        $splitters = MapaRedSplitter::query()
+            ->whereIn('device_id', MapaRedDevice::query()->where('layer_id', $nap->id)->pluck('id'))
+            ->get();
+
+        foreach ($splitters as $splitter) {
+            $nodos = array_merge($nodos, $this->nodosDesdeSplitter($splitter));
+        }
+
+        return $nodos;
+    }
+
+    /**
+     * Recorrido recursivo aguas abajo, un nodo a la vez. `$visitados` es un set global
+     * compartido por TODAS las ramas de una misma llamada a `fanOutDesde()` (protección de
+     * ciclos); `$profundidad` corta por `$maxSaltos` igual que `caminar()` corta por saltos.
+     * Ninguno de los dos corte detiene las DEMÁS ramas: solo queda anotado en `$advertencias`.
+     */
+    private function recorrerAguasAbajo(
+        array $nodo,
+        array &$visitados,
+        array &$enlaceIds,
+        array &$advertencias,
+        int $maxSaltos,
+        int $profundidad
+    ): void {
+        if ($profundidad >= $maxSaltos) {
+            $advertencias[] = "límite de profundidad alcanzado en {$nodo['tipo']}:{$nodo['id']}";
+
+            return;
+        }
+
+        $clave = $nodo['tipo'].':'.$nodo['id'];
+        if (isset($visitados[$clave])) {
+            $advertencias[] = "ciclo detectado en {$clave}";
+
+            return;
+        }
+        $visitados[$clave] = true;
+
+        if ($nodo['tipo'] === 'puerto') {
+            $this->recorrerPuertoAguasAbajo($nodo, $visitados, $enlaceIds, $advertencias, $maxSaltos, $profundidad);
+
+            return;
+        }
+
+        $this->recorrerHiloAguasAbajo($nodo, $visitados, $enlaceIds, $advertencias, $maxSaltos, $profundidad);
+    }
+
+    /**
+     * Un hilo participa en A LO MÁS un empalme activo (`MapaRedEmpalme::hiloDisponible()`), sea
+     * como `hilo_a_id` o como extremo B — por eso basta con excluir el empalme por el que se
+     * llegó (`excluir_empalme_id`) para no rebotar hacia la rama de origen.
+     */
+    private function recorrerHiloAguasAbajo(
+        array $nodo,
+        array &$visitados,
+        array &$enlaceIds,
+        array &$advertencias,
+        int $maxSaltos,
+        int $profundidad
+    ): void {
+        $hiloId = (int) $nodo['id'];
+
+        foreach (MapaRedEnlaceServicio::query()->where('hilo_id', $hiloId)->pluck('id') as $enlaceId) {
+            $enlaceIds[] = (int) $enlaceId;
+        }
+
+        $empalme = $this->empalmeDelHilo($hiloId, $nodo['excluir_empalme_id'] ?? null);
+        if (! $empalme) {
+            return; // fin de esta rama: sin más splices, cable terminal.
+        }
+
+        $esHiloA = (int) $empalme->hilo_a_id === $hiloId;
+        $extremo = $esHiloA
+            ? ['tipo' => $empalme->extremo_b_type, 'id' => $empalme->extremo_b_id]
+            : ['tipo' => MapaRedHilo::class, 'id' => $empalme->hilo_a_id];
+
+        $siguiente = $extremo['tipo'] === MapaRedHilo::class
+            ? ['tipo' => 'hilo', 'id' => (int) $extremo['id'], 'excluir_empalme_id' => (int) $empalme->id]
+            : ['tipo' => 'puerto', 'id' => (int) $extremo['id'], 'excluir_empalme_id' => (int) $empalme->id];
+
+        $this->recorrerAguasAbajo($siguiente, $visitados, $enlaceIds, $advertencias, $maxSaltos, $profundidad + 1);
+    }
+
+    /**
+     * En un puerto `splitter_in` ocurre el fan-out real: 1 entrada -> N salidas del mismo
+     * splitter. En cualquier otro rol (`splitter_out`, `nap_salida`, `odf`, `ont`, pasivo) la
+     * continuación es 1:1: o bien un hilo de bajada empalmado directo al puerto, o bien —solo
+     * para `splitter_out`— un splitter nivel 2 que cascadea directo desde este puerto vía
+     * `puerto_entrada_padre_id` (FK directa, sin empalme de por medio, MR-13).
+     */
+    private function recorrerPuertoAguasAbajo(
+        array $nodo,
+        array &$visitados,
+        array &$enlaceIds,
+        array &$advertencias,
+        int $maxSaltos,
+        int $profundidad
+    ): void {
+        $puerto = MapaRedPuerto::find($nodo['id']);
+        if (! $puerto) {
+            $advertencias[] = "puerto #{$nodo['id']} no existe";
+
+            return;
+        }
+
+        foreach (MapaRedEnlaceServicio::query()->where('puerto_nap_id', $puerto->id)->pluck('id') as $enlaceId) {
+            $enlaceIds[] = (int) $enlaceId;
+        }
+
+        if ($puerto->puertable_type === MapaRedSplitter::class && $puerto->rol === MapaRedPuerto::ROL_SPLITTER_IN) {
+            $salidas = MapaRedPuerto::query()
+                ->delDueno(MapaRedSplitter::class, $puerto->puertable_id)
+                ->where('rol', MapaRedPuerto::ROL_SPLITTER_OUT)
+                ->pluck('id');
+
+            foreach ($salidas as $salidaId) {
+                $this->recorrerAguasAbajo(
+                    ['tipo' => 'puerto', 'id' => (int) $salidaId],
+                    $visitados,
+                    $enlaceIds,
+                    $advertencias,
+                    $maxSaltos,
+                    $profundidad + 1
+                );
+            }
+
+            return;
+        }
+
+        if ($puerto->rol === MapaRedPuerto::ROL_SPLITTER_OUT) {
+            $hijoCascada = MapaRedSplitter::query()->where('puerto_entrada_padre_id', $puerto->id)->first();
+
+            if ($hijoCascada) {
+                $entradaHijo = MapaRedPuerto::query()
+                    ->delDueno(MapaRedSplitter::class, $hijoCascada->id)
+                    ->where('rol', MapaRedPuerto::ROL_SPLITTER_IN)
+                    ->first();
+
+                if ($entradaHijo) {
+                    $this->recorrerAguasAbajo(
+                        ['tipo' => 'puerto', 'id' => (int) $entradaHijo->id],
+                        $visitados,
+                        $enlaceIds,
+                        $advertencias,
+                        $maxSaltos,
+                        $profundidad + 1
+                    );
+                }
+            }
+        }
+
+        $empalme = MapaRedEmpalme::query()
+            ->where('extremo_b_type', MapaRedPuerto::class)
+            ->where('extremo_b_id', $puerto->id)
+            ->when(
+                $nodo['excluir_empalme_id'] ?? null,
+                fn ($q, $excluirId) => $q->where('id', '!=', $excluirId)
+            )
+            ->first();
+
+        if (! $empalme) {
+            return; // fin de esta rama: nada empalmado aguas abajo de este puerto.
+        }
+
+        $this->recorrerAguasAbajo(
+            ['tipo' => 'hilo', 'id' => (int) $empalme->hilo_a_id, 'excluir_empalme_id' => (int) $empalme->id],
+            $visitados,
+            $enlaceIds,
+            $advertencias,
+            $maxSaltos,
+            $profundidad + 1
+        );
     }
 
     private function recordar(string $clave, callable $callback)
