@@ -27,10 +27,16 @@
                 <q-btn flat color="primary" round icon="drag_indicator" />
             </template>
             <template v-slot:after>
-                <div id="map" style="height: 83vh; width: 100%"></div>
-                <div id="tooltip"></div>
+                <div class="mapared-map-container">
+                    <buscador-mapa-red
+                        class="mapared-buscador-overlay"
+                        @select="onBuscadorSelect"
+                    />
+                    <div id="map" style="height: 83vh; width: 100%"></div>
+                    <div id="tooltip"></div>
 
-                <q-inner-loading :showing="showLoading" />
+                    <q-inner-loading :showing="showLoading" />
+                </div>
             </template>
         </q-splitter>
     </div>
@@ -374,6 +380,7 @@ import SiteComponent from "./components/SiteComponent.vue";
 import SiteConfiguration from "./components/configuration/SiteConfiguration.vue";
 import RackConfiguration from "./components/configuration/RackConfiguration.vue";
 import JunctionBoxConfiguration from "./components/configuration/JunctionBoxConfiguration.vue";
+import BuscadorMapaRed from "./components/BuscadorMapaRed.vue";
 
 import { darkMode } from "../../../hook/appConfig";
 
@@ -503,6 +510,13 @@ const CAPAS_MAPA_RED = [
 ];
 
 const CAPA_ZOOM_MIN = { drops: 16, clientes: 17 };
+
+// MR-22 Fase 1b-ii (item roadmap #9990537): zoom de destino al centrar por resultado del
+// buscador global. Clientes/nodos son puntos puntuales (mismo criterio que showElementOnMap,
+// zoom 18); "onts" (enlaces de servicio) usa un zoom algo más abierto por representar un
+// enlace, no un punto fijo. Todos por encima de CAPA_ZOOM_MIN para que el elemento sea visible.
+const ZOOM_POR_TIPO_BUSQUEDA = { clientes: 18, nodos: 18, onts: 17 };
+const ZOOM_BUSQUEDA_DEFAULT = 17;
 
 const DIALOG_A_CAPA = CAPAS_MAPA_RED.reduce((acc, capa) => {
     capa.dialogs.forEach((d) => (acc[d] = capa.key));
@@ -1538,6 +1552,28 @@ const showElementOnMap = (object) => {
     }
 };
 
+// MR-22 Fase 1b-ii (item roadmap #9990537): resultado del buscador global (BuscadorMapaRed.vue,
+// #9990535) -> centra el mapa y abre un popup con label/tipo. Decisión ya tomada por Irving
+// (q3/q4 del spec original de #9990510): centrar + popup, NO navegar fuera del mapa.
+const onBuscadorSelect = ({ tipo, label, lat, lng }) => {
+    if (lat == null || lng == null) {
+        return;
+    }
+    const zoom = ZOOM_POR_TIPO_BUSQUEDA[tipo] ?? ZOOM_BUSQUEDA_DEFAULT;
+    map.flyTo([lat, lng], zoom);
+
+    const contenido = document.createElement("div");
+    const titulo = document.createElement("strong");
+    titulo.textContent = label ?? "";
+    const subtitulo = document.createElement("div");
+    subtitulo.className = "text-caption text-grey";
+    subtitulo.textContent = tipo ?? "";
+    contenido.appendChild(titulo);
+    contenido.appendChild(subtitulo);
+
+    L.popup().setLatLng([lat, lng]).setContent(contenido).openOn(map);
+};
+
 // MR-16 Fase 2a (item roadmap #9990495): dibuja la ruta física del enlace hasta la OLT
 // (backend Fase 1, #9990468). Trazo parcial = dibuja lo que haya + aviso visible del
 // motivo_corte, nunca falla en silencio (decisión ya tomada por Irving).
@@ -2254,6 +2290,24 @@ const toKmlColor = (hexColor, opacity = 1) => {
 }
 .easy-button-button span {
     color: #000 !important;
+}
+
+/* MR-22 Fase 1b-ii (item roadmap #9990537) — buscador global sobre el mapa. Top-center: las
+   4 esquinas ya están ocupadas (topleft: zoom + geocoder de direcciones; topright: capas +
+   dibujo), así que no se posiciona sobre ningún control nativo de Leaflet. */
+.mapared-map-container {
+    position: relative;
+    height: 100%;
+    width: 100%;
+}
+.mapared-buscador-overlay {
+    /* !important: BuscadorMapaRed.vue trae su propio "position: relative" en <style scoped>,
+       que gana por especificidad (el selector con el atributo data-v- que agrega el scoping). */
+    position: absolute !important;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
 }
 
 /* MR-22 Fase 2 (item roadmap #9990458) — panel de capas encendibles. */
