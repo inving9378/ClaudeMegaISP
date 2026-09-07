@@ -129,6 +129,24 @@
                 </q-tooltip></q-btn
             >
         </q-item-section>
+        <q-item-section
+            avatar
+            class="q-ml-sm"
+            v-if="permissons.data.canView(`maps_kmz_load`)"
+        >
+            <q-btn
+                icon="mdi-file-delimited-outline"
+                round
+                color="primary"
+                size="sm"
+                padding="5px"
+                :disable="loading || hasLayerEdit"
+                @click="showImportCsvWizard = true"
+                ><q-tooltip class="bg-primary" :offset="[10, 10]">
+                    Importar CSV con previsualización
+                </q-tooltip></q-btn
+            >
+        </q-item-section>
     </q-item>
     <q-item dense style="padding: 0">
         <q-input
@@ -473,6 +491,12 @@
         :project-id="nodeUploadKmz ? nodeUploadKmz.id : null"
         @imported="onImportedKml"
     />
+
+    <import-csv-wizard
+        v-model="showImportCsvWizard"
+        :project-id="nodeUploadKmz ? nodeUploadKmz.id : null"
+        @imported="onImportedKml"
+    />
 </template>
 
 <script setup>
@@ -492,6 +516,7 @@ import { message } from "../../../../helpers/toastMsg";
 import { menuOptions, hasLayerEdit, currentMarker } from "../helper/mapUtils";
 import ElementSidePanel from "./others/ElementSidePanel.vue";
 import ImportKmlWizard from "./ImportKmlWizard.vue";
+import ImportCsvWizard from "./ImportCsvWizard.vue";
 import { openElementSidePanel } from "../../../../composables/useElementSidePanel";
 import Swal from "sweetalert2";
 import { darkMode } from "../../../../hook/appConfig";
@@ -562,6 +587,7 @@ const draggedNode = ref(null);
 const nodeUploadKmz = ref(null);
 const convertOptions = ref([]);
 const showImportWizard = ref(false);
+const showImportCsvWizard = ref(false);
 
 const dropTargetNode = ref(null);
 const dropPosition = ref(null);

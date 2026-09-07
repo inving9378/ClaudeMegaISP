@@ -122,4 +122,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     // MR-25 Fase 3a (item #9990443) — mismo contrato preview/commit, parser GeoJSON.
     Route::post('/import/geojson/preview', [ImportadorController::class, 'previsualizarGeoJson'])->name('mapa-red.api.import.geojson.preview');
     Route::post('/import/geojson/commit', [ImportadorController::class, 'confirmarGeoJson'])->name('mapa-red.api.import.geojson.commit');
+
+    // MR-25 Fase 3b (item #9990444) — mismo contrato preview/commit, parser CSV con
+    // auto-detección de columnas (lat/lng/nombre/tipo).
+    Route::post('/import/csv/preview', [ImportadorController::class, 'previsualizarCsv'])->name('mapa-red.api.import.csv.preview');
+    Route::post('/import/csv/commit', [ImportadorController::class, 'confirmarCsv'])->name('mapa-red.api.import.csv.commit');
 });

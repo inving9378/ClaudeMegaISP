@@ -144,7 +144,7 @@
                         aria-expanded="false">
                         <i data-feather="bell" class="icon-lg"></i>
                         <span
-                            class="badge bg-danger rounded-pill">{{ count($notifications) > 0 ? count($notifications) : 0 }}</span>
+                            class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">{{ count($notifications) > 0 ? count($notifications) : 0 }}</span>
                     </button>
                     @if (count($notifications) > 0)
                         <div class="dropdown-menu dropdown-menu-lg dropdown-menu-end p-0"
@@ -195,8 +195,17 @@
 </header>
 
 <style>
-/* Centrar verticalmente íconos en header-items directos del lado derecho */
-.navbar-header > .d-flex:last-child > .header-item {
+/* Centrar verticalmente los items del clúster derecho: antes solo alcanzaba a los
+   .header-item hijos DIRECTOS del row, así que el engrane (torre-compuertas, hijo directo)
+   quedaba centrado mientras que la campana/Jarvis/usuario (envueltos en .dropdown/.d-inline-block)
+   no recibían el mismo trato y se veían desalineados. Dos reglas: la primera centra el contenido
+   de CUALQUIER hijo directo del row (header-item o wrapper); la segunda alcanza a los .header-item
+   sin importar cuántos niveles de wrapper tengan encima. */
+.navbar-header > .d-flex:last-child > * {
+    display: flex;
+    align-items: center;
+}
+.navbar-header > .d-flex:last-child .header-item {
     display: flex;
     align-items: center;
 }
