@@ -4,6 +4,7 @@ use App\Modules\Addons\MapaRed\Controllers\CoberturaController;
 use App\Modules\Addons\MapaRed\Controllers\ConnectionsController;
 use App\Modules\Addons\MapaRed\Controllers\DevicesController;
 use App\Modules\Addons\MapaRed\Controllers\EmpalmesController;
+use App\Modules\Addons\MapaRed\Controllers\EnlacesController;
 use App\Modules\Addons\MapaRed\Controllers\EnlacesServicioController;
 use App\Modules\Addons\MapaRed\Controllers\HilosController;
 use App\Modules\Addons\MapaRed\Controllers\ImportadorController;
@@ -141,4 +142,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     Route::get('/empalmes/existentes', [EmpalmesController::class, 'existentes'])->name('mapa-red.api.empalmes.existentes');
     Route::post('/empalmes', [EmpalmesController::class, 'store'])->name('mapa-red.api.empalmes.store');
     Route::delete('/empalmes/{id}', [EmpalmesController::class, 'destroy'])->name('mapa-red.api.empalmes.destroy');
+
+    // MR-23 fase 4a (item #9990518) — enlace trazado entre dos nodos del mapa (gate fino
+    // mapa_red_trazar dentro del controller).
+    Route::post('/enlaces', [EnlacesController::class, 'store'])->name('mapa-red.api.enlaces.store');
 });
