@@ -16,7 +16,7 @@
         <a class="btn header-item position-relative" :href="destino" :title="titulo" data-spa-skip>
             <i class="fas fa-cog" :class="{ 'text-danger': hayBloqueo, 'fa-spin': cargando }"></i>
             <span v-if="hayBloqueo"
-                  class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                  class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger hdr-badge hdr-badge-corner">
                 {{ rojos }}
             </span>
         </a>
