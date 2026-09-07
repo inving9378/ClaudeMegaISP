@@ -411,6 +411,7 @@ import {
     excludesProperties,
     titleLayers,
     currentMarker,
+    getNearestRoutePoint,
 } from "./helper/mapUtils";
 
 import Permission from "../../../helpers/Permission";
@@ -452,6 +453,9 @@ let map = null;
 // MR-16 Fase 2a (item roadmap #9990495): capa dedicada para el trazo de ruta a OLT
 // (dibujada bajo demanda al hacer clic en "Trazar ruta a OLT" de un enlace de servicio).
 let trazoLayer = null;
+// MR-24e Fase 1a (item roadmap #9990557): línea punteada de vista previa del snap
+// contra la ruta más cercana mientras el modo "agregar NAP" está activo.
+let snapLinePreview = null;
 // MR-26 Fase 4 (item roadmap #9990525): capa de cobertura comercial en vivo (Fase 1, #9990522),
 // independiente de `drawnItems` (no es un objeto de BD con `dialog`, se recalcula en cada fetch).
 let coberturaLayer = null;
@@ -475,6 +479,13 @@ let showTooltips = false;
 const addInSerie = ref(false);
 const currentName = ref(null);
 const originalName = ref(null);
+
+// MR-24e Fase 1a (item roadmap #9990557): modo "agregar NAP" — independiente de
+// addInSerie (ese es otro flujo, del menú contextual). ultimoClickNap guarda el
+// último punto clickeado en este modo; la Fase 1b (sub-item aparte) lo conecta al
+// formulario/POST real.
+const modoAgregarNap = ref(false);
+const ultimoClickNap = ref(null);
 
 let fullscreenBtns = null;
 
@@ -1295,6 +1306,35 @@ const initMap = async () => {
         arbolDerivadoBtn.state("arbol-derivado-visible");
     }
 
+    // MR-24e Fase 1a (item roadmap #9990557) — toggle "Modo: agregar NAP": activa el click
+    // genérico de abajo en modo NAP + el snap visual contra rutas cercanas (radio 15m, igual
+    // que SnapService::cableMasCercano en backend). Sin formulario/POST todavía (Fase 1b).
+    L.easyButton({
+        states: [
+            {
+                stateName: "agregar-nap-apagado",
+                icon: "fa-map-marker-alt",
+                title: "Modo: agregar NAP",
+                onClick: function (btn) {
+                    modoAgregarNap.value = true;
+                    map.on("mousemove", handleMousemoveSnapNap);
+                    btn.state("agregar-nap-encendido");
+                },
+            },
+            {
+                stateName: "agregar-nap-encendido",
+                icon: "fa-map-marker-alt",
+                title: "Desactivar modo: agregar NAP",
+                onClick: function (btn) {
+                    modoAgregarNap.value = false;
+                    map.off("mousemove", handleMousemoveSnapNap);
+                    limpiarSnapLinePreview();
+                    btn.state("agregar-nap-apagado");
+                },
+            },
+        ],
+    }).addTo(map);
+
     map.on("click", async function (e) {
         if (addInSerie.value) {
             let { color, data, icon_color, project_id, type, start } =
@@ -1327,6 +1367,14 @@ const initMap = async () => {
                     `Ha ocurrido un error al tratar de agregar este(a) ${type.text}`
                 );
             }
+        } else if (modoAgregarNap.value) {
+            // MR-24e Fase 1a: placeholder — la Fase 1b (sub-item separado) conecta este
+            // punto al formulario + POST real de alta de NAP.
+            ultimoClickNap.value = e.latlng;
+            console.debug(
+                "MR-24e Fase 1a: click en modo agregar NAP (Fase 1b conecta el formulario/POST)",
+                e.latlng
+            );
         }
     });
 
@@ -1336,6 +1384,32 @@ const initMap = async () => {
     document.addEventListener("MSFullscreenChange", handleFullscreenChange);
 
     reloadProjects.value = true;
+};
+
+// MR-24e Fase 1a (item roadmap #9990557): quita la línea de vista previa del snap, si hay una.
+const limpiarSnapLinePreview = () => {
+    if (snapLinePreview) {
+        map.removeLayer(snapLinePreview);
+        snapLinePreview = null;
+    }
+};
+
+// MR-24e Fase 1a (item roadmap #9990557): mientras el modo "agregar NAP" está activo, busca
+// el punto más cercano entre las rutas dibujadas (radio 15m, igual que
+// SnapService::cableMasCercano en backend) y pinta/quita la línea punteada de vista previa.
+const handleMousemoveSnapNap = async (e) => {
+    const nearest = await getNearestRoutePoint(e.latlng);
+    if (!modoAgregarNap.value) {
+        // El modo se desactivó mientras esperábamos el resultado async — no dibujar nada.
+        return;
+    }
+    limpiarSnapLinePreview();
+    if (nearest && nearest.properties.dist <= 15) {
+        const [lng, lat] = nearest.geometry.coordinates;
+        snapLinePreview = L.polyline([e.latlng, [lat, lng]], {
+            dashArray: "5,5",
+        }).addTo(map);
+    }
 };
 
 const handleFullscreenChange = () => {
