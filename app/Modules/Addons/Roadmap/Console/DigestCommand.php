@@ -46,6 +46,14 @@ class DigestCommand extends Command
 
     public const BASELINE_MUDAS_VIVOS = 339;
 
+    /** MR-31 (#969) — la épica paraguas MAPA DE RED que este digest sigue semanalmente. */
+    public const EPICA_MR00 = 936;
+
+    /** Cadencia del resumen completo de la épica: no genera ruido diario. */
+    public const EPICA_MR00_CADA_DIAS = 7;
+
+    public const SETTING_EPICA_MR00_AT = 'circuito_digest_epica_mr00_at';
+
     public function handle(): int
     {
         $dias  = max(1, (int) $this->option('dias'));
@@ -123,6 +131,7 @@ class DigestCommand extends Command
 
         $frenos     = $this->resurfacearFrenos();
         $superficie = $this->superficieDeclarada();
+        $this->seguimientoEpicaMapaRed();
 
         DB::table('settings')->updateOrInsert([
             'key' => self::SETTING,
@@ -387,5 +396,87 @@ class DigestCommand extends Command
             ['value' => now()->toDateTimeString()]);
 
         return $frenos;
+    }
+
+    /**
+     * MR-31 (#969) — SEGUIMIENTO SEMANAL de la épica MAPA DE RED (#936) por el Supervisor.
+     *
+     * El Supervisor ya existe (`SupervisorService`/Jarvis, vuelta `circuito:jarvis`, este digest);
+     * esta sección NO abre canal ni comando propio, solo cuelga del digest que ya corre. Para que
+     * la épica no lleve semanas detenida sin que nadie lo note, cuenta y presenta — nunca escribe
+     * sobre los items de la épica ni toca su `excluir_pool_automatico`.
+     *
+     * Cadencia semanal (misma idea que `resurfacearFrenos()`): el resto de los días imprime solo el
+     * conteo cerrados/total, sin la tabla completa, para no generar ruido diario sobre una épica
+     * que avanza de a poco.
+     */
+    private function seguimientoEpicaMapaRed(): void
+    {
+        $hijos = DB::table('roadmap_items')
+            ->where('origen_item_id', self::EPICA_MR00)
+            ->get(['id', 'title', 'estado_aprobacion', 'worker_sid', 'trabajo_iniciado_at',
+                'revisado_at', 'updated_at']);
+
+        if ($hijos->isEmpty()) {
+            return;
+        }
+
+        $cerrados   = ['completado', 'cancelado', 'rechazado'];
+        $total      = $hijos->count();
+        $nCerrados  = $hijos->whereIn('estado_aprobacion', $cerrados)->count();
+
+        $this->newLine();
+        $this->line('<options=bold>6. Épica MAPA DE RED #' . self::EPICA_MR00 . ' — seguimiento semanal (MR-31): '
+            . "{$nCerrados}/{$total} cerrados</>");
+
+        $ultimo = DB::table('settings')->where('key', self::SETTING_EPICA_MR00_AT)->value('value');
+        $toca   = ! $ultimo || Carbon::parse($ultimo)->addDays(self::EPICA_MR00_CADA_DIAS)->isPast();
+
+        if (! $toca) {
+            $proxima = Carbon::parse($ultimo)->addDays(self::EPICA_MR00_CADA_DIAS);
+            $this->line('   (resumen semanal completo el ' . $proxima->toDateString() . ')');
+
+            return;
+        }
+
+        $enCurso = $hijos->where('estado_aprobacion', 'en_progreso')->values();
+        if ($enCurso->isEmpty()) {
+            $this->line('   En curso: ninguno.');
+        } else {
+            foreach ($enCurso as $e) {
+                $desde = $e->trabajo_iniciado_at ? substr((string) $e->trabajo_iniciado_at, 0, 16) : '?';
+                $this->line("   En curso: #{$e->id} ({$e->worker_sid}) desde {$desde} — "
+                    . mb_strimwidth((string) $e->title, 0, 50, '…'));
+            }
+        }
+
+        $desde7  = Carbon::now()->subDays(7);
+        $parados = $hijos->filter(function ($h) use ($desde7) {
+            if ($h->estado_aprobacion !== 'requiere_irving') {
+                return false;
+            }
+            $marca = $h->revisado_at ?? $h->updated_at;
+
+            return $marca && Carbon::parse($marca)->lte($desde7);
+        })->values();
+
+        if ($parados->isEmpty()) {
+            $this->line('   Parados en requiere_irving hace > 7 días: ninguno.');
+        } else {
+            $this->line("   <fg=yellow>Parados en requiere_irving hace > 7 días: {$parados->count()}</>");
+            foreach ($parados as $p) {
+                $marca = $p->revisado_at ?? $p->updated_at;
+                $dias  = (int) Carbon::parse($marca)->diffInDays(now());
+                $this->line("      #{$p->id} ({$dias}d) — " . mb_strimwidth((string) $p->title, 0, 55, '…'));
+            }
+        }
+
+        $movimiento = $hijos->contains(fn ($h) => $h->updated_at && Carbon::parse($h->updated_at)->gte($desde7));
+        if (! $movimiento) {
+            $this->line('   <fg=yellow>Sin movimiento en la épica esta semana.</>');
+        }
+
+        DB::table('settings')->updateOrInsert(['key' => self::SETTING_EPICA_MR00_AT],
+            ['value' => now()->toDateTimeString()]);
     }
 }
