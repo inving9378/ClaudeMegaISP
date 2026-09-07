@@ -307,10 +307,49 @@
             </q-card-actions>
         </q-card>
     </q-dialog>
+
+    <!-- MR-24e Fase 1b (item roadmap #9990558): formulario mínimo de alta de NAP. -->
+    <q-dialog v-model="showNapDialog" persistent>
+        <q-card style="width: 380px; max-width: 90vw">
+            <q-card-section>
+                <div class="text-h6">Caja de servicio (NAP)</div>
+            </q-card-section>
+            <q-card-section class="q-pt-none">
+                <q-select
+                    v-model="napTipoSplitterId"
+                    :options="opcionesSplitterNap"
+                    option-value="value"
+                    option-label="label"
+                    emit-value
+                    map-options
+                    label="Splitter"
+                    dense
+                    outlined
+                />
+            </q-card-section>
+            <q-card-actions align="right">
+                <q-btn
+                    flat
+                    no-caps
+                    label="Cancelar"
+                    color="grey"
+                    :disable="guardandoNap"
+                    @click="showNapDialog = false"
+                />
+                <q-btn
+                    no-caps
+                    label="Guardar"
+                    color="primary"
+                    :loading="guardandoNap"
+                    @click="guardarNap"
+                />
+            </q-card-actions>
+        </q-card>
+    </q-dialog>
 </template>
 
 <script setup>
-import { ref, onMounted, watch, reactive, nextTick, onBeforeMount } from "vue";
+import { ref, computed, onMounted, watch, reactive, nextTick, onBeforeMount } from "vue";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "leaflet-minimap/dist/Control.MiniMap.min.css";
@@ -388,6 +427,7 @@ import { getClientsWithoutProject, getMapRenderConfig, saveObject } from "./help
 import { getOcupacionLote, getSaludLote } from "./helper/naps-request";
 import { getTrazoEnlace } from "./helper/enlaces-request";
 import { getCoberturaCapa } from "./helper/cobertura-request";
+import { getTiposSplitter, crearNapRapida } from "./helper/nap-alta-request";
 
 import Swal from "sweetalert2";
 import {
@@ -486,6 +526,17 @@ const originalName = ref(null);
 // formulario/POST real.
 const modoAgregarNap = ref(false);
 const ultimoClickNap = ref(null);
+
+// MR-24e Fase 1b (item roadmap #9990558): dialog mínimo (splitter o "Ninguno") que conecta
+// el click de Fase 1a con NapAltaRapidaController::store.
+const showNapDialog = ref(false);
+const guardandoNap = ref(false);
+const tiposSplitterNap = ref([]);
+const napTipoSplitterId = ref(null);
+const opcionesSplitterNap = computed(() => [
+    { label: "Ninguno", value: null },
+    ...tiposSplitterNap.value.map((t) => ({ label: t.nombre, value: t.id })),
+]);
 
 let fullscreenBtns = null;
 
@@ -1368,13 +1419,14 @@ const initMap = async () => {
                 );
             }
         } else if (modoAgregarNap.value) {
-            // MR-24e Fase 1a: placeholder — la Fase 1b (sub-item separado) conecta este
-            // punto al formulario + POST real de alta de NAP.
+            // MR-24e Fase 1b: abre el formulario mínimo (splitter o "Ninguno") sobre el punto
+            // clickeado; guardarNap() hace el POST real a NapAltaRapidaController::store.
             ultimoClickNap.value = e.latlng;
-            console.debug(
-                "MR-24e Fase 1a: click en modo agregar NAP (Fase 1b conecta el formulario/POST)",
-                e.latlng
-            );
+            if (tiposSplitterNap.value.length === 0) {
+                tiposSplitterNap.value = await getTiposSplitter();
+            }
+            napTipoSplitterId.value = null;
+            showNapDialog.value = true;
         }
     });
 
@@ -1409,6 +1461,29 @@ const handleMousemoveSnapNap = async (e) => {
         snapLinePreview = L.polyline([e.latlng, [lat, lng]], {
             dashArray: "5,5",
         }).addTo(map);
+    }
+};
+
+// MR-24e Fase 1b (item roadmap #9990558): guarda la NAP con el punto clickeado + splitter
+// elegido (o "Ninguno"). Reusa createLayerFromObject para pintarla igual que cualquier otro
+// service_box del mapa; en 422 (sin zona resoluble) deja el dialog abierto para reintentar.
+const guardarNap = async () => {
+    if (!ultimoClickNap.value) {
+        return;
+    }
+    guardandoNap.value = true;
+    const resultado = await crearNapRapida({
+        lat: ultimoClickNap.value.lat,
+        lng: ultimoClickNap.value.lng,
+        tipo_splitter_id: napTipoSplitterId.value,
+    });
+    guardandoNap.value = false;
+    if (resultado.ok) {
+        drawnItems.addLayer(createLayerFromObject(resultado.data.layer));
+        message(`NAP "${resultado.data.nombre_generado}" creada correctamente`);
+        showNapDialog.value = false;
+    } else {
+        message(resultado.message, "error");
     }
 };
 
