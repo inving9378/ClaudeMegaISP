@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Addons\MapaRed\Controllers\CatalogosController;
 use App\Modules\Addons\MapaRed\Controllers\CoberturaController;
 use App\Modules\Addons\MapaRed\Controllers\ConnectionsController;
 use App\Modules\Addons\MapaRed\Controllers\DevicesController;
@@ -145,4 +146,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
 
     // MR-24d bis (item #9990546) — alta rápida de NAP (zona+nombre+snap automáticos).
     Route::post('/elementos/nap', [NapAltaRapidaController::class, 'store'])->name('mapa-red.api.elementos.nap');
+
+    // MR-24e Fase 1b (item #9990558) — catálogo mínimo de tipos de splitter para el <q-select>.
+    Route::get('/catalogos/tipo-splitter', [CatalogosController::class, 'tipoSplitter'])->name('mapa-red.api.catalogos.tipo-splitter');
 });
