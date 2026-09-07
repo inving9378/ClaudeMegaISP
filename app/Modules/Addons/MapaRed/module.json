@@ -16,7 +16,8 @@
             "label": "MAPA DE RED",
             "icon": "map",
             "permission": "mapa_red_view",
-            "url": "/mapa-red"
+            "url": "/mapa-red",
+            "badge": "beta"
         }
     ],
 

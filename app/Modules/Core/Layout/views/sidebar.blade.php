@@ -234,6 +234,9 @@
                                 <a href="javascript: void(0);" class="has-arrow">
                                     <i data-feather="{{ $mod['icon'] ?? 'box' }}"></i>
                                     <span>{{ $mod['label'] ?? $mod['_module'] }}</span>
+                                    @if(!empty($mod['badge']))
+                                        <span class="badge bg-warning text-dark rounded-pill ms-1">{{ strtoupper($mod['badge']) }}</span>
+                                    @endif
                                 </a>
                                 <ul class="sub-menu" aria-expanded="false">
                                     @foreach($children as $child)
@@ -248,6 +251,9 @@
                                 <a href="{{ url($mod['url'] ?? '#') }}">
                                     <i data-feather="{{ $mod['icon'] ?? 'box' }}"></i>
                                     <span>{{ $mod['label'] ?? $mod['_module'] }}</span>
+                                    @if(!empty($mod['badge']))
+                                        <span class="badge bg-warning text-dark rounded-pill ms-1">{{ strtoupper($mod['badge']) }}</span>
+                                    @endif
                                 </a>
                             @endif
                         </li>
