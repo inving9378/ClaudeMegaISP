@@ -8,7 +8,8 @@
     "active": true,
 
     "permissions": [
-        { "name": "mapa_red_view", "description": "Ver módulo Mapa de Red" }
+        { "name": "mapa_red_view", "description": "Ver módulo Mapa de Red" },
+        { "name": "mapa_red_historial_ver", "description": "Ver historial de cambios de nodos/enlaces del Mapa de Red" }
     ],
 
     "menu": [

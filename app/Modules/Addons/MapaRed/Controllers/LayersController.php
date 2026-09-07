@@ -8,6 +8,7 @@ use App\Modules\Addons\MapaRed\Models\MapaRedDevice;
 use App\Modules\Addons\MapaRed\Models\MapaRedDevicePort;
 use App\Modules\Addons\MapaRed\Models\MapaRedDevicePortConnection;
 use App\Modules\Addons\MapaRed\Models\MapaRedFiber;
+use App\Modules\Addons\MapaRed\Models\MapaRedHistorial;
 use App\Modules\Addons\MapaRed\Models\MapaRedLayer;
 use App\Modules\Addons\MapaRed\Models\MapaRedLayerRoute;
 use App\Modules\Addons\MapaRed\Models\MapaRedProyect;
@@ -81,6 +82,27 @@ class LayersController extends Controller
                 'activos' => $clientesActivos,
             ],
         ]);
+    }
+
+    /**
+     * MR-23 fase 4d (item roadmap #9990456) — historial de cambios del elemento (nodo/enlace),
+     * paginado, para la sección "Historial" de ElementSidePanel.vue. Permiso granular propio
+     * (q4 del item, defensa en profundidad además del gate de ruta /mapa-red/** existente).
+     */
+    public function historial(Request $request, $id)
+    {
+        if (!auth()->user()->can('mapa_red_historial_ver')) {
+            abort(403);
+        }
+
+        $registros = MapaRedHistorial::where('entidad_tipo', MapaRedLayer::class)
+            ->where('entidad_id', $id)
+            ->with('usuario:id,name,father_last_name,mother_last_name')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->paginate($request->input('per_page', 20));
+
+        return response()->json($registros);
     }
 
     public function index(Request $request)
