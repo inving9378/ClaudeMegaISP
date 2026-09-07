@@ -929,7 +929,7 @@ const getDistance = (geoJSON, units = "meters") => {
     );
 };
 
-const getNearest = async (polylineGeoJSON, markerGeoJSON, units = "meters") => {
+export const getNearest = async (polylineGeoJSON, markerGeoJSON, units = "meters") => {
     let nearest = await turf.nearestPointOnLine(
         polylineGeoJSON,
         markerGeoJSON,
@@ -985,6 +985,31 @@ export const getNearbyRoutes = async (m) => {
         }
     }
     return routes;
+};
+
+// MR-24e Fase 1a (item roadmap #9990557): snap visual del modo "agregar NAP". Versión
+// liviana de getNearbyRoutes pensada para llamarse en cada mousemove — mismo filtro
+// (nodeMap.value con dialog === "route") pero sin recalcular newCoordinates/distancePoint,
+// que ahí es necesario para persistir y aquí sería trabajo desperdiciado en cada movimiento.
+export const getNearestRoutePoint = async (latlng) => {
+    const markerGeoJSON = L.marker(latlng).toGeoJSON();
+    let closest = null;
+    for (const key in nodeMap.value) {
+        const object = nodeMap.value[key];
+        const { dialog, coords } = object;
+        if (dialog === "route" && Array.isArray(coords) && coords.length > 1) {
+            try {
+                const polyline = L.polyline(coords);
+                const nearest = await getNearest(polyline.toGeoJSON(), markerGeoJSON);
+                if (!closest || nearest.properties.dist < closest.properties.dist) {
+                    closest = nearest;
+                }
+            } catch (error) {
+                continue;
+            }
+        }
+    }
+    return closest;
 };
 
 const getMarkerDistanceInRoute = async (marker, route) => {
