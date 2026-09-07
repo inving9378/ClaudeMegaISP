@@ -4182,3 +4182,26 @@ sacándolo del pool hasta que #9990426 cierre y el hook de cierre en cascada lo 
 Detalle en `docs/roadmap-bucle-reap-item-9990422-verificacion.md`. Sin cambio de código de
 negocio — el trabajo real (insertar la rama `limite_cuenta` en `vuelta.sh`) sigue en #9990426,
 `pendiente_revision`.
+
+## 2026-09-07 08:15 — Item #9990471: veredicto sobre sales/commissions/prospects vacías en dev
+
+Investigación solo-lectura (nivel A, sin tocar datos). Confirmado en la BD de dev:
+`sales`/`commissions`/`prospects` en 0 filas, pero `commissions_details` tiene 566,780 filas —
+todas huérfanas (sin fila padre en `commissions`).
+
+Veredicto: `sales` y `prospects` son **(c) descontinuadas** — sin modelo Eloquent, sin migración
+versionada, sin ningún consumidor en `app/`/`resources/`; la UI real de Vendedores lee Ventas de
+`client_main_information` y Prospectos del módulo CRM (`crm_lead_information`), no de estas
+tablas legacy de mayo 2024. `commissions` es un caso mixto: el listener que la poblaría
+(`CalculateClientCommission`/`CalculateProspectCommission`) tiene el cuerpo comentado desde hace
+tiempo; su tabla hija `commissions_details` sí tiene datos reales (probable import/sync de julio
+2024) pero quedó huérfana tras un truncate conjunto el 2024-07-12 que sólo repobló el detalle,
+no el padre. No se puede cerrar sin que Irving confirme si producción tiene `commissions`
+poblada hoy (→ faltaría importar a dev) o si el negocio de comisiones migró a otro mecanismo tras
+julio 2024 (→ `commissions_details` es un snapshot muerto).
+
+Detalle completo con evidencia archivo:línea en
+`docs/vendedores-sales-commissions-prospects-item-9990471-verificacion.md`. Resumen también
+anexado a CLAUDE.md. Este veredicto condiciona a #9990448/#9990449/#9990450 (vistas en Talento)
+y #9990453 (análisis de migración de comisiones). Sin cambio de código — solo investigación y
+reporte, tal como pedía el spec del item.

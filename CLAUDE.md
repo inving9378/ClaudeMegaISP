@@ -1914,3 +1914,27 @@ Irving de avanzar "sin pacing" en MR-04 en adelante sigue vigente. Detalle en
 `docs/roadmap-bucle-reap-item-936-verificacion.md`. **Sin cambio de código de negocio** — el
 trabajo técnico real de la épica sigue en sus ~29 sub-items abiertos (MR-05 y MR-07 en
 adelante).
+
+## Item #9990471 — Vendedores: `sales`/`commissions`/`prospects` vacías en dev (RESUELTO — investigación, veredicto entregado)
+
+Investigado (solo lectura, sin tocar datos): en dev `sales` y `prospects` tienen 0 filas **y
+cero consumidores en el código** — sin modelo Eloquent, sin migración versionada (solo existen
+en dumps SQL de mayo 2024), sin ningún controller/Vue que las lea. La UI real de Vendedores lee
+Ventas de `client_main_information` y Prospectos del módulo **CRM**
+(`crm_lead_information`/`crm_main_information`) — ambas tablas son remanentes del diseño
+original, reemplazadas antes de usarse: **veredicto (c) descontinuadas**. `commissions` es un
+caso distinto: el listener que la poblaría (`CalculateClientCommission`/
+`CalculateProspectCommission`) existe pero tiene el cuerpo entero comentado (el evento sí se
+dispara, el listener no actúa), y su tabla hija `commissions_details` tiene **566,780 filas
+reales** — pero las 566,780 son huérfanas (100% sin padre en `commissions`, que está en 0).
+Migraciones de julio 2024 muestran que `commissions`+`commissions_details` se truncaron juntas
+el 2024-07-12 y `commissions_details` se repobló después (created_at desde 2024-07-15) sin que
+`commissions` volviera a llenarse — import/sync parcial. Por eso el endpoint real de Comisiones
+(`ComissionController::getCommissionsBySeller`, JOIN `commissions`+`commissions_details`)
+devuelve vacío hoy pese a las 566K filas de detalle. No se puede afirmar sin más si `commissions`
+es (a) falta importar de prod o (c) descontinuada tras julio 2024 — depende de si prod tiene esa
+tabla poblada hoy, algo que sólo Irving puede verificar. Detalle completo, evidencia por
+archivo:línea y recomendación en
+`docs/vendedores-sales-commissions-prospects-item-9990471-verificacion.md` — este veredicto
+condiciona a #9990448/#9990449/#9990450 (vistas en Talento) y #9990453 (migración de
+comisiones). **Sin cambio de código** (item nivel A, solo-lectura por spec).
