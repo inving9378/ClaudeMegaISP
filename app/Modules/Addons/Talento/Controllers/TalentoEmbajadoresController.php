@@ -76,7 +76,7 @@ class TalentoEmbajadoresController extends Controller
 
     /**
      * Cross-link: collaborator who is also a seller.
-     * Read-only summary from CommissionRule / TransactionSeller tables.
+     * Read-only summary from CommissionRule / PaymentByRule tables.
      */
     public function sellerData(int $colaboradorId)
     {
@@ -84,31 +84,52 @@ class TalentoEmbajadoresController extends Controller
 
         $col = TalentoColaborador::with('user')->findOrFail($colaboradorId);
 
-        // Find seller record by user_id (assumes sellers table has user_id FK)
-        $seller = DB::table('sellers')
-            ->where('user_id', $col->user_id)
-            ->first(['id', 'name', 'commission_percentage']);
+        try {
+            // sellers no tiene name/commission_percentage propios: el nombre vive en users
+            // (join por user_id) y el % de comisión en la regla vigente asignada (pivot
+            // commissions_rules_sellers -> commissions_rules.commission_percentage).
+            $seller = DB::table('sellers')
+                ->join('users', 'sellers.user_id', '=', 'users.id')
+                ->where('sellers.user_id', $col->user_id)
+                ->first([
+                    'sellers.id',
+                    DB::raw("CONCAT(users.name, ' ', users.father_last_name, ' ', users.mother_last_name) as name"),
+                ]);
 
-        if (!$seller) {
-            return response()->json(['is_seller' => false, 'message' => 'No está registrado como vendedor']);
+            if (!$seller) {
+                return response()->json(['is_seller' => false, 'message' => 'No está registrado como vendedor']);
+            }
+
+            $commissionPct = DB::table('commissions_rules_sellers')
+                ->join('commissions_rules', 'commissions_rules.id', '=', 'commissions_rules_sellers.commission_rule_id')
+                ->where('commissions_rules_sellers.seller_id', $seller->id)
+                ->value('commissions_rules.commission_percentage');
+
+            // Last 4 weeks commission summary (read-only). transactions_sellers es un ledger
+            // de saldo (dormido, sin columna de comisión); el dinero real pagado a vendedores
+            // vive en payment_by_rule (seller_id, amount, payment_date).
+            $since = now()->subWeeks(4)->toDateString();
+
+            $commissions = DB::table('payment_by_rule')
+                ->where('seller_id', $seller->id)
+                ->where('payment_date', '>=', $since)
+                ->selectRaw('COUNT(*) as total_txns, SUM(amount) as total_commission')
+                ->first();
+
+            return response()->json([
+                'is_seller'          => true,
+                'seller_id'          => $seller->id,
+                'seller_name'        => $seller->name,
+                'commission_pct'     => $commissionPct,
+                'last_4w_txns'       => (int)($commissions->total_txns ?? 0),
+                'last_4w_commission' => round((float)($commissions->total_commission ?? 0), 2),
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('TalentoEmbajadoresController::sellerData falló', [
+                'colaborador_id' => $colaboradorId,
+                'error'          => $e->getMessage(),
+            ]);
+            return response()->json(['is_seller' => false, 'message' => 'No se pudo obtener información de vendedor']);
         }
-
-        // Last 4 weeks commission summary (read-only)
-        $since = now()->subWeeks(4)->toDateString();
-
-        $commissions = DB::table('transaction_sellers')
-            ->where('seller_id', $seller->id)
-            ->where('created_at', '>=', $since)
-            ->selectRaw('COUNT(*) as total_txns, SUM(commission_amount) as total_commission')
-            ->first();
-
-        return response()->json([
-            'is_seller'          => true,
-            'seller_id'          => $seller->id,
-            'seller_name'        => $seller->name,
-            'commission_pct'     => $seller->commission_percentage,
-            'last_4w_txns'       => (int)($commissions->total_txns ?? 0),
-            'last_4w_commission' => round((float)($commissions->total_commission ?? 0), 2),
-        ]);
     }
 }
