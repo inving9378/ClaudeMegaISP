@@ -20,6 +20,7 @@
                     @edit-component="onEditComponent"
                     @destroy-component="onDestroyComponent"
                     @show-on-map="showElementOnMap"
+                    @trazar-ruta="trazarRutaEnlace"
                 />
             </template>
             <template v-slot:separator>
@@ -378,6 +379,7 @@ import { darkMode } from "../../../hook/appConfig";
 
 import { getClientsWithoutProject, getMapRenderConfig, saveObject } from "./helper/request";
 import { getOcupacionLote } from "./helper/naps-request";
+import { getTrazoEnlace } from "./helper/enlaces-request";
 
 import Swal from "sweetalert2";
 import {
@@ -436,6 +438,9 @@ const $q = useQuasar();
 const splitterModel = ref(350);
 
 let map = null;
+// MR-16 Fase 2a (item roadmap #9990495): capa dedicada para el trazo de ruta a OLT
+// (dibujada bajo demanda al hacer clic en "Trazar ruta a OLT" de un enlace de servicio).
+let trazoLayer = null;
 const projects = ref([]);
 let searchLayers = null;
 let clientsLayers = null;
@@ -708,7 +713,13 @@ const initMap = async () => {
 
     osmLayer.addTo(map);
 
-    L.control.layers(baseLayers).addTo(map);
+    // MR-16 Fase 2a (#9990495): capa togglable con el trazo de ruta a OLT del enlace
+    // seleccionado (vacía hasta que se pida un trazo).
+    trazoLayer = L.layerGroup().addTo(map);
+
+    L.control
+        .layers(baseLayers, { "Trazo a OLT": trazoLayer })
+        .addTo(map);
 
     crearControlCapas();
 
@@ -1403,6 +1414,39 @@ const showElementOnMap = (object) => {
         map.setView(object.coords, 18);
     } else {
         map.fitBounds(object.coords);
+    }
+};
+
+// MR-16 Fase 2a (item roadmap #9990495): dibuja la ruta física del enlace hasta la OLT
+// (backend Fase 1, #9990468). Trazo parcial = dibuja lo que haya + aviso visible del
+// motivo_corte, nunca falla en silencio (decisión ya tomada por Irving).
+const trazarRutaEnlace = async (enlaceId) => {
+    const trazo = await getTrazoEnlace(enlaceId);
+    if (!trazo) {
+        message("No se pudo obtener el trazo de este enlace", "error");
+        return;
+    }
+
+    trazoLayer.clearLayers();
+
+    const puntos = (trazo.elementos ?? [])
+        .filter((el) => el.posicion)
+        .map((el) => [el.posicion.lat, el.posicion.lng]);
+
+    if (puntos.length >= 2) {
+        L.polyline(puntos, {
+            color: "#7dd3fc",
+            weight: 4,
+            opacity: 0.85,
+        }).addTo(trazoLayer);
+        map.fitBounds(puntos);
+    }
+
+    if (!trazo.completa) {
+        message(
+            trazo.motivo_corte ?? "El trazo no pudo completarse hasta la OLT",
+            "warning"
+        );
     }
 };
 
