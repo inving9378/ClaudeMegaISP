@@ -3,7 +3,7 @@
     <!-- Disparador: vive DENTRO de la Torre (no es un widget global, esa es la burbuja #651). -->
     <button type="button" class="btn btn-outline-dark btn-sm jcd-toggle" @click="toggle" :title="tituloToggle">
       <i class="bi bi-robot me-1"></i> Jarvis
-      <span v-if="pendientes > 0" class="badge bg-warning text-dark rounded-pill jcd-badge">{{ pendientes }}</span>
+      <span v-if="pendientes > 0" class="badge bg-warning text-dark rounded-pill ms-1 jcd-badge">{{ pendientes }}</span>
     </button>
 
     <transition name="jcd-fade">
@@ -335,11 +335,8 @@ export default {
 
 <style scoped>
 .jcd-wrap { display: inline-block; }
-.jcd-toggle { position: relative; }
-/* .jcd-badge solo posiciona (overlay en la esquina del botón con texto); la forma
-   (rounded-pill) y el color vienen de las clases bg-* de Bootstrap, igual que el resto
-   de los badges del clúster derecho. */
-.jcd-badge { position: absolute; top: -6px; right: -6px; font-size: 10px; }
+.jcd-toggle { position: relative; display: inline-flex; align-items: center; }
+.jcd-badge { display: inline-flex; align-items: center; font-size: 10px; vertical-align: middle; }
 
 .jcd-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, .35); z-index: 2040; }
 .jcd-drawer {
