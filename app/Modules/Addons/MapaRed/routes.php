@@ -115,6 +115,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     // MR-18 (item #954) — presupuesto óptico automático desde el trazo.
     Route::get('/enlaces-servicio/{id}/presupuesto-optico', [EnlacesServicioController::class, 'presupuestoOptico'])->name('mapa-red.api.enlaces-servicio.presupuesto-optico');
 
+    // MR-16 Fase 1 (item #9990468) — trazo cliente→OLT listo para dibujar en el mapa.
+    Route::get('/enlaces-servicio/{id}/trazo', [EnlacesServicioController::class, 'trazo'])->name('mapa-red.api.enlaces-servicio.trazo');
+
     // MR-25 (item #961) — importador con previsualización, mapeo de tipo y duplicados.
     Route::post('/import/kml/preview', [ImportadorController::class, 'previsualizarKml'])->name('mapa-red.api.import.kml.preview');
     Route::post('/import/kml/commit', [ImportadorController::class, 'confirmarKml'])->name('mapa-red.api.import.kml.commit');
