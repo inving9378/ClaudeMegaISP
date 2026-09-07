@@ -50,6 +50,11 @@ Login
                                                     <i class="fas fa-eye-slash" id="togglePasswordIcon"></i>
                                                 </button>
                                             </div>
+                                            @if(Route::has('password.request'))
+                                                <div class="text-end mt-1">
+                                                    <a class="text-muted" href="{{ route('password.request') }}">¿Olvidó su contraseña?</a>
+                                                </div>
+                                            @endif
                                         </div>
                                         <div>
                                             <a href="/register-vendor">
