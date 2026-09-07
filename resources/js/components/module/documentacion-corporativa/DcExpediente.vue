@@ -71,44 +71,90 @@
             </q-btn>
         </div>
 
-        <!-- Tablero global --------------------------------------------------->
-        <div class="row q-col-gutter-md q-mb-lg">
-            <div class="col-12 col-md-4">
+        <!-- Tablero global — 5 KPIs (decisión de Irving, item #9990531 q4) --->
+        <div class="row q-col-gutter-sm q-mb-md">
+            <div class="col-6 col-sm">
                 <q-card flat bordered>
-                    <q-card-section class="text-center">
-                        <i class="bi bi-clipboard-check" style="font-size:26px" :style="{ color: colorSemaforo(global.semaforo) }"></i>
-                        <div class="text-h4 text-weight-bold" :style="{ color: colorSemaforo(global.semaforo) }">
+                    <q-card-section class="text-center q-pa-sm">
+                        <div class="text-h5 text-weight-bold" :style="{ color: colorSemaforo(global.semaforo) }">
                             {{ global.medible === false ? '—' : global.porcentaje + '%' }}
                         </div>
-                        <div class="text-subtitle2">Completitud del expediente</div>
-                        <div class="text-caption text-grey">
-                            {{ global.resueltos }} de {{ global.obligatorios }} conceptos obligatorios
+                        <div class="text-caption text-grey">Avance global</div>
+                    </q-card-section>
+                </q-card>
+            </div>
+
+            <div class="col-6 col-sm">
+                <q-card flat bordered>
+                    <q-card-section class="text-center q-pa-sm">
+                        <div class="text-h5 text-weight-bold text-positive">{{ global.al_dia || 0 }}/{{ apartados.length }}</div>
+                        <div class="text-caption text-grey">Apartados al día</div>
+                    </q-card-section>
+                </q-card>
+            </div>
+
+            <div class="col-6 col-sm">
+                <q-card flat bordered>
+                    <q-card-section class="text-center q-pa-sm">
+                        <div class="text-h5 text-weight-bold text-warning">{{ global.en_proceso || 0 }}</div>
+                        <div class="text-caption text-grey">En proceso</div>
+                    </q-card-section>
+                </q-card>
+            </div>
+
+            <div class="col-6 col-sm">
+                <q-card flat bordered>
+                    <q-card-section class="text-center q-pa-sm">
+                        <div class="text-h5 text-weight-bold text-grey-8">{{ global.sin_iniciar || 0 }}</div>
+                        <div class="text-caption text-grey">Sin iniciar</div>
+                    </q-card-section>
+                </q-card>
+            </div>
+
+            <div class="col-6 col-sm">
+                <q-card flat bordered>
+                    <q-card-section class="text-center q-pa-sm">
+                        <div class="text-h5 text-weight-bold text-grey-8">
+                            {{ global.dias_restantes === null || global.dias_restantes === undefined ? 'N/D' : global.dias_restantes }}
+                            <q-tooltip v-if="global.dias_restantes === null || global.dias_restantes === undefined">
+                                Sin fecha de inicio del plazo de 180 días hábiles registrada todavía.
+                            </q-tooltip>
                         </div>
+                        <div class="text-caption text-grey">Días restantes</div>
                     </q-card-section>
                 </q-card>
             </div>
+        </div>
 
-            <div class="col-12 col-md-4">
-                <q-card flat bordered>
-                    <q-card-section class="text-center">
-                        <i class="bi bi-folder2-open" style="font-size:26px;color:#0057A8"></i>
-                        <div class="text-h4 text-weight-bold text-primary">{{ apartados.length }}</div>
-                        <div class="text-subtitle2">Apartados visibles</div>
-                        <div class="text-caption text-grey">de 14 en la solicitud</div>
-                    </q-card-section>
-                </q-card>
-            </div>
+        <!-- Filtros por estado + toggle Tarjetas/Lista (Fase B, item #9990531) -->
+        <div class="row items-center q-gutter-sm q-mb-md">
+            <q-chip
+                v-for="f in filtrosEstado"
+                :key="f.valor"
+                clickable
+                :outline="estadoFiltro !== f.valor"
+                :color="estadoFiltro === f.valor ? f.color : 'grey-4'"
+                :text-color="estadoFiltro === f.valor ? 'white' : 'grey-8'"
+                @click="estadoFiltro = f.valor"
+            >
+                {{ f.etiqueta }} ({{ f.valor === 'todos' ? apartados.length : apartados.filter((a) => a.estado === f.valor).length }})
+            </q-chip>
 
-            <div class="col-12 col-md-4">
-                <q-card flat bordered>
-                    <q-card-section class="text-center">
-                        <i class="bi bi-exclamation-triangle" style="font-size:26px;color:#c62828"></i>
-                        <div class="text-h4 text-weight-bold" style="color:#c62828">{{ totalFaltantes }}</div>
-                        <div class="text-subtitle2">Conceptos faltantes</div>
-                        <div class="text-caption text-grey">obligatorios sin resolver</div>
-                    </q-card-section>
-                </q-card>
-            </div>
+            <q-space />
+
+            <q-btn-toggle
+                v-model="vistaTablero"
+                dense
+                no-caps
+                unelevated
+                toggle-color="primary"
+                color="white"
+                text-color="grey-8"
+                :options="[
+                    { label: 'Tarjetas', value: 'tarjetas', icon: 'grid_view' },
+                    { label: 'Lista', value: 'lista', icon: 'view_list' },
+                ]"
+            />
         </div>
 
         <!-- Índice de apartados ---------------------------------------------->
@@ -117,76 +163,122 @@
             <div class="q-mt-sm">No tienes permiso para ver ningún apartado de este expediente.</div>
         </div>
 
-        <div class="row q-col-gutter-md">
-            <div
-                v-for="ap in apartados"
-                :key="ap.clave"
-                class="col-12 col-md-6 col-lg-4"
-            >
-                <q-card
-                    flat
-                    bordered
-                    class="dc-card cursor-pointer full-height"
-                    :style="{ borderLeft: '4px solid ' + colorSemaforo(ap.semaforo) }"
-                    @click="abrirApartado(ap)"
-                >
-                    <q-card-section>
-                        <div class="row items-start no-wrap">
-                            <div class="dc-clave">{{ ap.clave }}</div>
-                            <div class="col q-ml-sm">
-                                <div class="text-subtitle2 text-weight-medium">{{ ap.nombre }}</div>
-                                <div class="text-caption text-grey dc-desc">{{ ap.descripcion }}</div>
-                            </div>
-                            <div
-                                class="text-h6 text-weight-bold q-ml-sm"
-                                :style="{ color: colorSemaforo(ap.semaforo) }"
-                            >
-                                {{ ap.medible === false ? '—' : ap.porcentaje + '%' }}
-                                <q-tooltip v-if="ap.medible === false">
-                                    Este apartado no tiene conceptos obligatorios: no hay porcentaje que medir.
-                                </q-tooltip>
-                            </div>
-                        </div>
-
-                        <q-linear-progress
-                            :value="ap.medible === false ? 0 : ap.porcentaje / 100"
-                            :color="colorQuasar(ap.semaforo)"
-                            size="6px"
-                            rounded
-                            class="q-mt-sm"
-                        />
-
-                        <div class="row items-center q-mt-sm text-caption text-grey">
-                            <div>
-                                {{ ap.conceptos_total }} conceptos ·
-                                <span v-if="ap.medible === false">sin obligatorios que medir</span>
-                                <span v-else>{{ ap.resueltos }}/{{ ap.obligatorios }} obligatorios</span>
-                            </div>
-                            <q-space />
-                            <q-badge
-                                v-if="ap.faltantes.length"
-                                color="red-5"
-                                :label="ap.faltantes.length + ' faltan'"
-                            />
-                            <q-badge
-                                v-if="ap.clave === 'XIII' && alertasXIII"
-                                class="q-ml-xs"
-                                :color="alertasXIII.vencidas > 0 ? 'negative' : (alertasXIII.total > 0 ? 'warning' : 'positive')"
-                                :label="badgeAlertasXIII"
-                            />
-                        </div>
-
-                        <div class="q-mt-xs text-caption text-grey">
-                            <i class="bi bi-person"></i>
-                            <span v-if="ap.responsables.nombres.length">
-                                {{ ap.responsables.nombres.join(', ') }}
-                            </span>
-                            <span v-else>Sin responsable asignado</span>
-                        </div>
-                    </q-card-section>
-                </q-card>
-            </div>
+        <div v-else-if="!loading && apartadosFiltrados.length === 0" class="text-center q-pa-xl text-grey">
+            <i class="bi bi-filter-circle" style="font-size:34px"></i>
+            <div class="q-mt-sm">Ningún apartado coincide con el filtro seleccionado.</div>
         </div>
+
+        <!-- Vista Tarjetas: entra al detalle de un vistazo. -->
+        <div v-else-if="vistaTablero === 'tarjetas'" class="dc-grid">
+            <q-card
+                v-for="ap in apartadosFiltrados"
+                :key="ap.clave"
+                flat
+                bordered
+                class="dc-card cursor-pointer"
+                :style="{ borderLeft: '4px solid ' + colorSemaforo(ap.semaforo) }"
+                @click="abrirApartado(ap)"
+            >
+                <q-card-section class="dc-card__body">
+                    <div class="row items-center no-wrap">
+                        <q-chip dense square color="blue-1" text-color="primary" class="text-weight-bold">{{ ap.clave }}</q-chip>
+                        <q-space />
+                        <q-badge :color="colorEstadoApartado(ap.estado)" :label="etiquetaEstadoApartado(ap.estado)" />
+                    </div>
+
+                    <div class="dc-card__titulo q-mt-sm">{{ ap.nombre }}</div>
+
+                    <div class="row items-center q-mt-sm text-caption text-grey">
+                        <div>{{ ap.resueltos }}/{{ ap.obligatorios }} conceptos</div>
+                        <q-space />
+                        <div class="text-weight-bold" :style="{ color: colorSemaforo(ap.semaforo) }">
+                            {{ ap.medible === false ? '—' : ap.porcentaje + '%' }}
+                        </div>
+                    </div>
+
+                    <q-linear-progress
+                        :value="ap.medible === false ? 0 : ap.porcentaje / 100"
+                        :color="colorQuasar(ap.semaforo)"
+                        size="6px"
+                        rounded
+                        class="q-mt-xs"
+                    />
+
+                    <div class="text-caption q-mt-sm" :class="ap.medible !== false && ap.faltantes.length ? 'text-negative' : 'text-positive'">
+                        <span v-if="ap.medible === false">Sin obligatorios que medir</span>
+                        <span v-else-if="ap.faltantes.length">Faltan {{ ap.faltantes.length }} de {{ ap.obligatorios }} obligatorios</span>
+                        <span v-else>{{ ap.obligatorios }} de {{ ap.obligatorios }} completos</span>
+                    </div>
+
+                    <div v-if="ap.clave === 'XIII' && alertasXIII" class="q-mt-xs">
+                        <q-badge
+                            :color="alertasXIII.vencidas > 0 ? 'negative' : (alertasXIII.total > 0 ? 'warning' : 'positive')"
+                            :label="badgeAlertasXIII"
+                        />
+                    </div>
+
+                    <q-separator class="dc-card__separador" />
+
+                    <div class="dc-card__pie row items-center">
+                        <template v-if="ap.responsables.nombres.length">
+                            <q-avatar size="22px" color="blue-1" text-color="primary" class="text-caption">
+                                {{ iniciales(ap.responsables.nombres[0]) }}
+                            </q-avatar>
+                            <div class="text-caption text-grey q-ml-xs ellipsis">
+                                {{ ap.responsables.nombres.join(', ') }}
+                            </div>
+                        </template>
+                        <q-btn
+                            v-else
+                            flat
+                            dense
+                            no-caps
+                            size="sm"
+                            icon="person_add"
+                            color="primary"
+                            label="Asignar responsable"
+                            @click.stop="abrirApartado(ap)"
+                        />
+                        <q-space />
+                        <q-icon name="chevron_right" color="grey-6" />
+                    </div>
+                </q-card-section>
+            </q-card>
+        </div>
+
+        <!-- Vista Lista: para administrar, ordenable. -->
+        <q-table
+            v-else
+            flat
+            bordered
+            :rows="apartadosFiltrados"
+            :columns="columnasLista"
+            row-key="clave"
+            :pagination="{ rowsPerPage: 0, sortBy: 'porcentaje', descending: false }"
+            hide-pagination
+            class="cursor-pointer"
+            @row-click="(evt, row) => abrirApartado(row)"
+        >
+            <template #body-cell-estado="props">
+                <q-td :props="props">
+                    <q-badge :color="colorEstadoApartado(props.row.estado)" :label="etiquetaEstadoApartado(props.row.estado)" />
+                </q-td>
+            </template>
+            <template #body-cell-porcentaje="props">
+                <q-td :props="props">
+                    {{ props.row.medible === false ? '—' : props.row.porcentaje + '%' }}
+                </q-td>
+            </template>
+            <template #body-cell-responsable="props">
+                <q-td :props="props">
+                    <span v-if="props.row.responsables.nombres.length">{{ props.row.responsables.nombres.join(', ') }}</span>
+                    <span v-else class="text-grey">Sin responsable</span>
+                </q-td>
+            </template>
+            <template #body-cell-movimiento="props">
+                <q-td :props="props">{{ diasSinMovimientoTexto(props.row) }}</q-td>
+            </template>
+        </q-table>
 
         <!-- Detalle del apartado --------------------------------------------->
         <q-dialog v-model="dialogo" full-width>
@@ -598,8 +690,30 @@ export default {
             opcionesEmpresa: [],
             empresaSeleccionada: this.empresaId,
             apartados: [],
-            global: { porcentaje: 0, resueltos: 0, obligatorios: 0, semaforo: 'rojo' },
+            global: {
+                porcentaje: 0, resueltos: 0, obligatorios: 0, semaforo: 'rojo',
+                al_dia: 0, en_proceso: 0, sin_iniciar: 0, dias_restantes: null,
+            },
             detalle: { clave: '', nombre: '', descripcion: '', porcentaje: 0, semaforo: 'rojo', conceptos: [] },
+
+            // Tablero — Fase B (item #9990531): filtro por estado + toggle de vista.
+            vistaTablero: 'tarjetas',
+            estadoFiltro: 'todos',
+            filtrosEstado: [
+                { valor: 'todos', etiqueta: 'Todos', color: 'primary' },
+                { valor: 'sin_iniciar', etiqueta: 'Sin iniciar', color: 'grey-7' },
+                { valor: 'en_proceso', etiqueta: 'En proceso', color: 'warning' },
+                { valor: 'al_dia', etiqueta: 'Al día', color: 'positive' },
+            ],
+            columnasLista: [
+                { name: 'clave', label: 'Apartado', field: 'clave', align: 'left', sortable: true },
+                { name: 'nombre', label: 'Nombre', field: 'nombre', align: 'left', sortable: true },
+                { name: 'estado', label: 'Estado', field: 'estado', align: 'left', sortable: true },
+                { name: 'porcentaje', label: '%', field: 'porcentaje', align: 'right', sortable: true },
+                { name: 'faltantes', label: 'Obligatorios faltantes', field: (row) => row.faltantes.length, align: 'right', sortable: true },
+                { name: 'responsable', label: 'Responsable', field: () => '', align: 'left' },
+                { name: 'movimiento', label: 'Días sin movimiento', field: 'dias_sin_movimiento', align: 'right', sortable: true },
+            ],
             // Semáforo del calendario regulatorio (apartado XIII), aparte de la
             // completitud genérica: aquí lo urgente es la vigencia, no si el
             // registro existe. null mientras no se ha cargado.
@@ -629,6 +743,15 @@ export default {
     computed: {
         totalFaltantes() {
             return this.apartados.reduce((n, a) => n + a.faltantes.length, 0);
+        },
+
+        /** Apartados visibles tras el filtro por estado, con "días sin movimiento" ya calculado (Fase B, item #9990531). */
+        apartadosFiltrados() {
+            const base = this.estadoFiltro === 'todos'
+                ? this.apartados
+                : this.apartados.filter((a) => a.estado === this.estadoFiltro);
+
+            return base.map((a) => ({ ...a, dias_sin_movimiento: this.diasSinMovimiento(a) }));
         },
 
         badgeAlertasXIII() {
@@ -739,6 +862,34 @@ export default {
 
         colorQuasar(s) {
             return { verde: 'positive', amarillo: 'warning', rojo: 'negative', gris: 'grey-5' }[s] || 'negative';
+        },
+
+        /** Estado del APARTADO (3 valores, decisión de Irving #9990531 q2) — no confundir con el estado del CONCEPTO (colorEstado/etiquetaEstado, más abajo). */
+        colorEstadoApartado(estado) {
+            return { al_dia: 'positive', en_proceso: 'warning', sin_iniciar: 'grey-7' }[estado] || 'grey-7';
+        },
+
+        etiquetaEstadoApartado(estado) {
+            return { al_dia: 'Al día', en_proceso: 'En proceso', sin_iniciar: 'Sin iniciar' }[estado] || estado;
+        },
+
+        /** Iniciales (máx. 2) para el avatar del responsable en la tarjeta. */
+        iniciales(nombre) {
+            if (!nombre) return '';
+            return nombre.trim().split(/\s+/).slice(0, 2).map((p) => p[0].toUpperCase()).join('');
+        },
+
+        /** Días desde `fecha_ultima_actualizacion` (documento subido o pendiente tocado). null = sin datos. */
+        diasSinMovimiento(ap) {
+            if (!ap.fecha_ultima_actualizacion) return null;
+            const ms = Date.now() - new Date(ap.fecha_ultima_actualizacion.replace(' ', 'T')).getTime();
+            return Math.max(0, Math.floor(ms / 86400000));
+        },
+
+        diasSinMovimientoTexto(ap) {
+            const dias = ap.dias_sin_movimiento;
+            if (dias === null || dias === undefined) return 'Sin datos';
+            return dias + (dias === 1 ? ' día' : ' días');
         },
 
         colorEstado(e) {
@@ -1037,6 +1188,45 @@ export default {
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+}
+
+/* Fase A (item #9990531) — el título se desbordaba fuera de la tarjeta,
+   partido a un carácter por renglón: `.col` de Quasar en un `.row` no
+   encoge por debajo del contenido sin `min-width:0` explícito. Grid propio
+   en vez de row/col + min-width:0 en cada hijo lo corrige de raíz. */
+.dc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    align-items: stretch;
+}
+.dc-card {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    height: auto;
+}
+.dc-card__body {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+.dc-card__titulo {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 14px;
+    font-weight: 500;
+}
+.dc-card__separador {
+    margin-top: auto;
+}
+.dc-card__pie {
+    padding-top: 8px;
 }
 .dc-card:hover {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
