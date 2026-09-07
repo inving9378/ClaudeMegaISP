@@ -484,6 +484,7 @@
         @edit="editNode"
         @delete="deleteObject"
         @show-on-map="showOnMap"
+        @trazar-ruta="(enlaceId) => emits('trazar-ruta', enlaceId)"
     />
 
     <import-kml-wizard
@@ -557,6 +558,7 @@ const emits = defineEmits([
     "loaded",
     "draw-layers",
     "show-on-map",
+    "trazar-ruta",
 ]);
 
 const excludes = [
