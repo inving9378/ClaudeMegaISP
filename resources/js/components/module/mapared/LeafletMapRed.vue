@@ -420,6 +420,7 @@ import {
     getNodeByKey,
     tickedNodes,
     selectedNodeId,
+    arbolDerivadoVisible,
 } from "../../../composables/useNodeMap";
 import JSZip from "jszip";
 
@@ -1169,6 +1170,37 @@ const initMap = async () => {
             },
         ],
     }).addTo(map);
+
+    // MR-22 Fase 3c (item roadmap #9990517) — toggle en la top bar del mapa para mostrar/ocultar
+    // la sección "árbol derivado" (Fase 3b, #9990516) del panel lateral. Estado compartido
+    // (arbolDerivadoVisible, useNodeMap) con ProjectsComponent.vue, persistido en localStorage.
+    const arbolDerivadoBtn = L.easyButton({
+        states: [
+            {
+                stateName: "arbol-derivado-oculto",
+                icon: "fa-sitemap",
+                title: "Mostrar árbol derivado del nodo seleccionado",
+                onClick: function (btn) {
+                    arbolDerivadoVisible.value = true;
+                    setToLocalStorage("arbol-derivado-visible", true);
+                    btn.state("arbol-derivado-visible");
+                },
+            },
+            {
+                stateName: "arbol-derivado-visible",
+                icon: "fa-sitemap",
+                title: "Ocultar árbol derivado del nodo seleccionado",
+                onClick: function (btn) {
+                    arbolDerivadoVisible.value = false;
+                    setToLocalStorage("arbol-derivado-visible", false);
+                    btn.state("arbol-derivado-oculto");
+                },
+            },
+        ],
+    }).addTo(map);
+    if (arbolDerivadoVisible.value) {
+        arbolDerivadoBtn.state("arbol-derivado-visible");
+    }
 
     map.on("click", async function (e) {
         if (addInSerie.value) {
