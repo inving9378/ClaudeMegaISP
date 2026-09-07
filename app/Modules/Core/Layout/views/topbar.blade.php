@@ -144,7 +144,7 @@
                         aria-expanded="false">
                         <i data-feather="bell" class="icon-lg"></i>
                         <span
-                            class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">{{ count($notifications) > 0 ? count($notifications) : 0 }}</span>
+                            class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger hdr-badge hdr-badge-corner">{{ count($notifications) > 0 ? count($notifications) : 0 }}</span>
                     </button>
                     @if (count($notifications) > 0)
                         <div class="dropdown-menu dropdown-menu-lg dropdown-menu-end p-0"
@@ -216,6 +216,16 @@
    (top ya lo gana top-0!important de BS5; padding/line-height de .badge quedan intactos). */
 .noti-icon .badge.translate-middle {
     right: auto;
+}
+/* alinear verticalmente TODO el clúster derecho (el engrane salía más alto) */
+.navbar-header > .d-flex:last-child { align-items: center; }
+/* contadores del header como superposición VISIBLE en la esquina sup-der del icono,
+   sin salirse (translate-middle los cortaba contra el borde) */
+.hdr-badge-corner {
+    left: auto !important;
+    right: 0 !important;
+    top: 0 !important;
+    transform: translate(25%, -25%) !important;
 }
 </style>
 
