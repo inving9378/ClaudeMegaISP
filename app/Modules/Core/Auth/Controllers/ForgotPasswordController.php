@@ -19,4 +19,13 @@ class ForgotPasswordController extends Controller
     */
 
     use SendsPasswordResetEmails;
+
+    /**
+     * Las vistas de auth viven bajo el namespace del módulo (core-auth::), no en
+     * resources/views/auth/passwords/ (que no existe en este proyecto).
+     */
+    public function showLinkRequestForm()
+    {
+        return view('core-auth::passwords.email');
+    }
 }

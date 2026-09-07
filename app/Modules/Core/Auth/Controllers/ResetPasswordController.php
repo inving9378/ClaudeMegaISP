@@ -5,6 +5,7 @@ namespace App\Modules\Core\Auth\Controllers;
 use App\Http\Controllers\Controller;
 use App\Providers\RouteServiceProvider;
 use Illuminate\Foundation\Auth\ResetsPasswords;
+use Illuminate\Http\Request;
 
 class ResetPasswordController extends Controller
 {
@@ -27,4 +28,17 @@ class ResetPasswordController extends Controller
      * @var string
      */
     protected $redirectTo = RouteServiceProvider::HOME;
+
+    /**
+     * Las vistas de auth viven bajo el namespace del módulo (core-auth::), no en
+     * resources/views/auth/passwords/ (que no existe en este proyecto).
+     */
+    public function showResetForm(Request $request)
+    {
+        $token = $request->route()->parameter('token');
+
+        return view('core-auth::passwords.reset')->with(
+            ['token' => $token, 'email' => $request->email]
+        );
+    }
 }
