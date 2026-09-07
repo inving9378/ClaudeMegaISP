@@ -167,6 +167,43 @@ export const loadKMZ = async (node, file) => {
     return data;
 };
 
+// MR-25 Fase 2 (item #9990442) — wizard de importación con previsualización.
+export const previsualizarKml = async (file) => {
+    let data = null;
+    const formData = new FormData();
+    formData.append("file", file);
+    await axios["post"](`/mapa-red/api/import/kml/preview`, formData, {
+        headers: {
+            "Content-Type": "multipart/form-data",
+            "X-CSRF-TOKEN": document
+                .querySelector('meta[name="csrf-token"]')
+                .getAttribute("content"),
+        },
+    })
+        .then((response) => {
+            data = response.data;
+        })
+        .catch((e) => {
+            data = { error: e?.response?.data?.error ?? "Error al previsualizar el archivo" };
+        });
+    return data;
+};
+
+export const confirmarKml = async (items, projectId) => {
+    let data = null;
+    await axios["post"](`/mapa-red/api/import/kml/commit`, {
+        items,
+        project_id: projectId,
+    })
+        .then((response) => {
+            data = response.data;
+        })
+        .catch((e) => {
+            data = null;
+        });
+    return data;
+};
+
 export const convertToNetwork = async (props) => {
     let data = null;
     await axios["post"]("/mapa-red/api/change-classification", props)
