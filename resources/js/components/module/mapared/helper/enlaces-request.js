@@ -29,3 +29,18 @@ export const getPresupuestoOptico = async (enlaceId, ventana = null) => {
         });
     return data;
 };
+
+// MR-16 Fase 2a (item roadmap #9990495): trazo de la ruta física del enlace hasta la OLT,
+// para dibujarla como polyline en el mapa. Backend Fase 1 (#9990468).
+export const getTrazoEnlace = async (enlaceId) => {
+    let data = null;
+    await axios
+        .get(`/mapa-red/api/enlaces-servicio/${enlaceId}/trazo`)
+        .then((response) => {
+            data = response.data;
+        })
+        .catch((e) => {
+            data = null;
+        });
+    return data;
+};
