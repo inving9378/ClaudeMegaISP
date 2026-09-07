@@ -201,8 +201,10 @@
                 </div>
             </div>
         </div>
+    </div>
 
-        <div class="col-md-12" v-if="hasDocumentPermission">
+    <div class="row" v-if="activeTab === '#navs-pills-justified-information' && hasDocumentPermission">
+        <div class="col-md-12">
             <div class="card mb-4">
                 <h5 class="card-header">Documentos</h5>
                 <div class="card-body">
