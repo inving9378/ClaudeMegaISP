@@ -1988,3 +1988,28 @@ vuelta: `#9990502` sigue paraguas de sus propios hijos — `#9990520` (Fase B1: 
 (`RoadmapItem.php:459-491`) lo complete solo cuando `#9990502` cierre (que a su vez depende de
 `#9990521`). Detalle en `docs/roadmap-bucle-reap-item-9990408-verificacion.md`. **Sin cambio de
 código de negocio** — el trabajo real de UI (Rack) sigue en `#9990521`, listo para reclamarse.
+
+## Item #962 — MR-26 Cobertura comercial derivada de la infraestructura — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
+#936/#9990408. #962 (MR-26: polígono de cobertura vendible = unión de radios de drop de NAPs con
+puertos libres + endpoint de consulta por coordenada + capa de sectores inalámbricos) ya estaba
+descompuesto correctamente en 4 sub-items (`origen_item_id=962`) por una vuelta previa: **#9990522**
+(Fase 1 — motor de cobertura, `completado`, merge `9681a91f`), **#9990523** (Fase 2 — endpoint de
+consulta por coordenada, `requiere_irving`, sin reclamar), **#9990524** (Fase 3 — capa de sectores
+inalámbricos, `requiere_irving`, sin reclamar) y **#9990525** (Fase 4 — UI + DoD final,
+`en_progreso` en `wt-3`). El historial de #962 muestra el ciclo típico de esta familia (escalación
+por anti-loop, la directiva de Irving `destapado_mapa` que le quitó `excluir_pool_automatico`,
+timeout por `max_turns`, dos `soltar-claim` por muerte de proceso, varios `limite_cuenta_detectado`
+y finalmente `reaper-rapido` re-encolándolo como huérfano) **sin que en ningún punto se intentara
+cerrarlo** — la descomposición ya existía desde antes de la mayoría de esos ciclos, pero nadie
+disparó el guard de paraguas. Verificado: los 4 hijos siguen intactos (3 abiertos, 1 mergeado), sin
+que esta vuelta tocara el que ya tiene dueño (`#9990525` en `wt-3`, aislamiento #334). Corrección:
+esta vuelta ejecuta el intento de cierre faltante; el guard (`RoadmapItem.php` bloque "(2b)
+PARAGUAS") lo reenruta a `aprobado_irving` + `excluir_pool_automatico=true` (evento
+`paraguas_abierto` en el log, "le quedan 3 sub-item(s) abierto(s)"), sacándolo del pool/reaper
+hasta que el hook de cierre en cascada (`RoadmapItem.php:459-491`) lo complete solo cuando
+#9990523, #9990524 y #9990525 cierren los tres. Detalle en
+`docs/roadmap-bucle-reap-item-962-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo real de MR-26 (endpoint de consulta, sectores inalámbricos, UI + DoD con dirección real de
+Tultitlán) sigue en #9990523/#9990524/#9990525, pendientes de aprobación/reclamo.
