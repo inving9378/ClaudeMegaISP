@@ -99,7 +99,7 @@ class CsvParserService
                 'coords' => ['lat' => $lat, 'lng' => $lng],
                 'folder_path' => [],
                 'data' => ['description' => $descripcion !== '' ? $descripcion : null],
-                'extended_data' => [],
+                'extended_data' => self::columnasExtra($encabezados, $mapeo, $fila),
                 'tipo_hint' => ($tipoHint !== null && $tipoHint !== '') ? $tipoHint : null,
             ];
         }
@@ -111,6 +111,35 @@ class CsvParserService
             'errores' => $errores,
             'columnas_detectadas' => $mapeo,
         ];
+    }
+
+    /**
+     * Columnas del CSV que no fueron reclamadas por los campos fijos (lat/lng/nombre/tipo/
+     * descripcion) — llave = encabezado normalizado, valor = celda cruda. Permite a
+     * importadores de entidades con campos propios (ej. sectores inalámbricos: azimut,
+     * apertura, alcance, altura) leer sus columnas sin que este parser tenga que conocerlas
+     * de antemano (mismo criterio que `GeoJsonParserService`, que ya vuelca todo `properties`
+     * en `extended_data`).
+     */
+    private static function columnasExtra(array $encabezados, array $mapeo, array $fila): array
+    {
+        $indicesUsados = array_filter($mapeo, fn($indice) => $indice !== null);
+        $extra = [];
+
+        foreach ($encabezados as $indice => $encabezado) {
+            if (in_array($indice, $indicesUsados, true)) {
+                continue;
+            }
+
+            $clave = self::normalizarTexto((string) $encabezado);
+            if ($clave === '') {
+                continue;
+            }
+
+            $extra[$clave] = trim((string) self::valor($fila, $indice));
+        }
+
+        return $extra;
     }
 
     private static function detectarColumnas(array $encabezados): array
