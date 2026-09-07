@@ -42,4 +42,30 @@ class ImportadorController extends Controller
 
         return response()->json($reporte);
     }
+
+    /**
+     * MR-25 Fase 3a (item #9990443) — mismo contrato preview/commit, parser GeoJSON.
+     */
+    public function previsualizarGeoJson(Request $request)
+    {
+        $request->validate(['file' => 'required|file']);
+        $file = $request->file('file');
+
+        try {
+            $resultado = $this->service->previsualizarGeoJson($file->getRealPath());
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['error' => $e->getMessage()], 400);
+        }
+
+        return response()->json($resultado);
+    }
+
+    /**
+     * `confirmar()` es formato-agnóstica (recibe la misma lista de items ya clasificados),
+     * así que el commit de GeoJSON reusa exactamente `confirmarKml()`.
+     */
+    public function confirmarGeoJson(Request $request)
+    {
+        return $this->confirmarKml($request);
+    }
 }
