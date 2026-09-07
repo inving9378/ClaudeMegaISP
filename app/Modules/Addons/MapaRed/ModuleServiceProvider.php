@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\MapaRed;
 
 use App\Modules\Addons\MapaRed\Console\BackfillCommand;
+use App\Modules\Addons\MapaRed\Console\ValidarPresupuestoOpticoCommand;
 use App\Modules\BaseModuleServiceProvider;
 
 class ModuleServiceProvider extends BaseModuleServiceProvider
@@ -18,6 +19,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 BackfillCommand::class,
+                ValidarPresupuestoOpticoCommand::class,
             ]);
         }
     }
