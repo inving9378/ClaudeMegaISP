@@ -141,6 +141,90 @@
                             Sin datos disponibles
                         </div>
                     </div>
+
+                    <div
+                        v-if="sidePanelNode.dialog === 'service_box'"
+                        class="element-side-panel__section"
+                    >
+                        <div class="element-side-panel__salud-header">
+                            <div class="element-side-panel__label">
+                                Salud de la red (D17)
+                            </div>
+                            <q-btn
+                                icon="mdi-refresh"
+                                flat
+                                round
+                                dense
+                                size="sm"
+                                :loading="loadingSalud"
+                                @click="refrescarSalud"
+                            />
+                        </div>
+                        <div v-if="loadingSalud" class="text-caption text-grey">
+                            Cargando…
+                        </div>
+                        <div v-else-if="salud">
+                            <q-badge :color="semaforoInfo.color">
+                                {{ semaforoInfo.texto }}
+                            </q-badge>
+                            <div class="text-caption text-grey q-mt-xs">
+                                Potencia promedio:
+                                {{
+                                    salud.potencia_promedio_dbm ?? "N/A"
+                                }}
+                                <span v-if="salud.potencia_promedio_dbm != null">
+                                    dBm
+                                </span>
+                            </div>
+                            <div class="text-caption text-grey">
+                                {{ salud.onus_activas }} activas ·
+                                {{ salud.onus_offline }} offline ·
+                                {{ salud.onus_senal_baja }} señal baja ·
+                                {{ salud.onus_sin_lectura }} sin lectura
+                            </div>
+
+                            <div
+                                v-if="salud.onus && salud.onus.length"
+                                class="element-side-panel__salud-table"
+                            >
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Cliente</th>
+                                            <th>Serie ONT</th>
+                                            <th>Estado</th>
+                                            <th>Señal</th>
+                                            <th>Puerto</th>
+                                            <th>RX dBm</th>
+                                            <th>TX dBm</th>
+                                            <th>OLT</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr
+                                            v-for="(onu, index) in salud.onus"
+                                            :key="`${onu.ont_serie}-${index}`"
+                                        >
+                                            <td>{{ onu.cliente_nombre }}</td>
+                                            <td>{{ onu.ont_serie }}</td>
+                                            <td>{{ onu.estado }}</td>
+                                            <td>{{ onu.senal }}</td>
+                                            <td>{{ onu.puerto_nap ?? "—" }}</td>
+                                            <td>{{ onu.rx_dbm ?? "—" }}</td>
+                                            <td>{{ onu.tx_dbm ?? "—" }}</td>
+                                            <td>{{ onu.olt_nombre ?? "—" }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div v-else class="text-caption text-grey q-mt-xs">
+                                Sin ONUs asociadas a este NAP.
+                            </div>
+                        </div>
+                        <div v-else class="text-caption text-grey">
+                            Sin datos disponibles
+                        </div>
+                    </div>
                 </template>
 
                 <div
@@ -203,6 +287,7 @@ import {
 import { darkMode } from "../../../../../hook/appConfig";
 import { getLayerResumen } from "../../helper/layers-request";
 import { getEnlacesPorNap } from "../../helper/enlaces-request";
+import { getSalud } from "../../helper/naps-request";
 import OpticalBudgetPanel from "./OpticalBudgetPanel.vue";
 
 defineOptions({
@@ -234,12 +319,30 @@ const toggleEnlace = (enlaceId) => {
     enlaceAbierto.value = enlaceAbierto.value === enlaceId ? null : enlaceId;
 };
 
+// Salud de la NAP (D17, MR-21/#957, UI seguimiento #9990490): semáforo +
+// tabla de ONUs. Cálculo on-load + botón de refrescar manual (decisión de
+// Irving, sin polling). Mismo alcance que enlacesServicio (solo NAPs).
+const salud = ref(null);
+const loadingSalud = ref(false);
+
+const cargarSalud = async (id) => {
+    loadingSalud.value = true;
+    salud.value = await getSalud(MAPA_RED_LAYER_MODEL, id);
+    loadingSalud.value = false;
+};
+
+const refrescarSalud = () => {
+    const id = sidePanelNode.value?.id;
+    if (id) cargarSalud(id);
+};
+
 watch(
     () => (sidePanelOpen.value ? sidePanelNode.value?.id : null),
     async (id) => {
         resumen.value = null;
         enlacesServicio.value = null;
         enlaceAbierto.value = null;
+        salud.value = null;
         if (!id || !sidePanelNode.value?.coords) return;
 
         loadingResumen.value = true;
@@ -251,9 +354,22 @@ watch(
             const respuesta = await getEnlacesPorNap(MAPA_RED_LAYER_MODEL, id);
             enlacesServicio.value = respuesta?.enlaces ?? null;
             loadingEnlaces.value = false;
+
+            cargarSalud(id);
         }
     },
     { immediate: true }
+);
+
+const SEMAFORO_LABELS = {
+    verde: { texto: "Estable", color: "positive" },
+    amarillo: { texto: "Aviso", color: "warning" },
+    rojo: { texto: "Crítico", color: "negative" },
+    gris: { texto: "Sin datos", color: "grey" },
+};
+
+const semaforoInfo = computed(
+    () => SEMAFORO_LABELS[salud.value?.semaforo] ?? SEMAFORO_LABELS.gris
 );
 
 defineEmits(["edit", "delete", "show-on-map"]);
@@ -365,6 +481,31 @@ const close = () => closeElementSidePanel();
     letter-spacing: 0.04em;
     color: #9e9e9e;
     margin-bottom: 4px;
+}
+
+.element-side-panel__salud-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.element-side-panel__salud-table {
+    overflow-x: auto;
+    margin-top: 8px;
+}
+
+.element-side-panel__salud-table table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.element-side-panel__salud-table th,
+.element-side-panel__salud-table td {
+    padding: 4px 6px;
+    text-align: left;
+    white-space: nowrap;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.2);
 }
 
 .element-side-panel__enlace {
