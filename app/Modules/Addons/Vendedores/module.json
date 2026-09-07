@@ -223,7 +223,7 @@
         {
             "key": "vendedores_cortes",
             "label": "Cortes de Caja",
-            "url": "/sellers/cuts",
+            "url": "/sellers/seller",
             "permission": "seller_cuts",
             "terms": [
                 { "term": "Caja", "definition": "Registro mensual donde se acumulan las instalaciones, gastos y pagos del vendedor." },
@@ -232,9 +232,10 @@
                 { "term": "Ingreso extra", "definition": "Entrada adicional no ligada a instalación (bonos manuales, ajustes)." }
             ],
             "steps": [
-                "Accede desde Vendedores → Cortes.",
-                "Selecciona el vendedor y el período.",
-                "Agrega instalaciones, gastos e ingresos extra según corresponda.",
+                "Accede desde Vendedores → Vendedores (lista de vendedores).",
+                "Haz clic en el nombre del vendedor para abrir su ficha de seguimiento.",
+                "Dentro de la ficha, ve a la pestaña 'Corte mostrador' (no es una pantalla aparte).",
+                "Selecciona el período y agrega instalaciones, gastos e ingresos extra según corresponda.",
                 "Cuando el período cierra, haz clic en 'Cerrar caja' para calcular la comisión final.",
                 "Descarga el PDF del corte para el comprobante del vendedor."
             ],
@@ -261,7 +262,7 @@
         {
             "key": "vendedores_estadisticas",
             "label": "Estadísticas de Ventas",
-            "url": "/sellers/statistics",
+            "url": "/vendedores/dashboard",
             "permission": "seller_view_statics",
             "terms": [
                 { "term": "Medio de venta", "definition": "Canal por el que llegó la venta (referido, llamada, campaña, etc.)." },
