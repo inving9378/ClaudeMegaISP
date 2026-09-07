@@ -2605,13 +2605,9 @@ class RoadmapCircuitoService
      */
     private function dependenciasCerradas(object $fila): bool
     {
-        $raw = $fila->depende_de ?? null;
-        if ($raw === null || $raw === '' || $raw === '[]') {
-            return true;
-        }
-
-        $ids = is_array($raw) ? $raw : json_decode((string) $raw, true);
-        $ids = array_values(array_filter(array_map('intval', (array) $ids)));
+        // Decodificación por el punto ÚNICO: antes cada método lo hacía por su cuenta y discrepaban
+        // ante un valor doble-codificado (ver docblock de `DependenciaItems::ids()`).
+        $ids = \App\Modules\Addons\Roadmap\Support\DependenciaItems::ids($fila->depende_de ?? null);
         if ($ids === []) {
             return true;
         }
@@ -2638,8 +2634,7 @@ class RoadmapCircuitoService
      */
     public function esperandoDependencias(int $itemId): ?array
     {
-        $raw = DB::table('roadmap_items')->where('id', $itemId)->value('depende_de');
-        $ids = array_values(array_filter(array_map('intval', (array) (is_array($raw) ? $raw : json_decode((string) $raw, true)))));
+        $ids = \App\Modules\Addons\Roadmap\Support\DependenciaItems::ids(DB::table('roadmap_items')->where('id', $itemId)->value('depende_de'));
         if ($ids === []) {
             return null;
         }
