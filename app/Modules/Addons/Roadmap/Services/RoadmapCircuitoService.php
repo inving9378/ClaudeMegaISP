@@ -3221,8 +3221,10 @@ class RoadmapCircuitoService
     }
 
     /**
-     * Reanuda items pausados por colisión cuyo ganador ya no bloquea: completado (integró), o ya
-     * no está en vuelo (se canceló/escaló/rechazó — no dejar al perdedor colgado para siempre).
+     * Reanuda items pausados por colisión cuyo ganador ya no bloquea: completado (integró), ya
+     * no está en vuelo (se canceló/escaló/rechazó — no dejar al perdedor colgado para siempre), o
+     * quedó parked como paraguas con su código YA en main (`merge_commit` poblado, aunque su
+     * estado_aprobacion siga en 'aprobado_irving' esperando a sus sub-items, #9990567).
      * Limpia el flag + libera `worker_sid` + regresa `estado_aprobacion` al estado aprobado previo
      * (el circuito lo vuelve a despachar en una vuelta futura; `circuito:rama` rebasa su rama
      * existente sobre el main ya actualizado). Devuelve los ids reanudados.
@@ -3235,12 +3237,19 @@ class RoadmapCircuitoService
         }
 
         $ganadorIds = $pausados->pluck('colision_pausada_por')->unique()->all();
-        $ganadores = DB::table('roadmap_items')->whereIn('id', $ganadorIds)->get(['id', 'estado_aprobacion'])->keyBy('id');
+        $ganadores = DB::table('roadmap_items')->whereIn('id', $ganadorIds)->get(['id', 'estado_aprobacion', 'merge_commit'])->keyBy('id');
 
         $reanudados = [];
         foreach ($pausados as $p) {
             $ganador = $ganadores->get($p->colision_pausada_por);
-            $resuelto = ! $ganador || in_array($ganador->estado_aprobacion, ['completado', 'cancelado', 'rechazado'], true);
+            // #9990567 — un ganador que es PARAGUAS (item descompuesto en sub-items) puede quedar
+            // parked para siempre en 'aprobado_irving' (guard de paraguas, RoadmapItem::save bloque
+            // 2b) aunque su propia rama YA esté mergeada a main (merge_commit poblado). Ese código ya
+            // no bloquea a nadie: tratar merge_commit no-nulo como resuelto, sin esperar a que
+            // TODOS sus sub-items cierren.
+            $resuelto = ! $ganador
+                || in_array($ganador->estado_aprobacion, ['completado', 'cancelado', 'rechazado'], true)
+                || ! empty($ganador->merge_commit);
             if (! $resuelto) {
                 continue;
             }
