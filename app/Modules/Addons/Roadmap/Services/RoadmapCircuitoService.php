@@ -1852,7 +1852,7 @@ class RoadmapCircuitoService
     /** Extrae el #item más reciente mencionado en el tail (best-effort, para "tocando #NNN"). */
     private function parseCurrentItem(string $tail): ?int
     {
-        if (preg_match_all('/#(\d{1,6})\b/', $tail, $m) && ! empty($m[1])) {
+        if (preg_match_all('/#(\d{1,10})\b/', $tail, $m) && ! empty($m[1])) {
             return (int) end($m[1]);
         }
 
@@ -1881,7 +1881,7 @@ class RoadmapCircuitoService
     {
         $seen = [];
         foreach ($lines as $ln) {
-            if (! preg_match('/CIRCUITO_FASE:\s*([a-záéíóúñ]+)\s*(?:#(\d{1,6}))?/iu', $ln, $m)) {
+            if (! preg_match('/CIRCUITO_FASE:\s*([a-záéíóúñ]+)\s*(?:#(\d{1,10}))?/iu', $ln, $m)) {
                 continue;
             }
             $fase = mb_strtolower($m[1]);
