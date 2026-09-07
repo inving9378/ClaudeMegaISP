@@ -18,6 +18,39 @@ namespace App\Modules\Addons\Roadmap\Support;
 final class DependenciaItems
 {
     /**
+     * DECODIFICADOR ÚNICO de `depende_de`. Lo usan el guard del despachador y el texto que se
+     * pinta en la Torre, para que no puedan discrepar.
+     *
+     * Discreparon: el 2026-09-07 el item #9990418 tenía el valor DOBLEMENTE codificado
+     * (`'"[9990411,9990417]"'` — un string JSON que contiene otro string JSON, por pasar un
+     * `json_encode()` ya hecho a un campo con cast `array`). El guard decodificaba una segunda vez
+     * y acertaba; el texto de la Torre decodificaba una sola y obtenía un string, que al pasar por
+     * `(array)` + `intval` se convertía en `[]` → **decía «sin dependencias abiertas» sobre un item
+     * que sí las tenía**. Un freno correcto con una explicación falsa es peor que un freno a secas:
+     * manda a diagnosticar al lugar equivocado.
+     *
+     * Tolera: array ya decodificado, JSON normal, JSON doble-codificado y basura (devuelve []).
+     *
+     * @return array<int> ids limpios, sin duplicados
+     */
+    public static function ids(mixed $raw): array
+    {
+        // Hasta dos vueltas de decodificación: más sería aceptar cualquier cosa.
+        for ($i = 0; $i < 2 && is_string($raw); $i++) {
+            $raw = json_decode($raw, true);
+        }
+
+        // Exige una LISTA, no cualquier array: un objeto JSON (`{"a":1}`) decodifica a array
+        // asociativo, y mapear `intval` sobre sus VALORES devolvería ids inventados a partir de
+        // datos que no son una lista de dependencias. Lo cazó su propio test.
+        if (! is_array($raw) || ! array_is_list($raw)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter(array_map('intval', $raw))));
+    }
+
+    /**
      * ¿Se puede despachar un item con estas dependencias?
      *
      * @param  array|null  $dependeDe  ids declarados (null/[] = sin dependencias)
