@@ -417,6 +417,66 @@
         </q-tree>
     </q-virtual-scroll>
 
+    <!-- MR-22 Fase 3b (item roadmap #9990516): vista DERIVADA (máx. 3 niveles) del nodo
+         seleccionado en el mapa. Aditiva, coexiste con el árbol original de 7 niveles de
+         arriba (no lo reemplaza ni lo modifica). -->
+    <q-separator />
+    <q-expansion-item
+        v-model="derivedTreeExpanded"
+        icon="mdi-file-tree-outline"
+        :label="
+            selectedNodeLabel
+                ? `Árbol de ${selectedNodeLabel}`
+                : 'Árbol del nodo seleccionado'
+        "
+        header-class="text-primary"
+        dense
+    >
+        <q-card flat :class="darkMode ? 'bg-grey-9' : null">
+            <q-card-section
+                v-if="!selectedNodeId"
+                class="text-grey text-caption"
+            >
+                Selecciona un nodo en el mapa para ver su árbol.
+            </q-card-section>
+            <q-tree
+                v-else
+                :nodes="derivedTree"
+                :dark="darkMode"
+                node-key="key"
+                label-key="text_node"
+                dense
+                no-nodes-label="Este nodo no tiene descendientes"
+            >
+                <template v-slot:default-header="prop">
+                    <q-item dense style="padding: 0">
+                        <q-item-section avatar>
+                            <q-icon
+                                :name="prop.node.icon"
+                                :style="{ color: prop.node.color }"
+                            />
+                        </q-item-section>
+                        <q-item-section>
+                            <q-item-label lines="1">
+                                {{ prop.node.name }}
+                            </q-item-label>
+                        </q-item-section>
+                        <q-item-section
+                            avatar
+                            v-if="prop.node.hasMoreChildren"
+                        >
+                            <q-icon
+                                name="mdi-dots-horizontal"
+                                size="xs"
+                                class="text-grey"
+                            />
+                        </q-item-section>
+                    </q-item>
+                </template>
+            </q-tree>
+        </q-card>
+    </q-expansion-item>
+
     <q-dialog
         v-model="dialog"
         @hide="project = null"
@@ -532,6 +592,8 @@ import {
     tickedNodes,
     expandedNodes,
     currentNode,
+    selectedNodeId,
+    deriveThreeLevelTree,
 } from "../../../../composables/useNodeMap";
 
 import {
@@ -594,6 +656,23 @@ const showImportCsvWizard = ref(false);
 const dropTargetNode = ref(null);
 const dropPosition = ref(null);
 const isDragging = ref(false);
+
+// MR-22 Fase 3b (item roadmap #9990516): árbol derivado (máx. 3 niveles) del nodo seleccionado
+// en el mapa (Fase 3a, #9990515), en una sección aparte del árbol original de 7 niveles.
+const derivedTreeExpanded = ref(true);
+const derivedTree = computed(() =>
+    selectedNodeId.value
+        ? deriveThreeLevelTree(selectedNodeId.value, nodeMap.value)
+        : []
+);
+const selectedNodeLabel = computed(
+    () => getNodeByKey(selectedNodeId.value)?.name ?? null
+);
+watch(selectedNodeId, (n) => {
+    if (n) {
+        derivedTreeExpanded.value = true;
+    }
+});
 
 onMounted(() => {
     convertOptions.value = menuOptions.filter(
