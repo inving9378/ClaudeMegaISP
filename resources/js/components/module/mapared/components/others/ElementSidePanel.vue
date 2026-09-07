@@ -97,6 +97,20 @@
                     </div>
 
                     <div
+                        v-if="mostrarUnionHilos"
+                        class="element-side-panel__section"
+                    >
+                        <div class="element-side-panel__label">
+                            Unión de hilos
+                        </div>
+                        <EmpalmesPanel
+                            :key="sidePanelNode.id"
+                            :elemento-contenedor-type="MAPA_RED_LAYER_MODEL"
+                            :elemento-contenedor-id="sidePanelNode.id"
+                        />
+                    </div>
+
+                    <div
                         v-if="sidePanelNode.dialog === 'service_box'"
                         class="element-side-panel__section"
                     >
@@ -289,6 +303,7 @@ import { getLayerResumen } from "../../helper/layers-request";
 import { getEnlacesPorNap } from "../../helper/enlaces-request";
 import { getSalud } from "../../helper/naps-request";
 import OpticalBudgetPanel from "./OpticalBudgetPanel.vue";
+import EmpalmesPanel from "./EmpalmesPanel.vue";
 
 defineOptions({
     name: "ElementSidePanel",
@@ -301,6 +316,16 @@ const props = defineProps({
 // Mismo modelo polimórfico que ya usa `aplicarOcupacionNaps()` en LeafletMapRed.vue
 // (puertable_type = MapaRedLayer, puertable_id = id del nodo NAP en el mapa).
 const MAPA_RED_LAYER_MODEL = "App\\Modules\\Addons\\MapaRed\\Models\\MapaRedLayer";
+
+// MR-12 Fase B (item #9990408) — panel de unión de hilos, solo para los 3 marcadores que
+// representan Rack/Mufa/NAP en el mapa (los 3 son MapaRedLayer: cupboard/junction_box/service_box
+// — decisión ya tomada, ver comentarios_claude del item).
+const DIALOGS_CON_UNION_HILOS = ["cupboard", "junction_box", "service_box"];
+const mostrarUnionHilos = computed(
+    () =>
+        !!sidePanelNode.value?.coords &&
+        DIALOGS_CON_UNION_HILOS.includes(sidePanelNode.value?.dialog)
+);
 
 // Puertos/empalmes/clientes colgados (MR-23 fase 3, item #9990428): se
 // consultan bajo demanda al seleccionar un elemento con coordenadas (los
