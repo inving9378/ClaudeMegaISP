@@ -28,6 +28,8 @@ public/mix-manifest.json
 /public/js/node_modules_*.js
 /public/js/resources_js_*.js
 /public/css/app.css
+# #9990491: staging transitorio del swap atómico del bundle (deploy/circuito/npm-build.sh)
+/public/build-staging-*
 public/credencial
 public/perfiles
 public/uploads

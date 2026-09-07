@@ -24,7 +24,14 @@ if (mix.inProduction()) {
         });
 }
 
-mix.js("resources/js/app.js", "public/js")
+// #9990491: publicación atómica del bundle JS. `deploy/circuito/npm-build.sh` compila a un
+// staging DENTRO de public/ (env MIX_JS_STAGE_DIR) y hace el swap sólo si el build terminó OK,
+// para que ninguna carga en curso reciba app.js/chunks a medio escribir durante un rebuild.
+// Sin la env (build manual con `npm run dev`/`watch`), el destino es EXACTAMENTE el de siempre.
+const jsStage = process.env.MIX_JS_STAGE_DIR;
+const jsOut = jsStage ? `public/${jsStage}/js` : "public/js";
+
+mix.js("resources/js/app.js", jsOut)
     .vue()
     .sass("resources/sass/app.scss", "public/css")
     .version();
