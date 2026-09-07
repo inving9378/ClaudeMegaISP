@@ -131,6 +131,9 @@ class BackfillCommand extends Command
             } elseif ($numeroHilos === null) {
                 $fila['clasificacion'] = 'parcial';
                 $fila['motivo'] = 'Tipo de cable deducido, cantidad de hilos desconocida — no se instancian hilos sin ese dato';
+            } elseif ($codigoTipo === null) {
+                $fila['clasificacion'] = 'parcial';
+                $fila['motivo'] = 'Cantidad de hilos conocida (fibers_amount), tipo de cable no se pudo deducir del nombre';
             } else {
                 $cableId = $this->persistirCable($row, $nombre, $codigoTipo, $numeroHilos, $zona, $dryRun);
                 $fila['clasificacion'] = 'convertido';
