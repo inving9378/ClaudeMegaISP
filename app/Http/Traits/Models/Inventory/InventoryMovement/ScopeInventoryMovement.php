@@ -19,14 +19,9 @@ trait ScopeInventoryMovement
                                 $query->where('name', 'like', '%' . $search . '%');
                             });
                         } elseif ($value == 'from') {
-                            $query->orWhereHas('movementableFrom', function ($query) use ($search) {
-                                $query->where('name', 'like', '%' . $search . '%')
-                                    ->where('type', '!=', 'System');
-                            });
+                            $this->searchMovementableFrom($query, $search);
                         } elseif ($value == 'to') {
-                            $query->orWhereHas('movementableTo', function ($query) use ($search) {
-                                $query->where('name', 'like', '%' . $search . '%') ->where('type', '!=', 'System');
-                            });
+                            $this->searchMovementableTo($query, $search);
                         } else {
                             $query->orWhere($value, 'like', '%' . $search . '%');
                         }
@@ -69,13 +64,9 @@ trait ScopeInventoryMovement
                             $query->where('name', 'like', '%' . $search . '%');
                         });
                     } elseif ($value == 'from') {
-                        $query->orWhereHas('movementableFrom', function ($query) use ($search) {
-                            $query->where('name', 'like', '%' . $search . '%');
-                        });
+                        $this->searchMovementableFrom($query, $search);
                     } elseif ($value == 'to') {
-                        $query->orWhereHas('movementableTo', function ($query) use ($search) {
-                            $query->where('name', 'like', '%' . $search . '%');
-                        });
+                        $this->searchMovementableTo($query, $search);
                     } else {
                         $query->orWhere($value, 'like', '%' . $search . '%');
                     }
@@ -83,5 +74,40 @@ trait ScopeInventoryMovement
             });
         }
         return $query;
+    }
+
+    /**
+     * 'movementable_from_type' sólo es InventoryStore o User en este sistema (ver
+     * getDesdeAttribute); ambas tablas sí tienen columna 'name', así que un whereHas
+     * simple es seguro aquí.
+     */
+    private function searchMovementableFrom($query, $search)
+    {
+        $query->orWhereHas('movementableFrom', function ($query) use ($search) {
+            $query->where('name', 'like', '%' . $search . '%');
+        });
+    }
+
+    /**
+     * 'movementable_to_type' puede ser Client, cuya tabla NO tiene columna 'name'
+     * (el nombre vive en client_main_information.name, ver getHaciaAttribute) —
+     * un whereHas genérico contra 'name' revienta con "Unknown column 'name'" para
+     * ese tipo. whereHasMorph permite resolver cada tipo por separado.
+     */
+    private function searchMovementableTo($query, $search)
+    {
+        $query->orWhereHasMorph(
+            'movementableTo',
+            ['App\Models\Client', 'App\Models\InventoryStore', 'App\Models\User'],
+            function ($query, $type) use ($search) {
+                if ($type === 'App\Models\Client') {
+                    $query->whereHas('client_main_information', function ($query) use ($search) {
+                        $query->where('name', 'like', '%' . $search . '%');
+                    });
+                } else {
+                    $query->where('name', 'like', '%' . $search . '%');
+                }
+            }
+        );
     }
 }
