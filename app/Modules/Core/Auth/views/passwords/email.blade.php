@@ -1,7 +1,14 @@
-@extends('meganet.layouts.master-without-nav')
+@extends('core-layout::master-without-nav')
 @section('title')
 Reset Password
 @endsection
+@php
+    $logo = $logoMeganet();
+    $logoName = $logo['name'];
+    if ($logoName) {
+        $logoPath = $logo['url_logo'];
+    }
+@endphp
 @section('content')
 <div class="home-btn d-none d-sm-block">
     <a href="{{url('index')}}" class="text-dark"><i class="mdi mdi-home-variant h2"></i></a>
@@ -12,8 +19,7 @@ Reset Password
             <div class="col-lg-12">
                 <div class="text-center">
                     <a href="{{url('index')}}" class="mb-5 d-block auth-logo">
-                        <img src="{{ URL::asset('assets/images/logo-dark.png')}}" alt="" height="22" class="logo logo-dark">
-                        <img src="{{ URL::asset('assets/images/logo-light.png')}}" alt="" height="22" class="logo logo-light">
+                        <img src="{{ $logoName ? asset($logoPath) : asset('/images/logo_meganet_oficial.png') }}" alt="Logo" height="22" class="logo">
                     </a>
                 </div>
             </div>
