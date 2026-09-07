@@ -233,6 +233,27 @@ trait RouterConnection
     }
 
     /**
+     * Envía un Request por sendSync() verificando ANTES que la conexión exista.
+     * Item roadmap #9990473: cuando el router está inalcanzable, connection()/
+     * getConnectionByRouter() devuelven null y llamar sendSync() sobre null
+     * producía un fatal "Call to a member function sendSync() on null". Todos
+     * los métodos de este trait pasan aquí en vez de invocar sendSync() directo,
+     * así el guard vive en un solo lugar.
+     * @param Client|null $client * Conexión al dispositivo MikroTik (puede ser null)
+     * @param Request $request
+     * @return Response
+     * @throws \RuntimeException si no hay conexión con el router
+     */
+    protected function sendSyncSafe($client, Request $request)
+    {
+        if (!$client) {
+            Log::error('No existe conexion con el dispositivo Mikrotik: no se pudo enviar el comando al router.');
+            throw new \RuntimeException('No existe conexión con el dispositivo MikroTik');
+        }
+        return $client->sendSync($request);
+    }
+
+    /**
      * @param $client * Connection to mikrotik device
      * @param $dst_Address * Destination host
      * @return mixed * Object
@@ -240,7 +261,7 @@ trait RouterConnection
     protected function ping($client, $dst_Address)
     {
         $pingRequest = new Request('/ping count=3');
-        $results = $client->sendSync(
+        $results = $this->sendSyncSafe($client,
             $pingRequest->setArgument('address', $dst_Address)
         );
         return $results;
@@ -253,7 +274,7 @@ trait RouterConnection
      */
     protected function getVersion($client)
     {
-        $responses = $client->sendSync(new Request('/system/resource/print'));
+        $responses = $this->sendSyncSafe($client, new Request('/system/resource/print'));
 
         foreach ($responses as $response) {
             if ($response->getType() === Response::TYPE_DATA) {
@@ -270,7 +291,7 @@ trait RouterConnection
         $addRequest->setArgument('port', $port);
         $addRequest->setArgument('max-fresh-time', '00:00:10');
         if (
-            $connected->sendSync($addRequest)->getType() !==
+            $this->sendSyncSafe($connected, $addRequest)->getType() !==
             Response::TYPE_FINAL
         ) {
             return false;
@@ -285,7 +306,7 @@ trait RouterConnection
      */
     protected function getAddressList($client)
     {
-        $responses = $client->sendSync(
+        $responses = $this->sendSyncSafe($client,
             new Request(ComunConstantsController::IP_FIREWALL_ADDRESS_LIST_WHIT_SLASH . 'print')
         );
         $data = [];
@@ -303,7 +324,7 @@ trait RouterConnection
 
     protected function getPpoeClients($connected)
     {
-        $responses = $connected->sendSync(new Request('/ppp/secret/print'));
+        $responses = $this->sendSyncSafe($connected, new Request('/ppp/secret/print'));
         $data = [];
         $count = 0;
         foreach ($responses as $response) {
@@ -320,7 +341,7 @@ trait RouterConnection
     //TODO agregue esta funcion
     public function getHostpotClients($connected)
     {
-        $responses = $connected->sendSync(
+        $responses = $this->sendSyncSafe($connected,
             new Request('/ip/hotspot/user/print')
         );
         $data = [];
@@ -345,7 +366,7 @@ trait RouterConnection
         $client,
         $queue = 'SPEEDTEST'
     ) {
-        $responses = $client->sendSync(new Request(ComunConstantsController::QUEUE_SIMPLE_WHIT_SLASH . 'print'));
+        $responses = $this->sendSyncSafe($client, new Request(ComunConstantsController::QUEUE_SIMPLE_WHIT_SLASH . 'print'));
 
         return count(
             collect($responses)->filter(function ($value) use ($queue) {
@@ -361,7 +382,7 @@ trait RouterConnection
      */
     protected function getAllSimpleQueue($client)
     {
-        $responses = $client->sendSync(new Request(ComunConstantsController::QUEUE_SIMPLE_WHIT_SLASH . 'print'));
+        $responses = $this->sendSyncSafe($client, new Request(ComunConstantsController::QUEUE_SIMPLE_WHIT_SLASH . 'print'));
         $data = [];
         $count = 0;
         foreach ($responses as $response) {
@@ -394,7 +415,7 @@ trait RouterConnection
         foreach ($arrayArgumentValue as $names => $value) {
             $addRequest->setArgument($names, $value);
         }
-        $response = $conection->sendSync($addRequest);
+        $response = $this->sendSyncSafe($conection, $addRequest);
         $responseType = $response->getType();
 
         if ($responseType === Response::TYPE_FINAL) {
@@ -428,7 +449,7 @@ trait RouterConnection
         foreach ($arrayArgumentValue as $name => $value) {
             $addRequest->setArgument($name, $value);
         }
-        $response = $client->sendSync($addRequest);
+        $response = $this->sendSyncSafe($client, $addRequest);
 
         if ($response->getType() === Response::TYPE_ERROR) {
             Log::info("Error al ejecutar el comando en el enrutador MikroTik: => " . $response->getProperty('message') . "Arguments: " . json_encode($arrayArgumentValue) . "para el comando: " . $command);
@@ -444,7 +465,7 @@ trait RouterConnection
         $addRequest->setArgument($names, $value);
 
         if (
-            $client->sendSync($addRequest)->getType() !== Response::TYPE_FINAL
+            $this->sendSyncSafe($client, $addRequest)->getType() !== Response::TYPE_FINAL
         ) {
             return false;
         }
@@ -463,7 +484,7 @@ trait RouterConnection
         //$id now contains the ID of the entry we're targeting
         $setRequest = new Request($command . 'remove');
         $setRequest->setArgument('numbers', $id);
-        $client->sendSync($setRequest);
+        $this->sendSyncSafe($client, $setRequest);
     }
 
     public function deleteClientePpoe($connected, $name)
@@ -515,7 +536,7 @@ trait RouterConnection
         $printRequest = new Request($command . 'print');
         $printRequest->setArgument('.proplist', '.id');
         $printRequest->setQuery(Query::where('comment', $comment));
-        $id = $client->sendSync($printRequest)->getProperty('.id');
+        $id = $this->sendSyncSafe($client, $printRequest)->getProperty('.id');
         return $id;
     }
 
@@ -531,7 +552,7 @@ trait RouterConnection
         $printRequest = new Request($command . 'print');
         $printRequest->setArgument('.proplist', '.id');
         $printRequest->setQuery(Query::where('address', $IP));
-        $id = $client->sendSync($printRequest)->getProperty('.id');
+        $id = $this->sendSyncSafe($client, $printRequest)->getProperty('.id');
         return $id;
     }
 
@@ -540,7 +561,7 @@ trait RouterConnection
         $printRequest = new Request($command . 'print');
         $printRequest->setArgument('.proplist', 'password');
         $printRequest->setQuery(Query::where('remote-address', $IP));
-        $password = $client->sendSync($printRequest)->getProperty('password');
+        $password = $this->sendSyncSafe($client, $printRequest)->getProperty('password');
         return $password;
     }
 
@@ -571,7 +592,7 @@ trait RouterConnection
         $printRequest = new Request($command . 'print');
         $printRequest->setArgument('.proplist', '.id');
         $printRequest->setQuery(Query::where('remote-address', $IP));
-        $id = $client->sendSync($printRequest)->getProperty('.id');
+        $id = $this->sendSyncSafe($client, $printRequest)->getProperty('.id');
         return $id;
     }
     protected function getPropertyById($client, $command, $id, $property)
@@ -579,7 +600,7 @@ trait RouterConnection
         $printRequest = new Request($command . 'print');
         $printRequest->setArgument('.proplist', $property);
         $printRequest->setQuery(Query::where('.id', $id));
-        $value = $client->sendSync($printRequest)->getProperty($property);
+        $value = $this->sendSyncSafe($client, $printRequest)->getProperty($property);
         return $value;
     }
 
@@ -612,7 +633,7 @@ trait RouterConnection
             $printRequest = new Request($command . 'print');
             $printRequest->setArgument('.proplist', '.id');
             $printRequest->setQuery(Query::where('name', $name));
-            $id = $client->sendSync($printRequest)->getProperty('.id');
+            $id = $this->sendSyncSafe($client, $printRequest)->getProperty('.id');
             return $id;
         } catch (\Exception $e) {
             return null;
@@ -624,7 +645,7 @@ trait RouterConnection
         $printRequest = new Request($command . 'print');
         $printRequest->setArgument('.proplist', 'name');
         $printRequest->setQuery(Query::where('.id', $id));
-        $name = $client->sendSync($printRequest)->getProperty('name');
+        $name = $this->sendSyncSafe($client, $printRequest)->getProperty('name');
         return $name;
     }
 
@@ -640,7 +661,7 @@ trait RouterConnection
         $printRequest = new Request($command . 'print');
         $printRequest->setArgument('.proplist', '.id');
         $printRequest->setQuery(Query::where('service-name', $name));
-        $id = $client->sendSync($printRequest)->getProperty('.id');
+        $id = $this->sendSyncSafe($client, $printRequest)->getProperty('.id');
         return $id;
     }
 
@@ -654,7 +675,7 @@ trait RouterConnection
         $printRequest = new Request($command . 'print');
         $printRequest->setArgument('.proplist', $out);
         $printRequest->setQuery(Query::where($argument, $value));
-        $id = $client->sendSync($printRequest)->getProperty($out);
+        $id = $this->sendSyncSafe($client, $printRequest)->getProperty($out);
         return $id;
     }
 
@@ -663,7 +684,7 @@ trait RouterConnection
         $printRequest = new Request($command . 'print');
         $printRequest->setArgument('.proplist', 'target');
         $printRequest->setQuery(Query::where('name', $name));
-        $target = $client->sendSync($printRequest)->getProperty('target');
+        $target = $this->sendSyncSafe($client, $printRequest)->getProperty('target');
         return $target;
     }
 
@@ -719,8 +740,7 @@ trait RouterConnection
      */
     protected function getAllClientPppWithActiveConnection($connection)
     {
-        $ppps = $connection
-            ->sendSync(new Request('/ppp/active/print'))
+        $ppps = $this->sendSyncSafe($connection, new Request('/ppp/active/print'))
             ->getAllOfType(Response::TYPE_DATA);
         return collect($ppps)->map(function ($val) {
             return collect($val)->toArray();
@@ -734,7 +754,7 @@ trait RouterConnection
         $printRequest = new Request($command . 'print');
 
         // Enviar la solicitud y obtener todos los resultados
-        $responses = $connection->sendSync($printRequest);
+        $responses = $this->sendSyncSafe($connection, $printRequest);
 
         // Procesar las respuestas para extraer las IPs
         $ips = [];
@@ -755,7 +775,7 @@ trait RouterConnection
         $printRequest->setQuery(Query::where('list', $list));
 
         // Enviar la solicitud y obtener todos los resultados
-        $responses = $connection->sendSync($printRequest);
+        $responses = $this->sendSyncSafe($connection, $printRequest);
 
         // Procesar las respuestas para extraer las IPs
         $ips = [];
@@ -778,7 +798,7 @@ trait RouterConnection
         $printRequest->setQuery(Query::where('list', $list));
 
         // Enviar la solicitud y obtener todos los resultados
-        $responses = $connection->sendSync($printRequest);
+        $responses = $this->sendSyncSafe($connection, $printRequest);
 
         // Procesar las respuestas para extraer todos los datos
         $entries = [];
@@ -802,7 +822,7 @@ trait RouterConnection
         $printRequest = new Request($command . 'print');
 
         // Enviar la solicitud y obtener todos los resultados
-        $responses = $connection->sendSync($printRequest);
+        $responses = $this->sendSyncSafe($connection, $printRequest);
 
         // Procesar las respuestas para extraer las IPs
         $entries = [];
@@ -822,8 +842,7 @@ trait RouterConnection
 
     protected function getAllClientSimpleQueues($connection)
     {
-        $ppps = $connection
-            ->sendSync(new Request(ComunConstantsController::QUEUE_SIMPLE_WHIT_SLASH . 'print'))
+        $ppps = $this->sendSyncSafe($connection, new Request(ComunConstantsController::QUEUE_SIMPLE_WHIT_SLASH . 'print'))
             ->getAllOfType(Response::TYPE_DATA);
         return collect($ppps)->map(function ($val) {
             return collect($val)->toArray();
@@ -1194,7 +1213,7 @@ trait RouterConnection
 
     protected function removeAll($client, $command)
     {
-        $items = $client->sendSync(new Request($command . 'print'))->getAllOfType(Response::TYPE_DATA);
+        $items = $this->sendSyncSafe($client, new Request($command . 'print'))->getAllOfType(Response::TYPE_DATA);
 
         foreach ($items  as $item) {
             $id = $item('.id');
@@ -1206,7 +1225,7 @@ trait RouterConnection
     {
         $exportFileName = 'EXPORT.rsc';
         $util = new Util($client);
-        $client->sendSync($util->newRequest('export', array('file' => $exportFileName)));
+        $this->sendSyncSafe($client, $util->newRequest('export', array('file' => $exportFileName)));
         sleep(2);
         $export = $util->fileGetContents($exportFileName);
         $util->filePutContents($exportFileName, null); //Optional; Remove the file from the router
@@ -1265,7 +1284,7 @@ trait RouterConnection
         // Verificar existencia
         $fileRequest = new Request('/file/print');
         $fileRequest->setQuery(Query::where('name', $remotePath));
-        $fileInfo = $client->sendSync($fileRequest);
+        $fileInfo = $this->sendSyncSafe($client, $fileRequest);
 
         if (!$fileInfo->getProperty('.id')) {
             throw new \Exception("El archivo no aparece en el router");
@@ -1281,14 +1300,14 @@ trait RouterConnection
 
         $request = new Request('/user/print');
         $request->setQuery(Query::where('name', $router->mikrotik->login_api));
-        $user = $client->sendSync($request);
+        $user = $this->sendSyncSafe($client, $request);
 
         if (!$user->getProperty('group') === 'full') {
             // Actualizar permisos
             $setRequest = new Request('/user/set');
             $setRequest->setArgument('numbers', $user->getProperty('.id'));
             $setRequest->setArgument('group', 'full');
-            $client->sendSync($setRequest);
+            $this->sendSyncSafe($client, $setRequest);
 
             Log::info("Permisos de usuario actualizados a 'full'");
             return true;
@@ -1301,7 +1320,7 @@ trait RouterConnection
     {
         try {
             // Verificar espacio libre
-            $resources = $client->sendSync(new Request('/system/resource/print'));
+            $resources = $this->sendSyncSafe($client, new Request('/system/resource/print'));
             $freeSpace = $resources->getProperty('free-hdd-space');
 
             if ($freeSpace < 1048576) { // Menos de 1MB libre
@@ -1309,7 +1328,7 @@ trait RouterConnection
             }
 
             // Verificar sistema de archivos
-            $health = $client->sendSync(new Request('/system/health/print'));
+            $health = $this->sendSyncSafe($client, new Request('/system/health/print'));
             if ($health->getProperty('bad-blocks') > 0) {
                 throw new \Exception("Sistema de archivos con errores (bad blocks encontrados)");
             }
@@ -1331,7 +1350,7 @@ trait RouterConnection
         $request->setArgument('.proplist', 'rate'); // Solo pedimos el rate para mayor velocidad
         $request->setQuery(Query::where('name', $queueName));
 
-        $response = $connected->sendSync($request);
+        $response = $this->sendSyncSafe($connected, $request);
 
         if ($response->getType() === Response::TYPE_DATA) {
             $rate = $response->getProperty('rate'); // Retorna algo como "1024/2048" (up/down)
@@ -1353,7 +1372,7 @@ trait RouterConnection
         $request = new Request('/ppp/active/print');
         $request->setQuery(Query::where('name', $userName));
 
-        $response = $connected->sendSync($request);
+        $response = $this->sendSyncSafe($connected, $request);
 
         if ($response->getType() === Response::TYPE_DATA) {
             return [
@@ -1371,7 +1390,7 @@ trait RouterConnection
         $request->setArgument('interface', $interfaceName);
         $request->setArgument('once', ''); // Importante: 'once' para que no se quede pegado el script
 
-        $response = $connected->sendSync($request);
+        $response = $this->sendSyncSafe($connected, $request);
 
         if ($response->getType() === Response::TYPE_DATA) {
             return [
