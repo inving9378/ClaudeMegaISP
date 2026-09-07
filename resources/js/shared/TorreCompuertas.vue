@@ -66,6 +66,7 @@ export default {
 </script>
 
 <style scoped>
+.header-item .fa-cog { font-size: 20px; line-height: 1; vertical-align: middle; }
 .tc-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1090;
     display: flex; align-items: flex-start; justify-content: center; padding: 3vh 2vw; }
 .tc-panel { background: var(--bs-body-bg, #fff); color: var(--bs-body-color, #212529);
