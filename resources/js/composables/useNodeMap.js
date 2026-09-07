@@ -21,6 +21,15 @@ export const currentLayerNode = ref(null);
 // siguiente fase. null = sin selección.
 export const selectedNodeId = ref(null);
 
+// MR-22 Fase 3c (item roadmap #9990517): visibilidad de la sección "árbol derivado" (Fase 3b) en
+// el panel lateral, controlada por el botón toggle de la top bar del mapa. Persistida en
+// localStorage con la misma convención sin sufijo de usuario que ya usa el módulo (filter-tree,
+// expanded-nodes, tickeds-nodes, map-zoom, map-center: ninguna namespacea por user_id). Cerrado
+// por default.
+export const arbolDerivadoVisible = ref(
+    getFromLocalStorage("arbol-derivado-visible") ?? false
+);
+
 export const setNodes = (nodes) => {
     allNodes.value = nodes;
 };
@@ -143,5 +152,6 @@ export function useNodeMap() {
         setNodes,
         selectedNodeId,
         deriveThreeLevelTree,
+        arbolDerivadoVisible,
     };
 }
