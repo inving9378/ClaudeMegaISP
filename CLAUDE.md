@@ -1938,3 +1938,26 @@ archivo:línea y recomendación en
 `docs/vendedores-sales-commissions-prospects-item-9990471-verificacion.md` — este veredicto
 condiciona a #9990448/#9990449/#9990450 (vistas en Talento) y #9990453 (migración de
 comisiones). **Sin cambio de código** (item nivel A, solo-lectura por spec).
+
+## Item #9990496 — MR-16 Fase 2b: verificar DoD con enlace real de Tultitlán (RESUELTO — bloqueado por ausencia total de datos, no solo de Tultitlán)
+
+Dependencia (Fase 2a, `#9990495` — botón "Trazar ruta a OLT" + capa Leaflet resaltada) confirmada
+mergeada a main (commit `9fe6cfd3`, integrada vía `609c50d7`). Al buscar un `MapaRedEnlaceServicio`
+real de Tultitlán para correr `GET /mapa-red/api/enlaces-servicio/{id}/trazo`, se confirma que
+`mapared_enlaces_servicio` está en **0 filas en dev — no solo sin Tultitlán, sin ninguna zona**. El
+fallback del propio item ("si no hay de Tultitlán, usar el más completo disponible") no tiene sobre
+qué aplicarse. Se rastreó la causa un nivel más abajo de lo que documentaba
+`docs/mapared-comparativa-item-963-verificacion.md` (agosto, bloqueado entonces por `#941`/MR-05
+sin correr): aunque **hoy** tanto `#941` (MR-05, espejo legado) como `#951` (MR-15, comando de
+backfill) están marcados `completado`, el backfill real (`mapared:backfill`, sin `--dry-run`)
+**nunca se ejecutó** contra la BD de dev — `mapared_puertos`/`mapared_hilos` siguen en 0 filas, y
+`EnlacesServicioController::store()` exige `puerto_nap_id` real (`exists:mapared_puertos,id`), así
+que ni siquiera se podría dar de alta un enlace de prueba (y el item lo prohíbe explícitamente: solo
+lectura, no modificar datos). Un `--dry-run` del backfill (100% de solo lectura) confirma que, de
+correrse, la zona TULTITLAN solo llegaría al **50% de cobertura** de puertos (5 de 10 cajas) — por
+debajo del 80% que el propio DoD de `#951` exige. Item cerrado documentando el hallazgo (mismo
+patrón que `#963`, reconfirmado sin cambios el 2026-09-07); el DoD de MR-16 (`#952`, sigue
+`requiere_irving`) sigue sin poder verificarse con datos reales hasta que alguien corra el backfill
+real + dé de alta un enlace real vía la UI existente. Detalle completo en
+`docs/mapared-mr16-fase2b-item-9990496-verificacion.md`. **Sin cambio de código** — investigación
+read-only, tal como pedía el spec.
