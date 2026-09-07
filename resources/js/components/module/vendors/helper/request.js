@@ -17,6 +17,17 @@ export const getById = async (id) => {
     return data;
 };
 
+// Expediente ligero de documentos del vendedor (item #9990360, Hijo E3)
+export const getExpedienteVendedor = async (sellerId) => {
+    let colaboradorId = null;
+    await axios["get"](`/talento/api/vendedores/${sellerId}/expediente`).then(
+        (response) => {
+            colaboradorId = response.data?.id ?? null;
+        }
+    );
+    return colaboradorId;
+};
+
 export const getStatusSeller = async () => {
     let data = [];
     await axios["get"](`/vendedores/get-status-sellers`).then((response) => {

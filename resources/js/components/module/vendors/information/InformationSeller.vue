@@ -201,6 +201,21 @@
                 </div>
             </div>
         </div>
+
+        <div class="col-md-12" v-if="hasDocumentPermission">
+            <div class="card mb-4">
+                <h5 class="card-header">Documentos</h5>
+                <div class="card-body">
+                    <div v-if="!colaboradorId" class="text-muted small text-center py-3">
+                        No se pudo cargar el expediente de documentos.
+                    </div>
+                    <talento-expediente-documentos
+                        v-else
+                        :colaborador-id="colaboradorId"
+                    />
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -214,9 +229,12 @@ import {
     getImageLogo,
     getStatusSeller,
     getTypeSeller,
+    getExpedienteVendedor,
 } from "../helper/request.js";
 import Swal from "sweetalert2";
 import { activeTab } from "../../sellers/comun_variables.js";
+import Permission from "../../../../helpers/Permission";
+import { allViewHasPermission } from "../../../../helpers/Request";
 
 const props = defineProps({
     id: Number,
@@ -242,6 +260,25 @@ const statuses = ref([]);
 
 const isLoaded = ref(false);
 
+// Card "Documentos" del expediente (item #9990360, Hijo E3)
+const hasPermission = reactive({ data: new Permission({}) });
+const hasDocumentPermission = ref(false);
+const colaboradorId = ref(null);
+
+const loadDocumentAccess = async () => {
+    hasPermission.data = new Permission(await allViewHasPermission());
+    hasDocumentPermission.value = hasPermission.data.canView(
+        "talento.expediente.documentos.ver"
+    );
+    if (hasDocumentPermission.value) {
+        try {
+            colaboradorId.value = await getExpedienteVendedor(props.id);
+        } catch {
+            colaboradorId.value = null;
+        }
+    }
+};
+
 onMounted(async () => {
     if (activeTab.value === "#navs-pills-justified-information") {
         isLoaded.value = true;
@@ -254,6 +291,7 @@ onMounted(async () => {
 
         typesSeller.value = await getTypeSeller();
         statuses.value = await getStatusSeller();
+        await loadDocumentAccess();
     }
 });
 
@@ -268,6 +306,7 @@ watch(activeTab, async () => {
 
         typesSeller.value = await getTypeSeller();
         statuses.value = await getStatusSeller();
+        await loadDocumentAccess();
     }
 });
 
