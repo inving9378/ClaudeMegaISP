@@ -633,7 +633,7 @@ class RedGraphService
 
         $siguiente = $extremo['tipo'] === MapaRedHilo::class
             ? ['tipo' => 'hilo', 'id' => (int) $extremo['id'], 'excluir_empalme_id' => (int) $empalme->id]
-            : ['tipo' => 'puerto', 'id' => (int) $extremo['id']];
+            : ['tipo' => 'puerto', 'id' => (int) $extremo['id'], 'excluir_empalme_id' => (int) $empalme->id];
 
         $this->recorrerAguasAbajo($siguiente, $visitados, $enlaceIds, $advertencias, $maxSaltos, $profundidad + 1);
     }
@@ -709,6 +709,10 @@ class RedGraphService
         $empalme = MapaRedEmpalme::query()
             ->where('extremo_b_type', MapaRedPuerto::class)
             ->where('extremo_b_id', $puerto->id)
+            ->when(
+                $nodo['excluir_empalme_id'] ?? null,
+                fn ($q, $excluirId) => $q->where('id', '!=', $excluirId)
+            )
             ->first();
 
         if (! $empalme) {
