@@ -419,7 +419,10 @@
 
     <!-- MR-22 Fase 3b (item roadmap #9990516): vista DERIVADA (máx. 3 niveles) del nodo
          seleccionado en el mapa. Aditiva, coexiste con el árbol original de 7 niveles de
-         arriba (no lo reemplaza ni lo modifica). -->
+         arriba (no lo reemplaza ni lo modifica).
+         MR-22 Fase 3c (item roadmap #9990517): la sección completa solo se renderiza si
+         arbolDerivadoVisible está activo (toggle de la top bar del mapa, cerrado por default). -->
+    <template v-if="arbolDerivadoVisible">
     <q-separator />
     <q-expansion-item
         v-model="derivedTreeExpanded"
@@ -476,6 +479,7 @@
             </q-tree>
         </q-card>
     </q-expansion-item>
+    </template>
 
     <q-dialog
         v-model="dialog"
@@ -594,6 +598,7 @@ import {
     currentNode,
     selectedNodeId,
     deriveThreeLevelTree,
+    arbolDerivadoVisible,
 } from "../../../../composables/useNodeMap";
 
 import {
