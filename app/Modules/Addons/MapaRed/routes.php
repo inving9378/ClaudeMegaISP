@@ -4,6 +4,7 @@ use App\Modules\Addons\MapaRed\Controllers\ConnectionsController;
 use App\Modules\Addons\MapaRed\Controllers\DevicesController;
 use App\Modules\Addons\MapaRed\Controllers\EnlacesServicioController;
 use App\Modules\Addons\MapaRed\Controllers\HilosController;
+use App\Modules\Addons\MapaRed\Controllers\ImportadorController;
 use App\Modules\Addons\MapaRed\Controllers\KMZController;
 use App\Modules\Addons\MapaRed\Controllers\LayersController;
 use App\Modules\Addons\MapaRed\Controllers\MapaRedController;
@@ -112,4 +113,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
 
     // MR-18 (item #954) — presupuesto óptico automático desde el trazo.
     Route::get('/enlaces-servicio/{id}/presupuesto-optico', [EnlacesServicioController::class, 'presupuestoOptico'])->name('mapa-red.api.enlaces-servicio.presupuesto-optico');
+
+    // MR-25 (item #961) — importador con previsualización, mapeo de tipo y duplicados.
+    Route::post('/import/kml/preview', [ImportadorController::class, 'previsualizarKml'])->name('mapa-red.api.import.kml.preview');
+    Route::post('/import/kml/commit', [ImportadorController::class, 'confirmarKml'])->name('mapa-red.api.import.kml.commit');
 });
