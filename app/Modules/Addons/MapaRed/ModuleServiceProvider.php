@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\MapaRed;
 
 use App\Modules\Addons\MapaRed\Console\BackfillCommand;
+use App\Modules\Addons\MapaRed\Console\ImportarLegacyCommand;
 use App\Modules\Addons\MapaRed\Console\ValidarPresupuestoOpticoCommand;
 use App\Modules\Addons\MapaRed\Models\MapaRedEmpalme;
 use App\Modules\Addons\MapaRed\Services\RedGraphService;
@@ -29,6 +30,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 BackfillCommand::class,
+                ImportarLegacyCommand::class,
                 ValidarPresupuestoOpticoCommand::class,
             ]);
         }
