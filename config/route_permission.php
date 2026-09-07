@@ -2374,6 +2374,10 @@ return [
         '/talento/mis-ventas',
         '/talento/api/mis-ventas',
     ],
+    'talento.selleritems.view' => [
+        '/talento/articulos-vendedor',
+        '/talento/api/articulos-vendedor',
+    ],
     'talento.config.evidencias' => [
         '/talento/config/evidencias',
         '/talento/api/config/evidencias',
