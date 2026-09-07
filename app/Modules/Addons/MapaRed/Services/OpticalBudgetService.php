@@ -4,22 +4,15 @@ namespace App\Modules\Addons\MapaRed\Services;
 
 use App\Modules\Addons\GestionRed\Models\OltOnu;
 use App\Modules\Addons\GestionRed\Models\OltPonPort;
-use App\Modules\Addons\MapaRed\Models\MapaRedEmpalme;
 use App\Modules\Addons\MapaRed\Models\MapaRedEnlaceServicio;
-use App\Modules\Addons\MapaRed\Models\MapaRedHilo;
 use App\Modules\Addons\MapaRed\Models\MapaRedPuerto;
-use App\Modules\Addons\MapaRed\Models\MapaRedSplitter;
 
 /**
  * MR-18 (item roadmap #954) — presupuesto óptico automático desde el trazo.
  *
- * El trazo extremo a extremo "de verdad" (grafo dirigido, cacheado, con resaltado en el mapa)
- * es MR-16 (#952) — sigue sin construirse (escaló `requiere_irving` por timeout sin commits).
- * En vez de esperarlo o duplicar su alcance completo, `trazarRuta()` es un caminador INTERNO
- * mínimo, acotado solo a lo que este item necesita: caminar desde un `enlace_servicio` hacia
- * arriba (empalmes + cascada de splitters) hasta el puerto PON de la OLT, sumando metros de
- * cable y pérdidas. No expone API de grafo genérica, no cachea, no dibuja nada — si MR-16
- * aterriza después, puede reemplazar este método sin tocar `calcular()`.
+ * El caminador (grafo dirigido, cacheado) vive en `RedGraphService` desde MR-16 Fase 1
+ * (item #9990468, extracción de lo que antes era `trazarRuta()` embebido aquí mismo). Este
+ * servicio solo delega el trazo y convierte segmentos en pérdida óptica — no camina nada.
  *
  * D15 (ventanas ópticas + conector/fusión) solo vive documentado como texto en
  * `SembrarMapaRedCommand::tablaDecisiones()` — MR-08 (#944, catálogo `mapared_tipo_cable`) no
@@ -50,152 +43,20 @@ class OpticalBudgetService
     /** Tolerancia del DoD (#954): calculado vs. RX real de MultiOLT. */
     public const TOLERANCIA_DB = 3.0;
 
-    /**
-     * Camina desde el enlace de servicio hacia la OLT, sumando segmentos.
-     *
-     * Tolerante a rutas incompletas (reporta hasta dónde llegó y por qué) y a ciclos (corta y
-     * lo marca, nunca se cuelga) — mismo espíritu de robustez que pide el DoD de MR-16.
-     */
-    public function trazarRuta(MapaRedEnlaceServicio $enlace, int $maxSaltos = 64): array
+    public function __construct(private RedGraphService $redGraph)
     {
-        $segmentos = [];
-        $visitados = [];
-        $completa = false;
-        $motivoCorte = null;
-        $puertoPon = null;
-
-        $nodo = $this->nodoInicial($enlace);
-
-        $saltos = 0;
-        while ($nodo !== null) {
-            if ($saltos++ >= $maxSaltos) {
-                $motivoCorte = 'max_saltos_excedido';
-                break;
-            }
-
-            $clave = $nodo['tipo'].':'.$nodo['id'];
-            if (isset($visitados[$clave])) {
-                $motivoCorte = 'ciclo_detectado';
-                break;
-            }
-            $visitados[$clave] = true;
-
-            if ($nodo['tipo'] === 'puerto') {
-                $puerto = MapaRedPuerto::find($nodo['id']);
-                if (! $puerto) {
-                    $motivoCorte = 'puerto_inexistente';
-                    break;
-                }
-
-                if ($puerto->rol === MapaRedPuerto::ROL_PON) {
-                    $puertoPon = $puerto;
-                    $completa = true;
-                    break;
-                }
-
-                if ($puerto->puertable_type === MapaRedSplitter::class) {
-                    $splitter = MapaRedSplitter::find($puerto->puertable_id);
-                    if (! $splitter) {
-                        $motivoCorte = 'splitter_inexistente';
-                        break;
-                    }
-
-                    $segmentos[] = [
-                        'tipo' => 'splitter',
-                        'splitter_id' => $splitter->id,
-                        'nivel' => $splitter->nivel,
-                        'perdida_db' => $splitter->getPerdidaEfectivaDbAttribute(),
-                    ];
-
-                    $nodo = $this->siguienteTrasSplitter($splitter);
-                    if ($nodo === null) {
-                        $motivoCorte = 'splitter_sin_entrada_resuelta';
-                    }
-
-                    continue;
-                }
-
-                // Puerto pasivo sin pérdida modelada (NAP/ODF/splitter integrado sin fila
-                // propia en mapared_splitters) — passthrough, seguir buscando el empalme
-                // que lo alimenta.
-                $nodo = $this->nodoDesdeEmpalmeQueApunta($puerto);
-                if ($nodo === null) {
-                    $motivoCorte = 'sin_empalme_hacia_el_puerto';
-                }
-
-                continue;
-            }
-
-            // $nodo['tipo'] === 'hilo'
-            $hilo = MapaRedHilo::with('cable')->find($nodo['id']);
-            if (! $hilo) {
-                $motivoCorte = 'hilo_inexistente';
-                break;
-            }
-
-            // Cada hilo visitado (el inicial del enlace y cualquier otro alcanzado aguas
-            // arriba: feeder, distribución) aporta su propio tramo de cable. Antes solo se
-            // sumaba el cable del hilo inicial (lo hacía `nodoInicial()` una sola vez) y el
-            // resto de la ruta perdía por completo la longitud de los cables intermedios —
-            // justo lo que el DoD de #954 pide acumular ("atenuación por km" de TODA la ruta).
-            if ($hilo->cable) {
-                $segmentos[] = [
-                    'tipo' => 'cable',
-                    'cable_id' => $hilo->cable_id,
-                    'hilo_id' => $hilo->id,
-                    'metros' => (float) $hilo->cable->longitud_metros,
-                ];
-            }
-
-            // `mapared_empalmes::hiloDisponible()` (MR-12/#948, ya mergeado) limita CADA hilo a
-            // un único empalme activo, como hilo_a o como extremo_b. Si llegamos a este hilo
-            // atravesando justo ese empalme, hay que EXCLUIRLO de la búsqueda: si no, la única
-            // fila que existe es la misma por la que acabamos de entrar y el trazo rebotaría
-            // hacia atrás (se leería como ciclo sin serlo). Sin más filas que esa, es un corte
-            // real: el otro extremo del hilo no tiene más splices registrados.
-            $empalme = $this->empalmeDelHilo($hilo->id, $nodo['via_empalme_id'] ?? null);
-            if (! $empalme) {
-                $motivoCorte = 'sin_empalme_saliente';
-                break;
-            }
-
-            $esHiloA = (int) $empalme->hilo_a_id === (int) $hilo->id;
-            $extremo = $esHiloA
-                ? ['tipo' => $empalme->extremo_b_type, 'id' => $empalme->extremo_b_id]
-                : ['tipo' => MapaRedHilo::class, 'id' => $empalme->hilo_a_id];
-
-            $segmentos[] = [
-                'tipo' => 'empalme',
-                'empalme_id' => $empalme->id,
-                'clase' => $empalme->tipo,
-                'perdida_db' => (float) ($empalme->perdida_db ?? (MapaRedEmpalme::PERDIDA_DB_DEFAULT[$empalme->tipo] ?? 0)),
-            ];
-
-            $nodo = $extremo['tipo'] === MapaRedHilo::class
-                ? $this->siguienteHilo((int) $extremo['id'], $empalme->id)
-                : $this->siguientePuerto((int) $extremo['id']);
-        }
-
-        return [
-            'completa' => $completa,
-            'motivo_corte' => $motivoCorte,
-            'segmentos' => $segmentos,
-            'puerto_pon' => $puertoPon,
-            'longitud_total_metros' => array_sum(array_column(
-                array_filter($segmentos, fn ($s) => $s['tipo'] === 'cable'),
-                'metros'
-            )),
-        ];
     }
 
     /**
      * Presupuesto óptico completo (DoD #954): desglose, total, comparación contra TX/sensibilidad
-     * y contra el RX real que reporta MultiOLT.
+     * y contra el RX real que reporta MultiOLT. El trazo en sí (caminar desde el enlace hasta el
+     * puerto PON) lo resuelve `RedGraphService::trazar()` (MR-16 Fase 1, #9990468) — este método
+     * solo convierte esos segmentos en pérdida y arma el presupuesto.
      */
     public function calcular(MapaRedEnlaceServicio $enlace, string $ventana = self::VENTANA_DEFAULT): array
     {
         $ventana = array_key_exists($ventana, self::ATENUACION_DB_KM) ? $ventana : self::VENTANA_DEFAULT;
-        $ruta = $this->trazarRuta($enlace);
+        $ruta = $this->redGraph->trazar($enlace);
 
         $desglose = [];
         $totalDb = 0.0;
@@ -244,94 +105,6 @@ class OpticalBudgetService
             'diferencia_db' => $diferenciaDb,
             'dentro_de_tolerancia' => $diferenciaDb !== null ? $diferenciaDb <= self::TOLERANCIA_DB : null,
         ];
-    }
-
-    /**
-     * Nodo de arranque del trazo. No suma segmentos aquí: el hilo inicial se procesa como
-     * cualquier otro nodo 'hilo' dentro del bucle de `trazarRuta()`, que es quien le suma su
-     * propio tramo de cable (ver el comentario ahí sobre por qué esto se unificó).
-     */
-    private function nodoInicial(MapaRedEnlaceServicio $enlace): ?array
-    {
-        if ($enlace->hilo_id && MapaRedHilo::whereKey($enlace->hilo_id)->exists()) {
-            return $this->siguienteHilo($enlace->hilo_id);
-        }
-
-        if ($enlace->puerto_nap_id) {
-            return ['tipo' => 'puerto', 'id' => $enlace->puerto_nap_id];
-        }
-
-        return null;
-    }
-
-    private function siguienteHilo(int $hiloId, ?int $viaEmpalmeId = null): array
-    {
-        return ['tipo' => 'hilo', 'id' => $hiloId, 'via_empalme_id' => $viaEmpalmeId];
-    }
-
-    private function siguientePuerto(int $puertoId): array
-    {
-        return ['tipo' => 'puerto', 'id' => $puertoId];
-    }
-
-    /**
-     * Empalme activo en el que participa el hilo, sea como `hilo_a_id` o como extremo B.
-     * `$excluirId` descarta el empalme por el que ya se llegó a este hilo (ver el comentario en
-     * `trazarRuta()`: un hilo solo puede tener UN empalme activo, así que sin la exclusión la
-     * única fila que existiría sería la misma por la que se entró).
-     */
-    private function empalmeDelHilo(int $hiloId, ?int $excluirId = null): ?MapaRedEmpalme
-    {
-        return MapaRedEmpalme::query()
-            ->where(function ($q) use ($hiloId) {
-                $q->where('hilo_a_id', $hiloId)
-                    ->orWhere(function ($q2) use ($hiloId) {
-                        $q2->where('extremo_b_type', MapaRedHilo::class)->where('extremo_b_id', $hiloId);
-                    });
-            })
-            ->when($excluirId, fn ($q) => $q->where('id', '!=', $excluirId))
-            ->first();
-    }
-
-    /**
-     * Empalme activo cuyo extremo B es este puerto (lo que lo alimenta desde aguas abajo del
-     * cliente, es decir, aguas arriba en el sentido del trazo).
-     */
-    private function nodoDesdeEmpalmeQueApunta(MapaRedPuerto $puerto): ?array
-    {
-        $empalme = MapaRedEmpalme::query()
-            ->where('extremo_b_type', MapaRedPuerto::class)
-            ->where('extremo_b_id', $puerto->id)
-            ->first();
-
-        if (! $empalme) {
-            return null;
-        }
-
-        return $this->siguienteHilo((int) $empalme->hilo_a_id, $empalme->id);
-    }
-
-    /**
-     * Tras sumar la pérdida de un splitter, sigue la cascada: si es nivel 2, sube directo al
-     * puerto de salida del padre (nivel 1) vía `puerto_entrada_padre_id` (FK, sin empalme de por
-     * medio — así lo modeló MR-13); si es nivel 1, busca qué alimenta su propio puerto de entrada.
-     */
-    private function siguienteTrasSplitter(MapaRedSplitter $splitter): ?array
-    {
-        if ($splitter->nivel === MapaRedSplitter::NIVEL_2 && $splitter->puerto_entrada_padre_id) {
-            return ['tipo' => 'puerto', 'id' => $splitter->puerto_entrada_padre_id];
-        }
-
-        $puertoEntrada = MapaRedPuerto::query()
-            ->delDueno(MapaRedSplitter::class, $splitter->id)
-            ->where('rol', MapaRedPuerto::ROL_SPLITTER_IN)
-            ->first();
-
-        if (! $puertoEntrada) {
-            return null;
-        }
-
-        return $this->nodoDesdeEmpalmeQueApunta($puertoEntrada);
     }
 
     /**

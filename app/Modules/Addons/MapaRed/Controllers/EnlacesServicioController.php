@@ -5,6 +5,7 @@ namespace App\Modules\Addons\MapaRed\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\MapaRed\Models\MapaRedEnlaceServicio;
 use App\Modules\Addons\MapaRed\Services\OpticalBudgetService;
+use App\Modules\Addons\MapaRed\Services\RedGraphService;
 use Illuminate\Http\Request;
 
 /**
@@ -78,5 +79,18 @@ class EnlacesServicioController extends Controller
         return response()->json(
             $service->calcular($enlace, $data['ventana'] ?? OpticalBudgetService::VENTANA_DEFAULT)
         );
+    }
+
+    /**
+     * MR-16 Fase 1 (#9990468) — trazo cliente→OLT en formato consumible por el frontend para
+     * dibujar sobre el mapa: lista ORDENADA de elementos con su tipo y, cuando el modelo
+     * subyacente ya tiene coordenadas geográficas (`mapared_devices`/`mapared_cables`, D8),
+     * su posición. Ver `RedGraphService::paraDibujo()`.
+     */
+    public function trazo(Request $request, $id, RedGraphService $service)
+    {
+        $enlace = MapaRedEnlaceServicio::findOrFail($id);
+
+        return response()->json($service->paraDibujo($enlace));
     }
 }
