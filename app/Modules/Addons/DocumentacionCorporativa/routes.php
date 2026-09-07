@@ -44,6 +44,13 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             // ('iv/cartera/detalle-nominal'): no colisiona con `{clave}` (1 segmento)
             // ni con `{clave}/exportar` (2 segmentos) de arriba.
             Route::get('/apartado/iv/cartera/detalle-nominal', [ExpedienteController::class, 'carteraDetalleNominal'])->name('apartado.iv.cartera.detalle_nominal');
+
+            // Acuse de avance en PDF con corte a una fecha (item #9990551) —
+            // evidencia agregada (global + por apartado) para la mesa directiva.
+            // Declarada ANTES de '/apartado/{clave}' no aplica aquí (prefijo distinto,
+            // 'acuse' no colisiona con las rutas de apartado).
+            Route::get('/acuse/exportar', [ExpedienteController::class, 'exportarAcuse'])->name('acuse.exportar');
+
             Route::post('/empresa', [ExpedienteController::class, 'cambiarEmpresa'])->name('empresa.cambiar');
 
             // Apartado XIII — calendario ANTES de {id}: si no, "calendario" se

@@ -14,6 +14,7 @@ use App\Modules\Addons\DocumentacionCorporativa\Services\EmpresaContextService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
@@ -278,6 +279,63 @@ class ExpedienteController extends Controller
             ],
             'conceptos' => $conceptos,
             'generado'  => now(),
+        ]);
+
+        $destino = $this->rutaTemporalApartado($nombreBase);
+        file_put_contents($destino, $pdf->output());
+
+        return response()->download($destino, "{$nombreBase}.pdf")->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Acuse de avance en PDF con corte a una fecha (item #9990551): avance
+     * global, avance por apartado, obligatorios faltantes y responsables —
+     * evidencia frente a la mesa directiva. Reusa `CompletitudService::tablero()`
+     * (misma fuente que el tablero en vivo, filtrada a lo que ESTE usuario puede
+     * ver, igual que `tablero()`) y el patrón de export de `exportarApartado()`
+     * (Pdf::loadView + descarga temporal).
+     *
+     * NO usa `PlantillaDocumentoService`: ese motor genera documentos-por-concepto
+     * a partir de una plantilla del catálogo (`plantilla_id`), y este es un reporte
+     * agregado ad-hoc sin plantilla asignada — no gana nada de complejidad extra
+     * (item #840, "no unificar Plantillas").
+     *
+     * El "corte" es del ESTADO ACTUAL: no existe en el módulo ninguna tabla de
+     * snapshots históricos de completitud, así que `fecha_corte` solo se imprime
+     * como referencia declarada en el documento, no reconstruye avance pasado.
+     */
+    public function exportarAcuse(Request $request)
+    {
+        $empresa = $this->empresas->actual();
+
+        $fechaCorte = $request->filled('fecha_corte')
+            ? Carbon::parse($request->query('fecha_corte'))->endOfDay()
+            : now();
+
+        $tablero = $this->completitud->tablero($empresa->id, $request->boolean('refrescar'));
+
+        $visibles = array_values(array_filter(
+            $tablero['apartados'],
+            fn (array $a) => $this->puedeVer($a['permiso'])
+        ));
+
+        $global = $this->completitud->agregarGlobal($visibles);
+
+        // Se registra ANTES de servir el archivo (misma regla que exportarApartado).
+        $this->bitacora->exportar($empresa->id, null, null, [
+            'pantalla'            => 'acuse.exportar',
+            'fecha_corte'         => $fechaCorte->toDateString(),
+            'apartados_incluidos' => array_column($visibles, 'clave'),
+        ]);
+
+        $nombreBase = 'dc-acuse-avance-' . now()->format('Ymd-His') . '-' . Str::random(6);
+
+        $pdf = Pdf::loadView('addon-documentacion-corporativa::export.acuse', [
+            'empresa'    => $empresa,
+            'apartados'  => $visibles,
+            'global'     => $global,
+            'fechaCorte' => $fechaCorte,
+            'generado'   => now(),
         ]);
 
         $destino = $this->rutaTemporalApartado($nombreBase);
