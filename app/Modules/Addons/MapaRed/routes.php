@@ -10,6 +10,7 @@ use App\Modules\Addons\MapaRed\Controllers\ImportadorController;
 use App\Modules\Addons\MapaRed\Controllers\KMZController;
 use App\Modules\Addons\MapaRed\Controllers\LayersController;
 use App\Modules\Addons\MapaRed\Controllers\MapaRedController;
+use App\Modules\Addons\MapaRed\Controllers\NapAltaRapidaController;
 use App\Modules\Addons\MapaRed\Controllers\NapOcupacionController;
 use App\Modules\Addons\MapaRed\Controllers\NapSaludController;
 use App\Modules\Addons\MapaRed\Controllers\ProyectsController;
@@ -141,4 +142,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     Route::get('/empalmes/existentes', [EmpalmesController::class, 'existentes'])->name('mapa-red.api.empalmes.existentes');
     Route::post('/empalmes', [EmpalmesController::class, 'store'])->name('mapa-red.api.empalmes.store');
     Route::delete('/empalmes/{id}', [EmpalmesController::class, 'destroy'])->name('mapa-red.api.empalmes.destroy');
+
+    // MR-24d bis (item #9990546) — alta rápida de NAP (zona+nombre+snap automáticos).
+    Route::post('/elementos/nap', [NapAltaRapidaController::class, 'store'])->name('mapa-red.api.elementos.nap');
 });
