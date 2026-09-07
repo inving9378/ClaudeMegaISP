@@ -469,6 +469,149 @@ const loadingExport = ref({
     loading: false,
 });
 
+// MR-22 Fase 2 (item roadmap #9990458) — panel de capas encendibles + render dependiente de zoom.
+// Decisiones ya tomadas por Irving: estado inicial por capa (q3), umbrales de zoom drops>=16 /
+// clientes>=17 (q2), reusar el clustering ya existente (q1, sin reconstruirlo).
+// Mapeo capa lógica → `dialog` real del layer (único dato disponible hoy para distinguir tipos).
+// "drops" (acometida NAP→cliente) no es todavía una entidad propia en mapared_layers — verificado
+// contra la BD piloto real (0 filas con un dialog dedicado a drop): queda como capa reservada,
+// cableada en el panel y en el umbral de zoom, sin marcadores hasta que esa entidad exista.
+const CAPAS_MAPA_RED = [
+    { key: "olt", label: "OLT", icon: "mdi-warehouse", dialogs: ["site"] },
+    { key: "troncales", label: "Troncales", icon: "mdi-chart-timeline-variant", dialogs: ["route"] },
+    { key: "mufas", label: "Mufas", icon: "mdi-package-variant-closed", dialogs: ["junction_box"] },
+    { key: "naps", label: "NAPs", icon: "mdi-package", dialogs: ["service_box"] },
+    { key: "drops", label: "Drops", icon: "mdi-vector-line", dialogs: [] },
+    { key: "clientes", label: "Clientes", icon: "mdi-account", dialogs: ["client"] },
+    { key: "postes", label: "Postes", icon: "mdi-currency-mnt", dialogs: ["pole"] },
+    { key: "cobertura", label: "Cobertura", icon: "mdi-vector-polygon", dialogs: ["region"] },
+];
+
+const CAPA_ZOOM_MIN = { drops: 16, clientes: 17 };
+
+const DIALOG_A_CAPA = CAPAS_MAPA_RED.reduce((acc, capa) => {
+    capa.dialogs.forEach((d) => (acc[d] = capa.key));
+    return acc;
+}, {});
+
+const capasEncendidas = reactive({
+    olt: true,
+    troncales: true,
+    mufas: true,
+    naps: true,
+    drops: false,
+    clientes: false,
+    postes: false,
+    cobertura: false,
+});
+
+const capaVisiblePorEstado = (capaKey) => {
+    if (!capasEncendidas[capaKey]) {
+        return false;
+    }
+    const zoomMin = CAPA_ZOOM_MIN[capaKey];
+    if (zoomMin != null && map && map.getZoom() < zoomMin) {
+        return false;
+    }
+    return true;
+};
+
+const aplicarVisibilidadPorCapa = (layer) => {
+    const dialogLayer = layer.properties?.dialog;
+    if (dialogLayer === "service_box") {
+        // MR-20 (aplicarFiltroACapa) ya compone el toggle "naps" del panel con el filtro de
+        // puertos libres; no duplicar la decisión de opacidad aquí.
+        aplicarFiltroACapa(layer);
+        return;
+    }
+    const capaKey = DIALOG_A_CAPA[dialogLayer];
+    if (!capaKey) {
+        return; // fuera del alcance del panel (kmz/note/cupboard/building/pack/source/folder)
+    }
+    if (layer.properties && layer.properties._capaBaseCaptured === undefined) {
+        layer.properties._capaBaseCaptured = true;
+        layer.properties._capaBaseOpacity = layer.options?.opacity ?? 1;
+        layer.properties._capaBaseFillOpacity = layer.options?.fillOpacity;
+    }
+    const visible = capaVisiblePorEstado(capaKey);
+    if (
+        typeof layer.setStyle === "function" &&
+        layer.properties?._capaBaseFillOpacity !== undefined
+    ) {
+        layer.setStyle({
+            opacity: visible ? layer.properties._capaBaseOpacity : 0,
+            fillOpacity: visible ? layer.properties._capaBaseFillOpacity : 0,
+        });
+    } else if (typeof layer.setOpacity === "function") {
+        layer.setOpacity(visible ? (layer.properties?._capaBaseOpacity ?? 1) : 0);
+    }
+};
+
+const aplicarVisibilidadCapas = () => {
+    if (!drawnItems) {
+        return;
+    }
+    drawnItems.eachLayer((layer) => aplicarVisibilidadPorCapa(layer));
+};
+
+watch(capasEncendidas, () => {
+    aplicarVisibilidadCapas();
+});
+
+const crearControlCapas = () => {
+    const CapasControl = L.Control.extend({
+        options: { position: "topright" },
+        onAdd: function () {
+            const container = L.DomUtil.create(
+                "div",
+                "leaflet-bar capas-panel"
+            );
+            L.DomEvent.disableClickPropagation(container);
+            L.DomEvent.disableScrollPropagation(container);
+
+            const header = L.DomUtil.create(
+                "div",
+                "capas-panel__header",
+                container
+            );
+            header.innerHTML =
+                '<i class="mdi mdi-layers-outline"></i><span>Capas</span><i class="mdi mdi-chevron-up capas-panel__chevron"></i>';
+            const body = L.DomUtil.create("div", "capas-panel__body", container);
+
+            CAPAS_MAPA_RED.forEach((capa) => {
+                const row = L.DomUtil.create("label", "capas-panel__row", body);
+                const checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.checked = capasEncendidas[capa.key];
+                checkbox.addEventListener("change", () => {
+                    capasEncendidas[capa.key] = checkbox.checked;
+                });
+                row.appendChild(checkbox);
+                const text = document.createElement("span");
+                const zoomMin = CAPA_ZOOM_MIN[capa.key];
+                text.innerHTML = `<i class="mdi ${capa.icon}"></i> ${capa.label}${
+                    zoomMin ? ` <small>(zoom&nbsp;≥&nbsp;${zoomMin})</small>` : ""
+                }`;
+                row.appendChild(text);
+            });
+
+            header.addEventListener("click", () => {
+                const abierto = body.style.display !== "none";
+                body.style.display = abierto ? "none" : "flex";
+                header
+                    .querySelector(".capas-panel__chevron")
+                    ?.classList.toggle("mdi-chevron-up", !abierto);
+                header
+                    .querySelector(".capas-panel__chevron")
+                    ?.classList.toggle("mdi-chevron-down", abierto);
+            });
+
+            return container;
+        },
+    });
+    new CapasControl().addTo(map);
+};
+
 onBeforeMount(async () => {
     serverData = await getMapRenderConfig();
     const script = document.createElement("script");
@@ -567,10 +710,18 @@ const initMap = async () => {
 
     L.control.layers(baseLayers).addTo(map);
 
+    crearControlCapas();
+
     map.on("baselayerchange", function (e) {
         const newLayer = e.layer;
         const newMaxZoom = newLayer.options.maxZoom ?? 19;
         map.setMaxZoom(newMaxZoom);
+    });
+
+    // MR-22 Fase 2 (#9990458): render dependiente de zoom (drops>=16 / clientes>=17), independiente
+    // del toggle manual del panel de capas — ambas condiciones deben cumplirse a la vez.
+    map.on("zoomend", function () {
+        aplicarVisibilidadCapas();
     });
 
     map.contextmenu.enable();
@@ -1333,6 +1484,12 @@ const aplicarFiltroACapa = (layer) => {
     if (layer.properties?.dialog !== "service_box" || typeof layer.setOpacity !== "function") {
         return;
     }
+    // MR-22 Fase 2 (#9990458): el toggle "naps" del panel de capas manda primero; si está apagado
+    // no hay nada que reconciliar con el filtro de puertos libres.
+    if (!capaVisiblePorEstado("naps")) {
+        layer.setOpacity(0);
+        return;
+    }
     const ocupacion = layer.properties.ocupacion;
     if (!soloNapsConPuertosLibres.value || !ocupacion) {
         layer.setOpacity(1);
@@ -1425,6 +1582,7 @@ const drawLayers = (selectedLayers, noSelectedLayers = []) => {
         });
     }).then(() => {
         aplicarOcupacionNaps(selectedLayers);
+        aplicarVisibilidadCapas();
     });
     noSelectedLayers.forEach((key) => {
         removeLayerByKey(key);
@@ -1850,5 +2008,47 @@ const toKmlColor = (hexColor, opacity = 1) => {
 }
 .easy-button-button span {
     color: #000 !important;
+}
+
+/* MR-22 Fase 2 (item roadmap #9990458) — panel de capas encendibles. */
+.capas-panel {
+    background: white;
+    min-width: 175px;
+    font-size: 12px;
+}
+.capas-panel__header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    cursor: pointer;
+    font-weight: 600;
+}
+.capas-panel__header .capas-panel__chevron {
+    margin-left: auto;
+}
+.capas-panel__body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 8px 8px;
+    border-top: 1px solid #ddd;
+}
+.capas-panel__row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    padding: 2px 0;
+}
+.capas-panel__row small {
+    color: #888;
+}
+body.body--dark .capas-panel {
+    background: #1d1d1d;
+    color: #fff;
+}
+body.body--dark .capas-panel__body {
+    border-top-color: #444;
 }
 </style>
