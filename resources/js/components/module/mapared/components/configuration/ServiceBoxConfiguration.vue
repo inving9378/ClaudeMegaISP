@@ -20,6 +20,15 @@
                         {{ object.name }}</q-toolbar-title
                     >
                     <q-btn
+                        no-caps
+                        flat
+                        dense
+                        icon="link"
+                        label="Empalmes"
+                        @click="showEmpalmes = true"
+                        ><q-tooltip>Uniones de hilos de este NAP</q-tooltip></q-btn
+                    >
+                    <q-btn
                         icon="close"
                         flat
                         round
@@ -286,6 +295,13 @@
         @hide="onHideJunction"
         @save="(data) => createConnection(data)"
     />
+
+    <empalme-config-dialog
+        :show="showEmpalmes"
+        :object="object"
+        :has-edit="hasEdit"
+        @hide="showEmpalmes = false"
+    />
 </template>
 
 <script setup>
@@ -300,6 +316,7 @@ import FormJunction from "../devices/FormJunction.vue";
 import BoxServiceComponent from "../BoxServiceComponent.vue";
 import TroncalInput from "../others/TroncalInput.vue";
 import DropOut from "../devices/DropOut.vue";
+import EmpalmeConfigDialog from "./EmpalmeConfigDialog.vue";
 import { dom } from "../../../../../../../public/plugins/quasar/js/quasar.umd.prod";
 import { message } from "../../../../../helpers/toastMsg";
 import { hideLoading, showLoading } from "../../../../../helpers/loading";
@@ -370,6 +387,7 @@ const currentCharole = ref(null);
 let totalSelected = 0;
 const drawerLeft = ref(true);
 const drawerRight = ref(true);
+const showEmpalmes = ref(false);
 
 const { ready } = dom;
 
