@@ -209,6 +209,14 @@
     display: flex;
     align-items: center;
 }
+/* El badge de la campana (.noti-icon .badge{right:4px} del tema) pelea con la utilidad
+   BS5 start-100 (left:100%): un elemento absoluto con left Y right a la vez se estira en
+   vez de quedar como píldora. Selector más específico que anula el right del tema cuando
+   el badge ya trae el posicionamiento BS5 (translate-middle), dejando solo left:100%
+   (top ya lo gana top-0!important de BS5; padding/line-height de .badge quedan intactos). */
+.noti-icon .badge.translate-middle {
+    right: auto;
+}
 </style>
 
 <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasRight" aria-labelledby="offcanvasRightLabel" style="width: 350px;">
