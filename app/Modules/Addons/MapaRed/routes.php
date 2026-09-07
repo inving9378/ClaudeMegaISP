@@ -16,6 +16,7 @@ use App\Modules\Addons\MapaRed\Controllers\NapAltaRapidaController;
 use App\Modules\Addons\MapaRed\Controllers\NapOcupacionController;
 use App\Modules\Addons\MapaRed\Controllers\NapSaludController;
 use App\Modules\Addons\MapaRed\Controllers\ProyectsController;
+use App\Modules\Addons\MapaRed\Controllers\SectoresController;
 use App\Modules\Addons\MapaRed\Controllers\ServiceBoxController;
 use Illuminate\Support\Facades\Route;
 
@@ -162,4 +163,13 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
 
     // MR-24e Fase 2 (item #9990548) — alta rápida de cable/troncal (zona+nombre+snap automáticos).
     Route::post('/elementos/cable', [CableAltaRapidaController::class, 'store'])->name('mapa-red.api.elementos.cable');
+
+    // MR-26 Fase 3 (item #9990524) — sectores inalámbricos: CRUD + import CSV/GeoJSON.
+    Route::get('/sectores', [SectoresController::class, 'index'])->name('mapa-red.api.sectores.index');
+    Route::post('/sectores', [SectoresController::class, 'store'])->name('mapa-red.api.sectores.store');
+    Route::put('/sectores/{id}', [SectoresController::class, 'update'])->name('mapa-red.api.sectores.update');
+    Route::delete('/sectores/{id}', [SectoresController::class, 'destroy'])->name('mapa-red.api.sectores.destroy');
+    Route::post('/sectores/import/csv/preview', [SectoresController::class, 'previsualizarCsv'])->name('mapa-red.api.sectores.import.csv.preview');
+    Route::post('/sectores/import/geojson/preview', [SectoresController::class, 'previsualizarGeoJson'])->name('mapa-red.api.sectores.import.geojson.preview');
+    Route::post('/sectores/import/commit', [SectoresController::class, 'confirmar'])->name('mapa-red.api.sectores.import.commit');
 });
