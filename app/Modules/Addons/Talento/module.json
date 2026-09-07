@@ -49,7 +49,8 @@
         { "name": "talento.escalafon.view",       "description": "Ver tabla de posiciones/escalafón" },
         { "name": "talento.escalafon.manage",     "description": "Configurar pesos del puntaje compuesto" },
         { "name": "talento.embajadores.view",     "description": "Ver cross-link colaborador↔embajador/vendedor (solo lectura)" },
-        { "name": "talento.ventas.view",          "description": "Ver mis estadísticas de ventas (colaborador vendedor, solo lectura)" }
+        { "name": "talento.ventas.view",          "description": "Ver mis estadísticas de ventas (colaborador vendedor, solo lectura)" },
+        { "name": "talento.selleritems.view",     "description": "Ver catálogo de artículos de vendedor (solo lectura, reusa Vendedores/Inventario)" }
     ],
 
     "menu": [
@@ -78,7 +79,8 @@
                 { "label": "Dashboard",        "url": "/talento/dashboard",          "permission": "talento.dashboard.view" },
                 { "label": "Escalafón",        "url": "/talento/escalafon",          "permission": "talento.escalafon.view" },
                 { "label": "Embajadores",      "url": "/talento/embajadores-colabs", "permission": "talento.embajadores.view" },
-                { "label": "Mis ventas",       "url": "/talento/mis-ventas",         "permission": "talento.ventas.view" }
+                { "label": "Mis ventas",       "url": "/talento/mis-ventas",         "permission": "talento.ventas.view" },
+                { "label": "Artículos de vendedor", "url": "/talento/articulos-vendedor", "permission": "talento.selleritems.view" }
             ]
         }
     ],
@@ -160,7 +162,8 @@
         { "method": "GET",  "path": "/talento/api/escalafon",                           "description": "Tabla de posiciones/escalafón",                          "permission": "talento.escalafon.view" },
         { "method": "GET",  "path": "/talento/api/colaboradores/{id}/level-eligibility","description": "Elegibilidad de nivel de un colaborador",                "permission": "talento.levels.view" },
         { "method": "GET",  "path": "/talento/api/my-certifications",                   "description": "Certificaciones propias del colaborador autenticado",    "permission": "talento.academy.view" },
-        { "method": "GET",  "path": "/talento/api/mis-ventas",                          "description": "Estadísticas de ventas del colaborador autenticado (self-scoped, reusa Vendedores)", "permission": "talento.ventas.view" }
+        { "method": "GET",  "path": "/talento/api/mis-ventas",                          "description": "Estadísticas de ventas del colaborador autenticado (self-scoped, reusa Vendedores)", "permission": "talento.ventas.view" },
+        { "method": "GET",  "path": "/talento/api/articulos-vendedor",                  "description": "Catálogo global de artículos de vendedor (solo lectura, reusa Vendedores/Inventario)", "permission": "talento.selleritems.view" }
     ],
 
     "ai": {
