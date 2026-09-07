@@ -204,6 +204,46 @@ export const confirmarKml = async (items, projectId) => {
     return data;
 };
 
+// MR-25 Fase 3b (item #9990444) — CSV con auto-detección de columnas. El preview puede
+// devolver 422 con `{errores: [...]}` (política de Irving: valida TODO el archivo antes,
+// aborta si hay cualquier fila inválida) — se propaga tal cual para que el wizard lo distinga
+// de un preview normal.
+export const previsualizarCsv = async (file) => {
+    let data = null;
+    const formData = new FormData();
+    formData.append("file", file);
+    await axios["post"](`/mapa-red/api/import/csv/preview`, formData, {
+        headers: {
+            "Content-Type": "multipart/form-data",
+            "X-CSRF-TOKEN": document
+                .querySelector('meta[name="csrf-token"]')
+                .getAttribute("content"),
+        },
+    })
+        .then((response) => {
+            data = response.data;
+        })
+        .catch((e) => {
+            data = e?.response?.data ?? { error: "Error al previsualizar el archivo" };
+        });
+    return data;
+};
+
+export const confirmarCsv = async (items, projectId) => {
+    let data = null;
+    await axios["post"](`/mapa-red/api/import/csv/commit`, {
+        items,
+        project_id: projectId,
+    })
+        .then((response) => {
+            data = response.data;
+        })
+        .catch((e) => {
+            data = null;
+        });
+    return data;
+};
+
 export const convertToNetwork = async (props) => {
     let data = null;
     await axios["post"]("/mapa-red/api/change-classification", props)

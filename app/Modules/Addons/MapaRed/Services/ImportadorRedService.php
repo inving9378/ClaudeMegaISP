@@ -101,6 +101,49 @@ class ImportadorRedService
         return $this->clasificarPlacemarks($placemarks);
     }
 
+    /**
+     * MR-25 Fase 3b (item #9990444) — mismo contrato preview/commit, parser CSV. A diferencia
+     * de `previsualizar()`/`previsualizarGeoJson()`, aquí SÍ puede haber filas con datos
+     * inválidos (lat/lng no numéricas o fuera de rango); política de Irving (q2): si hay
+     * cualquier error, se aborta el preview completo y se devuelve el reporte de errores por
+     * fila, sin clasificar nada (`errores` no vacío = el caller NO debe tratar la respuesta
+     * como un preview normal).
+     */
+    public function previsualizarCsv(string $path): array
+    {
+        $resultado = CsvParserService::parsearArchivo($path);
+
+        if (!empty($resultado['errores'])) {
+            return ['errores' => $resultado['errores']];
+        }
+
+        return $this->clasificarPlacemarks($resultado['placemarks']);
+    }
+
+    /**
+     * MR-25 Fase 3b (item #9990444) — commit del CSV. Política de Irving (q2): transacción
+     * all-or-nothing (si algo falla a mitad de la escritura, se revierte TODO) + procesado en
+     * lotes de 500 filas (acota memoria/consultas en archivos grandes). Reusa `confirmar()`
+     * (formato-agnóstica) tal cual, solo agrega la transacción y el chunking alrededor.
+     */
+    public function confirmarCsv(array $items, ?int $projectId): array
+    {
+        return \DB::transaction(function () use ($items, $projectId) {
+            $creados = 0;
+            $idsCreados = [];
+            $omitidos = [];
+
+            foreach (array_chunk($items, 500) as $lote) {
+                $reporteLote = $this->confirmar($lote, $projectId);
+                $creados += $reporteLote['creados'];
+                $idsCreados = array_merge($idsCreados, $reporteLote['ids_creados']);
+                $omitidos = array_merge($omitidos, $reporteLote['omitidos']);
+            }
+
+            return ['creados' => $creados, 'ids_creados' => $idsCreados, 'omitidos' => $omitidos];
+        });
+    }
+
     private function clasificarPlacemarks(array $placemarks): array
     {
         $items = [];
@@ -208,7 +251,7 @@ class ImportadorRedService
         $soportado = in_array($geometryType, ['marker', 'polyline', 'polygon'], true) && $coords !== null;
 
         $tipo = match ($geometryType) {
-            'marker' => $this->detectarTipo($nombre, $folderPath),
+            'marker' => $this->detectarTipoConPista($nombre, $folderPath, $placemark['tipo_hint'] ?? null),
             'polyline' => ['dialog' => 'route', 'text' => 'Ruta', 'icon' => 'mdi-chart-timeline-variant', 'route' => 'route', 'confianza' => 'geometria'],
             'polygon' => ['dialog' => 'region', 'text' => 'Región', 'icon' => 'mdi-vector-polygon', 'route' => 'regions', 'confianza' => 'geometria'],
             default => ['dialog' => null, 'text' => null, 'icon' => null, 'route' => null, 'confianza' => null],
@@ -262,6 +305,24 @@ class ImportadorRedService
             'route' => self::TIPO_GENERICO_MARKER['route'],
             'confianza' => 'baja',
         ];
+    }
+
+    /**
+     * MR-25 Fase 3b (item #9990444) — el CSV puede traer una columna "tipo" (ej. "NAP",
+     * "Poste") auto-detectada por `CsvParserService`. Si esa pista matchea con confianza alta
+     * contra el vocabulario conocido, gana sobre la heurística de nombre/carpeta; si no, cae al
+     * comportamiento normal de `detectarTipo()` (idéntico a KML/GeoJSON, que no mandan pista).
+     */
+    private function detectarTipoConPista(string $nombre, array $folderPath, ?string $pista): array
+    {
+        if ($pista !== null && trim($pista) !== '') {
+            $tipoPorPista = $this->detectarTipo($pista, []);
+            if ($tipoPorPista['confianza'] === 'alta') {
+                return $tipoPorPista;
+            }
+        }
+
+        return $this->detectarTipo($nombre, $folderPath);
     }
 
     /**
