@@ -529,11 +529,34 @@
                 return out;
             });
 
+            // ── "Mis prospectos" (Fase C) — prospectos CRM del vendedor (SOLO LECTURA, self-scoped por el backend) ──
+            const prospectosCargado = ref(false);
+            const cargandoProspectos = ref(false);
+            const prospectos = ref([]);
+            async function cargarProspectos() {
+                if (!colaborador.value) { cargandoProspectos.value = false; return; }
+                cargandoProspectos.value = true;
+                const r = await apiFetch('/talento/portal/prospectos');
+                if (r && r.ok && r.data) {
+                    prospectos.value = Array.isArray(r.data.prospectos) ? r.data.prospectos : [];
+                }
+                cargandoProspectos.value = false;
+                prospectosCargado.value = true;
+            }
+            function nombreProspecto(p) {
+                return [p.name, p.father_last_name, p.mother_last_name].filter(Boolean).join(' ') || 'Sin nombre';
+            }
+            function statusColor(status) {
+                const MAP = { Ganado: 'positive', Perdido: 'negative', Instalacion: 'teal-6', Interesado: 'indigo-6', Contactado: 'blue-6', Nuevo: 'grey-7' };
+                return MAP[status] || 'grey-7';
+            }
+
             // Cierra el detalle de OT al cambiar de tab; carga la sección al abrirla por primera vez.
             function onTabChange(val) {
                 cerrarDetalle();
                 if (val === 'dinero' && !dineroCargado.value) cargarDinero();
                 if (val === 'material' && !materialCargado.value) cargarMaterial();
+                if (val === 'prospectos' && !prospectosCargado.value) cargarProspectos();
             }
 
             // ── Sidebar componible (SP3a) — grupos derivados de CFG.sections (Actor::sections()) ──
@@ -559,6 +582,7 @@
                 dineroTab, cuenta, desglose, fondo, prestamos, cargandoDinero, cargarDinero, money, conceptoLabel, pctCuota, onTabChange,
                 enCustodia, pendientes, historial, cargandoMaterial, cargarMaterial,
                 resumenCustodia, enCustodiaPorCategoria, materialTab, materialEstadoTab, estadosMaterial,
+                prospectos, cargandoProspectos, cargarProspectos, nombreProspecto, statusColor,
                 asistencia, cargandoAsistencia, accionAsistencia, yaEntro, yaSalio, turnoAbierto,
                 ots, cargandoOts, otSeleccionada, detalle, cargandoDetalle, accionOt,
                 fmtHora, statusInfo,
@@ -1107,6 +1131,34 @@
                                     </q-tab-panel>
                                 </q-tab-panels>
                             </template>
+                        </template>
+                    </div>
+
+                    <!-- Mis prospectos (Fase C) — prospectos CRM del vendedor, SOLO LECTURA -->
+                    <div v-show="tab==='prospectos'" class="q-pa-md">
+                        <div v-if="cargandoProspectos" class="tp-empty">
+                            <q-spinner color="teal-6" size="2em" /><div class="text-caption q-mt-sm">Cargando…</div>
+                        </div>
+                        <template v-else>
+                            <div v-if="!prospectos.length" class="tp-empty">
+                                <q-icon name="groups" class="tp-empty-icon" />
+                                <div class="text-subtitle1">No tienes prospectos asignados</div>
+                            </div>
+                            <q-list v-else bordered separator class="tp-card">
+                                <q-item v-for="(p,i) in prospectos" :key="'pr'+i">
+                                    <q-item-section avatar><q-icon name="person" color="teal-6" /></q-item-section>
+                                    <q-item-section>
+                                        <q-item-label>{{ nombreProspecto(p) }}</q-item-label>
+                                        <q-item-label caption>
+                                            <span v-if="p.phone">{{ p.phone }}</span><span v-if="p.email"> · {{ p.email }}</span>
+                                        </q-item-label>
+                                        <q-item-label v-if="p.created_at" caption class="text-grey-6">Desde {{ p.created_at.slice(0,10) }}</q-item-label>
+                                    </q-item-section>
+                                    <q-item-section side top>
+                                        <q-badge :color="statusColor(p.crm_status)">{{ p.crm_status || 'Sin estado' }}</q-badge>
+                                    </q-item-section>
+                                </q-item>
+                            </q-list>
                         </template>
                     </div>
 

@@ -31,7 +31,7 @@ use Illuminate\Support\Facades\Response;
 class PortalTecnicoController extends Controller
 {
     /** Cache-busting de los assets estáticos del portal (subir al cambiar app.js/portal.css). */
-    private const ASSET_VER = '16';
+    private const ASSET_VER = '17';
 
     /** Shell del portal (SPA Quasar de una sola página con nav inferior). */
     public function index(Request $request)
@@ -815,6 +815,47 @@ JS;
             'historial'          => $historial,
             'nota_valor'         => 'El valor de reposición es informativo (costo de referencia del equipo). No es un adeudo ni se descuenta.',
             'solo_consulta'      => true,
+        ]);
+    }
+
+    /**
+     * Mis prospectos — prospectos CRM del colaborador vendedor (SOLO LECTURA, self-scoped por Actor).
+     *
+     * Reusa el backend de Vendedores/CRM (crm_lead_information.owner_id = sellers.id), sin duplicar
+     * tablas ni reimplementar el almacenamiento (política de servicios únicos del sistema). El
+     * seller_id sale del Actor (currentActor->seller()->id), JAMÁS de un {id} de URL → IDOR cerrado
+     * (a diferencia de ProspectController::getById($id) en Vendedores, que sí lo recibe de la URL).
+     */
+    public function prospectos(Request $request)
+    {
+        $seller = $this->currentActor($request)->seller();
+        if (! $seller) return response()->json(['error' => 'Sin perfil de vendedor.'], 403);
+
+        $prospectos = DB::table('crm_main_information')
+            ->join('crm_lead_information', 'crm_main_information.crm_id', '=', 'crm_lead_information.crm_id')
+            ->where('crm_lead_information.owner_id', $seller->id)
+            ->select(
+                'crm_main_information.crm_id',
+                'crm_main_information.name',
+                'crm_main_information.father_last_name',
+                'crm_main_information.mother_last_name',
+                'crm_main_information.email',
+                'crm_main_information.phone',
+                'crm_main_information.phone2',
+                'crm_main_information.address',
+                'crm_lead_information.crm_status',
+                'crm_lead_information.score',
+                'crm_lead_information.source',
+                'crm_lead_information.last_contacted',
+                'crm_lead_information.instalation_date',
+                'crm_lead_information.created_at'
+            )
+            ->orderByDesc('crm_lead_information.created_at')
+            ->get();
+
+        return response()->json([
+            'prospectos'    => $prospectos,
+            'solo_consulta' => true,
         ]);
     }
 

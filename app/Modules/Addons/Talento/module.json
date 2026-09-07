@@ -144,6 +144,7 @@
         { "method": "GET",  "path": "/talento/portal/dinero/fondo",                     "description": "Fondo de ahorro forzoso del colaborador (portal web, solo lectura)", "permission": "portal.colaborador" },
         { "method": "GET",  "path": "/talento/portal/dinero/prestamos",                 "description": "Préstamos del colaborador (portal web, solo lectura)",  "permission": "portal.colaborador" },
         { "method": "GET",  "path": "/talento/portal/material",                        "description": "Material en custodia del colaborador (portal web, solo lectura)", "permission": "portal.colaborador" },
+        { "method": "GET",  "path": "/talento/portal/prospectos",                      "description": "Prospectos CRM del colaborador vendedor (portal web, solo lectura)", "permission": "portal.colaborador" },
         { "method": "GET",  "path": "/talento/portal/ot/{origen}/{id}",                 "description": "Detalle de una OT/tarea de campo (portal web)",          "permission": "portal.colaborador" },
         { "method": "POST", "path": "/talento/portal/ot/{origen}/{id}/iniciar",         "description": "Inicia una OT/tarea de campo (portal web)",              "permission": "portal.colaborador" },
         { "method": "POST", "path": "/talento/portal/ot/{origen}/{id}/completar",       "description": "Completa una OT/tarea de campo (portal web)",            "permission": "portal.colaborador" },
