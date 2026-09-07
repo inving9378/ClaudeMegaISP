@@ -395,7 +395,7 @@ import "leaflet-groupedlayercontrol";
 import tokml from "@maphubs/tokml";
 import { jsPDF } from "jspdf";
 
-import { distance, length } from "@turf/turf";
+import { distance, length, sector as turfSector } from "@turf/turf";
 
 import ProjectsComponent from "./components/ProjectsComponent.vue";
 import KMZComponent from "./components/KMZComponent.vue";
@@ -427,6 +427,7 @@ import { getClientsWithoutProject, getMapRenderConfig, saveObject } from "./help
 import { getOcupacionLote, getSaludLote } from "./helper/naps-request";
 import { getTrazoEnlace } from "./helper/enlaces-request";
 import { getCoberturaCapa } from "./helper/cobertura-request";
+import { getSectoresCapa } from "./helper/sectores-request";
 import { getTiposSplitter, crearNapRapida } from "./helper/nap-alta-request";
 
 import Swal from "sweetalert2";
@@ -499,6 +500,9 @@ let snapLinePreview = null;
 // MR-26 Fase 4 (item roadmap #9990525): capa de cobertura comercial en vivo (Fase 1, #9990522),
 // independiente de `drawnItems` (no es un objeto de BD con `dialog`, se recalcula en cada fetch).
 let coberturaLayer = null;
+// MR-26 Fase 4b (item roadmap #9990527): capa "Sectores" (torres/AP sectorizados, #9990524),
+// mismo criterio que coberturaLayer — geometría calculada en el cliente, no un dialog de BD.
+let sectoresLayer = null;
 const projects = ref([]);
 let searchLayers = null;
 let clientsLayers = null;
@@ -569,6 +573,9 @@ const CAPAS_MAPA_RED = [
     // genéricos importados de KMZ, sin relación con cobertura — 0 filas reales lo usaban así).
     // Cobertura ahora es una capa calculada en vivo (GeoJSON propio, ver cargarCapaCobertura()).
     { key: "cobertura", label: "Cobertura", icon: "mdi-vector-polygon", dialogs: [] },
+    // MR-26 Fase 4b (#9990527): sectores inalámbricos (#9990524) — capa calculada en vivo,
+    // igual que cobertura (sin dialog propio en mapared_layers).
+    { key: "sectores", label: "Sectores", icon: "mdi-cone", dialogs: [] },
 ];
 
 const CAPA_ZOOM_MIN = { drops: 16, clientes: 17 };
@@ -594,6 +601,7 @@ const capasEncendidas = reactive({
     clientes: false,
     postes: false,
     cobertura: false,
+    sectores: false,
 });
 
 const capaVisiblePorEstado = (capaKey) => {
@@ -684,6 +692,69 @@ watch(
             cargarCapaCobertura();
         } else if (coberturaLayer) {
             coberturaLayer.clearLayers();
+        }
+    }
+);
+
+// MR-26 Fase 4b (item roadmap #9990527) — capa "Sectores" en vivo (backend #9990524). El
+// endpoint devuelve un Feature Point por sector (lat/lng + azimut/apertura/alcance/altura);
+// aquí se aproxima cada uno a un cono/triángulo con turf.sector (sin física de RF, solo
+// geometría — mismo criterio "aproximación visual" que usó MapaRedCoberturaService en Fase 1).
+// Igual que cobertura: se refetch cada vez que se enciende el toggle, no se cachea.
+const cargarCapaSectores = async () => {
+    if (!sectoresLayer) {
+        return;
+    }
+    sectoresLayer.clearLayers();
+    const geojson = await getSectoresCapa();
+    if (!geojson || !Array.isArray(geojson.features)) {
+        return;
+    }
+    geojson.features.forEach((feature) => {
+        const [lng, lat] = feature.geometry?.coordinates ?? [];
+        const {
+            nombre,
+            azimut_grados,
+            apertura_grados,
+            alcance_metros,
+            altura_metros,
+        } = feature.properties ?? {};
+        if (lat == null || lng == null || !alcance_metros) {
+            return;
+        }
+        const azimut = azimut_grados ?? 0;
+        const apertura = apertura_grados ?? 360;
+        const cono = turfSector(
+            [lng, lat],
+            alcance_metros,
+            azimut - apertura / 2,
+            azimut + apertura / 2,
+            { units: "meters" }
+        );
+        L.geoJSON(cono, {
+            style: {
+                color: "#aa00ff",
+                weight: 1,
+                fillColor: "#aa00ff",
+                fillOpacity: 0.2,
+            },
+        })
+            .bindPopup(
+                `<b>${nombre ?? "Sector"}</b><br>Azimut: ${azimut}°<br>Apertura: ${apertura}°<br>Alcance: ${alcance_metros} m${
+                    altura_metros ? `<br>Altura: ${altura_metros} m` : ""
+                }`
+            )
+            .addTo(sectoresLayer);
+    });
+};
+
+watch(
+    () => capasEncendidas.sectores,
+    (encendida) => {
+        if (encendida) {
+            cargarCapaSectores();
+        } else if (sectoresLayer) {
+            sectoresLayer.clearLayers();
         }
     }
 );
@@ -855,6 +926,13 @@ const initMap = async () => {
     coberturaLayer = L.layerGroup().addTo(map);
     if (capasEncendidas.cobertura) {
         cargarCapaCobertura();
+    }
+
+    // MR-26 Fase 4b (#9990527): capa de sectores inalámbricos, mismo criterio que cobertura
+    // (controlada por el checkbox propio del panel "Capas", no por el control nativo de Leaflet).
+    sectoresLayer = L.layerGroup().addTo(map);
+    if (capasEncendidas.sectores) {
+        cargarCapaSectores();
     }
 
     L.control
