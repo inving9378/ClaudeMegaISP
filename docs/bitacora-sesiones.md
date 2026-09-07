@@ -4205,3 +4205,21 @@ Detalle completo con evidencia archivo:línea en
 anexado a CLAUDE.md. Este veredicto condiciona a #9990448/#9990449/#9990450 (vistas en Talento)
 y #9990453 (análisis de migración de comisiones). Sin cambio de código — solo investigación y
 reporte, tal como pedía el spec del item.
+
+## 2026-09-07 16:45 — MR-16 Fase 2b — Verificar DoD con enlace real de Tultitlán (item #9990496, wt-2)
+
+Dependencia (Fase 2a, #9990495 — botón "Trazar ruta a OLT" + capa Leaflet) confirmada mergeada a
+main (commit 9fe6cfd3 / integrada vía 609c50d7). Al buscar un enlace real de Tultitlán para probar
+el endpoint `GET /mapa-red/api/enlaces-servicio/{id}/trazo`, se confirma que `mapared_enlaces_servicio`
+está en **0 filas en dev** — no solo sin datos de Tultitlán, sin ningún enlace de ninguna zona. Se
+rastreó la causa un nivel más abajo de lo que documentaba `docs/mapared-comparativa-item-963-verificacion.md`
+(agosto): aunque MR-05 (#941, espejo legado) y MR-15 (#951, comando de backfill) están marcados
+`completado`, el backfill real (`mapared:backfill`, sin --dry-run) nunca se ejecutó contra la BD de
+dev — `mapared_puertos`/`mapared_hilos` siguen en 0, y sin `puerto_nap_id` real no se puede crear
+ni un enlace de prueba (y el item lo prohíbe: solo lectura). Un `--dry-run` (100% de solo lectura)
+confirma que, de correrse, Tultitlán solo llegaría a 50% de cobertura de puertos (5 de 10 cajas).
+Item cerrado documentando el hallazgo — mismo patrón que #963: DoD de MR-16 (#952) sigue sin poder
+verificarse con datos reales hasta que alguien decida correr el backfill real + dar de alta un
+enlace real de Tultitlán vía la UI. Detalle completo en
+`docs/mapared-mr16-fase2b-item-9990496-verificacion.md`. Sin cambio de código — investigación
+read-only, tal como pedía el spec.
