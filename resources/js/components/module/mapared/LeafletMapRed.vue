@@ -402,6 +402,7 @@ import {
     objectProperties,
     excludesProperties,
     titleLayers,
+    currentMarker,
 } from "./helper/mapUtils";
 
 import Permission from "../../../helpers/Permission";
@@ -418,6 +419,7 @@ import {
     currentNode,
     getNodeByKey,
     tickedNodes,
+    selectedNodeId,
 } from "../../../composables/useNodeMap";
 import JSZip from "jszip";
 
@@ -650,6 +652,14 @@ watch(drawLayer, (n) => {
                   ...objectCurrentType.value,
               }
             : null;
+});
+
+// MR-22 Fase 3a (item roadmap #9990515): `currentMarker` (mapUtils.js) ya se actualiza en
+// cada click sobre una capa del mapa (createLayerFromObject) — aquí solo se deriva el id
+// (campo `key`) del nodo seleccionado, para que deriveThreeLevelTree() y el panel lateral de
+// la siguiente fase lo consuman sin depender del objeto completo de la capa.
+watch(currentMarker, (marker) => {
+    selectedNodeId.value = marker?.key ?? null;
 });
 
 watch(addInSerie, (n) => {
