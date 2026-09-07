@@ -377,7 +377,7 @@ import JunctionBoxConfiguration from "./components/configuration/JunctionBoxConf
 import { darkMode } from "../../../hook/appConfig";
 
 import { getClientsWithoutProject, getMapRenderConfig, saveObject } from "./helper/request";
-import { getOcupacionLote } from "./helper/naps-request";
+import { getOcupacionLote, getSaludLote } from "./helper/naps-request";
 
 import Swal from "sweetalert2";
 import {
@@ -998,6 +998,31 @@ const initMap = async () => {
         ],
     }).addTo(map);
 
+    // MR-21 (item #957/#9990489) — toggle de vista: ocupación (D16, default) vs. salud (D17).
+    // Decide qué semáforo colorea el ícono; ambos datos conviven en el tooltip.
+    L.easyButton({
+        states: [
+            {
+                stateName: "vista-ocupacion",
+                icon: "fa-signal",
+                title: "Ver salud de NAPs",
+                onClick: function (btn) {
+                    toggleVistaSemaforoNap("salud");
+                    btn.state("vista-salud");
+                },
+            },
+            {
+                stateName: "vista-salud",
+                icon: "fa-heartbeat",
+                title: "Ver ocupación de NAPs",
+                onClick: function (btn) {
+                    toggleVistaSemaforoNap("ocupacion");
+                    btn.state("vista-ocupacion");
+                },
+            },
+        ],
+    }).addTo(map);
+
     map.on("click", async function (e) {
         if (addInSerie.value) {
             let { color, data, icon_color, project_id, type, start } =
@@ -1329,6 +1354,16 @@ const ocupacionSemaforoColor = {
     rojo: "red",
 };
 
+// MR-21 (item #957/#9990489) — semáforo de salud por NAP (D17). Paleta distinta a la de
+// ocupación para no chocar visualmente entre ambos modos del toggle.
+const vistaSemaforoNap = ref("ocupacion");
+const saludSemaforoColor = {
+    verde: "green",
+    amarillo: "beige",
+    rojo: "red",
+    gris: "gray",
+};
+
 const aplicarFiltroACapa = (layer) => {
     if (layer.properties?.dialog !== "service_box" || typeof layer.setOpacity !== "function") {
         return;
@@ -1347,28 +1382,72 @@ const toggleFiltroPuertosLibres = (activo) => {
     drawnItems.eachLayer((layer) => aplicarFiltroACapa(layer));
 };
 
-// Color del marcador según la escala D16 + tooltip "usados/totales (%)" (decisión q3: hover mínimo).
-const aplicarSemaforoOcupacion = (layer, ocupacion) => {
-    if (!layer || !ocupacion || layer.properties?.dialog !== "service_box") {
+// MR-21 (item #957/#9990489) — el ÍCONO sigue el toggle vistaSemaforoNap (ocupación D16 vs.
+// salud D17); si falta el dato del modo activo, no se toca el ícono (fallback sin cambio).
+const aplicarColorMarcador = (layer) => {
+    if (!layer || layer.properties?.dialog !== "service_box" || typeof layer.setIcon !== "function") {
+        return;
+    }
+    if (layer.properties.type !== "marker") {
+        return;
+    }
+    const dato =
+        vistaSemaforoNap.value === "salud" ? layer.properties.salud : layer.properties.ocupacion;
+    if (!dato) {
+        return;
+    }
+    const paleta = vistaSemaforoNap.value === "salud" ? saludSemaforoColor : ocupacionSemaforoColor;
+    layer.setIcon(
+        L.AwesomeMarkers.icon({
+            icon: layer.properties.icon,
+            markerColor: paleta[dato.semaforo] ?? "gray",
+            iconColor: layer.properties.icon_color ?? "#FFFFFF",
+            prefix: "mdi",
+        })
+    );
+};
+
+// Concatena ambos datos (ocupación + salud) en el tooltip informativamente; solo el ÍCONO
+// sigue el toggle.
+const actualizarTooltip = (layer) => {
+    if (!layer || layer.properties?.dialog !== "service_box") {
         return;
     }
     if (!layer.properties.text_node_base) {
         layer.properties.text_node_base = layer.properties.text_node;
     }
-    layer.properties.ocupacion = ocupacion;
-    if (layer.properties.type === "marker" && typeof layer.setIcon === "function") {
-        layer.setIcon(
-            L.AwesomeMarkers.icon({
-                icon: layer.properties.icon,
-                markerColor: ocupacionSemaforoColor[ocupacion.semaforo] ?? "gray",
-                iconColor: layer.properties.icon_color ?? "#FFFFFF",
-                prefix: "mdi",
-            })
-        );
+    let texto = layer.properties.text_node_base;
+    const ocupacion = layer.properties.ocupacion;
+    if (ocupacion) {
+        texto += ` · ${ocupacion.puertos_usados}/${ocupacion.puertos_totales} puertos (${ocupacion.porcentaje}%)`;
     }
-    layer.properties.text_node = `${layer.properties.text_node_base} · ${ocupacion.puertos_usados}/${ocupacion.puertos_totales} puertos (${ocupacion.porcentaje}%)`;
+    const salud = layer.properties.salud;
+    if (salud) {
+        texto += ` · salud: ${salud.semaforo} (${salud.total_onus} ONUs)`;
+    }
+    layer.properties.text_node = texto;
     layer.bindTooltip(layer.properties.text_node);
+};
+
+// Color del marcador según la escala D16 + tooltip "usados/totales (%)" (decisión q3: hover mínimo).
+const aplicarSemaforoOcupacion = (layer, ocupacion) => {
+    if (!layer || !ocupacion || layer.properties?.dialog !== "service_box") {
+        return;
+    }
+    layer.properties.ocupacion = ocupacion;
+    aplicarColorMarcador(layer);
+    actualizarTooltip(layer);
     aplicarFiltroACapa(layer);
+};
+
+// Simétrica a aplicarSemaforoOcupacion, para el semáforo de salud D17.
+const aplicarSemaforoSalud = (layer, salud) => {
+    if (!layer || !salud || layer.properties?.dialog !== "service_box") {
+        return;
+    }
+    layer.properties.salud = salud;
+    aplicarColorMarcador(layer);
+    actualizarTooltip(layer);
 };
 
 // Lote (decisión q1): una sola llamada por tanda de `drawLayers`, no una por marcador.
@@ -1389,6 +1468,32 @@ const aplicarOcupacionNaps = async (nodes) => {
             aplicarSemaforoOcupacion(layer, ocupacionPorId[id]);
         }
     });
+};
+
+// Simétrica a aplicarOcupacionNaps: una sola llamada por tanda de `drawLayers` (D17).
+const aplicarSaludNaps = async (nodes) => {
+    const napIds = nodes
+        .filter((o) => o.dialog === "service_box" && o.id != null)
+        .map((o) => o.id);
+    if (napIds.length === 0) {
+        return;
+    }
+    const saludPorId = await getSaludLote(MAPA_RED_LAYER_MODEL, napIds);
+    if (!saludPorId) {
+        return;
+    }
+    napIds.forEach((id) => {
+        const layer = getLayerByKeyProperty(`layer-${id}`);
+        if (layer && saludPorId[id]) {
+            aplicarSemaforoSalud(layer, saludPorId[id]);
+        }
+    });
+};
+
+// Repinta los íconos ya cargados con el dato ya cacheado (sin nueva request de red).
+const toggleVistaSemaforoNap = (vista) => {
+    vistaSemaforoNap.value = vista;
+    drawnItems.eachLayer((layer) => aplicarColorMarcador(layer));
 };
 
 const drawLayers = (selectedLayers, noSelectedLayers = []) => {
@@ -1425,6 +1530,7 @@ const drawLayers = (selectedLayers, noSelectedLayers = []) => {
         });
     }).then(() => {
         aplicarOcupacionNaps(selectedLayers);
+        aplicarSaludNaps(selectedLayers);
     });
     noSelectedLayers.forEach((key) => {
         removeLayerByKey(key);
