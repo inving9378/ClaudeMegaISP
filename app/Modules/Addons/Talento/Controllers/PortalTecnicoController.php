@@ -821,10 +821,11 @@ JS;
     /**
      * Mis prospectos — prospectos CRM del colaborador vendedor (SOLO LECTURA, self-scoped por Actor).
      *
-     * Reusa el backend de Vendedores/CRM (crm_lead_information.owner_id = sellers.id), sin duplicar
-     * tablas ni reimplementar el almacenamiento (política de servicios únicos del sistema). El
-     * seller_id sale del Actor (currentActor->seller()->id), JAMÁS de un {id} de URL → IDOR cerrado
-     * (a diferencia de ProspectController::getById($id) en Vendedores, que sí lo recibe de la URL).
+     * Reusa el backend de Vendedores/CRM (crm_lead_information.owner_id = users.id, NO sellers.id —
+     * mismo criterio que TalentoVentasController y Seller::getSales()), sin duplicar tablas ni
+     * reimplementar el almacenamiento (política de servicios únicos del sistema). El user_id sale
+     * del Actor (currentActor->seller()->user_id), JAMÁS de un {id} de URL → IDOR cerrado (a
+     * diferencia de ProspectController::getById($id) en Vendedores, que sí lo recibe de la URL).
      */
     public function prospectos(Request $request)
     {
@@ -833,7 +834,7 @@ JS;
 
         $prospectos = DB::table('crm_main_information')
             ->join('crm_lead_information', 'crm_main_information.crm_id', '=', 'crm_lead_information.crm_id')
-            ->where('crm_lead_information.owner_id', $seller->id)
+            ->where('crm_lead_information.owner_id', $seller->user_id)
             ->select(
                 'crm_main_information.crm_id',
                 'crm_main_information.name',
