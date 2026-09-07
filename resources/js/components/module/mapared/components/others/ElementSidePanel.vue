@@ -123,13 +123,27 @@
                                     @click="toggleEnlace(enlace.id)"
                                 >
                                     <span>{{ enlace.cliente_nombre }}</span>
-                                    <q-icon
-                                        :name="
-                                            enlaceAbierto === enlace.id
-                                                ? 'expand_less'
-                                                : 'expand_more'
-                                        "
-                                    />
+                                    <div class="element-side-panel__enlace-actions">
+                                        <q-btn
+                                            flat
+                                            dense
+                                            round
+                                            size="sm"
+                                            icon="route"
+                                            color="primary"
+                                            title="Trazar ruta a OLT"
+                                            @click.stop="
+                                                $emit('trazar-ruta', enlace.id)
+                                            "
+                                        />
+                                        <q-icon
+                                            :name="
+                                                enlaceAbierto === enlace.id
+                                                    ? 'expand_less'
+                                                    : 'expand_more'
+                                            "
+                                        />
+                                    </div>
                                 </div>
                                 <OpticalBudgetPanel
                                     v-if="enlaceAbierto === enlace.id"
@@ -256,7 +270,7 @@ watch(
     { immediate: true }
 );
 
-defineEmits(["edit", "delete", "show-on-map"]);
+defineEmits(["edit", "delete", "show-on-map", "trazar-ruta"]);
 
 const DIALOG_LABELS = {
     folder: "Carpeta",
@@ -381,6 +395,12 @@ const close = () => closeElementSidePanel();
     padding: 6px 0;
     cursor: pointer;
     font-size: 13px;
+}
+
+.element-side-panel__enlace-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
 }
 
 .element-side-panel__actions {
