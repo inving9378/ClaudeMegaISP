@@ -194,6 +194,7 @@ import TalentoEvidenciaConfig from "./components/module/talento/TalentoEvidencia
 import TalentoPaqueteDocumentos from "./components/module/talento/TalentoPaqueteDocumentos.vue";
 import TalentoPuestos from "./components/module/talento/TalentoPuestos.vue";
 import TalentoExpedienteDocumentos from "./components/module/talento/TalentoExpedienteDocumentos.vue";
+import TalentoArticulosVendedor from "./components/module/talento/TalentoArticulosVendedor.vue";
 
 //Mapas
 import GoogleMap from "./components/base/googlemap/GoogleMap";
@@ -650,6 +651,7 @@ const app = createApp({
         'talento-evidencia-config': TalentoEvidenciaConfig,
         'talento-paquete-documentos': TalentoPaqueteDocumentos,
         'talento-puestos': TalentoPuestos,
+        'talento-articulos-vendedor': TalentoArticulosVendedor,
         ImportListar,
         ImportCrud,
         ServiceInAddressListListar,
