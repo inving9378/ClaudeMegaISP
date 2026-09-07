@@ -72,6 +72,12 @@ return new class extends Migration
             }
         });
 
+        // `perdida_db` nació NOT NULL (MR-13, solo balanceados). D14 (desbalanceados) la deja en
+        // null (usa perdida_paso_db/perdida_derivacion_db en su lugar) -> la columna debe admitirlo.
+        Schema::table('mapared_tipo_splitter', function (Blueprint $table) {
+            $table->decimal('perdida_db', 5, 2)->nullable()->change();
+        });
+
         $ahora = now();
 
         // D15 — atenuación de fibra por ventana óptica (dB/km), mismos valores que
@@ -126,6 +132,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        // Quita las filas D14 (desbalanceadas) sembradas por esta migración antes de tirar las
+        // columnas que las describen, para no dejar splitters huérfanos sin perdida_db/paso/derivación.
+        DB::table('mapared_tipo_splitter')->where('balanceado', false)->delete();
+
         Schema::table('mapared_tipo_splitter', function (Blueprint $table) {
             if (Schema::hasColumn('mapared_tipo_splitter', 'perdida_derivacion_db')) {
                 $table->dropColumn('perdida_derivacion_db');
@@ -136,6 +146,10 @@ return new class extends Migration
             if (Schema::hasColumn('mapared_tipo_splitter', 'tipo_conector_id')) {
                 $table->dropColumn('tipo_conector_id');
             }
+        });
+
+        Schema::table('mapared_tipo_splitter', function (Blueprint $table) {
+            $table->decimal('perdida_db', 5, 2)->nullable(false)->change();
         });
 
         Schema::dropIfExists('mapared_tipo_caja');
