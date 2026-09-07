@@ -39,10 +39,10 @@ Reset Password
                                     <input type="hidden" name="token" value="{{ $token }}">
 
                                     <div class="form-group">
-                                        <label for="email">{{ __('E-Mail Address') }}</label>
-                                        <input id="email" type="email" class="form-control @error('email') is-invalid @enderror" name="email" value="{{ $email ?? old('email') }}" required autocomplete="email" autofocus>
+                                        <label for="login_user">{{ __('Usuario') }}</label>
+                                        <input id="login_user" type="text" class="form-control @error('login_user') is-invalid @enderror" name="login_user" value="{{ $login_user ?? old('login_user') }}" required autocomplete="username" autofocus placeholder="Ingrese su usuario">
 
-                                        @error('email')
+                                        @error('login_user')
                                             <span class="invalid-feedback" role="alert">
                                                 <strong>{{ $message }}</strong>
                                             </span>
