@@ -33,6 +33,12 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
         Route::prefix('api')->group(function () {
             Route::get('/tablero', [ExpedienteController::class, 'tablero'])->name('tablero');
+
+            // Acuse de avance en PDF con corte a fecha (item #9990551, sub-item de
+            // #9990531) — declarada ANTES de '/apartado/{clave}' por si algún día
+            // se agrupa bajo ese prefijo; hoy no colisiona (segmentos distintos).
+            Route::get('/tablero/exportar', [ExpedienteController::class, 'exportarAvance'])->name('tablero.exportar');
+
             Route::get('/apartado/{clave}', [ExpedienteController::class, 'apartado'])->name('apartado');
 
             // Exportación agregada por apartado (Fase 1.5a, item #785) — PDF/Excel
