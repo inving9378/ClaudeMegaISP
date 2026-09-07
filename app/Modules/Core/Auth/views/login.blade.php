@@ -27,6 +27,11 @@ Login
                                         <h5 class="mb-0">Bienvenido!</h5>
                                         <p class="text-muted mt-2">Inicie sesión en Meganet..</p>
                                     </div>
+                                    @if(session('status'))
+                                        <div class="alert alert-success mt-3" role="alert">
+                                            {{ session('status') }}
+                                        </div>
+                                    @endif
                                     <form method="POST" class="mt-4 pt-2" action="{{ route('login') }}"
                                         id="login-form"
                                         onsubmit="event.preventDefault(); window.__submitFormWithFreshCsrf ? window.__submitFormWithFreshCsrf('login-form', '/csrf-refresh') : this.submit();">
