@@ -4223,3 +4223,20 @@ verificarse con datos reales hasta que alguien decida correr el backfill real + 
 enlace real de Tultitlán vía la UI. Detalle completo en
 `docs/mapared-mr16-fase2b-item-9990496-verificacion.md`. Sin cambio de código — investigación
 read-only, tal como pedía el spec.
+
+## 2026-09-07 10:56 — Item #9990408 — MR-12 UI panel de unión de hilos (bucle reap sobre paraguas, cierre-intento faltante)
+
+Mismo patrón recurrente documentado en CLAUDE.md (#738/#745/#830/#816/#818/#848/#852/#905/#878/
+#906/#907/#924/#9990012/#917/#910/#936): item ya descompuesto correctamente por una vuelta previa
+(#9990501 Fase A backend, completado; #9990502 Fase B frontend, ella misma paraguas de #9990520
+y #9990521) que nunca llegó a intentar el cierre final. Variante nueva sobre lo ya visto: el
+cierre-intento SÍ se hizo bien en su momento (paraguas correctamente parqueado), pero 8 minutos
+después `jarvis-ya-decidido` procesó un brief pendiente del propio item y el scheduler limpió
+`excluir_pool_automatico` al despachar, devolviéndolo al pool sin trabajo propio. Verificado el
+árbol completo: #9990520 (Fase B1, EmpalmeConfigDialog.vue + Mufa/NAP) cerró y mergeó durante esta
+misma vuelta; #9990521 (Fase B2, enganche en Rack/RackConfiguration.vue) sigue aprobado_revisor sin
+reclamar — única pieza real pendiente. Se ejecutó el intento de cierre faltante sobre #9990408; el
+guard de paraguas lo reenrutó a aprobado_irving + excluir_pool_automatico=true, sacándolo del
+pool/reaper hasta que #9990502 (y transitivamente #9990521) cierren. Detalle completo en
+`docs/roadmap-bucle-reap-item-9990408-verificacion.md`. Sin cambio de código de negocio — el
+trabajo real de UI sigue en #9990521.

@@ -1961,3 +1961,30 @@ patrón que `#963`, reconfirmado sin cambios el 2026-09-07); el DoD de MR-16 (`#
 real + dé de alta un enlace real vía la UI existente. Detalle completo en
 `docs/mapared-mr16-fase2b-item-9990496-verificacion.md`. **Sin cambio de código** — investigación
 read-only, tal como pedía el spec.
+
+## Item #9990408 — MR-12 UI panel de unión de hilos — bucle reap sobre paraguas ya descompuesto, con re-apertura espuria del guard (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/#936,
+con una variante nueva. Una vuelta previa (2026-09-07 10:43-10:44) ya descompuso correctamente el
+trabajo en **#9990501** (Fase A: `EmpalmesController`+rutas, backend) y **#9990502** (Fase B: doble
+clic + modal Quasar en `LeafletMapRed.vue`, frontend), y también mergeó a la propia rama de
+`#9990408` los componentes UI compartidos (`ElementSidePanel.vue`+`EmpalmesPanel.vue`+
+`helper/empalmes-request.js`, commit `e5d2c8b4`) antes de repartir el resto. Esa vuelta **sí**
+intentó el cierre — el guard de paraguas lo parqueó bien (`aprobado_irving`+
+`excluir_pool_automatico=true`). La variante: 8 minutos después, `jarvis-ya-decidido` procesó un
+brief pendiente del propio item ("la decisión ya estaba tomada y el item seguía retenido sin que
+faltara nadie") y lo devolvió a `aprobado_revisor`; el scheduler, al despachar, **limpió
+`excluir_pool_automatico`** (log índice 226) — sacándolo de su parqueo correcto y devolviéndolo al
+pool sin que hubiera trabajo propio pendiente. A diferencia de los precedentes (donde el
+cierre-intento simplemente nunca se hacía), aquí sí se hizo bien y otro mecanismo lo deshizo; se
+deja anotado como observación para quien investigue la maquinaria del circuito, sin tomarlo como
+objeto de este item (fuera de alcance de "MR-12 UI panel de unión de hilos"). Verificado en esta
+vuelta: `#9990502` sigue paraguas de sus propios hijos — `#9990520` (Fase B1: `EmpalmeConfigDialog.vue`
++ enganche en Mufa/NAP) cerró y mergeó **durante esta misma vuelta** (commit `bf860bb5`); `#9990521`
+(Fase B2: enganche en Rack/`RackConfiguration.vue`) sigue `aprobado_revisor` sin reclamar — es la
+única pieza real pendiente. Corrección: esta vuelta ejecuta el intento de cierre faltante; el guard
+(`RoadmapItem.php` bloque "(2b) PARAGUAS") lo reenruta a `aprobado_irving` +
+`excluir_pool_automatico=true`, sacándolo del pool/reaper hasta que el hook de cierre en cascada
+(`RoadmapItem.php:459-491`) lo complete solo cuando `#9990502` cierre (que a su vez depende de
+`#9990521`). Detalle en `docs/roadmap-bucle-reap-item-9990408-verificacion.md`. **Sin cambio de
+código de negocio** — el trabajo real de UI (Rack) sigue en `#9990521`, listo para reclamarse.
