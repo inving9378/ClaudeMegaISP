@@ -22,6 +22,12 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
     ->get('/mapa-red', [MapaRedController::class, 'index'])
     ->name('mapa-red.index');
 
+// MR-19 Fase 1 (item #9990565) — export PDF de la carta de empalme, fuera del prefix api
+// porque sirve el binario directo (download), no JSON.
+Route::middleware(['web', 'auth', 'check_route_permission'])
+    ->get('/mapa-red/empalmes/carta-pdf', [EmpalmesController::class, 'cartaPdf'])
+    ->name('mapa-red.empalmes.carta-pdf');
+
 /*
  * MR-06a-2 (item #9990334) — port de ConnectionsController + DevicesController al
  * namespace MapaRed, apuntando a los modelos mapared_* (NO a los legacy map_*).
@@ -143,6 +149,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     Route::get('/empalmes/existentes', [EmpalmesController::class, 'existentes'])->name('mapa-red.api.empalmes.existentes');
     Route::post('/empalmes', [EmpalmesController::class, 'store'])->name('mapa-red.api.empalmes.store');
     Route::delete('/empalmes/{id}', [EmpalmesController::class, 'destroy'])->name('mapa-red.api.empalmes.destroy');
+
+    // MR-19 Fase 1 (item #9990565) — carta de empalme (JSON agrupado por bandeja).
+    Route::get('/empalmes/carta', [EmpalmesController::class, 'carta'])->name('mapa-red.api.empalmes.carta');
 
     // MR-24d bis (item #9990546) — alta rápida de NAP (zona+nombre+snap automáticos).
     Route::post('/elementos/nap', [NapAltaRapidaController::class, 'store'])->name('mapa-red.api.elementos.nap');
