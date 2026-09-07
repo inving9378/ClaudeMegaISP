@@ -2,6 +2,7 @@
 
 use App\Modules\Addons\MapaRed\Controllers\ConnectionsController;
 use App\Modules\Addons\MapaRed\Controllers\DevicesController;
+use App\Modules\Addons\MapaRed\Controllers\EmpalmesController;
 use App\Modules\Addons\MapaRed\Controllers\EnlacesServicioController;
 use App\Modules\Addons\MapaRed\Controllers\HilosController;
 use App\Modules\Addons\MapaRed\Controllers\ImportadorController;
@@ -130,4 +131,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     // auto-detección de columnas (lat/lng/nombre/tipo).
     Route::post('/import/csv/preview', [ImportadorController::class, 'previsualizarCsv'])->name('mapa-red.api.import.csv.preview');
     Route::post('/import/csv/commit', [ImportadorController::class, 'confirmarCsv'])->name('mapa-red.api.import.csv.commit');
+
+    // MR-12 Fase A (item #9990501) — panel de unión de hilos: disponibles/existentes/store/destroy.
+    Route::get('/empalmes/disponibles', [EmpalmesController::class, 'disponibles'])->name('mapa-red.api.empalmes.disponibles');
+    Route::get('/empalmes/existentes', [EmpalmesController::class, 'existentes'])->name('mapa-red.api.empalmes.existentes');
+    Route::post('/empalmes', [EmpalmesController::class, 'store'])->name('mapa-red.api.empalmes.store');
+    Route::delete('/empalmes/{id}', [EmpalmesController::class, 'destroy'])->name('mapa-red.api.empalmes.destroy');
 });
