@@ -54,3 +54,34 @@ export const eliminarEmpalme = async (id) => {
         };
     }
 };
+
+// MR-19 Fase 2 (item roadmap #9990566). Consume el endpoint de carta agrupada de la Fase 1
+// (item #9990565, GET /mapa-red/api/empalmes/carta) — mismo patrón de query params que existentes().
+export const getCartaEmpalme = async (elementoContenedorType, elementoContenedorId) => {
+    let data = null;
+    await axios
+        .get(`/mapa-red/api/empalmes/carta`, {
+            params: {
+                elemento_contenedor_type: elementoContenedorType,
+                elemento_contenedor_id: elementoContenedorId,
+            },
+        })
+        .then((response) => {
+            data = response.data;
+        })
+        .catch((e) => {
+            data = null;
+        });
+    return data;
+};
+
+// URL del PDF (Fase 1, decisión libre de la fase backend): misma convención de query string que
+// el resto de los endpoints de empalmes para no pelear con el nombre completo de la clase PHP
+// (con backslashes) en un segmento de ruta.
+export const cartaEmpalmePdfUrl = (elementoContenedorType, elementoContenedorId) => {
+    const params = new URLSearchParams({
+        elemento_contenedor_type: elementoContenedorType,
+        elemento_contenedor_id: elementoContenedorId,
+    });
+    return `/mapa-red/empalmes/carta-pdf?${params.toString()}`;
+};
