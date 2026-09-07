@@ -166,7 +166,7 @@ table.dataTable.table-striped>tbody>tr.even>* {
  * Cubre: Bootstrap .badge (.bg-*), badges de vendedor (.badge-*), factura
  * (.badge-invoice-). Los fondos de fila (.client- y tr. de estado) NO se tocan.
  * ========================================================================== */
-[data-layout-mode="dark"] .badge,
+[data-layout-mode="dark"] .badge:not(.hdr-badge),
 [data-layout-mode="dark"] .badge-Interno,
 [data-layout-mode="dark"] .badge-Externo,
 [data-layout-mode="dark"] .badge-Distribuidor,

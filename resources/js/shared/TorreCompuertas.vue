@@ -16,7 +16,7 @@
         <a class="btn header-item position-relative" :href="destino" :title="titulo" data-spa-skip>
             <i class="fas fa-cog" :class="{ 'text-danger': hayBloqueo, 'fa-spin': cargando }"></i>
             <span v-if="hayBloqueo"
-                  class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                  class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger hdr-badge hdr-badge-corner">
                 {{ rojos }}
             </span>
         </a>
@@ -66,6 +66,7 @@ export default {
 </script>
 
 <style scoped>
+.header-item .fa-cog { font-size: 20px; line-height: 1; vertical-align: middle; }
 .tc-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 1090;
     display: flex; align-items: flex-start; justify-content: center; padding: 3vh 2vw; }
 .tc-panel { background: var(--bs-body-bg, #fff); color: var(--bs-body-color, #212529);

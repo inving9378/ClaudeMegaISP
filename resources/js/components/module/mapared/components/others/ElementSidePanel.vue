@@ -97,6 +97,20 @@
                     </div>
 
                     <div
+                        v-if="mostrarUnionHilos"
+                        class="element-side-panel__section"
+                    >
+                        <div class="element-side-panel__label">
+                            Unión de hilos
+                        </div>
+                        <EmpalmesPanel
+                            :key="sidePanelNode.id"
+                            :elemento-contenedor-type="MAPA_RED_LAYER_MODEL"
+                            :elemento-contenedor-id="sidePanelNode.id"
+                        />
+                    </div>
+
+                    <div
                         v-if="sidePanelNode.dialog === 'service_box'"
                         class="element-side-panel__section"
                     >
@@ -123,18 +137,116 @@
                                     @click="toggleEnlace(enlace.id)"
                                 >
                                     <span>{{ enlace.cliente_nombre }}</span>
-                                    <q-icon
-                                        :name="
-                                            enlaceAbierto === enlace.id
-                                                ? 'expand_less'
-                                                : 'expand_more'
-                                        "
-                                    />
+                                    <div class="element-side-panel__enlace-actions">
+                                        <q-btn
+                                            flat
+                                            dense
+                                            round
+                                            size="sm"
+                                            icon="route"
+                                            color="primary"
+                                            title="Trazar ruta a OLT"
+                                            @click.stop="
+                                                $emit('trazar-ruta', enlace.id)
+                                            "
+                                        />
+                                        <q-icon
+                                            :name="
+                                                enlaceAbierto === enlace.id
+                                                    ? 'expand_less'
+                                                    : 'expand_more'
+                                            "
+                                        />
+                                    </div>
                                 </div>
                                 <OpticalBudgetPanel
                                     v-if="enlaceAbierto === enlace.id"
                                     :enlace-id="enlace.id"
                                 />
+                            </div>
+                        </div>
+                        <div v-else class="text-caption text-grey">
+                            Sin datos disponibles
+                        </div>
+                    </div>
+
+                    <div
+                        v-if="sidePanelNode.dialog === 'service_box'"
+                        class="element-side-panel__section"
+                    >
+                        <div class="element-side-panel__salud-header">
+                            <div class="element-side-panel__label">
+                                Salud de la red (D17)
+                            </div>
+                            <q-btn
+                                icon="mdi-refresh"
+                                flat
+                                round
+                                dense
+                                size="sm"
+                                :loading="loadingSalud"
+                                @click="refrescarSalud"
+                            />
+                        </div>
+                        <div v-if="loadingSalud" class="text-caption text-grey">
+                            Cargando…
+                        </div>
+                        <div v-else-if="salud">
+                            <q-badge :color="semaforoInfo.color">
+                                {{ semaforoInfo.texto }}
+                            </q-badge>
+                            <div class="text-caption text-grey q-mt-xs">
+                                Potencia promedio:
+                                {{
+                                    salud.potencia_promedio_dbm ?? "N/A"
+                                }}
+                                <span v-if="salud.potencia_promedio_dbm != null">
+                                    dBm
+                                </span>
+                            </div>
+                            <div class="text-caption text-grey">
+                                {{ salud.onus_activas }} activas ·
+                                {{ salud.onus_offline }} offline ·
+                                {{ salud.onus_senal_baja }} señal baja ·
+                                {{ salud.onus_sin_lectura }} sin lectura
+                            </div>
+
+                            <div
+                                v-if="salud.onus && salud.onus.length"
+                                class="element-side-panel__salud-table"
+                            >
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Cliente</th>
+                                            <th>Serie ONT</th>
+                                            <th>Estado</th>
+                                            <th>Señal</th>
+                                            <th>Puerto</th>
+                                            <th>RX dBm</th>
+                                            <th>TX dBm</th>
+                                            <th>OLT</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr
+                                            v-for="(onu, index) in salud.onus"
+                                            :key="`${onu.ont_serie}-${index}`"
+                                        >
+                                            <td>{{ onu.cliente_nombre }}</td>
+                                            <td>{{ onu.ont_serie }}</td>
+                                            <td>{{ onu.estado }}</td>
+                                            <td>{{ onu.senal }}</td>
+                                            <td>{{ onu.puerto_nap ?? "—" }}</td>
+                                            <td>{{ onu.rx_dbm ?? "—" }}</td>
+                                            <td>{{ onu.tx_dbm ?? "—" }}</td>
+                                            <td>{{ onu.olt_nombre ?? "—" }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div v-else class="text-caption text-grey q-mt-xs">
+                                Sin ONUs asociadas a este NAP.
                             </div>
                         </div>
                         <div v-else class="text-caption text-grey">
@@ -203,7 +315,9 @@ import {
 import { darkMode } from "../../../../../hook/appConfig";
 import { getLayerResumen } from "../../helper/layers-request";
 import { getEnlacesPorNap } from "../../helper/enlaces-request";
+import { getSalud } from "../../helper/naps-request";
 import OpticalBudgetPanel from "./OpticalBudgetPanel.vue";
+import EmpalmesPanel from "./EmpalmesPanel.vue";
 
 defineOptions({
     name: "ElementSidePanel",
@@ -216,6 +330,16 @@ const props = defineProps({
 // Mismo modelo polimórfico que ya usa `aplicarOcupacionNaps()` en LeafletMapRed.vue
 // (puertable_type = MapaRedLayer, puertable_id = id del nodo NAP en el mapa).
 const MAPA_RED_LAYER_MODEL = "App\\Modules\\Addons\\MapaRed\\Models\\MapaRedLayer";
+
+// MR-12 Fase B (item #9990408) — panel de unión de hilos, solo para los 3 marcadores que
+// representan Rack/Mufa/NAP en el mapa (los 3 son MapaRedLayer: cupboard/junction_box/service_box
+// — decisión ya tomada, ver comentarios_claude del item).
+const DIALOGS_CON_UNION_HILOS = ["cupboard", "junction_box", "service_box"];
+const mostrarUnionHilos = computed(
+    () =>
+        !!sidePanelNode.value?.coords &&
+        DIALOGS_CON_UNION_HILOS.includes(sidePanelNode.value?.dialog)
+);
 
 // Puertos/empalmes/clientes colgados (MR-23 fase 3, item #9990428): se
 // consultan bajo demanda al seleccionar un elemento con coordenadas (los
@@ -234,12 +358,30 @@ const toggleEnlace = (enlaceId) => {
     enlaceAbierto.value = enlaceAbierto.value === enlaceId ? null : enlaceId;
 };
 
+// Salud de la NAP (D17, MR-21/#957, UI seguimiento #9990490): semáforo +
+// tabla de ONUs. Cálculo on-load + botón de refrescar manual (decisión de
+// Irving, sin polling). Mismo alcance que enlacesServicio (solo NAPs).
+const salud = ref(null);
+const loadingSalud = ref(false);
+
+const cargarSalud = async (id) => {
+    loadingSalud.value = true;
+    salud.value = await getSalud(MAPA_RED_LAYER_MODEL, id);
+    loadingSalud.value = false;
+};
+
+const refrescarSalud = () => {
+    const id = sidePanelNode.value?.id;
+    if (id) cargarSalud(id);
+};
+
 watch(
     () => (sidePanelOpen.value ? sidePanelNode.value?.id : null),
     async (id) => {
         resumen.value = null;
         enlacesServicio.value = null;
         enlaceAbierto.value = null;
+        salud.value = null;
         if (!id || !sidePanelNode.value?.coords) return;
 
         loadingResumen.value = true;
@@ -251,12 +393,25 @@ watch(
             const respuesta = await getEnlacesPorNap(MAPA_RED_LAYER_MODEL, id);
             enlacesServicio.value = respuesta?.enlaces ?? null;
             loadingEnlaces.value = false;
+
+            cargarSalud(id);
         }
     },
     { immediate: true }
 );
 
-defineEmits(["edit", "delete", "show-on-map"]);
+const SEMAFORO_LABELS = {
+    verde: { texto: "Estable", color: "positive" },
+    amarillo: { texto: "Aviso", color: "warning" },
+    rojo: { texto: "Crítico", color: "negative" },
+    gris: { texto: "Sin datos", color: "grey" },
+};
+
+const semaforoInfo = computed(
+    () => SEMAFORO_LABELS[salud.value?.semaforo] ?? SEMAFORO_LABELS.gris
+);
+
+defineEmits(["edit", "delete", "show-on-map", "trazar-ruta"]);
 
 const DIALOG_LABELS = {
     folder: "Carpeta",
@@ -367,6 +522,31 @@ const close = () => closeElementSidePanel();
     margin-bottom: 4px;
 }
 
+.element-side-panel__salud-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.element-side-panel__salud-table {
+    overflow-x: auto;
+    margin-top: 8px;
+}
+
+.element-side-panel__salud-table table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.element-side-panel__salud-table th,
+.element-side-panel__salud-table td {
+    padding: 4px 6px;
+    text-align: left;
+    white-space: nowrap;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+}
+
 .element-side-panel__enlace {
     border: 1px solid rgba(128, 128, 128, 0.25);
     border-radius: 4px;
@@ -381,6 +561,12 @@ const close = () => closeElementSidePanel();
     padding: 6px 0;
     cursor: pointer;
     font-size: 13px;
+}
+
+.element-side-panel__enlace-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
 }
 
 .element-side-panel__actions {

@@ -61,6 +61,36 @@ class DependenciaItemsTest extends TestCase
         $this->assertSame([12345], $r['faltan']);
     }
 
+    /**
+     * CANDADO del decodificador único. El 2026-09-07 el guard y el texto de la Torre decodificaban
+     * `depende_de` cada uno por su cuenta y DISCREPARON ante un valor doble-codificado: el guard
+     * frenaba (correcto) y la Torre decía «sin dependencias abiertas» (falso). Un freno correcto
+     * con explicación falsa manda a diagnosticar al lugar equivocado.
+     */
+    public function test_ids_tolera_json_doble_codificado(): void
+    {
+        $esperado = [9990411, 9990417];
+
+        // Array ya decodificado (lo que entrega el cast de Eloquent cuando el dato es sano).
+        $this->assertSame($esperado, DependenciaItems::ids($esperado));
+        // JSON normal.
+        $this->assertSame($esperado, DependenciaItems::ids('[9990411,9990417]'));
+        // JSON DOBLE-codificado: el caso real de #9990418.
+        $this->assertSame($esperado, DependenciaItems::ids('"[9990411,9990417]"'));
+    }
+
+    public function test_ids_devuelve_vacio_ante_basura(): void
+    {
+        foreach ([null, '', '[]', 'no-es-json', '{"a":1}', 0, false] as $basura) {
+            $this->assertSame([], DependenciaItems::ids($basura), 'basura → sin dependencias, no una excepción');
+        }
+    }
+
+    public function test_ids_limpia_duplicados_y_ceros(): void
+    {
+        $this->assertSame([940, 941], DependenciaItems::ids([940, 940, 0, 941, null]));
+    }
+
     public function test_detecta_ciclos(): void
     {
         $this->assertTrue(

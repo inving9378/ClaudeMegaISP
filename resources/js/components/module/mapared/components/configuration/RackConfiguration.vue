@@ -19,6 +19,15 @@
                         >Configurar rack {{ object.name }}</q-toolbar-title
                     >
                     <q-btn
+                        no-caps
+                        flat
+                        dense
+                        icon="link"
+                        label="Empalmes"
+                        @click="showEmpalmes = true"
+                        ><q-tooltip>Uniones de hilos de este rack</q-tooltip></q-btn
+                    >
+                    <q-btn
                         icon="close"
                         flat
                         round
@@ -313,6 +322,13 @@
         @hide="onHideZone"
         @save="(data) => createConnection(data)"
     />
+
+    <empalme-config-dialog
+        :show="showEmpalmes"
+        :object="object"
+        :has-edit="hasEdit"
+        @hide="showEmpalmes = false"
+    />
 </template>
 
 <script setup>
@@ -335,6 +351,7 @@ import CupboardComponent from "../CupboardComponent.vue";
 import TroncalInput from "../others/TroncalInput.vue";
 import FormSplitterComponent from "../devices/FormSplitterComponent.vue";
 import SplitterComponent from "../devices/SplitterComponent.vue";
+import EmpalmeConfigDialog from "./EmpalmeConfigDialog.vue";
 import {
     changeRoutePosition,
     getLayerConfig,
@@ -401,6 +418,7 @@ const minX = 20;
 const minY = 20;
 const showJunction = ref(false);
 const showZone = ref(false);
+const showEmpalmes = ref(false);
 let totalSelected = 0;
 const drawerLeft = ref(true);
 const drawerRight = ref(true);

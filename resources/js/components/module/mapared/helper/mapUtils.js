@@ -241,14 +241,14 @@ export const menuOptions = [
         route: "poles",
         label: "name",
     },
-    // {
-    //     text: "Cliente",
-    //     icon: "mdi-account",
-    //     element: "leaflet-draw-draw-marker",
-    //     dialog: "client",
-    //     route: "clients",
-    //     label: "name",
-    // },
+    {
+        text: "Cliente",
+        icon: "mdi-account",
+        element: "leaflet-draw-draw-marker",
+        dialog: "client",
+        route: "clients",
+        label: "name",
+    },
     {
         text: "Edificio",
         icon: "mdi-office-building",

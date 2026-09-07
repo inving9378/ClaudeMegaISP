@@ -20,6 +20,7 @@
                     @edit-component="onEditComponent"
                     @destroy-component="onDestroyComponent"
                     @show-on-map="showElementOnMap"
+                    @trazar-ruta="trazarRutaEnlace"
                 />
             </template>
             <template v-slot:separator>
@@ -378,6 +379,8 @@ import { darkMode } from "../../../hook/appConfig";
 
 import { getClientsWithoutProject, getMapRenderConfig, saveObject } from "./helper/request";
 import { getOcupacionLote, getSaludLote } from "./helper/naps-request";
+import { getTrazoEnlace } from "./helper/enlaces-request";
+import { getCoberturaCapa } from "./helper/cobertura-request";
 
 import Swal from "sweetalert2";
 import {
@@ -400,6 +403,7 @@ import {
     objectProperties,
     excludesProperties,
     titleLayers,
+    currentMarker,
 } from "./helper/mapUtils";
 
 import Permission from "../../../helpers/Permission";
@@ -416,6 +420,8 @@ import {
     currentNode,
     getNodeByKey,
     tickedNodes,
+    selectedNodeId,
+    arbolDerivadoVisible,
 } from "../../../composables/useNodeMap";
 import JSZip from "jszip";
 
@@ -436,6 +442,12 @@ const $q = useQuasar();
 const splitterModel = ref(350);
 
 let map = null;
+// MR-16 Fase 2a (item roadmap #9990495): capa dedicada para el trazo de ruta a OLT
+// (dibujada bajo demanda al hacer clic en "Trazar ruta a OLT" de un enlace de servicio).
+let trazoLayer = null;
+// MR-26 Fase 4 (item roadmap #9990525): capa de cobertura comercial en vivo (Fase 1, #9990522),
+// independiente de `drawnItems` (no es un objeto de BD con `dialog`, se recalcula en cada fetch).
+let coberturaLayer = null;
 const projects = ref([]);
 let searchLayers = null;
 let clientsLayers = null;
@@ -468,6 +480,191 @@ const loadingExport = ref({
     img: false,
     loading: false,
 });
+
+// MR-22 Fase 2 (item roadmap #9990458) — panel de capas encendibles + render dependiente de zoom.
+// Decisiones ya tomadas por Irving: estado inicial por capa (q3), umbrales de zoom drops>=16 /
+// clientes>=17 (q2), reusar el clustering ya existente (q1, sin reconstruirlo).
+// Mapeo capa lógica → `dialog` real del layer (único dato disponible hoy para distinguir tipos).
+// "drops" (acometida NAP→cliente) no es todavía una entidad propia en mapared_layers — verificado
+// contra la BD piloto real (0 filas con un dialog dedicado a drop): queda como capa reservada,
+// cableada en el panel y en el umbral de zoom, sin marcadores hasta que esa entidad exista.
+const CAPAS_MAPA_RED = [
+    { key: "olt", label: "OLT", icon: "mdi-warehouse", dialogs: ["site"] },
+    { key: "troncales", label: "Troncales", icon: "mdi-chart-timeline-variant", dialogs: ["route"] },
+    { key: "mufas", label: "Mufas", icon: "mdi-package-variant-closed", dialogs: ["junction_box"] },
+    { key: "naps", label: "NAPs", icon: "mdi-package", dialogs: ["service_box"] },
+    { key: "drops", label: "Drops", icon: "mdi-vector-line", dialogs: [] },
+    { key: "clientes", label: "Clientes", icon: "mdi-account", dialogs: ["client"] },
+    { key: "postes", label: "Postes", icon: "mdi-currency-mnt", dialogs: ["pole"] },
+    // MR-26 Fase 4 (#9990525): ya NO reusa dialog='region' (ese dialog es de zonas/polígonos
+    // genéricos importados de KMZ, sin relación con cobertura — 0 filas reales lo usaban así).
+    // Cobertura ahora es una capa calculada en vivo (GeoJSON propio, ver cargarCapaCobertura()).
+    { key: "cobertura", label: "Cobertura", icon: "mdi-vector-polygon", dialogs: [] },
+];
+
+const CAPA_ZOOM_MIN = { drops: 16, clientes: 17 };
+
+const DIALOG_A_CAPA = CAPAS_MAPA_RED.reduce((acc, capa) => {
+    capa.dialogs.forEach((d) => (acc[d] = capa.key));
+    return acc;
+}, {});
+
+const capasEncendidas = reactive({
+    olt: true,
+    troncales: true,
+    mufas: true,
+    naps: true,
+    drops: false,
+    clientes: false,
+    postes: false,
+    cobertura: false,
+});
+
+const capaVisiblePorEstado = (capaKey) => {
+    if (!capasEncendidas[capaKey]) {
+        return false;
+    }
+    const zoomMin = CAPA_ZOOM_MIN[capaKey];
+    if (zoomMin != null && map && map.getZoom() < zoomMin) {
+        return false;
+    }
+    return true;
+};
+
+const aplicarVisibilidadPorCapa = (layer) => {
+    const dialogLayer = layer.properties?.dialog;
+    if (dialogLayer === "service_box") {
+        // MR-20 (aplicarFiltroACapa) ya compone el toggle "naps" del panel con el filtro de
+        // puertos libres; no duplicar la decisión de opacidad aquí.
+        aplicarFiltroACapa(layer);
+        return;
+    }
+    const capaKey = DIALOG_A_CAPA[dialogLayer];
+    if (!capaKey) {
+        return; // fuera del alcance del panel (kmz/note/cupboard/building/pack/source/folder)
+    }
+    if (layer.properties && layer.properties._capaBaseCaptured === undefined) {
+        layer.properties._capaBaseCaptured = true;
+        layer.properties._capaBaseOpacity = layer.options?.opacity ?? 1;
+        layer.properties._capaBaseFillOpacity = layer.options?.fillOpacity;
+    }
+    const visible = capaVisiblePorEstado(capaKey);
+    if (
+        typeof layer.setStyle === "function" &&
+        layer.properties?._capaBaseFillOpacity !== undefined
+    ) {
+        layer.setStyle({
+            opacity: visible ? layer.properties._capaBaseOpacity : 0,
+            fillOpacity: visible ? layer.properties._capaBaseFillOpacity : 0,
+        });
+    } else if (typeof layer.setOpacity === "function") {
+        layer.setOpacity(visible ? (layer.properties?._capaBaseOpacity ?? 1) : 0);
+    }
+};
+
+const aplicarVisibilidadCapas = () => {
+    if (!drawnItems) {
+        return;
+    }
+    drawnItems.eachLayer((layer) => aplicarVisibilidadPorCapa(layer));
+};
+
+watch(capasEncendidas, () => {
+    aplicarVisibilidadCapas();
+});
+
+// MR-26 Fase 4 (item roadmap #9990525) — capa "Cobertura" en vivo (Fase 1, #9990522). Se
+// refetch cada vez que se enciende el toggle (no se cachea) para que ocupar el último puerto
+// libre de una NAP la haga desaparecer al re-encender la capa (DoD del item padre #962).
+const cargarCapaCobertura = async () => {
+    if (!coberturaLayer) {
+        return;
+    }
+    coberturaLayer.clearLayers();
+    const geojson = await getCoberturaCapa();
+    if (!geojson || !Array.isArray(geojson.features)) {
+        return;
+    }
+    L.geoJSON(geojson, {
+        style: {
+            color: "#00c853",
+            weight: 1,
+            fillColor: "#00c853",
+            fillOpacity: 0.15,
+        },
+        onEachFeature: (feature, layer) => {
+            const { nombre, puertos_libres } = feature.properties ?? {};
+            layer.bindPopup(
+                `<b>${nombre ?? "NAP"}</b><br>Puertos libres: ${puertos_libres ?? "?"}`
+            );
+        },
+    }).addTo(coberturaLayer);
+};
+
+watch(
+    () => capasEncendidas.cobertura,
+    (encendida) => {
+        if (encendida) {
+            cargarCapaCobertura();
+        } else if (coberturaLayer) {
+            coberturaLayer.clearLayers();
+        }
+    }
+);
+
+const crearControlCapas = () => {
+    const CapasControl = L.Control.extend({
+        options: { position: "topright" },
+        onAdd: function () {
+            const container = L.DomUtil.create(
+                "div",
+                "leaflet-bar capas-panel"
+            );
+            L.DomEvent.disableClickPropagation(container);
+            L.DomEvent.disableScrollPropagation(container);
+
+            const header = L.DomUtil.create(
+                "div",
+                "capas-panel__header",
+                container
+            );
+            header.innerHTML =
+                '<i class="mdi mdi-layers-outline"></i><span>Capas</span><i class="mdi mdi-chevron-up capas-panel__chevron"></i>';
+            const body = L.DomUtil.create("div", "capas-panel__body", container);
+
+            CAPAS_MAPA_RED.forEach((capa) => {
+                const row = L.DomUtil.create("label", "capas-panel__row", body);
+                const checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.checked = capasEncendidas[capa.key];
+                checkbox.addEventListener("change", () => {
+                    capasEncendidas[capa.key] = checkbox.checked;
+                });
+                row.appendChild(checkbox);
+                const text = document.createElement("span");
+                const zoomMin = CAPA_ZOOM_MIN[capa.key];
+                text.innerHTML = `<i class="mdi ${capa.icon}"></i> ${capa.label}${
+                    zoomMin ? ` <small>(zoom&nbsp;≥&nbsp;${zoomMin})</small>` : ""
+                }`;
+                row.appendChild(text);
+            });
+
+            header.addEventListener("click", () => {
+                const abierto = body.style.display !== "none";
+                body.style.display = abierto ? "none" : "flex";
+                header
+                    .querySelector(".capas-panel__chevron")
+                    ?.classList.toggle("mdi-chevron-up", !abierto);
+                header
+                    .querySelector(".capas-panel__chevron")
+                    ?.classList.toggle("mdi-chevron-down", abierto);
+            });
+
+            return container;
+        },
+    });
+    new CapasControl().addTo(map);
+};
 
 onBeforeMount(async () => {
     serverData = await getMapRenderConfig();
@@ -502,6 +699,14 @@ watch(drawLayer, (n) => {
                   ...objectCurrentType.value,
               }
             : null;
+});
+
+// MR-22 Fase 3a (item roadmap #9990515): `currentMarker` (mapUtils.js) ya se actualiza en
+// cada click sobre una capa del mapa (createLayerFromObject) — aquí solo se deriva el id
+// (campo `key`) del nodo seleccionado, para que deriveThreeLevelTree() y el panel lateral de
+// la siguiente fase lo consuman sin depender del objeto completo de la capa.
+watch(currentMarker, (marker) => {
+    selectedNodeId.value = marker?.key ?? null;
 });
 
 watch(addInSerie, (n) => {
@@ -565,12 +770,33 @@ const initMap = async () => {
 
     osmLayer.addTo(map);
 
-    L.control.layers(baseLayers).addTo(map);
+    // MR-16 Fase 2a (#9990495): capa togglable con el trazo de ruta a OLT del enlace
+    // seleccionado (vacía hasta que se pida un trazo).
+    trazoLayer = L.layerGroup().addTo(map);
+
+    // MR-26 Fase 4 (#9990525): capa de cobertura comercial, controlada por el checkbox
+    // "Cobertura" del panel propio (capas-panel), no por este control nativo de Leaflet.
+    coberturaLayer = L.layerGroup().addTo(map);
+    if (capasEncendidas.cobertura) {
+        cargarCapaCobertura();
+    }
+
+    L.control
+        .layers(baseLayers, { "Trazo a OLT": trazoLayer })
+        .addTo(map);
+
+    crearControlCapas();
 
     map.on("baselayerchange", function (e) {
         const newLayer = e.layer;
         const newMaxZoom = newLayer.options.maxZoom ?? 19;
         map.setMaxZoom(newMaxZoom);
+    });
+
+    // MR-22 Fase 2 (#9990458): render dependiente de zoom (drops>=16 / clientes>=17), independiente
+    // del toggle manual del panel de capas — ambas condiciones deben cumplirse a la vez.
+    map.on("zoomend", function () {
+        aplicarVisibilidadCapas();
     });
 
     map.contextmenu.enable();
@@ -1023,6 +1249,38 @@ const initMap = async () => {
         ],
     }).addTo(map);
 
+    // MR-22 Fase 3c (item roadmap #9990517) — toggle en la top bar del mapa para mostrar/ocultar
+    // la sección "árbol derivado" (Fase 3b, #9990516) del panel lateral. Estado compartido
+    // (arbolDerivadoVisible, useNodeMap) con ProjectsComponent.vue, persistido en localStorage.
+    const arbolDerivadoBtn = L.easyButton({
+        states: [
+            {
+                stateName: "arbol-derivado-oculto",
+                icon: "fa-sitemap",
+                title: "Mostrar árbol derivado del nodo seleccionado",
+                onClick: function (btn) {
+                    arbolDerivadoVisible.value = true;
+                    setToLocalStorage("arbol-derivado-visible", true);
+                    btn.state("arbol-derivado-visible");
+                },
+            },
+            {
+                stateName: "arbol-derivado-visible",
+                icon: "fa-sitemap",
+                title: "Ocultar árbol derivado del nodo seleccionado",
+                onClick: function (btn) {
+                    arbolDerivadoVisible.value = false;
+                    setToLocalStorage("arbol-derivado-visible", false);
+                    btn.state("arbol-derivado-oculto");
+                },
+            },
+        ],
+    }).addTo(map);
+
+    if (arbolDerivadoVisible.value) {
+        arbolDerivadoBtn.state("arbol-derivado-visible");
+    }
+
     map.on("click", async function (e) {
         if (addInSerie.value) {
             let { color, data, icon_color, project_id, type, start } =
@@ -1280,6 +1538,39 @@ const showElementOnMap = (object) => {
     }
 };
 
+// MR-16 Fase 2a (item roadmap #9990495): dibuja la ruta física del enlace hasta la OLT
+// (backend Fase 1, #9990468). Trazo parcial = dibuja lo que haya + aviso visible del
+// motivo_corte, nunca falla en silencio (decisión ya tomada por Irving).
+const trazarRutaEnlace = async (enlaceId) => {
+    const trazo = await getTrazoEnlace(enlaceId);
+    if (!trazo) {
+        message("No se pudo obtener el trazo de este enlace", "error");
+        return;
+    }
+
+    trazoLayer.clearLayers();
+
+    const puntos = (trazo.elementos ?? [])
+        .filter((el) => el.posicion)
+        .map((el) => [el.posicion.lat, el.posicion.lng]);
+
+    if (puntos.length >= 2) {
+        L.polyline(puntos, {
+            color: "#7dd3fc",
+            weight: 4,
+            opacity: 0.85,
+        }).addTo(trazoLayer);
+        map.fitBounds(puntos);
+    }
+
+    if (!trazo.completa) {
+        message(
+            trazo.motivo_corte ?? "El trazo no pudo completarse hasta la OLT",
+            "warning"
+        );
+    }
+};
+
 const onRealoadedProject = (list) => {
     reloadProjects.value = false;
     projects.value = list;
@@ -1366,6 +1657,12 @@ const saludSemaforoColor = {
 
 const aplicarFiltroACapa = (layer) => {
     if (layer.properties?.dialog !== "service_box" || typeof layer.setOpacity !== "function") {
+        return;
+    }
+    // MR-22 Fase 2 (#9990458): el toggle "naps" del panel de capas manda primero; si está apagado
+    // no hay nada que reconciliar con el filtro de puertos libres.
+    if (!capaVisiblePorEstado("naps")) {
+        layer.setOpacity(0);
         return;
     }
     const ocupacion = layer.properties.ocupacion;
@@ -1531,6 +1828,7 @@ const drawLayers = (selectedLayers, noSelectedLayers = []) => {
     }).then(() => {
         aplicarOcupacionNaps(selectedLayers);
         aplicarSaludNaps(selectedLayers);
+        aplicarVisibilidadCapas();
     });
     noSelectedLayers.forEach((key) => {
         removeLayerByKey(key);
@@ -1956,5 +2254,47 @@ const toKmlColor = (hexColor, opacity = 1) => {
 }
 .easy-button-button span {
     color: #000 !important;
+}
+
+/* MR-22 Fase 2 (item roadmap #9990458) — panel de capas encendibles. */
+.capas-panel {
+    background: white;
+    min-width: 175px;
+    font-size: 12px;
+}
+.capas-panel__header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    cursor: pointer;
+    font-weight: 600;
+}
+.capas-panel__header .capas-panel__chevron {
+    margin-left: auto;
+}
+.capas-panel__body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 8px 8px;
+    border-top: 1px solid #ddd;
+}
+.capas-panel__row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    padding: 2px 0;
+}
+.capas-panel__row small {
+    color: #888;
+}
+body.body--dark .capas-panel {
+    background: #1d1d1d;
+    color: #fff;
+}
+body.body--dark .capas-panel__body {
+    border-top-color: #444;
 }
 </style>

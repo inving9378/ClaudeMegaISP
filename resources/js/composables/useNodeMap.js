@@ -16,6 +16,20 @@ export const tickedNodes = ref([]);
 export const expandedNodes = ref(["root-node"]);
 export const currentLayerNode = ref(null);
 
+// MR-22 Fase 3a (item roadmap #9990515): id (campo `key`) del nodo seleccionado en el mapa
+// (click sobre una capa), consumido por deriveThreeLevelTree() y por el panel lateral de la
+// siguiente fase. null = sin selección.
+export const selectedNodeId = ref(null);
+
+// MR-22 Fase 3c (item roadmap #9990517): visibilidad de la sección "árbol derivado" (Fase 3b) en
+// el panel lateral, controlada por el botón toggle de la top bar del mapa. Persistida en
+// localStorage con la misma convención sin sufijo de usuario que ya usa el módulo (filter-tree,
+// expanded-nodes, tickeds-nodes, map-zoom, map-center: ninguna namespacea por user_id). Cerrado
+// por default.
+export const arbolDerivadoVisible = ref(
+    getFromLocalStorage("arbol-derivado-visible") ?? false
+);
+
 export const setNodes = (nodes) => {
     allNodes.value = nodes;
 };
@@ -59,6 +73,38 @@ export const treeData = computed(() => {
     });
     return tree;
 });
+
+// MR-22 Fase 3a (item roadmap #9990515): función PURA (sin dependencias reactivas) que deriva
+// un árbol de máx. 3 niveles a partir de `rootNodeId`, usando el árbol ya cargado por
+// useNodeMap() (pásale `nodeMap.value`, cuyos nodos ya traen `.children` resueltos por
+// `treeData`). NO toca ni reemplaza el árbol original de 7 niveles (D22) — es una vista
+// derivada aditiva para el panel lateral de la fase siguiente.
+// nivel1 = hijos directos de rootNodeId · nivel2 = nietos · nivel3 = bisnietos, colapsados
+// (su `.children` se vacía a propósito; `hasMoreChildren` indica si en el árbol real tienen
+// más descendientes no mostrados).
+export const deriveThreeLevelTree = (rootNodeId, fullTree) => {
+    const rootNode = fullTree ? fullTree[rootNodeId] : null;
+    if (!rootNode || !Array.isArray(rootNode.children)) {
+        return [];
+    }
+
+    const cloneAtLevel = (node, level) => {
+        const children = Array.isArray(node.children) ? node.children : [];
+        const clone = { ...node };
+        if (level >= 3) {
+            clone.children = [];
+            clone.hasMoreChildren = children.length > 0;
+        } else {
+            clone.children = children.map((child) =>
+                cloneAtLevel(child, level + 1)
+            );
+            clone.hasMoreChildren = false;
+        }
+        return clone;
+    };
+
+    return rootNode.children.map((child) => cloneAtLevel(child, 1));
+};
 
 export const sincronizeRoutes = () => {
     if (currentNode) {
@@ -104,5 +150,8 @@ export function useNodeMap() {
         addNode,
         deleteNode,
         setNodes,
+        selectedNodeId,
+        deriveThreeLevelTree,
+        arbolDerivadoVisible,
     };
 }

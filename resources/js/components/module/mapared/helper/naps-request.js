@@ -30,7 +30,8 @@ export const getSaludLote = async (puertableType, ids) => {
     return data;
 };
 
-// Dashboard de salud de una sola NAP (consumido por el side panel, MR-21 parte 2/2).
+// MR-21 (item roadmap #957, UI seguimiento #9990490) — dashboard de salud de una NAP (D17):
+// semáforo, potencia promedio y tabla de ONUs.
 export const getSalud = async (puertableType, puertableId) => {
     let data = null;
     await axios

@@ -4205,3 +4205,38 @@ Detalle completo con evidencia archivo:línea en
 anexado a CLAUDE.md. Este veredicto condiciona a #9990448/#9990449/#9990450 (vistas en Talento)
 y #9990453 (análisis de migración de comisiones). Sin cambio de código — solo investigación y
 reporte, tal como pedía el spec del item.
+
+## 2026-09-07 16:45 — MR-16 Fase 2b — Verificar DoD con enlace real de Tultitlán (item #9990496, wt-2)
+
+Dependencia (Fase 2a, #9990495 — botón "Trazar ruta a OLT" + capa Leaflet) confirmada mergeada a
+main (commit 9fe6cfd3 / integrada vía 609c50d7). Al buscar un enlace real de Tultitlán para probar
+el endpoint `GET /mapa-red/api/enlaces-servicio/{id}/trazo`, se confirma que `mapared_enlaces_servicio`
+está en **0 filas en dev** — no solo sin datos de Tultitlán, sin ningún enlace de ninguna zona. Se
+rastreó la causa un nivel más abajo de lo que documentaba `docs/mapared-comparativa-item-963-verificacion.md`
+(agosto): aunque MR-05 (#941, espejo legado) y MR-15 (#951, comando de backfill) están marcados
+`completado`, el backfill real (`mapared:backfill`, sin --dry-run) nunca se ejecutó contra la BD de
+dev — `mapared_puertos`/`mapared_hilos` siguen en 0, y sin `puerto_nap_id` real no se puede crear
+ni un enlace de prueba (y el item lo prohíbe: solo lectura). Un `--dry-run` (100% de solo lectura)
+confirma que, de correrse, Tultitlán solo llegaría a 50% de cobertura de puertos (5 de 10 cajas).
+Item cerrado documentando el hallazgo — mismo patrón que #963: DoD de MR-16 (#952) sigue sin poder
+verificarse con datos reales hasta que alguien decida correr el backfill real + dar de alta un
+enlace real de Tultitlán vía la UI. Detalle completo en
+`docs/mapared-mr16-fase2b-item-9990496-verificacion.md`. Sin cambio de código — investigación
+read-only, tal como pedía el spec.
+
+## 2026-09-07 10:56 — Item #9990408 — MR-12 UI panel de unión de hilos (bucle reap sobre paraguas, cierre-intento faltante)
+
+Mismo patrón recurrente documentado en CLAUDE.md (#738/#745/#830/#816/#818/#848/#852/#905/#878/
+#906/#907/#924/#9990012/#917/#910/#936): item ya descompuesto correctamente por una vuelta previa
+(#9990501 Fase A backend, completado; #9990502 Fase B frontend, ella misma paraguas de #9990520
+y #9990521) que nunca llegó a intentar el cierre final. Variante nueva sobre lo ya visto: el
+cierre-intento SÍ se hizo bien en su momento (paraguas correctamente parqueado), pero 8 minutos
+después `jarvis-ya-decidido` procesó un brief pendiente del propio item y el scheduler limpió
+`excluir_pool_automatico` al despachar, devolviéndolo al pool sin trabajo propio. Verificado el
+árbol completo: #9990520 (Fase B1, EmpalmeConfigDialog.vue + Mufa/NAP) cerró y mergeó durante esta
+misma vuelta; #9990521 (Fase B2, enganche en Rack/RackConfiguration.vue) sigue aprobado_revisor sin
+reclamar — única pieza real pendiente. Se ejecutó el intento de cierre faltante sobre #9990408; el
+guard de paraguas lo reenrutó a aprobado_irving + excluir_pool_automatico=true, sacándolo del
+pool/reaper hasta que #9990502 (y transitivamente #9990521) cierren. Detalle completo en
+`docs/roadmap-bucle-reap-item-9990408-verificacion.md`. Sin cambio de código de negocio — el
+trabajo real de UI sigue en #9990521.

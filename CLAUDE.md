@@ -1938,3 +1938,78 @@ archivo:línea y recomendación en
 `docs/vendedores-sales-commissions-prospects-item-9990471-verificacion.md` — este veredicto
 condiciona a #9990448/#9990449/#9990450 (vistas en Talento) y #9990453 (migración de
 comisiones). **Sin cambio de código** (item nivel A, solo-lectura por spec).
+
+## Item #9990496 — MR-16 Fase 2b: verificar DoD con enlace real de Tultitlán (RESUELTO — bloqueado por ausencia total de datos, no solo de Tultitlán)
+
+Dependencia (Fase 2a, `#9990495` — botón "Trazar ruta a OLT" + capa Leaflet resaltada) confirmada
+mergeada a main (commit `9fe6cfd3`, integrada vía `609c50d7`). Al buscar un `MapaRedEnlaceServicio`
+real de Tultitlán para correr `GET /mapa-red/api/enlaces-servicio/{id}/trazo`, se confirma que
+`mapared_enlaces_servicio` está en **0 filas en dev — no solo sin Tultitlán, sin ninguna zona**. El
+fallback del propio item ("si no hay de Tultitlán, usar el más completo disponible") no tiene sobre
+qué aplicarse. Se rastreó la causa un nivel más abajo de lo que documentaba
+`docs/mapared-comparativa-item-963-verificacion.md` (agosto, bloqueado entonces por `#941`/MR-05
+sin correr): aunque **hoy** tanto `#941` (MR-05, espejo legado) como `#951` (MR-15, comando de
+backfill) están marcados `completado`, el backfill real (`mapared:backfill`, sin `--dry-run`)
+**nunca se ejecutó** contra la BD de dev — `mapared_puertos`/`mapared_hilos` siguen en 0 filas, y
+`EnlacesServicioController::store()` exige `puerto_nap_id` real (`exists:mapared_puertos,id`), así
+que ni siquiera se podría dar de alta un enlace de prueba (y el item lo prohíbe explícitamente: solo
+lectura, no modificar datos). Un `--dry-run` del backfill (100% de solo lectura) confirma que, de
+correrse, la zona TULTITLAN solo llegaría al **50% de cobertura** de puertos (5 de 10 cajas) — por
+debajo del 80% que el propio DoD de `#951` exige. Item cerrado documentando el hallazgo (mismo
+patrón que `#963`, reconfirmado sin cambios el 2026-09-07); el DoD de MR-16 (`#952`, sigue
+`requiere_irving`) sigue sin poder verificarse con datos reales hasta que alguien corra el backfill
+real + dé de alta un enlace real vía la UI existente. Detalle completo en
+`docs/mapared-mr16-fase2b-item-9990496-verificacion.md`. **Sin cambio de código** — investigación
+read-only, tal como pedía el spec.
+
+## Item #9990408 — MR-12 UI panel de unión de hilos — bucle reap sobre paraguas ya descompuesto, con re-apertura espuria del guard (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/#936,
+con una variante nueva. Una vuelta previa (2026-09-07 10:43-10:44) ya descompuso correctamente el
+trabajo en **#9990501** (Fase A: `EmpalmesController`+rutas, backend) y **#9990502** (Fase B: doble
+clic + modal Quasar en `LeafletMapRed.vue`, frontend), y también mergeó a la propia rama de
+`#9990408` los componentes UI compartidos (`ElementSidePanel.vue`+`EmpalmesPanel.vue`+
+`helper/empalmes-request.js`, commit `e5d2c8b4`) antes de repartir el resto. Esa vuelta **sí**
+intentó el cierre — el guard de paraguas lo parqueó bien (`aprobado_irving`+
+`excluir_pool_automatico=true`). La variante: 8 minutos después, `jarvis-ya-decidido` procesó un
+brief pendiente del propio item ("la decisión ya estaba tomada y el item seguía retenido sin que
+faltara nadie") y lo devolvió a `aprobado_revisor`; el scheduler, al despachar, **limpió
+`excluir_pool_automatico`** (log índice 226) — sacándolo de su parqueo correcto y devolviéndolo al
+pool sin que hubiera trabajo propio pendiente. A diferencia de los precedentes (donde el
+cierre-intento simplemente nunca se hacía), aquí sí se hizo bien y otro mecanismo lo deshizo; se
+deja anotado como observación para quien investigue la maquinaria del circuito, sin tomarlo como
+objeto de este item (fuera de alcance de "MR-12 UI panel de unión de hilos"). Verificado en esta
+vuelta: `#9990502` sigue paraguas de sus propios hijos — `#9990520` (Fase B1: `EmpalmeConfigDialog.vue`
++ enganche en Mufa/NAP) cerró y mergeó **durante esta misma vuelta** (commit `bf860bb5`); `#9990521`
+(Fase B2: enganche en Rack/`RackConfiguration.vue`) sigue `aprobado_revisor` sin reclamar — es la
+única pieza real pendiente. Corrección: esta vuelta ejecuta el intento de cierre faltante; el guard
+(`RoadmapItem.php` bloque "(2b) PARAGUAS") lo reenruta a `aprobado_irving` +
+`excluir_pool_automatico=true`, sacándolo del pool/reaper hasta que el hook de cierre en cascada
+(`RoadmapItem.php:459-491`) lo complete solo cuando `#9990502` cierre (que a su vez depende de
+`#9990521`). Detalle en `docs/roadmap-bucle-reap-item-9990408-verificacion.md`. **Sin cambio de
+código de negocio** — el trabajo real de UI (Rack) sigue en `#9990521`, listo para reclamarse.
+
+## Item #962 — MR-26 Cobertura comercial derivada de la infraestructura — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
+#936/#9990408. #962 (MR-26: polígono de cobertura vendible = unión de radios de drop de NAPs con
+puertos libres + endpoint de consulta por coordenada + capa de sectores inalámbricos) ya estaba
+descompuesto correctamente en 4 sub-items (`origen_item_id=962`) por una vuelta previa: **#9990522**
+(Fase 1 — motor de cobertura, `completado`, merge `9681a91f`), **#9990523** (Fase 2 — endpoint de
+consulta por coordenada, `requiere_irving`, sin reclamar), **#9990524** (Fase 3 — capa de sectores
+inalámbricos, `requiere_irving`, sin reclamar) y **#9990525** (Fase 4 — UI + DoD final,
+`en_progreso` en `wt-3`). El historial de #962 muestra el ciclo típico de esta familia (escalación
+por anti-loop, la directiva de Irving `destapado_mapa` que le quitó `excluir_pool_automatico`,
+timeout por `max_turns`, dos `soltar-claim` por muerte de proceso, varios `limite_cuenta_detectado`
+y finalmente `reaper-rapido` re-encolándolo como huérfano) **sin que en ningún punto se intentara
+cerrarlo** — la descomposición ya existía desde antes de la mayoría de esos ciclos, pero nadie
+disparó el guard de paraguas. Verificado: los 4 hijos siguen intactos (3 abiertos, 1 mergeado), sin
+que esta vuelta tocara el que ya tiene dueño (`#9990525` en `wt-3`, aislamiento #334). Corrección:
+esta vuelta ejecuta el intento de cierre faltante; el guard (`RoadmapItem.php` bloque "(2b)
+PARAGUAS") lo reenruta a `aprobado_irving` + `excluir_pool_automatico=true` (evento
+`paraguas_abierto` en el log, "le quedan 3 sub-item(s) abierto(s)"), sacándolo del pool/reaper
+hasta que el hook de cierre en cascada (`RoadmapItem.php:459-491`) lo complete solo cuando
+#9990523, #9990524 y #9990525 cierren los tres. Detalle en
+`docs/roadmap-bucle-reap-item-962-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo real de MR-26 (endpoint de consulta, sectores inalámbricos, UI + DoD con dirección real de
+Tultitlán) sigue en #9990523/#9990524/#9990525, pendientes de aprobación/reclamo.
