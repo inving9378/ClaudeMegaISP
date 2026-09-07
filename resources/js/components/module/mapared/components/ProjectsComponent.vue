@@ -111,6 +111,24 @@
                 </q-tooltip></q-btn
             >
         </q-item-section>
+        <q-item-section
+            avatar
+            class="q-ml-sm"
+            v-if="permissons.data.canView(`maps_kmz_load`)"
+        >
+            <q-btn
+                icon="mdi-file-find-outline"
+                round
+                color="primary"
+                size="sm"
+                padding="5px"
+                :disable="loading || hasLayerEdit"
+                @click="showImportWizard = true"
+                ><q-tooltip class="bg-primary" :offset="[10, 10]">
+                    Importar KML/KMZ con previsualización
+                </q-tooltip></q-btn
+            >
+        </q-item-section>
     </q-item>
     <q-item dense style="padding: 0">
         <q-input
@@ -449,6 +467,12 @@
         @delete="deleteObject"
         @show-on-map="showOnMap"
     />
+
+    <import-kml-wizard
+        v-model="showImportWizard"
+        :project-id="nodeUploadKmz ? nodeUploadKmz.id : null"
+        @imported="onImportedKml"
+    />
 </template>
 
 <script setup>
@@ -467,6 +491,7 @@ import {
 import { message } from "../../../../helpers/toastMsg";
 import { menuOptions, hasLayerEdit, currentMarker } from "../helper/mapUtils";
 import ElementSidePanel from "./others/ElementSidePanel.vue";
+import ImportKmlWizard from "./ImportKmlWizard.vue";
 import { openElementSidePanel } from "../../../../composables/useElementSidePanel";
 import Swal from "sweetalert2";
 import { darkMode } from "../../../../hook/appConfig";
@@ -536,6 +561,7 @@ const projectNode = ref(null);
 const draggedNode = ref(null);
 const nodeUploadKmz = ref(null);
 const convertOptions = ref([]);
+const showImportWizard = ref(false);
 
 const dropTargetNode = ref(null);
 const dropPosition = ref(null);
@@ -915,6 +941,10 @@ const changeClassification = async (node) => {
 
 const onRejectedKMZ = () => {
     message("Fichero no permitido", "error");
+};
+
+const onImportedKml = () => {
+    loadData();
 };
 
 const onSelectKMZ = async (val) => {
