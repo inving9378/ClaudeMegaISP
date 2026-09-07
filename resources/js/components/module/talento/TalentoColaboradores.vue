@@ -330,7 +330,7 @@
       </div>
     </div>
 
-    <!-- Modal Documentos del expediente (solo lectura, Hijo D2 fase C) -->
+    <!-- Modal Documentos del expediente (solo lectura, Hijo D2 fase C; contenido extraído a TalentoExpedienteDocumentos.vue en el Hijo E1) -->
     <div v-if="documentosModal.show" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5);z-index:9999">
       <div class="modal-dialog">
         <div class="modal-content">
@@ -339,28 +339,7 @@
             <button @click="closeDocumentos" type="button" class="btn-close"></button>
           </div>
           <div class="modal-body">
-            <div v-if="documentosModal.loading" class="text-center py-4">
-              <div class="spinner-border spinner-border-sm text-primary"></div>
-            </div>
-            <div v-else-if="!documentosModal.items.length" class="text-muted small text-center py-3">
-              Este colaborador no tiene documentos generados (sin puesto asignado o sin plantillas para su puesto).
-            </div>
-            <ul v-else class="list-group">
-              <li v-for="doc in documentosModal.items" :key="doc.id"
-                  class="list-group-item d-flex justify-content-between align-items-center">
-                <div>
-                  <div class="fw-semibold">{{ doc.template?.name ?? '—' }}</div>
-                  <span class="badge" :class="doc.status === 'completo' ? 'bg-success' : 'bg-warning text-dark'"
-                        :title="doc.status === 'completo' ? 'Documento completo' : 'Faltan datos por capturar en el sistema'">
-                    {{ doc.status === 'completo' ? 'Completo' : 'Pendiente' }}
-                  </span>
-                </div>
-                <a :href="`/talento/colaboradores/${documentosModal.colaboradorId}/documentos/${doc.id}`"
-                   target="_blank" class="btn btn-sm btn-outline-primary">
-                  <i class="fa fa-eye me-1"></i>Abrir
-                </a>
-              </li>
-            </ul>
+            <talento-expediente-documentos :colaborador-id="documentosModal.colaboradorId" />
           </div>
           <div class="modal-footer">
             <button @click="closeDocumentos" class="btn btn-secondary">Cerrar</button>
@@ -396,7 +375,7 @@ export default {
       searchTimeout: null,
       canManage: false,
       roleDepartments: {},
-      documentosModal: { show: false, loading: false, colaboradorId: null, colaboradorName: '', items: [] },
+      documentosModal: { show: false, colaboradorId: null, colaboradorName: '' },
       puestos: [],
     };
   },
@@ -611,20 +590,10 @@ export default {
       if (!d) return '—';
       return new Date(d).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
     },
-    async openDocumentos(col) {
+    openDocumentos(col) {
       this.documentosModal = {
-        show: true, loading: true,
-        colaboradorId: col.id, colaboradorName: col.user?.name ?? '',
-        items: [],
+        show: true, colaboradorId: col.id, colaboradorName: col.user?.name ?? '',
       };
-      try {
-        const { data } = await axios.get(`/talento/api/colaboradores/${col.id}/documentos`);
-        this.documentosModal.items = data ?? [];
-      } catch {
-        this.documentosModal.items = [];
-      } finally {
-        this.documentosModal.loading = false;
-      }
     },
     closeDocumentos() { this.documentosModal.show = false; },
   },
