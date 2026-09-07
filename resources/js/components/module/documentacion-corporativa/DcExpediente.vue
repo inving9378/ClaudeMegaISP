@@ -62,6 +62,19 @@
             <q-btn
                 flat
                 dense
+                icon="fact_check"
+                color="primary"
+                label="Acuse de avance"
+                class="q-mr-sm"
+                :loading="exportandoAcuse"
+                @click="exportarAcuse"
+            >
+                <q-tooltip>Genera el acuse de avance en PDF (evidencia para la mesa directiva)</q-tooltip>
+            </q-btn>
+
+            <q-btn
+                flat
+                dense
                 icon="refresh"
                 color="primary"
                 :loading="loading"
@@ -737,6 +750,9 @@ export default {
             formatoNominal: 'excel',
             erroresNominal: null,
             exportandoNominal: false,
+
+            // Acuse de avance con corte a fecha (item #9990551).
+            exportandoAcuse: false,
         };
     },
 
@@ -1131,6 +1147,23 @@ export default {
                 this.erroresNominal = await this.mensajeErrorBlob(e, 'No se pudo generar el detalle nominal.');
             } finally {
                 this.exportandoNominal = false;
+            }
+        },
+
+        /** Acuse de avance global en PDF, con corte al día de hoy (item #9990551). */
+        async exportarAcuse() {
+            if (this.exportandoAcuse) return;
+            this.exportandoAcuse = true;
+            try {
+                const response = await axios.get(
+                    '/documentacion-corporativa/api/acuse/exportar',
+                    { responseType: 'blob' }
+                );
+                this.descargarBlob(response, 'dc-acuse-avance.pdf');
+            } catch (e) {
+                this.aviso(await this.mensajeErrorBlob(e, 'No se pudo generar el acuse de avance.'), 'negative');
+            } finally {
+                this.exportandoAcuse = false;
             }
         },
 
