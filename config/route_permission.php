@@ -2370,6 +2370,10 @@ return [
         '/talento/embajadores-colabs',
         '/talento/api/colaboradores/{id}/embajador-data',
     ],
+    'talento.ventas.view' => [
+        '/talento/mis-ventas',
+        '/talento/api/mis-ventas',
+    ],
     'talento.config.evidencias' => [
         '/talento/config/evidencias',
         '/talento/api/config/evidencias',
