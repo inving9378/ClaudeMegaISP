@@ -189,6 +189,7 @@ import TalentoNiveles from "./components/module/talento/TalentoNiveles.vue";
 import TalentoDashboard from "./components/module/talento/TalentoDashboard.vue";
 import TalentoEscalafon from "./components/module/talento/TalentoEscalafon.vue";
 import TalentoEmbajadores from "./components/module/talento/TalentoEmbajadores.vue";
+import TalentoVentas from "./components/module/talento/TalentoVentas.vue";
 import TalentoEvidenciaConfig from "./components/module/talento/TalentoEvidenciaConfig.vue";
 import TalentoPaqueteDocumentos from "./components/module/talento/TalentoPaqueteDocumentos.vue";
 import TalentoPuestos from "./components/module/talento/TalentoPuestos.vue";
@@ -644,6 +645,7 @@ const app = createApp({
         'talento-dashboard': TalentoDashboard,
         'talento-escalafon': TalentoEscalafon,
         'talento-embajadores': TalentoEmbajadores,
+        'talento-ventas': TalentoVentas,
         'talento-evidencia-config': TalentoEvidenciaConfig,
         'talento-paquete-documentos': TalentoPaqueteDocumentos,
         'talento-puestos': TalentoPuestos,
