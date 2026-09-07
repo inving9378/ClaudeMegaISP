@@ -24,7 +24,16 @@ use Symfony\Component\Process\Process;
  */
 class MergeRunner
 {
-    private const LOCK = '/home/meganet/circuito/merge.lock';
+    protected const LOCK = '/home/meganet/circuito/merge.lock';
+
+    /**
+     * #9990466 — candado DEDICADO del rebuild post-merge (distinto de `LOCK` de arriba, que sólo
+     * serializa el DRAIN de merges, y distinto del semáforo de `deploy/circuito/npm-build.sh`, que
+     * limita cuántos `npm run` corren a la vez en el box). Evita que dos disparos de rebuild
+     * detached se pisen y dejen el manifest a medio escribir; no bloquea el despacho porque nadie
+     * más lo toma.
+     */
+    protected const BUILD_LOCK = '/home/meganet/circuito/rebuild-post-merge.lock';
 
     public function __construct(
         private RoadmapCircuitoService $svc,
@@ -49,6 +58,7 @@ class MergeRunner
         }
 
         $out = [];
+        $necesitaRebuild = false;
         try {
             while (($req = $this->svc->dequeueMerge()) !== null) {
                 $itemId = (int) ($req['item_id'] ?? 0);
@@ -61,6 +71,9 @@ class MergeRunner
                     continue;
                 }
                 $res = $this->performMerge($item, $req);
+                if (! empty($res['necesita_rebuild'])) {
+                    $necesitaRebuild = true;
+                }
                 // Escala a la bandeja de Irving si el merge falló y es escalable (conflicto/regresión).
                 if (! empty($res['escalado'])) {
                     $item->estado_aprobacion = 'requiere_irving';
@@ -77,6 +90,15 @@ class MergeRunner
         } finally {
             flock($lock, LOCK_UN);
             fclose($lock);
+        }
+
+        // #9990466 — COALESCER + SACAR DEL LOCK: el rebuild del bundle se dispara UNA SOLA VEZ por
+        // drain completo (no una por merge) y AQUÍ, ya con `merge.lock` liberado (arriba) y sin que
+        // el llamador (SchedulerCommand, que sostiene `scheduler.lock` durante todo `drain()`)
+        // tenga que esperar los ~4min de `npm run prod`: `triggerRebuildAsync()` lanza el build
+        // DETACHED y regresa de inmediato.
+        if ($necesitaRebuild) {
+            $this->triggerRebuildAsync();
         }
 
         return $out;
@@ -223,19 +245,20 @@ class MergeRunner
         // fallo al reindexar NUNCA debe tumbar un merge ya commiteado.
         $this->jarvisIndice->regenerarSilencioso();
 
-        // #432 ADENDA A — "mergeado" = DESPLEGADO y VISIBLE, no solo en git. Si el merge tocó
-        // frontend, recompila el bundle + limpia cachés (SIN config:cache) para servir el cambio de
-        // inmediato (antes quedaba en git pero el bundle servido seguía stale = "hecho pero no está").
-        $rebuild = '';
-        if (! empty($this->clasificarUi($sha)['ui'])) {
-            $rebuild = $this->rebuildFrontend() ? ' Bundle recompilado + cachés limpias.' : ' (⚠️ recompilación de bundle falló; revisar log).';
-        }
+        // #432 ADENDA A / #9990466 — "mergeado" = DESPLEGADO y VISIBLE, no solo en git. `markMerged()`
+        // ya clasificó UI vs backend (`$item->revision_ui`); YA NO se recompila aquí síncrono
+        // por-merge (eso era lo que congelaba el despacho ~4min por cada merge en cola) — solo se
+        // señala al `drain()` que llamó que hace falta un rebuild, y éste lo coalesce en UNO solo
+        // al final de drenar toda la cola, detached.
+        $necesitaRebuild = (bool) $item->revision_ui;
+        $rebuild = $necesitaRebuild ? ' Bundle pendiente de recompilar (coalescido con el resto del drain).' : '';
 
         Log::channel('roadmap_externo')->info('merge-ok', ['item' => $item->id, 'branch' => $branch, 'merge_commit' => $sha,
             'trigger' => $req['trigger'] ?? '?']);
 
         return ['estado' => 'ok', 'ok' => true, 'merge_commit' => $sha,
-            'salida' => "Integrada a dev (merge {$sha}). Regresión OK.{$rebuild}", 'escalado' => false, 'at' => time()];
+            'salida' => "Integrada a dev (merge {$sha}). Regresión OK.{$rebuild}", 'escalado' => false,
+            'necesita_rebuild' => $necesitaRebuild, 'at' => time()];
     }
 
     /**
@@ -308,37 +331,36 @@ class MergeRunner
     }
 
     /**
-     * #432 ADENDA A — recompila el bundle en el checkout PRINCIPAL (donde vive la web) + limpia cachés
-     * para que "mergeado" = DESPLEGADO y VISIBLE (no solo en git). Corre bajo el SEMÁFORO de builds
-     * (deploy/circuito/npm-build.sh) para no chocar con builds del ejecutor; CIRCUITO_BUILD_MODE=prod →
-     * build de producción. NUNCA config:cache (rompe env() en runtime en este box → IA/WhatsApp NULL).
-     * Best-effort: un fallo de build NO revierte el merge (el código ya está en main); se registra.
+     * #9990466 — dispara el rebuild del bundle DETACHED (setsid nohup … &, mismo patrón que
+     * `SchedulerCommand::lanzarVueltaItem()`) para que NO bloquee a quien llamó a `drain()` — el
+     * scheduler sostiene `scheduler.lock` durante todo `drain()`, así que un rebuild síncrono aquí
+     * volvería a congelar el despacho, que es justo lo que este item corrige. Serializado con
+     * `BUILD_LOCK` (flock del binario `flock(1)`, bloqueante): si ya hay un rebuild post-merge en
+     * curso, este espera su turno en vez de correr encimado — así el bundle final queda consistente
+     * con TODO lo que aterrizó, sin duplicar compilaciones. Corre bajo el SEMÁFORO general de builds
+     * (deploy/circuito/npm-build.sh) para no chocar con builds del ejecutor; CIRCUITO_BUILD_MODE=prod
+     * → build de producción. NUNCA config:cache (rompe env() en runtime en este box → IA/WhatsApp
+     * NULL). Best-effort: un fallo de build NO revierte el merge (el código ya está en main) ni
+     * tumba el scheduler; queda en su propio log.
      */
-    private function rebuildFrontend(): bool
+    protected function triggerRebuildAsync(): void
     {
         try {
-            $build = Process::fromShellCommandline(
-                'CIRCUITO_BUILD_MODE=prod bash ' . escapeshellarg(base_path('deploy/circuito/npm-build.sh')),
-                base_path()
-            );
-            $build->setTimeout(600);
-            $build->run();
-            $ok = $build->isSuccessful();
+            $script = base_path('deploy/circuito/npm-build.sh');
+            $log    = storage_path('logs/rebuild-post-merge.log');
+            $interno = 'CIRCUITO_BUILD_MODE=prod bash ' . escapeshellarg($script)
+                . '; RC=$?'
+                . '; php artisan view:clear; php artisan route:clear; php artisan config:clear; php artisan view:cache'
+                . '; exit $RC';
+            $cmd = 'exec 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- 2>/dev/null; setsid nohup flock '
+                . escapeshellarg(self::BUILD_LOCK) . ' -c ' . escapeshellarg($interno)
+                . ' >> ' . escapeshellarg($log) . ' 2>&1 &';
 
-            foreach (['view:clear', 'route:clear', 'config:clear', 'view:cache'] as $cmd) {
-                $p = new Process(['php', 'artisan', $cmd], base_path());
-                $p->setTimeout(60);
-                $p->run();
-            }
+            Process::fromShellCommandline($cmd, base_path())->run();
 
-            Log::channel('roadmap_externo')->info('rebuild-frontend', ['ok' => $ok,
-                'salida' => mb_strimwidth(trim($build->getErrorOutput() . $build->getOutput()), 0, 300, '…')]);
-
-            return $ok;
+            Log::channel('roadmap_externo')->info('rebuild-post-merge-disparado', ['at' => time()]);
         } catch (\Throwable $e) {
-            Log::channel('roadmap_externo')->warning('rebuild-frontend-fail', ['error' => $e->getMessage()]);
-
-            return false;
+            Log::channel('roadmap_externo')->warning('rebuild-post-merge-disparo-fallo', ['error' => $e->getMessage()]);
         }
     }
 
