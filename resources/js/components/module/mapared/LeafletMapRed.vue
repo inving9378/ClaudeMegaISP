@@ -380,6 +380,7 @@ import { darkMode } from "../../../hook/appConfig";
 import { getClientsWithoutProject, getMapRenderConfig, saveObject } from "./helper/request";
 import { getOcupacionLote } from "./helper/naps-request";
 import { getTrazoEnlace } from "./helper/enlaces-request";
+import { getCoberturaCapa } from "./helper/cobertura-request";
 
 import Swal from "sweetalert2";
 import {
@@ -444,6 +445,9 @@ let map = null;
 // MR-16 Fase 2a (item roadmap #9990495): capa dedicada para el trazo de ruta a OLT
 // (dibujada bajo demanda al hacer clic en "Trazar ruta a OLT" de un enlace de servicio).
 let trazoLayer = null;
+// MR-26 Fase 4 (item roadmap #9990525): capa de cobertura comercial en vivo (Fase 1, #9990522),
+// independiente de `drawnItems` (no es un objeto de BD con `dialog`, se recalcula en cada fetch).
+let coberturaLayer = null;
 const projects = ref([]);
 let searchLayers = null;
 let clientsLayers = null;
@@ -492,7 +496,10 @@ const CAPAS_MAPA_RED = [
     { key: "drops", label: "Drops", icon: "mdi-vector-line", dialogs: [] },
     { key: "clientes", label: "Clientes", icon: "mdi-account", dialogs: ["client"] },
     { key: "postes", label: "Postes", icon: "mdi-currency-mnt", dialogs: ["pole"] },
-    { key: "cobertura", label: "Cobertura", icon: "mdi-vector-polygon", dialogs: ["region"] },
+    // MR-26 Fase 4 (#9990525): ya NO reusa dialog='region' (ese dialog es de zonas/polígonos
+    // genéricos importados de KMZ, sin relación con cobertura — 0 filas reales lo usaban así).
+    // Cobertura ahora es una capa calculada en vivo (GeoJSON propio, ver cargarCapaCobertura()).
+    { key: "cobertura", label: "Cobertura", icon: "mdi-vector-polygon", dialogs: [] },
 ];
 
 const CAPA_ZOOM_MIN = { drops: 16, clientes: 17 };
@@ -565,6 +572,45 @@ const aplicarVisibilidadCapas = () => {
 watch(capasEncendidas, () => {
     aplicarVisibilidadCapas();
 });
+
+// MR-26 Fase 4 (item roadmap #9990525) — capa "Cobertura" en vivo (Fase 1, #9990522). Se
+// refetch cada vez que se enciende el toggle (no se cachea) para que ocupar el último puerto
+// libre de una NAP la haga desaparecer al re-encender la capa (DoD del item padre #962).
+const cargarCapaCobertura = async () => {
+    if (!coberturaLayer) {
+        return;
+    }
+    coberturaLayer.clearLayers();
+    const geojson = await getCoberturaCapa();
+    if (!geojson || !Array.isArray(geojson.features)) {
+        return;
+    }
+    L.geoJSON(geojson, {
+        style: {
+            color: "#00c853",
+            weight: 1,
+            fillColor: "#00c853",
+            fillOpacity: 0.15,
+        },
+        onEachFeature: (feature, layer) => {
+            const { nombre, puertos_libres } = feature.properties ?? {};
+            layer.bindPopup(
+                `<b>${nombre ?? "NAP"}</b><br>Puertos libres: ${puertos_libres ?? "?"}`
+            );
+        },
+    }).addTo(coberturaLayer);
+};
+
+watch(
+    () => capasEncendidas.cobertura,
+    (encendida) => {
+        if (encendida) {
+            cargarCapaCobertura();
+        } else if (coberturaLayer) {
+            coberturaLayer.clearLayers();
+        }
+    }
+);
 
 const crearControlCapas = () => {
     const CapasControl = L.Control.extend({
@@ -727,6 +773,13 @@ const initMap = async () => {
     // MR-16 Fase 2a (#9990495): capa togglable con el trazo de ruta a OLT del enlace
     // seleccionado (vacía hasta que se pida un trazo).
     trazoLayer = L.layerGroup().addTo(map);
+
+    // MR-26 Fase 4 (#9990525): capa de cobertura comercial, controlada por el checkbox
+    // "Cobertura" del panel propio (capas-panel), no por este control nativo de Leaflet.
+    coberturaLayer = L.layerGroup().addTo(map);
+    if (capasEncendidas.cobertura) {
+        cargarCapaCobertura();
+    }
 
     L.control
         .layers(baseLayers, { "Trazo a OLT": trazoLayer })
