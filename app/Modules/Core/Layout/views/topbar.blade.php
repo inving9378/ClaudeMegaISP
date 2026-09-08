@@ -226,12 +226,13 @@
 /* alinear verticalmente TODO el clúster derecho (el engrane salía más alto) */
 .navbar-header > .d-flex:last-child { align-items: center; }
 /* contadores del header como superposición VISIBLE DENTRO de la esquina sup-der del
-   icono (v2, #9990529): el translate(25%,-25%) de la v1 empujaba el badge hacia
-   afuera/arriba y, al estar el botón pegado al borde superior del header, lo cortaba.
-   Sin transform, apoyado 2px adentro del botón, queda sobre el icono y visible entero. */
+   icono (v3, #9990599): en v2 el botón está pegado al borde superior del header y
+   top:2px del botón coincidía con el tope del viewport → el badge se cortaba por
+   arriba. Se baja el badge (top:15px) para que quede sobre la esquina sup-der del
+   icono (el botón mide 70px con el icono centrado ~35px) y completamente visible. */
 .hdr-badge-corner {
-    top: 2px !important;
-    right: 2px !important;
+    top: 15px !important;
+    right: 8px !important;
     left: auto !important;
     bottom: auto !important;
     transform: none !important;
