@@ -28,6 +28,7 @@ class DocumentTemplateUpdateRequest extends FormRequest
         return [
             'template' => 'required',
             'type' => 'required',
+            'status' => 'nullable|in:borrador,publicada',
 
         ];
     }

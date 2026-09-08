@@ -28,6 +28,7 @@ class DocumentTemplateCreateRequest extends FormRequest
         return [
             'name' => ['required', 'unique:document_templates,name,except,id'],
             'type' => 'required',
+            'status' => 'nullable|in:borrador,publicada',
 
         ];
     }
