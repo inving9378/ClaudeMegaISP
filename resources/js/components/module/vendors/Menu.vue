@@ -68,6 +68,24 @@
                 icon="fas fa-file-invoice"
             />
         </q-tabs>
+        <!-- #9990601 — QUIÉN se está viendo. Sin esto, abrir el panel del vendedor equivocado
+             (o de uno dado de baja) se ve idéntico a que el módulo esté roto: tablas en blanco y
+             ninguna pista. Pasó el 2026-09-08 y costó media hora de diagnóstico. -->
+        <div v-if="seller_nombre" class="col-12 mb-2">
+            <div
+                class="d-flex align-items-center gap-2 px-3 py-2 rounded"
+                :class="seller_activo ? 'bg-light' : 'bg-warning-subtle border border-warning'"
+            >
+                <i class="fas fa-user-tie text-muted"></i>
+                <strong>{{ seller_nombre }}</strong>
+                <span class="text-muted small">· vendedor #{{ seller_id }} · usuario #{{ user_id }}</span>
+                <span v-if="!seller_activo" class="badge bg-warning text-dark ms-auto">
+                    <i class="fas fa-triangle-exclamation me-1"></i>
+                    Vendedor {{ seller_estado || "inactivo" }} — es normal que no tenga movimientos
+                </span>
+            </div>
+        </div>
+
         <q-tab-panels v-model="activeTab" animated :dark="darkMode">
             <q-tab-panel name="#navs-pills-justified-information">
                 <InformationSeller :id="seller_id" />
@@ -128,6 +146,10 @@ const props = defineProps({
     seller_id: Number,
     sucursal_id: Number,
     is_counter: Boolean,
+    // #9990601 — identidad y estado del vendedor que se está viendo.
+    seller_nombre: { type: String, default: "" },
+    seller_estado: { type: String, default: "" },
+    seller_activo: { type: Boolean, default: true },
     mediums_of_sales: {
         type: Array,
         default: [],

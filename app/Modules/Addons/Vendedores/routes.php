@@ -69,6 +69,16 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('vendedores
     Route::get('/', [VendorsSellerController::class, 'showView'])->name('vendedores.showView');
     Route::get('/seguimiento-me/', [VendorsSellerController::class, 'showPanel'])->name('vendedores.showPanel');
     Route::get('/data', [VendorsSellerController::class, 'index'])->name('vendedores.index');
+    // ⚠️ #9990601 — LOS NOMBRES DE ESTOS PARÁMETROS MIENTEN. El contrato REAL, verificado contra
+    // `SellerController::edit($seller_id, $user_id)` y contra los datos:
+    //     primer parámetro  ({id})        = `sellers.id`   ← id de la tabla sellers
+    //     segundo parámetro ({seller_id}) = `users.id`     ← id del USUARIO, no del seller
+    // Ejemplo real: /vendedores/12/seguimiento-vendedor/9 → sellers#12, users#9 (Guadalupe
+    // Hernández, 274 prospectos). El filtro de prospectos usa `crm_lead_information.owner_id`,
+    // que apunta a `users.id`: si alguien construye el enlace al revés, la pantalla devuelve CERO
+    // filas SIN dar ningún error. Pasó el 2026-09-08 y costó media hora de diagnóstico.
+    // Renombrarlos es una decisión pendiente (hay enlaces ya construidos); mientras tanto, esto
+    // queda escrito aquí para que nadie tenga que deducirlo otra vez.
     Route::get('/{id}/seguimiento-vendedor/{seller_id}', [VendorsSellerController::class, 'edit'])->name('vendedores.seguimiento');
     Route::get('/{id}/getDataById', [VendorsSellerController::class, 'getDataById'])->name('vendedores.getDataById');
     Route::get('/get-status-sellers', [VendorsSellerController::class, 'getStatusSeller'])->name('vendedores.getStatusSeller');
