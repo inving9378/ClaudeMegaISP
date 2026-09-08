@@ -230,7 +230,7 @@
    top:2px del botón coincidía con el tope del viewport → el badge se cortaba por
    arriba. Se baja el badge (top:15px) para que quede sobre la esquina sup-der del
    icono (el botón mide 70px con el icono centrado ~35px) y completamente visible. */
-.hdr-badge-corner {
+.badge.hdr-badge-corner {
     top: 15px !important;
     right: 8px !important;
     left: auto !important;
