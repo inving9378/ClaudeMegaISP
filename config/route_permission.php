@@ -832,6 +832,13 @@ return [
     ],
 
     //Gestión de red
+    'mikrotik_sync_view_dashboard' => [
+        '/red/mikrotik-sync',
+        '/red/mikrotik-sync/api/servicios',
+    ],
+    'mikrotik_sync_retry' => [
+        '/red/mikrotik-sync/api/servicios/{tipo}/{id}/reintentar',
+    ],
     'router_view_router' => ['/red/router', '/red/router/table', '/red/router/listar', '/configuracion/service_in_address_list'],
     'router_add_router' => [
         '/red/router/crear',

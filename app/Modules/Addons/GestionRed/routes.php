@@ -5,6 +5,7 @@ use App\Modules\Addons\GestionRed\Controllers\Network\NetworkController;
 use App\Modules\Addons\GestionRed\Controllers\Network\NetworkIpController;
 use App\Modules\Addons\GestionRed\Controllers\Router\MikrotikConfigController;
 use App\Modules\Addons\GestionRed\Controllers\Router\MikrotikController;
+use App\Modules\Addons\GestionRed\Controllers\Router\MikrotikSyncController;
 use App\Modules\Addons\GestionRed\Controllers\Router\RouterController;
 use App\Modules\Addons\GestionRed\Controllers\OLTs\OLTsBillingController;
 use App\Modules\Addons\GestionRed\Controllers\OLTs\OLTsCardsController;
@@ -84,6 +85,15 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('red')->gro
                 Route::post('/destroy/{id}', [MikrotikConfigController::class, 'destroy']);
             });
         });
+    });
+
+    // ---------------------------------------------------------------
+    // Sync Mikrotik — dashboard read-only + reintento manual (item #677)
+    // ---------------------------------------------------------------
+    Route::prefix('mikrotik-sync')->group(function () {
+        Route::get('/', [MikrotikSyncController::class, 'index']);
+        Route::get('/api/servicios', [MikrotikSyncController::class, 'servicios']);
+        Route::post('/api/servicios/{tipo}/{id}/reintentar', [MikrotikSyncController::class, 'reintentar']);
     });
 
 });

@@ -94,6 +94,14 @@
         {
             "name": "onu_type_add",
             "description": "Agregar tipo de ONU al catálogo"
+        },
+        {
+            "name": "mikrotik_sync_view_dashboard",
+            "description": "Ver dashboard de sincronización Mikrotik (servicios pendientes/fallidos)"
+        },
+        {
+            "name": "mikrotik_sync_retry",
+            "description": "Reintentar manualmente la sincronización Mikrotik de un servicio"
         }
     ],
     "menu": [
@@ -112,6 +120,11 @@
                     "label": "Red IPv4",
                     "url": "/red/ipv4/listar",
                     "permission": "ipv4_view_ipv4"
+                },
+                {
+                    "label": "Sync Mikrotik",
+                    "url": "/red/mikrotik-sync",
+                    "permission": "mikrotik_sync_view_dashboard"
                 }
             ]
         }
@@ -430,6 +443,20 @@
             "description": "Cambia el tipo de una ONU",
             "scope": "onu_edit",
             "permission": "onu_edit"
+        },
+        {
+            "method": "GET",
+            "path": "/red/mikrotik-sync/api/servicios",
+            "description": "Lista servicios con mikrotik_sync_status pending/failed",
+            "scope": "mikrotik_sync_view_dashboard",
+            "permission": "mikrotik_sync_view_dashboard"
+        },
+        {
+            "method": "POST",
+            "path": "/red/mikrotik-sync/api/servicios/{tipo}/{id}/reintentar",
+            "description": "Reintenta la sincronización Mikrotik de un servicio puntual",
+            "scope": "mikrotik_sync_retry",
+            "permission": "mikrotik_sync_retry"
         }
     ],
     "ai": {

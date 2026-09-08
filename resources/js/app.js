@@ -41,6 +41,7 @@ import Breadcrumb from "./components/base/shared/Breadcrumb";
 //Router
 import AddRouterCrud from "./components/module/router/AddRouterCrud";
 import RouterCrud from "./components/module/router/RouterCrud";
+import MikrotikSyncDashboard from "./components/module/router/MikrotikSyncDashboard.vue";
 
 //network
 import NetworkListar from "./components/module/network/NetworkListar";
@@ -620,6 +621,7 @@ const app = createApp({
         'fleet-geofence-form': FleetGeofenceForm,
         'fleet-geofence-show': FleetGeofenceShow,
         'fleet-notification-log': FleetNotificationLog,
+        'mikrotik-sync-dashboard': MikrotikSyncDashboard,
         'fleet-rule-list': FleetRuleList,
         'fleet-expense-comparison': FleetExpenseComparison,
         'fleet-documents-dashboard': FleetDocumentsDashboard,
