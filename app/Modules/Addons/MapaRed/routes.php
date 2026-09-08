@@ -4,6 +4,7 @@ use App\Modules\Addons\MapaRed\Controllers\BusquedaController;
 use App\Modules\Addons\MapaRed\Controllers\CableAltaRapidaController;
 use App\Modules\Addons\MapaRed\Controllers\CatalogosController;
 use App\Modules\Addons\MapaRed\Controllers\CoberturaController;
+use App\Modules\Addons\MapaRed\Controllers\CoberturaDeclaradaController;
 use App\Modules\Addons\MapaRed\Controllers\ConnectionsController;
 use App\Modules\Addons\MapaRed\Controllers\DevicesController;
 use App\Modules\Addons\MapaRed\Controllers\EmpalmesController;
@@ -179,4 +180,13 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     Route::post('/sectores/import/csv/preview', [SectoresController::class, 'previsualizarCsv'])->name('mapa-red.api.sectores.import.csv.preview');
     Route::post('/sectores/import/geojson/preview', [SectoresController::class, 'previsualizarGeoJson'])->name('mapa-red.api.sectores.import.geojson.preview');
     Route::post('/sectores/import/commit', [SectoresController::class, 'confirmar'])->name('mapa-red.api.sectores.import.commit');
+
+    // MR-22 Fase 2c-2 (item #9990540) — cobertura DECLARADA/manual (distinta de MR-26/cobertura
+    // vendible calculada). Lectura por mapa_red_view (URL), escritura ADEMÁS por
+    // mapared.cobertura_declarada.manage (verificado inline en el controller).
+    Route::get('/cobertura-declarada', [CoberturaDeclaradaController::class, 'index'])->name('mapa-red.api.cobertura-declarada.index');
+    Route::get('/cobertura-declarada/{id}', [CoberturaDeclaradaController::class, 'show'])->name('mapa-red.api.cobertura-declarada.show');
+    Route::post('/cobertura-declarada', [CoberturaDeclaradaController::class, 'store'])->name('mapa-red.api.cobertura-declarada.store');
+    Route::put('/cobertura-declarada/{id}', [CoberturaDeclaradaController::class, 'update'])->name('mapa-red.api.cobertura-declarada.update');
+    Route::delete('/cobertura-declarada/{id}', [CoberturaDeclaradaController::class, 'destroy'])->name('mapa-red.api.cobertura-declarada.destroy');
 });
