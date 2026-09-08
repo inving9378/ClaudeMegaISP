@@ -453,6 +453,7 @@ import {
     titleLayers,
     currentMarker,
     getNearestRoutePoint,
+    getNearestCableEndpoint,
 } from "./helper/mapUtils";
 
 import Permission from "../../../helpers/Permission";
@@ -497,6 +498,12 @@ let trazoLayer = null;
 // MR-24e Fase 1a (item roadmap #9990557): línea punteada de vista previa del snap
 // contra la ruta más cercana mientras el modo "agregar NAP" está activo.
 let snapLinePreview = null;
+// MR-24e Fase 3a (item roadmap #9990581): capas del modo "agregar cable/troncal" — trazo en
+// curso, vértices clickeados y línea punteada de vista previa del snap a extremos.
+let cableDibujoLayer = null;
+let cableVerticesLayer = null;
+let snapCablePreview = null;
+let cableClickTimer = null;
 // MR-26 Fase 4 (item roadmap #9990525): capa de cobertura comercial en vivo (Fase 1, #9990522),
 // independiente de `drawnItems` (no es un objeto de BD con `dialog`, se recalcula en cada fetch).
 let coberturaLayer = null;
@@ -530,6 +537,14 @@ const originalName = ref(null);
 // formulario/POST real.
 const modoAgregarNap = ref(false);
 const ultimoClickNap = ref(null);
+
+// MR-24e Fase 3a (item roadmap #9990581): modo "agregar cable/troncal" — independiente de
+// modoAgregarNap. tipoCableDibujo define ANTES de dibujar si el trazo es un cable estándar o
+// una troncal (cambia grosor/color); verticesCable acumula los puntos clickeados del trazo en
+// curso. Finalizar el trazo (Enter/doble-clic) y persistirlo es la Fase 3b (sub-item aparte).
+const modoAgregarCable = ref(false);
+const tipoCableDibujo = ref("cable");
+const verticesCable = ref([]);
 
 // MR-24e Fase 1b (item roadmap #9990558): dialog mínimo (splitter o "Ninguno") que conecta
 // el click de Fase 1a con NapAltaRapidaController::store.
@@ -920,6 +935,10 @@ const initMap = async () => {
     // MR-16 Fase 2a (#9990495): capa togglable con el trazo de ruta a OLT del enlace
     // seleccionado (vacía hasta que se pida un trazo).
     trazoLayer = L.layerGroup().addTo(map);
+
+    // MR-24e Fase 3a (#9990581): capa de vértices del trazo en curso del modo "agregar
+    // cable/troncal" (el propio trazo se pinta con cableDibujoLayer, creada al primer vértice).
+    cableVerticesLayer = L.layerGroup().addTo(map);
 
     // MR-26 Fase 4 (#9990525): capa de cobertura comercial, controlada por el checkbox
     // "Cobertura" del panel propio (capas-panel), no por este control nativo de Leaflet.
@@ -1464,6 +1483,60 @@ const initMap = async () => {
         ],
     }).addTo(map);
 
+    // MR-24e Fase 3a (item roadmap #9990581): selector del tipo a dibujar ANTES de trazar
+    // (cable estándar o troncal) — solo cambia tipoCableDibujo, no dibuja nada por sí mismo.
+    L.easyButton({
+        states: [
+            {
+                stateName: "tipo-cable",
+                icon: "fa-ethernet",
+                title: "Tipo a dibujar: Cable (clic para cambiar a Troncal)",
+                onClick: function (btn) {
+                    tipoCableDibujo.value = "troncal";
+                    btn.state("tipo-troncal");
+                },
+            },
+            {
+                stateName: "tipo-troncal",
+                icon: "fa-network-wired",
+                title: "Tipo a dibujar: Troncal (clic para cambiar a Cable)",
+                onClick: function (btn) {
+                    tipoCableDibujo.value = "cable";
+                    btn.state("tipo-cable");
+                },
+            },
+        ],
+    }).addTo(map);
+
+    // MR-24e Fase 3a (item roadmap #9990581): toggle "Modo: agregar cable/troncal" — trazo por
+    // clics con snap a extremos (radio 15m). Finalizar el trazo (Enter/doble-clic) es Fase 3b.
+    L.easyButton({
+        states: [
+            {
+                stateName: "agregar-cable-apagado",
+                icon: "fa-route",
+                title: "Modo: agregar cable/troncal",
+                onClick: function (btn) {
+                    modoAgregarCable.value = true;
+                    map.doubleClickZoom.disable();
+                    map.on("click", handleClickDibujoCable);
+                    map.on("mousemove", handleMousemoveSnapCable);
+                    document.addEventListener("keydown", handleKeydownDibujoCable);
+                    btn.state("agregar-cable-encendido");
+                },
+            },
+            {
+                stateName: "agregar-cable-encendido",
+                icon: "fa-route",
+                title: "Desactivar modo: agregar cable/troncal",
+                onClick: function (btn) {
+                    cancelarDibujoCable();
+                    btn.state("agregar-cable-apagado");
+                },
+            },
+        ],
+    }).addTo(map);
+
     map.on("click", async function (e) {
         if (addInSerie.value) {
             let { color, data, icon_color, project_id, type, start } =
@@ -1539,6 +1612,102 @@ const handleMousemoveSnapNap = async (e) => {
         snapLinePreview = L.polyline([e.latlng, [lat, lng]], {
             dashArray: "5,5",
         }).addTo(map);
+    }
+};
+
+// MR-24e Fase 3a (item roadmap #9990581): quita la línea de vista previa del snap a extremos
+// del modo "agregar cable/troncal", si hay una.
+const limpiarSnapCablePreview = () => {
+    if (snapCablePreview) {
+        map.removeLayer(snapCablePreview);
+        snapCablePreview = null;
+    }
+};
+
+// MR-24e Fase 3a (item roadmap #9990581): borra el trazo en curso (vértices + capas) SIN
+// apagar el modo — Esc cancela el TRAZO actual, no la herramienta (así se puede empezar otro
+// de inmediato). Apagar la herramienta por completo es cancelarDibujoCable().
+const cancelarTrazoCableActual = () => {
+    verticesCable.value = [];
+    if (cableVerticesLayer) {
+        cableVerticesLayer.clearLayers();
+    }
+    if (cableDibujoLayer) {
+        map.removeLayer(cableDibujoLayer);
+        cableDibujoLayer = null;
+    }
+    limpiarSnapCablePreview();
+};
+
+// MR-24e Fase 3a (item roadmap #9990581): apaga el modo "agregar cable/troncal" por completo —
+// quita los 3 listeners, reactiva el doble-clic de zoom y limpia el trazo en curso.
+const cancelarDibujoCable = () => {
+    modoAgregarCable.value = false;
+    map.off("click", handleClickDibujoCable);
+    map.off("mousemove", handleMousemoveSnapCable);
+    document.removeEventListener("keydown", handleKeydownDibujoCable);
+    map.doubleClickZoom.enable();
+    cancelarTrazoCableActual();
+};
+
+// MR-24e Fase 3a (item roadmap #9990581): agrega un vértice al trazo en curso, snapeando a
+// extremos existentes (<=15m, igual criterio que el snap visual de handleMousemoveSnapCable).
+const agregarVerticeCable = (latlng) => {
+    const nearest = getNearestCableEndpoint(latlng);
+    const punto =
+        nearest && nearest.dist <= 15
+            ? L.latLng(nearest.lat, nearest.lng)
+            : latlng;
+    verticesCable.value = [...verticesCable.value, punto];
+    L.circleMarker(punto, { radius: 5, color: "#333", fillOpacity: 1 }).addTo(
+        cableVerticesLayer
+    );
+    // Mismo color que CableAltaRapidaController::store usa para el layer final (#6666ff); el
+    // dashArray solo aplica mientras se dibuja, para diferenciarlo de un cable ya guardado.
+    const estilo =
+        tipoCableDibujo.value === "troncal"
+            ? { color: "#cc3300", weight: 6, dashArray: "6,4" }
+            : { color: "#6666ff", weight: 3, dashArray: "6,4" };
+    if (cableDibujoLayer) {
+        cableDibujoLayer.setLatLngs(verticesCable.value);
+        cableDibujoLayer.setStyle(estilo);
+    } else {
+        cableDibujoLayer = L.polyline(verticesCable.value, estilo).addTo(map);
+    }
+};
+
+// MR-24e Fase 3a (item roadmap #9990581): clic del modo "agregar cable/troncal" — debounce de
+// 220ms (mismo patrón que FleetGeofenceForm.vue) para que el clic final de un doble-clic (que
+// en Fase 3b finalizará el trazo) no agregue también un vértice de más.
+const handleClickDibujoCable = (e) => {
+    if (cableClickTimer) {
+        clearTimeout(cableClickTimer);
+    }
+    cableClickTimer = setTimeout(() => {
+        agregarVerticeCable(e.latlng);
+        cableClickTimer = null;
+    }, 220);
+};
+
+// MR-24e Fase 3a (item roadmap #9990581): mientras el modo "agregar cable/troncal" está
+// activo, pinta/quita la línea punteada de vista previa del snap a extremos (radio 15m).
+// Síncrono (getNearestCableEndpoint no usa turf/await), a diferencia de handleMousemoveSnapNap.
+const handleMousemoveSnapCable = (e) => {
+    const nearest = getNearestCableEndpoint(e.latlng);
+    limpiarSnapCablePreview();
+    if (nearest && nearest.dist <= 15) {
+        snapCablePreview = L.polyline(
+            [e.latlng, [nearest.lat, nearest.lng]],
+            { dashArray: "5,5" }
+        ).addTo(map);
+    }
+};
+
+// MR-24e Fase 3a (item roadmap #9990581): Esc cancela el TRAZO en curso sin apagar la
+// herramienta. Enter (finalizar el trazo) queda para Fase 3b, que extenderá esta función.
+const handleKeydownDibujoCable = (e) => {
+    if (e.key === "Escape") {
+        cancelarTrazoCableActual();
     }
 };
 
