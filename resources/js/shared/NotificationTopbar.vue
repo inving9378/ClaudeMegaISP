@@ -66,7 +66,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 
 defineOptions({
     name: "NotificationTopbar",
@@ -78,8 +78,22 @@ const props = defineProps({
 
 const data = ref([]);
 
+const parseNotifications = (raw) => {
+    try {
+        data.value = JSON.parse(raw) || [];
+    } catch (e) {
+        data.value = [];
+    }
+};
+
 onMounted(() => {
-    data.value = JSON.parse(props.notifications);
+    parseNotifications(props.notifications);
+});
+
+// #9990615 — el padre (NotificationBell) refresca la lista por polling; sin este watch
+// el componente solo pintaría lo que llegó en el montaje inicial.
+watch(() => props.notifications, (val) => {
+    parseNotifications(val);
 });
 
 const user = (data) => {
