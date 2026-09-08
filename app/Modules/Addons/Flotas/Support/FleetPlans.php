@@ -5,52 +5,61 @@ namespace App\Modules\Addons\Flotas\Support;
 /**
  * Catálogo de planes SaaS de Flotas — fuente única de verdad.
  *
- * Modelo freemium BYOD (Bring Your Own Device): el GPS SIEMPRE lo paga y compra
- * el cliente donde quiera; el software es agnóstico de marca. El precio es por
- * vehículo/mes. Definitivo según CLAUDE.md item #65, Sesión 5 (2026-06-01 PM).
+ * Modelo D — híbrido tier + excedente (ratificado por Irving 2026-07-14, item #65
+ * Corte A): tiers por cantidad de vehículos activos (unidad facturable) + excedente
+ * por vehículo extra al mes. GPS es add-on opcional por vehículo, precio pendiente,
+ * fuera de alcance de este catálogo.
  */
 class FleetPlans
 {
+    /** $MXN por vehículo excedente/mes, sobre el tope incluido del tier. */
+    public const OVERAGE_UNIT_PRICE = 15.00;
+
+    /** Días de demo, uniformes para los 3 tiers. */
+    public const TRIAL_DAYS = 15;
+
     public const PLANS = [
-        'gestion_plus' => [
-            'key'               => 'gestion_plus',
-            'name'              => 'Gestión Plus',
-            'tagline'           => 'Control de flota sin GPS',
-            'mode'              => 'A',            // Modo A: sin tracking
-            'gps'               => false,
-            'price_per_vehicle' => 49.00,
-            'trial_days'        => 180,           // 6 meses gratis
-            'features'          => [
-                'Vehículos ilimitados', 'Mantenimientos y recordatorios',
+        'basico' => [
+            'key'                => 'basico',
+            'name'               => 'Básico',
+            'tagline'            => 'Hasta 5 vehículos',
+            'base_price'         => 99.00,
+            'included_units'     => 5,
+            'overage_unit_price' => self::OVERAGE_UNIT_PRICE,
+            'trial_days'         => self::TRIAL_DAYS,
+            'features'           => [
+                'Vehículos hasta el tope del plan', 'Mantenimientos y recordatorios',
                 'Documentos con semáforo de vencimientos', 'Bitácora de combustible (km/L)',
-                'Asignación de operadores', 'Dashboard y reportes',
+                'Tracking GPS en vivo y geocercas', 'Asignación de operadores', 'Dashboard y reportes',
             ],
         ],
-        'gestion_plus_tracking' => [
-            'key'               => 'gestion_plus_tracking',
-            'name'              => 'Gestión Plus + Tracking',
-            'tagline'           => 'Todo lo anterior + GPS en vivo',
-            'mode'              => 'B',            // Modo B: con tracking
-            'gps'               => true,
-            'price_per_vehicle' => 149.00,
-            'trial_days'        => 90,            // 3 meses gratis
-            'features'          => [
-                'Todo lo de Gestión Plus', 'Tracking GPS en vivo (mapa)',
-                'Historial de recorridos y GPX', 'Alertas de exceso de velocidad / encendido',
-                'Compatible con Ruptela, Concox, GT06', 'Multi-marca (BYOD)',
+        'medio' => [
+            'key'                => 'medio',
+            'name'               => 'Medio',
+            'tagline'            => 'Hasta 15 vehículos',
+            'base_price'         => 199.00,
+            'included_units'     => 15,
+            'overage_unit_price' => self::OVERAGE_UNIT_PRICE,
+            'trial_days'         => self::TRIAL_DAYS,
+            'features'           => [
+                'Vehículos hasta el tope del plan', 'Mantenimientos y recordatorios',
+                'Documentos con semáforo de vencimientos', 'Bitácora de combustible (km/L)',
+                'Tracking GPS en vivo y geocercas', 'Asignación de operadores', 'Dashboard y reportes',
             ],
         ],
-        'empresa' => [
-            'key'               => 'empresa',
-            'name'              => 'Empresa',
-            'tagline'           => 'Flotas grandes con soporte prioritario',
-            'mode'              => 'B',
-            'gps'               => true,
-            'price_per_vehicle' => 299.00,
-            'trial_days'        => 30,            // 1 mes gratis
-            'features'          => [
-                'Todo lo de Tracking', 'Geocercas y zonas', 'Reportes avanzados y API',
-                'Soporte prioritario', 'Onboarding asistido', 'SLA dedicado',
+        'pro' => [
+            'key'                => 'pro',
+            'name'               => 'Pro',
+            'tagline'            => 'Hasta 30 vehículos',
+            'base_price'         => 349.00,
+            'included_units'     => 30,
+            'overage_unit_price' => self::OVERAGE_UNIT_PRICE,
+            'trial_days'         => self::TRIAL_DAYS,
+            'features'           => [
+                'Vehículos hasta el tope del plan', 'Mantenimientos y recordatorios',
+                'Documentos con semáforo de vencimientos', 'Bitácora de combustible (km/L)',
+                'Tracking GPS en vivo y geocercas', 'Asignación de operadores', 'Dashboard y reportes',
+                'Reportes avanzados', 'Soporte prioritario',
             ],
         ],
     ];
@@ -70,19 +79,24 @@ class FleetPlans
         return self::PLANS[$key] ?? null;
     }
 
-    public static function pricePerVehicle(string $key): float
+    public static function basePrice(string $key): float
     {
-        return (float) (self::PLANS[$key]['price_per_vehicle'] ?? 0);
+        return (float) (self::PLANS[$key]['base_price'] ?? 0);
+    }
+
+    public static function includedUnits(string $key): int
+    {
+        return (int) (self::PLANS[$key]['included_units'] ?? 0);
+    }
+
+    public static function overageUnitPrice(): float
+    {
+        return self::OVERAGE_UNIT_PRICE;
     }
 
     public static function trialDays(string $key): int
     {
         return (int) (self::PLANS[$key]['trial_days'] ?? 0);
-    }
-
-    public static function hasGps(string $key): bool
-    {
-        return (bool) (self::PLANS[$key]['gps'] ?? false);
     }
 
     /** Claves válidas para reglas de validación `in:`. */

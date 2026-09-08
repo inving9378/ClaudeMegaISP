@@ -64,13 +64,15 @@ class FleetSubscriptionService
 
         $sub = new FleetSubscription();
         $sub->forceFill([
-            'client_id'         => $clientId,
-            'plan'              => $plan,
-            'status'            => 'trial',
-            'trial_starts_at'   => $now,
-            'trial_ends_at'     => $now->copy()->addDays($trialDays),
-            'price_per_vehicle' => FleetPlans::pricePerVehicle($plan),
-            'auto_renew'        => true,
+            'client_id'          => $clientId,
+            'plan'               => $plan,
+            'status'             => 'trial',
+            'trial_starts_at'    => $now,
+            'trial_ends_at'      => $now->copy()->addDays($trialDays),
+            'base_price'         => FleetPlans::basePrice($plan),
+            'included_units'     => FleetPlans::includedUnits($plan),
+            'overage_unit_price' => FleetPlans::overageUnitPrice(),
+            'auto_renew'         => true,
         ]);
         $sub->save();
 
@@ -94,8 +96,10 @@ class FleetSubscriptionService
         }
 
         $from = $sub->plan;
-        $sub->plan              = $plan;
-        $sub->price_per_vehicle = FleetPlans::pricePerVehicle($plan);
+        $sub->plan                = $plan;
+        $sub->base_price          = FleetPlans::basePrice($plan);
+        $sub->included_units      = FleetPlans::includedUnits($plan);
+        $sub->overage_unit_price  = FleetPlans::overageUnitPrice();
         $sub->save();
 
         $this->syncVehicleCount($sub);
@@ -104,22 +108,36 @@ class FleetSubscriptionService
         return $sub->fresh();
     }
 
-    /** Recalcula vehicles_count y monthly_price desde la flota real del cliente. */
+    /**
+     * Recalcula vehicles_count, overage y monthly_price desde la flota real del
+     * cliente. Modelo D: monthly_price = base_price + overage_units * overage_unit_price,
+     * donde overage_units = max(0, vehicles_count - included_units).
+     */
     public function syncVehicleCount(FleetSubscription $sub): FleetSubscription
     {
-        $count = FleetVehicle::forClient($sub->client_id)->count();
-        $price = round($count * (float) $sub->price_per_vehicle, 2);
+        $count        = FleetVehicle::forClient($sub->client_id)->count();
+        $overageUnits = max(0, $count - (int) $sub->included_units);
+        $overageAmount = round($overageUnits * (float) $sub->overage_unit_price, 2);
+        $price        = round((float) $sub->base_price + $overageAmount, 2);
 
-        if ($count !== (int) $sub->vehicles_count || abs($price - (float) $sub->monthly_price) > 0.001) {
+        if (
+            $count !== (int) $sub->vehicles_count
+            || $overageUnits !== (int) $sub->overage_units
+            || abs($price - (float) $sub->monthly_price) > 0.001
+        ) {
             $previous = (int) $sub->vehicles_count;
-            $sub->vehicles_count = $count;
-            $sub->monthly_price  = $price;
+            $sub->vehicles_count  = $count;
+            $sub->overage_units   = $overageUnits;
+            $sub->overage_amount  = $overageAmount;
+            $sub->monthly_price   = $price;
             $sub->save();
 
             $this->logEvent($sub, 'vehicles_changed', [
-                'from'          => $previous,
-                'to'            => $count,
-                'monthly_price' => $price,
+                'from'           => $previous,
+                'to'             => $count,
+                'overage_units'  => $overageUnits,
+                'overage_amount' => $overageAmount,
+                'monthly_price'  => $price,
             ]);
         }
 
