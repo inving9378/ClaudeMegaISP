@@ -40,6 +40,13 @@ use Illuminate\Http\Request;
  *
  * Este endpoint SOLO lo consume el sub-item hermano de frontend (Fase 3); no toca
  * TroncalDialog.vue/AvaiablesRoutesComponent.vue/RouteComponent.vue (flujo manual intacto).
+ *
+ * PERMISO (item #9990568, seguimiento de la pregunta q4 de #9990548, decisión de Irving = Opción 1):
+ * además del gate general `mapa_red_view` (todo /mapa-red/api/**), este `store()` exige el permiso
+ * granular `mapa_red.cable.crear_rapido` en línea (mismo patrón defensa-en-profundidad de
+ * OLTsOnuController::store con `onu_add`). Sincronizado a super-administrator + DESARROLLADOR
+ * (convención del proyecto); asignarlo a un futuro rol "operadores de red" queda pendiente de que
+ * Irving defina/cree ese rol.
  */
 class CableAltaRapidaController extends Controller
 {
@@ -49,6 +56,10 @@ class CableAltaRapidaController extends Controller
 
     public function store(Request $request)
     {
+        if (! auth()->user()?->can('mapa_red.cable.crear_rapido')) {
+            return response()->json(['success' => false, 'message' => 'No autorizado.'], 403);
+        }
+
         $data = $request->validate([
             'puntos' => 'required|array|min:2',
             'puntos.*.lat' => 'required|numeric',
