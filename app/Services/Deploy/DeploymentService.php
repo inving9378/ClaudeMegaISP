@@ -457,8 +457,16 @@ class DeploymentService
      * Gate de staging (defensa PRIMARIA contra `git add -A`). Allowlist: el release solo
      * puede tocar los artefactos de build de Mix (config('deployment.release_artifacts')).
      * Si el working tree tiene CUALQUIER archivo cambiado fuera del allowlist → aborta y
-     * los lista (commitéalos o stashéalos antes de desplegar). El denylist de secretos
-     * (executeSecretCheck) sigue como 2ª capa, escaneando todo incluso dentro del allowlist.
+     * los lista. El denylist de secretos (executeSecretCheck) sigue como 2ª capa, escaneando
+     * todo incluso dentro del allowlist.
+     *
+     * Fase B #9990625 (B.2) — distinción "artefacto de build esperado" vs "cambio real sin
+     * commitear": `git status --porcelain` (sin --ignored) NO lista los archivos gitignored,
+     * así que las salidas de compilación (public/js/app.js, chunks, public/css/app.css,
+     * mix-manifest.json) nunca cuentan como ofensores. Y desde B.1 ningún archivo TRACKEADO
+     * vive en public/js (los plugins se movieron a public/vendor/js), de modo que el build no
+     * puede dejar un borrado espurio que aborte el release. Lo que sí aborta —y debe— es un
+     * cambio real sin guardar (ese es el propósito del gate, que ya salvó credenciales antes).
      */
     private function executeStagingGate(): array
     {
@@ -479,18 +487,21 @@ class DeploymentService
         }
 
         if ($offenders) {
+            // Fase B #9990625 (B.3) — mensaje en lenguaje llano para quien oprime el botón:
+            // qué pasó, qué archivos y qué hacer. Sin jerga ("allowlist"/"stash"/"artefactos").
             return [
                 1,
-                "ABORTADO — hay cambios sin relación con el release (fuera del allowlist de artefactos):\n"
-                    . implode("\n", $offenders)
-                    . "\n\nCommitéalos o stashéalos antes de desplegar. El release solo puede tocar: "
-                    . implode(', ', $allowlist),
+                "No se pudo crear la versión: el proyecto tiene cambios sin guardar que no forman parte de la publicación.\n\n"
+                    . "Archivos:\n" . implode("\n", $offenders)
+                    . "\n\nEs una medida de seguridad para no publicar algo por error. Antes de reintentar, "
+                    . "estos cambios deben guardarse en el control de versiones (commit) o descartarse. "
+                    . "Si no reconoces estos archivos, avísale a tu equipo técnico.",
                 $durationMs,
             ];
         }
 
         $porcelain = trim($process->getOutput()) ?: '(árbol limpio)';
-        return [0, "Staging válido — solo artefactos de build.\n{$porcelain}", $durationMs];
+        return [0, "Todo en orden — solo hay archivos de compilación esperados.\n{$porcelain}", $durationMs];
     }
 
     /** Extrae la ruta de una línea porcelain ("XY ruta"; en renames usa el destino). */
