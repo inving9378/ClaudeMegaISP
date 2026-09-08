@@ -32,7 +32,7 @@ return new class extends Migration
             $table->string('estado', 40);
             $table->timestamp('created_at')->nullable();
 
-            $table->index(['colaborador_id', 'source_period_start']);
+            $table->index(['colaborador_id', 'source_period_start'], 'trl_colaborador_periodo_idx');
             $table->index('seller_id');
             $table->index('estado');
         });
