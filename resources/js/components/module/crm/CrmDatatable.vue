@@ -21,6 +21,13 @@
     >
     </FilterDataTable>
     <div class="datatable_base">
+        <q-banner
+            v-if="loadError"
+            class="bg-negative text-white rounded-borders q-mb-md"
+            dense
+        >
+            No se pudieron cargar los datos. Intenta de nuevo.
+        </q-banner>
         <q-card>
             <q-table
                 v-table-resizable="visibleColumns"
@@ -517,6 +524,9 @@ const dataForm = reactive({
 const search = ref("");
 const searchColumns = ref("");
 const loading = ref(false);
+// #9990603 — distingue "error de carga" (rojo) de "sin registros" (noDataLabel);
+// antes un error en la petición era indistinguible de una tabla vacía.
+const loadError = ref(false);
 
 const tempToFilter = ref({});
 const columns = ref([]);
@@ -776,6 +786,7 @@ const reloadDataTable = () => {
 
 const getRowsByModule = async (cols, filters, order, dir) => {
     loading.value = true;
+    loadError.value = false;
     let columnS = _.map(
         cols.filter((c) => c.visible),
         (e) => e.name
@@ -825,7 +836,9 @@ const getRowsByModule = async (cols, filters, order, dir) => {
         pagination.value.rowsNumber = response.data.recordsFiltered;
     } catch (error) {
         loading.value = false;
+        loadError.value = true;
         console.error(error);
+        return;
     }
 
     rows.value = Object.values(allRows);

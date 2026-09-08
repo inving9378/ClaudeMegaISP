@@ -20,6 +20,18 @@
                         />
                     </q-card-section>
 
+                    <q-card-section
+                        v-if="loadError"
+                        class="q-pa-none q-mt-md"
+                    >
+                        <q-banner
+                            class="bg-negative text-white rounded-borders"
+                            dense
+                        >
+                            No se pudieron cargar los datos. Intenta de nuevo.
+                        </q-banner>
+                    </q-card-section>
+
                     <q-card-section class="q-pa-none q-mt-md">
                         <q-table
                             v-table-resizable
@@ -80,6 +92,8 @@ import { darkMode } from "../../../../hook/appConfig.js";
 
 const rows = ref([]);
 const date = ref();
+// #9990603 — distingue "error de carga" (rojo) de "sin registros" (no-data-label).
+const loadError = ref(false);
 
 const props = defineProps({
     id: {
@@ -122,7 +136,14 @@ watch(date, () => {
 
 const getData = async () => {
     loading.value = true;
-    rows.value = await prospectsByStatus(props.id, date.value);
+    const data = await prospectsByStatus(props.id, date.value);
+    if (data === null) {
+        loadError.value = true;
+        rows.value = [];
+    } else {
+        loadError.value = false;
+        rows.value = data;
+    }
     loading.value = false;
 };
 </script>
