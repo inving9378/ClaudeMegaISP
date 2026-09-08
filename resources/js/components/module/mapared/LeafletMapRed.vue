@@ -347,12 +347,12 @@
         </q-card>
     </q-dialog>
 
-    <!-- MR-24e Fase 3b (item roadmap #9990582): formulario mínimo del modo dibujo cable/troncal
-         — vista previa local, SIN persistencia (la conexión real al backend es Fase 4 #9990583). -->
+    <!-- MR-24e Fase 3b/4 (items roadmap #9990582/#9990583): formulario mínimo del modo dibujo
+         cable/troncal — persiste contra CableAltaRapidaController::store. -->
     <q-dialog v-model="showCableDialog" persistent>
         <q-card style="width: 380px; max-width: 90vw">
             <q-card-section>
-                <div class="text-h6">Cable / Troncal (vista previa)</div>
+                <div class="text-h6">Cable / Troncal</div>
             </q-card-section>
             <q-card-section class="q-pt-none">
                 <q-input
@@ -382,12 +382,14 @@
                     no-caps
                     label="Cancelar"
                     color="grey"
+                    :disable="guardandoCable"
                     @click="cancelarCableDialog"
                 />
                 <q-btn
                     no-caps
-                    label="Agregar al mapa (vista previa)"
+                    label="Guardar"
                     color="primary"
+                    :loading="guardandoCable"
                     @click="confirmarCableDialog"
                 />
             </q-card-actions>
@@ -476,7 +478,7 @@ import { getTrazoEnlace } from "./helper/enlaces-request";
 import { getCoberturaCapa } from "./helper/cobertura-request";
 import { getSectoresCapa } from "./helper/sectores-request";
 import { getTiposSplitter, crearNapRapida } from "./helper/nap-alta-request";
-import { getTiposCable } from "./helper/cable-alta-request";
+import { getTiposCable, crearCableRapido } from "./helper/cable-alta-request";
 
 import Swal from "sweetalert2";
 import {
@@ -594,9 +596,11 @@ const modoAgregarCable = ref(false);
 const tipoCableDibujo = ref("cable");
 const verticesCable = ref([]);
 
-// MR-24e Fase 3b (item roadmap #9990582): dialog de vista previa (SIN persistencia, ver Fase 4
-// #9990583) que abre finalizarDibujoCable() al terminar el trazo (Enter/doble-clic).
+// MR-24e Fase 3b/4 (items roadmap #9990582/#9990583): dialog de alta rápida que abre
+// finalizarDibujoCable() al terminar el trazo (Enter/doble-clic) y persiste contra
+// CableAltaRapidaController::store (guardarCable).
 const showCableDialog = ref(false);
+const guardandoCable = ref(false);
 const numeroHilosCable = ref(null);
 const tipoCableId = ref(null);
 const tiposCableCatalogo = ref([]);
@@ -1809,27 +1813,33 @@ const cancelarCableDialog = () => {
     cancelarTrazoCableActual();
 };
 
-// MR-24e Fase 3b (item roadmap #9990582): pinta el resultado FINAL como vista previa local —
-// un L.polyline plano, fuera de drawnItems/nodeMap (NO usar createLayerFromObject/
-// updateLayerFromObject: asumen un objeto con id real persistido y enganchan click/dragend que
-// intentarían guardar contra el backend, ver mapUtils.js líneas 357-408 y 600+). SIN llamar al
-// POST real de CableAltaRapidaController::store — esa conexión es Fase 4 (item #9990583).
-const confirmarCableDialog = () => {
+// MR-24e Fase 4 (item roadmap #9990583): persiste el trazo contra
+// CableAltaRapidaController::store. tipoCableDibujo/tipoCableId NO viajan en el payload — el
+// backend no los acepta ni distingue cable/troncal (decisión registrada vía circuito:reportar:
+// todo se guarda vía el mismo endpoint, nombrado siempre como troncal; la distinción queda solo
+// como estilo visual del frontend, ver agregarVerticeCable). En éxito se pinta el layer real
+// devuelto por el backend con createLayerFromObject (mismo patrón que guardarNap) — a diferencia
+// de la vista previa local anterior, ahora el objeto trae id real. En 422 el dialog se queda
+// abierto (mismo criterio que guardarNap) para reintentar con el mensaje real del backend.
+const confirmarCableDialog = async () => {
     if (!numeroHilosCable.value || numeroHilosCable.value <= 0) {
         message("Número de hilos requerido, mayor a 0", "warning");
         return;
     }
-    const estilo =
-        tipoCableDibujo.value === "troncal"
-            ? { color: "#cc3300", weight: 6 }
-            : { color: "#6666ff", weight: 3 };
-    L.polyline(verticesCable.value, estilo)
-        .bindPopup(
-            `Vista previa: ${tipoCableDibujo.value} · ${numeroHilosCable.value} hilos — no guardado (pendiente de conectar a backend en Fase 4)`
-        )
-        .addTo(map);
-    showCableDialog.value = false;
-    cancelarTrazoCableActual();
+    guardandoCable.value = true;
+    const resultado = await crearCableRapido({
+        puntos: verticesCable.value.map((v) => ({ lat: v.lat, lng: v.lng })),
+        numero_hilos: numeroHilosCable.value,
+    });
+    guardandoCable.value = false;
+    if (resultado.ok) {
+        drawnItems.addLayer(createLayerFromObject(resultado.data.layer));
+        message(`Cable "${resultado.data.nombre_generado}" creado correctamente`);
+        showCableDialog.value = false;
+        cancelarTrazoCableActual();
+    } else {
+        message(resultado.message, "error");
+    }
 };
 
 // MR-24e Fase 1b (item roadmap #9990558): guarda la NAP con el punto clickeado + splitter
