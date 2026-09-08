@@ -12,3 +12,17 @@ export const getCoberturaCapa = async () => {
         });
     return data;
 };
+
+// MR-26 Fase 4c (item roadmap #9990528) — "¿hay cobertura vendible en este punto?" (Fase 2, #9990523).
+export const consultarCobertura = async (lat, lng) => {
+    let data = null;
+    await axios
+        .get(`/mapa-red/api/cobertura/consultar`, { params: { lat, lng } })
+        .then((response) => {
+            data = response.data;
+        })
+        .catch((e) => {
+            data = null;
+        });
+    return data;
+};
