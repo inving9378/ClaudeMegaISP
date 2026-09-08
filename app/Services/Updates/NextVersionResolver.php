@@ -18,8 +18,18 @@ use Symfony\Component\Process\Process;
  * La cura: el consecutivo sale de los TAGS DE GIT, que son la historia real e inmutable de lo
  * publicado, nunca de una tabla que un PITR o un truncado puede regresar hacia atrás.
  *
- * FAIL-CLOSED: si no se puede consultar el remoto (sin red, fetch falla), se ABORTA con excepción.
- * Prohibido caer a un contador local de respaldo — ése es justo el fallo que trajo esto.
+ * FALLBACK A TAGS LOCALES (2026-09-08, opción 3 de Irving): el `git fetch` al remoto puede fallar
+ * cuando el resolver corre como www-data (php-fpm), que no tiene acceso a la llave/known_hosts de
+ * GitHub ("Host key verification failed"). Antes eso era fail-closed duro y dejaba el modal SIN
+ * número. Ahora el fetch es best-effort: si falla, se cae a los TAGS LOCALES de git (misma historia
+ * inmutable, sólo puede faltarle el último tag remoto) y se marca `confirmado_remoto=false` + un
+ * `aviso` VISIBLE en pantalla. Esto NO es el fallback prohibido: lo prohibido era caer a la TABLA
+ * `releases` (mutable, la que trajo el bug del V1.20). Los tags locales no retroceden.
+ *
+ * FAIL-CLOSED que se conserva: si NO hay ningún tag de versión del que calcular (ni remoto ni
+ * local), se ABORTA con excepción — no se inventa un consecutivo. La red de seguridad final vive
+ * aguas abajo: el paso git_tag del pipeline (skip_if_tag_exists) y el push (que corre como meganet,
+ * sí llega a GitHub) rechazan un tag que ya exista en el remoto.
  */
 class NextVersionResolver
 {
@@ -29,12 +39,14 @@ class NextVersionResolver
     private const MAJOR = 1;
 
     /**
-     * @return array{build:int, label:string, max_detectado:int, origen:string}
-     * @throws RuntimeException si no se puede sincronizar con el remoto (fail-closed)
+     * @return array{build:int, label:string, max_detectado:int, origen:string, confirmado_remoto:bool, aviso:?string}
+     * @throws RuntimeException si no hay NINGÚN tag de versión del que calcular (fail-closed)
      */
     public function resolver(): array
     {
-        $this->fetchTagsOAbortar();
+        // best-effort: si el fetch falla (p.ej. www-data sin acceso a GitHub) NO abortamos aquí;
+        // caemos a los tags locales y lo avisamos. El único fail-closed es "no hay tag alguno".
+        $confirmadoRemoto = $this->intentarFetch();
 
         $tags = $this->tagsLocales();
         $maxBuild = 0;
@@ -50,22 +62,41 @@ class NextVersionResolver
             }
         }
 
+        // FAIL-CLOSED (condición #2 de Irving): sin ningún tag válido, no se inventa un número.
+        if ($maxBuild === 0) {
+            Log::channel('single')->error('[release] no hay tags de versión (V*) para calcular el consecutivo', [
+                'fetch_ok'       => $confirmadoRemoto,
+                'tags_evaluados' => count($tags),
+            ]);
+            throw new RuntimeException(
+                $confirmadoRemoto
+                    ? 'No hay ningún tag de versión (V<major>.<build>-dd.mm.yyyy) del que calcular el siguiente número.'
+                    : 'No se pudo confirmar con GitHub (git fetch falló) y no hay tags locales de versión para calcular el número. Se aborta para no inventar un consecutivo.'
+            );
+        }
+
         $siguiente = $maxBuild + 1;
         $label     = sprintf('V%d.%d-%s', self::MAJOR, $siguiente, now()->format('d.m.Y'));
+        $aviso     = $confirmadoRemoto
+            ? null
+            : 'Número calculado desde los tags locales (no se pudo confirmar con GitHub). Se validará al publicar.';
 
         Log::channel('single')->info('[release] siguiente versión calculada desde tags git', [
-            'max_detectado' => $maxBuild,
-            'origen'        => $origen,
-            'build_asignado' => $siguiente,
-            'label'         => $label,
-            'tags_evaluados' => count($tags),
+            'max_detectado'    => $maxBuild,
+            'origen'           => $origen,
+            'build_asignado'   => $siguiente,
+            'label'            => $label,
+            'tags_evaluados'   => count($tags),
+            'confirmado_remoto' => $confirmadoRemoto,
         ]);
 
         return [
-            'build'         => $siguiente,
-            'label'         => $label,
-            'max_detectado' => $maxBuild,
-            'origen'        => $origen,
+            'build'             => $siguiente,
+            'label'             => $label,
+            'max_detectado'     => $maxBuild,
+            'origen'            => $origen,
+            'confirmado_remoto' => $confirmadoRemoto,
+            'aviso'             => $aviso,
         ];
     }
 
@@ -76,25 +107,25 @@ class NextVersionResolver
     }
 
     /**
-     * `git fetch --tags --force`. Si falla, ABORTA: sin la historia real del remoto no se puede
-     * garantizar que el número no retroceda, y adivinar es exactamente lo que se viene a evitar.
+     * `git fetch --tags --force` best-effort. Devuelve true si sincronizó con el remoto, false si
+     * falló (sin lanzar): el que llama decide caer a tags locales. Ya NO aborta aquí — el
+     * fail-closed vive en resolver() y sólo se dispara si tampoco hay tags locales.
      */
-    private function fetchTagsOAbortar(): void
+    private function intentarFetch(): bool
     {
         $p = Process::fromShellCommandline('git fetch --tags --force 2>&1', base_path(), $this->env(), null, 60);
         $p->run();
 
         if (! $p->isSuccessful()) {
             $salida = trim($p->getOutput());
-            Log::channel('single')->error('[release] git fetch --tags falló: no se puede calcular la versión', [
+            Log::channel('single')->warning('[release] git fetch --tags falló; se usará el respaldo de tags locales', [
                 'salida' => mb_substr($salida, 0, 500),
             ]);
-            throw new RuntimeException(
-                'No se pudo sincronizar los tags con el remoto (git fetch falló). '
-                . 'El release se aborta para no emitir un número que pueda retroceder. '
-                . 'Verifica la conexión con el remoto y reintenta. Detalle: ' . mb_substr($salida, 0, 200)
-            );
+
+            return false;
         }
+
+        return true;
     }
 
     /** @return string[] */

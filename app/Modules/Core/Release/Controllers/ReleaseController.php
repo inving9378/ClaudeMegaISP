@@ -106,8 +106,11 @@ class ReleaseController extends Controller
             // #versionado-2026-09-08 — GUARD ANTI-RETROCESO. La validación de arriba sólo exige que
             // el nombre no exista en la tabla; no impide un consecutivo MENOR al ya publicado. Éste
             // es el punto donde el número deja de poder retroceder «sin importar quién lance el
-            // release»: se rechaza cualquier build <= al máximo real en los tags git. Fail-closed
-            // (si no se puede consultar el remoto, NextVersionResolver lanza y el release se aborta).
+            // release»: se rechaza cualquier build <= al máximo real en los tags git.
+            // Opción 3 (fallback): buildMaximoPublicado() intenta el remoto y, si no puede (www-data
+            // sin acceso a GitHub), cae a los tags LOCALES; sólo lanza si NO hay ningún tag. La red
+            // final es aguas abajo: git_tag (skip_if_tag_exists) y el push como meganet rechazan un
+            // tag que ya exista en el remoto, así que un local rezagado no publica un número repetido.
             try {
                 $resolver = app(\App\Services\Updates\NextVersionResolver::class);
                 $maxPublicado = $resolver->buildMaximoPublicado();
@@ -387,15 +390,19 @@ class ReleaseController extends Controller
             $r = app(\App\Services\Updates\NextVersionResolver::class)->resolver();
 
             return response()->json([
-                'success'       => true,
-                'version'       => $r['label'],
-                'build'         => $r['build'],
-                'max_detectado' => $r['max_detectado'],
-                'origen'        => $r['origen'],
+                'success'           => true,
+                'version'           => $r['label'],
+                'build'             => $r['build'],
+                'max_detectado'     => $r['max_detectado'],
+                'origen'            => $r['origen'],
+                // Opción 3 (2026-09-08): si el número salió de tags locales (fetch al remoto falló),
+                // el front lo AVISA en pantalla. false + aviso ≠ error; el número sí es usable.
+                'confirmado_remoto' => $r['confirmado_remoto'],
+                'aviso'             => $r['aviso'],
             ]);
         } catch (\Throwable $e) {
-            // Fail-closed: sin la historia real del remoto NO se sugiere un número (adivinar es lo
-            // que trajo la divergencia). El front debe mostrar el error, no un consecutivo inventado.
+            // Fail-closed SOLO cuando no hay NINGÚN tag del que calcular. El front debe mostrar este
+            // motivo en español en el campo, nunca dejarlo en blanco sin explicación.
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
