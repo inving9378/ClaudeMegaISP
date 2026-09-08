@@ -33,13 +33,7 @@ class MapaRedCoberturaService
     {
         $radioMetros = (int) config('mapared.cobertura.radio_metros');
 
-        $puertosLibresPorNap = MapaRedPuerto::query()
-            ->where('puertable_type', MapaRedLayer::class)
-            ->where('rol', MapaRedPuerto::ROL_NAP_SALIDA)
-            ->where('estado', MapaRedPuerto::ESTADO_LIBRE)
-            ->selectRaw('puertable_id, count(*) as puertos_libres')
-            ->groupBy('puertable_id')
-            ->pluck('puertos_libres', 'puertable_id');
+        $puertosLibresPorNap = $this->napsConPuertosLibres();
 
         if ($puertosLibresPorNap->isEmpty()) {
             return ['type' => 'FeatureCollection', 'features' => []];
@@ -72,6 +66,139 @@ class MapaRedCoberturaService
         }
 
         return ['type' => 'FeatureCollection', 'features' => $features];
+    }
+
+    /**
+     * MR-26 Fase 2 (item roadmap #9990577) — "¿hay cobertura vendible en este punto?". Busca la
+     * NAP con puerto libre más cercana a (lat, lng) y compara su distancia contra el radio
+     * configurado. Reusa napsConPuertosLibres() (misma query que capaGeoJson()) y la fórmula
+     * Haversine de ZonaResolverService::haversineMetros.
+     *
+     * Decisión de simplificación (ver circuito:reportar --tipo=decision): a diferencia de
+     * ZonaResolverService (que descarta candidatos fuera de un radio fijo), aquí SIEMPRE se
+     * necesita la NAP libre más cercana exista o no cobertura, así que el prefiltro por bbox
+     * (max(radio_metros configurado, 2000) metros) no se expande en anillos si no encuentra
+     * nada: cae directo a evaluar TODAS las NAPs con puerto libre (subconjunto ya chico frente a
+     * las ~1660 NAPs totales), sin necesidad de una búsqueda expandida más elaborada.
+     *
+     * @return array{cobertura: bool, nap_mas_cercana: null|array{id: int, nombre: string, puertos_libres: int, distancia_metros: float}}
+     */
+    public function consultarPunto(float $lat, float $lng): array
+    {
+        $puertosLibresPorNap = $this->napsConPuertosLibres();
+
+        if ($puertosLibresPorNap->isEmpty()) {
+            return ['cobertura' => false, 'nap_mas_cercana' => null];
+        }
+
+        $naps = MapaRedLayer::query()
+            ->whereIn('id', $puertosLibresPorNap->keys())
+            ->get(['id', 'coords', 'data', 'label']);
+
+        $candidatasConCoords = [];
+        foreach ($naps as $nap) {
+            $coords = $nap->coords;
+            if (!is_array($coords) || !isset($coords['lat'], $coords['lng'])) {
+                continue;
+            }
+            $candidatasConCoords[] = $nap;
+        }
+
+        // Prefiltro bbox (en PHP, ya que coords vive en una columna JSON sin índice
+        // explotable): si nada cae dentro, se evalúan TODAS las candidatas con coords válidas
+        // (ver decisión de simplificación en el docblock de este método).
+        $radioMetros = (int) config('mapared.cobertura.radio_metros');
+        $bbox = $this->bboxParaRadio($lat, $lng, max($radioMetros, 2000));
+
+        $candidatas = array_filter($candidatasConCoords, function ($nap) use ($bbox) {
+            $coords = $nap->coords;
+            return $coords['lat'] >= $bbox['min_lat'] && $coords['lat'] <= $bbox['max_lat']
+                && $coords['lng'] >= $bbox['min_lng'] && $coords['lng'] <= $bbox['max_lng'];
+        });
+
+        if (empty($candidatas)) {
+            $candidatas = $candidatasConCoords;
+        }
+
+        $napMasCercana = null;
+        $distanciaMin = null;
+
+        foreach ($candidatas as $nap) {
+            $coords = $nap->coords;
+            $distancia = $this->haversineMetros($lat, $lng, (float) $coords['lat'], (float) $coords['lng']);
+
+            if ($distanciaMin === null || $distancia < $distanciaMin) {
+                $distanciaMin = $distancia;
+                $napMasCercana = $nap;
+            }
+        }
+
+        if (!$napMasCercana) {
+            return ['cobertura' => false, 'nap_mas_cercana' => null];
+        }
+
+        $nombre = $napMasCercana->text_node ?? sprintf('NAP #%d', $napMasCercana->id);
+
+        return [
+            'cobertura' => $distanciaMin <= $radioMetros,
+            'nap_mas_cercana' => [
+                'id' => $napMasCercana->id,
+                'nombre' => $nombre,
+                'puertos_libres' => (int) $puertosLibresPorNap[$napMasCercana->id],
+                'distancia_metros' => round($distanciaMin, 2),
+            ],
+        ];
+    }
+
+    /**
+     * Cuenta puertos libres de rol NAP_SALIDA agrupados por NAP. Query compartida por
+     * capaGeoJson() y consultarPunto() — NO duplicar.
+     *
+     * @return \Illuminate\Support\Collection<int, int> puertos_libres keyed por puertable_id
+     */
+    private function napsConPuertosLibres()
+    {
+        return MapaRedPuerto::query()
+            ->where('puertable_type', MapaRedLayer::class)
+            ->where('rol', MapaRedPuerto::ROL_NAP_SALIDA)
+            ->where('estado', MapaRedPuerto::ESTADO_LIBRE)
+            ->selectRaw('puertable_id, count(*) as puertos_libres')
+            ->groupBy('puertable_id')
+            ->pluck('puertos_libres', 'puertable_id');
+    }
+
+    /**
+     * Caja envolvente en grados equivalente a $radioMetros (mismo patrón de prefiltro que
+     * ZonaResolverService::bboxParaRadio).
+     *
+     * @return array{min_lat: float, max_lat: float, min_lng: float, max_lng: float}
+     */
+    private function bboxParaRadio(float $lat, float $lng, int $radioMetros): array
+    {
+        $deltaLat = $radioMetros / 111320;
+        $deltaLng = $radioMetros / (111320 * max(cos(deg2rad($lat)), 0.01));
+
+        return [
+            'min_lat' => $lat - $deltaLat,
+            'max_lat' => $lat + $deltaLat,
+            'min_lng' => $lng - $deltaLng,
+            'max_lng' => $lng + $deltaLng,
+        ];
+    }
+
+    /**
+     * Misma fórmula exacta que ZonaResolverService::haversineMetros.
+     */
+    private function haversineMetros(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $r = 6371000;
+
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLng = deg2rad($lng2 - $lng1);
+        $a = sin($dLat / 2) ** 2
+            + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
+
+        return $r * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
     /**
