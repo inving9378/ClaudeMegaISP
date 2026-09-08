@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MegaFamilia — Descargar app</title>
     <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
-    <script src="{{ asset('js/qrcode.min.js') }}"></script>
+    <script src="{{ asset('vendor/js/qrcode.min.js') }}"></script>
     <style>
         * { box-sizing: border-box; }
         body {

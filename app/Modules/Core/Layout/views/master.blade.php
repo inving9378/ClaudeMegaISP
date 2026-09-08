@@ -5,7 +5,7 @@
     @include('core-layout::title-meta')
     @include('core-layout::head')
     <link rel="stylesheet" href="{{ asset('css/driver.min.css') }}">
-    <script src="{{ asset('js/driver.min.js') }}"></script>
+    <script src="{{ asset('vendor/js/driver.min.js') }}"></script>
     @yield('styles')
 </head>
 
