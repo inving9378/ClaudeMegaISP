@@ -12,11 +12,12 @@ class TalentoDocumentTemplate extends BaseModel
     protected $table = 'talento_document_templates';
 
     protected $fillable = [
-        'name', 'category', 'description', 'current_version_id', 'active',
+        'name', 'category', 'description', 'current_version_id', 'active', 'requires_signature',
     ];
 
     protected $casts = [
         'active' => 'boolean',
+        'requires_signature' => 'boolean',
     ];
 
     public function versions()

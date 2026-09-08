@@ -88,6 +88,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             // ── Documentos del expediente (Hijo D2, fase C — solo lectura) ────
             Route::get('/colaboradores/{id}/documentos',   [TalentoEmployeeDocumentController::class, 'forColaborador']);
 
+            // ── Firma de documentos del expediente (item #9990618, fase 1: backend) ───────────
+            Route::post('/colaboradores/{id}/documentos/{docId}/firma', [TalentoEmployeeDocumentController::class, 'sign']);
+            Route::get('/colaboradores/{id}/documentos/{docId}/firma',  [TalentoEmployeeDocumentController::class, 'firma']);
+
             // ── Expediente ligero de Vendedor (Hijo E3, item #9990360) ────────
             Route::get('/vendedores/{sellerId}/expediente', [TalentoColaboradorController::class, 'expedienteVendedor']);
 
