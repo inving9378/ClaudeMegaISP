@@ -303,30 +303,72 @@ export default {
             }
         };
 
+        // Item roadmap #9990626 (Fase 2+3 de #9990624) — antes esto esperaba una sola respuesta
+        // síncrona que podía tardar 2-4 min con rangos grandes de commits. Ahora el backend
+        // solo encola el job y devuelve un request_id de inmediato; aquí se hace polling cada
+        // 4s (tope 5 min) hasta que el job deje el resultado listo. "Guardar" sigue sin
+        // depender de aiLoading (ver :disabled del botón), así que esto solo bloquea el botón
+        // "Generar automáticamente" mientras espera, nunca el guardado de la versión.
+        const CHANGELOG_POLL_INTERVAL_MS = 4000;
+        const CHANGELOG_POLL_TIMEOUT_MS  = 5 * 60 * 1000;
+
         const generateChangelog = async () => {
             aiLoading.value = true;
             aiTruncationNotice.value = '';
             try {
                 const version = dataForm.data['version'] || '';
                 const { data } = await axios.post('/releases/generate-changelog', { version });
-                if (data.success) {
-                    // (B.2) Llena Título + Resumen + Mejoras (sobrescribe, sin confirmación).
-                    // NO toca la versión. Si el JSON vino mal formado, el backend ya dejó
-                    // título/resumen vacíos y el texto crudo en improvements.
-                    dataForm.data['title']   = data.title || '';
-                    dataForm.data['summary'] = data.summary || '';
-                    aiDescription.value      = data.improvements || '';
-                    // Si el backend no pudo cubrir todo el rango de commits, mostrarlo de forma
-                    // imposible de ignorar (item roadmap #892) — antes esto se quedaba en silencio.
-                    aiTruncationNotice.value = data.truncado ? (data.aviso_truncamiento || '') : '';
-                } else {
-                    Swal.fire('Error', data.message || 'No se pudo generar el resumen.', 'error');
+                if (!data.success || !data.request_id) {
+                    Swal.fire('Error', data.message || 'No se pudo iniciar la generación del resumen.', 'error');
+                    aiLoading.value = false;
+                    return;
                 }
+                await pollChangelogStatus(data.request_id);
             } catch (e) {
                 Swal.fire('Error', e.response?.data?.message || 'No se pudo generar el resumen.', 'error');
-            } finally {
                 aiLoading.value = false;
             }
+        };
+
+        const pollChangelogStatus = (requestId) => {
+            const startedAt = Date.now();
+            return new Promise((resolve) => {
+                const tick = async () => {
+                    try {
+                        const { data } = await axios.get(`/releases/generate-changelog/${requestId}`);
+                        if (data.status === 'listo') {
+                            // (B.2) Llena Título + Resumen + Mejoras (sobrescribe, sin confirmación).
+                            // NO toca la versión. Si el JSON vino mal formado, el backend ya dejó
+                            // título/resumen vacíos y el texto crudo en improvements.
+                            dataForm.data['title']   = data.title || '';
+                            dataForm.data['summary'] = data.summary || '';
+                            aiDescription.value      = data.improvements || '';
+                            // Si el backend no pudo cubrir todo el rango de commits, mostrarlo de
+                            // forma imposible de ignorar (item roadmap #892).
+                            aiTruncationNotice.value = data.truncado ? (data.aviso_truncamiento || '') : '';
+                            aiLoading.value = false;
+                            return resolve();
+                        }
+                        if (data.status === 'error') {
+                            Swal.fire('Error', data.message || 'No se pudo generar el resumen.', 'error');
+                            aiLoading.value = false;
+                            return resolve();
+                        }
+                        // status === 'pendiente' -> seguir esperando, salvo que se acabe el tope.
+                        if (Date.now() - startedAt > CHANGELOG_POLL_TIMEOUT_MS) {
+                            Swal.fire('Aviso', 'La generación está tardando más de lo normal. Puedes seguir esperando o escribir el resumen a mano.', 'warning');
+                            aiLoading.value = false;
+                            return resolve();
+                        }
+                        setTimeout(tick, CHANGELOG_POLL_INTERVAL_MS);
+                    } catch (e) {
+                        Swal.fire('Error', e.response?.data?.message || 'No se pudo consultar el estado del resumen.', 'error');
+                        aiLoading.value = false;
+                        resolve();
+                    }
+                };
+                tick();
+            });
         };
 
         const updateThisField = ({ field, value }) => {
