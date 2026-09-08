@@ -37,6 +37,9 @@ export const prospectsByStatus = async (id, range) => {
         .post(`/statics/prospects-by-status${id ? `/${id}` : ""}`, { range })
         .then((res) => {
             data = res.data;
+        })
+        .catch(() => {
+            data = null;
         });
     return data;
 };
