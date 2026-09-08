@@ -33,6 +33,9 @@ use Maatwebsite\Excel\Facades\Excel;
  */
 class ExpedienteController extends Controller
 {
+    /** Fase 3 (item #9990575): captura de `fecha_inicio_plazo` — dato legal, no abierto a todo el que solo VE el expediente. */
+    private const PERMISO_EMPRESA_MANAGE = 'documentacion-corporativa.empresa.manage';
+
     public function __construct(
         private EmpresaContextService $empresas,
         private CompletitudService $completitud,
@@ -73,11 +76,16 @@ class ExpedienteController extends Controller
 
         return response()->json([
             'empresa' => [
-                'id'                => $empresa->id,
-                'razon_social'      => $empresa->razon_social,
-                'nombre_comercial'  => $empresa->nombre_comercial,
-                'rfc'               => $empresa->rfc,
-                'etiqueta'          => $empresa->etiqueta,
+                'id'                  => $empresa->id,
+                'razon_social'        => $empresa->razon_social,
+                'nombre_comercial'    => $empresa->nombre_comercial,
+                'rfc'                 => $empresa->rfc,
+                'etiqueta'            => $empresa->etiqueta,
+                // Fase 3 (item #9990575): fecha cruda para prellenar el diálogo de
+                // captura del plazo — `global.dias_restantes` de abajo ya es el
+                // DERIVADO (días hábiles restantes), no sirve para prellenar un input.
+                'fecha_inicio_plazo'  => $empresa->fecha_inicio_plazo?->toDateString(),
+                'puede_editar_plazo'  => $this->puedeVer(self::PERMISO_EMPRESA_MANAGE),
             ],
             'empresas'         => $this->empresas->activas()->map(fn ($e) => [
                 'id' => $e->id, 'etiqueta' => $e->etiqueta,
@@ -353,6 +361,37 @@ class ExpedienteController extends Controller
         }
 
         return response()->json(['empresa_id' => $this->empresas->actualId()]);
+    }
+
+    /**
+     * Captura/edita `fecha_inicio_plazo` de la empresa ACTUAL (Fase 3, item #9990575).
+     *
+     * Es la fecha de EMISIÓN del oficio de la mesa directiva que activa el plazo
+     * maestro de 180 días hábiles (Fase 2, `CompletitudService`) — un dato legal
+     * de un documento externo, nunca inventado; por eso admite limpiarse a null
+     * (`nullable`) si se capturó por error.
+     */
+    public function actualizarPlazo(Request $request): JsonResponse
+    {
+        abort_unless(
+            $this->puedeVer(self::PERMISO_EMPRESA_MANAGE),
+            403,
+            'No tienes permiso para editar el plazo de esta empresa.'
+        );
+
+        $validado = $request->validate([
+            'fecha_inicio_plazo' => ['nullable', 'date', 'before_or_equal:today'],
+        ]);
+
+        $empresa = $this->empresas->actual();
+        $empresa->fecha_inicio_plazo = $validado['fecha_inicio_plazo'] ?? null;
+        $empresa->save();
+
+        $this->completitud->invalidar($empresa->id);
+
+        return response()->json([
+            'fecha_inicio_plazo' => $empresa->fecha_inicio_plazo?->toDateString(),
+        ]);
     }
 
     private function puedeVer(string $permiso): bool
