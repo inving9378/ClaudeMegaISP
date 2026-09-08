@@ -3,6 +3,13 @@
         <q-card-section class="d-flex" style="justify-content: space-between">
             <div class="text-h6">Listado de ventas</div>
         </q-card-section>
+        <q-banner
+            v-if="loadError"
+            class="bg-negative text-white rounded-borders q-mb-md"
+            dense
+        >
+            No se pudieron cargar los datos. Intenta de nuevo.
+        </q-banner>
         <q-table
             v-table-resizable="visibleColumns"
             :dark="darkMode"
@@ -279,6 +286,8 @@ const columns = ref([
 ]);
 const rows = ref([]);
 const loading = ref(false);
+// #9990603 — distingue "error de carga" (rojo) de "sin ventas" (no-data-label).
+const loadError = ref(false);
 const showModal = ref(false);
 const tableIdentifier = ref("ventas-vendedores");
 const searchInput = ref("");
@@ -369,8 +378,10 @@ const onRequest = async (attrs) => {
     if (data !== null) {
         rows.value = data.clients;
         pagination.value.rowsNumber = data.total;
+        loadError.value = false;
     } else {
         rows.value = [];
+        loadError.value = true;
     }
     loading.value = false;
 };
