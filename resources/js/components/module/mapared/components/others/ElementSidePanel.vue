@@ -51,6 +51,18 @@
 
                 <template v-if="sidePanelNode.coords">
                     <div class="element-side-panel__section">
+                        <q-btn
+                            no-caps
+                            outline
+                            color="primary"
+                            icon="account_tree"
+                            label="¿Quién depende de esto?"
+                            title="¿Quién depende de esto?"
+                            @click="abrirImpacto"
+                        />
+                    </div>
+
+                    <div class="element-side-panel__section">
                         <div class="element-side-panel__label">Puertos</div>
                         <div v-if="loadingResumen" class="text-caption text-grey">
                             Cargando…
@@ -303,6 +315,14 @@
             </div>
         </div>
     </transition>
+
+    <q-dialog v-model="impactoDialogAbierto">
+        <ImpactoPanel
+            v-if="impactoDialogAbierto && sidePanelNode"
+            tipo="nap"
+            :id="sidePanelNode.id"
+        />
+    </q-dialog>
 </template>
 
 <script setup>
@@ -318,6 +338,7 @@ import { getEnlacesPorNap } from "../../helper/enlaces-request";
 import { getSalud } from "../../helper/naps-request";
 import OpticalBudgetPanel from "./OpticalBudgetPanel.vue";
 import EmpalmesPanel from "./EmpalmesPanel.vue";
+import ImpactoPanel from "./ImpactoPanel.vue";
 
 defineOptions({
     name: "ElementSidePanel",
@@ -364,6 +385,17 @@ const toggleEnlace = (enlaceId) => {
 const salud = ref(null);
 const loadingSalud = ref(false);
 
+// Trazo inverso de impacto (MR-17 Fase 3b, item #9990594): quién depende de este elemento
+// (clientes/MRR afectados). Aplica a CUALQUIER Layer con coords (NAP, mufa, rack, OLT, ODF…),
+// no solo a NAPs — `RedGraphService::fanOutDesde('nap', id)` resuelve genérico por id de
+// MapaRedLayer sin importar su `dialog`. Panel self-contained (q-dialog local, sin bubbling
+// por ProjectsComponent/LeafletMapRed): mismo alcance de datos que trazar-ruta, pero acá no
+// hace falta dibujar nada en el mapa, solo mostrar el panel.
+const impactoDialogAbierto = ref(false);
+const abrirImpacto = () => {
+    impactoDialogAbierto.value = true;
+};
+
 const cargarSalud = async (id) => {
     loadingSalud.value = true;
     salud.value = await getSalud(MAPA_RED_LAYER_MODEL, id);
@@ -382,6 +414,7 @@ watch(
         enlacesServicio.value = null;
         enlaceAbierto.value = null;
         salud.value = null;
+        impactoDialogAbierto.value = false;
         if (!id || !sidePanelNode.value?.coords) return;
 
         loadingResumen.value = true;
