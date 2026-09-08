@@ -1532,7 +1532,7 @@ export default {
 .tc-livelog-head{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid #1e293b;font-size:12px;color:#8b97ab;}
 .tc-livelog-tag{display:inline-flex;align-items:center;gap:7px;color:#4ade80;font-weight:700;}
 .tc-livelog-pre{margin:0;padding:12px 14px;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12px;line-height:1.55;color:#b8c4d8;height:240px;overflow:auto;white-space:pre-wrap;word-break:break-word;}
-.tc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:14px;}
+.tc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:0;}
 .tc-kpi{background:var(--tc-surface);border:1px solid var(--tc-line);border-radius:12px;padding:13px 15px;}
 .tc-n{font-size:26px;font-weight:700;line-height:1.1;}
 .tc-l{font-size:12px;color:var(--tc-muted);margin-top:3px;}
