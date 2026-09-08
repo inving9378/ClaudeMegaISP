@@ -107,8 +107,8 @@
                             <hr class="my-2" />
                             <div class="d-flex align-items-center justify-content-between mb-2">
                                 <label class="form-label mb-0 fw-semibold text-muted small">
-                                    <i class="bi bi-stars me-1"></i> Mejoras generadas por IA
-                                    <span class="fw-normal">(editable · se publicará en "Ver más")</span>
+                                    <i class="bi bi-stars me-1"></i> Resumen de cambios
+                                    <span class="fw-normal">(opcional · editable · se publicará en "Ver más")</span>
                                 </label>
                                 <button
                                     type="button"
@@ -117,8 +117,8 @@
                                     :disabled="aiLoading"
                                 >
                                     <span v-if="aiLoading" class="spinner-border spinner-border-sm me-1"></span>
-                                    <i v-else class="bi bi-arrow-repeat me-1"></i>
-                                    {{ aiLoading ? 'Generando...' : 'Generar automáticamente' }}
+                                    <i v-else class="bi bi-stars me-1"></i>
+                                    {{ aiLoading ? 'Generando… (puede tardar 1-3 min)' : 'Generar resumen con IA (opcional, tarda 1-3 min)' }}
                                 </button>
                             </div>
                             <div
@@ -151,7 +151,7 @@
                                 type="submit"
                                 :disabled="dataForm.data.errors.any()"
                             >
-                                Guardar
+                                {{ textoBotonGuardar }}
                             </button>
                         </div>
                     </form>
@@ -196,6 +196,9 @@ export default {
         // Aviso "imposible de ignorar" cuando el resumen generado no cubrió todo el rango de
         // commits (item roadmap #892) — antes el truncamiento era silencioso.
         const aiTruncationNotice = ref('');
+        // Fase A #9990624 (A.3) — el botón principal es "Crear versión"; el resumen IA es aparte
+        // y opcional. En edición dice "Guardar cambios".
+        const textoBotonGuardar = computed(() => (props.id ? 'Guardar cambios' : 'Crear versión'));
 
         const requestEditedFieldsById = async (module, id) => {
             let fields = {};
@@ -350,7 +353,10 @@ export default {
                             return resolve();
                         }
                         if (data.status === 'error') {
-                            Swal.fire('Error', data.message || 'No se pudo generar el resumen.', 'error');
+                            // Fase A #9990624 (A.4) — aviso amable, sin exponer el error técnico
+                            // (data.message puede traer códigos HTTP/detalles de la API). La versión
+                            // se puede crear igual; el resumen es opcional.
+                            Swal.fire('El resumen no quedó listo', 'El resumen automático no quedó listo; puedes escribirlo tú o generarlo después. Igual puedes crear la versión.', 'info');
                             aiLoading.value = false;
                             return resolve();
                         }
@@ -362,7 +368,8 @@ export default {
                         }
                         setTimeout(tick, CHANGELOG_POLL_INTERVAL_MS);
                     } catch (e) {
-                        Swal.fire('Error', e.response?.data?.message || 'No se pudo consultar el estado del resumen.', 'error');
+                        // Fase A #9990624 (A.4) — no exponer el error técnico de red/servidor.
+                        Swal.fire('El resumen no quedó listo', 'No se pudo consultar el estado del resumen automático; puedes escribirlo tú o intentarlo después. Igual puedes crear la versión.', 'info');
                         aiLoading.value = false;
                         resolve();
                     }
@@ -389,6 +396,16 @@ export default {
             // Adjuntar el resumen IA si fue generado (solo en creación)
             if (!props.id && aiDescription.value.trim()) {
                 dataForm.data['ai_description'] = aiDescription.value.trim();
+            }
+
+            // Fase A #9990624 (A.4) — la versión se crea SIEMPRE, aunque el resumen no exista
+            // (el resumen IA es opcional y puede haber fallado/tardado). Si nadie escribió ni
+            // generó un resumen, se pone uno genérico para que la versión no quede sin descripción;
+            // Irving puede editarlo o generarlo después.
+            if (!props.id && !String(dataForm.data['summary'] || '').trim()) {
+                const v = dataForm.data['version'] || 'nueva';
+                dataForm.data['summary'] =
+                    `Versión ${v}. El resumen automático no quedó listo; puedes escribirlo o generarlo con IA después.`;
             }
 
             dataForm.data
@@ -445,6 +462,7 @@ export default {
             aiDescription,
             aiLoading,
             aiTruncationNotice,
+            textoBotonGuardar,
             generateChangelog,
             candidatos,
             loadingCandidatos,
