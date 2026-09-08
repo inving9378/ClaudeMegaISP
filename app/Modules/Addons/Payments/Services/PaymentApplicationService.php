@@ -6,13 +6,13 @@ use App\Modules\Core\Clientes\Models\Client;
 use App\Models\ClientInvoice;
 use App\Models\MethodOfPayment;
 use App\Models\Payment;
+use App\Models\User;
 use App\Modules\Addons\Payments\Models\PaymentClabe;
 use App\Modules\Addons\Payments\Models\PaymentReceipt;
 use App\Modules\Addons\WhatsAppAgent\Services\EvolutionApiService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Spatie\Permission\Models\Role;
 
 /**
  * Coordina los efectos secundarios cuando llega un pago SPEI:
@@ -270,8 +270,11 @@ class PaymentApplicationService
 
     /**
      * El webhook no tiene usuario autenticado pero payments.add_by es NOT NULL.
-     * Resolvemos al primer SUPER_ADMIN como "usuario sistema". Resultado se
-     * cachea en memoria del request para evitar 1 query por pago.
+     * Atribuimos al usuario de sistema MEGAISP (mismo resolver que
+     * PaymentFromSessionService, FASE PAGOS 3) en vez de un rol SUPER_ADMIN
+     * que nunca existió en este proyecto (los reales son
+     * super-administrator/DESARROLLADOR) — roadmap #272. Resultado se cachea
+     * en memoria del request para evitar 1 query por pago.
      */
     private ?int $cachedSystemUserId = null;
     private function resolveSystemUserId(): int
@@ -279,9 +282,7 @@ class PaymentApplicationService
         if ($this->cachedSystemUserId !== null) {
             return $this->cachedSystemUserId;
         }
-        $role = Role::where('name', 'SUPER_ADMIN')->first();
-        $userId = $role?->users()->orderBy('id')->value('id');
-        return $this->cachedSystemUserId = (int) ($userId ?: 1);
+        return $this->cachedSystemUserId = User::systemBot()?->id ?? 1;
     }
 
     private function resolveClientPhone(Client $client): ?string
