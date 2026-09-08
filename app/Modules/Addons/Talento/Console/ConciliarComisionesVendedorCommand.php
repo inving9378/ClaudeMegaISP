@@ -4,7 +4,7 @@ namespace App\Modules\Addons\Talento\Console;
 
 use App\Models\Seller;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
-use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
+use App\Modules\Addons\Talento\Models\TalentoComisionEspejo;
 use App\Modules\Addons\Talento\Support\PayWeek;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -14,10 +14,11 @@ use Illuminate\Support\Facades\DB;
  * Fase 2 (item #9990606) del plan de migración de comisiones de vendedor a Talento
  * (ver docs/talento-comisiones-migracion-analisis-item-9990453.md §4.3).
  *
- * 100% SOLO LECTURA — no escribe en payment_by_rule ni en talento_ledger_entries, no
+ * 100% SOLO LECTURA — no escribe en payment_by_rule ni en talento_comisiones_espejo, no
  * corrige nada. Compara, por colaborador y período de pago (PayWeek), la suma del motor
  * viejo (payment_by_rule_commissions vía payment_by_rule) contra la suma del espejo nuevo
- * (talento_ledger_entries concept='sales_commission', escrito por la Fase 1 #9990605) y
+ * (tabla aislada talento_comisiones_espejo, escrita por la Fase 1b #9990610 -- NO
+ * talento_ledger_entries, que LiquidationService::calculate() sí suma al grossPay real) y
  * reporta CUALQUIER discrepancia (monto distinto / falta en un lado / posible duplicado)
  * con tolerancia CERO (decisión de Irving, q2 del item): no hay margen de redondeo, todo
  * lo que no cuadre al centavo se lista para que Irving lo resuelva caso por caso.
@@ -34,7 +35,7 @@ class ConciliarComisionesVendedorCommand extends Command
         {--csv= : Ruta del CSV de salida. Default: storage/app/reportes/conciliacion-comisiones-vendedor-*.csv.}';
 
     protected $description = 'SOLO LECTURA — Fase 2 #9990606: concilia al centavo payment_by_rule (motor viejo) '
-        . 'contra talento_ledger_entries concept=sales_commission (espejo Fase 1 #9990605), por colaborador/período.';
+        . 'contra talento_comisiones_espejo (espejo Fase 1a/1b #9990609/#9990610), por colaborador/período.';
 
     /** @var array<int, array{colaborador_id:int,nombre:string}|null> cache seller_id → colaborador resuelto */
     private array $colaboradorPorSeller = [];
@@ -44,7 +45,7 @@ class ConciliarComisionesVendedorCommand extends Command
         [$desde, $hasta] = $this->resolveRange();
 
         $this->info("Conciliando comisiones de vendedor del {$desde->toDateString()} al {$hasta->toDateString()}…");
-        $this->line('(Solo lectura — no se escribe nada en payment_by_rule ni en talento_ledger_entries.)');
+        $this->line('(Solo lectura — no se escribe nada en payment_by_rule ni en talento_comisiones_espejo.)');
         $this->newLine();
 
         [$viejo, $sinColaborador] = $this->sumarMotorViejo($desde, $hasta);
@@ -77,9 +78,9 @@ class ConciliarComisionesVendedorCommand extends Command
 
         if ($duplicados) {
             $this->newLine();
-            $this->warn('Posibles duplicados en el espejo (misma referencia con más de una entrada en el ledger):');
+            $this->warn('Posibles duplicados en el espejo (mismo payment_by_rule_details_id con más de una fila):');
             foreach ($duplicados as $refKey => $ids) {
-                $this->line("  - {$refKey} → talento_ledger_entries.id: " . implode(', ', $ids));
+                $this->line("  - {$refKey} → talento_comisiones_espejo.id: " . implode(', ', $ids));
             }
         }
 
@@ -152,18 +153,23 @@ class ConciliarComisionesVendedorCommand extends Command
     }
 
     /**
-     * Espejo nuevo: talento_ledger_entries concept='sales_commission', agrupado por
-     * colaborador + su propio period_start/period_end (el que haya resuelto la Fase 1
-     * al escribir — es la fuente de verdad de "a qué semana pertenece" del lado nuevo).
-     * Neto = créditos - débitos (mismo patrón que LiquidationService, por si hay
-     * contra-entradas de reversión).
+     * Espejo nuevo: talento_comisiones_espejo (tabla AISLADA escrita por la Fase 1b
+     * #9990610 -- a propósito NO talento_ledger_entries, para que LiquidationService::
+     * calculate() no la sume al grossPay real), agrupado por colaborador + su propio
+     * period_start/period_end. Esas columnas YA vienen resueltas a PayWeek por la Fase
+     * 1b, no hace falta recalcularlas aquí (a diferencia de sumarMotorViejo(), que sí
+     * tiene que mapear payment_date → PayWeek::boundsFor()).
+     *
+     * A diferencia del ledger real, el espejo no tiene tipo débito/crédito (cada fila es
+     * copia directa y positiva de un renglón del motor viejo) ni reference_id/
+     * reference_type -- el candidato natural para detectar duplicados es
+     * payment_by_rule_details_id (debería aparecer una sola vez por fila espejada).
      *
      * @return array{0:array<string,array{amount:float,nombre:string}>,1:array<string,array<int,int>>}
      */
     private function sumarEspejoLedger(Carbon $desde, Carbon $hasta): array
     {
-        $entries = TalentoLedgerEntry::where('concept', 'sales_commission')
-            ->where('period_start', '<=', $hasta->toDateString())
+        $entries = TalentoComisionEspejo::where('period_start', '<=', $hasta->toDateString())
             ->where('period_end', '>=', $desde->toDateString())
             ->get();
 
@@ -180,13 +186,12 @@ class ConciliarComisionesVendedorCommand extends Command
         foreach ($entries as $entry) {
             $nombre = $nombres[$entry->colaborador_id] ?? "colaborador #{$entry->colaborador_id} (no encontrado)";
             $key    = "{$entry->colaborador_id}|{$entry->period_start->toDateString()}|{$entry->period_end->toDateString()}";
-            $signo  = $entry->type === 'debit' ? -1 : 1;
 
             $out[$key] ??= ['amount' => 0.0, 'nombre' => $nombre];
-            $out[$key]['amount'] += $signo * (float) $entry->amount;
+            $out[$key]['amount'] += (float) $entry->amount;
 
-            if ($entry->reference_id !== null) {
-                $refKey              = ($entry->reference_type ?? 'sin_tipo') . '#' . $entry->reference_id;
+            if ($entry->payment_by_rule_details_id !== null) {
+                $refKey               = 'payment_by_rule_details#' . $entry->payment_by_rule_details_id;
                 $refVistos[$refKey][] = $entry->id;
             }
         }
@@ -301,7 +306,7 @@ class ConciliarComisionesVendedorCommand extends Command
 
         if ($duplicados) {
             fputcsv($fh, []);
-            fputcsv($fh, ['posible_duplicado_referencia', 'talento_ledger_entries_ids']);
+            fputcsv($fh, ['posible_duplicado_referencia', 'talento_comisiones_espejo_ids']);
             foreach ($duplicados as $refKey => $ids) {
                 fputcsv($fh, [$refKey, implode(',', $ids)]);
             }
