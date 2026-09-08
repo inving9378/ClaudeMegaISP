@@ -102,6 +102,35 @@ class ReleaseController extends Controller
             }
 
             $data = $validator->validated();
+
+            // #versionado-2026-09-08 — GUARD ANTI-RETROCESO. La validación de arriba sólo exige que
+            // el nombre no exista en la tabla; no impide un consecutivo MENOR al ya publicado. Éste
+            // es el punto donde el número deja de poder retroceder «sin importar quién lance el
+            // release»: se rechaza cualquier build <= al máximo real en los tags git. Fail-closed
+            // (si no se puede consultar el remoto, NextVersionResolver lanza y el release se aborta).
+            try {
+                $resolver = app(\App\Services\Updates\NextVersionResolver::class);
+                $maxPublicado = $resolver->buildMaximoPublicado();
+                if (preg_match('/^V\d+\.(\d+)-/', (string) $data['version'], $mv)) {
+                    $buildPedido = (int) $mv[1];
+                    if ($buildPedido <= $maxPublicado) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => "La versión {$data['version']} (build {$buildPedido}) es MENOR o igual "
+                                . "al último build publicado ({$maxPublicado}). Emitir ese número haría que "
+                                . 'producción no viera el release. Usa el consecutivo sugerido (build '
+                                . ($maxPublicado + 1) . ').',
+                        ], 422);
+                    }
+                }
+            } catch (\Throwable $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se pudo verificar el consecutivo contra los tags del remoto: '
+                        . $e->getMessage(),
+                ], 503);
+            }
+
             $data['created_by'] = auth()->user()->id;
 
             // El respaldo de la BD ya NO corre aquí (síncrono): se movió al pipeline
@@ -350,26 +379,28 @@ class ReleaseController extends Controller
      */
     public function nextVersion()
     {
-        $maxMajor = 1;
-        $maxMinor = 0;
+        // #versionado-2026-09-08 — el consecutivo sale de los TAGS DE GIT, no de la tabla `releases`.
+        // Antes se calculaba con `Release::pluck('version')`, y cuando esa tabla perdió los builds
+        // 16–32 el número RETROCEDIÓ (dev emitió V1.20 con prod en V1.32). Los tags son la historia
+        // real e inmutable de lo publicado. Ver App\Services\Updates\NextVersionResolver.
+        try {
+            $r = app(\App\Services\Updates\NextVersionResolver::class)->resolver();
 
-        foreach (Release::pluck('version') as $v) {
-            if (preg_match('/^V(\d+)\.(\d+)/i', trim((string) $v), $m)) {
-                $maj = (int) $m[1];
-                $min = (int) $m[2];
-                if ($maj > $maxMajor || ($maj === $maxMajor && $min > $maxMinor)) {
-                    $maxMajor = $maj;
-                    $maxMinor = $min;
-                }
-            }
+            return response()->json([
+                'success'       => true,
+                'version'       => $r['label'],
+                'build'         => $r['build'],
+                'max_detectado' => $r['max_detectado'],
+                'origen'        => $r['origen'],
+            ]);
+        } catch (\Throwable $e) {
+            // Fail-closed: sin la historia real del remoto NO se sugiere un número (adivinar es lo
+            // que trajo la divergencia). El front debe mostrar el error, no un consecutivo inventado.
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 503);
         }
-
-        $suggested = sprintf('V%d.%d-%s', $maxMajor, $maxMinor + 1, now()->format('d.m.Y'));
-
-        return response()->json([
-            'success' => true,
-            'version' => $suggested,
-        ]);
     }
 
     public function update(Request $request, $id)
