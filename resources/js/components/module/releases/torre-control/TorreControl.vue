@@ -182,7 +182,12 @@
         <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-warn)">{{ kpi(resumenCola.espera_decision ?? cola.length, 'resumen_cola') }}</div><div class="tc-l">Requiere Irving</div><div class="tc-bar" style="background:var(--tc-warn)"></div></div>
         <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-info)">{{ kpi(est('en_progreso'), 'resumen') }}</div><div class="tc-l">En progreso</div><div class="tc-bar" style="background:var(--tc-info)"></div></div>
         <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-ok)">{{ kpi(est('completado'), 'resumen') }}</div><div class="tc-l">Completado</div><div class="tc-bar" style="background:var(--tc-ok)"></div></div>
+        <!-- #9990622: estados que antes no tenían tarjeta (182 items invisibles) -->
+        <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-accent)">{{ kpi(est('aprobado_irving'), 'resumen') }}</div><div class="tc-l">Aprobado por Irving</div><div class="tc-bar" style="background:var(--tc-accent)"></div></div>
+        <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-accent)">{{ kpi(est('aprobado_revisor'), 'resumen') }}</div><div class="tc-l">Aprobado por revisor</div><div class="tc-bar" style="background:var(--tc-accent)"></div></div>
+        <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-muted)">{{ kpi(est('cancelado') + est('rechazado'), 'resumen') }}</div><div class="tc-l">Cancelados/Rechazados</div><div class="tc-bar" style="background:var(--tc-muted)"></div></div>
       </div>
+      <div class="tc-meta" style="margin-top:6px">Las tarjetas de estado (todas menos "Items totales") suman el Total. "Requiere Irving" muestra solo lo accionable.</div>
 
       <div class="tc-grid">
         <!-- Bandeja: requiere_irving -->
@@ -1527,7 +1532,7 @@ export default {
 .tc-livelog-head{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid #1e293b;font-size:12px;color:#8b97ab;}
 .tc-livelog-tag{display:inline-flex;align-items:center;gap:7px;color:#4ade80;font-weight:700;}
 .tc-livelog-pre{margin:0;padding:12px 14px;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12px;line-height:1.55;color:#b8c4d8;height:240px;overflow:auto;white-space:pre-wrap;word-break:break-word;}
-.tc-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:14px;}
+.tc-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:14px;}
 .tc-kpi{background:var(--tc-surface);border:1px solid var(--tc-line);border-radius:12px;padding:13px 15px;}
 .tc-n{font-size:26px;font-weight:700;line-height:1.1;}
 .tc-l{font-size:12px;color:var(--tc-muted);margin-top:3px;}
