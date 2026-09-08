@@ -73,6 +73,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('administra
         // por usuario (el rol es la única fuente de verdad). Rutas retiradas:
         //   Route::get('/get-permission-for-user/{id}', ...'getPermissionUser');
         //   Route::post('/update-permission-for-user/{id}', ...'updatePermissionUser');
+        // Item #274: los métodos stub getPermissionUser/updatePermissionUser (abort 410)
+        // se borraron del controller — confirmado 0 rutas y 0 consumidores JS activos.
         Route::post('/sync-roles', [PermissionController::class, 'syncRoles']); // solo super-administrator
     });
 });

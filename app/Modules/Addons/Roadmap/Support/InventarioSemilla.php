@@ -250,6 +250,14 @@ class InventarioSemilla
                     'detalle'  => 'PermissionController tiene dos endpoints cortados con abort() y una ruta activa hacia '
                         . 'syncRoles marcada con TODO. Tocan permisos de usuario, que es frontera dura del circuito.',
                     'pregunta' => '¿Los endpoints de permisos por usuario (getPermissionUser/updatePermissionUser) se reactivan, se rediseñan, o se eliminan junto con sus rutas? Tocan asignación de permisos, así que la decisión es tuya.',
+                    // Item #274: investigado — son stubs muertos de la Reforma B1.3 (0 rutas
+                    // registradas, 0 consumidores JS activos), ya borrados del controller.
+                    // Se apaga sola: si algún día vuelven a aparecer los métodos, reaparece.
+                    'vigente'  => function () {
+                        $f = base_path('app/Modules/Core/Usuarios/Controllers/PermissionController.php');
+
+                        return is_file($f) && str_contains((string) file_get_contents($f), 'function getPermissionUser');
+                    },
                 ],
             ],
 
