@@ -5,6 +5,8 @@ namespace App\Modules\Core\Documentos\Controllers\DocumentTemplate;
 use App\Http\Controllers\Controller;
 use App\Http\HelpersModule\module\administration\document_template\DocumentTemplateDatatableHelper;
 use App\Http\Repository\ClientRepository;
+use App\Models\DocumentTemplate;
+use App\Models\User;
 use App\Modules\Core\CRM\Repositories\CrmRepository;
 use App\Http\Repository\DocumentTemplateRepository;
 use App\Http\Requests\module\administration\document_template\DocumentTemplateCreateRequest;
@@ -12,7 +14,10 @@ use App\Http\Requests\module\administration\document_template\DocumentTemplateUp
 use App\Services\ClientService\ContractClientService;
 use App\Modules\Core\CRM\Services\ContractCrmService;
 use App\Services\DocumentTemplateService;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class DocumentTemplateController extends Controller
 {
@@ -262,6 +267,73 @@ class DocumentTemplateController extends Controller
         ]);
     }
 
+
+    /**
+     * Acuse de avance en PDF del catálogo de plantillas (item roadmap #9990572, seguimiento
+     * de #9990551). `document_templates` no tiene columna `status`/`estado`
+     * ni ningún campo de avance (verificado: solo name/html/type/created_by, ver migración
+     * archivada en migrations_old/2024_07_23_150303_create_document_templates_table.php) —
+     * "Publicada"/"Borrador" se deriva de si `html` tiene contenido, y "avance global" es el
+     * % de plantillas publicadas sobre el total. `created_by` es un id de usuario guardado
+     * como string (sin FK), se resuelve a nombre si el usuario existe.
+     */
+    public function exportarAcuse(Request $request)
+    {
+        $fechaCorte = $request->filled('fecha_corte')
+            ? Carbon::parse($request->query('fecha_corte'))->endOfDay()
+            : now();
+
+        $plantillas = DocumentTemplate::with('type_template')
+            ->orderBy('name')
+            ->get()
+            ->map(function (DocumentTemplate $t) {
+                $publicada = trim((string) $t->html) !== '';
+                $usuario = is_numeric($t->created_by) ? User::find($t->created_by) : null;
+
+                return [
+                    'nombre'      => $t->name,
+                    'tipo'        => optional($t->type_template)->name ?? '—',
+                    'estado'      => $publicada ? 'Publicada' : 'Borrador',
+                    'publicada'   => $publicada,
+                    'autor'       => $usuario->name ?? ('Usuario #' . $t->created_by),
+                    'actualizado' => $t->updated_at,
+                ];
+            });
+
+        $total      = $plantillas->count();
+        $publicadas = $plantillas->where('publicada', true)->count();
+
+        $global = [
+            'total'      => $total,
+            'publicadas' => $publicadas,
+            'borrador'   => $total - $publicadas,
+            'porcentaje' => $total > 0 ? (int) round($publicadas / $total * 100) : 0,
+        ];
+
+        $nombreBase = 'plantillas-acuse-avance-' . now()->format('Ymd-His') . '-' . Str::random(6);
+
+        $pdf = Pdf::loadView('meganet.module.administration.document_template.export.acuse', [
+            'plantillas' => $plantillas,
+            'global'     => $global,
+            'fechaCorte' => $fechaCorte,
+            'generado'   => now(),
+        ]);
+
+        $destino = $this->rutaTemporalAcuse($nombreBase);
+        file_put_contents($destino, $pdf->output());
+
+        return response()->download($destino, "{$nombreBase}.pdf")->deleteFileAfterSend(true);
+    }
+
+    private function rutaTemporalAcuse(string $nombreBase): string
+    {
+        $dir = storage_path('app/document_template/tmp');
+        if (! is_dir($dir)) {
+            mkdir($dir, 0770, true);
+        }
+
+        return $dir . '/' . $nombreBase . '.pdf';
+    }
 
     public function getDataByModule($request)
     {
