@@ -131,7 +131,7 @@ class ReleaseController extends Controller
                 ], 503);
             }
 
-            $data['created_by'] = auth()->user()->id;
+            $data['created_by'] = auth()->user()?->id;
 
             // El respaldo de la BD ya NO corre aquí (síncrono): se movió al pipeline
             // de deploy como primer paso crítico ('db_backup'), que corre en el worker
@@ -147,13 +147,13 @@ class ReleaseController extends Controller
                     'release_id'  => $release->id,
                     'title'       => 'Mejoras de esta versión (generado por IA)',
                     'description' => nl2br(e($aiDescription)),
-                    'created_by'  => auth()->user()->id,
+                    'created_by'  => auth()->user()?->id,
                 ]);
             }
 
             $deployLog = DeploymentLog::create([
                 'release_id'   => $release->id,
-                'triggered_by' => auth()->user()->id,
+                'triggered_by' => auth()->user()?->id,
                 'status'       => 'pending',
             ]);
 
@@ -267,7 +267,7 @@ class ReleaseController extends Controller
 
         $deployLog = DeploymentLog::create([
             'release_id'   => $release->id,
-            'triggered_by' => auth()->user()->id,
+            'triggered_by' => auth()->user()?->id,
             'status'       => 'pending',
         ]);
 
@@ -438,7 +438,7 @@ class ReleaseController extends Controller
         try {
             DB::beginTransaction();
             $data = $validator->validated();
-            $data['updated_by'] = auth()->user()->id;
+            $data['updated_by'] = auth()->user()?->id;
             $release->update($data);
             DB::commit();
             return response()->json([
