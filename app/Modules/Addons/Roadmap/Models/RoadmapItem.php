@@ -107,6 +107,10 @@ class RoadmapItem extends Model
         // #744 — mecanismo de reconstrucción de items P0 no-mergeados: id original referenciado
         // (SIN FK, ver migración) por el item nuevo que lo reconstruye.
         'reabre_item_id',
+        // #232 — discriminador de clase del item (ver TIPOS) + número de corrida del auditor que
+        // lo generó (NULL = no lo creó el auditor). Prerequisito de la Fase 4 del Supervisor; esta
+        // migración solo abre el campo, no cablea consumidores.
+        'tipo', 'auditoria_ciclo',
     ];
 
     protected $casts = [
@@ -164,7 +168,17 @@ class RoadmapItem extends Model
         // #546
         'trabajo_iniciado_at'         => 'datetime',
         'eta_segundos'                => 'integer',
+        // #232
+        'auditoria_ciclo'             => 'integer',
     ];
+
+    /**
+     * #232 — discriminador de clase de item (varchar, no enum: agregar un valor nuevo es dato, no
+     * un ALTER sobre esta tabla). Default de columna = 'manual'. Los valores 'auditoria' y
+     * 'respuesta' ya están descritos por la spec del motor auditor y el canal de respuesta
+     * respectivamente, aunque todavía nadie los escribe (eso es la Fase 4 del Supervisor).
+     */
+    public const TIPOS = ['manual', 'auditoria', 'respuesta'];
 
     // Enums del circuito (fuente de verdad para validación en el endpoint externo)
     public const NIVELES_RIESGO = ['A', 'B', 'C'];
