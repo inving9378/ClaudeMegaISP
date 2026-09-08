@@ -1,12 +1,12 @@
 # Medición de la lista TRIAJE_C_PLAIN/WORD — con la válvula de contexto activa (#902)
 
-> Generado automáticamente por `php artisan circuito:medir-valvula` el 2026-08-20 20:28:12. Read-only: no
+> Generado automáticamente por `php artisan circuito:medir-valvula` el 2026-08-27 14:34:05. Read-only: no
 > modifica la lista ni el clasificador. Re-ejecutar este comando pisa este archivo con la medición
 > más reciente.
 
 ## Cobertura de la ventana
 
-⚠️ La válvula solo tiene datos reales desde **2026-08-20 16:06:05** (pedida desde 2026-07-21 20:28:12) — la ventana con válvula activa es más corta que la solicitada; no hay 30 días completos todavía. Re-correr este comando más adelante para una cifra sobre ventana completa.
+⚠️ La válvula solo tiene datos reales desde **2026-08-25 16:50:53** (pedida desde 2026-07-28 14:34:05) — la ventana con válvula activa es más corta que la solicitada; no hay 30 días completos todavía. Re-correr este comando más adelante para una cifra sobre ventana completa.
 
 ## Tasa de nivel C (antes/después)
 
@@ -14,7 +14,7 @@
 |---|---:|---|
 | Antes del clasificador (histórico) | 72% | 163 items / 30d (doc. en `ValvulaContextoService`) |
 | Tras los arreglos de patrones (boilerplate/negación/límite de palabra), SIN válvula | 52% | 163 items / 30d (misma medición, doc. en `ValvulaContextoService`) |
-| **Con la válvula de contexto activa (esta medición)** | **17.8%** | 45 items triados en la ventana, 8 terminaron en C |
+| **Con la válvula de contexto activa (esta medición)** | **21.1%** | 123 items triados en la ventana, 26 terminaron en C |
 
 ## Por término — disparos del keyword vs aflojes de la válvula
 
@@ -25,15 +25,24 @@ nunca afloja está bien calibrado.
 
 | Término | Disparos | Aflojos | Fallos válvula | % aflojo | Lectura |
 |---|---:|---:|---:|---:|---|
-| `auth` | 2 (muestra chica) | 2 | 0 | 100% | insuficiente para opinar |
-| `despliegue` | 2 (muestra chica) | 0 | 0 | 0% | insuficiente para opinar |
-| `factura` | 1 (muestra chica) | 1 | 0 | 100% | insuficiente para opinar |
-| `pago` | 1 (muestra chica) | 1 | 0 | 100% | insuficiente para opinar |
-| `permiso` | 21 | 16 | 0 | 76.2% | mixto — no concluyente |
-| `produccion` | 2 (muestra chica) | 1 | 0 | 50% | insuficiente para opinar |
-| `rol` | 1 (muestra chica) | 1 | 0 | 100% | insuficiente para opinar |
+| `cobro` | 5 | 3 | 0 | 60% | mixto — no concluyente |
+| `deploy` | 1 (muestra chica) | 1 | 0 | 100% | insuficiente para opinar |
+| `destructiv` | 1 (muestra chica) | 1 | 0 | 100% | insuficiente para opinar |
+| `dinero` | 3 (muestra chica) | 2 | 0 | 66.7% | insuficiente para opinar |
+| `factura` | 7 | 5 | 0 | 71.4% | mixto — no concluyente |
+| `login` | 4 (muestra chica) | 3 | 0 | 75% | insuficiente para opinar |
+| `migración destructiva` | 1 (muestra chica) | 1 | 0 | 100% | insuficiente para opinar |
+| `pago` | 10 | 4 | 0 | 40% | mixto — no concluyente |
+| `password` | 1 (muestra chica) | 0 | 0 | 0% | insuficiente para opinar |
+| `permiso` | 12 | 6 | 0 | 50% | mixto — no concluyente |
+| `prod` | 3 (muestra chica) | 3 | 0 | 100% | insuficiente para opinar |
+| `produccion` | 1 (muestra chica) | 0 | 0 | 0% | insuficiente para opinar |
+| `producción` | 11 | 5 | 0 | 45.5% | mixto — no concluyente |
+| `rol` | 2 (muestra chica) | 2 | 0 | 100% | insuficiente para opinar |
+| `roles` | 1 (muestra chica) | 1 | 0 | 100% | insuficiente para opinar |
+| `spatie` | 1 (muestra chica) | 1 | 0 | 100% | insuficiente para opinar |
 
-Total de invocaciones de la válvula en la ventana: 30.
+Total de invocaciones de la válvula en la ventana: 64.
 
 ## Recomendación (dato, no decisión — el podar/ampliar/dejar es de Irving)
 
