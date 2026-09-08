@@ -346,6 +346,53 @@
             </q-card-actions>
         </q-card>
     </q-dialog>
+
+    <!-- MR-24e Fase 3b (item roadmap #9990582): formulario mínimo del modo dibujo cable/troncal
+         — vista previa local, SIN persistencia (la conexión real al backend es Fase 4 #9990583). -->
+    <q-dialog v-model="showCableDialog" persistent>
+        <q-card style="width: 380px; max-width: 90vw">
+            <q-card-section>
+                <div class="text-h6">Cable / Troncal (vista previa)</div>
+            </q-card-section>
+            <q-card-section class="q-pt-none">
+                <q-input
+                    v-model.number="numeroHilosCable"
+                    type="number"
+                    label="Número de hilos"
+                    dense
+                    outlined
+                    :rules="[(val) => (val > 0) || 'Requerido, mayor a 0']"
+                />
+                <q-select
+                    v-model="tipoCableId"
+                    :options="opcionesTipoCable"
+                    option-value="value"
+                    option-label="label"
+                    emit-value
+                    map-options
+                    label="Tipo de cable"
+                    dense
+                    outlined
+                    class="q-mt-sm"
+                />
+            </q-card-section>
+            <q-card-actions align="right">
+                <q-btn
+                    flat
+                    no-caps
+                    label="Cancelar"
+                    color="grey"
+                    @click="cancelarCableDialog"
+                />
+                <q-btn
+                    no-caps
+                    label="Agregar al mapa (vista previa)"
+                    color="primary"
+                    @click="confirmarCableDialog"
+                />
+            </q-card-actions>
+        </q-card>
+    </q-dialog>
 </template>
 
 <script setup>
@@ -429,6 +476,7 @@ import { getTrazoEnlace } from "./helper/enlaces-request";
 import { getCoberturaCapa } from "./helper/cobertura-request";
 import { getSectoresCapa } from "./helper/sectores-request";
 import { getTiposSplitter, crearNapRapida } from "./helper/nap-alta-request";
+import { getTiposCable } from "./helper/cable-alta-request";
 
 import Swal from "sweetalert2";
 import {
@@ -545,6 +593,17 @@ const ultimoClickNap = ref(null);
 const modoAgregarCable = ref(false);
 const tipoCableDibujo = ref("cable");
 const verticesCable = ref([]);
+
+// MR-24e Fase 3b (item roadmap #9990582): dialog de vista previa (SIN persistencia, ver Fase 4
+// #9990583) que abre finalizarDibujoCable() al terminar el trazo (Enter/doble-clic).
+const showCableDialog = ref(false);
+const numeroHilosCable = ref(null);
+const tipoCableId = ref(null);
+const tiposCableCatalogo = ref([]);
+const opcionesTipoCable = computed(() => [
+    { label: "Ninguno", value: null },
+    ...tiposCableCatalogo.value.map((t) => ({ label: t.nombre, value: t.id })),
+]);
 
 // MR-24e Fase 1b (item roadmap #9990558): dialog mínimo (splitter o "Ninguno") que conecta
 // el click de Fase 1a con NapAltaRapidaController::store.
@@ -1520,6 +1579,7 @@ const initMap = async () => {
                     modoAgregarCable.value = true;
                     map.doubleClickZoom.disable();
                     map.on("click", handleClickDibujoCable);
+                    map.on("dblclick", handleDblclickFinalizarCable);
                     map.on("mousemove", handleMousemoveSnapCable);
                     document.addEventListener("keydown", handleKeydownDibujoCable);
                     btn.state("agregar-cable-encendido");
@@ -1644,6 +1704,7 @@ const cancelarTrazoCableActual = () => {
 const cancelarDibujoCable = () => {
     modoAgregarCable.value = false;
     map.off("click", handleClickDibujoCable);
+    map.off("dblclick", handleDblclickFinalizarCable);
     map.off("mousemove", handleMousemoveSnapCable);
     document.removeEventListener("keydown", handleKeydownDibujoCable);
     map.doubleClickZoom.enable();
@@ -1703,12 +1764,72 @@ const handleMousemoveSnapCable = (e) => {
     }
 };
 
-// MR-24e Fase 3a (item roadmap #9990581): Esc cancela el TRAZO en curso sin apagar la
-// herramienta. Enter (finalizar el trazo) queda para Fase 3b, que extenderá esta función.
+// MR-24e Fase 3a/3b (items roadmap #9990581/#9990582): Esc cancela el TRAZO en curso sin apagar
+// la herramienta; Enter finaliza el trazo (mismo criterio que el doble-clic).
 const handleKeydownDibujoCable = (e) => {
     if (e.key === "Escape") {
         cancelarTrazoCableActual();
+    } else if (e.key === "Enter") {
+        e.preventDefault();
+        finalizarDibujoCable();
     }
+};
+
+// MR-24e Fase 3b (item roadmap #9990582): el doble-clic que finaliza el trazo dispara primero
+// el "click" simple (debounce 220ms de handleClickDibujoCable) — mismo patrón anti-clic-fantasma
+// que FleetGeofenceForm.vue línea 335-339: se cancela ese timer para no agregar un vértice de más.
+const handleDblclickFinalizarCable = () => {
+    if (cableClickTimer) {
+        clearTimeout(cableClickTimer);
+        cableClickTimer = null;
+    }
+    finalizarDibujoCable();
+};
+
+// MR-24e Fase 3b (item roadmap #9990582): abre el formulario de vista previa (SIN persistencia,
+// ver Fase 4 #9990583) con el trazo ya terminado. Exige al menos 2 vértices.
+const finalizarDibujoCable = async () => {
+    if (verticesCable.value.length < 2) {
+        message("Traza al menos 2 puntos para el cable/troncal", "warning");
+        return;
+    }
+    limpiarSnapCablePreview();
+    numeroHilosCable.value = null;
+    tipoCableId.value = null;
+    if (tiposCableCatalogo.value.length === 0) {
+        tiposCableCatalogo.value = await getTiposCable();
+    }
+    showCableDialog.value = true;
+};
+
+// MR-24e Fase 3b (item roadmap #9990582): cierra el dialog sin agregar nada al mapa; el trazo
+// se descarta (mismo criterio que Esc), pero la herramienta queda encendida para trazar otro.
+const cancelarCableDialog = () => {
+    showCableDialog.value = false;
+    cancelarTrazoCableActual();
+};
+
+// MR-24e Fase 3b (item roadmap #9990582): pinta el resultado FINAL como vista previa local —
+// un L.polyline plano, fuera de drawnItems/nodeMap (NO usar createLayerFromObject/
+// updateLayerFromObject: asumen un objeto con id real persistido y enganchan click/dragend que
+// intentarían guardar contra el backend, ver mapUtils.js líneas 357-408 y 600+). SIN llamar al
+// POST real de CableAltaRapidaController::store — esa conexión es Fase 4 (item #9990583).
+const confirmarCableDialog = () => {
+    if (!numeroHilosCable.value || numeroHilosCable.value <= 0) {
+        message("Número de hilos requerido, mayor a 0", "warning");
+        return;
+    }
+    const estilo =
+        tipoCableDibujo.value === "troncal"
+            ? { color: "#cc3300", weight: 6 }
+            : { color: "#6666ff", weight: 3 };
+    L.polyline(verticesCable.value, estilo)
+        .bindPopup(
+            `Vista previa: ${tipoCableDibujo.value} · ${numeroHilosCable.value} hilos — no guardado (pendiente de conectar a backend en Fase 4)`
+        )
+        .addTo(map);
+    showCableDialog.value = false;
+    cancelarTrazoCableActual();
 };
 
 // MR-24e Fase 1b (item roadmap #9990558): guarda la NAP con el punto clickeado + splitter
