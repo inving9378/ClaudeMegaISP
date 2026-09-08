@@ -2013,3 +2013,30 @@ hasta que el hook de cierre en cascada (`RoadmapItem.php:459-491`) lo complete s
 `docs/roadmap-bucle-reap-item-962-verificacion.md`. **Sin cambio de código de negocio** — el
 trabajo real de MR-26 (endpoint de consulta, sectores inalámbricos, UI + DoD con dirección real de
 Tultitlán) sigue en #9990523/#9990524/#9990525, pendientes de aprobación/reclamo.
+
+## Item #9990549 — MR-24e Fase 3 (modo dibujo cable/troncal, frontend) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
+#936/#9990408/#962. #9990549 (MR-24e Fase 3: modo dibujo de cable/troncal con snap a extremos en
+`LeafletMapRed.vue`, hermano del flujo de NAP ya implementado como Fase 1a/1b) fue escalado
+inicialmente por el DES-TRABE de Opus por un brief de 4 preguntas (implementación, distinción
+cable/troncal, elementos válidos de snap, alcance de persistencia); Irving las aprobó el
+2026-09-07 18:39, incluida `q4` = "solo frontend en esta fase, persistencia en fase 4". Una vuelta
+previa (`wt-5`, 2026-09-07 18:51) ya hizo lo correcto: investigó el código real (ubicó el patrón
+NAP en `LeafletMapRed.vue` ~1438-1566, confirmó que la Fase 2 —`CableAltaRapidaController::store`—
+ya está mergeada, commit `75ad6d05`) y descompuso el trabajo respetando `q4` en **#9990581** (Fase
+3a: toggle + selector Cable\|Troncal + trazo + snap), **#9990582** (Fase 3b: finalizar trazo +
+formulario mínimo + vista previa local, sin persistencia) y **#9990583** (Fase 4: conectar la
+vista previa al POST real). Pero el proceso murió a media escritura del comentario de decisión
+(texto cortado en `comentarios_claude`) antes de intentar **cerrar** al padre — el log solo
+registra `soltar-claim` ("terminó sin cerrar el item... se libera el reclamo"), y el pool lo
+repartió de nuevo (a `wt-3`, esta vuelta) sin trabajo propio que hacer. Verificado esta vuelta: los
+3 hijos (`origen_item_id=9990549`) siguen intactos, `pendiente_revision`, sin reclamar — la
+descomposición original seguía siendo correcta, nadie más la tocó. Corrección: esta vuelta ejecuta
+el intento de cierre faltante; el guard (`RoadmapItem.php` bloque "(2b) PARAGUAS") lo reenruta a
+`aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto` en el log, "le quedan
+3 sub-item(s) abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
+(`RoadmapItem.php:459-491`) lo complete solo cuando #9990581, #9990582 y #9990583 cierren los tres.
+Detalle en `docs/roadmap-bucle-reap-item-9990549-verificacion.md`. **Sin cambio de código de
+negocio** — el trabajo real del modo dibujo de cable/troncal sigue en
+#9990581/#9990582/#9990583, pendientes de que una terminal los reclame.
