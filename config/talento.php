@@ -29,4 +29,15 @@ return [
         'cutoff_minute' => (int) env('TALENTO_PAYWEEK_CUTOFF_MINUTE', 0),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Puente Vendedores→Talento — comisiones espejo (item #9990605/#9990609)
+    |--------------------------------------------------------------------------
+    | Kill switch del puente. Fase 1a (#9990609) crea la tabla talento_comisiones_espejo
+    | pero NO lee esta clave todavía en ningún lado -- es puramente inerte. La Fase 1b
+    | será quien la consulte antes de escribir/leer comisiones espejo. Default OFF a
+    | propósito (decisión Irving #9990605/q3): activar es una decisión explícita aparte.
+    */
+    'vendedores_espejo_enabled' => env('TALENTO_VENDEDORES_ESPEJO_ENABLED', false),
+
 ];
