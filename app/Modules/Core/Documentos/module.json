@@ -12,7 +12,8 @@
         {"name": "documentos.view", "description": "Ver plantillas de documentos y sus tipos"},
         {"name": "documentos.create", "description": "Crear plantillas de documentos y tipos"},
         {"name": "documentos.edit", "description": "Editar plantillas de documentos y tipos"},
-        {"name": "documentos.delete", "description": "Eliminar plantillas de documentos y tipos"}
+        {"name": "documentos.delete", "description": "Eliminar plantillas de documentos y tipos"},
+        {"name": "documentos.template.exportar_acuse", "description": "Exportar el acuse de avance en PDF del catálogo de plantillas"}
     ],
     "config_sections": [
         {
@@ -84,6 +85,7 @@
         {"method": "POST", "path": "/administracion/document_template/update/{id}", "description": "Actualiza una plantilla de documento", "permission": "documentos.edit"},
         {"method": "POST", "path": "/administracion/document_template/destroy/{id}", "description": "Elimina (soft delete) una plantilla de documento", "permission": "documentos.delete"},
         {"method": "POST", "path": "/administracion/document_template/get_data_template/{id}", "description": "Obtiene HTML y nombre de una plantilla", "permission": "documentos.view"},
+        {"method": "GET", "path": "/administracion/document_template/acuse/exportar", "description": "Genera el acuse de avance en PDF del catálogo de plantillas", "permission": "documentos.template.exportar_acuse"},
         {"method": "GET", "path": "/administracion/document_type_template", "description": "Listado de tipos de plantilla de documento", "permission": "documentos.view"},
         {"method": "POST", "path": "/administracion/document_type_template/add", "description": "Crea un tipo de plantilla de documento", "permission": "documentos.create"},
         {"method": "GET", "path": "/administracion/document_type_template/editar/{id}", "description": "Formulario de edición de un tipo de plantilla", "permission": "documentos.edit"},
