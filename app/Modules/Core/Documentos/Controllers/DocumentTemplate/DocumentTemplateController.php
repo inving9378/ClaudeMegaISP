@@ -85,12 +85,16 @@ class DocumentTemplateController extends Controller
 
 
         $documentTemplateRepository = new DocumentTemplateRepository();
-        $documentTemplateRepository->createDocumentTemplate([
+        $data = [
             'name' => $nameTemplate,
             'html' => $request->html,
             'type' => $request->type,
             'created_by' => auth()->user()?->id
-        ]);
+        ];
+        if ($request->filled('status')) {
+            $data['status'] = $request->status;
+        }
+        $documentTemplateRepository->createDocumentTemplate($data);
 
         return response()->json([
             'status' => 'ok',
@@ -147,6 +151,10 @@ class DocumentTemplateController extends Controller
         $template->name = $nameTemplate;
         $template->html = $validation['html'];
         $template->type = $request->type;
+        if ($request->filled('status')) {
+            $template->status = $request->status;
+        }
+        $template->updated_by = auth()->user()?->id;
         $template->save();
         $documentTemplateService->saveDocumentTemplate($filePath, $validation['html']);
         return response()->json([
