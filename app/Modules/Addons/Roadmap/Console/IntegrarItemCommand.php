@@ -43,7 +43,13 @@ class IntegrarItemCommand extends Command
         // todo lo ya commiteado) y regresa el item a un estado que el circuito vuelve a despachar
         // solo cuando el ganador termine (RoadmapCircuitoService::reanudarColisionesResueltas).
         if ($item->colision_pausada_por && ! $force) {
-            $item->worker_sid = null;
+            // #9990592 — antes solo limpiaba worker_sid y dejaba estado_aprobacion tal cual (típicamente
+            // 'en_progreso', si llegó aquí viniendo de un claim normal): un item en_progreso con
+            // worker_sid NULL es "reclamado sin firma", invisible para las redes de seguridad del pool
+            // (ver comentario en claimNextParalelo). Se restaura al mismo estado que usa
+            // reanudarColisionesResueltas() al reanudar, para que quede consistente mientras espera.
+            $item->worker_sid        = null;
+            $item->estado_aprobacion = $svc->estadoAprobadoPrevio($item);
             $item->save();
             $this->warn("Item #{$item->id} PAUSADO por colisión en vuelo con #{$item->colision_pausada_por} (candado #438); "
                 . "NO se integra ahora. Su rama {$branch} queda intacta; se reanuda automáticamente cuando el otro termine.");
