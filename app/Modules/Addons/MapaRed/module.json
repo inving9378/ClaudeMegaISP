@@ -8,7 +8,8 @@
     "active": true,
 
     "permissions": [
-        { "name": "mapa_red_view", "description": "Ver módulo Mapa de Red" }
+        { "name": "mapa_red_view", "description": "Ver módulo Mapa de Red" },
+        { "name": "mapa_red.cable.crear_rapido", "description": "Mapa de Red: alta rápida de cable/troncal" }
     ],
 
     "menu": [
