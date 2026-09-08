@@ -18,6 +18,8 @@ import { onMounted, reactive, ref, onUnmounted, getCurrentInstance } from "vue";
 import DatatableHelper from "../../../../helpers/datatableHelper";
 import TemplateManager from "./TemplateManager.vue";
 import { action } from "./helper";
+import Permission from "../../../../helpers/Permission";
+import { allViewHasPermission } from "../../../../helpers/Request";
 
 export default {
     name: "DocumentTemplateListar",
@@ -32,8 +34,11 @@ export default {
             table: new DatatableHelper({}),
         });
         const reloadCrud = ref(true);
+        const hasPermission = reactive({ data: new Permission({}) });
 
         onMounted(async () => {
+            hasPermission.data = new Permission(await allViewHasPermission());
+
             $(document).on("click" + ns, "#addTemplateManager", function () {
                 action.value = "/administracion/document_template/add";
                 showModal();
@@ -96,6 +101,15 @@ export default {
                 href: `javascript:void(0)`,
                 id: "addTemplateManager",
             };
+            if (hasPermission.data.canView("documentos.template.exportar_acuse")) {
+                buttons.exportarAcuse = {
+                    class: "btn btn-outline-secondary waves-effect waves-light",
+                    iclass: "fa fa-file-pdf",
+                    text: "Acuse de avance",
+                    href: "/administracion/document_template/acuse/exportar",
+                    target: "_blank",
+                };
+            }
             return buttons;
         };
 

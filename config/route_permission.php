@@ -1476,6 +1476,10 @@ return [
         '/administracion/document_template/destroy/{id}',
         '/administracion/document_type_template/destroy/{id}',
     ],
+    // Item #9990572 — permiso separado del CRUD para exportar el acuse de avance en PDF.
+    'documentos.template.exportar_acuse' => [
+        '/administracion/document_template/acuse/exportar',
+    ],
 
     //Principal
     'config_view_main' => [],

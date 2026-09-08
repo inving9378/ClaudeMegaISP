@@ -33,6 +33,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/update/{id}', [DocumentTemplateController::class, 'update']);
             Route::post('/destroy/{id}', [DocumentTemplateController::class, 'destroy']);
             Route::post('/get_data_template/{id}', [DocumentTemplateController::class, 'getDataTemplate']);
+            Route::get('/acuse/exportar', [DocumentTemplateController::class, 'exportarAcuse']);
         });
 
         Route::prefix('document_type_template')->group(function () {
