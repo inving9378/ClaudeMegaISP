@@ -475,7 +475,7 @@ import { darkMode } from "../../../hook/appConfig";
 import { getClientsWithoutProject, getMapRenderConfig, saveObject } from "./helper/request";
 import { getOcupacionLote, getSaludLote } from "./helper/naps-request";
 import { getTrazoEnlace } from "./helper/enlaces-request";
-import { getCoberturaCapa } from "./helper/cobertura-request";
+import { getCoberturaCapa, consultarCobertura } from "./helper/cobertura-request";
 import { getSectoresCapa } from "./helper/sectores-request";
 import { getTiposSplitter, crearNapRapida } from "./helper/nap-alta-request";
 import { getTiposCable, crearCableRapido } from "./helper/cable-alta-request";
@@ -1120,7 +1120,7 @@ const initMap = async () => {
         defaultMarkGeocode: false,
     }).addTo(map);
 
-    geocoder.on("markgeocode", function (e) {
+    geocoder.on("markgeocode", async function (e) {
         const { center, name, bbox } = e.geocode;
         L.marker(center, {
             icon: L.AwesomeMarkers.icon({
@@ -1136,6 +1136,42 @@ const initMap = async () => {
             padding: [50, 50],
             maxZoom: 16,
         });
+
+        // MR-26 Fase 4c (#9990528) — banner de consulta de cobertura vendible en el punto buscado.
+        const resultado = await consultarCobertura(center.lat, center.lng);
+        if (!resultado) {
+            return;
+        }
+        if (resultado.cobertura && resultado.nap_mas_cercana) {
+            const nap = resultado.nap_mas_cercana;
+            $q.notify({
+                type: "positive",
+                icon: "wifi",
+                message: `Hay cobertura vendible cerca de "${name}"`,
+                caption: `NAP más cercana: ${nap.nombre} · ${nap.puertos_libres} puerto(s) libre(s) · ${Math.round(nap.distancia_metros)} m`,
+                position: "top",
+                timeout: 6000,
+            });
+        } else if (resultado.nap_mas_cercana) {
+            const nap = resultado.nap_mas_cercana;
+            $q.notify({
+                type: "warning",
+                icon: "wifi_off",
+                message: `Sin cobertura vendible cerca de "${name}"`,
+                caption: `NAP más cercana: ${nap.nombre} · ${nap.puertos_libres} puerto(s) libre(s) · ${Math.round(nap.distancia_metros)} m (fuera de rango)`,
+                position: "top",
+                timeout: 6000,
+            });
+        } else {
+            $q.notify({
+                type: "warning",
+                icon: "wifi_off",
+                message: `Sin cobertura vendible cerca de "${name}"`,
+                caption: "No hay NAPs con puertos libres registradas.",
+                position: "top",
+                timeout: 6000,
+            });
+        }
     });
 
     const miniMapLayer = L.tileLayer(
