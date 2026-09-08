@@ -17,7 +17,9 @@ class DocumentTemplate extends BaseModel
         'name',
         'html',
         'type',
-        'created_by'
+        'status',
+        'created_by',
+        'updated_by'
     ];
 
 
