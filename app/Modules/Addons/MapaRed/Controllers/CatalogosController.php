@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\MapaRed\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Addons\MapaRed\Models\MapaRedTipoCable;
 use App\Modules\Addons\MapaRed\Models\MapaRedTipoSplitter;
 
 /**
@@ -17,6 +18,15 @@ class CatalogosController extends Controller
     {
         return response()->json(
             MapaRedTipoSplitter::orderBy('numero_puertos')->get(['id', 'nombre'])
+        );
+    }
+
+    // MR-24e Fase 3b (item roadmap #9990582) — catálogo mínimo de tipos de cable para el
+    // <q-select> del formulario de vista previa (SIN persistencia del cable en sí, ver Fase 4).
+    public function tipoCable()
+    {
+        return response()->json(
+            MapaRedTipoCable::orderBy('nombre')->get(['id', 'nombre'])
         );
     }
 }
