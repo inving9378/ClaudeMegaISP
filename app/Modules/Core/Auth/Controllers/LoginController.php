@@ -31,7 +31,8 @@ class LoginController extends Controller
      * sin rol de staff quedan bloqueados (p.ej. las cuentas espejo con rol 'client',
      * cuyo password es la Contraseña WEB del cliente, no deben acceder al admin).
      */
-    private const STAFF_ROLES = [
+    /** Reusado por auth:rehash-passwords (#153 q2) para acotar el backfill al mismo universo staff. */
+    public const STAFF_ROLES = [
         'super-administrator',
         'DESARROLLADOR',
         'Super Administrador',
@@ -115,8 +116,12 @@ class LoginController extends Controller
                 return false;
             }
             // Upgrade-on-login: si seguía en base64 legacy, re-hashea a bcrypt.
+            // Auditoría (#153 q3): conserva el valor anterior en password_legacy
+            // + sella password_migrated_at, para poder revertir si algo sale mal.
             if (PasswordService::needsRehash($user->password)) {
+                $user->password_legacy = $user->password;
                 $user->password = PasswordService::make($request->password);
+                $user->password_migrated_at = now();
                 $user->saveQuietly();
             }
             if ($user->isCounter()) {
