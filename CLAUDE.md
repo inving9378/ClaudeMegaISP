@@ -2067,3 +2067,33 @@ el intento de cierre faltante; el guard (`RoadmapItem.php` bloque "(2b) PARAGUAS
 Detalle en `docs/roadmap-bucle-reap-item-9990549-verificacion.md`. **Sin cambio de código de
 negocio** — el trabajo real del modo dibujo de cable/troncal sigue en
 #9990581/#9990582/#9990583, pendientes de que una terminal los reclame.
+
+## Item #9990605 — Fase 1 puente Vendedores→Talento (comisiones espejo) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
+#936/#9990408/#962/#9990549. #9990605 (Fase 1 del puente de escritura en paralelo Vendedores→Talento
+para comisiones espejo, sub-item de seguimiento de #9990452) tocó la frontera dura de dinero
+(válvula `termino=dinero`) y fue escalado a Irving vía DES-TRABE (Opus) con un brief de 5 preguntas
+estructuradas (mecanismo del puente, esquema, control de activación, validación, alcance histórico);
+Irving aprobó las 5 el 2026-09-08 10:36, todas con la opción recomendada (Observer aditivo + tablas
+nuevas espejo + feature flag + comando de reconciliación diaria + forward-only sin backfill). Una
+vuelta previa (`wt-1`, 2026-09-08 10:39) ya hizo lo correcto: corrió `circuito:cabida` (NO CABE,
+histórico ~3472s) y descompuso el trabajo respetando las 5 decisiones en **#9990609** (Fase 1a —
+esquema `talento_comisiones_espejo` + flag OFF, nivel B inerte), **#9990610** (Fase 1b — Observer
+que escribe el espejo + resuelve la desalineación de calendario Domingo→Sábado vs. PayWeek Sáb
+18:00→Sáb 18:00, nivel C, requiere consultar a Thomas antes de escribir contra datos reales) y
+**#9990611** (Fase 1c — comando de reconciliación diaria, nivel B solo-lectura). Pero el proceso
+murió a media escritura del comentario final de decisión (texto cortado en `comentarios_claude`,
+"Nota de diseño: el q2 de Irving e...") antes de intentar **cerrar** al padre — el log solo registra
+`soltar-claim` ("terminó sin cerrar el item... se libera el reclamo"), y el pool lo repartió de
+nuevo (a `wt-1`, esta vuelta) sin trabajo propio que hacer. Verificado esta vuelta: los 3 hijos
+(`origen_item_id=9990605`) siguen intactos — #9990609/#9990611 `pendiente_revision`, #9990610
+`requiere_irving`, ninguno reclamado — la descomposición original seguía siendo correcta, nadie más
+la tocó. Corrección: esta vuelta ejecuta el intento de cierre faltante; el guard (`RoadmapItem.php`
+bloque "(2b) PARAGUAS") lo reenruta a `aprobado_irving` + `excluir_pool_automatico=true` (evento
+`paraguas_abierto` en el log, "le quedan 3 sub-item(s) abierto(s)"), sacándolo del pool/reaper hasta
+que el hook de cierre en cascada (`RoadmapItem.php:459-491`) lo complete solo cuando #9990609,
+#9990610 y #9990611 cierren los tres. Detalle en
+`docs/roadmap-bucle-reap-item-9990605-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo real del puente Vendedores→Talento (esquema espejo, observer con resolución de calendario,
+comando de reconciliación) sigue en #9990609/#9990610/#9990611, pendientes de reclamo/aprobación.
