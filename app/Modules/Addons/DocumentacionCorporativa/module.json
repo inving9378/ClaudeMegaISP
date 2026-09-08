@@ -10,6 +10,7 @@
 
     "permissions": [
         { "name": "documentacion-corporativa.view", "description": "Ver el expediente corporativo (índice de apartados y tablero de completitud)" },
+        { "name": "documentacion-corporativa.empresa.manage", "description": "Editar datos de la empresa emisora del expediente (fecha de inicio del plazo maestro de 180 días hábiles)" },
 
         { "name": "documentacion-corporativa.apartado.i.view",    "description": "Ver apartado I — Documentación corporativa y societaria" },
         { "name": "documentacion-corporativa.apartado.ii.view",   "description": "Ver apartado II — Información financiera y contable" },

@@ -52,6 +52,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/acuse/exportar', [ExpedienteController::class, 'exportarAcuse'])->name('acuse.exportar');
 
             Route::post('/empresa', [ExpedienteController::class, 'cambiarEmpresa'])->name('empresa.cambiar');
+            // Captura/edición del plazo maestro de 180 días hábiles (Fase 3, item #9990575).
+            Route::put('/empresa/plazo', [ExpedienteController::class, 'actualizarPlazo'])->name('empresa.plazo');
 
             // Apartado XIII — calendario ANTES de {id}: si no, "calendario" se
             // interpretaría como un id numérico y nunca resolvería a este método.
