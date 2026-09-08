@@ -2014,6 +2014,33 @@ hasta que el hook de cierre en cascada (`RoadmapItem.php:459-491`) lo complete s
 trabajo real de MR-26 (endpoint de consulta, sectores inalámbricos, UI + DoD con dirección real de
 Tultitlán) sigue en #9990523/#9990524/#9990525, pendientes de aprobación/reclamo.
 
+## Item #9990554 — MR-17 Fase 3 (endpoint + botón "¿Quién depende de esto?" + panel de impacto) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
+#936/#9990408/#962/#9990549. #9990554 (sub-item de seguimiento de #953, DoD: cortar virtualmente
+el troncal `T-TULTITLAN-FO96-1` debe devolver clientes + monto mensual en riesgo) fue escalado por
+el DES-TRABE de Opus (ANTI-LOOP, 2 corridas sin ejecutar) con un brief de 3 preguntas que Irving
+aprobó el 2026-09-07 22:33 (todas con la opción recomendada). Una vuelta previa (`wt-3`, 2026-09-07
+22:37) ya hizo lo correcto: investigó el código real (`RedGraphService::fanOutDesde` ya soporta
+cable/hilo/puerto/splitter/nap/mufa —Fase 1 #9990552—, `MapaRedEnlaceMrrService::calcular` ya
+resuelve cliente+MRR —Fase 2 #9990553—) y descompuso el trabajo en **#9990593** (Fase 3a: endpoint
+`GET /mapa-red/api/impacto`, backend), **#9990594** (Fase 3b: botón + panel de impacto en
+`ElementSidePanel.vue`, frontend) y **#9990595** (Fase 3c: verificar el DoD del padre #953 con
+datos sintéticos o reales). Pero esa vuelta nunca intentó **cerrar** #9990554 tras crear los
+sub-items ("Sin codigo propio en esta vuelta") — quedó `en_progreso` colgado; `reaper-rapido` lo
+vio con el slot libre y lo re-encoló (`reap_count=1`), y el pool lo repartió de nuevo sin trabajo
+propio que hacer. Verificado esta vuelta: los 3 hijos (`origen_item_id=9990554`) siguen intactos
+— #9990593/#9990595 `requiere_irving` sin reclamar, #9990594 `en_progreso` en `wt-2` (con dueño,
+no se toca) — la descomposición original seguía siendo correcta, nadie más la tocó. Corrección:
+esta vuelta ejecuta el intento de cierre faltante; el guard (`RoadmapItem.php` bloque "(2b)
+PARAGUAS") lo reenruta a `aprobado_irving` + `excluir_pool_automatico=true` (evento
+`paraguas_abierto` en el log, "le quedan 3 sub-item(s) abierto(s)"), sacándolo del pool/reaper
+hasta que el hook de cierre en cascada (`RoadmapItem.php:459-491`) lo complete solo cuando
+#9990593, #9990594 y #9990595 cierren los tres. Detalle en
+`docs/roadmap-bucle-reap-item-9990554-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo real de MR-17 Fase 3 (endpoint de impacto, botón+panel jerárquico, verificación del DoD)
+sigue en #9990593/#9990594/#9990595, pendientes de aprobación/reclamo.
+
 ## Item #9990549 — MR-24e Fase 3 (modo dibujo cable/troncal, frontend) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
 
 Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
