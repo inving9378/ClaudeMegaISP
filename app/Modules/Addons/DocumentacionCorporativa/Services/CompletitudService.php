@@ -5,6 +5,7 @@ namespace App\Modules\Addons\DocumentacionCorporativa\Services;
 use App\Modules\Addons\DocumentacionCorporativa\Models\DcApartado;
 use App\Modules\Addons\DocumentacionCorporativa\Models\DcConcepto;
 use App\Modules\Addons\DocumentacionCorporativa\Models\DcDocumento;
+use App\Modules\Addons\DocumentacionCorporativa\Models\DcEmpresa;
 use App\Modules\Addons\DocumentacionCorporativa\Models\DcPendiente;
 use App\Modules\Addons\DocumentacionCorporativa\Resolvers\ResolverFactory;
 use Illuminate\Support\Carbon;
@@ -24,8 +25,10 @@ class CompletitudService
 {
     public const TTL_CACHE_SEGUNDOS = 900;
 
-    public function __construct(private ResolverFactory $factory)
-    {
+    public function __construct(
+        private ResolverFactory $factory,
+        private PlazoHabilService $plazoHabilService,
+    ) {
     }
 
     /** Tablero general: los 14 apartados con su porcentaje y semáforo. Cacheado. */
@@ -64,12 +67,13 @@ class CompletitudService
      * — y si lo hiciera por su cuenta habría dos definiciones de "porcentaje" y
      * dos de "semáforo", que es exactamente como divergen.
      */
-    public function agregarGlobal(array $apartados): array
+    public function agregarGlobal(array $apartados, ?int $empresaId = null): array
     {
         $obligatorios = array_sum(array_column($apartados, 'obligatorios'));
         $resueltos    = array_sum(array_column($apartados, 'resueltos'));
         $porcentaje   = $this->porcentaje($resueltos, $obligatorios);
         $estados      = array_count_values(array_column($apartados, 'estado'));
+        $plazo        = $empresaId !== null ? $this->calcularPlazo($empresaId) : null;
 
         return [
             'obligatorios' => $obligatorios,
@@ -83,12 +87,21 @@ class CompletitudService
             'al_dia'         => $estados['al_dia'] ?? 0,
             'en_proceso'     => $estados['en_proceso'] ?? 0,
             'sin_iniciar'    => $estados['sin_iniciar'] ?? 0,
-            // No existe en ningún lado la fecha de inicio del plazo de 180 días
-            // hábiles de la solicitud de la mesa directiva (verificado #9990531,
-            // grep sin resultados) — se deja en null a propósito en vez de
-            // inventarla; el seguimiento para agregarla vive en un item aparte.
-            'dias_restantes' => null,
+            // Plazo maestro de 180 días hábiles (Fase 2, item #9990574): null si
+            // la empresa no tiene `fecha_inicio_plazo` capturada — mismo
+            // comportamiento sin regresión que antes de esta fase.
+            'dias_restantes'     => $plazo['dias_restantes'] ?? null,
+            'fecha_limite_plazo' => $plazo['fecha_limite'] ?? null,
+            'plazo_vencido'      => $plazo['vencido'] ?? null,
         ];
+    }
+
+    /** Plazo de 180 días hábiles de la empresa, o null si no tiene fecha de inicio capturada. */
+    private function calcularPlazo(int $empresaId): ?array
+    {
+        $fechaInicio = DcEmpresa::find($empresaId)?->fecha_inicio_plazo;
+
+        return $this->plazoHabilService->calcularDiasRestantes($fechaInicio);
     }
 
     private function calcularTablero(int $empresaId): array
@@ -114,7 +127,7 @@ class CompletitudService
 
         return [
             'apartados'    => $filas,
-            'global'       => $this->agregarGlobal($filas),
+            'global'       => $this->agregarGlobal($filas, $empresaId),
             'calculado_at' => now()->toDateTimeString(),
         ];
     }

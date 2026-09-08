@@ -84,7 +84,7 @@ class ExpedienteController extends Controller
             ])->values(),
             'mostrar_selector' => $this->empresas->mostrarSelector(),
             'apartados'        => $visibles,
-            'global'           => $this->completitud->agregarGlobal($visibles),
+            'global'           => $this->completitud->agregarGlobal($visibles, $empresa->id),
             'calculado_at'     => $tablero['calculado_at'],
         ]);
     }
@@ -319,7 +319,7 @@ class ExpedienteController extends Controller
             fn (array $a) => $this->puedeVer($a['permiso'])
         ));
 
-        $global = $this->completitud->agregarGlobal($visibles);
+        $global = $this->completitud->agregarGlobal($visibles, $empresa->id);
 
         // Se registra ANTES de servir el archivo (misma regla que exportarApartado).
         $this->bitacora->exportar($empresa->id, null, null, [
