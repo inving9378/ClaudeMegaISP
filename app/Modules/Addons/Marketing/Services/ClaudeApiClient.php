@@ -14,6 +14,12 @@ class ClaudeApiClient
     protected string $baseUrl = 'https://api.anthropic.com/v1';
     protected string $apiVersion = '2023-06-01';
 
+    // Item roadmap #9990624 Fase 1 — antes esta llamada NO tenía timeout: una respuesta lenta
+    // (ej. ReleaseChangelogService con un rango grande de commits) se quedaba esperando
+    // indefinidamente, colgando quien la invocara. 90s da margen holgado para una respuesta
+    // normal de Claude sin dejar un request/job atorado para siempre.
+    private const REQUEST_TIMEOUT_SECONDS = 90;
+
     // Pricing per token (USD)
     private const PRICING = [
         'claude-opus-4-7'   => ['input' => 0.000015,  'output' => 0.000075],
@@ -44,11 +50,16 @@ class ClaudeApiClient
         $backoffs  = [1, 5, 15]; // seconds
 
         while ($attempt <= $maxRetry) {
-            $response = Http::withHeaders([
-                'x-api-key'         => $this->apiKey,
-                'anthropic-version' => $this->apiVersion,
-                'content-type'      => 'application/json',
-            ])->post("{$this->baseUrl}/messages", $params);
+            try {
+                $response = Http::withHeaders([
+                    'x-api-key'         => $this->apiKey,
+                    'anthropic-version' => $this->apiVersion,
+                    'content-type'      => 'application/json',
+                ])->timeout(self::REQUEST_TIMEOUT_SECONDS)->post("{$this->baseUrl}/messages", $params);
+            } catch (\Illuminate\Http\Client\ConnectionException $e) {
+                Log::channel('claude')->error("Claude API timeout tras " . self::REQUEST_TIMEOUT_SECONDS . "s: {$e->getMessage()}");
+                throw new \RuntimeException('Claude API no respondió a tiempo (timeout de ' . self::REQUEST_TIMEOUT_SECONDS . 's).', 0, $e);
+            }
 
             $status = $response->status();
             $body   = $response->json() ?? [];
