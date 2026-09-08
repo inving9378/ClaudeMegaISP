@@ -62,6 +62,7 @@ return [
     'crm_document_add_crm' => ['/crm/document/crear', '/crm/document/add/{idCrm}', '/crm/document/success/', '/crm/document/upload-file/{id}', '/crm/document/generate_contract/{id}', '/crm/document/load_content_template', '/crm/document/show_content_template'],
     'crm_document_edit_crm' => ['/crm/document/editar', '/crm/document/update/{idCrm}', '/crm/document/success/', '/crm/document/upload-file/{id}'],
     'crm_document_delete_crm' => ['/crm/document/destroy/{id}'],
+    'crm_document_view_huerfanos' => ['/crm/documentos-huerfanos', '/crm/documentos-huerfanos/data', '/crm/documentos-huerfanos/csv'],
 
     //Client
     'client_view_dashboard' => ['/cliente', '/cliente/get-data-client-to-select-component/{id}'],

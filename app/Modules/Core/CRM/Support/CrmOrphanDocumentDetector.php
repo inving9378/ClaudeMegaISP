@@ -21,7 +21,7 @@ class CrmOrphanDocumentDetector
 {
     private const CRM_FILE_TYPE = 'App\\Models\\DocumentCrm';
 
-    /** @return Collection<int, object{id:int,crm_id:int,title:?string,motivo:string}> */
+    /** @return Collection<int, object{id:int,crm_id:int,title:?string,motivo:string,created_at:?string}> */
     public static function detect(int $limit = 200): Collection
     {
         $rows = DB::table('document_crms as d')
@@ -29,7 +29,7 @@ class CrmOrphanDocumentDetector
                 $join->on('f.fileable_id', '=', 'd.id')
                     ->where('f.fileable_type', '=', self::CRM_FILE_TYPE);
             })
-            ->select('d.id', 'd.crm_id', 'd.title', 'f.path')
+            ->select('d.id', 'd.crm_id', 'd.title', 'd.created_at', 'f.path')
             ->orderBy('d.id')
             ->get();
 
@@ -40,6 +40,7 @@ class CrmOrphanDocumentDetector
                         'id' => $row->id,
                         'crm_id' => $row->crm_id,
                         'title' => $row->title,
+                        'created_at' => $row->created_at,
                         'motivo' => 'sin fila files (fileable_type=DocumentCrm)',
                     ];
                 }
@@ -48,6 +49,7 @@ class CrmOrphanDocumentDetector
                         'id' => $row->id,
                         'crm_id' => $row->crm_id,
                         'title' => $row->title,
+                        'created_at' => $row->created_at,
                         'motivo' => "path no existe en disco: {$row->path}",
                     ];
                 }
