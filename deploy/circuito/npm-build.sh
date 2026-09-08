@@ -48,17 +48,30 @@ npm run "$MODE" "$@"
 RC=$?
 
 STAGE_DIR="public/$STAGE"
-if [ "$RC" -eq 0 ] && [ -d "$STAGE_DIR/js" ]; then
+# #9990570: guard de completitud — exige el artefacto real (no solo el directorio) antes de
+# aceptar el build como válido para publicar.
+if [ "$RC" -eq 0 ] && [ -f "$STAGE_DIR/js/app.js" ]; then
   # El manifest ya se escribió (por webpack) con claves apuntando al staging; corregirlas a la
   # ruta final ANTES del swap, para que el instante en que public/js cambia, el manifest ya sea
   # consistente con él.
   [ -f public/mix-manifest.json ] && sed -i "s#/${STAGE}/js/#/js/#g" public/mix-manifest.json
-  OLD="public/js.old.$$"
-  rm -rf "$OLD" 2>/dev/null
-  [ -e public/js ] && mv -T public/js "$OLD"
-  mv -T "$STAGE_DIR/js" public/js
-  rm -rf "$OLD" 2>/dev/null &
-elif [ "$RC" -ne 0 ]; then
+  # #9990570: swap ARCHIVO POR ARCHIVO (no reemplazo del directorio completo). public/js/ también
+  # contiene vendor estáticos trackeados en git y NO producidos por webpack (driver.min.js,
+  # maps.js, qrcode.min.js — ver comentario de .gitignore), que master.blade.php y MegaFamilia
+  # cargan en cada página. Verificado con un build real: el swap de directorio completo (`mv -T
+  # public/js`) los borraba en cada rebuild (404 sitewide en el próximo request). Cada `mv` de
+  # abajo sigue siendo atómico (mismo filesystem, rename() por archivo) — el punto que le importa
+  # a una carga en curso es que CADA archivo individual nunca se sirva a medio escribir, no que el
+  # directorio cambie en un solo syscall.
+  mkdir -p public/js
+  find "$STAGE_DIR/js" -mindepth 1 -maxdepth 1 -exec mv -f -t public/js {} +
+elif [ "$RC" -eq 0 ]; then
+  # RC=0 pero el artefacto no está — build incompleto (raro, pero es justo el caso que el guard
+  # de completitud del item #9990570 pide cubrir). Tratar como fallo: no tocar public/js y
+  # devolver un exit code distinto de 0 a quien llamó a este script.
+  echo "[npm-build] build reportó éxito pero falta $STAGE_DIR/js/app.js — se trata como build fallido, bundle vivo intacto." >&2
+  RC=1
+else
   echo "[npm-build] build falló (rc=$RC) — bundle vivo intacto, no se toca public/js." >&2
 fi
 rm -rf "$STAGE_DIR" 2>/dev/null
