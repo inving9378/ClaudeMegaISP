@@ -21,11 +21,12 @@ class DcEmpresa extends Model
 
     protected $fillable = [
         'razon_social', 'nombre_comercial', 'rfc', 'regimen_fiscal',
-        'fecha_constitucion', 'domicilio_fiscal', 'activo',
+        'fecha_constitucion', 'domicilio_fiscal', 'activo', 'fecha_inicio_plazo',
     ];
 
     protected $casts = [
         'fecha_constitucion' => 'date',
+        'fecha_inicio_plazo' => 'date',
         'activo'             => 'boolean',
     ];
 
