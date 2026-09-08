@@ -2067,3 +2067,29 @@ el intento de cierre faltante; el guard (`RoadmapItem.php` bloque "(2b) PARAGUAS
 Detalle en `docs/roadmap-bucle-reap-item-9990549-verificacion.md`. **Sin cambio de código de
 negocio** — el trabajo real del modo dibujo de cable/troncal sigue en
 #9990581/#9990582/#9990583, pendientes de que una terminal los reclame.
+
+## Item #9990624 — Crear versión se ve como "no funciona" (changelog IA cuelga sin timeout) — bucle reap sobre paraguas ya descompuesto, con Fase 1 ya mergeada (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
+#936/#9990408/#962/#9990554/#9990549. #9990624 (reportado por David: "no puedo hacer una versión"
+— el botón «Generar changelog con IA» tarda 2-4 min sin timeout y el navegador corta el request)
+ya estaba descompuesto correctamente por una vuelta previa (`wt-1`, 2026-09-08 12:36): **Fase 1**
+(timeout de 90s en `ClaudeApiClient::sendMessage()`) quedó commiteada en la rama del propio item
+(`754631d6`) y **Fases 2/3, 4 y 5** se delegaron con detalle exacto a **#9990626** ("mover
+generación a job en cola + que Guardar no dependa de la IA"), **#9990627** ("next-version:
+considerar tags de git + reportar divergencia") y **#9990628** ("verificar end-to-end con el rango
+real V1.32..HEAD"). Pero esa vuelta nunca intentó **cerrar** al padre — el log solo registra
+`reaper-rapido` re-encolándolo como huérfano, y el pool lo repartió de nuevo sin trabajo propio que
+hacer. Verificado esta vuelta: la Fase 1 **ya está en `main`** (commit `c201ad00`, confirmado por
+grep directo del `->timeout()` en `ClaudeApiClient.php:58`); #9990626 (Fase 2+3) también **ya
+cerró y mergeó** (`completado`, merge_commit `c65d422f`) durante el tiempo en que #9990624 seguía
+colgado; solo quedan abiertos #9990627 (`requiere_irving`, sin reclamar) y #9990628
+(`aprobado_revisor`, sin reclamar) — la descomposición original seguía siendo correcta, nadie más
+la tocó. Corrección: esta vuelta ejecuta el intento de cierre faltante; el guard
+(`RoadmapItem.php` bloque "(2b) PARAGUAS") lo reenruta a `aprobado_irving` +
+`excluir_pool_automatico=true` (evento `paraguas_abierto` en el log, "le quedan 2 sub-item(s)
+abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
+(`RoadmapItem.php:459-491`) lo complete solo cuando #9990627 y #9990628 cierren los dos. Detalle en
+`docs/roadmap-bucle-reap-item-9990624-verificacion.md`. **Sin cambio de código de negocio propio
+de esta vuelta** — el trabajo real que falta (Fase 4 — `next-version` con tags de git — y Fase 5 —
+verificación end-to-end) sigue en #9990627/#9990628, pendientes de aprobación/reclamo.
