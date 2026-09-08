@@ -165,6 +165,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     // MR-24e Fase 1b (item #9990558) — catálogo mínimo de tipos de splitter para el <q-select>.
     Route::get('/catalogos/tipo-splitter', [CatalogosController::class, 'tipoSplitter'])->name('mapa-red.api.catalogos.tipo-splitter');
 
+    // MR-24e Fase 3b (item #9990582) — catálogo mínimo de tipos de cable para el <q-select>.
+    Route::get('/catalogos/tipo-cable', [CatalogosController::class, 'tipoCable'])->name('mapa-red.api.catalogos.tipo-cable');
+
     // MR-24e Fase 2 (item #9990548) — alta rápida de cable/troncal (zona+nombre+snap automáticos).
     Route::post('/elementos/cable', [CableAltaRapidaController::class, 'store'])->name('mapa-red.api.elementos.cable');
 
