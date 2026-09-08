@@ -33,6 +33,23 @@
                             />
                         </template>
 
+                        <!-- #versionado-2026-09-08 — estado del cálculo del número de versión.
+                             ERROR (rojo): el resolver no pudo calcular (ni remoto ni tags locales) →
+                             se explica el motivo en vez de dejar el campo mudo. AVISO (ámbar): el
+                             número salió de tags locales sin confirmar con GitHub — usable, pero se ve. -->
+                        <div v-if="!id && versionError"
+                             class="alert alert-danger py-2 px-3 mt-1 mb-2 d-flex align-items-start"
+                             style="font-size:0.85rem;">
+                            <i class="bi bi-x-octagon-fill me-2 mt-1"></i>
+                            <span>No se pudo calcular el número de versión: {{ versionError }}</span>
+                        </div>
+                        <div v-if="!id && versionAviso"
+                             class="alert alert-warning py-2 px-3 mt-1 mb-2 d-flex align-items-start"
+                             style="font-size:0.85rem;">
+                            <i class="bi bi-exclamation-triangle-fill me-2 mt-1"></i>
+                            <span>{{ versionAviso }}</span>
+                        </div>
+
                         <!-- Armado de versión (#933) — candidatos integrados a main desde el último
                              tag: marcar/desmarcar cuáles entran en ESTA versión. Lo no marcado queda
                              disponible para la siguiente. Solo en creación. -->
@@ -149,7 +166,8 @@
                             <button
                                 class="btn btn-primary"
                                 type="submit"
-                                :disabled="dataForm.data.errors.any()"
+                                :disabled="dataForm.data.errors.any() || versionVacia"
+                                :title="versionVacia ? 'Captura o espera el número de versión antes de crear' : ''"
                             >
                                 {{ textoBotonGuardar }}
                             </button>
@@ -199,6 +217,11 @@ export default {
         // Fase A #9990624 (A.3) — el botón principal es "Crear versión"; el resumen IA es aparte
         // y opcional. En edición dice "Guardar cambios".
         const textoBotonGuardar = computed(() => (props.id ? 'Guardar cambios' : 'Crear versión'));
+        // #versionado-2026-09-08 — aviso ámbar (número desde tags locales) y error rojo (no se pudo
+        // calcular) del cálculo de versión. Y el guard del botón: sin número no se puede crear.
+        const versionAviso = ref('');
+        const versionError = ref('');
+        const versionVacia = computed(() => ! props.id && ! String(dataForm.data?.['version'] ?? '').trim());
 
         const requestEditedFieldsById = async (module, id) => {
             let fields = {};
@@ -234,13 +257,22 @@ export default {
                     dataForm.data = new Form(fieldsJson.value);
                     // (B.1) Pre-llenar la versión sugerida por regla (editable).
                     // La versión la pone la regla, NO la IA.
+                    versionAviso.value = '';
+                    versionError.value = '';
                     try {
                         const { data } = await axios.get("/releases/next-version");
                         if (data.success && data.version) {
                             dataForm.data["version"] = data.version;
+                            // #versionado-2026-09-08 — si el número salió de tags locales (no se
+                            // pudo confirmar con GitHub), el backend manda un aviso: mostrarlo.
+                            versionAviso.value = data.aviso || '';
                         }
                     } catch (e) {
-                        // si falla, el campo queda vacío para captura manual
+                        // Fail-closed: no hay número. En vez de dejar el campo mudo, mostrar el
+                        // motivo en español (condición #4). El backend manda 503 + message.
+                        versionError.value =
+                            e.response?.data?.message ||
+                            'No se pudo contactar al servidor para calcular el número. Reintenta o captúralo a mano.';
                     }
                     loadCandidatos();
                 }
@@ -463,6 +495,9 @@ export default {
             aiLoading,
             aiTruncationNotice,
             textoBotonGuardar,
+            versionAviso,
+            versionError,
+            versionVacia,
             generateChangelog,
             candidatos,
             loadingCandidatos,
