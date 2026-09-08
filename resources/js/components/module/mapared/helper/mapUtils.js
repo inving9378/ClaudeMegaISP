@@ -1012,6 +1012,44 @@ export const getNearestRoutePoint = async (latlng) => {
     return closest;
 };
 
+// MR-24e Fase 3a (item roadmap #9990581): snap síncrono para el modo "agregar cable/troncal".
+// A diferencia de getNearestRoutePoint (que snapea a cualquier punto a lo largo de una ruta),
+// aquí SOLO se snapea a extremos: inicio/fin de cables o troncales existentes (dialog === "route",
+// usando coords[0] y coords[coords.length-1]) y a nodos/equipo puntuales ya ubicados (cualquier
+// otro dialog !== "region" cuyo coords sea {lat,lng}). Nada de vértices intermedios ni mitad de
+// segmento. Sin turf/await (L.latLng().distanceTo()) porque se llama en cada mousemove.
+export const getNearestCableEndpoint = (latlng) => {
+    const origin = L.latLng(latlng);
+    let closest = null;
+    for (const key in nodeMap.value) {
+        const object = nodeMap.value[key];
+        const { dialog, coords } = object;
+        if (!coords || dialog === "region") {
+            continue;
+        }
+        if (dialog === "route" && Array.isArray(coords) && coords.length > 1) {
+            const endpoints = [coords[0], coords[coords.length - 1]];
+            for (const point of endpoints) {
+                if (!point) continue;
+                const dist = origin.distanceTo(L.latLng(point.lat, point.lng));
+                if (!closest || dist < closest.dist) {
+                    closest = { lat: point.lat, lng: point.lng, dist, tipo: dialog };
+                }
+            }
+        } else if (
+            !Array.isArray(coords) &&
+            typeof coords.lat === "number" &&
+            typeof coords.lng === "number"
+        ) {
+            const dist = origin.distanceTo(L.latLng(coords.lat, coords.lng));
+            if (!closest || dist < closest.dist) {
+                closest = { lat: coords.lat, lng: coords.lng, dist, tipo: dialog };
+            }
+        }
+    }
+    return closest;
+};
+
 const getMarkerDistanceInRoute = async (marker, route) => {
     const inside = getInsidePoint(marker.coords, route.coords);
     if (inside !== -1) {
