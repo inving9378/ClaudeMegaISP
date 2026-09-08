@@ -26,6 +26,8 @@ class Release extends Model
         'aplicada_en_prod_at',
         'reversible',
         'reversible_motivo',
+        // Marca de procedencia del backfill (item roadmap #9990637)
+        'origin',
     ];
 
     protected $casts = [
