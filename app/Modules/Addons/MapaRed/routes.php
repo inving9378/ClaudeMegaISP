@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Addons\MapaRed\Controllers\BusquedaController;
 use App\Modules\Addons\MapaRed\Controllers\CableAltaRapidaController;
 use App\Modules\Addons\MapaRed\Controllers\CatalogosController;
 use App\Modules\Addons\MapaRed\Controllers\CoberturaController;
@@ -166,6 +167,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
 
     // MR-24e Fase 2 (item #9990548) — alta rápida de cable/troncal (zona+nombre+snap automáticos).
     Route::post('/elementos/cable', [CableAltaRapidaController::class, 'store'])->name('mapa-red.api.elementos.cable');
+
+    // MR-22 Fase 1a-ii (item #9990533) — buscador global: nodos por nombre + clientes/ONTs por enlace.
+    Route::get('/buscar', [BusquedaController::class, 'buscar'])->name('mapa-red.api.buscar');
 
     // MR-26 Fase 3 (item #9990524) — sectores inalámbricos: CRUD + import CSV/GeoJSON.
     Route::get('/sectores', [SectoresController::class, 'index'])->name('mapa-red.api.sectores.index');
