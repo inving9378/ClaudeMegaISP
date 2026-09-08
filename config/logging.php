@@ -202,6 +202,13 @@ return [
             'level'  => 'debug',
             'days'   => 30,
         ],
+
+        'talento_reconciliacion' => [
+            'driver' => 'daily',
+            'path'   => storage_path('logs/talento-reconciliacion.log'),
+            'level'  => 'debug',
+            'days'   => 30,
+        ],
     ],
 
 ];
