@@ -278,12 +278,13 @@ class DocumentTemplateController extends Controller
 
     /**
      * Acuse de avance en PDF del catálogo de plantillas (item roadmap #9990572, seguimiento
-     * de #9990551). `document_templates` no tiene columna `status`/`estado`
-     * ni ningún campo de avance (verificado: solo name/html/type/created_by, ver migración
-     * archivada en migrations_old/2024_07_23_150303_create_document_templates_table.php) —
-     * "Publicada"/"Borrador" se deriva de si `html` tiene contenido, y "avance global" es el
-     * % de plantillas publicadas sobre el total. `created_by` es un id de usuario guardado
-     * como string (sin FK), se resuelve a nombre si el usuario existe.
+     * de #9990551; estado real desde Fase 2 #9990579). `document_templates` ya tiene columna
+     * `status` (enum borrador/publicada, Fase 1 #9990578, migración
+     * 2026_09_07_190000_add_status_and_updated_by_to_document_templates_table) persistida por
+     * store()/update() de este controller — "Publicada"/"Borrador" se lee directo de esa
+     * columna (antes se derivaba de si `html` tenía contenido, aproximación previa a Fase 1).
+     * "avance global" sigue siendo el % de plantillas publicadas sobre el total. `created_by`
+     * es un id de usuario guardado como string (sin FK), se resuelve a nombre si el usuario existe.
      */
     public function exportarAcuse(Request $request)
     {
@@ -295,7 +296,7 @@ class DocumentTemplateController extends Controller
             ->orderBy('name')
             ->get()
             ->map(function (DocumentTemplate $t) {
-                $publicada = trim((string) $t->html) !== '';
+                $publicada = $t->status === 'publicada';
                 $usuario = is_numeric($t->created_by) ? User::find($t->created_by) : null;
 
                 return [

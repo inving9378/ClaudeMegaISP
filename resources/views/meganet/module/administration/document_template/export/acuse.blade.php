@@ -76,7 +76,7 @@
     </table>
 
     <div class="pie">
-        Generado el {{ $generado->format('d/m/Y H:i') }} · Catálogo de plantillas de documentos · "Publicada" = plantilla con contenido; "Borrador" = sin contenido.
+        Generado el {{ $generado->format('d/m/Y H:i') }} · Catálogo de plantillas de documentos · Estado según el campo "Estado" de la plantilla (Borrador/Publicada).
     </div>
 </body>
 </html>
