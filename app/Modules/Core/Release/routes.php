@@ -41,8 +41,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('releases')
     Route::post('/description/update/{id}', [ReleaseDescriptionController::class, 'update']);
     Route::delete('/description/delete/{id}', [ReleaseDescriptionController::class, 'destroy']);
 
-    // Resumen de changelog con IA
+    // Resumen de changelog con IA — encola el job (item #9990626) y el front hace polling
+    // al status por request_id (dos segmentos: no choca con el catch-all GET /{version}).
     Route::post('/generate-changelog', [ReleaseController::class, 'generateChangelog']);
+    Route::get('/generate-changelog/{requestId}', [ReleaseController::class, 'changelogStatus']);
 
     // Deploy pipeline (el historial GET /deployments se registró arriba, antes de /{version})
     Route::get('/deployment/{id}/status',         [DeploymentController::class, 'status'])->whereNumber('id');

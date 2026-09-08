@@ -4,14 +4,17 @@ namespace App\Modules\Core\Release\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\DeployJob;
+use App\Jobs\GenerateReleaseChangelogJob;
 use App\Models\DeploymentLog;
 use App\Models\Release;
 use App\Models\ReleaseDescription;
 use App\Services\ReleaseChangelogService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Symfony\Component\Process\Process;
 class ReleaseController extends Controller
@@ -269,6 +272,12 @@ class ReleaseController extends Controller
         ]);
     }
 
+    /**
+     * Item roadmap #9990626 (Fase 2+3 de #9990624) — antes esto llamaba a
+     * ReleaseChangelogService::generate() de forma SÍNCRONA (2-4 min con rangos grandes de
+     * commits), bloqueando el request HTTP. Ahora solo encola el job y responde de inmediato;
+     * el front hace polling a changelogStatus() con el request_id devuelto aquí.
+     */
     public function generateChangelog(Request $request)
     {
         $version = trim($request->input('version', 'nueva'));
@@ -276,12 +285,41 @@ class ReleaseController extends Controller
         // el comportamiento es idéntico al de antes (describe HEAD/main).
         $branch  = trim((string) $request->input('branch', '')) ?: null;
 
-        try {
-            $service = app(ReleaseChangelogService::class);
-            $result  = $service->generate($version, $branch); // ['title','summary','improvements', + cobertura]
+        $requestId = (string) Str::uuid();
+        Cache::put(
+            GenerateReleaseChangelogJob::cacheKey($requestId),
+            ['status' => 'pendiente'],
+            now()->addMinutes(GenerateReleaseChangelogJob::CACHE_TTL_MINUTES)
+        );
 
+        GenerateReleaseChangelogJob::dispatch($requestId, $version, $branch);
+
+        return response()->json([
+            'success'    => true,
+            'request_id' => $requestId,
+        ]);
+    }
+
+    /**
+     * Polling del resultado de generateChangelog() (item roadmap #9990626). Devuelve
+     * {status: 'pendiente'|'listo'|'error', ...}. 'listo' trae los mismos campos que antes
+     * devolvía generateChangelog() de forma síncrona (title/summary/improvements/cobertura).
+     */
+    public function changelogStatus(string $requestId)
+    {
+        $cached = Cache::get(GenerateReleaseChangelogJob::cacheKey($requestId));
+
+        if (!$cached) {
             return response()->json([
-                'success'            => true,
+                'status'  => 'error',
+                'message' => 'La solicitud expiró o no existe. Intenta generar de nuevo.',
+            ], 404);
+        }
+
+        if ($cached['status'] === 'listo') {
+            $result = $cached['result'];
+            return response()->json([
+                'status'             => 'listo',
                 'title'              => $result['title'] ?? '',
                 'summary'            => $result['summary'] ?? '',
                 'improvements'       => $result['improvements'] ?? '',
@@ -293,13 +331,16 @@ class ReleaseController extends Controller
                 'truncado'           => $result['truncado'] ?? false,
                 'aviso_truncamiento' => $result['aviso_truncamiento'] ?? null,
             ]);
-        } catch (\Throwable $e) {
-            Log::error("generateChangelog error: {$e->getMessage()}");
+        }
+
+        if ($cached['status'] === 'error') {
             return response()->json([
-                'success' => false,
-                'message' => 'No se pudo generar el resumen: ' . $e->getMessage(),
+                'status'  => 'error',
+                'message' => $cached['message'] ?? 'No se pudo generar el resumen.',
             ], 500);
         }
+
+        return response()->json(['status' => 'pendiente']);
     }
 
     /**
