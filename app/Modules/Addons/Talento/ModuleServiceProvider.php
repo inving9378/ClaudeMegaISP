@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Talento;
 
 use App\Modules\Addons\Talento\Console\CheckCredentialExpirationsCommand;
+use App\Modules\Addons\Talento\Console\ConciliarComisionesVendedorCommand;
 use App\Modules\Addons\Talento\Console\SyncColaboradoresCommand;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Observers\TalentoColaboradorObserver;
@@ -25,6 +26,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
             $this->commands([
                 CheckCredentialExpirationsCommand::class,
                 SyncColaboradoresCommand::class,
+                ConciliarComisionesVendedorCommand::class,
             ]);
         }
     }
