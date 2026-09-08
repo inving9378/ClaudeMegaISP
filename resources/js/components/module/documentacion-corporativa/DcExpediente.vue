@@ -126,11 +126,32 @@
 
             <div class="col-6 col-sm">
                 <q-card flat bordered>
-                    <q-card-section class="text-center q-pa-sm">
-                        <div class="text-h5 text-weight-bold text-grey-8">
-                            {{ global.dias_restantes === null || global.dias_restantes === undefined ? 'N/D' : global.dias_restantes }}
-                            <q-tooltip v-if="global.dias_restantes === null || global.dias_restantes === undefined">
+                    <q-card-section class="text-center q-pa-sm relative-position">
+                        <q-btn
+                            v-if="empresa.puede_editar_plazo"
+                            flat
+                            dense
+                            round
+                            size="sm"
+                            icon="edit_calendar"
+                            color="grey-7"
+                            class="absolute-top-right q-ma-xs"
+                            style="z-index: 1"
+                            @click="abrirEditarPlazo"
+                        >
+                            <q-tooltip>Capturar/editar fecha de inicio del plazo (180 días hábiles)</q-tooltip>
+                        </q-btn>
+
+                        <div
+                            class="text-h5 text-weight-bold"
+                            :class="plazoVencidoBool ? 'text-negative' : 'text-grey-8'"
+                        >
+                            {{ diasRestantesSinDato ? 'N/D' : global.dias_restantes }}
+                            <q-tooltip v-if="diasRestantesSinDato">
                                 Sin fecha de inicio del plazo de 180 días hábiles registrada todavía.
+                            </q-tooltip>
+                            <q-tooltip v-else-if="global.fecha_limite_plazo">
+                                Vence el {{ global.fecha_limite_plazo }}{{ plazoVencidoBool ? ' · plazo vencido' : '' }}
                             </q-tooltip>
                         </div>
                         <div class="text-caption text-grey">Días restantes</div>
@@ -138,6 +159,54 @@
                 </q-card>
             </div>
         </div>
+
+        <!-- Captura de fecha_inicio_plazo (Fase 3, item #9990575): dato legal
+             (fecha del oficio de la mesa directiva), nunca inventado — se
+             captura solo si un admin lo tiene a la mano, y puede limpiarse. -->
+        <q-dialog v-model="dialogoPlazo" persistent>
+            <q-card style="min-width: 380px; max-width: 460px">
+                <q-card-section class="row items-center">
+                    <div class="text-subtitle1">Fecha de inicio del plazo (180 días hábiles)</div>
+                    <q-space />
+                    <q-btn flat dense icon="close" v-close-popup :disable="guardandoPlazo" />
+                </q-card-section>
+
+                <q-separator />
+
+                <q-card-section>
+                    <div class="text-caption text-grey q-mb-sm">
+                        Es la fecha del oficio de la mesa directiva que activa el plazo. Captúrala
+                        solo si la tienes a la mano — no se debe inventar. Puedes dejarla en blanco
+                        para quitarla si se capturó por error.
+                    </div>
+
+                    <q-input
+                        v-model="fechaInicioPlazoInput"
+                        type="date"
+                        outlined
+                        dense
+                        label="Fecha del oficio"
+                        clearable
+                        :error="!!erroresPlazo"
+                        :error-message="erroresPlazo"
+                        @update:model-value="erroresPlazo = null"
+                    />
+                </q-card-section>
+
+                <q-separator />
+
+                <q-card-actions align="right">
+                    <q-btn flat label="Cancelar" v-close-popup :disable="guardandoPlazo" />
+                    <q-btn
+                        unelevated
+                        color="primary"
+                        label="Guardar"
+                        :loading="guardandoPlazo"
+                        @click="guardarPlazo"
+                    />
+                </q-card-actions>
+            </q-card>
+        </q-dialog>
 
         <!-- Filtros por estado + toggle Tarjetas/Lista (Fase B, item #9990531) -->
         <div class="row items-center q-gutter-sm q-mb-md">
@@ -753,6 +822,12 @@ export default {
 
             // Acuse de avance con corte a fecha (item #9990551).
             exportandoAcuse: false,
+
+            // Captura de fecha_inicio_plazo — plazo de 180 días hábiles (Fase 3, item #9990575).
+            dialogoPlazo: false,
+            fechaInicioPlazoInput: null,
+            erroresPlazo: null,
+            guardandoPlazo: false,
         };
     },
 
@@ -779,6 +854,15 @@ export default {
                 return this.alertasXIII.total + ' por vencer';
             }
             return 'al día';
+        },
+
+        /** Sin fecha_inicio_plazo capturada: sigue siendo 'N/D', NO un bug (Fase 3, item #9990575). */
+        diasRestantesSinDato() {
+            return this.global.dias_restantes === null || this.global.dias_restantes === undefined;
+        },
+
+        plazoVencidoBool() {
+            return this.global.plazo_vencido === true;
         },
     },
 
@@ -869,6 +953,31 @@ export default {
                 await this.cargar(true);
             } catch (e) {
                 this.aviso('No se pudo cambiar de empresa.', 'negative');
+            }
+        },
+
+        // ---- Captura de fecha_inicio_plazo — plazo 180d hábiles (Fase 3, item #9990575) --
+
+        abrirEditarPlazo() {
+            this.fechaInicioPlazoInput = this.empresa.fecha_inicio_plazo || null;
+            this.erroresPlazo = null;
+            this.dialogoPlazo = true;
+        },
+
+        async guardarPlazo() {
+            this.guardandoPlazo = true;
+            try {
+                await axios.put('/documentacion-corporativa/api/empresa/plazo', {
+                    fecha_inicio_plazo: this.fechaInicioPlazoInput || null,
+                });
+                this.dialogoPlazo = false;
+                this.aviso('Fecha de inicio del plazo guardada.', 'positive');
+                await this.cargar(true);
+            } catch (e) {
+                this.erroresPlazo = (e.response && e.response.data && e.response.data.message)
+                    || 'No se pudo guardar la fecha.';
+            } finally {
+                this.guardandoPlazo = false;
             }
         },
 
