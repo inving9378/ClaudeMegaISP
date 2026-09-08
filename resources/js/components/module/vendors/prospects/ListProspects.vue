@@ -6,6 +6,7 @@
         add="Agregar Crm"
         :persistentFilters="filterSeller"
         :excludeDefaultColumns="['owner_id/datatabletable']"
+        no-data-label="Este vendedor no tiene prospectos registrados"
     ></Crm-Datatable>
 </template>
 

@@ -31,7 +31,7 @@
                 :filter="search"
                 :row-key="rowKey"
                 :dark="darkMode"
-                no-data-label="No hay elementos para mostrar"
+                :no-data-label="noDataLabel"
                 rows-per-page-label="Elementos por página"
                 loading-label="Obteniendo datos"
                 :selected-rows-label="
@@ -440,6 +440,14 @@ const props = defineProps({
     filters: {
         type: Object,
         default: {},
+    },
+    // #9990601 — mensaje de «sin datos» personalizable. El default conserva EXACTAMENTE el
+    // texto anterior, así que el CRM y cualquier otro consumidor no cambian. Existe porque un
+    // «No hay elementos para mostrar» genérico no distingue «este vendedor no tiene prospectos»
+    // de «la carga falló», y esa ambigüedad hizo diagnosticar un módulo sano como roto.
+    noDataLabel: {
+        type: String,
+        default: "No hay elementos para mostrar",
     },
     persistentFilters: {
         type: Object,

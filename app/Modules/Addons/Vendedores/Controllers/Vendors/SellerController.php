@@ -60,6 +60,18 @@ class SellerController extends Controller
         $this->data['is_counter'] = $user->isCounter();
         $this->data['mediums_of_sales'] = $mediums_of_sales;
 
+        // #9990601 — QUIÉN se está viendo y en qué estado. Antes la pantalla entraba directo a las
+        // pestañas: no decía el nombre del vendedor ni si estaba inactivo, así que abrir por error
+        // el panel de otro vendedor (o de uno dado de baja) se veía EXACTAMENTE igual que un fallo
+        // de carga. Caso real del 2026-09-08: se abrió `/vendedores/48/seguimiento-vendedor/4758`
+        // —GUADALUPE PADILLA, inactiva, 0 prospectos— creyendo que era GUADALUPE HERNÁNDEZ (#9,
+        // 274 prospectos), y las tablas vacías se leyeron como que el módulo estaba roto.
+        $this->data['seller_nombre'] = trim(implode(' ', array_filter([
+            $user->name, $user->father_last_name, $user->mother_last_name,
+        ])));
+        $this->data['seller_activo'] = ($user->estado ?? null) === 'activo';
+        $this->data['seller_estado'] = $user->estado ?? 'desconocido';
+
         return view('meganet.module.vendors.menu', $this->data);
     }
 
