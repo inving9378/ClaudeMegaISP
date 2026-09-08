@@ -1012,6 +1012,11 @@ class RoadmapItem extends Model
           // se compilan en dos llamadas independientes a este método (ver PoolGuardCoherenceTest),
           // y dos `now()` de PHP a milisegundos de distancia ya NO son el mismo binding.
           ->where(fn ($x) => $x->whereNull('agendado_para')->orWhereRaw('agendado_para <= NOW()'))
+          // #9990592 — un item PAUSADO por colisión en vuelo (candado #438) no es trabajo pendiente:
+          // sigue con rama en vuelo esperando a que su ganador termine; re-despacharlo a otra
+          // terminal mientras tanto duplica el trabajo y repite el ciclo de pausa. Se libera solo
+          // (colision_pausada_por = null) vía reanudarColisionesResueltas().
+          ->where(fn ($x) => $x->whereNull('colision_pausada_por'))
           // FASE 2A.3 — sólo frena el freno HUMANO. `origen_bloqueo='clasificador'` NO frena: el
           // triaje automático de riesgo aconseja, no detiene (decisión de Irving 2026-08-18).
           // Incluye el fallback legacy del rótulo en el título, que se retira cuando
