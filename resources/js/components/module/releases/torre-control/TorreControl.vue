@@ -175,7 +175,11 @@
       <div class="tc-kpis">
         <div class="tc-kpi"><div class="tc-n">{{ kpi(total, 'resumen') }}</div><div class="tc-l">Items totales</div><div class="tc-bar" style="background:var(--tc-accent)"></div></div>
         <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-slate)">{{ kpi(est('pendiente_revision'), 'resumen') }}</div><div class="tc-l">Pendiente revisión</div><div class="tc-bar" style="background:var(--tc-slate)"></div></div>
-        <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-warn)">{{ kpi(est('requiere_irving'), 'resumen') }}</div><div class="tc-l">Requiere Irving</div><div class="tc-bar" style="background:var(--tc-warn)"></div></div>
+        <!-- #9990617: antes usaba est('requiere_irving') (conteo crudo GROUP BY estado, incluía
+             items status=done ya cerrados) y no cuadraba con la lista de abajo. Ahora usa
+             resumenCola.espera_decision, que viene del MISMO scope bandeja() que arma `cola`
+             (RoadmapController::torre(), misma respuesta) — nunca puede desincronizarse de la lista. -->
+        <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-warn)">{{ kpi(resumenCola.espera_decision ?? cola.length, 'resumen_cola') }}</div><div class="tc-l">Requiere Irving</div><div class="tc-bar" style="background:var(--tc-warn)"></div></div>
         <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-info)">{{ kpi(est('en_progreso'), 'resumen') }}</div><div class="tc-l">En progreso</div><div class="tc-bar" style="background:var(--tc-info)"></div></div>
         <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-ok)">{{ kpi(est('completado'), 'resumen') }}</div><div class="tc-l">Completado</div><div class="tc-bar" style="background:var(--tc-ok)"></div></div>
       </div>
