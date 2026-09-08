@@ -223,3 +223,20 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 Route::middleware(['web', 'auth', 'check_route_permission'])->group(function () {
     Route::post('/helper/get-services-by-client-main-information', [\App\Modules\Core\Clientes\Controllers\Helpers\ComponentSearchServiceController::class, 'getServiceByClientMainInformationId']);
 });
+
+// ── ADMIN: adjuntar CFDI ya timbrado a una factura (item roadmap #148) ────
+// Pantalla standalone: sube el XML+PDF de un CFDI timbrado FUERA del sistema
+// (no hay PAC integrado — ver App\Services\Finance\Timbrado) y lo liga a una
+// factura de client_invoices para que el Portal Cliente lo muestre/descargue.
+// Gateada por ROL (mismo patrón que finanzas/extraccion-comprobante) para no
+// acoplar al catálogo de permisos por una pantalla de alcance acotado.
+Route::middleware(['web', 'auth', 'role:super-administrator|DESARROLLADOR'])
+    ->prefix('facturacion')
+    ->name('facturacion.')
+    ->group(function () {
+        Route::get('/cfdi', [\App\Modules\Core\Clientes\Controllers\ClientInvoiceCfdiController::class, 'index'])->name('cfdi');
+        Route::get('/cfdi/buscar', [\App\Modules\Core\Clientes\Controllers\ClientInvoiceCfdiController::class, 'buscar'])->name('cfdi.buscar');
+        Route::post('/cfdi/{clientInvoiceId}/adjuntar', [\App\Modules\Core\Clientes\Controllers\ClientInvoiceCfdiController::class, 'adjuntar'])
+            ->whereNumber('clientInvoiceId')
+            ->name('cfdi.adjuntar');
+    });

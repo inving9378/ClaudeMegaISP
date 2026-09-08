@@ -71,6 +71,10 @@ $portalRoutes = function () {
         Route::get('/facturas/{id}',         [FacturasController::class, 'show'])->name('facturas.show');
         Route::post('/facturas/{id}/pagar',  [PortalPagoController::class, 'cobrar'])->name('facturas.pagar');
 
+        // CFDI ya timbrado (item roadmap #148) — solo consulta/descarga
+        Route::get('/facturas/{id}/cfdi/xml', [FacturasController::class, 'downloadCfdiXml'])->name('facturas.cfdi.xml');
+        Route::get('/facturas/{id}/cfdi/pdf', [FacturasController::class, 'downloadCfdiPdf'])->name('facturas.cfdi.pdf');
+
         // Pagos + CLABE
         Route::get('/pagos', [PagosController::class, 'index'])->name('pagos');
 
