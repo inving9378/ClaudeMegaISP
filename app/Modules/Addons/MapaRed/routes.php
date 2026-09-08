@@ -9,6 +9,7 @@ use App\Modules\Addons\MapaRed\Controllers\DevicesController;
 use App\Modules\Addons\MapaRed\Controllers\EmpalmesController;
 use App\Modules\Addons\MapaRed\Controllers\EnlacesServicioController;
 use App\Modules\Addons\MapaRed\Controllers\HilosController;
+use App\Modules\Addons\MapaRed\Controllers\ImpactoController;
 use App\Modules\Addons\MapaRed\Controllers\ImportadorController;
 use App\Modules\Addons\MapaRed\Controllers\KMZController;
 use App\Modules\Addons\MapaRed\Controllers\LayersController;
@@ -130,6 +131,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
 
     // MR-16 Fase 1 (item #9990468) — trazo cliente→OLT listo para dibujar en el mapa.
     Route::get('/enlaces-servicio/{id}/trazo', [EnlacesServicioController::class, 'trazo'])->name('mapa-red.api.enlaces-servicio.trazo');
+
+    // MR-17 Fase 3a (item #9990593) — "¿quién depende de esto?": fan-out + impacto en MRR.
+    Route::get('/impacto', [ImpactoController::class, 'index'])->name('mapa-red.api.impacto');
 
     // MR-25 (item #961) — importador con previsualización, mapeo de tipo y duplicados.
     Route::post('/import/kml/preview', [ImportadorController::class, 'previsualizarKml'])->name('mapa-red.api.import.kml.preview');
