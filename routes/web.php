@@ -207,6 +207,8 @@ Route::group(['middleware' => ['auth']], function () {
     Route::post('/getDataTable', 'Controller@getDataToTable');
     Route::get('/read-all-notifications', 'Utils\NotificationController@readAll');
     Route::get('/read-notification/{id}', 'Utils\NotificationController@readNotification');
+    // #9990615 — conteo read-only para el poller del badge de la campana.
+    Route::get('/notifications/count', 'Utils\NotificationController@count');
 
     // Bloque /statics/* migrado a app/Modules/Core/Dashboard/routes.php
 });

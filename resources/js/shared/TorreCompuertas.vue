@@ -26,10 +26,13 @@
 <script>
 import axios from 'axios';
 
+// #9990615 — auto-refresco por polling, sin recargar la página.
+const INTERVALO_MS = 30000;
+
 export default {
     name: 'TorreCompuertas',
     data() {
-        return { cargando: false, linea: '', compuertas: [] };
+        return { cargando: false, linea: '', compuertas: [], _timer: null };
     },
     computed: {
         destino() { return '/releases?tab=configuracion'; },
@@ -46,10 +49,16 @@ export default {
         // Una medición al cargar, para que el engrane avise sin que haya que abrir nada.
         // Si el usuario no tiene acceso al tablero, el error se traga en silencio: el engrane
         // simplemente no avisa, en vez de reventar la cabecera de todas las pantallas.
-        this.medir();
+        this.cargarCompuertas();
+        this.iniciarPolling();
+        document.addEventListener('visibilitychange', this.onVisibilityChange);
+    },
+    beforeUnmount() {
+        this.detenerPolling();
+        document.removeEventListener('visibilitychange', this.onVisibilityChange);
     },
     methods: {
-        async medir() {
+        async cargarCompuertas() {
             this.cargando = true;
             try {
                 const { data } = await axios.get('/api/roadmap/torre/compuertas');
@@ -59,6 +68,24 @@ export default {
                 this.compuertas = [];
             } finally {
                 this.cargando = false;
+            }
+        },
+        iniciarPolling() {
+            if (this._timer) return;
+            this._timer = setInterval(this.cargarCompuertas, INTERVALO_MS);
+        },
+        detenerPolling() {
+            if (this._timer) {
+                clearInterval(this._timer);
+                this._timer = null;
+            }
+        },
+        onVisibilityChange() {
+            if (document.hidden) {
+                this.detenerPolling();
+            } else {
+                this.cargarCompuertas();
+                this.iniciarPolling();
             }
         },
     },

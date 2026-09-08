@@ -49,6 +49,20 @@ class NotificationController extends Controller
         return redirect()->back();
     }
 
+    /**
+     * Conteo + lista de notificaciones del usuario logueado, para el poller del badge
+     * de la campana (item #9990615). Reusa userNotification() (misma fuente que llena
+     * $notifications en el topbar), no duplica la query.
+     */
+    public function count()
+    {
+        $notifications = $this->userNotification();
+        return response()->json([
+            'count' => count($notifications),
+            'notifications' => array_values($notifications),
+        ]);
+    }
+
     public function userAutenticated()
     {
         return Auth::user();

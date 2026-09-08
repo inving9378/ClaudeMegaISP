@@ -137,22 +137,10 @@
                 ></conciliacion-bell>
             @endif
 
+            {{-- #9990615 — la campana se auto-refresca por polling (ver NotificationBell.vue);
+                 la carga inicial sigue viniendo server-side, sin esperar al primer poll. --}}
             @isset($notifications)
-                <div class="dropdown d-inline-block">
-                    <button type="button" class="btn header-item noti-icon position-relative"
-                        id="page-header-notifications-dropdown" data-bs-toggle="dropdown" aria-haspopup="true"
-                        aria-expanded="false">
-                        <i data-feather="bell" class="icon-lg"></i>
-                        <span
-                            class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger hdr-badge hdr-badge-corner">{{ count($notifications) > 0 ? count($notifications) : 0 }}</span>
-                    </button>
-                    @if (count($notifications) > 0)
-                        <div class="dropdown-menu dropdown-menu-lg dropdown-menu-end p-0"
-                            aria-labelledby="page-header-notifications-dropdown">
-                            <Notification-Topbar notifications="{{ json_encode($notifications) }}"></Notification-Topbar>
-                        </div>
-                    @endif
-                </div>
+                <notification-bell initial="{{ json_encode($notifications) }}"></notification-bell>
             @endisset
 
             <div class="dropdown d-inline-block">
