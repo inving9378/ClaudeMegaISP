@@ -15,6 +15,7 @@
                     <div class="d-flex align-items-center w-100">
                         <span class="me-2 fs-5">
                             <span v-if="isRunning" class="spinner-border spinner-border-sm text-white" role="status"></span>
+                            <i v-else-if="isPartial" class="bi bi-exclamation-circle-fill text-white"></i>
                             <i v-else-if="overallStatus === 'success'" class="bi bi-check-circle-fill text-white"></i>
                             <i v-else-if="isFailed" class="bi bi-exclamation-triangle-fill text-white"></i>
                             <i v-else class="bi bi-rocket-takeoff text-white"></i>
@@ -187,8 +188,27 @@
                     </div>
 
                     <!-- Resumen final -->
-                    <div v-if="isDone" class="mt-3 p-3 rounded-3 d-flex align-items-center" :class="summaryBg">
-                        <template v-if="overallStatus === 'success'">
+                    <div v-if="isDone" class="mt-3 p-3 rounded-3 d-flex align-items-start" :class="summaryBg">
+                        <!-- #versionado-2026-09-08 (Fase 3): parcial = ámbar, con los pasos omitidos y su motivo -->
+                        <template v-if="isPartial">
+                            <i class="bi bi-exclamation-circle-fill me-2 text-warning fs-5"></i>
+                            <div>
+                                <strong class="text-warning">Release publicado — sin despliegue remoto</strong>
+                                <span v-if="totalDuration" class="text-muted small ms-2">en {{ totalDuration }}</span>
+                                <p class="mb-1 mt-1 small text-muted">
+                                    El release se creó y publicó, pero {{ skippedSteps.length }}
+                                    paso{{ skippedSteps.length === 1 ? "" : "s" }} no se ejecutó{{ skippedSteps.length === 1 ? "" : "n" }}.
+                                    El despliegue a producción se hace en una ventana aparte.
+                                </p>
+                                <ul class="mb-0 mt-1 small text-muted ps-3">
+                                    <li v-for="s in skippedSteps" :key="s.key">
+                                        <strong>{{ s.name }}</strong>
+                                        <span v-if="s.output"> — {{ s.output }}</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </template>
+                        <template v-else-if="overallStatus === 'success'">
                             <i class="bi bi-rocket-takeoff-fill me-2 text-success fs-5"></i>
                             <div>
                                 <strong class="text-success">Deploy completado exitosamente</strong>
@@ -284,17 +304,35 @@ export default {
             ["failed", "rolled_back"].includes(overallStatus.value)
         );
 
+        // #versionado-2026-09-08 (Fase 3) — HONESTIDAD DEL MODAL. Un deploy que terminó sin fallar
+        // pero con pasos OMITIDOS no es un "completado exitosamente" verde: en dev SIEMPRE se omite
+        // el despliegue remoto (skip_if_not_production) y a veces git_push/github_release, así que
+        // el verde ocultaba que el release se publicó pero NO se desplegó. Se distingue en ÁMBAR.
+        const skippedSteps = computed(() =>
+            (steps.value || []).filter(s => s.status === "skipped")
+        );
+        const isPartial = computed(() =>
+            overallStatus.value === "success" && skippedSteps.value.length > 0
+        );
+
         const headerBg = computed(() => {
+            if (isPartial.value)                   return "bg-warning";
             if (overallStatus.value === "success") return "bg-success";
             if (isFailed.value)                    return "bg-danger";
             return "bg-primary";
         });
 
         const summaryBg = computed(() =>
-            overallStatus.value === "success" ? "bg-success bg-opacity-10" : "bg-danger bg-opacity-10"
+            isPartial.value ? "bg-warning bg-opacity-10"
+                : overallStatus.value === "success" ? "bg-success bg-opacity-10"
+                : "bg-danger bg-opacity-10"
         );
 
         const headerTitle = computed(() => {
+            if (isPartial.value) {
+                const n = skippedSteps.value.length;
+                return `Release publicado — sin despliegue remoto (${n} paso${n === 1 ? "" : "s"} omitido${n === 1 ? "" : "s"})`;
+            }
             if (overallStatus.value === "success")     return "Deploy completado exitosamente";
             if (overallStatus.value === "failed")      return "Deploy fallido";
             if (overallStatus.value === "rolled_back") return "Deploy revertido";
@@ -319,6 +357,7 @@ export default {
         });
 
         const progressLabel = computed(() => {
+            if (isPartial.value)                   return "Publicado (con pasos omitidos)";
             if (overallStatus.value === "success") return "Completado";
             if (isFailed.value)                    return "Falló";
             const done  = steps.value.filter(s => ["success", "failed", "skipped"].includes(s.status)).length;
@@ -330,12 +369,14 @@ export default {
         });
 
         const progressBarClass = computed(() => {
+            if (isPartial.value)                   return "bg-warning";
             if (overallStatus.value === "success") return "bg-success";
             if (isFailed.value)                    return "bg-danger";
             return "bg-primary progress-bar-striped progress-bar-animated";
         });
 
         const progressTextClass = computed(() => {
+            if (isPartial.value)                   return "text-warning";
             if (overallStatus.value === "success") return "text-success";
             if (isFailed.value)                    return "text-danger";
             return "text-primary";
@@ -520,7 +561,7 @@ export default {
         return {
             overallStatus, steps, errorMessage, durationSecs,
             outputVisible, retrying, activeVersion,
-            isRunning, isDone, isFailed,
+            isRunning, isDone, isFailed, isPartial, skippedSteps,
             headerBg, summaryBg, headerTitle, totalDuration,
             progressPercent, progressLabel, progressBarClass, progressTextClass,
             elapsedSeconds, elapsedFormatted,
