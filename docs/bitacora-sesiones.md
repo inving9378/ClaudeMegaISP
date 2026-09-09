@@ -4240,3 +4240,24 @@ guard de paraguas lo reenrutó a aprobado_irving + excluir_pool_automatico=true,
 pool/reaper hasta que #9990502 (y transitivamente #9990521) cierren. Detalle completo en
 `docs/roadmap-bucle-reap-item-9990408-verificacion.md`. Sin cambio de código de negocio — el
 trabajo real de UI sigue en #9990521.
+
+## 2026-09-09 15:03 — Item #9990650 — Talento placeholders de firma en plantillas (segunda vuelta del mismo bucle reap sobre el mismo item)
+
+Mismo patrón recurrente documentado en CLAUDE.md (#738/#745/#830/#816/#818/#848/#852/#905/#878/
+#906/#907/#924/#9990012/#917/#910/#936/#9990408/#962/#9990554/#9990549/#9990624), pero esta vez
+repetido sobre el **mismo** item id, no uno nuevo: `#9990650` ya había sido aparcado correctamente
+por una vuelta anterior (misma tarde, `wt-1`, 08:47) tras verificar su descomposición en
+`#9990653`/`#9990654`/`#9990655`. Minutos después David (delegado de Irving) liberó el paraguas a
+propósito (`evento:liberado_por_irving`, "confirma nivel B: liberar para ejecución. Frente
+Documentos."), lo que le quitó `excluir_pool_automatico` y lo regresó al pool — que lo repartió de
+nuevo, esta vez otra vez a `wt-1`. Mientras tanto, `#9990653` y `#9990654` ya habían mergeado
+(commits `8a545bb3` y `90785625`): el trabajo real de las Fases (a) placeholders y (b) renderer del
+padre está hecho. Solo queda `#9990655` (Fase (c): `status_efectivo` + verificación E2E), que
+sigue bloqueada por `depende_de=[9990649]` — ese item ("UI + endpoint de firma POR SLOT en el
+expediente") sigue `aprobado_irving`, sin mergear. No había trabajo propio de código para
+`#9990650` (es puro paraguas). Se agregó un addendum a
+`docs/roadmap-bucle-reap-item-9990650-verificacion.md` documentando esta segunda vuelta (commit
+`2139cc65`, integración encolada) y se repitió el cierre-intento: el guard de paraguas lo reenrutó
+otra vez a `aprobado_irving`+`excluir_pool_automatico=true`, liberando `worker_sid`/`claimed_at`.
+Cerrará solo cuando `#9990655` cierre (y eso, a su vez, espera a que `#9990649` mergee primero).
+Sin cambio de código de negocio.
