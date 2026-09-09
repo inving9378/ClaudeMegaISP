@@ -82,3 +82,21 @@ los tres (el último, #9990655, sigue bloqueado por `depende_de=[9990649]`).
 El trabajo técnico real de Talento (placeholders en las 11 plantillas, renderer con imagen
 inline, `status_efectivo` por slots) sigue en #9990653/#9990654/#9990655, pendientes de que una
 terminal los reclame (el último, además, de que `#9990649` mergee primero).
+
+## Addendum (2026-09-09, misma tarde) — segunda vuelta del mismo bucle sobre el mismo item
+
+Minutos después del aparcado de arriba, David (delegado de Irving) liberó el paraguas a propósito
+(`evento:liberado_por_irving`, 09:01:14, "confirma nivel B: liberar para ejecución. Frente
+Documentos.") — `excluir_pool_automatico` volvió a `false`. Eso lo regresó al pool, que lo
+repartió de nuevo a `wt-1` (`claimed_at` 15:02:05Z). Mientras tanto **#9990653 y #9990654 ya
+habían mergeado** (commits `8a545bb3` y `90785625`, confirmados en `git log` antes de tocar
+nada): el trabajo real de las Fases (a) y (b) del padre está hecho. Solo queda **#9990655**
+(Fase (c): `status_efectivo` + verificación E2E), que sigue `aprobado_revisor`, sin reclamar, y
+**todavía bloqueada** por `depende_de=[9990649]` — ese item ("UI + endpoint de firma POR SLOT en
+el expediente") sigue `aprobado_irving`, sin `merge_commit`, sin reclamar.
+
+No hay trabajo propio de `#9990650` que hacer (es puro paraguas, sin código directo). Repetí el
+mismo cierre-intento: `estado_aprobacion='completado'` → el guard lo reenrutó otra vez a
+`aprobado_irving`+`excluir_pool_automatico=true` ("le quedan 1 sub-item(s) abierto(s)"),
+liberando `worker_sid`/`claimed_at`. Cerrará solo cuando `#9990655` cierre (y eso espera a que
+`#9990649` mergee primero). **Sin cambio de código** en esta vuelta tampoco.
