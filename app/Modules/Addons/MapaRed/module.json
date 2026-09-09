@@ -10,7 +10,8 @@
     "permissions": [
         { "name": "mapa_red_view", "description": "Ver módulo Mapa de Red" },
         { "name": "mapa_red.cable.crear_rapido", "description": "Mapa de Red: alta rápida de cable/troncal" },
-        { "name": "mapa_red_historial_ver", "description": "Ver historial de cambios de nodos/enlaces del Mapa de Red" }
+        { "name": "mapa_red_historial_ver", "description": "Ver historial de cambios de nodos/enlaces del Mapa de Red" },
+        { "name": "mapa_red_trazar", "description": "Trazar enlaces en el Mapa de Red" }
     ],
 
     "menu": [

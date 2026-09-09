@@ -8,6 +8,7 @@ use App\Modules\Addons\MapaRed\Controllers\CoberturaDeclaradaController;
 use App\Modules\Addons\MapaRed\Controllers\ConnectionsController;
 use App\Modules\Addons\MapaRed\Controllers\DevicesController;
 use App\Modules\Addons\MapaRed\Controllers\EmpalmesController;
+use App\Modules\Addons\MapaRed\Controllers\EnlacesController;
 use App\Modules\Addons\MapaRed\Controllers\EnlacesServicioController;
 use App\Modules\Addons\MapaRed\Controllers\HilosController;
 use App\Modules\Addons\MapaRed\Controllers\ImpactoController;
@@ -197,4 +198,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     Route::post('/cobertura-declarada', [CoberturaDeclaradaController::class, 'store'])->name('mapa-red.api.cobertura-declarada.store');
     Route::put('/cobertura-declarada/{id}', [CoberturaDeclaradaController::class, 'update'])->name('mapa-red.api.cobertura-declarada.update');
     Route::delete('/cobertura-declarada/{id}', [CoberturaDeclaradaController::class, 'destroy'])->name('mapa-red.api.cobertura-declarada.destroy');
+    // MR-23 fase 4a (item #9990518) — enlace trazado entre dos nodos del mapa (gate fino
+    // mapa_red_trazar dentro del controller).
+    Route::post('/enlaces', [EnlacesController::class, 'store'])->name('mapa-red.api.enlaces.store');
 });
