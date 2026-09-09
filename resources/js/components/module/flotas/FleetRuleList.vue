@@ -128,7 +128,7 @@
                 </div>
             </div>
         </div>
-        <div v-if="showForm" class="modal-backdrop fade show"></div>
+        <div v-if="showForm" class="modal-backdrop fade show flt-rule-backdrop"></div>
 
         <!-- Modal eliminar -->
         <div v-if="toDelete" class="modal fade show flt-rule-modal" tabindex="-1" style="display:block" @click.self="toDelete=null">
@@ -143,7 +143,7 @@
                 </div>
             </div>
         </div>
-        <div v-if="toDelete" class="modal-backdrop fade show"></div>
+        <div v-if="toDelete" class="modal-backdrop fade show flt-rule-backdrop"></div>
 
         <transition name="flt-toast-fade">
             <div v-if="toast.visible" class="flt-toast" :class="`flt-toast-${toast.type}`"><i :class="toast.icon" class="me-2"></i>{{ toast.message }}</div>
@@ -293,7 +293,10 @@ export default {
 .flt-rule-empty i { font-size: 3rem; color: #cbd5e1; display: block; margin-bottom: 10px; }
 .flt-rule-modal { z-index: 9999; }
 .flt-rule-modal .modal-content { border: none; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,.2); }
-.modal-backdrop.show { z-index: 9998; opacity: .5; }
+/* Clase propia (NO la global .modal-backdrop): este <style> NO es scoped, y usar
+   .modal-backdrop aquí leakeaba z-index:9998 a TODA la app, tapando ModalSimple/Swal
+   de otras pantallas (candado de Permisos, Aplicar pago) con un gris permanente. */
+.flt-rule-backdrop.show { z-index: 9998; opacity: .5; }
 .flt-toast { position: fixed; bottom: 24px; right: 24px; z-index: 10001; padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,.15); display: flex; align-items: center; color: #fff; }
 .flt-toast-success { background: #16a34a; }
 .flt-toast-error { background: #dc2626; }
