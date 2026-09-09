@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -68,6 +69,15 @@ class PermissionController extends Controller
             'permissions'  => $permissions->pluck('name'),
             'contexts'     => $permissions->pluck('context', 'name'),
             'descriptions' => $permissions->pluck('description', 'name'),
+            // Item #866 (Fase C) — nombre => criterio_propios para los permisos que
+            // declaran alcance en `permission_scopes` (catálogo de #851 Fase A). El
+            // front usa esto para saber junto a qué checkbox mostrar el selector
+            // Propios/Todos; permisos ausentes aquí no lo muestran.
+            'scopeable'    => Schema::hasTable('permission_scopes')
+                ? DB::table('permission_scopes')
+                    ->join('permissions', 'permissions.id', '=', 'permission_scopes.permission_id')
+                    ->pluck('permission_scopes.criterio_propios', 'permissions.name')
+                : (object) [],
         ], 200);
     }
 
@@ -77,7 +87,19 @@ class PermissionController extends Controller
 
         $permissions = $role->permissions()->pluck('name')->toArray();
 
-        return response()->json(['permissions' => $permissions], 200);
+        return response()->json([
+            'permissions' => $permissions,
+            // Item #866 (Fase C) — nombre => 'propios' solo para los permisos de este
+            // rol con fila explícita en role_permission_scopes (#865 Fase B). Ausente
+            // = 'todos' (default de la tabla), el front lo asume así.
+            'scopes' => Schema::hasTable('role_permission_scopes')
+                ? DB::table('role_permission_scopes')
+                    ->join('permissions', 'permissions.id', '=', 'role_permission_scopes.permission_id')
+                    ->where('role_permission_scopes.role_id', $role_id)
+                    ->where('role_permission_scopes.scope', 'propios')
+                    ->pluck('role_permission_scopes.scope', 'permissions.name')
+                : (object) [],
+        ], 200);
     }
 
     public function update(Request $request, $role_id)
@@ -85,6 +107,8 @@ class PermissionController extends Controller
         $request->validate([
             'permissions' => 'array',
             'permissions.*' => 'required|string|exists:permissions,name',
+            'scopes' => 'array',
+            'scopes.*' => 'in:propios,todos',
         ]);
 
         set_time_limit(0);
@@ -114,6 +138,8 @@ class PermissionController extends Controller
                 $role->revokePermissionTo($permission);
             }
 
+            $this->syncScopeAssignments($role, $request->input('scopes', []));
+
             // Reforma de permisos B1.2: editar un rol toca SOLO role_has_permissions.
             // Se elimina la propagación que antes escribía/borraba los permisos como
             // DIRECTOS en cada usuario del rol (re-sembraba directos en cada edición).
@@ -126,6 +152,47 @@ class PermissionController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['status' => 500, 'message' => 'Error al actualizar los permisos', 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Item #866 (Fase C) — persiste la elección Propios/Todos en role_permission_scopes
+     * (#865 Fase B). Solo toca permisos declarados en el catálogo permission_scopes
+     * (#851 Fase A); cualquier otra clave del payload se ignora (no confía ciegamente
+     * en el front). 'todos' o ausente = borra la fila — es el default de la tabla,
+     * así el comportamiento sin fila explícita queda idéntico al actual.
+     */
+    private function syncScopeAssignments(Role $role, array $scopes): void
+    {
+        if (!Schema::hasTable('permission_scopes') || !Schema::hasTable('role_permission_scopes')) {
+            return;
+        }
+
+        $scopeablePermissionIds = DB::table('permission_scopes')
+            ->join('permissions', 'permissions.id', '=', 'permission_scopes.permission_id')
+            ->pluck('permission_scopes.permission_id', 'permissions.name');
+
+        foreach ($scopeablePermissionIds as $name => $permissionId) {
+            $chosen = $scopes[$name] ?? 'todos';
+            $query = DB::table('role_permission_scopes')
+                ->where('role_id', $role->id)
+                ->where('permission_id', $permissionId);
+
+            if ($chosen === 'propios') {
+                if ($query->exists()) {
+                    $query->update(['scope' => 'propios', 'updated_at' => now()]);
+                } else {
+                    DB::table('role_permission_scopes')->insert([
+                        'role_id'       => $role->id,
+                        'permission_id' => $permissionId,
+                        'scope'         => 'propios',
+                        'created_at'    => now(),
+                        'updated_at'    => now(),
+                    ]);
+                }
+            } else {
+                $query->delete();
+            }
         }
     }
 

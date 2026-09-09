@@ -172,6 +172,19 @@
                                                             >
                                                                 {{ perm.description }}
                                                             </div>
+                                                            <select
+                                                                v-if="isRoleScopeable(perm.field)"
+                                                                v-model="perm.scope"
+                                                                class="form-select form-select-sm perm-scope-select ms-2"
+                                                                :aria-label="`Alcance de ${perm.label}`"
+                                                            >
+                                                                <option value="todos">
+                                                                    Todos
+                                                                </option>
+                                                                <option value="propios">
+                                                                    Propios
+                                                                </option>
+                                                            </select>
                                                         </div>
                                                     </template>
                                                 </div>
@@ -339,6 +352,38 @@ const contextByName = ref({});
 const contextOf = (name) =>
     contextByName.value[name] === "portal" ? "portal" : "panel";
 
+// Item #866 (Fase C): mapa nombre_permiso => criterio_propios para los permisos
+// declarados en `permission_scopes` (#851 Fase A). Solo estos muestran el selector
+// Propios/Todos, y solo en el editor de ROL (el alcance se persiste por rol, #865).
+const scopeableByName = ref({});
+const isRoleScopeable = (name) =>
+    props.entityType === "role" &&
+    Object.prototype.hasOwnProperty.call(scopeableByName.value, name);
+
+// Alcance vigente del rol cargado (nombre_permiso => 'propios'); ausente = 'todos'.
+const roleScopes = ref({});
+
+// Fija perm.scope ('propios'/'todos') en cada field scopeable de fieldsJson, a
+// partir de roleScopes. Se llama tras cargar el catálogo y tras cargar el rol
+// (el orden de resolución de ambas peticiones no está garantizado).
+const applyScopes = () => {
+    if (props.entityType !== "role") return;
+    for (const tab in fieldsJson.value) {
+        fieldsJson.value[tab].forEach((field) => {
+            if (
+                Object.prototype.hasOwnProperty.call(
+                    scopeableByName.value,
+                    field.field
+                )
+            ) {
+                field.scope = roleScopes.value[field.field]
+                    ? "propios"
+                    : "todos";
+            }
+        });
+    }
+};
+
 // Columna derecha: permisos de context 'portal', agrupados por prefijo de módulo.
 const portalGroups = computed(() => {
     const groups = {};
@@ -389,8 +434,10 @@ const getPermissions = async () => {
         } else {
             const response = await getPermissionsForRole(props.entityId);
             permissions.value = response.permissions;
+            roleScopes.value = response.scopes || {};
         }
         applyPermissions();
+        applyScopes();
     } catch (error) {
         console.log(error);
     }
@@ -418,20 +465,24 @@ const applyPermissions = () => {
 
 // Pestaña dinámica "Otros": expone cualquier permiso de BD no curado (item #71)
 const loadCatalog = async () => {
-    const { permissions: catalog, contexts, descriptions } = await getPermissionsCatalog();
+    const { permissions: catalog, contexts, descriptions, scopeable } =
+        await getPermissionsCatalog();
     contextByName.value = contexts || {};
+    scopeableByName.value = scopeable || {};
     const { fields, accordions: accs } = buildUncategorizedTab(catalog, descriptions);
-    if (!fields.length) return;
-    fieldsJson.value.otros = fields;
-    accordions.value.otros = accs;
-    if (!tabs.value.some((t) => t.ref === "otros")) {
-        tabs.value.push({
-            ref: "otros",
-            active: false,
-            title: "Otros / Sin categorizar",
-        });
+    if (fields.length) {
+        fieldsJson.value.otros = fields;
+        accordions.value.otros = accs;
+        if (!tabs.value.some((t) => t.ref === "otros")) {
+            tabs.value.push({
+                ref: "otros",
+                active: false,
+                title: "Otros / Sin categorizar",
+            });
+        }
     }
     if (permissions.value.length) applyPermissions();
+    applyScopes();
 };
 
 onMounted(loadCatalog);
@@ -446,6 +497,20 @@ const preparePermissionsData = () => {
         });
     }
     return permissionsData;
+};
+
+// Item #866 (Fase C): nombre_permiso => 'propios' solo para los que el admin
+// eligió así. El backend asume 'todos' para cualquier permiso ausente aquí.
+const prepareScopesData = () => {
+    const scopesData = {};
+    for (const tabKey in fieldsJson.value) {
+        fieldsJson.value[tabKey].forEach((field) => {
+            if (field.scope === "propios") {
+                scopesData[field.field] = "propios";
+            }
+        });
+    }
+    return scopesData;
 };
 
 const textButtonAll = ref("Agregar Todos");
@@ -479,6 +544,7 @@ const updatePermissions = async () => {
     } else {
         response = await updatePermissionByRole(props.entityId, {
             permissions: permissionsToUpdate,
+            scopes: prepareScopesData(),
         });
     }
 
@@ -539,5 +605,12 @@ const updateShow = (newValue) => {
 .perm-description {
     margin-left: 1.6rem;
     line-height: 1.2;
+}
+/* #866 — selector chico Propios/Todos junto al checkbox de un permiso scopeable. */
+.perm-scope-select {
+    width: auto;
+    display: inline-block;
+    padding-top: 0.1rem;
+    padding-bottom: 0.1rem;
 }
 </style>
