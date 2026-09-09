@@ -20,7 +20,13 @@ use Symfony\Component\Process\Process;
  *  - Verificación de REGRESIÓN antes de aplicar: merge en 2 fases (--no-commit → verifica → commit).
  *  - Fallo (conflicto/regresión/permiso) → ABORTA, deja main intacto, escala el item a requiere_irving
  *    y GUARDA el error (mergeResult) para que la Torre lo MUESTRE. Nunca silencioso.
- *  - Kill switch: los merges se drenan siempre (una decisión ya tomada); el pause solo frena al ejecutor.
+ *  - Kill switch (#9990640/#9990643, 2026-09-09 — REVIERTE la decisión previa de que "los merges
+ *    se drenan siempre"): `drain()` respeta `isPaused()` DENTRO de sí mismo, justo tras tomar el
+ *    flock. Antes solo `SchedulerCommand` chequeaba la pausa antes de llamar a `drain()`; el
+ *    escape-hatch manual `circuito:merge-run` (`MergeRunCommand`) llamaba a `drain()` directo sin
+ *    checar nada, así que con el freno puesto un operador podía seguir mergeando a mano — pasó de
+ *    verdad en el incidente del 2026-09-08. Con el guard adentro, CUALQUIER caller (presente o
+ *    futuro) queda protegido sin depender de que recuerde el chequeo.
  */
 class MergeRunner
 {
@@ -48,6 +54,11 @@ class MergeRunner
      * (otro drain corriendo) devuelve NULL sin bloquear; si sí tomó el lock y no había nada
      * que mergear, devuelve []. Ambos casos siguen siendo falsy, así que cualquier consumidor
      * que solo haga `if (!$res)` sigue funcionando igual sin cambios.
+     *
+     * #9990643 — con el freno puesto (isPaused()) devuelve [] SIN mergear nada: es "cola vacía"
+     * desde el punto de vista del caller (tomó el lock, no hizo nada), NO "no pude tomar el lock"
+     * (null tiene otro significado, ver arriba). Los items que sigan en la cola de
+     * RoadmapCircuitoService se quedan tal cual, listos para el próximo drain sin freno.
      */
     public function drain(): ?array
     {
@@ -55,6 +66,13 @@ class MergeRunner
         $lock = @fopen(self::LOCK, 'c');
         if (! $lock || ! flock($lock, LOCK_EX | LOCK_NB)) {
             return null; // no se pudo tomar el lock: ya hay un drain en curso
+        }
+
+        if ($this->svc->isPaused()) {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+
+            return [];
         }
 
         $out = [];
