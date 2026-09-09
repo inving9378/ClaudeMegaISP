@@ -9,6 +9,7 @@ use App\Modules\Addons\Talento\Models\TalentoDocumentTemplate;
 use App\Modules\Addons\Talento\Models\TalentoEmployeeDocument;
 use App\Modules\Addons\Talento\Models\TalentoEmployeeDocumentSignature;
 use App\Modules\Addons\Talento\Models\TalentoPuestoDocumentTemplate;
+use App\Modules\Addons\Talento\Support\SignatureSlotStatus;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -146,18 +147,31 @@ class EmployeeDocumentPackageService
 
             $dataDelDocumento = $this->overlayDatosExtra($data, $existente->datos_extra ?? []);
 
+            $firmasPorSlot = collect();
             if ($template->signatureSlots->isNotEmpty()) {
                 // La firma es por documento (employee_document_id + slot_key), no por
                 // colaborador: un documento nuevo (sin id todavía) no puede tener firmas —
                 // data_get() en el renderer las deja en blanco, comportamiento correcto
                 // (item #9990654).
                 $dataDelDocumento['firma'] = $this->firmaData($template, $existente?->id);
+
+                if ($existente?->id) {
+                    $firmasPorSlot = TalentoEmployeeDocumentSignature::where('employee_document_id', $existente->id)
+                        ->get()
+                        ->keyBy('slot_key');
+                }
             }
 
             $html = $this->renderer->renderDocument($version->content, $dataDelDocumento, $template->name, $mostrarFaltantes);
             // La clase 'campo-faltante' se sigue agregando en AMBOS modos (item #9990645) —
-            // el estado pendiente/completo no depende de si el marcador se ve o no.
-            $status = str_contains($html, 'campo-faltante') ? 'pendiente' : 'completo';
+            // el estado pendiente/completo no depende de si el marcador se ve o no. Item
+            // #9990655: además de campo-faltante, un documento con slots de firma solo es
+            // 'completo' si TODOS los requeridos ya están firmados (SignatureSlotStatus, la
+            // misma regla que usa TalentoEmployeeDocumentController — sin slots, retrocompat
+            // exacto con el criterio legado de solo campo-faltante).
+            $status = str_contains($html, 'campo-faltante') || SignatureSlotStatus::pendienteFirma($template->signatureSlots, $firmasPorSlot)
+                ? 'pendiente'
+                : 'completo';
 
             $documentos[] = TalentoEmployeeDocument::updateOrCreate(
                 ['colaborador_id' => $colaborador->id, 'template_id' => $template->id],
@@ -438,12 +452,19 @@ class EmployeeDocumentPackageService
         $data = $this->overlayDatosExtra($this->buildData($colaborador), $documento->datos_extra ?? []);
         // Mismo tratamiento de firma que generateForColaborador() (item #9990654): sin esto,
         // completar() pisaría el HTML de un documento ya firmado y borraría la firma visible.
+        $firmasPorSlot = collect();
         if ($documento->template->signatureSlots->isNotEmpty()) {
             $data['firma'] = $this->firmaData($documento->template, $documento->id);
+            $firmasPorSlot = TalentoEmployeeDocumentSignature::where('employee_document_id', $documento->id)
+                ->get()
+                ->keyBy('slot_key');
         }
 
         $html = $this->renderer->renderDocument($version->content, $data, $documento->template->name, $mostrarFaltantes);
-        $status = str_contains($html, 'campo-faltante') ? 'pendiente' : 'completo';
+        // Item #9990655: misma regla combinada que generateForColaborador() — ver comentario ahí.
+        $status = str_contains($html, 'campo-faltante') || SignatureSlotStatus::pendienteFirma($documento->template->signatureSlots, $firmasPorSlot)
+            ? 'pendiente'
+            : 'completo';
 
         $documento->update([
             'template_version_id' => $version->id,
