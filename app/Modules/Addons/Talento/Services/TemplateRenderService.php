@@ -151,8 +151,9 @@ HTML;
     }
 
     /**
-     * CSS de impresion real: margenes con @page y page-break-inside:avoid en los bloques de
-     * firma (clase .bloque-firma, a usar por las plantillas convertidas en el Hijo C).
+     * CSS de pantalla + impresion (item #9990666): @page controla SOLO la impresion/PDF; el
+     * "look de hoja" en pantalla (contenedor centrado, sombra) vive en .documento-contenido y se
+     * neutraliza en @media print para no duplicar el margen de @page.
      */
     public function printCss(): string
     {
@@ -161,39 +162,105 @@ HTML;
     size: letter;
     margin: 2.5cm 2cm;
 }
+html, body {
+    margin: 0;
+    padding: 0;
+}
 body {
-    font-family: "Times New Roman", Georgia, serif;
+    font-family: Georgia, "Times New Roman", serif;
     font-size: 12pt;
-    color: #111;
+    color: #1a1a1a;
     line-height: 1.5;
+    background: #e9e9e9;
+}
+.documento-contenido {
+    max-width: 820px;
+    margin: 2.5cm auto;
+    padding: 2.5cm 2cm;
+    background: #fff;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+}
+.documento-contenido h1,
+.documento-contenido h2,
+.documento-contenido h3 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: bold;
+    color: #111;
+    line-height: 1.3;
+}
+.documento-contenido h1 {
+    font-size: 16pt;
+    margin: 0 0 1.2em;
+    letter-spacing: 0.5px;
+}
+.documento-contenido h2 {
+    font-size: 13pt;
+    margin: 1.5em 0 0.6em;
+}
+.documento-contenido h3 {
+    font-size: 12pt;
+    margin: 1.2em 0 0.5em;
+}
+.documento-contenido p {
+    margin: 0 0 0.9em;
+    text-align: justify;
+}
+.documento-contenido ul,
+.documento-contenido ol {
+    margin: 0 0 0.9em 1.5em;
+    padding: 0;
+}
+.documento-contenido li {
+    margin-bottom: 0.3em;
+}
+.documento-contenido strong,
+.documento-contenido b {
+    font-weight: bold;
+    color: #000;
 }
 .documento-contenido table {
     width: 100%;
     border-collapse: collapse;
-    margin: 0.5em 0;
+    margin: 1em 0;
+}
+.documento-contenido table th {
+    background: #f0f0f0;
+    font-weight: bold;
+    text-align: left;
 }
 .documento-contenido table th,
 .documento-contenido table td {
-    border: 1px solid #333;
-    padding: 4px 6px;
+    border: 1px solid #ccc;
+    padding: 6px 8px;
     font-size: 10.5pt;
 }
 .bloque-firma {
     page-break-inside: avoid;
     break-inside: avoid;
-    margin-top: 2em;
+    margin-top: 2.5em;
 }
-.campo-faltante {
-    /* Sin estilo por default: en el documento entregable es una linea en blanco discreta
-       (item #9990645). El resaltado vive en .campo-faltante-visible (modo admin). */
+.bloque-firma > div {
+    padding-top: 0.5em;
 }
 .firma-imagen {
-    height: 60px;
-    vertical-align: middle;
+    display: block;
+    max-height: 70px;
+    margin: 0 auto 6px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 6px;
+}
+.campo-faltante {
+    /* item #9990645: linea en blanco discreta en el documento entregable, pulida (#9990666)
+       como subrayado tenue en vez de underscores crudos. El resaltado vive en
+       .campo-faltante-visible (modo admin). */
+    color: #aaa;
+    letter-spacing: 1px;
 }
 .firma-pendiente {
     /* Misma linea en blanco que .campo-faltante, sin marcar el documento como pendiente
        (item #9990654): una firma sin capturar no es un dato faltante del documento. */
+    color: #aaa;
+    letter-spacing: 1px;
 }
 .campo-faltante-visible {
     background: #fff3cd;
@@ -202,13 +269,43 @@ body {
     padding: 0 4px;
     font-weight: bold;
     font-size: 0.9em;
+    letter-spacing: normal;
 }
 @media print {
+    body {
+        background: #fff;
+    }
+    .documento-contenido {
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+    }
     .campo-faltante-visible {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
 }
 CSS;
+    }
+
+    /**
+     * Item #9990666: el <style> queda CONGELADO dentro de rendered_html al generarse el
+     * documento, asi que mejorar printCss() no reestiliza por si solo los ya generados. show()
+     * llama esto para reinyectar el CSS ACTUAL sobre el cuerpo guardado al servir — reestiliza
+     * todo al instante, sin tocar rendered_html en BD ni regenerar el documento.
+     */
+    public function reinjectCurrentCss(string $renderedHtml): string
+    {
+        $css = $this->printCss();
+
+        $result = preg_replace_callback(
+            '#<style>.*?</style>#s',
+            fn () => '<style>' . $css . '</style>',
+            $renderedHtml,
+            1
+        );
+
+        return $result ?? $renderedHtml;
     }
 }
