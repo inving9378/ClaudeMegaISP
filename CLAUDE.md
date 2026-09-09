@@ -2093,3 +2093,33 @@ abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
 `docs/roadmap-bucle-reap-item-9990624-verificacion.md`. **Sin cambio de código de negocio propio
 de esta vuelta** — el trabajo real que falta (Fase 4 — `next-version` con tags de git — y Fase 5 —
 verificación end-to-end) sigue en #9990627/#9990628, pendientes de aprobación/reclamo.
+
+## Item #9990650 — Talento: placeholders de firma en plantillas + colocación en el render (empresa/trabajador) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
+#936/#9990408/#962/#9990554/#9990549/#9990624. #9990650 (Fase 3+4 de #9990646: agregar
+`{{firma.empresa}}`/`{{firma.trabajador}}` a las 11 plantillas de Talento con slots declarados en
+`talento_document_template_signature_slots`, que el renderer inserte la imagen por slot o deje
+línea en blanco si falta, y marcar el documento "completo" solo cuando todos los slots requeridos
+tengan firma) ya había sido escalado por anti-loop (DES-TRABE Opus) y reaprobado por Irving con
+sus 3 preguntas resueltas. Una vuelta previa (`wt-3`, 2026-09-09 08:45) ya hizo lo correcto: corrió
+`circuito:cabida` (NO CABE, ya había timeouteado) y descompuso el trabajo en **#9990653**
+(placeholders en las 11 plantillas + nueva versión, sin deps), **#9990654** (renderer con imagen
+inline base64 por slot + `EmployeeDocumentPackageService` alimenta `firma.*`, decisión propia:
+data URI en vez de URL para no depender de la ruta `slot_key` de #9990649) y **#9990655**
+(`status_efectivo` reusado de #9990649 + verificación final E2E, correctamente bloqueado con
+`depende_de=[9990649]` hasta que ese item mergee). Pero esa vuelta nunca intentó **cerrar** al
+padre — el log solo registra `soltar-claim` ("la vuelta de wt-3 terminó sin cerrar el item...
+se libera el reclamo y vuelve a la cola como aprobado_irving"), y el pool lo repartió de nuevo sin
+trabajo propio que hacer. Verificado esta vuelta: los 3 hijos (`origen_item_id=9990650`) siguen
+intactos, `pendiente_revision`, sin reclamar — la descomposición original seguía siendo correcta,
+nadie más la tocó. Corrección: esta vuelta ejecuta el intento de cierre faltante; el guard
+(`RoadmapItem.php` bloque "(2b) PARAGUAS") lo reenruta a `aprobado_irving` +
+`excluir_pool_automatico=true` (evento `paraguas_abierto` en el log, "le quedan 3 sub-item(s)
+abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
+(`RoadmapItem.php:459-491`) lo complete solo cuando #9990653, #9990654 y #9990655 cierren los tres
+(el último sigue bloqueado por `depende_de=[9990649]`). Detalle en
+`docs/roadmap-bucle-reap-item-9990650-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo técnico real de Talento (placeholders en plantillas, renderer con imagen inline,
+`status_efectivo` por slots) sigue en #9990653/#9990654/#9990655, pendientes de que una terminal
+los reclame.
