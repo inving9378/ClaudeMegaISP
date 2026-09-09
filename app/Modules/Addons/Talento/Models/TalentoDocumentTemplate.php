@@ -30,6 +30,11 @@ class TalentoDocumentTemplate extends BaseModel
         return $this->belongsTo(TalentoDocumentTemplateVersion::class, 'current_version_id');
     }
 
+    public function signatureSlots()
+    {
+        return $this->hasMany(TalentoDocumentTemplateSignatureSlot::class, 'template_id')->orderBy('orden');
+    }
+
     public function scopeActive($query)
     {
         return $query->where('active', true);

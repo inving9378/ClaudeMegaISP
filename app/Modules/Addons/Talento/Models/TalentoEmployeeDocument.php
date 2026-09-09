@@ -33,4 +33,9 @@ class TalentoEmployeeDocument extends BaseModel
     {
         return $this->belongsTo(TalentoDocumentTemplateVersion::class, 'template_version_id');
     }
+
+    public function signatures()
+    {
+        return $this->hasMany(TalentoEmployeeDocumentSignature::class, 'employee_document_id');
+    }
 }
