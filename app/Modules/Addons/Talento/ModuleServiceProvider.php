@@ -6,6 +6,7 @@ use App\Models\PaymentByRuleDetails;
 use App\Modules\Addons\Talento\Console\CheckCredentialExpirationsCommand;
 use App\Modules\Addons\Talento\Console\ConciliarComisionesVendedorCommand;
 use App\Modules\Addons\Talento\Console\ReconciliarComisionesEspejoCommand;
+use App\Modules\Addons\Talento\Console\RegenerarDocumentosCommand;
 use App\Modules\Addons\Talento\Console\SyncColaboradoresCommand;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Observers\TalentoColaboradorObserver;
@@ -35,6 +36,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 SyncColaboradoresCommand::class,
                 ConciliarComisionesVendedorCommand::class,
                 ReconciliarComisionesEspejoCommand::class,
+                RegenerarDocumentosCommand::class,
             ]);
         }
     }
