@@ -18,20 +18,20 @@
           </div>
         </div>
         <div class="d-flex flex-wrap gap-1">
-          <a :href="documentoUrl(doc)" target="_blank" class="btn btn-sm btn-outline-primary">
+          <a :href="documentoUrl(doc)" target="_blank" class="btn btn-sm btn-primary">
             <i class="fa fa-eye me-1"></i>Ver
           </a>
-          <button @click="imprimir(doc)" type="button" class="btn btn-sm btn-outline-secondary">
+          <button @click="imprimir(doc)" type="button" class="btn btn-sm btn-secondary">
             <i class="fa fa-print me-1"></i>Imprimir
           </button>
           <button v-if="doc.pendiente_firma" @click="abrirFirma(doc)" type="button" class="btn btn-sm btn-danger">
             <i class="fa fa-signature me-1"></i>Firmar
           </button>
-          <button v-else-if="doc.requires_signature" @click="abrirFirma(doc)" type="button" class="btn btn-sm btn-outline-secondary">
+          <button v-else-if="doc.requires_signature" @click="abrirFirma(doc)" type="button" class="btn btn-sm btn-secondary">
             <i class="fa fa-signature me-1"></i>Volver a firmar
           </button>
-          <button v-if="doc.fillable_fields && doc.fillable_fields.length"
-                  @click="abrirCompletar(doc)" type="button" class="btn btn-sm btn-outline-primary">
+          <button v-if="(doc.huecos_count ?? 0) > 0"
+                  @click="abrirCompletar(doc)" type="button" class="btn btn-sm btn-primary">
             <i class="fa fa-clipboard-check me-1"></i>Completar documento
           </button>
         </div>
@@ -68,10 +68,10 @@
               </div>
               <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
                 <div class="btn-group btn-group-sm">
-                  <button type="button" class="btn btn-outline-secondary" @click="deshacerPad">
+                  <button type="button" class="btn btn-secondary" @click="deshacerPad">
                     <i class="fa fa-undo me-1"></i>Deshacer
                   </button>
-                  <button type="button" class="btn btn-outline-secondary" @click="limpiarPad">
+                  <button type="button" class="btn btn-secondary" @click="limpiarPad">
                     <i class="fa fa-eraser me-1"></i>Limpiar
                   </button>
                 </div>
@@ -94,7 +94,7 @@
             <div v-if="firmaModal.error" class="alert alert-danger mt-3 mb-0 py-2 small">{{ firmaModal.error }}</div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-outline-secondary" :disabled="firmaModal.saving" @click="cerrarFirma">
+            <button type="button" class="btn btn-secondary" :disabled="firmaModal.saving" @click="cerrarFirma">
               Cancelar
             </button>
             <button type="button" class="btn btn-primary" :disabled="firmaModal.saving" @click="guardarFirma">
@@ -106,7 +106,7 @@
       </div>
     </div>
 
-    <!-- Modal de completar campos del documento (doc.*) -->
+    <!-- Modal de completar huecos gap-driven (empleado.*/empresa.*/doc.*, item #9990663) -->
     <div v-if="completarModal.show" class="modal d-block firma-modal-backdrop" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -115,15 +115,42 @@
             <button type="button" class="btn-close" :disabled="completarModal.saving" @click="cerrarCompletar"></button>
           </div>
           <div class="modal-body">
-            <div class="small text-muted mb-2">Datos del documento</div>
-            <div v-for="campo in completarModal.doc?.fillable_fields ?? []" :key="campo.key" class="mb-3">
-              <label class="form-label">{{ campo.label }}</label>
-              <input type="text" class="form-control" v-model="completarModal.valores[campo.key]">
+            <div v-if="huecosPorGrupo.empleado.length" class="mb-4">
+              <div class="small text-muted fw-semibold mb-2">Datos del empleado</div>
+              <div class="alert alert-warning py-2 small mb-2">Afecta a todos los documentos de este colaborador.</div>
+              <div v-for="hueco in huecosPorGrupo.empleado" :key="hueco.ruta" class="mb-3">
+                <label class="form-label">{{ hueco.label }}</label>
+                <template v-if="hueco.tipo === 'horario'">
+                  <div class="d-flex gap-2">
+                    <input type="time" class="form-control" placeholder="Entrada" v-model="completarModal.valores[hueco.ruta].inicio">
+                    <input type="time" class="form-control" placeholder="Salida" v-model="completarModal.valores[hueco.ruta].fin">
+                  </div>
+                </template>
+                <input v-else :type="inputType(hueco)" class="form-control" v-model="completarModal.valores[hueco.ruta]">
+              </div>
             </div>
+
+            <div v-if="huecosPorGrupo.empresa.length" class="mb-4">
+              <div class="small text-muted fw-semibold mb-2">Datos de la empresa</div>
+              <div class="alert alert-warning py-2 small mb-2">Afecta a todos los documentos de todos los colaboradores.</div>
+              <div v-for="hueco in huecosPorGrupo.empresa" :key="hueco.ruta" class="mb-3">
+                <label class="form-label">{{ hueco.label }}</label>
+                <input :type="inputType(hueco)" class="form-control" v-model="completarModal.valores[hueco.ruta]">
+              </div>
+            </div>
+
+            <div v-if="huecosPorGrupo.doc.length" class="mb-2">
+              <div class="small text-muted fw-semibold mb-2">Solo este documento</div>
+              <div v-for="hueco in huecosPorGrupo.doc" :key="hueco.ruta" class="mb-3">
+                <label class="form-label">{{ hueco.label }}</label>
+                <input :type="inputType(hueco)" class="form-control" v-model="completarModal.valores[hueco.ruta]">
+              </div>
+            </div>
+
             <div v-if="completarModal.error" class="alert alert-danger mt-3 mb-0 py-2 small">{{ completarModal.error }}</div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-outline-secondary" :disabled="completarModal.saving" @click="cerrarCompletar">
+            <button type="button" class="btn btn-secondary" :disabled="completarModal.saving" @click="cerrarCompletar">
               Cancelar
             </button>
             <button type="button" class="btn btn-primary" :disabled="completarModal.saving" @click="guardarCompletar">
@@ -187,10 +214,25 @@ export default {
       },
     },
   },
+  computed: {
+    huecosPorGrupo() {
+      const grupos = { empleado: [], empresa: [], doc: [] };
+      const huecos = this.completarModal.doc?.huecos ?? [];
+      huecos.filter((hueco) => hueco.editable).forEach((hueco) => {
+        (grupos[hueco.destino] ?? grupos.doc).push(hueco);
+      });
+      return grupos;
+    },
+  },
   beforeUnmount() {
     this.destruirPad();
   },
   methods: {
+    inputType(hueco) {
+      if (hueco.tipo === 'fecha') return 'date';
+      if (hueco.tipo === 'numero') return 'number';
+      return 'text';
+    },
     async load() {
       this.loading = true;
       try {
@@ -359,7 +401,9 @@ export default {
     abrirCompletar(doc) {
       this.completarModal.doc = doc;
       this.completarModal.valores = Object.fromEntries(
-        (doc.fillable_fields || []).map((campo) => [campo.key, doc.datos_extra?.[campo.key] ?? ''])
+        (doc.huecos || [])
+          .filter((hueco) => hueco.editable)
+          .map((hueco) => [hueco.ruta, hueco.tipo === 'horario' ? { inicio: '', fin: '' } : ''])
       );
       this.completarModal.error = null;
       this.completarModal.saving = false;
@@ -380,9 +424,12 @@ export default {
       try {
         await axios.post(
           `/talento/api/colaboradores/${this.colaboradorId}/documentos/${doc.id}/completar`,
-          { valores: this.completarModal.valores }
+          { campos: this.completarModal.valores }
         );
         this.cerrarCompletar();
+        // Recarga la lista completa (no solo este doc): cuando el campo tocado es
+        // empleado.*/empresa.* el backend regenera TODOS los documentos del colaborador,
+        // así que sus huecos también deben recalcularse aquí sin esperar un F5.
         await this.load();
       } catch (e) {
         this.completarModal.error = e?.response?.data?.message || 'No se pudo guardar, intenta de nuevo.';
