@@ -21,11 +21,21 @@ class RolInstancia
      */
     public static function actual(): string
     {
-        $rol = strtolower(trim((string) config('instancia.rol', self::CLIENTE)));
+        return self::normalizar(config('instancia.rol'), config('instancia.roles_validos'));
+    }
 
-        return in_array($rol, config('instancia.roles_validos', [self::OPERADOR, self::CLIENTE]), true)
-            ? $rol
-            : self::CLIENTE;
+    /**
+     * Normaliza un valor crudo a un rol válido. FUNCIÓN PURA: no lee config ni
+     * entorno, así que la regla del default restrictivo se puede probar sin
+     * levantar Laravel — que es justo lo que hay que poder verificar barato y a
+     * menudo, porque es la que sostiene el blindaje entero.
+     */
+    public static function normalizar($valor, ?array $validos = null): string
+    {
+        $rol     = strtolower(trim((string) $valor));
+        $validos = $validos ?: [self::OPERADOR, self::CLIENTE];
+
+        return in_array($rol, $validos, true) ? $rol : self::CLIENTE;
     }
 
     public static function esOperador(): bool
@@ -42,18 +52,31 @@ class RolInstancia
      */
     public static function satisface(?string $rolExigido): bool
     {
+        return self::satisfaceCon(self::actual(), $rolExigido);
+    }
+
+    /** Misma regla que `satisface()`, pero pura: el rol actual se pasa como dato. */
+    public static function satisfaceCon(string $rolActual, ?string $rolExigido): bool
+    {
         if ($rolExigido === null || trim($rolExigido) === '') {
             return true;
         }
 
-        return self::actual() === strtolower(trim($rolExigido));
+        return $rolActual === strtolower(trim($rolExigido));
     }
 
-    /** Mensaje para el operador cuando un módulo no puede activarse aquí. */
-    public static function mensajeRechazo(string $slug, string $rolExigido): string
+    /**
+     * Mensaje para el operador cuando un módulo no puede activarse aquí.
+     *
+     * `$rolActual` se puede inyectar para poder probar el mensaje sin levantar
+     * Laravel; en uso normal se omite y se resuelve solo.
+     */
+    public static function mensajeRechazo(string $slug, string $rolExigido, ?string $rolActual = null): string
     {
+        $rolActual ??= self::actual();
+
         return "El módulo '{$slug}' solo puede activarse en una instalación de tipo "
-             . "'{$rolExigido}', y esta es de tipo '" . self::actual() . "'. "
+             . "'{$rolExigido}', y esta es de tipo '{$rolActual}'. "
              . 'Si esta instalación sí es la de Meganet, define INSTANCE_ROLE=operador '
              . 'en su archivo .env y vuelve a intentarlo.';
     }

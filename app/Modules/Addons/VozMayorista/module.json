@@ -10,48 +10,153 @@
   "active": false,
   "keep_data": true,
   "permissions": [
-    { "name": "voz.panel.view", "description": "Ver el panel de Voz Mayorista: capacidad, consumo contra el mínimo del carrier y margen" },
-    { "name": "voz.tenants.view", "description": "Ver clientes de voz y su ficha" },
-    { "name": "voz.tenants.create", "description": "Dar de alta clientes de voz (asistente de alta)" },
-    { "name": "voz.tenants.update", "description": "Editar datos de un cliente de voz" },
-    { "name": "voz.tenants.suspend", "description": "Suspender o reactivar un cliente de voz" },
-    { "name": "voz.dids.view", "description": "Ver el inventario de DID y su disponibilidad" },
-    { "name": "voz.dids.import", "description": "Importar DID masivamente desde CSV" },
-    { "name": "voz.dids.assign", "description": "Asignar DID del inventario a un cliente de voz" },
-    { "name": "voz.dids.release", "description": "Liberar DID de un cliente (pasan a cuarentena)" },
-    { "name": "voz.planes.view", "description": "Ver planes comerciales de voz" },
-    { "name": "voz.planes.create", "description": "Crear planes comerciales de voz" },
-    { "name": "voz.planes.update", "description": "Editar planes comerciales de voz" },
-    { "name": "voz.tarifas.view", "description": "Ver tarifas de carrier y de venta, con su historial de vigencias" },
-    { "name": "voz.tarifas.update", "description": "Cerrar una vigencia de tarifa e insertar la nueva" },
-    { "name": "voz.numeracion.view", "description": "Ver el plan de numeración de un cliente y sus rangos" },
-    { "name": "voz.numeracion.update", "description": "Definir rangos de numeración y aplicar plantillas" },
-    { "name": "voz.extensiones.view", "description": "Ver extensiones de un cliente de voz" },
-    { "name": "voz.extensiones.create", "description": "Crear extensiones dentro de los rangos permitidos" },
-    { "name": "voz.extensiones.update", "description": "Editar extensiones de un cliente de voz" },
-    { "name": "voz.limites.view", "description": "Ver límites de consumo, canales y políticas de seguridad" },
-    { "name": "voz.limites.update", "description": "Editar límites de consumo y canales" },
-    { "name": "voz.limites.habilitar_internacional", "description": "Habilitar destinos internacionales o premium a un cliente. Permiso SEPARADO a propósito: es la diferencia entre una alerta de fraude y una factura de cincuenta mil pesos" },
-    { "name": "voz.troncales.view", "description": "Ver troncales upstream (carrier) y downstream (PBX de cliente)" },
-    { "name": "voz.troncales.create", "description": "Dar de alta troncales" },
-    { "name": "voz.troncales.update", "description": "Editar troncales" },
-    { "name": "voz.auditoria.view", "description": "Ver la bitácora de auditoría del módulo" },
-    { "name": "voz.consumo.view", "description": "Ver consumo por periodo, costo, venta y margen" }
+    {
+      "name": "voz.panel.view",
+      "description": "Ver el panel de Voz Mayorista: capacidad, consumo contra el mínimo del carrier y margen"
+    },
+    {
+      "name": "voz.tenants.view",
+      "description": "Ver clientes de voz y su ficha"
+    },
+    {
+      "name": "voz.tenants.create",
+      "description": "Dar de alta clientes de voz (asistente de alta)"
+    },
+    {
+      "name": "voz.tenants.update",
+      "description": "Editar datos de un cliente de voz"
+    },
+    {
+      "name": "voz.tenants.suspend",
+      "description": "Suspender o reactivar un cliente de voz"
+    },
+    {
+      "name": "voz.dids.view",
+      "description": "Ver el inventario de DID y su disponibilidad"
+    },
+    {
+      "name": "voz.dids.import",
+      "description": "Importar DID masivamente desde CSV"
+    },
+    {
+      "name": "voz.dids.assign",
+      "description": "Asignar DID del inventario a un cliente de voz"
+    },
+    {
+      "name": "voz.dids.release",
+      "description": "Liberar DID de un cliente (pasan a cuarentena)"
+    },
+    {
+      "name": "voz.planes.view",
+      "description": "Ver planes comerciales de voz"
+    },
+    {
+      "name": "voz.planes.create",
+      "description": "Crear planes comerciales de voz"
+    },
+    {
+      "name": "voz.planes.update",
+      "description": "Editar planes comerciales de voz"
+    },
+    {
+      "name": "voz.tarifas.view",
+      "description": "Ver tarifas de carrier y de venta, con su historial de vigencias"
+    },
+    {
+      "name": "voz.tarifas.update",
+      "description": "Cerrar una vigencia de tarifa e insertar la nueva"
+    },
+    {
+      "name": "voz.numeracion.view",
+      "description": "Ver el plan de numeración de un cliente y sus rangos"
+    },
+    {
+      "name": "voz.numeracion.update",
+      "description": "Definir rangos de numeración y aplicar plantillas"
+    },
+    {
+      "name": "voz.extensiones.view",
+      "description": "Ver extensiones de un cliente de voz"
+    },
+    {
+      "name": "voz.extensiones.create",
+      "description": "Crear extensiones dentro de los rangos permitidos"
+    },
+    {
+      "name": "voz.extensiones.update",
+      "description": "Editar extensiones de un cliente de voz"
+    },
+    {
+      "name": "voz.limites.view",
+      "description": "Ver límites de consumo, canales y políticas de seguridad"
+    },
+    {
+      "name": "voz.limites.update",
+      "description": "Editar límites de consumo y canales"
+    },
+    {
+      "name": "voz.limites.habilitar_internacional",
+      "description": "Habilitar destinos internacionales o premium a un cliente. Permiso SEPARADO a propósito: es la diferencia entre una alerta de fraude y una factura de cincuenta mil pesos"
+    },
+    {
+      "name": "voz.troncales.view",
+      "description": "Ver troncales upstream (carrier) y downstream (PBX de cliente)"
+    },
+    {
+      "name": "voz.troncales.create",
+      "description": "Dar de alta troncales"
+    },
+    {
+      "name": "voz.troncales.update",
+      "description": "Editar troncales"
+    },
+    {
+      "name": "voz.auditoria.view",
+      "description": "Ver la bitácora de auditoría del módulo"
+    },
+    {
+      "name": "voz.consumo.view",
+      "description": "Ver consumo por periodo, costo, venta y margen"
+    }
   ],
   "api_endpoints": [],
   "menu": [
     {
       "label": "Voz Mayorista",
-      "icon": "phone-volume",
+      "icon": "phone-forwarded",
       "permission": "voz.panel.view",
       "url": "/voz-mayorista",
       "children": [
-        { "label": "Panel", "url": "/voz-mayorista", "permission": "voz.panel.view" },
-        { "label": "Clientes de voz", "url": "/voz-mayorista/tenants", "permission": "voz.tenants.view" },
-        { "label": "Inventario de DID", "url": "/voz-mayorista/dids", "permission": "voz.dids.view" },
-        { "label": "Planes y tarifas", "url": "/voz-mayorista/planes", "permission": "voz.planes.view" },
-        { "label": "Troncales", "url": "/voz-mayorista/troncales", "permission": "voz.troncales.view" },
-        { "label": "Auditoría", "url": "/voz-mayorista/auditoria", "permission": "voz.auditoria.view" }
+        {
+          "label": "Panel",
+          "url": "/voz-mayorista",
+          "permission": "voz.panel.view"
+        },
+        {
+          "label": "Clientes de voz",
+          "url": "/voz-mayorista/tenants",
+          "permission": "voz.tenants.view"
+        },
+        {
+          "label": "Inventario de DID",
+          "url": "/voz-mayorista/dids",
+          "permission": "voz.dids.view"
+        },
+        {
+          "label": "Planes y tarifas",
+          "url": "/voz-mayorista/planes",
+          "permission": "voz.planes.view"
+        },
+        {
+          "label": "Troncales",
+          "url": "/voz-mayorista/troncales",
+          "permission": "voz.troncales.view"
+        },
+        {
+          "label": "Auditoría",
+          "url": "/voz-mayorista/auditoria",
+          "permission": "voz.auditoria.view"
+        }
       ]
     }
   ],
@@ -59,11 +164,13 @@
     {
       "title": "Voz Mayorista",
       "description": "Clientes de voz, DID, canales, planes y límites del servicio de telefonía que Meganet revende.",
-      "icon": "phone-volume",
+      "icon": "phone",
       "url": "/voz-mayorista",
       "permission": "voz.panel.view"
     }
   ],
-  "sidebar": { "location": "main" },
+  "sidebar": {
+    "location": "main"
+  },
   "config_sections": []
 }
