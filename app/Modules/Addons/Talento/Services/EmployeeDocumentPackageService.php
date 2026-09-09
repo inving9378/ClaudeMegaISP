@@ -35,6 +35,76 @@ use Illuminate\Support\Facades\DB;
  */
 class EmployeeDocumentPackageService
 {
+    /**
+     * Item #9990661 — mapa inverso whitelisteado ruta->columna real. NUNCA se escribe una
+     * columna fuera de estas 3 listas; cualquier otra ruta (incluida cualquier empleado. o
+     * empresa. no listada aquí) cae al catch-all de datos_extra en completar()/destinoForRuta().
+     */
+    private const WHITELIST_COLABORADOR = [
+        'empleado.curp' => 'curp',
+        'empleado.nss' => 'nss',
+        'empleado.area' => 'department',
+        'empleado.salario' => 'base_salary',
+        'empleado.periodicidad_pago' => 'pay_frequency',
+        'empleado.lugar_trabajo' => 'work_location',
+        'empleado.contacto_emergencia_nombre' => 'emergency_contact_name',
+        'empleado.contacto_emergencia_telefono' => 'emergency_contact_phone',
+        'empleado.fecha_ingreso' => 'hire_date',
+        'empleado.fecha_nacimiento' => 'birth_date',
+    ];
+
+    private const WHITELIST_USER = [
+        'empleado.rfc' => 'rfc',
+        'empleado.domicilio' => 'address',
+        'empleado.correo' => 'email',
+        'empleado.telefono' => 'phone',
+    ];
+
+    private const WHITELIST_EMPRESA = [
+        'empresa.razon_social' => 'company_name',
+        'empresa.correo_contacto' => 'email',
+        'empresa.domicilio_datos_personales' => 'data_privacy_address',
+    ];
+
+    /** Caso especial: 1 ruta -> 2 columnas (shift_start/shift_end), valor {inicio,fin} HH:MM. */
+    private const RUTA_HORARIO = 'empleado.horario';
+
+    /**
+     * Derivados/no-settables (decisión explícita del item #9990661): existen en el render pero
+     * NUNCA se aceptan como destino de escritura (ni siquiera al catch-all de datos_extra) —
+     * divergirían silenciosamente de su fuente real (nombre del user, puesto del colaborador,
+     * relación de supervisor) si alguien los sobreescribiera por documento.
+     */
+    private const NO_EDITABLE = ['empleado.nombre_completo', 'empleado.puesto', 'empleado.jefe_inmediato'];
+
+    private const LABELS = [
+        'empleado.curp' => 'CURP',
+        'empleado.nss' => 'NSS',
+        'empleado.rfc' => 'RFC',
+        'empleado.domicilio' => 'Domicilio',
+        'empleado.correo' => 'Correo electrónico',
+        'empleado.telefono' => 'Teléfono',
+        'empleado.area' => 'Área / Departamento',
+        'empleado.salario' => 'Salario',
+        'empleado.periodicidad_pago' => 'Periodicidad de pago',
+        'empleado.lugar_trabajo' => 'Lugar de trabajo',
+        'empleado.horario' => 'Horario (entrada y salida)',
+        'empleado.dias_trabajo' => 'Días de trabajo',
+        'empleado.contacto_emergencia_nombre' => 'Contacto de emergencia — nombre',
+        'empleado.contacto_emergencia_telefono' => 'Contacto de emergencia — teléfono',
+        'empleado.fecha_ingreso' => 'Fecha de ingreso',
+        'empleado.fecha_nacimiento' => 'Fecha de nacimiento',
+        'empleado.nombre_completo' => 'Nombre completo (no editable aquí)',
+        'empleado.puesto' => 'Puesto (no editable aquí)',
+        'empleado.jefe_inmediato' => 'Jefe inmediato (no editable aquí)',
+        'empresa.razon_social' => 'Razón social',
+        'empresa.correo_contacto' => 'Correo de contacto',
+        'empresa.domicilio_datos_personales' => 'Domicilio (aviso de privacidad)',
+        'fecha.ciudad_firma' => 'Ciudad de firma',
+        'fecha.firma' => 'Fecha de firma',
+        'fecha.emision' => 'Fecha de emisión',
+    ];
+
     public function __construct(private TemplateRenderService $renderer)
     {
     }
@@ -74,8 +144,7 @@ class EmployeeDocumentPackageService
                 ->where('template_id', $template->id)
                 ->first();
 
-            $dataDelDocumento = $data;
-            $dataDelDocumento['doc'] = $existente->datos_extra ?? [];
+            $dataDelDocumento = $this->overlayDatosExtra($data, $existente->datos_extra ?? []);
 
             if ($template->signatureSlots->isNotEmpty()) {
                 // La firma es por documento (employee_document_id + slot_key), no por
@@ -129,35 +198,226 @@ class EmployeeDocumentPackageService
     }
 
     /**
-     * Item #9990647 — "Completar documento". Whitelist estricta contra el catálogo declarado
-     * en `template.fillable_fields` (group=doc): solo esas claves se escriben en datos_extra,
-     * nunca lo que venga crudo en $valores. El group=estandar (dato que viviría en el registro
-     * del colaborador) queda declarado en el esquema del catálogo pero SIN resolver de
-     * escritura todavía — hoy ningún template tiene un campo estandar faltante que capturar
-     * (ver hallazgo del item: los 4 placeholders empleado.* / empresa.* del Reglamento ya se
-     * llenan solos). Construir ese resolver sin un consumidor real sería anticipar un caso que
-     * no existe aún; queda como extensión natural cuando un template lo necesite.
+     * Item #9990661 — re-scope gap-driven de #9990647/#9990651: "completar" ya no está limitado
+     * al catálogo doc.* fijo, ruteamos por el MAPA INVERSO whitelisteado (arriba) a su lugar
+     * real: colaborador/user (dato compartido del empleado), CompanyInformation (dato compartido
+     * de TODA la empresa) o datos_extra del propio documento (todo lo demás). Ignora en silencio
+     * cualquier ruta no reconocida o marcada NO_EDITABLE — nunca escribe una columna fuera de la
+     * whitelist. TRANSACCIÓN: si se tocó un dato compartido (empleado/empresa) regenera TODO el
+     * paquete del colaborador (para que el hueco desaparezca también en los demás documentos);
+     * si solo se tocó datos_extra, regenera únicamente este documento.
+     *
+     * @return array{documento: TalentoEmployeeDocument, afecta_a_todos: bool, huecos: array}
      */
-    public function completar(TalentoEmployeeDocument $documento, array $valores): TalentoEmployeeDocument
+    public function completar(TalentoEmployeeDocument $documento, array $campos): array
+    {
+        $documento->loadMissing(['colaborador.user', 'template']);
+        $colaborador = $documento->colaborador;
+        abort_if(!$colaborador, 422, 'El documento no tiene colaborador asociado.');
+
+        $colaboradorCambios = [];
+        $userCambios = [];
+        $empresaCambios = [];
+        $datosExtra = $documento->datos_extra ?? [];
+
+        foreach ($campos as $ruta => $valor) {
+            if (!is_string($ruta) || in_array($ruta, self::NO_EDITABLE, true)) {
+                continue;
+            }
+
+            if ($ruta === self::RUTA_HORARIO) {
+                $inicio = is_array($valor) ? ($valor['inicio'] ?? null) : null;
+                $fin = is_array($valor) ? ($valor['fin'] ?? null) : null;
+                if ($this->esHoraValida($inicio) && $this->esHoraValida($fin)) {
+                    $colaboradorCambios['shift_start'] = $inicio;
+                    $colaboradorCambios['shift_end'] = $fin;
+                }
+                continue;
+            }
+
+            if (isset(self::WHITELIST_COLABORADOR[$ruta])) {
+                $columna = self::WHITELIST_COLABORADOR[$ruta];
+                $normalizado = $this->normalizarValorColaborador($columna, $valor);
+                if ($normalizado !== null) {
+                    $colaboradorCambios[$columna] = $normalizado;
+                }
+                continue;
+            }
+
+            if (isset(self::WHITELIST_USER[$ruta])) {
+                if ($colaborador->user) {
+                    $userCambios[self::WHITELIST_USER[$ruta]] = is_string($valor) ? trim($valor) : $valor;
+                }
+                continue;
+            }
+
+            if (isset(self::WHITELIST_EMPRESA[$ruta])) {
+                $empresaCambios[self::WHITELIST_EMPRESA[$ruta]] = is_string($valor) ? trim($valor) : $valor;
+                continue;
+            }
+
+            // Catch-all (fecha.*, doc.*, vehiculo.*, herramientas.*, cualquier ruta sin
+            // columna): doc.* conserva su clave corta (retrocompat con el catálogo group=doc
+            // ya en uso); el resto guarda la ruta completa para que overlayDatosExtra() la
+            // pueda deep-merge de vuelta al nivel superior de $data en el próximo render.
+            $clave = str_starts_with($ruta, 'doc.') ? substr($ruta, 4) : $ruta;
+            $datosExtra[$clave] = is_string($valor) ? trim($valor) : $valor;
+        }
+
+        $tocoEmpleado = (bool) ($colaboradorCambios || $userCambios);
+        $tocoEmpresa = (bool) $empresaCambios;
+
+        DB::transaction(function () use ($colaborador, $colaboradorCambios, $userCambios, $empresaCambios, $documento, $datosExtra, $tocoEmpleado, $tocoEmpresa) {
+            if ($colaboradorCambios) {
+                $colaborador->update($colaboradorCambios);
+            }
+            if ($userCambios && $colaborador->user) {
+                $colaborador->user->update($userCambios);
+            }
+            if ($empresaCambios) {
+                CompanyInformation::first()?->update($empresaCambios);
+            }
+
+            $documento->datos_extra = $datosExtra;
+            $documento->save();
+
+            if ($tocoEmpleado || $tocoEmpresa) {
+                $this->generateForColaborador($colaborador);
+            } else {
+                $this->regenerateOne($documento);
+            }
+        });
+
+        $documentoFresco = $documento->fresh(['template']);
+
+        return [
+            'documento' => $documentoFresco,
+            'afecta_a_todos' => $tocoEmpleado || $tocoEmpresa,
+            'huecos' => $this->missingFields($documentoFresco),
+        ];
+    }
+
+    /**
+     * Item #9990661 — huecos reales de un documento YA renderizado: parsea data-campo="ruta" de
+     * cada <span class="campo-faltante"> del rendered_html guardado (TemplateRenderService lo
+     * escribe en AMBOS modos mostrarFaltantes, así que no hace falta re-renderizar — ver
+     * TemplateRenderService::missingMarker). Los slots de firma pendiente (clase
+     * "firma-pendiente", sin data-campo) NO cuentan como hueco a propósito (item #9990654).
+     *
+     * @return array<int, array{ruta:string, label:string, destino:?string, tipo:string, editable:bool}>
+     */
+    public function missingFields(TalentoEmployeeDocument $documento): array
     {
         $documento->loadMissing('template');
 
-        $clavesDoc = collect($documento->template->fillable_fields ?? [])
-            ->where('group', 'doc')
-            ->pluck('key');
+        preg_match_all('/data-campo="([^"]+)"/', $documento->rendered_html ?? '', $matches);
+        $rutas = array_values(array_unique($matches[1] ?? []));
 
-        $datosExtra = $documento->datos_extra ?? [];
-        foreach ($clavesDoc as $clave) {
-            if (array_key_exists($clave, $valores)) {
-                $valor = $valores[$clave];
-                $datosExtra[$clave] = is_string($valor) ? trim($valor) : $valor;
+        return collect($rutas)
+            ->map(fn (string $ruta) => [
+                'ruta' => $ruta,
+                'label' => $this->labelForRuta($documento, $ruta),
+                'destino' => $this->destinoForRuta($ruta),
+                'tipo' => $this->tipoForRuta($ruta),
+                'editable' => !in_array($ruta, self::NO_EDITABLE, true),
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function labelForRuta(TalentoEmployeeDocument $documento, string $ruta): string
+    {
+        if (isset(self::LABELS[$ruta])) {
+            return self::LABELS[$ruta];
+        }
+
+        if (str_starts_with($ruta, 'doc.')) {
+            $campo = collect($documento->template->fillable_fields ?? [])
+                ->firstWhere('key', substr($ruta, 4));
+            if ($campo) {
+                return $campo['label'] ?? $ruta;
             }
         }
 
-        $documento->datos_extra = $datosExtra;
-        $documento->save();
+        $ultimo = str_contains($ruta, '.') ? substr($ruta, strrpos($ruta, '.') + 1) : $ruta;
 
-        return $this->regenerateOne($documento);
+        return ucfirst(str_replace('_', ' ', $ultimo));
+    }
+
+    private function destinoForRuta(string $ruta): ?string
+    {
+        if (in_array($ruta, self::NO_EDITABLE, true)) {
+            return null;
+        }
+        if ($ruta === self::RUTA_HORARIO || isset(self::WHITELIST_COLABORADOR[$ruta]) || isset(self::WHITELIST_USER[$ruta])) {
+            return 'empleado';
+        }
+        if (isset(self::WHITELIST_EMPRESA[$ruta])) {
+            return 'empresa';
+        }
+
+        return 'doc';
+    }
+
+    private function tipoForRuta(string $ruta): string
+    {
+        if ($ruta === self::RUTA_HORARIO) {
+            return 'horario';
+        }
+        if (in_array($ruta, ['empleado.fecha_ingreso', 'empleado.fecha_nacimiento'], true)) {
+            return 'fecha';
+        }
+        if ($ruta === 'empleado.salario') {
+            return 'numero';
+        }
+
+        return 'texto';
+    }
+
+    private function esHoraValida($valor): bool
+    {
+        return is_string($valor) && preg_match('/^([01]?\d|2[0-3]):[0-5]\d$/', $valor) === 1;
+    }
+
+    private function normalizarValorColaborador(string $columna, $valor)
+    {
+        if ($columna === 'base_salary') {
+            $limpio = is_string($valor) ? preg_replace('/[^0-9.\-]/', '', $valor) : $valor;
+
+            return is_numeric($limpio) ? (float) $limpio : null;
+        }
+
+        if (in_array($columna, ['hire_date', 'birth_date'], true)) {
+            if (!$valor) {
+                return null;
+            }
+            try {
+                return \Illuminate\Support\Carbon::parse($valor)->toDateString();
+            } catch (\Throwable $e) {
+                return null;
+            }
+        }
+
+        return is_string($valor) ? trim($valor) : $valor;
+    }
+
+    /**
+     * Item #9990661 — deep-merge de datos_extra sobre el nivel superior de $data: las claves
+     * cortas (group=doc, sin punto) siguen entrando SOLO como data['doc'][clave] (retrocompat);
+     * las claves con ruta completa (fecha.*, vehiculo.*, empleado.* o empresa.* sin columna) se
+     * overlayean con data_set() para que {{esa.ruta}} resuelva con el valor capturado.
+     */
+    private function overlayDatosExtra(array $data, array $datosExtra): array
+    {
+        $data['doc'] = $datosExtra;
+
+        foreach ($datosExtra as $clave => $valor) {
+            if (is_string($clave) && str_contains($clave, '.')) {
+                data_set($data, $clave, $valor);
+            }
+        }
+
+        return $data;
     }
 
     /**
@@ -175,8 +435,7 @@ class EmployeeDocumentPackageService
             return $documento;
         }
 
-        $data = $this->buildData($colaborador);
-        $data['doc'] = $documento->datos_extra ?? [];
+        $data = $this->overlayDatosExtra($this->buildData($colaborador), $documento->datos_extra ?? []);
         // Mismo tratamiento de firma que generateForColaborador() (item #9990654): sin esto,
         // completar() pisaría el HTML de un documento ya firmado y borraría la firma visible.
         if ($documento->template->signatureSlots->isNotEmpty()) {
