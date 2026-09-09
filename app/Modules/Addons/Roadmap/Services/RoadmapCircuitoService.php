@@ -3522,7 +3522,22 @@ class RoadmapCircuitoService
 
     private function git(array $args): \Symfony\Component\Process\Process
     {
-        $p = new \Symfony\Component\Process\Process(array_merge(['git'], $args), base_path());
+        // Env con safe.directory inyectado (GIT_CONFIG_KEY_0): el repo es meganet:www-data y
+        // php-fpm corre como www-data; SIN esto git rehúsa por "dubious ownership" y CADA llamador
+        // que hace fail-open ante un git fallido (p.ej. itemsCandidatosVersion) devuelve TODO en
+        // vez de filtrar por el último tag — de ahí los "1089 candidatos" en el armado de versión
+        // aunque la versión nueva ya capture todo. Mismo patrón que NextVersionResolver /
+        // ReleaseChangelogService (que sí funcionan como www-data).
+        $env = [
+            'PATH'               => '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+            'HOME'               => '/root',
+            'LC_ALL'             => 'C',
+            'LANG'               => 'C',
+            'GIT_CONFIG_COUNT'   => '1',
+            'GIT_CONFIG_KEY_0'   => 'safe.directory',
+            'GIT_CONFIG_VALUE_0' => base_path(),
+        ];
+        $p = new \Symfony\Component\Process\Process(array_merge(['git'], $args), base_path(), $env);
         $p->setTimeout(30);
         $p->run();
 
