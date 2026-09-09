@@ -265,13 +265,24 @@
                             Sin datos disponibles
                         </div>
                     </div>
+
+                    <div class="element-side-panel__section">
+                        <div class="element-side-panel__label">Fotos</div>
+                        <FotosPanel
+                            :key="sidePanelNode.id"
+                            tipo="layer"
+                            :id="sidePanelNode.id"
+                            :can-subir="canSubirFotos"
+                            :can-eliminar="canEliminarFotos"
+                        />
+                    </div>
                 </template>
 
                 <div
                     class="element-side-panel__section text-caption text-grey"
                 >
                     <template v-if="sidePanelNode.coords">
-                        Fotos e historial de cambios se incorporan en una fase
+                        Historial de cambios se incorpora en una fase
                         siguiente de esta ficha.
                     </template>
                     <template v-else>
@@ -339,6 +350,7 @@ import { getSalud } from "../../helper/naps-request";
 import OpticalBudgetPanel from "./OpticalBudgetPanel.vue";
 import EmpalmesPanel from "./EmpalmesPanel.vue";
 import ImpactoPanel from "./ImpactoPanel.vue";
+import FotosPanel from "./FotosPanel.vue";
 
 defineOptions({
     name: "ElementSidePanel",
@@ -497,6 +509,19 @@ const canDelete = computed(() => {
     return typeof check === "function"
         ? check(`maps_${sidePanelNode.value.dialog}_remove`)
         : true;
+});
+
+// MR-23 fase 4c (item #9990544): a diferencia de canEdit/canDelete (permiso por tipo de
+// dialog), fotos usa 3 permisos fijos del módulo (mapa_red_fotos_ver/subir/eliminar,
+// item #9990455) — mismos para cualquier nodo.
+const canSubirFotos = computed(() => {
+    const check = props.permissons?.data?.canView;
+    return typeof check === "function" ? check("mapa_red_fotos_subir") : true;
+});
+
+const canEliminarFotos = computed(() => {
+    const check = props.permissons?.data?.canView;
+    return typeof check === "function" ? check("mapa_red_fotos_eliminar") : true;
 });
 
 const close = () => closeElementSidePanel();
