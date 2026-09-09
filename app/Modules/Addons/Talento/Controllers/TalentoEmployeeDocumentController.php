@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Addons\Talento\Models\TalentoEmployeeDocument;
 use App\Modules\Addons\Talento\Models\TalentoEmployeeDocumentSignature;
 use App\Modules\Addons\Talento\Services\EmployeeDocumentPackageService;
+use App\Modules\Addons\Talento\Support\SignatureSlotStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
@@ -93,9 +94,10 @@ class TalentoEmployeeDocumentController extends Controller
      * por forColaborador(). Slots declarados (talento_document_template_signature_slots no
      * vacío) -> multi-firma: pendiente si CUALQUIER slot requerido=true sigue sin firmar. Sin
      * slots (legado) -> se comporta EXACTAMENTE igual que antes de este item (columna
-     * signed_at del propio documento). El item #9990655 (hermano, status_efectivo del padre
-     * #9990650) reusa/extrae esta misma regla hacia EmployeeDocumentPackageService — no
-     * duplicarla ahí, consumir esta.
+     * signed_at del propio documento). Item #9990655: la regla "¿falta firmar algún slot
+     * requerido?" quedó extraída a Support\SignatureSlotStatus::pendienteFirma() — la consume
+     * este método Y EmployeeDocumentPackageService::generateForColaborador()/regenerateOne(),
+     * una sola copia de la regla.
      *
      * @return array{0: array{requiere_firma:bool, firmado:bool, pendiente_firma:bool, signed_at:?string, signature_url:?string}, 1: array}
      */
@@ -138,8 +140,7 @@ class TalentoEmployeeDocumentController extends Controller
             ];
         })->values();
 
-        $pendienteFirma = $slots->where('requerido', true)
-            ->contains(fn ($slot) => !($firmasPorSlot->get($slot->key)?->signed_at));
+        $pendienteFirma = SignatureSlotStatus::pendienteFirma($slots, $firmasPorSlot);
 
         return [[
             'requiere_firma' => true,
