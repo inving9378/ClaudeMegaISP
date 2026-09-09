@@ -12,10 +12,24 @@ use Symfony\Component\Process\Process;
  * POR QUÉ existe: la Torre corre como www-data (php-fpm), que NO puede escribir `.git` (objetos/refs
  * los creó el ejecutor=meganet, sin group-write para www-data) → un merge desde la Torre fallaba en
  * SILENCIO. Solución: la Torre ENCOLA (RoadmapCircuitoService::enqueueMerge) y ESTE runner, corriendo
- * on-box como meganet en el checkout PRINCIPAL (/var/www/megaisp, donde vive `main`), drena la cola.
+ * on-box como meganet, drena la cola.
+ *
+ * #9990644 (Fase A de #9990640) — el runner YA NO corre en /var/www/megaisp (`base_path()`), el
+ * checkout COMPARTIDO donde Irving o cualquier sesión humana pueden tener una rama de trabajo
+ * checada a mano: un `git checkout main` ahí les movía el HEAD por debajo (incidente 2026-09-08).
+ * Ahora corre en un worktree DEDICADO y EXCLUSIVO (`workDir()` = MERGE_WORKTREE, aprovisionado con
+ * `circuito:provision-worktree`, mismo patrón que los wt-K de las terminales) donde NADA MÁS
+ * escribe jamás. Ahí el merge SIEMPRE ocurre con HEAD detached en el tip de `main` (nunca lo
+ * "adopta" como rama propia — `main` sigue atado a /var/www/megaisp, git no permite la misma rama
+ * checada en dos worktrees), y al aterrizar bien se avanza `refs/heads/main` con `update-ref`
+ * (operación de plumbing que SÍ puede mover una rama aunque esté checada en otro worktree —
+ * `git branch -f` NO puede, lo bloquea; verificado empíricamente antes de escribir esto). Tras
+ * avanzar main, `syncCheckoutPrincipal()` intenta reflejarlo en /var/www/megaisp de forma
+ * BEST-EFFORT y SIN TOCAR nada si ese checkout no está en `main` o tiene cambios sin commitear
+ * (así una rama ajena checada ahí nunca se toca, ni se pierde trabajo sin commitear).
  *
  * Garantías (lo que pidió Irving):
- *  - Corre en el checkout principal (donde `main` está checado) — resuelto por base_path().
+ *  - Corre en su worktree dedicado y exclusivo — resuelto por `workDir()` (ver arriba, #9990644).
  *  - SERIALIZADO: flock('merge.lock') → un merge a la vez, aunque lo llamen varios pickers.
  *  - Verificación de REGRESIÓN antes de aplicar: merge en 2 fases (--no-commit → verifica → commit).
  *  - Fallo (conflicto/regresión/permiso) → ABORTA, deja main intacto, escala el item a requiere_irving
@@ -40,6 +54,14 @@ class MergeRunner
      * más lo toma.
      */
     protected const BUILD_LOCK = '/home/meganet/circuito/rebuild-post-merge.lock';
+
+    /**
+     * #9990644 — worktree DEDICADO y EXCLUSIVO del runner (nunca /var/www/megaisp compartido).
+     * Aprovisionado (idempotente) con `circuito:provision-worktree --path=... --base=main`, mismo
+     * mecanismo que los wt-K de las terminales del circuito (detached, vendor copiado, .env/
+     * node_modules symlinkeados). Ruta decidida por Irving (item #9990644, pregunta q3).
+     */
+    protected const MERGE_WORKTREE = '/home/meganet/worktrees/merge-runner';
 
     public function __construct(
         private RoadmapCircuitoService $svc,
@@ -170,21 +192,24 @@ class MergeRunner
             );
         }
 
-        // Asegura estar en main (donde vive el working tree de dev).
-        if (! $this->git(['checkout', 'main'])->isSuccessful()) {
-            return $this->fail('No se pudo cambiar a main en el checkout principal.', true);
+        // #9990644 — Asegura estar en el tip de main, SIN adoptar la rama (`main` sigue atada a
+        // /var/www/megaisp; git no permite la misma rama checada en dos worktrees a la vez). El
+        // worktree dedicado siempre trabaja con HEAD detached: al final, si todo aterriza bien, se
+        // avanza `refs/heads/main` explícitamente con `update-ref` (ver más abajo).
+        if (! $this->git(['checkout', '--detach', 'main'])->isSuccessful()) {
+            return $this->fail('No se pudo hacer checkout --detach a main en el worktree dedicado.', true);
         }
 
-        // #9990345 — el checkout puede reportar éxito y aun así no dejar HEAD en main si otro
-        // proceso (sesión interactiva, u otro drain) lo mueve justo después; confirma antes de
-        // tocar nada más, en vez de mergear a ciegas asumiendo que seguimos en main.
+        // #9990345 (adaptado a #9990644) — el checkout puede reportar éxito y aun así no dejar HEAD
+        // detached si algo (colisión entre dos drains, ver flock) lo mueve justo después; confirma
+        // antes de tocar nada más, en vez de mergear a ciegas. 'HEAD' literal = detached de verdad.
         $headTrasCheckout = trim($this->git(['rev-parse', '--abbrev-ref', 'HEAD'])->getOutput());
-        if ($headTrasCheckout !== 'main') {
+        if ($headTrasCheckout !== 'HEAD') {
             $this->registrarFalloAterrizaje($item, 'checkout_no_quedo_en_main', $branch, $headTrasCheckout, null);
 
             return $this->fail(
-                "El checkout principal no quedó en main (HEAD='{$headTrasCheckout}'); otro proceso lo "
-                . 'movió justo después del checkout. Merge abortado antes de tocar nada.',
+                "El worktree dedicado no quedó detached en main (HEAD='{$headTrasCheckout}'); otro "
+                . 'proceso lo movió justo después del checkout. Merge abortado antes de tocar nada.',
                 true
             );
         }
@@ -234,28 +259,50 @@ class MergeRunner
 
         $sha = trim($this->git(['rev-parse', 'HEAD'])->getOutput());
 
-        // #9990345 — ESTE es el candado que habría atajado el incidente real: el commit se creó con
-        // éxito (git no reporta error alguno), pero si HEAD ya no estaba en main en el momento del
-        // commit (otro proceso lo movió durante el merge), el commit queda huérfano de main aunque
-        // todo lo anterior haya "funcionado". Verifica que main de verdad lo contiene ANTES de
-        // marcar el item como integrado; si no, NO se toca el item ni se reescribe nada — se deja el
-        // commit donde quedó y se escala para revisión manual.
-        $contiene = $this->git(['branch', '--contains', $sha, '--list', 'main']);
-        $aterrizoEnMain = $contiene->isSuccessful() && trim($contiene->getOutput()) !== '';
-        if (! $aterrizoEnMain) {
-            $headReal = trim($this->git(['rev-parse', '--abbrev-ref', 'HEAD'])->getOutput());
-            $this->registrarFalloAterrizaje($item, 'merge_no_aterrizo_en_main', $branch, $headReal, $sha);
+        // #9990345 (adaptado a #9990644) — ESTE es el candado que habría atajado el incidente real:
+        // el commit se creó con éxito (git no reporta error alguno), pero si algo reataría HEAD a
+        // una rama real durante el merge (colisión entre dos drains; en este worktree exclusivo ya
+        // no hay sesiones interactivas que puedan hacerlo — ver docblock de la clase), el commit
+        // quedaría colgado de ESA rama en vez de avanzar main. Antes de tocar `refs/heads/main`,
+        // confirma que seguimos detached (nadie readoptó HEAD); si no, NO se toca el item ni se
+        // mueve main — se deja el commit donde quedó y se escala para revisión manual.
+        $headTrasCommit = trim($this->git(['rev-parse', '--abbrev-ref', 'HEAD'])->getOutput());
+        if ($headTrasCommit !== 'HEAD') {
+            $this->registrarFalloAterrizaje($item, 'merge_no_aterrizo_en_main', $branch, $headTrasCommit, $sha);
 
             return $this->fail(
-                "El merge de {$branch} se commiteó ({$sha}) pero NO quedó en main — HEAD terminó en "
-                . "'{$headReal}' (otro proceso movió el checkout principal durante el merge). El item "
-                . 'NO se marca integrado; el commit se deja donde quedó (sin reescribir historia ni '
-                . 'borrar ramas) para revisión manual.',
+                "El merge de {$branch} se commiteó ({$sha}) pero NO quedó libre para avanzar main — "
+                . "HEAD terminó adoptado por '{$headTrasCommit}' (algo movió el worktree dedicado "
+                . 'durante el merge). El item NO se marca integrado; el commit se deja donde quedó '
+                . '(sin reescribir historia ni borrar ramas) para revisión manual.',
+                true
+            );
+        }
+
+        // Avanza `refs/heads/main` al nuevo commit. `update-ref` es plumbing: a diferencia de
+        // `git branch -f`/`git checkout` (que git BLOQUEA si la rama está checada en otro worktree
+        // — verificado empíricamente, es justo lo que impide adoptar `main` aquí mismo arriba),
+        // `update-ref` sí puede mover una rama aunque esté checada en /var/www/megaisp. No toca ese
+        // checkout en absoluto (solo el puntero compartido); `syncCheckoutPrincipal()` es quien,
+        // best-effort y sin arriesgar nada, intenta reflejarlo ahí después.
+        $avance = $this->git(['update-ref', 'refs/heads/main', $sha]);
+        if (! $avance->isSuccessful()) {
+            $this->registrarFalloAterrizaje($item, 'no_se_pudo_avanzar_main', $branch, $headTrasCommit, $sha);
+
+            return $this->fail(
+                "El merge de {$branch} se commiteó ({$sha}) pero no se pudo avanzar refs/heads/main: "
+                . trim($avance->getErrorOutput()),
                 true
             );
         }
 
         $this->markMerged($item, $sha, $branch);
+
+        // #9990644 (q2, aprobado por Irving) — best-effort: refleja el avance de main en
+        // /var/www/megaisp (lo que sirve www-data) SOLO si ese checkout está en `main` y limpio;
+        // si tiene otra rama o cambios sin commitear, NO SE TOCA (ver docblock del método). Un
+        // fallo aquí nunca revierte el merge, que ya quedó firme en `main`.
+        $sincronizado = $this->syncCheckoutPrincipal($sha);
 
         // #711 (Jarvis Parte 1) — "al cambiar main" y "al cerrarse un item" son el MISMO evento
         // en este flujo (un item se cierra integrándose aquí), así que este es el único punto de
@@ -267,12 +314,18 @@ class MergeRunner
         // ya clasificó UI vs backend (`$item->revision_ui`); YA NO se recompila aquí síncrono
         // por-merge (eso era lo que congelaba el despacho ~4min por cada merge en cola) — solo se
         // señala al `drain()` que llamó que hace falta un rebuild, y éste lo coalesce en UNO solo
-        // al final de drenar toda la cola, detached.
-        $necesitaRebuild = (bool) $item->revision_ui;
-        $rebuild = $necesitaRebuild ? ' Bundle pendiente de recompilar (coalescido con el resto del drain).' : '';
+        // al final de drenar toda la cola, detached. #9990644 — un rebuild solo tiene sentido si
+        // /var/www/megaisp YA tiene el código nuevo en disco (si el sync se difirió, recompilar ahí
+        // construiría el bundle VIEJO); se re-intentará en el siguiente merge que sí sincronice.
+        $necesitaRebuild = (bool) $item->revision_ui && $sincronizado;
+        $rebuild = match (true) {
+            $necesitaRebuild => ' Bundle pendiente de recompilar (coalescido con el resto del drain).',
+            (bool) $item->revision_ui => ' Bundle NO recompilado: /var/www/megaisp no se pudo sincronizar todavía (ver log).',
+            default => '',
+        };
 
         Log::channel('roadmap_externo')->info('merge-ok', ['item' => $item->id, 'branch' => $branch, 'merge_commit' => $sha,
-            'trigger' => $req['trigger'] ?? '?']);
+            'sincronizado' => $sincronizado, 'trigger' => $req['trigger'] ?? '?']);
 
         return ['estado' => 'ok', 'ok' => true, 'merge_commit' => $sha,
             'salida' => "Integrada a dev (merge {$sha}). Regresión OK.{$rebuild}", 'escalado' => false,
@@ -306,11 +359,24 @@ class MergeRunner
     }
 
     /**
-     * Ruta del checkout donde corre el merge. En producción SIEMPRE `base_path()` (el checkout
-     * principal). Un test la sobreescribe para apuntar a un repo temporal aislado, sin tocar el
-     * checkout real (#9990345).
+     * Ruta del worktree donde corre el merge. #9990644: en producción SIEMPRE `MERGE_WORKTREE`
+     * (el worktree dedicado y exclusivo), NUNCA `base_path()` (que en este box resuelve al checkout
+     * COMPARTIDO /var/www/megaisp). Un test la sobreescribe para apuntar a un repo temporal
+     * aislado, sin tocar ningún checkout real (#9990345).
      */
     protected function workDir(): string
+    {
+        return self::MERGE_WORKTREE;
+    }
+
+    /**
+     * Ruta del checkout principal (/var/www/megaisp) que sirve www-data. Separada de `workDir()`
+     * (#9990644): ahí NUNCA corre el merge, solo recibe la sincronización best-effort de
+     * `syncCheckoutPrincipal()`. En producción SIEMPRE `base_path()` (justo lo que hoy resuelve a
+     * /var/www/megaisp). Un test la sobreescribe IGUAL a `workDir()` para que la sincronización se
+     * autodesactive (mismo path = no-op, ver `syncCheckoutPrincipal()`).
+     */
+    protected function checkoutPrincipalPath(): string
     {
         return base_path();
     }
@@ -326,19 +392,20 @@ class MergeRunner
             if (! str_ends_with($f, '.php')) {
                 continue;
             }
-            $path = base_path($f);
+            $path = $this->workDir() . '/' . $f;
             if (! is_file($path)) {
                 continue; // borrado por el merge
             }
-            $lint = new Process(['php', '-l', $path], base_path());
+            $lint = new Process(['php', '-l', $path], $this->workDir());
             $lint->run();
             if (! $lint->isSuccessful()) {
                 return ['ok' => false, 'detalle' => "php -l falló en {$f}: " . trim($lint->getErrorOutput() . $lint->getOutput())];
             }
         }
 
-        // (b) el framework bootea con el código fusionado (caza fatales de carga).
-        $boot = new Process(['php', 'artisan', '--version'], base_path());
+        // (b) el framework bootea con el código fusionado (caza fatales de carga). Corre en
+        // workDir() (#9990644): ahí es donde vive el árbol recién fusionado, no en base_path().
+        $boot = new Process(['php', 'artisan', '--version'], $this->workDir());
         $boot->setTimeout(60);
         $boot->run();
         if (! $boot->isSuccessful()) {
@@ -346,6 +413,77 @@ class MergeRunner
         }
 
         return ['ok' => true, 'detalle' => 'OK'];
+    }
+
+    /**
+     * #9990644 (Fase A, pregunta q2 — Opción 1 aprobada por Irving) — refleja el avance de `main`
+     * (ya movido por `performMerge()` vía `update-ref`, ver ahí) en el checkout principal
+     * (`checkoutPrincipalPath()`, /var/www/megaisp en producción). BEST-EFFORT y ESTRICTAMENTE
+     * NO DESTRUCTIVO:
+     *  - Si `checkoutPrincipalPath()` === `workDir()` (el caso de los tests: ambos seams
+     *    sobreescritos al mismo repo temporal) → no-op explícito, `true` (nada que sincronizar).
+     *  - Si ese checkout NO está en la rama `main` (alguien tiene una rama de trabajo checada a
+     *    mano ahí) → NO SE TOCA absolutamente nada — ni checkout, ni reset, ni fetch. `main` ya
+     *    avanzó en el repositorio compartido; ese checkout se pondrá al día solo la próxima vez
+     *    que sí esté en main. Devuelve `false` (no sincronizado esta vez).
+     *  - Si SÍ está en `main` pero tiene cambios sin commitear (`git status --porcelain` no vacío)
+     *    → tampoco se toca (un `reset --hard` los destruiría) — se loguea fuerte para que alguien
+     *    lo resuelva a mano. Devuelve `false`.
+     *  - Si está en `main` y limpio → `git reset --hard HEAD` (HEAD ahí es un ref simbólico a
+     *    `refs/heads/main`, que ya apunta al commit nuevo tras el `update-ref` de arriba; esto solo
+     *    pone el índice/árbol de trabajo al día con su propio HEAD, no descarta nada real porque ya
+     *    verificamos que está limpio). Devuelve `true` si terminó sincronizado de verdad.
+     *
+     * Un fallo aquí NUNCA revierte el merge (que ya quedó firme en `main`) ni escala el item.
+     */
+    protected function syncCheckoutPrincipal(string $sha): bool
+    {
+        $principal = $this->checkoutPrincipalPath();
+        if ($principal === $this->workDir()) {
+            return true; // mismo path (tests): nada que sincronizar.
+        }
+
+        try {
+            $rama = trim((new Process(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], $principal))->mustRun()->getOutput());
+        } catch (\Throwable $e) {
+            Log::channel('roadmap_externo')->warning('sync-checkout-principal-no-branch', ['error' => $e->getMessage()]);
+
+            return false;
+        }
+
+        if ($rama !== 'main') {
+            Log::channel('roadmap_externo')->info('sync-checkout-principal-omitido', [
+                'motivo' => 'checkout principal en otra rama', 'rama_actual' => $rama, 'merge_commit' => $sha,
+            ]);
+
+            return false;
+        }
+
+        $status = new Process(['git', 'status', '--porcelain'], $principal);
+        $status->run();
+        if (! $status->isSuccessful() || trim($status->getOutput()) !== '') {
+            Log::channel('roadmap_externo')->warning('sync-checkout-principal-sucio', [
+                'motivo' => 'checkout principal tiene cambios sin commitear, no se sincroniza para no perderlos',
+                'merge_commit' => $sha,
+            ]);
+
+            return false;
+        }
+
+        $reset = new Process(['git', 'reset', '--hard', 'HEAD'], $principal);
+        $reset->setTimeout(60);
+        $reset->run();
+        if (! $reset->isSuccessful()) {
+            Log::channel('roadmap_externo')->warning('sync-checkout-principal-fallo', [
+                'merge_commit' => $sha, 'error' => trim($reset->getErrorOutput()),
+            ]);
+
+            return false;
+        }
+
+        Log::channel('roadmap_externo')->info('sync-checkout-principal-ok', ['merge_commit' => $sha]);
+
+        return true;
     }
 
     /**

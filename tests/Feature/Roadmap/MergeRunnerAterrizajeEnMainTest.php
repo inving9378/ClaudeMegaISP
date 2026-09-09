@@ -75,7 +75,7 @@ class MergeRunnerAterrizajeEnMainTest extends TestCase
         $this->assertFalse($res['ok'], 'El merge debía reportarse como fallido: aterrizó fuera de main.');
         $this->assertTrue($res['escalado'] ?? false, 'Un aterrizaje fuera de main debe ser escalable, no silencioso.');
         $this->assertNull($res['merge_commit']);
-        $this->assertStringContainsString('NO quedó en main', $res['salida']);
+        $this->assertStringContainsString('NO quedó libre para avanzar main', $res['salida']);
 
         $item->refresh();
         $this->assertNull($item->merge_commit, 'El item NUNCA debe marcarse integrado si el commit no llegó a main.');
@@ -207,6 +207,12 @@ class TestableMergeRunner extends MergeRunner
     }
 
     protected function workDir(): string
+    {
+        return $this->dir;
+    }
+
+    /** #9990644 — mismo path que workDir(): syncCheckoutPrincipal() se autodesactiva (no-op). */
+    protected function checkoutPrincipalPath(): string
     {
         return $this->dir;
     }
