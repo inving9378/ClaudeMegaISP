@@ -21,6 +21,16 @@ use Illuminate\Support\Facades\DB;
  * de una responsiva vehicular, que no se registran en ningun lado hoy) se dejan fuera de $data a
  * proposito: TemplateRenderService los marca .campo-faltante y el documento queda status=pendiente,
  * que es el comportamiento correcto (no inventar un valor).
+ *
+ * Auditoria item #9990645 (placeholders de las plantillas vs. este $data): las listas de #each
+ * `activos_tecnicos` (plantilla "responsiva equipo tecnico") y `epp` (equipo de proteccion
+ * personal) tampoco tienen key aqui, IGUAL que combustible_entrega arriba -- no existe fuente:
+ * inventory_items/inventory_item_stocks no tienen columnas marca/modelo/serie_imei/accesorios/
+ * valor_ref (activos_tecnicos) ni talla_modelo/fecha_entrega (epp). Mapear con datos de
+ * `herramientas` (custodia generica) inventaria informacion que no es real. Se dejan sin key a
+ * proposito (el #each ya degrada a "0 filas" sin ruido cuando la key no existe -- mismo efecto
+ * visual que un arreglo vacio). Requiere columnas nuevas de inventario + captura, fuera de
+ * alcance de este item.
  */
 class EmployeeDocumentPackageService
 {
@@ -29,9 +39,13 @@ class EmployeeDocumentPackageService
     }
 
     /**
+     * $mostrarFaltantes=true es el modo admin (item #9990645): muestra "[FALTA: ruta]" visible
+     * en vez de la línea en blanco del documento entregable. Nadie lo usa todavía (no hay
+     * pantalla de vista previa admin) — queda disponible para cuando exista ese consumidor.
+     *
      * @return TalentoEmployeeDocument[]
      */
-    public function generateForColaborador(TalentoColaborador $colaborador): array
+    public function generateForColaborador(TalentoColaborador $colaborador, bool $mostrarFaltantes = false): array
     {
         $puesto = $colaborador->job_title;
         if (!$puesto) {
@@ -52,7 +66,9 @@ class EmployeeDocumentPackageService
                 continue;
             }
 
-            $html = $this->renderer->renderDocument($version->content, $data, $template->name);
+            $html = $this->renderer->renderDocument($version->content, $data, $template->name, $mostrarFaltantes);
+            // La clase 'campo-faltante' se sigue agregando en AMBOS modos (item #9990645) —
+            // el estado pendiente/completo no depende de si el marcador se ve o no.
             $status = str_contains($html, 'campo-faltante') ? 'pendiente' : 'completo';
 
             $documentos[] = TalentoEmployeeDocument::updateOrCreate(
@@ -71,10 +87,22 @@ class EmployeeDocumentPackageService
 
     private function buildData(TalentoColaborador $colaborador): array
     {
+        $fechaEmision = now()->translatedFormat('d \d\e F \d\e Y');
+
         return [
             'empleado' => $this->empleadoData($colaborador),
             'empresa'  => $this->empresaData(),
-            'fecha'    => ['emision' => now()->translatedFormat('d \d\e F \d\e Y')],
+            'fecha'    => [
+                'emision' => $fechaEmision,
+                // Item #9990645: ciudad de la empresa para el pie de firma. No existe columna
+                // city/ciudad en company_information — se usa el municipio (equivalente real
+                // más cercano en el domicilio mexicano, ya expuesto via appends). Null si la
+                // empresa no tiene municipio capturado (renderer lo deja en blanco, no [FALTA:]).
+                'ciudad_firma' => CompanyInformation::first()?->municipality_name,
+                // Sin captura propia de "fecha en que se firmó" en ningún lado del sistema:
+                // se usa la de emisión como default razonable (mismo día que se generó/imprimió).
+                'firma' => $fechaEmision,
+            ],
             'vehiculo' => $this->vehiculoData($colaborador),
             'herramientas' => $this->herramientasData($colaborador),
         ];

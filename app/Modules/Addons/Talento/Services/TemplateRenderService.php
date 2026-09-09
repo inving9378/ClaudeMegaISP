@@ -16,26 +16,34 @@ namespace App\Modules\Addons\Talento\Services;
  *   numero de fila (1-based). No soporta bloques anidados (no lo requiere ningun caso real).
  *
  * Un campo sin dato disponible (data_get devuelve null, o la ruta resuelve a un array/objeto
- * en vez de un escalar) se marca VISIBLEMENTE con .campo-faltante — nunca se imprime en blanco
- * de forma disimulada (regla dura del item).
+ * en vez de un escalar) SIEMPRE lleva la clase .campo-faltante (asi EmployeeDocumentPackageService
+ * puede detectarlo y marcar el documento status=pendiente), pero lo que se VE depende del modo
+ * (item #9990645, decision de Irving/David — antes se mostraba "[FALTA: ruta]" siempre, se sentia
+ * ruidoso en el documento entregable):
+ * - $mostrarFaltantes=false (default, documento entregable): una linea en blanco para llenar a
+ *   mano, sin resaltado.
+ * - $mostrarFaltantes=true (modo admin, opcional): el texto "[FALTA: ruta]" con resaltado rojo —
+ *   comportamiento original, para quien necesite ver que falta capturar.
  */
 class TemplateRenderService
 {
     private const MISSING_CLASS = 'campo-faltante';
+    private const MISSING_VISIBLE_CLASS = 'campo-faltante-visible';
+    private const BLANK_FILL = '____________________';
 
-    public function renderContent(string $content, array $data): string
+    public function renderContent(string $content, array $data, bool $mostrarFaltantes = false): string
     {
-        $content = $this->renderEachBlocks($content, $data);
+        $content = $this->renderEachBlocks($content, $data, $mostrarFaltantes);
 
-        return $this->renderVariables($content, $data);
+        return $this->renderVariables($content, $data, $mostrarFaltantes);
     }
 
     /**
      * Documento HTML completo listo para abrir/imprimir desde el navegador (nunca PDF).
      */
-    public function renderDocument(string $content, array $data, ?string $title = null): string
+    public function renderDocument(string $content, array $data, ?string $title = null, bool $mostrarFaltantes = false): string
     {
-        $body = $this->renderContent($content, $data);
+        $body = $this->renderContent($content, $data, $mostrarFaltantes);
         $safeTitle = e($title ?? 'Documento');
         $css = $this->printCss();
 
@@ -56,11 +64,11 @@ class TemplateRenderService
 HTML;
     }
 
-    private function renderEachBlocks(string $content, array $data): string
+    private function renderEachBlocks(string $content, array $data, bool $mostrarFaltantes): string
     {
         $result = preg_replace_callback(
             '/\{\{#each\s+([a-zA-Z0-9_.]+)\}\}(.*?)\{\{\/each\}\}/s',
-            function (array $m) use ($data) {
+            function (array $m) use ($data, $mostrarFaltantes) {
                 $items = data_get($data, trim($m[1]));
                 if (!is_array($items)) {
                     return '';
@@ -69,7 +77,7 @@ HTML;
                 $rendered = '';
                 $index = 1;
                 foreach ($items as $item) {
-                    $rendered .= $this->renderVariables($m[2], ['item' => $item, 'index' => $index]);
+                    $rendered .= $this->renderVariables($m[2], ['item' => $item, 'index' => $index], $mostrarFaltantes);
                     $index++;
                 }
 
@@ -81,16 +89,16 @@ HTML;
         return $result ?? $content;
     }
 
-    private function renderVariables(string $content, array $data): string
+    private function renderVariables(string $content, array $data, bool $mostrarFaltantes): string
     {
         $result = preg_replace_callback(
             '/\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/',
-            function (array $m) use ($data) {
+            function (array $m) use ($data, $mostrarFaltantes) {
                 $path = $m[1];
                 $value = data_get($data, $path);
 
                 if ($value === null || is_array($value) || is_object($value)) {
-                    return $this->missingMarker($path);
+                    return $this->missingMarker($path, $mostrarFaltantes);
                 }
 
                 return e($value);
@@ -101,9 +109,15 @@ HTML;
         return $result ?? $content;
     }
 
-    private function missingMarker(string $path): string
+    private function missingMarker(string $path, bool $mostrarFaltantes): string
     {
-        return '<span class="' . self::MISSING_CLASS . '" data-campo="' . e($path) . '">[FALTA: ' . e($path) . ']</span>';
+        if ($mostrarFaltantes) {
+            $class = self::MISSING_CLASS . ' ' . self::MISSING_VISIBLE_CLASS;
+
+            return '<span class="' . $class . '" data-campo="' . e($path) . '">[FALTA: ' . e($path) . ']</span>';
+        }
+
+        return '<span class="' . self::MISSING_CLASS . '" data-campo="' . e($path) . '">' . self::BLANK_FILL . '</span>';
     }
 
     /**
@@ -140,6 +154,10 @@ body {
     margin-top: 2em;
 }
 .campo-faltante {
+    /* Sin estilo por default: en el documento entregable es una linea en blanco discreta
+       (item #9990645). El resaltado vive en .campo-faltante-visible (modo admin). */
+}
+.campo-faltante-visible {
     background: #fff3cd;
     color: #b02a37;
     border: 1px solid #b02a37;
@@ -148,7 +166,7 @@ body {
     font-size: 0.9em;
 }
 @media print {
-    .campo-faltante {
+    .campo-faltante-visible {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
