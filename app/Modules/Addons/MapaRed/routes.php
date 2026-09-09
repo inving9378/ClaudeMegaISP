@@ -10,6 +10,7 @@ use App\Modules\Addons\MapaRed\Controllers\DevicesController;
 use App\Modules\Addons\MapaRed\Controllers\EmpalmesController;
 use App\Modules\Addons\MapaRed\Controllers\EnlacesController;
 use App\Modules\Addons\MapaRed\Controllers\EnlacesServicioController;
+use App\Modules\Addons\MapaRed\Controllers\FotosController;
 use App\Modules\Addons\MapaRed\Controllers\HilosController;
 use App\Modules\Addons\MapaRed\Controllers\ImpactoController;
 use App\Modules\Addons\MapaRed\Controllers\ImportadorController;
@@ -201,4 +202,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     // MR-23 fase 4a (item #9990518) — enlace trazado entre dos nodos del mapa (gate fino
     // mapa_red_trazar dentro del controller).
     Route::post('/enlaces', [EnlacesController::class, 'store'])->name('mapa-red.api.enlaces.store');
+    // MR-23 fase 4c (item #9990455) — fotos de nodos/enlaces (tabla polimórfica mapared_fotos).
+    Route::get('/fotos/{tipo}/{id}', [FotosController::class, 'index'])->name('mapa-red.api.fotos.index');
+    Route::post('/fotos/{tipo}/{id}', [FotosController::class, 'store'])->name('mapa-red.api.fotos.store');
+    Route::delete('/fotos/{id}', [FotosController::class, 'destroy'])->name('mapa-red.api.fotos.destroy');
 });

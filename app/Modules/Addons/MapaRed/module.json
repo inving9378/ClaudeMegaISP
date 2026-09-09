@@ -11,7 +11,10 @@
         { "name": "mapa_red_view", "description": "Ver módulo Mapa de Red" },
         { "name": "mapa_red.cable.crear_rapido", "description": "Mapa de Red: alta rápida de cable/troncal" },
         { "name": "mapa_red_historial_ver", "description": "Ver historial de cambios de nodos/enlaces del Mapa de Red" },
-        { "name": "mapa_red_trazar", "description": "Trazar enlaces en el Mapa de Red" }
+        { "name": "mapa_red_trazar", "description": "Trazar enlaces en el Mapa de Red" },
+        { "name": "mapa_red_fotos_ver", "description": "Ver fotos de nodos/enlaces del Mapa de Red" },
+        { "name": "mapa_red_fotos_subir", "description": "Subir fotos a nodos/enlaces del Mapa de Red" },
+        { "name": "mapa_red_fotos_eliminar", "description": "Eliminar fotos de nodos/enlaces del Mapa de Red" }
     ],
 
     "menu": [
