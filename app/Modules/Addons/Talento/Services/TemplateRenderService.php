@@ -2,6 +2,8 @@
 
 namespace App\Modules\Addons\Talento\Services;
 
+use Illuminate\Support\Facades\Storage;
+
 /**
  * Motor de plantillas del Expediente RH (item #200 — Hijo B). Generico y reutilizable por los
  * Hijos C (conversion de las 11 plantillas .docx) y D (paquetes por puesto).
@@ -95,6 +97,11 @@ HTML;
             '/\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/',
             function (array $m) use ($data, $mostrarFaltantes) {
                 $path = $m[1];
+
+                if (str_starts_with($path, 'firma.')) {
+                    return $this->renderFirma($path, $data);
+                }
+
                 $value = data_get($data, $path);
 
                 if ($value === null || is_array($value) || is_object($value)) {
@@ -107,6 +114,29 @@ HTML;
         );
 
         return $result ?? $content;
+    }
+
+    /**
+     * Item #9990654 (fase 3b+4a de #9990650). $data['firma'][slot] es
+     * ['signature_path' => ...|null] (armado por EmployeeDocumentPackageService). Si hay
+     * signature_path real, lo incrusta como <img> data-URI (documento HTML autocontenido, sin
+     * depender de una ruta autenticada). Si el slot no está firmado, deja el mismo BLANK_FILL
+     * que missingMarker() usa para el resto del renderer, pero SIN la clase campo-faltante: una
+     * firma pendiente no es un dato faltante del documento (no debe forzar status=pendiente).
+     */
+    private function renderFirma(string $path, array $data): string
+    {
+        $signaturePath = data_get($data, $path . '.signature_path');
+
+        if (!$signaturePath || !Storage::disk('local')->exists($signaturePath)) {
+            return '<span class="firma-pendiente">' . self::BLANK_FILL . '</span>';
+        }
+
+        $contents = Storage::disk('local')->get($signaturePath);
+        $mimeType = Storage::disk('local')->mimeType($signaturePath) ?: 'image/png';
+        $base64   = base64_encode($contents);
+
+        return '<img src="data:' . $mimeType . ';base64,' . $base64 . '" alt="Firma" class="firma-imagen">';
     }
 
     private function missingMarker(string $path, bool $mostrarFaltantes): string
@@ -156,6 +186,14 @@ body {
 .campo-faltante {
     /* Sin estilo por default: en el documento entregable es una linea en blanco discreta
        (item #9990645). El resaltado vive en .campo-faltante-visible (modo admin). */
+}
+.firma-imagen {
+    height: 60px;
+    vertical-align: middle;
+}
+.firma-pendiente {
+    /* Misma linea en blanco que .campo-faltante, sin marcar el documento como pendiente
+       (item #9990654): una firma sin capturar no es un dato faltante del documento. */
 }
 .campo-faltante-visible {
     background: #fff3cd;
