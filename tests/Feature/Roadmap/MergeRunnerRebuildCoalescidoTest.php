@@ -156,6 +156,12 @@ class TestableRebuildMergeRunner extends MergeRunner
         return $this->dir;
     }
 
+    /** #9990644 — mismo path que workDir(): syncCheckoutPrincipal() se autodesactiva (no-op). */
+    protected function checkoutPrincipalPath(): string
+    {
+        return $this->dir;
+    }
+
     protected function regression(): array
     {
         return ['ok' => true, 'detalle' => 'stub de prueba (#9990466)'];
