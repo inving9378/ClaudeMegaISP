@@ -92,6 +92,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/colaboradores/{id}/documentos/{docId}/firma', [TalentoEmployeeDocumentController::class, 'sign']);
             Route::get('/colaboradores/{id}/documentos/{docId}/firma',  [TalentoEmployeeDocumentController::class, 'firma']);
 
+            // ── Completar documento (item #9990647/#9990651): campos doc.* propios del documento ──
+            Route::post('/colaboradores/{id}/documentos/{docId}/completar', [TalentoEmployeeDocumentController::class, 'completar']);
+
             // ── Expediente ligero de Vendedor (Hijo E3, item #9990360) ────────
             Route::get('/vendedores/{sellerId}/expediente', [TalentoColaboradorController::class, 'expedienteVendedor']);
 

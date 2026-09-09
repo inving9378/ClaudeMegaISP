@@ -13,11 +13,13 @@ class TalentoDocumentTemplate extends BaseModel
 
     protected $fillable = [
         'name', 'category', 'description', 'current_version_id', 'active', 'requires_signature',
+        'fillable_fields',
     ];
 
     protected $casts = [
         'active' => 'boolean',
         'requires_signature' => 'boolean',
+        'fillable_fields' => 'array',
     ];
 
     public function versions()

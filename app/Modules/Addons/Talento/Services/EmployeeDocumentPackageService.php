@@ -67,18 +67,22 @@ class EmployeeDocumentPackageService
                 continue;
             }
 
+            // Item #9990647: preserva los datos_extra ya capturados por "Completar documento"
+            // (comisión mixta, lugar y fecha...) al regenerar en lote — updateOrCreate de abajo
+            // no toca esa columna, pero el render sí necesita leerla para no perder lo llenado.
+            $existente = TalentoEmployeeDocument::where('colaborador_id', $colaborador->id)
+                ->where('template_id', $template->id)
+                ->first();
+
             $dataDelDocumento = $data;
+            $dataDelDocumento['doc'] = $existente->datos_extra ?? [];
+
             if ($template->signatureSlots->isNotEmpty()) {
                 // La firma es por documento (employee_document_id + slot_key), no por
-                // colaborador: busca el TalentoEmployeeDocument existente de ESTE template (si
-                // ya se generó antes) para leer sus firmas ya capturadas. Un documento nuevo
-                // (sin id todavía) no puede tener firmas — data_get() en el renderer las deja
-                // en blanco, comportamiento correcto (item #9990654).
-                $documentoExistenteId = TalentoEmployeeDocument::where('colaborador_id', $colaborador->id)
-                    ->where('template_id', $template->id)
-                    ->value('id');
-
-                $dataDelDocumento['firma'] = $this->firmaData($template, $documentoExistenteId);
+                // colaborador: un documento nuevo (sin id todavía) no puede tener firmas —
+                // data_get() en el renderer las deja en blanco, comportamiento correcto
+                // (item #9990654).
+                $dataDelDocumento['firma'] = $this->firmaData($template, $existente?->id);
             }
 
             $html = $this->renderer->renderDocument($version->content, $dataDelDocumento, $template->name, $mostrarFaltantes);
@@ -122,6 +126,74 @@ class EmployeeDocumentPackageService
         }
 
         return $firma;
+    }
+
+    /**
+     * Item #9990647 — "Completar documento". Whitelist estricta contra el catálogo declarado
+     * en `template.fillable_fields` (group=doc): solo esas claves se escriben en datos_extra,
+     * nunca lo que venga crudo en $valores. El group=estandar (dato que viviría en el registro
+     * del colaborador) queda declarado en el esquema del catálogo pero SIN resolver de
+     * escritura todavía — hoy ningún template tiene un campo estandar faltante que capturar
+     * (ver hallazgo del item: los 4 placeholders empleado.* / empresa.* del Reglamento ya se
+     * llenan solos). Construir ese resolver sin un consumidor real sería anticipar un caso que
+     * no existe aún; queda como extensión natural cuando un template lo necesite.
+     */
+    public function completar(TalentoEmployeeDocument $documento, array $valores): TalentoEmployeeDocument
+    {
+        $documento->loadMissing('template');
+
+        $clavesDoc = collect($documento->template->fillable_fields ?? [])
+            ->where('group', 'doc')
+            ->pluck('key');
+
+        $datosExtra = $documento->datos_extra ?? [];
+        foreach ($clavesDoc as $clave) {
+            if (array_key_exists($clave, $valores)) {
+                $valor = $valores[$clave];
+                $datosExtra[$clave] = is_string($valor) ? trim($valor) : $valor;
+            }
+        }
+
+        $documento->datos_extra = $datosExtra;
+        $documento->save();
+
+        return $this->regenerateOne($documento);
+    }
+
+    /**
+     * Re-renderiza UN documento puntual (no todo el paquete del colaborador, a diferencia de
+     * `generateForColaborador`) con sus datos_extra vigentes. Mismo upsert seguro: no toca
+     * signature_path/signed_at (fuera del array de atributos que actualiza).
+     */
+    public function regenerateOne(TalentoEmployeeDocument $documento, bool $mostrarFaltantes = false): TalentoEmployeeDocument
+    {
+        $documento->loadMissing(['colaborador', 'template.currentVersion', 'template.signatureSlots']);
+
+        $colaborador = $documento->colaborador;
+        $version = $documento->template?->currentVersion;
+        if (!$colaborador || !$version) {
+            return $documento;
+        }
+
+        $data = $this->buildData($colaborador);
+        $data['doc'] = $documento->datos_extra ?? [];
+        // Mismo tratamiento de firma que generateForColaborador() (item #9990654): sin esto,
+        // completar() pisaría el HTML de un documento ya firmado y borraría la firma visible.
+        if ($documento->template->signatureSlots->isNotEmpty()) {
+            $data['firma'] = $this->firmaData($documento->template, $documento->id);
+        }
+
+        $html = $this->renderer->renderDocument($version->content, $data, $documento->template->name, $mostrarFaltantes);
+        $status = str_contains($html, 'campo-faltante') ? 'pendiente' : 'completo';
+
+        $documento->update([
+            'template_version_id' => $version->id,
+            'rendered_html'       => $html,
+            'status'              => $status,
+            'generated_at'        => now(),
+        ]);
+
+        return $documento->fresh();
     }
 
     private function buildData(TalentoColaborador $colaborador): array

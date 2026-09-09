@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Talento\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\Talento\Models\TalentoEmployeeDocument;
+use App\Modules\Addons\Talento\Services\EmployeeDocumentPackageService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
@@ -31,9 +32,9 @@ class TalentoEmployeeDocumentController extends Controller
         $this->authorize('talento.expediente.view');
 
         $documentos = TalentoEmployeeDocument::where('colaborador_id', $colaboradorId)
-            ->with('template:id,name,requires_signature')
+            ->with('template:id,name,requires_signature,fillable_fields')
             ->orderBy('id')
-            ->get(['id', 'colaborador_id', 'template_id', 'status', 'generated_at', 'signed_at', 'signature_method'])
+            ->get(['id', 'colaborador_id', 'template_id', 'status', 'generated_at', 'signed_at', 'signature_method', 'datos_extra'])
             ->map(function (TalentoEmployeeDocument $doc) use ($colaboradorId) {
                 $requiereFirma = (bool) ($doc->template->requires_signature ?? false);
                 $firmado = $doc->signed_at !== null;
@@ -55,6 +56,10 @@ class TalentoEmployeeDocumentController extends Controller
                     'signature_url' => $firmado
                         ? "/talento/api/colaboradores/{$colaboradorId}/documentos/{$doc->id}/firma"
                         : null,
+                    // Item #9990647/#9990651: catálogo de campos doc.* de ESTE template (group=doc,
+                    // los únicos que "Completar documento" captura hoy) + los valores ya guardados.
+                    'fillable_fields' => collect($doc->template->fillable_fields ?? [])->where('group', 'doc')->values(),
+                    'datos_extra' => $doc->datos_extra ?? (object) [],
                 ];
             });
 
@@ -144,6 +149,33 @@ class TalentoEmployeeDocumentController extends Controller
             'signed_at' => $documento->signed_at,
             'signature_method' => $documento->signature_method,
             'signature_url' => "/talento/api/colaboradores/{$colaboradorId}/documentos/{$docId}/firma",
+        ]);
+    }
+
+    /**
+     * Completa los campos doc.* de un documento ya generado (item #9990647/#9990651): datos
+     * propios del documento que no son atributo del colaborador (p.ej. comisión mixta, lugar y
+     * fecha del Reglamento). Whitelist real la hace el propio servicio contra
+     * template.fillable_fields (group=doc) — aquí solo se pasa el array crudo. Mismo scope
+     * anti-IDOR que show()/sign() (colaborador_id+docId, nunca el id crudo del documento).
+     */
+    public function completar(Request $request, $colaboradorId, $docId)
+    {
+        $this->authorize('talento.documentos.completar');
+
+        $documento = TalentoEmployeeDocument::where('colaborador_id', $colaboradorId)
+            ->where('id', $docId)
+            ->firstOrFail();
+
+        $valores = $request->input('valores', []);
+        abort_unless(is_array($valores), 422, 'valores debe ser un objeto/arreglo.');
+
+        $documento = app(EmployeeDocumentPackageService::class)->completar($documento, $valores);
+
+        return response()->json([
+            'id' => $documento->id,
+            'status' => $documento->status,
+            'generated_at' => $documento->generated_at,
         ]);
     }
 
