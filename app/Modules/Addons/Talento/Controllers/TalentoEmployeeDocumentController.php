@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Addons\Talento\Models\TalentoEmployeeDocument;
 use App\Modules\Addons\Talento\Models\TalentoEmployeeDocumentSignature;
 use App\Modules\Addons\Talento\Services\EmployeeDocumentPackageService;
+use App\Modules\Addons\Talento\Services\TemplateRenderService;
 use App\Modules\Addons\Talento\Support\SignatureSlotStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -161,7 +162,11 @@ class TalentoEmployeeDocumentController extends Controller
             ->where('id', $docId)
             ->firstOrFail();
 
-        return response($documento->rendered_html, Response::HTTP_OK)
+        // Item #9990666: reinyecta el CSS ACTUAL sobre el HTML congelado en BD, asi que
+        // mejoras de estilo aplican al instante a documentos ya generados sin regenerarlos.
+        $html = app(TemplateRenderService::class)->reinjectCurrentCss($documento->rendered_html);
+
+        return response($html, Response::HTTP_OK)
             ->header('Content-Type', 'text/html');
     }
 
