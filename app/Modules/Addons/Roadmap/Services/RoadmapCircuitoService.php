@@ -3562,7 +3562,12 @@ class RoadmapCircuitoService
             return $items->values(); // sin tag previo: todo lo mergeado es candidato
         }
 
-        $log = $this->git(['log', $tag . '..HEAD', '--format=%H', '--merges']);
+        // Rango contra `main` (rama estable de integración), NO contra HEAD: el checkout de
+        // /var/www/megaisp fluctúa (el circuito lo cambia a ramas de item-*), y una rama de
+        // feature que nació antes del tag no lo tiene de ancestro → `tag..HEAD` devolvía TODO
+        // lo mergeado (~1089) en vez de sólo lo posterior al tag. Con `main` el conteo es
+        // determinista sin importar qué rama esté checkouteada.
+        $log = $this->git(['log', $tag . '..main', '--format=%H', '--merges']);
         if (! $log->isSuccessful()) {
             return $items->values(); // git falló: falla-abierto (mejor mostrar de más que de menos)
         }
