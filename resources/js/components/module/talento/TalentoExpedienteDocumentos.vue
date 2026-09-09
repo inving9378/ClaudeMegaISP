@@ -30,6 +30,10 @@
           <button v-else-if="doc.requires_signature" @click="abrirFirma(doc)" type="button" class="btn btn-sm btn-outline-secondary">
             <i class="fa fa-signature me-1"></i>Volver a firmar
           </button>
+          <button v-if="doc.fillable_fields && doc.fillable_fields.length"
+                  @click="abrirCompletar(doc)" type="button" class="btn btn-sm btn-outline-primary">
+            <i class="fa fa-clipboard-check me-1"></i>Completar documento
+          </button>
         </div>
       </li>
     </ul>
@@ -101,6 +105,35 @@
         </div>
       </div>
     </div>
+
+    <!-- Modal de completar campos del documento (doc.*) -->
+    <div v-if="completarModal.show" class="modal d-block firma-modal-backdrop" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Completar documento — {{ completarModal.doc?.template?.name ?? '' }}</h5>
+            <button type="button" class="btn-close" :disabled="completarModal.saving" @click="cerrarCompletar"></button>
+          </div>
+          <div class="modal-body">
+            <div class="small text-muted mb-2">Datos del documento</div>
+            <div v-for="campo in completarModal.doc?.fillable_fields ?? []" :key="campo.key" class="mb-3">
+              <label class="form-label">{{ campo.label }}</label>
+              <input type="text" class="form-control" v-model="completarModal.valores[campo.key]">
+            </div>
+            <div v-if="completarModal.error" class="alert alert-danger mt-3 mb-0 py-2 small">{{ completarModal.error }}</div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" :disabled="completarModal.saving" @click="cerrarCompletar">
+              Cancelar
+            </button>
+            <button type="button" class="btn btn-primary" :disabled="completarModal.saving" @click="guardarCompletar">
+              <span v-if="completarModal.saving" class="spinner-border spinner-border-sm me-1"></span>
+              Guardar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -136,6 +169,13 @@ export default {
         previewDataUrl: null,
         uploadFile: null,
         uploadPreviewUrl: null,
+      },
+      completarModal: {
+        show: false,
+        doc: null,
+        valores: {},
+        saving: false,
+        error: null,
       },
     };
   },
@@ -314,6 +354,40 @@ export default {
         this.firmaModal.error = e?.response?.data?.message || 'No se pudo guardar la firma, intenta de nuevo.';
       } finally {
         this.firmaModal.saving = false;
+      }
+    },
+    abrirCompletar(doc) {
+      this.completarModal.doc = doc;
+      this.completarModal.valores = Object.fromEntries(
+        (doc.fillable_fields || []).map((campo) => [campo.key, doc.datos_extra?.[campo.key] ?? ''])
+      );
+      this.completarModal.error = null;
+      this.completarModal.saving = false;
+      this.completarModal.show = true;
+    },
+    cerrarCompletar() {
+      if (this.completarModal.saving) return;
+      this.completarModal.show = false;
+      this.completarModal.doc = null;
+      this.completarModal.valores = {};
+    },
+    async guardarCompletar() {
+      this.completarModal.error = null;
+      const doc = this.completarModal.doc;
+      if (!doc) return;
+
+      this.completarModal.saving = true;
+      try {
+        await axios.post(
+          `/talento/api/colaboradores/${this.colaboradorId}/documentos/${doc.id}/completar`,
+          { valores: this.completarModal.valores }
+        );
+        this.cerrarCompletar();
+        await this.load();
+      } catch (e) {
+        this.completarModal.error = e?.response?.data?.message || 'No se pudo guardar, intenta de nuevo.';
+      } finally {
+        this.completarModal.saving = false;
       }
     },
   },
