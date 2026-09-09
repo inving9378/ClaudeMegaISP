@@ -171,10 +171,22 @@
                                         />
                                     </div>
                                 </div>
-                                <OpticalBudgetPanel
-                                    v-if="enlaceAbierto === enlace.id"
-                                    :enlace-id="enlace.id"
-                                />
+                                <template v-if="enlaceAbierto === enlace.id">
+                                    <OpticalBudgetPanel :enlace-id="enlace.id" />
+
+                                    <div class="element-side-panel__enlace-fotos">
+                                        <div class="element-side-panel__label">
+                                            Fotos
+                                        </div>
+                                        <FotosPanel
+                                            :key="enlace.id"
+                                            tipo="enlace"
+                                            :id="enlace.id"
+                                            :can-subir="canSubirFotos"
+                                            :can-eliminar="canEliminarFotos"
+                                        />
+                                    </div>
+                                </template>
                             </div>
                         </div>
                         <div v-else class="text-caption text-grey">
@@ -625,6 +637,10 @@ const close = () => closeElementSidePanel();
     display: flex;
     align-items: center;
     gap: 2px;
+}
+
+.element-side-panel__enlace-fotos {
+    padding: 4px 0 10px;
 }
 
 .element-side-panel__actions {
