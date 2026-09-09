@@ -7,6 +7,7 @@ use App\Modules\Addons\Flotas\Models\FleetAssignment;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoDocumentTemplate;
 use App\Modules\Addons\Talento\Models\TalentoEmployeeDocument;
+use App\Modules\Addons\Talento\Models\TalentoEmployeeDocumentSignature;
 use App\Modules\Addons\Talento\Models\TalentoPuestoDocumentTemplate;
 use Illuminate\Support\Facades\DB;
 
@@ -60,13 +61,27 @@ class EmployeeDocumentPackageService
         $data = $this->buildData($colaborador);
         $documentos = [];
 
-        foreach (TalentoDocumentTemplate::active()->with('currentVersion')->whereIn('id', $templateIds)->get() as $template) {
+        foreach (TalentoDocumentTemplate::active()->with(['currentVersion', 'signatureSlots'])->whereIn('id', $templateIds)->get() as $template) {
             $version = $template->currentVersion;
             if (!$version) {
                 continue;
             }
 
-            $html = $this->renderer->renderDocument($version->content, $data, $template->name, $mostrarFaltantes);
+            $dataDelDocumento = $data;
+            if ($template->signatureSlots->isNotEmpty()) {
+                // La firma es por documento (employee_document_id + slot_key), no por
+                // colaborador: busca el TalentoEmployeeDocument existente de ESTE template (si
+                // ya se generó antes) para leer sus firmas ya capturadas. Un documento nuevo
+                // (sin id todavía) no puede tener firmas — data_get() en el renderer las deja
+                // en blanco, comportamiento correcto (item #9990654).
+                $documentoExistenteId = TalentoEmployeeDocument::where('colaborador_id', $colaborador->id)
+                    ->where('template_id', $template->id)
+                    ->value('id');
+
+                $dataDelDocumento['firma'] = $this->firmaData($template, $documentoExistenteId);
+            }
+
+            $html = $this->renderer->renderDocument($version->content, $dataDelDocumento, $template->name, $mostrarFaltantes);
             // La clase 'campo-faltante' se sigue agregando en AMBOS modos (item #9990645) —
             // el estado pendiente/completo no depende de si el marcador se ve o no.
             $status = str_contains($html, 'campo-faltante') ? 'pendiente' : 'completo';
@@ -83,6 +98,30 @@ class EmployeeDocumentPackageService
         }
 
         return $documentos;
+    }
+
+    /**
+     * 'firma' => [slot_key => ['signature_path' => ...|null]] SOLO para templates con slots
+     * declarados (retrocompat: un template sin filas en signatureSlots() no recibe key 'firma'
+     * en $data en absoluto — ver generateForColaborador()).
+     */
+    private function firmaData(TalentoDocumentTemplate $template, ?int $documentoId): array
+    {
+        $firma = [];
+
+        foreach ($template->signatureSlots as $slot) {
+            $signature = $documentoId
+                ? TalentoEmployeeDocumentSignature::where('employee_document_id', $documentoId)
+                    ->where('slot_key', $slot->key)
+                    ->first()
+                : null;
+
+            $firma[$slot->key] = [
+                'signature_path' => $signature?->signature_path,
+            ];
+        }
+
+        return $firma;
     }
 
     private function buildData(TalentoColaborador $colaborador): array
