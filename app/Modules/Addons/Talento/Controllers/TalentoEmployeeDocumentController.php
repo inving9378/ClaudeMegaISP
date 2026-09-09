@@ -18,8 +18,9 @@ use Illuminate\Support\Facades\Storage;
  * Gate 'talento.expediente.view' (NO 'talento.view'): el HTML renderizado trae CURP/NSS/RFC/
  * salario/domicilio (ver EmployeeDocumentPackageService::empleadoData), los mismos campos
  * sensibles que el item #199 aisló detrás de este permiso propio en TalentoColaboradorController.
- * La firma (escritura) usa 'talento.expediente.documentos.gestionar' — permiso creado en el
- * item #9990358 previendo justo esta acción ("Subir firmado").
+ * La firma y "Completar documento" (item #9990661, re-scope gap-driven: rutea a colaborador/
+ * user/CompanyInformation, no solo a datos_extra) usan 'talento.expediente.documentos.gestionar'
+ * — permiso creado en el item #9990358 previendo justo esta acción ("Subir firmado").
  */
 class TalentoEmployeeDocumentController extends Controller
 {
@@ -31,13 +32,18 @@ class TalentoEmployeeDocumentController extends Controller
     {
         $this->authorize('talento.expediente.view');
 
+        $service = app(EmployeeDocumentPackageService::class);
+
         $documentos = TalentoEmployeeDocument::where('colaborador_id', $colaboradorId)
             ->with('template:id,name,requires_signature,fillable_fields')
             ->orderBy('id')
-            ->get(['id', 'colaborador_id', 'template_id', 'status', 'generated_at', 'signed_at', 'signature_method', 'datos_extra'])
-            ->map(function (TalentoEmployeeDocument $doc) use ($colaboradorId) {
+            ->get(['id', 'colaborador_id', 'template_id', 'status', 'generated_at', 'signed_at', 'signature_method', 'datos_extra', 'rendered_html'])
+            ->map(function (TalentoEmployeeDocument $doc) use ($colaboradorId, $service) {
                 $requiereFirma = (bool) ($doc->template->requires_signature ?? false);
                 $firmado = $doc->signed_at !== null;
+                // Item #9990661: huecos REALES (parseados del rendered_html), ya no solo el
+                // catálogo fijo fillable_fields — ver EmployeeDocumentPackageService::missingFields.
+                $huecos = $service->missingFields($doc);
 
                 return [
                     'id' => $doc->id,
@@ -60,6 +66,11 @@ class TalentoEmployeeDocumentController extends Controller
                     // los únicos que "Completar documento" captura hoy) + los valores ya guardados.
                     'fillable_fields' => collect($doc->template->fillable_fields ?? [])->where('group', 'doc')->values(),
                     'datos_extra' => $doc->datos_extra ?? (object) [],
+                    // Item #9990661: gap-driven — dirigido por lo que REALMENTE falta en el
+                    // render (empleado.*/empresa.*/doc.*/fecha.*/vehiculo.*/herramientas.*), no
+                    // solo el catálogo doc.* declarado en el template.
+                    'huecos' => $huecos,
+                    'huecos_count' => count($huecos),
                 ];
             });
 
@@ -153,29 +164,59 @@ class TalentoEmployeeDocumentController extends Controller
     }
 
     /**
-     * Completa los campos doc.* de un documento ya generado (item #9990647/#9990651): datos
-     * propios del documento que no son atributo del colaborador (p.ej. comisión mixta, lugar y
-     * fecha del Reglamento). Whitelist real la hace el propio servicio contra
-     * template.fillable_fields (group=doc) — aquí solo se pasa el array crudo. Mismo scope
-     * anti-IDOR que show()/sign() (colaborador_id+docId, nunca el id crudo del documento).
+     * Item #9990661 — huecos REALES de un documento (parseados del rendered_html guardado, no
+     * el catálogo fijo doc.*): {ruta, label, destino, tipo, editable} por cada campo que el
+     * render dejó marcado .campo-faltante. Mismo scope anti-IDOR que show()/sign().
+     */
+    public function huecos($colaboradorId, $docId)
+    {
+        $this->authorize('talento.expediente.view');
+
+        $documento = TalentoEmployeeDocument::where('colaborador_id', $colaboradorId)
+            ->where('id', $docId)
+            ->with('template:id,name,requires_signature,fillable_fields')
+            ->firstOrFail();
+
+        $huecos = app(EmployeeDocumentPackageService::class)->missingFields($documento);
+
+        return response()->json([
+            'id' => $documento->id,
+            'huecos' => $huecos,
+            'huecos_count' => count($huecos),
+        ]);
+    }
+
+    /**
+     * Item #9990661 — re-scope gap-driven de #9990647/#9990651: ya no solo escribe doc.* a
+     * datos_extra, rutea CADA campo a su lugar real (colaborador/user si es dato del empleado,
+     * CompanyInformation si es dato de la empresa —comparte con TODOS los colaboradores—, o
+     * datos_extra si es puramente del documento). El mapa inverso whitelisteado vive en
+     * EmployeeDocumentPackageService — aquí solo se pasa el array crudo {ruta:valor}. Gate
+     * elevado a 'talento.expediente.documentos.gestionar' (mismo que sign(): esto ya escribe
+     * sobre el expediente real, no solo sobre el documento). Mismo scope anti-IDOR que
+     * show()/sign() (colaborador_id+docId, nunca el id crudo del documento).
      */
     public function completar(Request $request, $colaboradorId, $docId)
     {
-        $this->authorize('talento.documentos.completar');
+        $this->authorize('talento.expediente.documentos.gestionar');
 
         $documento = TalentoEmployeeDocument::where('colaborador_id', $colaboradorId)
             ->where('id', $docId)
             ->firstOrFail();
 
-        $valores = $request->input('valores', []);
-        abort_unless(is_array($valores), 422, 'valores debe ser un objeto/arreglo.');
+        $campos = $request->input('campos', []);
+        abort_unless(is_array($campos), 422, 'campos debe ser un objeto/arreglo.');
 
-        $documento = app(EmployeeDocumentPackageService::class)->completar($documento, $valores);
+        $resultado = app(EmployeeDocumentPackageService::class)->completar($documento, $campos);
+        $documento = $resultado['documento'];
 
         return response()->json([
             'id' => $documento->id,
             'status' => $documento->status,
             'generated_at' => $documento->generated_at,
+            'afecta_a_todos' => $resultado['afecta_a_todos'],
+            'huecos' => $resultado['huecos'],
+            'huecos_count' => count($resultado['huecos']),
         ]);
     }
 
