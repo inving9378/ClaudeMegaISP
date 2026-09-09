@@ -13,6 +13,7 @@ class ModuleRegistry extends Model
         'name',
         'installed_version',
         'type',
+        'instance_role',
         'active',
         'installed_at',
     ];
