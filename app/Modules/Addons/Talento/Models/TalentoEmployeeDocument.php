@@ -10,13 +10,14 @@ class TalentoEmployeeDocument extends BaseModel
 
     protected $fillable = [
         'colaborador_id', 'template_id', 'template_version_id',
-        'rendered_html', 'status', 'generated_at',
+        'rendered_html', 'status', 'generated_at', 'datos_extra',
         'signature_path', 'signed_at', 'signed_by', 'signature_method',
     ];
 
     protected $casts = [
         'generated_at' => 'datetime',
         'signed_at' => 'datetime',
+        'datos_extra' => 'array',
     ];
 
     public function colaborador()
