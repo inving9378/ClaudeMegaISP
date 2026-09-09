@@ -163,13 +163,18 @@ class EmployeeDocumentPackageService
             }
 
             $html = $this->renderer->renderDocument($version->content, $dataDelDocumento, $template->name, $mostrarFaltantes);
-            // La clase 'campo-faltante' se sigue agregando en AMBOS modos (item #9990645) —
-            // el estado pendiente/completo no depende de si el marcador se ve o no. Item
-            // #9990655: además de campo-faltante, un documento con slots de firma solo es
+            // Item #9990664: 'data-campo="' (no el bare 'campo-faltante') porque $html es el
+            // DOCUMENTO COMPLETO con el <style> de TemplateRenderService::printCss() embebido, y
+            // ese CSS siempre contiene literalmente ".campo-faltante {" como nombre de clase — el
+            // bare string hacía que la condición fuera SIEMPRE verdadera (ningún documento llegaba
+            // jamás a 'completo', firmado o no). 'data-campo="' solo lo agrega missingMarker() en
+            // el span real del campo faltante (en AMBOS modos, item #9990645), nunca el CSS —
+            // mismo patrón exacto que ya usa missingFields() para parsear huecos reales. Item
+            // #9990655: además de campo faltante, un documento con slots de firma solo es
             // 'completo' si TODOS los requeridos ya están firmados (SignatureSlotStatus, la
             // misma regla que usa TalentoEmployeeDocumentController — sin slots, retrocompat
             // exacto con el criterio legado de solo campo-faltante).
-            $status = str_contains($html, 'campo-faltante') || SignatureSlotStatus::pendienteFirma($template->signatureSlots, $firmasPorSlot)
+            $status = str_contains($html, 'data-campo="') || SignatureSlotStatus::pendienteFirma($template->signatureSlots, $firmasPorSlot)
                 ? 'pendiente'
                 : 'completo';
 
@@ -461,8 +466,10 @@ class EmployeeDocumentPackageService
         }
 
         $html = $this->renderer->renderDocument($version->content, $data, $documento->template->name, $mostrarFaltantes);
-        // Item #9990655: misma regla combinada que generateForColaborador() — ver comentario ahí.
-        $status = str_contains($html, 'campo-faltante') || SignatureSlotStatus::pendienteFirma($documento->template->signatureSlots, $firmasPorSlot)
+        // Item #9990664 + #9990655: misma regla combinada que generateForColaborador() — ver
+        // comentario ahí ('data-campo="', no el bare 'campo-faltante' que el CSS embebido volvía
+        // siempre-verdadero).
+        $status = str_contains($html, 'data-campo="') || SignatureSlotStatus::pendienteFirma($documento->template->signatureSlots, $firmasPorSlot)
             ? 'pendiente'
             : 'completo';
 
