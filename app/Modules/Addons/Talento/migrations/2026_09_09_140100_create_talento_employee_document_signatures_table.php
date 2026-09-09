@@ -26,7 +26,8 @@ return new class extends Migration
             $table->enum('signature_method', ['drawn', 'uploaded', 'digital'])->nullable();
             $table->timestamps();
 
-            $table->foreign('employee_document_id')->references('id')->on('talento_employee_documents')->onDelete('cascade');
+            $table->foreign('employee_document_id', 'teds_employee_document_id_foreign')
+                ->references('id')->on('talento_employee_documents')->onDelete('cascade');
             $table->foreign('signed_by')->references('id')->on('users')->onDelete('set null');
             $table->unique(['employee_document_id', 'slot_key'], 'teds_document_slot_unique');
         });
