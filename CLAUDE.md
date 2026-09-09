@@ -2123,3 +2123,21 @@ abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
 trabajo técnico real de Talento (placeholders en plantillas, renderer con imagen inline,
 `status_efectivo` por slots) sigue en #9990653/#9990654/#9990655, pendientes de que una terminal
 los reclame.
+
+## Item #9990658 — Fix leak de `.modal-backdrop` en 3 componentes Flotas (candado permisos + aplicar pago se ven gris) (RESUELTO — ya aplicado por commit directo antes de reclamarse)
+
+Sub-item de seguimiento de #126 (creado 2026-09-09 09:16), con el diagnóstico exacto ya hecho:
+`FleetGeofenceShow.vue`, `FleetGeofenceList.vue` y `FleetRuleList.vue` tenían un `<style>`
+NO-scoped con la regla global `.modal-backdrop.show { z-index: 9998; opacity: .5 }`, que se
+inyecta en `<head>` para TODA la app y sube el backdrop sobre otros modales (candado de
+administración/permisos, aplicar pago en clientes), dejando la pantalla en gris. Al llegar a
+ejecutarlo, el fix **ya estaba en `main`**: commit `29156e4c` ("evita que el backdrop de 3
+modales tape ModalSimple/pagos"), aplicado directo por Irving 2 minutos después de crearse el
+item (mismo acto en que se diagnosticó #126) y ya integrado antes de que el pool repartiera
+#9990658 — mismo patrón de carrera de timing documentado para #733/#741/#753/#9990003/#9990353.
+Verificado línea por línea: los 3 archivos tienen `<style scoped>` (no `<style>` a secas) y usan
+clases propias del componente (`flt-geofence-backdrop`, `flt-rule-backdrop`) en vez de la clase
+global en el div del backdrop; `grep` confirma que no queda ninguna regla `.modal-backdrop.show`
+NO-scoped en esos 3 archivos; `ModalSimple.vue` intacto (fuera de alcance). Detalle en
+`docs/flotas-modal-backdrop-leak-item-9990658-verificacion.md`. **Sin cambio de código** — el fix
+ya estaba aplicado.
