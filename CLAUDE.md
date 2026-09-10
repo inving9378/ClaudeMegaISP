@@ -7,8 +7,30 @@ Guía de contexto para Claude Code en este repositorio. Leer antes de explorar.
 ## ⭐ REGLA PERMANENTE — Bitácora de sesiones (los cortes de internet borran reportes)
 
 Al **cerrar cualquier tarea grande**, además del reporte en pantalla, **escribir el reporte en
-`docs/bitacora-sesiones.md`** con **fecha/hora** (formato `## YYYY-MM-DD HH:MM — <título>`).
-**Siempre APPEND, nunca sobrescribir.** Esto sobrevive a los cortes de conexión.
+un archivo PROPIO**:
+
+```
+docs/bitacora/<YYYY-MM-DD>-item-<id>.md
+```
+
+Un archivo por item. Dentro, el mismo formato de siempre: `## YYYY-MM-DD HH:MM — <título>`,
+y **APPEND** si se vuelve a trabajar el mismo item el mismo día. Esto sobrevive a los cortes
+de conexión, que es para lo que existe la regla.
+
+**⚠️ CAMBIO 2026-09-10 — ya NO se escribe en `docs/bitacora-sesiones.md`.** Ese archivo era
+uno solo, común a todas las ramas: con varias terminales trabajando en paralelo, *cada* rama
+lo tocaba y *cada* merge conflictuaba ahí. Un archivo nuevo por item **no conflictúa nunca**,
+porque ninguna otra rama lo tiene.
+
+De paso queda mejor organizado: buscar qué pasó con un item es abrir su archivo, no recorrer
+un log común de 4,200 líneas y 126 entradas.
+
+**El histórico se conserva.** `docs/bitacora-sesiones.md` queda como está y no se migra ni se
+borra: lo escrito hasta el 2026-09-10 sigue ahí y se sigue consultando. Solo se deja de
+escribir en él.
+
+Si el trabajo no tiene item del roadmap, usar un slug descriptivo en su lugar:
+`docs/bitacora/2026-09-10-auditoria-asterisk.md`.
 
 ---
 
