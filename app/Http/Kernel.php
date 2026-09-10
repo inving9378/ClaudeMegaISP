@@ -62,6 +62,9 @@ class Kernel extends HttpKernel
         'auth.basic' => \Illuminate\Auth\Middleware\AuthenticateWithBasicAuth::class,
         'cache.headers' => \Illuminate\Http\Middleware\SetCacheHeaders::class,
         'can' => \Illuminate\Auth\Middleware\Authorize::class,
+        // Exige que ESTA instalación tenga el rol pedido ('operador'|'cliente').
+        // Segunda barrera del blindaje de módulos de operador (ver App\Support\RolInstancia).
+        'rol.instancia' => \App\Http\Middleware\RequiereRolInstancia::class,
         'guest' => \App\Modules\Core\Auth\Middleware\RedirectIfAuthenticated::class,
         'password.confirm' => \Illuminate\Auth\Middleware\RequirePassword::class,
         'signed' => \Illuminate\Routing\Middleware\ValidateSignature::class,

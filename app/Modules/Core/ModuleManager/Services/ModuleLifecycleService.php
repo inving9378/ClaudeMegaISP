@@ -7,6 +7,7 @@ use App\Modules\Core\ModuleManager\Models\ModuleMigration;
 use App\Modules\Core\ModuleManager\Models\ModuleRegistry;
 use App\Modules\Core\Security\Services\PermissionSyncService;
 use Illuminate\Support\Facades\Artisan;
+use App\Support\RolInstancia;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Spatie\Permission\Models\Permission;
@@ -62,6 +63,23 @@ class ModuleLifecycleService
             throw new \LogicException("El módulo '{$slug}' es core y se gestiona automáticamente.");
         }
 
+        // Rol de instalación exigido por el módulo (Sprint 1 · Voz Mayorista).
+        //
+        // Genérico a propósito: cualquier módulo puede declarar `instance_role`
+        // en su manifiesto y este gate lo respeta. Van a venir más módulos que
+        // solo tengan sentido en la instalación de Meganet —facturación
+        // mayorista, aprovisionamiento de VMs— y todos necesitan exactamente
+        // esto. Un módulo que no lo declara no exige nada y sigue instalándose
+        // igual que siempre, así que los módulos ya registrados no cambian.
+        //
+        // NO admite `$force`: el resto de los checks de este método protegen
+        // contra errores del operador, pero este protege el negocio de Meganet
+        // de una instalación de cliente. Forzarlo no es un caso de uso.
+        $rolExigido = $manifest['instance_role'] ?? null;
+        if (! RolInstancia::satisface($rolExigido)) {
+            throw new \LogicException(RolInstancia::mensajeRechazo($slug, (string) $rolExigido));
+        }
+
         $registry = ModuleRegistry::where('slug', $slug)->first();
         if ($registry && $registry->active) {
             throw new \LogicException("El módulo '{$slug}' ya está instalado y activo.");
@@ -85,14 +103,24 @@ class ModuleLifecycleService
             $this->registerPermissions($manifest);
 
             $version = $manifest['version'] ?? '0.1.0';
+            // `instance_role` se persiste desde el manifiesto para poder auditar
+            // desde la base qué módulos de esta instalación son de operador, sin
+            // recorrer los module.json. NULL = no exige rol (los 48 ya registrados).
+            $rolExigido = $manifest['instance_role'] ?? null;
             if ($registry) {
-                $registry->update(['active' => true, 'installed_version' => $version, 'installed_at' => now()]);
+                $registry->update([
+                    'active'            => true,
+                    'installed_version' => $version,
+                    'installed_at'      => now(),
+                    'instance_role'     => $rolExigido,
+                ]);
             } else {
                 ModuleRegistry::create([
                     'slug'              => $slug,
                     'name'              => $manifest['name'] ?? $slug,
                     'installed_version' => $version,
                     'type'              => $manifest['type'] ?? 'addon',
+                    'instance_role'     => $rolExigido,
                     'active'            => true,
                     'installed_at'      => now(),
                 ]);
