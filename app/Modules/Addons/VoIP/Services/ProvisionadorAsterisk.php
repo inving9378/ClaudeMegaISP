@@ -13,10 +13,12 @@ use Symfony\Component\Process\Process;
 /**
  * Orquesta la provisión completa de Asterisk (#9990718 §3).
  *
- * El orden es el contrato: **paquete → esquema → configuración → arranque**.
- * Invertir cualquiera deja la central en un estado inconsistente — arrancar antes
- * de configurar levanta un Asterisk que no sabe dónde está su base; configurar
- * antes de crear el esquema escribe un mapeo a tablas que no existen.
+ * El orden es el contrato: **paquete → esquema → credenciales → configuración →
+ * siembra → arranque**. Invertir cualquiera deja la central en un estado
+ * inconsistente — arrancar antes de configurar levanta un Asterisk que no sabe
+ * dónde está su base; configurar antes de crear el esquema escribe un mapeo a
+ * tablas que no existen; y configurar antes de generar las credenciales deja
+ * manager.conf con el hueco vacío mientras el secreto bueno vive sólo en el .env.
  *
  * ─── POR QUÉ QUINCE PASOS Y NO DIEZ ───────────────────────────────────────
  *
@@ -79,8 +81,16 @@ class ProvisionadorAsterisk
         'generar_config'    => 'asterisk.conf, unit de systemd y alembic.ini',
         'crear_base'        => 'Base de datos realtime',
         'migrar_esquema'    => 'alembic upgrade head',
-        'config'            => 'Configuración de MegaISP desde plantillas',
+        // Las credenciales ANTES de la configuración, y no al revés.
+        //
+        // manager.conf y ari.conf llevan el secreto DENTRO, así que renderizarlos
+        // antes de generarlo los deja con el hueco vacío — y lo que se genera
+        // después va sólo al .env. En dev no se veía porque el .env ya traía
+        // AMI_SECRET de antes; en la instalación nueva de un cliente, que es el
+        // caso que este provisionador existe para cubrir, el AMI quedaría con la
+        // contraseña en blanco de un lado y la buena del otro, sin un solo error.
         'credenciales'      => 'Credenciales AMI y ARI',
+        'config'            => 'Configuración de MegaISP desde plantillas',
         'siembra'           => 'Plan de numeración y extensiones',
         'arrancar'          => 'Arranque del servicio',
         'validar'           => 'Validación final',
@@ -192,8 +202,8 @@ class ProvisionadorAsterisk
 
             $this->paso('crear_base', fn () => $this->crearBaseRealtime());
             $revision = $this->paso('migrar_esquema', fn () => $this->migrarEsquema());
-            $this->paso('config',       fn () => $this->escribirConfiguracion());
             $this->paso('credenciales', fn () => $this->generarCredenciales());
+            $this->paso('config',       fn () => $this->escribirConfiguracion());
             $this->paso('siembra',      fn () => $this->sembrar());
             $this->paso('arrancar',     fn () => $this->arrancarServicio());
             $this->paso('validar',      fn () => $this->validarFinal());
@@ -794,21 +804,77 @@ class ProvisionadorAsterisk
         return ['activo' => trim((new Process(['systemctl', 'is-active', 'asterisk']))->mustRun()->getOutput())];
     }
 
+    /**
+     * Le pregunta a la central, que es la única que sabe si quedó en pie.
+     *
+     * Comprueba la CADENA COMPLETA, no sólo que carguen los módulos. Cada eslabón
+     * de aquí se rompió de verdad durante la puesta a punto de este provisionador,
+     * y ninguno se notaba en los pasos anteriores, que se asentaban «completado»:
+     *
+     *   · Sin DSN de unixODBC, res_odbc carga y no abre nada.
+     *   · Sin la configuración aplicada (se proponía como .nuevo y se quedaba
+     *     ahí), Asterisk corría con los ejemplos: sin realtime.
+     *   · Sin publicar las extensiones a `ps_endpoints`, la central no ve
+     *     ninguna aunque MegaISP muestre treinta en pantalla.
+     *   · Sin el contexto `from-internal`, las extensiones registran y no se
+     *     pueden llamar entre sí.
+     *
+     * Un paso de validación que no mira estas cuatro cosas deja pasar una central
+     * instalada y muerta, que es exactamente lo que este item vino a corregir.
+     */
     private function validarFinal(): array
     {
         $cli = fn (string $cmd) => tap(Process::fromShellCommandline(
             'sudo -n /usr/sbin/asterisk -rx ' . escapeshellarg($cmd), null, null, null, 60
         ))->run()->getOutput();
 
+        // La CLI misma: si no contesta, no hay nada más que preguntar. Pasó por
+        // no declarar RuntimeDirectory en la unit, con systemd reportando
+        // «active (running)» todo el tiempo.
+        $version = $cli('core show version');
+        if (! str_contains($version, 'Asterisk')) {
+            throw new RuntimeException(
+                'la central no responde por su CLI (asterisk -rx). El servicio puede figurar '
+                . 'como activo y aun así no tener socket de control: revisa RuntimeDirectory en la unit'
+            );
+        }
+
         $odbc = $cli('odbc show all');
         if (! str_contains($odbc, 'Number of active connections')) {
-            throw new RuntimeException('ODBC no reporta conexión activa: la base realtime no está cableada');
+            throw new RuntimeException(
+                'ODBC no reporta conexión activa: la base realtime no está cableada. '
+                . 'Suele ser el DSN de unixODBC ausente en /etc/odbc.ini, o res_odbc.conf sin aplicar'
+            );
+        }
+
+        // Lo que la central ve por realtime, contra lo que MegaISP tiene sembrado.
+        $enBase   = (int) \App\Modules\Addons\VoIP\Models\Extension::count();
+        $endpoints = preg_match_all('/^\s*Endpoint:/m', $cli('pjsip show endpoints'));
+
+        if ($enBase > 0 && $endpoints === 0) {
+            throw new RuntimeException(
+                "la central no ve NINGUNA extensión y MegaISP tiene {$enBase} sembradas: "
+                . 'el realtime no está publicando (revisa extconfig.conf, sorcery.conf y ps_endpoints)'
+            );
+        }
+
+        // El plan de marcado: sin él las extensiones se registran y no pueden
+        // llamarse entre sí, que es media central.
+        $dialplan = $cli('dialplan show from-internal');
+        if (! str_contains($dialplan, 'from-internal')) {
+            throw new RuntimeException(
+                'no existe el contexto «from-internal» en el plan de marcado: las extensiones '
+                . 'podrán registrarse pero no llamarse entre sí (revisa extensions.conf)'
+            );
         }
 
         return [
-            'odbc'       => 'conectado',
-            'modulos'    => substr_count($cli('module show like res_pjsip'), 'res_pjsip'),
-            'transports' => trim($cli('pjsip show transports')) !== '' ? 'ok' : 'sin transporte',
+            'odbc'         => 'conectado',
+            'modulos'      => substr_count($cli('module show like res_pjsip'), 'res_pjsip'),
+            'transports'   => trim($cli('pjsip show transports')) !== '' ? 'ok' : 'sin transporte',
+            'endpoints'    => $endpoints,
+            'extensiones'  => $enBase,
+            'from_internal' => 'presente',
         ];
     }
 
