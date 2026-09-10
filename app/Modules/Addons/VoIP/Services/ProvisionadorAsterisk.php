@@ -4,6 +4,7 @@ namespace App\Modules\Addons\VoIP\Services;
 
 use App\Modules\Addons\VoIP\Models\ProvisionEstado;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -12,39 +13,94 @@ use Symfony\Component\Process\Process;
 /**
  * Orquesta la provisión completa de Asterisk (#9990718 §3).
  *
- * Diez pasos, en este orden y no en otro: **paquete → esquema → configuración →
- * arranque**. Invertir cualquiera deja la central en un estado inconsistente —
- * arrancar antes de configurar levanta un Asterisk que no sabe dónde está su
- * base; configurar antes de crear el esquema escribe un mapeo a tablas que no
- * existen.
+ * El orden es el contrato: **paquete → esquema → configuración → arranque**.
+ * Invertir cualquiera deja la central en un estado inconsistente — arrancar antes
+ * de configurar levanta un Asterisk que no sabe dónde está su base; configurar
+ * antes de crear el esquema escribe un mapeo a tablas que no existen.
  *
- * Cada paso se asienta en `voip_provision_estado` con **la versión del
- * provisionador que lo ejecutó**, para poder reintentar desde donde se quedó sin
- * adivinar si lo ya hecho sigue valiendo (ver el modelo).
+ * ─── POR QUÉ QUINCE PASOS Y NO DIEZ ───────────────────────────────────────
+ *
+ * Los pasos eran diez, pero tres de ellos mentían: `descargar` invocaba el script
+ * de shell **entero** —bajar, compilar, instalar, preservar Alembic y generar
+ * configuración— mientras `dependencias` y `compilar` no hacían nada y se
+ * asentaban como completados igual.
+ *
+ * El coste no era cosmético. Un fallo al generar `alembic.ini` (el último 5% del
+ * script) marcaba `descargar: fallido`, y reintentar volvía a lanzar el script
+ * completo: media hora de `make` para morir en el mismo sitio. La tabla de estado
+ * y `reutilizablePor()` existen justamente para evitar eso, y con un paso que
+ * abarcaba el 95% del trabajo no tenían nada que reutilizar.
+ *
+ * Ahora cada tramo caro es su propio paso, con su propio estado, y el script se
+ * invoca una vez por fase (`--fase=…`).
+ *
+ * ─── LA VERDAD ESTÁ EN EL SERVIDOR, NO EN LA TABLA ────────────────────────
+ *
+ * Saltarse trabajo por lo que dice la tabla es frágil: basta actualizar MegaISP a
+ * media provisión para que el estado registrado ya no corresponda a la lógica que
+ * va a continuar. Por eso `reutilizablePor()` descarta lo que dejó una versión
+ * anterior — y por eso, además, **cada fase comprueba el disco**: si Asterisk ya
+ * está instalado en la versión del manifiesto, `instalar` lo dice y sale sin
+ * tocar nada, aunque la tabla esté vacía.
+ *
+ * Las dos cosas juntas son lo que hace barato el reintento: la tabla evita repetir
+ * dentro de una misma versión, y la comprobación del servidor evita repetir entre
+ * versiones distintas.
+ *
+ * ─── EL CONTRATO SE EXIGE ANTES DE TRABAJAR ───────────────────────────────
+ *
+ * El primer paso valida el manifiesto y la conexión realtime, y además invoca
+ * `--fase=contrato` para que sea **el propio script** quien confirme que tiene
+ * todo lo que consume. Así el emisor y el consumidor no pueden discrepar en
+ * silencio, que es como una provisión llegó a morir en el último paso con
+ * `KeyError: 'ASTERISK_DB_DRIVER'` después de compilar media hora.
  *
  * ─── QUÉ NO HACE ──────────────────────────────────────────────────────────
  *
  * No compila: eso lo hace `provisioning/provisionar-asterisk.sh`, que necesita
- * root. Esta clase lo invoca y lee su resultado. La frontera está ahí a propósito:
- * PHP corre como www-data y no debe instalar paquetes ni tocar systemd.
+ * root. Esta clase lo invoca fase a fase y lee su resultado. La frontera está ahí
+ * a propósito: PHP corre como www-data y no debe instalar paquetes ni tocar
+ * systemd.
  *
- * No escribe credenciales a mano: usa `EscritorEnv`, que respalda, escribe atómico
- * y valida.
+ * No escribe credenciales a mano: usa `EscritorEnv`, que respalda, escribe
+ * atómico y valida.
  */
 class ProvisionadorAsterisk
 {
-    /** Los diez pasos, en orden de ejecución. El orden ES el contrato. */
+    /** Los pasos, en orden de ejecución. El orden ES el contrato. */
     public const PASOS = [
-        'verificar'    => 'Estado actual del servidor',
-        'descargar'    => 'Descarga y verificación del tarball',
-        'dependencias' => 'Dependencias de compilación',
-        'compilar'     => 'Compilación e instalación',
-        'esquema'      => 'Base realtime y alembic upgrade',
-        'config'       => 'Configuración desde plantillas',
-        'credenciales' => 'Generación de credenciales AMI y ARI',
-        'siembra'      => 'Plan de numeración y extensiones',
-        'arrancar'     => 'Arranque del servicio',
-        'validar'      => 'Validación final',
+        'verificar'         => 'Contrato, manifiesto y estado del servidor',
+        'descargar'         => 'Descarga del tarball',
+        'verificar_hash'    => 'Verificación sha256 contra el manifiesto',
+        'dependencias'      => 'Dependencias de compilación y cadena de Alembic',
+        'compilar'          => 'Compilación',
+        'instalar'          => 'Instalación de binarios y sonidos',
+        'preservar_alembic' => 'Preservación del árbol de Alembic',
+        'generar_config'    => 'asterisk.conf, unit de systemd y alembic.ini',
+        'crear_base'        => 'Base de datos realtime',
+        'migrar_esquema'    => 'alembic upgrade head',
+        'config'            => 'Configuración de MegaISP desde plantillas',
+        'credenciales'      => 'Credenciales AMI y ARI',
+        'siembra'           => 'Plan de numeración y extensiones',
+        'arrancar'          => 'Arranque del servicio',
+        'validar'           => 'Validación final',
+    ];
+
+    /**
+     * Pasos que delega al script de shell, con el tiempo máximo de cada uno.
+     *
+     * Los timeouts son por fase y no uno global de 90 minutos: una descarga que
+     * se cuelga no tiene por qué esperar lo que espera un `make -j`, y un tope
+     * ajustado hace que un cuelgue se note en minutos en vez de en una hora.
+     */
+    private const FASES_SCRIPT = [
+        'descargar'         => 1200,   // 20 min: red lenta, tarball de ~30 MB
+        'verificar_hash'    => 300,
+        'dependencias'      => 1800,   // apt puede tardar en un servidor recién puesto
+        'compilar'          => 5400,   // 90 min: es el tramo caro, y en una VM modesta lo usa
+        'instalar'          => 1800,
+        'preservar_alembic' => 600,
+        'generar_config'    => 300,
     ];
 
     private string $uuid;
@@ -60,9 +116,7 @@ class ProvisionadorAsterisk
      *
      * Antes se generaba un UUID nuevo en cada corrida, y como los pasos se buscan
      * por UUID, `$previo` salía siempre null: nada se reutilizaba jamás. La tabla
-     * de estado registraba el avance correctamente y aun así reintentar volvía a
-     * empezar de cero — media hora de compilación por delante después de un fallo
-     * en el último paso.
+     * registraba el avance correctamente y aun así reintentar empezaba de cero.
      *
      * Retomar no es dar por bueno lo anterior a ciegas: cada paso sigue pasando
      * por `reutilizablePor()`, que rechaza lo que dejó una versión distinta del
@@ -126,11 +180,18 @@ class ProvisionadorAsterisk
         $revision = null;
 
         try {
-            $this->paso('verificar',    fn () => $this->verificarEstado());
-            $this->paso('descargar',    fn () => $this->instalarBinario('descargar'));
-            $this->paso('dependencias', fn () => ['nota' => 'lo hace el script de instalación']);
-            $this->paso('compilar',     fn () => ['nota' => 'lo hace el script de instalación']);
-            $revision = $this->paso('esquema', fn () => $this->aplicarEsquema());
+            // Primero el contrato. Si falta un valor, se sabe aquí y no después
+            // de compilar: es la diferencia entre un fallo de un segundo y uno
+            // de media hora.
+            $this->paso('verificar', fn () => $this->verificarContratoYEstado());
+
+            // Las fases caras, cada una con su estado propio.
+            foreach (self::FASES_SCRIPT as $paso => $timeout) {
+                $this->paso($paso, fn () => $this->correrFase($paso, $timeout));
+            }
+
+            $this->paso('crear_base', fn () => $this->crearBaseRealtime());
+            $revision = $this->paso('migrar_esquema', fn () => $this->migrarEsquema());
             $this->paso('config',       fn () => $this->escribirConfiguracion());
             $this->paso('credenciales', fn () => $this->generarCredenciales());
             $this->paso('siembra',      fn () => $this->sembrar());
@@ -164,9 +225,11 @@ class ProvisionadorAsterisk
     /**
      * Ejecuta un paso, lo asienta, y decide si puede saltárselo.
      *
-     * Un paso `completado` por una versión ANTERIOR no se reutiliza: su criterio de
-     * "completado" pudo cambiar, y darlo por bueno sería confiar en un estado que
-     * ya no corresponde a la lógica actual.
+     * Un paso `completado` por una versión ANTERIOR no se reutiliza: su criterio
+     * de "completado" pudo cambiar, y darlo por bueno sería confiar en un estado
+     * que ya no corresponde a la lógica actual. Cuando eso pasa, el paso se
+     * vuelve a ejecutar — y es la comprobación del servidor que hace cada fase,
+     * no la tabla, la que evita repetir el trabajo caro.
      */
     private function paso(string $nombre, callable $fn): mixed
     {
@@ -195,7 +258,11 @@ class ProvisionadorAsterisk
             $detalle = $fn();
 
             $registro->update([
-                'estado'           => 'completado',
+                // Un paso que no tuvo nada que hacer se asienta como `omitido`,
+                // no como `completado`: en el reporte no es lo mismo «se
+                // compiló» que «ya estaba compilado», y confundirlos es cómo se
+                // pierde de vista qué hizo realmente una corrida.
+                'estado'           => (is_array($detalle) && ($detalle['omitido'] ?? false)) ? 'omitido' : 'completado',
                 'detalle'          => is_array($detalle) ? $detalle : ['resultado' => $detalle],
                 'esquema_revision' => is_array($detalle) ? ($detalle['revision'] ?? null) : null,
                 'terminado_at'     => now(),
@@ -220,9 +287,68 @@ class ProvisionadorAsterisk
 
     // ── Los pasos ────────────────────────────────────────────────────────
 
-    private function verificarEstado(): array
+    /**
+     * Contrato completo, antes de que nada cueste tiempo.
+     *
+     * Dos mitades que se comprueban juntas a propósito:
+     *
+     *   · Lo que ESTA clase necesita para armar los parámetros (el manifiesto y
+     *     la conexión `asterisk_rt`).
+     *   · Lo que el SCRIPT exige para trabajar, preguntándoselo a él con
+     *     `--fase=contrato` en vez de replicar aquí sus reglas.
+     *
+     * Preguntarle al script es lo que impide que emisor y consumidor discrepen
+     * en silencio: una variable que este lado no manda y aquel lado sí consume
+     * aparece ahora en el segundo cero, y ya no a los treinta minutos.
+     */
+    private function verificarContratoYEstado(): array
     {
-        $binario  = '/usr/sbin/asterisk';
+        $faltan = [];
+
+        foreach (['version', 'origen', 'archivo', 'sha256'] as $clave) {
+            if (blank($this->manifiesto[$clave] ?? null)) {
+                $faltan[] = "config/requisitos-voip.php → asterisk.{$clave}";
+            }
+        }
+
+        $rt = (array) config('database.connections.asterisk_rt');
+
+        if (! $rt) {
+            $faltan[] = "la conexión 'asterisk_rt' no existe en config/database.php";
+        } else {
+            foreach (['host', 'port', 'database', 'username', 'password'] as $clave) {
+                if (blank($rt[$clave] ?? null)) {
+                    $faltan[] = "database.connections.asterisk_rt.{$clave} (del .env, ASTERISK_RT_DB_*)";
+                }
+            }
+        }
+
+        if ($faltan) {
+            throw new RuntimeException(
+                "el contrato de provisión está incompleto y no se empieza a trabajar sin él:\n        · "
+                . implode("\n        · ", $faltan)
+            );
+        }
+
+        // Ahora que el script confirme, con SUS reglas, que no le falta nada.
+        $this->correrFase('contrato', 120);
+
+        $estado = $this->estadoDelServidor();
+
+        $this->di(sprintf(
+            '    instalada: %s · pedida: %s · alembic preservado: %s',
+            $estado['instalada'] ?? '(ninguna)',
+            $estado['pedida'] ?? '?',
+            $estado['hay_alembic'] ? 'sí' : 'no'
+        ));
+
+        return $estado;
+    }
+
+    /** Lo que hay realmente en el disco de este servidor. */
+    private function estadoDelServidor(): array
+    {
+        $binario   = '/usr/sbin/asterisk';
         $instalada = null;
 
         if (is_executable($binario)) {
@@ -233,46 +359,31 @@ class ProvisionadorAsterisk
             }
         }
 
-        $pedida = $this->manifiesto['version'] ?? null;
+        $pedida  = $this->manifiesto['version'] ?? null;
+        $soporte = $this->manifiesto['soporte_dir'] ?? '/usr/share/megaisp-asterisk';
 
         return [
-            'instalada'  => $instalada,
-            'pedida'     => $pedida,
-            'cumple'     => $instalada !== null && $instalada === $pedida,
-            'hay_alembic'=> is_dir(($this->manifiesto['soporte_dir'] ?? '') . '/alembic'),
+            'instalada'   => $instalada,
+            'pedida'      => $pedida,
+            'cumple'      => $instalada !== null && $instalada === $pedida,
+            'hay_alembic' => is_dir($soporte . '/alembic/config/versions'),
         ];
     }
 
-    /** Invoca el script que compila. Es lo único que necesita root. */
-    private function instalarBinario(string $paso): array
+    /**
+     * Invoca UNA fase del script. Es lo único que necesita root.
+     *
+     * Una invocación por fase, y no una sola para todo: así el estado que se
+     * asienta corresponde a un tramo real de trabajo, y reintentar retoma donde
+     * se quedó en vez de repetir desde el principio.
+     */
+    private function correrFase(string $fase, int $timeout): array
     {
-        $estado = $this->verificarEstado();
-
-        if ($estado['cumple'] && $estado['hay_alembic']) {
-            return ['omitido' => true, 'motivo' => 'la versión pedida ya está instalada y Alembic preservado'];
-        }
-
         $script = base_path('app/Modules/Addons/VoIP/provisioning/provisionar-asterisk.sh');
+
         if (! is_file($script)) {
             throw new RuntimeException("No encuentro el script de instalación en {$script}.");
         }
-
-        $env = [
-            'ASTERISK_VERSION'             => $this->manifiesto['version'] ?? '',
-            'ASTERISK_ORIGEN'              => $this->manifiesto['origen'] ?? '',
-            'ASTERISK_ARCHIVO'             => $this->manifiesto['archivo'] ?? '',
-            'ASTERISK_SHA256'              => $this->manifiesto['sha256'] ?? '',
-            'ASTERISK_IDIOMA'              => $this->manifiesto['idioma'] ?? 'es',
-            'ASTERISK_ESPACIO_MIN_MB'      => (string) ($this->manifiesto['espacio_minimo_mb'] ?? 3072),
-            'ASTERISK_SOPORTE_DIR'         => $this->manifiesto['soporte_dir'] ?? '/usr/share/megaisp-asterisk',
-            'ASTERISK_ESQUEMA_REALTIME'    => (string) ($this->manifiesto['esquema_realtime'] ?? ''),
-            'ASTERISK_MODO_DESCUBRIMIENTO' => $this->modoDescubrimiento ? '1' : '0',
-            'ASTERISK_DB_HOST'             => (string) config('database.connections.asterisk_rt.host'),
-            'ASTERISK_DB_PORT'             => (string) config('database.connections.asterisk_rt.port'),
-            'ASTERISK_DB_NAME'             => (string) config('database.connections.asterisk_rt.database'),
-            'ASTERISK_DB_USER'             => (string) config('database.connections.asterisk_rt.username'),
-            'ASTERISK_DB_PASSWORD'         => (string) config('database.connections.asterisk_rt.password'),
-        ];
 
         // El entorno NO se pasa por `$env`: entre este proceso y el script hay un
         // `sudo`, y sudo trae `env_reset` por omisión — descarta toda variable que
@@ -282,14 +393,14 @@ class ProvisionadorAsterisk
         // Van en un archivo 0600 cuya RUTA sí viaja como argumento. No por
         // `sudo env VAR=…`, que dejaría la contraseña de la base realtime a la
         // vista de cualquier `ps`.
-        $archivoEntorno = $this->escribirArchivoDeEntorno($env);
+        $archivoEntorno = $this->escribirArchivoDeEntorno($this->parametros());
 
         try {
-            // Timeout amplio: compilar Asterisk pasa de media hora en una VM modesta.
             $p = Process::fromShellCommandline(
                 'sudo -n bash ' . escapeshellarg($script)
+                    . ' --fase=' . escapeshellarg($fase)
                     . ' --archivo-entorno=' . escapeshellarg($archivoEntorno),
-                base_path(), null, null, 5400
+                base_path(), null, null, $timeout
             );
             $p->run(fn ($tipo, $buf) => $this->emitir($buf));
         } finally {
@@ -299,11 +410,61 @@ class ProvisionadorAsterisk
         }
 
         if (! $p->isSuccessful()) {
-            throw new RuntimeException('el script de instalación salió con código '
-                . $p->getExitCode() . $this->porQue($p));
+            throw new RuntimeException("la fase «{$fase}» del script salió con código "
+                . $p->getExitCode() . $this->porQue($p, $fase));
         }
 
-        return ['script' => 'ok', 'salida_final' => Str::limit(trim($p->getOutput()), 500)];
+        $salida = trim($p->getOutput());
+
+        return [
+            'fase'    => $fase,
+            // El script dice explícitamente cuándo no tuvo nada que hacer; se
+            // recoge para que el reporte distingua «se hizo» de «ya estaba».
+            'omitido' => (bool) preg_match('/no hay nada que|ya está instalado|ya está preservado|ya presente|nada que hacer|no se compila/i', $salida),
+            'ultimas' => Str::limit($salida, 500),
+        ];
+    }
+
+    /**
+     * Los parámetros que consume el script, completos.
+     *
+     * La lista tiene que cubrir TODO lo que `validar_contrato()` exige del otro
+     * lado. Faltaba `ASTERISK_DB_DRIVER` y el script caía a su valor por
+     * omisión sin decirlo, hasta que un bloque de Python murió con
+     * `KeyError: 'ASTERISK_DB_DRIVER'` al final de una compilación de media hora.
+     * Hoy esa discrepancia la caza `--fase=contrato` en el primer paso.
+     */
+    private function parametros(): array
+    {
+        return [
+            'ASTERISK_VERSION'             => (string) ($this->manifiesto['version'] ?? ''),
+            'ASTERISK_ORIGEN'              => (string) ($this->manifiesto['origen'] ?? ''),
+            'ASTERISK_ARCHIVO'             => (string) ($this->manifiesto['archivo'] ?? ''),
+            'ASTERISK_SHA256'              => (string) ($this->manifiesto['sha256'] ?? ''),
+            'ASTERISK_IDIOMA'              => (string) ($this->manifiesto['idioma'] ?? 'es'),
+            'ASTERISK_ESPACIO_MIN_MB'      => (string) ($this->manifiesto['espacio_minimo_mb'] ?? 3072),
+            'ASTERISK_SOPORTE_DIR'         => (string) ($this->manifiesto['soporte_dir'] ?? '/usr/share/megaisp-asterisk'),
+            'ASTERISK_TRABAJO'             => (string) ($this->manifiesto['trabajo_dir'] ?? '/var/cache/megaisp-asterisk'),
+            'ASTERISK_LOG_DIR'             => (string) ($this->manifiesto['log_dir'] ?? '/var/log/megaisp'),
+            'ASTERISK_ESQUEMA_REALTIME'    => (string) ($this->manifiesto['esquema_realtime'] ?? ''),
+            'ASTERISK_MODO_DESCUBRIMIENTO' => $this->modoDescubrimiento ? '1' : '0',
+            'ASTERISK_DB_HOST'             => (string) config('database.connections.asterisk_rt.host'),
+            'ASTERISK_DB_PORT'             => (string) config('database.connections.asterisk_rt.port'),
+            'ASTERISK_DB_NAME'             => (string) config('database.connections.asterisk_rt.database'),
+            'ASTERISK_DB_USER'             => (string) config('database.connections.asterisk_rt.username'),
+            'ASTERISK_DB_PASSWORD'         => (string) config('database.connections.asterisk_rt.password'),
+            // El driver de Python con que Alembic abre la conexión. Tiene que ser
+            // uno de los que instala la fase `dependencias`.
+            'ASTERISK_DB_DRIVER'           => (string) ($this->manifiesto['db_driver'] ?? 'pymysql'),
+            // El nombre del DSN viaja explícito aunque los dos lados tengan hoy
+            // el mismo valor por omisión. Si se dejara que cada uno lo resolviera
+            // por su cuenta, definir ASTERISK_ODBC_DSN en el .env cambiaría el que
+            // escribe res_odbc.conf y NO el que registra unixODBC: Asterisk pediría
+            // un DSN inexistente y el realtime quedaría mudo sin un solo error.
+            // Una sola fuente, y es la del generador de configuración.
+            'ASTERISK_ODBC_DSN'            => (string) app(GeneradorConfigAsterisk::class)
+                ->valoresDelServidor()['ODBC_DSN'],
+        ];
     }
 
     /**
@@ -346,21 +507,71 @@ class ProvisionadorAsterisk
      * ANTES, así que un fallo ahí mandaba a leer un archivo que no existía y
      * escondía la única línea que explicaba el problema.
      */
-    private function porQue(Process $p): string
+    private function porQue(Process $p, string $fase): string
     {
         $lineas = preg_split('/\R/', trim($p->getErrorOutput()) ?: trim($p->getOutput())) ?: [];
         $lineas = array_values(array_filter(array_map('trim', $lineas), fn ($l) => $l !== ''));
         $cola   = implode(' | ', array_slice($lineas, -3));
 
-        $hayLog = is_dir('/var/log/megaisp') && glob('/var/log/megaisp/provision-asterisk-*.log');
+        $log    = (string) ($this->manifiesto['log_dir'] ?? '/var/log/megaisp');
+        $hayLog = is_dir($log) && glob("{$log}/provision-asterisk-{$fase}-*.log");
 
         return ($cola !== '' ? ': ' . Str::limit(rtrim($cola, '. '), 400) : '')
             . ($hayLog
-                ? '. El log completo queda en /var/log/megaisp/.'
+                ? ". El log completo de la fase queda en {$log}/provision-asterisk-{$fase}-*.log."
                 : '. No alcanzó a escribir log: falló antes de crearlo.');
     }
 
-    private function aplicarEsquema(): array
+    /**
+     * La base realtime, antes de migrarle el esquema.
+     *
+     * Era el hueco entre «Asterisk instalado» y «alembic upgrade»: nadie creaba
+     * la base, así que en un servidor nuevo Alembic fallaba con un «unknown
+     * database» que no decía a quién le tocaba crearla.
+     *
+     * Se conecta SIN base seleccionada, porque la que se va a crear todavía no
+     * existe y seleccionarla haría fallar la propia conexión.
+     */
+    private function crearBaseRealtime(): array
+    {
+        $rt     = (array) config('database.connections.asterisk_rt');
+        $nombre = (string) ($rt['database'] ?? '');
+
+        // No se puede parametrizar el nombre de una base en un CREATE, así que se
+        // valida antes de interpolarlo. El script hace la misma comprobación por
+        // su lado; aquí se repite porque este camino no pasa por él.
+        if (! preg_match('/^[A-Za-z0-9_]+$/', $nombre)) {
+            throw new RuntimeException("el nombre de base '{$nombre}' no es un identificador válido");
+        }
+
+        // Conexión efímera sin base seleccionada.
+        config(['database.connections.asterisk_rt_sin_base' => ['database' => null] + $rt]);
+        DB::purge('asterisk_rt_sin_base');
+
+        try {
+            $existia = DB::connection('asterisk_rt_sin_base')
+                ->select('SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?', [$nombre]);
+
+            if ($existia) {
+                return ['base' => $nombre, 'creada' => false, 'nota' => 'ya existía'];
+            }
+
+            DB::connection('asterisk_rt_sin_base')->statement(
+                "CREATE DATABASE `{$nombre}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+            );
+        } catch (\Throwable $e) {
+            throw new RuntimeException(
+                "no se pudo crear la base realtime '{$nombre}': " . $e->getMessage()
+                . " — el usuario '{$rt['username']}' necesita CREATE sobre ella, o créala a mano."
+            );
+        } finally {
+            DB::purge('asterisk_rt_sin_base');
+        }
+
+        return ['base' => $nombre, 'creada' => true];
+    }
+
+    private function migrarEsquema(): array
     {
         $soporte = $this->manifiesto['soporte_dir'] ?? '/usr/share/megaisp-asterisk';
         $dbm     = $soporte . '/alembic';
@@ -370,10 +581,13 @@ class ProvisionadorAsterisk
             throw new RuntimeException("no está el árbol de Alembic en {$dbm}: sin él no hay esquema");
         }
         if (! is_file($ini)) {
-            throw new RuntimeException("no está {$ini}: lo genera el script de instalación con las credenciales");
+            throw new RuntimeException("no está {$ini}: lo genera la fase generar_config con las credenciales");
         }
 
-        $p = Process::fromShellCommandline('sudo -n alembic -c ' . escapeshellarg($ini) . ' upgrade head', $dbm, null, null, 900);
+        $p = Process::fromShellCommandline(
+            $this->comandoAlembic() . ' -c ' . escapeshellarg($ini) . ' upgrade head',
+            $dbm, null, null, 900
+        );
         $p->run(fn ($t, $b) => $this->emitir($b));
         $this->vaciarSalida();
 
@@ -389,19 +603,86 @@ class ProvisionadorAsterisk
             throw new RuntimeException("la revisión aplicada ({$revision}) no es la que declara el manifiesto ({$esperada})");
         }
 
-        @file_put_contents($soporte . '/VERSION-ESQUEMA', $revision . "\n");
-
         return ['revision' => $revision, 'esperada' => $esperada, 'descubrimiento' => $this->modoDescubrimiento];
     }
 
+    /**
+     * Con qué se invoca a Alembic en ESTE servidor.
+     *
+     * Decía `sudo -n alembic` a secas y eso no corre: `sudo` reemplaza el PATH
+     * por su `secure_path` (/usr/local/sbin:…:/bin), donde no está el `alembic`
+     * que pip instala en ~/.local/bin. La provisión moría con «sudo: alembic:
+     * command not found» en el paso 10, después de haber creado la base.
+     *
+     * Se resuelve con la MISMA regla que la fase `dependencias` del script —el
+     * ejecutable si está en el PATH, y si no `python3 -m alembic`—, porque tener
+     * dos reglas distintas para lo mismo es cómo se llega a que el pre-flight
+     * apruebe una cadena que luego no corre.
+     *
+     * `sudo` solo se antepone si hace falta: cuando la provisión ya viene de
+     * root —que es como la invoca el proceso de actualización— anteponerlo lo
+     * único que hace es volver a atravesar `secure_path` sin necesidad.
+     */
+    private function comandoAlembic(): string
+    {
+        $sudo = (function_exists('posix_geteuid') && posix_geteuid() === 0) ? '' : 'sudo -n ';
+
+        foreach (['alembic --version', 'python3 -m alembic --version'] as $candidato) {
+            $p = Process::fromShellCommandline($sudo . $candidato, null, null, null, 60);
+            $p->run();
+
+            if ($p->isSuccessful()) {
+                return $sudo . substr($candidato, 0, -strlen(' --version'));
+            }
+        }
+
+        throw new RuntimeException(
+            'no hay un comando «alembic» utilizable (ni el ejecutable ni «python3 -m alembic»), '
+            . 'pese a que la fase «dependencias» lo dio por bueno — sin él el árbol preservado no sirve'
+        );
+    }
+
+    /**
+     * El árbol de Alembic cuyo esquema necesita el módulo: `config`, el de las
+     * tablas `ps_*` del realtime de PJSIP.
+     *
+     * Asterisk publica CUATRO árboles independientes en `contrib/ast-db-manage`
+     * —`config`, `cdr`, `voicemail`, `queue_log`— y los cuatro pueden convivir
+     * en la misma base. El provisionador solo aplica éste; los otros tres son
+     * de funciones que el módulo no usa hoy.
+     */
+    private const ARBOL_ALEMBIC = 'config';
+
+    /**
+     * La revisión que quedó aplicada, leída de donde Asterisk de verdad la deja.
+     *
+     * ⚠️ NO es la tabla `alembic_version` a secas, y esto se ve mal a primera
+     * vista: un proyecto Alembic cualquiera usa ese nombre, así que leerlo
+     * parece «lo estándar». Para Asterisk no lo es.
+     *
+     * Su `env.py` de upstream configura `version_table='alembic_version_' +
+     * script_location` a propósito, porque los cuatro árboles comparten base y
+     * una sola tabla no podría guardar cuatro revisiones a la vez. Aplicar el
+     * árbol `config` deja la revisión en **`alembic_version_config`**, y la
+     * tabla sin sufijo no llega a existir nunca.
+     *
+     * El código anterior leía `alembic_version` llamándola «la tabla estándar»:
+     * el `upgrade head` corría entero y correcto, y el paso moría después con un
+     * «table doesn't exist» que parecía un fallo de la migración cuando en
+     * realidad era de la lectura. Por eso el nombre se deriva del árbol y no se
+     * escribe a mano.
+     */
     private function revisionAplicada(): ?string
     {
+        $tabla = 'alembic_version_' . self::ARBOL_ALEMBIC;
+
         try {
-            $r = \DB::connection('asterisk_rt')->select('SELECT version_num FROM alembic_version LIMIT 1');
+            $r = DB::connection('asterisk_rt')->select("SELECT version_num FROM `{$tabla}` LIMIT 1");
 
             return $r[0]->version_num ?? null;
         } catch (\Throwable $e) {
-            throw new RuntimeException('no se pudo leer la tabla estándar alembic_version: ' . $e->getMessage());
+            throw new RuntimeException("no se pudo leer {$tabla}, que es donde Asterisk registra la "
+                . 'revisión del árbol ' . self::ARBOL_ALEMBIC . ': ' . $e->getMessage());
         }
     }
 
