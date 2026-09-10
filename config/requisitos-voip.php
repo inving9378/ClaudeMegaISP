@@ -44,6 +44,18 @@
 
 return [
 
+    /*
+    | Versión del PROVISIONADOR, no de Asterisk. Se incrementa cuando cambia su
+    | lógica: qué pasos hace, en qué orden, o qué considera "completado".
+    |
+    | Cada registro de `voip_provision_estado` guarda con qué versión se ejecutó su
+    | paso. Un cliente puede quedarse a medias con una versión y actualizar MegaISP
+    | antes de reintentar; sin ese dato el estado es mixto —unos pasos con la lógica
+    | vieja, otros por hacer con la nueva— y reintentar encima es adivinar si lo ya
+    | hecho sigue valiendo.
+    */
+    'provisionador_version' => '1.0.0',
+
     'asterisk' => [
 
         'version' => '22.11.0',
