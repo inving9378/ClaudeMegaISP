@@ -1725,6 +1725,47 @@ class AuditorService
         return $gaps;
     }
 
+    /**
+     * Eje complementario (#9990710, criterio de "versión sin publicar" aprobado por Irving en la
+     * pregunta q2 de #9990686 — Opción 1: commits en main que NO están en el último tag de
+     * release publicado). `ejeVersionesSinPublicar()` de arriba SOLO ve versiones que YA tienen
+     * algún rastro en las 4 fuentes (tabla/tag local/tag origin/GitHub Release); es ciego al caso
+     * donde simplemente se acumularon commits en main y todavía no se cortó NINGÚN tag para
+     * ellos — ese caso lo cubre este eje, reusando el mismo tag que ya resuelve
+     * `NextVersionResolver` (fuente única del consecutivo, #9990624) para no duplicar el parseo
+     * de tags.
+     *
+     * Dedupe por tag (no por conteo de commits): mientras no se corte un tag nuevo, sigue siendo
+     * el MISMO gap (misma huella) aunque se sumen más commits — no genera un item nuevo por cada
+     * commit, solo uno por "hay trabajo sin cortar desde {tag}".
+     *
+     * @return array lista de $gap en el formato estándar (modulo/tipo/clase/clave/titulo/detalle)
+     */
+    public function ejeCommitsSinVersionar(): array
+    {
+        $info = app(\App\Services\Updates\NextVersionResolver::class)->commitsSinPublicar();
+
+        if ($info === null || $info['count'] <= 0) {
+            // Sin tag del que contar, o HEAD ya está al día con el último tag: sin gap.
+            return [];
+        }
+
+        $tag   = $info['tag'];
+        $count = $info['count'];
+
+        return [[
+            'modulo'  => 'Deploy / Releases',
+            'tipo'    => 'versiones_sin_publicar',
+            'clase'   => 'mecanico',
+            'clave'   => "commits_sin_version|{$tag}",
+            'titulo'  => "Circuito: {$count} commit(s) en main sin cortar en una versión desde {$tag}",
+            'detalle' => "`main` tiene {$count} commit(s) por encima del último tag de release "
+                . "publicado (`{$tag}`) que todavía no se agruparon en una versión nueva.\n\n"
+                . "Cerrar: generar una nueva versión desde la pantalla de Releases (o `POST "
+                . "/releases`) para cortar el tag siguiente e incluir este trabajo.",
+        ]];
+    }
+
     /** null = veredicto sin gap (PUBLICADA = ok; SOLO_TABLA = caso patológico, sin recurso claro). */
     private function recursoFaltanteDeVersion(string $veredicto): ?string
     {

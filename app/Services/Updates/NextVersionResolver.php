@@ -107,6 +107,42 @@ class NextVersionResolver
     }
 
     /**
+     * Commits en HEAD que aún no están en el último tag de versión publicado (item roadmap
+     * #9990710, criterio aprobado por Irving en la pregunta q2 de #9990686 — Opción 1: "commits
+     * en rama principal que NO están en el último tag de release publicado"). Reusa el MISMO tag
+     * que ya resuelve resolver() en vez de recalcular el máximo por separado.
+     *
+     * Degrada a null en vez de lanzar excepción (a diferencia de resolver()): esto lo consume un
+     * detector de auditoría (AuditorService::ejeCommitsSinVersionar()) que no debe abortar si no
+     * hay ningún tag del que contar — ese caso ya lo cubre ejeVersionesSinPublicar() por otra vía.
+     *
+     * @return array{count:int, tag:string}|null
+     */
+    public function commitsSinPublicar(): ?array
+    {
+        try {
+            $tag = $this->resolver()['origen'];
+        } catch (RuntimeException $e) {
+            return null;
+        }
+
+        $p = Process::fromShellCommandline(
+            'git rev-list --count ' . escapeshellarg($tag) . '..HEAD',
+            base_path(),
+            $this->env(),
+            null,
+            30
+        );
+        $p->run();
+
+        if (! $p->isSuccessful()) {
+            return null;
+        }
+
+        return ['count' => (int) trim($p->getOutput()), 'tag' => $tag];
+    }
+
+    /**
      * `git fetch --tags --force` best-effort. Devuelve true si sincronizó con el remoto, false si
      * falló (sin lanzar): el que llama decide caer a tags locales. Ya NO aborta aquí — el
      * fail-closed vive en resolver() y sólo se dispara si tampoco hay tags locales.
