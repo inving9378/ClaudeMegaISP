@@ -26,6 +26,18 @@
 #   ASTERISK_SOPORTE_DIR    dónde sobrevive Alembic (default: /usr/share/megaisp-asterisk)
 #   ASTERISK_ESQUEMA_REALTIME  revisión de Alembic esperada (del manifiesto)
 #   ASTERISK_MODO_DESCUBRIMIENTO  1 = primera vez, aún no se conoce la revisión
+#   ASTERISK_DB_{HOST,PORT,NAME,USER,PASSWORD,DRIVER}  base realtime
+#
+# ─── ALEMBIC SE VERIFICA ANTES DE COMPILAR ────────────────────────────────
+#
+# Tener el árbol preservado no basta: sin el comando `alembic` y sin el driver de
+# Python, `alembic upgrade head` no corre y el paso de la base realtime falla —
+# después de media hora de `make`. Por eso la cadena completa (comando, driver y
+# conexión real) se prueba en el pre-flight, cuando abortar todavía es barato.
+#
+# El `alembic.ini` con la cadena de conexión se GENERA en tiempo de provisión con
+# las credenciales de este servidor y NUNCA se versiona: lleva la contraseña de la
+# base realtime dentro.
 #
 # ─── EL ÁRBOL DE ALEMBIC TIENE QUE SOBREVIVIR A LA LIMPIEZA ───────────────
 #
@@ -84,6 +96,13 @@ set -euo pipefail
 : "${ASTERISK_SOPORTE_DIR:=/usr/share/megaisp-asterisk}"
 : "${ASTERISK_ESQUEMA_REALTIME:=}"
 : "${ASTERISK_MODO_DESCUBRIMIENTO:=0}"
+# Credenciales de la base realtime. Vienen del .env de MegaISP (ASTERISK_RT_DB_*).
+: "${ASTERISK_DB_HOST:=127.0.0.1}"
+: "${ASTERISK_DB_PORT:=3306}"
+: "${ASTERISK_DB_NAME:=asterisk}"
+: "${ASTERISK_DB_USER:=}"
+: "${ASTERISK_DB_PASSWORD:=}"
+: "${ASTERISK_DB_DRIVER:=pymysql}"
 
 SRCDIR="/usr/src/asterisk-${ASTERISK_VERSION}"
 
@@ -215,7 +234,64 @@ apt-get install -y --no-install-recommends \
     libedit-dev libjansson-dev libsqlite3-dev uuid-dev \
     libxml2-dev libssl-dev libcurl4-openssl-dev libsrtp2-dev \
     libncurses-dev unixodbc unixodbc-dev \
-    ca-certificates wget
+    ca-certificates wget \
+    python3 python3-alembic python3-pymysql
+
+# ── 2b. Pre-flight de Alembic — ANTES de compilar, no después ────────────
+#
+# El árbol de Alembic puede estar preservado y aun así el paso de la base
+# realtime falla: sin el comando `alembic` o sin el driver de Python, no corre
+# nada. Y descubrirlo DESPUÉS de media hora de `make` es tirar esa media hora.
+#
+# Por eso la cadena completa —comando, driver y conexión real— se verifica aquí,
+# cuando abortar todavía es barato.
+echo "--- verificando la cadena de Alembic ---"
+
+ALEMBIC_BIN=""
+if command -v alembic >/dev/null 2>&1; then
+    ALEMBIC_BIN="alembic"
+elif python3 -m alembic --help >/dev/null 2>&1; then
+    ALEMBIC_BIN="python3 -m alembic"
+else
+    echo "ERROR: no hay comando 'alembic' utilizable pese a haber instalado python3-alembic."
+    echo "       Sin él, el árbol preservado no sirve de nada y el paso de la base realtime"
+    echo "       fallaría después de compilar."
+    exit 1
+fi
+echo "    alembic: $($ALEMBIC_BIN --version 2>&1 | head -1)"
+
+python3 -c "import ${ASTERISK_DB_DRIVER}" 2>/dev/null || {
+    echo "ERROR: el driver de Python '${ASTERISK_DB_DRIVER}' no se puede importar."
+    echo "       Alembic no podrá abrir la conexión a la base realtime."
+    exit 1
+}
+echo "    driver: ${ASTERISK_DB_DRIVER} importable"
+
+# La conexión real. Se prueba solo si hay credenciales: en modo descubrimiento
+# manual puede que la base aún no exista, y ahí el aviso basta.
+if [[ -n "$ASTERISK_DB_USER" ]]; then
+    if ASTERISK_DB_PASSWORD="$ASTERISK_DB_PASSWORD" python3 - <<PYCHK
+import os, sys
+try:
+    import ${ASTERISK_DB_DRIVER} as drv
+    c = drv.connect(host="${ASTERISK_DB_HOST}", port=${ASTERISK_DB_PORT},
+                    user="${ASTERISK_DB_USER}", password=os.environ.get("ASTERISK_DB_PASSWORD",""),
+                    connect_timeout=10)
+    c.close()
+except Exception as e:
+    sys.stderr.write(str(e) + "\n"); sys.exit(1)
+PYCHK
+    then
+        echo "    conexión a ${ASTERISK_DB_HOST}:${ASTERISK_DB_PORT} verificada"
+    else
+        echo "ERROR: el driver no pudo conectar a ${ASTERISK_DB_HOST}:${ASTERISK_DB_PORT} como '${ASTERISK_DB_USER}'."
+        echo "       Se aborta ahora, antes de compilar: el paso de la base realtime fallaría igual"
+        echo "       media hora más tarde, con el tiempo ya gastado."
+        exit 1
+    fi
+else
+    echo "    (sin ASTERISK_DB_USER: no se prueba la conexión)"
+fi
 
 # ── 3. Usuario dedicado del sistema (nunca root) ─────────────────────────
 if ! id asterisk >/dev/null 2>&1; then
@@ -307,6 +383,30 @@ rm -rf "${ASTERISK_SOPORTE_DIR}/alembic"
 cp -a "${SRCDIR}/contrib/ast-db-manage" "${ASTERISK_SOPORTE_DIR}/alembic"
 echo "${ASTERISK_VERSION}" > "${ASTERISK_SOPORTE_DIR}/VERSION-ASTERISK"
 echo "    $(find "${ASTERISK_SOPORTE_DIR}/alembic/config/versions" -name '*.py' 2>/dev/null | wc -l) migraciones de Alembic preservadas"
+
+# El alembic.ini se GENERA aquí, con las credenciales de este servidor, y NUNCA
+# se versiona: lleva la contraseña de la base realtime en su sqlalchemy.url.
+if [[ -n "$ASTERISK_DB_USER" ]]; then
+    echo "--- generando alembic.ini (fuera del repo, 600) ---"
+    ALEMBIC_INI="${ASTERISK_SOPORTE_DIR}/alembic/config.ini"
+    cp "${ASTERISK_SOPORTE_DIR}/alembic/config.ini.sample" "$ALEMBIC_INI"
+    # `python -` evita que la contraseña aparezca en la línea de comandos, donde
+    # cualquiera con acceso al servidor la vería con un simple `ps`.
+    ASTERISK_DB_PASSWORD="$ASTERISK_DB_PASSWORD" python3 - "$ALEMBIC_INI" <<'PYINI'
+import os, re, sys, urllib.parse
+ruta = sys.argv[1]
+url = "mysql+${ASTERISK_DB_DRIVER}://{u}:{p}@{h}:{P}/{d}".format(
+    u=urllib.parse.quote_plus("${ASTERISK_DB_USER}"),
+    p=urllib.parse.quote_plus(os.environ.get("ASTERISK_DB_PASSWORD", "")),
+    h="${ASTERISK_DB_HOST}", P="${ASTERISK_DB_PORT}", d="${ASTERISK_DB_NAME}")
+txt = open(ruta, encoding="utf-8").read()
+txt = re.sub(r"(?m)^sqlalchemy\.url\s*=.*$", "sqlalchemy.url = " + url, txt)
+open(ruta, "w", encoding="utf-8").write(txt)
+PYINI
+    chmod 600 "$ALEMBIC_INI"
+    chown root:root "$ALEMBIC_INI" 2>/dev/null || true
+    echo "    ${ALEMBIC_INI} (permisos $(stat -c '%a' "$ALEMBIC_INI"), no versionado)"
+fi
 
 # ── 7. asterisk.conf: usuario y, sobre todo, idioma ──────────────────────
 echo "--- fijando runuser/rungroup ---"
