@@ -103,6 +103,17 @@ return [
         // queda sin con qué crear la base realtime.
         'soporte_dir' => env('MEGAISP_ASTERISK_SOPORTE_DIR', '/usr/share/megaisp-asterisk'),
 
+        // Dónde deja MegaISP los .conf que GENERA y que Asterisk incluye
+        // (dialplan, grupos, registros de troncal).
+        //
+        // Fuera del árbol de la aplicación web a propósito (#9990718 §6): antes
+        // vivían en storage/app/asterisk/ y /etc/asterisk los incluía por ruta
+        // absoluta, así que la configuración que Asterisk lee dependía de dónde
+        // estuviera instalado MegaISP. Mover la aplicación rompía la telefonía, y
+        // Asterisk —que corre como root— leía configuración de un directorio del
+        // árbol web, escribible por www-data.
+        'generados_dir' => env('MEGAISP_ASTERISK_GENERADOS_DIR', '/etc/asterisk/megaisp.d'),
+
         // Paquetes de sonidos. Las versiones salen del `sounds/Makefile` del
         // propio tarball de Asterisk; la ruta upstream real es `.../sounds/releases/`,
         // no `.../sounds/`.
