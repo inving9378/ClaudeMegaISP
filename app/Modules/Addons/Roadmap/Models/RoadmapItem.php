@@ -177,8 +177,9 @@ class RoadmapItem extends Model
      * un ALTER sobre esta tabla). Default de columna = 'manual'. Los valores 'auditoria' y
      * 'respuesta' ya están descritos por la spec del motor auditor y el canal de respuesta
      * respectivamente, aunque todavía nadie los escribe (eso es la Fase 4 del Supervisor).
+     * 'hallazgo' (#9990692) = item creado por un eje del auditor a partir de un $gap concreto.
      */
-    public const TIPOS = ['manual', 'auditoria', 'respuesta'];
+    public const TIPOS = ['manual', 'auditoria', 'respuesta', 'hallazgo'];
 
     // Enums del circuito (fuente de verdad para validación en el endpoint externo)
     public const NIVELES_RIESGO = ['A', 'B', 'C'];
