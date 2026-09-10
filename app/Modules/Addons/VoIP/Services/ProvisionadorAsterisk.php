@@ -825,9 +825,39 @@ class ProvisionadorAsterisk
             }
         }
 
-        sleep(3);
+        // Se espera a que la central CONTESTE, no un número fijo de segundos.
+        //
+        // Eran 3 segundos, y alcanzaban porque las pruebas se hacían reiniciando
+        // un Asterisk que ya había arrancado antes. En una instalación nueva el
+        // primer arranque hace más trabajo —crea su base de datos interna, indexa
+        // los sonidos— y tarda más: el paso siguiente encontraba una central que
+        // systemd ya daba por `active` y que todavía no tenía socket de control,
+        // y la daba por muerta.
+        //
+        // `systemctl is-active` no sirve para esto: dice que el proceso vive, no
+        // que la central esté lista. Lo que se pregunta es lo que de verdad hace
+        // falta a partir de aquí — que la CLI responda.
+        $limite = 60;
 
-        return ['activo' => trim((new Process(['systemctl', 'is-active', 'asterisk']))->mustRun()->getOutput())];
+        for ($i = 0; $i < $limite; $i++) {
+            $cli = Process::fromShellCommandline(
+                'sudo -n /usr/sbin/asterisk -rx ' . escapeshellarg('core show version'), null, null, null, 15
+            );
+            $cli->run();
+
+            if (str_contains($cli->getOutput(), 'Asterisk')) {
+                $this->di("    la central respondió a los {$i}s");
+
+                return ['activo' => 'active', 'segundos_hasta_responder' => $i];
+            }
+
+            sleep(1);
+        }
+
+        throw new RuntimeException(
+            "la central no respondió por su CLI en {$limite}s desde el arranque. "
+            . 'Revisa `systemctl status asterisk` y /var/log/asterisk/messages.log'
+        );
     }
 
     /**
