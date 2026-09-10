@@ -38,28 +38,19 @@ class ReconcileReleasesCommand extends Command
     {
         $filtro = $this->argument('version');
 
-        $tabla = $this->versionesDeTabla();
-        $local = $this->tagsLocales();
-        $remoto = $this->tagsRemotos();
+        $cruce = $this->reconciliar();
 
-        [$github, $githubExtra, $githubOk, $githubError] = $this->releasesDeGithub();
-
-        if (!$githubOk) {
+        if (!$cruce['githubOk']) {
             if ($this->option('json')) {
-                $this->line(json_encode(['ok' => false, 'error' => $githubError], JSON_UNESCAPED_UNICODE));
+                $this->line(json_encode(['ok' => false, 'error' => $cruce['githubError']], JSON_UNESCAPED_UNICODE));
                 return self::FAILURE;
             }
-            $this->error("No se pudo consultar la API de GitHub: {$githubError}");
+            $this->error("No se pudo consultar la API de GitHub: {$cruce['githubError']}");
             $this->warn('El veredicto de cada versión sin ese dato NO es confiable — se aborta sin imprimir tabla.');
             return self::FAILURE;
         }
 
-        $versiones = array_unique(array_merge(
-            array_keys($tabla),
-            $local,
-            $remoto,
-            array_keys($github)
-        ));
+        $versiones = array_keys($cruce['versiones']);
 
         if ($filtro !== null) {
             $versiones = array_values(array_filter($versiones, fn ($v) => $v === $filtro));
@@ -80,12 +71,13 @@ class ReconcileReleasesCommand extends Command
         $structured = [];
 
         foreach ($versiones as $version) {
-            $enTabla  = array_key_exists($version, $tabla);
-            $enLocal  = in_array($version, $local, true);
-            $enRemoto = in_array($version, $remoto, true);
-            $enGithub = array_key_exists($version, $github);
+            $info = $cruce['versiones'][$version];
+            $enTabla  = $info['enTabla'];
+            $enLocal  = $info['enLocal'];
+            $enRemoto = $info['enRemoto'];
+            $enGithub = $info['enGithub'];
+            $veredicto = $info['veredicto'];
 
-            $veredicto = $this->veredicto($enTabla, $enLocal, $enRemoto, $enGithub);
             $conteo[$veredicto] = ($conteo[$veredicto] ?? 0) + 1;
 
             $rows[] = [
@@ -119,6 +111,59 @@ class ReconcileReleasesCommand extends Command
         $this->line('Total de versiones cruzadas: ' . count($versiones));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Cruce puro de las 4 fuentes de verdad (tabla `releases`, tags locales, tags en origin,
+     * GitHub Releases), reusable fuera del comando (item roadmap #9990686). NO filtra por
+     * versión ni ordena — eso es presentación de handle(), no parte del cruce.
+     *
+     * @return array{versiones: array<string, array{veredicto:string,enTabla:bool,enLocal:bool,enRemoto:bool,enGithub:bool}>, githubOk: bool, githubError: ?string}
+     */
+    public function reconciliar(): array
+    {
+        $tabla = $this->versionesDeTabla();
+        $local = $this->tagsLocales();
+        $remoto = $this->tagsRemotos();
+
+        [$github, $githubExtra, $githubOk, $githubError] = $this->releasesDeGithub();
+
+        if (!$githubOk) {
+            return [
+                'versiones' => [],
+                'githubOk' => false,
+                'githubError' => $githubError,
+            ];
+        }
+
+        $versionesUnicas = array_unique(array_merge(
+            array_keys($tabla),
+            $local,
+            $remoto,
+            array_keys($github)
+        ));
+
+        $versiones = [];
+        foreach ($versionesUnicas as $version) {
+            $enTabla  = array_key_exists($version, $tabla);
+            $enLocal  = in_array($version, $local, true);
+            $enRemoto = in_array($version, $remoto, true);
+            $enGithub = array_key_exists($version, $github);
+
+            $versiones[$version] = [
+                'veredicto' => $this->veredicto($enTabla, $enLocal, $enRemoto, $enGithub),
+                'enTabla' => $enTabla,
+                'enLocal' => $enLocal,
+                'enRemoto' => $enRemoto,
+                'enGithub' => $enGithub,
+            ];
+        }
+
+        return [
+            'versiones' => $versiones,
+            'githubOk' => true,
+            'githubError' => null,
+        ];
     }
 
     private function veredicto(bool $enTabla, bool $enLocal, bool $enRemoto, bool $enGithub): string
