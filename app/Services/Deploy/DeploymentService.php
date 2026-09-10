@@ -22,6 +22,11 @@ class DeploymentService
         // ⚠️ NO cachea config (item #520): borra el cache y relee del fuente. Ver el método.
         $configRefresh = $this->refreshDeploymentConfig();
 
+        // Preflight de release (item #9990682, F2c de la épica #9990668) — paso de REPORTE, no
+        // bloqueante: corre justo al emitir la versión y su veredicto va en 'output', nunca en
+        // 'status' (siempre 'success'). Ver runReleasePreflight().
+        $preflightStep = $this->runReleasePreflight($version);
+
         $configSteps = collect(config('deployment.steps'))
             ->filter(fn($s) => $s['enabled'] ?? true)
             ->map(function ($s) use ($version, $title, $commitMessage) {
@@ -44,9 +49,10 @@ class DeploymentService
             'ran_at'      => null,
         ], $configSteps);
 
-        // El refresh de config corre antes del loop (ya completado): se muestra como
-        // primer paso en el log para que quede auditable en la respuesta del deploy.
-        array_unshift($initialSteps, $configRefresh);
+        // El refresh de config y el preflight corren antes del loop (ya completados): se
+        // muestran como los dos primeros pasos en el log para que queden auditables en la
+        // respuesta del deploy (orden: configRefresh, preflightStep, luego los pasos normales).
+        array_unshift($initialSteps, $configRefresh, $preflightStep);
 
         $log->update([
             'status'     => 'running',
@@ -224,6 +230,46 @@ class DeploymentService
         } catch (\Throwable $e) {
             $record['output'] = 'Aviso: no se pudo refrescar la config (' . $e->getMessage() . '). Se usa la config en memoria.';
             Log::channel('single')->warning('Deploy — refreshDeploymentConfig falló: ' . $e->getMessage());
+        }
+
+        $record['duration_ms'] = (int) ((microtime(true) - $startedAt) * 1000);
+        return $record;
+    }
+
+    /**
+     * Preflight de release (item #9990682, F2c de la épica #9990668) enganchado AL EMITIR la
+     * versión. Es puramente informativo: envuelve TODO en try/catch y SIEMPRE retorna
+     * status 'success' — una excepción aquí, o hallazgos en rojo, jamás deben tumbar el deploy
+     * real. El veredicto/hallazgos van en 'output', nunca en 'status'.
+     */
+    private function runReleasePreflight(string $version): array
+    {
+        $startedAt = microtime(true);
+        $record = [
+            'key'         => 'release_preflight',
+            'name'        => 'Chequeo pre-vuelo (reporte, no bloquea — item #9990673)',
+            'status'      => 'success',
+            'output'      => '',
+            'exit_code'   => 0,
+            'duration_ms' => 0,
+            'ran_at'      => now()->toIso8601String(),
+        ];
+
+        try {
+            $report = app(ReleasePreflightService::class)->evaluate($version);
+
+            Log::channel('release_preflight')->info('Preflight de release', $report);
+
+            $veredicto = strtoupper($report['veredicto'] ?? 'desconocido');
+            $hallazgos = collect($report['checks'] ?? [])
+                ->filter(fn (array $check) => ($check['status'] ?? 'ok') !== 'ok')
+                ->map(fn (array $check) => "[{$check['status']}] {$check['label']}: {$check['detail']}")
+                ->implode("\n");
+
+            $record['output'] = $veredicto . ' — ' . ($hallazgos !== '' ? $hallazgos : 'sin hallazgos.');
+        } catch (\Throwable $e) {
+            $record['output'] = 'No se pudo evaluar el preflight: ' . $e->getMessage();
+            Log::channel('release_preflight')->warning('Preflight de release falló: ' . $e->getMessage());
         }
 
         $record['duration_ms'] = (int) ((microtime(true) - $startedAt) * 1000);
