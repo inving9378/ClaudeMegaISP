@@ -3,6 +3,7 @@
 namespace App\Console\Commands\Active;
 
 use App\Models\Release;
+use App\Modules\Addons\Roadmap\Services\AuditorService;
 use App\Services\Updates\VersionComparator;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
@@ -30,17 +31,31 @@ class ReconcileReleasesCommand extends Command
     protected $signature = 'releases:reconciliar
                             {version? : Filtra el reporte a una sola versión exacta (ej. V1.34-09.09.2026)}
                             {--dry-run : No-op — el comando es SIEMPRE de solo lectura, la flag existe solo por consistencia de interfaz con el resto de comandos releases:*}
-                            {--json : Imprime el resultado como JSON estructurado en vez de la tabla (para consumo programático, item #9990680)}';
+                            {--json : Imprime el resultado como JSON estructurado en vez de la tabla (para consumo programático, item #9990680)}
+                            {--alertar : Además de mostrar la tabla, crea items tipo=hallazgo por cada divergencia nueva (dedupe automático, item #9990687)}';
 
     protected $description = 'Cruza tabla releases / tags locales / tags en origin / GitHub Releases y da un veredicto por versión (solo lectura, item #9990669)';
 
     public function handle(): int
     {
-        $filtro = $this->argument('version');
+        $filtro  = $this->argument('version');
+        $alertar = (bool) $this->option('alertar');
 
         $cruce = $this->reconciliar();
 
         if (!$cruce['githubOk']) {
+            if ($alertar) {
+                // Q3 (#9990687): en modo --alertar NO se aborta — se degrada. Sin GitHub no se
+                // puede confiar en ningún veredicto de este cruce (ejeVersionesSinPublicar() lo
+                // sabe y no genera gaps en este caso), así que sólo se avisa y se reporta 0
+                // hallazgos nuevos, nunca un falso "falta en GitHub".
+                $this->warn("No se pudo consultar la API de GitHub: {$cruce['githubError']}");
+                $this->warn('--alertar: se omite la comparación contra GitHub Release esta corrida (sin dato confiable, no se genera ningún hallazgo).');
+                $this->ejecutarAlertar(false);
+
+                return self::SUCCESS;
+            }
+
             if ($this->option('json')) {
                 $this->line(json_encode(['ok' => false, 'error' => $cruce['githubError']], JSON_UNESCAPED_UNICODE));
                 return self::FAILURE;
@@ -99,6 +114,10 @@ class ReconcileReleasesCommand extends Command
             ];
         }
 
+        if ($alertar) {
+            $this->ejecutarAlertar(true);
+        }
+
         if ($this->option('json')) {
             $this->line(json_encode(['ok' => true, 'items' => $structured, 'conteo' => $conteo], JSON_UNESCAPED_UNICODE));
             return self::SUCCESS;
@@ -111,6 +130,42 @@ class ReconcileReleasesCommand extends Command
         $this->line('Total de versiones cruzadas: ' . count($versiones));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Modo --alertar (item #9990687): crea items tipo=hallazgo por cada divergencia nueva vía
+     * `AuditorService::ejeVersionesSinPublicar()` (dedupe por `huella()`/`yaExiste()`, ya
+     * resuelto en F5a-2 #9990692). Cuando GitHub no respondió ($githubOk=false) el propio eje ya
+     * devuelve un arreglo vacío (sin dato confiable no genera nada); igual se filtran aquí los
+     * gaps de recurso `github_release` como defensa adicional (Q3 del item padre #9990676), sin
+     * duplicar la lógica del cruce.
+     */
+    private function ejecutarAlertar(bool $githubOk): void
+    {
+        $auditor = app(AuditorService::class);
+        $gaps = $auditor->ejeVersionesSinPublicar();
+
+        if (!$githubOk) {
+            $gaps = array_values(array_filter(
+                $gaps,
+                fn (array $g) => !str_starts_with($g['clave'], 'github_release|')
+            ));
+        }
+
+        $creados = 0;
+        foreach ($gaps as $gap) {
+            if ($auditor->yaExiste($gap)) {
+                continue;
+            }
+            $auditor->crear($gap, null, 'hallazgo');
+            $creados++;
+        }
+
+        if ($creados > 0) {
+            $this->info("--alertar: {$creados} item(s) nuevo(s) tipo=hallazgo creado(s) por divergencia.");
+        } else {
+            $this->info('--alertar: sin divergencias nuevas (0 items creados).');
+        }
     }
 
     /**
