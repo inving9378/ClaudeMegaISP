@@ -366,8 +366,12 @@ class VerificarVueltaCommand extends Command
     }
 
     /**
-     * (4) "php artisan deploy:dry-run-migrations" reusado tal cual. Contrato: exit 1 =
-     * migración real falló (FAIL); exit 0 = OK o "sin sandbox, se omite" (no bloquea).
+     * (4) "php artisan deploy:dry-run-migrations" reusado tal cual. Contrato (item #9990684):
+     * exit 1 = migración real falló (FAIL, bloquea) · exit 0 = OK real (corrió contra el
+     * sandbox) · exit 2 = OMITIDO (sin sandbox — no valida nada, pero tampoco bloquea). El
+     * contrato de este comando NO cambia (0 y 2 siguen sin marcar 'fail', para no bloquear
+     * vueltas del circuito): solo se distingue 'skip' de 'ok' en el reporte, igual que ya
+     * se hace para "php -l" arriba.
      */
     private function checkMigrateDryRun(): void
     {
@@ -375,10 +379,17 @@ class VerificarVueltaCommand extends Command
         $p->setTimeout(600);
         $p->run();
 
-        $ultima = trim($this->ultimaLinea($p->getOutput() ?: $p->getErrorOutput()));
+        $ultima    = trim($this->ultimaLinea($p->getOutput() ?: $p->getErrorOutput()));
+        $exitCode  = $p->getExitCode();
 
-        if ($p->getExitCode() === 0) {
+        if ($exitCode === 0) {
             $this->registrar('migrate --dry-run', 'ok', $ultima);
+
+            return;
+        }
+
+        if ($exitCode === 2) {
+            $this->registrar('migrate --dry-run', 'skip', $ultima);
 
             return;
         }
