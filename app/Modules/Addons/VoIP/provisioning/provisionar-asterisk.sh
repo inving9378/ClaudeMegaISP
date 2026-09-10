@@ -638,31 +638,51 @@ fase_compilar() {
     # como una central que arranca pero no lee su base realtime.
     #
     # Se comprueba sobre `menuselect.makeopts`, que es el archivo que el propio
-    # menuselect acaba de escribir: en su línea MENUSELECT_MODULES lista los
-    # módulos que quedaron EXCLUIDOS. Que uno de los requeridos aparezca ahí
-    # después de haberlo pedido significa exactamente que no se pudo.
+    # menuselect acaba de escribir y el que va a leer el `make`.
     #
-    # Se lee el archivo y no la salida del binario a propósito: sus banderas de
-    # consulta cambian entre versiones de Asterisk, y un formato que se adivina
-    # mal aquí produciría un aborto falso o —peor— una comprobación que siempre
-    # pasa. El archivo es el contrato entre menuselect y el `make`, y es estable.
+    # Ese archivo lista los módulos EXCLUIDOS, repartidos POR CATEGORÍA —una
+    # línea MENUSELECT_RES, otra MENUSELECT_APPS, otra MENUSELECT_CHANNELS…— y no
+    # en una sola lista. Que uno de los requeridos aparezca en la suya, después de
+    # haberlo pedido, significa exactamente que menuselect no pudo habilitarlo.
+    #
+    # Solo se miran las categorías donde viven módulos. MENUSELECT_BUILD_DEPS y
+    # MENUSELECT_CFLAGS también empiezan igual pero contienen otra cosa, y contar
+    # sus tokens como «módulos excluidos» daría abortos falsos.
     echo "--- comprobando que quedaron habilitados de verdad ---"
-    local excluidos faltantes=()
-    excluidos=" $(grep -E '^MENUSELECT_MODULES=' menuselect.makeopts | cut -d= -f2-) "
+    if ! REQUERIDOS="${MODULOS_REQUERIDOS[*]}" python3 - menuselect.makeopts <<'PYCHECK'
+import os, sys
 
-    for m in "${MODULOS_REQUERIDOS[@]}"; do
-        [[ "$excluidos" == *" $m "* ]] && faltantes+=("$m")
-    done
+CATEGORIAS_DE_MODULOS = (
+    'ADDONS', 'APPS', 'BRIDGES', 'CDR', 'CEL', 'CHANNELS',
+    'CODECS', 'FORMATS', 'FUNCS', 'PBX', 'RES',
+)
 
-    if [[ ${#faltantes[@]} -gt 0 ]]; then
-        echo "ERROR: menuselect no pudo habilitar módulos que el módulo VoIP necesita:"
-        printf '         · %s\n' "${faltantes[@]}"
-        echo "       Casi siempre es una biblioteca de desarrollo ausente en tiempo de"
-        echo "       ./configure (unixodbc-dev para los res_*odbc). Compilar así daría un"
-        echo "       Asterisk que arranca y no sirve; se aborta ANTES del make."
+excluidos = set()
+with open(sys.argv[1], encoding='utf-8') as fh:
+    for linea in fh:
+        if not linea.startswith('MENUSELECT_'):
+            continue
+        clave, _, valor = linea.partition('=')
+        if clave[len('MENUSELECT_'):].strip() in CATEGORIAS_DE_MODULOS:
+            excluidos.update(valor.split())
+
+faltantes = [m for m in os.environ['REQUERIDOS'].split() if m in excluidos]
+
+if faltantes:
+    print('ERROR: menuselect no pudo habilitar módulos que el módulo VoIP necesita:')
+    for m in faltantes:
+        print('         · %s' % m)
+    print('       Casi siempre es una biblioteca de desarrollo ausente en tiempo de')
+    print('       ./configure (unixodbc-dev para los res_*odbc). Compilar así daría un')
+    print('       Asterisk que arranca y no sirve; se aborta ANTES del make.')
+    sys.exit(1)
+
+print('    %d módulos requeridos, ninguno excluido por menuselect'
+      % len(os.environ['REQUERIDOS'].split()))
+PYCHECK
+    then
         exit 1
     fi
-    echo "    ${#MODULOS_REQUERIDOS[@]} módulos requeridos, ninguno excluido por menuselect"
 
     # ── Backends de realtime/CDR/CEL que esta plataforma NO usa ──
     #

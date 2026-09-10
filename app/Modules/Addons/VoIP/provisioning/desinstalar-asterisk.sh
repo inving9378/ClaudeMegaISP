@@ -127,4 +127,14 @@ printf "  usuario asterisk           : %s\n" "$(id asterisk >/dev/null 2>&1 && e
 printf "  unit de systemd            : %s\n" "$([ -e /etc/systemd/system/asterisk.service ] && echo 'QUEDA' || echo 'no')"
 printf "  base %-21s : %s\n" "$ASTERISK_DB_NAME" "$(mysql -N -e "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name='${ASTERISK_DB_NAME}'" 2>/dev/null)"
 echo
-echo "=== Servidor limpio. Ahora: php artisan voip:provisionar --descubrimiento ==="
+echo "=== Servidor limpio. Ahora: ==="
+echo
+echo "    php artisan voip:provisionar --descubrimiento --nueva"
+echo
+# --nueva no es opcional después de esto: la tabla voip_provision_estado sigue
+# teniendo los pasos de la corrida anterior marcados como completados, y retomar
+# esa corrida los daría por hechos sobre un servidor donde acabamos de borrarlos.
+# Las fases del script comprueban el disco y se rehacen solas, pero los pasos que
+# vive PHP (configuración, siembra, arranque) se saltarían.
+echo "    (--nueva es necesario: si no, se retoma la corrida anterior y sus pasos"
+echo "     siguen marcados como completados aunque acabemos de borrar el servidor)"
