@@ -1677,6 +1677,88 @@ class AuditorService
         ]];
     }
 
+    // ── Eje: versiones sin publicar (#9990692, F5a-2) ─────────────────────────────────────────
+
+    /**
+     * Cruza las 4 fuentes de verdad de cada versión (tabla `releases`, tag local, tag en origin,
+     * GitHub Release) vía `ReconcileReleasesCommand::reconciliar()` (#9990691) y arma un $gap por
+     * cada recurso que le falta a una versión no publicada.
+     *
+     * Standalone y cross-cutting, como `detEnvRuntime()`: no depende de un módulo con carpeta en
+     * disco y NO está registrado bajo ninguna flag de `circuito.auditor.detectores` — el wiring al
+     * bucle automático (`yaExiste()`+`crear()`) es responsabilidad de F5b (sub-item hermano de
+     * #9990686, aún no creado). Este método SOLO arma y devuelve el array de $gap[].
+     *
+     * @return array lista de $gap en el formato estándar (modulo/tipo/clase/clave/titulo/detalle)
+     */
+    public function ejeVersionesSinPublicar(): array
+    {
+        $cruce = app(\App\Console\Commands\Active\ReconcileReleasesCommand::class)->reconciliar();
+
+        if (! $cruce['githubOk']) {
+            // Sin GitHub no se puede confiar en el cruce — igual que el comando aborta hoy en
+            // modo tabla (ver ReconcileReleasesCommand::handle()).
+            return [];
+        }
+
+        $modulo = 'Deploy / Releases';
+        $gaps   = [];
+
+        foreach ($cruce['versiones'] as $version => $info) {
+            $recurso = $this->recursoFaltanteDeVersion($info['veredicto']);
+            if ($recurso === null) {
+                // PUBLICADA = sin gap. SOLO_TABLA = caso patológico sin recurso claro (excluido
+                // explícitamente por la spec, igual que hoy en el comando).
+                continue;
+            }
+
+            $gaps[] = [
+                'modulo'  => $modulo,
+                'tipo'    => 'versiones_sin_publicar',
+                'clase'   => 'mecanico',
+                'clave'   => "{$recurso}|{$version}",
+                'titulo'  => "Circuito: versión {$version} sin publicar — falta {$recurso}",
+                'detalle' => $this->detalleRecursoFaltante($recurso, $version),
+            ];
+        }
+
+        return $gaps;
+    }
+
+    /** null = veredicto sin gap (PUBLICADA = ok; SOLO_TABLA = caso patológico, sin recurso claro). */
+    private function recursoFaltanteDeVersion(string $veredicto): ?string
+    {
+        return match ($veredicto) {
+            'RELEASE_SIN_FILA' => 'releases_tabla',
+            'SOLO_LOCAL'       => 'git_tag',
+            'TAG_SIN_RELEASE'  => 'github_release',
+            default            => null,
+        };
+    }
+
+    private function detalleRecursoFaltante(string $recurso, string $version): string
+    {
+        return match ($recurso) {
+            'git_tag' => "El tag `{$version}` existe localmente pero nunca llegó a `origin` — no hubo "
+                . "`git push`. Sin el tag en origin, GitHub no puede generar el Release para esta "
+                . "versión, y cualquier otro checkout (prod, otro dev) no la verá como publicada.\n\n"
+                . "Cerrar: `git push origin {$version}` (o `git push origin --tags` para todos los "
+                . "tags locales pendientes).",
+            'releases_tabla' => "Existe un GitHub Release para `{$version}` pero la tabla `releases` "
+                . "no tiene esa fila. El paso `save_release` del deploy la crea normalmente al "
+                . "publicar — su ausencia sugiere que ese paso falló o que el Release se creó por "
+                . "fuera del pipeline.\n\n"
+                . "Cerrar: crear la fila faltante en `releases` (o investigar por qué `save_release` "
+                . "no la escribió en su momento).",
+            'github_release' => "El tag `{$version}` sí llegó a alguna fuente remota (origin y/o la "
+                . "tabla `releases`), pero no existe el GitHub Release correspondiente — el paso "
+                . "`git_push` del deploy corrió, pero `github_release` no, o falló.\n\n"
+                . "Cerrar: correr el paso de deploy que crea el GitHub Release para esta versión (o "
+                . "crearlo a mano en GitHub apuntando al tag `{$version}`).",
+            default => "Recurso «{$recurso}» sin explicación registrada.",
+        };
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════════════════════
     // CLASIFICACIÓN — frontera dura y olor a decisión de producto
     // ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -1870,8 +1952,12 @@ class AuditorService
     /**
      * Crea el item del gap. MECÁNICO → nivel A (reclamable por el pool). PRODUCTO → bandeja de
      * Irving con la pregunta, jamás ejecutable.
+     *
+     * $tipoItem (#9990692) es opcional y retrocompatible: sin él, `tipo` queda en el default de
+     * columna ('manual'), igual que antes. Los ejes que generan hallazgos concretos (a diferencia
+     * del propio motor auditor, tipo 'auditoria') lo pasan como 'hallazgo'.
      */
-    public function crear(array $gap, ?int $itemMadreId = null): RoadmapItem
+    public function crear(array $gap, ?int $itemMadreId = null, ?string $tipoItem = null): RoadmapItem
     {
         $esProducto = $gap['clase'] === 'producto';
 
@@ -1886,6 +1972,10 @@ class AuditorService
         ], 'auditor', true);
 
         $item->auditor_fingerprint = $this->huella($gap);
+
+        if ($tipoItem !== null) {
+            $item->tipo = $tipoItem;
+        }
 
         if ($esProducto) {
             // Bandeja de Irving. `requiere_irving: true` en la pregunta impide que el autopilot la
