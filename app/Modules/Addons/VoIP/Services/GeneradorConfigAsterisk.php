@@ -162,6 +162,10 @@ class GeneradorConfigAsterisk
             'DB_USER'            => $db['username'] ?? '',
             'DB_PASSWORD'        => $db['password'] ?? '',
             'ODBC_DSN'           => env('ASTERISK_ODBC_DSN', 'asterisk-connector'),
+            // El mismo nombre que referencian las extensiones publicadas al
+            // realtime. Si estos dos dejan de coincidir, Asterisk rechaza cada
+            // llamada con «Unable to retrieve PJSIP transport».
+            'TRANSPORTE'         => config('requisitos-voip.asterisk.transporte', 'transport-udp'),
             // Dónde deja MegaISP los .conf que genera (grupos, ruteo entrante,
             // contexto restringido). extensions.conf los incluye por esta ruta.
             'GENERADOS_DIR'      => rtrim(config('requisitos-voip.asterisk.generados_dir', '/etc/asterisk/megaisp.d'), '/'),
@@ -194,10 +198,28 @@ class GeneradorConfigAsterisk
 
     private function escribir(string $ruta, string $contenido): void
     {
-        // 640 y grupo asterisk: la config lleva la contraseña de la base realtime.
+        $nuevo = ! is_file($ruta);
+
+        // 640: la configuración lleva la contraseña de la base realtime dentro.
         if (@file_put_contents($ruta, $contenido) === false) {
             throw new RuntimeException("no se pudo escribir {$ruta}");
         }
         @chmod($ruta, 0640);
+
+        // El dueño se hereda del directorio, y sólo hace falta al CREAR.
+        //
+        // Al sobrescribir un archivo existente se conserva su dueño, y todos los
+        // destinos de estas plantillas existen ya —los dejó `make samples`, y la
+        // fase de generación los pasa a asterisk:asterisk—. Pero eso es cierto
+        // por casualidad, no por diseño: una plantilla nueva sin ejemplo
+        // correspondiente nacería como root:root con permisos 640, y Asterisk
+        // —que corre como el usuario asterisk— no podría leerla. Fallaría al
+        // arrancar por un archivo que se acaba de escribir «bien».
+        if ($nuevo && function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            if ($dir = @stat(dirname($ruta))) {
+                @chown($ruta, $dir['uid']);
+                @chgrp($ruta, $dir['gid']);
+            }
+        }
     }
 }

@@ -4,7 +4,7 @@
 ; NO se incluye ningún archivo del árbol de la aplicación web: la configuración
 ; que Asterisk lee no debe depender de dónde esté instalado MegaISP.
 
-[transport-udp]
+[{{TRANSPORTE}}]
 type=transport
 protocol=udp
 bind={{BIND_SIP}}

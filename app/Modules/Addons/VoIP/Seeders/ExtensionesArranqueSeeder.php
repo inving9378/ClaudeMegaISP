@@ -76,7 +76,11 @@ class ExtensionesArranqueSeeder extends Seeder
                     'tipo_dispositivo'         => 'softphone',
                     'contexto'                 => 'from-internal',
                     'codecs'                   => 'alaw,ulaw',
-                    'transporte'               => 'udp',
+                    // Del manifiesto, no literal: es el NOMBRE del objeto transport
+                    // que declara pjsip.conf, no el protocolo. Escribir 'udp' aquí
+                    // dejaba a Asterisk sin poder resolverlo y toda llamada moría
+                    // con un 500, aunque el teléfono registrara sin problema.
+                    'transporte'               => config('requisitos-voip.asterisk.transporte', 'transport-udp'),
                     'callerid'                 => $numero,
                     'activo'                   => true,
                     'provisionado_at'          => now(),

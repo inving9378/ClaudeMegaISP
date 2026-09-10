@@ -132,6 +132,18 @@ return [
             ],
         ],
 
+        // Nombre del objeto `transport` de PJSIP.
+        //
+        // Vive aquí porque lo nombran DOS lados que tienen que coincidir: la
+        // plantilla pjsip.conf, que lo declara, y las extensiones y troncales que
+        // MegaISP publica al realtime, que lo referencian en su columna
+        // `transport`. Cuando cada uno lo escribía por su cuenta divergieron —la
+        // plantilla decía `transport-udp` y el seeder `udp`— y Asterisk rechazaba
+        // toda llamada con «Unable to retrieve PJSIP transport 'udp'» y un 500 al
+        // teléfono. Las extensiones registraban igual, así que parecía cosa del
+        // plan de marcado.
+        'transporte' => 'transport-udp',
+
         // Idioma por omisión de los prompts. Va a `asterisk.conf`: sin esta línea
         // Asterisk ignora los sonidos en español y suenan en inglés, aunque estén
         // instalados. Es el ajuste 1 de los seis al script base.
