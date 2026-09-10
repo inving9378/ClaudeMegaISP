@@ -22,6 +22,43 @@
 #   ASTERISK_IDIOMA         es
 #   ASTERISK_ESPACIO_MIN_MB 3072
 #   ASTERISK_TRABAJO        directorio de descarga (default: mktemp -d)
+#   ASTERISK_LOG_DIR        dónde queda el log (default: /var/log/megaisp)
+#   ASTERISK_SOPORTE_DIR    dónde sobrevive Alembic (default: /usr/share/megaisp-asterisk)
+#   ASTERISK_ESQUEMA_REALTIME  revisión de Alembic esperada (del manifiesto)
+#   ASTERISK_MODO_DESCUBRIMIENTO  1 = primera vez, aún no se conoce la revisión
+#
+# ─── EL ÁRBOL DE ALEMBIC TIENE QUE SOBREVIVIR A LA LIMPIEZA ───────────────
+#
+# `contrib/ast-db-manage` vive DENTRO de las fuentes, y es lo único que genera el
+# esquema de las tablas `ps_*`. Si se borra junto con el árbol, el provisionador
+# se queda sin con qué crear la base realtime y la instalación muere a la mitad.
+#
+# Por eso se copia a $ASTERISK_SOPORTE_DIR/alembic ANTES de limpiar, junto con un
+# archivo VERSION-ESQUEMA que dice qué revisión quedó aplicada.
+#
+# ─── EL HUEVO Y LA GALLINA DE LA REVISIÓN ─────────────────────────────────
+#
+# La revisión de Alembic que corresponde a una versión de Asterisk solo se conoce
+# ejecutándola. Pero el manifiesto tiene que declararla para poder validarla.
+#
+#   · Primera vez  → ASTERISK_MODO_DESCUBRIMIENTO=1. No exige la revisión: la
+#                    ejecuta, la REPORTA, y esa se fija en el manifiesto.
+#   · De ahí en más → valida contra la del manifiesto y ABORTA si no coincide.
+#
+# El modo se activa con bandera EXPLÍCITA, nunca automáticamente por encontrar el
+# campo vacío. En la instalación de un cliente el manifiesto siempre viene
+# completo, y un descubrimiento disparado por accidente allí aceptaría en silencio
+# cualquier esquema que saliera — que es exactamente cómo se llegó al esquema
+# remendado que este trabajo viene a corregir.
+#
+# ─── EL LOG SOBREVIVE AL FALLO ────────────────────────────────────────────
+#
+# El árbol de fuentes se borra siempre, también cuando la compilación revienta:
+# pesa cientos de MB y no debe quedar en el servidor de nadie. Pero el log del
+# build pesa poco y es lo único que explica QUÉ falló, así que se guarda aparte,
+# en una ruta fija y conocida, y el mensaje de error lo nombra explícitamente.
+#
+# Borrar el árbol sin conservar el log dejaría un fallo sin diagnóstico posible.
 #
 # Por eso el sha256 NO está embebido aquí (ajuste 5): en dos lugares acabaría
 # divergiendo del manifiesto, y el día que difieran nadie sabría cuál manda.
@@ -43,6 +80,10 @@ set -euo pipefail
 : "${ASTERISK_IDIOMA:=es}"
 : "${ASTERISK_ESPACIO_MIN_MB:=3072}"
 : "${ASTERISK_TRABAJO:=}"
+: "${ASTERISK_LOG_DIR:=/var/log/megaisp}"
+: "${ASTERISK_SOPORTE_DIR:=/usr/share/megaisp-asterisk}"
+: "${ASTERISK_ESQUEMA_REALTIME:=}"
+: "${ASTERISK_MODO_DESCUBRIMIENTO:=0}"
 
 SRCDIR="/usr/src/asterisk-${ASTERISK_VERSION}"
 
@@ -55,14 +96,78 @@ fi
 LIBDIR="/usr/lib/${MULTIARCH}"
 MODDIR="${LIBDIR}/asterisk/modules"
 
+# ── 0. Root, log y limpieza garantizada ──────────────────────────────────
+# El orden importa: ser root habilita crear el log, y el log tiene que existir
+# ANTES del primer paso que pueda fallar, o ese fallo no quedaría registrado.
+[[ $EUID -eq 0 ]] || { echo "ERROR: ejecutar como root."; exit 1; }
+
+mkdir -p "$ASTERISK_LOG_DIR"
+chmod 750 "$ASTERISK_LOG_DIR"
+LOG="${ASTERISK_LOG_DIR}/provision-asterisk-$(date +%Y%m%d-%H%M%S).log"
+exec > >(tee -a "$LOG") 2>&1
+
+LIMPIAR_TRABAJO=0
+ASTERISK_TRABAJO_REAL=""
+
+# El trap se instala AQUÍ, no más abajo: si el script muere en la descarga o en
+# el chequeo de espacio, el mensaje con la ruta del log tiene que salir igual.
+limpiar() {
+    local rc=$?
+
+    # El árbol pesa cientos de MB y no se queda en el servidor de nadie, ni
+    # siquiera cuando la compilación falla — que es justo cuando más tienta
+    # dejarlo "para revisar".
+    if compgen -G "/usr/src/asterisk-*" >/dev/null 2>&1; then
+        echo "--- limpiando árbol de fuentes ---"
+        rm -rf /usr/src/asterisk-* 2>/dev/null || true
+    fi
+    if (( LIMPIAR_TRABAJO )) && [[ -n "$ASTERISK_TRABAJO_REAL" ]]; then
+        rm -rf "$ASTERISK_TRABAJO_REAL" 2>/dev/null || true
+    fi
+
+    if (( rc != 0 )); then
+        echo
+        echo "═══════════════════════════════════════════════════════════════"
+        echo "  LA PROVISIÓN FALLÓ (código de salida ${rc})"
+        echo
+        echo "  El árbol de fuentes se borró, pero el log COMPLETO del build"
+        echo "  quedó guardado en:"
+        echo
+        echo "      ${LOG}"
+        echo
+        echo "  Ahí está la salida de ./configure, make y menuselect, que es"
+        echo "  donde se ve el error real."
+        echo "═══════════════════════════════════════════════════════════════"
+    else
+        echo "Log completo: ${LOG}"
+    fi
+    return $rc
+}
+trap limpiar EXIT
+
 # Ajuste 6 — la cabecera no nombra ningún servidor: se reporta el que sea.
 echo "=== Provisión de Asterisk ${ASTERISK_VERSION} — inicio $(date -Is) ==="
 echo "    servidor : $(hostname)"
 echo "    arquitect: ${MULTIARCH}  →  libdir ${LIBDIR}"
 echo "    origen   : ${ASTERISK_ORIGEN}"
+echo "    log      : ${LOG}"
 
-# ── 0. Verificaciones previas ────────────────────────────────────────────
-[[ $EUID -eq 0 ]] || { echo "ERROR: ejecutar como root."; exit 1; }
+# Coherencia del modo: se decide ANTES de compilar, no después de media hora.
+if [[ "$ASTERISK_MODO_DESCUBRIMIENTO" == "1" ]]; then
+    echo "--- MODO DESCUBRIMIENTO: la revisión de Alembic se reportará al final ---"
+    if [[ -n "$ASTERISK_ESQUEMA_REALTIME" ]]; then
+        echo "ERROR: el modo descubrimiento es para cuando la revisión AÚN NO se conoce,"
+        echo "       pero el manifiesto ya trae '${ASTERISK_ESQUEMA_REALTIME}'."
+        echo "       Si de verdad quieres re-descubrirla, vacía esquema_realtime primero."
+        exit 1
+    fi
+elif [[ -z "$ASTERISK_ESQUEMA_REALTIME" ]]; then
+    echo "ERROR: el manifiesto no declara esquema_realtime y NO se pidió modo descubrimiento."
+    echo "       Sin revisión esperada no hay nada contra qué validar, y aceptar 'la que"
+    echo "       salga' es como se llegó al esquema remendado que este trabajo corrige."
+    echo "       Primera instalación: ASTERISK_MODO_DESCUBRIMIENTO=1"
+    exit 1
+fi
 
 # Ajuste 4 — el espacio ABORTA, no solo informa.
 LIBRE_MB="$(df -Pm /usr/src | awk 'NR==2{print $4}')"
@@ -74,9 +179,9 @@ if (( LIBRE_MB < ASTERISK_ESPACIO_MIN_MB )); then
 fi
 
 # ── 1. Descarga y verificación ───────────────────────────────────────────
-LIMPIAR_TRABAJO=0
 if [[ -z "$ASTERISK_TRABAJO" ]]; then
     ASTERISK_TRABAJO="$(mktemp -d)"; LIMPIAR_TRABAJO=1
+    ASTERISK_TRABAJO_REAL="$ASTERISK_TRABAJO"
 fi
 TARBALL="${ASTERISK_TRABAJO}/${ASTERISK_ARCHIVO}"
 
@@ -89,8 +194,7 @@ else
     # cuatro artefactos ausentes dieron todos el mismo hash — el del HTML de error.
     if ! curl -fsS --retry 3 --max-time 900 -o "$TARBALL" "${ASTERISK_ORIGEN}/${ASTERISK_ARCHIVO}"; then
         echo "ERROR: no se pudo descargar ${ASTERISK_ORIGEN}/${ASTERISK_ARCHIVO}"
-        (( LIMPIAR_TRABAJO )) && rm -rf "$ASTERISK_TRABAJO"
-        exit 1
+        exit 1   # el trap limpia y nombra el log
     fi
 fi
 
@@ -98,21 +202,8 @@ echo "--- verificando integridad (hash del manifiesto, NO del sitio) ---"
 if ! echo "${ASTERISK_SHA256}  ${TARBALL}" | sha256sum -c -; then
     echo "ERROR: el hash NO coincide. Abortando sin tocar nada."
     rm -f "$TARBALL"
-    (( LIMPIAR_TRABAJO )) && rm -rf "$ASTERISK_TRABAJO"
-    exit 1
+    exit 1   # el trap limpia y nombra el log
 fi
-
-# ── Limpieza garantizada del árbol de fuentes (ajuste 2) ─────────────────
-# En trap, para que también limpie si la compilación falla a media: dejar
-# fuentes y compilador en el servidor de un cliente es justo lo que se evita.
-limpiar() {
-    local rc=$?
-    echo "--- limpiando árbol de fuentes y temporales ---"
-    rm -rf /usr/src/asterisk-* 2>/dev/null || true
-    (( LIMPIAR_TRABAJO )) && rm -rf "$ASTERISK_TRABAJO" 2>/dev/null || true
-    return $rc
-}
-trap limpiar EXIT
 
 # ── 2. Dependencias ──────────────────────────────────────────────────────
 # Lista explícita y acotada: NO se usa install_prereq, que arrastra de más.
@@ -201,6 +292,22 @@ echo "--- make samples ---"
 make samples
 ldconfig
 
+# ── Alembic, a salvo de la limpieza ──────────────────────────────────────
+# Va INMEDIATAMENTE después de install y antes de cualquier otra cosa que pueda
+# fallar: si el script muriera aquí, el trap borraría las fuentes y con ellas la
+# única copia del árbol que genera el esquema.
+echo "--- preservando el árbol de Alembic en ${ASTERISK_SOPORTE_DIR}/alembic ---"
+if [[ ! -d "${SRCDIR}/contrib/ast-db-manage" ]]; then
+    echo "ERROR: no está contrib/ast-db-manage en las fuentes. Sin él no hay forma de"
+    echo "       crear la base realtime, y la instalación quedaría a medias."
+    exit 1
+fi
+mkdir -p "${ASTERISK_SOPORTE_DIR}"
+rm -rf "${ASTERISK_SOPORTE_DIR}/alembic"
+cp -a "${SRCDIR}/contrib/ast-db-manage" "${ASTERISK_SOPORTE_DIR}/alembic"
+echo "${ASTERISK_VERSION}" > "${ASTERISK_SOPORTE_DIR}/VERSION-ASTERISK"
+echo "    $(find "${ASTERISK_SOPORTE_DIR}/alembic/config/versions" -name '*.py' 2>/dev/null | wc -l) migraciones de Alembic preservadas"
+
 # ── 7. asterisk.conf: usuario y, sobre todo, idioma ──────────────────────
 echo "--- fijando runuser/rungroup ---"
 sed -i -E 's/^;?\s*runuser\s*=.*/runuser = asterisk/'   /etc/asterisk/asterisk.conf
@@ -274,6 +381,28 @@ echo "--- servicio (debe estar inactivo y disabled) ---"
 systemctl is-active asterisk || true
 systemctl is-enabled asterisk || true
 
+echo "--- árbol de Alembic disponible ---"
+[[ -d "${ASTERISK_SOPORTE_DIR}/alembic/config/versions" ]] \
+    || { echo "ERROR: el árbol de Alembic no quedó preservado."; exit 1; }
+
 echo
 echo "=== Provisión terminada $(date -Is) ==="
+if [[ "$ASTERISK_MODO_DESCUBRIMIENTO" == "1" ]]; then
+    echo
+    echo "═══════════════════════════════════════════════════════════════"
+    echo "  MODO DESCUBRIMIENTO — falta un paso manual"
+    echo
+    echo "  Asterisk quedó instalado y el árbol de Alembic preservado en:"
+    echo "      ${ASTERISK_SOPORTE_DIR}/alembic"
+    echo
+    echo "  El provisionador ejecutará ahora 'alembic upgrade head' y"
+    echo "  reportará la revisión resultante. Ese valor hay que fijarlo en"
+    echo "  config/requisitos-voip.php → asterisk.esquema_realtime"
+    echo
+    echo "  A partir de la siguiente ejecución se valida contra él, y una"
+    echo "  revisión distinta aborta en vez de aplicarse en silencio."
+    echo "═══════════════════════════════════════════════════════════════"
+else
+    echo "Revisión de esquema esperada: ${ASTERISK_ESQUEMA_REALTIME}"
+fi
 echo "El servicio NO fue arrancado: lo levanta el provisionador tras escribir la configuración."

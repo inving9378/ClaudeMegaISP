@@ -65,11 +65,31 @@ return [
         // ejecuta `alembic upgrade` hasta aquí y verifica que quede registrada en
         // la tabla ESTÁNDAR `alembic_version`.
         //
-        // ⚠️ PENDIENTE: se completa al ejecutar la receta por primera vez, que es
-        // cuando se conoce el head real del árbol de 22.11.0. Mientras esté en
-        // null, el provisionador debe ABORTAR antes de tocar la base — nunca
-        // asumir "la que salga".
+        // ⚠️ EN NULL A PROPÓSITO — el huevo y la gallina, resuelto con una bandera.
+        //
+        // La revisión que corresponde a una versión de Asterisk solo se conoce
+        // ejecutándola, pero el manifiesto tiene que declararla para validarla.
+        //
+        //   · Primera vez  → se corre con ASTERISK_MODO_DESCUBRIMIENTO=1. No exige
+        //                    la revisión: ejecuta `alembic upgrade head`, REPORTA
+        //                    la resultante, y ese valor se fija aquí.
+        //   · De ahí en más → se valida contra este campo y se ABORTA si no coincide.
+        //
+        // El modo se activa con bandera EXPLÍCITA, nunca automáticamente por
+        // encontrar este campo vacío. En la instalación de un cliente el manifiesto
+        // siempre viene completo, y un descubrimiento disparado por accidente allí
+        // aceptaría en silencio cualquier esquema que saliera — que es exactamente
+        // cómo se llegó al esquema remendado que este trabajo viene a corregir.
+        //
+        // Con el campo vacío y sin la bandera, el provisionador aborta antes de
+        // tocar la base.
         'esquema_realtime' => null,
+
+        // Dónde sobrevive el árbol de Alembic a la limpieza de fuentes.
+        // `contrib/ast-db-manage` vive DENTRO del tarball y es lo único que genera
+        // el esquema de las `ps_*`: si se borra con el árbol, el provisionador se
+        // queda sin con qué crear la base realtime.
+        'soporte_dir' => env('MEGAISP_ASTERISK_SOPORTE_DIR', '/usr/share/megaisp-asterisk'),
 
         // Paquetes de sonidos. Las versiones salen del `sounds/Makefile` del
         // propio tarball de Asterisk; la ruta upstream real es `.../sounds/releases/`,
