@@ -95,7 +95,13 @@ return [
         //
         // Con el campo vacío y sin la bandera, el provisionador aborta antes de
         // tocar la base.
-        'esquema_realtime' => null,
+        //
+        // DESCUBIERTA el 2026-09-10 corriendo `alembic upgrade head` del árbol
+        // `config` de Asterisk 22.11.0 sobre una base recreada desde cero. A
+        // partir de aquí se VALIDA contra este valor: una revisión distinta
+        // aborta en vez de aplicarse en silencio, y `--descubrimiento` ya no se
+        // acepta (sería re-descubrir sin querer y perder la validación).
+        'esquema_realtime' => '2285f2ace275',
 
         // Dónde sobrevive el árbol de Alembic a la limpieza de fuentes.
         // `contrib/ast-db-manage` vive DENTRO del tarball y es lo único que genera
