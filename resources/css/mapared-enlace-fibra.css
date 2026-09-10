@@ -1,0 +1,67 @@
+/*
+ * Efecto "enlace vivo" del Mapa de Red — item roadmap #9990733.
+ * Puntitos que fluyen sobre el cable (stroke-dasharray + stroke-dashoffset animado), igual
+ * que la animación de terminales de la Torre de Control V2. No es sólo estético: la
+ * VELOCIDAD codifica la potencia óptica de la ONT, el COLOR el umbral en que está, y un
+ * enlace sin movimiento = ONT caída/LOS. Ver codificación completa y umbrales en el prompt
+ * del item. Reutilizable: aplica a cualquier <path>/polilínea SVG con clase .enlace-fibra,
+ * sea del Mapa de Red (Leaflet) o de otro lugar que dibuje cables sobre SVG.
+ *
+ * NOTA TÉCNICA: la suma del dasharray (6+10=16) y el offset del keyframe (-32) deben ser
+ * múltiplos entre sí o el ciclo "salta" al reiniciar. Si se ajusta el dasharray, el offset
+ * va al doble de la suma.
+ */
+@keyframes megaisp-flow {
+    to {
+        stroke-dashoffset: -32;
+    }
+}
+
+.enlace-fibra {
+    stroke-dasharray: 6 10;
+    stroke-linecap: round;
+    animation: megaisp-flow 1.1s linear infinite;
+}
+
+.enlace-fibra.est-ok {
+    stroke: #21ba45;
+    animation-duration: 1.1s;
+}
+.enlace-fibra.est-degradado {
+    stroke: #f2c037;
+    animation-duration: 2.6s;
+}
+.enlace-fibra.est-critico {
+    stroke: #ff6b35;
+    animation-duration: 4.5s;
+}
+.enlace-fibra.est-caido {
+    stroke: #c10015;
+    animation: none;
+    opacity: 0.45;
+}
+
+.enlace-fibra.rev {
+    animation-direction: reverse;
+}
+.enlace-fibra.troncal {
+    stroke-width: 3.5;
+}
+.enlace-fibra.derivacion {
+    stroke-width: 2;
+}
+
+/* Fase 3 (guardas de rendimiento, item #9990733): clases que la lógica JS activa/desactiva
+   por viewport, nivel de zoom o pestaña oculta — no se disparan solas desde aquí. */
+.enlace-fibra.sin-animar {
+    animation: none;
+}
+.congelado .enlace-fibra {
+    animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .enlace-fibra {
+        animation: none;
+    }
+}
