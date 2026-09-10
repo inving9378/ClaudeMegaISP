@@ -101,7 +101,11 @@ return [
 
         'asterisk_rt' => [
             'driver'    => 'mysql',
-            'host'      => env('ASTERISK_RT_DB_HOST', '192.168.105.11'),
+            // Sin default de IP a propósito (#9990718 §6): un default con la IP de dev
+            // significa que una instalación a la que le falte la variable apunta al
+            // servidor de desarrollo de Meganet — y eso no falla ruidosamente, se
+            // conecta. Vacío obliga a definirla, que es el modo de fallo correcto.
+            'host'      => env('ASTERISK_RT_DB_HOST', ''),
             'port'      => env('ASTERISK_RT_DB_PORT', '3306'),
             'database'  => env('ASTERISK_RT_DB_DATABASE', 'asterisk'),
             'username'  => env('ASTERISK_RT_DB_USERNAME', 'asterisk_rt'),
