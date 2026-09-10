@@ -139,6 +139,11 @@ class ReconcileReleasesCommand extends Command
      * devuelve un arreglo vacío (sin dato confiable no genera nada); igual se filtran aquí los
      * gaps de recurso `github_release` como defensa adicional (Q3 del item padre #9990676), sin
      * duplicar la lógica del cruce.
+     *
+     * Suma `ejeCommitsSinVersionar()` (#9990710, criterio aprobado por Irving en q2 de #9990686):
+     * cubre commits en main sin cortar en NINGÚN tag aún, un gap invisible para el eje de arriba.
+     * Es independiente de la API de GitHub (solo lee tags de git), así que corre SIEMPRE, incluso
+     * cuando `$githubOk` es falso.
      */
     private function ejecutarAlertar(bool $githubOk): void
     {
@@ -151,6 +156,8 @@ class ReconcileReleasesCommand extends Command
                 fn (array $g) => !str_starts_with($g['clave'], 'github_release|')
             ));
         }
+
+        $gaps = array_merge($gaps, $auditor->ejeCommitsSinVersionar());
 
         $creados = 0;
         foreach ($gaps as $gap) {
