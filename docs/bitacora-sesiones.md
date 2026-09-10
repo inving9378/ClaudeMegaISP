@@ -4261,3 +4261,27 @@ expediente") sigue `aprobado_irving`, sin mergear. No había trabajo propio de c
 otra vez a `aprobado_irving`+`excluir_pool_automatico=true`, liberando `worker_sid`/`claimed_at`.
 Cerrará solo cuando `#9990655` cierre (y eso, a su vez, espera a que `#9990649` mergee primero).
 Sin cambio de código de negocio.
+
+## 2026-09-10 22:32 — Item #9990731 — Backfill de merge_commit de los 21 items ya integrados a main
+
+**Contexto:** #9990719 midió 45 items `completado` con `branch` sin `merge_commit`: 23 con código
+realmente fuera de main, 21 ya integrados (solo faltaba el registro) y 1 con rama perdida sin
+pérdida de trabajo. #9990731 nació como sub-item de decisión: cómo rellenar `merge_commit` de los
+21 sin arriesgar escribir el commit equivocado (un mismo ID de item puede tener rondas de trabajo
+distintas — caso #279 documentado en #9990719).
+
+**Decisión (opción 1, recomendada por el propio item):** usar el tip de cada rama
+(`git rev-parse <branch>`) como `merge_commit` — ya es un ancestro confirmado de main
+(`git rev-list --count main..<branch>` = 0), sin necesidad de adivinar cuál commit
+"Integra circuito #N..." corresponde.
+
+**Ejecutado:** migración idempotente
+`app/Modules/Addons/Roadmap/migrations/2026_09_10_230000_backfill_merge_commit_item_9990731.php`
+con guard triple por fila (id+branch+merge_commit IS NULL), `down()` no-op a propósito. Rellenó
+`merge_commit` de: #279, #646, #663, #664, #739, #797, #900, #933, #952, #953, #9990008, #9990254,
+#9990331, #9990401, #9990423, #9990469, #9990510, #9990547, #9990640, #9990644, #9990676.
+
+**Verificado:** 21/21 con `merge_commit` poblado tras correr la migración; los 23 divergentes
+reales + #871 (rama perdida) quedaron intactos (`merge_commit` sigue NULL, como debe ser — su
+código NO está en main o no aplica). `php artisan --version` bootea limpio. Rama encolada con
+`circuito:integrar` para el merge-runner on-box.
