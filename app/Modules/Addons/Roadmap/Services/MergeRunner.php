@@ -556,33 +556,47 @@ class MergeRunner
     /** Marca el item como integrado + CLASIFICA UI/backend y auto-archiva lo backend. */
     private function markMerged(RoadmapItem $item, string $sha, string $branch): void
     {
+        // #9990732 — GUARDA LO CRÍTICO PRIMERO. `main` ya avanzó (update-ref, en performMerge())
+        // cuando se llega aquí; si el proceso muere (timeout/kill/OOM) en cualquier paso de ABAJO
+        // (clasificarUi() dispara un `git diff` en subproceso — el punto real de riesgo), el item
+        // debe quedar YA marcado `completado` con su `merge_commit`, no huérfano indistinguible de
+        // "nadie lo trabajó" (eso volvía al reaper re-encolarlo de por vida pese a estar en main).
         $item->merge_commit = $sha;
-        // #1035 — el merge a main ES el momento en que «decisión tomada» pasa a «decisión
-        // ejecutada»: estampa el hash en cada pregunta del brief que ya tenía opción elegida.
-        $item->marcarPreguntasEjecutadas($sha, 'merge-runner');
         if ($item->status !== 'done') {
             $item->status = 'done';
         }
         $item->estado_aprobacion = 'completado';
-
-        // Clasificación UI vs backend por los archivos que trajo el merge (HEAD^1..HEAD = main previo..fusión).
-        $clasif = $this->clasificarUi($sha);
-        $item->revision_ui = $clasif['ui'];
-        $item->ui_hint     = $clasif['hint'];
-
-        // Backend/interno (sin efecto visible) → fuera del radar: AUTO-ARCHIVA (queda en Historial, reversible).
-        // UI-verificable → NO se archiva: espera la revisión visual de Irving.
-        if ($clasif['ui'] === false) {
-            $item->archivado_at  = now();
-            $item->archivado_por = 'merge-runner (backend auto)';
-        }
-
-        $log = $item->log ?: [];
-        $log[] = ['ts' => now()->toIso8601String(), 'por' => 'merge-runner', 'evento' => 'merge_a_main',
-            'branch' => $branch, 'merge_commit' => $sha,
-            'revision_ui' => $clasif['ui'], 'archivado' => ($clasif['ui'] === false)];
-        $item->log = $log;
         $item->save();
+
+        // Resto: enriquecimiento NO esencial — si algo de esto falla, ya no deja al item huérfano.
+        try {
+            // #1035 — el merge a main ES el momento en que «decisión tomada» pasa a «decisión
+            // ejecutada»: estampa el hash en cada pregunta del brief que ya tenía opción elegida.
+            $item->marcarPreguntasEjecutadas($sha, 'merge-runner');
+
+            // Clasificación UI vs backend por los archivos que trajo el merge (HEAD^1..HEAD = main previo..fusión).
+            $clasif = $this->clasificarUi($sha);
+            $item->revision_ui = $clasif['ui'];
+            $item->ui_hint     = $clasif['hint'];
+
+            // Backend/interno (sin efecto visible) → fuera del radar: AUTO-ARCHIVA (queda en Historial, reversible).
+            // UI-verificable → NO se archiva: espera la revisión visual de Irving.
+            if ($clasif['ui'] === false) {
+                $item->archivado_at  = now();
+                $item->archivado_por = 'merge-runner (backend auto)';
+            }
+
+            $log = $item->log ?: [];
+            $log[] = ['ts' => now()->toIso8601String(), 'por' => 'merge-runner', 'evento' => 'merge_a_main',
+                'branch' => $branch, 'merge_commit' => $sha,
+                'revision_ui' => $clasif['ui'], 'archivado' => ($clasif['ui'] === false)];
+            $item->log = $log;
+            $item->save();
+        } catch (\Throwable $e) {
+            Log::channel('roadmap_externo')->warning('markmerged-enriquecimiento-fallo', [
+                'item' => $item->id, 'merge_commit' => $sha, 'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
