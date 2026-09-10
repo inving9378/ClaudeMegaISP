@@ -208,7 +208,20 @@ class RemoteDeployCommand extends Command
                 ? $this->runArtisan($step['cmd'], $step['params'] ?? [])
                 : $this->runShell($step['cmd'], $step['timeout']);
 
-            $success = $exitCode === 0;
+            $success       = $exitCode === 0;
+            $skippedDryrun = false;
+
+            // migrate_dryrun exit 2 = el sandbox no se pudo montar (setup, no fallo de
+            // migración — contrato de deploy:dry-run-migrations, item #9990684). NO bloquea
+            // el deploy (se trata como éxito para el flujo), pero se etiqueta 'skipped' —
+            // distinto de 'success' — para que la UI lo muestre en ámbar: las migraciones
+            // NO se validaron, aunque el deploy siga. $statusLabel se resuelve DESPUÉS del
+            // bloque M1 de abajo (que puede mutar $success para el paso 'migrate'), para no
+            // desincronizarse de él.
+            if ($step['key'] === 'migrate_dryrun' && $exitCode === 2) {
+                $success       = true;
+                $skippedDryrun = true;
+            }
 
             // M1 — Verificar en vez de confiar en el exit code (LA clave anti-cuelgue): para el paso
             // migrate, un proceso zombie con stdout abierto puede colgar/tumbar el pipeline por timeout
@@ -228,14 +241,18 @@ class RemoteDeployCommand extends Command
                     $output = trim($output) . "\n[verificación migrate:status] no verificable → se mantiene el fallo por exit {$exitCode}.";
                 }
             }
+            $statusLabel = $skippedDryrun ? 'skipped' : ($success ? 'success' : 'failed');
+
             $log->updateStep($step['key'], [
-                'status'      => $success ? 'success' : 'failed',
+                'status'      => $statusLabel,
                 'output'      => mb_substr(trim($output), -2000),
                 'exit_code'   => $exitCode,
                 'duration_ms' => $ms,
             ]);
 
-            $this->line("  [{$step['key']}]: " . ($success ? 'OK' : "FAILED (exit {$exitCode}): " . substr($output, -200)));
+            $this->line("  [{$step['key']}]: " . ($skippedDryrun
+                ? 'SKIPPED (sandbox no disponible — migraciones NO validadas): ' . substr($output, -200)
+                : ($success ? 'OK' : "FAILED (exit {$exitCode}): " . substr($output, -200))));
 
             if ($step['key'] === 'backup_db' && $success) {
                 $backupPath = $this->latestBackupFile();
