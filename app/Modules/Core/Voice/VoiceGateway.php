@@ -81,7 +81,7 @@ class VoiceGateway
         // AJUSTE-C: si ya hay filas servnet es RECONFIGURACIÓN (update idempotente). Log informativo.
         foreach ([['ps_auths', $this->trunkAuthId], ['ps_aors', $this->trunkAorId], ['ps_endpoints', $this->trunkEndpointId]] as [$table, $id]) {
             if ($this->db()->table($table)->where('id', $id)->exists()) {
-                Log::info("VoiceGateway: reconfigurando fila existente {$table}.{$id} (servnet).");
+                Log::info("VoiceGateway: reconfigurando fila existente {$table}.{$id} (troncal).");
             }
         }
 
