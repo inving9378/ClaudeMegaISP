@@ -24,6 +24,12 @@ use Symfony\Component\Process\Process;
  * PRE-REQUISITO en el server: el usuario MySQL de la app necesita privilegio para
  * CREATE/DROP de la BD `{database}_dryrun`. Probar a mano una vez antes de confiar en
  * él como paso crítico:  php artisan deploy:dry-run-migrations
+ *
+ * CONTRATO DE EXIT CODE (item #9990684): 0 = corrió OK contra el sandbox (validado de
+ * verdad) · 1 = una migración FALLÓ de verdad contra el sandbox · 2 = OMITIDO (el sandbox
+ * no se pudo montar — típicamente falta el grant — no se validó NADA, pero tampoco bloquea
+ * el deploy). Antes 2 no existía y el omitido devolvía 0 igual que el OK real, lo que hacía
+ * pasar un dry-run que nunca corrió como si hubiera validado las migraciones.
  */
 class DryRunMigrationsCommand extends Command
 {
@@ -133,13 +139,16 @@ class DryRunMigrationsCommand extends Command
     }
 
     /**
-     * Setup del sandbox falló (no es un fallo de migración) → warning ruidoso y exit 0
-     * para NO bloquear el deploy. El mensaje queda en el output del paso del deploy.
+     * Setup del sandbox falló (no es un fallo de migración) → warning ruidoso y exit 2
+     * para NO bloquear el deploy, pero SIN confundirse con un dry-run real exitoso (exit 0).
+     * El mensaje queda en el output del paso del deploy. Contrato de exit code (item #9990684):
+     * 0 = OK real (corrió contra el sandbox) · 1 = FALLO real de migración · 2 = OMITIDO
+     * (no se pudo montar el sandbox — no valida nada, pero tampoco bloquea).
      */
     private function skip(string $reason): int
     {
         $this->warn('⚠️  DRY-RUN OMITIDO (no bloquea el deploy): ' . $reason);
-        return 0;
+        return 2;
     }
 
     /**

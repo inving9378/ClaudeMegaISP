@@ -127,12 +127,19 @@
                                             <div v-else-if="sub.status === 'running'" class="spinner-border spinner-border-sm text-primary" role="status" style="width:14px;height:14px;border-width:2px"></div>
                                             <i v-else-if="sub.status === 'success'" class="bi bi-check-circle-fill text-success" style="font-size:14px"></i>
                                             <i v-else-if="sub.status === 'failed'"  class="bi bi-x-circle-fill text-danger"      style="font-size:14px"></i>
+                                            <!-- migrate_dryrun 'skipped' = no se validó nada (sandbox no disponible): aviso ámbar,
+                                                 NO el gris neutro de un skip benigno (item #9990684) -->
+                                            <i v-else-if="isUnvalidatedDryrun(sub)" class="bi bi-exclamation-triangle-fill text-warning" style="font-size:14px"></i>
                                             <i v-else-if="sub.status === 'skipped'" class="bi bi-dash-circle text-muted"          style="font-size:14px"></i>
                                         </div>
 
                                         <!-- Nombre y duración -->
-                                        <span class="small flex-grow-1" :class="sub.status === 'pending' ? 'text-muted' : sub.status === 'failed' ? 'text-danger' : ''">
+                                        <span
+                                            class="small flex-grow-1"
+                                            :class="sub.status === 'pending' ? 'text-muted' : sub.status === 'failed' ? 'text-danger' : isUnvalidatedDryrun(sub) ? 'text-warning fw-semibold' : ''"
+                                        >
                                             {{ sub.name }}
+                                            <span v-if="isUnvalidatedDryrun(sub)">— OMITIDO, migraciones NO validadas</span>
                                         </span>
                                         <small v-if="sub.duration_ms > 0" class="text-muted ms-2 flex-shrink-0">
                                             {{ formatDuration(sub.duration_ms) }}
@@ -141,8 +148,8 @@
                                             corriendo...
                                         </small>
 
-                                        <!-- Output de sub-paso fallido -->
-                                        <div v-if="sub.output && sub.status === 'failed'" class="w-100 mt-1">
+                                        <!-- Output de sub-paso fallido u omitido-riesgoso -->
+                                        <div v-if="sub.output && (sub.status === 'failed' || isUnvalidatedDryrun(sub))" class="w-100 mt-1">
                                             <pre class="bg-dark text-light p-2 rounded small mb-0" style="max-height:100px;overflow-y:auto;font-size:10px;white-space:pre-wrap;word-break:break-all">{{ sub.output }}</pre>
                                         </div>
                                     </div>
@@ -535,6 +542,11 @@ export default {
             }
         };
 
+        // El dry-run de migraciones "saltado" (sandbox no disponible) es un 'skipped' de
+        // otro tipo: no validó nada, a diferencia de un skip benigno (ej. npm_build sin
+        // cambios). Se distingue por key para no cambiar el color del resto de los 'skipped'.
+        const isUnvalidatedDryrun = (sub) => sub.key === "migrate_dryrun" && sub.status === "skipped";
+
         // ── Helpers ───────────────────────────────────────────────────────────
 
         const formatDuration = (ms) => {
@@ -568,7 +580,7 @@ export default {
             releaseDescriptions,
             logTail, logExists, logVisible, logBox,
             open, close, retry,
-            remoteSubSteps, toggleOutput, formatDuration, stepRowClass, stepTextClass,
+            remoteSubSteps, isUnvalidatedDryrun, toggleOutput, formatDuration, stepRowClass, stepTextClass,
         };
     },
 };
