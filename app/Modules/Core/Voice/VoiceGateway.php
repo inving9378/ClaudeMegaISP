@@ -9,30 +9,42 @@ use Illuminate\Support\Facades\Log;
 /**
  * Gateway de voz único hacia Asterisk (PJSIP Realtime + AMI/ARI).
  *
- * Provisiona la troncal Servnet en las tablas ps_* (conexión `asterisk_rt`),
- * recarga PJSIP por AMI y reporta el estado real por ARI/AMI. Sustituye la
- * escritura de /etc/asterisk/sip.conf (chan_sip) de CobranzaBlaster.
+ * Provisiona la troncal principal (identidad configurable, ver config/voip.php)
+ * en las tablas ps_* (conexión `asterisk_rt`), recarga PJSIP por AMI y reporta
+ * el estado real por ARI/AMI. Sustituye la escritura de /etc/asterisk/sip.conf
+ * (chan_sip) de CobranzaBlaster.
  *
- * Servnet es un peer IP estático con outbound_auth (digest saliente) SIN
- * REGISTER (el chan_sip original no tenía `register =>`) → se identifica
- * inbound por IP (ps_endpoint_id_ips) y marca saliente por el contacto del
- * AOR. Por eso NO se crea ps_registrations.
+ * La troncal por default (Servnet, en la instalación de Meganet) es un peer IP
+ * estático con outbound_auth (digest saliente) SIN REGISTER (el chan_sip
+ * original no tenía `register =>`) → se identifica inbound por IP
+ * (ps_endpoint_id_ips) y marca saliente por el contacto del AOR. Por eso NO se
+ * crea ps_registrations.
  */
 class VoiceGateway
 {
-    public const TRUNK_ENDPOINT_ID = 'servnet';
-    public const TRUNK_AUTH_ID     = 'servnet-auth';
-    public const TRUNK_AOR_ID      = 'servnet-aor';
-    public const TRUNK_CONTEXT     = 'from-servnet';
+    /** Identidad de la troncal (config/voip.php) — dato de instalación, no constante de código. */
+    private readonly string $trunkEndpointId;
+    private readonly string $trunkAuthId;
+    private readonly string $trunkAorId;
+    private readonly string $trunkContext;
 
-    /** IDs que el gateway NUNCA debe crear/pisar (AJUSTE-C: no tocar trunk_2 ni extensiones). */
-    private const RESERVED_IDS = ['trunk_2', '1001', '1002', '1003', '1004'];
+    /** Rango de sistema que el gateway NUNCA debe crear/pisar (config/voip.php). */
+    private readonly array $reservedTrunkIds;
+    private readonly array $reservedExtensionRange;
 
     private AmiClient $ami;
 
     public function __construct(?AmiClient $ami = null)
     {
         $this->ami = $ami ?? app(AmiClient::class);
+
+        $this->trunkEndpointId = config('voip.trunk_endpoint_id');
+        $this->trunkAuthId     = config('voip.trunk_auth_id');
+        $this->trunkAorId      = config('voip.trunk_aor_id');
+        $this->trunkContext    = config('voip.trunk_context');
+
+        $this->reservedTrunkIds       = config('voip.reserved_trunk_ids', []);
+        $this->reservedExtensionRange = config('voip.reserved_extension_range', [0, -1]);
     }
 
     private function db()
@@ -52,9 +64,9 @@ class VoiceGateway
         $warnings = [];
 
         // AJUSTE-C: el gateway solo escribe el namespace servnet; jamás un id reservado.
-        $this->assertNotReserved(self::TRUNK_ENDPOINT_ID);
-        $this->assertNotReserved(self::TRUNK_AUTH_ID);
-        $this->assertNotReserved(self::TRUNK_AOR_ID);
+        $this->assertNotReserved($this->trunkEndpointId);
+        $this->assertNotReserved($this->trunkAuthId);
+        $this->assertNotReserved($this->trunkAorId);
 
         $host = trim((string) ($cfg['host'] ?? ''));
         if ($host === '') {
@@ -67,7 +79,7 @@ class VoiceGateway
         $match = implode(',', $ips);
 
         // AJUSTE-C: si ya hay filas servnet es RECONFIGURACIÓN (update idempotente). Log informativo.
-        foreach ([['ps_auths', self::TRUNK_AUTH_ID], ['ps_aors', self::TRUNK_AOR_ID], ['ps_endpoints', self::TRUNK_ENDPOINT_ID]] as [$table, $id]) {
+        foreach ([['ps_auths', $this->trunkAuthId], ['ps_aors', $this->trunkAorId], ['ps_endpoints', $this->trunkEndpointId]] as [$table, $id]) {
             if ($this->db()->table($table)->where('id', $id)->exists()) {
                 Log::info("VoiceGateway: reconfigurando fila existente {$table}.{$id} (servnet).");
             }
@@ -75,7 +87,7 @@ class VoiceGateway
 
         // AJUSTE-B: password en TEXTO PLANO (credencial de Asterisk). NO base64/bcrypt.
         $this->upsert('ps_auths', [
-            'id'        => self::TRUNK_AUTH_ID,
+            'id'        => $this->trunkAuthId,
             'auth_type' => 'userpass',
             'username'  => (string) ($cfg['username'] ?? ''),
             'password'  => (string) ($cfg['secret'] ?? ''),
@@ -84,18 +96,18 @@ class VoiceGateway
         // qualify_frequency: OPTIONS-ping para que el estado del endpoint sea real
         // (equivale al `qualify=yes` del chan_sip original).
         $this->upsert('ps_aors', [
-            'id'                => self::TRUNK_AOR_ID,
+            'id'                => $this->trunkAorId,
             'contact'           => "sip:{$host}:{$port}",
             'max_contacts'      => 1,
             'qualify_frequency' => 60,
         ]);
 
         $this->upsert('ps_endpoints', [
-            'id'            => self::TRUNK_ENDPOINT_ID,
+            'id'            => $this->trunkEndpointId,
             'transport'     => 'transport-udp',
-            'aors'          => self::TRUNK_AOR_ID,
-            'outbound_auth' => self::TRUNK_AUTH_ID,
-            'context'       => self::TRUNK_CONTEXT,
+            'aors'          => $this->trunkAorId,
+            'outbound_auth' => $this->trunkAuthId,
+            'context'       => $this->trunkContext,
             'disallow'      => 'all',
             'allow'         => 'ulaw,alaw',
             'direct_media'  => 'no',
@@ -106,17 +118,17 @@ class VoiceGateway
         ]);
 
         // Servnet NO hace REGISTER → NO ps_registrations. Limpiar restos de un config previo.
-        $this->db()->table('ps_registrations')->where('id', self::TRUNK_ENDPOINT_ID)->delete();
+        $this->db()->table('ps_registrations')->where('id', $this->trunkEndpointId)->delete();
 
         // AJUSTE-A: identificación inbound por IP. Vacío → warning explícito, no falla mudo.
         if ($match === '') {
             $warnings[] = "No se resolvió ninguna IP para el host '{$host}'. La identificación inbound por IP queda sin configurar (revisa DNS/host). Las llamadas salientes sí funcionan por el contacto del AOR.";
             Log::warning("VoiceGateway: resolveProviderIps('{$host}') devolvió vacío; se omite ps_endpoint_id_ips.");
-            $this->db()->table('ps_endpoint_id_ips')->where('id', self::TRUNK_ENDPOINT_ID)->delete();
+            $this->db()->table('ps_endpoint_id_ips')->where('id', $this->trunkEndpointId)->delete();
         } else {
             $this->upsert('ps_endpoint_id_ips', [
-                'id'       => self::TRUNK_ENDPOINT_ID,
-                'endpoint' => self::TRUNK_ENDPOINT_ID,
+                'id'       => $this->trunkEndpointId,
+                'endpoint' => $this->trunkEndpointId,
                 'match'    => $match,
             ]);
         }
@@ -192,7 +204,7 @@ class VoiceGateway
 
         // 1) ARI: estado del endpoint (online/offline/unknown).
         try {
-            $ari = $this->ariGet('/ari/endpoints/PJSIP/' . self::TRUNK_ENDPOINT_ID);
+            $ari = $this->ariGet('/ari/endpoints/PJSIP/' . $this->trunkEndpointId);
             if ($ari !== null) {
                 $state      = $ari['state'] ?? 'unknown';
                 $registered = ($state === 'online');
@@ -209,7 +221,7 @@ class VoiceGateway
                 $events = AmiClient::parseEvents($raw);
                 foreach ($events as $ev) {
                     if (($ev['Event'] ?? '') === 'OutboundRegistrationDetail'
-                        && str_contains($ev['ObjectName'] ?? '', self::TRUNK_ENDPOINT_ID)) {
+                        && str_contains($ev['ObjectName'] ?? '', $this->trunkEndpointId)) {
                         $state      = $ev['Status'] ?? 'unknown';
                         $registered = strtolower($state) === 'registered';
                     }
@@ -230,7 +242,7 @@ class VoiceGateway
      */
     public function testConnection(): array
     {
-        $provisioned = $this->db()->table('ps_endpoints')->where('id', self::TRUNK_ENDPOINT_ID)->exists();
+        $provisioned = $this->db()->table('ps_endpoints')->where('id', $this->trunkEndpointId)->exists();
 
         if (!$provisioned) {
             return [
@@ -244,7 +256,7 @@ class VoiceGateway
         }
 
         $warnings = [];
-        $idIps    = $this->db()->table('ps_endpoint_id_ips')->where('id', self::TRUNK_ENDPOINT_ID)->value('match');
+        $idIps    = $this->db()->table('ps_endpoint_id_ips')->where('id', $this->trunkEndpointId)->value('match');
         if (empty($idIps)) {
             $warnings[] = 'La troncal no tiene IPs de identificación inbound (ps_endpoint_id_ips vacío); revisa el host/DNS.';
         }
@@ -326,10 +338,20 @@ class VoiceGateway
         $this->db()->table($table)->updateOrInsert(['id' => $data['id']], $data);
     }
 
+    /**
+     * Protege el rango de sistema (config/voip.php): un id de trunk reservado por
+     * nombre exacto, o una extensión numérica dentro del rango reservado. Ya no es
+     * una lista de 5 números fijos de una oficina — cada instalación define su rango.
+     */
     private function assertNotReserved(string $id): void
     {
-        if (in_array($id, self::RESERVED_IDS, true)) {
-            throw new \RuntimeException("VoiceGateway: el id '{$id}' está reservado y no puede ser gestionado por el gateway de Servnet.");
+        if (in_array($id, $this->reservedTrunkIds, true)) {
+            throw new \RuntimeException("VoiceGateway: el id '{$id}' está reservado y no puede ser gestionado por el gateway de la troncal.");
+        }
+
+        [$from, $to] = $this->reservedExtensionRange;
+        if (ctype_digit($id) && $from <= $to && (int) $id >= $from && (int) $id <= $to) {
+            throw new \RuntimeException("VoiceGateway: el id '{$id}' cae en el rango de extensiones reservadas ({$from}-{$to}) y no puede ser gestionado por el gateway de la troncal.");
         }
     }
 }
