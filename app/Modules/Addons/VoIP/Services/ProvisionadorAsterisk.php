@@ -78,8 +78,11 @@ class ProvisionadorAsterisk
         'compilar'          => 'Compilación',
         'instalar'          => 'Instalación de binarios y sonidos',
         'preservar_alembic' => 'Preservación del árbol de Alembic',
-        'generar_config'    => 'asterisk.conf, unit de systemd y alembic.ini',
+        // La base ANTES de generar la configuración: esa fase escribe el DSN de
+        // unixODBC y lo comprueba con isql abriendo la conexión de verdad, y eso
+        // no se puede hacer contra una base que aún no existe.
         'crear_base'        => 'Base de datos realtime',
+        'generar_config'    => 'asterisk.conf, DSN de unixODBC, unit de systemd y alembic.ini',
         'migrar_esquema'    => 'alembic upgrade head',
         // Las credenciales ANTES de la configuración, y no al revés.
         //
@@ -197,10 +200,25 @@ class ProvisionadorAsterisk
 
             // Las fases caras, cada una con su estado propio.
             foreach (self::FASES_SCRIPT as $paso => $timeout) {
+                // `generar_config` va aparte, DESPUÉS de crear la base: escribe
+                // el DSN de unixODBC y comprueba con isql que de verdad abra, y
+                // esa comprobación no puede pasar contra una base que todavía no
+                // existe. Se puede hacer en este orden porque nada de lo que
+                // genera esa fase hace falta para crear la base — sólo las
+                // credenciales, que vienen del manifiesto.
+                if ($paso === 'generar_config') {
+                    continue;
+                }
+
                 $this->paso($paso, fn () => $this->correrFase($paso, $timeout));
             }
 
             $this->paso('crear_base', fn () => $this->crearBaseRealtime());
+
+            $this->paso('generar_config', fn () => $this->correrFase(
+                'generar_config', self::FASES_SCRIPT['generar_config']
+            ));
+
             $revision = $this->paso('migrar_esquema', fn () => $this->migrarEsquema());
             $this->paso('credenciales', fn () => $this->generarCredenciales());
             $this->paso('config',       fn () => $this->escribirConfiguracion());
@@ -273,6 +291,10 @@ class ProvisionadorAsterisk
                 // compiló» que «ya estaba compilado», y confundirlos es cómo se
                 // pierde de vista qué hizo realmente una corrida.
                 'estado'           => (is_array($detalle) && ($detalle['omitido'] ?? false)) ? 'omitido' : 'completado',
+                // Se limpia el error del intento anterior: un paso que ahora
+                // termina bien y sigue mostrando por qué falló la vez pasada hace
+                // leer como rota una provisión que salió entera.
+                'error'            => null,
                 'detalle'          => is_array($detalle) ? $detalle : ['resultado' => $detalle],
                 'esquema_revision' => is_array($detalle) ? ($detalle['revision'] ?? null) : null,
                 'terminado_at'     => now(),
@@ -428,10 +450,14 @@ class ProvisionadorAsterisk
 
         return [
             'fase'    => $fase,
-            // El script dice explícitamente cuándo no tuvo nada que hacer; se
-            // recoge para que el reporte distingua «se hizo» de «ya estaba».
-            'omitido' => (bool) preg_match('/no hay nada que|ya está instalado|ya está preservado|ya presente|nada que hacer|no se compila/i', $salida),
-            'ultimas' => Str::limit($salida, 500),
+            // El script dice explícitamente cuándo no tuvo nada que hacer, con un
+            // MARCADOR FIJO. Antes se adivinaba buscando frases sueltas en la
+            // salida («ya presente», «nada que hacer»…), lo que convertía cada
+            // mensaje en interfaz sin que se notara: al añadir a otra fase un «ya
+            // presente, se respeta» —hablando de otra cosa— esa fase pasó a
+            // reportarse como omitida habiendo hecho todo su trabajo.
+            'omitido' => str_contains($salida, '@@FASE-SIN-TRABAJO@@'),
+            'ultimas' => Str::limit(trim(str_replace('@@FASE-SIN-TRABAJO@@', '', $salida)), 500),
         ];
     }
 
@@ -868,8 +894,26 @@ class ProvisionadorAsterisk
             );
         }
 
+        // El idioma, preguntándoselo a Asterisk ya arrancado.
+        //
+        // Antes lo comprobaba el script grepeando asterisk.conf, y eso sólo dice
+        // que la línea está escrita. Que Asterisk la HAYA LEÍDO es otra cosa —y es
+        // la que importa: sin ella los prompts suenan en inglés aunque los sonidos
+        // en español estén instalados, que es el detalle que más se nota en una
+        // central y el que más fácil pasa por bueno.
+        $idioma = config('requisitos-voip.asterisk.idioma', 'es');
+        $ajustes = $cli('core show settings');
+
+        if ($idioma && ! preg_match('/Default language:\s*' . preg_quote($idioma, '/') . '\b/i', $ajustes)) {
+            throw new RuntimeException(
+                "Asterisk no está usando «{$idioma}» como idioma por omisión: los prompts sonarían "
+                . 'en inglés aunque los sonidos en español estén instalados (revisa asterisk.conf)'
+            );
+        }
+
         return [
             'odbc'         => 'conectado',
+            'idioma'       => $idioma,
             'modulos'      => substr_count($cli('module show like res_pjsip'), 'res_pjsip'),
             'transports'   => trim($cli('pjsip show transports')) !== '' ? 'ok' : 'sin transporte',
             'endpoints'    => $endpoints,

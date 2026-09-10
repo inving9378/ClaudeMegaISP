@@ -451,9 +451,26 @@ fase_contrato() {
     echo "    modo descubrimiento: ${ASTERISK_MODO_DESCUBRIMIENTO}"
 }
 
+# ── «Esta fase no tuvo nada que hacer» ────────────────────────────────────
+#
+# Lo emite un MARCADOR FIJO, y no la prosa del mensaje.
+#
+# El llamador de PHP distinguía «se hizo» de «ya estaba» buscando frases sueltas
+# en la salida («ya presente», «nada que hacer», …). Eso convierte cada mensaje
+# en interfaz sin que se note: al añadir a otra fase un «ya presente, se respeta»
+# —hablando de otra cosa— esa fase pasó a reportarse como omitida habiendo hecho
+# su trabajo. Es la misma familia que adivinar el formato de menuselect.ins
+#
+# El texto para el humano se sigue imprimiendo; lo que lee la máquina es esta
+# línea, que no cambia.
+sin_trabajo() {
+    echo "$@"
+    echo "@@FASE-SIN-TRABAJO@@"
+}
+
 fase_descargar() {
     if ya_instalado && alembic_preservado; then
-        echo "--- Asterisk ${ASTERISK_VERSION} ya instalado y Alembic preservado: no hay nada que bajar ---"
+        sin_trabajo "--- Asterisk ${ASTERISK_VERSION} ya instalado y Alembic preservado: no hay nada que bajar ---"
         return 0
     fi
 
@@ -461,7 +478,7 @@ fase_descargar() {
     chmod 700 "$ASTERISK_TRABAJO"
 
     if [[ -f "$TARBALL" ]]; then
-        echo "--- tarball ya presente en ${TARBALL}, no se re-descarga ---"
+        sin_trabajo "--- tarball ya presente en ${TARBALL}, no se re-descarga ---"
         return 0
     fi
 
@@ -490,7 +507,7 @@ fase_descargar() {
 
 fase_verificar_hash() {
     if ya_instalado && alembic_preservado && [[ ! -f "$TARBALL" ]]; then
-        echo "--- ya instalado y sin tarball que verificar: nada que hacer ---"
+        sin_trabajo "--- ya instalado y sin tarball que verificar: nada que hacer ---"
         return 0
     fi
 
@@ -598,13 +615,13 @@ PYCHK
 
 fase_compilar() {
     if ya_instalado; then
-        echo "--- Asterisk ${ASTERISK_VERSION} ya está instalado: no se compila ---"
         echo "    (para forzar una recompilación, desinstala primero)"
+        sin_trabajo "--- Asterisk ${ASTERISK_VERSION} ya está instalado: no se compila ---"
         return 0
     fi
 
     if fuentes_compiladas; then
-        echo "--- el árbol ya está compilado en ${SRCDIR}: se conserva ---"
+        sin_trabajo "--- el árbol ya está compilado en ${SRCDIR}: se conserva ---"
         return 0
     fi
 
@@ -763,6 +780,7 @@ fase_instalar() {
             echo "    desinstala y provisiona de cero si la central no está dando servicio."
         fi
 
+        sin_trabajo ""
         return 0
     fi
 
@@ -845,6 +863,7 @@ fase_preservar_alembic() {
     if alembic_preservado && [[ "$(cat "${ASTERISK_SOPORTE_DIR}/VERSION-ASTERISK" 2>/dev/null)" == "$ASTERISK_VERSION" ]]; then
         echo "--- el árbol de Alembic de ${ASTERISK_VERSION} ya está preservado ---"
         echo "    $(find "${ASTERISK_SOPORTE_DIR}/alembic/config/versions" -name '*.py' | wc -l) migraciones en ${ASTERISK_SOPORTE_DIR}/alembic"
+        sin_trabajo ""
         return 0
     fi
 
@@ -1006,20 +1025,18 @@ Charset     = utf8mb4"
 }
 
 fase_generar_config() {
-    # ── asterisk.conf ──
-    echo "--- fijando runuser/rungroup ---"
-    sed -i -E 's/^;?\s*runuser\s*=.*/runuser = asterisk/'   /etc/asterisk/asterisk.conf
-    sed -i -E 's/^;?\s*rungroup\s*=.*/rungroup = asterisk/' /etc/asterisk/asterisk.conf
-
-    # Ajuste 1 — SIN esta línea, Asterisk ignora los prompts en español y suena
-    # en inglés aunque los sonidos estén instalados. Es el que más se nota.
-    echo "--- fijando defaultlanguage = ${ASTERISK_IDIOMA} ---"
-    if grep -qE '^;?\s*defaultlanguage\s*=' /etc/asterisk/asterisk.conf; then
-        sed -i -E "s/^;?\s*defaultlanguage\s*=.*/defaultlanguage = ${ASTERISK_IDIOMA}/" /etc/asterisk/asterisk.conf
-    else
-        sed -i "/^\[options\]/a defaultlanguage = ${ASTERISK_IDIOMA}" /etc/asterisk/asterisk.conf
-    fi
-    grep -E '^(runuser|rungroup|defaultlanguage)' /etc/asterisk/asterisk.conf
+    # asterisk.conf NO se toca aquí: lo escribe la plantilla de MegaISP.
+    #
+    # Antes esta fase lo parcheaba con `sed` (runuser, rungroup, defaultlanguage)
+    # y además existía `asterisk.conf.tpl`, que lo escribe entero. Dos escritores
+    # para el mismo archivo, y el resultado no era que uno ganara: el archivo
+    # parcheado ya no coincidía con la huella del ejemplo, así que el generador lo
+    # daba por «editado a mano» y dejaba su versión al lado como .nuevo sin
+    # aplicarla. Cada provisión reportaba un archivo propuesto que nadie había
+    # tocado.
+    #
+    # Gana la plantilla: es declarativa, lleva las tres líneas del sed y además el
+    # bloque [directories] con el libdir derivado de esta arquitectura.
 
     echo "--- ajustando propietario de directorios ---"
     chown -R asterisk:asterisk \
@@ -1181,9 +1198,10 @@ UNIT
     echo "--- prompts es/*.alaw: $(ls -1 /var/lib/asterisk/sounds/es/*.alaw 2>/dev/null | wc -l) ---"
     echo "--- prompts en/*.alaw: $(ls -1 /var/lib/asterisk/sounds/en/*.alaw 2>/dev/null | wc -l) ---"
     echo "--- moh/*.alaw: $(ls -1 /var/lib/asterisk/moh/*.alaw 2>/dev/null | wc -l) ---"
-    echo "--- idioma configurado ---"
-    grep -E '^defaultlanguage' /etc/asterisk/asterisk.conf \
-        || { echo "ERROR: defaultlanguage no quedó fijado — los prompts sonarían en inglés."; exit 1; }
+    # El idioma ya no se comprueba aquí: lo fija asterisk.conf, que en este punto
+    # todavía es el ejemplo de `make samples` — la plantilla se aplica en el paso
+    # siguiente. Quien lo verifica ahora es el paso `validar`, y lo hace mejor:
+    # se lo pregunta a Asterisk ya arrancado, que es lo que prueba que lo LEYÓ.
     echo "--- servicio (debe estar inactivo y disabled) ---"
     systemctl is-active asterisk || true
     systemctl is-enabled asterisk || true
