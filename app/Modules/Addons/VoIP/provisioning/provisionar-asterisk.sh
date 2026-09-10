@@ -179,6 +179,9 @@ fi
 # resolver. Es de los que SÍ admiten omisión: no identifica nada del servidor,
 # solo tiene que decir lo mismo en /etc/odbc.ini y en res_odbc.conf.
 : "${ASTERISK_ODBC_DSN:=asterisk-connector}"
+# Dónde deja MegaISP los .conf que genera. extensions.conf los incluye por esta
+# ruta, así que el script y el generador de PHP tienen que decir lo mismo.
+: "${ASTERISK_GENERADOS_DIR:=/etc/asterisk/megaisp.d}"
 
 # El directorio de trabajo es PERSISTENTE y ya no un `mktemp -d`: con las fases
 # separadas, el tarball que baja `descargar` tiene que seguir ahí cuando corre
@@ -201,7 +204,8 @@ export ASTERISK_VERSION ASTERISK_ORIGEN ASTERISK_ARCHIVO ASTERISK_SHA256 \
        ASTERISK_SOPORTE_DIR ASTERISK_TRABAJO ASTERISK_ESQUEMA_REALTIME \
        ASTERISK_MODO_DESCUBRIMIENTO \
        ASTERISK_DB_HOST ASTERISK_DB_PORT ASTERISK_DB_NAME \
-       ASTERISK_DB_USER ASTERISK_DB_PASSWORD ASTERISK_DB_DRIVER ASTERISK_ODBC_DSN
+       ASTERISK_DB_USER ASTERISK_DB_PASSWORD ASTERISK_DB_DRIVER ASTERISK_ODBC_DSN \
+       ASTERISK_GENERADOS_DIR
 
 # ── EL CONTRATO ──────────────────────────────────────────────────────────
 #
@@ -719,6 +723,26 @@ fase_instalar() {
         echo "--- Asterisk ${ASTERISK_VERSION} ya está instalado en /usr/sbin/asterisk ---"
         echo "    No se reinstala encima. Reinstalar sobreescribe módulos y sonidos de una"
         echo "    central que puede estar dando servicio."
+
+        # Adoptar una instalación ajena tiene una consecuencia que hay que decir
+        # en voz alta: sin haber corrido `make samples` nosotros, no hay huella
+        # de cuál era el contenido original de /etc/asterisk, así que no se puede
+        # distinguir «ejemplo que nadie tocó» de «archivo que el operador ajustó».
+        #
+        # Ante la duda gana no pisar: el generador propondrá su configuración como
+        # .nuevo en vez de aplicarla. Es lo correcto —nadie quiere un provisionador
+        # que se lleve por delante la configuración de una central en servicio—
+        # pero significa que en este servidor la configuración NO queda automática,
+        # y eso no puede descubrirse leyendo un paso que dice «completado».
+        if [[ ! -f "${ASTERISK_SOPORTE_DIR}/huellas-ejemplos.json" ]]; then
+            echo
+            echo "    AVISO: se está ADOPTANDO una instalación que no hizo este provisionador."
+            echo "    No hay huella de los ejemplos originales, así que /etc/asterisk se trata"
+            echo "    entero como configuración ajena: lo que MegaISP genere se dejará al lado"
+            echo "    como .nuevo y NO se aplicará solo. Revísalos y muévelos a mano, o"
+            echo "    desinstala y provisiona de cero si la central no está dando servicio."
+        fi
+
         return 0
     fi
 
@@ -742,7 +766,56 @@ fase_instalar() {
     make samples
     ldconfig
 
+    registrar_huellas_de_ejemplos
+
     echo "--- instalado: $(version_instalada || echo '¿?') ---"
+}
+
+# ── La huella de los ejemplos que acaba de dejar `make samples` ──────────
+#
+# Esto es lo que le permite al generador de configuración distinguir «archivo
+# que Asterisk acaba de instalar como ejemplo» de «archivo que alguien editó a
+# mano». Sin esa distinción no hay forma de cumplir las dos reglas a la vez:
+#
+#   · No pisar NUNCA lo que un operador ajustó por una razón.
+#   · Dejar la central configurada en una instalación nueva.
+#
+# Y al no poder distinguir, ganaba la primera: en un servidor recién instalado
+# `make samples` llena /etc/asterisk, el generador encontraba los nueve destinos
+# ocupados, escribía sus propuestas como .nuevo al lado y no aplicaba ninguna.
+# El paso se asentaba como «completado» y la central quedaba corriendo con los
+# ejemplos de Asterisk: sin realtime, sin DSN, sin PJSIP. Un éxito que no lo era.
+#
+# Es el modelo de los conffiles de dpkg: se guarda la huella de lo que dejamos
+# nosotros, y solo se considera «ajeno» lo que no coincide con ella.
+registrar_huellas_de_ejemplos() {
+    local destino="${ASTERISK_SOPORTE_DIR}/huellas-ejemplos.json"
+
+    echo "--- registrando la huella de los ejemplos recién instalados ---"
+    mkdir -p "$ASTERISK_SOPORTE_DIR"
+
+    python3 - "$destino" <<'PYHUELLAS'
+import glob, hashlib, json, os, sys
+
+destino = sys.argv[1]
+huellas = {}
+
+for ruta in sorted(glob.glob('/etc/asterisk/*.conf')):
+    try:
+        with open(ruta, 'rb') as fh:
+            huellas[os.path.basename(ruta)] = hashlib.sha256(fh.read()).hexdigest()
+    except OSError:
+        # Un archivo ilegible no debe tumbar la instalación: simplemente no se
+        # registra, y el generador lo tratará como ajeno (que es lo prudente).
+        pass
+
+with open(destino, 'w', encoding='utf-8') as fh:
+    json.dump(huellas, fh, indent=2, sort_keys=True)
+
+print('    %d ejemplos registrados en %s' % (len(huellas), destino))
+PYHUELLAS
+
+    chmod 644 "$destino"
 }
 
 fase_preservar_alembic() {
@@ -833,6 +906,36 @@ if not reemplazada:
 with open(archivo, 'w', encoding='utf-8') as fh:
     fh.write('\n'.join(salida).rstrip('\n') + '\n')
 PYINI
+}
+
+# ── El directorio de lo que MegaISP genera ────────────────────────────────
+#
+# extensions.conf termina con un `#include` a megaisp_dialplan.conf, y Asterisk
+# se queja en cada arranque si ese archivo no existe. El provisionador lo crea
+# vacío —con su encabezado— para que el include siempre apunte a algo, incluso
+# en una instalación recién hecha donde todavía no hay grupos ni troncales que
+# generar. MegaISP lo reescribe cuando los haya.
+#
+# Fuera del árbol de la aplicación web (§6): Asterisk corre como root y no debe
+# leer configuración de un directorio escribible por www-data.
+preparar_generados_dir() {
+    echo "--- preparando ${ASTERISK_GENERADOS_DIR} ---"
+    mkdir -p "$ASTERISK_GENERADOS_DIR"
+
+    local dialplan="${ASTERISK_GENERADOS_DIR}/megaisp_dialplan.conf"
+
+    if [[ ! -f "$dialplan" ]]; then
+        cat > "$dialplan" <<'GEN'
+; MegaISP — lo generado automáticamente. No editar a mano.
+; Vacío hasta que haya grupos de timbrado o troncales que generar.
+GEN
+        echo "    creado ${dialplan} (vacío, para que el #include no apunte al aire)"
+    else
+        echo "    ${dialplan} ya presente, se respeta"
+    fi
+
+    chown -R asterisk:asterisk "$ASTERISK_GENERADOS_DIR" 2>/dev/null || true
+    chmod 750 "$ASTERISK_GENERADOS_DIR"
 }
 
 escribir_dsn_odbc() {
@@ -971,6 +1074,9 @@ PYINI
     fi
     echo "    ${ini} (permisos $(stat -c '%a' "$ini"), no versionado)"
     echo "    sqlalchemy.url → mysql+${ASTERISK_DB_DRIVER}://${ASTERISK_DB_USER}:***@${ASTERISK_DB_HOST}:${ASTERISK_DB_PORT}/${ASTERISK_DB_NAME}"
+
+    # ── Lo que MegaISP genera ──
+    preparar_generados_dir
 
     # ── DSN de unixODBC ──
     escribir_dsn_odbc

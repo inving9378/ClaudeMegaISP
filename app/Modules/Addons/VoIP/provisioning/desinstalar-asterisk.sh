@@ -18,10 +18,28 @@ set -euo pipefail
 : "${ASTERISK_DB_NAME:=asterisk}"
 : "${SOPORTE_DIR:=/usr/share/megaisp-asterisk}"
 
+# La confirmación también se acepta como argumento, y no solo por entorno.
+#
+# Misma razón que en el provisionador: `sudo` trae `env_reset` por omisión y
+# limpia CONFIRMAR en el camino, así que `CONFIRMAR=… sudo -E bash …` sólo
+# funciona si el sudoers de ese servidor trae la etiqueta SETENV. Depender de eso
+# convierte la configuración de un servidor ajeno en requisito para poder borrar.
+#
+# Aquí el valor no es un secreto —es una frase fija cuyo único propósito es que
+# nadie borre una central sin querer— así que pasarlo como argumento, donde un
+# `ps` lo puede ver, no expone nada.
+for arg in "$@"; do
+    case "$arg" in
+        --confirmar=*) CONFIRMAR="${arg#*=}" ;;
+        --base=*)      ASTERISK_DB_NAME="${arg#*=}" ;;
+        *) echo "ERROR: argumento no reconocido: ${arg}"; exit 1 ;;
+    esac
+done
+
 if [[ "$CONFIRMAR" != "SI-BORRAR-ASTERISK" ]]; then
     echo "ERROR: esto borra Asterisk por completo — binario, configuración, base"
     echo "       realtime, usuario de sistema y unit."
-    echo "       Para ejecutarlo: CONFIRMAR=SI-BORRAR-ASTERISK sudo -E bash $0"
+    echo "       Para ejecutarlo:  sudo -n bash $0 --confirmar=SI-BORRAR-ASTERISK"
     exit 1
 fi
 
@@ -52,6 +70,45 @@ rm -rf "$SOPORTE_DIR"
 
 echo "--- 5. base realtime ---"
 mysql -e "DROP DATABASE IF EXISTS \`${ASTERISK_DB_NAME}\`;"
+
+echo "--- 5b. DSN de unixODBC ---"
+# Se quita SOLO la sección propia. /etc/odbc.ini es de todo el sistema y otra
+# aplicación puede tener ahí su DSN; borrar el archivo entero le cortaría la
+# conexión a un tercero que no tiene nada que ver con esta central.
+#
+# Tiene que salir para que la prueba de cero sea honesta: el provisionador ahora
+# crea este DSN, y dejarlo puesto haría pasar una corrida que en un servidor
+# recién instalado fallaría.
+DSN="${ASTERISK_ODBC_DSN:-asterisk-connector}" python3 - <<'PYDSN'
+import os
+
+seccion = os.environ['DSN']
+
+for archivo in ('/etc/odbc.ini',):
+    if not os.path.exists(archivo):
+        continue
+
+    with open(archivo, encoding='utf-8') as fh:
+        lineas = fh.read().splitlines()
+
+    salida, dentro, quitada = [], False, False
+    for linea in lineas:
+        marca = linea.strip()
+        if marca.startswith('[') and marca.endswith(']'):
+            dentro = (marca == '[' + seccion + ']')
+            if dentro:
+                quitada = True
+                continue
+        if not dentro:
+            salida.append(linea)
+
+    if quitada:
+        with open(archivo, 'w', encoding='utf-8') as fh:
+            fh.write('\n'.join(salida).rstrip('\n') + '\n')
+        print('    quitado [%s] de %s' % (seccion, archivo))
+    else:
+        print('    no había [%s] en %s' % (seccion, archivo))
+PYDSN
 
 echo "--- 6. usuario de sistema ---"
 userdel asterisk 2>/dev/null || true

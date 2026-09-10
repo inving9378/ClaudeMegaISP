@@ -28,6 +28,9 @@ class GeneradorConfigAsterisk
     {
         $valores ??= $this->valoresDelServidor();
 
+        $ejemplos = $this->huellas('huellas-ejemplos.json');   // lo que dejó `make samples`
+        $nuestras = $this->huellas('huellas-megaisp.json');    // lo que escribimos nosotros
+
         $escritos = $propuestos = $iguales = [];
 
         foreach (glob($this->origen . '/*.tpl') as $tpl) {
@@ -36,21 +39,88 @@ class GeneradorConfigAsterisk
             $ruta      = $this->destino . '/' . $nombre;
 
             if (is_file($ruta)) {
-                if (trim(file_get_contents($ruta)) === trim($contenido)) {
+                $actual = @file_get_contents($ruta);
+
+                if (trim((string) $actual) === trim($contenido)) {
                     $iguales[] = $nombre;
+                    $nuestras[$nombre] = hash('sha256', (string) $actual);
                     continue;
                 }
-                // Difiere: se propone, no se pisa.
-                $this->escribir($ruta . '.nuevo', $contenido);
-                $propuestos[] = $nombre;
-                continue;
+
+                // ¿De quién es lo que hay ahí? Si coincide con el ejemplo que
+                // instaló `make samples`, o con lo último que escribimos
+                // nosotros, nadie lo ha tocado y es nuestro para reemplazar.
+                $huella = hash('sha256', (string) $actual);
+                $ajeno  = $huella !== ($ejemplos[$nombre] ?? null)
+                       && $huella !== ($nuestras[$nombre] ?? null);
+
+                if ($ajeno) {
+                    // Alguien lo editó a mano, por una razón que no está aquí.
+                    $this->escribir($ruta . '.nuevo', $contenido);
+                    $propuestos[] = $nombre;
+                    continue;
+                }
             }
 
             $this->escribir($ruta, $contenido);
             $escritos[] = $nombre;
+            $nuestras[$nombre] = hash('sha256', $contenido);
         }
 
+        $this->guardarHuellas('huellas-megaisp.json', $nuestras);
+
         return ['escritos' => $escritos, 'propuestos_nuevo' => $propuestos, 'sin_cambio' => $iguales];
+    }
+
+    /**
+     * Dónde viven las huellas: junto al árbol de Alembic, fuera del árbol web.
+     *
+     * Mismo criterio que el resto del soporte de la central (#9990718 §6): son
+     * datos de root sobre el estado del servidor, y no tienen por qué ser
+     * legibles —ni escribibles— desde la aplicación web.
+     */
+    private function rutaHuellas(string $archivo): string
+    {
+        $soporte = config('requisitos-voip.asterisk.soporte_dir', '/usr/share/megaisp-asterisk');
+
+        return rtrim($soporte, '/') . '/' . $archivo;
+    }
+
+    /**
+     * Las huellas conocidas, o vacío si no hay archivo.
+     *
+     * Vacío es el caso seguro: sin huella conocida, todo destino existente se
+     * considera AJENO y se propone en vez de pisarse. Se pierde la comodidad,
+     * nunca la configuración de nadie.
+     */
+    private function huellas(string $archivo): array
+    {
+        $ruta = $this->rutaHuellas($archivo);
+
+        if (! is_file($ruta)) {
+            return [];
+        }
+
+        $datos = json_decode((string) @file_get_contents($ruta), true);
+
+        return is_array($datos) ? $datos : [];
+    }
+
+    private function guardarHuellas(string $archivo, array $huellas): void
+    {
+        $ruta = $this->rutaHuellas($archivo);
+
+        if (! is_dir(dirname($ruta))) {
+            return;
+        }
+
+        // Un fallo al guardar la huella NO debe tumbar la provisión: la
+        // configuración ya quedó escrita, que es lo que importa. Lo que se
+        // pierde es poder distinguir en la corrida siguiente, y ahí el caso
+        // seguro (proponer en vez de pisar) ya está cubierto arriba.
+        if (@file_put_contents($ruta, json_encode($huellas, JSON_PRETTY_PRINT) . "\n") !== false) {
+            @chmod($ruta, 0644);
+        }
     }
 
     /**
@@ -92,6 +162,9 @@ class GeneradorConfigAsterisk
             'DB_USER'            => $db['username'] ?? '',
             'DB_PASSWORD'        => $db['password'] ?? '',
             'ODBC_DSN'           => env('ASTERISK_ODBC_DSN', 'asterisk-connector'),
+            // Dónde deja MegaISP los .conf que genera (grupos, ruteo entrante,
+            // contexto restringido). extensions.conf los incluye por esta ruta.
+            'GENERADOS_DIR'      => rtrim(config('requisitos-voip.asterisk.generados_dir', '/etc/asterisk/megaisp.d'), '/'),
             'BIND_SIP'           => env('ASTERISK_BIND_SIP', '0.0.0.0'),
             'EXTERNAL_MEDIA'     => env('ASTERISK_EXTERNAL_MEDIA', ''),
             'EXTERNAL_SIGNALING' => env('ASTERISK_EXTERNAL_SIGNALING', ''),

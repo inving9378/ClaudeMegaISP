@@ -464,6 +464,11 @@ class ProvisionadorAsterisk
             // Una sola fuente, y es la del generador de configuración.
             'ASTERISK_ODBC_DSN'            => (string) app(GeneradorConfigAsterisk::class)
                 ->valoresDelServidor()['ODBC_DSN'],
+            // Misma razón que el DSN: el script crea el directorio y el archivo
+            // que extensions.conf incluye, así que los dos lados tienen que
+            // nombrar la misma ruta o el #include apuntaría al aire.
+            'ASTERISK_GENERADOS_DIR'       => (string) app(GeneradorConfigAsterisk::class)
+                ->valoresDelServidor()['GENERADOS_DIR'],
         ];
     }
 
@@ -686,9 +691,33 @@ class ProvisionadorAsterisk
         }
     }
 
+    /**
+     * Escribe la configuración, y DICE cuánta no se aplicó.
+     *
+     * Lo que se propone como `.nuevo` en vez de aplicarse no es un fallo —es la
+     * regla de no pisar lo que un operador ajustó— pero tampoco es un éxito
+     * silencioso. Este paso llegó a asentarse como «completado» habiendo escrito
+     * CERO de nueve archivos, y la central quedó corriendo con los ejemplos de
+     * Asterisk sin que nada lo dijera. Quien lea la salida tiene que poder ver la
+     * diferencia entre «configurado» y «propuesto y no aplicado».
+     *
+     * Que la central sirva o no con lo que hay lo decide el paso `validar`,
+     * preguntándole a Asterisk — no este paso contando archivos.
+     */
     private function escribirConfiguracion(): array
     {
-        return app(GeneradorConfigAsterisk::class)->generar();
+        $r = app(GeneradorConfigAsterisk::class)->generar();
+
+        $this->di(sprintf('    %d escritos · %d sin cambio · %d propuestos como .nuevo',
+            count($r['escritos']), count($r['sin_cambio']), count($r['propuestos_nuevo'])));
+
+        if ($r['propuestos_nuevo']) {
+            $this->di('    NO se aplicaron (difieren de lo que dejamos y de los ejemplos): '
+                . implode(', ', $r['propuestos_nuevo']));
+            $this->di('    Están al lado como .nuevo. Alguien los editó a mano y no se pisan.');
+        }
+
+        return $r;
     }
 
     private function generarCredenciales(): array
@@ -696,16 +725,58 @@ class ProvisionadorAsterisk
         return app(GeneradorCredenciales::class)->generarYPersistir($this->uuid, $this->version);
     }
 
+    /**
+     * Siembra el plan de numeración y las extensiones, Y las publica al realtime.
+     *
+     * Las dos mitades son un solo paso a propósito. Sembrar sin publicar deja 30
+     * extensiones que existen para MegaISP y no existen para Asterisk: la pantalla
+     * las muestra, el teléfono no registra, y nada en el sistema dice por qué.
+     *
+     * Las tablas son distintas y de bases distintas —`voip_extensiones` es de
+     * MegaISP; `ps_endpoints`, `ps_auths` y `ps_aors` son de Asterisk, y las crea
+     * Alembic— así que sembrar en una no pone nada en la otra. Antes esto pasaba
+     * inadvertido porque en dev las `ps_*` ya venían pobladas de una instalación a
+     * mano anterior; al recrear la base realtime desde cero quedaron vacías y el
+     * hueco se hizo visible.
+     */
     private function sembrar(): array
     {
         Artisan::call('db:seed', ['--class' => \App\Modules\Addons\VoIP\Seeders\PlanNumeracionSeeder::class, '--force' => true]);
         Artisan::call('db:seed', ['--class' => \App\Modules\Addons\VoIP\Seeders\ExtensionesArranqueSeeder::class, '--force' => true]);
 
-        return [
+        $provisionador = app(AsteriskProvisioningService::class);
+        $publicadas    = 0;
+        $fallidas      = [];
+
+        foreach (\App\Modules\Addons\VoIP\Models\Extension::all() as $ext) {
+            try {
+                $provisionador->provisionarExtension($ext);
+                $publicadas++;
+            } catch (\Throwable $e) {
+                // Una extensión que no se pueda publicar no debe impedir que se
+                // publiquen las otras 29: se anota y se sigue. El paso reporta
+                // cuáles quedaron fuera, que es lo que hace falta para arreglarlo.
+                $fallidas[$ext->numero] = Str::limit($e->getMessage(), 200);
+            }
+        }
+
+        $detalle = [
             'rangos'      => \App\Modules\Addons\VoIP\Models\RangoNumeracion::count(),
             'perfiles'    => \App\Modules\Addons\VoIP\Models\PerfilExtension::count(),
             'extensiones' => \App\Modules\Addons\VoIP\Models\Extension::count(),
+            'publicadas_realtime' => $publicadas,
         ];
+
+        if ($fallidas) {
+            $detalle['fallidas'] = $fallidas;
+        }
+
+        $this->di(sprintf('    %d extensiones publicadas al realtime%s',
+            $publicadas,
+            $fallidas ? ' — ' . count($fallidas) . ' fallaron: ' . implode(', ', array_keys($fallidas)) : ''
+        ));
+
+        return $detalle;
     }
 
     private function arrancarServicio(): array
