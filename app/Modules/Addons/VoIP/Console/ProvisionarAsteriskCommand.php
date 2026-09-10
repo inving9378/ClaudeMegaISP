@@ -13,7 +13,8 @@ class ProvisionarAsteriskCommand extends Command
 {
     protected $signature = 'voip:provisionar
                             {--descubrimiento : Primera vez: no exige esquema_realtime, lo reporta}
-                            {--estado= : Solo muestra el estado de una ejecución por UUID}';
+                            {--nueva : Empieza una corrida limpia en vez de retomar la anterior}
+                            {--estado= : SOLO muestra el estado de una ejecución por UUID; no provisiona}';
 
     protected $description = 'Instala y configura Asterisk según config/requisitos-voip.php.';
 
@@ -30,7 +31,11 @@ class ProvisionarAsteriskCommand extends Command
             $this->warn('No usar en la instalación de un cliente: ahí el manifiesto viene completo.');
         }
 
-        $p = new ProvisionadorAsterisk($descubrimiento, fn (string $m) => $this->line($m));
+        $p = new ProvisionadorAsterisk(
+            $descubrimiento,
+            fn (string $m) => $this->line($m),
+            (bool) $this->option('nueva')
+        );
         $r = $p->ejecutar();
 
         $this->newLine();
@@ -43,8 +48,13 @@ class ProvisionarAsteriskCommand extends Command
 
         if (! $r['ok']) {
             $this->error($r['mensaje']);
-            $this->line("Reintentar: php artisan voip:provisionar   (retoma desde donde se quedó)");
-            $this->line("Ver estado: php artisan voip:provisionar --estado={$r['uuid']}");
+            $this->newLine();
+            $this->line('  Reintentar (retoma esta misma corrida, sin repetir lo ya hecho):');
+            $this->line('      php artisan voip:provisionar'
+                . ($descubrimiento ? ' --descubrimiento' : ''));
+            $this->newLine();
+            $this->line('  Ver el estado sin provisionar nada:');
+            $this->line("      php artisan voip:provisionar --estado={$r['uuid']}");
 
             return self::FAILURE;
         }

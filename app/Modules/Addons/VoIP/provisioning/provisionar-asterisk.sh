@@ -28,6 +28,10 @@
 #   ASTERISK_MODO_DESCUBRIMIENTO  1 = primera vez, aún no se conoce la revisión
 #   ASTERISK_DB_{HOST,PORT,NAME,USER,PASSWORD,DRIVER}  base realtime
 #
+# Cuando el llamador es el provisionador de PHP, esas variables llegan en un
+# archivo (`--archivo-entorno=RUTA`) y no en el entorno: `sudo` lo vacía. La
+# razón está a detalle junto al código que lo carga, más abajo.
+#
 # ─── ALEMBIC SE VERIFICA ANTES DE COMPILAR ────────────────────────────────
 #
 # Tener el árbol preservado no basta: sin el comando `alembic` y sin el driver de
@@ -83,6 +87,63 @@
 # escribir la configuración.
 #
 set -euo pipefail
+
+# ── De dónde llegan los parámetros ───────────────────────────────────────
+#
+# Del entorno, como dice la cabecera. Pero cuando quien invoca es el
+# provisionador de PHP, el entorno NO sobrevive el salto a root: `sudo` trae
+# `env_reset` por omisión y limpia todo lo que no esté en su `env_keep` antes de
+# ejecutar este script. Las variables se exportaban correctamente y aun así aquí
+# llegaban vacías — el script moría en la validación de abajo culpando al
+# manifiesto, que estaba completo.
+#
+# Por eso el llamador puede pasar un archivo con los valores y este script lo
+# carga antes de validar nada:
+#
+#     sudo -n bash provisionar-asterisk.sh --archivo-entorno=/ruta/al/archivo
+#
+# Un archivo y no `sudo -E` ni `sudo env VAR=…`:
+#
+#   · `sudo -E` exige la etiqueta SETENV en el sudoers de CADA servidor donde se
+#     instale. Depender de eso convierte una configuración ajena en requisito.
+#   · `sudo env VAR=…` pone la contraseña de la base realtime en la línea de
+#     comandos, visible con un `ps` para cualquiera con acceso al servidor. Es
+#     exactamente lo que el resto de este script evita al pasarla por stdin a
+#     python.
+#
+# El archivo lo escribe y lo borra el llamador; aquí solo se lee. La RUTA sí
+# viaja como argumento, y una ruta no es un secreto.
+#
+# A mano sigue funcionando igual que siempre, sin archivo:
+#     ASTERISK_VERSION=22.11.0 … sudo -E bash provisionar-asterisk.sh
+ARCHIVO_ENTORNO=""
+for arg in "$@"; do
+    case "$arg" in
+        --archivo-entorno=*) ARCHIVO_ENTORNO="${arg#*=}" ;;
+        *) echo "ERROR: argumento no reconocido: ${arg}"; exit 1 ;;
+    esac
+done
+
+if [[ -n "$ARCHIVO_ENTORNO" ]]; then
+    [[ -f "$ARCHIVO_ENTORNO" ]] || {
+        echo "ERROR: no existe el archivo de entorno ${ARCHIVO_ENTORNO}."
+        exit 1
+    }
+
+    # Lleva la contraseña de la base realtime dentro. Si alguien más puede
+    # leerlo, el secreto ya está expuesto y seguir sería tapar la fuga.
+    PERMISOS="$(stat -c %a "$ARCHIVO_ENTORNO")"
+    if [[ "${PERMISOS: -2}" != "00" ]]; then
+        echo "ERROR: ${ARCHIVO_ENTORNO} tiene permisos ${PERMISOS} y lleva credenciales dentro."
+        echo "       Se exige que solo su dueño pueda leerlo (600)."
+        exit 1
+    fi
+
+    set -a
+    # shellcheck disable=SC1090
+    . "$ARCHIVO_ENTORNO"
+    set +a
+fi
 
 # ── Parámetros, todos con validación ─────────────────────────────────────
 : "${ASTERISK_VERSION:?falta ASTERISK_VERSION (lo pasa el manifiesto)}"

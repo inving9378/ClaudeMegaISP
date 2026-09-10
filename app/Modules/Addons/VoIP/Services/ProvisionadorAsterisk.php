@@ -51,15 +51,55 @@ class ProvisionadorAsterisk
     private string $version;
     private array  $manifiesto;
     private bool   $modoDescubrimiento;
+    private bool   $continuada;
+    private string $restoSalida = '';   // media línea que aún no termina en \n
     private $salida;   // callable(string) para reportar en vivo
 
-    public function __construct(bool $modoDescubrimiento = false, ?callable $salida = null)
+    /**
+     * Continúa la última provisión inconclusa, o abre una nueva si no hay.
+     *
+     * Antes se generaba un UUID nuevo en cada corrida, y como los pasos se buscan
+     * por UUID, `$previo` salía siempre null: nada se reutilizaba jamás. La tabla
+     * de estado registraba el avance correctamente y aun así reintentar volvía a
+     * empezar de cero — media hora de compilación por delante después de un fallo
+     * en el último paso.
+     *
+     * Retomar no es dar por bueno lo anterior a ciegas: cada paso sigue pasando
+     * por `reutilizablePor()`, que rechaza lo que dejó una versión distinta del
+     * provisionador, y lo que falló se reintenta siempre.
+     */
+    public function __construct(bool $modoDescubrimiento = false, ?callable $salida = null, bool $nueva = false)
     {
-        $this->uuid               = (string) Str::uuid();
+        $inconclusa = $nueva ? null : self::ejecucionInconclusa();
+
+        $this->uuid               = $inconclusa ?? (string) Str::uuid();
+        $this->continuada         = $inconclusa !== null;
         $this->version            = (string) config('requisitos-voip.provisionador_version', '0.0.0');
         $this->manifiesto         = (array) config('requisitos-voip.asterisk', []);
         $this->modoDescubrimiento = $modoDescubrimiento;
         $this->salida             = $salida ?? fn (string $m) => null;
+    }
+
+    /**
+     * La última ejecución que no llegó a completar `validar`, si la hay.
+     *
+     * `validar` es el último paso: mientras no esté completado, la central no
+     * quedó en pie y la corrida sigue abierta.
+     */
+    private static function ejecucionInconclusa(): ?string
+    {
+        $ultima = ProvisionEstado::orderByDesc('id')->value('ejecucion_uuid');
+
+        if (! $ultima) {
+            return null;
+        }
+
+        $cerrada = ProvisionEstado::deEjecucion($ultima)
+            ->where('paso', 'validar')
+            ->where('estado', 'completado')
+            ->exists();
+
+        return $cerrada ? null : $ultima;
     }
 
     public function uuid(): string
@@ -73,6 +113,11 @@ class ProvisionadorAsterisk
     public function ejecutar(): array
     {
         $this->di("Provisión {$this->uuid} — provisionador v{$this->version}");
+
+        if ($this->continuada) {
+            $this->di('Retoma una provisión anterior: los pasos que complete esta misma versión');
+            $this->di('se reutilizan, lo que falló se reintenta. Para empezar de cero: --nueva.');
+        }
 
         if ($this->modoDescubrimiento) {
             $this->di('MODO DESCUBRIMIENTO: la revisión de Alembic se reportará al final.');
@@ -229,16 +274,90 @@ class ProvisionadorAsterisk
             'ASTERISK_DB_PASSWORD'         => (string) config('database.connections.asterisk_rt.password'),
         ];
 
-        // Timeout amplio: compilar Asterisk pasa de media hora en una VM modesta.
-        $p = Process::fromShellCommandline('sudo -n bash ' . escapeshellarg($script), base_path(), $env, null, 5400);
-        $p->run(fn ($tipo, $buf) => $this->di('    ' . rtrim($buf)));
+        // El entorno NO se pasa por `$env`: entre este proceso y el script hay un
+        // `sudo`, y sudo trae `env_reset` por omisión — descarta toda variable que
+        // no esté en su `env_keep` antes de ejecutar bash. Se exportaban bien y el
+        // script las recibía vacías, así que moría culpando al manifiesto.
+        //
+        // Van en un archivo 0600 cuya RUTA sí viaja como argumento. No por
+        // `sudo env VAR=…`, que dejaría la contraseña de la base realtime a la
+        // vista de cualquier `ps`.
+        $archivoEntorno = $this->escribirArchivoDeEntorno($env);
+
+        try {
+            // Timeout amplio: compilar Asterisk pasa de media hora en una VM modesta.
+            $p = Process::fromShellCommandline(
+                'sudo -n bash ' . escapeshellarg($script)
+                    . ' --archivo-entorno=' . escapeshellarg($archivoEntorno),
+                base_path(), null, null, 5400
+            );
+            $p->run(fn ($tipo, $buf) => $this->emitir($buf));
+        } finally {
+            $this->vaciarSalida();
+            // El archivo lo creó esta clase y lo borra esta clase, falle o no.
+            @unlink($archivoEntorno);
+        }
 
         if (! $p->isSuccessful()) {
-            throw new RuntimeException('el script de instalación salió con código ' . $p->getExitCode()
-                . '. El log completo queda en /var/log/megaisp/.');
+            throw new RuntimeException('el script de instalación salió con código '
+                . $p->getExitCode() . $this->porQue($p));
         }
 
         return ['script' => 'ok', 'salida_final' => Str::limit(trim($p->getOutput()), 500)];
+    }
+
+    /**
+     * Deja los parámetros en un archivo que solo su dueño puede leer.
+     *
+     * Fuera del árbol de la aplicación web y con nombre irrepetible: lleva la
+     * contraseña de la base realtime dentro, aunque viva unos segundos.
+     */
+    private function escribirArchivoDeEntorno(array $env): string
+    {
+        $ruta = tempnam(sys_get_temp_dir(), 'megaisp-voip-entorno-');
+
+        if ($ruta === false) {
+            throw new RuntimeException('no se pudo crear el archivo de parámetros para el script.');
+        }
+
+        // tempnam ya crea 0600; se reafirma porque de eso depende que el script
+        // acepte el archivo (y que la contraseña no se lea desde otra cuenta).
+        chmod($ruta, 0600);
+
+        $lineas = [];
+        foreach ($env as $clave => $valor) {
+            // Comilla simple: el shell no interpreta NADA dentro, ni $ ni ` ni \.
+            $lineas[] = $clave . "='" . str_replace("'", "'\\''", (string) $valor) . "'";
+        }
+
+        if (file_put_contents($ruta, implode("\n", $lineas) . "\n") === false) {
+            @unlink($ruta);
+            throw new RuntimeException("no se pudo escribir el archivo de parámetros {$ruta}.");
+        }
+
+        return $ruta;
+    }
+
+    /**
+     * Por qué falló, con las últimas líneas que dijo el script.
+     *
+     * Antes este mensaje remitía siempre a /var/log/megaisp/, y eso es cierto solo
+     * si el script llegó a crear el log: las validaciones de parámetros corren
+     * ANTES, así que un fallo ahí mandaba a leer un archivo que no existía y
+     * escondía la única línea que explicaba el problema.
+     */
+    private function porQue(Process $p): string
+    {
+        $lineas = preg_split('/\R/', trim($p->getErrorOutput()) ?: trim($p->getOutput())) ?: [];
+        $lineas = array_values(array_filter(array_map('trim', $lineas), fn ($l) => $l !== ''));
+        $cola   = implode(' | ', array_slice($lineas, -3));
+
+        $hayLog = is_dir('/var/log/megaisp') && glob('/var/log/megaisp/provision-asterisk-*.log');
+
+        return ($cola !== '' ? ': ' . Str::limit(rtrim($cola, '. '), 400) : '')
+            . ($hayLog
+                ? '. El log completo queda en /var/log/megaisp/.'
+                : '. No alcanzó a escribir log: falló antes de crearlo.');
     }
 
     private function aplicarEsquema(): array
@@ -255,7 +374,8 @@ class ProvisionadorAsterisk
         }
 
         $p = Process::fromShellCommandline('sudo -n alembic -c ' . escapeshellarg($ini) . ' upgrade head', $dbm, null, null, 900);
-        $p->run(fn ($t, $b) => $this->di('    ' . rtrim($b)));
+        $p->run(fn ($t, $b) => $this->emitir($b));
+        $this->vaciarSalida();
 
         if (! $p->isSuccessful()) {
             throw new RuntimeException('alembic upgrade head falló: ' . Str::limit($p->getErrorOutput(), 400)
@@ -355,5 +475,33 @@ class ProvisionadorAsterisk
     private function di(string $m): void
     {
         ($this->salida)($m);
+    }
+
+    /**
+     * Reporta la salida de un subproceso en líneas completas.
+     *
+     * Symfony entrega lo que el sistema le da, en trozos, no en líneas: con
+     * `use_pty` activo en sudo, «sudo: a password is required» llegó partido en
+     * tres pedazos y se imprimió como tres líneas. En una compilación de media
+     * hora eso deja el único registro que el operador ve cortado a media palabra,
+     * justo donde hay que leerlo.
+     */
+    private function emitir(string $buf): void
+    {
+        $this->restoSalida .= $buf;
+
+        while (($corte = strpos($this->restoSalida, "\n")) !== false) {
+            $this->di('    ' . rtrim(substr($this->restoSalida, 0, $corte)));
+            $this->restoSalida = substr($this->restoSalida, $corte + 1);
+        }
+    }
+
+    /** Saca la última línea si el proceso terminó sin cerrarla con \n. */
+    private function vaciarSalida(): void
+    {
+        if ($this->restoSalida !== '') {
+            $this->di('    ' . rtrim($this->restoSalida));
+            $this->restoSalida = '';
+        }
     }
 }
