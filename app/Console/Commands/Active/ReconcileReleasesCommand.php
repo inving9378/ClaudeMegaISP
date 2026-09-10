@@ -29,7 +29,8 @@ class ReconcileReleasesCommand extends Command
 {
     protected $signature = 'releases:reconciliar
                             {version? : Filtra el reporte a una sola versión exacta (ej. V1.34-09.09.2026)}
-                            {--dry-run : No-op — el comando es SIEMPRE de solo lectura, la flag existe solo por consistencia de interfaz con el resto de comandos releases:*}';
+                            {--dry-run : No-op — el comando es SIEMPRE de solo lectura, la flag existe solo por consistencia de interfaz con el resto de comandos releases:*}
+                            {--json : Imprime el resultado como JSON estructurado en vez de la tabla (para consumo programático, item #9990680)}';
 
     protected $description = 'Cruza tabla releases / tags locales / tags en origin / GitHub Releases y da un veredicto por versión (solo lectura, item #9990669)';
 
@@ -44,6 +45,10 @@ class ReconcileReleasesCommand extends Command
         [$github, $githubExtra, $githubOk, $githubError] = $this->releasesDeGithub();
 
         if (!$githubOk) {
+            if ($this->option('json')) {
+                $this->line(json_encode(['ok' => false, 'error' => $githubError], JSON_UNESCAPED_UNICODE));
+                return self::FAILURE;
+            }
             $this->error("No se pudo consultar la API de GitHub: {$githubError}");
             $this->warn('El veredicto de cada versión sin ese dato NO es confiable — se aborta sin imprimir tabla.');
             return self::FAILURE;
@@ -59,6 +64,10 @@ class ReconcileReleasesCommand extends Command
         if ($filtro !== null) {
             $versiones = array_values(array_filter($versiones, fn ($v) => $v === $filtro));
             if (empty($versiones)) {
+                if ($this->option('json')) {
+                    $this->line(json_encode(['ok' => true, 'items' => []], JSON_UNESCAPED_UNICODE));
+                    return self::SUCCESS;
+                }
                 $this->warn("«{$filtro}» no aparece en ninguna de las 4 fuentes.");
                 return self::SUCCESS;
             }
@@ -68,6 +77,7 @@ class ReconcileReleasesCommand extends Command
 
         $rows = [];
         $conteo = [];
+        $structured = [];
 
         foreach ($versiones as $version) {
             $enTabla  = array_key_exists($version, $tabla);
@@ -86,6 +96,20 @@ class ReconcileReleasesCommand extends Command
                 $enGithub ? 'sí' : 'NO',
                 $veredicto,
             ];
+
+            $structured[] = [
+                'version' => $version,
+                'en_tabla' => $enTabla,
+                'en_local' => $enLocal,
+                'en_remoto' => $enRemoto,
+                'en_github' => $enGithub,
+                'veredicto' => $veredicto,
+            ];
+        }
+
+        if ($this->option('json')) {
+            $this->line(json_encode(['ok' => true, 'items' => $structured, 'conteo' => $conteo], JSON_UNESCAPED_UNICODE));
+            return self::SUCCESS;
         }
 
         $this->table(['Versión', 'Tabla', 'Local', 'Origin', 'GitHub Release', 'Veredicto'], $rows);

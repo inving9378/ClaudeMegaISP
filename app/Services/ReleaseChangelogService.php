@@ -127,6 +127,35 @@ class ReleaseChangelogService
     }
 
     /**
+     * Solo los metadatos de cobertura de generate() (total de commits, cuántos se resumirían,
+     * tag previo, si se truncaría), SIN llamar a Claude. Pensado para diagnóstico/preview
+     * (item roadmap #9990680, base para F2b) sin gastar una llamada real a la IA.
+     *
+     * Duplica a propósito el cálculo de truncado de generate() (líneas ~80-85) en vez de
+     * refactorizar generate() para reusarlo — extraer un método compartido ahí tocaría el
+     * camino que ya llama a Claude en producción, y el ahorro (~8 líneas) no justifica ese
+     * riesgo sobre un flujo que ya funciona.
+     */
+    public function coverage(string $newVersion, ?string $branch = null): array
+    {
+        $git = $this->gatherGitData($newVersion, $branch);
+
+        $batches   = array_chunk($git['commit_lines'], self::BATCH_SIZE);
+        $truncado  = count($batches) > self::MAX_BATCHES;
+        if ($truncado) {
+            $batches = array_slice($batches, 0, self::MAX_BATCHES);
+        }
+        $resumidos = array_sum(array_map('count', $batches));
+
+        return [
+            'total_commits'     => $git['total'],
+            'resumidos_commits' => $resumidos,
+            'desde_tag'         => $git['prev_tag'],
+            'truncado'          => $truncado,
+        ];
+    }
+
+    /**
      * Trae TODOS los commits del rango (sin tope) — el tope de cobertura se aplica después,
      * en generate(), como lotes explícitos (Fase 2), nunca como un --max-count silencioso.
      *
