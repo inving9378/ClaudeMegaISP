@@ -93,9 +93,11 @@ class AmiConnectionService
         // evento (Newstate/Hangup/DTMF) con la fila de cobranza_llamadas sin
         // depender del timing del evento OriginateResponse (que es asíncrono).
         $channelId = 'cob-' . $llamadaId . '-' . time();
-        // C5: troncal Servnet unificada a PJSIP Realtime (endpoint id 'servnet',
-        // provisionado por VoiceGateway::configureTrunk). Antes: SIP/servnet-trunk (chan_sip).
-        $channel   = 'PJSIP/servnet/' . $telefono;
+        // C5: troncal unificada a PJSIP Realtime (identidad configurable, ver
+        // config/voip.php), provisionada por VoiceGateway::configureTrunk. Antes:
+        // SIP/servnet-trunk (chan_sip). Item #9990714: el endpoint id ya no viaja
+        // hardcodeado aquí — el default vive únicamente en config/voip.php.
+        $channel   = 'PJSIP/' . config('voip.trunk_endpoint_id') . '/' . $telefono;
 
         // #277: sin CallerID configurado, resolveCallerId() ya no cae al placeholder
         // 'Meganet Telecomunicaciones <5551234567>'. Se ABORTA el originate (fallback duro,

@@ -17,12 +17,13 @@ class CobranzaTtsService
 {
     use UsesApiIntegration;
 
-    protected string $audioBasePath = '/var/lib/asterisk/sounds/cobranza/';
+    protected string $audioBasePath;
     protected string $voice;
 
     public function __construct()
     {
-        $this->voice = config('cobranza.blaster_tts_voice');
+        $this->voice         = config('cobranza.blaster_tts_voice');
+        $this->audioBasePath = config('cobranza.blaster_audio_base_path');
     }
 
     public function generateAudio(
