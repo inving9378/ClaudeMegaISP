@@ -9,11 +9,9 @@ abstract class TestCase extends BaseTestCase
 {
     use CreatesApplication, RefreshDatabase;
 
-    public function setUp(): void
-    {
-        parent::setUp();
-
-        // Elimina todas las tablas y vuelve a ejecutar las migraciones
-        $this->artisan('migrate:fresh --seed');
-    }
+    /**
+     * El `migrate:fresh --seed` que este setUp() duplicaba también sembraba con
+     * DatabaseSeeder; RefreshDatabase sola no lo hace salvo que se declare esto.
+     */
+    protected $seed = true;
 }
