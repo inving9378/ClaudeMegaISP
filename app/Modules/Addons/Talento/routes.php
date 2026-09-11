@@ -89,7 +89,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/colaboradores/{id}/documentos',   [TalentoEmployeeDocumentController::class, 'forColaborador']);
 
             // ── Firma de documentos del expediente (item #9990618, fase 1: backend) ───────────
-            Route::post('/colaboradores/{id}/documentos/{docId}/firma', [TalentoEmployeeDocumentController::class, 'sign']);
+            Route::post('/colaboradores/{id}/documentos/{docId}/firma', [TalentoEmployeeDocumentController::class, 'sign'])
+                ->name('talento.documentos.firma');
             Route::get('/colaboradores/{id}/documentos/{docId}/firma',  [TalentoEmployeeDocumentController::class, 'firma']);
 
             // ── Completar documento gap-driven (item #9990661, re-scope de #9990647/#9990651) ──
@@ -151,9 +152,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::put('/sitios/config/radio',  [TalentoWorkSiteController::class, 'updateDefaultRadius']);
 
             // ── Asistencia — App endpoints ────────────────────────────────────
-            Route::post('/asistencia/check-in',  [TalentoAttendanceController::class, 'checkIn']);
-            Route::post('/asistencia/check-out', [TalentoAttendanceController::class, 'checkOut']);
-            Route::post('/asistencia/ping',      [TalentoAttendanceController::class, 'ping']);
+            Route::post('/asistencia/check-in',  [TalentoAttendanceController::class, 'checkIn'])->name('talento.asistencia.checkin');
+            Route::post('/asistencia/check-out', [TalentoAttendanceController::class, 'checkOut'])->name('talento.asistencia.checkout');
+            Route::post('/asistencia/ping',      [TalentoAttendanceController::class, 'ping'])->name('talento.asistencia.ping');
 
             // ── Asistencia — Admin endpoints ──────────────────────────────────
             Route::get('/asistencia',              [TalentoAttendanceController::class, 'data']);
@@ -474,8 +475,8 @@ Route::middleware(['web', 'auth', 'can:portal.colaborador'])
 
         // Mi día — asistencia (delegan en AttendanceService).
         Route::get('/asistencia/hoy',      [PortalTecnicoController::class, 'asistenciaHoy']);
-        Route::post('/asistencia/checkin', [PortalTecnicoController::class, 'checkin']);
-        Route::post('/asistencia/checkout',[PortalTecnicoController::class, 'checkout']);
+        Route::post('/asistencia/checkin', [PortalTecnicoController::class, 'checkin'])->name('talento.portal.asistencia.checkin');
+        Route::post('/asistencia/checkout',[PortalTecnicoController::class, 'checkout'])->name('talento.portal.asistencia.checkout');
 
         // Mi día — OTs del día (delega en OrdenTrabajoUnifiedService::summaryForHoy).
         Route::get('/ots/hoy', [PortalTecnicoController::class, 'otsHoy']);

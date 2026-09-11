@@ -41,6 +41,9 @@ class Kernel extends HttpKernel
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             \App\Http\Middleware\TrackLastVisitedRoute::class,
+            // Bloqueo proporcional por documento tipo firma pendiente (item #9990804).
+            // Kill switch OFF por default (config('talento.bloqueo_firma_pendiente_enabled')).
+            \App\Modules\Addons\Talento\Middleware\BloqueoDocumentoPendienteMiddleware::class,
         ],
 
         'api' => [
