@@ -155,6 +155,7 @@
 @if(!$success)
 {{-- OpenPay SDK — tokeniza en el navegador; PAN nunca sale del dispositivo --}}
 <script src="https://js.openpay.mx/openpay.v1.min.js"></script>
+<script src="https://js.openpay.mx/openpay-data.v1.min.js"></script>
 <script>
     const form      = document.getElementById('enrollment-form');
     const errorDiv  = document.getElementById('js-error');

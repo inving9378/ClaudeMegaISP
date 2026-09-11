@@ -190,6 +190,11 @@ class OpenpayService
             }
             return $customer->cards->add($cardData);
         } catch (OpenpayApiError $e) {
+            \Log::warning('openpay.guardarTarjeta fallo', [
+                'desc' => method_exists($e, 'getDescription') ? $e->getDescription() : $e->getMessage(),
+                'code' => method_exists($e, 'getErrorCode') ? $e->getErrorCode() : null,
+                'http' => method_exists($e, 'getHttpCode') ? $e->getHttpCode() : null,
+            ]);
             throw new OpenpayTransactionException(
                 'No se pudo guardar la tarjeta en OpenPay.',
                 0,
