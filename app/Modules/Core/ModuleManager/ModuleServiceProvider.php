@@ -4,6 +4,7 @@ namespace App\Modules\Core\ModuleManager;
 
 use App\Modules\BaseModuleServiceProvider;
 use App\Modules\Core\ModuleManager\Console\ModuleLifecycleCommand;
+use App\Modules\Core\ModuleManager\Console\ReconcileModuleRegistryCommand;
 use App\Modules\Core\Security\Console\AuditarPermisosCommand;
 use App\Modules\Core\Security\Console\SyncPermissionsCommand;
 use App\Modules\Core\ModuleManager\Console\ModuleListCommand;
@@ -29,6 +30,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
             $this->commands([
                 ModuleListCommand::class,
                 ModuleLifecycleCommand::class,
+                ReconcileModuleRegistryCommand::class,
                 SyncPermissionsCommand::class,
                 AuditarPermisosCommand::class,
             ]);
