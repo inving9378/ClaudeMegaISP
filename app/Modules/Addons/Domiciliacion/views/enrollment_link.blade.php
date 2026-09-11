@@ -186,6 +186,10 @@
         submitBtn.disabled = true;
         submitBtn.textContent = 'Procesando…';
 
+        // OpenPay rechaza el número con espacios (error 1001): dejar solo
+        // dígitos antes de tokenizar (el input lo formatea con espacios).
+        var cn = document.getElementById('card-number');
+        if (cn) cn.value = cn.value.replace(/\D/g, '');
         OpenPay.token.create(form, function (response) {
             document.getElementById('openpay-token-hidden').value = response.data.id;
             // Limpiar los datos del PAN antes de enviar el form
