@@ -480,6 +480,10 @@ Route::middleware(['web', 'auth', 'can:portal.colaborador'])
         // Mi día — OTs del día (delega en OrdenTrabajoUnifiedService::summaryForHoy).
         Route::get('/ots/hoy', [PortalTecnicoController::class, 'otsHoy']);
 
+        // Acuses reabiertos pendientes de re-firma (SOLO LECTURA, self-scoped). Item #9990818
+        // (q3 de #9990806): badge/notificación in-app, reusa AcuseReopeningService.
+        Route::get('/reaperturas', [PortalTecnicoController::class, 'reaperturasPendientes']);
+
         // "Mi dinero" (Bloque 2) — wrappers GET self-scoped, SOLO LECTURA. ?period_start=YYYY-MM-DD
         Route::get('/dinero/cuenta',    [PortalTecnicoController::class, 'dineroCuenta']);
         Route::get('/dinero/desglose',  [PortalTecnicoController::class, 'dineroDesglose']);

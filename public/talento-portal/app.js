@@ -43,6 +43,13 @@
         return d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
     }
 
+    function fmtFecha(dt) {
+        if (!dt) return '';
+        const d = new Date(String(dt).replace(' ', 'T'));
+        if (isNaN(d.getTime())) return '';
+        return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
     // Estado de OT → etiqueta + color (cubre WO y tasks ya mapeadas por el servicio).
     function statusInfo(status) {
         const map = {
@@ -119,6 +126,15 @@
                 const { ok, data } = await apiFetch('/talento/portal/ots/hoy');
                 ots.value = (ok && data && Array.isArray(data.data)) ? data.data : [];
                 cargandoOts.value = false;
+            }
+
+            // Acuses reabiertos pendientes de re-firma (item #9990818, q3 de #9990806): badge
+            // informativo en "Mi día" — SOLO LECTURA, no hay autoservicio de re-firma en el portal.
+            const reaperturas = ref([]);
+            async function cargarReaperturas() {
+                if (!colaborador.value) return;
+                const { ok, data } = await apiFetch('/talento/portal/reaperturas');
+                reaperturas.value = (ok && data && Array.isArray(data.items)) ? data.items : [];
             }
 
             async function registrarEntrada() {
@@ -422,6 +438,7 @@
                 registerServiceWorker();
                 cargarAsistencia();
                 cargarOts();
+                cargarReaperturas();
             });
 
             // ── "Mi dinero" (Bloque 2) — Cuenta + Desglose ──────────────────────────
@@ -585,7 +602,8 @@
                 prospectos, cargandoProspectos, cargarProspectos, nombreProspecto, statusColor,
                 asistencia, cargandoAsistencia, accionAsistencia, yaEntro, yaSalio, turnoAbierto,
                 ots, cargandoOts, otSeleccionada, detalle, cargandoDetalle, accionOt,
-                fmtHora, statusInfo,
+                reaperturas,
+                fmtHora, fmtFecha, statusInfo,
                 registrarEntrada, registrarSalida, abrirDetalle, cerrarDetalle, recargarDetalle,
                 iniciarOt, completarOt, aceptarOt, toggleDark, logout,
                 capturaAbierta, camaraSoportada, camaraError, streamActivo, fotoTomada,
@@ -627,6 +645,9 @@
                         <q-item v-for="it in grp.items" :key="it.key" clickable v-ripple :active="tab===it.tab" active-class="tp-drawer-active" @click="irA(it.tab)">
                             <q-item-section avatar><q-icon :name="it.icon" /></q-item-section>
                             <q-item-section>{{ it.label }}</q-item-section>
+                            <q-item-section side v-if="it.key==='mi_dia' && reaperturas.length">
+                                <q-badge color="orange-8" rounded :label="reaperturas.length" />
+                            </q-item-section>
                         </q-item>
                     </template>
                 </q-list>
@@ -641,6 +662,12 @@
                             <template #avatar><q-icon name="badge" color="orange-9" /></template>
                             Tu usuario no tiene un perfil de colaborador activo. El portal técnico es para
                             personal de campo; pídele a un administrador que te vincule un perfil de Talento.
+                        </q-banner>
+
+                        <!-- Acuses reabiertos pendientes de re-firma (item #9990818) -->
+                        <q-banner v-if="colaborador && !otSeleccionada && reaperturas.length" class="bg-orange-1 text-orange-9 q-mb-md" rounded>
+                            <template #avatar><q-icon name="assignment_late" color="orange-9" /></template>
+                            Tienes {{ reaperturas.length }} documento{{ reaperturas.length > 1 ? 's' : '' }} reabierto{{ reaperturas.length > 1 ? 's' : '' }} pendiente{{ reaperturas.length > 1 ? 's' : '' }} de re-firma: {{ reaperturas.map(r => r.template_nombre).join(', ') }}. Contacta a RH para completarlo{{ reaperturas.length > 1 ? 's' : '' }}.
                         </q-banner>
 
                         <!-- Detalle de OT -->

@@ -8,6 +8,7 @@ use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoFund;
 use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
 use App\Modules\Addons\Talento\Models\TalentoLoan;
+use App\Modules\Addons\Talento\Services\AcuseReopeningService;
 use App\Modules\Addons\Talento\Services\AttendanceService;
 use App\Modules\Addons\Talento\Services\LiquidationService;
 use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
@@ -322,6 +323,31 @@ JS;
         $ots = app(OrdenTrabajoUnifiedService::class)->summaryForHoy($colaborador->id);
 
         return response()->json(['data' => $ots]);
+    }
+
+    // ── Acuses reabiertos pendientes de re-firma (notificación in-app, item #9990818) ──────────
+
+    /**
+     * Item roadmap #9990818 (q3 de #9990806, ya aprobada por Irving: notificación in-app +
+     * badge al iniciar sesión). SOLO LECTURA, self-scoped por Actor. Reusa
+     * AcuseReopeningService::pendientesDeRefirma() (fuente única de la regla, sin duplicarla) —
+     * NO expone acción de re-firma aquí: esa capacidad de autoservicio para el colaborador (fuera
+     * de la ficha admin de RH) no existe todavía en el Portal, es una pieza aparte si se decide
+     * construirla.
+     */
+    public function reaperturasPendientes(Request $request)
+    {
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) {
+            return response()->json(['count' => 0, 'items' => []]);
+        }
+
+        $items = app(AcuseReopeningService::class)->pendientesDeRefirma($colaborador->id);
+
+        return response()->json([
+            'count' => $items->count(),
+            'items' => $items,
+        ]);
     }
 
     // ── Detalle de OT ───────────────────────────────────────────────────────

@@ -39,4 +39,9 @@ class TalentoEmployeeDocument extends BaseModel
     {
         return $this->hasMany(TalentoEmployeeDocumentSignature::class, 'employee_document_id');
     }
+
+    public function reaperturas()
+    {
+        return $this->hasMany(TalentoEmployeeDocumentReapertura::class, 'employee_document_id');
+    }
 }
