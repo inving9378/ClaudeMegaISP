@@ -7,6 +7,7 @@ use App\Modules\Addons\Talento\Models\TalentoDocumentTemplateVersion;
 use App\Modules\Addons\Talento\Models\TalentoEmployeeDocument;
 use App\Modules\Addons\Talento\Models\TalentoEmployeeDocumentReapertura;
 use App\Modules\Addons\Talento\Models\TalentoEmployeeDocumentSignature;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -96,5 +97,52 @@ class AcuseReopeningService
         }
 
         return $documentos->count();
+    }
+
+    /**
+     * Item roadmap #9990818 (q3 de #9990806, ya aprobada por Irving: notificación in-app +
+     * badge). Fuente de verdad = talento_employee_document_reaperturas (append-only), SIN tabla
+     * de notificaciones nueva: un acuse cuenta como "reabierto pendiente" si su reapertura MÁS
+     * RECIENTE no tiene, después de ella, ninguna firma (columna legado `signed_at` o fila de
+     * `talento_employee_document_signatures` -- reopenForNewVersion() borra ambas al reabrir, así
+     * que "sin firma posterior" == "todavía no se volvió a firmar desde que se reabrió").
+     *
+     * @return Collection<int, array{employee_document_id:int, template_nombre:string, reabierto_at:\Illuminate\Support\Carbon}>
+     */
+    public function pendientesDeRefirma(int $colaboradorId): Collection
+    {
+        $documentos = TalentoEmployeeDocument::where('colaborador_id', $colaboradorId)
+            ->whereHas('reaperturas')
+            ->with(['template:id,name', 'signatures'])
+            ->get();
+
+        if ($documentos->isEmpty()) {
+            return collect();
+        }
+
+        $ultimaReaperturaPorDoc = TalentoEmployeeDocumentReapertura::whereIn('employee_document_id', $documentos->pluck('id'))
+            ->selectRaw('employee_document_id, MAX(created_at) as ultima_reapertura_at')
+            ->groupBy('employee_document_id')
+            ->pluck('ultima_reapertura_at', 'employee_document_id');
+
+        return $documentos
+            ->filter(function (TalentoEmployeeDocument $doc) use ($ultimaReaperturaPorDoc) {
+                $reaperturaAt = $ultimaReaperturaPorDoc->get($doc->id);
+                if (!$reaperturaAt) {
+                    return false;
+                }
+
+                $firmaMasReciente = collect([$doc->signed_at, $doc->signatures->max('signed_at')])
+                    ->filter()
+                    ->max();
+
+                return !$firmaMasReciente || $firmaMasReciente->lt($reaperturaAt);
+            })
+            ->map(fn (TalentoEmployeeDocument $doc) => [
+                'employee_document_id' => $doc->id,
+                'template_nombre' => $doc->template->name ?? '—',
+                'reabierto_at' => $ultimaReaperturaPorDoc->get($doc->id),
+            ])
+            ->values();
     }
 }
