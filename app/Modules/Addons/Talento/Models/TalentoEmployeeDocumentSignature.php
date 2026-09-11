@@ -10,10 +10,13 @@ class TalentoEmployeeDocumentSignature extends Model
 
     protected $fillable = [
         'employee_document_id', 'slot_key', 'signature_path', 'signed_by', 'signed_at', 'signature_method',
+        'hash_documento', 'ip', 'user_agent', 'dispositivo', 'trazos', 'geolocalizacion',
     ];
 
     protected $casts = [
         'signed_at' => 'datetime',
+        'trazos' => 'array',
+        'geolocalizacion' => 'array',
     ];
 
     public function employeeDocument()
