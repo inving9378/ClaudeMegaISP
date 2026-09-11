@@ -1,0 +1,10 @@
+{
+    "slug": "addon-ventas",
+    "name": "Ventas",
+    "version": "0.1.0",
+    "description": "Motor de custodia de prospectos: ventana de 7 días, evidencia de trabajo, hasta 3 renovaciones, retorno automático al pool general. Base del motor único de ventas (fusión Vendedores + Talento, item #9990780).",
+    "type": "addon",
+    "dependencies": [],
+    "active": true,
+    "permissions": []
+}
