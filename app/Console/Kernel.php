@@ -74,6 +74,11 @@ class Kernel extends ConsoleKernel
         // #921 Fase 2 / #957 — reactiva items del Roadmap con agendado_para ya vencido (vuelven al pool).
         $schedule->command('circuito:reactivar-agendados')->dailyAt('00:05')->withoutOverlapping();
 
+        // #9990737 (Fase 2 de #9990730) — corre la auditoría READ-ONLY de la Fase 1 (#9990736) cada
+        // 15 min (cadencia q3 ya decidida por Irving). Solo categoriza en el log de cada item, no
+        // toca git ni la BD fuera de eso.
+        $schedule->command('circuito:auditar-huerfanos')->everyFifteenMinutes()->withoutOverlapping()->onOneServer();
+
         // MR-32 (#971, extendido en #9990374) — LIBERADOR EN CASCADA de la épica MAPA DE RED (#936).
         //
         // Libera el freno del SIGUIENTE item pendiente de la secuencia DESCUBIERTA de la épica

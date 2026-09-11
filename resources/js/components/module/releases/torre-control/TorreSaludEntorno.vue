@@ -82,6 +82,23 @@
           </template>
         </div>
 
+        <!-- #9990737 (Fase 2 de #9990730) — pulso de circuito:auditar-huerfanos (Fase 1, #9990736) -->
+        <div class="se-card" :class="claseEstado(d.huerfanos_sin_merge?.estado)">
+          <div class="se-card-h"><span class="se-dot"></span> Huérfanos sin merge</div>
+          <template v-if="d.huerfanos_sin_merge?.error">
+            <div class="se-desconocido">{{ d.huerfanos_sin_merge.error }}</div>
+          </template>
+          <template v-else>
+            <div class="se-card-n">{{ d.huerfanos_sin_merge?.total || 0 }} item(s)</div>
+            <div class="se-card-s se-huerf-cats">
+              <span class="se-huerf-cat se-huerf-rojo">{{ d.huerfanos_sin_merge?.divergencia_real || 0 }} divergencia real</span>
+              <span class="se-huerf-cat se-huerf-amarillo">{{ d.huerfanos_sin_merge?.rama_inexistente || 0 }} rama inexistente</span>
+              <span class="se-huerf-cat se-huerf-gris">{{ d.huerfanos_sin_merge?.solo_registro || 0 }} solo registro</span>
+            </div>
+            <div v-if="d.huerfanos_sin_merge?.ultima_corrida_at" class="se-card-s">circuito:auditar-huerfanos · última corrida {{ fmt(d.huerfanos_sin_merge.ultima_corrida_at) }} · cada 15 min</div>
+          </template>
+        </div>
+
         <!-- #884 — cron schedule:run -->
         <div class="se-card" :class="claseEstado(d.cron_schedule_run?.estado)">
           <div class="se-card-h"><span class="se-dot"></span> Cron schedule:run</div>
@@ -320,6 +337,11 @@ export default {
 .se-card-s{ font-size:12px; color:var(--se-muted); margin-top:2px; }
 .se-pre{ white-space:pre-line; }
 .se-desconocido{ font-size:12.5px; color:var(--se-muted); }
+.se-huerf-cats{ display:flex; flex-direction:column; gap:2px; }
+.se-huerf-cat{ font-size:12px; }
+.se-huerf-rojo{ color:var(--se-rojo); }
+.se-huerf-amarillo{ color:var(--se-amarillo); }
+.se-huerf-gris{ color:var(--se-muted); }
 .se-ver{ margin-top:8px; border:none; background:none; color:var(--se-accent); font-size:12px; font-weight:600; cursor:pointer; padding:0; }
 
 .se-detalle{ margin-bottom:14px; }
