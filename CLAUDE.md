@@ -2280,3 +2280,31 @@ abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
 tres. Detalle en `docs/roadmap-bucle-reap-item-9990807-verificacion.md`. **Sin código de negocio
 nuevo** — el trabajo real (endpoints, pantalla del colaborador, tablero admin) sigue en
 #9990813/#9990814/#9990816, pendientes de que una terminal los reclame.
+
+## Item #9990826 — Reapertura de acuses, test E2E — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
+#936/#9990408/#962/#9990554/#9990549/#9990624/#9990650/#9990807. #9990826 (implementar
+`tests/Feature/Modules/Talento/ReaperturaAcusesTest.php` contra `AcuseReopeningService`/
+`TemplateVersionService`/`EmployeeDocumentPackageService`, ya en `main`) ya había sido
+descompuesto correctamente por una vuelta previa (`wt-4`, 2026-09-11 15:39): tras un
+`circuito:cabida` en NO CABE, investigó a fondo el código real (guard de tipo `acuse` en
+`AcuseReopeningService.php:36`, filtro `status='completo'` en líneas 40-42, disparo solo con
+`tipoCambio='mayor'` en `TemplateVersionService::createVersion()`, columnas reales de
+`talento_colaboradores`/`talento_employee_document_signatures`) y dejó la receta **completa**
+(setup exacto, asserts, caso negativo, 2 bordes) en el sub-item **#9990834**, para que el
+próximo ejecutor no re-investigara nada. Pero esa vuelta murió a media escritura del comentario
+final sin intentar **cerrar** al padre — el log solo registra `soltar-claim` ("terminó sin
+cerrar el item... se libera el reclamo"), y el pool lo repartió de nuevo sin trabajo propio que
+hacer. Verificado esta vuelta: `AcuseReopeningService.php`/`TemplateVersionService.php` siguen en
+`app/Modules/Addons/Talento/Services/`; #9990834 sigue intacto, `pendiente_revision`, sin
+reclamar — la descomposición original seguía siendo correcta, nadie más la tocó; la rama del
+padre no tenía commits propios (`commits_rama:0`, consistente con el timeout previo). Corrección:
+esta vuelta ejecuta el intento de cierre faltante; el guard (`RoadmapItem.php` bloque "(2b)
+PARAGUAS") lo reenruta a `aprobado_irving` + `excluir_pool_automatico=true` (evento
+`paraguas_abierto` en el log, "le quedan 1 sub-item(s) abierto(s)"), sacándolo del pool/reaper
+hasta que el hook de cierre en cascada (`RoadmapItem.php:459-491`) lo complete solo cuando
+#9990834 cierre. Detalle en `docs/roadmap-bucle-reap-item-9990826-verificacion.md`. **Sin cambio
+de código de negocio** — el trabajo real (implementar y correr `ReaperturaAcusesTest.php` con la
+receta ya documentada) sigue en #9990834, pendiente de que el revisor lo tríe y una terminal lo
+reclame.
