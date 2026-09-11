@@ -19,6 +19,8 @@
     <Datatable-Client module="cliente" model="Client" list="Listado de Clientes" status="{{ json_encode($status) }}"
         color_datatable ="{{ $color_datatable }}" all_columns_by_module="{{ json_encode($allColumnsByModule) }}"
         header_columns_by_module ="{{ json_encode($columnsByUserAuthAndModule) }}"
+        busqueda_v2_habilitado="{{ $busquedaV2Habilitado ? '1' : '0' }}"
+        busqueda_campos_buscables="{{ json_encode($busquedaCamposBuscables) }}"
         @if (isset($filters)) filters="{{ $filters }}" @endif
         array_all_status="{{ json_encode($allStatusToFilter) }}">
     </Datatable-Client>
