@@ -247,6 +247,81 @@ class OpenpayService
     }
 
     /**
+     * Crea un PLAN de cobro recurrente en OpenPay (monto FIJO, mensual). El plan es
+     * la plantilla; luego se suscribe una tarjeta guardada. NO requiere device_session_id.
+     */
+    public function crearPlan(float $amount, string $name, int $retryTimes = 3, string $statusAfterRetry = 'unpaid'): string
+    {
+        try {
+            $plan = $this->api()->plans->add([
+                'amount'             => round($amount, 2),
+                'name'               => mb_substr($name, 0, 255),
+                'repeat_every'       => 1,
+                'repeat_unit'        => 'month',
+                'retry_times'        => $retryTimes,
+                'status_after_retry' => $statusAfterRetry, // 'unpaid' | 'cancelled'
+                'trial_days'         => '0',
+                'currency'           => 'MXN',
+            ]);
+            return $plan->id;
+        } catch (OpenpayApiError $e) {
+            \Log::warning('openpay.crearPlan fallo', [
+                'desc' => method_exists($e, 'getDescription') ? $e->getDescription() : $e->getMessage(),
+                'code' => method_exists($e, 'getErrorCode') ? $e->getErrorCode() : null,
+            ]);
+            throw new OpenpayTransactionException('No se pudo crear el plan de cobro en OpenPay.', 0, $e);
+        }
+    }
+
+    /**
+     * Suscribe la tarjeta guardada (card_id) de un customer a un plan. OpenPay cobra
+     * el monto del plan automáticamente cada mes (merchant-initiated) SIN device_session_id.
+     * @return object suscripción con ->id, ->status (active/trial/past_due/unpaid/cancelled), ->charge_date
+     */
+    public function crearSuscripcion(string $customerId, string $cardId, string $planId, ?string $trialEndDate = null): object
+    {
+        try {
+            $customer = $this->api()->customers->get($customerId);
+            $data = ['card_id' => $cardId, 'plan_id' => $planId];
+            if ($trialEndDate) {
+                $data['trial_end_date'] = $trialEndDate;
+            }
+            return $customer->subscriptions->add($data);
+        } catch (OpenpayApiError $e) {
+            \Log::warning('openpay.crearSuscripcion fallo', [
+                'desc' => method_exists($e, 'getDescription') ? $e->getDescription() : $e->getMessage(),
+                'code' => method_exists($e, 'getErrorCode') ? $e->getErrorCode() : null,
+            ]);
+            throw new OpenpayTransactionException('No se pudo crear la suscripción en OpenPay.', 0, $e);
+        }
+    }
+
+    /**
+     * Consulta el estado de una suscripción.
+     */
+    public function consultarSuscripcion(string $customerId, string $subscriptionId): object
+    {
+        $customer = $this->api()->customers->get($customerId);
+        return $customer->subscriptions->get($subscriptionId);
+    }
+
+    /**
+     * Cancela una suscripción. Si ya no existe (404), absorbe silenciosamente.
+     */
+    public function cancelarSuscripcion(string $customerId, string $subscriptionId): void
+    {
+        try {
+            $customer = $this->api()->customers->get($customerId);
+            $customer->subscriptions->get($subscriptionId)->delete();
+        } catch (OpenpayApiError $e) {
+            if (method_exists($e, 'getHttpCode') && $e->getHttpCode() === 404) {
+                return;
+            }
+            throw new OpenpayTransactionException('No se pudo cancelar la suscripción en OpenPay.', 0, $e);
+        }
+    }
+
+    /**
      * Elimina una tarjeta guardada del perfil del customer en OpenPay.
      * Si ya no existe (404), absorbe silenciosamente.
      */
