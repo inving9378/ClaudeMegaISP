@@ -22,35 +22,9 @@ trait ScopeClient
     public function scopeFilters($query, $columns, $search = null, $filter = null, $columnasCrudas = null, $ampliada = false)
     {
         if (isset($search) && empty($filter)) {
-            if (config('clientes_busqueda.v2_habilitado')) {
-                app(ClienteSearchService::class)->aplicar($query, $search, $columnasCrudas ?? [], $ampliada);
-            } else {
-                $query->where(function ($query) use ($search, $columns) {
-                    foreach ($columns as $value) {
-                        if ($value !== 'action' && $value !== 'full_name') {
-                            // Añade el alias para evitar ambigüedad
-                            if (strpos($value, '.') === false) {
-                                $value = 'client_main_information.' . $value;
-                            }
-                            if (strpos($value, 'nomenclature_name')) {
-                                $value = 'nomenclatures.name';
-                            }
-                            $query->orWhere($value, 'like', '%' . $search . '%');
-                        }
-                        if ($value === 'full_name') {
-                            $searchTerms = explode(' ', $search);
-                            $query->orWhere(function ($q) use ($searchTerms) {
-                                foreach ($searchTerms as $term) {
-                                    $q->where(DB::raw("CONCAT(client_main_information.name, ' ', client_main_information.father_last_name, ' ', client_main_information.mother_last_name)"), 'like', '%' . $term . '%');
-                                }
-                            });
-                        }
-                    }
-                    $query->orWhere(DB::raw("CONCAT(client_main_information.name, ' ', client_main_information.father_last_name, ' ', client_main_information.mother_last_name)"), 'like', '%' . $search . '%');
-                });
-            }
+            $this->aplicarBusquedaTextoClientes($query, $search, $columns, $columnasCrudas, $ampliada);
         } elseif (!empty($filter)) {
-            $query->where(function ($query) use ($filter, $search, $columns) {
+            $query->where(function ($query) use ($filter, $search, $columns, $columnasCrudas, $ampliada) {
                 foreach ($filter as $key => $values) {
                     foreach ($values as $keyV => $val) {
                         if ($val == 'null') {
@@ -70,25 +44,40 @@ trait ScopeClient
                             $query = $query->whereHas('bundle_service', function ($query) use ($keyV, $val) {
                                 $query->where($keyV, $val);
                             })->with('bundle_service');
+                            if (isset($search)) {
+                                $this->aplicarBusquedaTextoClientes($query, $search, $columns, $columnasCrudas, $ampliada);
+                            }
                         } elseif ($keyV === 'internet_id') {
                             $query = $query->whereHas('internet_service', function ($query) use ($keyV, $val) {
                                 $query->where($keyV, $val)
                                     ->whereNull('client_bundle_service_id');
                             })->with('internet_service');
+                            if (isset($search)) {
+                                $this->aplicarBusquedaTextoClientes($query, $search, $columns, $columnasCrudas, $ampliada);
+                            }
                         } elseif ($keyV === 'custom_id') {
                             $query = $query->whereHas('custom_service', function ($query) use ($keyV, $val) {
                                 $query->where($keyV, $val)
                                     ->whereNull('client_bundle_service_id');
                             })->with('custom_service');
+                            if (isset($search)) {
+                                $this->aplicarBusquedaTextoClientes($query, $search, $columns, $columnasCrudas, $ampliada);
+                            }
                         } elseif ($keyV === 'client_main_information.estado') {
                             $query = $query->whereHas('client_main_information', function ($query) use ($keyV, $val) {
                                 $query->whereIn($keyV, $val);
                             })->with('client_main_information');
+                            if (isset($search)) {
+                                $this->aplicarBusquedaTextoClientes($query, $search, $columns, $columnasCrudas, $ampliada);
+                            }
                         } elseif ($keyV === 'voz_id') {
                             $query = $query->whereHas('voz_service', function ($query) use ($keyV, $val) {
                                 $query->where($keyV, $val)
                                     ->whereNull('client_bundle_service_id');
                             })->with('voz_service');
+                            if (isset($search)) {
+                                $this->aplicarBusquedaTextoClientes($query, $search, $columns, $columnasCrudas, $ampliada);
+                            }
                         } else {
                             if (is_array($val)) {
                                 foreach ($val as $v) {
@@ -147,6 +136,48 @@ trait ScopeClient
                 }
             });
         }
+    }
+
+    /**
+     * Aplica el término de búsqueda de texto de Clientes sobre $query, reusando
+     * ClienteSearchService (buscador v2, item #9990803) cuando está habilitado,
+     * o el patrón v1 (orWhere por columna) como fallback. Extraído de scopeFilters()
+     * (item #9990846) para poder combinarse con un filtro activo: antes, cuando
+     * $filter venía con valor, las ramas por relación (bundle_id/internet_id/
+     * custom_id/client_main_information.estado/voz_id) ignoraban $search por
+     * completo. Se aplica DENTRO de un where(function...) para no fugar el scope
+     * (mismo riesgo de orWhere suelto que #9990803 ya resolvió para el caso sin filtro).
+     */
+    private function aplicarBusquedaTextoClientes($query, $search, $columns, $columnasCrudas = null, $ampliada = false)
+    {
+        if (config('clientes_busqueda.v2_habilitado')) {
+            app(ClienteSearchService::class)->aplicar($query, $search, $columnasCrudas ?? [], $ampliada);
+            return;
+        }
+
+        $query->where(function ($query) use ($search, $columns) {
+            foreach ($columns as $value) {
+                if ($value !== 'action' && $value !== 'full_name') {
+                    // Añade el alias para evitar ambigüedad
+                    if (strpos($value, '.') === false) {
+                        $value = 'client_main_information.' . $value;
+                    }
+                    if (strpos($value, 'nomenclature_name')) {
+                        $value = 'nomenclatures.name';
+                    }
+                    $query->orWhere($value, 'like', '%' . $search . '%');
+                }
+                if ($value === 'full_name') {
+                    $searchTerms = explode(' ', $search);
+                    $query->orWhere(function ($q) use ($searchTerms) {
+                        foreach ($searchTerms as $term) {
+                            $q->where(DB::raw("CONCAT(client_main_information.name, ' ', client_main_information.father_last_name, ' ', client_main_information.mother_last_name)"), 'like', '%' . $term . '%');
+                        }
+                    });
+                }
+            }
+            $query->orWhere(DB::raw("CONCAT(client_main_information.name, ' ', client_main_information.father_last_name, ' ', client_main_information.mother_last_name)"), 'like', '%' . $search . '%');
+        });
     }
 
     public function scopeNoTenganPlanAdministrador($query)
