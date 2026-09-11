@@ -42,7 +42,7 @@ return [
         'email' => ['tabla' => 'client_main_information', 'columna' => 'email', 'correlacion' => 'client_id', 'match' => 'contiene'],
         'nif_pasaport' => ['tabla' => 'client_main_information', 'columna' => 'nif_pasaport', 'correlacion' => 'client_id', 'match' => 'contiene'],
         'id' => ['tabla' => 'clients', 'columna' => 'id', 'correlacion' => null, 'match' => 'exacto'],
-        'modem_sn' => ['tabla' => 'client_additional_information', 'columna' => 'modem_sn', 'correlacion' => 'client_id', 'match' => 'contiene', 'normalizar' => 'sn'],
+        'modem_sn' => ['tabla' => 'client_additional_information', 'columna' => 'serie_equipo_norm', 'correlacion' => 'client_id', 'match' => 'contiene', 'normalizar' => 'sn_canonico'],
         'gpon_ont' => ['tabla' => 'client_additional_information', 'columna' => 'gpon_ont', 'correlacion' => 'client_id', 'match' => 'contiene', 'normalizar' => 'sn'],
         'box_nomenclator' => ['tabla' => 'client_additional_information', 'columna' => 'box_nomenclator', 'correlacion' => 'client_id', 'match' => 'contiene'],
         'mac' => ['tabla' => 'client_internet_services', 'columna' => 'mac', 'correlacion' => 'client_id', 'match' => 'contiene', 'normalizar' => 'mac'],
