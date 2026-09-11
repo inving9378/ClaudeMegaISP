@@ -69,7 +69,7 @@ class NormalizarSeriesClientesCommand extends Command
                     ->whereNull('cai.deleted_at');
             })
             ->whereNull('clients.deleted_at')
-            ->select('clients.id as client_id', 'cai.modem_sn as modem_sn', 'onu.sn as olt_sn')
+            ->select('clients.id as client_id', 'cai.client_id as cai_client_id', 'cai.modem_sn as modem_sn', 'onu.sn as olt_sn')
             ->orderBy('clients.id');
 
         $query->chunkById($chunkSize, function ($rows) use (
@@ -106,12 +106,24 @@ class NormalizarSeriesClientesCommand extends Command
                     continue;
                 }
 
+                // Existencia de la fila se decide por el JOIN, NUNCA por las filas
+                // afectadas del UPDATE: MySQL reporta 0 afectadas cuando los valores
+                // ya son idénticos (2a corrida), lo que rompía la idempotencia (#5) —
+                // marcaba clientes correctos como falsa excepción "sin fila".
+                if ($row->cai_client_id === null) {
+                    $excepciones++;
+                    if ($csvHandle) {
+                        fputcsv($csvHandle, [$row->client_id, $candidato, $origen, 'sin fila client_additional_information']);
+                    }
+                    continue;
+                }
+
                 if ($dryRun) {
                     $normalizados++;
                     continue;
                 }
 
-                $afectados = DB::table('client_additional_information')
+                DB::table('client_additional_information')
                     ->where('client_id', $row->client_id)
                     ->update([
                         'serie_equipo' => ClienteSearchService::formatoCorto($normalizado),
@@ -119,15 +131,6 @@ class NormalizarSeriesClientesCommand extends Command
                         'serie_equipo_origen' => $origen,
                         'updated_at' => now(),
                     ]);
-
-                if ($afectados === 0) {
-                    // Cliente sin fila en client_additional_information: no hay dónde escribir.
-                    $excepciones++;
-                    if ($csvHandle) {
-                        fputcsv($csvHandle, [$row->client_id, $candidato, $origen, 'sin fila client_additional_information']);
-                    }
-                    continue;
-                }
 
                 $normalizados++;
             }
