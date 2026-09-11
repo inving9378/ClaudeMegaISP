@@ -154,8 +154,8 @@
         btn.disabled = true;
         form.addEventListener('submit', function (e) { e.preventDefault(); });
     } else {
-    OpenPay.setId({{ json_encode($openpayId) }});
-    OpenPay.setApiKey({{ json_encode($openpayKey) }});
+    OpenPay.setId({!! json_encode($openpayId) !!});
+    OpenPay.setApiKey({!! json_encode($openpayKey) !!});
     OpenPay.setSandboxMode({{ $sandbox ? 'true' : 'false' }});
 
     form.addEventListener('submit', function (e) {
