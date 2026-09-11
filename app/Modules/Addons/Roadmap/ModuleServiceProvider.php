@@ -118,6 +118,9 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 // #747 (sub-item de #279) — auditoría retroactiva READ-ONLY de merges que pudieron
                 // entrar sin aprobación fresca de Irving. Nunca revierte nada (opción descartada).
                 \App\Modules\Addons\Roadmap\Console\AuditarMergesPostAprobacionCommand::class,
+                // #9990843 — auditoría retroactiva READ-ONLY de items con >1 rama
+                // circuito/item-<id>-* (riesgo de rama huérfana con trabajo real sin mergear).
+                \App\Modules\Addons\Roadmap\Console\AuditarRamasHuerfanasCommand::class,
                 // #914 (Fase 3 de #911) — aviso temprano al perdedor de una colisión en vuelo: la
                 // terminal lo consulta en puntos naturales de su vuelta en vez de enterarse hasta
                 // circuito:integrar.
