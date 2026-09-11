@@ -2228,3 +2228,33 @@ repita la investigación. Detalle completo en
 `docs/mapared-flujo-animado-fase4-item-9990742-verificacion.md`. **Sin cambio de código de
 aplicación** — el bloqueo real es la falta de `mapared_enlaces_servicio` poblada, fuera de alcance
 de este item (depende de correr `mapared:backfill` real y/o dar de alta enlaces reales vía UI).
+
+## Item #9990807 — Pantalla del colaborador (pendientes/firmados) + tablero de pendientes para Irving + endpoints API-first — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante, con merge del commit sobrante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
+#936/#9990408/#962/#9990554/#9990549/#9990624/#9990650. #9990807 (sub-item de #9990792: endpoints
+API-first + pantalla del colaborador para pendientes/firmados + tablero admin de antigüedad para
+Irving) ya había sido escalado por el revisor (ambigüedad de alcance) y re-aprobado por el
+DES-TRABE (Opus). Una vuelta previa (`wt-1`, 2026-09-11 14:21) ya hizo lo correcto: resolvió las 6
+preguntas estructuradas con la opción recomendada de cada una (vista única con tabs, tablero
+agrupado por colaborador, solo-lectura + botón recordar, endpoints internos bajo
+`/talento/portal/*` y `/talento/api/colaboradores/*`) y descompuso el trabajo en **#9990813**
+(endpoints self-scoped de documentos), **#9990814** (pantalla del colaborador) y **#9990816**
+(tablero admin de pendientes). Antes de descomponer dejó un commit propio en la rama del padre
+(`4095fcc8`: helpers `SignatureImageInput`/`SignatureSlotStatus`, pensados explícitamente para el
+endpoint de #9990813). Pero esa vuelta agotó sus turnos (`max_turns`), se reanudó una vez y nunca
+llegó a intentar **cerrar** al padre — `reaper-rapido` lo vio con el slot libre y lo re-encoló
+(`reap_count=1`), y el pool lo repartió de nuevo sin trabajo propio que hacer. Verificado esta
+vuelta: los 3 hijos (`origen_item_id=9990807`) siguen intactos, `requiere_irving`, sin reclamar —
+la descomposición original seguía siendo correcta, nadie más la tocó. Corrección (variante de los
+precedentes): a diferencia de la mayoría de estos casos, aquí el commit sobrante de la rama del
+padre SÍ se integró primero (`circuito:integrar 9990807`, merge `1f65a01a`, verificado con los 2
+archivos ya en `main`) por ser reusable y de bajo riesgo — así `#9990813` no tiene que redescubrir
+ni recrear esos helpers. Después se ejecutó el intento de cierre faltante; el guard
+(`RoadmapItem.php` bloque "(2b) PARAGUAS") lo reenruta a `aprobado_irving` +
+`excluir_pool_automatico=true` (evento `paraguas_abierto` en el log, "le quedan 3 sub-item(s)
+abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
+(`RoadmapItem.php:459-491`) lo complete solo cuando #9990813, #9990814 y #9990816 cierren los
+tres. Detalle en `docs/roadmap-bucle-reap-item-9990807-verificacion.md`. **Sin código de negocio
+nuevo** — el trabajo real (endpoints, pantalla del colaborador, tablero admin) sigue en
+#9990813/#9990814/#9990816, pendientes de que una terminal los reclame.
