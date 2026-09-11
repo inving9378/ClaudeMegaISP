@@ -59,17 +59,12 @@ export const dialogs = ref({
 export const currentObject = ref(null);
 export const currentMarker = ref(null);
 
-// MR flujo animado Fase 1a (item roadmap #9990752): config del piloto, fijada por
-// LeafletMapRed.vue en onMounted() a partir de sus props (config('mapared.*') vía Blade).
-// Fase 1b (createLayerFromObject/updateLayerFromObject) la consume; NO se toca aquí.
-export const flujoAnimadoConfig = reactive({
-    enabled: false,
-    pilotRouteId: null,
-});
-export const setFlujoAnimadoConfig = (enabled, pilotRouteId = null) => {
-    flujoAnimadoConfig.enabled = Boolean(enabled);
-    flujoAnimadoConfig.pilotRouteId = pilotRouteId ?? null;
-};
+// MR flujo animado (item roadmap #9990733): config del piloto, fijada por LeafletMapRed.vue
+// en onMounted() a partir de sus props (config('mapared.*') vía Blade). La declaración real
+// de `flujoAnimadoConfig`/`setFlujoAnimadoConfig` vive más abajo (Fase 1b, #9990753), junto a
+// `isFlujoAnimadoPilot`/`createLayerFromObject`/`updateLayerFromObject`, que son quienes la
+// consumen — un bloque duplicado aquí (Fase 1a, #9990752) rompía el build (identificador
+// redeclarado) sin que el merge lo marcara como conflicto (inserciones en líneas distintas).
 
 let layerEditing = null;
 export const hasLayerEdit = ref(false);
