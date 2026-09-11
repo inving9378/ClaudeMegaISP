@@ -31,7 +31,7 @@ use Illuminate\Support\Str;
  */
 class PortalPagoController extends Controller
 {
-    private const METHOD_ID_OPENPAY = 9;  // id en method_of_payments: "Tarjeta OpenPay"
+    public const METHOD_ID_OPENPAY = 9;  // público: lo usa OpenpayWebhookController (portal + suscripción)  // id en method_of_payments: "Tarjeta OpenPay"
     private const ADD_BY_PORTAL     = 0;  // pagos insertados por el portal (no por un admin)
 
     public function cobrar(Request $request, int $invoiceId): JsonResponse
