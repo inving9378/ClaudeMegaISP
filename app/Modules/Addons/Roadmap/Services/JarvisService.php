@@ -1441,6 +1441,19 @@ class JarvisService
             }
         }
 
+        // #9990738 (q2, Fase 3) — item CON rama pero SIN merge_commit: el trabajo tiene código pero
+        // nadie lo mergeó. Para nivel_riesgo==='C' esto ya lo intercepta el bloque (1) de
+        // `RoadmapItem.php` ANTES de llegar aquí (reroutea a aprobado_irving+esperando_merge_irving,
+        // registrado antes en `static::saving()` — el orden de registro importa), así que en la
+        // práctica este bloqueante solo aplica a nivel A/B. NO se toca el bloqueante de arriba
+        // (branch y merge_commit ambos vacíos, #9990403/#9990366) — es un caso distinto (sin rama en
+        // absoluto).
+        if (! empty($item->branch) && empty($item->merge_commit) && ! $item->sin_merge_esperado) {
+            $bloqueantes[] = 'cierre con rama de trabajo pero sin merge_commit, y sin justificación de '
+                . 'sin_merge_esperado — usa ese campo si el merge lo hace un humano aparte o el item '
+                . 'no requiere merge';
+        }
+
         if (($cfg['exige_reporte_coloquial'] ?? true) && trim((string) $item->reporte_coloquial) === '') {
             $faltantes[] = 'falta reporte_coloquial (qué cambió y dónde, en llano) — sin esto Irving no puede revisarlo';
         }

@@ -65,6 +65,9 @@ class RoadmapItem extends Model
         // #9990403 — justificación explícita de un cierre SIN rama/merge_commit cuya naturaleza no
         // implicaba producir código (investigación/premisa incorrecta/duplicado ya entregado)
         'cierre_sin_codigo_motivo',
+        // #9990738 — justificación explícita de un cierre CON rama pero SIN merge_commit (el merge
+        // lo hace un humano aparte, o el item no requería merge)
+        'sin_merge_esperado', 'sin_merge_esperado_motivo',
         // Bandeja de decisiones interactiva (#313) + brief multi-pregunta (#432 Fase 3)
         'opciones', 'opcion_elegida', 'preguntas', 'huecos_spec', 'huecos_medidos_at',
         // Aislamiento por rama (#311)
@@ -140,6 +143,8 @@ class RoadmapItem extends Model
         'colision_pausada_at' => 'datetime',
         // #1005 — escape valve del gate de cierre
         'sin_ui'       => 'boolean',
+        // #9990738 — escape valve del bloqueante branch-sin-merge_commit
+        'sin_merge_esperado' => 'boolean',
         // FASE 1 — Validación funcional por Irving
         'validacion_funcional_requerida' => 'boolean',
         'pendiente_validacion_irving'    => 'boolean',
