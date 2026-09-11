@@ -188,6 +188,7 @@ class ClienteSearchService
             'telefono' => preg_replace('/[^0-9]/', '', $valor),
             'mac' => strtoupper(preg_replace('/[^0-9A-Fa-f]/', '', $valor)),
             'sn' => strtoupper(trim($valor)),
+            'sn_canonico' => (string) (self::normalizarSn($valor) ?? ''),
             default => $valor,
         };
     }
