@@ -340,6 +340,42 @@ class RoadmapItem extends Model
                 $item->status                  = 'pending';
             }
 
+            // (1b) #9990845 (q2 de #9990844, Opción 1 aprobada por Irving) — CANCELAR un item cuya
+            // rama tiene commits reales por encima de main pierde ese trabajo en silencio: es
+            // exactamente el mecanismo que dejó ~40 ramas huérfanas (auditadas en #9990844). Antes
+            // de aceptar la cancelación, se pregunta a git si la rama sigue teniendo commits sin
+            // mergear; si los tiene, la cancelación NO se acepta tal cual — se reroutea a
+            // `requiere_irving` para que Irving decida qué hacer con ellos (rescatar, cherry-pick o
+            // confirmar el descarte) ANTES de que el item quede cerrado y nadie vuelva a mirar esa
+            // rama. El cierre MANUAL de Irving ($cierreManualIrving, mismo flag que (1) —
+            // `RoadmapController::decidir` accion=cancelar) se respeta: si es ÉL quien decide
+            // cancelar, no se le escala su propia decisión.
+            if ($item->isDirty('estado_aprobacion')
+                && $item->estado_aprobacion === 'cancelado'
+                && ! $item->cierreManualIrving
+                && ! empty($item->branch)) {
+                $commits = app(\App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService::class)
+                    ->commitsDeRama($item->branch);
+
+                if ($commits !== null && $commits > 0) {
+                    $log   = $item->log ?: [];
+                    $log[] = [
+                        'ts'      => now()->toIso8601String(),
+                        'por'     => 'guard-cancelacion-rama',
+                        'evento'  => 'cancelacion_con_rama_sin_mergear',
+                        'branch'  => $item->branch,
+                        'commits' => $commits,
+                        'motivo'  => "La rama {$item->branch} tiene {$commits} commit(s) por encima de "
+                            . 'main sin mergear. Se retiene la cancelación y se escala a requiere_irving '
+                            . 'para decidir qué hacer con ese trabajo antes de perderlo (rescatar, '
+                            . 'cherry-pick o confirmar el descarte).',
+                    ];
+                    $item->log               = $log;
+                    $item->estado_aprobacion = 'requiere_irving';
+                    $item->status            = 'pending';
+                }
+            }
+
             // (2) Al ENTRAR a requiere_irving por cualquier camino automático, cuenta repeticiones de
             // la MISMA causa. Si se repite ESCALACION_BUCLE_UMBRAL veces sin cambio material, sale
             // del pool (sigue en la bandeja, pero ningún worker lo re-toma).
