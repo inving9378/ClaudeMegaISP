@@ -4285,3 +4285,27 @@ con guard triple por fila (id+branch+merge_commit IS NULL), `down()` no-op a pro
 reales + #871 (rama perdida) quedaron intactos (`merge_commit` sigue NULL, como debe ser — su
 código NO está en main o no aplica). `php artisan --version` bootea limpio. Rama encolada con
 `circuito:integrar` para el merge-runner on-box.
+
+## 2026-09-10 18:14 — Item #9990733 (Mapa de Red: flujo animado) — cierre-intento faltante sobre paraguas ya descompuesto
+
+Mismo patrón recurrente documentado ya ~20 veces en `CLAUDE.md`: una vuelta previa de `wt-2`
+(16:30-18:09) hizo el PASO 0 de auditoría exigido por el propio item, dejó commiteada en la rama
+propia (`91f51cf8`) la hoja de estilos CSS del efecto (inerte, sin wiring todavía) y descompuso
+correctamente el trabajo real en 4 sub-items (#9990739 Fase 1 wiring+flag, #9990740 Fase 2 cuatro
+estados simulados, #9990741 Fase 3 guardas de rendimiento, #9990742 Fase 4 conectar a datos
+reales) — pero nunca intentó **cerrar** al padre. El log solo registra `soltar-claim` a las
+18:09:43; el pool volvió a repartir #9990733 sin trabajo propio pendiente.
+
+Verificado en esta vuelta: los 4 hijos siguen intactos y sin reclamar; el commit CSS seguía sin
+mergear a `main` (CSS puro, aditivo, cero selectores consumiéndolo todavía). Se ejecutó el intento
+de cierre faltante (`estado_aprobacion='completado'`); el guard de paraguas de `RoadmapItem.php`
+lo detectó (4 sub-items abiertos) y lo reenrutó a `aprobado_irving` + `excluir_pool_automatico=true`,
+liberando `worker_sid`/`claimed_at` — queda fuera del pool/reaper hasta que #9990739-#9990742
+cierren los cuatro y el hook de cierre en cascada lo complete solo.
+
+Se aprovechó la rama propia del item (`circuito/item-9990733-mapa-de-red-flujo-animado-de-puntos-en`,
+ya rebasada sobre `main` sin conflicto) para dejar la documentación del hallazgo
+(`docs/roadmap-bucle-reap-item-9990733-verificacion.md` + sección en `CLAUDE.md`) y encolar el
+merge a `main` vía `circuito:integrar`, arrastrando también el commit CSS ya existente (aditivo,
+sin riesgo). Sin cambio de código de negocio propio de esta vuelta — el efecto animado real sigue
+pendiente en los 4 sub-items.

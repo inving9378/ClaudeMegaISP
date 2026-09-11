@@ -2141,3 +2141,39 @@ global en el div del backdrop; `grep` confirma que no queda ninguna regla `.moda
 NO-scoped en esos 3 archivos; `ModalSimple.vue` intacto (fuera de alcance). Detalle en
 `docs/flotas-modal-backdrop-leak-item-9990658-verificacion.md`. **Sin cambio de código** — el fix
 ya estaba aplicado.
+
+## Item #9990733 — Mapa de Red: flujo animado de puntos en los enlaces OLT — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
+#936/#9990408/#962/#9990554/#9990549/#9990624/#9990650. #9990733 (feature visual/UX del módulo
+nuevo MAPA DE RED: puntos animados en los enlaces OLT→NAP→cliente, donde velocidad=potencia
+óptica, color=umbral y sin-movimiento=caído) fue escalado por el DES-TRABE de Opus (ANTI-LOOP, ya
+se había re-escalado sin ejecutar) y reaprobado por Irving con sus 5 preguntas resueltas —
+verificado por hash: **las 5** corresponden a la opción recomendada (rollout piloto en 1 NAP tras
+feature flag OFF; potencia óptica desde el último valor cacheado en BD, sin consultas nuevas en
+vivo a la OLT; umbrales dBm = los mismos de Torre de Control V2; forzar `preferCanvas:false` solo
+si hiciera falta; combo completo de guardas de rendimiento). Una vuelta previa (`wt-2`,
+2026-09-10 16:30-18:09) ya hizo lo correcto: completó el PASO 0 de auditoría exigido por el propio
+prompt (mapa real = `LeafletMapRed.vue`, Leaflet geográfico con renderer SVG por default —la
+pregunta q4 resulta un no-op—, estado de ONT vía `OLTsService::getSignalAndStatus` cacheado en
+`olt_onus`, y el hallazgo crítico de que los 3084 enlaces que dibuja el mapa hoy son polylines
+genéricas de infraestructura sin asociación real a cliente/ONT porque `mapared_enlaces_servicio`
+sigue en 0 filas, igual que documentaron los items #9990496/#963), dejó commiteada en su propia
+rama la hoja de estilos completa del efecto (`91f51cf8`, CSS puro e inerte hasta el wiring), y
+descompuso el trabajo real en **#9990739** (Fase 1: wiring + feature flag sobre un NAP piloto),
+**#9990740** (Fase 2: los 4 estados simulados a mano), **#9990741** (Fase 3: guardas de
+rendimiento + botón congelar) y **#9990742** (Fase 4: conectar a la potencia real, con instrucción
+explícita de reportar bloqueo si `mapared_enlaces_servicio` sigue vacía en vez de simular datos
+falsos). Pero esa vuelta nunca intentó **cerrar** al padre — el log solo registra `soltar-claim`
+("terminó sin cerrar el item... se libera el reclamo"), y el pool lo repartió de nuevo sin trabajo
+propio que hacer. Verificado esta vuelta: los 4 hijos (`origen_item_id=9990733`) siguen intactos,
+sin reclamar — la descomposición original seguía siendo correcta, nadie más la tocó; el commit
+`91f51cf8` seguía sin mergear a `main`, CSS aditivo e inerte. Corrección: esta vuelta ejecuta el
+intento de cierre faltante; el guard (`RoadmapItem.php` bloque "(2b) PARAGUAS") lo reenruta a
+`aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto` en el log, "le
+quedan 4 sub-item(s) abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en
+cascada (`RoadmapItem.php:459-491`) lo complete solo cuando #9990739, #9990740, #9990741 y
+#9990742 cierren los cuatro. Detalle en `docs/roadmap-bucle-reap-item-9990733-verificacion.md`.
+**Sin cambio de código de negocio** — el trabajo técnico real del efecto (wiring del flag, los 4
+estados, guardas de rendimiento, conexión a la potencia óptica real) sigue en
+#9990739/#9990740/#9990741/#9990742, pendientes de que una terminal los reclame.
