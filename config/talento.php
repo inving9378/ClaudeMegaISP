@@ -40,4 +40,30 @@ return [
     */
     'vendedores_espejo_enabled' => env('TALENTO_VENDEDORES_ESPEJO_ENABLED', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Middleware global de bloqueo proporcional por documento tipo firma (item #9990804)
+    |--------------------------------------------------------------------------
+    | Kill switch. Default OFF a propósito (decisión Irving, q4): se activa gradual y se
+    | puede apagar sin deploy si algo se comporta mal. Cuando está en true,
+    | App\Modules\Addons\Talento\Http\Middleware\BloqueoDocumentoPendienteMiddleware
+    | intercepta TODAS las escrituras (POST/PUT/PATCH/DELETE) del guard web: si el
+    | colaborador autenticado tiene un talento_employee_documents.status='pendiente' de un
+    | template tipo='firma' cuyo modulos_bloqueados intersecta el módulo de la ruta actual,
+    | responde 423 en vez de dejar pasar la petición. Bypass de emergencia: permiso Spatie
+    | 'talento.bypass_bloqueo_firma' (solo super-administrator + DESARROLLADOR).
+    */
+    'bloqueo_firma_pendiente_enabled' => env('TALENTO_BLOQUEO_FIRMA_PENDIENTE_ENABLED', false),
+
+    /*
+    | Catálogo módulo->prefijos de ruta que consume el middleware de arriba para resolver
+    | modulos_bloqueados (cuando NO es el sentinel '*' = TODO lo operativo). Un mismo prefijo
+    | puede repetirse en varios módulos si conceptualmente pertenece a ambos.
+    */
+    'modulos_operativos' => [
+        'prospectos'  => ['/crm'],
+        'ventas'      => ['/sellers', '/vendedores'],
+        'comisiones'  => ['/sellers', '/vendedores'],
+    ],
+
 ];
