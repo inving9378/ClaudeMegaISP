@@ -34,7 +34,8 @@ return new class extends Migration
             $table->string('motivo', 60)->default('nueva_version_mayor');
             $table->timestamp('created_at')->useCurrent();
 
-            $table->foreign('employee_document_id')->references('id')->on('talento_employee_documents')->onDelete('cascade');
+            $table->foreign('employee_document_id', 'ted_reaperturas_employee_document_fk')
+                ->references('id')->on('talento_employee_documents')->onDelete('cascade');
             $table->index('employee_document_id');
         });
     }
