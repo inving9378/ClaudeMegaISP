@@ -180,11 +180,15 @@ class OpenpayService
      * @return object Con ->id (source_id), ->brand, ->card_number (last4),
      *                ->expiration_month, ->expiration_year, ->holder_name
      */
-    public function guardarTarjeta(string $customerId, string $token): object
+    public function guardarTarjeta(string $customerId, string $token, ?string $deviceSessionId = null): object
     {
         try {
             $customer = $this->api()->customers->get($customerId);
-            return $customer->cards->add(['token_id' => $token]);
+            $cardData = ['token_id' => $token];
+            if ($deviceSessionId) {
+                $cardData['device_session_id'] = $deviceSessionId;
+            }
+            return $customer->cards->add($cardData);
         } catch (OpenpayApiError $e) {
             throw new OpenpayTransactionException(
                 'No se pudo guardar la tarjeta en OpenPay.',

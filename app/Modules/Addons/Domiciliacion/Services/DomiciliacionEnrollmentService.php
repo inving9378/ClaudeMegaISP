@@ -29,12 +29,13 @@ class DomiciliacionEnrollmentService
         string $token,
         string $channel,
         int    $createdBy,
-        array  $customerData
+        array  $customerData,
+        ?string $deviceSessionId = null
     ): ClientRecurringCard {
         $this->cancelarTarjetasActivas($clientId);
 
         $customerId = $this->openpay->crearClienteOpenpay($customerData);
-        $card       = $this->openpay->guardarTarjeta($customerId, $token);
+        $card       = $this->openpay->guardarTarjeta($customerId, $token, $deviceSessionId);
 
         return DB::transaction(function () use ($clientId, $customerId, $card, $channel, $createdBy) {
             return ClientRecurringCard::create([

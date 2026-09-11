@@ -26,7 +26,7 @@ class DomiciliacionController extends Controller
 
     public function portalStore(Request $request): JsonResponse
     {
-        $data = $request->validate(['token' => 'required|string|max:100']);
+        $data = $request->validate(['token' => 'required|string|max:100', 'device_session_id' => 'nullable|string|max:100']);
 
         $cmi      = Auth::guard('cliente')->user();
         $clientId = $cmi->client_id;
@@ -41,7 +41,8 @@ class DomiciliacionController extends Controller
                 'last_name'    => $cmi->father_last_name ?? '',
                 'email'        => $cmi->email ?? '',
                 'phone_number' => $cmi->phone ?? '',
-            ]
+            ],
+                deviceSessionId: $data['device_session_id'] ?? null
         );
 
         return response()->json(['success' => true, 'card' => $this->formatCard($card)]);

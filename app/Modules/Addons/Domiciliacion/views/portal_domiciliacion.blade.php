@@ -74,6 +74,7 @@
           action="{{ route('portal.domiciliacion.enrolar') }}" novalidate>
         @csrf
         <input type="hidden" name="token" id="openpay-token-hidden">
+        <input type="hidden" name="device_session_id" id="openpay-device-session">
 
         <div style="margin-bottom:1rem;">
             <label style="display:block; font-size:.82rem; color:var(--text-muted); font-weight:600; margin-bottom:.35rem;">
@@ -157,6 +158,13 @@
     OpenPay.setId({!! json_encode($openpayId) !!});
     OpenPay.setApiKey({!! json_encode($openpayKey) !!});
     OpenPay.setSandboxMode({{ $sandbox ? 'true' : 'false' }});
+
+    // Antifraude: OpenPay exige device_session_id para guardar la tarjeta (cards->add).
+    // deviceData.setup() genera la huella y devuelve el id; viaja en el form como hidden.
+    try {
+        var _dsi = (OpenPay.deviceData && OpenPay.deviceData.setup) ? OpenPay.deviceData.setup() : '';
+        var _f = document.getElementById('openpay-device-session'); if (_f) _f.value = _dsi || '';
+    } catch (e) {}
 
     form.addEventListener('submit', function (e) {
         e.preventDefault();
