@@ -497,6 +497,16 @@ Route::middleware(['web', 'auth', 'can:portal.colaborador'])
         // Mis prospectos — prospectos CRM del vendedor (SOLO LECTURA, self-scoped por Actor). Reusa CRM/Vendedores.
         Route::get('/prospectos',       [PortalTecnicoController::class, 'prospectos']);
 
+        // Mis documentos (expediente) — self-scoped por Actor. Item #9990813.
+        Route::middleware('can:talento.documentos.ver-propios')->group(function () {
+            Route::get('/documentos',             [PortalTecnicoController::class, 'documentos']);
+            Route::get('/documentos/{docId}',     [PortalTecnicoController::class, 'documentoDetalle'])->whereNumber('docId');
+            Route::get('/documentos/{docId}/pdf', [PortalTecnicoController::class, 'documentoPdf'])->whereNumber('docId');
+        });
+        Route::post('/documentos/{docId}/firma', [PortalTecnicoController::class, 'firmarDocumento'])
+            ->whereNumber('docId')
+            ->middleware('can:talento.documentos.firmar-propios');
+
         // Detalle de OT (por origen/id). {origen} = work_order|task.
         Route::get('/ot/{origen}/{id}', [PortalTecnicoController::class, 'otDetalle'])
             ->whereIn('origen', ['work_order', 'task'])->whereNumber('id');

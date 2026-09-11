@@ -5,6 +5,8 @@ namespace App\Modules\Addons\Talento\Controllers;
 use App\Http\Controllers\Controller;
 use App\Services\InventoryService;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
+use App\Modules\Addons\Talento\Models\TalentoEmployeeDocument;
+use App\Modules\Addons\Talento\Models\TalentoEmployeeDocumentSignature;
 use App\Modules\Addons\Talento\Models\TalentoFund;
 use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
 use App\Modules\Addons\Talento\Models\TalentoLoan;
@@ -13,12 +15,17 @@ use App\Modules\Addons\Talento\Services\AttendanceService;
 use App\Modules\Addons\Talento\Services\LiquidationService;
 use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
 use App\Modules\Addons\Talento\Services\SignatureService;
+use App\Modules\Addons\Talento\Services\TemplateRenderService;
 use App\Modules\Addons\Talento\Support\Actor;
 use App\Modules\Addons\Talento\Support\PayWeek;
+use App\Modules\Addons\Talento\Support\SignatureImageInput;
+use App\Modules\Addons\Talento\Support\SignatureMetadata;
+use App\Modules\Addons\Talento\Support\SignatureSlotStatus;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Response;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Portal Técnico Web — shell PWA del módulo Talento.
@@ -884,6 +891,194 @@ JS;
             'prospectos'    => $prospectos,
             'solo_consulta' => true,
         ]);
+    }
+
+    // ── Mis documentos (expediente) — self-scoped por Actor (item #9990813) ────────────────────
+    // Reusa el mismo cálculo de estado de firma que la ficha admin (SignatureSlotStatus::describir,
+    // extraída de TalentoEmployeeDocumentController::resolveEstadoFirma() SIN tocar ese controller
+    // ya aprobado) y la misma validación de imagen de firma (SignatureImageInput::resolve()).
+
+    private const FIRMA_DISK_PREFIX = 'private/talento/firmas/';
+
+    /** Lista los documentos del colaborador autenticado: pendientes de firma primero, luego firmados. */
+    public function documentos(Request $request)
+    {
+        $col = $this->resolveColaborador($request);
+        if (! $col) return response()->json(['error' => 'Sin perfil de colaborador activo.'], 403);
+
+        $documentos = TalentoEmployeeDocument::where('colaborador_id', $col->id)
+            ->with(['template:id,name,tipo,requires_signature', 'template.signatureSlots'])
+            ->orderBy('id')
+            ->get(['id', 'colaborador_id', 'template_id', 'status', 'generated_at', 'signed_at', 'signature_method', 'rendered_html']);
+
+        $firmasPorDoc = TalentoEmployeeDocumentSignature::whereIn('employee_document_id', $documentos->pluck('id'))
+            ->get()
+            ->groupBy('employee_document_id');
+
+        $documentos = $documentos->map(function (TalentoEmployeeDocument $doc) use ($firmasPorDoc) {
+            return $this->documentoResumen($doc, $firmasPorDoc->get($doc->id) ?? collect());
+        });
+
+        $ordenados = $documentos->sortBy([
+            ['pendiente_firma', 'desc'],
+            ['generated_at', 'desc'],
+        ])->values();
+
+        return response()->json(['data' => $ordenados]);
+    }
+
+    /** Detalle de un documento propio. 404 si docId no pertenece al colaborador (anti-IDOR). */
+    public function documentoDetalle(Request $request, $docId)
+    {
+        $col = $this->resolveColaborador($request);
+        if (! $col) return response()->json(['error' => 'Sin perfil de colaborador activo.'], 403);
+
+        $doc = TalentoEmployeeDocument::where('colaborador_id', $col->id)
+            ->where('id', $docId)
+            ->with(['template:id,name,tipo,requires_signature', 'template.signatureSlots'])
+            ->first();
+        if (! $doc) return response()->json(['message' => 'Documento no encontrado.'], 404);
+
+        $firmas = TalentoEmployeeDocumentSignature::where('employee_document_id', $doc->id)->get();
+
+        return response()->json($this->documentoResumen($doc, $firmas) + [
+            'pdf_url' => "/talento/portal/documentos/{$doc->id}/pdf",
+        ]);
+    }
+
+    /**
+     * Descarga/visualiza el documento ya generado (mismo camino que
+     * TalentoEmployeeDocumentController::show(): reinyecta el CSS actual sobre el HTML congelado
+     * en BD — no hay generador de PDF real en el módulo, el documento es HTML listo para
+     * abrir/imprimir desde el navegador).
+     */
+    public function documentoPdf(Request $request, $docId)
+    {
+        $col = $this->resolveColaborador($request);
+        if (! $col) return response()->json(['error' => 'Sin perfil de colaborador activo.'], 403);
+
+        $documento = TalentoEmployeeDocument::where('colaborador_id', $col->id)
+            ->where('id', $docId)
+            ->first();
+        if (! $documento) return response()->json(['message' => 'Documento no encontrado.'], 404);
+
+        $html = app(TemplateRenderService::class)->reinjectCurrentCss($documento->rendered_html);
+
+        return response($html, 200)->header('Content-Type', 'text/html');
+    }
+
+    /**
+     * Firma/acusa un documento propio. Reusa SignatureImageInput::resolve() para decodificar y
+     * validar la imagen (misma regla que el endpoint admin) y escribe en
+     * talento_employee_document_signatures con la MISMA metadata legal (item #9990805) que
+     * TalentoEmployeeDocumentController::sign() — no se toca ese controller, se recalcula aquí con
+     * SignatureMetadata (extraída para este fin).
+     *
+     * Anti-escalada: si la plantilla declara slots, el colaborador SOLO puede firmar el/los suyo(s)
+     * (firmante_tipo = 'colaborador') — el slot 'empresa/admin' sigue siendo exclusivo de la ficha
+     * admin (TalentoEmployeeDocumentController::sign()), nunca queda accesible por autoservicio.
+     */
+    public function firmarDocumento(Request $request, $docId)
+    {
+        $col = $this->resolveColaborador($request);
+        if (! $col) return response()->json(['error' => 'Sin perfil de colaborador activo.'], 403);
+
+        $documento = TalentoEmployeeDocument::where('colaborador_id', $col->id)
+            ->where('id', $docId)
+            ->with('template.signatureSlots')
+            ->first();
+        if (! $documento) return response()->json(['message' => 'Documento no encontrado.'], 404);
+
+        $slots = $documento->template->signatureSlots ?? collect();
+        $slotKey = null;
+
+        if ($slots->isNotEmpty()) {
+            $request->validate(['slot_key' => 'required|string']);
+            $slotKey = $request->input('slot_key');
+            $slot = $slots->firstWhere('key', $slotKey);
+            abort_unless($slot, 422, 'El slot de firma indicado no existe en esta plantilla.');
+            abort_unless($slot->firmante_tipo === 'colaborador', 403, 'Este recuadro de firma no corresponde al colaborador.');
+        }
+
+        $imagen = SignatureImageInput::resolve($request);
+        $trazos = $imagen['metodo'] === 'drawn' ? $request->input('trazos') : null;
+        $urlBase = "/talento/portal/documentos/{$documento->id}/firma";
+
+        $path = self::FIRMA_DISK_PREFIX . "{$col->id}/{$documento->id}_" . ($slotKey ? "{$slotKey}_" : '') . time() . '.' . $imagen['extension'];
+        Storage::disk('local')->put($path, $imagen['binario']);
+
+        if ($slotKey) {
+            $firma = TalentoEmployeeDocumentSignature::firstOrNew([
+                'employee_document_id' => $documento->id,
+                'slot_key' => $slotKey,
+            ]);
+            $anterior = $firma->signature_path;
+            $firma->fill([
+                'signature_path' => $path,
+                'signed_at' => now(),
+                'signed_by' => $request->user()->id,
+                'signature_method' => $imagen['metodo'],
+                'hash_documento' => hash('sha256', $documento->rendered_html ?? ''),
+                'ip' => $request->ip(),
+                'user_agent' => substr((string) $request->userAgent(), 0, 500),
+                'dispositivo' => SignatureMetadata::dispositivo($request->userAgent()),
+                'trazos' => $trazos,
+                'geolocalizacion' => SignatureMetadata::geolocalizacion($request->input('geolocalizacion')),
+            ])->save();
+
+            if ($anterior && $anterior !== $path && Storage::disk('local')->exists($anterior)) {
+                Storage::disk('local')->delete($anterior);
+            }
+
+            return response()->json([
+                'id' => $documento->id,
+                'slot_key' => $slotKey,
+                'signed_at' => $firma->signed_at,
+                'signature_method' => $firma->signature_method,
+                'signature_url' => "{$urlBase}?slot_key={$slotKey}",
+            ]);
+        }
+
+        $anterior = $documento->signature_path;
+        $documento->update([
+            'signature_path' => $path,
+            'signed_at' => now(),
+            'signed_by' => $request->user()->id,
+            'signature_method' => $imagen['metodo'],
+        ]);
+
+        if ($anterior && $anterior !== $path && Storage::disk('local')->exists($anterior)) {
+            Storage::disk('local')->delete($anterior);
+        }
+
+        return response()->json([
+            'id' => $documento->id,
+            'signed_at' => $documento->signed_at,
+            'signature_method' => $documento->signature_method,
+            'signature_url' => $urlBase,
+        ]);
+    }
+
+    /** Shape compartido de resumen de documento (lista y detalle), construido con SignatureSlotStatus::describir(). */
+    private function documentoResumen(TalentoEmployeeDocument $doc, $firmasDocColeccion): array
+    {
+        $urlBase = "/talento/portal/documentos/{$doc->id}/firma";
+        [$statusFirma, $signatureSlots] = SignatureSlotStatus::describir($doc, $urlBase, $firmasDocColeccion);
+
+        return [
+            'id' => $doc->id,
+            'template_id' => $doc->template_id,
+            'nombre' => $doc->template->name,
+            'tipo' => $doc->template->tipo ?? null,
+            'status' => $doc->status,
+            'status_efectivo' => $statusFirma['pendiente_firma'] ? 'pendiente' : $doc->status,
+            'generated_at' => $doc->generated_at,
+            'requiere_firma' => $statusFirma['requiere_firma'],
+            'firmado' => $statusFirma['firmado'],
+            'pendiente_firma' => $statusFirma['pendiente_firma'],
+            'signed_at' => $statusFirma['signed_at'],
+            'signature_slots' => $signatureSlots,
+        ];
     }
 
     /** Actor del portal — resuelto y cacheado UNA vez por request (punto único de identidad). */

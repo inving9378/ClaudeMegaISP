@@ -34,6 +34,17 @@ class TalentoColaboradorObserver
         }
     }
 
+    /**
+     * Item #9990813: además de 'portal.colaborador' (base), sincroniza los permisos propios de
+     * "Mis documentos" del Portal con el mismo criterio aditivo — activo = los tiene, inactivo =
+     * se le revocan (solo el directo; si los hereda por rol de staff, se conservan).
+     */
+    private const PERMISOS_ACTIVO = [
+        'portal.colaborador',
+        'talento.documentos.ver-propios',
+        'talento.documentos.firmar-propios',
+    ];
+
     private function sync(TalentoColaborador $colaborador): void
     {
         $user = User::find($colaborador->user_id);
@@ -41,12 +52,14 @@ class TalentoColaboradorObserver
             return;
         }
 
-        if ($colaborador->status === 'active') {
-            if (! $user->hasDirectPermission('portal.colaborador')) {
-                $user->givePermissionTo('portal.colaborador');
+        foreach (self::PERMISOS_ACTIVO as $permiso) {
+            if ($colaborador->status === 'active') {
+                if (! $user->hasDirectPermission($permiso)) {
+                    $user->givePermissionTo($permiso);
+                }
+            } elseif ($user->hasDirectPermission($permiso)) {
+                $user->revokePermissionTo($permiso);
             }
-        } elseif ($user->hasDirectPermission('portal.colaborador')) {
-            $user->revokePermissionTo('portal.colaborador');
         }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
