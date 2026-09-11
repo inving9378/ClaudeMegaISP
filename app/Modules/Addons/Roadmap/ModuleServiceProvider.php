@@ -128,6 +128,10 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 // #9990346 — detector READ-ONLY de items completados sin mergear cuyo trabajo fue
                 // re-implementado desde cero por otro item. Solo informa; la confirmación es humana.
                 \App\Modules\Addons\Roadmap\Console\DetectarReimplementadosCommand::class,
+                // #9990736 (Fase 1 de #9990730, sub-item de #9990719) — categoriza items completado
+                // con branch sin merge_commit (rama_inexistente / solo_registro / divergencia_real).
+                // Solo lectura de git, sin scheduler todavía (eso es la Fase 2, sub-item aparte).
+                \App\Modules\Addons\Roadmap\Console\AuditarHuerfanosCommand::class,
             ]);
         }
     }
