@@ -29,6 +29,23 @@ class DryRunMigrationsCommand extends Command
 {
     use MideContencionDryrun;
 
+    /**
+     * Exit code de "el sandbox no se pudo montar, no se validó nada".
+     *
+     * Contrato de salida de este comando:
+     *   0 = el dry-run CORRIÓ y las migraciones pendientes pasaron (o no había ninguna).
+     *   1 = una migración FALLÓ de verdad contra la copia → hay que abortar.
+     *   2 = OMITIDO: no se pudo preparar la BD desechable (típicamente falta el grant
+     *       CREATE/DROP DATABASE). NO bloquea el deploy, pero tampoco es un éxito: quien
+     *       consuma este comando debe reportarlo como omitido/amarillo, JAMÁS en verde.
+     *
+     * Antes `skip()` devolvía 0 y los dos consumidores (RemoteDeployCommand y
+     * VerificarVueltaCommand) lo leían como éxito: el pipeline mostraba
+     * `[migrate_dryrun]: OK` sin haber validado una sola migración — una red de
+     * seguridad que reportaba verde estando caída.
+     */
+    public const EXIT_OMITIDO = 2;
+
     protected $signature = 'deploy:dry-run-migrations
                             {--with-data= : Tablas (csv) cuyos datos copiar para validar fallos dependientes de datos}
                             {--keep : No borrar la BD temporal al terminar (para depurar)}';
@@ -133,13 +150,14 @@ class DryRunMigrationsCommand extends Command
     }
 
     /**
-     * Setup del sandbox falló (no es un fallo de migración) → warning ruidoso y exit 0
-     * para NO bloquear el deploy. El mensaje queda en el output del paso del deploy.
+     * Setup del sandbox falló (no es un fallo de migración) → warning ruidoso y
+     * exit EXIT_OMITIDO (2) para NO bloquear el deploy pero tampoco reportarse como
+     * éxito. El mensaje queda en el output del paso del deploy.
      */
     private function skip(string $reason): int
     {
-        $this->warn('⚠️  DRY-RUN OMITIDO (no bloquea el deploy): ' . $reason);
-        return 0;
+        $this->warn('⚠️  DRY-RUN OMITIDO (no bloquea el deploy, pero NO se validó nada): ' . $reason);
+        return self::EXIT_OMITIDO;
     }
 
     /**

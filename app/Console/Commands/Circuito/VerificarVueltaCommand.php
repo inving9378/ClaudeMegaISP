@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands\Circuito;
 
+use App\Console\Commands\Active\DryRunMigrationsCommand;
 use Illuminate\Console\Command;
 use Symfony\Component\Process\Process;
 
@@ -366,8 +367,14 @@ class VerificarVueltaCommand extends Command
     }
 
     /**
-     * (4) "php artisan deploy:dry-run-migrations" reusado tal cual. Contrato: exit 1 =
-     * migración real falló (FAIL); exit 0 = OK o "sin sandbox, se omite" (no bloquea).
+     * (4) "php artisan deploy:dry-run-migrations" reusado tal cual. Contrato:
+     *   exit 0 = el dry-run corrió y pasó                        → ok
+     *   exit 2 = no se pudo montar el sandbox (EXIT_OMITIDO)     → skip (NO bloquea, NO es ok)
+     *   exit 1 = una migración falló de verdad                   → fail
+     *
+     * El exit 2 antes también era 0, así que un sandbox caído (p.ej. sin el grant
+     * CREATE DATABASE) se registraba como ✅ sin haber validado nada. Se separa para
+     * que la vuelta muestre ⏭️ y quede visible que la verificación no corrió.
      */
     private function checkMigrateDryRun(): void
     {
@@ -379,6 +386,12 @@ class VerificarVueltaCommand extends Command
 
         if ($p->getExitCode() === 0) {
             $this->registrar('migrate --dry-run', 'ok', $ultima);
+
+            return;
+        }
+
+        if ($p->getExitCode() === DryRunMigrationsCommand::EXIT_OMITIDO) {
+            $this->registrar('migrate --dry-run', 'skip', $ultima !== '' ? $ultima : 'sandbox no disponible: no se validó ninguna migración.');
 
             return;
         }

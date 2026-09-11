@@ -210,6 +210,19 @@ class RemoteDeployCommand extends Command
 
             $success = $exitCode === 0;
 
+            // El dry-run distingue "corrió y pasó" (0) de "no se pudo montar el sandbox"
+            // (EXIT_OMITIDO=2, típicamente falta el grant CREATE DATABASE). Un omitido sigue
+            // SIN bloquear el deploy —el paso es 'critical', así que hay que neutralizar el
+            // fallo—, pero no puede seguir pintándose en verde: se registra 'skipped' y se
+            // imprime OMITIDO. Un `[migrate_dryrun]: OK` debe significar que de verdad se
+            // validaron las migraciones contra una copia.
+            $omitido = $step['key'] === 'migrate_dryrun'
+                && $exitCode === DryRunMigrationsCommand::EXIT_OMITIDO;
+
+            if ($omitido) {
+                $success = true;
+            }
+
             // M1 — Verificar en vez de confiar en el exit code (LA clave anti-cuelgue): para el paso
             // migrate, un proceso zombie con stdout abierto puede colgar/tumbar el pipeline por timeout
             // aunque las migraciones SÍ se hayan aplicado. Antes de darlo por fallido consultamos el
@@ -229,13 +242,17 @@ class RemoteDeployCommand extends Command
                 }
             }
             $log->updateStep($step['key'], [
-                'status'      => $success ? 'success' : 'failed',
+                'status'      => $omitido ? 'skipped' : ($success ? 'success' : 'failed'),
                 'output'      => mb_substr(trim($output), -2000),
                 'exit_code'   => $exitCode,
                 'duration_ms' => $ms,
             ]);
 
-            $this->line("  [{$step['key']}]: " . ($success ? 'OK' : "FAILED (exit {$exitCode}): " . substr($output, -200)));
+            if ($omitido) {
+                $this->warn("  [{$step['key']}]: OMITIDO — el dry-run NO validó ninguna migración: " . substr(trim($output), -200));
+            } else {
+                $this->line("  [{$step['key']}]: " . ($success ? 'OK' : "FAILED (exit {$exitCode}): " . substr($output, -200)));
+            }
 
             if ($step['key'] === 'backup_db' && $success) {
                 $backupPath = $this->latestBackupFile();
