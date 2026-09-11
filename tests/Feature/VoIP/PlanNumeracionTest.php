@@ -5,6 +5,7 @@ namespace Tests\Feature\VoIP;
 use App\Modules\Addons\VoIP\Models\Extension;
 use App\Modules\Addons\VoIP\Models\PerfilExtension;
 use App\Modules\Addons\VoIP\Models\RangoNumeracion;
+use App\Modules\Addons\VoIP\Seeders\ExtensionesArranqueSeeder;
 use App\Modules\Addons\VoIP\Seeders\PlanNumeracionSeeder;
 use App\Modules\Addons\VoIP\Services\ResolverPerfilEfectivo;
 use App\Modules\Addons\VoIP\Services\ValidadorRangos;
@@ -12,10 +13,7 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
 
 /**
- * Formaliza lo que se verificó a mano contra la base de dev (#9990718 §7,
- * item #9990724). Las pruebas de siembra real de extensiones (departamento,
- * secretos, ExtensionesArranqueSeeder) viven en otra fase de la épica y no
- * se incluyen aquí.
+ * Formaliza lo que se verificó a mano contra la base de dev (#9990718 §7 y §8).
  *
  * `DatabaseTransactions` y no `RefreshDatabase`: la suite ya corre migrate:fresh
  * en su arranque, y cada prueba solo necesita que sus escrituras no persistan.
@@ -162,6 +160,47 @@ class PlanNumeracionTest extends TestCase
     {
         // Un typo no puede abrir la puerta.
         $this->assertFalse($this->resolver->permite($this->extension('9997', null), 'inventado'));
+    }
+
+    /** @test */
+    public function la_siembra_de_extensiones_es_idempotente_y_no_pisa_las_existentes(): void
+    {
+        $previa = Extension::create([
+            'numero' => '1201', 'nombre' => 'NO ME TOQUES', 'secret' => 'x',
+            'tipo_dispositivo' => 'softphone', 'contexto' => 'from-internal',
+            'codecs' => 'alaw', 'transporte' => 'udp', 'activo' => true,
+        ]);
+
+        (new ExtensionesArranqueSeeder)->run();
+        $tras = Extension::count();
+        (new ExtensionesArranqueSeeder)->run();
+
+        $this->assertSame($tras, Extension::count(), 'la segunda corrida duplicó');
+        $this->assertSame('NO ME TOQUES', $previa->fresh()->nombre, 'pisó una extensión existente');
+    }
+
+    /** @test */
+    public function las_extensiones_sembradas_tienen_secreto_distinto_y_sin_su_numero(): void
+    {
+        (new ExtensionesArranqueSeeder)->run();
+        $s = Extension::where('sembrada_por_sistema', true)->get();
+
+        $this->assertGreaterThan(0, $s->count());
+        $this->assertSame($s->count(), $s->pluck('secret')->unique()->count(), 'hay secretos repetidos');
+
+        foreach ($s as $e) {
+            // `extensión + 1234` es la puerta por la que entra el fraude.
+            $this->assertStringNotContainsString($e->numero, $e->secret_plain);
+            $this->assertGreaterThanOrEqual(32, strlen($e->secret_plain));
+        }
+    }
+
+    /** @test */
+    public function la_siembra_no_crea_extensiones_en_el_rango_protegido(): void
+    {
+        (new ExtensionesArranqueSeeder)->run();
+
+        $this->assertSame(0, Extension::whereBetween('numero', ['1900', '1999'])->count());
     }
 
     private function extension(string $numero, ?int $rangoId, ?int $perfilId = null): Extension
