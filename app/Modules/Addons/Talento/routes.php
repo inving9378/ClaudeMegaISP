@@ -88,6 +88,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             // ── Documentos del expediente (Hijo D2, fase C — solo lectura) ────
             Route::get('/colaboradores/{id}/documentos',   [TalentoEmployeeDocumentController::class, 'forColaborador']);
 
+            // ── Tablero de pendientes cross-colaborador (item #9990830, Fase 1) ───────────────
+            Route::get('/documentos/pendientes', [TalentoEmployeeDocumentController::class, 'pendientesGlobal']);
+
             // ── Firma de documentos del expediente (item #9990618, fase 1: backend) ───────────
             Route::post('/colaboradores/{id}/documentos/{docId}/firma', [TalentoEmployeeDocumentController::class, 'sign'])
                 ->name('talento.documentos.firma');

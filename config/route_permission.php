@@ -2079,6 +2079,11 @@ return [
         '/talento/api/colaboradores/{id}',
         '/talento/api/colaboradores/{id}/regla',
     ],
+    // Item #9990830 (Fase 1 del tablero de pendientes): listado admin cross-colaborador de
+    // documentos pendientes de firma, distinto de talento.employees.view (ficha de un colaborador).
+    'talento.documentos.ver-todos' => [
+        '/talento/api/documentos/pendientes',
+    ],
     'talento.attendance.view' => [
         '/talento/asistencia',
         '/talento/api/asistencia',
