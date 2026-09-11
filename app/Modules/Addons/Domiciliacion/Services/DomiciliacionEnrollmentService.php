@@ -43,7 +43,7 @@ class DomiciliacionEnrollmentService
                 'openpay_customer_id' => $customerId,
                 'openpay_card_id'     => $card->id,
                 'card_brand'          => $card->brand ?? null,
-                'card_last4'          => $card->card_number ?? null,  // OpenPay returns last 4 digits in this field
+                'card_last4'          => $card->card_number ? substr((string) $card->card_number, -4) : null,  // últimos 4 (OpenPay devuelve el PAN enmascarado: 411111XXXXXX1111)
                 'card_exp'            => ($card->expiration_month ?? '') . '/' . ($card->expiration_year ?? ''),
                 'cardholder'          => $card->holder_name ?? null,
                 'status'              => 'active',
