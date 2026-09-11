@@ -28,6 +28,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
             $this->commands([
                 ReconciliarCommand::class,
                 ReconciliarEstadosCommand::class,
+                \App\Modules\Addons\VoIP\Console\ProvisionarAsteriskCommand::class,
             ]);
         }
     }
