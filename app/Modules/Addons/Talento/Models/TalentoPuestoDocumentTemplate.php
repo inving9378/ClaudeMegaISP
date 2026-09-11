@@ -9,7 +9,11 @@ class TalentoPuestoDocumentTemplate extends BaseModel
     protected $table = 'talento_puesto_document_templates';
 
     protected $fillable = [
-        'puesto', 'puesto_id', 'template_id',
+        'puesto', 'puesto_id', 'template_id', 'obligatorio', 'vigencia_meses',
+    ];
+
+    protected $casts = [
+        'obligatorio' => 'boolean',
     ];
 
     public function template()
