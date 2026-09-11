@@ -14,6 +14,56 @@ use Illuminate\Support\Facades\DB;
  */
 class ClienteSearchService
 {
+    /**
+     * Normaliza el SN de equipo (item #9990833) al formato canónico GPON de 16
+     * hex mayúsculas (4 bytes de vendor ID + 4 bytes de serie). La OLT reporta
+     * el vendor ID en ASCII (ej. ECOMC8012F9B, 12 chars) y la captura manual lo
+     * trae ya en hex (ej. 45434F4DC8012F9B, 16 chars) — ambos deben normalizar
+     * al mismo valor para que el buscador los encuentre indistintamente.
+     * Formatos no reconocidos se devuelven limpios (sin acentos/espacios/guiones)
+     * pero SIN transformar — nunca se inventa un valor.
+     */
+    public static function normalizarSn(?string $v): ?string
+    {
+        $v = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) $v));
+        if ($v === '') {
+            return null;
+        }
+
+        // Ya canónico: 16 hex.
+        if (strlen($v) === 16 && ctype_xdigit($v)) {
+            return $v;
+        }
+
+        // Formato corto de la OLT: 4 ASCII de vendor + 8 hex de serie.
+        if (strlen($v) === 12 && ctype_xdigit(substr($v, 4))) {
+            return strtoupper(bin2hex(substr($v, 0, 4))) . substr($v, 4);
+        }
+
+        // No reconocido: se devuelve limpio, sin transformar.
+        return $v;
+    }
+
+    /**
+     * Inversa de normalizarSn(): de 16 hex canónico al formato corto legible
+     * (4 ASCII + 8 hex) que muestra la OLT, solo cuando los primeros 8 hex
+     * decodifican a ASCII imprimible (un vendor ID real). Si no, se devuelve
+     * el valor canónico tal cual (nunca se inventa un vendor).
+     */
+    public static function formatoCorto(?string $v): ?string
+    {
+        if ($v === null || strlen($v) !== 16 || !ctype_xdigit($v)) {
+            return $v;
+        }
+
+        $vendorAscii = @hex2bin(substr($v, 0, 8));
+        if ($vendorAscii === false || !preg_match('/^[\x20-\x7E]{4}$/', $vendorAscii)) {
+            return $v;
+        }
+
+        return strtoupper($vendorAscii) . substr($v, 8);
+    }
+
     public function tienePrefijoExplicito(string $termino): bool
     {
         return $this->extraerPrefijo($termino) !== null;
