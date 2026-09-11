@@ -155,10 +155,6 @@
 {{-- OpenPay SDK — tokeniza en el navegador; PAN nunca sale del dispositivo --}}
 <script src="https://js.openpay.mx/openpay.v1.min.js"></script>
 <script>
-    OpenPay.setId({{ json_encode($openpayId) }});
-    OpenPay.setApiKey({{ json_encode($openpayKey) }});
-    OpenPay.setSandboxMode({{ $sandbox ? 'true' : 'false' }});
-
     const form      = document.getElementById('enrollment-form');
     const errorDiv  = document.getElementById('js-error');
     const submitBtn = document.getElementById('submit-btn');
@@ -169,6 +165,20 @@
         submitBtn.disabled = false;
         submitBtn.textContent = 'Registrar tarjeta';
     }
+
+    // Blindaje: si openpay.js no cargó (bloqueador de anuncios, extensión
+    // de privacidad, red o CSP), OpenPay queda undefined. Sin esto el
+    // listener de submit no se engancha y el form se enviaría sin token →
+    // el backend responde "El campo token es obligatorio" (confuso).
+    // Lo detectamos y nunca dejamos enviar el form sin token.
+    if (typeof OpenPay === 'undefined') {
+        showError('No se pudo cargar el procesador de pagos (openpay.js). Desactiva tu bloqueador de anuncios o extensión de privacidad para este sitio y recarga la página.');
+        submitBtn.disabled = true;
+        form.addEventListener('submit', function (e) { e.preventDefault(); });
+    } else {
+    OpenPay.setId({{ json_encode($openpayId) }});
+    OpenPay.setApiKey({{ json_encode($openpayKey) }});
+    OpenPay.setSandboxMode({{ $sandbox ? 'true' : 'false' }});
 
     form.addEventListener('submit', function (e) {
         e.preventDefault();
@@ -203,6 +213,7 @@
     document.getElementById('card-number').addEventListener('input', function () {
         this.value = this.value.replace(/\D/g, '').replace(/(.{4})/g, '$1 ').trim();
     });
+    }
 </script>
 @endif
 </body>
