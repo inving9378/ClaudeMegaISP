@@ -116,7 +116,6 @@ class DomiciliacionCobrarCommand extends Command
             $facturas = DB::table('client_invoices')
                 ->where('client_id', $clientId)
                 ->where('estado', 'Atrasado')
-                ->whereNull('deleted_at')
                 ->get(['id', 'number', 'total', 'estado', 'payment', 'document_date']);
 
             if ($facturas->count() !== 1) {

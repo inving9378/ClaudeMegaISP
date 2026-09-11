@@ -233,6 +233,11 @@ class OpenpayService
                 $e
             );
         } catch (OpenpayApiError $e) {
+            \Log::warning('openpay.cobrarTarjetaGuardada fallo', [
+                'desc' => method_exists($e, 'getDescription') ? $e->getDescription() : $e->getMessage(),
+                'code' => method_exists($e, 'getErrorCode') ? $e->getErrorCode() : null,
+                'http' => method_exists($e, 'getHttpCode') ? $e->getHttpCode() : null,
+            ]);
             throw new OpenpayTransactionException(
                 'Error al procesar el cobro recurrente.',
                 0,
