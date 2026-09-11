@@ -354,13 +354,71 @@ export const getLayerByKeyProperty = (key) => {
     return layer;
 };
 
+// Fase 1b del flujo animado (item #9990753). Fase 1a (#9990752) llama a
+// setFlujoAnimadoConfig() desde LeafletMapRed.vue con el feature flag + el id del
+// route piloto (o null = "el primero que aparezca"). Aquí solo se CONSUME ese estado
+// para decidir qué route pinta la animación "enlace vivo".
+const FLUJO_ANIMADO_PILOT_CLASSES = ["enlace-fibra", "troncal", "est-ok"];
+
+const flujoAnimadoConfig = reactive({
+    enabled: false,
+    pilotRouteId: null,
+});
+
+let flujoAnimadoResolvedPilotId = null;
+
+export const setFlujoAnimadoConfig = ({ enabled = false, pilotRouteId = null } = {}) => {
+    flujoAnimadoConfig.enabled = !!enabled;
+    flujoAnimadoConfig.pilotRouteId = pilotRouteId ?? null;
+    flujoAnimadoResolvedPilotId = null;
+};
+
+const isFlujoAnimadoPilot = (obj) => {
+    if (!flujoAnimadoConfig.enabled || obj?.dialog !== "route") {
+        return false;
+    }
+    if (flujoAnimadoConfig.pilotRouteId != null) {
+        return obj.id === flujoAnimadoConfig.pilotRouteId;
+    }
+    if (flujoAnimadoResolvedPilotId == null) {
+        if (!Array.isArray(obj.coords) || obj.coords.length < 2) {
+            return false;
+        }
+        flujoAnimadoResolvedPilotId = obj.id;
+    }
+    return obj.id === flujoAnimadoResolvedPilotId;
+};
+
+// El renderer SVG de Leaflet solo lee `options.className` al crear el <path> (_initPath).
+// Un setStyle() posterior NO lo reaplica, así que en la actualización de un layer que ya
+// vive en el mapa hay que tocar el classList del <path> directo.
+const applyFlujoAnimadoPilotClass = (layer, obj) => {
+    const isPilot = isFlujoAnimadoPilot(obj);
+    layer.options.className = isPilot
+        ? FLUJO_ANIMADO_PILOT_CLASSES.join(" ")
+        : undefined;
+    if (layer._path) {
+        if (isPilot) {
+            layer._path.classList.add(...FLUJO_ANIMADO_PILOT_CLASSES);
+        } else {
+            layer._path.classList.remove(...FLUJO_ANIMADO_PILOT_CLASSES);
+        }
+    }
+    return isPilot;
+};
+
 export const createLayerFromObject = (obj, searched = false) => {
     let layer = null;
     let { type, coords } = obj;
     if (type === "marker") {
         layer = L.marker(coords);
     } else if (type === "polyline") {
-        layer = L.polyline(coords);
+        layer = L.polyline(
+            coords,
+            isFlujoAnimadoPilot(obj)
+                ? { className: FLUJO_ANIMADO_PILOT_CLASSES.join(" ") }
+                : {}
+        );
     } else if (type === "polygon") {
         layer = L.polygon(coords);
     }
@@ -630,6 +688,9 @@ export const updateLayerFromObject = (layer, obj, searched = false) => {
             layer.setStyle({
                 color: color,
             });
+            if (type === "polyline") {
+                applyFlujoAnimadoPilotClass(layer, obj);
+            }
         }
     }
     if (isTooltipOpen(layer)) {
