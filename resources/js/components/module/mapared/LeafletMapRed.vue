@@ -504,6 +504,7 @@ import {
     currentMarker,
     getNearestRoutePoint,
     getNearestCableEndpoint,
+    setFlujoAnimadoConfig,
 } from "./helper/mapUtils";
 
 import Permission from "../../../helpers/Permission";
@@ -527,6 +528,19 @@ import JSZip from "jszip";
 
 defineOptions({
     name: "LeafletMap",
+});
+
+// MR flujo animado Fase 1a (item roadmap #9990752): feature flag del piloto de flujo
+// animado en los enlaces, leído en el Blade desde config('mapared.*') (OFF por default).
+const props = defineProps({
+    flujoAnimadoEnabled: {
+        type: Boolean,
+        default: false,
+    },
+    flujoAnimadoPilotRouteId: {
+        type: [String, Number],
+        default: null,
+    },
 });
 
 const { setFullScreen } = useFullScreen();
@@ -903,6 +917,7 @@ onBeforeMount(async () => {
 onMounted(async () => {
     permissons.data = new Permission(await allViewHasPermission());
     addAllPermissions(permissons.data);
+    setFlujoAnimadoConfig(props.flujoAnimadoEnabled, props.flujoAnimadoPilotRouteId || null);
     initMap();
 });
 

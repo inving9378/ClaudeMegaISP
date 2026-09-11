@@ -4,7 +4,10 @@
 
 @section('content')
     @if(auth()->user()->can('mapa_red_view'))
-        <leaflet-map-red />
+        <leaflet-map-red
+            :flujo-animado-enabled="{{ config('mapared.flujo_animado_enabled') ? 'true' : 'false' }}"
+            flujo-animado-pilot-route-id="{{ config('mapared.flujo_animado_pilot_route_id') }}"
+        />
         @if (session()->has('message'))
             <Message message="{{ session()->get('message') }}"></Message>
         @endif
