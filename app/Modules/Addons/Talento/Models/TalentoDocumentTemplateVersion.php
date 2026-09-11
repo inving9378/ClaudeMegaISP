@@ -16,7 +16,7 @@ class TalentoDocumentTemplateVersion extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'template_id', 'version_number', 'content', 'change_note', 'created_by', 'created_at',
+        'template_id', 'version_number', 'content', 'change_note', 'tipo_cambio', 'created_by', 'created_at',
     ];
 
     protected $casts = [
