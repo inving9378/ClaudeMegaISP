@@ -398,7 +398,16 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, reactive, nextTick, onBeforeMount } from "vue";
+import {
+    ref,
+    computed,
+    onMounted,
+    onBeforeUnmount,
+    watch,
+    reactive,
+    nextTick,
+    onBeforeMount,
+} from "vue";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "leaflet-minimap/dist/Control.MiniMap.min.css";
@@ -788,7 +797,13 @@ const aplicarViewportCulling = () => {
 // disparadores independientes (zoom bajo, pestaña oculta, botón manual) que solo pueden
 // PRENDER su propia bandera, nunca apagar la de otro. Solo "manual" se persiste (zoom/oculto
 // son transitorios y se recalculan solos en el próximo zoomend/visibilitychange real).
-const congeladoRazones = reactive({ zoom: false, oculto: false, manual: false });
+const congeladoRazones = reactive({
+    zoom: false,
+    oculto: false,
+    manual: false,
+    fps: false,
+    nodos: false,
+});
 
 // Aplica/quita la clase "congelado" sobre el contenedor del mapa (mismo div de L.map("map", ...))
 // según si ALGUNA razón está activa (OR). La regla CSS ya existe en
@@ -798,7 +813,11 @@ const aplicarCongelado = () => {
         return;
     }
     const activo =
-        congeladoRazones.zoom || congeladoRazones.oculto || congeladoRazones.manual;
+        congeladoRazones.zoom ||
+        congeladoRazones.oculto ||
+        congeladoRazones.manual ||
+        congeladoRazones.fps ||
+        congeladoRazones.nodos;
     if (activo) {
         L.DomUtil.addClass(map.getContainer(), "congelado");
     } else {
@@ -809,6 +828,88 @@ const aplicarCongelado = () => {
 const handleVisibilityChangeFlujoAnimado = () => {
     congeladoRazones.oculto = document.hidden;
     aplicarCongelado();
+};
+
+// MR flujo animado Fase 3c (item roadmap #9990761): auto-congelado por rendimiento, sobre el
+// mismo mecanismo de razones de la Fase 3b (#9990760). Dos disparadores nuevos, AMBOS con
+// auto-descongelado (a diferencia de "manual", que solo el usuario apaga): FPS<30 sostenido 2s
+// seguidos, o >200 nodos con la animación activa (cuenta ".enlace-fibra:not(.sin-animar)" dentro
+// del contenedor del mapa — el mismo criterio que usa el viewport culling de la Fase 3a para
+// decidir qué queda animado). Umbrales y regla "auto-congelar" ya aprobados por Irving (q1 del
+// item padre #9990741).
+const FPS_UMBRAL_CONGELADO = 30;
+const FPS_SOSTENIDO_MS = 2000;
+const NODOS_ANIMADOS_UMBRAL = 200;
+let monitorRendimientoRafId = null;
+let monitorFrames = 0;
+let monitorVentanaInicio = 0;
+let monitorFpsBajoDesde = null;
+
+const contarNodosAnimados = () => {
+    if (!map) {
+        return 0;
+    }
+    return map.getContainer().querySelectorAll(".enlace-fibra:not(.sin-animar)").length;
+};
+
+const medirRendimientoFlujoAnimado = (timestamp) => {
+    if (!props.flujoAnimadoEnabled) {
+        // El flag se apagó (o el componente se desmontó) — no reprograma el siguiente frame.
+        monitorRendimientoRafId = null;
+        return;
+    }
+    monitorFrames += 1;
+    if (!monitorVentanaInicio) {
+        monitorVentanaInicio = timestamp;
+    }
+    const transcurridoMs = timestamp - monitorVentanaInicio;
+    if (transcurridoMs >= 1000) {
+        const fpsActual = (monitorFrames * 1000) / transcurridoMs;
+        monitorFrames = 0;
+        monitorVentanaInicio = timestamp;
+
+        if (fpsActual < FPS_UMBRAL_CONGELADO) {
+            if (monitorFpsBajoDesde === null) {
+                monitorFpsBajoDesde = timestamp;
+            } else if (
+                timestamp - monitorFpsBajoDesde >= FPS_SOSTENIDO_MS &&
+                !congeladoRazones.fps
+            ) {
+                congeladoRazones.fps = true;
+                aplicarCongelado();
+            }
+        } else {
+            monitorFpsBajoDesde = null;
+            if (congeladoRazones.fps) {
+                congeladoRazones.fps = false;
+                aplicarCongelado();
+            }
+        }
+
+        const excesoNodos = contarNodosAnimados() > NODOS_ANIMADOS_UMBRAL;
+        if (excesoNodos !== congeladoRazones.nodos) {
+            congeladoRazones.nodos = excesoNodos;
+            aplicarCongelado();
+        }
+    }
+    monitorRendimientoRafId = requestAnimationFrame(medirRendimientoFlujoAnimado);
+};
+
+const iniciarMonitorRendimientoFlujoAnimado = () => {
+    if (!props.flujoAnimadoEnabled || monitorRendimientoRafId !== null) {
+        return;
+    }
+    monitorFrames = 0;
+    monitorVentanaInicio = 0;
+    monitorFpsBajoDesde = null;
+    monitorRendimientoRafId = requestAnimationFrame(medirRendimientoFlujoAnimado);
+};
+
+const detenerMonitorRendimientoFlujoAnimado = () => {
+    if (monitorRendimientoRafId !== null) {
+        cancelAnimationFrame(monitorRendimientoRafId);
+        monitorRendimientoRafId = null;
+    }
 };
 
 // MR-26 Fase 4 (item roadmap #9990525) — capa "Cobertura" en vivo (Fase 1, #9990522). Se
@@ -1823,8 +1924,17 @@ const initMap = async () => {
     // Fase 3a (#9990759): estado inicial del viewport culling, tras dibujar las capas.
     aplicarViewportCulling();
 
+    // Fase 3c (#9990761): arranca el monitor de FPS/nodos animados (no-op si el flag está OFF).
+    iniciarMonitorRendimientoFlujoAnimado();
+
     reloadProjects.value = true;
 };
+
+// Fase 3c (#9990761): cancela el loop de requestAnimationFrame al salir del mapa (SPA nav) para
+// no dejarlo corriendo de fondo sin el contenedor del mapa vivo.
+onBeforeUnmount(() => {
+    detenerMonitorRendimientoFlujoAnimado();
+});
 
 // MR-24e Fase 1a (item roadmap #9990557): quita la línea de vista previa del snap, si hay una.
 const limpiarSnapLinePreview = () => {
