@@ -58,6 +58,11 @@ class ClientController extends Controller
         $this->data['color_datatable'] = $this->getColorDatatable();
         $this->data['allColumnsByModule'] = $this->getAllColumnsByModule();
         $this->data['columnsByUserAuthAndModule'] = $this->getColumnsByUserAndModule();
+        // Buscador v2 (item #9990812, Fase 2/3 de #9990803): el front necesita el flag y la
+        // lista blanca de campos buscables (config/clientes_busqueda.php) para el placeholder
+        // dinámico y la nota del modal de columnas. Con el flag apagado no cambia nada visible.
+        $this->data['busquedaV2Habilitado'] = (bool) config('clientes_busqueda.v2_habilitado');
+        $this->data['busquedaCamposBuscables'] = array_keys(config('clientes_busqueda.campos', []));
 
         $this->includeLibraryDinamic($this->data['model']);
         return view($this->data['url'] . '.index', $this->data);

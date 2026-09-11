@@ -122,7 +122,7 @@
                 class="dt-search mb-0"
                 dense
                 v-model="search"
-                placeholder="Buscar"
+                :placeholder="placeholderBusqueda"
                 outlined
                 style="margin-left: 8px; margin-right: 10px"
                 :dark="darkMode"
@@ -189,6 +189,25 @@
               </q-td>
             </template>
           </q-tr>
+        </template>
+
+        <template v-slot:no-data>
+          <div class="full-width column flex-center q-gutter-sm q-py-md">
+            <template v-if="busquedaV2 && search && !ampliadaYaIntentada">
+              <div>Sin coincidencias en tus columnas visibles</div>
+              <q-btn
+                color="primary"
+                outline
+                dense
+                no-caps
+                label="Buscar en todos los campos"
+                @click="buscarEnTodosLosCampos"
+              />
+            </template>
+            <template v-else>
+              <div>No hay elementos para mostrar</div>
+            </template>
+          </div>
         </template>
 
         <template v-slot:bottom-row>
@@ -261,6 +280,10 @@
         <p>
           Para mostrar los campos de la tabla, seleccione la casilla de verificación
           correspondiente.
+        </p>
+        <p v-if="busquedaV2" class="text-muted small">
+          <i class="fas fa-info-circle mr-1"></i>
+          Las columnas activas también definen dónde busca el buscador.
         </p>
       </div>
       <div class="col-sm-12">
@@ -396,6 +419,14 @@ export default {
     header_columns_by_module: {
       type: String,
     },
+    busqueda_v2_habilitado: {
+      type: String,
+      default: "0",
+    },
+    busqueda_campos_buscables: {
+      type: String,
+      default: "[]",
+    },
   },
   components: {
     VueDatePicker,
@@ -424,6 +455,24 @@ export default {
     const lengthButtons = _.values(props.buttons).length;
     const headers = ref(JSON.parse(props.header_columns_by_module));
     const allHeaders = ref(JSON.parse(props.all_columns_by_module));
+
+    // Buscador v2 (item #9990812, Fase 2/3 de #9990803). Con el flag apagado (default)
+    // ninguno de estos refs cambia el comportamiento visible del datatable.
+    const busquedaV2 = ref(props.busqueda_v2_habilitado === "1");
+    const camposBuscables = ref(JSON.parse(props.busqueda_campos_buscables || "[]"));
+    const ampliadaActiva = ref(false);
+    const ampliadaYaIntentada = ref(false);
+
+    const placeholderBusqueda = computed(() => {
+      if (!busquedaV2.value) return "Buscar";
+      const visibles = headers.value
+        .filter((h) => camposBuscables.value.includes(h.name))
+        .map((h) => h.label);
+      if (visibles.length === 0) return "Buscar";
+      const mostrar = visibles.slice(0, 4);
+      const sufijo = visibles.length > 4 ? "…" : "";
+      return `Buscar en: ${mostrar.join(", ")}${sufijo}`;
+    });
     const data = ref(null);
     const modalTitle = ref("Mostrar Columnas / Ocultar Columnas");
     const fieldsJson = ref({});
@@ -620,6 +669,7 @@ export default {
             search: searchTerm,
             filters: filters,
             additionalFilter: ffilters.value,
+            ampliada: ampliadaActiva.value,
           },
           order: order,
           limits: pagination.value.rowsPerPage,
@@ -641,6 +691,7 @@ export default {
             search: searchTerm,
             filters: filters,
             additionalFilter: ffilters.value,
+            ampliada: ampliadaActiva.value,
           },
           order: order,
           limits: pagination.value.rowsPerPage,
@@ -651,6 +702,11 @@ export default {
           url: url,
         };
         allRows = response.data.data;
+        if (ampliadaActiva.value) {
+          // Ya se intentó "buscar en todos los campos" para este término: no repetir el
+          // botón aunque siga sin haber coincidencias (evita el ciclo D3.3).
+          ampliadaYaIntentada.value = true;
+        }
         colorBlackAndWhite.value = response.data.color_datatable;
         allHeaders.value.sort((a, b) => {
           return parseInt(a.order) - parseInt(b.order);
@@ -735,6 +791,18 @@ export default {
       onRequestDebounced.cancel();
       pagination.value.page = 1;
       startPagination.value = 0;
+      resetTable();
+    };
+
+    // Buscador v2 (D3.3): un término nuevo olvida el intento de búsqueda ampliada anterior.
+    watch(search, () => {
+      ampliadaActiva.value = false;
+      ampliadaYaIntentada.value = false;
+    });
+
+    // Botón "Buscar en todos los campos" del estado de cero resultados (D3.3).
+    const buscarEnTodosLosCampos = () => {
+      ampliadaActiva.value = true;
       resetTable();
     };
 
@@ -867,6 +935,10 @@ export default {
       setRowStatusStyle,
       getOnuStatusClass,
       getOnuStatusIcon,
+      busquedaV2,
+      placeholderBusqueda,
+      ampliadaYaIntentada,
+      buscarEnTodosLosCampos,
     };
   },
 };
