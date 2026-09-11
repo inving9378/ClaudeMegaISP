@@ -217,6 +217,14 @@ class ClientDatatableHelper
                 'column' => 'client_additional_information.modem_sn',
                 'join' => "'client_additional_information', 'clients.id', '=', 'client_additional_information.client_id'"
             ],
+            'serie_equipo' => [
+                'column' => 'client_additional_information.serie_equipo',
+                'join' => "'client_additional_information', 'clients.id', '=', 'client_additional_information.client_id'"
+            ],
+            'serie_equipo_origen' => [
+                'column' => 'client_additional_information.serie_equipo_origen',
+                'join' => "'client_additional_information', 'clients.id', '=', 'client_additional_information.client_id'"
+            ],
             'gpon_ont' => [
                 'column' => 'client_additional_information.gpon_ont',
                 'join' => "'client_additional_information', 'clients.id', '=', 'client_additional_information.client_id'"
@@ -486,6 +494,11 @@ class ClientDatatableHelper
             return $allColumns;
         }
 
+        if (in_array('modem_sn', $columns) && !in_array('serie_equipo', $columns)) {
+            $columns[] = 'serie_equipo';
+            $columns[] = 'serie_equipo_origen';
+        }
+
         return array_intersect_key($allColumns, array_flip($columns));
     }
 
@@ -699,6 +712,17 @@ class ClientDatatableHelper
 
                     if ($val === 'status_smart') {
                         $nestedData[$val] = $value->status_smart;
+                        continue;
+                    }
+
+                    if (in_array($val, ['serie_equipo', 'serie_equipo_origen'])) {
+                        continue;
+                    }
+
+                    if ($val === 'modem_sn') {
+                        $nestedData['modem_sn'] = $value->modem_sn;
+                        $nestedData['serie_equipo'] = $value->serie_equipo;
+                        $nestedData['serie_equipo_origen'] = $value->serie_equipo_origen;
                         continue;
                     }
 
