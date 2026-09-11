@@ -20,7 +20,9 @@ class AsteriskProvisioningService
 
     public function __construct()
     {
-        $this->regFile = storage_path('app/asterisk/megaisp_registrations.conf');
+        // #9990718 §6 — ver DialplanGeneratorService: fuera del árbol web.
+        $this->regFile = rtrim(config('requisitos-voip.asterisk.generados_dir', '/etc/asterisk/megaisp.d'), '/')
+            . '/megaisp_registrations.conf';
     }
 
     // ─────────────────────────────────────────────────────────────────────────

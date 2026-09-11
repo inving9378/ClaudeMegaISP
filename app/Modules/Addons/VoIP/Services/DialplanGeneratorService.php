@@ -21,8 +21,15 @@ class DialplanGeneratorService
 
     public function __construct()
     {
-        $this->gruposFile   = storage_path('app/asterisk/megaisp_grupos.conf');
-        $this->dialplanFile = storage_path('app/asterisk/megaisp_dialplan.conf');
+        // #9990718 §6 — fuera del árbol de la aplicación web. Antes esto era
+        // storage_path('app/asterisk/…') y /etc/asterisk lo incluía por ruta
+        // absoluta: la configuración que Asterisk lee no debe depender de dónde
+        // esté instalado MegaISP, y un proceso root no debe leer configuración
+        // de un directorio escribible por www-data.
+        $dir = rtrim(config('requisitos-voip.asterisk.generados_dir', '/etc/asterisk/megaisp.d'), '/');
+
+        $this->gruposFile   = $dir . '/megaisp_grupos.conf';
+        $this->dialplanFile = $dir . '/megaisp_dialplan.conf';
     }
 
     // ─────────────────────────────────────────────────────────────────────────
