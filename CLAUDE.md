@@ -2308,3 +2308,29 @@ hasta que el hook de cierre en cascada (`RoadmapItem.php:459-491`) lo complete s
 de código de negocio** — el trabajo real (implementar y correr `ReaperturaAcusesTest.php` con la
 receta ya documentada) sigue en #9990834, pendiente de que el revisor lo tríe y una terminal lo
 reclame.
+
+## Item #9990836 — Fase 3 de #9990833 (buscador usa serie_equipo_norm) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
+#936/#9990408/#962/#9990554/#9990549/#9990624/#9990650/#9990807/#9990826. #9990836 (Fase 3 de
+#9990833: que el buscador de Clientes use `serie_equipo_norm` para encontrar el SN en cualquier
+formato) ya había sido descompuesto correctamente por una vuelta previa (mismo `wt-1`, 2026-09-11
+17:10): tras un `circuito:cabida` en NO CABE (ya había timeouteado antes), y de verificar que la
+dependencia (Fase 2, #9990835) ya estaba `completado` y mergeada y que el backfill ya había
+corrido en dev (5153/5606 filas con `serie_equipo_norm` poblado), descompuso el trabajo en
+**#9990847** (Fase 3a: `config/clientes_busqueda.php` + `ClienteSearchService::normalizar()` con
+el case `sn_canonico`, backend) y **#9990848** (Fase 3b: listado de Clientes muestra
+`serie_equipo` + indicador de `serie_equipo_origen`, UI). Pero esa vuelta murió sin intentar
+**cerrar** al padre — el log solo registra `claim_liberado_al_morir_la_vuelta` ("muerte del
+proceso: kill, OOM o freno a media vuelta"), y el pool lo repartió de nuevo (otra vez a `wt-1`,
+esta vuelta) sin trabajo propio que hacer. Verificado esta vuelta: #9990847 y #9990848
+(`origen_item_id=9990836`) siguen intactos, `pendiente_revision`, sin reclamar — la descomposición
+original seguía siendo correcta, nadie más la tocó. Corrección: esta vuelta ejecuta el intento de
+cierre faltante; el guard (`RoadmapItem.php` bloque "(2b) PARAGUAS") lo reenruta a
+`aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto` en el log, "le
+quedan 2 sub-item(s) abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en
+cascada (`RoadmapItem.php:459-491`) lo complete solo cuando #9990847 y #9990848 cierren los dos.
+Detalle en `docs/roadmap-bucle-reap-item-9990836-verificacion.md`. **Sin cambio de código de
+negocio** — el trabajo técnico real (columna normalizada en el buscador de clientes + indicador
+visual de origen en el listado) sigue en #9990847/#9990848, pendientes de que una terminal los
+reclame.
