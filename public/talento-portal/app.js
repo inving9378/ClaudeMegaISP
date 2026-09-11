@@ -568,12 +568,58 @@
                 return MAP[status] || 'grey-7';
             }
 
+            // ── "Mis documentos" (item #9990814) — expediente del colaborador, SOLO LECTURA ──
+            // MVP: sin acciones de firma en esta pantalla (decisión de Irving en q1 del item).
+            const documentosCargado = ref(false);
+            const cargandoDocumentos = ref(false);
+            const documentos = ref([]);
+            const documentosTab = ref('pendientes');
+            async function cargarDocumentos() {
+                if (!colaborador.value) { cargandoDocumentos.value = false; return; }
+                cargandoDocumentos.value = true;
+                const r = await apiFetch('/talento/portal/documentos');
+                if (r && r.ok && r.data) {
+                    documentos.value = Array.isArray(r.data.data) ? r.data.data : [];
+                    // Pestaña inicial = la primera con contenido (mismo criterio que "Mi material").
+                    if (documentosPendientes.value.length) documentosTab.value = 'pendientes';
+                    else if (documentosFirmados.value.length) documentosTab.value = 'firmados';
+                    else documentosTab.value = 'todos';
+                }
+                cargandoDocumentos.value = false;
+                documentosCargado.value = true;
+            }
+            const documentosPendientes = computed(() => (documentos.value || []).filter((d) => d.pendiente_firma));
+            const documentosFirmados = computed(() => (documentos.value || []).filter((d) => d.firmado));
+            const documentosListaActiva = computed(() => {
+                if (documentosTab.value === 'pendientes') return documentosPendientes.value;
+                if (documentosTab.value === 'firmados') return documentosFirmados.value;
+                return documentos.value;
+            });
+            const documentosKpi = computed(() => {
+                const hoy = new Date();
+                const firmadosMes = (documentos.value || []).filter((d) => {
+                    if (!d.firmado || !d.signed_at) return false;
+                    const f = new Date(String(d.signed_at).replace(' ', 'T'));
+                    return !isNaN(f.getTime()) && f.getFullYear() === hoy.getFullYear() && f.getMonth() === hoy.getMonth();
+                }).length;
+                return { pendientes: documentosPendientes.value.length, firmadosMes: firmadosMes };
+            });
+            function documentoEstadoInfo(doc) {
+                if (doc.pendiente_firma) return { label: 'Pendiente de firma', color: 'orange-8' };
+                if (doc.firmado) return { label: 'Firmado', color: 'positive' };
+                return doc.status === 'completo'
+                    ? { label: 'Completo', color: 'teal-6' }
+                    : { label: 'Pendiente', color: 'grey-6' };
+            }
+            function documentoPdfUrl(doc) { return '/talento/portal/documentos/' + doc.id + '/pdf'; }
+
             // Cierra el detalle de OT al cambiar de tab; carga la sección al abrirla por primera vez.
             function onTabChange(val) {
                 cerrarDetalle();
                 if (val === 'dinero' && !dineroCargado.value) cargarDinero();
                 if (val === 'material' && !materialCargado.value) cargarMaterial();
                 if (val === 'prospectos' && !prospectosCargado.value) cargarProspectos();
+                if (val === 'documentos' && !documentosCargado.value) cargarDocumentos();
             }
 
             // ── Sidebar componible (SP3a) — grupos derivados de CFG.sections (Actor::sections()) ──
@@ -600,6 +646,8 @@
                 enCustodia, pendientes, historial, cargandoMaterial, cargarMaterial,
                 resumenCustodia, enCustodiaPorCategoria, materialTab, materialEstadoTab, estadosMaterial,
                 prospectos, cargandoProspectos, cargarProspectos, nombreProspecto, statusColor,
+                documentos, cargandoDocumentos, documentosTab, documentosListaActiva, documentosKpi,
+                documentosPendientes, documentosFirmados, documentoEstadoInfo, documentoPdfUrl,
                 asistencia, cargandoAsistencia, accionAsistencia, yaEntro, yaSalio, turnoAbierto,
                 ots, cargandoOts, otSeleccionada, detalle, cargandoDetalle, accionOt,
                 reaperturas,
@@ -1186,6 +1234,67 @@
                                     </q-item-section>
                                 </q-item>
                             </q-list>
+                        </template>
+                    </div>
+
+                    <!-- Mis documentos (item #9990814) — expediente del colaborador, SOLO LECTURA -->
+                    <div v-show="tab==='documentos'" class="q-pa-md">
+                        <div v-if="cargandoDocumentos" class="tp-empty">
+                            <q-spinner color="teal-6" size="2em" /><div class="text-caption q-mt-sm">Cargando…</div>
+                        </div>
+                        <template v-else>
+                            <div v-if="!documentos.length" class="tp-empty">
+                                <q-icon name="description" class="tp-empty-icon" />
+                                <div class="text-subtitle1">Aún no tienes documentos</div>
+                            </div>
+                            <template v-else>
+                                <div class="row q-col-gutter-sm q-mb-md">
+                                    <div class="col-6">
+                                        <q-card flat bordered class="tp-card q-pa-sm text-center">
+                                            <div class="text-h5 text-orange-8">{{ documentosKpi.pendientes }}</div>
+                                            <div class="text-caption text-grey-7">Pendientes</div>
+                                        </q-card>
+                                    </div>
+                                    <div class="col-6">
+                                        <q-card flat bordered class="tp-card q-pa-sm text-center">
+                                            <div class="text-h5 text-teal-7">{{ documentosKpi.firmadosMes }}</div>
+                                            <div class="text-caption text-grey-7">Firmados este mes</div>
+                                        </q-card>
+                                    </div>
+                                </div>
+
+                                <q-tabs v-model="documentosTab" no-caps dense active-color="teal-6" indicator-color="teal-6" align="justify" :breakpoint="0">
+                                    <q-tab name="pendientes" :label="'Pendientes (' + documentosPendientes.length + ')'" />
+                                    <q-tab name="firmados" :label="'Firmados (' + documentosFirmados.length + ')'" />
+                                    <q-tab name="todos" :label="'Todos (' + documentos.length + ')'" />
+                                </q-tabs>
+                                <q-separator />
+
+                                <div v-if="!documentosListaActiva.length" class="tp-empty">
+                                    <q-icon name="task_alt" class="tp-empty-icon" />
+                                    <div class="text-subtitle1">Sin documentos en esta pestaña</div>
+                                </div>
+                                <q-list v-else bordered separator class="tp-card q-mt-sm">
+                                    <q-item v-for="doc in documentosListaActiva" :key="'doc'+doc.id">
+                                        <q-item-section avatar>
+                                            <q-icon name="description" :color="documentoEstadoInfo(doc).color" />
+                                        </q-item-section>
+                                        <q-item-section>
+                                            <q-item-label>{{ doc.nombre }}</q-item-label>
+                                            <q-item-label caption>
+                                                <q-badge :color="documentoEstadoInfo(doc).color" :label="documentoEstadoInfo(doc).label" />
+                                                <span class="q-ml-sm">
+                                                    {{ doc.firmado ? ('Firmado ' + fmtFecha(doc.signed_at)) : ('Generado ' + fmtFecha(doc.generated_at)) }}
+                                                </span>
+                                            </q-item-label>
+                                        </q-item-section>
+                                        <q-item-section side>
+                                            <q-btn dense flat round color="teal-6" icon="visibility"
+                                                   :href="documentoPdfUrl(doc)" target="_blank" aria-label="Ver documento" />
+                                        </q-item-section>
+                                    </q-item>
+                                </q-list>
+                            </template>
                         </template>
                     </div>
 
