@@ -61,10 +61,11 @@ export const currentMarker = ref(null);
 
 // MR flujo animado (item roadmap #9990733): config del piloto, fijada por LeafletMapRed.vue
 // en onMounted() a partir de sus props (config('mapared.*') vía Blade). La declaración real
-// de `flujoAnimadoConfig`/`setFlujoAnimadoConfig` vive más abajo (Fase 1b, #9990753), junto a
-// `isFlujoAnimadoPilot`/`createLayerFromObject`/`updateLayerFromObject`, que son quienes la
-// consumen — un bloque duplicado aquí (Fase 1a, #9990752) rompía el build (identificador
-// redeclarado) sin que el merge lo marcara como conflicto (inserciones en líneas distintas).
+// de `flujoAnimadoConfig`/`setFlujoAnimadoConfig` vive más abajo (Fase 1b, #9990753; Fase 2a,
+// #9990754), junto a `resolveFlujoAnimadoClasses`/`createLayerFromObject`/`updateLayerFromObject`,
+// que son quienes la consumen — un bloque duplicado aquí (Fase 1a, #9990752) rompía el build
+// (identificador redeclarado) sin que el merge lo marcara como conflicto (inserciones en líneas
+// distintas).
 
 let layerEditing = null;
 export const hasLayerEdit = ref(false);
@@ -364,55 +365,85 @@ export const getLayerByKeyProperty = (key) => {
 
 // Fase 1b del flujo animado (item #9990753). Fase 1a (#9990752) llama a
 // setFlujoAnimadoConfig() desde LeafletMapRed.vue con el feature flag + el id del
-// route piloto (o null = "el primero que aparezca"). Aquí solo se CONSUME ese estado
-// para decidir qué route pinta la animación "enlace vivo".
-const FLUJO_ANIMADO_PILOT_CLASSES = ["enlace-fibra", "troncal", "est-ok"];
+// route piloto (o null = "el primero que aparezca"). Fase 2a (#9990754) generaliza el
+// piloto único a una LISTA de rutas (Map keyed por route id), cada una con su propio
+// estado/tipo — si esa lista viene vacía, se cae al comportamiento de Fase 1 (un solo
+// pilotRouteId con las clases fijas de abajo) para no romper ambientes sin actualizar.
+const FLUJO_ANIMADO_DEFAULT_CLASSES = ["enlace-fibra", "troncal", "est-ok"];
+const FLUJO_ANIMADO_ESTADOS_VALIDOS = ["est-ok", "est-degradado", "est-critico", "est-caido"];
+const FLUJO_ANIMADO_TIPOS_VALIDOS = ["troncal", "derivacion"];
+// Universo completo de clases que la animación puede llegar a poner, para poder
+// limpiarlas todas antes de reaplicar (una ruta puede cambiar de estado/tipo entre updates).
+const FLUJO_ANIMADO_ALL_CLASSES = [
+    "enlace-fibra",
+    ...FLUJO_ANIMADO_TIPOS_VALIDOS,
+    ...FLUJO_ANIMADO_ESTADOS_VALIDOS,
+];
 
 const flujoAnimadoConfig = reactive({
     enabled: false,
     pilotRouteId: null,
+    // Map<String(route_id), {estado, tipo}> | null. null = sin lista → fallback Fase 1.
+    pilots: null,
 });
 
 let flujoAnimadoResolvedPilotId = null;
 
-export const setFlujoAnimadoConfig = ({ enabled = false, pilotRouteId = null } = {}) => {
+export const setFlujoAnimadoConfig = ({ enabled = false, pilotRouteId = null, pilots = [] } = {}) => {
     flujoAnimadoConfig.enabled = !!enabled;
     flujoAnimadoConfig.pilotRouteId = pilotRouteId ?? null;
     flujoAnimadoResolvedPilotId = null;
+    const lista = Array.isArray(pilots)
+        ? pilots.filter((p) => p && p.route_id != null)
+        : [];
+    flujoAnimadoConfig.pilots = lista.length
+        ? new Map(
+              lista.map((p) => [
+                  String(p.route_id),
+                  {
+                      estado: FLUJO_ANIMADO_ESTADOS_VALIDOS.includes(p.estado) ? p.estado : "est-ok",
+                      tipo: FLUJO_ANIMADO_TIPOS_VALIDOS.includes(p.tipo) ? p.tipo : "troncal",
+                  },
+              ])
+          )
+        : null;
 };
 
-const isFlujoAnimadoPilot = (obj) => {
+// Devuelve el arreglo de clases CSS del "enlace vivo" para esta route, o null si no aplica.
+const resolveFlujoAnimadoClasses = (obj) => {
     if (!flujoAnimadoConfig.enabled || obj?.dialog !== "route") {
-        return false;
+        return null;
     }
+    if (flujoAnimadoConfig.pilots) {
+        const pilot = flujoAnimadoConfig.pilots.get(String(obj.id));
+        return pilot ? ["enlace-fibra", pilot.tipo, pilot.estado] : null;
+    }
+    // Fallback Fase 1: un solo piloto con las clases fijas de siempre.
     if (flujoAnimadoConfig.pilotRouteId != null) {
-        return obj.id === flujoAnimadoConfig.pilotRouteId;
+        return obj.id === flujoAnimadoConfig.pilotRouteId ? FLUJO_ANIMADO_DEFAULT_CLASSES : null;
     }
     if (flujoAnimadoResolvedPilotId == null) {
         if (!Array.isArray(obj.coords) || obj.coords.length < 2) {
-            return false;
+            return null;
         }
         flujoAnimadoResolvedPilotId = obj.id;
     }
-    return obj.id === flujoAnimadoResolvedPilotId;
+    return obj.id === flujoAnimadoResolvedPilotId ? FLUJO_ANIMADO_DEFAULT_CLASSES : null;
 };
 
 // El renderer SVG de Leaflet solo lee `options.className` al crear el <path> (_initPath).
 // Un setStyle() posterior NO lo reaplica, así que en la actualización de un layer que ya
 // vive en el mapa hay que tocar el classList del <path> directo.
 const applyFlujoAnimadoPilotClass = (layer, obj) => {
-    const isPilot = isFlujoAnimadoPilot(obj);
-    layer.options.className = isPilot
-        ? FLUJO_ANIMADO_PILOT_CLASSES.join(" ")
-        : undefined;
+    const classes = resolveFlujoAnimadoClasses(obj);
+    layer.options.className = classes ? classes.join(" ") : undefined;
     if (layer._path) {
-        if (isPilot) {
-            layer._path.classList.add(...FLUJO_ANIMADO_PILOT_CLASSES);
-        } else {
-            layer._path.classList.remove(...FLUJO_ANIMADO_PILOT_CLASSES);
+        layer._path.classList.remove(...FLUJO_ANIMADO_ALL_CLASSES);
+        if (classes) {
+            layer._path.classList.add(...classes);
         }
     }
-    return isPilot;
+    return !!classes;
 };
 
 export const createLayerFromObject = (obj, searched = false) => {
@@ -421,12 +452,8 @@ export const createLayerFromObject = (obj, searched = false) => {
     if (type === "marker") {
         layer = L.marker(coords);
     } else if (type === "polyline") {
-        layer = L.polyline(
-            coords,
-            isFlujoAnimadoPilot(obj)
-                ? { className: FLUJO_ANIMADO_PILOT_CLASSES.join(" ") }
-                : {}
-        );
+        const flujoClasses = resolveFlujoAnimadoClasses(obj);
+        layer = L.polyline(coords, flujoClasses ? { className: flujoClasses.join(" ") } : {});
     } else if (type === "polygon") {
         layer = L.polygon(coords);
     }

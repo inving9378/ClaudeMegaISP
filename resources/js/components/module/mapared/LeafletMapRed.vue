@@ -541,6 +541,12 @@ const props = defineProps({
         type: [String, Number],
         default: null,
     },
+    // MR flujo animado Fase 2a (item roadmap #9990754): lista de {route_id,estado,tipo}
+    // que generaliza el piloto único de arriba. Vacío = cae al fallback de Fase 1.
+    flujoAnimadoPilots: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const { setFullScreen } = useFullScreen();
@@ -920,6 +926,7 @@ onMounted(async () => {
     setFlujoAnimadoConfig({
         enabled: props.flujoAnimadoEnabled,
         pilotRouteId: props.flujoAnimadoPilotRouteId || null,
+        pilots: props.flujoAnimadoPilots,
     });
     initMap();
 });
