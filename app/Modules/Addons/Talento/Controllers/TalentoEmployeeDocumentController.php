@@ -360,6 +360,13 @@ class TalentoEmployeeDocumentController extends Controller
      */
     private function sanearGeolocalizacion($valor): ?array
     {
+        // El modo 'upload' manda el payload como FormData (adjunta el archivo de imagen), así
+        // que geolocalizacion viaja como string JSON en vez de array nativo (a diferencia del
+        // modo 'drawn', que va en el body JSON y ya llega como array).
+        if (is_string($valor)) {
+            $valor = json_decode($valor, true);
+        }
+
         if (!is_array($valor) || !isset($valor['lat'], $valor['lng'])) {
             return null;
         }

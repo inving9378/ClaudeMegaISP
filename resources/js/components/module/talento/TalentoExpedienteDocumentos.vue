@@ -109,6 +109,20 @@
               </template>
             </div>
 
+            <div class="alert alert-secondary small py-2 mt-3 mb-2">
+              <i class="fa fa-shield-alt me-1"></i>
+              Al firmar se registran datos técnicos como evidencia legal de esta firma
+              electrónica: fecha y hora, dirección IP, dispositivo/navegador, hash del documento
+              mostrado y la secuencia de trazos dibujados. Tu firma es un dato personal y se
+              guarda en almacenamiento privado, no accesible públicamente.
+            </div>
+            <div class="form-check form-check-sm mb-2">
+              <input id="firmaGeoOptIn" v-model="firmaModal.incluirUbicacion" class="form-check-input" type="checkbox">
+              <label class="form-check-label small" for="firmaGeoOptIn">
+                Incluir mi ubicación aproximada en la evidencia de firma (opcional)
+              </label>
+            </div>
+
             <div v-if="firmaModal.error" class="alert alert-danger mt-3 mb-0 py-2 small">{{ firmaModal.error }}</div>
           </div>
           <div class="modal-footer">
@@ -213,6 +227,9 @@ export default {
         // Item #9990649: 1 recuadro por slot declarado en la plantilla (empresa/trabajador/…),
         // o un único recuadro "legado" si el doc no declara slots (mismo flujo de siempre).
         recuadros: [],
+        // Item #9990805 (q2 aprobada): geolocalización es opt-in — solo se pide/envía si el
+        // firmante marca esta casilla.
+        incluirUbicacion: false,
       },
       completarModal: {
         show: false,
@@ -292,6 +309,7 @@ export default {
       this.firmaModal.doc = doc;
       this.firmaModal.saving = false;
       this.firmaModal.error = null;
+      this.firmaModal.incluirUbicacion = false;
       this._canvasEls = {};
       this.pads = {};
 
@@ -447,10 +465,15 @@ export default {
       this.firmaModal.saving = true;
       let huboError = false;
 
+      // Item #9990805 (q2 aprobada): se pide UNA vez para todos los recuadros de este envío
+      // (no tiene sentido pedir permiso de ubicación por cada slot). Si el usuario no marcó la
+      // casilla, o el navegador niega/tarda, se firma igual sin ubicación — nunca bloquea.
+      const geolocalizacion = this.firmaModal.incluirUbicacion ? await this.obtenerGeolocalizacion() : null;
+
       for (const idx of pendientes) {
         const r = this.firmaModal.recuadros[idx];
         try {
-          await this.enviarFirmaSlot(doc, r, idx);
+          await this.enviarFirmaSlot(doc, r, idx, geolocalizacion);
           r.firmadoInicial = true;
           r.editing = false;
           r.previewDataUrl = null;
@@ -476,23 +499,48 @@ export default {
         await this.load();
       }
     },
-    async enviarFirmaSlot(doc, r, idx) {
+    // Item #9990805 (q2 aprobada): pide ubicación al navegador con timeout corto — si el
+    // usuario no responde/niega el permiso, resuelve null en vez de rechazar (nunca bloquea
+    // el guardado de la firma).
+    obtenerGeolocalizacion() {
+      return new Promise((resolve) => {
+        if (!navigator.geolocation) {
+          resolve(null);
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+          }),
+          () => resolve(null),
+          { timeout: 6000, maximumAge: 60000 }
+        );
+      });
+    },
+    async enviarFirmaSlot(doc, r, idx, geolocalizacion) {
       const url = `/talento/api/colaboradores/${this.colaboradorId}/documentos/${doc.id}/firma`;
       let payload;
 
       if (r.mode === 'draw') {
         const pad = this.pads[idx];
-        if (this.contarPuntos(pad.toData()) < MIN_PUNTOS_FIRMA) {
+        const trazos = pad.toData();
+        if (this.contarPuntos(trazos) < MIN_PUNTOS_FIRMA) {
           const error = new Error('firma_incompleta');
           error.response = { data: { message: 'La firma parece incompleta, inténtalo de nuevo.' } };
           throw error;
         }
-        payload = { signature: pad.toDataURL('image/png') };
+        // Item #9990805: trazos (puntos+tiempos) y geolocalización opt-in viajan junto al PNG
+        // como evidencia legal — el backend los persiste en talento_employee_document_signatures.
+        payload = { signature: pad.toDataURL('image/png'), trazos };
         if (r.key) payload.slot_key = r.key;
+        if (geolocalizacion) payload.geolocalizacion = geolocalizacion;
       } else {
         payload = new FormData();
         payload.append('signature_file', r.uploadFile);
         if (r.key) payload.append('slot_key', r.key);
+        if (geolocalizacion) payload.append('geolocalizacion', JSON.stringify(geolocalizacion));
       }
 
       return axios.post(url, payload);
