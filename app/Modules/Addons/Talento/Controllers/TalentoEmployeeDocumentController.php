@@ -199,6 +199,8 @@ class TalentoEmployeeDocumentController extends Controller
             abort_unless($slots->contains('key', $slotKey), 422, 'El slot de firma indicado no existe en esta plantilla.');
         }
 
+        $trazos = null;
+
         if ($request->hasFile('signature_file')) {
             $request->validate([
                 'signature_file' => 'required|image|mimes:png,jpg,jpeg,webp|max:2048',
@@ -210,7 +212,10 @@ class TalentoEmployeeDocumentController extends Controller
             $extension = $extension === 'jpg' ? 'jpeg' : $extension;
             $metodo = 'uploaded';
         } else {
-            $request->validate(['signature' => 'required|string']);
+            $request->validate([
+                'signature' => 'required|string',
+                'trazos' => 'nullable|array',
+            ]);
 
             $data = $request->input('signature');
             $extension = 'png';
@@ -230,6 +235,9 @@ class TalentoEmployeeDocumentController extends Controller
                 abort(422, 'La imagen de la firma no es válida.');
             }
             $metodo = 'drawn';
+            // Item #9990805: secuencia de trazos (puntos+tiempos) tal cual la entrega
+            // signature_pad.toData() — evidencia de CÓMO se firmó, no solo el PNG final.
+            $trazos = $request->input('trazos');
         }
 
         if (strlen($binario) > self::FIRMA_MAX_BYTES) {
@@ -250,6 +258,16 @@ class TalentoEmployeeDocumentController extends Controller
                 'signed_at' => now(),
                 'signed_by' => auth()->id(),
                 'signature_method' => $metodo,
+                // Item #9990805: metadata legal de la firma — hash del documento TAL CUAL se
+                // mostró al firmante (rendered_html congelado, mismo que ve show()), IP/UA/
+                // dispositivo de quien firmó, trazos (solo modo 'drawn') y geolocalización
+                // opcional (opt-in explícito del usuario en el frontend, ver q2 aprobada).
+                'hash_documento' => hash('sha256', $documento->rendered_html ?? ''),
+                'ip' => $request->ip(),
+                'user_agent' => substr((string) $request->userAgent(), 0, 500),
+                'dispositivo' => $this->parsearDispositivo($request->userAgent()),
+                'trazos' => $trazos,
+                'geolocalizacion' => $this->sanearGeolocalizacion($request->input('geolocalizacion')),
             ])->save();
 
             if ($anterior && $anterior !== $path && Storage::disk('local')->exists($anterior)) {
@@ -283,6 +301,87 @@ class TalentoEmployeeDocumentController extends Controller
             'signature_method' => $documento->signature_method,
             'signature_url' => "/talento/api/colaboradores/{$colaboradorId}/documentos/{$docId}/firma",
         ]);
+    }
+
+    /**
+     * Item #9990805 — etiqueta legible de dispositivo (tipo · navegador · SO) parseada del
+     * User-Agent crudo (que ya se guarda completo aparte). Best-effort por regex, sin
+     * dependencia nueva: no necesita ser exhaustivo, solo dar contexto humano a la metadata
+     * legal — el dato forense real es la columna user_agent completa.
+     */
+    private function parsearDispositivo(?string $userAgent): ?string
+    {
+        if (!$userAgent) {
+            return null;
+        }
+
+        $so = 'SO desconocido';
+        if (preg_match('/Windows/i', $userAgent)) {
+            $so = 'Windows';
+        } elseif (preg_match('/Android/i', $userAgent)) {
+            $so = 'Android';
+        } elseif (preg_match('/iPhone|iPad|iPod|iOS/i', $userAgent)) {
+            $so = 'iOS';
+        } elseif (preg_match('/Mac OS X/i', $userAgent)) {
+            $so = 'macOS';
+        } elseif (preg_match('/Linux/i', $userAgent)) {
+            $so = 'Linux';
+        }
+
+        $navegador = 'navegador desconocido';
+        if (preg_match('/Edg\//i', $userAgent)) {
+            $navegador = 'Edge';
+        } elseif (preg_match('/OPR\/|Opera/i', $userAgent)) {
+            $navegador = 'Opera';
+        } elseif (preg_match('/Chrome\//i', $userAgent) && !preg_match('/Chromium/i', $userAgent)) {
+            $navegador = 'Chrome';
+        } elseif (preg_match('/Firefox\//i', $userAgent)) {
+            $navegador = 'Firefox';
+        } elseif (preg_match('/Safari\//i', $userAgent) && !preg_match('/Chrome/i', $userAgent)) {
+            $navegador = 'Safari';
+        }
+
+        $tipo = 'Escritorio';
+        if (preg_match('/iPad|Tablet/i', $userAgent)) {
+            $tipo = 'Tablet';
+        } elseif (preg_match('/Mobile|Android|iPhone/i', $userAgent)) {
+            $tipo = 'Móvil';
+        }
+
+        return "{$tipo} · {$navegador} · {$so}";
+    }
+
+    /**
+     * Item #9990805 (q2 aprobada) — geolocalización es OPT-IN: el frontend solo la manda si el
+     * firmante aceptó el permiso del navegador explícitamente. Aquí solo se sanea la forma
+     * (lat/lng numéricos en rango válido, accuracy opcional) para no persistir basura si algo
+     * más arriba manda un payload inesperado; no es una validación bloqueante (422) porque la
+     * firma es válida con o sin ubicación.
+     */
+    private function sanearGeolocalizacion($valor): ?array
+    {
+        // El modo 'upload' manda el payload como FormData (adjunta el archivo de imagen), así
+        // que geolocalizacion viaja como string JSON en vez de array nativo (a diferencia del
+        // modo 'drawn', que va en el body JSON y ya llega como array).
+        if (is_string($valor)) {
+            $valor = json_decode($valor, true);
+        }
+
+        if (!is_array($valor) || !isset($valor['lat'], $valor['lng'])) {
+            return null;
+        }
+
+        $lat = (float) $valor['lat'];
+        $lng = (float) $valor['lng'];
+        if ($lat < -90 || $lat > 90 || $lng < -180 || $lng > 180) {
+            return null;
+        }
+
+        return [
+            'lat' => $lat,
+            'lng' => $lng,
+            'accuracy' => isset($valor['accuracy']) ? (float) $valor['accuracy'] : null,
+        ];
     }
 
     /**
