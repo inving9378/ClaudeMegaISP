@@ -169,6 +169,15 @@ class MergeRunner
                 'salida' => "La rama {$branch} ya estaba integrada en main.", 'escalado' => false, 'at' => time()];
         }
 
+        // #9990843 — VISIBILIDAD, no bloqueante: si el item tiene OTRAS ramas circuito/item-<id>-*
+        // con commits que este merge NO trae (no son ancestros de $branch), lo deja anotado en el
+        // log del item + canal de auditoría. `circuito:rama` (#9990843) ya previene la causa raíz
+        // hacia adelante (reusa por id, no por slug del título), pero un item viejo o una rama
+        // creada a mano fuera de esa vía puede seguir teniendo este patrón — no se bloquea aquí
+        // (bloquear mergeas legítimos por ramas viejas sueltas atoraría el circuito), solo se
+        // señala para auditoría (ver también `circuito:auditar-ramas-huerfanas`).
+        $this->advertirRamasHermanasIgnoradas($item, $branch);
+
         // El árbol principal no debe tener cambios sin commitear QUE ESTE MERGE VAYA A TOCAR.
         //
         // ANTES exigía el árbol COMPLETAMENTE limpio, y eso volvía el circuito un embudo: basta un
@@ -356,6 +365,47 @@ class MergeRunner
 
         Log::channel('roadmap_externo')->error($evento, ['item' => $item->id, 'branch' => $branch,
             'head_real' => $headReal, 'commit' => $sha]);
+    }
+
+    /**
+     * #9990843 — ver el comentario en `performMerge()`. Busca ramas hermanas `circuito/item-<id>-*`
+     * cuyo trabajo NO esté contenido en la rama que se va a mergear y lo deja registrado (item->log
+     * + canal `roadmap_externo`), sin abortar el merge.
+     */
+    private function advertirRamasHermanasIgnoradas(RoadmapItem $item, string $branch): void
+    {
+        $p = $this->git(['for-each-ref', '--format=%(refname:short)', "refs/heads/circuito/item-{$item->id}-*"]);
+        if (! $p->isSuccessful()) {
+            return;
+        }
+        $ramas = array_values(array_filter(array_map('trim', explode("\n", trim($p->getOutput())))));
+        $hermanas = array_values(array_filter($ramas, fn ($r) => $r !== $branch));
+        if ($hermanas === []) {
+            return;
+        }
+
+        $ignoradas = [];
+        foreach ($hermanas as $hermana) {
+            // Si la hermana ya está contenida en lo que se va a mergear, no hay riesgo de perderla.
+            if ($this->git(['merge-base', '--is-ancestor', $hermana, $branch])->isSuccessful()) {
+                continue;
+            }
+            $count = $this->git(['rev-list', '--count', "main..{$hermana}"]);
+            $ignoradas[$hermana] = $count->isSuccessful() ? (int) trim($count->getOutput()) : null;
+        }
+        if ($ignoradas === []) {
+            return;
+        }
+
+        $log = $item->log ?: [];
+        $log[] = ['ts' => now()->toIso8601String(), 'por' => 'merge-runner', 'evento' => 'ramas_hermanas_ignoradas',
+            'branch_mergeada' => $branch, 'ramas_ignoradas' => $ignoradas];
+        $item->log = $log;
+        $item->save();
+
+        Log::channel('roadmap_externo')->warning('merge-ramas-hermanas-ignoradas', [
+            'item' => $item->id, 'branch_mergeada' => $branch, 'ramas_ignoradas' => $ignoradas,
+        ]);
     }
 
     /**
