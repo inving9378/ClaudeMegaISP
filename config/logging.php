@@ -216,6 +216,13 @@ return [
             'level'  => 'debug',
             'days'   => 30,
         ],
+
+        'clientes_busqueda' => [
+            'driver' => 'daily',
+            'path'   => storage_path('logs/clientes-busqueda.log'),
+            'level'  => 'debug',
+            'days'   => 30,
+        ],
     ],
 
 ];
