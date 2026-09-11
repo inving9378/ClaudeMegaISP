@@ -185,6 +185,21 @@
                     {{ props.row[col.name] }}
                   </span>
                 </span>
+                <span v-else-if="col.name === 'modem_sn'">
+                  <template v-if="props.row.serie_equipo">
+                    {{ props.row.serie_equipo.slice(-8) }}
+                    <q-badge
+                      rounded
+                      :style="{ backgroundColor: origenBadgeColor(props.row.serie_equipo_origen) }"
+                      class="q-ml-xs"
+                    >
+                      <q-tooltip>
+                        Serial completo: {{ props.row.serie_equipo }} -- Origen: {{ origenLabel(props.row.serie_equipo_origen) }}
+                      </q-tooltip>
+                    </q-badge>
+                  </template>
+                  <span v-else>{{ props.row.modem_sn }}</span>
+                </span>
                 <span v-html="props.row[col.name]" v-else></span>
               </q-td>
             </template>
@@ -894,6 +909,32 @@ export default {
         });
     };
 
+    const origenBadgeColor = (origen) => {
+      switch (origen) {
+        case "manual":
+          return "#9e9e9e";
+        case "olt":
+          return "#7dd3fc";
+        case "auto":
+          return "#34D399";
+        default:
+          return "#9e9e9e";
+      }
+    };
+
+    const origenLabel = (origen) => {
+      switch (origen) {
+        case "manual":
+          return "Manual";
+        case "olt":
+          return "OLT";
+        case "auto":
+          return "Automatico";
+        default:
+          return "Sin origen";
+      }
+    };
+
     return {
       headers,
       allHeaders,
@@ -939,6 +980,8 @@ export default {
       placeholderBusqueda,
       ampliadaYaIntentada,
       buscarEnTodosLosCampos,
+      origenBadgeColor,
+      origenLabel,
     };
   },
 };
