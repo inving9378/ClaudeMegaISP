@@ -784,6 +784,33 @@ const aplicarViewportCulling = () => {
     });
 };
 
+// MR flujo animado Fase 3b (item roadmap #9990760): estado "congelado" unificado — 3
+// disparadores independientes (zoom bajo, pestaña oculta, botón manual) que solo pueden
+// PRENDER su propia bandera, nunca apagar la de otro. Solo "manual" se persiste (zoom/oculto
+// son transitorios y se recalculan solos en el próximo zoomend/visibilitychange real).
+const congeladoRazones = reactive({ zoom: false, oculto: false, manual: false });
+
+// Aplica/quita la clase "congelado" sobre el contenedor del mapa (mismo div de L.map("map", ...))
+// según si ALGUNA razón está activa (OR). La regla CSS ya existe en
+// mapared-enlace-fibra.css:59 (.congelado .enlace-fibra { animation-play-state: paused }).
+const aplicarCongelado = () => {
+    if (!map) {
+        return;
+    }
+    const activo =
+        congeladoRazones.zoom || congeladoRazones.oculto || congeladoRazones.manual;
+    if (activo) {
+        L.DomUtil.addClass(map.getContainer(), "congelado");
+    } else {
+        L.DomUtil.removeClass(map.getContainer(), "congelado");
+    }
+};
+
+const handleVisibilityChangeFlujoAnimado = () => {
+    congeladoRazones.oculto = document.hidden;
+    aplicarCongelado();
+};
+
 // MR-26 Fase 4 (item roadmap #9990525) — capa "Cobertura" en vivo (Fase 1, #9990522). Se
 // refetch cada vez que se enciende el toggle (no se cachea) para que ocupar el último puerto
 // libre de una NAP la haga desaparecer al re-encender la capa (DoD del item padre #962).
@@ -1088,6 +1115,12 @@ const initMap = async () => {
     map.on("zoomend", function () {
         aplicarVisibilidadCapas();
         aplicarViewportCulling();
+        // MR flujo animado Fase 3b (#9990760): guard de zoom — bajo zoom 15 la escala hace
+        // irrelevante ver el flujo puntito por puntito, se congela para ahorrar CPU.
+        if (props.flujoAnimadoEnabled) {
+            congeladoRazones.zoom = map.getZoom() < 15;
+            aplicarCongelado();
+        }
     });
 
     map.contextmenu.enable();
@@ -1609,6 +1642,45 @@ const initMap = async () => {
         arbolDerivadoBtn.state("arbol-derivado-visible");
     }
 
+    // MR flujo animado Fase 3b (item roadmap #9990760) — botón manual para pausar/reanudar el
+    // flujo animado, además de los disparadores automáticos (zoom bajo, pestaña oculta). Solo
+    // esta razón se persiste en localStorage; se restaura al recargar la página. Pilot-only:
+    // sin sentido mostrarlo si el flag de flujo animado está apagado (nada que pausar).
+    if (props.flujoAnimadoEnabled) {
+        const congeladoManualBtn = L.easyButton({
+            states: [
+                {
+                    stateName: "flujo-animado-activo",
+                    icon: "fa-pause",
+                    title: "Pausar flujo animado",
+                    onClick: function (btn) {
+                        congeladoRazones.manual = true;
+                        setToLocalStorage("mr-flujo-animado-congelado", true);
+                        aplicarCongelado();
+                        btn.state("flujo-animado-congelado");
+                    },
+                },
+                {
+                    stateName: "flujo-animado-congelado",
+                    icon: "fa-play",
+                    title: "Reanudar flujo animado",
+                    onClick: function (btn) {
+                        congeladoRazones.manual = false;
+                        setToLocalStorage("mr-flujo-animado-congelado", false);
+                        aplicarCongelado();
+                        btn.state("flujo-animado-activo");
+                    },
+                },
+            ],
+        }).addTo(map);
+
+        congeladoRazones.manual = !!getFromLocalStorage("mr-flujo-animado-congelado");
+        congeladoManualBtn.state(
+            congeladoRazones.manual ? "flujo-animado-congelado" : "flujo-animado-activo"
+        );
+        aplicarCongelado();
+    }
+
     // MR-24e Fase 1a (item roadmap #9990557) — toggle "Modo: agregar NAP": activa el click
     // genérico de abajo en modo NAP + el snap visual contra rutas cercanas (radio 15m, igual
     // que SnapService::cableMasCercano en backend). Sin formulario/POST todavía (Fase 1b).
@@ -1741,6 +1813,12 @@ const initMap = async () => {
     document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
     document.addEventListener("mozfullscreenchange", handleFullscreenChange);
     document.addEventListener("MSFullscreenChange", handleFullscreenChange);
+
+    // MR flujo animado Fase 3b (#9990760): pausa el flujo animado mientras la pestaña está
+    // oculta (ahorro de CPU) y lo reevalúa al volver, sin pisar las otras razones activas.
+    if (props.flujoAnimadoEnabled) {
+        document.addEventListener("visibilitychange", handleVisibilityChangeFlujoAnimado);
+    }
 
     // Fase 3a (#9990759): estado inicial del viewport culling, tras dibujar las capas.
     aplicarViewportCulling();
