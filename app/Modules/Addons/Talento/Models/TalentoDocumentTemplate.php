@@ -12,7 +12,7 @@ class TalentoDocumentTemplate extends BaseModel
     protected $table = 'talento_document_templates';
 
     protected $fillable = [
-        'name', 'category', 'description', 'current_version_id', 'active', 'requires_signature',
+        'name', 'category', 'tipo', 'description', 'current_version_id', 'active', 'requires_signature',
         'fillable_fields',
     ];
 
