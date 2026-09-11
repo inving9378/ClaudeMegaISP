@@ -6,37 +6,49 @@ use App\Http\Controllers\Utils\ComunConstantsController;
 use App\Modules\Core\Configuracion\Repositories\CommandConfigRepository;
 use App\Models\ClientMainInformation;
 use App\Models\TypeBilling;
+use App\Modules\Core\Clientes\Services\ClienteSearchService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 trait ScopeClient
 {
-    public function scopeFilters($query, $columns, $search = null, $filter = null)
+    /**
+     * @param array|null $columnasCrudas Nombres de columna SIN calificar (item #9990811, buscador v2:
+     *                                   config('clientes_busqueda.v2_habilitado')). $columns (arriba) ya
+     *                                   viene calificado (ej. 'client_main_information.name') y no sirve
+     *                                   como whitelist de ClienteSearchService; este parámetro trae el
+     *                                   mismo listado de columnas visibles tal cual lo manda el datatable.
+     */
+    public function scopeFilters($query, $columns, $search = null, $filter = null, $columnasCrudas = null, $ampliada = false)
     {
         if (isset($search) && empty($filter)) {
-            $query->where(function ($query) use ($search, $columns) {
-                foreach ($columns as $value) {
-                    if ($value !== 'action' && $value !== 'full_name') {
-                        // Añade el alias para evitar ambigüedad
-                        if (strpos($value, '.') === false) {
-                            $value = 'client_main_information.' . $value;
-                        }
-                        if (strpos($value, 'nomenclature_name')) {
-                            $value = 'nomenclatures.name';
-                        }
-                        $query->orWhere($value, 'like', '%' . $search . '%');
-                    }
-                    if ($value === 'full_name') {
-                        $searchTerms = explode(' ', $search);
-                        $query->orWhere(function ($q) use ($searchTerms) {
-                            foreach ($searchTerms as $term) {
-                                $q->where(DB::raw("CONCAT(client_main_information.name, ' ', client_main_information.father_last_name, ' ', client_main_information.mother_last_name)"), 'like', '%' . $term . '%');
+            if (config('clientes_busqueda.v2_habilitado')) {
+                app(ClienteSearchService::class)->aplicar($query, $search, $columnasCrudas ?? [], $ampliada);
+            } else {
+                $query->where(function ($query) use ($search, $columns) {
+                    foreach ($columns as $value) {
+                        if ($value !== 'action' && $value !== 'full_name') {
+                            // Añade el alias para evitar ambigüedad
+                            if (strpos($value, '.') === false) {
+                                $value = 'client_main_information.' . $value;
                             }
-                        });
+                            if (strpos($value, 'nomenclature_name')) {
+                                $value = 'nomenclatures.name';
+                            }
+                            $query->orWhere($value, 'like', '%' . $search . '%');
+                        }
+                        if ($value === 'full_name') {
+                            $searchTerms = explode(' ', $search);
+                            $query->orWhere(function ($q) use ($searchTerms) {
+                                foreach ($searchTerms as $term) {
+                                    $q->where(DB::raw("CONCAT(client_main_information.name, ' ', client_main_information.father_last_name, ' ', client_main_information.mother_last_name)"), 'like', '%' . $term . '%');
+                                }
+                            });
+                        }
                     }
-                }
-                $query->orWhere(DB::raw("CONCAT(client_main_information.name, ' ', client_main_information.father_last_name, ' ', client_main_information.mother_last_name)"), 'like', '%' . $search . '%');
-            });
+                    $query->orWhere(DB::raw("CONCAT(client_main_information.name, ' ', client_main_information.father_last_name, ' ', client_main_information.mother_last_name)"), 'like', '%' . $search . '%');
+                });
+            }
         } elseif (!empty($filter)) {
             $query->where(function ($query) use ($filter, $search, $columns) {
                 foreach ($filter as $key => $values) {

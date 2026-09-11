@@ -50,6 +50,15 @@ class ClienteSearchService
         $todosLosCampos = config('clientes_busqueda.campos', []);
         $prefijo = $this->extraerPrefijo($termino);
 
+        // D6 — mínimo de caracteres para disparar la consulta. Los prefijos explícitos
+        // (sn:, tel:, ip:, id:, mac:) se saltan este mínimo, sin importar el largo del valor.
+        if (!$prefijo) {
+            $minCaracteres = (int) config('clientes_busqueda.min_caracteres', 3);
+            if (mb_strlen($termino) < $minCaracteres) {
+                return $query;
+            }
+        }
+
         if ($prefijo) {
             $claves = array_values(array_intersect($prefijo['campos'], array_keys($todosLosCampos)));
             $valor = $prefijo['valor'];

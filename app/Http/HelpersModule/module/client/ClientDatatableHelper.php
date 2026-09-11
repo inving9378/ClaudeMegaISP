@@ -494,7 +494,7 @@ class ClientDatatableHelper
 
 
 
-    public function searching_query($start, $limit, $order, $dir, $search, $filters = null, $columns = null)
+    public function searching_query($start, $limit, $order, $dir, $search, $filters = null, $columns = null, $ampliada = false)
     {
         $arrayColumnsWithJoins = $this->getColumnsWithJoinsByColumnsSelected($columns);
         $columnsForSelect = array_column($arrayColumnsWithJoins, 'column');
@@ -545,7 +545,7 @@ class ClientDatatableHelper
         }
 
         $query->whereNull('clients.deleted_at');
-        $query = $query->filters($this->filterName, $search, $filters);
+        $query = $query->filters($this->filterName, $search, $filters, $columns, $ampliada);
         // Ordenación
         if ($order === 'ip_ranges') {
             $query->orderByRaw("INET6_ATON(network_ips.ip) $dir");
@@ -559,7 +559,7 @@ class ClientDatatableHelper
         return $result;
     }
 
-    public function filtering_query($search, $columns = null, $filters = null)
+    public function filtering_query($search, $columns = null, $filters = null, $ampliada = false)
     {
         $moduleName = 'Client';
         $module = Module::with('columnsDatatable')->where('name', $moduleName)->first();
@@ -586,7 +586,7 @@ class ClientDatatableHelper
             }
         }
 
-        return $this->model::filters($this->filterName, $search, $filters)
+        return $this->model::filters($this->filterName, $search, $filters, $columns, $ampliada)
             ->leftJoin('client_main_information', 'clients.id', '=', 'client_main_information.client_id')
             ->leftJoin('client_additional_information', 'clients.id', '=', 'client_additional_information.client_id')
             ->leftJoin('billing_configurations', 'clients.id', '=', 'billing_configurations.client_id')
@@ -964,9 +964,13 @@ class ClientDatatableHelper
         $order = $request->order ?? 'id';
         $dir = $request->dir === true ? 'DESC' : 'ASC';
 
+        // Buscador v2 (item #9990811, config('clientes_busqueda.v2_habilitado')): D3.3, el front
+        // podrá mandar este flag más adelante (Fase 2); con v2 apagado (default) no tiene efecto.
+        $ampliada = (bool) ($request->data['ampliada'] ?? false);
+
         // Obtener los datos según el estado de búsqueda
         $array = $this->hasSearchTerm($request)
-            ? $this->searching_query($start, $limit, $order, $dir, $request->data['search'], $idModule ?? $filters, $columns)
+            ? $this->searching_query($start, $limit, $order, $dir, $request->data['search'], $idModule ?? $filters, $columns, $ampliada)
             : $this->ordering_query($start, $limit, $order, $dir, $idModule ?? $filters, $columns);
 
         // Pre-compute heavy per-row values in batch before transform
@@ -1036,17 +1040,18 @@ class ClientDatatableHelper
 
     private function countTotalData($idModule, $filters, $request, $columns = null)
     {
+        $ampliada = (bool) ($request->data['ampliada'] ?? false);
 
         if (!empty($filters) && empty($request->data['search'])) {
             return $this->count($filters);
         }
 
         if (!empty($filters) && !empty($request->data['search'])) {
-            return $this->filtering_query($request->data['search'], $columns, $filters);
+            return $this->filtering_query($request->data['search'], $columns, $filters, $ampliada);
         }
 
         if ($this->hasSearchTerm($request)) {
-            return $this->filtering_query($request->data['search'], $columns);
+            return $this->filtering_query($request->data['search'], $columns, null, $ampliada);
         }
 
         return $this->count();
