@@ -84,7 +84,7 @@ class EnrollmentLinkController extends Controller
             return view('addon-domiciliacion::enrollment_invalid');
         }
 
-        $data = $request->validate(['token' => 'required|string|max:100']);
+        $data = $request->validate(['token' => 'required|string|max:100', 'device_session_id' => 'nullable|string|max:100']);
 
         $cmi = DB::table('client_main_information')->where('client_id', $link->client_id)->first();
 
@@ -99,7 +99,8 @@ class EnrollmentLinkController extends Controller
                     'last_name'    => $cmi->father_last_name ?? '',
                     'email'        => $cmi->email ?? '',
                     'phone_number' => $cmi->phone ?? '',
-                ]
+                ],
+                deviceSessionId: $data['device_session_id'] ?? null
             );
 
             $link->markUsed();
