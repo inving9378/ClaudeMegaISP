@@ -1,0 +1,771 @@
+name,guard_name,modulo,estado
+add_data_plan_promotion,web,"add_* (heurístico, sin module.json)",usado
+add_sucursal,web,"add_* (heurístico, sin module.json)",usado
+additional_fields_add_additional_fields,web,"additional_* (heurístico, sin module.json)",huerfano
+additional_fields_delete_additional_fields,web,"additional_* (heurístico, sin module.json)",huerfano
+additional_fields_edit_additional_fields,web,"additional_* (heurístico, sin module.json)",huerfano
+additional_fields_export_additional_fields,web,"additional_* (heurístico, sin module.json)",huerfano
+additional_fields_view_additional_fields,web,"additional_* (heurístico, sin module.json)",huerfano
+admin_modules,web,"admin_* (heurístico, sin module.json)",usado
+admin_modules_migrate,web,"admin_* (heurístico, sin module.json)",usado
+admin_modules_toggle,web,"admin_* (heurístico, sin module.json)",usado
+admin_view_files,web,"admin_* (heurístico, sin module.json)",huerfano
+admin_view_information,web,"admin_* (heurístico, sin module.json)",usado
+admin_view_meganet,web,"admin_* (heurístico, sin module.json)",usado
+admin_view_module,web,"admin_* (heurístico, sin module.json)",usado
+admin_view_registers,web,"admin_* (heurístico, sin module.json)",usado
+admin_view_reports,web,"admin_* (heurístico, sin module.json)",usado
+admin_view_scripts,web,"admin_* (heurístico, sin module.json)",usado
+apikey_view_apikey,web,"apikey_* (heurístico, sin module.json)",usado
+auditoria.senales.view,web,"auditoria.* (heurístico, sin module.json)",usado
+billing_payment_sellers,web,"billing_* (heurístico, sin module.json)",huerfano
+billing_payment_view_clients,web,"billing_* (heurístico, sin module.json)",huerfano
+billing_view_detail_payments,web,"billing_* (heurístico, sin module.json)",huerfano
+billing_view_transactions,web,"billing_* (heurístico, sin module.json)",huerfano
+calendar_filter_assigned_to,web,Scheduling,usado
+calendar_filter_filter,web,Scheduling,usado
+calendar_filter_partner,web,Scheduling,usado
+calendar_filter_project,web,Scheduling,usado
+calendar_filter_status,web,Scheduling,usado
+centro-proyecto.view,web,"Centro de Proyecto",usado
+circuito.decidir,web,"circuito.* (heurístico, sin module.json)",usado
+circuito.disparar,web,"circuito.* (heurístico, sin module.json)",usado
+circuito.pause,web,"circuito.* (heurístico, sin module.json)",usado
+client_add_client,web,"client_* (heurístico, sin module.json)",usado
+client_billing_invoice_add,web,"client_* (heurístico, sin module.json)",usado
+client_billing_invoice_client,web,"client_* (heurístico, sin module.json)",usado
+client_billing_invoice_delete,web,"client_* (heurístico, sin module.json)",usado
+client_billing_invoice_edit,web,"client_* (heurístico, sin module.json)",usado
+client_billing_transaction_add,web,"client_* (heurístico, sin module.json)",usado
+client_billing_transaction_client,web,"client_* (heurístico, sin module.json)",usado
+client_billing_transaction_delete,web,"client_* (heurístico, sin module.json)",usado
+client_billing_transaction_edit,web,"client_* (heurístico, sin module.json)",usado
+client_billing_view_tab_client,web,"client_* (heurístico, sin module.json)",usado
+client_delete_client,web,"client_* (heurístico, sin module.json)",usado
+client_document_add_client,web,"client_* (heurístico, sin module.json)",usado
+client_document_delete_client,web,"client_* (heurístico, sin module.json)",usado
+client_document_edit_client,web,"client_* (heurístico, sin module.json)",usado
+client_document_view_client,web,"client_* (heurístico, sin module.json)",usado
+client_document_view_tab_client,web,"client_* (heurístico, sin module.json)",usado
+client_edit_balance,web,"client_* (heurístico, sin module.json)",usado
+client_edit_client,web,"client_* (heurístico, sin module.json)",usado
+client_edit_fecha_corte,web,"client_* (heurístico, sin module.json)",usado
+client_edit_fecha_pago,web,"client_* (heurístico, sin module.json)",usado
+client_edit_id,web,"client_* (heurístico, sin module.json)",usado
+client_export_client,web,"client_* (heurístico, sin module.json)",usado
+client_information_geolocation_client,web,"client_* (heurístico, sin module.json)",usado
+client_information_view_tab_client,web,"client_* (heurístico, sin module.json)",usado
+client_payroll,web,"client_* (heurístico, sin module.json)",usado
+client_payroll_payment,web,"client_* (heurístico, sin module.json)",usado
+client_payroll_payment_add_client,web,"client_* (heurístico, sin module.json)",usado
+client_payroll_payment_delete_client,web,"client_* (heurístico, sin module.json)",usado
+client_payroll_payment_edit_client,web,"client_* (heurístico, sin module.json)",usado
+client_payroll_payment_view_client,web,"client_* (heurístico, sin module.json)",usado
+client_payroll_view_tab_client,web,"client_* (heurístico, sin module.json)",usado
+client_service,web,"client_* (heurístico, sin module.json)",usado
+client_service_bundle,web,"client_* (heurístico, sin module.json)",usado
+client_service_bundle_add_client,web,"client_* (heurístico, sin module.json)",usado
+client_service_bundle_change_client,web,"client_* (heurístico, sin module.json)",usado
+client_service_bundle_delete_client,web,"client_* (heurístico, sin module.json)",usado
+client_service_bundle_edit_client,web,"client_* (heurístico, sin module.json)",usado
+client_service_bundle_view_client,web,"client_* (heurístico, sin module.json)",usado
+client_service_custom,web,"client_* (heurístico, sin module.json)",usado
+client_service_custom_add_client,web,"client_* (heurístico, sin module.json)",usado
+client_service_custom_delete_client,web,"client_* (heurístico, sin module.json)",usado
+client_service_custom_edit_client,web,"client_* (heurístico, sin module.json)",usado
+client_service_custom_view_client,web,"client_* (heurístico, sin module.json)",usado
+client_service_internet,web,"client_* (heurístico, sin module.json)",usado
+client_service_internet_add_client,web,"client_* (heurístico, sin module.json)",usado
+client_service_internet_delete_client,web,"client_* (heurístico, sin module.json)",usado
+client_service_internet_edit_client,web,"client_* (heurístico, sin module.json)",usado
+client_service_internet_view_client,web,"client_* (heurístico, sin module.json)",usado
+client_service_view_tab_client,web,"client_* (heurístico, sin module.json)",usado
+client_service_voz,web,"client_* (heurístico, sin module.json)",usado
+client_service_voz_add_client,web,"client_* (heurístico, sin module.json)",usado
+client_service_voz_delete_client,web,"client_* (heurístico, sin module.json)",usado
+client_service_voz_edit_client,web,"client_* (heurístico, sin module.json)",usado
+client_service_voz_view_client,web,"client_* (heurístico, sin module.json)",usado
+client_update_status,web,"client_* (heurístico, sin module.json)",usado
+client_view_client,web,"client_* (heurístico, sin module.json)",usado
+client_view_dashboard,web,"client_* (heurístico, sin module.json)",usado
+cobranza.configure,web,CobranzaBlaster,usado
+cobranza.manage,web,CobranzaBlaster,usado
+cobranza.view,web,CobranzaBlaster,usado
+colony_add_colony,web,"colony_* (heurístico, sin module.json)",usado
+colony_delete_colony,web,"colony_* (heurístico, sin module.json)",usado
+colony_edit_colony,web,"colony_* (heurístico, sin module.json)",usado
+colony_export_colony,web,"colony_* (heurístico, sin module.json)",usado
+colony_view_colony,web,"colony_* (heurístico, sin module.json)",usado
+company_information_add_company_information,web,"company_* (heurístico, sin module.json)",usado
+company_information_delete_company_information,web,"company_* (heurístico, sin module.json)",usado
+company_information_edit_company_information,web,"company_* (heurístico, sin module.json)",usado
+company_information_view_company_information,web,"company_* (heurístico, sin module.json)",usado
+company_view_information,web,"company_* (heurístico, sin module.json)",huerfano
+conciliacion.manage,web,"conciliacion.* (heurístico, sin module.json)",usado
+config_view_finance,web,Configuración,usado
+config_view_finance_notification,web,Configuración,usado
+config_view_google_maps,web,Configuración,usado
+config_view_helpdesk,web,Configuración,usado
+config_view_integrations,web,Configuración,usado
+config_view_inventory,web,Configuración,usado
+config_view_main,web,Configuración,usado
+config_view_messages,web,Configuración,usado
+config_view_module,web,Configuración,usado
+config_view_network_management,web,Configuración,usado
+config_view_potencial_customer,web,Configuración,usado
+config_view_sales,web,Configuración,usado
+config_view_scheduling,web,Configuración,usado
+config_view_system,web,Configuración,usado
+config_view_tools,web,Configuración,usado
+config_view_voice,web,Configuración,usado
+configuracion_admin,web,"configuracion_* (heurístico, sin module.json)",usado
+connect-meta-account,web,"Marketing IA",usado
+contratables.manage,web,Planes,usado
+create-marketing-campaigns,web,"Marketing IA",usado
+crm_add_crm,web,"crm_* (heurístico, sin module.json)",usado
+crm_convert_crm,web,"crm_* (heurístico, sin module.json)",usado
+crm_delete_crm,web,"crm_* (heurístico, sin module.json)",usado
+crm_document,web,"crm_* (heurístico, sin module.json)",usado
+crm_document_add_crm,web,"crm_* (heurístico, sin module.json)",usado
+crm_document_delete_crm,web,"crm_* (heurístico, sin module.json)",usado
+crm_document_edit_crm,web,"crm_* (heurístico, sin module.json)",usado
+crm_document_view_crm,web,"crm_* (heurístico, sin module.json)",usado
+crm_document_view_huerfanos,web,"crm_* (heurístico, sin module.json)",usado
+crm_document_view_tab_crm,web,"crm_* (heurístico, sin module.json)",usado
+crm_edit_crm,web,"crm_* (heurístico, sin module.json)",usado
+crm_export_crm,web,"crm_* (heurístico, sin module.json)",usado
+crm_information,web,"crm_* (heurístico, sin module.json)",usado
+crm_information_geolocation_crm,web,"crm_* (heurístico, sin module.json)",usado
+crm_information_view_tab_crm,web,"crm_* (heurístico, sin module.json)",usado
+crm_view_crm,web,"crm_* (heurístico, sin module.json)",usado
+crm_view_of_convert_crm_to_client,web,"crm_* (heurístico, sin module.json)",huerfano
+dashboard_clientes,web,"dashboard_* (heurístico, sin module.json)",usado
+dashboard_payroll,web,"dashboard_* (heurístico, sin module.json)",usado
+dashboard_system_status,web,"dashboard_* (heurístico, sin module.json)",usado
+dashboard_view_block_client,web,"dashboard_* (heurístico, sin module.json)",usado
+dashboard_view_block_finance,web,"dashboard_* (heurístico, sin module.json)",usado
+dashboard_view_block_server_status,web,"dashboard_* (heurístico, sin module.json)",usado
+dashboard_view_block_ticket,web,"dashboard_* (heurístico, sin module.json)",usado
+dashboard_view_card_client_inline,web,"dashboard_* (heurístico, sin module.json)",usado
+dashboard_view_card_client_new,web,"dashboard_* (heurístico, sin module.json)",usado
+dashboard_view_card_device_not_responding,web,"dashboard_* (heurístico, sin module.json)",usado
+dashboard_view_card_tickets_open_new,web,"dashboard_* (heurístico, sin module.json)",usado
+dashboard_view_dashboard,web,"dashboard_* (heurístico, sin module.json)",usado
+dashboard_view_info_invoice_transaction,web,"dashboard_* (heurístico, sin module.json)",usado
+delete_data_plan_promotion,web,"delete_* (heurístico, sin module.json)",usado
+delete_sucursal,web,"delete_* (heurístico, sin module.json)",usado
+delete-marketing-campaigns,web,"Marketing IA",usado
+delete-video-content,web,"Marketing IA",usado
+demo_manage,web,Demo,usado
+demo_view,web,Demo,usado
+documentacion-corporativa.activo-digital.manage,web,"documentacion-corporativa.* (heurístico, sin module.json)",huerfano
+documentacion-corporativa.activo.manage,web,"documentacion-corporativa.* (heurístico, sin module.json)",huerfano
+documentacion-corporativa.apartado.i.view,web,"Documentación Corporativa",huerfano
+documentacion-corporativa.apartado.ii.view,web,"Documentación Corporativa",huerfano
+documentacion-corporativa.apartado.iii.view,web,"Documentación Corporativa",huerfano
+documentacion-corporativa.apartado.iv.view,web,"Documentación Corporativa",huerfano
+documentacion-corporativa.apartado.ix.view,web,"Documentación Corporativa",huerfano
+documentacion-corporativa.apartado.v.view,web,"Documentación Corporativa",huerfano
+documentacion-corporativa.apartado.vi.view,web,"Documentación Corporativa",huerfano
+documentacion-corporativa.apartado.vii.view,web,"Documentación Corporativa",huerfano
+documentacion-corporativa.apartado.viii.view,web,"Documentación Corporativa",huerfano
+documentacion-corporativa.apartado.x.view,web,"Documentación Corporativa",huerfano
+documentacion-corporativa.apartado.xi.view,web,"Documentación Corporativa",huerfano
+documentacion-corporativa.apartado.xii.view,web,"Documentación Corporativa",huerfano
+documentacion-corporativa.apartado.xiii.view,web,"Documentación Corporativa",usado
+documentacion-corporativa.apartado.xiv.view,web,"Documentación Corporativa",usado
+documentacion-corporativa.bitacora.export,web,"Documentación Corporativa",usado
+documentacion-corporativa.bitacora.view,web,"Documentación Corporativa",usado
+documentacion-corporativa.concepto.manage,web,"Documentación Corporativa",usado
+documentacion-corporativa.concesion.manage,web,"Documentación Corporativa",usado
+documentacion-corporativa.documento.delete,web,"Documentación Corporativa",usado
+documentacion-corporativa.documento.download,web,"Documentación Corporativa",usado
+documentacion-corporativa.documento.upload,web,"Documentación Corporativa",usado
+documentacion-corporativa.empresa.manage,web,"Documentación Corporativa",usado
+documentacion-corporativa.entrega.create,web,"Documentación Corporativa",usado
+documentacion-corporativa.inventario.accesos.manage,web,"documentacion-corporativa.* (heurístico, sin module.json)",huerfano
+documentacion-corporativa.inventario.accesos.view,web,"Documentación Corporativa",huerfano
+documentacion-corporativa.inventario.manage,web,"Documentación Corporativa",usado
+documentacion-corporativa.offboarding.gestionar,web,"Documentación Corporativa",usado
+documentacion-corporativa.offboarding.ver,web,"Documentación Corporativa",usado
+documentacion-corporativa.pendiente.assign,web,"Documentación Corporativa",usado
+documentacion-corporativa.registro.manage,web,"Documentación Corporativa",usado
+documentacion-corporativa.solicitud.manage,web,"Documentación Corporativa",usado
+documentacion-corporativa.view,web,"Documentación Corporativa",usado
+documentation_add_documentation,web,"documentation_* (heurístico, sin module.json)",usado
+documentation_delete_documentation,web,"documentation_* (heurístico, sin module.json)",usado
+documentation_edit_documentation,web,"documentation_* (heurístico, sin module.json)",usado
+documentation_view_documentation,web,"documentation_* (heurístico, sin module.json)",usado
+documentation_view_test_unit,web,"documentation_* (heurístico, sin module.json)",huerfano
+documentos.create,web,Documentos,usado
+documentos.delete,web,Documentos,usado
+documentos.edit,web,Documentos,usado
+documentos.template.exportar_acuse,web,Documentos,usado
+documentos.view,web,Documentos,usado
+domiciliacion.cobrar,web,"Domiciliación a Tarjeta",usado
+domiciliacion.links,web,"Domiciliación a Tarjeta",usado
+domiciliacion.manage,web,"Domiciliación a Tarjeta",usado
+domiciliacion.view,web,"Domiciliación a Tarjeta",usado
+download-video,web,"Marketing IA",usado
+edit_data_plan_promotion,web,"edit_* (heurístico, sin module.json)",usado
+edit_sucursal,web,"edit_* (heurístico, sin module.json)",usado
+embajadores.commissions.approve,web,"Embajadores Meganet",usado
+embajadores.commissions.cancel,web,"Embajadores Meganet",usado
+embajadores.configure,web,"Embajadores Meganet",usado
+embajadores.payouts.generate,web,"Embajadores Meganet",usado
+embajadores.programa.activar,web,"embajadores.* (heurístico, sin module.json)",usado
+embajadores.recompensa.aplicar,web,"embajadores.* (heurístico, sin module.json)",usado
+embajadores.rewards.manage,web,"Embajadores Meganet",usado
+embajadores.tiers.manage,web,"Embajadores Meganet",usado
+embajadores.view,web,"Embajadores Meganet",usado
+empresa_manual_create,web,"Manual General de la Empresa",usado
+empresa_manual_delete,web,"Manual General de la Empresa",usado
+empresa_manual_edit,web,"Manual General de la Empresa",usado
+empresa_manual_publish,web,"Manual General de la Empresa",usado
+empresa_manual_view,web,"Manual General de la Empresa",usado
+evaluador_export_evaluacion,web,"Evaluador Empresarial",usado
+evaluador_view_estadisticas,web,"Evaluador Empresarial",usado
+evaluador_view_evaluacion,web,"Evaluador Empresarial",usado
+facturacion.fiscal.editar,web,"facturacion.* (heurístico, sin module.json)",usado
+facturacion.fiscal.timbrar,web,"facturacion.* (heurístico, sin module.json)",usado
+facturacion.notif.gestionar,web,"facturacion.* (heurístico, sin module.json)",usado
+facturacion.ver,web,"facturacion.* (heurístico, sin module.json)",usado
+family.parent_view_child,web,"family.* (heurístico, sin module.json)",huerfano
+finance_add_general_accounting_expense,web,Finanzas,usado
+finance_add_general_accounting_income,web,Finanzas,usado
+finance_delete_billing,web,Finanzas,usado
+finance_delete_general_accounting_expense,web,Finanzas,usado
+finance_delete_general_accounting_income,web,Finanzas,usado
+finance_delete_payments,web,Finanzas,usado
+finance_delete_transactions,web,Finanzas,usado
+finance_edit_billing,web,Finanzas,usado
+finance_edit_general_accounting_expense,web,Finanzas,usado
+finance_edit_general_accounting_income,web,Finanzas,usado
+finance_edit_payments,web,Finanzas,usado
+finance_edit_transactions,web,Finanzas,usado
+finance_export_billing,web,Finanzas,usado
+finance_export_payments,web,Finanzas,usado
+finance_export_transactions,web,Finanzas,usado
+finance_view_billing,web,Finanzas,usado
+finance_view_general_accounting,web,Finanzas,usado
+finance_view_general_accounting_expense,web,Finanzas,usado
+finance_view_general_accounting_income,web,Finanzas,usado
+finance_view_invoices,web,Finanzas,usado
+finance_view_payments,web,Finanzas,usado
+finance_view_transactions,web,Finanzas,usado
+fleet.assign,web,Flotas,usado
+fleet.documents.manage,web,Flotas,usado
+fleet.documents.view,web,Flotas,usado
+fleet.fuel.manage,web,Flotas,usado
+fleet.geofences.manage,web,Flotas,usado
+fleet.geofences.view,web,Flotas,usado
+fleet.gps.manage,web,Flotas,usado
+fleet.gps.view,web,Flotas,usado
+fleet.maintenance.manage,web,Flotas,usado
+fleet.manage,web,Flotas,usado
+fleet.notifications.manage,web,Flotas,usado
+fleet.notifications.view,web,Flotas,usado
+fleet.providers.manage,web,Flotas,usado
+fleet.push.manage,web,Flotas,usado
+fleet.rules.manage,web,Flotas,usado
+fleet.rules.view,web,Flotas,usado
+fleet.subscriptions.manage,web,"fleet.* (heurístico, sin module.json)",usado
+fleet.view,web,Flotas,usado
+generate-video-content,web,"Marketing IA",usado
+gestion-red.provision.preview,web,"gestion-red.* (heurístico, sin module.json)",usado
+ia_add_chat,web,"Asistente IA",usado
+ia_delete_chat,web,"Asistente IA",usado
+ia_edit_chat,web,"Asistente IA",usado
+ia_manage_memoria,web,"Asistente IA",usado
+ia_manage_notas,web,"Asistente IA",usado
+ia_manage_prompts,web,"Asistente IA",usado
+ia_manage_proveedores,web,"Asistente IA",usado
+ia_manage_proyectos,web,"Asistente IA",usado
+ia_manage_sesiones,web,"Asistente IA",usado
+ia_manage_tareas,web,"Asistente IA",usado
+ia_view_chat,web,"Asistente IA",usado
+ia_view_prompts,web,"Asistente IA",usado
+ift_add_ift,web,"ift_* (heurístico, sin module.json)",usado
+ift_delete_ift,web,"ift_* (heurístico, sin module.json)",usado
+ift_edit_ift,web,"ift_* (heurístico, sin module.json)",usado
+ift_export_ift,web,"ift_* (heurístico, sin module.json)",usado
+ift_view_ift,web,"ift_* (heurístico, sin module.json)",usado
+inbox_add_inbox,web,Mensajes,huerfano
+inbox_delete_inbox,web,Mensajes,huerfano
+inbox_edit_inbox,web,Mensajes,huerfano
+inbox_send_message,web,Mensajes,usado
+inbox_view_inbox,web,Mensajes,usado
+inventory_item_add_inventory_item,web,Inventario,usado
+inventory_item_custom_model_add_inventory_item_custom_model,web,Inventario,usado
+inventory_item_custom_model_delete_inventory_item_custom_model,web,Inventario,usado
+inventory_item_custom_model_edit_inventory_item_custom_model,web,Inventario,usado
+inventory_item_custom_model_view_inventory_item_custom_model,web,Inventario,usado
+inventory_item_delete_inventory_item,web,Inventario,usado
+inventory_item_edit_inventory_item,web,Inventario,usado
+inventory_item_stock_add_inventory_item_stock,web,Inventario,huerfano
+inventory_item_stock_delete_inventory_item_stock,web,Inventario,huerfano
+inventory_item_stock_edit_inventory_item_stock,web,Inventario,huerfano
+inventory_item_stock_view_inventory_item_stock,web,Inventario,usado
+inventory_item_type_add_inventory_item_type,web,Inventario,usado
+inventory_item_type_delete_inventory_item_type,web,Inventario,usado
+inventory_item_type_edit_inventory_item_type,web,Inventario,usado
+inventory_item_type_view_inventory_item_type,web,Inventario,usado
+inventory_item_view_inventory_item,web,Inventario,usado
+inventory_movement_add_inventory_movement,web,Inventario,usado
+inventory_movement_delete_inventory_movement,web,Inventario,usado
+inventory_movement_edit_inventory_movement,web,Inventario,usado
+inventory_movement_view_inventory_movement,web,Inventario,usado
+inventory_store_add_inventory_store,web,Inventario,usado
+inventory_store_delete_inventory_store,web,Inventario,usado
+inventory_store_edit_inventory_store,web,Inventario,usado
+inventory_store_view_inventory_store,web,Inventario,usado
+inventory_supplier_add_supplier,web,"inventory_* (heurístico, sin module.json)",usado
+inventory_supplier_delete_supplier,web,"inventory_* (heurístico, sin module.json)",usado
+inventory_supplier_edit_supplier,web,"inventory_* (heurístico, sin module.json)",usado
+inventory_supplier_invoice_add_supplier_invoice,web,"inventory_* (heurístico, sin module.json)",usado
+inventory_supplier_invoice_delete_supplier_invoice,web,"inventory_* (heurístico, sin module.json)",usado
+inventory_supplier_invoice_edit_supplier_invoice,web,"inventory_* (heurístico, sin module.json)",usado
+inventory_supplier_invoice_view_supplier_invoice,web,"inventory_* (heurístico, sin module.json)",usado
+inventory_supplier_vendors_add_supplier_vendors,web,"inventory_* (heurístico, sin module.json)",usado
+inventory_supplier_vendors_delete_supplier_vendors,web,"inventory_* (heurístico, sin module.json)",usado
+inventory_supplier_vendors_edit_supplier_vendors,web,"inventory_* (heurístico, sin module.json)",usado
+inventory_supplier_vendors_view_supplier_vendors,web,"inventory_* (heurístico, sin module.json)",usado
+inventory_supplier_view_supplier,web,"inventory_* (heurístico, sin module.json)",usado
+inventory_valuation_view_inventory_valuation,web,"inventory_* (heurístico, sin module.json)",usado
+inventory_view_inventory,web,Inventario,usado
+inversiones.backtest,web,Inversiones,huerfano
+inversiones.manage,web,Inversiones,huerfano
+inversiones.operar,web,Inversiones,huerfano
+inversiones.riesgo.edit,web,Inversiones,huerfano
+inversiones.thomas.view,web,Inversiones,huerfano
+inversiones.view,web,Inversiones,usado
+invoice_add_invoice,web,"invoice_* (heurístico, sin module.json)",usado
+invoice_delete_invoice,web,"invoice_* (heurístico, sin module.json)",usado
+invoice_edit_invoice,web,"invoice_* (heurístico, sin module.json)",huerfano
+invoice_mark_as_paid_invoice,web,"invoice_* (heurístico, sin module.json)",usado
+invoice_mark_invoice,web,"invoice_* (heurístico, sin module.json)",usado
+invoice_print_invoice,web,"invoice_* (heurístico, sin module.json)",usado
+invoice_send_invoice,web,"invoice_* (heurístico, sin module.json)",usado
+invoice_view_invoice,web,"invoice_* (heurístico, sin module.json)",huerfano
+ipv4_add_ipv4,web,"Gestión de Red",usado
+ipv4_delete_ipv4,web,"Gestión de Red",usado
+ipv4_edit_ipv4,web,"Gestión de Red",usado
+ipv4_export_ipv4,web,"Gestión de Red",usado
+ipv4_view_ipv4,web,"Gestión de Red",usado
+ipv6.manage,web,"ipv6.* (heurístico, sin module.json)",usado
+labels_view_labels,web,Mensajes,huerfano
+location_add_location,web,"location_* (heurístico, sin module.json)",usado
+location_delete_location,web,"location_* (heurístico, sin module.json)",usado
+location_edit_location,web,"location_* (heurístico, sin module.json)",usado
+location_export_location,web,"location_* (heurístico, sin module.json)",huerfano
+location_view_location,web,"location_* (heurístico, sin module.json)",usado
+manage-brand-assets,web,"Marketing IA",usado
+manage-integrations,web,"Integration Hub",usado
+manage-marketing-niches,web,"Marketing IA",usado
+manage-publication-queue,web,"Marketing IA",usado
+manage-publishing-channels,web,"Marketing IA",usado
+manage-video-settings,web,"Marketing IA",usado
+manual_generate,web,"Manual de Usuario",usado
+manual_view,web,"Manual de Usuario",usado
+mapa_red_catalogo_manage,web,"mapa_* (heurístico, sin module.json)",huerfano
+mapa_red_catalogo_view,web,"mapa_* (heurístico, sin module.json)",huerfano
+mapa_red_fotos_eliminar,web,"Mapa de Red",usado
+mapa_red_fotos_subir,web,"Mapa de Red",usado
+mapa_red_fotos_ver,web,"Mapa de Red",usado
+mapa_red_historial,web,"mapa_* (heurístico, sin module.json)",usado
+mapa_red_historial_ver,web,"Mapa de Red",usado
+mapa_red_trazar,web,"Mapa de Red",usado
+mapa_red_ver_impacto,web,"mapa_* (heurístico, sin module.json)",huerfano
+mapa_red_view,web,"Mapa de Red",usado
+mapa_red.cable.crear_rapido,web,"Mapa de Red",usado
+mapa_red.consultar_cobertura,web,"mapa_red.* (heurístico, sin module.json)",huerfano
+mapared.cobertura_declarada.manage,web,"mapared.* (heurístico, sin module.json)",usado
+mapared.drops.manage,web,"mapared.* (heurístico, sin module.json)",huerfano
+maps_building_add,web,Mapas,usado
+maps_building_edit,web,Mapas,usado
+maps_building_remove,web,Mapas,usado
+maps_change_classification,web,Mapas,usado
+maps_client_add,web,Mapas,usado
+maps_client_edit,web,Mapas,usado
+maps_client_remove,web,Mapas,usado
+maps_cupboard_add,web,Mapas,usado
+maps_cupboard_edit,web,Mapas,usado
+maps_cupboard_remove,web,Mapas,usado
+maps_folder_add,web,Mapas,usado
+maps_folder_edit,web,Mapas,usado
+maps_folder_remove,web,Mapas,usado
+maps_junction_box_add,web,Mapas,usado
+maps_junction_box_edit,web,Mapas,usado
+maps_junction_box_remove,web,Mapas,usado
+maps_kmz_edit,web,Mapas,usado
+maps_kmz_load,web,Mapas,usado
+maps_kmz_remove,web,Mapas,usado
+maps_note_add,web,Mapas,usado
+maps_note_edit,web,Mapas,usado
+maps_note_remove,web,Mapas,usado
+maps_pack_add,web,Mapas,usado
+maps_pack_edit,web,Mapas,usado
+maps_pack_remove,web,Mapas,usado
+maps_pole_add,web,Mapas,usado
+maps_pole_edit,web,Mapas,usado
+maps_pole_remove,web,Mapas,usado
+maps_region_add,web,Mapas,usado
+maps_region_edit,web,Mapas,usado
+maps_region_remove,web,Mapas,usado
+maps_route_add,web,Mapas,usado
+maps_route_edit,web,Mapas,usado
+maps_route_remove,web,Mapas,usado
+maps_service_box_add,web,Mapas,usado
+maps_service_box_edit,web,Mapas,usado
+maps_service_box_remove,web,Mapas,usado
+maps_site_add,web,Mapas,usado
+maps_site_edit,web,Mapas,usado
+maps_site_remove,web,Mapas,usado
+maps_source_add,web,Mapas,usado
+maps_source_edit,web,Mapas,usado
+maps_source_remove,web,Mapas,usado
+maps_view_maps,web,Mapas,usado
+megafamilia_admin,web,MegaFamilia,usado
+megafamilia_support,web,MegaFamilia,usado
+megafamilia_view,web,MegaFamilia,usado
+method_payment_add_method_payment,web,Configuración,usado
+method_payment_delete_method_payment,web,Configuración,usado
+method_payment_edit_method_payment,web,Configuración,usado
+method_payment_export_method_payment,web,Configuración,usado
+method_payment_view_method_payment,web,Configuración,usado
+mikrotik_sync_retry,web,"Gestión de Red",usado
+mikrotik_sync_view_dashboard,web,"Gestión de Red",usado
+module.visibility.manage,web,"module.* (heurístico, sin module.json)",usado
+municipality_add_municipality,web,"municipality_* (heurístico, sin module.json)",usado
+municipality_delete_municipality,web,"municipality_* (heurístico, sin module.json)",usado
+municipality_edit_municipality,web,"municipality_* (heurístico, sin module.json)",usado
+municipality_export_municipality,web,"municipality_* (heurístico, sin module.json)",usado
+municipality_view_municipality,web,"municipality_* (heurístico, sin module.json)",usado
+nomenclature_add_nomenclature,web,Configuración,usado
+nomenclature_delete_nomenclature,web,Configuración,usado
+nomenclature_edit_nomenclature,web,Configuración,usado
+nomenclature_view_nomenclature,web,Configuración,usado
+odb_add,web,"odb_* (heurístico, sin module.json)",usado
+olt_add,web,"Gestión de Red",usado
+olt_edit,web,"Gestión de Red",huerfano
+olt_remove,web,"Gestión de Red",huerfano
+olt_view,web,"Gestión de Red",usado
+onu_add,web,"Gestión de Red",usado
+onu_default,web,"Gestión de Red",usado
+onu_edit,web,"Gestión de Red",usado
+onu_enable_disable,web,"Gestión de Red",usado
+onu_reboot,web,"Gestión de Red",usado
+onu_remove,web,"Gestión de Red",usado
+onu_resync,web,"Gestión de Red",usado
+onu_type_add,web,"Gestión de Red",usado
+package_view_package,web,"package_* (heurístico, sin module.json)",usado
+pagos.conciliar,web,"Portal de Pago Meganet",usado
+pagos.cuentas.manage,web,"Portal de Pago Meganet",usado
+pagos.links.manage,web,"Portal de Pago Meganet",usado
+pagos.view,web,"Portal de Pago Meganet",usado
+panel_view_billing,web,"panel_* (heurístico, sin module.json)",huerfano
+panel_view_prospects,web,"panel_* (heurístico, sin module.json)",huerfano
+panel_view_sales,web,"panel_* (heurístico, sin module.json)",huerfano
+panel_view_stadistics,web,"panel_* (heurístico, sin module.json)",huerfano
+partners_add_partners,web,"partners_* (heurístico, sin module.json)",usado
+partners_delete_partners,web,"partners_* (heurístico, sin module.json)",usado
+partners_edit_partners,web,"partners_* (heurístico, sin module.json)",usado
+partners_export_partners,web,"partners_* (heurístico, sin module.json)",usado
+partners_view_partners,web,"partners_* (heurístico, sin module.json)",usado
+payments_assign_clabe,web,"Pagos SPEI / OpenPay",usado
+payments_capture_manage,web,"Pagos SPEI / OpenPay",usado
+payments_manage_providers,web,"Pagos SPEI / OpenPay",usado
+payments_view_providers,web,"Pagos SPEI / OpenPay",usado
+payments_view_receipts,web,"Pagos SPEI / OpenPay",usado
+payments_view_webhooks_log,web,"Pagos SPEI / OpenPay",usado
+payments.captura.aplicar,web,"payments.* (heurístico, sin module.json)",usado
+plan_add_custom,web,Planes,usado
+plan_add_internet,web,Planes,usado
+plan_add_package,web,Planes,usado
+plan_add_voz,web,Planes,usado
+plan_delete_custom,web,Planes,usado
+plan_delete_internet,web,Planes,usado
+plan_delete_package,web,Planes,usado
+plan_delete_voz,web,Planes,usado
+plan_edit_custom,web,Planes,usado
+plan_edit_internet,web,Planes,usado
+plan_edit_package,web,Planes,usado
+plan_edit_voz,web,Planes,usado
+plan_export_custom,web,Planes,usado
+plan_export_internet,web,Planes,usado
+plan_export_package,web,Planes,usado
+plan_export_voz,web,Planes,usado
+plan_view_custom,web,Planes,usado
+plan_view_internet,web,Planes,usado
+plan_view_package,web,Planes,usado
+plan_view_voz,web,Planes,usado
+portal.colaborador,web,"Talento Meganet",usado
+publish-content,web,"Marketing IA",usado
+reconciliation_resolve,web,"reconciliation_* (heurístico, sin module.json)",usado
+reconciliation_view,web,"reconciliation_* (heurístico, sin module.json)",usado
+regenerate-marketing-variants,web,"regenerate-* (heurístico, sin module.json)",usado
+release_add_description,web,"release_* (heurístico, sin module.json)",usado
+release_add_release,web,"release_* (heurístico, sin module.json)",usado
+release_delete_description,web,"release_* (heurístico, sin module.json)",usado
+release_edit_description,web,"release_* (heurístico, sin module.json)",usado
+release_edit_release,web,"release_* (heurístico, sin module.json)",usado
+release_view_release,web,"release_* (heurístico, sin module.json)",usado
+roadmap_manage,web,"Hoja de ruta",usado
+roadmap_view,web,"Hoja de ruta",usado
+role_add_role,web,"role_* (heurístico, sin module.json)",usado
+role_delete_role,web,"role_* (heurístico, sin module.json)",usado
+role_edit_role,web,"role_* (heurístico, sin module.json)",usado
+role_permission_role,web,"role_* (heurístico, sin module.json)",usado
+role_view_role,web,"role_* (heurístico, sin module.json)",usado
+rotate-integration-keys,web,"rotate-* (heurístico, sin module.json)",usado
+router_add_router,web,"Gestión de Red",usado
+router_delete_router,web,"Gestión de Red",usado
+router_edit_router,web,"Gestión de Red",usado
+router_export_router,web,"Gestión de Red",usado
+router_view_router,web,"Gestión de Red",usado
+schedule-publications,web,"schedule-* (heurístico, sin module.json)",usado
+scheduling_project_create,web,Scheduling,usado
+scheduling_project_delete,web,Scheduling,usado
+scheduling_project_update,web,Scheduling,usado
+scheduling_project_view_project,web,Scheduling,usado
+scheduling_task_create,web,Scheduling,usado
+scheduling_task_delete,web,Scheduling,huerfano
+scheduling_task_update,web,Scheduling,usado
+scheduling_task_view_task,web,Scheduling,usado
+scheduling_view_calendar,web,Scheduling,usado
+scheduling_view_scheduling,web,Scheduling,usado
+seller_add_payment,web,Vendedores,usado
+seller_add_seller,web,Vendedores,usado
+seller_cuts,web,Vendedores,usado
+seller_cuts_add_comments,web,Vendedores,usado
+seller_cuts_add_expenses,web,Vendedores,usado
+seller_cuts_add_extra_icome,web,Vendedores,usado
+seller_cuts_add_installation,web,Vendedores,usado
+seller_cuts_close_box,web,Vendedores,usado
+seller_cuts_delete_comments,web,Vendedores,usado
+seller_cuts_delete_expenses,web,Vendedores,usado
+seller_cuts_delete_extra_icome,web,Vendedores,usado
+seller_cuts_delete_installation,web,Vendedores,usado
+seller_cuts_edit_comments,web,Vendedores,usado
+seller_cuts_edit_expenses,web,Vendedores,usado
+seller_cuts_edit_extra_icome,web,Vendedores,usado
+seller_cuts_edit_installation,web,Vendedores,usado
+seller_delete_payment,web,Vendedores,usado
+seller_delete_seller,web,Vendedores,usado
+seller_download_payment,web,Vendedores,usado
+seller_edit_payment,web,Vendedores,usado
+seller_edit_seller,web,Vendedores,usado
+seller_follow_payment_client,web,Vendedores,usado
+seller_view_all_payments_for_seller,web,Vendedores,usado
+seller_view_all_transactions_for_seller,web,Vendedores,usado
+seller_view_billing,web,Vendedores,usado
+seller_view_dashboard,web,Vendedores,usado
+seller_view_panel,web,Vendedores,usado
+seller_view_prospects,web,Vendedores,usado
+seller_view_sales,web,Vendedores,usado
+seller_view_seller,web,Vendedores,usado
+seller_view_statics,web,Vendedores,usado
+selleritems_add_selleritems,web,Vendedores,usado
+selleritems_delete_selleritems,web,Vendedores,usado
+selleritems_edit_selleritems,web,Vendedores,usado
+selleritems_view_selleritems,web,Vendedores,usado
+service_in_address_list_add_service_in_address_list,web,Configuración,huerfano
+service_in_address_list_delete_service_in_address_list,web,Configuración,huerfano
+service_in_address_list_edit_service_in_address_list,web,Configuración,huerfano
+service_in_address_list_view_service_in_address_list,web,Configuración,usado
+smart_export_execute,web,"Smart Import/Export",usado
+smart_export_view,web,"Smart Import/Export",usado
+smart_import_execute,web,"Smart Import/Export",usado
+smart_import_view,web,"Smart Import/Export",usado
+state_add_state,web,"state_* (heurístico, sin module.json)",usado
+state_delete_state,web,"state_* (heurístico, sin module.json)",usado
+state_edit_state,web,"state_* (heurístico, sin module.json)",usado
+state_export_state,web,"state_* (heurístico, sin module.json)",usado
+state_view_state,web,"state_* (heurístico, sin module.json)",usado
+store_zone_add_store_zone,web,Inventario,usado
+store_zone_delete_store_zone,web,Inventario,usado
+store_zone_edit_store_zone,web,Inventario,usado
+store_zone_view_store_zone,web,Inventario,usado
+supervision_store,web,"supervision_* (heurístico, sin module.json)",usado
+supplier_add_supplier,web,"supplier_* (heurístico, sin module.json)",usado
+supplier_delete_supplier,web,"supplier_* (heurístico, sin module.json)",usado
+supplier_edit_supplier,web,"supplier_* (heurístico, sin module.json)",usado
+supplier_view_supplier,web,"supplier_* (heurístico, sin module.json)",usado
+sync_from_api,web,"sync_* (heurístico, sin module.json)",usado
+talento.academy.evaluate,web,"Talento Meganet",usado
+talento.academy.manage,web,"Talento Meganet",usado
+talento.academy.view,web,"Talento Meganet",usado
+talento.activations.manage,web,"talento.* (heurístico, sin module.json)",usado
+talento.activity_types.manage,web,"talento.* (heurístico, sin module.json)",usado
+talento.activity_types.view,web,"talento.* (heurístico, sin module.json)",usado
+talento.attendance.checkin,web,"talento.* (heurístico, sin module.json)",usado
+talento.attendance.manage,web,"talento.* (heurístico, sin module.json)",usado
+talento.attendance.view,web,"talento.* (heurístico, sin module.json)",usado
+talento.caja.manage,web,"talento.* (heurístico, sin module.json)",usado
+talento.caja.view,web,"talento.* (heurístico, sin module.json)",usado
+talento.compensation.manage,web,"Talento Meganet",usado
+talento.compensation.view,web,"Talento Meganet",usado
+talento.config.evidencias,web,"talento.* (heurístico, sin module.json)",usado
+talento.credentials.manage,web,"Talento Meganet",usado
+talento.credentials.view,web,"Talento Meganet",usado
+talento.custody.view,web,"Talento Meganet",usado
+talento.dashboard.view,web,"Talento Meganet",usado
+talento.devices.manage,web,"Talento Meganet",usado
+talento.devices.view,web,"Talento Meganet",usado
+talento.documentos.completar,web,"talento.* (heurístico, sin module.json)",usado
+talento.embajadores.view,web,"Talento Meganet",usado
+talento.escalafon.manage,web,"Talento Meganet",usado
+talento.escalafon.view,web,"Talento Meganet",usado
+talento.expediente.documentos.gestionar,web,"talento.* (heurístico, sin module.json)",usado
+talento.expediente.documentos.ver,web,"talento.* (heurístico, sin module.json)",usado
+talento.expediente.paquetes.manage,web,"talento.* (heurístico, sin module.json)",usado
+talento.expediente.view,web,"talento.* (heurístico, sin module.json)",usado
+talento.field_flow.accept,web,"talento.* (heurístico, sin module.json)",usado
+talento.finiquito.cerrar,web,"talento.* (heurístico, sin module.json)",usado
+talento.funds.manage,web,"Talento Meganet",usado
+talento.funds.view,web,"Talento Meganet",usado
+talento.health_bonus.view,web,"talento.* (heurístico, sin module.json)",usado
+talento.ia_validation.override,web,"talento.* (heurístico, sin module.json)",usado
+talento.ia_validation.view,web,"talento.* (heurístico, sin module.json)",usado
+talento.ledger.view,web,"Talento Meganet",usado
+talento.levels.manage,web,"Talento Meganet",usado
+talento.levels.view,web,"Talento Meganet",usado
+talento.liquidacion.calcular,web,"talento.* (heurístico, sin module.json)",usado
+talento.liquidation.manage,web,"Talento Meganet",usado
+talento.liquidation.view,web,"Talento Meganet",usado
+talento.loans.manage,web,"Talento Meganet",usado
+talento.loans.view,web,"Talento Meganet",usado
+talento.location.view,web,"talento.* (heurístico, sin module.json)",usado
+talento.manage,web,"Talento Meganet",usado
+talento.media.upload,web,"talento.* (heurístico, sin module.json)",usado
+talento.media.view,web,"talento.* (heurístico, sin module.json)",usado
+talento.media.view_sensitive,web,"talento.* (heurístico, sin module.json)",usado
+talento.penalties.appeal,web,"Talento Meganet",usado
+talento.penalties.manage,web,"Talento Meganet",usado
+talento.penalties.resolve,web,"Talento Meganet",usado
+talento.penalties.view,web,"Talento Meganet",usado
+talento.project_reports.approve,web,"talento.* (heurístico, sin module.json)",usado
+talento.project_reports.create,web,"talento.* (heurístico, sin module.json)",usado
+talento.project_reports.view,web,"talento.* (heurístico, sin module.json)",usado
+talento.projects.manage,web,"Talento Meganet",usado
+talento.projects.view,web,"Talento Meganet",usado
+talento.puestos.manage,web,"talento.* (heurístico, sin module.json)",usado
+talento.quality.manage,web,"Talento Meganet",usado
+talento.quality.view,web,"Talento Meganet",usado
+talento.roadmap.manage,web,"Talento Meganet",usado
+talento.roadmap.view,web,"Talento Meganet",usado
+talento.routes.manage,web,"talento.* (heurístico, sin module.json)",usado
+talento.routes.view,web,"talento.* (heurístico, sin module.json)",usado
+talento.selleritems.view,web,"Talento Meganet",usado
+talento.settlement.manage,web,"Talento Meganet",usado
+talento.settlement.view,web,"Talento Meganet",usado
+talento.signatures.view,web,"talento.* (heurístico, sin module.json)",usado
+talento.survey.manage,web,"talento.* (heurístico, sin module.json)",usado
+talento.survey.view,web,"talento.* (heurístico, sin module.json)",usado
+talento.ventas.view,web,"Talento Meganet",usado
+talento.view,web,"Talento Meganet",usado
+talento.warranty.override,web,"talento.* (heurístico, sin module.json)",usado
+talento.warranty.view,web,"talento.* (heurístico, sin module.json)",usado
+talento.work_orders.manage,web,"Talento Meganet",usado
+talento.work_orders.validate,web,"Talento Meganet",usado
+talento.work_orders.view,web,"Talento Meganet",usado
+talento.work_sites.manage,web,"talento.* (heurístico, sin module.json)",usado
+talento.work_sites.view,web,"talento.* (heurístico, sin module.json)",usado
+task_add_task,web,Scheduling,usado
+task_archive_task,web,Scheduling,usado
+task_delete_task,web,Scheduling,usado
+task_edit_task,web,Scheduling,usado
+task_export_task,web,Scheduling,huerfano
+task_filter_assigned_to,web,Scheduling,usado
+task_filter_filter,web,Scheduling,usado
+task_filter_partner,web,Scheduling,usado
+task_filter_project,web,Scheduling,usado
+task_filter_status,web,Scheduling,usado
+task_view_archived_task,web,Scheduling,usado
+task_view_full_task,web,Scheduling,usado
+task_view_task,web,Scheduling,usado
+templates_view_templates,web,"templates_* (heurístico, sin module.json)",huerfano
+templatetask_add_templatetask,web,Scheduling,huerfano
+templatetask_delete_templatetask,web,Scheduling,huerfano
+templatetask_edit_templatetask,web,Scheduling,huerfano
+templatetask_export_templatetask,web,Scheduling,huerfano
+templatetask_view_templatetask,web,Scheduling,usado
+test_item842_probe_b,web,"test_* (heurístico, sin module.json)",huerfano
+test_item842_probe_c,web,"test_* (heurístico, sin module.json)",huerfano
+test-voices,web,"test-* (heurístico, sin module.json)",usado
+ticket_add_close,web,Tickets,usado
+ticket_add_open,web,Tickets,usado
+ticket_add_recycling,web,Tickets,usado
+ticket_delete_close,web,Tickets,usado
+ticket_delete_open,web,Tickets,usado
+ticket_delete_recycling,web,Tickets,usado
+ticket_edit_close,web,Tickets,usado
+ticket_edit_open,web,Tickets,usado
+ticket_edit_recycling,web,Tickets,usado
+ticket_export_close,web,Tickets,usado
+ticket_export_open,web,Tickets,usado
+ticket_export_recycling,web,Tickets,usado
+ticket_view_close,web,Tickets,usado
+ticket_view_dashboard,web,Tickets,usado
+ticket_view_open,web,Tickets,usado
+ticket_view_recycling,web,Tickets,usado
+torre.actividad.view,web,"torre.* (heurístico, sin module.json)",usado
+torre.cola.ver,web,"torre.* (heurístico, sin module.json)",usado
+torre.config.edit,web,"torre.* (heurístico, sin module.json)",usado
+torre.config.view,web,"torre.* (heurístico, sin module.json)",usado
+torre.salud.manage,web,"torre.* (heurístico, sin module.json)",usado
+torre.terminales.editar_avatar,web,"torre.* (heurístico, sin module.json)",usado
+translation_view_translation,web,"translation_* (heurístico, sin module.json)",huerfano
+updates.apply,web,"updates.* (heurístico, sin module.json)",usado
+usar-ia-chat,web,"usar-* (heurístico, sin module.json)",usado
+user_add_user,web,"user_* (heurístico, sin module.json)",usado
+user_delete_user,web,"user_* (heurístico, sin module.json)",usado
+user_edit_user,web,"user_* (heurístico, sin module.json)",usado
+user_permission_user,web,"user_* (heurístico, sin module.json)",usado
+user_view_user,web,"user_* (heurístico, sin module.json)",usado
+validate-integrations,web,"validate-* (heurístico, sin module.json)",usado
+view_data_plan_promotion,web,"view_* (heurístico, sin module.json)",usado
+view_sucursal,web,"view_* (heurístico, sin module.json)",usado
+view-integration-logs,web,"view-* (heurístico, sin module.json)",usado
+view-integrations,web,"view-* (heurístico, sin module.json)",usado
+view-marketing-campaigns,web,"view-* (heurístico, sin module.json)",usado
+view-publication-metrics,web,"view-* (heurístico, sin module.json)",usado
+view-publishing-dashboard,web,"view-* (heurístico, sin module.json)",usado
+view-video-content,web,"view-* (heurístico, sin module.json)",usado
+view-video-templates,web,"view-* (heurístico, sin module.json)",usado
+vlan_add,web,"vlan_* (heurístico, sin module.json)",usado
+voip.extensiones.create,web,"voip.* (heurístico, sin module.json)",usado
+voip.extensiones.delete,web,"voip.* (heurístico, sin module.json)",usado
+voip.extensiones.edit,web,"voip.* (heurístico, sin module.json)",usado
+voip.extensiones.provision,web,"voip.* (heurístico, sin module.json)",usado
+voip.extensiones.test,web,"voip.* (heurístico, sin module.json)",usado
+voip.extensiones.view,web,"voip.* (heurístico, sin module.json)",usado
+voip.grupos.create,web,"voip.* (heurístico, sin module.json)",usado
+voip.grupos.delete,web,"voip.* (heurístico, sin module.json)",usado
+voip.grupos.edit,web,"voip.* (heurístico, sin module.json)",usado
+voip.grupos.view,web,"voip.* (heurístico, sin module.json)",usado
+voip.ia-bot.config,web,"voip.* (heurístico, sin module.json)",usado
+voip.ia-bot.kb,web,"voip.* (heurístico, sin module.json)",usado
+voip.ia-bot.leads,web,"voip.* (heurístico, sin module.json)",usado
+voip.ia-bot.view,web,"voip.* (heurístico, sin module.json)",usado
+voip.troncales.create,web,VoIP,usado
+voip.troncales.delete,web,VoIP,usado
+voip.troncales.edit,web,VoIP,usado
+voip.troncales.provision,web,VoIP,usado
+voip.troncales.test,web,VoIP,usado
+voip.troncales.view,web,VoIP,usado
+voip.view,web,VoIP,usado
+warroom.action_items.assign,web,"War Room Ejecutivo",usado
+warroom.insights.regenerate,web,"War Room Ejecutivo",usado
+warroom.meeting.create,web,"War Room Ejecutivo",usado
+warroom.meeting.delete,web,"War Room Ejecutivo",usado
+warroom.meeting.moderate,web,"War Room Ejecutivo",usado
+warroom.snapshots.regenerate,web,"War Room Ejecutivo",usado
+warroom.view,web,"War Room Ejecutivo",usado
+whatsapp_manage_functions,web,"WhatsApp Agent",usado
+whatsapp_manage_instances,web,"WhatsApp Agent",usado
+whatsapp_send_messages,web,"WhatsApp Agent",usado
+whatsapp_use_ia,web,"WhatsApp Agent",usado
+whatsapp_view_conversations,web,"WhatsApp Agent",usado
+whatsapp_view_logs,web,"WhatsApp Agent",usado
+zone_add,web,"zone_* (heurístico, sin module.json)",usado
