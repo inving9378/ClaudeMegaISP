@@ -130,6 +130,13 @@ class RemoteDeployCommand extends Command
             //    con la verificación M1 (migrate:status): tras el timeout se comprueba el estado real y,
             //    si no quedan migraciones pendientes, el fallo por exit se trata como éxito y el deploy sigue.
             ['key' => 'migrate',       'name' => 'Aplicando cambios en la base de datos — puede tardar varios minutos, no cierres la ventana', 'type' => 'shell',   'cmd' => 'php artisan migrate --force', 'timeout' => config('deployment.migrate_timeout', 2400), 'critical' => false, 'fail_deploy_no_rollback' => true],
+            // 4.5 Reconciliar module_registry — gemelo de permisos (item #9990762): un módulo
+            //    puede traer código+migraciones+permisos y aun así quedar invisible en el
+            //    sidebar si no tiene fila en module_registry (pasó con addon-mapa-red en prod,
+            //    2026-09-11). Idempotente y no destructivo (solo crea filas faltantes); NO
+            //    crítico — un manifest raro no debe tumbar el deploy (el propio comando ya se
+            //    traga sus propios errores por-manifest y siempre sale con exit 0).
+            ['key' => 'module_registry_sync', 'name' => 'Reconciliar módulos nuevos en module_registry', 'type' => 'artisan', 'cmd' => 'modules:reconcile-registry', 'timeout' => 30, 'critical' => false],
             // 5. Warm-up de cachés — ⚠️ item #520: NUNCA `optimize` (incluye `config:cache`).
             //    Este sistema lee `env()` en runtime (IA/WhatsApp): con bootstrap/cache/config.php
             //    presente, Laravel se salta LoadEnvironmentVariables al bootear y `env()` devuelve
