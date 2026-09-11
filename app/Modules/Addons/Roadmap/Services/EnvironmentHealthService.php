@@ -55,6 +55,7 @@ class EnvironmentHealthService
             'errores_24h'      => $this->seguro('errores_24h', fn () => $this->errores24h()),
             'caches'           => $this->seguro('caches', fn () => $this->estadoCaches()),
             'reactivacion_agendados' => $this->seguro('reactivacion_agendados', fn () => $this->reactivacionAgendados()),
+            'huerfanos_sin_merge' => $this->seguro('huerfanos_sin_merge', fn () => $this->huerfanosSinMerge()),
             'cron_schedule_run' => $this->seguro('cron_schedule_run', fn () => $this->cronScheduleRun()),
             'queue_workers'    => $this->seguro('queue_workers', fn () => $this->queueWorkers()),
             'generado_at'      => now()->toIso8601String(),
@@ -329,6 +330,63 @@ class EnvironmentHealthService
             'hace_horas'    => $proceso['horas'],
             'nunca'         => $proceso['nunca'],
             'ultimo_fallo'  => $proceso['ultimo_fallo'],
+        ];
+    }
+
+    /**
+     * #9990737 (Fase 2 de #9990730) — lee lo que ya categorizó `circuito:auditar-huerfanos`
+     * (Fase 1, #9990736) en el `log[]` de cada item, en vez de re-clasificar con git (eso ya lo
+     * hizo el comando programado arriba). Universo: items `completado` con `branch` sin
+     * `merge_commit`, igual que el propio comando. Para cada item se toma la entrada
+     * `auditoria_huerfano` MÁS RECIENTE de su log; items que nunca fueron auditados (el comando
+     * no ha corrido todavía) no suman a ninguna categoría, pero sí a `total` (universo real).
+     */
+    private function huerfanosSinMerge(): array
+    {
+        $items = \App\Modules\Addons\Roadmap\Models\RoadmapItem::query()
+            ->where('estado_aprobacion', 'completado')
+            ->whereNotNull('branch')
+            ->whereNull('merge_commit')
+            ->get(['id', 'log']);
+
+        $conteo = ['divergencia_real' => 0, 'solo_registro' => 0, 'rama_inexistente' => 0];
+        $ultimaCorridaAt = null;
+
+        foreach ($items as $item) {
+            $log = is_array($item->log) ? $item->log : [];
+            $ultima = null;
+            foreach ($log as $entrada) {
+                if (($entrada['evento'] ?? null) !== 'auditoria_huerfano') {
+                    continue;
+                }
+                $ultima = $entrada;
+            }
+
+            if (! $ultima) {
+                continue;
+            }
+            if (! $ultimaCorridaAt || $ultima['ts'] > $ultimaCorridaAt) {
+                $ultimaCorridaAt = $ultima['ts'];
+            }
+            if (isset($conteo[$ultima['categoria'] ?? ''])) {
+                $conteo[$ultima['categoria']]++;
+            }
+        }
+
+        $estado = 'verde';
+        if ($conteo['divergencia_real'] > 0) {
+            $estado = 'rojo';
+        } elseif ($conteo['rama_inexistente'] > 0) {
+            $estado = 'amarillo';
+        }
+
+        return [
+            'estado'            => $estado,
+            'divergencia_real'  => $conteo['divergencia_real'],
+            'solo_registro'     => $conteo['solo_registro'],
+            'rama_inexistente'  => $conteo['rama_inexistente'],
+            'total'             => $items->count(),
+            'ultima_corrida_at' => $ultimaCorridaAt,
         ];
     }
 
