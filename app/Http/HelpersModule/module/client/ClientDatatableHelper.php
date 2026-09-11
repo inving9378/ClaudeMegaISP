@@ -12,6 +12,7 @@ use App\Services\FormatDateService;
 use App\Services\NetworkIpService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ClientDatatableHelper
 {
@@ -950,6 +951,9 @@ class ClientDatatableHelper
         $columns = $this->getColumns($columns);
         $filters = $this->getFiltersFromRequest($request);
         $idModule = $this->getIdModuleFromRequest($request);
+        $esBusqueda = $this->hasSearchTerm($request);
+        $tInicioBusqueda = $esBusqueda ? microtime(true) : null;
+
         $totalData = $this->countTotalData($idModule, $filters, $request, $columns);
 
         $totalFiltered = $totalData;
@@ -969,13 +973,19 @@ class ClientDatatableHelper
         $ampliada = (bool) ($request->data['ampliada'] ?? false);
 
         // Obtener los datos según el estado de búsqueda
-        $array = $this->hasSearchTerm($request)
+        $array = $esBusqueda
             ? $this->searching_query($start, $limit, $order, $dir, $request->data['search'], $idModule ?? $filters, $columns, $ampliada)
             : $this->ordering_query($start, $limit, $order, $dir, $idModule ?? $filters, $columns);
 
         // Pre-compute heavy per-row values in batch before transform
         $this->hydrateClientFechaCorte($array);
         $this->hydrateClientPriceAllServices($array);
+
+        // Fase 4 (item #9990815): duración end-to-end de la búsqueda (COUNT + SELECT +
+        // hidratación), término ofuscado a su longitud por privacidad (nunca el término real).
+        if ($esBusqueda) {
+            $this->registrarDuracionBusqueda($tInicioBusqueda, $request->data['search'], $ampliada);
+        }
 
         // Transformar y devolver los datos
         $param_resource = collect([
@@ -1080,6 +1090,22 @@ class ClientDatatableHelper
     private function hasSearchTerm($request)
     {
         return !empty($request->data['search']);
+    }
+
+    /**
+     * Fase 4 (item #9990815): mide el costo end-to-end de una búsqueda del listado de
+     * Clientes. Por privacidad NUNCA se loguea el término, solo su longitud.
+     */
+    private function registrarDuracionBusqueda(float $inicio, string $termino, bool $ampliada): void
+    {
+        $duracionMs = round((microtime(true) - $inicio) * 1000, 2);
+
+        Log::channel('clientes_busqueda')->debug('busqueda_clientes', [
+            'longitud_termino' => mb_strlen(trim($termino)),
+            'duracion_ms' => $duracionMs,
+            'v2_habilitado' => (bool) config('clientes_busqueda.v2_habilitado'),
+            'ampliada' => $ampliada,
+        ]);
     }
 
 
