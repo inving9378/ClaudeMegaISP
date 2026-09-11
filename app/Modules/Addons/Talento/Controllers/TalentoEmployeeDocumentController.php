@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Talento\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoEmployeeDocument;
 use App\Modules\Addons\Talento\Models\TalentoEmployeeDocumentSignature;
 use App\Modules\Addons\Talento\Services\EmployeeDocumentPackageService;
@@ -160,14 +161,106 @@ class TalentoEmployeeDocumentController extends Controller
 
         $documento = TalentoEmployeeDocument::where('colaborador_id', $colaboradorId)
             ->where('id', $docId)
+            ->with('template.signatureSlots')
             ->firstOrFail();
 
         // Item #9990666: reinyecta el CSS ACTUAL sobre el HTML congelado en BD, asi que
         // mejoras de estilo aplican al instante a documentos ya generados sin regenerarlos.
         $html = app(TemplateRenderService::class)->reinjectCurrentCss($documento->rendered_html);
 
+        // Item #9990819 (Fase 2 de #9990805): hoja de constancia de firma electronica anexada
+        // como pagina adicional AL FINAL (q1 aprobada), solo si ya hay al menos una firma
+        // registrada (q4 aprobada). Se arma en cada show() -- nunca se guarda en rendered_html
+        // -- porque el estado de firmas cambia despues de generado el documento.
+        $html = $this->anexarConstanciaFirma($html, $documento);
+
         return response($html, Response::HTTP_OK)
             ->header('Content-Type', 'text/html');
+    }
+
+    /**
+     * Item #9990819 -- hoja de constancia de firma electronica. Una fila por cada firma YA
+     * REGISTRADA en talento_employee_document_signatures (signed_at no nulo); reusa la
+     * metadata legal capturada en sign() (item #9990805 fase 1: hash_documento/ip/dispositivo/
+     * trazos). Documentos legado sin slots quedan fuera (esa fase ya documento que ningun
+     * template activo los usa hoy), asi que basta con consultar la tabla de firmas por slot.
+     * Campos: rol/tipo de firmante (slot->label/firmante_tipo) + nombre real de quien firmo
+     * (User::signed_by, q2 aprobada "nombre del firmante") + fecha/hora + IP + dispositivo +
+     * hash SHA-256 + evidencia de trazos/subida + folio unico (q2 aprobada).
+     */
+    private function anexarConstanciaFirma(string $html, TalentoEmployeeDocument $documento): string
+    {
+        $firmas = TalentoEmployeeDocumentSignature::where('employee_document_id', $documento->id)
+            ->whereNotNull('signed_at')
+            ->orderBy('signed_at')
+            ->get();
+
+        if ($firmas->isEmpty()) {
+            return $html;
+        }
+
+        $slotsPorKey = ($documento->template->signatureSlots ?? collect())->keyBy('key');
+        $usuarios = User::whereIn('id', $firmas->pluck('signed_by')->filter()->unique())
+            ->get(['id', 'name', 'father_last_name', 'mother_last_name'])
+            ->keyBy('id');
+
+        $filasHtml = $firmas->map(function (TalentoEmployeeDocumentSignature $firma) use ($slotsPorKey, $usuarios) {
+            $slot = $firma->slot_key ? $slotsPorKey->get($firma->slot_key) : null;
+            $usuario = $firma->signed_by ? $usuarios->get($firma->signed_by) : null;
+
+            $trazosCount = is_array($firma->trazos) ? count($firma->trazos) : 0;
+            $evidencia = $firma->signature_method === 'uploaded'
+                ? 'Firma subida como imagen'
+                : "Firma manuscrita capturada por trazos de puntero: {$trazosCount} punto(s)";
+
+            $folio = 'FIRMA-' . str_pad((string) $firma->id, 6, '0', STR_PAD_LEFT);
+
+            $rol = e($slot->label ?? 'Firma') . ($slot ? ' (' . e($slot->firmante_tipo) . ')' : '');
+            $nombre = $usuario ? e($usuario->getClientNameWithFathersNamesAttribute()) : '—';
+            $fecha = $firma->signed_at ? e($firma->signed_at->format('d/m/Y H:i:s')) : '—';
+
+            return <<<HTML
+<tr>
+<td>{$rol}<br><small>{$nombre}</small></td>
+<td>{$fecha}</td>
+<td>{$this->campoOrGuion($firma->ip)}</td>
+<td>{$this->campoOrGuion($firma->dispositivo)}</td>
+<td style="word-break:break-all;font-family:monospace;font-size:9pt;">{$this->campoOrGuion($firma->hash_documento)}</td>
+<td>{$evidencia}<br><small>Folio: {$folio}</small></td>
+</tr>
+HTML;
+        })->implode('');
+
+        $constancia = <<<HTML
+<div class="documento-contenido constancia-firma">
+<h2>Hoja de constancia de firma electrónica</h2>
+<p>Este documento fue firmado electrónicamente. Por cada firma se registró la siguiente evidencia técnica como constancia de su realización.</p>
+<table>
+<thead>
+<tr>
+<th>Firmante</th>
+<th>Fecha y hora</th>
+<th>IP</th>
+<th>Dispositivo</th>
+<th>Hash SHA-256 del documento</th>
+<th>Evidencia</th>
+</tr>
+</thead>
+<tbody>
+{$filasHtml}
+</tbody>
+</table>
+</div>
+HTML;
+
+        return str_contains($html, '</body>')
+            ? str_replace('</body>', $constancia . '</body>', $html)
+            : $html . $constancia;
+    }
+
+    private function campoOrGuion(?string $valor): string
+    {
+        return $valor !== null && $valor !== '' ? e($valor) : '—';
     }
 
     /**

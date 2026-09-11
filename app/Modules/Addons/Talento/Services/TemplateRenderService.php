@@ -271,6 +271,12 @@ body {
     font-size: 0.9em;
     letter-spacing: normal;
 }
+.constancia-firma {
+    /* Item #9990819: hoja de constancia de firma electronica, anexada como pagina aparte al
+       final del documento -- arranca en hoja nueva al imprimir/exportar a PDF. */
+    page-break-before: always;
+    break-before: page;
+}
 @media print {
     body {
         background: #fff;
