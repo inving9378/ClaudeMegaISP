@@ -755,6 +755,35 @@ watch(capasEncendidas, () => {
     aplicarVisibilidadCapas();
 });
 
+// MR flujo animado Fase 3a (item roadmap #9990759): viewport culling. Las polylines con
+// clase enlace-fibra que quedan FUERA del viewport actual reciben "sin-animar" (CSS,
+// mapared-enlace-fibra.css, animation:none) para no gastar CPU animando algo que no se ve.
+// Guard de performance: con el flujo animado apagado (props.flujoAnimadoEnabled=false) no
+// existe ninguna capa con esa clase — salir antes de recorrer las capas del mapa.
+const aplicarViewportCulling = () => {
+    if (!map || !props.flujoAnimadoEnabled) {
+        return;
+    }
+    const viewBounds = map.getBounds();
+    map.eachLayer((layer) => {
+        const path =
+            layer._path ||
+            (typeof layer.getElement === "function" ? layer.getElement() : null);
+        if (
+            !path ||
+            !path.classList.contains("enlace-fibra") ||
+            typeof layer.getBounds !== "function"
+        ) {
+            return;
+        }
+        if (viewBounds.intersects(layer.getBounds())) {
+            L.DomUtil.removeClass(path, "sin-animar");
+        } else {
+            L.DomUtil.addClass(path, "sin-animar");
+        }
+    });
+};
+
 // MR-26 Fase 4 (item roadmap #9990525) — capa "Cobertura" en vivo (Fase 1, #9990522). Se
 // refetch cada vez que se enciende el toggle (no se cachea) para que ocupar el último puerto
 // libre de una NAP la haga desaparecer al re-encender la capa (DoD del item padre #962).
@@ -1058,6 +1087,7 @@ const initMap = async () => {
     // del toggle manual del panel de capas — ambas condiciones deben cumplirse a la vez.
     map.on("zoomend", function () {
         aplicarVisibilidadCapas();
+        aplicarViewportCulling();
     });
 
     map.contextmenu.enable();
@@ -1249,6 +1279,7 @@ const initMap = async () => {
     map.on("moveend", function () {
         setToLocalStorage("map-zoom", map.getZoom());
         setToLocalStorage("map-center", JSON.stringify(map.getCenter()));
+        aplicarViewportCulling();
     });
 
     drawControl = new L.Control.Draw({
@@ -1710,6 +1741,9 @@ const initMap = async () => {
     document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
     document.addEventListener("mozfullscreenchange", handleFullscreenChange);
     document.addEventListener("MSFullscreenChange", handleFullscreenChange);
+
+    // Fase 3a (#9990759): estado inicial del viewport culling, tras dibujar las capas.
+    aplicarViewportCulling();
 
     reloadProjects.value = true;
 };
