@@ -4,6 +4,7 @@ namespace App\Modules\Addons\PortalCliente\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\PortalCliente\Services\OpenpayService;
+use App\Modules\Addons\Payments\Services\PaymentApplicationService;
 use App\Modules\Addons\PortalCliente\Services\PortalPaymentReceiptService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -67,6 +68,69 @@ class OpenpayWebhookController extends Controller
      * Busca el intento por order_id (o charge_id) y, si no fue ya registrado,
      * crea el pago en la estructura existente (idempotente: no duplica).
      */
+    /**
+     * Concilia un cargo automatico de una SUSCRIPCION de domiciliacion. No hay
+     * portal_payment_attempts: OpenPay cobro solo. Se identifica al cliente por
+     * openpay_customer_id, se aplica el pago con PaymentApplicationService (abona
+     * saldo, add_by=MEGAISP, idempotente por external_id=charge_id) y se registra
+     * en domiciliacion_subscription_charges.
+     *
+     * @return bool true si el cargo correspondia a una suscripcion (manejado).
+     */
+    private function conciliarCargoSuscripcion(array $charge): bool
+    {
+        $chargeId   = $charge['id'] ?? null;
+        $customerId = $charge['customer_id'] ?? ($charge['customer']['id'] ?? null);
+        if (! $chargeId || ! $customerId) {
+            return false;
+        }
+
+        $sub = DB::table('domiciliacion_subscriptions')
+            ->where('openpay_customer_id', $customerId)
+            ->whereNull('deleted_at')
+            ->first();
+        if (! $sub) {
+            return false; // no es de una suscripcion nuestra
+        }
+
+        // Idempotencia: si ya registramos este charge, no repetir.
+        if (DB::table('domiciliacion_subscription_charges')->where('openpay_charge_id', $chargeId)->exists()) {
+            return true;
+        }
+
+        $amount = (float) ($charge['amount'] ?? $sub->amount);
+
+        // Aplicador canonico: abona saldo + observers + corte. add_by por defecto = MEGAISP;
+        // idempotente por external_id (charge_id) tambien a nivel payments.
+        $payment = app(PaymentApplicationService::class)->applyPayment([
+            'client_id'   => $sub->client_id,
+            'amount'      => $amount,
+            'external_id' => $chargeId,
+            'provider'    => 'openpay-domiciliacion',
+            'method_id'   => PortalPagoController::METHOD_ID_OPENPAY,
+            'comment'     => 'Domiciliacion mensual OpenPay (suscripcion ' . $sub->openpay_subscription_id . ')',
+        ]);
+
+        DB::table('domiciliacion_subscription_charges')->insert([
+            'openpay_charge_id'       => $chargeId,
+            'openpay_subscription_id' => $sub->openpay_subscription_id,
+            'client_id'               => $sub->client_id,
+            'amount'                  => $amount,
+            'status'                  => $charge['status'] ?? 'completed',
+            'payment_id'              => $payment->id ?? null,
+            'created_at'              => now(),
+        ]);
+
+        Log::info('[OpenPay Webhook] Cargo de suscripcion conciliado', [
+            'charge_id'  => $chargeId,
+            'client_id'  => $sub->client_id,
+            'amount'     => $amount,
+            'payment_id' => $payment->id ?? null,
+        ]);
+
+        return true;
+    }
+
     private function conciliarCargo(array $charge): void
     {
         $chargeId = $charge['id'];
@@ -86,6 +150,10 @@ class OpenpayWebhookController extends Controller
         }
 
         if (! $intento) {
+            // Cargo de SUSCRIPCION (domiciliacion): no pasa por portal_payment_attempts.
+            if ($this->conciliarCargoSuscripcion($charge)) {
+                return;
+            }
             Log::warning('[OpenPay Webhook] Cargo sin intento registrado', ['charge_id' => $chargeId, 'order_id' => $orderId]);
             return;
         }
