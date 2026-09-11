@@ -21,10 +21,30 @@ use RuntimeException;
  */
 class OpenpayService
 {
-    private OpenpayApi $api;
+    private ?OpenpayApi $api = null;
 
-    public function __construct()
+    /**
+     * Inicialización PEREZOSA del SDK: se hace en el primer uso real, nunca al construir.
+     *
+     * Antes esto vivía en `__construct()` y lanzaba si faltaban las credenciales. El
+     * problema es quién construye el servicio: `DomiciliacionController`,
+     * `PortalDomiciliacionController` y `EnrollmentLinkController` reciben
+     * `DomiciliacionEnrollmentService` por constructor, que a su vez recibe este servicio.
+     * Laravel instancia el controlador para leer su middleware (`Route::controllerMiddleware()`)
+     * ANTES de correr el pipeline, así que sin credenciales toda ruta de Domiciliación
+     * respondía 500 incluso sin sesión — y `php artisan route:list` reventaba entero,
+     * porque resuelve todos los controladores. Verificado en prod el 2026-09-10:
+     * `/domiciliacion/clientes/1` y `/portal/domiciliacion/tarjeta` daban HTTP 500.
+     *
+     * La validación NO se relaja: falta una credencial y esto sigue lanzando el mismo
+     * RuntimeException, sólo que al intentar cobrar y no al cargar una página.
+     */
+    private function api(): OpenpayApi
     {
+        if ($this->api instanceof OpenpayApi) {
+            return $this->api;
+        }
+
         if (! config('openpay.id') || ! config('openpay.private_key')) {
             throw new RuntimeException(
                 'Credenciales OpenPay incompletas (OPENPAY_ID/OPENPAY_PRIVATE_KEY) en .env.'
@@ -37,7 +57,7 @@ class OpenpayService
         Openpay::setEndpointUrl('MX');   // rellena $apiSandboxEndpoint y $apiEndpoint (live)
         Openpay::setSandboxMode((bool) config('openpay.sandbox'));
 
-        $this->api = OpenpayApi::getInstance(null);
+        return $this->api = OpenpayApi::getInstance(null);
     }
 
     /**
@@ -81,7 +101,7 @@ class OpenpayService
         ];
 
         try {
-            $charge = $this->api->charges->add($chargeData);
+            $charge = $this->api()->charges->add($chargeData);
             return $charge;
         } catch (OpenpayApiTransactionError $e) {
             // Tarjeta rechazada, fondos insuficientes, fraude, etc.
@@ -111,7 +131,7 @@ class OpenpayService
     public function consultarCargo(string $transactionId): object
     {
         try {
-            return $this->api->charges->get($transactionId);
+            return $this->api()->charges->get($transactionId);
         } catch (OpenpayApiError $e) {
             throw new OpenpayTransactionException(
                 'No se pudo consultar el cargo: ' . $e->getMessage(),
@@ -131,7 +151,7 @@ class OpenpayService
     public function crearClienteOpenpay(array $data): string
     {
         try {
-            $customer = $this->api->customers->add([
+            $customer = $this->api()->customers->add([
                 'name'         => $data['name'],
                 'last_name'    => $data['last_name'] ?? '',
                 'email'        => $data['email'] ?? '',
@@ -157,7 +177,7 @@ class OpenpayService
     public function guardarTarjeta(string $customerId, string $token): object
     {
         try {
-            $customer = $this->api->customers->get($customerId);
+            $customer = $this->api()->customers->get($customerId);
             return $customer->cards->add(['token_id' => $token]);
         } catch (OpenpayApiError $e) {
             throw new OpenpayTransactionException(
@@ -182,7 +202,7 @@ class OpenpayService
         string $description
     ): object {
         try {
-            $customer = $this->api->customers->get($customerId);
+            $customer = $this->api()->customers->get($customerId);
             return $customer->charges->add([
                 'method'      => 'card',
                 'source_id'   => $sourceId,
@@ -213,7 +233,7 @@ class OpenpayService
     public function eliminarTarjeta(string $customerId, string $sourceId): void
     {
         try {
-            $customer = $this->api->customers->get($customerId);
+            $customer = $this->api()->customers->get($customerId);
             $customer->cards->get($sourceId)->delete();
         } catch (OpenpayApiError $e) {
             // 404 → la tarjeta ya no existe en OpenPay; nada que hacer.
