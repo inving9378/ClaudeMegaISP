@@ -186,11 +186,17 @@
         submitBtn.disabled = true;
         submitBtn.textContent = 'Procesando…';
 
-        // OpenPay rechaza el número con espacios (error 1001): dejar solo
-        // dígitos antes de tokenizar (el input lo formatea con espacios).
-        var cn = document.getElementById('card-number');
-        if (cn) cn.value = cn.value.replace(/\D/g, '');
-        OpenPay.token.create(form, function (response) {
+        // token.create espera un OBJETO de tarjeta, NO el elemento <form>
+        // (pasar el form daba error 1001: los campos llegaban undefined).
+        // Se arma el objeto con los campos, limpiando el número a solo dígitos.
+        var cardData = {
+            card_number:      document.getElementById('card-number').value.replace(/\D/g, ''),
+            holder_name:      document.getElementById('card-holder').value,
+            cvv2:             document.getElementById('card-cvv').value,
+            expiration_month: document.getElementById('card-exp-month').value,
+            expiration_year:  document.getElementById('card-exp-year').value
+        };
+        OpenPay.token.create(cardData, function (response) {
             document.getElementById('openpay-token-hidden').value = response.data.id;
             // Limpiar los datos del PAN antes de enviar el form
             ['card-number', 'card-cvv'].forEach(id => {
