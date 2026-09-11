@@ -42,6 +42,9 @@
 // MegaFamilia Design System (Tema 0.5) — tokens híbridos + clases .mf-*
 @import "../css/megafamilia.css";
 
+// Efecto "enlace vivo" (flujo animado) del Mapa de Red — item roadmap #9990733
+@import "../css/mapared-enlace-fibra.css";
+
 @import url("base/quasar/_quasar.scss");
 
 // Iconos del sidebar coloreados por módulo (navegación visual, claro + oscuro)
