@@ -2204,3 +2204,27 @@ resto de terminales. Detalle completo en
 `docs/roadmap-bucle-reap-item-9990740-verificacion.md`. **Sin cambio de código de negocio propio**
 — el trabajo real de Fase 2 sigue en #9990754/#9990755, y el fix del build roto en #9990756,
 pendientes de que una terminal los reclame.
+
+## Item #9990742 — MR flujo animado Fase 4 (conectar a la potencia óptica real) — bloqueado por ausencia real de datos (RESUELTO — sin código, mismo bloqueo ya documentado 3 veces)
+
+Fase 4 del flujo animado (sub-item de `#9990733`): el propio spec exige verificar el bloqueo de
+datos ANTES de picar código y, si `mapared_enlaces_servicio` sigue en 0 filas, reportarlo como
+bloqueo real en vez de simular datos falsos (regla explícita del prompt, y decisión ya aprobada
+por Irving en `q3`: "abortar la Fase 4 y escalar con reporte del estado del bloqueo"). Verificado
+en dev (2026-09-11): **`mapared_enlaces_servicio` sigue en 0 filas** — el mismo hallazgo ya
+documentado en `docs/mapared-comparativa-item-963-verificacion.md` (agosto) y
+`docs/mapared-mr16-fase2b-item-9990496-verificacion.md` (2026-09-07). `olt_onus` sí tiene señal
+óptica cacheada (2954 filas, vía `smartolt:sync-critical`, la fuente ya fijada por `q2`), pero sin
+la tabla de enlaces de servicio no existe forma de saber qué route del mapa corresponde a qué fila
+de `olt_onus` — conectar un ONT "cualquiera" sin ese enlace real sería el dato falso disfrazado de
+real que el propio item prohíbe. Adicionalmente, la Fase 3 (`#9990741`, guardas de rendimiento)
+todavía no tiene `merge_commit` (tiene rama, sin mergear), así que la dependencia declarada
+("Fases 1-3 mergeadas") tampoco está completa — secundario frente al bloqueo de datos, que
+impediría la Fase 4 de todos modos. Documentado el punto exacto donde engancharía la Fase 4 cuando
+el bloqueo se resuelva (`flujoAnimadoConfig`/`isFlujoAnimadoPilot()` en
+`resources/js/components/module/mapared/helper/mapUtils.js:369-397`, reglas de `classList`/
+umbrales dBm/fuente ya fijas, solo falta el join real enlace↔ONT) para que el próximo ejecutor no
+repita la investigación. Detalle completo en
+`docs/mapared-flujo-animado-fase4-item-9990742-verificacion.md`. **Sin cambio de código de
+aplicación** — el bloqueo real es la falta de `mapared_enlaces_servicio` poblada, fuera de alcance
+de este item (depende de correr `mapared:backfill` real y/o dar de alta enlaces reales vía UI).
