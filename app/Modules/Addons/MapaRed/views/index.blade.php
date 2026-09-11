@@ -7,6 +7,7 @@
         <leaflet-map-red
             :flujo-animado-enabled="{{ config('mapared.flujo_animado_enabled') ? 'true' : 'false' }}"
             flujo-animado-pilot-route-id="{{ config('mapared.flujo_animado_pilot_route_id') }}"
+            :flujo-animado-pilots="{{ json_encode(config('mapared.flujo_animado_pilots', [])) }}"
         />
         @if (session()->has('message'))
             <Message message="{{ session()->get('message') }}"></Message>
