@@ -917,7 +917,10 @@ onBeforeMount(async () => {
 onMounted(async () => {
     permissons.data = new Permission(await allViewHasPermission());
     addAllPermissions(permissons.data);
-    setFlujoAnimadoConfig(props.flujoAnimadoEnabled, props.flujoAnimadoPilotRouteId || null);
+    setFlujoAnimadoConfig({
+        enabled: props.flujoAnimadoEnabled,
+        pilotRouteId: props.flujoAnimadoPilotRouteId || null,
+    });
     initMap();
 });
 

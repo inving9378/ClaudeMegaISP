@@ -2177,3 +2177,30 @@ cascada (`RoadmapItem.php:459-491`) lo complete solo cuando #9990739, #9990740, 
 **Sin cambio de código de negocio** — el trabajo técnico real del efecto (wiring del flag, los 4
 estados, guardas de rendimiento, conexión a la potencia óptica real) sigue en
 #9990739/#9990740/#9990741/#9990742, pendientes de que una terminal los reclame.
+
+## Item #9990740 — MR flujo animado Fase 2 (cuatro estados simulados) — bucle reap sobre paraguas ya descompuesto + hallazgo de build roto en main (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
+#936/#9990408/#962/#9990554/#9990549/#9990624/#9990650/#9990733. #9990740 (Fase 2 del flujo
+animado: aplicar a mano los 4 estados CSS `est-ok/est-degradado/est-critico/est-caido` sobre el
+NAP piloto de la Fase 1) ya había sido descompuesto correctamente por una vuelta previa (`wt-1`,
+2026-09-10 18:49) tras confirmar que la Fase 1 (#9990739/#9990752/#9990753) ya estaba en `main`:
+**#9990754** (mecanismo multi-piloto, generalizar el `pilotRouteId` único a varias rutas) y
+**#9990755** (elegir NAP real + repartir los 4 estados + verificar, depende de #9990754). Pero esa
+vuelta nunca intentó **cerrar** al padre — terminó por muerte del proceso (`soltar-claim`), y el
+pool la repartió de nuevo sin trabajo propio que hacer. **Hallazgo adicional de esta vuelta:** al
+verificar el build con `npm-build.sh` se confirmó que **`main` está roto ahora mismo** —
+`SyntaxError: Identifier 'flujoAnimadoConfig' has already been declared` en `mapUtils.js:376` —
+residuo de que las Fases 1a (#9990752) y 1b (#9990753) declararon cada una su propio
+`flujoAnimadoConfig`/`setFlujoAnimadoConfig` en bloques no solapados, así que el merge no lo
+detectó como conflicto. Ya existía un fix verificado (commit `4390c0d0`, build pasa de fallar a
+compilar OK) dejado por una vuelta anterior en la propia rama de #9990740, pero nunca se mergeó a
+`main`. Corrección: (1) se ejecutó el intento de cierre faltante sobre #9990740 — el guard de
+paraguas (`RoadmapItem.php` bloque "(2b) PARAGUAS") lo reenrutó a `aprobado_irving` +
+`excluir_pool_automatico=true`, sacándolo del pool/reaper hasta que #9990754 y #9990755 cierren
+los dos; (2) se creó **#9990756** (marcado `urgente=true`/`priority=alta`) con el diff exacto del
+fix embebido en el `spec`, para que se aplique de inmediato en vez de dejar el build roto para el
+resto de terminales. Detalle completo en
+`docs/roadmap-bucle-reap-item-9990740-verificacion.md`. **Sin cambio de código de negocio propio**
+— el trabajo real de Fase 2 sigue en #9990754/#9990755, y el fix del build roto en #9990756,
+pendientes de que una terminal los reclame.
