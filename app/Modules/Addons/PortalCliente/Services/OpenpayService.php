@@ -41,6 +41,12 @@ class OpenpayService
      */
     private function api(): OpenpayApi
     {
+        // OpenPay exige una IP pública en toda operación (customer/card/charge);
+        // sin ella lanza "Empty or no public ip provided". En HTTP tomamos la IP
+        // real de la petición; en CLI (cron de cobro) cae a un placeholder válido.
+        // cobrarTarjeta() la sobrescribe luego con la IP puntual del dispositivo.
+        Openpay::setPublicIp(request()?->ip() ?: '127.0.0.1');
+
         if ($this->api instanceof OpenpayApi) {
             return $this->api;
         }
