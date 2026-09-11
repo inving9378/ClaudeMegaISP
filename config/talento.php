@@ -46,7 +46,7 @@ return [
     |--------------------------------------------------------------------------
     | Kill switch. Default OFF a propósito (decisión Irving, q4): se activa gradual y se
     | puede apagar sin deploy si algo se comporta mal. Cuando está en true,
-    | App\Modules\Addons\Talento\Http\Middleware\BloqueoDocumentoPendienteMiddleware
+    | App\Modules\Addons\Talento\Middleware\BloqueoDocumentoPendienteMiddleware
     | intercepta TODAS las escrituras (POST/PUT/PATCH/DELETE) del guard web: si el
     | colaborador autenticado tiene un talento_employee_documents.status='pendiente' de un
     | template tipo='firma' cuyo modulos_bloqueados intersecta el módulo de la ruta actual,
