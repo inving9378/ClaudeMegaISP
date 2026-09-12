@@ -341,6 +341,36 @@
           </div>
         </div>
 
+        <!-- #9990906 (CIRC-03 Fase C) — "Esperan un insumo tuyo": la otra mitad de la bandeja,
+             bloqueada por algo MATERIAL (credencial/hardware/sesión presencial/autorización/
+             frontera de producción, clasificado en Fase B vía motivo_espera) — no por una
+             decisión de diseño que elegir. Separada de "Tu bandeja" para no mezclar "elegir"
+             con "traer"; acordeón por tipo, colapsado por default. -->
+        <div class="tc-card" v-if="colaEsperaInsumo.length">
+          <h2 class="tc-h2">📦 Esperan un insumo tuyo ({{ resumenCola.espera_insumo ?? 0 }})</h2>
+          <div class="tc-meta" style="margin:-6px 0 10px">
+            No son decisiones: son items detenidos hasta que les traigas algo (credencial, hardware, tu tiempo o una autorización).
+          </div>
+          <div v-for="grupo in colaEsperaInsumo" :key="grupo.tipo" class="tc-insumo-grupo">
+            <button type="button" class="tc-insumo-grupo-head" @click="toggleInsumoGrupo(grupo.tipo)">
+              <span>{{ grupo.label }} ({{ grupo.count }})</span>
+              <span>{{ insumoOpen[grupo.tipo] ? '▲' : '▼' }}</span>
+            </button>
+            <div v-if="insumoOpen[grupo.tipo]" class="tc-insumo-grupo-body">
+              <div v-for="it in grupo.items" :key="it.id" class="tc-ev">
+                <div>
+                  <span class="tc-idnum">#{{ it.id }}</span> <b>{{ it.title }}</b>
+                  <span v-if="it.modulo" class="tc-modulo-chip" style="margin-left:6px">{{ it.modulo }}</span>
+                </div>
+                <div class="tc-meta" style="margin-top:3px">{{ it.que_falta }}</div>
+                <div class="tc-actions" style="margin-top:6px">
+                  <button class="tc-btn tc-btn-ver" @click="verMas(it)">🔎 Ver</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- FASE 1 — Cambios para que Irving pruebe (validación funcional, no código) -->
         <div class="tc-card" v-if="cambiosValidacion.length">
           <h2 class="tc-h2">✅ Cambios para que Irving pruebe ({{ cambiosValidacion.length }})</h2>
@@ -626,7 +656,13 @@ export default {
         const resumen = ref({ total: 0, por_estado: {}, por_nivel: {} });
         const cola = ref([]);
         const colaEjecutable = ref([]);   // #348: SOLO auto-ejecutables (A/B o aprobados por Irving)
-        const resumenCola = ref({ auto_ejecutables: 0, espera_decision: 0, sin_clasificar: 0 });
+        const resumenCola = ref({ auto_ejecutables: 0, espera_decision: 0, espera_insumo: 0, sin_clasificar: 0 });
+        // #9990906 (CIRC-03 Fase C) — la otra mitad de la bandeja: bloqueada por un insumo
+        // material (credencial/hardware/sesión/autorización/frontera), no por una decisión.
+        // Agrupada por motivo_espera, cada grupo con su acordeón propio (colapsado por default).
+        const colaEsperaInsumo = ref([]);
+        const insumoOpen = reactive({});   // tipo -> bool (acordeón abierto)
+        function toggleInsumoGrupo(tipo) { insumoOpen[tipo] = !insumoOpen[tipo]; }
         const agendados = ref({ count: 0, items: [] });   // #958: N items agendados + lista (título/fecha)
         const agendadosOpen = ref(false);
         const actividad = ref([]);
@@ -1152,7 +1188,8 @@ export default {
                 vozTts.value = data.voz_tts || null;   // #424: misma voz guardada que Integración
                 if (data.rate_tts) rateTts.value = Number(data.rate_tts);   // #424: misma velocidad
                 colaEjecutable.value = data.cola_ejecutable || [];
-                resumenCola.value = data.resumen_cola || { auto_ejecutables: 0, espera_decision: 0, sin_clasificar: 0 };
+                resumenCola.value = data.resumen_cola || { auto_ejecutables: 0, espera_decision: 0, espera_insumo: 0, sin_clasificar: 0 };
+                colaEsperaInsumo.value = data.cola_espera_insumo || [];   // #9990906
                 agendados.value = data.agendados || { count: 0, items: [] };   // #958
                 actividad.value = data.actividad_reciente || [];
                 cambiosValidacion.value = data.cambios_validacion || [];   // FASE 1
@@ -1443,6 +1480,8 @@ export default {
         return {
             loading, toggling, pausado, pausadoInfo, pausaOlvidada, pausaHorasTxt, generatedAt, total, est, nivel, niveles, barH,
             cola, colaEjecutable, resumenCola, agendados, agendadosOpen, fechaCorta, actividad, riesgos, auditItem, lvClass, sevLabel, sevClass, riskText,
+            // #9990906 (CIRC-03 Fase C) — "Esperan un insumo tuyo"
+            colaEsperaInsumo, insumoOpen, toggleInsumoGrupo,
             evIcon, evColor, rel, toggle,
             // #torre: Actividad reciente navegable (abrir item / deep-link / recorrido)
             openItem, verRecorrido, estadoAprobLabel, highlightId,
@@ -1576,6 +1615,17 @@ export default {
 .tc-desc-block b{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--tc-muted);}
 .tc-desc-block p{margin:3px 0 0;font-size:12.5px;line-height:1.5;color:var(--tc-ink);}
 .tc-desc-pre{white-space:pre-wrap;}
+/* #9990906 (CIRC-03 Fase C) — "Esperan un insumo tuyo": acordeón por tipo, tinte ámbar para
+   distinguirlo visualmente de "Tu bandeja" (que usa el azul/teal de acento). */
+.tc-insumo-grupo{margin-top:8px;}
+.tc-insumo-grupo:first-child{margin-top:0;}
+.tc-insumo-grupo-head{display:flex;align-items:center;justify-content:space-between;width:100%;
+  font-size:13px;font-weight:600;color:#b45309;background:#fffbeb;border:1px solid #fde68a;
+  border-radius:9px;padding:8px 12px;cursor:pointer;text-align:left;}
+.tc-insumo-grupo-head:hover{background:#fef3c7;}
+.tc-insumo-grupo-body{padding:2px 4px 4px;}
+.tc-dark .tc-insumo-grupo-head{background:rgba(251,191,36,.1);color:#fbbf24;border-color:rgba(251,191,36,.3);}
+.tc-dark .tc-insumo-grupo-head:hover{background:rgba(251,191,36,.16);}
 /* #432 — brief multi-pregunta: cada pregunta un bloque con su texto + fase + opciones. */
 .tc-preguntas{margin-top:8px;display:flex;flex-direction:column;gap:12px;}
 .tc-pregunta{border-left:3px solid var(--tc-line);padding-left:10px;}
