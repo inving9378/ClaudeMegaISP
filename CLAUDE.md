@@ -2441,3 +2441,22 @@ cierren. Detalle en `docs/roadmap-bucle-reap-item-9990886-verificacion.md`. **Si
 código de negocio** — el trabajo real de CIRC-03 (exponer `motivo_espera` en el modelo con
 verificación e2e, y la Torre con las 2 listas separadas) sigue en #9990915/#9990906, pendientes de
 que sus dueños los cierren.
+
+## Item #9990869 — CIRC-03 "Bandeja de decisiones real" (sub-item de #9990854) — RESUELTO (duplicado exacto ya completado por #9990886)
+
+#9990869 es un segundo sub-item, generado por otra pasada de auditoría del circuito (sub-item de
+#9990854 "corrección del Circuito CC", en vez de sub-item de #9990860 como #9990886), con **título
+y spec idénticos** a `#9990886` (misma tabla de 8 items bloqueados, mismo prompt de 5 pasos,
+mismo criterio de aceptación) — dos auditorías separadas del circuito llegaron a la misma
+conclusión y crearon el mismo item por caminos distintos. Verificado contra la BD y `main`
+reales: `#9990886` y sus 3 hijos (`#9990904` Fase A migración, `#9990905` Fase B clasificación,
+`#9990906` Fase C Torre) están **todos `completado` con `merge_commit`** desde antes de que se
+reclamara `#9990869`. Confirmado punto por punto: columna `motivo_espera` existe
+(`Schema::hasColumn`); `RoadmapItem::scopeBandejaDecision()`/`scopeBandejaInsumo()`
+(`RoadmapItem.php:1938-1960`) separan la bandeja; `TorreControl.vue` tiene la tarjeta "📦 Esperan
+un insumo tuyo" con acordeón por `motivo_espera`; los 10 items de la tabla (283/661/671/683/691/
+692/718/724/9990075/9990571) tienen `motivo_espera` poblado + `excluir_pool_automatico=1`;
+`RoadmapController::index()` calcula `espera_decision`/`espera_insumo` por separado y el KPI
+"Requiere Irving" ya solo cuenta `bandejaDecision()`. Todo el criterio de aceptación ya estaba
+satisfecho. Detalle completo en `docs/circuito-circ03-duplicado-item-9990869-verificacion.md`.
+**Sin cambio de código** — nada que implementar, el trabajo ya existía en `main`.
