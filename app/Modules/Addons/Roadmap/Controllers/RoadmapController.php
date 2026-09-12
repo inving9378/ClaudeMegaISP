@@ -39,7 +39,17 @@ class RoadmapController extends Controller
         'archivado_at', 'origen_bloqueo', 'motivo_bloqueo', 'branch', 'worker_sid', 'origen_item_id',
         'consulta_supervisor_at', 'consulta_resuelta_at', 'comentarios_claude', 'opciones',
         'preguntas', 'reporte_coloquial', 'enlace_revision', 'alcance_autorizado', 'fuera_de_alcance',
-        'prompt', 'reanudaciones_timeout', 'frontera_valvula',
+        'prompt', 'reanudaciones_timeout', 'frontera_valvula', 'motivo_espera',
+    ];
+
+    // #9990906 (CIRC-03 Fase C) — label legible + emoji por tipo de insumo para "Esperan un
+    // insumo tuyo". Mismos 5 tipos que RoadmapItem::MOTIVOS_ESPERA_INSUMO (Fase B, #9990905).
+    private const MOTIVO_ESPERA_LABELS = [
+        'credencial'          => '🔑 Credencial',
+        'hardware'            => '🔧 Hardware',
+        'sesion_presencial'   => '📅 Sesión presencial',
+        'autorizacion'        => '📝 Autorización',
+        'frontera_produccion' => '🚧 Frontera de producción',
     ];
 
     private const COLUMNAS_ACTIVIDAD = [
@@ -872,7 +882,12 @@ class RoadmapController extends Controller
         // recortada devolvía menos items de los que anuncia su bombita. Medido en dev: traer los 71
         // cuesta 16 ms y `torre()` completo 121 ms. Si algún día la bandeja pasa de 100, la UI avisa
         // que está mostrando N de M en vez de mentir.
-        $cola = $this->bloque('bandeja', fn () => RoadmapItem::bandeja()
+        // #9990906 (CIRC-03 Fase C) — de TODA la bandeja, esta cola queda acotada a lo que
+        // realmente espera una DECISIÓN (elegir entre opciones), no un insumo material que
+        // Irving tiene que traer (credencial/hardware/sesión/autorización/frontera). El
+        // contrato JSON de 'cola_requiere_irving' no cambia (mismo shape por item); solo baja
+        // el conteo — los de insumo se mudan a 'cola_espera_insumo' más abajo.
+        $cola = $this->bloque('bandeja', fn () => RoadmapItem::bandejaDecision()
             ->ordered()->limit(100)->get(self::COLUMNAS_BANDEJA)
             ->map(fn (RoadmapItem $i) => array_merge($this->svc->compact($i), [
                 'recomendacion' => $i->comentarios_claude,   // texto completo del decisor (pregunta + recomendación)
@@ -908,6 +923,27 @@ class RoadmapController extends Controller
                 'discrepancia_nivel' => $d !== null && $d !== $i->nivel_riesgo,
             ])), collect());
 
+        // #9990906 (CIRC-03 Fase C) — "Esperan un insumo tuyo": la otra mitad de la bandeja,
+        // agrupada por `motivo_espera` (credencial/hardware/sesión presencial/autorización/
+        // frontera de producción). Cada grupo trae su label legible + count + los items con
+        // una línea de "qué falta" (comentarios_claude, que es donde vive el detalle del
+        // bloqueo; sin campo dedicado nuevo, por minimalismo).
+        $colaInsumo = $this->bloque('bandeja_insumo', fn () => RoadmapItem::bandejaInsumo()
+            ->orderBy('updated_at')->limit(100)->get(self::COLUMNAS_BANDEJA)
+            ->groupBy('motivo_espera')
+            ->map(fn ($items, $tipo) => [
+                'tipo'  => $tipo,
+                'label' => self::MOTIVO_ESPERA_LABELS[$tipo] ?? $tipo,
+                'count' => $items->count(),
+                'items' => $items->map(fn (RoadmapItem $i) => [
+                    'id'            => $i->id,
+                    'title'         => $i->title,
+                    'modulo'        => $i->modulo,
+                    'motivo_espera' => $i->motivo_espera,
+                    'que_falta'     => mb_strimwidth((string) ($i->comentarios_claude ?: $i->description), 0, 220, '…'),
+                ])->values(),
+            ])->values(), collect());
+
         // #348: cola EJECUTABLE — SOLO lo que el circuito AUTO-CORRE (A/B o ya aprobado por Irving),
         // NO los C/requiere_irving/negocio (esos esperan tu decisión y jamás los corre solo).
         // Ya ordenada 🔥→prioridad→antigüedad; aquí el 🔥 salta la fila y dispara vuelta.
@@ -923,10 +959,13 @@ class RoadmapController extends Controller
         // trabajo" y es justo la mentira que ocultó el 1038 durante 20 días.
         $resumenCola = $this->bloque('resumen_cola', fn () => [
             'auto_ejecutables' => RoadmapItem::autoEjecutable()->count(),
-            'espera_decision'  => RoadmapItem::bandeja()->count(),      // #432: toda la estación bandeja
+            // #9990906: antes contaba TODA bandeja(); ahora solo lo que de verdad espera una
+            // decisión — los de insumo material ya no cuentan como "pendiente de Irving" aquí.
+            'espera_decision'  => RoadmapItem::bandejaDecision()->count(),
+            'espera_insumo'    => RoadmapItem::bandejaInsumo()->count(),   // #9990906: nuevo
             'sin_clasificar'   => RoadmapItem::backlog()->count(),       // #432: intake = lo que vive en la Hoja de ruta
             'intake'           => RoadmapItem::backlog()->count(),
-        ], ['auto_ejecutables' => null, 'espera_decision' => null, 'sin_clasificar' => null, 'intake' => null]);
+        ], ['auto_ejecutables' => null, 'espera_decision' => null, 'espera_insumo' => null, 'sin_clasificar' => null, 'intake' => null]);
 
         // #958 (Fase 3 de #921) — "N items agendados" con su LISTA (título + fecha), para que dejen
         // de vivir invisibles en la BD. Usa `scopeAgendados()` (el mismo predicado que ya excluye
@@ -1026,6 +1065,7 @@ class RoadmapController extends Controller
             'circuito_modo'        => $this->svc->getModo(),
             'resumen'              => $this->bloque('resumen', fn () => $this->svc->resumen(), null),
             'cola_requiere_irving' => $cola,
+            'cola_espera_insumo'   => $colaInsumo,        // #9990906: agrupado por motivo_espera
             'cola_ejecutable'      => $colaEjecutable,   // #348: SOLO auto-ejecutables (A/B o aprobados) con 🔥
             'resumen_cola'         => $resumenCola,      // #348: N auto-ejecutables · M esperan tu decisión
             'agendados'            => $agendados,        // #958: N items agendados + su lista (título/fecha)
@@ -1399,8 +1439,10 @@ class RoadmapController extends Controller
      * GET /api/roadmap/torre/decisiones/contadores — cuántas decisiones te esperan, POR MÓDULO.
      * (#507 sub-paso 5) Alimenta las "bombitas" del sidebar interno de la Torre.
      *
-     * Cuenta EXACTAMENTE lo mismo que la bandeja (`RoadmapItem::bandeja()`) — si los números no
-     * cuadran con la tarjeta "Requiere tu decisión", es un bug, no una diferencia de criterio.
+     * Cuenta EXACTAMENTE lo mismo que `cola_requiere_irving` (`RoadmapItem::bandejaDecision()`,
+     * #9990906) — si los números no cuadran con la tarjeta "Requiere Irving", es un bug, no una
+     * diferencia de criterio. Los items de `bandeja()` que esperan un INSUMO material (no una
+     * decisión) quedan fuera de esta cuenta a propósito: viven en "Esperan un insumo tuyo".
      *
      * Normaliza `modulo` con la MISMA `normalizeModulo()`/`moduloUrl()` que usa el resto de la
      * Torre, para que las claves casen con `module_sidebar_config`. Ojo: `modulo` es texto libre
@@ -1415,7 +1457,7 @@ class RoadmapController extends Controller
         $this->authorize('roadmap_view');
 
         return response()->json(Cache::remember('roadmap:torre:decisiones-contadores', 45, function () {
-            $items = RoadmapItem::bandeja()->get(['id', 'modulo', 'urgente', 'nivel_riesgo']);
+            $items = RoadmapItem::bandejaDecision()->get(['id', 'modulo', 'urgente', 'nivel_riesgo']);
 
             $grupos = [];
             $sinClasificar = 0;

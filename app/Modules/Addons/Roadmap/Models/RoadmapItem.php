@@ -1935,6 +1935,31 @@ class RoadmapItem extends Model
                      });
     }
 
+    /** Motivos de `motivo_espera` (CIRC-03 Fase B, #9990905) que son INSUMO material, no decisión. */
+    public const MOTIVOS_ESPERA_INSUMO = ['credencial', 'hardware', 'sesion_presencial', 'autorizacion', 'frontera_produccion'];
+
+    /**
+     * #9990906 (CIRC-03 Fase C) — sub-conjunto de bandeja() que de verdad espera una DECISIÓN
+     * de Irving (elegir entre opciones), no un insumo material que alguien tiene que traerle.
+     * `motivo_espera` NULL = item viejo/sin clasificar por la Fase B → se trata como decisión
+     * por default (nunca se oculta un item sin clasificar de la bandeja).
+     */
+    public function scopeBandejaDecision($query)
+    {
+        return $query->bandeja()
+                     ->where(fn ($q) => $q->whereNull('motivo_espera')->orWhere('motivo_espera', 'decision'));
+    }
+
+    /**
+     * #9990906 (CIRC-03 Fase C) — sub-conjunto de bandeja() bloqueado por un INSUMO material
+     * (credencial, hardware, sesión presencial, autorización o frontera de producción) que
+     * Irving tiene que proveer, no por una decisión de diseño/negocio que tenga que elegir.
+     */
+    public function scopeBandejaInsumo($query)
+    {
+        return $query->bandeja()->whereIn('motivo_espera', static::MOTIVOS_ESPERA_INSUMO);
+    }
+
     /**
      * INTAKE = lo ÚNICO que vive en la Hoja de ruta (#432): pending, SIN TRIAR (sin nivel_riesgo, en
      * pendiente_revision), sin rama (→ integración) ni candado humano, y sin ser decisión de negocio
