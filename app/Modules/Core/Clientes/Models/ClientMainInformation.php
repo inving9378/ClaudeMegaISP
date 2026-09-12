@@ -199,6 +199,13 @@ class ClientMainInformation extends BaseModel
 
     public function getSellerNameAttribute()
     {
+        if (\App\Services\Identidad\ColaboradorIdResolver::lecturaHabilitada()) {
+            $nombre = \App\Services\Identidad\ColaboradorIdResolver::resolveNombrePorColaboradorId($this->colaborador_id);
+            if ($nombre !== null) {
+                return $nombre;
+            }
+        }
+
         return $this->user_seller()->first()->name ?? '';
     }
     public function getContractMonthsAttribute()
