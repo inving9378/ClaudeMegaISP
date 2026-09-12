@@ -335,6 +335,52 @@ TXT;
             );
         });
 
+        // #9990999 — CIRC-02 prevención (q2 de #9990903, decisión de Irving): dedupe por similitud
+        // de título/descripción al CREAR un item. Caso real que lo motivó: #9990854 y #9990874
+        // nacieron con ~19 min de diferencia con títulos casi idénticos y nadie lo notó hasta
+        // ejecutar uno. NO bloquea (podría ser un seguimiento legítimo parecido a propósito) —
+        // sólo escala a `requiere_irving` + deja nota, para que un humano decida ANTES de que el
+        // autopilot lo apruebe solo. Corre para TODA vía de alta que pase por Eloquent (API
+        // externa y sub-items vía RoadmapIntakeService::crear(), alta manual vía
+        // RoadmapController::store) porque `creating()` es el único punto que las tres comparten.
+        // Exento en tests (mismo criterio que el guard de arriba): fixtures con títulos parecidos
+        // entre sí no deben verse afectadas; la similitud en sí la cubre
+        // `RoadmapDuplicadoServiceSimilitudTest` (PHPUnit puro, sin bootear Laravel).
+        static::creating(function (self $item) {
+            if (app()->runningUnitTests()) {
+                return;
+            }
+
+            $match = app(\App\Modules\Addons\Roadmap\Services\RoadmapDuplicadoService::class)
+                ->buscar((string) $item->title, $item->description);
+
+            if ($match === null) {
+                return;
+            }
+
+            $item->estado_aprobacion = 'requiere_irving';
+
+            $motivo = "Posible duplicado de #{$match['id']} (\"{$match['title']}\", similitud "
+                . "{$match['similitud']}%) — revisar antes de aprobar.";
+
+            $log   = $item->log ?: [];
+            $log[] = [
+                'ts'            => now()->toIso8601String(),
+                'por'           => 'dedupe:similitud',
+                'evento'        => 'posible_duplicado_detectado',
+                'candidato_id'  => $match['id'],
+                'similitud_pct' => $match['similitud'],
+                'motivo'        => $motivo,
+            ];
+            $item->log = $log;
+
+            $item->comentarios_claude = trim(
+                ((string) $item->comentarios_claude)
+                . "\n\n--- POSIBLE DUPLICADO (#9990999) " . now()->toDateTimeString() . " ---\n"
+                . $motivo . "\n"
+            );
+        });
+
         // #456: guardia simétrica al #420 — causa raíz de la bandeja pendiente_revision llenándose de
         // items done/in_progress. Las acciones MANUALES del Kanban legado (RoadmapController::start/
         // complete/cancel, disparadas por el toggle de estado en RoadmapTab.vue) solo mutan `status` y
