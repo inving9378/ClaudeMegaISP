@@ -54,6 +54,9 @@ class RoadmapItem extends Model
         'modulo', 'nivel_riesgo', 'estado_aprobacion',
         // Quién fijó el nivel_riesgo vigente: interno|externo (circuito #260)
         'nivel_riesgo_origen',
+        // #9990875 — CÓMO se asignó nivel_riesgo cuando no fue por el flujo normal del circuito:
+        // heuristica|manual|llm; NULL = flujo normal (triaje/revisor/autopilot)
+        'clasificacion_metodo',
         // Veredicto persistido de la VÁLVULA DE NACIMIENTO (mencion|accion|null) — lo consumen los
         // guards que corren DESPUÉS del alta, sin el texto delante.
         'frontera_valvula', 'frontera_valvula_at',
