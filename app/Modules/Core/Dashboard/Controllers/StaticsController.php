@@ -133,7 +133,8 @@ class StaticsController extends Controller
     public function rankingSales(Request $request)
     {
         $query = ClientMainInformation::query();
-        $query->join('users', 'users.id', '=', 'client_main_information.seller_id');
+        $identityExpr = \App\Services\Identidad\ColaboradorIdResolver::applyIdentityJoin($query, 'client_main_information');
+        $query->join('users', DB::raw($identityExpr), '=', 'users.id');
         $range = $request->range;
         if (isset($range)) {
             if (isset($range[0]) && isset($range[1])) {
