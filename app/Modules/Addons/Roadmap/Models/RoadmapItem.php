@@ -74,6 +74,9 @@ class RoadmapItem extends Model
         'branch', 'merge_commit',
         // Acciones avanzadas de la bandeja (#320)
         'origen_item_id',
+        // CIRC-05 pieza A (#9990946) — idempotencia de alta externa: un reintento con la misma
+        // clave_externa devuelve el item ya existente en vez de duplicarlo.
+        'clave_externa',
         // Integración robusta (#325)
         'marcado_version',
         // Disparo/urgente (#337)

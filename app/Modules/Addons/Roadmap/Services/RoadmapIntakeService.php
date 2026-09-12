@@ -42,6 +42,18 @@ class RoadmapIntakeService
             throw new InvalidArgumentException('El item necesita un título.');
         }
 
+        // CIRC-05 pieza A (#9990946) — idempotencia: un reintento con la MISMA clave_externa
+        // devuelve el item ya existente tal cual (sin `save()`, `wasRecentlyCreated` queda en
+        // false) en vez de duplicarlo. El llamador (ej. RoadmapExternalController) distingue
+        // hallazgo de alta nueva revisando `$item->wasRecentlyCreated`.
+        $claveExterna = $this->recorta($datos['clave_externa'] ?? null, 191);
+        if ($claveExterna !== null) {
+            $existente = RoadmapItem::where('clave_externa', $claveExterna)->first();
+            if ($existente) {
+                return $existente;
+            }
+        }
+
         $padre = null;
         if (! empty($datos['origen_item_id'])) {
             $padre = RoadmapItem::find((int) $datos['origen_item_id']);
@@ -74,6 +86,7 @@ class RoadmapIntakeService
         // (un sub-item de un item `alta` no debe degradar a NULL en la cola solo por descomponerse).
         $item->priority       = $prioridad ?? $padre?->priority;
         $item->origen_item_id = $padre?->id;
+        $item->clave_externa  = $claveExterna;
 
         // El nivel puede venir declarado, pero SIEMPRE queda sellado con su origen real.
         $item->nivel_riesgo = $nivel;

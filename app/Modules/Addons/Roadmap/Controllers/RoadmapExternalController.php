@@ -391,6 +391,9 @@ class RoadmapExternalController extends Controller
             'priority'       => ['sometimes', 'nullable', 'string', 'in:alta,media,baja'],
             'origen_item_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'target_version' => ['sometimes', 'nullable', 'string', 'max:20'],
+            // CIRC-05 pieza A (#9990946) — clave que el emisor controla para que un reintento de
+            // ESTE MISMO POST (no puede saber si el anterior llegó) no duplique el item.
+            'clave_externa'  => ['sometimes', 'nullable', 'string', 'max:191'],
             // #845 (Falla 1 de #841) — declara EXPLÍCITAMENTE que esta alta es la RESOLUCIÓN de
             // `origen_item_id` (una decisión de Irving que se está registrando), no trabajo nuevo.
             'es_resolucion'  => ['sometimes', 'nullable', 'boolean'],
@@ -426,6 +429,20 @@ class RoadmapExternalController extends Controller
             $this->audit($request, $verb, 'rejected_validacion', ['motivo' => $e->getMessage()]);
 
             return response()->json(['error' => $e->getMessage()], 422);
+        }
+
+        // CIRC-05 pieza A (#9990946) — reintento idempotente: la clave_externa ya existía, así
+        // que `crear()` devolvió el item existente sin insertar nada nuevo (`wasRecentlyCreated`
+        // en false). Se responde 200 con `ya_existia` en vez del 201 de alta nueva.
+        if (! empty($data['clave_externa']) && ! $item->wasRecentlyCreated) {
+            $this->audit($request, $verb, 'idempotent_hit', ['id' => $item->id, 'clave_externa' => $data['clave_externa']]);
+
+            return response()->json([
+                'ok'         => true,
+                'ya_existia' => true,
+                'aviso'      => 'Ya existía un item con esta clave_externa: se devuelve el existente, sin duplicar.',
+                'item'       => $this->svc->serialize($item),
+            ], 200);
         }
 
         $this->audit($request, $verb, 'created', ['id' => $item->id, 'modulo' => $item->modulo]);

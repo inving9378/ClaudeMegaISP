@@ -1063,6 +1063,7 @@ class RoadmapCircuitoService
             'rama'               => $i->branch,
             'merge_commit'       => $i->merge_commit,
             'item_padre'         => $i->origen_item_id ? (int) $i->origen_item_id : null,
+            'clave_externa'      => $i->clave_externa,
             'eta_minutos'        => $i->eta_minutos !== null ? (int) $i->eta_minutos : null,
             // Consulta viva a Jarvis (la terminal preguntó y espera respuesta).
             'consulta_supervisor' => $i->tieneConsultaViva() ? [
