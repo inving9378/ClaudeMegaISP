@@ -848,7 +848,95 @@ _(sin archivos agregados — todo lo que toca ya existe en main)_
 
 ---
 
-## SECCIÓN 3 — (pendiente Fase 5b, sub-item #<el-que-sigue>)
+## SECCIÓN 3 — Top 10: el trabajo más valioso fuera de `main`
+
+Criterio (dado por el padre #9990891): tamaño (archivos) + tipo de archivo (servicios/controllers/
+migraciones pesan más que vistas/docs) + antigüedad (más vieja = más riesgo) + si el item ya se dio
+por completado (cubeta (b) pesa más que (c), porque en (b) el trabajo YA terminó y solo falta
+aplicarlo). Candidatos: las 22 ramas de cubeta (b) bandera roja + las ramas de cubeta (c) con más
+`commits_adelante`/archivos.
+
+**Nota de metodología:** los conteos de archivos de aquí salen de `git diff main...<rama> --stat`
+(diff real contra `main`, cuenta también archivos **modificados** que ya existen en main) — no del
+conteo de "archivos que main no tiene" de la Sección 2 (que sólo cuenta altas nuevas). Por eso, p.
+ej., #9990808 tiene 9 archivos "prioritario" en la Sección 2 pero 11 en el diff real (2 archivos
+modificados: `config/route_permission.php` y `routes/web.php`, que ya existen en main). Coincide
+con los conteos que el propio padre citó como ejemplo (#9990359 → 7 archivos, #9990808 → 11
+archivos), así que se usa esta métrica para el Top 10 completo. Se excluyeron 2 candidatos que en
+el diff real resultaron ser solo `CLAUDE.md`+bitácora (documentación de cierre de un paraguas, cero
+código funcional: #705 y #740) — no califican como "trabajo perdido", son notas de bookkeeping.
+
+1. **#758 — DocumentaciónCorporativa Fase 5a — CRUD completo de `dc_solicitudes`**
+   Rama `circuito/item-758-documentacioncorporativa-fase-5a-dc-so` (cubeta b, completado
+   2026-09-04). Archivos clave: `DcSolicitudController.php`, 4 migraciones (`dc_solicitudes`,
+   `dc_entregas_tables`, revocación de offboarding, permiso), `DcSolicitudes.vue`.
+   Qué se perdería: el CRUD entero de solicitudes de documentación corporativa — 1 controller + 4
+   modelos + 4 migraciones + 1 vista Vue, ~950 líneas, terminado desde hace una semana.
+
+2. **#734 — DocumentaciónCorporativa Fase 2a — repositorio documental (carga/versionado/descarga)**
+   Rama `circuito/item-734-documentacioncorporativa-fase-2a-repos` (cubeta b, completado
+   2026-09-04). Archivos clave: `DocumentoController.php`, `DocumentoService.php`,
+   `CompletitudService.php`.
+   Qué se perdería: el servicio completo de repositorio documental con versionado y control de
+   completitud — 1 controller + 2 modelos + 3 servicios + migración + config, ~790 líneas.
+
+3. **#9990808 — Motor de ventas: catálogos backend (Fase 1 de #9990781)**
+   Rama `circuito/item-9990808-motor-de-ventas-catalogos-backend-migr` (cubeta c, **abierto**,
+   `aprobado_irving` sin reclamar, 3 commits). Archivos clave: `CatalogosVentasController.php`, los
+   3 modelos `Venta{Modalidad,ModoPago,ParametroReglamento}.php`, 5 migraciones con seed+permisos.
+   Qué se perdería: la base completa de catálogos del nuevo motor de ventas, ~490 líneas — es la
+   pieza abierta más grande de todo el universo de 196 ramas; si nadie retoma esta rama exacta, es
+   la más grande que alguien podría terminar reconstruyendo desde cero sin saberlo.
+
+4. **#806 — Jarvis Parte 3b — motor del chat de sugerencias**
+   Rama `circuito/item-806-jarvis-parte-3b-decidir-donde-vive-el` (cubeta b, completado
+   2026-08-31). Archivos clave: `JarvisChatController.php`, `JarvisChatService.php`, migración
+   `crea_jarvis_chat_tablas`.
+   Qué se perdería: el motor completo de chat de JARVIS — controller + 2 modelos + servicio +
+   migración + rutas, ~394 líneas.
+
+5. **#9990647 — Talento: "Completar documento" (formulario de campos fillables)**
+   Rama `circuito/item-9990647-talento-completar-documento-formula-2` (cubeta b, completado
+   2026-09-09 — el más reciente de los 22). Archivos clave:
+   `EmployeeDocumentPackageService.php`, 2 migraciones (columnas + seed de campos fillables del
+   Reglamento).
+   Qué se perdería: el formulario de completar documento (colaborador vs. doc-específico) que
+   guarda donde debe y regenera, ~200 líneas, terminado hace 2 días.
+
+6. **#759 — DocumentaciónCorporativa Fase 5b — servicio de armado de entrega**
+   Rama `circuito/item-759-documentacioncorporativa-fase-5b-servi` (cubeta b, completado
+   2026-09-04). Archivos clave: `DcEntrega.php`, `DcEntregaItem.php`, `DcSolicitud.php`.
+   Qué se perdería: el servicio de armado de entrega-recepción (ZIP + acta PDF + hash SHA-256),
+   ~295 líneas. Comparte modelos con #758 (mismos archivos `DcEntrega*`/`DcSolicitud`) — al
+   rescatar, revisar ambas ramas juntas para no duplicar.
+
+7. **#9990439 — MR-24e — modo dibujo en el mapa: alta de NAP + cable con snap**
+   Rama `circuito/item-9990439-mr-24e-modo-dibujo-en-el-mapa-alta-de` (cubeta b, completado
+   2026-09-08). Archivos clave: `NapAltaRapidaController.php`, `elementos-request.js`.
+   Qué se perdería: el flujo de alta rápida de NAP en 3 pasos + cable con snap a extremos del Mapa
+   de Red, ~256 líneas. Comparte `NapAltaRapidaController.php` con #9990437 (MR-24d, también en
+   esta cubeta) — mismo archivo, revisar en conjunto.
+
+8. **#9990359 — Talento Hijo E2 — regenerar y subir escaneado firmado**
+   Rama `circuito/item-9990359-hijo-e2-regenerar-y-subir-escaneado-fi` (cubeta c, **abierto**,
+   `aprobado_irving` sin reclamar, **10 commits** — el más alto de toda la cubeta abierta).
+   Archivos clave: `TalentoEmployeeDocumentController.php`, `EmployeeDocumentPackageService.php`,
+   `TalentoExpedienteDocumentos.vue`.
+   Qué se perdería: el flujo de regenerar/subir el escaneado firmado con congelamiento de versión,
+   ~262 líneas repartidos en 10 commits sin mergear — el candidato con más riesgo de
+   desactualización de la lista, por volumen de historial acumulado sin integrar.
+
+9. **#875 — Torre 24/7 Pieza 3 — semáforo de motores del circuito**
+   Rama `circuito/item-875-consola-fase-1-semaforo-de-motores-en` (cubeta b, completado
+   2026-09-03). Archivos clave: `CircuitoMotorPulso.php`, migración `circuito_motor_pulsos`.
+   Qué se perdería: el modelo + instrumentación de pulso de los motores del circuito (detectores de
+   errores reales del Motor de Auditoría), ~138 líneas.
+
+10. **#824 — DocumentaciónCorporativa Fase 5c.2 — UI armar entrega desde una solicitud**
+    Rama `circuito/item-824-documentacioncorporativa-fase-5c2-ui` (cubeta b, completado
+    2026-09-05). Archivos clave: `EntregaController.php`, `BitacoraService.php`.
+    Qué se perdería: el controller + servicio de bitácora que conecta la UI de armar una entrega
+    desde una solicitud existente, ~89 líneas.
 
 ## SECCIÓN 4 — Caso `reglamento-ventas-comisiones.md` (ya investigado, sin re-investigar)
 
@@ -869,6 +957,36 @@ ese reglamento como fuente única de verdad (#9990782, #9990783, #9990784, #9990
 abiertos, **bloqueados** en espera de que Irving responda #9990790 — esta es la "ola
 Ventas/Talento bloqueada" que menciona la descripción del padre #9990891.
 
-## SECCIÓN 5 — (pendiente Fase 5b, sub-item #<el-que-sigue>)
+## SECCIÓN 5 — Hallazgo del guard `verificarCierre` (condicional, ya evaluado)
 
-## SECCIÓN 6 — (pendiente Fase 5b, sub-item #<el-que-sigue>)
+La Fase 5a (Sección 1 de este documento) ya documentó, con la fecha REAL del check que de verdad
+aplica a las 22 filas de la cubeta (b) bandera roja (`0f046eef`, item #9990738, **2026-09-10
+18:13:12** — no el 2026-08-08 que asumía el prompt original de CIRC-08), que las 22 fechas de
+cierre van de 2026-08-29 a 2026-09-09: **todas anteriores** a que ese check existiera. Con ese
+corte real, **cero de los 22 casos son un hueco vigente del guard hoy** — son deuda histórica de
+antes de que el check se escribiera, no una falla de proceso activa.
+
+Con esta evidencia: se evaluó proponer un fix del guard verificarCierre, pero la partición por
+fecha real (no la nominal del prompt) muestra 0 casos posteriores al check vigente -- no se abre
+item, para no perseguir un falso positivo ya descartado con evidencia.
+
+## SECCIÓN 6 — Severidad de la cubeta (b) combinada
+
+El criterio literal del padre #9990891 dice: si la cubeta (b) combinada (`b1_anterior_al_guard` +
+`b2_posterior_al_guard`) supera 10, señalar explícitamente que es un hallazgo de severidad alta. La
+combinada nominal = 0 + 22 = **22 > 10** → sí aplica el criterio. Pero conviene separar dos hechos
+distintos, con el mismo razonamiento de la Sección 5:
+
+**(a) El fenómeno en sí — real, severidad alta.** 22 items marcados `estado_aprobacion=completado`
+(el trabajo se dio por terminado) cuyo código real **nunca llegó a `main`**. Esto es File-verificable
+(rama poblada, `merge_commit` vacío) y mide algo cierto e importante: "cerrar un item no garantiza
+que su trabajo llegue a main". Las piezas más valiosas de esos 22 son el Top 10 de la Sección 3
+(encabezado por #758 y #734, ~950 y ~790 líneas terminadas y sin mergear) — Irving debe decidir
+cuáles de esas ramas rescatar (aplicar el diff a `main`) y cuáles descartar.
+
+**(b) La causa — NO es un bug del guard actual.** Como ya estableció la Sección 5, el check que
+bloquea este patrón (`0f046eef`, 2026-09-10 18:13) es más nuevo que las 22 fechas de cierre. No es
+que el guard tenga un hueco hoy: es que estas 22 ramas se cerraron **antes** de que el guard
+existiera. El guard vigente, si se probara hoy contra un cierre nuevo con las mismas condiciones,
+sí bloquearía el caso (exige `sin_merge_esperado=true`). El hallazgo de severidad alta es sobre el
+pasado (deuda acumulada), no sobre un defecto activo del proceso de hoy.
