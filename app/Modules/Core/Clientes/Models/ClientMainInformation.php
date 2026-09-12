@@ -95,6 +95,19 @@ class ClientMainInformation extends BaseModel
         return $this->belongsTo(User::class, 'seller_id');
     }
 
+    /**
+     * Bridge de identidad (Fase 4 de #9990778, item #9991019, módulo 2 —
+     * listados/filtros). Relación paralela a user_seller() para resolver el
+     * vendedor vía colaborador_id -> talento_colaboradores, consumida SOLO por
+     * quien la eager-carga explícitamente detrás de
+     * ColaboradorIdResolver::lecturaHabilitada() (ej. ClientDatatableHelper);
+     * user_seller() sigue intacta para todo lo demás.
+     */
+    public function colaborador()
+    {
+        return $this->belongsTo(\App\Modules\Addons\Talento\Models\TalentoColaborador::class, 'colaborador_id');
+    }
+
     public function state()
     {
         return $this->belongsTo(State::class);
