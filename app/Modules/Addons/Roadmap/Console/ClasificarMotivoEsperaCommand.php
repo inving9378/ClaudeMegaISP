@@ -49,6 +49,12 @@ class ClasificarMotivoEsperaCommand extends Command
      * Patrones de barrido (case-insensitive, sobre título+descripción+comentarios_claude).
      * Los mismos que cita el spec del item, más sinónimos evidentes.
      */
+    /**
+     * OJO: 'frontera dura' se probó y se descartó — es la etiqueta con la que el propio circuito
+     * marca CASI CUALQUIER item escalado a Irving (153 de 166 matches en la corrida de prueba),
+     * no una señal de que ESE item esté esperando algo externo específico. Incluirla vaciaría de
+     * sentido la clasificación (todo terminaría en "frontera_produccion" sin serlo).
+     */
     private const PATRONES = [
         'bloqueado por', 'bloqueado:', 'bloqueado sin',
         'requiere credencial', 'falta credencial', 'falta la credencial',
@@ -56,7 +62,6 @@ class ClasificarMotivoEsperaCommand extends Command
         'pendiente de autorización', 'sin autorización',
         'sesión presencial', 'requiere sesión presencial',
         'decisión de irving', 'decisión pendiente', 'decisión de negocio',
-        'frontera dura',
     ];
 
     public function handle(): int
