@@ -2334,3 +2334,29 @@ Detalle en `docs/roadmap-bucle-reap-item-9990836-verificacion.md`. **Sin cambio 
 negocio** — el trabajo técnico real (columna normalizada en el buscador de clientes + indicador
 visual de origen en el listado) sigue en #9990847/#9990848, pendientes de que una terminal los
 reclame.
+
+## Item #9990856 — CIRC-02 (paraguas: comentario de Irving = respuesta, hilo + re-encolado) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
+#936/#9990408/#962/#9990554/#9990549/#9990624/#9990650/#9990807/#9990826/#9990836. #9990856 es
+un PARAGUAS explícito por título y `prompt` ("no lo trabajes directo... agrupa CIRC-02a, CIRC-02b
+y CIRC-02c... cierra por cascada"): objetivo del feature (que escribir un comentario de Irving en
+un item `requiere_irving` sea, por sí solo, el acto de responder — sin segundo clic, sin pisar
+`comentarios_claude`, con re-encolado y precedencia sobre el prompt original). El revisor lo
+escaló por tocar arquitectura de decisión del propio circuito; Irving aprobó la opción
+recomendada (PARAGUAS no-ejecutable, cierra por cascada, el circuito solo trabaja los
+sub-items). Una vuelta previa ya había descompuesto correctamente el trabajo en **#9990857**
+(CIRC-02a — diagnóstico solo-lectura de respuestas perdidas), **#9990858** (CIRC-02b — mecanismo:
+tabla `roadmap_item_respuestas` + re-encolado automático) y **#9990859** (CIRC-02c — visibilidad
+en la Torre + watchdog de respuestas sin consumir). Pero esa vuelta nunca intentó **cerrar** al
+padre — quedó `en_progreso` colgado, y el pool lo repartió de nuevo sin trabajo propio que hacer.
+Verificado esta vuelta: los 3 hijos siguen intactos (#9990857 `en_progreso` reclamado por `wt-3`,
+no se tocó; #9990858 `requiere_irving` sin reclamar; #9990859 `pendiente_revision` sin reclamar)
+— la descomposición original seguía siendo correcta, nadie más la tocó. Corrección: esta vuelta
+ejecuta el intento de cierre faltante; el guard (`RoadmapItem.php` bloque "(2b) PARAGUAS") lo
+reenruta a `aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto` en el
+log, "le quedan 3 sub-item(s) abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre
+en cascada (`RoadmapItem.php:459-491`) lo complete solo cuando #9990857, #9990858 y #9990859
+cierren los tres. Detalle en `docs/roadmap-bucle-reap-item-9990856-verificacion.md`. **Sin cambio
+de código de negocio** — el trabajo técnico real del mecanismo de respuestas de Irving sigue en
+#9990857/#9990858/#9990859, pendientes de que sus dueños los cierren.
