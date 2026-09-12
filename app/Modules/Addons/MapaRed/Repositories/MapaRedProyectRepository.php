@@ -6,6 +6,7 @@ use App\Models\ClientMainInformation;
 use App\Modules\Addons\MapaRed\Models\MapaRedLayer;
 use App\Modules\Addons\MapaRed\Models\MapaRedProyect;
 use App\Repositories\BaseRepository;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -16,6 +17,21 @@ use Illuminate\Support\Facades\DB;
  */
 class MapaRedProyectRepository extends BaseRepository
 {
+    /**
+     * MR-22 Fase 4b (item #9991049): getNodes() mide ~1.97s con 1715 proyectos + 6689
+     * layers + 3181 clientes (dev). Se abre en cada apertura del mapa sin filtro de zona
+     * (fase 4b-2 futura). Mitigación (a) mínima: cache corto — se invalida en los eventos
+     * de MapaRedProyect/MapaRedLayer (ver sus boot()) para que store/update/destroy nunca
+     * devuelvan en su propia respuesta el árbol viejo.
+     */
+    public const NODES_CACHE_KEY = 'mapared:nodes:v1';
+    public const NODES_CACHE_TTL = 45;
+
+    public static function invalidateNodesCache(): void
+    {
+        Cache::forget(self::NODES_CACHE_KEY);
+    }
+
     public function getModel(): MapaRedProyect
     {
         return new MapaRedProyect();
@@ -23,22 +39,24 @@ class MapaRedProyectRepository extends BaseRepository
 
     public function getNodes()
     {
-        $nodes = $this->getDefaultNodes();
-        $allNodes = $this->getProjectsTree();
-        foreach ($allNodes as $node) {
-            $is_layer = (bool)$node->is_layer;
-            if (!$is_layer) {
-                $nodes[] = $this->getNodeData($node, 'project');
-                $nodes[] = $this->getNodeData($node, 'network');
-            } else {
-                $nodes[] = $this->getNodeData($node, $node->classification);
+        return Cache::remember(self::NODES_CACHE_KEY, self::NODES_CACHE_TTL, function () {
+            $nodes = $this->getDefaultNodes();
+            $allNodes = $this->getProjectsTree();
+            foreach ($allNodes as $node) {
+                $is_layer = (bool)$node->is_layer;
+                if (!$is_layer) {
+                    $nodes[] = $this->getNodeData($node, 'project');
+                    $nodes[] = $this->getNodeData($node, 'network');
+                } else {
+                    $nodes[] = $this->getNodeData($node, $node->classification);
+                }
             }
-        }
-        $clients = ClientMainInformation::whereNotNull('geodata')->get();
-        foreach ($clients as $client) {
-            $nodes[] = $this->getClientNodeData($client);
-        }
-        return $nodes;
+            $clients = ClientMainInformation::whereNotNull('geodata')->get();
+            foreach ($clients as $client) {
+                $nodes[] = $this->getClientNodeData($client);
+            }
+            return $nodes;
+        });
     }
 
     public function getDataFromObject($node)
