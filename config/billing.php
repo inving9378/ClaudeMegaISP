@@ -31,4 +31,18 @@ return [
     | OFF — activar es una decisión aparte de Irving (Fase 5 del plan).
     */
     'dual_write_invoices' => env('BILLING_DUAL_WRITE_INVOICES', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Respaldo por WhatsApp cuando el cliente no tiene email (item #9991031)
+    |--------------------------------------------------------------------------
+    | Con el flag OFF (default), `billing:send-pending-notifications` se
+    | comporta EXACTAMENTE igual que hoy: si la notificación no tiene email,
+    | marca error y la salta. Con el flag ON, antes de marcar error intenta
+    | resolver un teléfono de la ficha (phone/phone2/phone3) y encolar un
+    | recordatorio de texto por el gateway ÚNICO de WhatsApp. Kill-switch tipo
+    | pagos: mismo patrón que DOMICILIACION_COBRO_LIVE_ENABLED — NO activar en
+    | prod sin decisión explícita de Irving.
+    */
+    'whatsapp_fallback_enabled' => (bool) env('BILLING_WHATSAPP_FALLBACK_ENABLED', false),
 ];
