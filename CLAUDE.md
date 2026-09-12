@@ -2460,3 +2460,32 @@ un insumo tuyo" con acordeón por `motivo_espera`; los 10 items de la tabla (283
 "Requiere Irving" ya solo cuenta `bandejaDecision()`. Todo el criterio de aceptación ya estaba
 satisfecho. Detalle completo en `docs/circuito-circ03-duplicado-item-9990869-verificacion.md`.
 **Sin cambio de código** — nada que implementar, el trabajo ya existía en `main`.
+
+## Item #9990893 — Fase 3 (C2) "Listos para terminal" + contador de vueltas quemadas + cablear #9990798 — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
+#936/#9990408/#962/#9990554/#9990549/#9990624/#9990650/#9990807/#9990826/#9990836/#9990856/
+#9990892/#9990896/#9990886. #9990893 (sub-item de #9990863: corregir la semántica de "Listos
+para terminal" en `SupervisorService` para que respete dependencias/`motivo_espera` igual que el
+despachador real, sumar el contador de "vueltas quemadas" y cablear #9990798) ya había sido
+descompuesto correctamente por una vuelta previa (`wt-3`, 2026-09-11 19:02): verificó primero que
+la pieza "cablear #9990798" ya estaba aplicada (`depende_de=[9990790]` ya en BD, solo faltaba que
+`SupervisorService` lo respetara), corrió `circuito:cabida` (NO CABE, `historico_excede_umbral`)
+y partió el resto en **#9990923** (Fase 3a: excluir `depende_de` sin resolver / `motivo_espera`
+en `listosParaTerminal()`/`listosParaTerminalTotal()`, reusando `estaCerradoParaDependencia()` de
+MR-36), **#9990924** (Fase 3b: heurística de texto sobre bloqueos declarados en el prompt) y
+**#9990925** (Fase 3c: mostrar en la Torre el contador `reap_count`/`veces_timeouteo` que ya
+existe, sin crear columna nueva). Pero el comentario de esa vuelta se cortó a media oración
+("...contador de vueltas quemadas que YA EXISTE como reap_count/veces") sin intentar **cerrar**
+al padre — el reaper lo detectó huérfano 27 minutos después y lo re-encoló (`reap_count=1`), y el
+pool lo repartió de nuevo sin trabajo propio que hacer. Verificado esta vuelta: #9990923 sigue
+reclamado activamente por `wt-3` (con dueño, no se toca), #9990924 y #9990925 siguen
+`aprobado_revisor` sin reclamar — la descomposición original seguía siendo correcta, nadie más la
+tocó. Corrección: esta vuelta ejecuta el intento de cierre faltante; el guard (`RoadmapItem.php`
+bloque "(2b) PARAGUAS") lo reenruta a `aprobado_irving` + `excluir_pool_automatico=true` (evento
+`paraguas_abierto` en el log, "le quedan 3 sub-item(s) abierto(s)"), sacándolo del pool/reaper
+hasta que el hook de cierre en cascada (`RoadmapItem.php:459-491`) lo complete solo cuando
+#9990923, #9990924 y #9990925 cierren los tres. Detalle en
+`docs/roadmap-bucle-reap-item-9990893-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo técnico real (SupervisorService, heurística de texto, contador en la Torre) sigue en
+#9990923/#9990924/#9990925, pendientes de que sus dueños los cierren.
