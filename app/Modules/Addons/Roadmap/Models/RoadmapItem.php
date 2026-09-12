@@ -2005,10 +2005,43 @@ TXT;
      */
     public function subItemsAbiertos()
     {
-        return static::where('origen_item_id', $this->id)
+        $redirigidos = $this->subItemsRedirigidos();
+
+        return static::where(function ($q) use ($redirigidos) {
+                $q->where('origen_item_id', $this->id);
+                if ($redirigidos !== []) {
+                    $q->orWhereIn('id', $redirigidos);
+                }
+            })
             ->whereNull('archivado_at')
             ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'rechazado'])
             ->whereNotIn('status', ['done', 'cancelled']);
+    }
+
+    /**
+     * IDs de sub-items REDIRIGIDOS por límite de profundidad (`max_profundidad_creacion`,
+     * ver `RoadmapIntakeService::crear()`): cuando este item ya está en la profundidad
+     * máxima permitida y no puede tener hijos propios, la descomposición se cuelga de un
+     * ancestro más arriba — esos sub-items nacen con `origen_item_id` distinto al de este
+     * item, así que `subItemsAbiertos()` (que solo miraba `origen_item_id = $this->id`)
+     * nunca los veía. El ejecutor que redirige deja constancia en el log
+     * (`evento: paraguas_redirigido`, `sub_items_relacionados: [...]`); sin leerla, tanto el
+     * guard de cierre (2b, `saving()` abajo) como el carril `jarvis-ya-decidido`
+     * (`JarvisService::evaluarYaDecidido()`) completaban/desparqueaban el paraguas por error
+     * mientras sus hijos reales seguían abiertos — bucle real verificado en #9990902.
+     */
+    public function subItemsRedirigidos(): array
+    {
+        $ids = [];
+        foreach ((array) $this->log as $entrada) {
+            if (($entrada['evento'] ?? null) === 'paraguas_redirigido') {
+                foreach ((array) ($entrada['sub_items_relacionados'] ?? []) as $id) {
+                    $ids[] = (int) $id;
+                }
+            }
+        }
+
+        return array_values(array_unique(array_filter($ids)));
     }
 
     public function tieneSubItemsAbiertos(): bool
