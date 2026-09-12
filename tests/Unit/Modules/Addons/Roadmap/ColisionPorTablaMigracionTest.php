@@ -300,4 +300,91 @@ class ColisionPorTablaMigracionTest extends TestCase
 
         $this->assertCount(1, $detectadas, 'Un solo par (1,2) debe producir una sola decisión.');
     }
+
+    // ── esRutaExentaDeColision() / exención de docs (#9990892/#9990898) ────────────────────
+
+    public function test_claude_md_es_ruta_exenta(): void
+    {
+        $this->assertTrue($this->svc->esRutaExentaDeColision('CLAUDE.md'));
+    }
+
+    public function test_rutas_bajo_docs_son_exentas(): void
+    {
+        $this->assertTrue($this->svc->esRutaExentaDeColision('docs/bitacora-sesiones.md'));
+        $this->assertTrue($this->svc->esRutaExentaDeColision('docs/bitacora/2026-09-11-item-9990898.md'));
+    }
+
+    public function test_changelog_es_exento(): void
+    {
+        $this->assertTrue($this->svc->esRutaExentaDeColision('CHANGELOG.md'));
+        $this->assertTrue($this->svc->esRutaExentaDeColision('CHANGELOG-old.md'));
+    }
+
+    public function test_cualquier_md_es_exento(): void
+    {
+        $this->assertTrue($this->svc->esRutaExentaDeColision('README.md'));
+    }
+
+    public function test_archivo_de_codigo_no_es_exento(): void
+    {
+        $this->assertFalse($this->svc->esRutaExentaDeColision('app/Modules/Addons/Roadmap/Services/RoadmapCircuitoService.php'));
+        $this->assertFalse($this->svc->esRutaExentaDeColision('routes.php'));
+    }
+
+    /**
+     * El caso exacto que #9990898 pidió verificar: dos ramas que SOLO tocan CLAUDE.md
+     * (en común) no deben colisionar.
+     */
+    public function test_dos_ramas_que_solo_tocan_claude_md_no_colisionan(): void
+    {
+        $rows = [
+            ['id' => 1, 'updated_at' => '2026-09-03 10:00:00'],
+            ['id' => 2, 'updated_at' => '2026-09-03 10:01:00'],
+        ];
+        $footprints = [1 => ['CLAUDE.md'], 2 => ['CLAUDE.md']];
+        $tablas = [1 => [], 2 => []];
+
+        $this->assertSame([], $this->svc->decidirColisiones($rows, $footprints, $tablas));
+    }
+
+    /**
+     * Si además de un doc en común tocan un archivo de código en común, la colisión sigue
+     * detectándose (la exención solo dispensa cuando TODO lo común es documentación).
+     */
+    public function test_doc_en_comun_mas_archivo_de_codigo_en_comun_si_colisiona(): void
+    {
+        $rows = [
+            ['id' => 1, 'updated_at' => '2026-09-03 10:00:00'],
+            ['id' => 2, 'updated_at' => '2026-09-03 10:01:00'],
+        ];
+        $footprints = [
+            1 => ['CLAUDE.md', 'app/Foo.php'],
+            2 => ['CLAUDE.md', 'app/Foo.php'],
+        ];
+        $tablas = [1 => [], 2 => []];
+
+        $detectadas = $this->svc->decidirColisiones($rows, $footprints, $tablas);
+
+        $this->assertCount(1, $detectadas);
+        $this->assertSame(['app/Foo.php'], $detectadas[0]['comunes']);
+    }
+
+    /**
+     * Una tabla de migración en común NUNCA es exenta, aunque el único archivo en común sea
+     * un doc: la colisión de esquema sigue contando.
+     */
+    public function test_tabla_en_comun_sigue_colisionando_aunque_el_archivo_comun_sea_doc(): void
+    {
+        $rows = [
+            ['id' => 1, 'updated_at' => '2026-09-03 10:00:00'],
+            ['id' => 2, 'updated_at' => '2026-09-03 10:01:00'],
+        ];
+        $footprints = [1 => ['CLAUDE.md'], 2 => ['CLAUDE.md']];
+        $tablas = [1 => ['clients'], 2 => ['clients']];
+
+        $detectadas = $this->svc->decidirColisiones($rows, $footprints, $tablas);
+
+        $this->assertCount(1, $detectadas);
+        $this->assertSame(['tabla:clients'], $detectadas[0]['comunes']);
+    }
 }

@@ -3191,6 +3191,30 @@ class RoadmapCircuitoService
     }
 
     /**
+     * #9990892/#9990898 — rutas de documentación pura (CLAUDE.md, docs/**, CHANGELOG*, *.md):
+     * cuando son el ÚNICO archivo en común entre dos ramas, no cuentan como colisión — dos ramas
+     * documentando cosas distintas no compiten por código real. Simulación histórica (#9990898)
+     * sobre los 64 eventos `colision_pausada` reales del log: 6 (9.4%) habrían sido evitados por
+     * esta regla, todos ediciones de docs/bitácora/CLAUDE.md, cero con overlap de frontera dura
+     * (dinero/seguridad/permisos/prod) — detalle en `docs/circuito-simulacion-exencion-docs-item-9990898-verificacion.md`.
+     * Las tablas de migración (`tabla:xxx`) NUNCA son exentas: solo aplica a rutas de archivo.
+     */
+    public function esRutaExentaDeColision(string $ruta): bool
+    {
+        if ($ruta === 'CLAUDE.md') {
+            return true;
+        }
+        if (str_starts_with($ruta, 'docs/')) {
+            return true;
+        }
+        if (preg_match('#(^|/)CHANGELOG[^/]*$#i', $ruta)) {
+            return true;
+        }
+
+        return (bool) preg_match('/\.md$/i', $ruta);
+    }
+
+    /**
      * #9990004 (q2+q3 de #915) — núcleo PURO (sin BD ni git) de `detectarColisionesEnVuelo()`: dado
      * el listado de items en vuelo y sus footprints de archivo + tablas de migración ya resueltos,
      * decide qué pares colisionan (por archivo común, por tabla común, o por footprint desconocido)
@@ -3218,7 +3242,12 @@ class RoadmapCircuitoService
                     // los dos → no se puede garantizar que sean disjuntos, se trata como colisión.
                     $comunes = ['(footprint en vivo desconocido)'];
                 } else {
-                    $archivosComunes = array_values(array_intersect($footprints[$a['id']] ?? [], $footprints[$b['id']] ?? []));
+                    // #9990898 — se descartan de los archivos comunes las rutas 100% de docs antes
+                    // de decidir si hay colisión (las tablas de migración quedan intactas, nunca exentas).
+                    $archivosComunes = array_values(array_filter(
+                        array_intersect($footprints[$a['id']] ?? [], $footprints[$b['id']] ?? []),
+                        fn ($f) => ! $this->esRutaExentaDeColision($f)
+                    ));
                     $tablasComunes   = array_values(array_intersect($tablas[$a['id']] ?? [], $tablas[$b['id']] ?? []));
                     $comunes = array_merge($archivosComunes, array_map(fn ($t) => "tabla:{$t}", $tablasComunes));
                 }
