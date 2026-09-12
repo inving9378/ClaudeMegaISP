@@ -2518,3 +2518,29 @@ en cascada (`RoadmapItem.php:459-491`) lo complete solo cuando #9990963, #999096
 cierren los tres. Detalle en `docs/roadmap-bucle-reap-item-9990878-verificacion.md`. **Sin
 cambio de código de negocio** — el trabajo técnico real de la Fase 3 sigue en
 #9990963/#9990964 (reclamados por `wt-5`) y #9990965, pendientes de cierre.
+
+## Item #9990870 — CIRC-04 (re-triaje de la cola: cancelados, basura, 430 items sin nivel de riesgo) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
+#936/#9990408/#962/#9990554/#9990549/#9990624/#9990650/#9990807/#9990826/#9990836/#9990856/
+#9990892/#9990896/#9990886/#9990893/#9990878. #9990870 (CIRC-04, sub-item de #9990854: PASO 0
+backup, PASO 1 coherencia de cancelados, PASO 2 reportar basura sin ejecutar, PASO 3 clasificar
+nivel_riesgo de los 430 sin nivel, PASO 4 proponer re-priorización sin aplicarla) ya había sido
+descompuesto correctamente por una vuelta previa, uno a uno según el propio prompt del item, en
+**#9991008** (PASO 0+1 — backup + coherencia, `completado`), **#9991009** (PASO 2 — reportar
+basura incluyendo #185, `en_progreso`), **#9991010** (PASO 3 — confirmar nivel_riesgo de los 430,
+`completado`) y **#9991011** (PASO 4 — propuesta de re-priorización en `docs/`, `en_progreso`).
+Esa vuelta timeouteó por `max_turns` sin volver a intentar **cerrar** al padre tras descomponerlo
+— el item quedó `en_progreso` colgado, escaló a Irving por "DES-TRABE (Opus)" bajo la categoría
+`ejecutor_no_pudo`, Irving lo reaprobó, y `reaper-rapido` lo detectó huérfano (slot libre) y lo
+repartió de nuevo sin trabajo propio que hacer. Verificado esta vuelta: #9991008 y #9991010 siguen
+`completado`; #9991009 y #9991011 siguen **activamente reclamados** por `wt-3` y `wt-4`
+respectivamente (aislamiento #334, no se tocaron) — la descomposición original seguía siendo
+correcta, nadie más la tocó. Corrección: esta vuelta ejecuta el intento de cierre faltante; el
+guard (`RoadmapItem.php` bloque "(2b) PARAGUAS") lo reenruta a `aprobado_irving` +
+`excluir_pool_automatico=true` (evento `paraguas_abierto` en el log, "le quedan 2 sub-item(s)
+abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
+(`RoadmapItem.php:459-491`) lo complete solo cuando #9991009 y #9991011 cierren los dos. Detalle
+en `docs/roadmap-bucle-reap-item-9990870-verificacion.md`. **Sin cambio de código de negocio** —
+el trabajo real de CIRC-04 (reportar la basura del PASO 2 y redactar la propuesta de
+re-priorización del PASO 4) sigue en #9991009/#9991011, a cargo de `wt-3`/`wt-4`.
