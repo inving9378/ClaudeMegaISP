@@ -426,6 +426,101 @@ class RoadmapController extends Controller
         ];
     }
 
+    /** Enum canónico de fases del pipeline (mismo orden que TorreTrabajandoAhora.vue / RoadmapCircuitoService::FASES). */
+    private const FASES_PIPELINE = [
+        'triage'      => 'Triage',
+        'decision'    => 'Decisión',
+        'rama'        => 'Rama',
+        'editando'    => 'Editando',
+        'verificando' => 'Verificando',
+        'integrando'  => 'Integrando',
+    ];
+
+    /**
+     * GET /torre/panorama-jerarquia/{id}/trabajando (#9990971, CIRC-09 Fase 4) — panel desplegable
+     * de lectura para una fila "Trabajando" del árbol: pipeline de 6 fases, reloj de la vuelta, rama
+     * y últimas líneas del log.
+     *
+     * REGLA DURA del propio item: solo lo que YA EXISTE en BD. La Fase 2 (#9990969) ya dejó
+     * documentado que "fase actual del pipeline" NO es una columna hoy — el tracking fase-por-fase
+     * (`CIRCUITO_FASE: <fase> #<id>`) vive en archivos de log de la vuelta (`allLiveSessions()` /
+     * `RoadmapCircuitoService`), no en `roadmap_items`. Por eso aquí solo se marcan como
+     * "alcanzada" las 3 fases con señal real de columna (triage←frontera_valvula_at,
+     * decisión←revisado_at, rama←branch); las 3 restantes (editando/verificando/integrando) NO se
+     * inventan — quedan `alcanzada: null` con `fase_actual_conocida: false` y una nota honesta.
+     */
+    public function panoramaTrabajando(int $id): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $item = RoadmapItem::find($id);
+        if (! $item) {
+            return response()->json(['ok' => false, 'mensaje' => 'Item no encontrado.'], 404);
+        }
+
+        $fases = [
+            ['key' => 'triage',   'label' => self::FASES_PIPELINE['triage'],   'alcanzada' => $item->frontera_valvula_at !== null, 'at' => optional($item->frontera_valvula_at)->toIso8601String()],
+            ['key' => 'decision', 'label' => self::FASES_PIPELINE['decision'], 'alcanzada' => $item->revisado_at !== null,         'at' => optional($item->revisado_at)->toIso8601String()],
+            // #9990843 — el comando `circuito:rama` solo setea `branch` (sin timestamp propio):
+            // se marca alcanzada, pero `at` queda honestamente null (no hay columna de cuándo).
+            ['key' => 'rama',        'label' => self::FASES_PIPELINE['rama'],        'alcanzada' => ! empty($item->branch), 'at' => null],
+            ['key' => 'editando',    'label' => self::FASES_PIPELINE['editando'],    'alcanzada' => null, 'at' => null],
+            ['key' => 'verificando', 'label' => self::FASES_PIPELINE['verificando'], 'alcanzada' => null, 'at' => null],
+            ['key' => 'integrando',  'label' => self::FASES_PIPELINE['integrando'],  'alcanzada' => null, 'at' => null],
+        ];
+
+        $segundosTranscurridos = $item->trabajo_iniciado_at
+            ? $item->trabajo_iniciado_at->diffInSeconds(now())
+            : null;
+
+        return response()->json([
+            'ok'                     => true,
+            'item'                   => ['id' => $item->id, 'title' => $item->title],
+            'worker_sid'             => $item->worker_sid,
+            'branch'                 => $item->branch,
+            'estado_aprobacion'      => $item->estado_aprobacion,
+            'claimed_at'             => optional($item->claimed_at)->toIso8601String(),
+            'trabajo_iniciado_at'    => optional($item->trabajo_iniciado_at)->toIso8601String(),
+            'segundos_transcurridos' => $segundosTranscurridos,
+            'eta_segundos'           => $item->eta_segundos,
+            'eta_metodo'             => $item->eta_metodo,
+            'techo_segundos'         => RoadmapCircuitoService::vidaMaximaSegundos($item->nivel_riesgo),
+            'fases'                  => $fases,
+            'fase_actual_conocida'   => false,
+            'fase_actual_nota'       => 'El pipeline de 6 fases no tiene columna propia en BD: solo se puede '
+                . 'confirmar hasta "Rama" con lo que existe hoy (branch asignado). Distinguir '
+                . 'Editando/Verificando/Integrando requeriría persistir la miga CIRCUITO_FASE en el '
+                . 'propio item (hoy solo vive en el log de archivo de la vuelta).',
+            'log_tail' => $this->colaDeLog($item, 8),
+        ]);
+    }
+
+    /** Últimas `$limit` entradas del `log` del item, en la misma forma legible que `historialAcciones()`. */
+    private function colaDeLog(RoadmapItem $item, int $limit): array
+    {
+        $entradas = [];
+        foreach ((array) ($item->log ?? []) as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+            $ts = $entry['ts'] ?? $entry['created_at'] ?? null;
+            if (! $ts) {
+                continue;
+            }
+            $entradas[] = [
+                'ts'      => $ts,
+                'por'     => $entry['por'] ?? $entry['autor'] ?? null,
+                'accion'  => $entry['decision'] ?? $entry['evento'] ?? 'evento',
+                'estado'  => $entry['estado'] ?? null,
+                'detalle' => $entry['comentario'] ?? $entry['motivo'] ?? $entry['nota'] ?? null,
+            ];
+        }
+
+        usort($entradas, fn ($a, $b) => strcmp((string) $b['ts'], (string) $a['ts']));
+
+        return array_slice($entradas, 0, $limit);
+    }
+
     /**
      * ENTREGA 1 — override de automatización de UN item.
      *
@@ -1251,46 +1346,73 @@ class RoadmapController extends Controller
 
         return response()->json([
             'generated_at' => now()->toIso8601String(),
-            'decisiones'   => $items->map(function (RoadmapItem $i) {
-                $entrada = $this->ultimaEntradaAutomatica($i);
-                $enCurso = ! empty($i->worker_sid) || ! empty($i->branch)
-                    || $i->estado_aprobacion === 'en_progreso' || $i->status === 'in_progress';
-
-                return [
-                    'item_id'           => $i->id,
-                    'title'             => $i->title,
-                    'modulo'            => $i->modulo,
-                    'nivel_riesgo'      => $i->nivel_riesgo,
-                    'decidio'           => $i->aprobado_por,
-                    'estado_aprobacion' => $i->estado_aprobacion,
-                    'estacion'          => $i->estacion,
-                    // Frase lista para leer: "decidí X sobre el #N porque Y".
-                    'que_decidio'       => $entrada['decision'] ?? 'aprobar',
-                    // Cada actor firma distinto: el autopilot escribe `motivo`, el revisor `razon`
-                    // y el des-trabador sólo una `categoria`. Se toma el primero que exista en vez
-                    // de exigirles un formato común — unificarlo es otro item, y mientras tanto la
-                    // lista tiene que ser legible con lo que hay.
-                    'porque'            => $entrada['motivo']
-                        ?? $entrada['razon']
-                        ?? (isset($entrada['categoria'])
-                            ? 'Clasificado como «' . str_replace('_', ' ', (string) $entrada['categoria']) . '».'
-                            : ($i->comentarios_claude
-                                ? mb_strimwidth((string) $i->comentarios_claude, 0, 160, '…')
-                                : 'Sin motivo registrado.')),
-                    'confianza'         => $entrada['confianza'] ?? null,
-                    'reversible'        => $entrada['reversible'] ?? null,
-                    'cuando'            => optional($i->revisado_at ?? $i->updated_at)->toIso8601String(),
-                    // ¿El deshacer todavía es barato?
-                    'trabajo_en_curso'  => $enCurso,
-                    'terminal'          => $i->worker_sid,
-                    'rama'              => $i->branch,
-                    // Ya deshecha antes: no ofrecer el botón otra vez.
-                    'ya_deshecha'       => $this->tieneEventoLog($i, 'decision_automatica_deshecha'),
-                    'puede_deshacer'    => ! $this->tieneEventoLog($i, 'decision_automatica_deshecha')
-                        && $i->estado_aprobacion !== 'requiere_irving',
-                ];
-            })->values(),
+            'decisiones'   => $items->map(fn (RoadmapItem $i) => $this->formatearDecisionAutomatica($i))->values(),
         ]);
+    }
+
+    /**
+     * GET /torre/panorama-jerarquia/{id}/decidido-sin-ti (#9990971, CIRC-09 Fase 4) — la misma
+     * ficha de `decisionesAutomaticas()` pero para UN item, consumida por el panel desplegable del
+     * árbol. `decidido=false` cuando el item no tiene ninguna entrada de log firmada por un actor
+     * automático (nunca se inventa una decisión que no existe).
+     */
+    public function panoramaDecididoSinTi(int $id): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $item = RoadmapItem::find($id);
+        if (! $item) {
+            return response()->json(['ok' => false, 'mensaje' => 'Item no encontrado.'], 404);
+        }
+
+        $entrada = $this->ultimaEntradaAutomatica($item);
+        if (! $entrada) {
+            return response()->json(['ok' => true, 'decidido' => false, 'decision' => null]);
+        }
+
+        return response()->json(['ok' => true, 'decidido' => true, 'decision' => $this->formatearDecisionAutomatica($item)]);
+    }
+
+    /** Ficha legible de "qué decidió la máquina sola" sobre UN item — usada por la lista y el panel del árbol. */
+    private function formatearDecisionAutomatica(RoadmapItem $i): array
+    {
+        $entrada = $this->ultimaEntradaAutomatica($i);
+        $enCurso = ! empty($i->worker_sid) || ! empty($i->branch)
+            || $i->estado_aprobacion === 'en_progreso' || $i->status === 'in_progress';
+
+        return [
+            'item_id'           => $i->id,
+            'title'             => $i->title,
+            'modulo'            => $i->modulo,
+            'nivel_riesgo'      => $i->nivel_riesgo,
+            'decidio'           => $i->aprobado_por,
+            'estado_aprobacion' => $i->estado_aprobacion,
+            'estacion'          => $i->estacion,
+            // Frase lista para leer: "decidí X sobre el #N porque Y".
+            'que_decidio'       => $entrada['decision'] ?? 'aprobar',
+            // Cada actor firma distinto: el autopilot escribe `motivo`, el revisor `razon`
+            // y el des-trabador sólo una `categoria`. Se toma el primero que exista en vez
+            // de exigirles un formato común — unificarlo es otro item, y mientras tanto la
+            // lista tiene que ser legible con lo que hay.
+            'porque'            => $entrada['motivo']
+                ?? $entrada['razon']
+                ?? (isset($entrada['categoria'])
+                    ? 'Clasificado como «' . str_replace('_', ' ', (string) $entrada['categoria']) . '».'
+                    : ($i->comentarios_claude
+                        ? mb_strimwidth((string) $i->comentarios_claude, 0, 160, '…')
+                        : 'Sin motivo registrado.')),
+            'confianza'         => $entrada['confianza'] ?? null,
+            'reversible'        => $entrada['reversible'] ?? null,
+            'cuando'            => optional($i->revisado_at ?? $i->updated_at)->toIso8601String(),
+            // ¿El deshacer todavía es barato?
+            'trabajo_en_curso'  => $enCurso,
+            'terminal'          => $i->worker_sid,
+            'rama'              => $i->branch,
+            // Ya deshecha antes: no ofrecer el botón otra vez.
+            'ya_deshecha'       => $this->tieneEventoLog($i, 'decision_automatica_deshecha'),
+            'puede_deshacer'    => ! $this->tieneEventoLog($i, 'decision_automatica_deshecha')
+                && $i->estado_aprobacion !== 'requiere_irving',
+        ];
     }
 
     /** Última entrada del `log` firmada por un actor automático (o [] si no hay). */

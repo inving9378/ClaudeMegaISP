@@ -153,6 +153,10 @@ Route::middleware(['web', 'auth'])
         // con lazy-load: un solo endpoint parametrizado por `nivel` (modulo|epica|item), nunca el
         // árbol completo. Solo lectura (`roadmap_view`, self-authorized dentro del controller).
         Route::get('/torre/panorama-jerarquia', [RoadmapController::class, 'panoramaJerarquia']);
+        // #9990971 (CIRC-09 Fase 4) — paneles desplegables de lectura del árbol: "Trabajando" (pipeline
+        // de fases + rama + log) y "Decidido sin ti" (qué/confianza/reversible del log del item).
+        Route::get('/torre/panorama-jerarquia/{id}/trabajando', [RoadmapController::class, 'panoramaTrabajando'])->whereNumber('id');
+        Route::get('/torre/panorama-jerarquia/{id}/decidido-sin-ti', [RoadmapController::class, 'panoramaDecididoSinTi'])->whereNumber('id');
         Route::post('/item/{id}/override', [RoadmapController::class, 'itemOverride'])->whereNumber('id');
         // Estado en vivo ligero para el polling de la Torre (#335).
         Route::get('/circuito/estado',     [RoadmapController::class, 'estado']);
