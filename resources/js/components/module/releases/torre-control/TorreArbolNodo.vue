@@ -73,6 +73,52 @@
     >
       Cargar más ({{ node.hijos.length }} / {{ node.total }})
     </button>
+
+    <!--
+      #9990973 (CIRC-09 Fase 5) — panel PLACEHOLDER de "Tu decisión". Muestra el JSON crudo
+      relevante (por qué escaló + preguntas/opciones), SOLO LECTURA. TODO(CIRC-02b, #9990858):
+      cuando el mecanismo de hilo de respuestas (roadmap_item_respuestas + re-encolado
+      automático) esté mergeado a main, reemplazar este bloque por el panel real: opciones
+      seleccionables con la recomendada marcada, campo de texto libre, casilla "solo comentar,
+      no ejecutar todavía", y "qué se desbloquea" — escribiendo en el hilo de respuestas de
+      CIRC-02b (nunca en comentarios_claude, que se pisa). Ver sub-item de seguimiento creado al
+      cerrar este item.
+    -->
+    <div
+      v-if="esTuDecision && node.panelDecisionAbierto"
+      class="pa-decision"
+      :style="{ marginLeft: ((profundidad + 1) * 18) + 'px' }"
+    >
+      <div v-if="node.panelDecisionCargando" class="pa-info-linea">
+        <span class="spinner-border spinner-border-sm"></span> Cargando decisión…
+      </div>
+      <div v-else-if="node.panelDecisionError" class="pa-info-linea pa-error">
+        <i class="bi bi-exclamation-triangle"></i> {{ node.panelDecisionError }}
+      </div>
+      <div v-else-if="node.panelDecisionData" class="pa-decision-body">
+        <p class="pa-decision-aviso">
+          <i class="bi bi-cone-striped"></i> Placeholder — panel real pendiente de CIRC-02b (#9990858).
+        </p>
+
+        <div class="pa-decision-bloque">
+          <span class="pa-decision-etq">Por qué escaló</span>
+          <pre class="pa-decision-pre">{{ node.panelDecisionData.comentarios_claude || "(sin comentarios registrados)" }}</pre>
+        </div>
+
+        <div v-if="preguntasPendientes.length" class="pa-decision-bloque">
+          <span class="pa-decision-etq">Pregunta(s)</span>
+          <div v-for="p in preguntasPendientes" :key="p.id" class="pa-decision-pregunta">
+            <p class="pa-decision-pregunta-texto">{{ p.pregunta }}</p>
+            <ul class="pa-decision-opciones">
+              <li v-for="(op, i) in (p.opciones || [])" :key="i" :class="{ 'pa-opcion-recomendada': op.recomendada }">
+                <i class="bi" :class="op.recomendada ? 'bi-star-fill' : 'bi-circle'"></i>
+                {{ op.texto }}
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
   </li>
 </template>
 
@@ -100,18 +146,27 @@ export default {
         const paEsVisible = inject("paEsVisible");
         const paEstadoVisual = inject("paEstadoVisual");
         const paEnfocado = inject("paEnfocado");
+        const paToggleDecision = inject("paToggleDecision");
 
         const clave = computed(() => props.node.nivel + ":" + props.node.id);
         const visible = computed(() => paEsVisible(props.node));
         const badge = computed(() => paEstadoVisual(props.node));
         const enfocado = computed(() => paEnfocado.value);
+        // #9990973 (CIRC-09 Fase 5) — la marca "Tu decisión" es la que abre el panel placeholder.
+        const esTuDecision = computed(() => !!badge.value && badge.value.texto === "Tu decisión");
+        const preguntasPendientes = computed(() => {
+            const data = props.node.panelDecisionData;
+            if (!data || !Array.isArray(data.preguntas)) return [];
+            return data.preguntas.filter((p) => !p.opcion_elegida);
+        });
 
         function onClick() {
             paEnfocar(props.node);
             if (props.node.tiene_hijos) paToggle(props.node);
+            if (esTuDecision.value) paToggleDecision(props.node);
         }
 
-        return { clave, visible, badge, enfocado, onClick, paCargarMas };
+        return { clave, visible, badge, enfocado, onClick, paCargarMas, esTuDecision, preguntasPendientes };
     },
 };
 </script>
@@ -161,4 +216,26 @@ export default {
   font-size:12px; border:1px dashed var(--pa-line,#e5e7eb); background:transparent; color:var(--pa-accent,#0d9488);
   border-radius:6px; padding:3px 10px; margin:2px 0 6px; cursor:pointer;
 }
+
+.pa-decision{
+  margin:2px 8px 8px 0; padding:8px 10px; border-radius:8px;
+  background:var(--pa-chip-bg,#f1f5f9); border:1px solid var(--pa-line,#e5e7eb);
+}
+.pa-decision-aviso{
+  margin:0 0 8px; font-size:11px; font-weight:600; color:#92400e;
+}
+.pa-decision-bloque{ margin-bottom:8px; }
+.pa-decision-bloque:last-child{ margin-bottom:0; }
+.pa-decision-etq{
+  display:block; font-size:11px; font-weight:700; text-transform:uppercase;
+  color:var(--pa-muted,#64748b); margin-bottom:4px;
+}
+.pa-decision-pre{
+  margin:0; font-size:12px; white-space:pre-wrap; word-break:break-word;
+  max-height:220px; overflow-y:auto; font-family:inherit;
+}
+.pa-decision-pregunta{ margin-bottom:6px; }
+.pa-decision-pregunta-texto{ margin:0 0 3px; font-size:13px; font-weight:600; }
+.pa-decision-opciones{ margin:0; padding-left:18px; font-size:12px; }
+.pa-opcion-recomendada{ font-weight:700; }
 </style>

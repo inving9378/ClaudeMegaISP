@@ -125,6 +125,11 @@ export default {
                 pagina: 1,
                 total: null,
                 moduloPadre: padre.nivel === "modulo" ? padre.id : (padre.moduloPadre || null),
+                // #9990973 (CIRC-09 Fase 5) — panel placeholder de la fila "Tu decisión".
+                panelDecisionAbierto: false,
+                panelDecisionCargando: false,
+                panelDecisionError: null,
+                panelDecisionData: null,
             });
         }
 
@@ -160,6 +165,29 @@ export default {
 
         async function paCargarMas(node) {
             await cargarHijosDe(node, { page: (node.pagina || 1) + 1, append: true });
+        }
+
+        /**
+         * #9990973 (CIRC-09 Fase 5) — panel PLACEHOLDER de la fila "Tu decisión". El árbol solo
+         * trae campos livianos (Fase 2); al desplegar se pide el item completo (mismo endpoint
+         * de detalle que ya usa el resto de la Torre, `roadmap_view`) para mostrar por qué
+         * escaló y sus preguntas en crudo. Se cachea en el propio nodo: un segundo click no
+         * repite el fetch.
+         */
+        async function paToggleDecision(node) {
+            node.panelDecisionAbierto = !node.panelDecisionAbierto;
+            if (!node.panelDecisionAbierto || node.panelDecisionData || node.panelDecisionCargando) return;
+            node.panelDecisionCargando = true;
+            node.panelDecisionError = null;
+            try {
+                const { data } = await axios.get(`/api/roadmap/items/${node.id}`);
+                node.panelDecisionData = data;
+            } catch (e) {
+                node.panelDecisionError = (e.response && e.response.data && e.response.data.mensaje)
+                    || "No se pudo cargar el detalle de la decisión.";
+            } finally {
+                node.panelDecisionCargando = false;
+            }
         }
 
         function paEnfocar(node) {
@@ -297,6 +325,7 @@ export default {
         provide("paEsVisible", paEsVisible);
         provide("paEstadoVisual", paEstadoVisual);
         provide("paEnfocado", enfocado);
+        provide("paToggleDecision", paToggleDecision);
 
         return {
             FILTROS, modulos, cargandoRaiz, errorRaiz, filtro, busqueda, cargarRaiz, dark: darkMode,
