@@ -134,6 +134,14 @@
                                       title="La válvula de nacimiento confirmó que el item TOCA la frontera dura: se retuvo, como siempre.">
                                     ⛔ toca frontera
                                 </span>
+                                <!-- #9990924 (Fase 3b, q2 opción 1) — el item NO se oculta aquí (a
+                                     diferencia de "Listos para terminal"), solo se marca: heurística
+                                     de texto libre, con falsos positivos/negativos aceptados. -->
+                                <span v-if="item.bloqueo_heuristica_texto"
+                                      class="rdm-tag rdm-tag-bloqueo-heuristica"
+                                      title="El prompt/description menciona una frase de bloqueo (heurística de texto, puede fallar en ambos sentidos) — no se oculta, solo se marca.">
+                                    <i class="bi bi-signpost-split me-1"></i>bloqueado (heurística)
+                                </span>
                             </div>
                         </div>
 
@@ -1012,6 +1020,11 @@ export default {
 .rdm-dark .rdm-tag-frontera-mencion{background:rgba(74,222,128,.18);color:#4ade80;}
 .rdm-tag-frontera-accion{background:rgba(220,38,38,.12);color:#b91c1c;font-weight:700;}
 .rdm-dark .rdm-tag-frontera-accion{background:rgba(248,113,113,.18);color:#f87171;}
+
+/* #9990924 — badge de bloqueo por heurística de texto (naranja: aviso, no error duro) */
+.rdm-tag-bloqueo-heuristica{background:rgba(217,119,6,.14);color:#b45309;font-weight:700;}
+.rdm-dark .rdm-tag-bloqueo-heuristica{background:rgba(251,191,36,.18);color:#fbbf24;}
+
 .rdm-ov{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:10px;}
 .rdm-ov-sel{padding:5px 10px;border-radius:8px;border:1px solid rgba(148,163,184,.5);background:transparent;color:inherit;font-size:12.5px;}
 .rdm-ov-note{font-size:11.5px;opacity:.72;line-height:1.5;flex:1 1 260px;}

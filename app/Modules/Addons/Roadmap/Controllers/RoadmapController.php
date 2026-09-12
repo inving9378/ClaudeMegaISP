@@ -3210,7 +3210,34 @@ class RoadmapController extends Controller
         $diagnosticos = $this->diagnosticosLote($items);
         $items->each(fn (RoadmapItem $i) => $i->setAttribute('diagnostico', $diagnosticos[$i->id] ?? null));
 
+        // #9990924 (Fase 3b, q2 opción 1) — badge "bloqueado (heurística)" en la lista general
+        // (distinto de SupervisorService::listosParaTerminal(), que OCULTA el item; aquí solo se
+        // marca, sigue visible). `prompt` ya viene en COLUMNAS_LISTADO; `description` NO (es texto
+        // pesado, #878 lo excluyó del listado a propósito) — se trae en un query aparte, acotado a
+        // los items sin prompt de esta página, para no ensanchar el listado general de golpe.
+        $this->marcarBloqueoHeuristico($items);
+
         return response()->json($items);
+    }
+
+    /** Ver comentario en {@see index()}. Adjunta 'bloqueo_heuristica_texto' (bool) ad-hoc. */
+    private function marcarBloqueoHeuristico(\Illuminate\Support\Collection $items): void
+    {
+        if (! config('circuito.supervisor.hide_blocked_heuristic', true) || $items->isEmpty()) {
+            $items->each(fn (RoadmapItem $i) => $i->setAttribute('bloqueo_heuristica_texto', false));
+
+            return;
+        }
+
+        $idsSinPrompt = $items->filter(fn (RoadmapItem $i) => empty($i->prompt))->pluck('id');
+        $descripciones = $idsSinPrompt->isNotEmpty()
+            ? DB::table('roadmap_items')->whereIn('id', $idsSinPrompt)->pluck('description', 'id')
+            : collect();
+
+        $items->each(function (RoadmapItem $i) use ($descripciones) {
+            $texto = $i->prompt ?: ($descripciones[$i->id] ?? null);
+            $i->setAttribute('bloqueo_heuristica_texto', RoadmapItem::textoDeclaraBloqueo($texto));
+        });
     }
 
     // GET /api/roadmap/items/{id} — lectura puntual (#861: sondeo del desenlace de despacho

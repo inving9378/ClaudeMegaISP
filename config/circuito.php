@@ -1749,4 +1749,18 @@ return [
         'ociosa_umbral_min' => (int) env('CIRCUITO_TORRE_OCIOSA_UMBRAL_MIN', 3),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Supervisor — heurística de bloqueo en texto libre (Fase 3b de #9990893, item #9990924)
+    |--------------------------------------------------------------------------
+    |
+    | Decisión de Irving (q3, opción 1): feature flag toggle-able, ON por default (arranque
+    | conservador). Si la heurística mete ruido (falsos positivos que oculten items realmente
+    | listos), se apaga en caliente con SUPERVISOR_HIDE_BLOCKED=false sin tocar código.
+    | Ver RoadmapItem::textoDeclaraBloqueo() y SupervisorService::listosParaTerminal()/Total().
+    */
+    'supervisor' => [
+        'hide_blocked_heuristic' => (bool) env('SUPERVISOR_HIDE_BLOCKED', true),
+    ],
+
 ];

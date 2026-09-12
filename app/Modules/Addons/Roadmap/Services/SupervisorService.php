@@ -248,33 +248,57 @@ class SupervisorService
         // `autoEjecutable()` ya pasa por `elegibleParaPool()` → `RoadmapItem::sqlElegibleParaPool()`,
         // que además honra `origen_bloqueo='humano'` (la copia de aquí NO lo hacía) y se retira sola
         // el día que el fallback legacy del rótulo se elimine. Candado: PoolGuardCoherenceTest.
-        return RoadmapItem::autoEjecutable()
+        $q = RoadmapItem::autoEjecutable()
             ->whereNull('archivado_at')
             ->whereNull('branch')
             ->whereNull('motivo_espera')
-            ->ordered()
-            ->limit($limite)
-            ->get(['id', 'title', 'nivel_riesgo', 'reap_count', 'veces_timeouteo', 'reanudaciones_timeout'])
-            ->map(fn ($r) => [
-                'id'                     => (int) $r->id,
-                'title'                  => $r->title,
-                'nivel'                  => $r->nivel_riesgo,
-                // #9990925 — "vueltas quemadas": contadores YA existentes (reap_count/veces_timeouteo),
-                // sin columna nueva. La Torre los pinta como badge solo cuando alguno es > 0.
-                'reap_count'             => (int) $r->reap_count,
-                'veces_timeouteo'        => (int) $r->veces_timeouteo,
-                'reanudaciones_timeout'  => (int) $r->reanudaciones_timeout,
-            ])->values()->all();
+            ->ordered();
+
+        $columnas = ['id', 'title', 'nivel_riesgo', 'reap_count', 'veces_timeouteo', 'reanudaciones_timeout'];
+
+        // #9990924 (Fase 3b) — heurística de TEXTO LIBRE (prompt/description) para bloqueos SIN
+        // rótulo formal, gateada por feature flag (SUPERVISOR_HIDE_BLOCKED, default ON). Filtro
+        // POST-fetch (regex no expresable en SQL): se amplía el tramo antes de filtrar para no
+        // sub-reportar items elegibles que hubieran caído en el corte original (mismo patrón que
+        // el filtro de dependencias cerradas).
+        if (config('circuito.supervisor.hide_blocked_heuristic', true)) {
+            $filas = $q->limit($limite * 3)
+                ->get([...$columnas, 'prompt', 'description'])
+                ->reject(fn ($r) => $r->tieneBloqueoDeclaradoEnTexto())
+                ->values();
+        } else {
+            $filas = $q->limit($limite)->get($columnas);
+        }
+
+        return $filas->take($limite)->map(fn ($r) => [
+            'id'                     => (int) $r->id,
+            'title'                  => $r->title,
+            'nivel'                  => $r->nivel_riesgo,
+            // #9990925 — "vueltas quemadas": contadores YA existentes (reap_count/veces_timeouteo),
+            // sin columna nueva. La Torre los pinta como badge solo cuando alguno es > 0.
+            'reap_count'             => (int) $r->reap_count,
+            'veces_timeouteo'        => (int) $r->veces_timeouteo,
+            'reanudaciones_timeout'  => (int) $r->reanudaciones_timeout,
+        ])->values()->all();
     }
 
     /** #934: total real detrás de {@see listosParaTerminal()}, para el pie "+N más" (nunca cortar en silencio). */
     public function listosParaTerminalTotal(): int
     {
-        return RoadmapItem::autoEjecutable()
+        $q = RoadmapItem::autoEjecutable()
             ->whereNull('archivado_at')
             ->whereNull('branch')
-            ->whereNull('motivo_espera')
-            ->count();
+            ->whereNull('motivo_espera');
+
+        // #9990924 — mismo filtro de texto libre que listosParaTerminal(), para que el "+N más"
+        // del pie no cuente items que la lista de arriba ya oculta por bloqueo heurístico.
+        if (config('circuito.supervisor.hide_blocked_heuristic', true)) {
+            return $q->get(['id', 'prompt', 'description'])
+                ->reject(fn ($r) => $r->tieneBloqueoDeclaradoEnTexto())
+                ->count();
+        }
+
+        return $q->count();
     }
 
     /** El PROTOCOLO DE COORDINACIÓN que Jarvis T arbitra (para la identidad/UI del supervisor). */
