@@ -132,5 +132,10 @@ Por módulo:
 - **(e) Deuda registrable**: TODOs, placeholders, migraciones pendientes.
 
 Cada hallazgo → un item en la Hoja de Ruta con: título claro, descripción con evidencia
-(`archivo:línea`), módulo, `nivel_riesgo` (conservador), `estado_aprobacion = pendiente_revision`,
-y `prompt_para_claude` con plan por fases (fases, verificación, commits).
+(`archivo:línea`), módulo, `estado_aprobacion = pendiente_revision`, y `prompt_para_claude` con
+plan por fases (fases, verificación, commits).
+
+> ⚠️ **`nivel_riesgo` NO se declara al crear** (CIRC-05 pieza C, #9990948): el alta por esta vía
+> externa lo ignora en silencio si viene en el payload — SIEMPRE lo calcula el clasificador
+> server-side (triaje-null) al entrar a `pendiente_revision`. Ajustar el nivel de un item YA
+> creado sigue siendo válido vía `POST /item/{id}/set` (punto 2 del flujo, arriba).
