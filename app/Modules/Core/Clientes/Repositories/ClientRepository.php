@@ -7,6 +7,7 @@ use App\Http\Repository\TransactionRepository;
 use App\Http\Traits\RouterConnection;
 use App\Models\Contratable\ClientContratableSubscription;
 use App\Modules\Addons\Flotas\Models\FleetSubscription;
+use App\Modules\Addons\Flotas\Services\Billing\FlotasProrrateoService;
 use Illuminate\Support\Facades\Log;
 use App\Jobs\Mikrotik\MikrotikRemoveClientServiceFromAddressList;
 use App\Models\Balance;
@@ -1022,18 +1023,18 @@ class ClientRepository
 
     /**
      * Construye las líneas de suscripción de Flotas FACTURABLES de un cliente.
-     * Solo entran suscripciones status active|past_due con monthly_price > 0.
-     *
-     * FleetSubscription no tiene tasa de IVA propia en su catálogo (a diferencia de
-     * internet/custom/contratables, que sí la tienen); no existe una tasa default a
-     * nivel sistema (ver decisión registrada en el item #99). Se usa 16% IVA incluido,
-     * igual criterio que el resto del sistema (getIvaInformation desglosa el precio).
+     * Solo entran suscripciones status active|past_due; el desglose por vehículo
+     * (prorrateo por días activos, tarifa FleetSubscription::price_per_vehicle) lo
+     * calcula FlotasProrrateoService::calcularLineas() (item #755, reglas q1-q5
+     * aprobadas por Irving) — aquí solo se agrega una línea por vehículo con al
+     * menos 1 día activo en el período; 0 vehículos facturables = sin líneas para
+     * esa suscripción, igual patrón que resolveContratableLines.
      * Solo lectura: no muta nada (calculateAmounts pura).
      */
     private function resolveFleetSubscriptionLines(Client $client): array
     {
         $lines = [];
-        $tasa = 16;
+        $prorrateo = new FlotasProrrateoService();
 
         $subs = FleetSubscription::query()
             ->where('client_id', $client->id)
@@ -1041,21 +1042,9 @@ class ClientRepository
             ->get();
 
         foreach ($subs as $sub) {
-            $price = (float) $sub->monthly_price;
-            if ($price <= 0) {
-                continue;
+            foreach ($prorrateo->calcularLineas($sub) as $linea) {
+                $lines[] = $linea;
             }
-
-            $info = $this->getIvaInformation($tasa, $price);
-
-            $lines[] = [
-                'service_name'  => sprintf('Suscripción Flotas (%s, %d vehículos)', $sub->plan_name, $sub->vehicles_count),
-                'iva_porcent'   => $tasa,
-                'iva'           => $info['iva'],
-                'monto'         => $info['monto'],
-                'service_id'    => $sub->id,
-                'service_class' => get_class($sub),
-            ];
         }
 
         return $lines;
