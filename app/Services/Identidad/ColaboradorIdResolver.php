@@ -58,6 +58,22 @@ class ColaboradorIdResolver
     }
 
     /**
+     * Resuelve el nombre de usuario asociado a un `colaborador_id` (Fase 4 módulo 3,
+     * item #9991020) — para accessors de instancia (no queries agregadas) que hoy
+     * resuelven el nombre del vendedor vía `seller_id`/`user_seller()`. Devuelve
+     * null si no hay colaborador_id, el colaborador no existe o no tiene user
+     * asociado — el llamador debe caer a su fallback histórico en ese caso.
+     */
+    public static function resolveNombrePorColaboradorId(?int $colaboradorId): ?string
+    {
+        if (!$colaboradorId) {
+            return null;
+        }
+
+        return TalentoColaborador::with('user')->find($colaboradorId)?->user?->name;
+    }
+
+    /**
      * Resuelve; si no hay match, loguea y registra la fila en la tabla de
      * auditoría de faltantes (NUNCA lanza excepción, nunca bloquea el alta/edición).
      */
