@@ -50,11 +50,6 @@
                     <i class="bi bi-list-check me-1"></i> Historial de acciones
                 </a>
             </li>
-            <li class="nav-item">
-                <a class="nav-link" :class="{ active: tab === 'salud' }" href="#" @click.prevent="tab = 'salud'">
-                    <i class="bi bi-heart-pulse me-1"></i> Salud del entorno
-                </a>
-            </li>
             <!-- Item #9990375 — gateada aparte de la Torre en general: torre.actividad.view,
                  por defecto solo super-administrator + DESARROLLADOR. -->
             <li class="nav-item" v-if="hasPermission.data.canView('torre.actividad.view')">
@@ -63,18 +58,8 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" :class="{ active: tab === 'cola' }" href="#" @click.prevent="tab = 'cola'">
-                    <i class="bi bi-list-ol me-1"></i> Cola
-                </a>
-            </li>
-            <li class="nav-item">
                 <a class="nav-link" :class="{ active: tab === 'historial' }" href="#" @click.prevent="tab = 'historial'">
                     <i class="bi bi-clock-history me-1"></i> Historial de versiones
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" :class="{ active: tab === 'reporte' }" href="#" @click.prevent="tab = 'reporte'">
-                    <i class="bi bi-clipboard-data me-1"></i> Reporte
                 </a>
             </li>
             <li class="nav-item">
@@ -105,9 +90,6 @@
         </div>
         <torre-configuracion v-else-if="tab === 'configuracion'" :key="'cfg-' + reintentos" />
 
-        <!-- ── Tab: Reporte ── -->
-        <audit-report v-if="tab === 'reporte'" />
-
         <!-- ── Tab: Hoja de ruta ── -->
         <roadmap-tab v-if="tab === 'roadmap'" />
 
@@ -123,14 +105,8 @@
         <!-- ── Sub-sección: Historial de acciones (Fase 8, Épica #874, #885) ── -->
         <torre-historial-acciones v-if="tab === 'acciones'" />
 
-        <!-- ── Sub-sección: Salud del entorno (Fase 7, Épica #874, #891) ── -->
-        <torre-salud-entorno v-if="tab === 'salud'" />
-
         <!-- ── Sub-sección: Actividad del equipo (#9990375) ── -->
         <torre-actividad-equipo v-if="tab === 'actividad-equipo' && hasPermission.data.canView('torre.actividad.view')" />
-
-        <!-- ── Sub-sección: Cola ejecutable, solo lectura (Fase 6, Épica #874, #890/#940) ── -->
-        <torre-cola-ejecutable v-if="tab === 'cola'" />
 
         <!-- ── Tab: Historial ── -->
         <template v-if="tab === 'historial'">
@@ -314,14 +290,11 @@
 import { ref, onMounted, onBeforeUnmount, onErrorCaptured, reactive, watch } from "vue";
 import axios from "axios";
 import ReleasesCrud from "./ReleasesCrud.vue";
-import AuditReport from "./torre-control/AuditReport.vue";
 import RoadmapTab from "./torre-control/RoadmapTab.vue";
 import TorreControl from "./torre-control/TorreControl.vue";
 import TorreTerminales from "./torre-control/TorreTerminales.vue";
 import TorreHistorialAcciones from "./torre-control/TorreHistorialAcciones.vue";
-import TorreSaludEntorno from "./torre-control/TorreSaludEntorno.vue";
 import TorreActividadEquipo from "./torre-control/TorreActividadEquipo.vue";
-import TorreColaEjecutable from "./torre-control/TorreColaEjecutable.vue";
 import IntegracionRamas from "./torre-control/IntegracionRamas.vue";
 import JarvisChatDrawer from "./torre-control/JarvisChatDrawer.vue";
 import DeployProgressModal from "./DeployProgressModal.vue";
@@ -331,7 +304,7 @@ import { allViewHasPermission } from "../../../helpers/Request";
 
 export default {
     name: "ReleasesIndex",
-    components: { ReleasesCrud, AuditReport, RoadmapTab, TorreControl, TorreTerminales, TorreHistorialAcciones, TorreSaludEntorno, TorreActividadEquipo, TorreColaEjecutable, IntegracionRamas, JarvisChatDrawer, DeployProgressModal },
+    components: { ReleasesCrud, RoadmapTab, TorreControl, TorreTerminales, TorreHistorialAcciones, TorreActividadEquipo, IntegracionRamas, JarvisChatDrawer, DeployProgressModal },
     props: {
         releases: { type: String },
         next_page_url: { type: String },
@@ -341,7 +314,7 @@ export default {
         // Es lo que usan los engranes de fuera de esta pantalla para traer aquí en vez de abrir cada
         // uno su propio tablero. Un valor desconocido cae a 'panorama'.
         const TABS_VALIDAS = ['panorama', 'roadmap', 'terminales', 'integracion', 'acciones',
-            'salud', 'actividad-equipo', 'cola', 'historial', 'reporte', 'configuracion'];
+            'actividad-equipo', 'historial', 'configuracion'];
         const tabInicial = (() => {
             try {
                 const q = new URLSearchParams(window.location.search).get('tab');

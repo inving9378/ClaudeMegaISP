@@ -200,76 +200,6 @@ class RoadmapController extends Controller
     }
 
     /**
-     * #890 (Torre fase 6) — GET la cola ejecutable REAL (solo lectura): el orden exacto en que
-     * `RoadmapCircuitoService::ejecutablesParalelo()` va a tomar el trabajo (`RoadmapItem::
-     * despachable()->ordenCola()`, la MISMA consulta que usa el reclamo — no una copia), la frase
-     * que lo explica (`explicarOrdenCola()`, generada del criterio real) y los aprobados que NO se
-     * despachan, cada uno con su causa (`motivoNoDespachable()`).
-     *
-     * No toca el despacho ni el reparto: sólo los LEE. `torre.cola.ver` — informacion interna del
-     * circuito, no de negocio, restringida a super-administrator + DESARROLLADOR (ver la migración).
-     */
-    public function torreCola(): JsonResponse
-    {
-        $this->authorize('torre.cola.ver');
-
-        $this->bloquesFallidos = [];
-
-        $cola = $this->bloque('cola_real', fn () => RoadmapItem::query()
-            ->despachable()->ordenCola()->limit(50)->get(self::COLUMNAS_COLA), collect());
-
-        $frase = $this->bloque('cola_real_frase', fn () => RoadmapItem::explicarOrdenCola($cola), '');
-
-        // Excluidos = items que YA pasaron por una aprobación (irving/claude/revisor, o A en revisión)
-        // pero que hoy NO califican en `despachable()` — el "¿por qué no está el mío?" real. La causa
-        // sale de `motivoNoDespachable()`, la MISMA traducción que usa el guard de re-aprobación: no
-        // hay una segunda lista de frenos que mantener sincronizada con ésta.
-        $excluidos = $this->bloque('cola_excluidos', function () {
-            $despachablesIds = RoadmapItem::query()->despachable()->pluck('id');
-
-            $candidatosIds = RoadmapItem::query()
-                ->whereNull('archivado_at')
-                ->whereNotIn('status', ['done'])
-                ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'rechazado'])
-                ->where(function ($w) {
-                    $w->whereIn('estado_aprobacion', ['aprobado_irving', 'aprobado_claude', 'aprobado_revisor'])
-                      ->orWhere(fn ($x) => $x->where('nivel_riesgo', 'A')->where('estado_aprobacion', 'pendiente_revision'));
-                })
-                ->whereNotIn('id', $despachablesIds)
-                ->orderBy('id')
-                ->limit(50)
-                ->pluck('id');
-
-            // #878 — misma cautela que `hidratarEnOrden`: ids primero (proyección angosta), fila
-            // completa DESPUÉS sin `ORDER BY` (aquí `motivoNoDespachable()` necesita el modelo entero).
-            return RoadmapItem::query()->whereIn('id', $candidatosIds)->get()
-                ->sortBy('id')->values()
-                ->map(function (RoadmapItem $i) {
-                    $motivo = $i->motivoNoDespachable();
-
-                    return [
-                        'id'                => $i->id,
-                        'title'             => $i->title,
-                        'modulo'            => $i->modulo,
-                        'nivel_riesgo'      => $i->nivel_riesgo,
-                        'estado_aprobacion' => $i->estado_aprobacion,
-                        'causa'             => $motivo['error'] ?? 'No calificó para el despacho automático.',
-                        'accion'            => $motivo['accion'] ?? null,
-                    ];
-                });
-        }, collect());
-
-        return response()->json([
-            'ok'             => true,
-            'reparto_activo' => ! $this->svc->isPaused(),
-            'cola'           => $cola->map(fn (RoadmapItem $i) => $this->svc->compact($i))->values(),
-            'orden_frase'    => $frase,
-            'excluidos'      => $excluidos->values(),
-            'bloques_fallidos' => $this->bloquesFallidos,
-        ]);
-    }
-
-    /**
      * #937 — Tablero "Items atorados" agrupado por CAUSA en Panorama. Depende de #935
      * (DiagnosticoItemService::para()), que aún no existe: mientras no exista, responde
      * `disponible=false` en vez de inventar una causa con lógica propia — la causa de un item
@@ -425,11 +355,13 @@ class RoadmapController extends Controller
      * log vacío simplemente no aportan filas al aplanar — no hace falta filtrarlos en SQL.
      */
     /**
-     * GET /api/roadmap/torre/salud-entorno (#891) — Fase 7 de la Épica #874: los seis indicadores
-     * que hoy solo se ven entrando por SSH (certificado TLS, disco, migraciones pendientes, jobs
-     * fallidos, último respaldo, errores 24h agrupados por firma). Solo lectura — cacheado 30s
-     * (mismo patrón que `decisionesContadores`) para no repetir la lectura de logs/disco en cada
-     * poll de la Torre.
+     * GET /api/roadmap/torre/salud-entorno (#891) — Fase 7 de la Épica #874. Item #9990968
+     * (CIRC-09 Fase 1): se dio de baja la pestaña "Salud del entorno" completa (disco,
+     * migraciones, jobs fallidos, respaldo, errores 24h y sus 2 botones de gestión); este
+     * endpoint sobrevive achicado a solo el certificado TLS porque alimenta el banner de la
+     * cabecera de la Torre (item #891 §3, independiente de la pestaña activa) — ver
+     * ReleasesIndex.vue::cargarCertAviso(). `torre.salud.manage` queda sin consumidor (los
+     * permisos huérfanos se dejan en BD a propósito, decisión registrada del item).
      */
     public function saludEntorno(\App\Modules\Addons\Roadmap\Services\EnvironmentHealthService $salud): JsonResponse
     {
@@ -437,42 +369,7 @@ class RoadmapController extends Controller
 
         $data = Cache::remember('roadmap:torre:salud-entorno', 30, fn () => $salud->resumen());
 
-        // `puede_gestionar` NO se cachea con el resto (el resumen es compartido entre usuarios
-        // por 30s; el permiso del usuario actual no lo es) — mismo patrón que `can_disparar` en
-        // el endpoint de estado del circuito.
-        return response()->json(['ok' => true, 'puede_gestionar' => (bool) auth()->user()?->can('torre.salud.manage')] + $data);
-    }
-
-    /**
-     * POST /api/roadmap/torre/salud/reintentar-fallidos (#891) — botón declarado en el item:
-     * reintenta TODOS los jobs de `failed_jobs` (`queue:retry all`). Gate `torre.salud.manage`
-     * (solo super-administrator + DESARROLLADOR — ejecuta un comando real, no es lectura).
-     */
-    public function saludReintentarFallidos(\App\Modules\Addons\Roadmap\Services\EnvironmentHealthService $salud): JsonResponse
-    {
-        $this->authorize('torre.salud.manage');
-
-        $r = $salud->reintentarTrabajosFallidos();
-        Cache::forget('roadmap:torre:salud-entorno');
-
-        return response()->json($r);
-    }
-
-    /**
-     * POST /api/roadmap/torre/salud/recalentar-caches (#891) — botón declarado en el item:
-     * view:clear + config:clear + route:clear + view:cache siempre; config:cache SOLO si
-     * `incluir_config=true` Y `config:auditar-env` pasa limpio (#790/#794) — nunca por default.
-     */
-    public function saludRecalentarCaches(Request $request, \App\Modules\Addons\Roadmap\Services\EnvironmentHealthService $salud): JsonResponse
-    {
-        $this->authorize('torre.salud.manage');
-
-        $data = $request->validate(['incluir_config' => ['sometimes', 'boolean']]);
-
-        $r = $salud->recalentarCaches((bool) ($data['incluir_config'] ?? false));
-        Cache::forget('roadmap:torre:salud-entorno');
-
-        return response()->json($r);
+        return response()->json(['ok' => true] + $data);
     }
 
     /**
