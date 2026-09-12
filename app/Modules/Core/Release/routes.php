@@ -1,6 +1,5 @@
 <?php
 
-use App\Modules\Core\Release\Controllers\AuditController;
 use App\Modules\Core\Release\Controllers\DeploymentController;
 use App\Modules\Core\Release\Controllers\ReleaseController;
 use App\Modules\Core\Release\Controllers\ReleaseDescriptionController;
@@ -29,12 +28,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('releases')
     Route::post('/{id}/redeploy', [ReleaseController::class, 'redeploy'])->whereNumber('id');
     // Plan de regreso a esta versión (#1021) — documento markdown de solo lectura, no ejecuta nada
     Route::get('/{id}/plan-regreso', [ReleaseController::class, 'planRegreso'])->whereNumber('id');
-
-    // Audit report
-    Route::get('/audit/report',           [AuditController::class, 'generate']);
-    Route::get('/audit/plan',             [AuditController::class, 'planIndex']);
-    Route::post('/audit/plan/{id}/toggle',[AuditController::class, 'planToggle']);
-    Route::post('/audit/plan/{id}/note',  [AuditController::class, 'planNote']);
 
     Route::get('/{releaseId}/descriptions', [ReleaseDescriptionController::class, 'index']);
     Route::post('/description/store', [ReleaseDescriptionController::class, 'store']);

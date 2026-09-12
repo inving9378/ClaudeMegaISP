@@ -2010,10 +2010,10 @@ class RoadmapItem extends Model
 
     /**
      * #890 (Torre fase 6) — ÚNICA fuente del criterio de orden de la cola ejecutable: cada entrada
-     * trae su SQL (consumido por `scopeOrdenCola`, arriba) Y su lectura humana (consumida por
-     * `explicarOrdenCola`, abajo). Antes la Torre mostraba una frase escrita a mano
-     * ("urgente → prioridad → antigüedad") que podía desincronizarse del `ORDER BY` real si éste
-     * cambiaba; con esto sólo hay un lugar que editar y las dos salidas se mueven juntas.
+     * trae su SQL (consumido por `scopeOrdenCola`, arriba) y su lectura humana en `describe`
+     * (sin consumidor propio desde #9990968, que dio de baja la pestaña "Cola" y su
+     * `explicarOrdenCola()`; se deja tal cual por si la pestaña vuelve — el criterio real de
+     * orden sigue viviendo aquí, en un solo lugar).
      */
     public static function criteriosOrdenCola(): array
     {
@@ -2055,37 +2055,6 @@ class RoadmapItem extends Model
                 'describe' => fn ($v) => 'es el que lleva más tiempo esperando su turno',
             ],
         ];
-    }
-
-    /**
-     * #890 — Frase que explica por qué el PRIMER item de `$items` (ya ordenados con `ordenCola()`)
-     * va primero. Recorre `criteriosOrdenCola()` EN ORDEN y usa el primer criterio en el que el
-     * primero difiere del resto — es justo el que decidió su lugar. Si el criterio de arriba
-     * cambia (se agrega, se quita o se reordena una entrada), esta frase cambia sola: no hay
-     * texto aparte que actualizar.
-     */
-    public static function explicarOrdenCola(iterable $items): string
-    {
-        $criterios = self::criteriosOrdenCola();
-        $orden     = implode(' → ', array_column($criterios, 'label'));
-        $items     = collect($items)->values();
-
-        if ($items->count() < 2) {
-            return "Orden: {$orden}.";
-        }
-
-        $primero = $items->first();
-        $resto   = $items->slice(1);
-
-        foreach ($criterios as $c) {
-            $valorPrimero = ($c['valor'])($primero);
-            if ($resto->contains(fn (self $i) => ($c['valor'])($i) !== $valorPrimero)) {
-                return "Orden: {$orden}. El #{$primero->id} va primero porque "
-                    . ($c['describe'])($valorPrimero) . ' y los demás no.';
-            }
-        }
-
-        return "Orden: {$orden}. El #{$primero->id} va primero (empata en todos los criterios con los demás).";
     }
 
     /**

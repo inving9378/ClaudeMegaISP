@@ -146,9 +146,6 @@ Route::middleware(['web', 'auth'])
         // #766 (Pieza 1c hija de #672) — KPI card del panorama: cuántas veces abrió la válvula,
         // sobre qué items y por qué término, leído de `torre_frontera_dura_eventos` (#764).
         Route::get('/torre/frontera-dura',                [RoadmapController::class, 'torreFronteraDura']);
-        // #890 (Torre fase 6) — cola ejecutable REAL: orden exacto de despacho + excluidos con
-        // causa. Solo lectura (`torre.cola.ver`, self-authorized dentro del controller).
-        Route::get('/torre/cola',          [RoadmapController::class, 'torreCola']);
         // #937 — tablero "Items atorados" agrupado por causa (Panorama). Depende de #935
         // (DiagnosticoItemService); mientras no exista responde disponible=false (guard interno).
         Route::get('/atorados',            [RoadmapController::class, 'atorados']);
@@ -166,12 +163,12 @@ Route::middleware(['web', 'auth'])
         // #9990375 — pestaña "Actividad del equipo": quién reclamó/cerró qué, cuánto tiempo,
         // vueltas del circuito y commits, por rango de fechas. Solo lectura (`torre.actividad.view`).
         Route::get('/torre/actividad-equipo', [RoadmapController::class, 'actividadEquipo']);
-        // #891 — Fase 7 de la Épica #874: salud del entorno (cert TLS, disco, migraciones, jobs
-        // fallidos, respaldo, errores 24h). GET solo lectura; los 2 POST son los únicos botones
-        // que declara el item (gate torre.salud.manage).
+        // #891 — Fase 7 de la Épica #874. Item #9990968 (CIRC-09 Fase 1): se dio de baja la
+        // pestaña "Salud del entorno" completa (disco, migraciones, jobs fallidos, respaldo,
+        // errores 24h y sus 2 botones de gestión); este endpoint SOBREVIVE achicado porque
+        // alimenta el banner de certificado TLS de la cabecera de la Torre (item #891 §3),
+        // independiente de la pestaña — ver ReleasesIndex.vue::cargarCertAviso().
         Route::get('/torre/salud-entorno', [RoadmapController::class, 'saludEntorno']);
-        Route::post('/torre/salud/reintentar-fallidos', [RoadmapController::class, 'saludReintentarFallidos']);
-        Route::post('/torre/salud/recalentar-caches', [RoadmapController::class, 'saludRecalentarCaches']);
         // #946 (Fase 1b, hija de #875) — Semáforo de motores: una fila por motor con su icono
         // 🟢/🟡/🔴/⚫. Solo lectura (`roadmap_view`).
         Route::get('/torre/semaforo', [RoadmapController::class, 'torreSemaforo']);
