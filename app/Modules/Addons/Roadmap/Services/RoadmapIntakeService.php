@@ -114,6 +114,15 @@ class RoadmapIntakeService
             $item->nivel_riesgo_origen = 'interno';
         }
 
+        // #9990960 (CIRC-05 pieza B 3/4) — la alta EXTERNA (Cowork) siempre debe llevar el bloque
+        // "Canal de respuesta (obligatorio)" al final del prompt (regla permanente del proyecto,
+        // spec de #9990947). Las altas internas (terminales/Jarvis/CC) no lo requieren: ya operan
+        // dentro del propio circuito y no cambian su comportamiento actual. Idempotente: si el
+        // prompt ya trae el bloque (ej. un reintento), no se duplica.
+        if (! $interno) {
+            $item->prompt = RoadmapItem::conCanalDeRespuesta((string) $item->prompt);
+        }
+
         // CANDADO: nace sin aprobar, siempre. No hay parámetro que lo cambie.
         $item->estado_aprobacion = 'pendiente_revision';
         $item->status            = 'pending';
