@@ -1726,4 +1726,17 @@ return [
         'git_autor_circuito' => (string) env('CIRCUITO_GIT_AUTOR_CIRCUITO', 'Irving MegaISP'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Torre — umbrales de la vista "Trabajando ahora" (item #9990977, sub-item de #9990895)
+    |--------------------------------------------------------------------------
+    |
+    | Decisión de Irving (q2): 'ociosa' = terminal sin item asignado por más de este umbral,
+    | de forma CONSECUTIVA, medido con el log del canal `circuito_despacho` (ver
+    | SupervisorService::terminalesOciosasAhora()).
+    */
+    'torre' => [
+        'ociosa_umbral_min' => (int) env('CIRCUITO_TORRE_OCIOSA_UMBRAL_MIN', 3),
+    ],
+
 ];
