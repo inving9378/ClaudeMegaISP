@@ -74,6 +74,12 @@ class SupervisorService
             'listos_para_terminal_total' => $this->listosParaTerminalTotal(),
             // #854: qué item está analizando AHORA (o por qué no hay ninguno en curso).
             'item_en_curso'        => $this->itemEnCurso(),
+            // #9990977 (Fase 5a de #9990895): ociosidad real de las terminales + elegibles reales,
+            // para poder ver la "alerta contradictoria" (terminal libre + trabajo elegible a la vez).
+            'ociosas_minutos_hoy'        => $this->ociosasMinutosHoy(),
+            'terminales_ociosas_ahora'   => $terminalesOciosasAhora = $this->terminalesOciosasAhora(),
+            'elegibles_reales'           => $elegiblesReales = $this->elegiblesReales(),
+            'alerta_contradictoria'      => count($terminalesOciosasAhora) > 0 && $elegiblesReales > 0,
         ];
     }
 
@@ -105,6 +111,108 @@ class SupervisorService
             ->exists();
 
         return ['estado' => $hayCola ? 'sin_item' : 'cola_vacia', 'id' => null, 'title' => null];
+    }
+
+    /**
+     * #9990977 — parsea (con cache 30s, para no reparsear en cada poll de 3s de la Torre) las
+     * líneas "wt-K ociosa: ..." del log de HOY del canal `circuito_despacho`
+     * (`persistirOciosidad()` en SchedulerCommand.php:370 escribe 1 línea por slot ocioso en CADA
+     * ciclo del cron, que corre 1 vez por minuto). Devuelve las entradas crudas (sid + timestamp
+     * de la línea, tomado del prefijo `[Y-m-d H:i:s]` que escribe Monolog) para que
+     * {@see ociosasMinutosHoy()} y {@see terminalesOciosasAhora()} deriven de la MISMA lectura.
+     * Archivo inexistente (aún no hubo ninguna ociosidad hoy) → [] sin excepción.
+     *
+     * @return array<int,array{sid:string,ts:\Illuminate\Support\Carbon}>
+     */
+    private function ociosidadHoyRaw(): array
+    {
+        return Cache::remember('supervisor:ociosidad_hoy', 30, function () {
+            $path = storage_path('logs/circuito-despacho-' . now()->format('Y-m-d') . '.log');
+            if (! is_file($path)) {
+                return [];
+            }
+
+            $entradas = [];
+            foreach (file($path, FILE_IGNORE_NEW_LINES) ?: [] as $linea) {
+                if (! preg_match('/^\[(?<fecha>[\d-]+ [\d:]+)].*\bwt-(?<slot>\d+) ociosa:/', $linea, $m)) {
+                    continue;
+                }
+                try {
+                    $entradas[] = ['sid' => "wt-{$m['slot']}", 'ts' => Carbon::parse($m['fecha'])];
+                } catch (\Throwable $e) {
+                    continue; // línea con fecha corrupta: se ignora, no tumba el resto del parseo.
+                }
+            }
+
+            return $entradas;
+        });
+    }
+
+    /** #9990977.1 — minutos ociosos de HOY por terminal (1 línea del log = 1 minuto = 1 ciclo del cron). */
+    public function ociosasMinutosHoy(): array
+    {
+        $conteo = [];
+        foreach ($this->ociosidadHoyRaw() as $e) {
+            $conteo[$e['sid']] = ($conteo[$e['sid']] ?? 0) + 1;
+        }
+
+        return $conteo;
+    }
+
+    /**
+     * #9990977.2 — sids que llevan >= `config('circuito.torre.ociosa_umbral_min')` minutos
+     * CONSECUTIVOS ociosos AHORA MISMO. Detección de consecutividad: para cada sid, se toman los
+     * minutos distintos con registro en el log de hoy; si el más reciente es de hace <= 1 minuto
+     * (tolera el desfase del cron) y los `$umbral` minutos anteriores a ese, uno por uno, también
+     * tienen registro (sin huecos), el sid cuenta como ocioso ahora. Se excluye cualquier sid que
+     * ya aparezca en {@see asignadosAhora()} (la BD manda sobre el log: pudo reclamar un item en
+     * el mismo minuto en que el log todavía trae su última línea ociosa).
+     *
+     * @return array<int,string>
+     */
+    public function terminalesOciosasAhora(): array
+    {
+        $umbral = (int) config('circuito.torre.ociosa_umbral_min', 3);
+        $ocupados = collect($this->asignadosAhora())->pluck('sid')->all();
+
+        $resultado = [];
+        foreach (collect($this->ociosidadHoyRaw())->groupBy('sid') as $sid => $entradas) {
+            if (in_array($sid, $ocupados, true)) {
+                continue;
+            }
+
+            $minutos = $entradas->map(fn ($e) => $e['ts']->format('Y-m-d H:i'))->unique()->sort()->values();
+            if ($minutos->count() < $umbral) {
+                continue;
+            }
+
+            $ultimo = Carbon::createFromFormat('Y-m-d H:i', $minutos->last());
+            if ($ultimo->diffInMinutes(now()) > 1) {
+                continue; // el último registro es viejo: ya no está ocioso "ahora mismo".
+            }
+
+            $consecutivos = true;
+            for ($i = 0; $i < $umbral; $i++) {
+                if (! $minutos->contains($ultimo->copy()->subMinutes($i)->format('Y-m-d H:i'))) {
+                    $consecutivos = false;
+                    break;
+                }
+            }
+
+            if ($consecutivos) {
+                $resultado[] = $sid;
+            }
+        }
+
+        sort($resultado);
+
+        return $resultado;
+    }
+
+    /** #9990977.3 — cuántos items puede tomar el pool AHORA (mismo predicado que gobierna el despacho real). */
+    public function elegiblesReales(): int
+    {
+        return RoadmapItem::despachable()->count();
     }
 
     /** #475: últimos items COMPLETADOS — alimenta la lista "Recién resueltos" del escritorio. */
