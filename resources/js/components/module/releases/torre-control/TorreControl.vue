@@ -292,6 +292,7 @@
               <div v-else class="tc-noopts">Brief pendiente — el circuito está preparando las preguntas y opciones (puede tardar unos segundos)…</div>
 
               <textarea v-model="coment[it.id]" class="tc-coment" rows="2" placeholder="Comentario (opcional)…"></textarea>
+              <label class="tc-solo-coment"><input type="checkbox" v-model="soloComentario[it.id]"> Solo comentario — no ejecutar todavía</label>
 
               <div class="tc-actions">
                 <button class="tc-btn tc-btn-voz" :title="hablando === it.id ? 'Detener' : 'Escuchar el resumen'" @click="leer(it)">{{ hablando === it.id ? '⏹ Detener' : '🔊 Escuchar' }}</button>
@@ -806,6 +807,7 @@ export default {
         // Bandeja de decisiones interactiva (#313)
         const sel = reactive({});      // id -> { preguntaId: CLAVE estable } (#432 multi-pregunta)
         const coment = reactive({});   // id -> comentario
+        const soloComentario = reactive({}); // id -> boolean (CIRC-02b: no ejecutar, solo dejar comentario)
         const deciding = ref(null);    // id en proceso
         const aviso = reactive({});    // id -> {tipo:'err'|'ok'|'warn', texto} (#431, no falla en silencio)
 
@@ -1321,9 +1323,11 @@ export default {
                     accion,
                     respuestas: sel[it.id] || {},
                     comentario: coment[it.id] || null,
+                    solo_comentario: !!soloComentario[it.id],
                 });
                 delete sel[it.id];
                 delete coment[it.id];
+                delete soloComentario[it.id];
                 if (accion === 'comentar') setAviso(it.id, 'ok', 'Comentario guardado.');
                 await load(); // refresca bandeja + panorama con el estado ya decidido
             } catch (e) {
@@ -1350,6 +1354,7 @@ export default {
                             });
                             delete sel[it.id];
                             delete coment[it.id];
+                            delete soloComentario[it.id];
                             setAviso(it.id, 'ok', 'Freno quitado. El item vuelve a la cola.');
                             await load();
                         } catch (e2) {
@@ -1487,7 +1492,7 @@ export default {
             openItem, verRecorrido, estadoAprobLabel, highlightId,
             // FASE 1: Cambios para que Irving pruebe (validación funcional)
             cambiosValidacion, valBusy, abrirYProbar, validarFunciona, reportarProblema,
-            sel, coment, deciding, decidir, elegirOpcion, selPreg, aviso,
+            sel, coment, soloComentario, deciding, decidir, elegirOpcion, selPreg, aviso,
             // #477: tarjeta compacta nivel C
             descOpen, tieneDescExtendida, estadoLabelItem,
             // 🔊 Escuchar + 🔎 Ver más (compartido con Integración)
@@ -1644,6 +1649,7 @@ export default {
 .tc-aviso-ok{color:#166534;background:#dcfce7;}
 .tc-aviso-warn{color:#92400e;background:#fef3c7;}
 .tc-coment{width:100%;margin-top:8px;font-size:12.5px;padding:7px 9px;border:1px solid var(--tc-line);border-radius:8px;resize:vertical;font-family:inherit;}
+.tc-solo-coment{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--tc-muted);cursor:pointer;}
 .tc-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px;}
 .tc-btn{font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;border:1px solid transparent;cursor:pointer;}
 .tc-btn:disabled{opacity:.6;cursor:default;}
