@@ -1849,6 +1849,18 @@ class RoadmapItem extends Model
         return $this->hasMany(RoadmapItemReport::class, 'roadmap_item_id');
     }
 
+    /** CIRC-02b — respuestas (de Irving u otra vía) recibidas sobre este item. */
+    public function respuestas()
+    {
+        return $this->hasMany(RoadmapItemRespuesta::class, 'item_id');
+    }
+
+    /** Respuestas de este item que ninguna terminal ha marcado como consumidas todavía. */
+    public function respuestasSinConsumir()
+    {
+        return $this->respuestas()->sinConsumir();
+    }
+
     /** ¿Hay una consulta a Jarvis viva (preguntada y sin responder)? */
     public function tieneConsultaViva(): bool
     {
