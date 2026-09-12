@@ -620,9 +620,13 @@ export default {
         async function load() {
             loading.value = true;
             try {
-                // Pipeline por estado: la Hoja de ruta muestra SOLO el backlog (lo tomado/mergeado
-                // vive en Terminales/Integración). Un item tomado DESAPARECE de aquí.
-                const { data } = await axios.get('/api/roadmap/items?vista=backlog');
+                // CIRC-07 (#9990890): NO usar ?vista=backlog aquí. Ese scope es el INTAKE del
+                // item #432 (solo nivel_riesgo IS NULL, ~4 de 1635 items) — pensado para el KPI
+                // "sin clasificar" del Panorama, no para este Kanban. Esta pestaña agrupa por
+                // `status` (in_progress/pending/done/cancelled), las 4 tarjetas de arriba, así que
+                // necesita el UNIVERSO COMPLETO (mismo total que el Panorama) o los 4 filtros salvo
+                // "Pendientes" quedan siempre en cero. Ver docs/torre-control-flujo-real.md (D8).
+                const { data } = await axios.get('/api/roadmap/items');
                 items.value = data;
             } catch {
                 showToast('Error al cargar la hoja de ruta.', 'error', 'bi bi-exclamation-circle-fill');
