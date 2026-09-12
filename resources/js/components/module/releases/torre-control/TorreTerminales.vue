@@ -11,6 +11,23 @@
       </span>
     </div>
 
+    <!-- #9990978 (Fase 5b de #9990895): panel PERMANENTE de ociosidad + elegibles reales, fijo
+         arriba y siempre visible (decisión de Irving, q1) — sin tab aparte, sin colapsar. Datos
+         del MISMO poll de 3s (#9990977 ya los agrega a SupervisorService::estado(), q3: sin
+         endpoint nuevo). Solo alerta visual: sin botón, sin acción automática (q4). -->
+    <div v-if="supervisor" class="tt-ocio" :class="{ 'tt-ocio-alert': supervisor.alerta_contradictoria }">
+      <div v-if="sesiones.length" class="tt-ocio-badges">
+        <span v-for="s in sesiones" :key="'oc' + s.sid" class="tt-ocio-badge" :title="(s.nombre || s.sid) + ' · minutos ociosos hoy'">
+          {{ s.nombre || s.sid }}: {{ ociosoMinutosDe(s.sid) }} min ociosa hoy
+        </span>
+      </div>
+      <span class="tt-ocio-elegibles"><i class="bi bi-stack"></i> Elegibles reales: {{ supervisor.elegibles_reales }}</span>
+      <span v-if="supervisor.alerta_contradictoria" class="tt-ocio-warn">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        ⚠ {{ supervisor.terminales_ociosas_ahora.length }} terminal(es) ociosa(s) con trabajo pendiente
+      </span>
+    </div>
+
     <!-- Empty state honesto: el paralelo (#334) YA existe; 0 sesiones = ninguna vuelta corriendo. -->
     <div v-if="!sesiones.length" class="tt-empty">
       <i class="bi bi-terminal-x tt-empty-ico"></i>
@@ -250,6 +267,10 @@ export default {
         const LIVE_SIN_SENAL_SEG = 20;   // sin renglones nuevos por más de esto → "sin señal"
 
         const anyRunning = computed(() => sesiones.value.some((s) => s.running));
+
+        // #9990978: minutos ociosos de HOY de una terminal (supervisor.ociosas_minutos_hoy es un
+        // mapa sid → minutos, #9990977.1; 0 si esa terminal no acumuló ociosidad hoy).
+        const ociosoMinutosDe = (sid) => (supervisor.value && supervisor.value.ociosas_minutos_hoy && supervisor.value.ociosas_minutos_hoy[sid]) || 0;
 
         // #854: item que el supervisor analiza AHORA (mismo payload del poll de 3s, sin llamada nueva).
         const itemEnCursoEstado = computed(() => (supervisor.value && supervisor.value.item_en_curso && supervisor.value.item_en_curso.estado) || 'cola_vacia');
@@ -542,6 +563,7 @@ export default {
         return {
             FASES, POLL_MS, dark: darkMode,
             sesiones, supervisor, recienResueltos, listosParaTerminal, anyRunning, anyActive,
+            ociosoMinutosDe,
             itemEnCurso, itemEnCursoEstado,
             secsSince, fmtClock, stepReached, stepClass, hasFaseData, setPre, workerStateText,
             vueltasQuemadas, vueltasQuemadasClass, vueltasQuemadasTip,
@@ -574,6 +596,25 @@ export default {
 .tt-bar-title{ font-weight:700; font-size:15px; }
 .tt-bar-meta{ font-size:12px; color:var(--tt-muted); display:inline-flex; align-items:center; gap:8px; }
 .tt-bar-live{ color:var(--tt-live); font-weight:700; display:inline-flex; align-items:center; gap:5px; }
+
+/* #9990978 — panel PERMANENTE de ociosidad + elegibles reales, fijo arriba de la Torre.
+   Solo alerta visual (badge rojo), sin botón ni acción automática (decisión de Irving, q4). */
+.tt-ocio{
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  padding:8px 12px; margin-bottom:14px; border:1px solid var(--tt-line); border-radius:12px;
+  background:var(--tt-surface); font-size:12px;
+}
+.tt-ocio-badges{ display:flex; gap:6px; flex-wrap:wrap; }
+.tt-ocio-badge{
+  font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px;
+  background:rgba(100,116,139,.12); color:var(--tt-muted); white-space:nowrap;
+}
+.tt-ocio-elegibles{ font-weight:700; color:var(--tt-accent); display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
+.tt-ocio-warn{
+  font-weight:800; color:var(--tt-danger); background:rgba(220,38,38,.12);
+  padding:3px 10px; border-radius:999px; display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+}
+.tt-ocio-alert{ border-color:var(--tt-danger); }
 
 .tt-dot{ width:8px;height:8px;border-radius:50%;background:var(--tt-live);display:inline-block;animation:tt-pulse 1.3s infinite; }
 @keyframes tt-pulse{ 0%{box-shadow:0 0 0 0 rgba(16,185,129,.5)} 70%{box-shadow:0 0 0 6px rgba(16,185,129,0)} 100%{box-shadow:0 0 0 0 rgba(16,185,129,0)} }
