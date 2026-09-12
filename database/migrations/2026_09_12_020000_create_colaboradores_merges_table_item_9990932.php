@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -53,6 +54,7 @@ return new class extends Migration
             }
 
             $user = DB::table('users')->where('id', $seller->user_id)->first();
+            $userSnapshot = $user ? Arr::except((array) $user, ['password', 'password_legacy', 'remember_token']) : null;
 
             DB::table('colaboradores_merges')->insert([
                 'from_id'    => $seller->user_id,
@@ -65,7 +67,7 @@ return new class extends Migration
                         . 'actividad real: 0 clientes, 0 pagos, 0 balance, 0 comisiones/transacciones/reglas. '
                         . 'Ver docs/identidad-vendedores-diagnostico-8-seller-id-item-9990802.md Bloque A.',
                     'seller' => (array) $seller,
-                    'user'   => $user ? (array) $user : null,
+                    'user'   => $userSnapshot,
                 ]),
                 'created_at' => now(),
                 'updated_at' => now(),
