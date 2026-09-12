@@ -94,6 +94,9 @@ class RoadmapItem extends Model
         'bloqueado_por_bucle', 'motivo_bloqueo', 'escalaciones_fingerprint', 'esperando_merge_irving',
         // #921 — fecha futura de reactivación (independiente de excluir_pool_automatico)
         'agendado_para',
+        // CIRC-03 Fase A — por qué espera un item requiere_irving. Valores: decision|credencial|
+        // hardware|sesion_presencial|autorizacion|frontera_produccion; NULL = no espera nada.
+        'motivo_espera',
         // FASE 2A.3 — quién puso el freno (humano FRENA / clasificador INFORMA) y hasta cuándo
         'origen_bloqueo', 'bloqueo_expira_en', 'bloqueo_renovaciones',
         // TORRE V2 — canal de consulta terminal → Jarvis (autoridad intermedia antes de Irving)
