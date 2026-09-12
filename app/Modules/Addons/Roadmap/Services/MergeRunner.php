@@ -624,6 +624,9 @@ class MergeRunner
             // ejecutada»: estampa el hash en cada pregunta del brief que ya tenía opción elegida.
             $item->marcarPreguntasEjecutadas($sha, 'merge-runner');
 
+            // CIRC-02b PASO 3 — cierre real automático: consume las respuestas pendientes de Irving.
+            $item->consumirRespuestasPendientes('merge-runner');
+
             // Clasificación UI vs backend por los archivos que trajo el merge (HEAD^1..HEAD = main previo..fusión).
             $clasif = $this->clasificarUi($sha);
             $item->revision_ui = $clasif['ui'];

@@ -1970,6 +1970,22 @@ TXT;
         return $this->respuestas()->sinConsumir();
     }
 
+    /**
+     * CIRC-02b PASO 3 — al cerrar el item de verdad (completado/rechazado/cancelado), marca
+     * TODAS sus respuestas pendientes como consumidas. Se llama explícitamente en los puntos
+     * reales donde se persiste un cierre: `RoadmapController::decidir()` (cierre manual de
+     * Irving) y `MergeRunner::markMerged()` (cierre automático por merge). NO se llama desde el
+     * cierre en cascada del paraguas (ese hook queda intacto a propósito): un padre que se
+     * retiene como paraguas no está cerrado de verdad todavía.
+     */
+    public function consumirRespuestasPendientes(string $consumidoPor): void
+    {
+        $this->respuestasSinConsumir()->update([
+            'consumida_at'  => now(),
+            'consumida_por' => $consumidoPor,
+        ]);
+    }
+
     /** ¿Hay una consulta a Jarvis viva (preguntada y sin responder)? */
     public function tieneConsultaViva(): bool
     {
