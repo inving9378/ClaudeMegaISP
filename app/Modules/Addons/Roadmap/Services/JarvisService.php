@@ -1433,7 +1433,15 @@ class JarvisService
         $faltantes   = [];
         $bloqueantes = [];
 
-        if (empty($item->branch) && empty($item->merge_commit)) {
+        // #9991034 — un PARAGUAS que cierra por cascada (el hook `static::saved` de RoadmapItem
+        // pone `cierreParaguas=true` al cerrar su último sub-item) tiene su evidencia repartida en
+        // los sub-items ya completados, no en sí mismo: exigirle rama/merge_commit propios es lo
+        // que dejaba el deadlock (20 paraguas atascados, ejecutablesParalelo=0). Candado DOBLE a
+        // propósito (igual que pide el spec del item): `cierreParaguas` lo pone SOLO esa cascada, y
+        // aquí se reconfirma 0 hijos abiertos — así una HOJA real sin código sigue bloqueada.
+        $cierraPorCascadaDeParaguas = $item->cierreParaguas && ! $item->tieneSubItemsAbiertos();
+
+        if (! $cierraPorCascadaDeParaguas && empty($item->branch) && empty($item->merge_commit)) {
             if (trim((string) $item->cierre_sin_codigo_motivo) === '') {
                 $bloqueantes[] = 'cierre sin rama de trabajo ni merge_commit, y sin justificación de '
                     . 'cierre-sin-código (usa cierre_sin_codigo_motivo si de verdad era investigación, '
