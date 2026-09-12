@@ -177,11 +177,15 @@ class SchedulerCommand extends Command
             $items = $svc->ejecutablesParalelo($modulosEnVuelo, count($freeSlots));
             if (! $items) {
                 $this->reportarCeroDespacho($svc, $n, $freeSlots, $busySlots, $modulosEnVuelo, $detallado);
+                if (! $this->option('dry')) {
+                    $this->persistirOciosidad($freeSlots, $svc->diagnosticoCeroDespacho($modulosEnVuelo)['descartados']);
+                }
 
                 return self::SUCCESS;
             }
 
             $lanzados = [];
+            $slotsUsados = [];
             foreach ($items as $i => $item) {
                 if (! isset($freeSlots[$i])) {
                     break;
@@ -218,6 +222,21 @@ class SchedulerCommand extends Command
 
                 $this->lanzarVueltaItem($id, $slot, false, $nivel);
                 $lanzados[] = $id;
+                $slotsUsados[] = $slot;
+            }
+
+            // #9990863 Fase 1 — caso PARCIAL: `ejecutablesParalelo()` devolvió menos items que
+            // slots libres (p.ej. la ronda solo dejó pasar 1 por el tope de módulo o la regla del
+            // footprint desconocido "va solo"). Antes esas terminales sobrantes quedaban ociosas
+            // SIN NINGÚN registro — ni siquiera el veredicto de `reportarCeroDespacho()`, que solo
+            // corre cuando `$items` viene vacío. Es la causa más probable del síntoma reportado
+            // (169+27 items aprobados, 5 de 6 terminales ociosas): hay candidatos, pero la ronda
+            // deliberadamente no los reparte todos.
+            if (! $this->option('dry')) {
+                $ociosos = array_values(array_diff($freeSlots, $slotsUsados));
+                if ($ociosos) {
+                    $this->persistirOciosidad($ociosos, $svc->diagnosticoCeroDespacho($modulosEnVuelo)['descartados']);
+                }
             }
 
             $this->info(($this->option('dry') ? 'DRY ' : '') . 'Scheduler: ' . count($lanzados)
@@ -333,6 +352,30 @@ class SchedulerCommand extends Command
         }
         $this->info('VEREDICTO: 0 vueltas — ' . count($descartados) . ' candidato(s), todos frenados por: '
             . implode(', ', $resumen) . '.');
+    }
+
+    /**
+     * #9990863 Fase 1 — una línea por terminal OCIOSA (slot libre que este ciclo NO recibió
+     * trabajo) en el canal `circuito_despacho`, con el código y motivo REAL que ya calcula
+     * `RoadmapCircuitoService::diagnosticoCeroDespacho()` (#9990349) — no se inventa una taxonomía
+     * nueva encima de la que el despachador ya usa para decidir. `$descartados` puede traer menos
+     * o más entradas que `$slotsOciosos` (un mismo candidato descartado puede "cubrir" la razón de
+     * varias terminales igual de ociosas); se reparte 1:1 por posición y, si se agotan los
+     * descartados antes que las terminales, el resto se marca `sin_candidatos` (ya no queda ningún
+     * item elegible tras el reparto de esta ronda).
+     *
+     * @param array<int,int> $slotsOciosos números de worktree (wt-K) sin trabajo asignado este ciclo
+     * @param array<int,array{id:int,modulo:?string,codigo:string,motivo:string}> $descartados
+     */
+    private function persistirOciosidad(array $slotsOciosos, array $descartados): void
+    {
+        foreach (array_values($slotsOciosos) as $i => $slot) {
+            $d = $descartados[$i] ?? null;
+            $linea = $d
+                ? sprintf('#%d%s — %s: %s', $d['id'], $d['modulo'] ? " (modulo={$d['modulo']})" : '', $d['codigo'], $d['motivo'])
+                : 'sin_candidatos: no queda ningún item elegible tras el reparto de esta ronda.';
+            Log::channel('circuito_despacho')->info("wt-{$slot} ociosa: {$linea}");
+        }
     }
 
     /** ¿El slot (worktree) está libre? = su flock no lo tiene una vuelta viva. */
