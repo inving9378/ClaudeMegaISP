@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\MapaRed\Models;
 
 use App\Models\ClientMainInformation;
+use App\Modules\Addons\MapaRed\Repositories\MapaRedProyectRepository;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
@@ -77,6 +78,10 @@ class MapaRedLayer extends Model
                 (new MapaRedDevicePortConnection())->removeOrphansConnections();
             }
         });
+        // MR-22 Fase 4b (item #9991049): invalida el cache corto de getNodes() en
+        // cualquier alta/edición/baja de layer (listeners nuevos, no tocan los de arriba).
+        static::saved(fn () => MapaRedProyectRepository::invalidateNodesCache());
+        static::deleted(fn () => MapaRedProyectRepository::invalidateNodesCache());
     }
 
     public function service_box()
