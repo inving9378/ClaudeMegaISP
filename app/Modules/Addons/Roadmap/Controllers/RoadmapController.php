@@ -1711,12 +1711,19 @@ class RoadmapController extends Controller
             // limpiando su parqueo. Sin esto, aprobarlo otra vez sería un no-op que solo reabriría
             // el ciclo de re-despacho.
             'forzar'         => ['sometimes', 'boolean'],
+            // CIRC-02b — comentario que además re-encola (ver más abajo, tras armar $nuevoEstado).
+            // Default false: un comentario simple NO mueve el estado por sí solo.
+            'solo_comentario' => ['sometimes', 'boolean'],
         ]);
 
         $item = RoadmapItem::find($data['id']);
         if (! $item) {
             return response()->json(['error' => 'Item no encontrado'], 404);
         }
+
+        // CIRC-02b — capturado ANTES de cualquier mutación (responderPregunta() no toca
+        // estado_aprobacion, pero se captura aquí mismo por seguridad).
+        $estadoPrevio = $item->estado_aprobacion;
 
         $user  = auth()->user();
         $autor = 'irving:' . ($user->login_user ?? $user->email ?? $user->id);
@@ -1791,6 +1798,33 @@ class RoadmapController extends Controller
             'cancelar' => 'cancelado',
             'comentar' => $item->estado_aprobacion, // sigue en su estado (normalmente requiere_irving)
         };
+
+        // CIRC-02b — un comentario de Irving sobre un item requiere_irving ES la respuesta (sin
+        // segundo clic): se guarda en roadmap_item_respuestas (no se pisa como comentarios_claude)
+        // y, si estaba esperando decisión y no es solo_comentario, re-encola el item para que el
+        // circuito lo retome. NUNCA toca nivel_riesgo.
+        if ($data['accion'] === 'comentar' && !empty($data['comentario']) && !RoadmapItem::firmaAutomatica($autor)) {
+            $ejecutar = !($data['solo_comentario'] ?? false);
+            \App\Modules\Addons\Roadmap\Models\RoadmapItemRespuesta::create([
+                'item_id'      => $item->id,
+                'autor'        => $autor,
+                'canal'        => 'torre',
+                'cuerpo'       => $data['comentario'],
+                'ejecutar'     => $ejecutar,
+                'consumida_at' => null,
+            ]);
+            if ($estadoPrevio === 'requiere_irving' && $ejecutar) {
+                $nuevoEstado = $item->nivel_riesgo === 'A' ? 'aprobado_claude' : 'aprobado_revisor';
+            }
+            $item->log = array_merge($item->log ?? [], [[
+                'ts'            => now()->toIso8601String(),
+                'por'           => $autor,
+                'evento'        => 'respuesta_recibida',
+                'ejecutar'      => $ejecutar,
+                'estado_previo' => $estadoPrevio,
+                'estado_nuevo'  => $nuevoEstado,
+            ]]);
+        }
 
         // El status (pending/in_progress/done/cancelled) acompaña al cierre/cancelación.
         if ($data['accion'] === 'cerrar') {
