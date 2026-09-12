@@ -190,6 +190,14 @@ class ClientController extends Controller
             // Alta bypassa el mutator del modelo (insertGetId crudo) — normaliza aquí (item #155).
             $input['user'] = ClientMainInformation::normalizeUserNumber($input['user']);
         }
+        if (\App\Services\Identidad\ColaboradorIdResolver::habilitado() && !empty($input['seller_id'])) {
+            // Alta bypassa observers (insertGetId crudo) — resuelve aquí (Fase 3b, #9990963).
+            $input['colaborador_id'] = \App\Services\Identidad\ColaboradorIdResolver::resolveOrRegistrarPendiente(
+                (int) $input['seller_id'],
+                'client_main_information',
+                null
+            );
+        }
         $clientMainInformationId = DB::table('client_main_information')->insertGetId($input);
         $clientMainInformationModel = ClientMainInformation::where('id', $clientMainInformationId)->first();
 
