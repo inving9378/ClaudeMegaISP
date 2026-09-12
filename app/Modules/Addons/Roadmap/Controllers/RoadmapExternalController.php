@@ -226,6 +226,19 @@ class RoadmapExternalController extends Controller
                 'reporte'        => 'POST /{token}/item/{id}/reporte  — body: tipo (req), resumen (req), cuerpo',
                 'historial'      => 'GET /{token}/item/{id}/historial  — historial append-only de reportes (token de lectura)',
             ],
+            // ESCRITURA ACOTADA (token `write_token`): fijar estado_aprobacion / nivel_riesgo /
+            // comentarios_claude de un item existente. Mismo guard/allowlist en las 5 variantes.
+            'escritura' => [
+                'update_item'    => 'POST /{token}/item/{id}  — body: estado_aprobacion, nivel_riesgo, comentarios_claude',
+                'set_query'      => 'GET /{token}/item/{id}/set?estado_aprobacion=..&nivel_riesgo=..&comentarios_claude=..',
+                'set_path'       => 'GET /{token}/item/{id}/set/{estado}/{nivel}/{comentario?}',
+                'set_path_b64'   => 'GET /{token}/item/{id}/setb64/{estado}/{nivel}/{comentario_b64?}   '
+                    . '(comentario en base64url, para fetchers que no toleran texto libre en la URL)',
+                'comentarios_claude_deprecado' => 'DEPRECADO: escribir directo al campo comentarios_claude por esta '
+                    . 'vía. Preferir POST /{token}/item/{id}/reporte (tipo=nota|decision|...) para dejar rastro '
+                    . 'estructurado y auditable en el historial append-only. El campo comentarios_claude sigue '
+                    . 'funcionando (no se retira, solo se desaconseja para no romper integraciones actuales).',
+            ],
         ];
     }
 
