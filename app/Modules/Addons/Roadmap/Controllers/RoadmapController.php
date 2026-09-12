@@ -19,6 +19,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -251,6 +252,162 @@ class RoadmapController extends Controller
             'disponible' => true,
             'grupos'     => $grupos,
         ]);
+    }
+
+    /**
+     * #9990969 (CIRC-09 Fase 2, sub-item de #9990934) — jerarquía Módulo → Épica → Item → Sub-item
+     * con LAZY-LOAD: un solo endpoint parametrizado por `nivel` devuelve SOLO los hijos directos del
+     * nodo pedido, nunca el árbol completo (brief de Irving, q1 → opción 1 recomendada). Es
+     * RECURSIVO a propósito: `nivel=item` sirve tanto para los hijos de una épica como para los
+     * nietos de un item cualquiera — es la misma pregunta ("¿quién tiene `origen_item_id` = X?") en
+     * cualquier profundidad (caso real: MR-23 tiene sub-épicas propias vía `origen_item_id`
+     * encadenado, sin que el endpoint necesite saberlo).
+     *
+     * Contadores (criterio de aceptación del padre): SIEMPRE agregación SQL sobre los HIJOS de cada
+     * nodo, nunca `count()` de un array ya cargado en PHP. 3 baldes:
+     *   - activos   → una terminal lo trabaja AHORA (en_progreso / in_progress / en_desarrollo_humano)
+     *   - detenidos → frenado, no avanza solo (requiere_irving / bloqueado_por_bucle / colisión en
+     *                 vuelo / excluido del pool automático)
+     *   - en_cola   → vivo y no cae en los dos anteriores (pendiente_revision, aprobado_revisor,
+     *                 aprobado_irving esperando terminal libre…)
+     * Por default solo cuenta lo VIVO (`archivado_at` NULL, no completado/cancelado/rechazado/done):
+     * los items cerrados NO viajan salvo que alguien despliegue ese nodo (criterio del propio padre).
+     *
+     * Payload por nodo (q2 → opción 1 recomendada): mínimo — id/titulo/nivel/estado/tiene_hijos/
+     * contador_hijos. Nada de fechas/responsable/progreso — eso contradice el espíritu del lazy-load.
+     *
+     * Permiso (q3 → opción 1 recomendada): reusa `roadmap_view`, el mismo gate que el resto de la
+     * Torre — no se crea un permiso Spatie nuevo para esto.
+     *
+     * `nivel=modulo` NO tiene fila propia en `roadmap_items` (es el string de la columna `modulo`):
+     * se agrega directo, sin self-join. `nivel=epica`/`nivel=item` SÍ son filas reales, así que sus
+     * contadores exigen un self-join `roadmap_items AS child ON child.origen_item_id = parent.id`.
+     *
+     * La "fase actual" del pipeline (Triage/Decisión/Rama/Editando/Verificando/Integrando) que pedía
+     * el padre NO existe como columna — instrucción explícita del item: no se inventa aquí. Queda
+     * para la Fase 4, derivable de `estado_aprobacion` + presencia de `branch`/`merge_commit` (ver
+     * `RoadmapItem::getEstacionAttribute()`/`getEstadoColaAttribute()`, que ya resuelven ese mapeo
+     * pero como accessor PHP sobre un modelo cargado, no como columna ni expresión SQL agregable).
+     */
+    public function panoramaJerarquia(Request $request): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $data = $request->validate([
+            'nivel'     => ['sometimes', 'string', Rule::in(['modulo', 'epica', 'item'])],
+            'parent_id' => ['nullable', 'string'],
+            'page'      => ['sometimes', 'integer', 'min:1'],
+            'per_page'  => ['sometimes', 'integer', 'min:1', 'max:200'],
+        ]);
+
+        $nivel   = $data['nivel'] ?? 'modulo';
+        $page    = (int) ($data['page'] ?? 1);
+        $perPage = (int) ($data['per_page'] ?? 200); // criterio del padre: >200 en un módulo, paginar
+
+        if ($nivel === 'modulo') {
+            $rows = DB::table('roadmap_items as child')
+                ->whereRaw($this->sqlVivo('child'))
+                ->whereNotNull('child.modulo')->where('child.modulo', '!=', '')
+                ->whereNull('child.origen_item_id') // hijos directos de un módulo = épicas (raíz)
+                ->selectRaw(
+                    'child.modulo as id, child.modulo as titulo, '
+                    . 'SUM(CASE WHEN ' . $this->sqlActivos('child') . ' THEN 1 ELSE 0 END) as activos, '
+                    . 'SUM(CASE WHEN ' . $this->sqlDetenidos('child') . ' THEN 1 ELSE 0 END) as detenidos, '
+                    . 'SUM(CASE WHEN NOT ' . $this->sqlActivos('child') . ' AND NOT ' . $this->sqlDetenidos('child') . ' THEN 1 ELSE 0 END) as en_cola'
+                )
+                ->groupBy('child.modulo')
+                ->orderBy('child.modulo')
+                ->get();
+
+            $nodos = $rows->map(fn ($r) => $this->nodoJerarquia(
+                (string) $r->id, (string) $r->titulo, 'modulo', null,
+                (int) $r->activos, (int) $r->en_cola, (int) $r->detenidos
+            ))->values();
+
+            return response()->json(['ok' => true, 'nivel' => $nivel, 'parent_id' => null, 'nodos' => $nodos]);
+        }
+
+        // nivel=epica (parent_id=módulo) | nivel=item (parent_id=id de cualquier item, recursivo)
+        $parentId = $data['parent_id'] ?? null;
+        if ($parentId === null || $parentId === '') {
+            return response()->json(['ok' => false, 'mensaje' => 'parent_id es requerido para nivel=' . $nivel], 422);
+        }
+
+        $base = DB::table('roadmap_items as parent')
+            ->leftJoin('roadmap_items as child', function ($j) {
+                $j->on('child.origen_item_id', '=', 'parent.id')
+                  ->whereRaw($this->sqlVivo('child'));
+            })
+            ->whereRaw($this->sqlVivo('parent'));
+
+        if ($nivel === 'epica') {
+            $base->where('parent.modulo', (string) $parentId)->whereNull('parent.origen_item_id');
+        } else { // item — recursivo: hijos directos de CUALQUIER item, épica o no
+            $base->where('parent.origen_item_id', (int) $parentId);
+        }
+
+        $total = (clone $base)->distinct('parent.id')->count('parent.id');
+
+        $rows = $base
+            ->selectRaw(
+                'parent.id as id, parent.title as titulo, parent.estado_aprobacion as estado, '
+                . 'SUM(CASE WHEN ' . $this->sqlActivos('child') . ' THEN 1 ELSE 0 END) as activos, '
+                . 'SUM(CASE WHEN ' . $this->sqlDetenidos('child') . ' THEN 1 ELSE 0 END) as detenidos, '
+                . 'SUM(CASE WHEN child.id IS NOT NULL AND NOT ' . $this->sqlActivos('child') . ' AND NOT ' . $this->sqlDetenidos('child') . ' THEN 1 ELSE 0 END) as en_cola'
+            )
+            ->groupBy('parent.id', 'parent.title', 'parent.estado_aprobacion', 'parent.position')
+            ->orderBy('parent.position')->orderBy('parent.id')
+            ->forPage($page, $perPage)
+            ->get();
+
+        $nodos = $rows->map(fn ($r) => $this->nodoJerarquia(
+            (int) $r->id, (string) $r->titulo, $nivel, (string) $r->estado,
+            (int) $r->activos, (int) $r->en_cola, (int) $r->detenidos
+        ))->values();
+
+        return response()->json([
+            'ok'         => true,
+            'nivel'      => $nivel,
+            'parent_id'  => $parentId,
+            'nodos'      => $nodos,
+            'pagina'     => $page,
+            'por_pagina' => $perPage,
+            'total'      => $total,
+        ]);
+    }
+
+    /** #9990969 — condición SQL de "vivo": no archivado, no cerrado (ni por status ni por aprobación). */
+    private function sqlVivo(string $alias): string
+    {
+        return "{$alias}.archivado_at IS NULL AND {$alias}.status NOT IN ('done','cancelled') "
+            . "AND {$alias}.estado_aprobacion NOT IN ('completado','cancelado','rechazado')";
+    }
+
+    /** #9990969 — balde "activos": una terminal lo trabaja ahora mismo. */
+    private function sqlActivos(string $alias): string
+    {
+        return "({$alias}.estado_aprobacion = 'en_progreso' OR {$alias}.status = 'in_progress' "
+            . "OR {$alias}.en_desarrollo_humano = 1)";
+    }
+
+    /** #9990969 — balde "detenidos": frenado, no avanza solo hasta que alguien lo destrabe. */
+    private function sqlDetenidos(string $alias): string
+    {
+        return "({$alias}.estado_aprobacion = 'requiere_irving' OR {$alias}.bloqueado_por_bucle = 1 "
+            . "OR {$alias}.colision_pausada_por IS NOT NULL OR {$alias}.excluir_pool_automatico = 1)";
+    }
+
+    /** #9990969 — forma mínima de un nodo del árbol (q2 del brief: payload chico, sin metadata extra). */
+    private function nodoJerarquia($id, string $titulo, string $nivel, ?string $estado, int $activos, int $enCola, int $detenidos): array
+    {
+        return [
+            'id'             => $id,
+            'titulo'         => $titulo,
+            'nivel'          => $nivel,
+            'estado'         => $estado,
+            'tiene_hijos'    => ($activos + $enCola + $detenidos) > 0,
+            'contador_hijos' => ['activos' => $activos, 'en_cola' => $enCola, 'detenidos' => $detenidos],
+        ];
     }
 
     /**
