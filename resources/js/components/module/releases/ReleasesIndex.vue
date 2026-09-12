@@ -35,6 +35,15 @@
                     <i class="bi bi-map me-1"></i> Hoja de ruta
                 </a>
             </li>
+            <!-- Item #9990970 (CIRC-09 Fase 3) — árbol jerárquico Módulo→Épica→Item, aparte de
+                 "Panorama" a propósito: todavía no tiene paneles de decisión (Fase 5) ni acciones
+                 (Fase 6), así que "Panorama" sigue siendo donde Irving decide hasta que ese trabajo
+                 aterrice. Cuando el árbol tenga paridad completa, este es el punto de swap. -->
+            <li class="nav-item">
+                <a class="nav-link" :class="{ active: tab === 'arbol' }" href="#" @click.prevent="tab = 'arbol'">
+                    <i class="bi bi-list-nested me-1"></i> Árbol
+                </a>
+            </li>
             <li class="nav-item">
                 <a class="nav-link" :class="{ active: tab === 'terminales' }" href="#" @click.prevent="tab = 'terminales'">
                     <i class="bi bi-terminal me-1"></i> Terminales
@@ -95,6 +104,9 @@
 
         <!-- ── Sub-sección: Panorama (dashboard de la Torre) ── -->
         <torre-control v-if="tab === 'panorama'" />
+
+        <!-- ── Sub-sección: Árbol jerárquico (#9990970, CIRC-09 Fase 3) ── -->
+        <torre-panorama-arbol v-if="tab === 'arbol'" />
 
         <!-- ── Sub-sección: Terminales en vivo (rejilla por sesión, #350) ── -->
         <torre-terminales v-if="tab === 'terminales'" />
@@ -292,6 +304,7 @@ import axios from "axios";
 import ReleasesCrud from "./ReleasesCrud.vue";
 import RoadmapTab from "./torre-control/RoadmapTab.vue";
 import TorreControl from "./torre-control/TorreControl.vue";
+import TorrePanoramaArbol from "./torre-control/TorrePanoramaArbol.vue";
 import TorreTerminales from "./torre-control/TorreTerminales.vue";
 import TorreHistorialAcciones from "./torre-control/TorreHistorialAcciones.vue";
 import TorreActividadEquipo from "./torre-control/TorreActividadEquipo.vue";
@@ -304,7 +317,7 @@ import { allViewHasPermission } from "../../../helpers/Request";
 
 export default {
     name: "ReleasesIndex",
-    components: { ReleasesCrud, RoadmapTab, TorreControl, TorreTerminales, TorreHistorialAcciones, TorreActividadEquipo, IntegracionRamas, JarvisChatDrawer, DeployProgressModal },
+    components: { ReleasesCrud, RoadmapTab, TorreControl, TorrePanoramaArbol, TorreTerminales, TorreHistorialAcciones, TorreActividadEquipo, IntegracionRamas, JarvisChatDrawer, DeployProgressModal },
     props: {
         releases: { type: String },
         next_page_url: { type: String },
