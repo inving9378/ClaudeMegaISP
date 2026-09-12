@@ -415,7 +415,7 @@ class RoadmapExternalController extends Controller
         $hoy  = RoadmapItem::where('created_at', '>=', now()->startOfDay())
             ->where('log', 'like', '%"via":"externo"%')->count();
         if ($tope > 0 && $hoy >= $tope) {
-            $this->audit($request, $verb, 'rejected_tope', ['creados_hoy' => $hoy, 'tope' => $tope]);
+            $this->audit($request, $verb, 'rejected_tope', ['creados_hoy' => $hoy, 'tope' => $tope], 'create');
 
             return response()->json([
                 'error' => "Tope diario de alta externa alcanzado ({$hoy}/{$tope}). Se reinicia mañana; "
@@ -426,7 +426,7 @@ class RoadmapExternalController extends Controller
         try {
             $item = $this->intake->crear($data, 'claude-cowork', false);
         } catch (\InvalidArgumentException $e) {
-            $this->audit($request, $verb, 'rejected_validacion', ['motivo' => $e->getMessage()]);
+            $this->audit($request, $verb, 'rejected_validacion', ['motivo' => $e->getMessage()], 'create');
 
             return response()->json(['error' => $e->getMessage()], 422);
         }
@@ -435,7 +435,7 @@ class RoadmapExternalController extends Controller
         // que `crear()` devolvió el item existente sin insertar nada nuevo (`wasRecentlyCreated`
         // en false). Se responde 200 con `ya_existia` en vez del 201 de alta nueva.
         if (! empty($data['clave_externa']) && ! $item->wasRecentlyCreated) {
-            $this->audit($request, $verb, 'idempotent_hit', ['id' => $item->id, 'clave_externa' => $data['clave_externa']]);
+            $this->audit($request, $verb, 'idempotent_hit', ['id' => $item->id, 'clave_externa' => $data['clave_externa']], 'create');
 
             return response()->json([
                 'ok'         => true,
@@ -445,7 +445,7 @@ class RoadmapExternalController extends Controller
             ], 200);
         }
 
-        $this->audit($request, $verb, 'created', ['id' => $item->id, 'modulo' => $item->modulo]);
+        $this->audit($request, $verb, 'created', ['id' => $item->id, 'modulo' => $item->modulo], 'create');
 
         $aviso = 'El item nace en pendiente_revision: crear no aprueba. Lo tría el revisor/autopilot '
             . 'y el circuito lo ejecuta cuando quede en la cola.';
@@ -493,7 +493,7 @@ class RoadmapExternalController extends Controller
         $padre->decision_fecha    = now();
         $padre->save();
 
-        $this->audit($request, $verb, 'fusionado_en_padre', ['padre' => $padre->id, 'reporte' => $reporte->id]);
+        $this->audit($request, $verb, 'fusionado_en_padre', ['padre' => $padre->id, 'reporte' => $reporte->id], 'create');
 
         return response()->json([
             'ok'    => true,
@@ -518,7 +518,7 @@ class RoadmapExternalController extends Controller
 
         $item = RoadmapItem::find($id);
         if (! $item) {
-            $this->audit($request, 'POST-REPORTE', 'not_found', ['id' => $id]);
+            $this->audit($request, 'POST-REPORTE', 'not_found', ['id' => $id], 'create');
 
             return response()->json(['error' => 'Item no encontrado'], 404);
         }
@@ -537,7 +537,7 @@ class RoadmapExternalController extends Controller
             $data['cuerpo'] ?? null
         );
 
-        $this->audit($request, 'POST-REPORTE', 'reported', ['id' => $id, 'tipo' => $data['tipo']]);
+        $this->audit($request, 'POST-REPORTE', 'reported', ['id' => $id, 'tipo' => $data['tipo']], 'create');
 
         return response()->json(['ok' => true, 'reporte' => $reporte->toApi()], 201);
     }
@@ -643,14 +643,19 @@ class RoadmapExternalController extends Controller
         return response()->json(['error' => 'No autorizado'], 403);
     }
 
-    private function audit(Request $request, string $verb, string $result, array $extra = []): void
+    private function audit(Request $request, string $verb, string $result, array $extra = [], ?string $scope = null): void
     {
-        Log::channel('roadmap_externo')->info('acceso-externo', array_merge([
+        $campos = [
             'verb'   => $verb,
             'result' => $result,
             'ip'     => $request->ip(),
             'ua'     => substr((string) $request->userAgent(), 0, 200),
-        ], $extra));
+        ];
+        if ($scope !== null) {
+            $campos['scope'] = $scope;
+        }
+
+        Log::channel('roadmap_externo')->info('acceso-externo', array_merge($campos, $extra));
     }
 
     private function manualCriterios(): string
