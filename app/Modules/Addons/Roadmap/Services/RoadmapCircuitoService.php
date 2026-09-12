@@ -2624,6 +2624,20 @@ class RoadmapCircuitoService
     }
 
     /**
+     * MR-36 (#9990943) — versión PÚBLICA de `dependenciasCerradas()` para filtrar por LOTE.
+     *
+     * Expone el mismo criterio a consumidores externos (ej. SupervisorService, Fase B) que
+     * necesitan filtrar una `Collection` de filas de `roadmap_items` sin reimplementar el
+     * criterio de "dependencia cerrada". Cada fila debe traer `->depende_de` (stdClass de
+     * `->get([...])` o modelo Eloquent, da igual: `dependenciasCerradas()` solo lee esa
+     * propiedad). Sin `depende_de` poblado en ninguna fila, es un no-op — no cambia nada.
+     */
+    public function filtrarConDependenciasCerradas(\Illuminate\Support\Collection $filas): \Illuminate\Support\Collection
+    {
+        return $filas->filter(fn ($fila) => $this->dependenciasCerradas($fila))->values();
+    }
+
+    /**
      * MR-36 (#9990332) — POR QUÉ está esperando este item, para pintarlo en la Torre.
      *
      * Sin esto se cambiaría un freno invisible por otro: un item frenado por dependencia se vería
