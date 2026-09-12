@@ -62,6 +62,18 @@ class RoadmapIntakeService
                     "El item padre #{$datos['origen_item_id']} no existe."
                 );
             }
+
+            // CIRC-05 pieza B (#9990947) — freno contra cadenas de sub-items de seguimiento
+            // sin fin: si el padre ya está a la profundidad máxima permitida desde su raíz,
+            // no se persiste nada.
+            $maxProfundidad = (int) config('roadmap_externo.max_profundidad_creacion', 3);
+            $profundidadPadre = $this->profundidadDesdeRaiz($padre);
+            if ($profundidadPadre >= $maxProfundidad) {
+                throw new InvalidArgumentException(
+                    "No se puede crear: el padre #{$padre->id} ya está a profundidad máxima "
+                    . "({$maxProfundidad}) desde su raíz."
+                );
+            }
         }
 
         // El valor tal cual lo mandó quien crea (se conserva para auditoría más abajo, se aplique
@@ -133,6 +145,29 @@ class RoadmapIntakeService
         ]);
 
         return $item->refresh();
+    }
+
+    /**
+     * Profundidad de $item contando desde su raíz (raíz sin origen_item_id = 1, cada
+     * sub-item de seguimiento suma un nivel). El tope de 50 iteraciones es SOLO una guarda
+     * anti-bucle-infinito por datos corruptos (cadena cíclica), NO el límite de negocio
+     * (ese es `max_profundidad_creacion`).
+     */
+    private function profundidadDesdeRaiz(RoadmapItem $item): int
+    {
+        $profundidad = 1;
+        $actual = $item;
+
+        while ($actual->origen_item_id && $profundidad < 50) {
+            $siguiente = RoadmapItem::find($actual->origen_item_id);
+            if (! $siguiente) {
+                break;
+            }
+            $actual = $siguiente;
+            $profundidad++;
+        }
+
+        return $profundidad;
     }
 
     private function recorta($valor, int $max): ?string

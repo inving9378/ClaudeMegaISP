@@ -40,6 +40,11 @@ return [
     // descontrolado del otro lado (un agente en bucle llenando la Hoja de Ruta).
     'max_items_dia' => (int) env('ROADMAP_EXTERNAL_MAX_ITEMS_DIA', 60),
 
+    // CIRC-05 pieza B (#9990947) — tope de profundidad de la cadena origen_item_id
+    // (raíz=1, cada sub-item de seguimiento suma un nivel). Freno contra cadenas de
+    // seguimiento que se descomponen sin fin (RoadmapIntakeService::crear()).
+    'max_profundidad_creacion' => (int) env('ROADMAP_EXTERNAL_MAX_PROFUNDIDAD', 3),
+
     // Límite de peticiones por minuto (rate limit) para cada verbo.
     'rate_read'   => (int) env('ROADMAP_EXTERNAL_RATE_READ', 60),
     'rate_write'  => (int) env('ROADMAP_EXTERNAL_RATE_WRITE', 30),
