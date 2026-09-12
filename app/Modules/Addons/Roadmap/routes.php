@@ -152,6 +152,10 @@ Route::middleware(['web', 'auth'])
         // #937 — tablero "Items atorados" agrupado por causa (Panorama). Depende de #935
         // (DiagnosticoItemService); mientras no exista responde disponible=false (guard interno).
         Route::get('/atorados',            [RoadmapController::class, 'atorados']);
+        // #9990969 (CIRC-09 Fase 2, sub-item de #9990934) — jerarquía Módulo→Épica→Item→Sub-item
+        // con lazy-load: un solo endpoint parametrizado por `nivel` (modulo|epica|item), nunca el
+        // árbol completo. Solo lectura (`roadmap_view`, self-authorized dentro del controller).
+        Route::get('/torre/panorama-jerarquia', [RoadmapController::class, 'panoramaJerarquia']);
         Route::post('/item/{id}/override', [RoadmapController::class, 'itemOverride'])->whereNumber('id');
         // Estado en vivo ligero para el polling de la Torre (#335).
         Route::get('/circuito/estado',     [RoadmapController::class, 'estado']);
