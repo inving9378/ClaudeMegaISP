@@ -11,6 +11,7 @@ return [
     'dashboard_view_block_finance' => ['/', '/home', '/index', '/dashboard'],
     'dashboard_view_info_invoice_transaction' => ['/', '/home', '/index', '/dashboard'],
     'dashboard_view_block_server_status' => ['/', '/home', '/index', '/dashboard'],
+    'dashboard_view_card_identidad_cobertura' => ['/', '/home', '/index', '/dashboard'],
 
     'release_view_release' => ['/releases', '/releases/{version}'],
     'release_add_release' => ['/releases/store'],
