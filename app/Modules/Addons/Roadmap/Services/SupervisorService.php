@@ -146,11 +146,16 @@ class SupervisorService
             ->whereNull('motivo_espera')
             ->ordered()
             ->limit($limite)
-            ->get(['id', 'title', 'nivel_riesgo'])
+            ->get(['id', 'title', 'nivel_riesgo', 'reap_count', 'veces_timeouteo', 'reanudaciones_timeout'])
             ->map(fn ($r) => [
-                'id'    => (int) $r->id,
-                'title' => $r->title,
-                'nivel' => $r->nivel_riesgo,
+                'id'                     => (int) $r->id,
+                'title'                  => $r->title,
+                'nivel'                  => $r->nivel_riesgo,
+                // #9990925 — "vueltas quemadas": contadores YA existentes (reap_count/veces_timeouteo),
+                // sin columna nueva. La Torre los pinta como badge solo cuando alguno es > 0.
+                'reap_count'             => (int) $r->reap_count,
+                'veces_timeouteo'        => (int) $r->veces_timeouteo,
+                'reanudaciones_timeout'  => (int) $r->reanudaciones_timeout,
             ])->values()->all();
     }
 
