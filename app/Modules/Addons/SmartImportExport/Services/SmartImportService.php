@@ -3541,6 +3541,10 @@ class SmartImportService
                     }
                 }
 
+                if ($table === 'client_main_information') {
+                    $normalized = $this->injectColaboradorIdBridge($normalized);
+                }
+
                 $updateColumns = array_keys($normalized[0]);
                 if ($updateColumns === []) {
                     continue;
@@ -3565,6 +3569,39 @@ class SmartImportService
         }
 
         return $imported;
+    }
+
+    /**
+     * Fase 3b de #9990778 (item #9990963), callsite raw confirmado en Fase 3a (#9990962): el
+     * modo SMART de client_main_information escribe 100% vía DB::table()->upsert(), sin
+     * Eloquent, así que el observer de colaborador_id nunca se dispara aquí. Backfillea
+     * colaborador_id en cada fila del batch, en el mismo formato del bridge (JOIN por
+     * talento_colaboradores.user_id = seller_id). No pisa un colaborador_id que ya venga
+     * explícito en el dump. Uniforme para TODAS las filas del batch (incluso sin seller_id)
+     * para no romper la firma de columnas que usa el upsert.
+     */
+    private function injectColaboradorIdBridge(array $rows): array
+    {
+        if (!\App\Services\Identidad\ColaboradorIdResolver::habilitado()) {
+            return $rows;
+        }
+
+        foreach ($rows as $index => $row) {
+            if (array_key_exists('colaborador_id', $row) && $row['colaborador_id'] !== null) {
+                continue;
+            }
+
+            $sellerId = $row['seller_id'] ?? null;
+            $rows[$index]['colaborador_id'] = $sellerId !== null
+                ? \App\Services\Identidad\ColaboradorIdResolver::resolveOrRegistrarPendiente(
+                    (int) $sellerId,
+                    'client_main_information',
+                    $row['id'] ?? null
+                )
+                : null;
+        }
+
+        return $rows;
     }
 
     private function flushBulkUpdateRows(string $table, string $pk, array $rows, int &$errors, bool $normalizeForeignKeys = true): int
