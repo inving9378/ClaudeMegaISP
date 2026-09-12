@@ -65,6 +65,12 @@
               <li v-for="r in listosParaTerminal" :key="'lp' + r.id" :title="r.title">
                 <b class="tt-sup-list-num">#{{ r.id }}</b>
                 <span class="tt-sup-list-txt">{{ r.title }}</span>
+                <span
+                  v-if="vueltasQuemadas(r)"
+                  class="tt-sup-reap-badge"
+                  :class="vueltasQuemadasClass(r)"
+                  :title="vueltasQuemadasTip(r)"
+                >⟲ {{ vueltasQuemadas(r) }}</span>
               </li>
             </ul>
             <p v-else class="tt-sup-list-empty">Cola vacía</p>
@@ -311,6 +317,18 @@ export default {
             return `ETA: ${fmtClock(s.eta_segundos)} · ${metodo}`;
         };
 
+        // #9990925 — "vueltas quemadas" de un item en "Listos para terminal": el mayor de los dos
+        // contadores YA existentes (reap_count = reclamos huérfanos, veces_timeouteo = timeouts).
+        // Sin badge cuando ambos son 0 (item sano, sin ruido visual).
+        const vueltasQuemadas = (r) => Math.max(r.reap_count || 0, r.veces_timeouteo || 0);
+        const vueltasQuemadasClass = (r) => (vueltasQuemadas(r) >= 3 ? "tt-reap-danger" : "tt-reap-warn");
+        const vueltasQuemadasTip = (r) => {
+            const partes = [];
+            if (r.reap_count) partes.push(`${r.reap_count} reclamo(s) huérfano(s) soltado(s)`);
+            if (r.veces_timeouteo) partes.push(`${r.veces_timeouteo} timeout(s)${r.reanudaciones_timeout ? ` (${r.reanudaciones_timeout} con avance real)` : ""}`);
+            return `Vueltas quemadas: ${partes.join(" · ")}`;
+        };
+
         const reachedSet = (s) => new Set((s.pasos || []).map((p) => p.fase));
         const stepReached = (s, key) => reachedSet(s).has(key);
         const stepClass = (s, key) => {
@@ -526,6 +544,7 @@ export default {
             sesiones, supervisor, recienResueltos, listosParaTerminal, anyRunning, anyActive,
             itemEnCurso, itemEnCursoEstado,
             secsSince, fmtClock, stepReached, stepClass, hasFaseData, setPre, workerStateText,
+            vueltasQuemadas, vueltasQuemadasClass, vueltasQuemadasTip,
             avatarClass, gestureIcon, gestureClass, linkClass,
             initials, initialsStyle, puedeEditarAvatar, uploadingAvatar, avatarError, onAvatarFile,
             expandedSid, toggleExpand,
@@ -596,6 +615,15 @@ export default {
   -webkit-line-clamp:2; overflow:hidden;
 }
 .tt-sup-list-empty{ margin:0; font-size:11.5px; color:var(--tt-muted); font-style:italic; }
+
+/* #9990925 — badge "vueltas quemadas" (reap_count/veces_timeouteo): solo se pinta si hay algo
+   que avisar (item ya con reincidencias); 1-2 = ámbar, 3+ = rojo. */
+.tt-sup-reap-badge{
+  flex:0 0 auto; font-size:10.5px; font-weight:800; line-height:1; padding:2px 6px;
+  border-radius:999px; white-space:nowrap;
+}
+.tt-sup-reap-badge.tt-reap-warn{ background:rgba(217,119,6,.15); color:var(--tt-warn); }
+.tt-sup-reap-badge.tt-reap-danger{ background:rgba(220,38,38,.15); color:var(--tt-danger); }
 
 .tt-sup-links{ display:flex; gap:10px; padding:0 6px; }
 .tt-link{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; align-items:center; gap:2px; }
