@@ -200,6 +200,16 @@ return [
     | N = cuántas sesiones/worktrees corren a la vez. Runtime en `settings`
     | (circuito_paralelismo); aquí el default. Box de dev = 4 cores/17GB → N=6 seguro
     | (con semáforo de builds). `max_builds` = builds npm simultáneos máx (CPU de 4 cores).
+    |
+    | Item #9991027 (Q3 de #9990863/#9991024) — el despacho de ESTE `N` NO es una cola-DB:
+    | no existen columnas `estado_cola`/`terminal_asignada`/`asignado_at` en `roadmap_items`.
+    | `SchedulerCommand::slotFree()` decide con FLOCK sobre `wt-1.lock`..`wt-N.lock` (uno por
+    | worktree, en `/home/meganet/circuito/`) — un slot está libre si nadie tiene su flock.
+    | `estado_cola`/`terminal_asignada`/`asignado_at` sí existen como CLAVES DE SALIDA en
+    | `RoadmapCircuitoService::compact()/serialize()` (para la API/Torre), pero mapean a un
+    | accessor derivado (`RoadmapItem::getEstadoColaAttribute()`) y a columnas reales ya
+    | existentes (`worker_sid`, `claimed_at`) — no son su propia fuente de verdad. Detalle
+    | completo en `docs/circuito-modelo-despacho-item-9991024-nota.md`.
     */
     'paralelismo'      => (int) env('CIRCUITO_PARALELISMO', 6),
 
