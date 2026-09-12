@@ -101,6 +101,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('red')->gro
     // Discrepancias SN captura-manual vs. OLT — solo lectura (item #9990837 Fase 4a)
     // ---------------------------------------------------------------
     Route::prefix('discrepancias-sn')->group(function () {
+        Route::get('/', [DiscrepanciasSnController::class, 'panel']);
         Route::get('/{categoria}', [DiscrepanciasSnController::class, 'index']);
         Route::get('/{categoria}/export', [DiscrepanciasSnController::class, 'export']);
     });

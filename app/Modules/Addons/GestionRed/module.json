@@ -129,6 +129,11 @@
                     "label": "Sync Mikrotik",
                     "url": "/red/mikrotik-sync",
                     "permission": "mikrotik_sync_view_dashboard"
+                },
+                {
+                    "label": "Discrepancias SN",
+                    "url": "/red/discrepancias-sn",
+                    "permission": "red.discrepancias.ver"
                 }
             ]
         }
@@ -461,6 +466,13 @@
             "description": "Reintenta la sincronización Mikrotik de un servicio puntual",
             "scope": "mikrotik_sync_retry",
             "permission": "mikrotik_sync_retry"
+        },
+        {
+            "method": "GET",
+            "path": "/red/discrepancias-sn",
+            "description": "Pantalla del reporte de discrepancias SN (3 tabs + export CSV)",
+            "scope": "red.discrepancias.ver",
+            "permission": "red.discrepancias.ver"
         },
         {
             "method": "GET",
