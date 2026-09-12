@@ -1225,6 +1225,49 @@ TXT;
     }
 
     /**
+     * #9990924 (Fase 3b de #9990893) — heurística de TEXTO LIBRE: ¿el prompt/description declara
+     * un bloqueo vigente SIN rótulo formal (sin `[BLOCKED-]`/`[PARKED-]`, sin
+     * `origen_bloqueo='humano'` — eso ya lo cubre {@see sqlElegibleParaPool()}, NO se reinventa
+     * aquí)? Frases decididas por Irving (q1, opción 1): simples, en español, sin acentos ni
+     * mayúsculas al comparar.
+     *
+     * Acepta falsos positivos/negativos A PROPÓSITO (documentado, no se promete cobertura total):
+     * texto libre no siempre declara un bloqueo real (ej. "no ejecutar" dentro de una instrucción
+     * de otro alcance), y un bloqueo real no siempre usa estas frases exactas.
+     */
+    public const FRASES_BLOQUEO_HEURISTICA = [
+        'bloqueado hasta', 'depende de', 'no ejecutar todavia', 'esperar a que',
+        'esperando decision', 'requiere irving', 'pendiente de aprobacion', 'no ejecutar', 'escalar',
+    ];
+
+    public static function textoDeclaraBloqueo(?string $texto): bool
+    {
+        if (! $texto) {
+            return false;
+        }
+
+        $normalizado = str_replace(
+            ['á', 'é', 'í', 'ó', 'ú', 'Á', 'É', 'Í', 'Ó', 'Ú'],
+            ['a', 'e', 'i', 'o', 'u', 'a', 'e', 'i', 'o', 'u'],
+            mb_strtolower($texto)
+        );
+
+        foreach (self::FRASES_BLOQUEO_HEURISTICA as $frase) {
+            if (str_contains($normalizado, $frase)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Azúcar de instancia sobre {@see textoDeclaraBloqueo()}: usa prompt, o description si prompt es null. */
+    public function tieneBloqueoDeclaradoEnTexto(): bool
+    {
+        return static::textoDeclaraBloqueo($this->prompt ?? $this->description);
+    }
+
+    /**
      * FASE 2A.3 — CONDICIÓN ÚNICA DE DESPACHO. Es la definición de "el circuito puede tomar este
      * item AHORA", y `RoadmapCircuitoService::ejecutablesParalelo()` la consume tal cual (el
      * pre-filtro de footprint sigue siendo suyo: es una regla de la RONDA, no del item).
