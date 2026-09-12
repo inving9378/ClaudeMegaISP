@@ -2415,3 +2415,29 @@ cascada (`RoadmapItem.php:459-491`) lo complete solo cuando #9990916 cierre. Det
 `docs/roadmap-bucle-reap-item-9990896-verificacion.md`. **Sin cambio de código de aplicación** —
 la medición real (grep de `circuito-despacho-*.log` cruzado con `colision_pausada_por`) sigue en
 #9990916, bloqueada hasta que pasen los `>=15 min` reales exigidos.
+
+## Item #9990886 — CIRC-03 (bandeja de decisiones: separar espera decisión de espera insumo material) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
+#936/#9990408/#962/#9990554/#9990549/#9990624/#9990650/#9990807/#9990826/#9990836/#9990856/
+#9990892/#9990896. #9990886 (CIRC-03: distinguir en la bandeja de Irving el item que espera una
+decisión del que espera un insumo material — credencial, hardware, sesión presencial,
+autorización) ya había sido descompuesto correctamente por una vuelta previa (`wt-6`, 2026-09-11
+18:50): tras un `circuito:cabida` en NO CABE, lo partió en **#9990904** (Fase A: migración
+aditiva `motivo_espera`), **#9990905** (Fase B: clasificar los 8 items conocidos + barrido) y
+**#9990906** (Fase C: Torre — separar la bandeja en 2 listas + ajustar métricas). Pero esa vuelta
+nunca intentó **cerrar** al padre — el log solo registra `reaper` re-encolándolo como huérfano
+(`huerfano_reencolado`, `reap_count=1`), y el pool lo repartió de nuevo sin trabajo propio que
+hacer. Verificado esta vuelta que el trabajo real sí siguió avanzando por los hijos correctos:
+**#9990905 ya cerró y mergeó** (`merge_commit=ea6705a8`); **#9990904** también tiene su código
+mergeado (`merge_commit=a94fd956`) pero quedó **parqueado como paraguas de sus propios nietos**
+(#9990914 `completado` + #9990915 `en_progreso`, reclamado por `wt-4` — con dueño, no se toca);
+**#9990906** sigue `aprobado_irving` sin reclamar, listo para tomarse. Corrección: esta vuelta
+ejecuta el intento de cierre faltante; el guard (`RoadmapItem.php` bloque "(2b) PARAGUAS") lo
+reenruta a `aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto` en el
+log, "le quedan 2 sub-item(s) abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre
+en cascada (`RoadmapItem.php:459-491`) lo complete solo cuando #9990904 (vía #9990915) y #9990906
+cierren. Detalle en `docs/roadmap-bucle-reap-item-9990886-verificacion.md`. **Sin cambio de
+código de negocio** — el trabajo real de CIRC-03 (exponer `motivo_espera` en el modelo con
+verificación e2e, y la Torre con las 2 listas separadas) sigue en #9990915/#9990906, pendientes de
+que sus dueños los cierren.
