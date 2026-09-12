@@ -52,6 +52,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\PriorizarSeguridadCommand::class,
                 // Backfill de reporte_coloquial + regla en creación (#427)
                 \App\Modules\Addons\Roadmap\Console\BackfillReporteColoquialCommand::class,
+                \App\Modules\Addons\Roadmap\Console\ResumenNaturalCommand::class,
                 // FASE 2A.3 — separa el freno humano del consejo del clasificador
                 \App\Modules\Addons\Roadmap\Console\BackfillBloqueosCommand::class,
                 \App\Modules\Addons\Roadmap\Console\CoherenciaPoolCommand::class,
