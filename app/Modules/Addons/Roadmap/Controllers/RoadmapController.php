@@ -2053,6 +2053,14 @@ class RoadmapController extends Controller
         $item->log = $log;
         $item->save();
 
+        // CIRC-02b PASO 3 — cierre real (cerrar/rechazar/cancelar): consume las respuestas
+        // pendientes de este item. 'comentar' NUNCA cierra (puede reencolar a aprobado_revisor/
+        // aprobado_claude, pero eso no es un cierre) y 'aprobar' tampoco (aprobado_irving sigue
+        // abierto), así que ninguno de los dos entra aquí.
+        if (in_array($nuevoEstado, ['completado', 'rechazado', 'cancelado'], true)) {
+            $item->consumirRespuestasPendientes($autor);
+        }
+
         // Loop de aprendizaje del perfil (#351): captura la decisión como candidato crudo en
         // storage/app/circuito/pendientes-perfil-irving.md para revisión batch. No crítico: nunca debe tumbar la
         // decisión real de Irving si falla.

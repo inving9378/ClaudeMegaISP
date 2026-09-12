@@ -261,6 +261,14 @@ ejecutar_una() {
   if [ -n "$ITEM" ]; then
     PROMPT_TEXT="$(sed -e "s/__ITEM_ID__/$ITEM/g" -e "s/__SID__/$SID/g" "$PROMPT_ITEM_FILE")"
     log "modo POR-ITEM: trabajando SOLO el item #$ITEM"
+
+    # CIRC-02b PASO 3 (#9990901) — si el item tiene respuesta(s) de Irving sin consumir
+    # (roadmap_item_respuestas), se anteponen al prompt con precedencia sobre el plan original.
+    RESPUESTA_BLOQUE="$(php artisan circuito:respuesta-prompt "$ITEM" 2>/dev/null || true)"
+    if [ -n "$RESPUESTA_BLOQUE" ]; then
+      PROMPT_TEXT="${RESPUESTA_BLOQUE}"$'\n\n'"${PROMPT_TEXT}"
+      log "PASO 3: respuesta(s) de Irving inyectada(s) con precedencia en el prompt del item #$ITEM."
+    fi
   else
     PROMPT_TEXT="$(cat "$PROMPT_FILE")"
   fi
