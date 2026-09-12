@@ -102,6 +102,10 @@
         {
             "name": "mikrotik_sync_retry",
             "description": "Reintentar manualmente la sincronización Mikrotik de un servicio"
+        },
+        {
+            "name": "red.discrepancias.ver",
+            "description": "Ver reporte de discrepancias SN captura-manual vs. OLT"
         }
     ],
     "menu": [
@@ -457,6 +461,20 @@
             "description": "Reintenta la sincronización Mikrotik de un servicio puntual",
             "scope": "mikrotik_sync_retry",
             "permission": "mikrotik_sync_retry"
+        },
+        {
+            "method": "GET",
+            "path": "/red/discrepancias-sn/{categoria}",
+            "description": "Lista paginada de discrepancias SN captura-manual vs. OLT por categoría",
+            "scope": "red.discrepancias.ver",
+            "permission": "red.discrepancias.ver"
+        },
+        {
+            "method": "GET",
+            "path": "/red/discrepancias-sn/{categoria}/export",
+            "description": "Exporta a CSV las discrepancias SN de una categoría",
+            "scope": "red.discrepancias.ver",
+            "permission": "red.discrepancias.ver"
         }
     ],
     "ai": {

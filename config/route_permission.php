@@ -892,6 +892,11 @@ return [
         '/red/ipv4/destroy/{id}'
     ],
 
+    'red.discrepancias.ver' => [
+        '/red/discrepancias-sn/{categoria}',
+        '/red/discrepancias-sn/{categoria}/export',
+    ],
+
     //Actividades Programadas
     //Proyectos
     'scheduling_project_view_project' => [
