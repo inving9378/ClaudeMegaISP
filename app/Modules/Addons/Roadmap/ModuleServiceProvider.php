@@ -19,6 +19,9 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
             $this->commands([
                 \App\Modules\Addons\Roadmap\Console\SembrarMapaRedCommand::class,
                 \App\Modules\Addons\Roadmap\Console\LiberarCascadaMapaRedCommand::class,
+                // #9991041 (sub-item de #9991034) — re-dispara el hook de cierre en cascada sobre
+                // paraguas ya listos para cerrar pero atascados por falta de un save() posterior.
+                \App\Modules\Addons\Roadmap\Console\RecerrarParaguasCommand::class,
                 \App\Modules\Addons\Roadmap\Console\RamaItemCommand::class,
                 \App\Modules\Addons\Roadmap\Console\IntegrarItemCommand::class,
                 \App\Modules\Addons\Roadmap\Console\FlagsCommand::class,
