@@ -102,6 +102,12 @@ class EventServiceProvider extends ServiceProvider
         \App\Models\Crm::observe(\App\Observers\CrmObserver::class);
         CrmMainInformation::observe(CrmMainInformationObserver::class);
         ClientMainInformation::observe(ClientMainInformationObserver::class);
+        // Fase 3b de #9990778 (item #9990963): doble escritura de colaborador_id. Se registra en
+        // las DOS clases (legacy arriba vía el alias App\Models\ClientMainInformation y la modular
+        // abajo) porque Fase 3a (#9990962) probó que los eventos de modelo Eloquent NO se comparten
+        // entre ellas pese a la herencia.
+        ClientMainInformation::observe(\App\Observers\Identidad\ColaboradorIdBridgeObserver::class);
+        \App\Modules\Core\Clientes\Models\ClientMainInformation::observe(\App\Observers\Identidad\ColaboradorIdBridgeObserver::class);
         Payment::observe(PaymentObserver::class);
         Payment::observe(PaymentBillingObserver::class);
         Mikrotik::observe(MikrotikObserver::class);
