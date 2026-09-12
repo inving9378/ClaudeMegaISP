@@ -90,6 +90,86 @@ class ParquearTimeoutCommand extends Command
             return self::SUCCESS;
         }
 
+        // #9990855 — GUARDA DE ESTADO (Causa A). El item vive `en_progreso` desde que se reclama
+        // (RoadmapCircuitoService.php:2359) hasta que la propia vuelta lo resuelve. Si al llegar
+        // aquí YA NO está en_progreso, algo DENTRO de esta misma vuelta lo resolvió antes de que
+        // el corte por timeout llegara — típicamente el guard de paraguas (RoadmapItem::saving()
+        // bloque 2b) al interceptar un intento de cierre con sub-items abiertos. Pisarlo aquí es
+        // exactamente el bug reportado: #9990801/#9990714/#9990776/#9990810 quedaron bien
+        // parqueados (aprobado_irving + excluir_pool_automatico) y segundos después este mismo
+        // manejador los mandó a requiere_irving igual. Va ANTES que el resto (incluido el tercer
+        // camino de `limite_cuenta`, que también podría pisar el parqueo): es la guarda más barata
+        // (nada de BD ni de git) y cubre cualquier causa, incluida `sigkill`.
+        if ($item->estado_aprobacion !== 'en_progreso') {
+            $log      = $item->log ?: [];
+            $ultimo   = $log !== [] ? end($log) : null;
+            $actor    = is_array($ultimo) ? ($ultimo['por'] ?? 'desconocido') : 'desconocido';
+            $evento   = is_array($ultimo) ? ($ultimo['evento'] ?? null) : null;
+            $detalle  = $evento ? " ({$evento})" : '';
+
+            $this->info("#{$id}: ya no está en_progreso (lo dejó «{$actor}»{$detalle} en "
+                . "{$item->estado_aprobacion}); no se escala.");
+
+            if ($dry) {
+                $this->info('DRY: NO se escala (el estado ya lo resolvió otro actor en esta vuelta).');
+
+                return self::SUCCESS;
+            }
+
+            $log[] = [
+                'ts'      => now()->toIso8601String(),
+                'por'     => 'timeout',
+                'evento'  => 'timeout_no_escalado',
+                'estado'  => $item->estado_aprobacion,
+                'causa'   => $causa,
+                'motivo'  => "{$comoTermino}, pero «{$actor}»{$detalle} ya había resuelto el item "
+                    . "durante esta misma vuelta (quedó en {$item->estado_aprobacion}). El manejador "
+                    . 'de timeout no pisa una decisión ya tomada (#9990855).',
+            ];
+            $item->log = $log;
+            $item->save();
+
+            return self::SUCCESS;
+        }
+
+        // #9990855 — GUARDA DE PARAGUAS (spec punto 5). Un item con sub-items abiertos NUNCA se
+        // escala por timeout: su cierre depende de que ellos cierren (cascada), no de esta vuelta.
+        // Cubre el caso en que la decomposición ya ocurrió pero AÚN no se intentó el cierre (por
+        // eso `estado_aprobacion` sigue en 'en_progreso' y la guarda de arriba no la atrapa). Más
+        // cara que la de estado (hace una query), por eso va segunda.
+        if ($item->tieneSubItemsAbiertos()) {
+            $abiertos = $item->subItemsAbiertos()->count();
+
+            $this->info("#{$id}: tiene {$abiertos} sub-item(s) abierto(s); no se escala (cierra por cascada).");
+
+            if ($dry) {
+                $this->info('DRY: NO se escala (paraguas con sub-items abiertos).');
+
+                return self::SUCCESS;
+            }
+
+            $log   = $item->log ?: [];
+            $log[] = [
+                'ts'                => now()->toIso8601String(),
+                'por'               => 'timeout',
+                'evento'            => 'timeout_no_escalado',
+                'estado'            => 'aprobado_irving',
+                'causa'             => $causa,
+                'subitems_abiertos' => $abiertos,
+                'motivo'            => "{$comoTermino}, pero el item tiene {$abiertos} sub-item(s) "
+                    . 'abierto(s): su cierre depende de ellos (cascada), no de esta vuelta. No se '
+                    . 'escala (#9990855).',
+            ];
+            $item->log                     = $log;
+            $item->estado_aprobacion       = 'aprobado_irving';
+            $item->excluir_pool_automatico = true;
+            $item->worker_sid              = null;
+            $item->claimed_at              = null;
+            $item->save();
+
+            return self::SUCCESS;
+        }
+
         // #9990416 — TERCER CAMINO, paralelo a reanudar/bandeja: la cuenta de Claude se quedó sin
         // límite de sesión. NO es señal de que el item sea grande o esté atorado, así que NO toca
         // veces_timeouteo/reanudaciones_timeout (eso enseñaría a JarvisService::caberEnVuelta() que
@@ -135,6 +215,16 @@ class ParquearTimeoutCommand extends Command
             return self::SUCCESS;
         }
 
+        // #9990855 — FASE 1, punto 6: confirmado EMPÍRICAMENTE (no solo por lectura) que esto ya
+        // cuenta sobre `items.branch` (la rama de trabajo del item), no sobre una rama efímera del
+        // cierre — esa rama efímera no existe en el código. Lo que sí se reprodujo en #9990810: el
+        // `commits_rama:0` real del incidente salió de leer `items.branch` DESPUÉS de que, dentro
+        // de la misma vuelta, el guard de paraguas ya había resuelto el item (su rama con 24
+        // commits ya estaba mergeada) y una continuación posterior abrió una rama nueva sin
+        // commits para ese mismo id. La medición era correcta sobre el dato que tenía delante; el
+        // dato estaba viejo porque la decisión ya estaba tomada — lo que las dos guardas de arriba
+        // cierran de raíz (si el estado ya se resolvió o el item es un paraguas, no se llega a
+        // calcular `commits` en absoluto).
         $commits = ! empty($item->branch) ? $circuito->commitsDeRama((string) $item->branch) : 0;
         // `null` = no se pudo preguntar a git. Se trata como SIN avance a propósito: ante la duda,
         // no re-gastar 600 s. El fail-safe protege el límite, no la comodidad.
