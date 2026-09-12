@@ -2361,6 +2361,34 @@ cierren los tres. Detalle en `docs/roadmap-bucle-reap-item-9990856-verificacion.
 de código de negocio** — el trabajo técnico real del mecanismo de respuestas de Irving sigue en
 #9990857/#9990858/#9990859, pendientes de que sus dueños los cierren.
 
+## Item #9990892 — Fase 2 (C1) exención de docs del detector de colisiones — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
+#936/#9990408/#962/#9990554/#9990549/#9990624/#9990650/#9990807/#9990826/#9990836/#9990856.
+#9990892 (Fase 2 de #9990863: exentar documentación —`CLAUDE.md`, `docs/**`, `CHANGELOG*`,
+bitácora, `*.md`— del detector de colisiones en vuelo, con simulación histórica previa a
+activar) exige como precondición leer `>=15 min` reales acumulados en
+`storage/logs/circuito-despacho-*.log` (canal `circuito_despacho`, recién mergeado por la Fase
+1) ANTES de tocar código. Una vuelta previa (`wt-6`, 2026-09-11 18:46) ya hizo lo correcto: corrió
+`circuito:cabida` (NO CABE, `histórico`), confirmó que el canal aún no tenía ningún archivo de
+log (precondición sin cumplirse) y descompuso el trabajo en **#9990896** (Fase 2a — confirmar con
+evidencia real si colisión es causa frecuente de terminales ociosas), **#9990897** (Fase 2b —
+implementar la exención en `footprintDeRama()`/`footprintEnVivo()`) y **#9990898** (Fase 2c —
+simulación histórica antes de activar). Pero esa vuelta murió por timeout sin intentar **cerrar**
+al padre — el reaper lo devolvió a `aprobado_revisor` (`reap_count=1`), y el pool lo repartió de
+nuevo sin trabajo propio que hacer. Verificado esta vuelta: los 3 hijos (`origen_item_id=9990892`)
+siguen intactos — #9990896 ya está a su vez parqueado por otra vuelta como paraguas de su propio
+hijo #9990916 (ver entrada siguiente), #9990897 en `aprobado_revisor` sin reclamar, #9990898 en
+`aprobado_irving` sin reclamar — la descomposición original seguía siendo correcta, nadie más la
+tocó. Corrección: esta vuelta ejecuta el intento de cierre faltante; el guard (`RoadmapItem.php`
+bloque "(2b) PARAGUAS") lo reenruta a `aprobado_irving` + `excluir_pool_automatico=true` (evento
+`paraguas_abierto` en el log, "le quedan 2 sub-item(s) abierto(s)"), sacándolo del pool/reaper
+hasta que el hook de cierre en cascada (`RoadmapItem.php:459-491`) lo complete solo cuando
+#9990897 y #9990898 cierren (y, en cascada, #9990896→#9990916). Detalle en
+`docs/roadmap-bucle-reap-item-9990892-verificacion.md`. **Sin cambio de código de negocio** — el
+trabajo técnico real (exención de docs + simulación histórica) sigue en #9990897/#9990898, y la
+precondición de evidencia real sigue en #9990896→#9990916.
+
 ## Item #9990896 — Fase 2a de #9990892 (colisión como causa de terminales ociosas) — bucle reap sobre paraguas ya descompuesto, esperando ventana de tiempo real (RESUELTO — se completa el cierre-intento faltante)
 
 Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
