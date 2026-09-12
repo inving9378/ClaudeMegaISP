@@ -195,6 +195,63 @@ class RoadmapItem extends Model
      */
     public const TIPOS = ['manual', 'auditoria', 'respuesta', 'hallazgo'];
 
+    /**
+     * #9990960 (CIRC-05 pieza B 3/4) — bloque obligatorio al final del `prompt` de los items
+     * sembrados por `SembrarMapaRedCommand` (MR-00…MR-28) y, desde esta pieza, también anexado
+     * a toda alta EXTERNA vía `RoadmapIntakeService::crear()`. Vivía duplicado como constante
+     * privada de ese comando; se centraliza aquí para que cualquier consumidor use la MISMA
+     * versión sin copiarla.
+     */
+    public const CANAL_RESPUESTA = <<<'TXT'
+## Canal de respuesta (obligatorio)
+
+Antes de marcar este item como `completado`, evalúa tu propio reporte. Si
+contiene ALGUNA de estas cinco cosas, crea un item de respuesta:
+
+1. Pregunta abierta que no pudiste resolver sin criterio humano.
+2. Decisión que no te toca (alcance, arquitectura, negocio).
+3. Hallazgo fuera de alcance (algo roto que no era parte de este item).
+4. Desviación: hiciste algo distinto a lo pedido y hay que ratificarlo.
+5. Riesgo asumido o trabajo a medias con un supuesto por confirmar.
+
+Si nada de eso aplica, NO crees nada. Un cierre limpio no genera respuesta.
+
+El item de respuesta nace con título `[RESPUESTA] {título de este item} —
+{resumen en ≤10 palabras}`, `origen_item_id`={id de este item},
+`estado_aprobacion='requiere_irving'`, `nivel_riesgo` mínimo `B` (nunca `A`:
+un item A puede quedar `aprobado_claude` y saltarse al supervisor), y
+`excluir_pool_automatico` según la política vigente del pool.
+Máximo UNO por item origen: varias preguntas se consolidan en una lista.
+Cuerpo: Contexto · Qué se hizo · Qué NO se hizo y por qué · La decisión
+pendiente · Opciones con recomendación · Qué se bloquea · Qué validar con
+screenshot. La recomendación es obligatoria.
+TXT;
+
+    /**
+     * Deja `$prompt` terminando en la versión VIGENTE de `CANAL_RESPUESTA`. Corta cualquier
+     * bloque de canal previo por su encabezado y pega el actual: idempotente, sirve tanto para
+     * construir el prompt de un item nuevo como para actualizar el de uno ya sembrado sin tocar
+     * el cuerpo de arriba.
+     */
+    public static function conCanalDeRespuesta(string $prompt): string
+    {
+        return self::sinCanalDeRespuesta($prompt) . "\n\n" . self::CANAL_RESPUESTA;
+    }
+
+    /**
+     * `$prompt` sin su bloque de canal: todo lo que hay antes del encabezado. Sirve para agregar
+     * texto AL CUERPO sin que quede debajo del canal (que siempre va al final).
+     */
+    public static function sinCanalDeRespuesta(string $prompt): string
+    {
+        $marca = '## Canal de respuesta (obligatorio)';
+        if (($pos = mb_strpos($prompt, $marca)) !== false) {
+            $prompt = mb_substr($prompt, 0, $pos);
+        }
+
+        return rtrim($prompt);
+    }
+
     // Enums del circuito (fuente de verdad para validación en el endpoint externo)
     public const NIVELES_RIESGO = ['A', 'B', 'C'];
 
