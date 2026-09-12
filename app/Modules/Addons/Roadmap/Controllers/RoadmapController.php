@@ -351,18 +351,22 @@ class RoadmapController extends Controller
         $rows = $base
             ->selectRaw(
                 'parent.id as id, parent.title as titulo, parent.estado_aprobacion as estado, '
+                . 'parent.aprobado_por as aprobado_por, parent.worker_sid as worker_sid, '
+                . '(CASE WHEN ' . $this->sqlActivos('parent') . ' THEN "activo" '
+                . 'WHEN ' . $this->sqlDetenidos('parent') . ' THEN "detenido" ELSE "en_cola" END) as bucket, '
                 . 'SUM(CASE WHEN ' . $this->sqlActivos('child') . ' THEN 1 ELSE 0 END) as activos, '
                 . 'SUM(CASE WHEN ' . $this->sqlDetenidos('child') . ' THEN 1 ELSE 0 END) as detenidos, '
                 . 'SUM(CASE WHEN child.id IS NOT NULL AND NOT ' . $this->sqlActivos('child') . ' AND NOT ' . $this->sqlDetenidos('child') . ' THEN 1 ELSE 0 END) as en_cola'
             )
-            ->groupBy('parent.id', 'parent.title', 'parent.estado_aprobacion', 'parent.position')
+            ->groupBy('parent.id', 'parent.title', 'parent.estado_aprobacion', 'parent.aprobado_por', 'parent.worker_sid', 'parent.position')
             ->orderBy('parent.position')->orderBy('parent.id')
             ->forPage($page, $perPage)
             ->get();
 
         $nodos = $rows->map(fn ($r) => $this->nodoJerarquia(
             (int) $r->id, (string) $r->titulo, $nivel, (string) $r->estado,
-            (int) $r->activos, (int) $r->en_cola, (int) $r->detenidos
+            (int) $r->activos, (int) $r->en_cola, (int) $r->detenidos,
+            (string) $r->bucket, $r->aprobado_por, $r->worker_sid
         ))->values();
 
         return response()->json([
@@ -397,14 +401,26 @@ class RoadmapController extends Controller
             . "OR {$alias}.colision_pausada_por IS NOT NULL OR {$alias}.excluir_pool_automatico = 1)";
     }
 
-    /** #9990969 — forma mínima de un nodo del árbol (q2 del brief: payload chico, sin metadata extra). */
-    private function nodoJerarquia($id, string $titulo, string $nivel, ?string $estado, int $activos, int $enCola, int $detenidos): array
-    {
+    /**
+     * #9990969 — forma mínima de un nodo del árbol (q2 del brief: payload chico, sin metadata extra).
+     * #9990970 (Fase 3) — 3 campos aditivos para los filtros/buscador del árbol: `bucket` (cómo
+     * clasifica el propio nodo, no sus hijos — mismo balde SQL activos/en_cola/detenidos que ya
+     * usan los contadores), `aprobado_por` (distingue "decidido sin ti" = autopilot) y `worker_sid`
+     * (terminal, que el buscador debe poder filtrar). Solo aplican a filas reales (épica/item); el
+     * nivel módulo es un agregado sintético sin dueño propio, quedan null.
+     */
+    private function nodoJerarquia(
+        $id, string $titulo, string $nivel, ?string $estado, int $activos, int $enCola, int $detenidos,
+        ?string $bucket = null, ?string $aprobadoPor = null, ?string $workerSid = null
+    ): array {
         return [
             'id'             => $id,
             'titulo'         => $titulo,
             'nivel'          => $nivel,
             'estado'         => $estado,
+            'bucket'         => $bucket,
+            'aprobado_por'   => $aprobadoPor,
+            'worker_sid'     => $workerSid,
             'tiene_hijos'    => ($activos + $enCola + $detenidos) > 0,
             'contador_hijos' => ['activos' => $activos, 'en_cola' => $enCola, 'detenidos' => $detenidos],
         ];
