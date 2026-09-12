@@ -447,10 +447,19 @@ class RoadmapExternalController extends Controller
 
         $this->audit($request, $verb, 'created', ['id' => $item->id, 'modulo' => $item->modulo]);
 
+        $aviso = 'El item nace en pendiente_revision: crear no aprueba. Lo tría el revisor/autopilot '
+            . 'y el circuito lo ejecuta cuando quede en la cola.';
+        // CIRC-05 pieza C (#9990948) — nivel_riesgo declarado por esta vía externa se ignora en
+        // silencio (nunca se aplica, ver RoadmapIntakeService::crear()); se avisa aquí para que el
+        // emisor no asuma que su valor quedó fijado.
+        if (! empty($data['nivel_riesgo'])) {
+            $aviso .= " Se recibió nivel_riesgo='{$data['nivel_riesgo']}' pero fue ignorado: la vía "
+                . 'externa no puede fijarlo, siempre lo calcula el clasificador server-side.';
+        }
+
         return response()->json([
             'ok'    => true,
-            'aviso' => 'El item nace en pendiente_revision: crear no aprueba. Lo tría el revisor/autopilot '
-                . 'y el circuito lo ejecuta cuando quede en la cola.',
+            'aviso' => $aviso,
             'item'  => $this->svc->serialize($item),
         ], 201);
     }
