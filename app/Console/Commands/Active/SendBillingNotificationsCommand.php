@@ -184,6 +184,15 @@ class SendBillingNotificationsCommand extends Command
 
         $lineas = ['Hola' . ($nombre ? " {$nombre}" : '') . ", tienes {$tipo}."];
 
+        if ($notif->invoice_id && ($invoice = $notif->invoice)) {
+            $lineas[] = 'Monto: $' . number_format((float) $invoice->total, 2) . '.';
+            if ($invoice->due_date) {
+                $lineas[] = 'Fecha límite: ' . \Carbon\Carbon::parse($invoice->due_date)->format('d/m/Y') . '.';
+            }
+        } elseif ($notif->payment_id && ($payment = $notif->payment)) {
+            $lineas[] = 'Monto: $' . number_format((float) $payment->amount, 2) . '.';
+        }
+
         $reference = ClientPaymentReference::where('client_id', $notif->client_id)->value('reference');
         if ($reference) {
             $lineas[] = "Tu referencia de pago: {$reference}.";
