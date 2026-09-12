@@ -681,6 +681,38 @@ TXT;
             }
         });
 
+        // CIRC-02b PASO 3 (#9990901) — RED DE ÚLTIMO RECURSO para consumir respuestas de Irving
+        // al cerrar. Los puntos EXPLÍCITOS (`RoadmapController::decidir()`,
+        // `MergeRunner::markMerged()`) ya llaman `consumirRespuestasPendientes()` con atribución
+        // específica — pero el cierre MÁS COMÚN del circuito (un `$item->save()` directo/manual,
+        // p.ej. el paso final por el que cada ejecutor on-box marca su propio item `completado`
+        // junto con `reporte_coloquial`/`enlace_revision`) no pasa por ninguno de los dos. Sin
+        // este hook, esas respuestas quedarían huérfanas y se reinyectarían para siempre.
+        // Va DESPUÉS del gate de `verificarCierre` de arriba (line ~592): así ve el estado YA
+        // decidido de ESTE save (si el gate parqueó a `aprobado_irving` por cierre incompleto,
+        // este hook correctamente NO consume nada todavía — el item no cerró de verdad).
+        // Corre PRIMERO que cualquier llamada explícita posterior en el mismo `save()` (los
+        // hooks de Eloquent son síncronos), así que esas llamadas quedan como no-op idempotente
+        // (0 filas) cuando ya pasaron por aquí — no se tocan, siguen siendo la vía "buena" cuando
+        // este hook no alcanza a tener atribución específica.
+        static::saving(function (self $item) {
+            if (! $item->isDirty('estado_aprobacion')
+                || ! in_array($item->estado_aprobacion, ['completado', 'rechazado', 'cancelado'], true)) {
+                return;
+            }
+
+            $autor = match (true) {
+                $item->isDirty('aprobado_por') && $item->aprobado_por => (string) $item->aprobado_por,
+                (bool) $item->merge_commit => 'merge-runner',
+                default => 'auto:cierre-modelo',
+            };
+
+            $item->respuestasSinConsumir()->update([
+                'consumida_at'  => now(),
+                'consumida_por' => $autor,
+            ]);
+        });
+
         static::saving(function (self $item) {
             if ($item->estado_aprobacion === 'completado') {
                 if ($item->status !== 'done') {
