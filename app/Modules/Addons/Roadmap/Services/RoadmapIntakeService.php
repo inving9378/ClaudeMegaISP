@@ -64,7 +64,14 @@ class RoadmapIntakeService
             }
         }
 
-        $nivel = $datos['nivel_riesgo'] ?? null;
+        // El valor tal cual lo mandó quien crea (se conserva para auditoría más abajo, se aplique
+        // o no). CIRC-05 pieza C (#9990948, decisión de Irving q1=Opción1 "ignorar silenciosamente
+        // y recalcular siempre server-side"): la vía EXTERNA nunca puede fijar su propio
+        // nivel_riesgo — se descarta en silencio (sin 422; el clasificador de triaje-null #419 lo
+        // calcula después) y solo la vía INTERNA (terminal/Jarvis/CC, la que ya confía el guard
+        // #260) puede declararlo directo.
+        $nivelDeclarado = $datos['nivel_riesgo'] ?? null;
+        $nivel          = $interno ? $nivelDeclarado : null;
         if ($nivel !== null && ! in_array($nivel, RoadmapItem::NIVELES_RIESGO, true)) {
             throw new InvalidArgumentException("nivel_riesgo inválido '{$nivel}' (A, B o C).");
         }
@@ -88,10 +95,11 @@ class RoadmapIntakeService
         $item->origen_item_id = $padre?->id;
         $item->clave_externa  = $claveExterna;
 
-        // El nivel puede venir declarado, pero SIEMPRE queda sellado con su origen real.
+        // El nivel solo puede venir declarado por la vía interna (ver arriba): si se aplicó, su
+        // origen siempre es 'interno' (la externa nunca llega a este punto con $nivel !== null).
         $item->nivel_riesgo = $nivel;
         if ($nivel !== null) {
-            $item->nivel_riesgo_origen = $interno ? 'interno' : 'externo';
+            $item->nivel_riesgo_origen = 'interno';
         }
 
         // CANDADO: nace sin aprobar, siempre. No hay parámetro que lo cambie.
@@ -116,12 +124,12 @@ class RoadmapIntakeService
                 ? "Item creado como sub-item de seguimiento de #{$padre->id}."
                 : 'Item creado en la Hoja de Ruta.',
             null,
-            ['via' => $interno ? 'interno' : 'externo', 'padre' => $padre?->id, 'nivel_declarado' => $nivel]
+            ['via' => $interno ? 'interno' : 'externo', 'padre' => $padre?->id, 'nivel_declarado' => $nivelDeclarado, 'nivel_aplicado' => $nivel]
         );
 
         Log::channel('roadmap_externo')->info('item-creado', [
             'id' => $item->id, 'por' => $autor, 'via' => $interno ? 'interno' : 'externo',
-            'padre' => $padre?->id, 'modulo' => $item->modulo, 'nivel' => $nivel,
+            'padre' => $padre?->id, 'modulo' => $item->modulo, 'nivel_declarado' => $nivelDeclarado, 'nivel_aplicado' => $nivel,
         ]);
 
         return $item->refresh();
