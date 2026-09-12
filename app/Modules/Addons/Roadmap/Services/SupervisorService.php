@@ -143,6 +143,7 @@ class SupervisorService
         return RoadmapItem::autoEjecutable()
             ->whereNull('archivado_at')
             ->whereNull('branch')
+            ->whereNull('motivo_espera')
             ->ordered()
             ->limit($limite)
             ->get(['id', 'title', 'nivel_riesgo'])
@@ -159,6 +160,7 @@ class SupervisorService
         return RoadmapItem::autoEjecutable()
             ->whereNull('archivado_at')
             ->whereNull('branch')
+            ->whereNull('motivo_espera')
             ->count();
     }
 
