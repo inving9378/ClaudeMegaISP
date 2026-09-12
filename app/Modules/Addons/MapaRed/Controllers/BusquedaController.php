@@ -5,6 +5,7 @@ namespace App\Modules\Addons\MapaRed\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\MapaRed\Models\MapaRedDevice;
 use App\Modules\Addons\MapaRed\Models\MapaRedEnlaceServicio;
+use App\Modules\Addons\MapaRed\Models\MapaRedLayer;
 use Illuminate\Http\Request;
 
 /**
@@ -32,7 +33,7 @@ class BusquedaController extends Controller
         }
 
         return response()->json([
-            'nodos' => $this->buscarNodos($q),
+            'nodos' => [...$this->buscarNodos($q), ...$this->buscarNaps($q)],
             'clientes' => $this->buscarEnlaces($q, 'cliente_nombre'),
             'onts' => $this->buscarEnlaces($q, 'ont_serie'),
         ]);
@@ -51,6 +52,31 @@ class BusquedaController extends Controller
                 'label' => $d->name,
                 'lat' => $d->lat !== null ? (float) $d->lat : null,
                 'lng' => $d->lng !== null ? (float) $d->lng : null,
+            ])
+            ->all();
+    }
+
+    /**
+     * MR-22 Fase 4a (item roadmap #9991048): las NAPs/cajas de servicio viven en
+     * mapared_layers (dialog service_box|junction_box), sin columna `name` propia —
+     * el nombre vive en la columna JSON `data->name`. Se fusionan en el mismo array
+     * `nodos` de la respuesta (mismo shape {id,tipo,label,lat,lng}) porque el frontend
+     * (BuscadorMapaRed.vue) solo renderiza las claves nodos/clientes/onts que ya conoce;
+     * una clave nueva no aparecería en el dropdown sin tocar también el componente.
+     */
+    private function buscarNaps(string $q): array
+    {
+        return MapaRedLayer::query()
+            ->whereIn('dialog', ['service_box', 'junction_box'])
+            ->whereRaw('JSON_UNQUOTE(JSON_EXTRACT(data, "$.name")) LIKE ?', ["%{$q}%"])
+            ->limit(self::LIMITE_POR_GRUPO)
+            ->get(['id', 'dialog', 'data', 'lat', 'lng'])
+            ->map(fn (MapaRedLayer $l) => [
+                'id' => $l->id,
+                'tipo' => $l->dialog,
+                'label' => $l->data['name'] ?? null,
+                'lat' => $l->lat !== null ? (float) $l->lat : null,
+                'lng' => $l->lng !== null ? (float) $l->lng : null,
             ])
             ->all();
     }
