@@ -130,6 +130,16 @@ export default {
                 panelDecisionCargando: false,
                 panelDecisionError: null,
                 panelDecisionData: null,
+                // #9990971 (CIRC-09 Fase 4) — paneles de lectura de las filas "Trabajando" y
+                // "Decidido sin ti".
+                panelTrabajandoAbierto: false,
+                panelTrabajandoCargando: false,
+                panelTrabajandoError: null,
+                panelTrabajandoData: null,
+                panelDecididoAbierto: false,
+                panelDecididoCargando: false,
+                panelDecididoError: null,
+                panelDecididoData: null,
             });
         }
 
@@ -187,6 +197,48 @@ export default {
                     || "No se pudo cargar el detalle de la decisión.";
             } finally {
                 node.panelDecisionCargando = false;
+            }
+        }
+
+        /**
+         * #9990971 (CIRC-09 Fase 4) — panel de lectura de una fila "Trabajando": pipeline de 6
+         * fases, reloj de la vuelta, rama y últimas líneas del log (endpoint de detalle propio,
+         * el árbol de la Fase 2 no trae estos campos). Se cachea en el nodo igual que el panel
+         * de decisión de la Fase 5.
+         */
+        async function paToggleTrabajando(node) {
+            node.panelTrabajandoAbierto = !node.panelTrabajandoAbierto;
+            if (!node.panelTrabajandoAbierto || node.panelTrabajandoData || node.panelTrabajandoCargando) return;
+            node.panelTrabajandoCargando = true;
+            node.panelTrabajandoError = null;
+            try {
+                const { data } = await axios.get(`/api/roadmap/torre/panorama-jerarquia/${node.id}/trabajando`);
+                node.panelTrabajandoData = data;
+            } catch (e) {
+                node.panelTrabajandoError = (e.response && e.response.data && e.response.data.mensaje)
+                    || "No se pudo cargar el detalle de la vuelta.";
+            } finally {
+                node.panelTrabajandoCargando = false;
+            }
+        }
+
+        /**
+         * #9990971 (CIRC-09 Fase 4) — panel de lectura de una fila "Decidido sin ti": qué decidió
+         * el autopilot/revisor, con qué confianza, si es reversible, cuándo y en qué terminal.
+         */
+        async function paToggleDecidido(node) {
+            node.panelDecididoAbierto = !node.panelDecididoAbierto;
+            if (!node.panelDecididoAbierto || node.panelDecididoData || node.panelDecididoCargando) return;
+            node.panelDecididoCargando = true;
+            node.panelDecididoError = null;
+            try {
+                const { data } = await axios.get(`/api/roadmap/torre/panorama-jerarquia/${node.id}/decidido-sin-ti`);
+                node.panelDecididoData = data;
+            } catch (e) {
+                node.panelDecididoError = (e.response && e.response.data && e.response.data.mensaje)
+                    || "No se pudo cargar el detalle de la decisión.";
+            } finally {
+                node.panelDecididoCargando = false;
             }
         }
 
@@ -326,6 +378,8 @@ export default {
         provide("paEstadoVisual", paEstadoVisual);
         provide("paEnfocado", enfocado);
         provide("paToggleDecision", paToggleDecision);
+        provide("paToggleTrabajando", paToggleTrabajando);
+        provide("paToggleDecidido", paToggleDecidido);
 
         return {
             FILTROS, modulos, cargandoRaiz, errorRaiz, filtro, busqueda, cargarRaiz, dark: darkMode,
