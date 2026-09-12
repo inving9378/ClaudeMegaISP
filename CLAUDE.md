@@ -2489,3 +2489,32 @@ hasta que el hook de cierre en cascada (`RoadmapItem.php:459-491`) lo complete s
 `docs/roadmap-bucle-reap-item-9990893-verificacion.md`. **Sin cambio de código de negocio** — el
 trabajo técnico real (SupervisorService, heurística de texto, contador en la Torre) sigue en
 #9990923/#9990924/#9990925, pendientes de que sus dueños los cierren.
+
+## Item #9990878 — Identidad unificada Fase 3 (doble escritura colaborador_id) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878-torre/#906/#907/#924/#9990012/
+#917/#910/#936/#9990408/#962/#9990554/#9990549/#9990624/#9990650/#9990807/#9990826/#9990836/
+#9990856/#9990892/#9990896/#9990886/#9990893. #9990878 (Fase 3 de identidad unificada: escribir
+`colaborador_id` en paralelo a `seller_id` en `client_main_information`) ya había sido
+descompuesto correctamente por una vuelta previa (`wt-5`, 2026-09-11 20:16): tras confirmar por
+hash sha1 que las 4 preguntas de Irving eligieron la opción recomendada, y encontrar que
+`client_main_information` se escribe por **al menos 2 vías distintas** (Eloquent en alta normal
+vs `DB::table` raw en import) — invalidando la premisa de `q1` de que un observer "no requiere
+tocar callsites" —, partió el trabajo en **#9990962** (Fase 3a: mapear TODOS los callsites
+reales, Eloquent vs raw, `completado`+mergeado), **#9990963** (Fase 3b: implementar la doble
+escritura con observer+parches raw+feature flag), **#9990964** (Fase 3c: comando
+`identidad:verificar-consistencia`+KPI card) y **#9990965** (Fase 3d: activar el flag en dev +
+validación end-to-end + cerrar el padre). Pero el comentario de esa vuelta se cortó a media
+oración (texto truncado justo al listar los sub-items) sin intentar **cerrar** al padre — el
+reaper lo detectó huérfano 25 minutos después y lo re-encoló (`reap_count=1`), y el pool lo
+repartió de nuevo sin trabajo propio que hacer. Verificado esta vuelta: #9990962 sigue
+`completado`+mergeado; #9990963 y #9990964 siguen **activamente reclamados por `wt-5`**
+(aislamiento #334, no se tocaron); #9990965 sigue `aprobado_revisor` sin reclamar — la
+descomposición original seguía siendo correcta, nadie más la tocó. Corrección: esta vuelta
+ejecuta el intento de cierre faltante; el guard (`RoadmapItem.php` bloque "(2b) PARAGUAS") lo
+reenruta a `aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto` en el
+log, "le quedan 3 sub-item(s) abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre
+en cascada (`RoadmapItem.php:459-491`) lo complete solo cuando #9990963, #9990964 y #9990965
+cierren los tres. Detalle en `docs/roadmap-bucle-reap-item-9990878-verificacion.md`. **Sin
+cambio de código de negocio** — el trabajo técnico real de la Fase 3 sigue en
+#9990963/#9990964 (reclamados por `wt-5`) y #9990965, pendientes de cierre.
