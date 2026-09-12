@@ -15,6 +15,7 @@ use App\Models\Ticket;
 use App\Models\ClientMainInformation;
 use App\Models\Transaction;
 use App\Services\FinanceService;
+use App\Services\IdentidadConsistencyService;
 use App\Services\ServerInfoService;
 use Illuminate\Support\Facades\DB;
 
@@ -84,6 +85,15 @@ class HomeController extends Controller
                 "link" => "/red/router/listar",
                 "porcent" => "0.0",
                 "permission" => "dashboard_view_card_device_not_responding"
+            ],
+            "IdentidadCobertura" => [
+                "estado" => "Cobertura bridge identidad (cliente↔colaborador)",
+                "total" => "N/D",
+                "time_human" => "Fase 3c #9990778",
+                "icon" => "bx bx-check-shield",
+                "link" => "#",
+                "porcent" => "0.0",
+                "permission" => "dashboard_view_card_identidad_cobertura"
             ]
         ];
 
@@ -109,6 +119,13 @@ class HomeController extends Controller
             $array['TicketsOpen']['total'] = $ticket_info[0]['total'];
             $array['TicketsOpen']['porcent'] = $ticket_info[0]['total'] * 100 / $ticketCount;
         };
+
+        $identidadCoberturaPct = app(IdentidadConsistencyService::class)
+            ->resumen()['client_main_information']['cobertura_pct'] ?? null;
+        if ($identidadCoberturaPct !== null) {
+            $array['IdentidadCobertura']['total'] = "{$identidadCoberturaPct}%";
+            $array['IdentidadCobertura']['porcent'] = $identidadCoberturaPct;
+        }
 
         return $array;
     }
