@@ -24,6 +24,34 @@ class ColaboradorIdResolver
         return (bool) config('identidad.doble_escritura_colaborador_id', false);
     }
 
+    /** Flag de LECTURA (Fase 4 de #9990778, item #9990879) — separado del de escritura. */
+    public static function lecturaHabilitada(): bool
+    {
+        return (bool) config('identidad.lectura_colaborador_id', false);
+    }
+
+    /**
+     * Corte de lectura módulo por módulo: agrega (si el flag de lectura está
+     * activo) el LEFT JOIN a `talento_colaboradores` resuelto por `colaborador_id`
+     * sobre $query, y devuelve la expresión SQL que el llamador debe usar en el
+     * JOIN/GROUP BY hacia `users` en vez de "{$tabla}.seller_id" directo.
+     *
+     * Con el flag OFF es un no-op: retorna "{$tabla}.seller_id" tal cual (mismo
+     * comportamiento de siempre, sin JOIN extra). Con el flag ON, retorna un
+     * COALESCE que cae a `seller_id` cuando el bridge no tiene colaborador_id
+     * todavía — el valor resuelto es el mismo `users.id` en ambos casos.
+     */
+    public static function applyIdentityJoin($query, string $tabla = 'client_main_information', string $alias = 'colaborador_bridge_read'): string
+    {
+        if (!static::lecturaHabilitada()) {
+            return "{$tabla}.seller_id";
+        }
+
+        $query->leftJoin("talento_colaboradores as {$alias}", "{$alias}.id", '=', "{$tabla}.colaborador_id");
+
+        return "COALESCE({$alias}.user_id, {$tabla}.seller_id)";
+    }
+
     public static function resolve(int $sellerId): ?int
     {
         return static::mapa()[$sellerId] ?? null;
