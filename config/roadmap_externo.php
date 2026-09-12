@@ -48,11 +48,4 @@ return [
     // Límite de peticiones por minuto (rate limit) para cada verbo.
     'rate_read'   => (int) env('ROADMAP_EXTERNAL_RATE_READ', 60),
     'rate_write'  => (int) env('ROADMAP_EXTERNAL_RATE_WRITE', 30),
-
-    // CIRC-05 PASO 2 (#9990871/#9990888) — rate limit PROPIO y más estricto para las 3 rutas
-    // de CREACIÓN (createItem/createItemPathB64/addReport), separado del rate_write compartido
-    // con updateItem/setItem*. Dos ventanas independientes (min + hora) para frenar tanto un
-    // pico corto como un goteo sostenido de un agente en bucle.
-    'rate_create_min'  => (int) env('ROADMAP_EXTERNAL_RATE_CREATE_MIN', 10),
-    'rate_create_hora' => (int) env('ROADMAP_EXTERNAL_RATE_CREATE_HORA', 60),
 ];

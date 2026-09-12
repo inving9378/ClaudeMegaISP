@@ -157,18 +157,16 @@ class RoadmapExternalCreateTest extends TestCase
     }
 
     /**
-     * Caso 6 — rate limit de creación. Desde CIRC-05 PASO 2 (#9991015) las rutas de creación
-     * tienen su PROPIO límite (`rate_create_min`), separado del `rate_write` compartido con
-     * updateItem/setItem*. Esa string se hornea en el middleware `throttle:N,1,prefix` AL
-     * REGISTRAR LAS RUTAS (boot de la app), no en cada request — sobreescribir el config()
-     * dentro del test NO cambia el límite ya aplicado a la ruta. Por eso se LEE el valor real
-     * vigente (el mismo que ya se usó al montar las rutas en este boot de test, vía
-     * config/roadmap_externo.php) y se agota esa cuota exacta, sin hardcodear un número que
-     * pueda desincronizarse del .env.
+     * Caso 6 — rate limit de creación. El límite lo fija `config('roadmap_externo.rate_write')`,
+     * pero esa string se hornea en el middleware `throttle:N,1` AL REGISTRAR LAS RUTAS (boot de
+     * la app), no en cada request — sobreescribir el config() dentro del test NO cambia el
+     * límite ya aplicado a la ruta. Por eso se LEE el valor real vigente (el mismo que ya se usó
+     * al montar las rutas en este boot de test, vía config/roadmap_externo.php) y se agota esa
+     * cuota exacta, sin hardcodear un número que pueda desincronizarse del .env.
      */
     public function test_rate_limit_de_creacion_devuelve_429_al_agotar_cuota(): void
     {
-        $limite = (int) config('roadmap_externo.rate_create_min', 10);
+        $limite = (int) config('roadmap_externo.rate_write', 30);
 
         for ($i = 0; $i < $limite; $i++) {
             $resp = $this->postJson('/api/roadmap-externo/'.self::CREATE_TOKEN.'/item', [
