@@ -59,7 +59,21 @@ Route::prefix('api/roadmap-externo')
         Route::get('/{token}/item/{id}/setb64/{estado}/{nivel}/{comentarioB64?}', [RoadmapExternalController::class, 'setItemPathB64'])
             ->whereNumber('id')
             ->where('comentarioB64', '[A-Za-z0-9_-]+');
+    });
 
+/*
+| CIRC-05 PASO 2 (#9990871/#9990888, #9991015) — rate limit PROPIO y más estricto para las
+| rutas de CREACIÓN, separado del rate_write compartido de arriba (updateItem/setItem* siguen
+| con ese límite sin cambio). Dos middlewares throttle encadenados con prefijo distinto cada
+| uno (3er parámetro de ThrottleRequests::handle()) → cada ventana usa su PROPIO bucket de
+| caché, aunque ambos throttles vean el mismo request.
+*/
+Route::prefix('api/roadmap-externo')
+    ->middleware([
+        'throttle:' . config('roadmap_externo.rate_create_min', 10) . ',1,roadmap-externo-crea-min',
+        'throttle:' . config('roadmap_externo.rate_create_hora', 60) . ',60,roadmap-externo-crea-hora',
+    ])
+    ->group(function () {
         /*
         | TORRE V2 — ESCRITURA EXTENDIDA (token `create_token`, cae al write_token si no se define).
         | Crear items alimenta la cola de trabajo del circuito, por eso es un scope aparte del
