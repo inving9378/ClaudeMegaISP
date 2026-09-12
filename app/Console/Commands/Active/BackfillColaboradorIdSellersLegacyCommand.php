@@ -20,12 +20,15 @@ use Illuminate\Support\Facades\DB;
  * sellers con is_seller=0, o sin alta en Talento) quedan `colaborador_id` NULL y se reportan, no
  * se adivinan. Su tratamiento caso por caso queda pendiente de que Irving decida (frontera dura
  * de identidad/comisiones, fuera de alcance de este backfill).
+ *
+ * `history_sellers_rules` y `sales` (fase "siguiente" q2, #9990930) se sumaron aquí mismo en vez
+ * de un comando nuevo: mismo esquema (`seller_id`→`sellers.id`), misma resolución determinista.
  */
 class BackfillColaboradorIdSellersLegacyCommand extends Command
 {
     protected $signature = 'identidad:backfill-colaborador-id-sellers {--dry-run : Solo reporta, no escribe}';
 
-    protected $description = 'Puebla colaborador_id en tablas legado de sellers.id vía sellers.user_id=talento_colaboradores.user_id (#9990877)';
+    protected $description = 'Puebla colaborador_id en tablas legado de sellers.id vía sellers.user_id=talento_colaboradores.user_id (#9990877, #9990930)';
 
     /** @var array<int,string> */
     private array $tablas = [
@@ -35,6 +38,8 @@ class BackfillColaboradorIdSellersLegacyCommand extends Command
         'payment_by_rule',
         'payments_sellers',
         'transactions_sellers',
+        'history_sellers_rules',
+        'sales',
     ];
 
     public function handle(): int
