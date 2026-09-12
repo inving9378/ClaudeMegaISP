@@ -2360,3 +2360,30 @@ en cascada (`RoadmapItem.php:459-491`) lo complete solo cuando #9990857, #999085
 cierren los tres. Detalle en `docs/roadmap-bucle-reap-item-9990856-verificacion.md`. **Sin cambio
 de código de negocio** — el trabajo técnico real del mecanismo de respuestas de Irving sigue en
 #9990857/#9990858/#9990859, pendientes de que sus dueños los cierren.
+
+## Item #9990896 — Fase 2a de #9990892 (colisión como causa de terminales ociosas) — bucle reap sobre paraguas ya descompuesto, esperando ventana de tiempo real (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
+#936/#9990408/#962/#9990554/#9990549/#9990624/#9990650/#9990807/#9990826/#9990836/#9990856, con
+una variante: aquí el bloqueo no es de decisión sino de **tiempo real transcurrido**. #9990896
+("confirmar con evidencia real si colisión es causa frecuente de terminales ociosas") exige NO
+tocar código hasta que existan `>=15 min reales` después de `2026-09-11 18:54 CST` (cuando se
+confirmó que `storage/logs/circuito-despacho-*.log` aún no existía en ningún checkout) — medir
+antes sería fabricar una conclusión sin datos, justo lo que el propio spec prohíbe. Una vuelta
+previa (`wt-5`, 2026-09-11 18:55 CST) ya hizo lo correcto: corrió `circuito:cabida` (NO CABE,
+`historico_excede_umbral`), reconfirmó con `date` que el bloqueo seguía vigente, y descompuso el
+reintento en **#9990916** ("Fase 2a (reintento) — medir colisión... con >=15 min reales
+acumulados", bloqueado hasta después de `2026-09-11 19:09 CST`). Pero esa vuelta murió
+(`soltar-claim`, "muerte del proceso") antes de intentar **cerrar** al padre — el pool lo repartió
+de nuevo (a `wt-4`) sin trabajo propio que hacer. Verificado esta vuelta: la hora real seguía en
+`18:56:02 CST` (antes del umbral, nada que medir todavía); `circuito:cabida` devolvió `CABE
+[ya_descompuesto]` (según el propio código, ese motivo solo significa "no re-descompongas", no
+"hay trabajo nuevo"); `#9990916` sigue intacto, `pendiente_revision`, sin reclamar — la
+descomposición original seguía siendo correcta, nadie más la tocó. Corrección: esta vuelta ejecuta
+el intento de cierre faltante; el guard (`RoadmapItem.php` bloque "(2b) PARAGUAS") lo reenruta a
+`aprobado_irving` + `excluir_pool_automatico=true` (evento `paraguas_abierto` en el log, "le
+quedan 1 sub-item(s) abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en
+cascada (`RoadmapItem.php:459-491`) lo complete solo cuando #9990916 cierre. Detalle en
+`docs/roadmap-bucle-reap-item-9990896-verificacion.md`. **Sin cambio de código de aplicación** —
+la medición real (grep de `circuito-despacho-*.log` cruzado con `colision_pausada_por`) sigue en
+#9990916, bloqueada hasta que pasen los `>=15 min` reales exigidos.
