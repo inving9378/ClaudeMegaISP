@@ -869,7 +869,11 @@ export default {
             if (!d || !d.sin_modelo) return '';
             return `${d.sin_modelo} escalacion(es) de los ultimos ${d.sin_modelo_dias} dias NO fueron un juicio del `
                 + 'revisor: no se pudo llamar al modelo.\n\nRevisa la key de Anthropic (Hub api_integrations -> env '
-                + '-> marketing_settings) y la red ANTES de leer la bandeja llena como prudencia.';
+                + '-> marketing_settings) y la red ANTES de leer la bandeja llena como prudencia.\n\n'
+                + 'Esto es independiente de que el circuito este pausado o no, y NO es un freno del '
+                + 'despachador (no es dependencia_sin_cerrar/bloqueado_por_dependencia/desarrollo_humano del '
+                + 'canal circuito_despacho): es la llamada API propia del revisor para triar items, un canal '
+                + 'de IA distinto al que ejecuta el trabajo.';
         });
 
         // #808 — una regla implementada y no agendada es un no-op invisible.
