@@ -18,6 +18,14 @@ class DiscrepanciasSnController extends Controller
     {
     }
 
+    /**
+     * Fase 4b (#9990850): pantalla del reporte (3 tabs + export CSV).
+     */
+    public function panel()
+    {
+        return view('addon-gestion-red::discrepancias-sn.index');
+    }
+
     public function index(Request $request, string $categoria): JsonResponse
     {
         if (!in_array($categoria, DiscrepanciaSnService::CATEGORIAS, true)) {

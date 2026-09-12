@@ -893,6 +893,7 @@ return [
     ],
 
     'red.discrepancias.ver' => [
+        '/red/discrepancias-sn',
         '/red/discrepancias-sn/{categoria}',
         '/red/discrepancias-sn/{categoria}/export',
     ],
