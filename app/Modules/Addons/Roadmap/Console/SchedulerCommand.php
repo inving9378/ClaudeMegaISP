@@ -374,8 +374,47 @@ class SchedulerCommand extends Command
             $linea = $d
                 ? sprintf('#%d%s — %s: %s', $d['id'], $d['modulo'] ? " (modulo={$d['modulo']})" : '', $d['codigo'], $d['motivo'])
                 : 'sin_candidatos: no queda ningún item elegible tras el reparto de esta ronda.';
-            Log::channel('circuito_despacho')->info("wt-{$slot} ociosa: {$linea}");
+            $this->logCircuitoDespacho("wt-{$slot} ociosa: {$linea}");
         }
+    }
+
+    /**
+     * #9991025 — único punto que escribe al canal `circuito_despacho` (config/logging.php:91-96).
+     * Este checkout puede tener un `config/logging.php` desincronizado (worktree viejo, deploy a
+     * medias) donde el canal no existe: `Log::channel()` en ese caso lanza `InvalidArgumentException`
+     * y tumbaría TODO `schedule:run` (el caller, `handle()`, no envuelve estas llamadas en try/catch
+     * — cron cada minuto). Por eso se valida antes de escribir y, si falta, se deja constancia
+     * RUIDOSA en el canal default (nunca silenciosa) sin arriesgar el resto del scheduler: el
+     * `RuntimeException` se lanza y se captura en el mismo método (try/catch local), solo para
+     * adjuntar su traza al log de error — nunca se propaga al caller.
+     */
+    private function logCircuitoDespacho(string $mensaje): void
+    {
+        if (config('logging.channels.circuito_despacho') === null) {
+            try {
+                throw new \RuntimeException(
+                    'canal circuito_despacho no configurado en este checkout — diagnóstico de despacho perdido: ' . $mensaje
+                );
+            } catch (\RuntimeException $e) {
+                Log::error($e->getMessage(), [
+                    'cwd' => getcwd(),
+                    'branch' => $this->branchActualBarato(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+            }
+
+            return;
+        }
+
+        Log::channel('circuito_despacho')->info($mensaje);
+    }
+
+    /** Branch actual vía git, solo para el mensaje de error de arriba — best-effort, nunca tumba. */
+    private function branchActualBarato(): ?string
+    {
+        exec('git rev-parse --abbrev-ref HEAD 2>/dev/null', $salida, $codigo);
+
+        return ($codigo === 0 && $salida) ? trim($salida[0]) : null;
     }
 
     /** ¿El slot (worktree) está libre? = su flock no lo tiene una vuelta viva. */
