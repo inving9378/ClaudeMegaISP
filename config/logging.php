@@ -78,6 +78,23 @@ return [
             'days' => 90,
         ],
 
+        /*
+        | #9990863 Fase 1 — una línea por CADA terminal ociosa en CADA ciclo del scheduler (cron
+        | cada minuto), con la razón real por la que no se le asignó trabajo. Antes de esto el
+        | diagnóstico de `SchedulerCommand::reportarCeroDespacho()` (#9990349) solo se imprimía por
+        | stdout detrás de `--dry`/`-v`, y el cron descarta stdout (`>/dev/null`) salvo que el
+        | comando falle — así que el supervisor nunca dejaba constancia de por qué no asignó, que
+        | es justo el síntoma que reportó este item. Canal propio (no `roadmap_externo`) porque
+        | corre cada minuto y ensuciaría esa manguera; retención corta porque es diagnóstico de
+        | ventana reciente, no auditoría.
+        */
+        'circuito_despacho' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/circuito-despacho.log'),
+            'level' => 'info',
+            'days' => 14,
+        ],
+
         // Auditoría del conector MCP de la Hoja de Ruta (Circuito de Mejora Continua)
         'mcp_roadmap' => [
             'driver' => 'daily',
