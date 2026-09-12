@@ -9,6 +9,7 @@ use App\Models\ClientInternetService;
 use App\Models\Module;
 use App\Modules\Core\Layout\Services\AppLayoutConfigurationService;
 use App\Services\FormatDateService;
+use App\Services\Identidad\ColaboradorIdResolver;
 use App\Services\NetworkIpService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -71,11 +72,10 @@ class ClientDatatableHelper
 
         // Construir consulta sin cargar relaciones automáticas pesadas.
         // client_main_information se re-añade explícitamente porque transform()
-        // siempre accede a ella ($estado). user_seller se carga en cascade solo
-        // cuando la columna seller_id está visible.
-        $eagerRelations = in_array('seller_id', $columns)
-            ? ['client_main_information.user_seller']
-            : ['client_main_information'];
+        // siempre accede a ella ($estado). user_seller (y, tras el corte de
+        // identidad, colaborador.user) se cargan en cascade solo cuando la
+        // columna seller_id está visible.
+        $eagerRelations = $this->eagerRelationsForColumns($columns);
 
         $query = $this->model::select($columnsForSelect)
             ->without(['client_main_information', 'client_additional_information', 'billing_configuration', 'balance'])
@@ -111,6 +111,53 @@ class ClientDatatableHelper
         $query->offset($start)->limit($limit);
         $result = $query->get();
         return $result;
+    }
+
+    /**
+     * Relaciones a eager-cargar según las columnas visibles del datatable.
+     * client_main_information siempre (transform() la usa para $estado);
+     * user_seller solo si la columna seller_id está visible; y, detrás del
+     * flag de lectura (identidad #9990778 Fase 4, módulo 2), también
+     * colaborador.user, para que resolveSellerDisplayName() pueda resolver
+     * el vendedor por colaborador_id sin disparar una query N+1 por fila.
+     */
+    private function eagerRelationsForColumns(array $columns): array
+    {
+        if (!in_array('seller_id', $columns)) {
+            return ['client_main_information'];
+        }
+
+        $eagerRelations = ['client_main_information.user_seller'];
+        if (ColaboradorIdResolver::lecturaHabilitada()) {
+            $eagerRelations[] = 'client_main_information.colaborador.user';
+        }
+
+        return $eagerRelations;
+    }
+
+    /**
+     * Vendedor a mostrar en la columna 'Vendedor' del datatable de Clientes.
+     * Con el flag identidad.lectura_colaborador_id OFF (default), es
+     * byte-idéntico al histórico: $client->seller_name (resuelve por
+     * user_seller / seller_id). Con el flag ON, prefiere el nombre resuelto
+     * vía colaborador_id -> talento_colaboradores.user_id (mismo bridge que
+     * el módulo 1, #9990879), con fallback al histórico cuando el bridge
+     * todavía no tiene colaborador_id para ese registro.
+     */
+    private function resolveSellerDisplayName(Client $client): string
+    {
+        if (ColaboradorIdResolver::lecturaHabilitada()) {
+            $cmi = $client->client_main_information;
+            $colaboradorUser = ($cmi && $cmi->relationLoaded('colaborador') && $cmi->colaborador)
+                ? $cmi->colaborador->user
+                : null;
+
+            if ($colaboradorUser) {
+                return $colaboradorUser->name;
+            }
+        }
+
+        return $client->seller_name;
     }
 
     public function getColumnsWithJoinsByColumnsSelected($columns = [])
@@ -535,10 +582,9 @@ class ClientDatatableHelper
 
         // Construir consulta sin cargar relaciones automáticas pesadas.
         // Mismo patrón que ordering_query: client_main_information siempre
-        // necesaria para $estado en transform(); user_seller solo si seller_id activo.
-        $eagerRelations = in_array('seller_id', $columns ?? [])
-            ? ['client_main_information.user_seller']
-            : ['client_main_information'];
+        // necesaria para $estado en transform(); user_seller (y colaborador.user)
+        // solo si seller_id activo.
+        $eagerRelations = $this->eagerRelationsForColumns($columns ?? []);
 
         $query = $this->model::select($columnsForSelect)
             ->without(['client_main_information', 'client_additional_information', 'billing_configuration', 'balance'])
@@ -688,7 +734,7 @@ class ClientDatatableHelper
                 $this->columns = array_diff($this->columns, ['user', 'password']);
                 foreach ($this->columns as $val) {
                     if ($val == 'seller_id') {
-                        $value->seller_id = $value->seller_name;
+                        $value->seller_id = $this->resolveSellerDisplayName($value);
                     }
                     if ($val == 'price') {
                         $value->price = $value->price_all_services;
