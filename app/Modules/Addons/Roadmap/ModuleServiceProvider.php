@@ -98,6 +98,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\BackfillFronteraDuraEventosCommand::class,
                 // #976 (Fase 3 de #905) — backfill de frontera_valvula para items existentes.
                 \App\Modules\Addons\Roadmap\Console\BackfillFronteraValvulaCommand::class,
+                // #9990905 (CIRC-03 Fase B) — clasifica motivo_espera de items conocidos + barrido propuesta.
+                \App\Modules\Addons\Roadmap\Console\ClasificarMotivoEsperaCommand::class,
                 // #674 (Pieza 3 de #646) — cruza reversible/confianza autodeclarados contra
                 // revert/escalada/reabertura reales; read-only.
                 \App\Modules\Addons\Roadmap\Console\MedirAutodeclaracionCommand::class,
