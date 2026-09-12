@@ -132,6 +132,10 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 // terminal lo consulta en puntos naturales de su vuelta en vez de enterarse hasta
                 // circuito:integrar.
                 \App\Modules\Addons\Roadmap\Console\EstadoItemCommand::class,
+                // CIRC-02b PASO 3 (#9990901) — bloque "RESPUESTA DE IRVING" a anteponer al
+                // prompt del ejecutor cuando el item tiene respuestas sin consumir en
+                // roadmap_item_respuestas. Lo llama deploy/circuito/vuelta.sh en modo POR-ITEM.
+                \App\Modules\Addons\Roadmap\Console\RespuestaPromptCommand::class,
                 // #988 — motor de detección de una vuelta (php -l + boot + tests + dry-run de
                 // migraciones) vive ahora en app/Console/Commands/Circuito/ (autodiscovery vía
                 // Kernel::commands(), item #9990053 q4), no aquí.
