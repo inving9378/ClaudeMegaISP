@@ -332,6 +332,14 @@ return [
     */
     'freno' => [
         'centinela' => env('CIRCUITO_FRENO_CENTINELA', '/var/www/megaisp/storage/app/circuito/PAUSA'),
+
+        // FASE 4b (#9990418): TTL default del freno-con-expiración (FASE 4a, #9990417) cuando
+        // `vuelta.sh` detecta que la CUENTA de Claude (no el item) se quedó sin límite de sesión
+        // (causa=limite_cuenta, #9990411/#9990416). Decisión de Irving (#9990418, q2): 30 minutos
+        // fijos — no se intenta calcular la expiración real a partir de la hora de reset que
+        // `vuelta.sh` extrae del log (esa hora es solo texto tipo "12pm", sin fecha ni zona
+        // verificada; queda como dato informativo en el motivo del freno, nunca como cálculo).
+        'limite_cuenta_ttl_seg' => (int) env('CIRCUITO_FRENO_LIMITE_CUENTA_TTL', 1800),
     ],
 
     /*
