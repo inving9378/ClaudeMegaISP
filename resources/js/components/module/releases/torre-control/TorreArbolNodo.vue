@@ -224,17 +224,17 @@
 
 <script>
 import { computed, inject } from "vue";
-import TorreArbolNodo from "./TorreArbolNodo.vue";
 
 /**
  * #9990970 (CIRC-09 Fase 3) — fila recursiva del árbol Módulo → Épica → Item → Sub-item.
- * Se auto-importa (patrón estándar para recursión en SFC con Options API) porque la
- * anidación de épicas es recursiva de verdad (una épica puede contener otra épica —
- * caso real MR-23 vía origen_item_id encadenado).
+ * La anidación de épicas es recursiva de verdad (una épica puede contener otra épica —
+ * caso real MR-23 vía origen_item_id encadenado). En Vue 3, un componente recursivo se
+ * resuelve SOLO por su `name` (Vue resuelve <torre-arbol-nodo> en su propio template por
+ * nombre) — NO debe importarse a sí mismo: eso crea una dependencia circular
+ * (`__WEBPACK_DEFAULT_EXPORT__` accedido antes de inicializar) que tumba el bundle entero.
  */
 export default {
     name: "TorreArbolNodo",
-    components: { TorreArbolNodo },
     props: {
         node: { type: Object, required: true },
         profundidad: { type: Number, default: 0 },
