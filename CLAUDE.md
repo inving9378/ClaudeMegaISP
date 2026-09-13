@@ -2571,3 +2571,21 @@ en `docs/bitacora/2026-09-13-item-9991072.md`. **Sin cambio de código de negoci
 técnico real (las 6 variables/selectores CSS del fix de contraste, especificados letra por letra
 en la description del item, y el cierre en cascada de #9991071) sigue en #9991073/#9991074,
 pendientes de que una terminal los reclame.
+
+## Item #9991073 — Fase A CSS vars --pa-warn/--pa-danger en TorrePanoramaArbol.vue (RESUELTO — ya aplicado por commit directo antes de reclamarse)
+
+Sub-item de seguimiento de #9991072 (que a su vez descompuso #9991071), con el diff exacto ya
+identificado: agregar `--pa-warn:#d97706; --pa-danger:#dc2626;` a `.pa-wrap`, el par oscuro
+`--pa-warn:#fbbf24; --pa-danger:#f87171;` a `.pa-wrap.pa-dark`, y cambiar `.pa-error-raiz{
+color:#dc2626; }` por `color:var(--pa-danger,#dc2626);` en
+`resources/js/components/module/releases/torre-control/TorrePanoramaArbol.vue`. Al leer el
+archivo real, las tres piezas **ya estaban aplicadas**: commit `2f6b2cf2` ("fix(torre-control):
+corrige contraste del árbol en modo oscuro") las aplicó completas (junto con el fix hermano de
+`TorreArbolNodo.vue`) apenas **un minuto después** de que se crearan los sub-items de seguimiento
+(`#9991073`/su hermano de Fase B), directo en la rama de `#9991071`, y quedó mergeado a `main` vía
+`d4867cf8` antes de que el pool repartiera este item — mismo patrón de carrera de timing
+documentado para `#733`/`#741`/`#753`/`#9990003`/`#9990353`/`#9990658`. Verificado con `grep`
+directo: los 3 pares de valores y el `color:var(--pa-danger,#dc2626)` coinciden exactamente con
+lo pedido. Detalle en `docs/torrepanorama-arbol-css-vars-item-9991073-verificacion.md`. **Sin
+cambio de código** — el fix ya estaba aplicado. NO cierra al padre #9991072 (sigue esperando a su
+hermano de Fase B en `TorreArbolNodo.vue`).
