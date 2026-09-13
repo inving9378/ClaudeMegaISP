@@ -342,6 +342,17 @@ ejecutar_una() {
     # comando SÍ existe en los worktrees, pero depende de con qué commit se provisionaron.
     HORA_RESET_FLAG=""
     if [ -n "$HORA_RESET" ]; then HORA_RESET_FLAG="--hora-reset=$HORA_RESET"; fi
+    # FASE 4b (#9990418) — la CUENTA (no el item) se quedó sin límite: sin esto, `parquear-timeout`
+    # solo decidía dónde volvía a la cola ESTE item, pero ningún freno detenía al resto de las
+    # terminales, que seguían chocando contra el mismo límite hasta detectarlo cada una por su
+    # cuenta. Pone el freno-con-expiración (FASE 4a, #9990417) ANTES de reencolar: salida limpia,
+    # log claro, no aborta el resto del pool (si falla, solo queda un aviso — el item se reencola
+    # igual con `parquear-timeout` de abajo).
+    if [ "$CAUSA" = "limite_cuenta" ]; then
+      log "Límite de cuenta detectado: pongo el freno-con-expiración (se autolimpia solo)."
+      (cd "$PROJ" && php artisan circuito:freno-por-limite $HORA_RESET_FLAG) >>"$LOG" 2>&1 \
+        || log "aviso: no pude poner el freno-por-límite (causa=$CAUSA); el item se reencola igual."
+    fi
     (cd "$PROJ" && php artisan circuito:parquear-timeout "$ITEM" --segundos="$TIMEOUT" --causa="$CAUSA" $HORA_RESET_FLAG) >>"$LOG" 2>&1 \
       || log "aviso: no pude parquear #$ITEM tras fin anormal (causa=$CAUSA)."
   fi
