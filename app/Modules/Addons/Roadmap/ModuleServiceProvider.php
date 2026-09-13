@@ -72,6 +72,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\AutopilotCommand::class,
                 \App\Modules\Addons\Roadmap\Console\ParquearTimeoutCommand::class,
                 \App\Modules\Addons\Roadmap\Console\SoltarClaimCommand::class,
+                // FASE 4b (#9990418): freno-con-expiración cuando causa=limite_cuenta
+                \App\Modules\Addons\Roadmap\Console\FrenoPorLimiteCommand::class,
                 // Backfill de briefs de la bandeja para poblar confianza/reversible (#507)
                 \App\Modules\Addons\Roadmap\Console\RebriefBandejaCommand::class,
                 // TORRE V2 — Jarvis (autoridad intermedia) y el kit de la terminal:
