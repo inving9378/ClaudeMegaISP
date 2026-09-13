@@ -392,11 +392,13 @@ export default {
 .pa-wrap{
   --pa-bg:#f8fafc; --pa-surface:#fff; --pa-ink:#0f172a; --pa-muted:#64748b; --pa-line:#e5e7eb;
   --pa-accent:#0d9488; --pa-hover:rgba(13,148,136,.08); --pa-focus:rgba(13,148,136,.16); --pa-chip-bg:#f1f5f9;
+  --pa-danger:#dc2626; --pa-warn:#d97706;
   color:var(--pa-ink);
 }
 .pa-wrap.pa-dark{
   --pa-bg:#0b1220; --pa-surface:#0f172a; --pa-ink:#e2e8f0; --pa-muted:#94a3b8; --pa-line:#1e293b;
   --pa-accent:#2dd4bf; --pa-hover:rgba(45,212,191,.12); --pa-focus:rgba(45,212,191,.22); --pa-chip-bg:#1e293b;
+  --pa-danger:#f87171; --pa-warn:#fbbf24;
 }
 
 .pa-bar{ display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap; }
@@ -422,7 +424,7 @@ export default {
 }
 
 .pa-nota{ font-size:12px; color:var(--pa-muted); background:var(--pa-chip-bg); border-radius:8px; padding:8px 12px; margin-bottom:10px; }
-.pa-error-raiz{ color:#dc2626; font-size:13px; }
+.pa-error-raiz{ color:var(--pa-danger,#dc2626); font-size:13px; }
 
 .pa-cargando-raiz{ padding:20px 0; color:var(--pa-muted); font-size:13px; }
 

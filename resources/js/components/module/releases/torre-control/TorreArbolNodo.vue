@@ -332,11 +332,11 @@ export default {
 .pa-contadores{ display:flex; gap:8px; flex:0 0 auto; font-size:11px; }
 .pa-c{ display:inline-flex; align-items:center; gap:3px; font-weight:700; }
 .pa-c-activo{ color:#16a34a; }
-.pa-c-cola{ color:#64748b; }
-.pa-c-detenido{ color:#dc2626; }
+.pa-c-cola{ color:var(--pa-muted,#64748b); }
+.pa-c-detenido{ color:var(--pa-danger,#dc2626); }
 
 .pa-info-linea{ font-size:12px; color:var(--pa-muted,#64748b); padding:3px 8px; }
-.pa-error{ color:#dc2626; }
+.pa-error{ color:var(--pa-danger,#dc2626); }
 .pa-vacio{ font-style:italic; }
 
 .pa-cargar-mas{
@@ -349,7 +349,7 @@ export default {
   background:var(--pa-chip-bg,#f1f5f9); border:1px solid var(--pa-line,#e5e7eb);
 }
 .pa-decision-aviso{
-  margin:0 0 8px; font-size:11px; font-weight:600; color:#92400e;
+  margin:0 0 8px; font-size:11px; font-weight:600; color:var(--pa-warn,#d97706);
 }
 .pa-decision-bloque{ margin-bottom:8px; }
 .pa-decision-bloque:last-child{ margin-bottom:0; }
