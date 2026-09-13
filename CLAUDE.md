@@ -2544,3 +2544,30 @@ abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
 en `docs/roadmap-bucle-reap-item-9990870-verificacion.md`. **Sin cambio de código de negocio** —
 el trabajo real de CIRC-04 (reportar la basura del PASO 2 y redactar la propuesta de
 re-priorización del PASO 4) sigue en #9991009/#9991011, a cargo de `wt-3`/`wt-4`.
+
+## Item #9991072 — Fix de contraste dark-mode en Panorama Árbol (5 selectores) — bucle reap sobre paraguas ya descompuesto (RESUELTO — se completa el cierre-intento faltante)
+
+Mismo patrón que #738/#745/#830/#816/#818/#848/#852/#905/#878/#906/#907/#924/#9990012/#917/#910/
+#936/#9990408/#962/#9990554/#9990549/#9990624/#9990650/#9990807/#9990826/#9990836/#9990856/
+#9990892/#9990896/#9990886/#9990893/#9990878/#9990870. #9991072 (sub-item de seguimiento de
+#9991071: aplicar el fix de contraste dark-mode en Panorama Árbol, 5 selectores con diff ya
+identificado por cálculo real de contraste WCAG) fue triado (nivel B, autorizado por el revisor
+con confianza alta) y ya había sido descompuesto correctamente por una vuelta previa (`wt-4`,
+2026-09-13 10:44): corrió `circuito:cabida` (NO CABE, `historico_excede_umbral`) y partió el
+trabajo por archivo en **#9991073** (Fase A — CSS vars `--pa-warn`/`--pa-danger` + fix
+`.pa-error-raiz` en `TorrePanoramaArbol.vue`) y **#9991074** (Fase B — fix
+`.pa-error`/`.pa-c-cola`/`.pa-c-detenido`/`.pa-decision-aviso` en `TorreArbolNodo.vue` +
+verificación final y cierre del padre #9991071). Pero esa vuelta murió antes de intentar
+**cerrar** a #9991072 — el log solo registra `soltar-claim`/`claim_liberado_al_morir_la_vuelta`
+("muerte del proceso: kill, OOM o freno a media vuelta"), y el pool lo repartió de nuevo sin
+trabajo propio que hacer. Verificado esta vuelta: #9991073 y #9991074 siguen intactos,
+`pendiente_revision`, sin reclamar — la descomposición original seguía siendo correcta, nadie más
+la tocó. Corrección: esta vuelta ejecuta el intento de cierre faltante; el guard
+(`RoadmapItem.php` bloque "(2b) PARAGUAS") lo reenruta a `aprobado_irving` +
+`excluir_pool_automatico=true` (evento `paraguas_abierto` en el log, "le quedan 2 sub-item(s)
+abierto(s)"), sacándolo del pool/reaper hasta que el hook de cierre en cascada
+(`RoadmapItem.php:459-491`) lo complete solo cuando #9991073 y #9991074 cierren los dos. Detalle
+en `docs/bitacora/2026-09-13-item-9991072.md`. **Sin cambio de código de negocio** — el trabajo
+técnico real (las 6 variables/selectores CSS del fix de contraste, especificados letra por letra
+en la description del item, y el cierre en cascada de #9991071) sigue en #9991073/#9991074,
+pendientes de que una terminal los reclame.
