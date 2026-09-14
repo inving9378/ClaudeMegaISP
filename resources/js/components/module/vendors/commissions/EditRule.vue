@@ -1,10 +1,15 @@
 <template>
-    <div class="row">
-        <table-example :zones="dataZones"></table-example>
+    <div class="vnd-wrap">
+        <div class="d-flex align-items-center gap-2 mb-3 mt-3">
+            <i class="bi bi-pencil-square fs-4"></i>
+            <h1 class="h4 fw-bold mb-0">Editar regla de comisión</h1>
+        </div>
+        <div class="row">
+            <table-example :zones="dataZones"></table-example>
 
-        <div class="col-md-12 mt-3">
-            <div class="card h-100 w-75 mx-auto">
-                <div class="card-body">
+            <div class="col-md-12 mt-3">
+                <div class="card h-100 w-75 mx-auto vnd-card">
+                    <div class="card-body">
                     <form @submit.prevent="updatePaymentRule" novalidate>
                         <div class="form-group">
                             <MultipleSelect
@@ -621,6 +626,7 @@
             </div>
         </div>
     </div>
+    </div>
 </template>
 
 <script setup>
@@ -907,4 +913,17 @@ const goBack = () => {
 };
 </script>
 
-<style lang="scss" scoped></style>
+<style lang="scss" scoped>
+/* Restyle con el sistema visual de la Torre de Control, tokens locales por componente, mismo
+   patron que Index.vue (item #9991079) y AddRule/EditRule (item #9991080). */
+.vnd-wrap {
+    --vnd-ink: #111827;
+    --vnd-info: #2563eb;
+    --vnd-info-bg: #eff6ff;
+}
+
+.vnd-card {
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+</style>

@@ -1,8 +1,13 @@
 <template>
-    <div class="row">
-        <h3 class="text-center my-3">Agregar comisión a vendedor {{ type }}</h3>
+    <div class="row vnd-wrap">
+        <div class="d-flex align-items-center gap-2 mb-3 mt-3 justify-content-center">
+            <i class="bi bi-truck fs-4"></i>
+            <h1 class="h4 fw-bold mb-0">
+                Agregar comisión a vendedor {{ type }}
+            </h1>
+        </div>
         <div class="col-md-12 mt-3">
-            <div class="card h-100 mx-auto w-50">
+            <div class="card h-100 mx-auto w-50 vnd-card">
                 <div class="card-body">
                     <form>
                         <div class="form-group">
@@ -64,3 +69,10 @@ import { ref } from "vue";
 
 const type = ref("distribuidor");
 </script>
+
+<style scoped>
+.vnd-card {
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+</style>
