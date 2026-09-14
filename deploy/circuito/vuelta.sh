@@ -269,6 +269,18 @@ ejecutar_una() {
       PROMPT_TEXT="${RESPUESTA_BLOQUE}"$'\n\n'"${PROMPT_TEXT}"
       log "PASO 3: respuesta(s) de Irving inyectada(s) con precedencia en el prompt del item #$ITEM."
     fi
+    # #9991165 (Fase 3) — ADJUNTOS del item: exit 0 = bloque con rutas absolutas (se antepone);
+    # exit 1 = sin adjuntos; exit 2 = FAIL-CLOSED, falta un adjunto en disco → la vuelta NO arranca
+    # (el comando ya marcó el item requiere_irving/adjunto_faltante y avisó). Sin contrato no se
+    # construye a ciegas (#9990934).
+    ADJUNTOS_BLOQUE="$(php artisan circuito:adjuntos-prompt "$ITEM" --sid="$SID" 2>>"$LOG")"; ADJ_RC=$?
+    if [ "$ADJ_RC" -eq 2 ]; then
+      log "Vuelta NO ARRANCA: el item #$ITEM tiene adjuntos registrados que no están en disco (fail-closed, marcado requiere_irving/adjunto_faltante)."
+      return 1
+    elif [ "$ADJ_RC" -eq 0 ] && [ -n "$ADJUNTOS_BLOQUE" ]; then
+      PROMPT_TEXT="${ADJUNTOS_BLOQUE}"$'\n\n'"${PROMPT_TEXT}"
+      log "ADJUNTOS: bloque con las rutas absolutas de los adjuntos del item #$ITEM inyectado al inicio del prompt."
+    fi
   else
     PROMPT_TEXT="$(cat "$PROMPT_FILE")"
   fi
