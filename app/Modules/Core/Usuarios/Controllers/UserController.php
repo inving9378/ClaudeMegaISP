@@ -17,6 +17,7 @@ use App\Models\Sucursal;
 use App\Models\Promotion;
 use App\Services\Security\PasswordService;
 use Illuminate\Support\Facades\DB;
+use App\Models\UserRoleChangeAudit;
 
 
 class UserController extends Controller
@@ -333,6 +334,18 @@ class UserController extends Controller
                         'agregados' => $toAdd,
                         'quitados'  => $toRemove,
                         'timestamp' => now()->toDateTimeString(),
+                    ]);
+
+                    // Item #9991150 — auditoría dedicada (aditiva, no reemplaza el Log::info de arriba).
+                    UserRoleChangeAudit::create([
+                        'actor_user_id'  => Auth::id(),
+                        'actor_login'    => Auth::user()?->login_user,
+                        'target_user_id' => $user->id,
+                        'target_login'   => $user->login_user,
+                        'roles_antes'    => $current,
+                        'roles_despues'  => array_values(array_unique(array_merge(array_diff($current, $toRemove), $toAdd))),
+                        'ip'             => $request->ip(),
+                        'created_at'     => now(),
                     ]);
                 }
             }
