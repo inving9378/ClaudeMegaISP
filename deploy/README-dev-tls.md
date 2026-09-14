@@ -58,3 +58,47 @@ Luego apuntar el fetcher de Cowork a `https://dev.meganett.com.mx/api/roadmap-ex
 
 > Tras exponer HTTPS, aplicar el enmascarado del token en el access log y considerar
 > rotar tokens: ver `docs/circuito-seguridad-tokens.md`.
+
+## Renovación automática + recarga de nginx (item #9991083, 2026-09-14)
+
+**Diagnóstico del 2026-09-14 (escenario E2):** el cert **sí** se renovó — el
+2026-09-11 16:08 certbot (authenticator `webroot`, webroot `/var/www/megaisp/public`)
+emitió `cert2.pem` y apuntó `live/dev.meganett.com.mx/*.pem` a él — pero **nginx nunca
+recargó** (su worker seguía siendo el del 2026-09-01), así que `:443` siguió sirviendo
+`cert1.pem` (Jul 10 → **Oct 8 2026**). El banner de la Torre lee el cert **en vivo**
+(`EnvironmentHealthService::certificado()`, `ssl://127.0.0.1:443` con SNI, caché 30 s) y
+por eso decía "24 días": no mentía, describía lo que nginx servía. `certbot.timer` está
+activo y `certbot renew` corre dos veces al día (exit 0 en 2 s = "cert2 no toca aún").
+
+Lo que faltaba es el **deploy-hook**: certbot no recarga el servidor web solo.
+
+```bash
+# 1) Instalar el hook versionado (corre SOLO tras una renovación exitosa, para cualquier cert)
+sudo install -m 0755 /var/www/megaisp/deploy/letsencrypt/renewal-hooks/deploy/reload-nginx.sh \
+     /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+
+# 2) Recargar nginx AHORA para que tome el cert2.pem que ya está en disco (reload, no restart)
+sudo nginx -t && sudo systemctl reload nginx
+
+# 3) Verificar que :443 ya sirve el cert nuevo (notAfter ≈ 2026-12-10, 90 días desde el 09-11)
+echo | openssl s_client -connect dev.meganett.com.mx:443 -servername dev.meganett.com.mx 2>/dev/null \
+  | openssl x509 -noout -dates -issuer
+
+# 4) Prueba en seco de la renovación (staging de Let's Encrypt, no consume cuota ni modifica nada)
+sudo certbot renew --dry-run
+```
+
+Verificación del banner: `GET /api/roadmap/torre/salud-entorno` → `certificado.expira_at`
+debe coincidir con el `notAfter` del paso 3 (a lo sumo 30 s de caché). Rollback del hook:
+`sudo rm /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh` (no afecta la renovación en
+sí, solo la recarga).
+
+> Alternativa equivalente por cert: `renew_hook = systemctl reload nginx` bajo
+> `[renewalparams]` en `/etc/letsencrypt/renewal/dev.meganett.com.mx.conf` (es lo que
+> escribe `certbot renew --deploy-hook "…"`). Se prefiere el directorio de hooks porque
+> sobrevive a que certbot reescriba el `.conf` y aplica a cualquier cert futuro del box.
+
+> `public/.well-known/acme-challenge/` (webroot del reto HTTP-01, archivos root-owned) es
+> untracked: en el checkout principal bloqueaba `syncCheckoutPrincipal()` del merge-runner
+> (`git status --porcelain` no vacío). Quedó excluido localmente en `.git/info/exclude`; si
+> se quiere permanente, agregarlo a `.gitignore` (ver item de respuesta del #9991083).
