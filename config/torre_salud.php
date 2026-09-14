@@ -19,5 +19,9 @@ return [
         'certificado'  => ['amarillo_dias' => 30, 'rojo_dias' => 10],
         // #884 — mínimo de procesos `artisan queue:work` esperados corriendo (ver deploy/megaisp-queue.conf: 2 workers).
         'queue_workers' => ['minimo_esperado' => (int) env('TORRE_SALUD_QUEUE_WORKERS_MIN', 1)],
+        // #9991088 (Fase 3 de #9991086) — minutos desde el último commit de main a partir de los
+        // cuales un checkout principal sucio deja de ser "posible sync en curso" (amarillo) y pasa
+        // a ser desync real (rojo).
+        'checkout_principal' => ['rojo_minutos' => (int) env('TORRE_SALUD_CHECKOUT_PRINCIPAL_ROJO_MIN', 10)],
     ],
 ];
