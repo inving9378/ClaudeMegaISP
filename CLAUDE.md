@@ -2645,3 +2645,29 @@ exit 0 en 2 s = cert2 no toca). Faltaba el **deploy-hook**: versionado en
 `deploy/letsencrypt/renewal-hooks/deploy/reload-nginx.sh` + runbook en `deploy/README-dev-tls.md`
 (instalar hook, `nginx -t && systemctl reload nginx`, re-probar con `openssl s_client`, `certbot
 renew --dry-run`) — **es nginx, no Apache**. Todo requiere root → item de respuesta **#9991085**.
+
+## Adjuntos del roadmap (#9991162 → #9991163/#9991164/#9991165, 2026-09-14) — maquetas y evidencia amarradas a items
+
+Origen: #9990934 exigía `docs/maquetas/panorama-arbol.html`, nunca existió en el repo, la terminal
+construyó a ciegas y el Árbol salió a medias. Ahora **Panorama → 📎 Adjuntos** (colapsado) sube
+archivos (html, md, txt, csv, png, jpg, jpeg, webp, gif, pdf, xlsx, docx, json, zip; 25 MB; MIME
+real con finfo; dedupe sha256) y los amarra a 1..N items. Bytes en el disco `roadmap_adjuntos`
+(`/var/www/megaisp/storage/app/roadmap/adjuntos/<uuid>.<ext>`, **fuera de public/**, ruta absoluta
+del checkout principal); se sirven solo por `GET /api/roadmap/adjuntos/{id}/descargar` con
+`roadmap.adjuntos.view` (HTML/SVG **siempre** `attachment` + `application/octet-stream`; imagen/PDF
+inline con `?inline=1`). Borrar = lógico + 30 días (`roadmap:adjuntos-purgar` diario).
+
+**Regla para las terminales:** si el prompt empieza con `## ADJUNTOS DE ESTE ITEM (léelos antes de
+empezar)`, esas rutas son el **contrato** del item — leerlas con Read/cat antes de decidir nada.
+El bloque lo antepone `vuelta.sh` vía `circuito:adjuntos-prompt {id}` (no vive en el `prompt` de
+BD). **Fail-closed:** si un adjunto registrado no está en disco, `claimNextParalelo()` no reclama
+el item y `adjuntos-prompt` sale 2 → la vuelta **no arranca**; el item queda `requiere_irving` +
+`motivo_espera=adjunto_faltante` (bandeja "Esperan un insumo") con las rutas en `motivo_bloqueo`.
+Re-subir el mismo archivo revive el registro. La ficha (`/roadmap/item/N`) lista los adjuntos y la
+fila del árbol muestra `📎 N`. Para versionar un adjunto duradero:
+`php artisan roadmap:adjunto-promover {id} --destino=docs/maquetas` (copia + imprime el commit,
+**no** commitea).
+
+⚠️ Gotcha (item #9991170): con `CACHE_DRIVER=file` la caché de permisos Spatie es **por checkout**.
+Tras una migración que crea permisos (corre desde el worktree), el principal responde **403** hasta
+`php artisan permission:cache-reset` en `/var/www/megaisp`; el post-merge del runner no lo hace.
