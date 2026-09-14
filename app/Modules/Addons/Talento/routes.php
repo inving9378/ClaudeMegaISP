@@ -67,6 +67,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/puestos',        [TalentoPuestoController::class, 'index']);
         Route::get('/articulos-vendedor', [TalentoSellerItemsController::class, 'index']);
 
+        // ── Tablero de pendientes cross-colaborador, Fase 3 UI (item #9990832) ────────────
+        Route::get('/documentos-pendientes', fn() => view('addon-talento::talento.documentos_pendientes'));
+
         // ── Documentos del expediente (Hijo D2, fase C) — HTML ya generado, solo lectura ────
         Route::get('/colaboradores/{id}/documentos/{docId}', [TalentoEmployeeDocumentController::class, 'show']);
 
