@@ -2084,6 +2084,11 @@ return [
     'talento.documentos.ver-todos' => [
         '/talento/api/documentos/pendientes',
     ],
+    // Item #9990831 (Fase 2 del tablero de pendientes): acción de enviar recordatorio WhatsApp,
+    // permiso propio distinto del anterior (decisión ya tomada, q2 de Irving).
+    'talento.documentos.recordar' => [
+        '/talento/api/documentos/{docId}/recordar',
+    ],
     'talento.attendance.view' => [
         '/talento/asistencia',
         '/talento/api/asistencia',

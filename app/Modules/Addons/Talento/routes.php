@@ -91,6 +91,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             // ── Tablero de pendientes cross-colaborador (item #9990830, Fase 1) ───────────────
             Route::get('/documentos/pendientes', [TalentoEmployeeDocumentController::class, 'pendientesGlobal']);
 
+            // ── Recordatorio WhatsApp del tablero de pendientes (item #9990831, Fase 2) ───────
+            Route::post('/documentos/{docId}/recordar', [TalentoEmployeeDocumentController::class, 'recordar']);
+
             // ── Firma de documentos del expediente (item #9990618, fase 1: backend) ───────────
             Route::post('/colaboradores/{id}/documentos/{docId}/firma', [TalentoEmployeeDocumentController::class, 'sign'])
                 ->name('talento.documentos.firma');
