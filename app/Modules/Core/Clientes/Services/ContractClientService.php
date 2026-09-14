@@ -43,6 +43,7 @@ class ContractClientService
         ini_set('memory_limit', '-1');
         // Convertir la vista a PDF
         $html = str_replace('\n', '', $validation['html']);
+        $html = $documentTemplateService->wrapHtmlWithBaseStyles($html);
 
         $pdf = Pdf::loadHTML($html);
         $documentTemplateRepository = new DocumentTemplateRepository();
