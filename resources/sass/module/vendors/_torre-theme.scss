@@ -47,7 +47,7 @@
     .tc-card {
         background: var(--tc-surface);
         border: 1px solid var(--tc-line);
-        border-radius: 14px;
+        border-radius: 16px;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
         color: var(--tc-ink);
         overflow: hidden;
@@ -378,7 +378,7 @@
     .datatable_base {
         .q-card {
             border: 1px solid var(--tc-line);
-            border-radius: 14px;
+            border-radius: 16px;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
             background: var(--tc-surface);
         }
@@ -407,7 +407,7 @@
     .q-card {
         background: var(--tc-surface);
         border: 1px solid var(--tc-line);
-        border-radius: 14px;
+        border-radius: 16px;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
         color: var(--tc-ink);
     }
@@ -469,6 +469,165 @@
         &:hover {
             background: rgba(220, 38, 38, 0.14);
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // REVISIÓN PROFUNDA — formularios, selects, botones sólidos y modales
+    // ══════════════════════════════════════════════════════════════════════
+
+    // ── Inputs de formulario (texto, textarea, datetime-local) ──
+    .form-control,
+    textarea.form-control,
+    input[type="datetime-local"].form-control {
+        background: var(--tc-surface);
+        border: 1px solid var(--tc-line);
+        border-radius: 10px;
+        color: var(--tc-ink);
+        transition: border-color 0.15s, box-shadow 0.15s;
+
+        &::placeholder {
+            color: var(--tc-muted);
+        }
+        &:focus {
+            border-color: var(--tc-accent);
+            box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.18);
+            background: var(--tc-surface);
+            color: var(--tc-ink);
+        }
+    }
+    .col-form-label {
+        color: var(--tc-ink);
+    }
+
+    // ── Selects (Choices.js) con look Torre ──
+    .choices__inner {
+        background: var(--tc-surface);
+        border: 1px solid var(--tc-line);
+        border-radius: 10px;
+        color: var(--tc-ink);
+        min-height: 40px;
+        transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .choices.is-focused .choices__inner,
+    .choices.is-open .choices__inner {
+        border-color: var(--tc-accent);
+        box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+    }
+    .choices__item,
+    .choices__list--single .choices__item {
+        color: var(--tc-ink);
+    }
+    .choices__list--dropdown {
+        background: var(--tc-surface);
+        border: 1px solid var(--tc-line);
+        border-radius: 10px;
+        box-shadow: 0 10px 28px -14px rgba(0, 0, 0, 0.35);
+    }
+    .choices__list--dropdown .choices__item--selectable {
+        color: var(--tc-ink);
+        &.is-highlighted {
+            background: var(--tc-bg2);
+            color: var(--tc-accent);
+        }
+    }
+    .choices[data-type*="select-one"]::after {
+        border-color: var(--tc-muted) transparent transparent transparent;
+    }
+    .choices__input {
+        background: transparent;
+        color: var(--tc-ink);
+    }
+
+    // ── Botones sólidos con la paleta del tema (outline → sólido) ──
+    .btn {
+        border-radius: 10px;
+        font-weight: 600;
+        transition: filter 0.15s, background 0.15s, box-shadow 0.15s,
+            transform 0.1s;
+
+        &:active {
+            transform: translateY(1px);
+        }
+    }
+    .btn-primary,
+    .btn-outline-primary,
+    .btn-info,
+    .btn-outline-info,
+    .btn-success {
+        background: var(--tc-accent) !important;
+        border-color: var(--tc-accent) !important;
+        color: #fff !important;
+        &:hover {
+            filter: brightness(1.08);
+            color: #fff !important;
+        }
+    }
+    .btn-secondary,
+    .btn-outline-secondary {
+        background: var(--tc-slate) !important;
+        border-color: var(--tc-slate) !important;
+        color: #fff !important;
+        &:hover {
+            filter: brightness(1.06);
+            color: #fff !important;
+        }
+    }
+    .btn-danger,
+    .btn-outline-danger {
+        background: var(--tc-bad) !important;
+        border-color: var(--tc-bad) !important;
+        color: #fff !important;
+        &:hover {
+            filter: brightness(1.06);
+        }
+    }
+    .btn-warning,
+    .btn-outline-warning {
+        background: var(--tc-warn) !important;
+        border-color: var(--tc-warn) !important;
+        color: #fff !important;
+    }
+    .btn-light {
+        background: var(--tc-bg2) !important;
+        border-color: var(--tc-line) !important;
+        color: var(--tc-ink) !important;
+        &:hover {
+            filter: brightness(0.97);
+        }
+    }
+
+    // ── Transición suave en tarjetas ──
+    .tc-card,
+    .q-card {
+        transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    // ── Modales Bootstrap (inline) con look Torre + transición de entrada ──
+    .modal-content {
+        background: var(--tc-surface);
+        color: var(--tc-ink);
+        border: 1px solid var(--tc-line);
+        border-radius: 18px;
+        box-shadow: 0 24px 70px -24px rgba(0, 0, 0, 0.45);
+        overflow: hidden;
+    }
+    .modal-header,
+    .modal-footer {
+        border-color: var(--tc-line);
+    }
+    .modal-title {
+        color: var(--tc-ink);
+        font-weight: 700;
+    }
+    .modal-body {
+        color: var(--tc-ink);
+    }
+    .modal.fade .modal-dialog {
+        transition: transform 0.25s ease-out, opacity 0.25s ease-out;
+        transform: scale(0.96);
+    }
+    .modal.show .modal-dialog {
+        transform: scale(1);
     }
 
     // ── KPI cards (dashboard / estadísticas) ──

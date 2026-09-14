@@ -288,7 +288,7 @@ class DocumentTemplateService
 
         $html = str_replace('\n', '', $html);
         // Convertir la vista a PDF
-        $pdf = Pdf::loadHTML($html);
+        $pdf = Pdf::loadHTML(\App\Support\ContractPdfTemplate::wrap($html));
         $output = $pdf->output();
         Storage::disk('public')->put($filePath, $output);
         $tempFilePath = 'document_template/document/temp_template/new/new.pdf';
@@ -311,7 +311,7 @@ class DocumentTemplateService
         // Convertir la vista a PDF
         $html = str_replace('\n', '', $validation);
 
-        $pdf = Pdf::loadHTML($html);
+        $pdf = Pdf::loadHTML(\App\Support\ContractPdfTemplate::wrap($html));
         $output = $pdf->output();
         Storage::disk('public')->put($tempFilePath, $output);
         return response()->json([
@@ -327,7 +327,7 @@ class DocumentTemplateService
         // Convertir la vista a PDF
         $html = str_replace('\n', '', $validation);
 
-        $pdf = Pdf::loadHTML($html);
+        $pdf = Pdf::loadHTML(\App\Support\ContractPdfTemplate::wrap($html));
         $output = $pdf->output();
 
         // Devuelve el PDF como respuesta con encabezado para mostrar en otra pestaña

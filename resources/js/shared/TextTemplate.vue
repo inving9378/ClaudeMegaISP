@@ -242,20 +242,28 @@ export default {
             }
         };
 
-        const toogleFullScreen = () => {
+        const toogleFullScreen = (e) => {
             fullScreen.value = !fullScreen.value;
+            // El modal se resuelve DINÁMICAMENTE a partir del propio botón. Antes se
+            // hardcodeaba "#modalDocumentTemplates_toChange", que NO existe en el modal de
+            // CRM (usa "modalDocumentPlantillas_toChange") → por eso el fullscreen no hacía
+            // nada ahí. Buscar el ancestro sirve a cualquier contexto que reuse TextTemplate.
+            const btn = e && e.currentTarget;
+            const dialog = btn && btn.closest(".modal-dialog");
+            const container =
+                btn &&
+                btn
+                    .closest(".modal-content")
+                    ?.querySelector(".container, .container-fluid");
+            if (!dialog) return;
             if (fullScreen.value) {
-                $("#modalDocumentTemplates_toChange").removeClass("modal-xl");
-                $("#modalDocumentTemplates_toChange").addClass(
-                    "modal-fullscreen"
-                );
-                $("#crud_template_manager_container").removeClass("container");
+                dialog.classList.remove("modal-xl");
+                dialog.classList.add("modal-fullscreen");
+                container?.classList.replace("container", "container-fluid");
             } else {
-                $("#modalDocumentTemplates_toChange").addClass("modal-xl");
-                $("#modalDocumentTemplates_toChange").removeClass(
-                    "modal-fullscreen"
-                );
-                $("#crud_template_manager_container").addClass("container");
+                dialog.classList.add("modal-xl");
+                dialog.classList.remove("modal-fullscreen");
+                container?.classList.replace("container-fluid", "container");
             }
         };
 
