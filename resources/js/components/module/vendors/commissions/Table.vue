@@ -1,8 +1,8 @@
 <template>
-    <div class="table-responsive text-nowrap w-75 mx-auto">
+    <div class="table-responsive text-nowrap w-75 mx-auto vnd-card p-3">
         <div class="form-group mt-3 mb-3 w-25">
             <div>
-                <h4>Seleccionar sector</h4>
+                <h4 class="fw-bold">Seleccionar sector</h4>
 
                 <select v-model="selectedZone" class="form-select">
                     <option value="A" @click="selectAZone('A')">Zona A</option>
@@ -94,5 +94,10 @@ function calculateStarts(zone) {
 <style scoped>
 .yellow {
     color: #f1c40f;
+}
+
+.vnd-card {
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 </style>

@@ -1,13 +1,17 @@
 <template>
-    <div>
+    <div class="vnd-wrap">
         <div class="d-flex justify-content-start mb-3">
             <!-- <button class="btn btn-primary" @click="goBack">Regresar</button> -->
             <button class="btn btn-outline-primary" @click="goBack">
                 <i class="fas fa-arrow-left"></i> Regresar
             </button>
         </div>
-        <h3 class="text-center my-3">Lista de vendedores</h3>
+        <div class="d-flex align-items-center gap-2 mb-3 justify-content-center">
+            <i class="bi bi-people fs-4"></i>
+            <h1 class="h4 fw-bold mb-0">Lista de vendedores</h1>
+        </div>
         <div class="q-pa-md">
+            <q-card class="vnd-card">
             <q-table
                 v-table-resizable
                 :rows="sellers"
@@ -58,6 +62,7 @@
                     </q-td>
                 </template>
             </q-table>
+            </q-card>
         </div>
     </div>
 </template>
@@ -202,3 +207,15 @@ const goBack = () => {
     window.history.back();
 };
 </script>
+
+<style scoped>
+/* Restyle con el sistema visual de la Torre de Control, tokens locales por componente. Item #9991080. */
+.vnd-wrap {
+    --vnd-ink: #111827;
+}
+
+.vnd-card {
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+</style>
