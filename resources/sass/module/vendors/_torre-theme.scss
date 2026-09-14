@@ -19,6 +19,8 @@
     --tc-bad: #dc2626;
     --tc-slate: #64748b;
     --tc-accent: #0d9488;
+    --tc-thead: #e4e7eb; // header gris (claro)
+    --tc-zebra: #f5f6f8; // fila alterna (claro)
 
     color: var(--tc-ink);
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
@@ -37,6 +39,8 @@
         --tc-bad: #f87171;
         --tc-slate: #94a3b8;
         --tc-accent: #2dd4bf;
+        --tc-thead: #2b3038; // header gris (oscuro, no negro)
+        --tc-zebra: #222731; // fila alterna (oscuro)
     }
 
     // ── Tarjetas ──
@@ -243,22 +247,32 @@
     }
     .q-table {
         color: var(--tc-ink);
+        box-shadow: 0 5px 14px -12px rgba(0, 0, 0, 0.3);
 
         thead th {
-            color: var(--tc-muted);
+            border: none;
+            padding: 16px 20px;
+            font-size: 12px;
             font-weight: 600;
             text-transform: uppercase;
-            font-size: 11px;
             letter-spacing: 0.03em;
-            border-bottom: 1px solid var(--tc-line);
-            background: var(--tc-bg2);
+            color: var(--tc-muted);
+            background: var(--tc-thead);
         }
         tbody td {
+            border: none;
+            padding: 14px 20px;
+            font-size: 14px;
             color: var(--tc-ink);
-            border-bottom: 1px solid var(--tc-line);
+            background: transparent;
+            vertical-align: middle;
         }
-        tbody tr:hover {
-            background: var(--tc-bg2);
+        // filas intercaladas (zebra) en vez de línea divisoria
+        tbody tr:nth-child(even) td {
+            background: var(--tc-zebra);
+        }
+        tbody tr:hover td {
+            background: var(--tc-line);
         }
     }
 
@@ -266,25 +280,127 @@
     table.table {
         color: var(--tc-ink);
         border-color: var(--tc-line);
+        box-shadow: 0 5px 14px -12px rgba(0, 0, 0, 0.3);
 
         thead th {
-            color: var(--tc-muted);
+            border: none;
+            padding: 16px 20px;
+            font-size: 12px;
             font-weight: 600;
             text-transform: uppercase;
-            font-size: 11px;
             letter-spacing: 0.03em;
-            border-bottom: 1px solid var(--tc-line);
-            background: var(--tc-bg2);
+            color: var(--tc-muted);
+            background: var(--tc-thead);
         }
         tbody td,
         tbody th {
+            border: none;
+            padding: 14px 20px;
             color: var(--tc-ink);
-            border-color: var(--tc-line);
+            background: transparent;
             vertical-align: middle;
         }
-        tbody tr:hover > * {
-            background: var(--tc-bg2);
+        // filas intercaladas (zebra) en vez de línea divisoria
+        tbody tr:nth-child(even) > * {
+            background: var(--tc-zebra);
         }
+        tbody tr:hover > * {
+            background: var(--tc-line);
+        }
+    }
+
+    // ── Status pills estilo colorlib table-05 (punto de color + tinte suave) ──
+    // Reutilizable donde el estado se marque con .tc-status + variante.
+    .tc-status {
+        position: relative;
+        display: inline-block;
+        border-radius: 30px;
+        padding: 4px 12px 4px 26px;
+        font-size: 12px;
+        font-weight: 600;
+
+        &::before {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 11px;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            transform: translateY(-50%);
+        }
+        &.is-ok {
+            background: rgba(22, 163, 74, 0.14);
+            color: var(--tc-ok);
+            &::before {
+                background: var(--tc-ok);
+            }
+        }
+        &.is-warn {
+            background: rgba(217, 119, 6, 0.16);
+            color: var(--tc-warn);
+            &::before {
+                background: var(--tc-warn);
+            }
+        }
+        &.is-bad {
+            background: rgba(220, 38, 38, 0.14);
+            color: var(--tc-bad);
+            &::before {
+                background: var(--tc-bad);
+            }
+        }
+        &.is-info {
+            background: rgba(37, 99, 235, 0.12);
+            color: var(--tc-info);
+            &::before {
+                background: var(--tc-info);
+            }
+        }
+        &.is-slate {
+            background: rgba(100, 116, 139, 0.14);
+            color: var(--tc-slate);
+            &::before {
+                background: var(--tc-slate);
+            }
+        }
+        &.is-accent {
+            background: rgba(13, 148, 136, 0.14);
+            color: var(--tc-accent);
+            &::before {
+                background: var(--tc-accent);
+            }
+        }
+    }
+
+    // ── Datatable compartido (CRM) usado dentro de Vendedores → look "listado /vendedores" ──
+    // Scoped bajo .tc-wrap: NO afecta al CRM (que usa el mismo componente fuera de aquí).
+    .datatable_base {
+        .q-card {
+            border: 1px solid var(--tc-line);
+            border-radius: 14px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+            background: var(--tc-surface);
+        }
+        .text-h6 {
+            font-size: 18px !important;
+            font-weight: 700 !important;
+            color: var(--tc-ink);
+        }
+    }
+    // Barra de filtros del datatable → alineación y espaciado limpios
+    .multiple-filters-datatable {
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+    // Botones Bootstrap dentro del wrap → esquinas suaves estilo Torre
+    .btn {
+        border-radius: 9px;
+    }
+    .btn-success {
+        background: var(--tc-accent);
+        border-color: var(--tc-accent);
+        color: #fff;
     }
 
     // ── Tarjetas Quasar dentro del wrap → superficie Torre ──
@@ -323,6 +439,36 @@
         background: var(--tc-bg2) !important;
         color: var(--tc-muted) !important;
         border-radius: 10px 10px 0 0;
+    }
+
+    // ── Acciones del datatable: editar = warning (ámbar), eliminar = danger (rojo) ──
+    // Se identifican por el icono (editar) y el atributo id-item del enlace (eliminar).
+    td .fa-edit,
+    td .fa-pencil,
+    td .fa-pencil-alt,
+    td .fa-pen,
+    td .fa-pen-to-square {
+        color: var(--tc-warn) !important;
+    }
+    td .fa-trash,
+    td .fa-trash-alt,
+    td .fa-trash-can {
+        color: var(--tc-bad) !important;
+    }
+    // Look de botón redondo SOLO en el enlace de eliminar (id-item es inequívoco;
+    // no se toca el de editar por href para no afectar al enlace del nombre).
+    td a[id-item] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        transition: background 0.15s;
+
+        &:hover {
+            background: rgba(220, 38, 38, 0.14);
+        }
     }
 
     // ── KPI cards (dashboard / estadísticas) ──

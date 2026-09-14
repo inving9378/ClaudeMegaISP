@@ -1,11 +1,11 @@
 <template>
-    <div class="row">
+    <div class="row tc-wrap" :class="{ 'tc-dark': darkMode }">
         <q-tabs
             v-model="currentTab"
             dense
             no-caps
-            active-color="indigo-6"
             align="justify"
+            :dark="darkMode"
             v-if="tabs"
             @update:model-value="onChangeTab"
         >
@@ -24,7 +24,7 @@
                 }"
             />
         </q-tabs>
-        <q-tab-panels v-model="currentTab" animated>
+        <q-tab-panels v-model="currentTab" animated :dark="darkMode">
             <q-tab-panel name="information">
                 <InformationCrmCrud :action="`update/${id}`" :id="id" />
             </q-tab-panel>
@@ -42,6 +42,7 @@ import DocumentCrmCrud from "./document/DocumentCrmCrud";
 import { onBeforeMount, onMounted, ref, onUnmounted, getCurrentInstance } from "vue";
 import { editModal, showEditModal } from "../../../hook/modalHook";
 import { useTabs } from "../../../composables/useTabs";
+import { darkMode } from "../../../hook/appConfig";
 
 const ns = `.leak983-crmCrud-${getCurrentInstance().uid}`;
 onUnmounted(() => {
