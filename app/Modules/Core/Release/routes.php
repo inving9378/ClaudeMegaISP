@@ -19,6 +19,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('releases')
     Route::get('/', [ReleaseController::class, 'index']);
     // Siguiente versión sugerida (antes de /{version}, que es catch-all)
     Route::get('/next-version', [ReleaseController::class, 'nextVersion']);
+    // Item #9990671 (F1): estado de publicación por versión (antes de /{version})
+    Route::get('/publicacion-estado', [ReleaseController::class, 'publicacionEstado']);
     // Historial de deploys — DEBE ir antes de /{version} (catch-all) o queda sombreada -> 404
     Route::get('/deployments',                    [DeploymentController::class, 'index']);
     Route::get('/{version}', [ReleaseController::class, 'show']);

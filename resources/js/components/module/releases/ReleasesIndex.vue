@@ -47,6 +47,22 @@
             </small>
         </div>
 
+        <!-- Item #9990671 (F1) — banner rojo con el conteo de versiones no publicadas en
+             GitHub. Si GitHub no respondió, aviso amarillo aparte (nunca se pinta en verde
+             sin poder verificarlo). -->
+        <div v-if="publicacionAviso && publicacionAviso.ok && publicacionAviso.no_publicadas > 0"
+             class="alert alert-danger mb-3 py-2 px-3">
+            <i class="bi bi-cloud-slash me-1"></i>
+            <b>{{ publicacionAviso.no_publicadas }} versión(es) no publicada(s) en GitHub.</b>
+            <a href="#" class="alert-link" @click.prevent="tab = 'historial'">Ver lista</a>
+        </div>
+        <div v-else-if="publicacionAviso && !publicacionAviso.ok"
+             class="alert alert-warning mb-3 py-2 px-3">
+            <i class="bi bi-cloud-slash me-1"></i>
+            No se pudo verificar el estado de publicación en GitHub ({{ publicacionAviso.error }}).
+            Estado de todas las versiones: desconocido.
+        </div>
+
         <!-- ── Sub-secciones de la Torre ── -->
         <ul class="nav nav-tabs mb-4">
             <li class="nav-item">
@@ -218,6 +234,17 @@
                             <template v-if="release.reversibilidad.estado === 'con_perdida' && release.reversibilidad.peor">
                                 ({{ release.reversibilidad.peor.filas_nuevas }} filas)
                             </template>
+                        </span>
+                        <!-- Item #9990671 (F1) — estado real de publicación en GitHub por
+                             versión (verde=publicada, rojo=no publicada, gris=desconocido). -->
+                        <span
+                            v-if="publicacionEstadoDe(release.version)"
+                            class="badge ms-1"
+                            :class="publicacionClase(publicacionEstadoDe(release.version))"
+                            :title="publicacionTooltip(publicacionEstadoDe(release.version))"
+                        >
+                            <i class="bi me-1" :class="publicacionIcono(publicacionEstadoDe(release.version))"></i>
+                            {{ publicacionTexto(publicacionEstadoDe(release.version)) }}
                         </span>
                     </div>
                     <div
@@ -405,6 +432,22 @@ export default {
             }
         }
 
+        // Item #9990671 (F1) — estado de publicación por versión, consultando GitHub por API
+        // HTTPS (NUNCA SSH), cacheado 5 min en backend. `publicacionAviso.ok=false` significa
+        // que GitHub no respondió: todas las versiones quedan 'desconocido' (nunca 'publicada').
+        const publicacionAviso = ref(null);
+        const publicacionEstados = ref({});
+        async function cargarPublicacionEstado() {
+            try {
+                const { data } = await axios.get("/releases/publicacion-estado");
+                publicacionAviso.value = data;
+                publicacionEstados.value = data.estados || {};
+            } catch (e) {
+                publicacionAviso.value = null; // best-effort: si falla la llamada, sin badges ni banner
+                publicacionEstados.value = {};
+            }
+        }
+
         const handleScroll = async () => {
             const scrollBottom =
                 window.innerHeight + window.scrollY >=
@@ -560,6 +603,7 @@ export default {
             window.addEventListener("scroll", handleScroll);
             hasPermission.data = new Permission(await allViewHasPermission());
             cargarSaludEntornoAvisos();
+            cargarPublicacionEstado();
         });
 
         onBeforeUnmount(() =>
@@ -623,6 +667,25 @@ export default {
             return "Esta versión no tiene snapshot de filas para medir su ventana de reversibilidad (previa al mecanismo, o aún sin desplegar).";
         };
 
+        // Item #9990671 (F1) — badge de estado de publicación por versión.
+        const PUBLICACION_UI = {
+            publicada: { clase: "bg-success", icono: "bi-cloud-check", texto: "Publicada en GitHub" },
+            no_publicada: { clase: "bg-danger", icono: "bi-cloud-slash", texto: "No publicada en GitHub" },
+            desconocido: { clase: "bg-secondary", icono: "bi-question-circle", texto: "Publicación: desconocida" },
+        };
+        const publicacionEstadoDe = (version) => publicacionEstados.value[version] || null;
+        const publicacionClase = (estado) =>
+            (PUBLICACION_UI[estado] || PUBLICACION_UI.desconocido).clase;
+        const publicacionIcono = (estado) =>
+            (PUBLICACION_UI[estado] || PUBLICACION_UI.desconocido).icono;
+        const publicacionTexto = (estado) =>
+            (PUBLICACION_UI[estado] || PUBLICACION_UI.desconocido).texto;
+        const publicacionTooltip = (estado) => {
+            if (estado === "publicada") return "Existe un GitHub Release con este tag.";
+            if (estado === "no_publicada") return "No existe GitHub Release para este tag (o el tag no llegó a GitHub).";
+            return "No se pudo consultar GitHub para verificar esta versión.";
+        };
+
         return {
             tab,
             errorTab,
@@ -647,6 +710,12 @@ export default {
             hasPermission,
             certAviso,
             checkoutAviso,
+            publicacionAviso,
+            publicacionEstadoDe,
+            publicacionClase,
+            publicacionIcono,
+            publicacionTexto,
+            publicacionTooltip,
             reversibilidadClase,
             reversibilidadIcono,
             reversibilidadTexto,
