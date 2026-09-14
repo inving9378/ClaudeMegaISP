@@ -604,6 +604,9 @@ class MergeRunner
      * → build de producción. NUNCA config:cache (rompe env() en runtime en este box → IA/WhatsApp
      * NULL). Best-effort: un fallo de build NO revierte el merge (el código ya está en main) ni
      * tumba el scheduler; queda en su propio log.
+     * #9991170 — también corre `permission:cache-reset`: con CACHE_DRIVER=file la caché de permisos
+     * de Spatie es por checkout, así que una migración de permisos aplicada desde el worktree del
+     * item dejaba al checkout principal (nginx) sirviendo la lista vieja hasta un reset manual.
      */
     protected function triggerRebuildAsync(): void
     {
@@ -612,7 +615,8 @@ class MergeRunner
             $log    = storage_path('logs/rebuild-post-merge.log');
             $interno = 'CIRCUITO_BUILD_MODE=prod bash ' . escapeshellarg($script)
                 . '; RC=$?'
-                . '; php artisan view:clear; php artisan route:clear; php artisan config:clear; php artisan view:cache'
+                . '; php artisan view:clear; php artisan route:clear; php artisan config:clear'
+                . '; php artisan permission:cache-reset; php artisan view:cache'
                 . '; exit $RC';
             $cmd = 'exec 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- 2>/dev/null; setsid nohup flock '
                 . escapeshellarg(self::BUILD_LOCK) . ' -c ' . escapeshellarg($interno)
