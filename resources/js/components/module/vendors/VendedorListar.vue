@@ -1,12 +1,16 @@
 <template>
-    <div class="q-pa-md">
+    <div class="q-pa-md vnd-wrap">
         <Breadcrumb :list="breadcrumbList" />
-        <q-card>
+        <div class="d-flex align-items-center gap-2 mb-3">
+            <i class="bi bi-people-fill fs-4"></i>
+            <h1 class="h4 fw-bold mb-0">Vendedores</h1>
+        </div>
+        <q-card class="vnd-card">
             <q-card-section
                 class="d-flex"
                 style="justify-content: space-between"
             >
-                <div class="text-h6">Listado de vendedores</div>
+                <div class="vnd-title">Listado de vendedores</div>
 
                 <a
                     href="/administracion/user/crear?role=vendedor"
@@ -325,63 +329,83 @@ const visibleColumns = computed(() =>
 </script>
 
 <style scoped>
+/* Restyle con el sistema visual de la Torre de Control (resources/js/components/module/releases/
+   torre-control): tokens locales por componente, tarjeta flat con borde sutil y badges tipo
+   "pill". Réplica local (no se tocan los archivos de la Torre ni el override global !important
+   de resources/sass/base/dark_mode/dark_mode.scss que ya gobierna el modo oscuro de estos badges
+   y de q-card en toda la app — aquí solo se ajusta forma y tipografía, que ese override no toca).
+   Item roadmap #9991075. */
+.vnd-wrap {
+    --vnd-ink: #111827;
+    --vnd-muted: #6b7280;
+    --vnd-line: #e5e7eb;
+    --vnd-ok: #16a34a;
+    --vnd-ok-bg: #ecfdf5;
+    --vnd-info: #2563eb;
+    --vnd-info-bg: #eff6ff;
+    --vnd-warn: #d97706;
+    --vnd-warn-bg: #fffbeb;
+    --vnd-bad: #dc2626;
+    --vnd-bad-bg: #fef2f2;
+    --vnd-accent: #0d9488;
+    --vnd-accent-bg: #f0fdfa;
+    --vnd-slate: #64748b;
+    --vnd-slate-bg: #f1f5f9;
+}
+
+.vnd-title {
+    font-size: 1.275rem;
+    font-weight: 700;
+    color: var(--vnd-ink);
+    margin: 0;
+}
+
+.vnd-card {
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.badge-Interno,
+.badge-Externo,
+.badge-Distribuidor,
+.badge-Activo,
+.badge-Inactivo,
+.badge-Bloqueado {
+    display: inline-flex;
+    align-items: center;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 999px;
+}
+
 .badge-Interno {
-    background-color: #d7f5fc;
-    border-color: #b3edf9;
-    color: #03c3ec;
-    padding: 0 15px;
-    padding-top: 5px;
-    padding-bottom: 5px;
-    border-radius: 5px;
+    background-color: var(--vnd-info-bg);
+    color: var(--vnd-info);
 }
 
 .badge-Externo {
-    background-color: #e7e7ff;
-    border-color: #d2d3ff;
-    color: #696cff;
-    padding: 0 15px;
-    padding-top: 5px;
-    padding-bottom: 5px;
-    border-radius: 5px;
+    background-color: var(--vnd-accent-bg);
+    color: var(--vnd-accent);
 }
 
 .badge-Distribuidor {
-    background-color: #dcdfe1;
-    border-color: #bdc2c8;
-    color: #233446;
-    padding: 0 15px;
-    padding-top: 5px;
-    padding-bottom: 5px;
-    border-radius: 5px;
+    background-color: var(--vnd-slate-bg);
+    color: var(--vnd-slate);
 }
 
 .badge-Activo {
-    background-color: #dff7d3;
-    border-color: #d4f5c3;
-    color: #71dd37;
-    padding: 0 15px;
-    padding-top: 5px;
-    padding-bottom: 5px;
-    border-radius: 5px;
+    background-color: var(--vnd-ok-bg);
+    color: var(--vnd-ok);
 }
 
 .badge-Inactivo {
-    background-color: #fff2d6;
-    border-color: #ffe6b3;
-    color: #ffab00;
-    padding: 0 15px;
-    padding-top: 5px;
-    padding-bottom: 5px;
-    border-radius: 5px;
+    background-color: var(--vnd-warn-bg);
+    color: var(--vnd-warn);
 }
 
 .badge-Bloqueado {
-    background-color: #ffe0db;
-    border-color: #ffc5bb;
-    color: #ff3e1d;
-    padding: 0 15px;
-    padding-top: 5px;
-    padding-bottom: 5px;
-    border-radius: 5px;
+    background-color: var(--vnd-bad-bg);
+    color: var(--vnd-bad);
 }
 </style>
