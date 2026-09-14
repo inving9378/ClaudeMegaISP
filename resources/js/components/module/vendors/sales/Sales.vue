@@ -1,7 +1,10 @@
 <template>
-    <q-card>
-        <q-card-section class="d-flex" style="justify-content: space-between">
-            <div class="text-h6">Listado de ventas</div>
+    <q-card flat class="tc-card">
+        <q-card-section
+            class="d-flex tc-cardhead"
+            style="justify-content: space-between; align-items: center"
+        >
+            <div class="tc-h1">Listado de ventas</div>
         </q-card-section>
         <q-banner
             v-if="loadError"
@@ -109,14 +112,16 @@
                     </div>
                 </div>
             </template>
+            <template v-slot:body-cell-estado="props">
+                <q-td :props="props">
+                    <span
+                        class="tc-status"
+                        :class="estadoBadge(props.row.estado)"
+                        >{{ props.row.estado }}</span
+                    >
+                </q-td>
+            </template>
         </q-table>
-
-        <div class="row q-pt-md no-gutter-x" v-if="rows && rows.length > 0">
-            <div class="col q-pa-sm text-center client-active">Activo</div>
-            <div class="col q-pa-sm text-center client-block">Bloqueado</div>
-            <div class="col q-pa-sm text-center client-cancel">Cancelado</div>
-            <div class="col q-pa-sm text-center client-inactive">Inactivo</div>
-        </div>
     </q-card>
 
     <!-- Modal -->
@@ -168,6 +173,15 @@ import moment from "moment/moment.js";
 const props = defineProps({
     id: Number,
 });
+
+// Pill de estado del cliente en Ventas (mismo look que Prospectos).
+const estadoBadge = (v) =>
+    ({
+        Activo: "is-ok",
+        Inactivo: "is-warn",
+        Bloqueado: "is-bad",
+        Cancelado: "is-slate",
+    }[(v || "").trim()] || "is-slate");
 
 const { customFormat } = useDatePicker();
 const { getColumns, saveColumns } = useDataTable();

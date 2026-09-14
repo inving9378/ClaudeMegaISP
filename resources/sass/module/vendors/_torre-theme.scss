@@ -249,6 +249,9 @@
         color: var(--tc-ink);
         box-shadow: 0 5px 14px -12px rgba(0, 0, 0, 0.3);
 
+        // !important para ganarle a los fondos que Quasar aplica con :dark en la q-table,
+        // así TODAS las tablas quedan igual (header gris, celdas transparentes, zebra) en
+        // claro y oscuro — sin que Quasar pinte su propio navy encima.
         thead th {
             border: none;
             padding: 16px 20px;
@@ -256,23 +259,23 @@
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.03em;
-            color: var(--tc-muted);
-            background: var(--tc-thead);
+            color: var(--tc-muted) !important;
+            background: var(--tc-thead) !important;
         }
         tbody td {
             border: none;
             padding: 14px 20px;
             font-size: 14px;
-            color: var(--tc-ink);
-            background: transparent;
+            color: var(--tc-ink) !important;
+            background: transparent !important;
             vertical-align: middle;
         }
         // filas intercaladas (zebra) en vez de línea divisoria
         tbody tr:nth-child(even) td {
-            background: var(--tc-zebra);
+            background: var(--tc-zebra) !important;
         }
         tbody tr:hover td {
-            background: var(--tc-line);
+            background: var(--tc-line) !important;
         }
     }
 
