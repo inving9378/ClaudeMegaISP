@@ -1,22 +1,18 @@
 <template>
-    <div class="q-pa-md vnd-wrap">
+    <div class="tc-wrap" :class="{ 'tc-dark': darkMode }">
         <Breadcrumb :list="breadcrumbList" />
-        <div class="d-flex align-items-center gap-2 mb-3">
-            <i class="bi bi-people-fill fs-4"></i>
-            <h1 class="h4 fw-bold mb-0">Vendedores</h1>
-        </div>
-        <q-card class="vnd-card">
+        <q-card flat class="tc-card">
             <q-card-section
-                class="d-flex"
-                style="justify-content: space-between"
+                class="d-flex tc-cardhead"
+                style="justify-content: space-between; align-items: center"
             >
-                <div class="vnd-title">Listado de vendedores</div>
+                <div class="tc-h1">Listado de vendedores</div>
 
                 <a
                     href="/administracion/user/crear?role=vendedor"
-                    class="btn btn-success waves-effect waves-light ms-auto"
+                    class="tc-btn tc-btn-ok ms-auto"
                 >
-                    Agregar Vendedor
+                    <i class="bi bi-plus-lg me-1"></i> Agregar Vendedor
                 </a>
             </q-card-section>
             <q-table
@@ -36,10 +32,11 @@
                     <div class="d-flex justify-content-end">
                         <button
                             type="button"
-                            class="btn btn-outline-info"
+                            class="tc-btn tc-btn-seg"
                             @click="showModal = true"
+                            title="Mostrar/ocultar columnas"
                         >
-                            ...
+                            <i class="bi bi-layout-three-columns"></i>
                         </button>
                         <q-btn
                             flat
@@ -130,7 +127,7 @@
                 </div>
             </template>
             <template #footer>
-                <button class="btn btn-primary" @click="saveColumnsTable">
+                <button class="tc-btn tc-btn-ok" @click="saveColumnsTable">
                     Guardar
                 </button>
             </template>
@@ -329,83 +326,150 @@ const visibleColumns = computed(() =>
 </script>
 
 <style scoped>
-/* Restyle con el sistema visual de la Torre de Control (resources/js/components/module/releases/
-   torre-control): tokens locales por componente, tarjeta flat con borde sutil y badges tipo
-   "pill". Réplica local (no se tocan los archivos de la Torre ni el override global !important
-   de resources/sass/base/dark_mode/dark_mode.scss que ya gobierna el modo oscuro de estos badges
-   y de q-card en toda la app — aquí solo se ajusta forma y tipografía, que ese override no toca).
-   Item roadmap #9991075. */
-.vnd-wrap {
-    --vnd-ink: #111827;
-    --vnd-muted: #6b7280;
-    --vnd-line: #e5e7eb;
-    --vnd-ok: #16a34a;
-    --vnd-ok-bg: #ecfdf5;
-    --vnd-info: #2563eb;
-    --vnd-info-bg: #eff6ff;
-    --vnd-warn: #d97706;
-    --vnd-warn-bg: #fffbeb;
-    --vnd-bad: #dc2626;
-    --vnd-bad-bg: #fef2f2;
-    --vnd-accent: #0d9488;
-    --vnd-accent-bg: #f0fdfa;
-    --vnd-slate: #64748b;
-    --vnd-slate-bg: #f1f5f9;
+/* ── Sistema visual de la Torre (mismos tokens --tc-* que TorreControl) ── */
+.tc-wrap {
+    --tc-surface: #ffffff;
+    --tc-ink: #111827;
+    --tc-muted: #6b7280;
+    --tc-line: #e5e7eb;
+    --tc-bg2: #f8fafc;
+    --tc-ok: #16a34a;
+    --tc-info: #2563eb;
+    --tc-warn: #d97706;
+    --tc-bad: #dc2626;
+    --tc-slate: #64748b;
+    --tc-accent: #0d9488;
+    max-width: 1160px;
+    margin: 0 auto;
+    color: var(--tc-ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
+        Arial, sans-serif;
+}
+.tc-wrap.tc-dark {
+    --tc-surface: #151d2e;
+    --tc-ink: #e8edf6;
+    --tc-muted: #9aa7bd;
+    --tc-line: #2a3550;
+    --tc-bg2: #1b2436;
+    --tc-ok: #22c55e;
+    --tc-info: #60a5fa;
+    --tc-warn: #f59e0b;
+    --tc-bad: #f87171;
+    --tc-slate: #94a3b8;
+    --tc-accent: #2dd4bf;
 }
 
-.vnd-title {
-    font-size: 1.275rem;
+/* Tarjeta contenedora */
+.tc-card {
+    background: var(--tc-surface);
+    border: 1px solid var(--tc-line);
+    border-radius: 14px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    color: var(--tc-ink);
+    overflow: hidden;
+}
+.tc-cardhead {
+    border-bottom: 1px solid var(--tc-line);
+}
+.tc-h1 {
+    font-size: 18px;
     font-weight: 700;
-    color: var(--vnd-ink);
+    color: var(--tc-ink);
     margin: 0;
 }
 
-.vnd-card {
-    border-radius: 14px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+/* Botones estilo Torre */
+.tc-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid var(--tc-line);
+    background: var(--tc-surface);
+    color: var(--tc-ink);
+    cursor: pointer;
+    text-decoration: none;
+    transition: filter 0.15s, background 0.15s;
+}
+.tc-btn:hover {
+    filter: brightness(0.97);
+}
+.tc-btn-ok {
+    background: var(--tc-accent);
+    border-color: var(--tc-accent);
+    color: #fff;
+}
+.tc-btn-ok:hover {
+    filter: brightness(1.08);
+    color: #fff;
+}
+.tc-btn-seg {
+    color: var(--tc-info);
+    border-color: var(--tc-info);
+    background: transparent;
 }
 
+/* Que la q-table se funda con la tarjeta (surface/tokens de la Torre) */
+.tc-card :deep(.q-table__container),
+.tc-card :deep(.q-table__top),
+.tc-card :deep(.q-table__bottom) {
+    background: transparent;
+    color: var(--tc-ink);
+}
+.tc-card :deep(.q-table thead th) {
+    color: var(--tc-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.03em;
+}
+
+/* Badges de tipo/estado con la paleta semántica de la Torre */
 .badge-Interno,
 .badge-Externo,
 .badge-Distribuidor,
 .badge-Activo,
 .badge-Inactivo,
 .badge-Bloqueado {
-    display: inline-flex;
-    align-items: center;
-    font-size: 12.5px;
-    font-weight: 600;
-    padding: 4px 12px;
+    display: inline-block;
+    padding: 2px 12px;
     border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.6;
+    border: 1px solid;
 }
-
 .badge-Interno {
-    background-color: var(--vnd-info-bg);
-    color: var(--vnd-info);
+    color: var(--tc-info);
+    border-color: var(--tc-info);
+    background: rgba(37, 99, 235, 0.1);
 }
-
 .badge-Externo {
-    background-color: var(--vnd-accent-bg);
-    color: var(--vnd-accent);
+    color: var(--tc-accent);
+    border-color: var(--tc-accent);
+    background: rgba(13, 148, 136, 0.1);
 }
-
 .badge-Distribuidor {
-    background-color: var(--vnd-slate-bg);
-    color: var(--vnd-slate);
+    color: var(--tc-slate);
+    border-color: var(--tc-slate);
+    background: rgba(100, 116, 139, 0.12);
 }
-
 .badge-Activo {
-    background-color: var(--vnd-ok-bg);
-    color: var(--vnd-ok);
+    color: var(--tc-ok);
+    border-color: var(--tc-ok);
+    background: rgba(22, 163, 74, 0.1);
 }
-
 .badge-Inactivo {
-    background-color: var(--vnd-warn-bg);
-    color: var(--vnd-warn);
+    color: var(--tc-warn);
+    border-color: var(--tc-warn);
+    background: rgba(217, 119, 6, 0.12);
 }
-
 .badge-Bloqueado {
-    background-color: var(--vnd-bad-bg);
-    color: var(--vnd-bad);
+    color: var(--tc-bad);
+    border-color: var(--tc-bad);
+    background: rgba(220, 38, 38, 0.1);
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-    <div>
+    <div class="tc-wrap" :class="{ 'tc-dark': darkMode }">
         <div class="row mt-4">
             <!-- CARD 1 -->
             <tarjet-card
@@ -77,6 +77,7 @@
 
 <script setup>
 import { ref, onMounted } from "vue";
+import { darkMode } from "../../../hook/appConfig";
 import MediumSale from "./statistics/MediumSale.vue";
 import StatusProspects from "./statistics/StatusProspects.vue";
 import SalesByMonth from "./statistics/SalesByMonth.vue";

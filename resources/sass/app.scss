@@ -21,6 +21,7 @@
 @use "module/administration/administration";
 @use "module/administration/documentation/markdown";
 @use "module/sellers/sellers";
+@use "module/vendors/torre-theme";
 @use "module/scheduling/task";
 @use "module/finance/invoice/status";
 @use "./task_table_grid";

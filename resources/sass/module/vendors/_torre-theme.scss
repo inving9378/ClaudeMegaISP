@@ -1,0 +1,346 @@
+// ============================================================================
+// Tema visual "Torre de Control" para la sección Vendedores.
+// Todo va ANIDADO bajo `.tc-wrap` → solo afecta a lo que se envuelva con esa
+// clase; cero riesgo para el resto de la app. Los tokens --tc-* son los mismos
+// de TorreControl.vue. El modo oscuro se activa con `.tc-wrap.tc-dark`
+// (el componente hace :class="{ 'tc-dark': darkMode }").
+// ============================================================================
+
+.tc-wrap {
+    // ── Tokens (claro) ──
+    --tc-surface: #ffffff;
+    --tc-ink: #111827;
+    --tc-muted: #6b7280;
+    --tc-line: #e5e7eb;
+    --tc-bg2: #f8fafc;
+    --tc-ok: #16a34a;
+    --tc-info: #2563eb;
+    --tc-warn: #d97706;
+    --tc-bad: #dc2626;
+    --tc-slate: #64748b;
+    --tc-accent: #0d9488;
+
+    color: var(--tc-ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
+        Arial, sans-serif;
+
+    // ── Tokens (oscuro) ──
+    &.tc-dark {
+        --tc-surface: #151d2e;
+        --tc-ink: #e8edf6;
+        --tc-muted: #9aa7bd;
+        --tc-line: #2a3550;
+        --tc-bg2: #1b2436;
+        --tc-ok: #22c55e;
+        --tc-info: #60a5fa;
+        --tc-warn: #f59e0b;
+        --tc-bad: #f87171;
+        --tc-slate: #94a3b8;
+        --tc-accent: #2dd4bf;
+    }
+
+    // ── Tarjetas ──
+    .tc-card {
+        background: var(--tc-surface);
+        border: 1px solid var(--tc-line);
+        border-radius: 14px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+        color: var(--tc-ink);
+        overflow: hidden;
+        margin-bottom: 16px;
+    }
+    .tc-cardhead {
+        border-bottom: 1px solid var(--tc-line);
+    }
+
+    // ── Tipografía ──
+    .tc-h1 {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--tc-ink);
+        margin: 0;
+    }
+    .tc-h2 {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--tc-muted);
+        margin: 0 0 8px;
+    }
+    .tc-muted-txt {
+        color: var(--tc-muted);
+        font-size: 12px;
+    }
+
+    // ── Botones ──
+    .tc-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 12px;
+        border-radius: 9px;
+        font-size: 13px;
+        font-weight: 600;
+        border: 1px solid var(--tc-line);
+        background: var(--tc-surface);
+        color: var(--tc-ink);
+        cursor: pointer;
+        text-decoration: none;
+        transition: filter 0.15s, background 0.15s;
+
+        &:hover {
+            filter: brightness(0.97);
+        }
+        &:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+    }
+    .tc-btn-ok {
+        background: var(--tc-accent);
+        border-color: var(--tc-accent);
+        color: #fff;
+        &:hover {
+            filter: brightness(1.08);
+            color: #fff;
+        }
+    }
+    .tc-btn-seg {
+        color: var(--tc-info);
+        border-color: var(--tc-info);
+        background: transparent;
+    }
+    .tc-btn-warn {
+        color: var(--tc-warn);
+        border-color: var(--tc-warn);
+        background: transparent;
+    }
+    .tc-btn-bad {
+        color: var(--tc-bad);
+        border-color: var(--tc-bad);
+        background: transparent;
+    }
+
+    // ── Pestañas estilo Torre (nav-tabs + subpestañas) ──
+    .tc-tabs {
+        border-bottom: 1px solid var(--tc-line);
+        gap: 2px;
+        flex-wrap: wrap;
+
+        .nav-link {
+            color: var(--tc-muted);
+            border: 1px solid transparent;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            padding: 8px 14px;
+            font-weight: 600;
+            font-size: 13px;
+            background: transparent;
+            cursor: pointer;
+
+            &:hover {
+                color: var(--tc-ink);
+                background: var(--tc-bg2);
+            }
+            &.active {
+                color: var(--tc-accent);
+                background: var(--tc-surface);
+                border-color: var(--tc-line);
+                border-bottom-color: var(--tc-surface);
+                margin-bottom: -1px;
+            }
+        }
+    }
+    .tc-panel {
+        padding-top: 14px;
+    }
+
+    // ── Barra de identidad del vendedor ──
+    .tc-sellerbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        background: var(--tc-bg2);
+        border: 1px solid var(--tc-line);
+        color: var(--tc-ink);
+
+        &--warn {
+            background: rgba(217, 119, 6, 0.1);
+            border-color: var(--tc-warn);
+        }
+    }
+
+    // ── Badges / pills semánticos ──
+    .tc-badge-warn {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--tc-warn);
+        border: 1px solid var(--tc-warn);
+        background: rgba(217, 119, 6, 0.12);
+    }
+    .badge-Interno,
+    .badge-Externo,
+    .badge-Distribuidor,
+    .badge-Activo,
+    .badge-Inactivo,
+    .badge-Bloqueado {
+        display: inline-block;
+        padding: 2px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 1.6;
+        border: 1px solid;
+    }
+    .badge-Interno {
+        color: var(--tc-info);
+        border-color: var(--tc-info);
+        background: rgba(37, 99, 235, 0.1);
+    }
+    .badge-Externo {
+        color: var(--tc-accent);
+        border-color: var(--tc-accent);
+        background: rgba(13, 148, 136, 0.1);
+    }
+    .badge-Distribuidor {
+        color: var(--tc-slate);
+        border-color: var(--tc-slate);
+        background: rgba(100, 116, 139, 0.12);
+    }
+    .badge-Activo {
+        color: var(--tc-ok);
+        border-color: var(--tc-ok);
+        background: rgba(22, 163, 74, 0.1);
+    }
+    .badge-Inactivo {
+        color: var(--tc-warn);
+        border-color: var(--tc-warn);
+        background: rgba(217, 119, 6, 0.12);
+    }
+    .badge-Bloqueado {
+        color: var(--tc-bad);
+        border-color: var(--tc-bad);
+        background: rgba(220, 38, 38, 0.1);
+    }
+
+    // ── LISTADOS: Quasar q-table con look de Torre ──
+    .q-table__card,
+    .q-table__container,
+    .q-table__top,
+    .q-table__bottom,
+    .q-table__middle {
+        background: transparent !important;
+        color: var(--tc-ink);
+        box-shadow: none;
+    }
+    .q-table {
+        color: var(--tc-ink);
+
+        thead th {
+            color: var(--tc-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.03em;
+            border-bottom: 1px solid var(--tc-line);
+            background: var(--tc-bg2);
+        }
+        tbody td {
+            color: var(--tc-ink);
+            border-bottom: 1px solid var(--tc-line);
+        }
+        tbody tr:hover {
+            background: var(--tc-bg2);
+        }
+    }
+
+    // ── LISTADOS: tablas Bootstrap con look de Torre ──
+    table.table {
+        color: var(--tc-ink);
+        border-color: var(--tc-line);
+
+        thead th {
+            color: var(--tc-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.03em;
+            border-bottom: 1px solid var(--tc-line);
+            background: var(--tc-bg2);
+        }
+        tbody td,
+        tbody th {
+            color: var(--tc-ink);
+            border-color: var(--tc-line);
+            vertical-align: middle;
+        }
+        tbody tr:hover > * {
+            background: var(--tc-bg2);
+        }
+    }
+
+    // ── Tarjetas Quasar dentro del wrap → superficie Torre ──
+    .q-card {
+        background: var(--tc-surface);
+        border: 1px solid var(--tc-line);
+        border-radius: 14px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+        color: var(--tc-ink);
+    }
+    // Título por defecto de Quasar (text-h6) → tipografía Torre
+    .text-h6 {
+        font-size: 18px !important;
+        font-weight: 700 !important;
+        color: var(--tc-ink);
+    }
+
+    // ── Subpestañas Quasar (Facturación / Cortes) con acento Torre ──
+    .q-tabs {
+        color: var(--tc-muted);
+    }
+    .q-tab {
+        text-transform: none;
+        font-weight: 600;
+        font-size: 13px;
+        color: var(--tc-muted);
+    }
+    .q-tab--active {
+        color: var(--tc-accent);
+    }
+    .q-tab__indicator {
+        background: var(--tc-accent);
+    }
+    // neutralizar el fondo gris que Quasar pinta en claro (bg-grey-3)
+    .q-tabs.bg-grey-3 {
+        background: var(--tc-bg2) !important;
+        color: var(--tc-muted) !important;
+        border-radius: 10px 10px 0 0;
+    }
+
+    // ── KPI cards (dashboard / estadísticas) ──
+    .tc-kpi {
+        background: var(--tc-surface);
+        border: 1px solid var(--tc-line);
+        border-radius: 12px;
+        padding: 14px 16px;
+        color: var(--tc-ink);
+    }
+    .tc-n {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--tc-ink);
+        line-height: 1.1;
+    }
+    .tc-l {
+        font-size: 12px;
+        color: var(--tc-muted);
+    }
+}

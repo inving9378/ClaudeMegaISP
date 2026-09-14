@@ -1,5 +1,5 @@
 <template>
-    <div v-if="seller_id && user_id" class="col-md-12">
+    <div v-if="seller_id && user_id" class="col-md-12 tc-wrap" :class="{ 'tc-dark': darkMode }">
         <div class="row">
             <q-tabs
                 v-model="activeTab"
