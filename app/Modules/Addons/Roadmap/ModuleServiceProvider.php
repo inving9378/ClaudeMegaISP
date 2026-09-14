@@ -84,6 +84,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\SubItemCommand::class,
                 // #895 — estima si el item cabe en una vuelta antes de picar código
                 \App\Modules\Addons\Roadmap\Console\CabidaCommand::class,
+                // #9991137 — medidor mecánico del disparador de la deuda #9991129 (Hoja de ruta)
+                \App\Modules\Addons\Roadmap\Console\MedirHojaDeRutaCommand::class,
                 // #566 — footprint a los "Sin clasificar": sin él cada uno serializa la flota.
                 \App\Modules\Addons\Roadmap\Console\ClasificarModuloCommand::class,
                 // #566 — re-triaje de la bandeja con el carril mecánico
