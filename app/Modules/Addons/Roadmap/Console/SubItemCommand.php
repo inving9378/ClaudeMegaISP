@@ -114,7 +114,10 @@ class SubItemCommand extends Command
         }
 
         $sub->position = $position;
-        $sub->subtasks = ['descomposicion' => ['depende_de' => $posiciones]];
+        // Fase 2 de #9991086 (#9991090) — la metadata de descomposición vive en su propia
+        // columna (roadmap_items.descomposicion); subtasks queda libre para la lista de la UI.
+        $sub->descomposicion = ['depende_de' => $posiciones];
+        $sub->subtasks = [];
         $sub->save();
 
         $this->info("Sub-item #{$sub->id} creado bajo #{$padre->id} (módulo «{$sub->modulo}», pendiente_revision).");
