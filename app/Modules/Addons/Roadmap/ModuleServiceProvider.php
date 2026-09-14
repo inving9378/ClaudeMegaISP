@@ -86,6 +86,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\CabidaCommand::class,
                 // #9991137 — medidor mecánico del disparador de la deuda #9991129 (Hoja de ruta)
                 \App\Modules\Addons\Roadmap\Console\MedirHojaDeRutaCommand::class,
+                // #9991163 — purga en disco de adjuntos borrados hace >30 días (agendado en Kernel)
+                \App\Modules\Addons\Roadmap\Console\AdjuntosPurgarCommand::class,
                 // #566 — footprint a los "Sin clasificar": sin él cada uno serializa la flota.
                 \App\Modules\Addons\Roadmap\Console\ClasificarModuloCommand::class,
                 // #566 — re-triaje de la bandeja con el carril mecánico

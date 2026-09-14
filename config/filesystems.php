@@ -40,6 +40,15 @@ return [
             'root' => storage_path('seed'),
         ],
 
+        // #9991163 — Adjuntos del roadmap (maquetas, capturas, PDFs). FUERA de public/ y con ruta
+        // ABSOLUTA del checkout principal (no storage_path(): cada worktree del circuito tiene su
+        // propio storage/, y la terminal debe leer el MISMO archivo que subió Irving desde la Torre).
+        'roadmap_adjuntos' => [
+            'driver' => 'local',
+            'root'   => env('CIRCUITO_ADJUNTOS_DIR', '/var/www/megaisp/storage/app/roadmap/adjuntos'),
+            'throw'  => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

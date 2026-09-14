@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Addons\Roadmap\Controllers\RoadmapAdjuntoController;
 use App\Modules\Addons\Roadmap\Controllers\RoadmapController;
 use App\Modules\Addons\Roadmap\Controllers\TorreCompuertasController;
 use App\Modules\Addons\Roadmap\Controllers\JarvisIdentidadController;
@@ -163,6 +164,16 @@ Route::middleware(['web', 'auth'])
         // CIRC-02c Fase 1 (#9991139) — hilo de respuestas: pendientes >60min y requiere_irving
         // sin respuesta >7 días, para la bandeja de decisiones.
         Route::get('/torre/watchdog-respuestas',          [RoadmapController::class, 'torreWatchdogRespuestas']);
+        // #9991163 — Adjuntos del roadmap (maquetas, capturas, PDFs). Permisos Spatie propios
+        // (roadmap.adjuntos.view/upload/delete) verificados en el controlador ANTES de tocar el
+        // disco; el archivo se resuelve por id, nunca por ruta del cliente; HTML/SVG jamás inline (D5).
+        Route::get('/adjuntos',                       [RoadmapAdjuntoController::class, 'index']);
+        Route::post('/adjuntos',                      [RoadmapAdjuntoController::class, 'store']);
+        Route::get('/adjuntos/{id}/descargar',        [RoadmapAdjuntoController::class, 'descargar'])->whereNumber('id');
+        Route::post('/adjuntos/{id}/amarrar',         [RoadmapAdjuntoController::class, 'amarrar'])->whereNumber('id');
+        Route::post('/adjuntos/{id}/desamarrar',      [RoadmapAdjuntoController::class, 'desamarrar'])->whereNumber('id');
+        Route::delete('/adjuntos/{id}',               [RoadmapAdjuntoController::class, 'destroy'])->whereNumber('id');
+        Route::get('/items/buscar',                   [RoadmapAdjuntoController::class, 'buscarItems']);
         // #937 — tablero "Items atorados" agrupado por causa (Panorama). Depende de #935
         // (DiagnosticoItemService); mientras no exista responde disponible=false (guard interno).
         Route::get('/atorados',            [RoadmapController::class, 'atorados']);
