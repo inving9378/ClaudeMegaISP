@@ -127,10 +127,15 @@ class DependenciaGate
         return $dfs($desde);
     }
 
-    /** Lee las posiciones predecesoras persistidas en el sub-item (subtasks.descomposicion.depende_de). */
+    /**
+     * Lee las posiciones predecesoras persistidas en el sub-item. Fase 2 de #9991086 (#9991090)
+     * movió la metadata a su propia columna (`descomposicion.depende_de`); conserva el fallback
+     * al formato viejo (`subtasks.descomposicion.depende_de`) para items creados antes del
+     * deploy de este cambio — los ya backfilleados por la Fase 1 resuelven por la columna nueva.
+     */
     public function dependeDeDe(RoadmapItem $sub): array
     {
-        $meta = (array) (($sub->subtasks ?? [])[self::META_KEY] ?? []);
+        $meta = (array) ($sub->descomposicion ?? (($sub->subtasks ?? [])[self::META_KEY] ?? []));
 
         return array_values(array_map('intval', (array) ($meta['depende_de'] ?? [])));
     }
@@ -190,8 +195,12 @@ class DependenciaGate
     public function idsBloqueados(): array
     {
         $conDependencia = RoadmapItem::whereNotNull('origen_item_id')
-            ->whereNotNull('subtasks')
-            ->get(['id', 'origen_item_id', 'subtasks'])
+            ->where(function ($q) {
+                // Fase 2 de #9991086 (#9991090) — la metadata puede vivir en cualquiera de las
+                // dos columnas según cuándo se creó el sub-item (ver dependeDeDe()).
+                $q->whereNotNull('subtasks')->orWhereNotNull('descomposicion');
+            })
+            ->get(['id', 'origen_item_id', 'subtasks', 'descomposicion'])
             ->filter(fn (RoadmapItem $item) => $this->dependeDeDe($item) !== []);
 
         if ($conDependencia->isEmpty()) {
