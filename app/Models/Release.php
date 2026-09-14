@@ -28,6 +28,9 @@ class Release extends Model
         'reversible_motivo',
         // Marca de procedencia del backfill (item roadmap #9990637)
         'origin',
+        // Candado BD F4 (item roadmap #9990675, épica #9990668) — los llenan F3/F6
+        'github_release_id',
+        'estado_publicacion',
     ];
 
     protected $casts = [
