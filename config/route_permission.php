@@ -2079,6 +2079,16 @@ return [
         '/talento/api/colaboradores/{id}',
         '/talento/api/colaboradores/{id}/regla',
     ],
+    // Item #9990830 (Fase 1 del tablero de pendientes): listado admin cross-colaborador de
+    // documentos pendientes de firma, distinto de talento.employees.view (ficha de un colaborador).
+    'talento.documentos.ver-todos' => [
+        '/talento/api/documentos/pendientes',
+    ],
+    // Item #9990831 (Fase 2 del tablero de pendientes): acción de enviar recordatorio WhatsApp,
+    // permiso propio distinto del anterior (decisión ya tomada, q2 de Irving).
+    'talento.documentos.recordar' => [
+        '/talento/api/documentos/{docId}/recordar',
+    ],
     'talento.attendance.view' => [
         '/talento/asistencia',
         '/talento/api/asistencia',

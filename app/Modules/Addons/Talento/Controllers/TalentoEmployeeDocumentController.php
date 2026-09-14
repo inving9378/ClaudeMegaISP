@@ -4,13 +4,17 @@ namespace App\Modules\Addons\Talento\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Modules\Addons\Talento\Models\TalentoDocumentReminder;
 use App\Modules\Addons\Talento\Models\TalentoEmployeeDocument;
 use App\Modules\Addons\Talento\Models\TalentoEmployeeDocumentSignature;
 use App\Modules\Addons\Talento\Services\EmployeeDocumentPackageService;
 use App\Modules\Addons\Talento\Services\TemplateRenderService;
 use App\Modules\Addons\Talento\Support\SignatureSlotStatus;
+use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppGateway;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -89,6 +93,163 @@ class TalentoEmployeeDocumentController extends Controller
         });
 
         return response()->json($documentos);
+    }
+
+    /**
+     * Item #9990830 (Fase 1 del tablero de pendientes) — listado admin CROSS-colaborador de
+     * documentos con firma pendiente (a diferencia de forColaborador(), que solo lista los de
+     * UN colaborador). Gate propio 'talento.documentos.ver-todos' (solo roles base hoy — no
+     * existe rol RH en el sistema, ver reporte de #9990816). Reusa EXACTAMENTE
+     * SignatureSlotStatus::describir() (misma regla que forColaborador() y el endpoint
+     * self-scoped de PortalTecnicoController) para no reimplementar qué cuenta como pendiente.
+     * Paginado 25/pág, ordenado por fecha de solicitud (generated_at) ascendente — los más
+     * antiguos primero.
+     */
+    public function pendientesGlobal()
+    {
+        $this->authorize('talento.documentos.ver-todos');
+
+        $documentos = TalentoEmployeeDocument::with([
+                'colaborador:id,user_id,created_at',
+                'colaborador.user:id,name,phone,father_last_name,mother_last_name',
+                'template:id,name,requires_signature',
+                'template.signatureSlots',
+            ])
+            ->orderBy('generated_at')
+            ->get(['id', 'colaborador_id', 'template_id', 'status', 'generated_at', 'signed_at']);
+
+        // Una sola query para las firmas por slot de TODOS los documentos candidatos (evita N+1),
+        // mismo patrón que forColaborador()/PortalTecnicoController::documentos().
+        $firmasPorDoc = TalentoEmployeeDocumentSignature::whereIn('employee_document_id', $documentos->pluck('id'))
+            ->get()
+            ->groupBy('employee_document_id');
+
+        $pendientes = $documentos
+            ->map(function (TalentoEmployeeDocument $doc) use ($firmasPorDoc) {
+                $firmasDoc = $firmasPorDoc->get($doc->id) ?? collect();
+                [$statusFirma] = SignatureSlotStatus::describir($doc, '', $firmasDoc);
+
+                if (!$statusFirma['pendiente_firma']) {
+                    return null;
+                }
+
+                $colaborador = $doc->colaborador;
+
+                return [
+                    'colaborador_id' => $doc->colaborador_id,
+                    'colaborador_nombre' => $colaborador?->user?->getClientNameWithFathersNamesAttribute() ?? '—',
+                    'documento_id' => $doc->id,
+                    'documento_nombre' => $doc->template->name,
+                    // Antigüedad = desde el alta del colaborador (created_at de TalentoColaborador),
+                    // decisión ya tomada en #9990816 (q2 de Irving).
+                    'dias_pendiente' => $colaborador?->created_at ? now()->diffInDays($colaborador->created_at) : null,
+                    'ultima_accion' => $firmasDoc->max('signed_at') ?? $doc->generated_at,
+                ];
+            })
+            ->filter()
+            ->values();
+
+        $perPage = 25;
+        $page = max((int) request('page', 1), 1);
+
+        $paginado = new LengthAwarePaginator(
+            $pendientes->forPage($page, $perPage)->values(),
+            $pendientes->count(),
+            $perPage,
+            $page,
+            ['path' => request()->url(), 'query' => request()->query()]
+        );
+
+        return response()->json($paginado);
+    }
+
+    /**
+     * Item #9990831 (Fase 2 del tablero de pendientes, sub-item de #9990816) — envía un
+     * recordatorio por WhatsApp al colaborador dueño de un documento con firma pendiente. Usa el
+     * gateway ÚNICO del sistema (App\Modules\Addons\WhatsAppAgent\Services\WhatsAppGateway::
+     * sendText, convención SERVICIOS COMPARTIDOS ÚNICOS de CLAUDE.md) — sin cliente HTTP propio.
+     * $instanceSlug=null cae a la instancia default (mismo patrón que SendBillingNotifications
+     * Command/DomiciliacionCobrarCommand). Gate propio 'talento.documentos.recordar' (distinto
+     * de 'talento.documentos.ver-todos', que solo gatea el listado — decisión ya tomada, q2 de
+     * Irving). Rate-limit de 1 recordatorio por documento cada 24h contra
+     * talento_document_reminders, que también sirve de auditoría + KPI "última acción" para el
+     * tablero (Fase 3, #9990832) — solo se registra fila cuando el envío SÍ tuvo éxito, para que
+     * un fallo de Evolution no bloquee un reintento inmediato.
+     */
+    public function recordar($docId)
+    {
+        $this->authorize('talento.documentos.recordar');
+
+        $documento = TalentoEmployeeDocument::with([
+                'colaborador.user:id,name,phone,father_last_name,mother_last_name',
+                'template:id,name',
+            ])
+            ->findOrFail($docId);
+
+        $user = $documento->colaborador?->user;
+        $digits = preg_replace('/\D/', '', (string) ($user->phone ?? ''));
+        if (strlen($digits) < 10) {
+            abort(422, 'El colaborador no tiene un teléfono válido registrado.');
+        }
+
+        $ultimoRecordatorio = TalentoDocumentReminder::where('employee_document_id', $documento->id)
+            ->orderByDesc('sent_at')
+            ->first();
+
+        if ($ultimoRecordatorio && $ultimoRecordatorio->sent_at->gt(now()->subDay())) {
+            abort(422, 'Ya se envió un recordatorio para este documento en las últimas 24 horas.');
+        }
+
+        $numero = $this->normalizeWhatsAppNumber($digits);
+        $nombre = $user->getClientNameWithFathersNamesAttribute();
+        $mensaje = "Hola {$nombre}, te recordamos que tienes pendiente firmar/entregar el documento "
+            . "{$documento->template->name}. Contacta a RH para más info.";
+
+        $enviado = false;
+        $error = null;
+
+        try {
+            app(WhatsAppGateway::class)->sendText(null, $numero, $mensaje, [
+                'source' => 'talento_document_reminder',
+                'employee_document_id' => $documento->id,
+            ]);
+            $enviado = true;
+        } catch (\Throwable $e) {
+            $error = $e->getMessage();
+            Log::channel('evolution')->warning('TalentoDocumentReminder: fallo al enviar recordatorio', [
+                'employee_document_id' => $documento->id,
+                'error' => $error,
+            ]);
+        }
+
+        $sentAt = null;
+
+        if ($enviado) {
+            $recordatorio = TalentoDocumentReminder::create([
+                'employee_document_id' => $documento->id,
+                'user_id' => auth()->id(),
+                'sent_at' => now(),
+            ]);
+            $sentAt = $recordatorio->sent_at;
+        }
+
+        return response()->json([
+            'enviado' => $enviado,
+            'error' => $enviado ? null : ($error ?? 'No se pudo enviar el recordatorio.'),
+            'sent_at' => $sentAt,
+        ]);
+    }
+
+    /** Mismo formato que usan las conversaciones de WhatsAppAgent (MX 10 dígitos → prefijo 521). */
+    private function normalizeWhatsAppNumber(string $digits): string
+    {
+        if (strlen($digits) === 10) {
+            return '521' . $digits;
+        }
+        if (strlen($digits) === 12 && str_starts_with($digits, '52')) {
+            return '521' . substr($digits, 2);
+        }
+        return $digits;
     }
 
     /**
