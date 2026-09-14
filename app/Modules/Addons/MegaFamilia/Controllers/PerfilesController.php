@@ -19,9 +19,15 @@ class PerfilesController extends Controller
     public function data(): JsonResponse
     {
         $account = $this->accountForCurrentUser();
-        $profiles = $account
-            ? $account->profiles()->withCount('devices')->get()
-            : ParentalProfile::query()->withCount('devices')->orderBy('name')->get();
+        if ($account) {
+            $profiles = $account->profiles()->withCount('devices')->get();
+        } else {
+            // Sin cuenta parental propia = usuario staff, no cliente final.
+            // Mismo criterio que guardOwnership(): exigir megafamilia_admin en
+            // vez de devolver los perfiles de TODAS las familias sin filtro.
+            abort_unless(Auth::user()->can('megafamilia_admin'), 403);
+            $profiles = ParentalProfile::query()->withCount('devices')->orderBy('name')->get();
+        }
         return response()->json(['profiles' => $profiles, 'account' => $account]);
     }
 
@@ -72,6 +78,8 @@ class PerfilesController extends Controller
             'schedules',
             'tasks' => fn ($q) => $q->latest()->limit(50),
         ])->findOrFail($id);
+
+        $this->guardOwnership($profile);
 
         $alerts = \App\Modules\Addons\MegaFamilia\Models\ParentalAlert::query()
             ->where('profile_id', $id)

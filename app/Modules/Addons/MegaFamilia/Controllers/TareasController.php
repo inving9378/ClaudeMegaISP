@@ -27,8 +27,20 @@ class TareasController extends Controller
 
     public function data(Request $request): JsonResponse
     {
+        if ($request->profile_id) {
+            $this->guardProfileAccess(ParentalProfile::findOrFail($request->profile_id));
+        }
+        // Sin profile_id: acotar a los perfiles de la cuenta del usuario (cliente
+        // final) en vez de devolver las tareas de TODAS las familias.
+        $account    = $this->accountForCurrentUser();
+        $profileIds = $account ? $account->profiles()->pluck('id')->all() : null;
+        if (! $account) {
+            abort_unless(Auth::user()->can('megafamilia_admin'), 403);
+        }
+
         $q = ParentalTask::query()
             ->with('profile:id,name,profile_type,age,photo')
+            ->when($profileIds !== null, fn ($qq) => $qq->whereIn('profile_id', $profileIds ?: [-1]))
             ->when($request->profile_id, fn ($qq, $v) => $qq->where('profile_id', $v))
             ->when($request->status, fn ($qq, $v) => $qq->where('status', $v))
             ->orderByDesc('id');
@@ -38,6 +50,7 @@ class TareasController extends Controller
 
         $byStatus = ParentalTask::query()
             ->with('profile:id,name,photo')
+            ->when($profileIds !== null, fn ($qq) => $qq->whereIn('profile_id', $profileIds ?: [-1]))
             ->orderByDesc('id')
             ->get()
             ->groupBy('status');
@@ -47,6 +60,7 @@ class TareasController extends Controller
             'by_status' => $byStatus,
             'profiles'  => ParentalProfile::query()
                 ->where('active', true)
+                ->when($account, fn ($qq) => $qq->where('account_id', $account->id))
                 ->orderBy('name')
                 ->get(['id', 'name', 'photo', 'profile_type']),
         ]);

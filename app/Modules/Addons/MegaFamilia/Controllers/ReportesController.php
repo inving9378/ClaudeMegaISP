@@ -3,13 +3,16 @@
 namespace App\Modules\Addons\MegaFamilia\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Addons\MegaFamilia\Models\ParentalAccount;
 use App\Modules\Addons\MegaFamilia\Models\ParentalEvent;
 use App\Modules\Addons\MegaFamilia\Models\ParentalProfile;
 use App\Modules\Addons\MegaFamilia\Models\ParentalRequest as ParentalReq;
 use App\Modules\Addons\MegaFamilia\Models\ParentalTask;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -22,8 +25,17 @@ class ReportesController extends Controller
 
     public function profiles(): JsonResponse
     {
+        $account = $this->accountForCurrentUser();
+        if (! $account) {
+            // Sin cuenta parental propia = usuario staff, no cliente final.
+            // Mismo criterio que en Perfiles/Tareas: exigir megafamilia_admin
+            // en vez de listar los perfiles de TODAS las familias.
+            abort_unless(Auth::user()->can('megafamilia_admin'), 403);
+        }
+
         $profiles = ParentalProfile::query()
             ->where('active', true)
+            ->when($account, fn ($q) => $q->where('account_id', $account->id))
             ->orderBy('name')
             ->get(['id', 'name', 'profile_type', 'photo']);
         return response()->json(['profiles' => $profiles]);
@@ -32,7 +44,7 @@ class ReportesController extends Controller
     public function data(Request $request): JsonResponse
     {
         [$from, $to] = $this->range($request);
-        $profileId = $request->input('profile_id');
+        $profileId = $this->resolveProfileFilter($request);
 
         return response()->json([
             'range'              => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
@@ -47,21 +59,22 @@ class ReportesController extends Controller
     public function export(Request $request): StreamedResponse
     {
         [$from, $to] = $this->range($request);
-        $profileId = $request->input('profile_id');
+        $profileId = $this->resolveProfileFilter($request);
 
         $byDay   = $this->screenTimeByDay($profileId, $from, $to);
         $topApps = $this->topApps($profileId, $from, $to);
         $blocked = $this->blockedSites($profileId, $from, $to);
 
         $filename = 'megafamilia-reportes-' . now()->format('Ymd-His') . '.csv';
+        $profileLabel = is_array($profileId) ? 'Mis perfiles' : ($profileId ?: 'Todos');
 
-        return new StreamedResponse(function () use ($byDay, $topApps, $blocked, $from, $to, $profileId) {
+        return new StreamedResponse(function () use ($byDay, $topApps, $blocked, $from, $to, $profileLabel) {
             $out = fopen('php://output', 'w');
             fwrite($out, "\xEF\xBB\xBF"); // BOM Excel
 
             fputcsv($out, ['Reporte MegaFamilia']);
             fputcsv($out, ['Rango', $from->toDateString() . ' - ' . $to->toDateString()]);
-            fputcsv($out, ['Perfil', $profileId ?: 'Todos']);
+            fputcsv($out, ['Perfil', $profileLabel]);
             fputcsv($out, []);
 
             fputcsv($out, ['Tiempo de pantalla por día']);
@@ -103,10 +116,10 @@ class ReportesController extends Controller
 
         $topAppRow = $this->topApps($profileId, $from, $to)->first();
 
-        $requests = ParentalReq::when($profileId, fn ($q, $v) => $q->where('profile_id', $v))
+        $requests = ParentalReq::when($profileId !== null, fn ($qq) => $this->applyProfileScope($qq, $profileId))
             ->whereBetween('created_at', [$from, $to])->count();
 
-        $tasksDone = ParentalTask::when($profileId, fn ($q, $v) => $q->where('profile_id', $v))
+        $tasksDone = ParentalTask::when($profileId !== null, fn ($qq) => $this->applyProfileScope($qq, $profileId))
             ->whereIn('status', ['completed', 'approved'])
             ->whereBetween('updated_at', [$from, $to])->count();
 
@@ -126,7 +139,7 @@ class ReportesController extends Controller
     {
         $events = ParentalEvent::query()
             ->where('action', 'screen_time')
-            ->when($profileId, fn ($q, $v) => $q->where('profile_id', $v))
+            ->when($profileId !== null, fn ($qq) => $this->applyProfileScope($qq, $profileId))
             ->whereBetween('created_at', [$from, $to])
             ->orderBy('created_at')
             ->get(['created_at', 'detail']);
@@ -153,7 +166,7 @@ class ReportesController extends Controller
     {
         $events = ParentalEvent::query()
             ->where('action', 'app_usage')
-            ->when($profileId, fn ($q, $v) => $q->where('profile_id', $v))
+            ->when($profileId !== null, fn ($qq) => $this->applyProfileScope($qq, $profileId))
             ->whereBetween('created_at', [$from, $to])
             ->get(['detail']);
 
@@ -178,7 +191,7 @@ class ReportesController extends Controller
     private function activityByHour($profileId, Carbon $from, Carbon $to)
     {
         $rows = ParentalEvent::query()
-            ->when($profileId, fn ($q, $v) => $q->where('profile_id', $v))
+            ->when($profileId !== null, fn ($qq) => $this->applyProfileScope($qq, $profileId))
             ->whereBetween('created_at', [$from, $to])
             ->select(DB::raw('HOUR(created_at) as hour'), DB::raw('COUNT(*) as total'))
             ->groupBy('hour')
@@ -200,7 +213,7 @@ class ReportesController extends Controller
     {
         $events = ParentalEvent::query()
             ->where('action', 'web_blocked')
-            ->when($profileId, fn ($q, $v) => $q->where('profile_id', $v))
+            ->when($profileId !== null, fn ($qq) => $this->applyProfileScope($qq, $profileId))
             ->whereBetween('created_at', [$from, $to])
             ->orderByDesc('created_at')
             ->get(['detail', 'created_at']);
@@ -241,5 +254,69 @@ class ReportesController extends Controller
         if (isset($p['minutes']))  return (int) $p['minutes'];
         if (isset($p['duration'])) return (int) $p['duration'];
         return 1;
+    }
+
+    private function accountForCurrentUser(): ?ParentalAccount
+    {
+        $userId = Auth::id();
+        if (! $userId) return null;
+        return ParentalAccount::where('user_id', $userId)->first();
+    }
+
+    /**
+     * Mismo criterio que PerfilesController::guardOwnership / TareasController::
+     * guardProfileAccess: el cliente final solo ve reportes de sus propios
+     * perfiles; sin cuenta parental propia (staff) se exige megafamilia_admin.
+     */
+    private function guardOwnership(ParentalProfile $profile): void
+    {
+        $account = $this->accountForCurrentUser();
+        if (! $account) {
+            abort_unless(Auth::user()->can('megafamilia_admin'), 403);
+            return;
+        }
+        abort_unless($profile->account_id === $account->id, 403);
+    }
+
+    /**
+     * Resuelve el filtro de perfil para los reportes:
+     * - profile_id explícito -> valida ownership y devuelve el id (int).
+     * - sin profile_id y con cuenta propia -> devuelve el arreglo de ids de
+     *   ESA cuenta (puede ser [] si aún no tiene perfiles), nunca "todos".
+     * - sin profile_id y sin cuenta (staff) -> exige megafamilia_admin y
+     *   devuelve null (agregado global autorizado).
+     *
+     * @return int|array<int>|null
+     */
+    private function resolveProfileFilter(Request $request)
+    {
+        $profileId = $request->input('profile_id');
+        if ($profileId) {
+            $this->guardOwnership(ParentalProfile::findOrFail($profileId));
+            return (int) $profileId;
+        }
+
+        $account = $this->accountForCurrentUser();
+        if (! $account) {
+            abort_unless(Auth::user()->can('megafamilia_admin'), 403);
+            return null;
+        }
+
+        return $account->profiles()->pluck('id')->all();
+    }
+
+    /**
+     * Aplica el filtro resuelto por resolveProfileFilter() a una query por
+     * 'profile_id'. Un arreglo vacío (cuenta sin perfiles) fuerza un
+     * whereIn que no matchea nada, en vez de dejar la query sin filtrar.
+     *
+     * @param  int|array<int>|null  $profileId
+     */
+    private function applyProfileScope(Builder|\Illuminate\Database\Query\Builder $query, $profileId)
+    {
+        if (is_array($profileId)) {
+            return $query->whereIn('profile_id', $profileId ?: [-1]);
+        }
+        return $query->where('profile_id', $profileId);
     }
 }
