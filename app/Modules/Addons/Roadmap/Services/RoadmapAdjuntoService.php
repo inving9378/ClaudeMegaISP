@@ -176,6 +176,61 @@ class RoadmapAdjuntoService
             ->values()->all();
     }
 
+    /**
+     * Fase 3 (punto 12) — bloque que se antepone al prompt de la terminal al DESPACHAR, con la ruta
+     * ABSOLUTA en disco de cada adjunto y su descripción. El texto del item en BD no se toca.
+     * Devuelve null si el item no tiene adjuntos.
+     */
+    public function bloquePrompt(RoadmapItem $item): ?string
+    {
+        $adjuntos = $item->adjuntos()->orderBy('roadmap_adjunto_item.created_at')->get();
+        if ($adjuntos->isEmpty()) {
+            return null;
+        }
+        $lineas = $adjuntos->map(fn (RoadmapAdjunto $a) => sprintf(
+            '- %s — %s%s',
+            $a->rutaAbsoluta(),
+            $a->descripcion ?: $a->nombre_original,
+            $a->descripcion ? " (archivo: {$a->nombre_original})" : ''
+        ))->implode("\n");
+
+        return "## ADJUNTOS DE ESTE ITEM (léelos antes de empezar)\n"
+            . $lineas . "\n"
+            . "Estos archivos son parte del contrato del item (maquetas, capturas, evidencia). Léelos con "
+            . "Read/cat ANTES de decidir nada; si uno no abre, detente y repórtalo — no construyas a ciegas.";
+    }
+
+    /**
+     * Fase 3 (punto 13) — GUARD FAIL-CLOSED. Si algún adjunto registrado NO existe en disco, el
+     * item se marca (requiere_irving + motivo_espera=adjunto_faltante + motivo con las rutas) y se
+     * avisa en el log del item y en el canal de despacho. Devuelve los faltantes (vacío = puede
+     * arrancar). Trabajar a ciegas sobre un contrato faltante fue lo que produjo #9990934.
+     */
+    public function guardAdjuntosEnDisco(RoadmapItem $item, string $por = 'guard-adjuntos'): array
+    {
+        $faltantes = $this->faltantesEnDisco($item);
+        if (! $faltantes) {
+            return [];
+        }
+        $rutas = implode(', ', array_map(fn ($f) => "#{$f['id']} {$f['nombre']} → {$f['ruta']}", $faltantes));
+        $motivo = 'Adjunto(s) registrado(s) que NO están en disco: ' . $rutas
+            . '. La vuelta no arranca hasta re-subirlos desde Panorama → Adjuntos o desamarrarlos del item.';
+
+        $item->estado_aprobacion = 'requiere_irving';
+        $item->motivo_espera     = 'adjunto_faltante';
+        $item->motivo_bloqueo    = Str::limit($motivo, 2000, '…');
+        $item->worker_sid        = null;
+        $item->claimed_at        = null;
+        $log   = is_array($item->log) ? $item->log : [];
+        $log[] = ['ts' => now()->toIso8601String(), 'por' => $por, 'evento' => 'adjunto_faltante_no_arranca', 'motivo' => $motivo, 'faltantes' => $faltantes];
+        $item->log = $log;
+        $item->save();
+
+        Log::channel('circuito_despacho')->warning("#{$item->id} NO ARRANCA — adjunto faltante en disco (fail-closed): {$rutas}");
+
+        return $faltantes;
+    }
+
     // ── internos ─────────────────────────────────────────────────────────────────────────────
 
     private function amarrarVarios(RoadmapAdjunto $adjunto, array $itemIds, ?int $userId): void

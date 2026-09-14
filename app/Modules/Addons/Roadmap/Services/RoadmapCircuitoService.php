@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Roadmap\Services;
 
 use App\Modules\Addons\Roadmap\Console\DigestCommand;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Addons\Roadmap\Services\RoadmapAdjuntoService;
 use App\Modules\Addons\Roadmap\Support\FrenoCircuito;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -2345,6 +2346,15 @@ class RoadmapCircuitoService
             return null;
         }
         $id = (int) $items[0]['id'];
+
+        // #9991165 (Fase 3, punto 13) — GUARD FAIL-CLOSED ANTES del claim: si el item tiene adjuntos
+        // registrados y alguno no está en disco, no se reclama; el guard lo marca (requiere_irving +
+        // motivo_espera=adjunto_faltante) y avisa. Sin item no hay vuelta a ciegas (#9990934).
+        $candidato = RoadmapItem::find($id);
+        if ($candidato && app(RoadmapAdjuntoService::class)->guardAdjuntosEnDisco($candidato, $workerSid ?: 'claim-next')) {
+            return null;
+        }
+
         // #507 sub-paso 3 — sella el LEASE al reclamar: a partir de aquí el worker debe renovarlo
         // con su latido (liveBeat) o el reaper libera el item.
         // #546 — arranca el reloj de ETA en el MISMO instante que el lease (mismo UPDATE atómico).

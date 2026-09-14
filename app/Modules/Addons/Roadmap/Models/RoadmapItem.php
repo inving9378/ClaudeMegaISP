@@ -2183,7 +2183,9 @@ TXT;
     }
 
     /** Motivos de `motivo_espera` (CIRC-03 Fase B, #9990905) que son INSUMO material, no decisión. */
-    public const MOTIVOS_ESPERA_INSUMO = ['credencial', 'hardware', 'sesion_presencial', 'autorizacion', 'frontera_produccion'];
+    // #9991165 — `adjunto_faltante`: un adjunto registrado del item no está en disco al despachar; la
+    // vuelta no arranca (fail-closed) y el item espera que Irving lo re-suba o lo desamarre.
+    public const MOTIVOS_ESPERA_INSUMO = ['credencial', 'hardware', 'sesion_presencial', 'autorizacion', 'frontera_produccion', 'adjunto_faltante'];
 
     /**
      * #9990906 (CIRC-03 Fase C) — sub-conjunto de bandeja() que de verdad espera una DECISIÓN

@@ -355,6 +355,7 @@ class RoadmapController extends Controller
             ->selectRaw(
                 'parent.id as id, parent.title as titulo, parent.estado_aprobacion as estado, '
                 . 'parent.aprobado_por as aprobado_por, parent.worker_sid as worker_sid, '
+                . '(SELECT COUNT(*) FROM roadmap_adjunto_item rai WHERE rai.item_id = parent.id) as adjuntos_n, ' // #9991165
                 . '(CASE WHEN ' . $this->sqlActivos('parent') . ' THEN "activo" '
                 . 'WHEN ' . $this->sqlDetenidos('parent') . ' THEN "detenido" ELSE "en_cola" END) as bucket, '
                 . 'SUM(CASE WHEN ' . $this->sqlActivos('child') . ' THEN 1 ELSE 0 END) as activos, '
@@ -369,7 +370,7 @@ class RoadmapController extends Controller
         $nodos = $rows->map(fn ($r) => $this->nodoJerarquia(
             (int) $r->id, (string) $r->titulo, $nivel, (string) $r->estado,
             (int) $r->activos, (int) $r->en_cola, (int) $r->detenidos,
-            (string) $r->bucket, $r->aprobado_por, $r->worker_sid
+            (string) $r->bucket, $r->aprobado_por, $r->worker_sid, (int) ($r->adjuntos_n ?? 0)
         ))->values();
 
         return response()->json([
@@ -414,9 +415,10 @@ class RoadmapController extends Controller
      */
     private function nodoJerarquia(
         $id, string $titulo, string $nivel, ?string $estado, int $activos, int $enCola, int $detenidos,
-        ?string $bucket = null, ?string $aprobadoPor = null, ?string $workerSid = null
+        ?string $bucket = null, ?string $aprobadoPor = null, ?string $workerSid = null, int $adjuntosN = 0
     ): array {
         return [
+            'adjuntos_n'     => $adjuntosN, // #9991165 — indicador 📎 en la fila del árbol
             'id'             => $id,
             'titulo'         => $titulo,
             'nivel'          => $nivel,
@@ -2335,6 +2337,16 @@ class RoadmapController extends Controller
             'target_version'     => $i->target_version,
             'subtasks'           => $subtasks,
             'descomposicion'     => $descomposicion,
+            // #9991165 (Fase 3, punto 14) — adjuntos del item con su enlace de descarga (permiso en el controlador).
+            'adjuntos'           => $i->adjuntos()->orderBy('roadmap_adjunto_item.created_at')->get()->map(fn ($a) => [
+                'id'              => $a->id,
+                'nombre'          => $a->nombre_original,
+                'descripcion'     => $a->descripcion,
+                'extension'       => $a->extension,
+                'tamano'          => $a->tamano,
+                'existe_en_disco' => $a->existeEnDisco(),
+                'url'             => '/api/roadmap/adjuntos/' . $a->id . '/descargar',
+            ])->values()->all(),
             'log'                => $i->log,
             'worker_sid'         => $i->worker_sid,
             'worker_nombre'      => $i->worker_sid ? $this->svc->nombreWorker($i->worker_sid) : null,
