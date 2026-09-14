@@ -188,6 +188,11 @@
              resumenCola.espera_decision, que viene del MISMO scope bandeja() que arma `cola`
              (RoadmapController::torre(), misma respuesta) — nunca puede desincronizarse de la lista. -->
         <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-warn)">{{ kpi(resumenCola.espera_decision ?? cola.length, 'resumen_cola') }}</div><div class="tc-l">Requiere Irving</div><div class="tc-bar" style="background:var(--tc-warn)"></div></div>
+        <!-- #9990912 — KPI hermano del anterior: cuánto de la bandeja espera un INSUMO material
+             (credencial/hardware/sesión/autorización/frontera), no una decisión. Mismo bloque
+             'resumen_cola' (ya viene en la respuesta de torre() desde #9990906), tinte ámbar
+             propio (tc-kpi-insumo) para no confundirse con "Requiere Irving". -->
+        <div class="tc-kpi"><div class="tc-n tc-kpi-insumo">{{ kpi(resumenCola.espera_insumo, 'resumen_cola') }}</div><div class="tc-l">Esperan un insumo</div><div class="tc-bar tc-kpi-insumo-bar"></div></div>
         <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-info)">{{ kpi(est('en_progreso'), 'resumen') }}</div><div class="tc-l">En progreso</div><div class="tc-bar" style="background:var(--tc-info)"></div></div>
         <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-ok)">{{ kpi(est('completado'), 'resumen') }}</div><div class="tc-l">Completado</div><div class="tc-bar" style="background:var(--tc-ok)"></div></div>
         <!-- #9990622: estados que antes no tenían tarjeta (182 items invisibles) -->
@@ -1681,6 +1686,12 @@ export default {
 .tc-insumo-grupo-body{padding:2px 4px 4px;}
 .tc-dark .tc-insumo-grupo-head{background:rgba(251,191,36,.1);color:#fbbf24;border-color:rgba(251,191,36,.3);}
 .tc-dark .tc-insumo-grupo-head:hover{background:rgba(251,191,36,.16);}
+/* #9990912 — KPI "Esperan un insumo": mismo tinte ámbar que .tc-insumo-grupo-head, para que el
+   número de arriba y la sección de abajo se lean como el mismo dato. */
+.tc-kpi-insumo{color:#b45309;}
+.tc-kpi-insumo-bar{background:#b45309;}
+.tc-dark .tc-kpi-insumo{color:#fbbf24;}
+.tc-dark .tc-kpi-insumo-bar{background:#fbbf24;}
 /* #432 — brief multi-pregunta: cada pregunta un bloque con su texto + fase + opciones. */
 .tc-preguntas{margin-top:8px;display:flex;flex-direction:column;gap:12px;}
 .tc-pregunta{border-left:3px solid var(--tc-line);padding-left:10px;}
