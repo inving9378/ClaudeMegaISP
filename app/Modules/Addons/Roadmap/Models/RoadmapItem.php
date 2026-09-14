@@ -2070,6 +2070,16 @@ TXT;
         return $this->hasMany(RoadmapItemReport::class, 'roadmap_item_id');
     }
 
+    /**
+     * #9991163 — adjuntos amarrados a este item (maquetas, capturas, PDFs). Un adjunto puede
+     * colgar de varios items (D2); los bytes viven en el disco `roadmap_adjuntos`, fuera de public/.
+     */
+    public function adjuntos()
+    {
+        return $this->belongsToMany(RoadmapAdjunto::class, 'roadmap_adjunto_item', 'item_id', 'adjunto_id')
+            ->withPivot(['amarrado_por', 'created_at']);
+    }
+
     /** CIRC-02b — respuestas (de Irving u otra vía) recibidas sobre este item. */
     public function respuestas()
     {
