@@ -3223,7 +3223,23 @@ class RoadmapController extends Controller
         // #9991082 — `subtasks` siempre lista (+ `descomposicion` aparte); ver normalizarSubtasks().
         $items->each(fn (RoadmapItem $i) => self::normalizarSubtasks($i));
 
+        // #9991092 — pipeline por estado (153a8ef7): lo que una terminal ya tomó NO se ve en la Hoja
+        // de ruta. El criterio es EL MISMO que pinta la pestaña Terminales — `idsEnCurso()` =
+        // `current_item` de las sesiones vivas — no una columna ni un estado, y viaja como flag
+        // para que el filtro por defecto del Kanban ("Pendientes") lo excluya sin reimplementarlo.
+        // El universo se sigue devolviendo completo: los 4 contadores y el chip "Todos" lo
+        // necesitan. (`scopeBacklog` ya no sirve para esto: el #432 lo reconvirtió en el intake
+        // `nivel_riesgo IS NULL`, y c96b81c0 quitó `?vista=backlog` de aquí por esa razón.)
+        $this->marcarEnTerminal($items);
+
         return response()->json($items);
+    }
+
+    /** #9991092 — ver comentario en {@see index()}. Adjunta 'en_terminal' (bool) ad-hoc por item. */
+    private function marcarEnTerminal(\Illuminate\Support\Collection $items): void
+    {
+        $enCurso = array_flip($this->svc->idsEnCurso());
+        $items->each(fn (RoadmapItem $i) => $i->setAttribute('en_terminal', isset($enCurso[(int) $i->id])));
     }
 
     /** Ver comentario en {@see index()}. Adjunta 'bloqueo_heuristica_texto' (bool) ad-hoc. */
@@ -3253,7 +3269,10 @@ class RoadmapController extends Controller
     {
         $this->authorize('roadmap_view');
 
-        return response()->json(self::normalizarSubtasks(RoadmapItem::findOrFail($id)));
+        $item = self::normalizarSubtasks(RoadmapItem::findOrFail($id));
+        $this->marcarEnTerminal(collect([$item])); // #9991092: el sondeo post-alta reinyecta esto en la lista
+
+        return response()->json($item);
     }
 
     // POST /api/roadmap/items
