@@ -394,6 +394,26 @@ Guards de seguridad de `UserController` YA aplicados en dev (Fase 1, commits `46
 
 **Fix `migrate` fallido cerraba `success` (RESUELTO 2026-07-01, commit `7d3cde25`):** `migrate` era `critical=false`, así que un fallo (típicamente **timeout**) marcaba el paso `failed` pero el `foreach` seguía y el cierre ponía `status='success'` **incondicional** → una migración que timeouteaba se reportaba como deploy exitoso. Además el timeout del `migrate` real (300s) era **mayor** que el del `migrate_dryrun` (180s) → una migración lenta pasaba el dry-run y timeouteaba el real. Fix (decisión de Irving — opción 1: FAILED + alerta, **SIN** revertir): (1) flag nuevo `'fail_deploy_no_rollback'=>true` en `migrate` → al fallar marca `$deployFailed` y el loop cierra en `status='failed'` con `error_message`, **SIN** `performRollback` (el esquema pudo modificarse a medias; un `git reset` sería peligroso — **NO se reintroduce** el rollback de migrate); (2) `migrate` 300s→**900s** y `migrate_dryrun` 180s→**900s** (alineados). **NO se tocó** la rama `critical` (backup/git_sync/dryrun/npm siguen con `performRollback`+`rolled_back` idéntico) ni los pasos decorativos (`optimize`/`queue_restart`/`save_release`, que siguen corriendo aunque migrate falle → deploy sigue `failed` solo por migrate). `runShell`/`runArtisan` pasaron a `protected` solo para habilitar testeo. Verificado contra la clase real (subclase inyectando exit-codes): (a) migrate OK→`success`; (b) migrate falla→`failed` sin rollback, código intacto; (c) `git_sync` critical falla→`rolled_back` con rollback (intacto). ⚠️ Como todo cambio a `remote:deploy`, surte efecto en el deploy **siguiente** (por tag).
 
+### Regla de publicación de versiones (item #9990678, épica #9990668)
+
+> "si se hizo una versión se debe publicar" — regla textual de Irving.
+
+**Por qué existe:** varias versiones (V1.34, V1.33, V1.16–V1.19) quedaron creadas en dev sin
+publicarse — el release existía en la BD/UI del circuito pero nunca llegó a producción, así que
+nadie fuera de dev podía verlo ni consumirlo. La épica **#9990668** ("Emisión atómica de
+versiones: una versión existe si y sólo si está publicada") existe para cerrar ese hueco: una
+versión "a medias" (emitida pero no publicada) deja de ser un estado válido del sistema.
+
+**Qué implica desde la F3 de esa épica** (`ReleasePublisherService`, item #9990674 — emisión
+atómica): emitir una versión deja de ser reversible en dos tiempos (crear el release primero,
+publicarlo después como paso separado) — el acto de emitir publica al mundo en el mismo acto,
+con compensación si algo falla a medio camino. Por eso el botón "+ Nueva versión" y la ruta
+`POST /releases/store` se gatean con un permiso Spatie **separado**, `releases.emitir` (items
+#9990678/#9991141), distinto de `release_view_release` (ver el historial de releases, sin
+emitir nada) — quien puede emitir puede publicar, así que debe ser una decisión consciente, no
+un efecto colateral de "guardar un borrador". El estado de esas piezas (F3/F7a) se sigue en sus
+propios items de la Hoja de Ruta, no en esta nota.
+
 ### Portal Cliente — estado al 2026-06-15
 
 | Item | Descripción | Estado | Prioridad |

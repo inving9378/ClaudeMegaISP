@@ -23,6 +23,7 @@ Violarlas ha causado incidentes reales (exposición de credenciales, pérdida de
 - En dev, `php artisan migrate` (item #534) exige que cada migración pendiente esté commiteada y en una rama con ruta a `main` — si no, aborta. Escape hatch solo para rollback/debug legítimo: `--force-uncommitted` (queda auditado en `storage/logs/migration-guard.log`).
 - Backups automáticos (`backup_db:process`, dailyAt 02:00 en `Kernel.php`) dependen de un cron real de `php artisan schedule:run`. En dev ESE cron NO existe (el único cron activo es `circuito:scheduler`, que no es lo mismo) — el backup diario no ocurre solo; hay que dispararlo a mano (`php artisan backup_db:process`) o con `schedule:run`. En prod, verificar que el cron de `schedule:run` esté instalado antes de asumir que corre.
 - No compilar APKs ni builds pesados en el servidor (disco cerca de capacidad).
+- Regla de publicación de versiones: "si se hizo una versión se debe publicar" (item #9990678, épica #9990668) — emitir y publicar dejan de ser dos pasos separados, gatea `releases.emitir` (permiso Spatie distinto de `release_view_release`). Ver CLAUDE.md §"Regla de publicación de versiones" para el contexto completo.
 
 ## Autenticación y permisos
 - Passwords en transición `base64_encode` → bcrypt vía `App\Services\Security\PasswordService` (híbrido): `check()` acepta ambos formatos, `make()` siempre escribe bcrypt. Usar SIEMPRE `PasswordService`, nunca comparar/escribir base64 a mano. Campo de login: `login_user`, NO `email`.
