@@ -23,6 +23,30 @@
             Renuévalo antes de que expire — si expira, se pierde la Torre completa (incluido este aviso).
         </div>
 
+        <!-- Item #9991088 (Fase 3 de #9991086) — el checkout principal (/var/www/megaisp, lo que
+             sirve dev.meganett.com.mx) puede quedar con archivos viejos en disco aunque `main` ya
+             avance, si el sync post-merge no corrió. Antes eso se veía como un bug de frontend
+             (#9991082); ahora se ve aquí. -->
+        <div v-if="checkoutAviso && checkoutAviso.estado !== 'verde'"
+             class="alert mb-3 py-2 px-3"
+             :class="checkoutAviso.estado === 'rojo' ? 'alert-danger' : 'alert-warning'">
+            <i class="bi bi-hdd-network me-1"></i>
+            <b>Checkout principal desincronizado.</b>
+            <span v-if="checkoutAviso.mensaje">{{ checkoutAviso.mensaje }}</span>
+            <br>
+            <small class="text-body-secondary">
+                rama <code>{{ checkoutAviso.rama }}</code> ·
+                sha checkout <code>{{ checkoutAviso.sha_principal }}</code> ·
+                sha main <code>{{ checkoutAviso.sha_main }}</code>
+                <template v-if="checkoutAviso.commits_detras || checkoutAviso.commits_adelante">
+                    · {{ checkoutAviso.commits_detras }} commit(s) detrás, {{ checkoutAviso.commits_adelante }} adelante
+                </template>
+                <template v-if="checkoutAviso.ultimo_commit_main_at">
+                    · último commit de main: {{ formatDate(checkoutAviso.ultimo_commit_main_at) }}
+                </template>
+            </small>
+        </div>
+
         <!-- ── Sub-secciones de la Torre ── -->
         <ul class="nav nav-tabs mb-4">
             <li class="nav-item">
@@ -367,12 +391,17 @@ export default {
         });
         // Item #891 §3 — aviso de certificado en la cabecera, independiente de la pestaña activa.
         const certAviso = ref(null);
-        async function cargarCertAviso() {
+        // Item #9991088 (Fase 3 de #9991086) — aviso de desync del checkout principal vs main,
+        // mismo endpoint que certAviso (una sola llamada alimenta los dos avisos de cabecera).
+        const checkoutAviso = ref(null);
+        async function cargarSaludEntornoAvisos() {
             try {
                 const { data } = await axios.get("/api/roadmap/torre/salud-entorno");
                 certAviso.value = data.certificado || null;
+                checkoutAviso.value = data.checkout_principal || null;
             } catch (e) {
                 certAviso.value = null; // best-effort: si falla, no hay banner, no se rompe la Torre
+                checkoutAviso.value = null;
             }
         }
 
@@ -530,7 +559,7 @@ export default {
         onMounted(async () => {
             window.addEventListener("scroll", handleScroll);
             hasPermission.data = new Permission(await allViewHasPermission());
-            cargarCertAviso();
+            cargarSaludEntornoAvisos();
         });
 
         onBeforeUnmount(() =>
@@ -617,6 +646,7 @@ export default {
             copiedVersion,
             hasPermission,
             certAviso,
+            checkoutAviso,
             reversibilidadClase,
             reversibilidadIcono,
             reversibilidadTexto,
