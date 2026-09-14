@@ -1,10 +1,14 @@
 <template>
-    <h3 class="text-center mb-4">Estados de los vendedores</h3>
+    <div class="vnd-wrap q-pa-md">
+        <div class="d-flex align-items-center gap-2 mb-3">
+            <i class="bi bi-toggle2-on fs-4"></i>
+            <h1 class="h4 fw-bold mb-0">Estados de los vendedores</h1>
+        </div>
     <div class="row">
         <div class="col-md-6">
-            <div class="card vh-50">
+            <div class="card vnd-card vh-50">
                 <div class="card-header">
-                    <h5>Agregar status del vendedor</h5>
+                    <h5 class="vnd-title mb-0">Agregar status del vendedor</h5>
                 </div>
                 <div class="card-body">
                     <form @submit.prevent="isEditing ? update() : create()">
@@ -36,12 +40,16 @@
             </div>
         </div>
         <div class="col-md-6">
-            <div class="card vh-100">
+            <div class="card vnd-card vh-100">
                 <div class="card-body">
-                    <div v-for="state in data" :key="state.id" class="card">
+                    <div
+                        v-for="state in data"
+                        :key="state.id"
+                        class="card vnd-card vnd-list-item"
+                    >
                         <div class="card-body">
                             <div class="d-flex justify-content-between">
-                                <h5 class="">{{ state.name }}</h5>
+                                <h5 class="mb-0">{{ state.name }}</h5>
                                 <div
                                     class="d-flex justify-content-center gap-2"
                                 >
@@ -68,6 +76,7 @@
                 </div>
             </div>
         </div>
+    </div>
     </div>
 </template>
 
@@ -182,3 +191,28 @@ const remove = async (stateToRemove) => {
     });
 };
 </script>
+
+<style scoped>
+/* Restyle con el sistema visual de la Torre de Control, tokens locales por componente (mismo
+   patrón que VendedorListar.vue). Item #9991079. */
+.vnd-wrap {
+    --vnd-ink: #111827;
+}
+
+.vnd-title {
+    color: var(--vnd-ink);
+}
+
+.vnd-card {
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.vnd-list-item {
+    margin-bottom: 0.75rem;
+}
+
+.vnd-list-item:last-child {
+    margin-bottom: 0;
+}
+</style>

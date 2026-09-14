@@ -1,12 +1,16 @@
 <template>
-    <div>
-        <h3 class="text-center my-3">Comisiones de los vendedores</h3>
+    <div class="vnd-wrap">
+        <div class="d-flex align-items-center gap-2 mb-3 mt-3">
+            <i class="bi bi-cash-coin fs-4"></i>
+            <h1 class="h4 fw-bold mb-0">Comisiones de los vendedores</h1>
+        </div>
         <div class="q-pa-md">
-            <q-card>
+            <q-card class="vnd-card">
                 <q-card-section
                     class="d-flex"
                     style="justify-content: space-between"
                 >
+                    <div class="vnd-title">Reglas de comisión</div>
                 </q-card-section>
 
                 <q-table
@@ -129,7 +133,7 @@
                     </template>
                     <template v-slot:body-cell-period="props">
                         <q-td :props="props">
-                            <span class="tag-badge">
+                            <span class="vnd-badge vnd-badge-info">
                                 {{ props.row.period }}
                             </span>
                         </q-td>
@@ -426,13 +430,38 @@ const reloadTable = () => {
 </script>
 
 <style scoped>
-.tag-badge {
-    background-color: #357bf2;
-    color: #ffffff;
-    padding: 0 8px;
-    padding-top: 2px;
-    padding-bottom: 2px;
-    border-radius: 3px;
-    font-weight: 500;
+/* Restyle con el sistema visual de la Torre de Control, tokens locales por componente (mismo
+   patrón que VendedorListar.vue, ver resources/sass/base/dark_mode/dark_mode.scss para el
+   override global de modo oscuro de badges y q-card, que no se toca aquí). Item #9991079. */
+.vnd-wrap {
+    --vnd-ink: #111827;
+    --vnd-info: #2563eb;
+    --vnd-info-bg: #eff6ff;
+}
+
+.vnd-title {
+    font-size: 1.275rem;
+    font-weight: 700;
+    color: var(--vnd-ink);
+    margin: 0;
+}
+
+.vnd-card {
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.vnd-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 999px;
+}
+
+.vnd-badge-info {
+    background-color: var(--vnd-info-bg);
+    color: var(--vnd-info);
 }
 </style>
