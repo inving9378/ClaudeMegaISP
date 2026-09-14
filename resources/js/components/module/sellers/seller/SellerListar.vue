@@ -1,15 +1,21 @@
 <template>
-    <div class="d-flex flex-wrap gap-2 mb-2">
-        <a href="/administracion/user/crear?role=vendedor" class="btn btn-success waves-effect waves-light ms-auto">
-                    Agregar Vendedor
-                </a>
+    <div class="q-pa-md vnd-wrap">
+        <div class="d-flex align-items-center gap-2 mb-3">
+            <i class="bi bi-people-fill fs-4"></i>
+            <h1 class="h4 fw-bold mb-0">Vendedores</h1>
+        </div>
+        <div class="d-flex flex-wrap gap-2 mb-2">
+            <a href="/administracion/user/crear?role=vendedor" class="btn btn-success waves-effect waves-light ms-auto">
+                        Agregar Vendedor
+                    </a>
+        </div>
+        <Datatable
+            module="sellers/seller"
+            model="Seller"
+            list="Listado de Vendedores"
+            @table="table"
+        ></Datatable>
     </div>
-    <Datatable
-        module="sellers/seller"
-        model="Seller"
-        list="Listado de Vendedores"
-        @table="table"
-    ></Datatable>
 </template>
 
 <script>
