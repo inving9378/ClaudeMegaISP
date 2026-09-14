@@ -226,8 +226,10 @@ class RoadmapCircuitoService
         // que seguir la misma precedencia: si el centinela está puesto, su motivo/quién/cuándo es
         // la verdad. Leer sólo la meta de `settings` dejaba el panel con todo en null —o sea,
         // "pausa olvidada" sin poder decir por qué— justo cuando el freno lo puso la consola.
-        $desde = null;
-        $por   = null;
+        $desde    = null;
+        $por      = null;
+        $causa    = null;
+        $expiraEn = null;
 
         if ($det = FrenoCircuito::detalle()) {
             $por = $det['quien'] ?? null;
@@ -238,7 +240,15 @@ class RoadmapCircuitoService
                     $desde = null;   // centinela con fecha ilegible: sigue frenado, sin fingir la hora.
                 }
             }
-            $motivo = $det['motivo'] ?? null;
+            $motivo   = $det['motivo'] ?? null;
+            $expiraEn = $det['expira_en'] ?? null;   // #9990417 (FASE 4a): solo lo traen los frenos con TTL.
+
+            // 'causa' = lo que sigue a los dos puntos en 'quien' (p.ej. 'circuito:limite_cuenta' →
+            // 'limite_cuenta', 'jarvis:bd_integra' → 'bd_integra'). Frenos sin prefijo (legacy, o
+            // vía `--quien` manual sin ':') quedan con causa=null — no se inventa una.
+            if ($por !== null && str_contains($por, ':')) {
+                $causa = substr($por, strpos($por, ':') + 1);
+            }
         }
 
         if ($desde === null || $por === null) {
@@ -257,6 +267,10 @@ class RoadmapCircuitoService
             'desde'       => $desde,
             'por'         => $por,
             'motivo'      => $motivo ?? null,
+            // #9990419: shape SOLO crece — 'causa'/'expira_en' son adicionales, nunca null-safe
+            // rompen a quien ya leía desde/por/motivo/horas/aviso_horas/olvidada.
+            'causa'       => $causa,
+            'expira_en'   => $expiraEn,
             'horas'       => $horas,
             'aviso_horas' => $umbral,
             // Sin meta (pausada antes de este fix, o vía CLI legacy) → no se puede calcular
