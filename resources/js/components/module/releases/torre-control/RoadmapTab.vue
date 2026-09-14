@@ -158,9 +158,9 @@
 
                     <!-- Barra de progreso (solo si tiene sub-tareas) -->
                     <div
-                        v-if="item.subtasks && item.subtasks.length > 0"
+                        v-if="subtasksDe(item).length > 0"
                         class="rdm-progress-wrap"
-                        :title="`${subtasksDone(item)}/${item.subtasks.length} sub-tareas completadas`"
+                        :title="`${subtasksDone(item)}/${subtasksDe(item).length} sub-tareas completadas`"
                     >
                         <div
                             class="rdm-progress-bar"
@@ -399,20 +399,32 @@ export default {
 
         // ── Sub-tareas helpers ────────────────────────────────────────────────
 
+        // #9991082 — blindaje: `subtasks` DEBE ser lista, pero la columna también cargó un objeto
+        // (`{descomposicion:{…}}`, ver RoadmapController::normalizarSubtasks) y `subs.filter` tumbó
+        // la pestaña entera. Normalizar SIEMPRE antes de iterar: lista tal cual; objeto → sus
+        // valores (o `data` si viniera paginado); null/otro → []. Un cambio de forma no vuelve a
+        // matar la Hoja de ruta.
+        function subtasksDe(item) {
+            const subs = item?.subtasks;
+            return Array.isArray(subs)
+                ? subs
+                : (subs && typeof subs === 'object' ? Object.values(subs.data ?? subs) : []);
+        }
+
         function subtasksDone(item) {
-            return (item.subtasks || []).filter(s => s.completed).length;
+            return subtasksDe(item).filter(s => s && s.completed).length;
         }
 
         function subtasksPct(item) {
-            const subs = item.subtasks || [];
+            const subs = subtasksDe(item);
             if (!subs.length) return 0;
             return Math.round(subtasksDone(item) / subs.length * 100);
         }
 
         function lastAdvance(item) {
-            const subs = item.subtasks || [];
+            const subs = subtasksDe(item);
             const dates = subs
-                .filter(s => s.completed && s.completed_at)
+                .filter(s => s && s.completed && s.completed_at)
                 .map(s => new Date(s.completed_at).getTime())
                 .filter(t => !isNaN(t));
             if (!dates.length) return null;
@@ -652,7 +664,7 @@ export default {
             darkMode, items, loading, expandedId, editPrompt,
             activeFilter, filters, counts, groups, visibleGroups, hasVisibleItems,
             showAddModal, addingItem, newItem, toast,
-            subtasksDone, subtasksPct, lastAdvance, relativeTime, fullDateTime,
+            subtasksDe, subtasksDone, subtasksPct, lastAdvance, relativeTime, fullDateTime,
             canLaunch, launchTitle, statusLabel, statusIcon,
             cycleStatus, launchItem, toggleExpand, savePrompt, launchFromDetail,
             addItem,

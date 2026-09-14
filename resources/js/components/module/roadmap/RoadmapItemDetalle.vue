@@ -77,10 +77,10 @@
       </div>
     </div>
 
-    <div v-if="item.subtasks && item.subtasks.length" class="rid-section">
+    <div v-if="subtasks.length" class="rid-section">
       <h2 class="rid-h2">Subtareas</h2>
       <ul class="rid-list">
-        <li v-for="(s, i) in item.subtasks" :key="i" :class="{ 'rid-done': s.completed }">
+        <li v-for="(s, i) in subtasks" :key="i" :class="{ 'rid-done': s.completed }">
           {{ s.completed ? '✓' : '○' }} {{ s.title }}
         </li>
       </ul>
@@ -112,6 +112,12 @@ export default {
     },
     setup(props) {
         const item = JSON.parse(props.item);
+        // #9991082 — blindaje: `subtasks` DEBE ser lista, pero la columna también cargó un objeto
+        // (`{descomposicion:{…}}`); normalizar antes de iterar (misma regla que RoadmapTab.subtasksDe).
+        const rawSubs = item?.subtasks;
+        const subtasks = Array.isArray(rawSubs)
+            ? rawSubs
+            : (rawSubs && typeof rawSubs === 'object' ? Object.values(rawSubs.data ?? rawSubs) : []);
 
         const lvClass = (n) => (n === 'A' ? 'rid-lvA' : n === 'B' ? 'rid-lvB' : n === 'C' ? 'rid-lvC' : 'rid-lvNone');
 
@@ -195,7 +201,7 @@ export default {
             }
         }
 
-        return { item, darkMode, lvClass, estadoTxt, estadoCls, textoOpcion, esElegida, textoLog, fecha, diagIcon, diagCls, diagAcciones };
+        return { item, subtasks, darkMode, lvClass, estadoTxt, estadoCls, textoOpcion, esElegida, textoLog, fecha, diagIcon, diagCls, diagAcciones };
     },
 };
 </script>
