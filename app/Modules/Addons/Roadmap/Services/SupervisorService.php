@@ -290,15 +290,20 @@ class SupervisorService
             ->whereNull('branch')
             ->whereNull('motivo_espera');
 
+        // #9990957 (Fase B2) — mismo criterio de MR-36 (#9990943) que listosParaTerminal(): no
+        // CONTAR items con depende_de sin resolver (antes el "+N más" del pie sí los sumaba).
         // #9990924 — mismo filtro de texto libre que listosParaTerminal(), para que el "+N más"
         // del pie no cuente items que la lista de arriba ya oculta por bloqueo heurístico.
         if (config('circuito.supervisor.hide_blocked_heuristic', true)) {
-            return $q->get(['id', 'prompt', 'description'])
+            return $this->circuito
+                ->filtrarConDependenciasCerradas($q->get(['id', 'prompt', 'description', 'depende_de']))
                 ->reject(fn ($r) => $r->tieneBloqueoDeclaradoEnTexto())
                 ->count();
         }
 
-        return $q->count();
+        return $this->circuito
+            ->filtrarConDependenciasCerradas($q->get(['id', 'depende_de']))
+            ->count();
     }
 
     /** El PROTOCOLO DE COORDINACIÓN que Jarvis T arbitra (para la identidad/UI del supervisor). */
