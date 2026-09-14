@@ -43,7 +43,7 @@
         "@vuelidate/core": "^2.0.3",
         "@vuelidate/validators": "^2.0.4",
         "@vuepic/vue-datepicker": "^8.3.1",
-        "apexcharts": "^3.48.0",
+        "apexcharts": "^7.3.0",
         "bootstrap-multiselect": "^1.1.0",
         "chart.js": "^4.4.1",
         "choices.js": "^11.0.3",
@@ -85,7 +85,7 @@
         "toastr": "^2.1.4",
         "vue-picture-cropper": "^0.7.0",
         "vue2-daterange-picker": "^0.6.8",
-        "vue3-apexcharts": "^1.5.2",
+        "vue3-apexcharts": "^1.11.1",
         "vue3-google-map": "^0.8.2",
         "vuex": "^4.0.2",
         "xlsx": "^0.18.5"

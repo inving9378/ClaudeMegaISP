@@ -633,6 +633,46 @@
         transform: scale(1);
     }
 
+    // ── Tarjetas Bootstrap (ChartCard y otras) dentro del wrap → look Torre ──
+    .card {
+        background: var(--tc-surface);
+        border: 1px solid var(--tc-line);
+        border-radius: 16px;
+        color: var(--tc-ink);
+    }
+    .card-header {
+        background: transparent;
+        border-bottom: 1px solid var(--tc-line);
+        color: var(--tc-ink);
+    }
+    .card-header h3,
+    .card-header h4,
+    .card-header h5 {
+        color: var(--tc-ink);
+        margin: 0;
+    }
+    .card-body {
+        color: var(--tc-ink);
+    }
+
+    // ── Legibilidad de ApexCharts en modo oscuro ──
+    &.tc-dark {
+        .apexcharts-text,
+        .apexcharts-title-text,
+        .apexcharts-datalabel,
+        .apexcharts-datalabels text {
+            fill: var(--tc-ink) !important;
+        }
+        .apexcharts-legend-text {
+            color: var(--tc-ink) !important;
+        }
+        .apexcharts-gridline,
+        .apexcharts-xaxis line,
+        .apexcharts-yaxis line {
+            stroke: var(--tc-line) !important;
+        }
+    }
+
     // ── KPI cards (dashboard / estadísticas) ──
     .tc-kpi {
         background: var(--tc-surface);

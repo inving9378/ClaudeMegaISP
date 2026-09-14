@@ -21,7 +21,7 @@
                     :enableTimePicker="false"
                 />
                 <apexchart
-                    type="bar"
+                    type="area"
                     height="350"
                     :options="chartOptions"
                     :series="series"
@@ -33,12 +33,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, defineProps, watch, onBeforeMount } from "vue";
+import { ref, computed, onMounted, defineProps, watch, onBeforeMount } from "vue";
 import VueDatePicker from "@vuepic/vue-datepicker";
 import "@vuepic/vue-datepicker/dist/main.css";
 import ChartCard from "../../../base/card/chart/ChartCard.vue";
 import { salesAndProspects } from "./helper/request.js";
 import { useDatePicker } from "../../../../composables/useDatePicker.js";
+import { darkMode } from "../../../../hook/appConfig.js";
 
 const props = defineProps({
     id: {
@@ -52,25 +53,68 @@ const { customFormat } = useDatePicker();
 const showLoading = ref(false);
 const date = ref();
 const series = ref([]);
-const chartOptions = ref({
-    chart: {
-        id: "sales-chart",
-    },
-    plotOptions: {
-        bar: {
-            columnWidth: "45%",
-            endingShape: "rounded",
-            borderRadius: 4,
+
+// Zoomable Timeseries: área con gradiente sobre eje de fechas, con zoom/pan y toolbar.
+const chartOptions = computed(() => {
+    const ink = darkMode.value ? "#e8edf6" : "#111827";
+    const muted = darkMode.value ? "#9aa7bd" : "#6b7280";
+    const line = darkMode.value ? "#2a3550" : "#e5e7eb";
+    return {
+        chart: {
+            id: "sales-chart",
+            type: "area",
+            fontFamily:
+                "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+            foreColor: ink,
+            zoom: { enabled: true, type: "x", autoScaleYaxis: true },
+            toolbar: {
+                show: true,
+                autoSelected: "zoom",
+                tools: {
+                    download: true,
+                    selection: true,
+                    zoom: true,
+                    zoomin: true,
+                    zoomout: true,
+                    pan: true,
+                    reset: true,
+                },
+            },
         },
-    },
-    xaxis: {
-        categories: [],
-    },
-    yaxis: {
-        title: {
-            text: "Número de ventas",
+        colors: ["#0d9488", "#2563eb"],
+        dataLabels: { enabled: false },
+        stroke: { curve: "smooth", width: 2 },
+        fill: {
+            type: "gradient",
+            gradient: {
+                shadeIntensity: 1,
+                opacityFrom: 0.35,
+                opacityTo: 0.05,
+                stops: [0, 90, 100],
+            },
         },
-    },
+        markers: { size: 0, hover: { size: 5 } },
+        xaxis: {
+            type: "datetime",
+            labels: { style: { colors: muted } },
+            axisBorder: { color: line },
+            axisTicks: { color: line },
+        },
+        yaxis: {
+            title: { text: "Cantidad", style: { color: muted } },
+            labels: { style: { colors: muted } },
+        },
+        grid: { borderColor: line, strokeDashArray: 4 },
+        legend: {
+            position: "top",
+            horizontalAlign: "right",
+            labels: { colors: ink },
+        },
+        tooltip: {
+            theme: darkMode.value ? "dark" : "light",
+            x: { format: "dd MMM yyyy" },
+        },
+    };
 });
 
 onBeforeMount(() => {
