@@ -77,6 +77,19 @@
       </div>
     </div>
 
+    <!-- #9991165 — adjuntos del item (maquetas, capturas, PDFs): lo que la terminal recibe en su prompt. -->
+    <div v-if="item.adjuntos && item.adjuntos.length" class="rid-section">
+      <h2 class="rid-h2">📎 Adjuntos ({{ item.adjuntos.length }})</h2>
+      <ul class="rid-list">
+        <li v-for="a in item.adjuntos" :key="a.id">
+          <a :href="a.url">{{ a.nombre }}</a>
+          <span class="rid-adj-meta"> · {{ a.extension.toUpperCase() }} · {{ fmtBytes(a.tamano) }}</span>
+          <span v-if="a.descripcion" class="rid-adj-meta"> — {{ a.descripcion }}</span>
+          <span v-if="!a.existe_en_disco" class="rid-adj-falta">falta en disco</span>
+        </li>
+      </ul>
+    </div>
+
     <div v-if="subtasks.length" class="rid-section">
       <h2 class="rid-h2">Subtareas</h2>
       <ul class="rid-list">
@@ -201,7 +214,8 @@ export default {
             }
         }
 
-        return { item, subtasks, darkMode, lvClass, estadoTxt, estadoCls, textoOpcion, esElegida, textoLog, fecha, diagIcon, diagCls, diagAcciones };
+        const fmtBytes = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : n >= 1024 ? Math.round(n / 1024) + ' KB' : (n || 0) + ' B'); // #9991165
+        return { item, subtasks, fmtBytes, darkMode, lvClass, estadoTxt, estadoCls, textoOpcion, esElegida, textoLog, fecha, diagIcon, diagCls, diagAcciones };
     },
 };
 </script>
@@ -215,6 +229,8 @@ export default {
 .rid-dark .rid-idnum{color:#9ca3af;}
 
 .rid-tag{font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid transparent;}
+.rid-adj-meta{color:#64748b;font-size:12px;}
+.rid-adj-falta{margin-left:6px;font-size:11px;font-weight:700;color:#b91c1c;border:1px solid #b91c1c;border-radius:5px;padding:0 5px;}
 .rid-lvA{background:#dcfce7;color:#166534;border-color:#bbf7d0;}
 .rid-lvB{background:#fef9c3;color:#854d0e;border-color:#fde68a;}
 .rid-lvC{background:#fee2e2;color:#991b1b;border-color:#fecaca;}

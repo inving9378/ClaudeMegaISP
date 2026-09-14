@@ -19,6 +19,16 @@
         {{ node.titulo }}
       </span>
 
+      <!-- #9991165 — indicador de adjuntos: abre la ficha, donde están los enlaces de descarga. -->
+      <a
+        v-if="node.nivel !== 'modulo' && node.adjuntos_n"
+        class="pa-adj"
+        :href="'/roadmap/item/' + node.id"
+        target="_blank"
+        rel="noopener"
+        :title="node.adjuntos_n + ' adjunto(s) — abre la ficha para descargarlos'"
+        @click.stop
+      >📎 {{ node.adjuntos_n }}</a>
       <span v-if="node.nivel !== 'modulo' && node.worker_sid" class="pa-terminal">
         <i class="bi bi-hdd-stack"></i> {{ node.worker_sid }}
       </span>
@@ -316,6 +326,8 @@ export default {
 .pa-titulo{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 1 auto; min-width:80px; }
 .pa-id{ color:var(--pa-muted,#64748b); font-weight:600; margin-right:4px; }
 
+.pa-adj{flex:0 0 auto;font-size:11px;font-weight:700;color:var(--pa-ink,#0f172a);background:var(--pa-chip-bg,#f1f5f9);border-radius:6px;padding:1px 6px;text-decoration:none;white-space:nowrap;}
+.pa-adj:hover{text-decoration:underline;}
 .pa-terminal{
   flex:0 0 auto; font-size:11px; color:var(--pa-muted,#64748b);
   background:var(--pa-chip-bg,#f1f5f9); border-radius:6px; padding:1px 6px; white-space:nowrap;
