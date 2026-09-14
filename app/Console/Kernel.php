@@ -73,6 +73,8 @@ class Kernel extends ConsoleKernel
 
         // #921 Fase 2 / #957 — reactiva items del Roadmap con agendado_para ya vencido (vuelven al pool).
         $schedule->command('circuito:reactivar-agendados')->dailyAt('00:05')->withoutOverlapping();
+        // #9991163 — adjuntos del roadmap: los borrados hace más de 30 días salen de disco.
+        $schedule->command('roadmap:adjuntos-purgar')->dailyAt('02:40')->withoutOverlapping()->onOneServer();
 
         // #9990737 (Fase 2 de #9990730) — corre la auditoría READ-ONLY de la Fase 1 (#9990736) cada
         // 15 min (cadencia q3 ya decidida por Irving). Solo categoriza en el log de cada item, no
