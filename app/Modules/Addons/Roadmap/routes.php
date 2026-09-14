@@ -160,6 +160,9 @@ Route::middleware(['web', 'auth'])
         // #766 (Pieza 1c hija de #672) — KPI card del panorama: cuántas veces abrió la válvula,
         // sobre qué items y por qué término, leído de `torre_frontera_dura_eventos` (#764).
         Route::get('/torre/frontera-dura',                [RoadmapController::class, 'torreFronteraDura']);
+        // CIRC-02c Fase 1 (#9991139) — hilo de respuestas: pendientes >60min y requiere_irving
+        // sin respuesta >7 días, para la bandeja de decisiones.
+        Route::get('/torre/watchdog-respuestas',          [RoadmapController::class, 'torreWatchdogRespuestas']);
         // #937 — tablero "Items atorados" agrupado por causa (Panorama). Depende de #935
         // (DiagnosticoItemService); mientras no exista responde disponible=false (guard interno).
         Route::get('/atorados',            [RoadmapController::class, 'atorados']);

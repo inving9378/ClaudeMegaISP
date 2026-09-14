@@ -8,6 +8,7 @@ use App\Modules\Addons\Roadmap\Models\CircuitoEjecucion;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Services\AutopilotService;
 use App\Modules\Addons\Roadmap\Services\FronterasService;
+use App\Modules\Addons\Roadmap\Services\RespuestasWatchdogService;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use App\Modules\Addons\Roadmap\Services\SessionTreeService;
 use App\Modules\Addons\Roadmap\Services\SupervisorService;
@@ -686,6 +687,21 @@ class RoadmapController extends Controller
         $data = Cache::remember('roadmap:torre:frontera-dura', 30, fn () => $fronteras->resumenTorreFronteraDura());
 
         return response()->json(['ok' => true] + $data);
+    }
+
+    /**
+     * GET /api/roadmap/torre/watchdog-respuestas (CIRC-02c Fase 1, #9991139) — dos señales de
+     * "algo no se está consumiendo" del hilo de respuestas de CIRC-02b: respuestas ejecutables
+     * sin consumir hace >60 min con el circuito corriendo, e items `requiere_irving` sin ninguna
+     * respuesta hace >7 días. Cacheado 30s, mismo patrón que `torreFronteraDura()`.
+     */
+    public function torreWatchdogRespuestas(RespuestasWatchdogService $watchdog): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $data = Cache::remember('roadmap:torre:watchdog-respuestas', 30, fn () => $watchdog->resumen());
+
+        return response()->json($data);
     }
 
     public function historialAcciones(Request $request): JsonResponse
@@ -3269,7 +3285,8 @@ class RoadmapController extends Controller
     {
         $this->authorize('roadmap_view');
 
-        $item = self::normalizarSubtasks(RoadmapItem::findOrFail($id));
+        // CIRC-02c Fase 1 (#9991139) — el hilo completo de respuestas viaja con el item.
+        $item = self::normalizarSubtasks(RoadmapItem::findOrFail($id)->load('respuestas'));
         $this->marcarEnTerminal(collect([$item])); // #9991092: el sondeo post-alta reinyecta esto en la lista
 
         return response()->json($item);
