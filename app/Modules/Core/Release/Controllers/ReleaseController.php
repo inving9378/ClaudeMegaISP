@@ -410,6 +410,16 @@ class ReleaseController extends Controller
         }
     }
 
+    /**
+     * Item roadmap #9990671 (F1): estado real de publicación por versión, consultando
+     * GitHub por API HTTPS (NO SSH), cacheado 5 min. Si GitHub no responde, TODAS las
+     * versiones vienen 'desconocido' — nunca 'publicada' sin poder verificarla.
+     */
+    public function publicacionEstado(\App\Services\Releases\ReleasePublicationService $svc)
+    {
+        return response()->json($svc->estado());
+    }
+
     public function update(Request $request, $id)
     {
         $release = Release::find($id);
