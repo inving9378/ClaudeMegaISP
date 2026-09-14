@@ -357,7 +357,9 @@ export default {
             }
         }
         const editPrompt   = ref('');
-        const activeFilter = ref('all');
+        // #9991092 — el default vuelve a ser el backlog (153a8ef7): "Pendientes" sin lo que ya
+        // está en una terminal. "Todos" sigue existiendo y muestra el universo completo.
+        const activeFilter = ref('pending');
         const showAddModal = ref(false);
         const addingItem   = ref(false); // #858: deshabilita el botón mientras se envía (anti doble-clic)
         const newItem      = ref({ title: '', priority: 'media', target_version: '', prompt: '' });
@@ -390,7 +392,15 @@ export default {
 
         const visibleGroups = computed(() => {
             if (activeFilter.value === 'all') return groups.value;
-            return groups.value.filter(g => g.key === activeFilter.value);
+            return groups.value
+                .filter(g => g.key === activeFilter.value)
+                // #9991092 — pipeline por estado: un item que una terminal tomó desaparece de
+                // "Pendientes" (vive en Terminales). `en_terminal` lo calcula el backend con el
+                // MISMO criterio que esa pestaña (idsEnCurso), no se reimplementa aquí. Los
+                // contadores de arriba (`counts`) y "Todos" siguen sobre el universo completo.
+                .map(g => (g.key === 'pending'
+                    ? { ...g, items: g.items.filter(i => !i.en_terminal) }
+                    : g));
         });
 
         const hasVisibleItems = computed(() =>
@@ -646,6 +656,8 @@ export default {
                 // `status` (in_progress/pending/done/cancelled), las 4 tarjetas de arriba, así que
                 // necesita el UNIVERSO COMPLETO (mismo total que el Panorama) o los 4 filtros salvo
                 // "Pendientes" quedan siempre en cero. Ver docs/torre-control-flujo-real.md (D8).
+                // #9991092: el backlog de 153a8ef7 se recupera en la VISTA (default "Pendientes"
+                // sin `en_terminal`), no acotando esta consulta — ver visibleGroups.
                 const { data } = await axios.get('/api/roadmap/items');
                 items.value = data;
             } catch {
