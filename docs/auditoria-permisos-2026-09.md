@@ -188,7 +188,7 @@ en esa rama, 3409 filas), no de la pantalla en vivo todavía.
 | 4 | Saneamiento del rol `consejo` (11 huérfanos vs 3 efectivos) + decidir qué hacer con las 27 asignaciones de permisos de facturación/pagos inertes en 8 roles: ¿retirarlas (limpieza) o construir el enforcement que les falta? | `#9991119` | B | Media |
 | 5 | Triar y cerrar los 33 agujeros BAJO + el 1 ambiguo de rutas, junto con los 2 hallazgos secundarios (rutas rotas a métodos inexistentes, `GET /register-vendor` sin documentar) | `#9991120` | B | Baja |
 | 6 | Decidir destino de los 69 permisos huérfanos (¿retirar, o construir el control que falta?) — revisar antes caso por caso los que puedan ser de construcción dinámica (`can('modulo.'.$accion)`) | `#9991121` | A | Baja |
-| 7 | Corregir la deriva de nombre `finance_edit_payments`/`finance_delete_payments` (H9, confirmada en Fase 3b `#9991131`): la UI de roles los muestra gateando `/finanzas/pagos`, pero el enforcement real usa `client_payroll_payment_edit_client` — ninguna ruta checa los dos primeros | `#9991171` | B (sugerido) | Media |
+| 7 | Corregir la deriva de nombre `finance_edit_payments`/`finance_delete_payments` (H9, confirmada en Fase 3b `#9991131`): la UI de roles los muestra gateando `/finanzas/pagos`, pero el enforcement real usa `client_payroll_payment_edit_client` — ninguna ruta checa los dos primeros | `#9991171` ✅ Resuelto (doc-only, ver `docs/auditoria/h9-h10-item-9991131.md` §Resolución) | B (sugerido) | Media |
 
 Los 7 sub-items ya fueron creados contra `#9990721` con el detalle exacto (archivo/documento fuente,
 números, rutas) para que quien los tome no tenga que re-auditar nada. El punto 7 es el único
