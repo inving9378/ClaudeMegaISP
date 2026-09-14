@@ -223,6 +223,12 @@ class MergeRunner
             );
         }
 
+        // #9991086 — sha de `main` INMEDIATAMENTE antes de este merge. syncCheckoutPrincipal()
+        // (más abajo) lo necesita para comparar la limpieza del checkout principal contra el punto
+        // de partida REAL, no contra el HEAD que `update-ref` ya habrá avanzado para entonces (ver
+        // el docblock de syncCheckoutPrincipal()).
+        $shaAnterior = trim($this->git(['rev-parse', 'HEAD'])->getOutput());
+
         // FASE 1: merge staged SIN commitear → detecta conflictos sin dejar rastro.
         $merge = $this->git(['merge', '--no-ff', '--no-commit', $branch]);
         if (! $merge->isSuccessful()) {
@@ -311,7 +317,7 @@ class MergeRunner
         // /var/www/megaisp (lo que sirve www-data) SOLO si ese checkout está en `main` y limpio;
         // si tiene otra rama o cambios sin commitear, NO SE TOCA (ver docblock del método). Un
         // fallo aquí nunca revierte el merge, que ya quedó firme en `main`.
-        $sincronizado = $this->syncCheckoutPrincipal($sha);
+        $sincronizado = $this->syncCheckoutPrincipal($sha, $shaAnterior);
 
         // #711 (Jarvis Parte 1) — "al cambiar main" y "al cerrarse un item" son el MISMO evento
         // en este flujo (un item se cierra integrándose aquí), así que este es el único punto de
@@ -476,7 +482,7 @@ class MergeRunner
      *    mano ahí) → NO SE TOCA absolutamente nada — ni checkout, ni reset, ni fetch. `main` ya
      *    avanzó en el repositorio compartido; ese checkout se pondrá al día solo la próxima vez
      *    que sí esté en main. Devuelve `false` (no sincronizado esta vez).
-     *  - Si SÍ está en `main` pero tiene cambios sin commitear (`git status --porcelain` no vacío)
+     *  - Si SÍ está en `main` pero tiene cambios sin commitear (contra `$shaAnterior`, ver abajo)
      *    → tampoco se toca (un `reset --hard` los destruiría) — se loguea fuerte para que alguien
      *    lo resuelva a mano. Devuelve `false`.
      *  - Si está en `main` y limpio → `git reset --hard HEAD` (HEAD ahí es un ref simbólico a
@@ -484,9 +490,19 @@ class MergeRunner
      *    pone el índice/árbol de trabajo al día con su propio HEAD, no descarta nada real porque ya
      *    verificamos que está limpio). Devuelve `true` si terminó sincronizado de verdad.
      *
-     * Un fallo aquí NUNCA revierte el merge (que ya quedó firme en `main`) ni escala el item.
+     * #9991086 — BUG DE ORIGEN (0 syncs reales desde 2026-09-09, medido en el item): la limpieza se
+     * comprobaba con `git status --porcelain`, que compara índice/árbol contra HEAD — pero para
+     * cuando se llega aquí, `update-ref` (en `performMerge()`, arriba) YA avanzó `refs/heads/main`
+     * al commit NUEVO del merge, y HEAD en este checkout es un símbolo que sigue a esa rama. El
+     * índice/árbol del checkout, en cambio, seguían con el contenido VIEJO (nadie los tocó). Así que
+     * `git status --porcelain` veía DIFERENCIA entre índice-viejo y HEAD-ya-nuevo, y la reportaba
+     * como "staged" — TODO archivo que el propio merge tocara se leía como "sucio", así que el
+     * checkout nunca calificaba para sincronizar. Fix: comparar contra `$shaAnterior` (el sha de
+     * `main` justo ANTES de este merge, capturado en `performMerge()`), que es el punto de partida
+     * real del checkout — así un merge sin tocar nada humano SIEMPRE da limpio, sea cual sea lo que
+     * el merge en sí haya cambiado.
      */
-    protected function syncCheckoutPrincipal(string $sha): bool
+    protected function syncCheckoutPrincipal(string $sha, string $shaAnterior): bool
     {
         $principal = $this->checkoutPrincipalPath();
         if ($principal === $this->workDir()) {
@@ -509,12 +525,52 @@ class MergeRunner
             return false;
         }
 
-        $status = new Process(['git', 'status', '--porcelain'], $principal);
-        $status->run();
-        if (! $status->isSuccessful() || trim($status->getOutput()) !== '') {
+        // Archivos trackeados con diferencias (staged o no) contra el sha ANTERIOR — `git diff
+        // <commit>` compara el ÁRBOL DE TRABAJO directo contra ese commit, sin pasar por el índice,
+        // así que capta staged+unstaged en una sola llamada sin el falso positivo de `status`
+        // contra un HEAD ya movido (ver docblock arriba).
+        $diffTrabajo = new Process(['git', 'diff', '--quiet', $shaAnterior], $principal);
+        $diffTrabajo->setTimeout(30);
+        $diffTrabajo->run();
+        $codigo = $diffTrabajo->getExitCode();
+        // exit 0 = sin diferencias, 1 = hay diferencias, cualquier otro (o null) = error real
+        // (p.ej. $shaAnterior no resuelve) → fail-closed, igual que el resto del método.
+        if ($codigo === null || $codigo > 1) {
+            Log::channel('roadmap_externo')->warning('sync-checkout-principal-fallo', [
+                'motivo' => 'no se pudo comparar el checkout contra el sha anterior',
+                'merge_commit' => $sha, 'sha_anterior' => $shaAnterior,
+                'error' => trim($diffTrabajo->getErrorOutput()),
+            ]);
+
+            return false;
+        }
+        $sucio = $codigo === 1;
+        $motivoSucio = $sucio ? 'archivos trackeados modificados sin commitear' : null;
+
+        // Archivos SIN trackear (git diff no los ve). Respeta .gitignore + .git/info/exclude tal
+        // cual `status --porcelain` lo hacía (p.ej. public/.well-known/ del reto ACME).
+        if (! $sucio) {
+            $untracked = new Process(['git', 'ls-files', '--others', '--exclude-standard'], $principal);
+            $untracked->setTimeout(30);
+            $untracked->run();
+            if (! $untracked->isSuccessful()) {
+                Log::channel('roadmap_externo')->warning('sync-checkout-principal-fallo', [
+                    'motivo' => 'no se pudo listar archivos sin trackear', 'merge_commit' => $sha,
+                    'error' => trim($untracked->getErrorOutput()),
+                ]);
+
+                return false;
+            }
+            if (trim($untracked->getOutput()) !== '') {
+                $sucio = true;
+                $motivoSucio = 'archivos sin trackear';
+            }
+        }
+
+        if ($sucio) {
             Log::channel('roadmap_externo')->warning('sync-checkout-principal-sucio', [
-                'motivo' => 'checkout principal tiene cambios sin commitear, no se sincroniza para no perderlos',
-                'merge_commit' => $sha,
+                'motivo' => "checkout principal tiene cambios sin commitear ({$motivoSucio}), no se sincroniza para no perderlos",
+                'merge_commit' => $sha, 'sha_anterior' => $shaAnterior,
             ]);
 
             return false;
