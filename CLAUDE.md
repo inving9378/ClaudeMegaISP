@@ -2589,3 +2589,39 @@ directo: los 3 pares de valores y el `color:var(--pa-danger,#dc2626)` coinciden 
 lo pedido. Detalle en `docs/torrepanorama-arbol-css-vars-item-9991073-verificacion.md`. **Sin
 cambio de código** — el fix ya estaba aplicado. NO cierra al padre #9991072 (sigue esperando a su
 hermano de Fase B en `TorreArbolNodo.vue`).
+
+## Item #9991082 — Hoja de ruta: `subs.filter is not a function` (RESUELTO) + hallazgo: el checkout principal NO se sincroniza tras los merges (#9991086)
+
+Sesión directa con Irving (2026-09-14). La Hoja de ruta de la Torre V2 tronaba con `subs.filter is
+not a function`. **Causa raíz:** `roadmap_items.subtasks` carga dos formas incompatibles — la
+lista de sub-tareas de la UI `[{title,completed,completed_at}]` y, desde `circuito:sub-item`
+(`SubItemCommand.php:117` / `DependenciaGate`), el objeto `{"descomposicion":{"depende_de":[…]}}`
+(492 items desde el 09-04). Detonador: `c96b81c0` (#9990890, viernes 09-11) pasó la pestaña de
+`?vista=backlog` al universo completo. **Fix (`c0d8ce1f`):** Capa 1 `RoadmapController::
+normalizarSubtasks()` — `subtasks` SIEMPRE lista + `descomposicion` aparte en
+index/show/store/update/start/complete + detalle, solo en memoria (columna y DependenciaGate
+intactos); Capa 2 `RoadmapTab.subtasksDe()` + `RoadmapItemDetalle` normalizan antes de iterar.
+Deuda estructural (columna propia + backfill, endpoints crudos restantes, `PATCH …/subtasks`
+borraría `depende_de`) → **#9991084**. Detalle en `docs/bitacora/2026-09-14-item-9991082.md`.
+
+⚠️ **Lo que de verdad explicaba el "apareció el sábado": `/var/www/megaisp` (nginx dev + cron
+del circuito) llevaba desde el 09-10 sin sincronizarse con `main`.** `MergeRunner::
+syncCheckoutPrincipal()` **nunca ha funcionado** (0 `ok` / 74 `sucio` / 190 `omitido`): hace
+`update-ref` de `main` ANTES de `git status --porcelain` en el principal, así que el índice viejo
+siempre parece sucio. El rebuild post-merge tampoco corre desde el 09-09. → item urgente
+**#9991086**. Mientras no se mergee: al arrancar en `/var/www/megaisp`, `git diff HEAD --stat` —
+si difiere, `git stash push` (no `reset --hard`) + `CIRCUITO_BUILD_MODE=prod bash
+deploy/circuito/npm-build.sh` + `view:clear && route:clear && view:cache`. **Nunca commitear desde
+un árbol desincronizado** (revertiría lo mergeado). `public/.well-known/` (reto ACME, root) cuenta
+como sucio: excluido en `.git/info/exclude` del principal.
+
+## Item #9991083 — Autorrenovación TLS de dev: el banner "expira en 24 días" decía la verdad (E2, pendiente root)
+
+El cert de `dev.meganett.com.mx` SÍ se renovó el 2026-09-11 16:08 (`authenticator = webroot`,
+`live/*.pem → cert2`), pero **nginx nunca recargó** (worker desde el 09-01) y `:443` sigue
+sirviendo `cert1` (vence **2026-10-08**). El banner (`EnvironmentHealthService::certificado()`)
+lee el cert **en vivo** con caché de 30 s: no miente. `certbot.timer` está vivo (`renew` de hoy:
+exit 0 en 2 s = cert2 no toca). Faltaba el **deploy-hook**: versionado en
+`deploy/letsencrypt/renewal-hooks/deploy/reload-nginx.sh` + runbook en `deploy/README-dev-tls.md`
+(instalar hook, `nginx -t && systemctl reload nginx`, re-probar con `openssl s_client`, `certbot
+renew --dry-run`) — **es nginx, no Apache**. Todo requiere root → item de respuesta **#9991085**.
