@@ -118,12 +118,13 @@ class GitHubUpdateService
             $installed = Release::latest('release_date')->latest('id')->first();
 
             if (!$installed || !$installed->version) {
-                // Sin registro local: siempre hay actualización disponible
-                return $this->buildResult($latest);
+                // Sin registro local: siempre hay actualización disponible, pero sin versión
+                // instalada de referencia no hay rango que acumular (item #9990672).
+                return $this->buildRangeResult($latest, null);
             }
 
             if (VersionComparator::isNewer($latestTag, $installed->version)) {
-                return $this->buildResult($latest);
+                return $this->buildRangeResult($latest, $installed->version);
             }
 
             return null;
@@ -142,5 +143,174 @@ class GitHubUpdateService
             'published_at' => $release['published_at'],
             'url'          => $release['html_url'] ?? '',
         ];
+    }
+
+    /**
+     * Item #9990672 (F1·B) — enriquece el resultado base con el SALTO COMPLETO Y ACUMULADO
+     * instalada..destino: aplicar una versión es un checkout, no un parche (si prod está en
+     * V1.33 y aparece V1.36, aplicar V1.36 trae TAMBIÉN V1.34 y V1.35). Antes la pantalla solo
+     * mostraba el último release (`releases/latest`); esto agrega el rango completo sin quitar
+     * ninguna de las llaves existentes (`tag`/`name`/`body`/...) que ya consume `apply()`.
+     *
+     * Sin `$installedTag` (sin registro local de referencia) no hay rango que acumular: se
+     * degrada al comportamiento anterior (un solo "salto" = el destino).
+     */
+    private function buildRangeResult(array $latest, ?string $installedTag): array
+    {
+        $base                  = $this->buildResult($latest);
+        $base['installed_tag'] = $installedTag;
+
+        $token = config('updates.read_token', '');
+        $repo  = config('updates.repo', '');
+
+        $versions = $installedTag
+            ? $this->fetchReleasesInRange($repo, $token, $installedTag, $base['tag'])
+            : [];
+
+        if (empty($versions)) {
+            // Sin rango (sin instalada de referencia, o la consulta de la lista falló):
+            // al menos el destino, para no dejar la pantalla vacía.
+            $versions = [[
+                'tag'          => $base['tag'],
+                'name'         => $base['name'],
+                'body'         => $base['body'],
+                'published_at' => $base['published_at'],
+                'url'          => $base['url'],
+                'manual_steps' => $this->extractManualSteps($base['body']),
+            ]];
+        }
+
+        $base['jump_count']  = count($versions);
+        $base['is_big_jump'] = count($versions) >= 3;
+        $base['versions']    = $versions;
+
+        $base['manual_steps'] = array_values(array_filter(array_map(
+            fn (array $v) => $v['manual_steps'] ? ['tag' => $v['tag'], 'steps' => $v['manual_steps']] : null,
+            $versions
+        )));
+
+        $migrationsCount     = $installedTag ? $this->migrationsCountBetween($repo, $token, $installedTag, $base['tag']) : null;
+        $base['migrations']  = [
+            'count'   => $migrationsCount,
+            'unknown' => $migrationsCount === null,
+        ];
+
+        return $base;
+    }
+
+    /**
+     * Releases de GitHub entre `$installedTag` (exclusivo) y `$latestTag` (inclusivo), ORDENADOS
+     * ascendente (el más viejo primero), cada uno con su `manual_steps` extraído del body.
+     * Best-effort: arreglo vacío si la consulta falla (el caller degrada al destino solo).
+     */
+    private function fetchReleasesInRange(string $repo, string $token, string $installedTag, string $latestTag): array
+    {
+        try {
+            $response = Http::withHeaders(array_filter([
+                    'Accept'               => 'application/vnd.github+json',
+                    'X-GitHub-Api-Version' => '2022-11-28',
+                    'Authorization'        => $token ? "Bearer {$token}" : null,
+                ]))
+                ->timeout(10)
+                ->get("https://api.github.com/repos/{$repo}/releases", ['per_page' => 100]);
+
+            if (!$response->successful()) {
+                return [];
+            }
+
+            $releases = $response->json() ?? [];
+        } catch (\Throwable $e) {
+            Log::channel('single')->warning("GitHubUpdateService: no se pudo listar releases del rango {$installedTag}..{$latestTag}: {$e->getMessage()}");
+            return [];
+        }
+
+        $enRango = array_values(array_filter($releases, function ($r) use ($installedTag, $latestTag) {
+            $tag = $r['tag_name'] ?? null;
+            if (!$tag) {
+                return false;
+            }
+            if (!VersionComparator::isNewer($tag, $installedTag)) {
+                return false; // debe ser posterior a la instalada
+            }
+
+            return $tag === $latestTag || !VersionComparator::isNewer($tag, $latestTag); // no más nueva que el destino
+        }));
+
+        usort($enRango, function ($a, $b) {
+            $pa = VersionComparator::parse($a['tag_name']);
+            $pb = VersionComparator::parse($b['tag_name']);
+
+            return [$pa['major'], $pa['minor']] <=> [$pb['major'], $pb['minor']];
+        });
+
+        return array_map(fn ($r) => [
+            'tag'          => $r['tag_name'],
+            'name'         => $r['name'] ?? $r['tag_name'],
+            'body'         => $r['body'] ?? '',
+            'published_at' => $r['published_at'] ?? null,
+            'url'          => $r['html_url'] ?? '',
+            'manual_steps' => $this->extractManualSteps((string) ($r['body'] ?? '')),
+        ], $enRango);
+    }
+
+    /**
+     * Cuenta migraciones NUEVAS (`database/migrations/*.php` agregados) entre dos tags vía la
+     * Compare API de GitHub — funciona sin tener el código del rango descargado localmente (a
+     * diferencia de `migrate:status`, que necesita los archivos ya en el filesystem). Null =
+     * no se pudo determinar (nunca se inventa un número — item #9990672, "conteo correcto").
+     */
+    private function migrationsCountBetween(string $repo, string $token, string $base, string $head): ?int
+    {
+        if ($base === $head) {
+            return 0;
+        }
+
+        try {
+            $response = Http::withHeaders(array_filter([
+                    'Accept'               => 'application/vnd.github+json',
+                    'X-GitHub-Api-Version' => '2022-11-28',
+                    'Authorization'        => $token ? "Bearer {$token}" : null,
+                ]))
+                ->timeout(10)
+                ->get("https://api.github.com/repos/{$repo}/compare/{$base}...{$head}");
+
+            if (!$response->successful()) {
+                return null;
+            }
+
+            $files = $response->json('files') ?? [];
+
+            return count(array_filter(
+                $files,
+                fn ($f) => ($f['status'] ?? '') === 'added' && str_starts_with((string) ($f['filename'] ?? ''), 'database/migrations/')
+            ));
+        } catch (\Throwable $e) {
+            Log::channel('single')->warning("GitHubUpdateService: no se pudo contar migraciones del rango {$base}...{$head}: {$e->getMessage()}");
+            return null;
+        }
+    }
+
+    /**
+     * Extrae la sección "Pasos manuales" del changelog (markdown), si el Release la declaró.
+     * Convención aditiva (item #9990672, punto 5): el cuerpo del GitHub Release ya se arma por
+     * bloques `ReleaseDescription` con título libre (`DeploymentService::buildReleaseBody()`) —
+     * un bloque titulado "Pasos manuales" basta para que esta pantalla lo recoja, sin columna
+     * nueva ni tocar el generador de changelog. Sin esa sección ⇒ null (no se inventa nada).
+     */
+    private function extractManualSteps(string $body): ?string
+    {
+        if (!preg_match('/^#{1,6}\s*Pasos\s+manuales\s*:?\s*$/im', $body, $m, PREG_OFFSET_CAPTURE)) {
+            return null;
+        }
+
+        $resto = substr($body, $m[0][1] + strlen($m[0][0]));
+
+        if (preg_match('/^#{1,6}\s+\S/m', $resto, $siguiente, PREG_OFFSET_CAPTURE)) {
+            $resto = substr($resto, 0, $siguiente[0][1]);
+        }
+
+        $texto = trim($resto);
+
+        return $texto !== '' ? $texto : null;
     }
 }

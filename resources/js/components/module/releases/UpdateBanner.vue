@@ -68,10 +68,22 @@
 
             <!-- Texto -->
             <div class="flex-grow-1">
-                <strong>Actualización disponible — {{ release.tag }}</strong>
-                <span v-if="release.name && release.name !== release.tag" class="text-muted ms-1">{{ release.name }}</span>
+                <template v-if="release.installed_tag && release.jump_count > 1">
+                    <strong>
+                        Estás en {{ release.installed_tag }} · vas a aplicar {{ release.tag }} · incluye {{ release.jump_count }} versiones
+                    </strong>
+                </template>
+                <template v-else>
+                    <strong>Actualización disponible — {{ release.tag }}</strong>
+                    <span v-if="release.name && release.name !== release.tag" class="text-muted ms-1">{{ release.name }}</span>
+                </template>
                 <div v-if="release.published_at" class="small text-muted">
                     Publicada {{ formatDate(release.published_at) }}
+                </div>
+                <!-- Aviso destacado de salto grande (item #9990672, punto 4) -->
+                <div v-if="release.is_big_jump" class="small text-warning fw-semibold mt-1">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    Salto de {{ release.jump_count }} versiones — revisa el detalle antes de actualizar.
                 </div>
             </div>
 
@@ -126,12 +138,43 @@
                     <div class="modal-header">
                         <h6 class="modal-title fw-semibold">
                             <i class="bi bi-stars me-2 text-info"></i>
-                            Mejoras en {{ release.tag }}
+                            <template v-if="release.jump_count > 1">Mejoras de {{ release.installed_tag }} a {{ release.tag }}</template>
+                            <template v-else>Mejoras en {{ release.tag }}</template>
                         </h6>
                         <button type="button" class="btn-close" @click="showChangelog = false"></button>
                     </div>
                     <div class="modal-body">
-                        <pre class="small text-wrap" style="white-space:pre-wrap;word-break:break-word">{{ release.body }}</pre>
+                        <!-- Aviso de salto grande + conteo de migraciones del rango completo (#9990672) -->
+                        <div v-if="release.is_big_jump" class="alert alert-warning py-2 small mb-3">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                            Este salto incluye {{ release.jump_count }} versiones intermedias.
+                        </div>
+                        <div v-if="release.migrations" class="small text-muted mb-3">
+                            <i class="bi bi-database-fill-gear me-1"></i>
+                            <template v-if="release.migrations.unknown">No se pudo determinar el número de migraciones pendientes.</template>
+                            <template v-else-if="release.migrations.count === 0">Sin migraciones pendientes en este rango.</template>
+                            <template v-else>{{ release.migrations.count }} migración(es) pendiente(s) en todo el rango.</template>
+                        </div>
+
+                        <!-- Changelog acumulado, agrupado por versión (más viejo primero) -->
+                        <template v-if="release.versions && release.versions.length">
+                            <div v-for="v in release.versions" :key="v.tag" class="mb-3 pb-3 border-bottom">
+                                <h6 class="fw-semibold mb-1">
+                                    {{ v.tag }}
+                                    <span v-if="v.name && v.name !== v.tag" class="text-muted ms-1 fw-normal">— {{ v.name }}</span>
+                                </h6>
+                                <pre class="small text-wrap mb-0" style="white-space:pre-wrap;word-break:break-word">{{ v.body }}</pre>
+                            </div>
+
+                            <div v-if="manualStepsList.length" class="mt-3">
+                                <h6 class="fw-semibold"><i class="bi bi-list-check me-1"></i> Pasos manuales acumulados</h6>
+                                <div v-for="m in manualStepsList" :key="m.tag" class="small mb-2">
+                                    <strong>{{ m.tag }}:</strong>
+                                    <pre class="small text-wrap mb-0" style="white-space:pre-wrap;word-break:break-word">{{ m.steps }}</pre>
+                                </div>
+                            </div>
+                        </template>
+                        <pre v-else class="small text-wrap" style="white-space:pre-wrap;word-break:break-word">{{ release.body }}</pre>
                     </div>
                     <div class="modal-footer">
                         <button class="btn btn-secondary btn-sm" @click="showChangelog = false">Cerrar</button>
@@ -184,6 +227,9 @@ export default {
         const activeRunning = computed(() =>
             activeDeploy.value && ["pending", "running"].includes(activeDeploy.value.status)
         );
+
+        // Pasos manuales acumulados del rango instalada..destino (item #9990672, punto 5).
+        const manualStepsList = computed(() => release.value.manual_steps || []);
 
         const activeBannerClass = computed(() => {
             if (!activeDeploy.value) return "";
@@ -336,7 +382,7 @@ export default {
 
         return {
             enabled, showCheckButton, updateAvailable, release, showChangelog, applying, progressModal, checking, upToDate,
-            checkFailed, checkError,
+            checkFailed, checkError, manualStepsList,
             checkNow, applyUpdate, onDeployClosed, dismiss, formatDate,
             activeDeploy, activeRunning, activeBannerClass, reopenModal, reloadPage, dismissActive,
         };
