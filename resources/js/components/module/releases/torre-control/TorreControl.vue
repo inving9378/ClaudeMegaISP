@@ -69,6 +69,14 @@
       <button class="tc-killbtn tc-resume" style="margin-left:10px" :disabled="toggling" @click="toggle">{{ toggling ? '…' : '▶ Reanudar circuito' }}</button>
     </div>
 
+    <!-- #9990420: freno automático por límite de cuenta (#9990412) — visualmente distinto (azul
+         informativo) para no confundirlo con el kill switch manual de arriba. Se levanta SOLO al
+         expirar, por eso no lleva botón de reanudar. v-else-if: si además ya lleva olvidado más
+         del umbral (algo anómalo), prevalece el aviso de arriba. -->
+    <div v-else-if="pausaLimiteCuenta" class="tc-alert tc-alert-info">
+      ⏳ <b>Cuenta de Claude sin límite hasta {{ pausaLimiteHoraTxt || 'pronto' }}</b> — freno automático, se levanta solo al expirar.
+    </div>
+
     <!-- Aviso: posible circuito caído -->
     <div v-if="running && live.stale" class="tc-alert">
       ⚠ <b>Posible circuito caído</b> — la vuelta figura como corriendo, pero el latido no se actualiza hace {{ sinceBeat }}s. Revisa el ejecutor on-box (o pausa y reanuda).
@@ -1096,6 +1104,19 @@ export default {
             const h = pausadoInfo.value?.horas;
             return h == null ? 'un buen rato' : (h < 1 ? 'menos de 1 h' : `${h} h`);
         });
+        // #9990420 — freno automático por límite de cuenta (#9990412/#9990419): distinto de la
+        // "pausa olvidada" de arriba (esa es el kill switch MANUAL). Este se levanta solo al
+        // expirar, así que NO lleva botón de reanudar — mostrarlo invitaría a un clic innecesario.
+        const pausaLimiteCuenta = computed(() => pausado.value && pausadoInfo.value?.causa === 'limite_cuenta');
+        function horaCorta(iso) {
+            if (!iso) return '';
+            try {
+                return new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+            } catch (e) {
+                return '';
+            }
+        }
+        const pausaLimiteHoraTxt = computed(() => horaCorta(pausadoInfo.value?.expira_en));
 
         function applyEstado(data) {
             pausado.value = !!data.circuito_pausado;
@@ -1504,7 +1525,7 @@ export default {
         });
 
         return {
-            loading, toggling, pausado, pausadoInfo, pausaOlvidada, pausaHorasTxt, generatedAt, total, est, nivel, niveles, barH,
+            loading, toggling, pausado, pausadoInfo, pausaOlvidada, pausaHorasTxt, pausaLimiteCuenta, pausaLimiteHoraTxt, generatedAt, total, est, nivel, niveles, barH,
             cola, colaEjecutable, resumenCola, agendados, agendadosOpen, fechaCorta, actividad, riesgos, auditItem, lvClass, sevLabel, sevClass, riskText,
             // #9990906 (CIRC-03 Fase C) — "Esperan un insumo tuyo"
             colaEsperaInsumo, insumoOpen, toggleInsumoGrupo,
@@ -1593,6 +1614,7 @@ export default {
 .tc-disparo-msg{margin-top:12px;padding:9px 14px;border-radius:10px;font-size:12.8px;background:rgba(45,212,191,.12);color:#0f766e;border:1px solid #99f6e4;}
 .tc-alert{margin-top:12px;padding:10px 14px;border-radius:10px;font-size:12.8px;line-height:1.4;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;}
 .tc-alert-soft{background:#fffbeb;color:#b45309;border-color:#fde68a;}
+.tc-alert-info{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;}
 .tc-livelog{margin-top:12px;background:#0a1120;border:1px solid #1e293b;border-radius:12px;overflow:hidden;}
 .tc-livelog-head{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid #1e293b;font-size:12px;color:#8b97ab;}
 .tc-livelog-tag{display:inline-flex;align-items:center;gap:7px;color:#4ade80;font-weight:700;}
@@ -1857,6 +1879,7 @@ export default {
 .tc-dark .tc-disparo-msg{background:rgba(45,212,191,.12);color:#5eead4;border-color:#155e52;}
 .tc-dark .tc-alert{background:rgba(248,113,113,.12);color:#f87171;border-color:#5b2b2b;}
 .tc-dark .tc-alert-soft{background:rgba(251,191,36,.12);color:#fbbf24;border-color:#5b4a20;}
+.tc-dark .tc-alert-info{background:rgba(96,165,250,.12);color:#60a5fa;border-color:#1e3a5f;}
 .tc-dark .tc-lvA{background:rgba(74,222,128,.15);color:#4ade80;}
 .tc-dark .tc-lvB{background:rgba(251,191,36,.15);color:#fbbf24;}
 .tc-dark .tc-lvC{background:rgba(248,113,113,.15);color:#f87171;}
