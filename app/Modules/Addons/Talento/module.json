@@ -81,7 +81,8 @@
                 { "label": "Escalafón",        "url": "/talento/escalafon",          "permission": "talento.escalafon.view" },
                 { "label": "Embajadores",      "url": "/talento/embajadores-colabs", "permission": "talento.embajadores.view" },
                 { "label": "Mis ventas",       "url": "/talento/mis-ventas",         "permission": "talento.ventas.view" },
-                { "label": "Artículos de vendedor", "url": "/talento/articulos-vendedor", "permission": "talento.selleritems.view" }
+                { "label": "Artículos de vendedor", "url": "/talento/articulos-vendedor", "permission": "talento.selleritems.view" },
+                { "label": "Documentos pendientes", "url": "/talento/documentos-pendientes", "permission": "talento.documentos.ver-todos" }
             ]
         }
     ],
