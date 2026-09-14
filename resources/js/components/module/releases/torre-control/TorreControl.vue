@@ -202,6 +202,13 @@
       </div>
       <div class="tc-meta" style="margin-top:6px">Las tarjetas de estado (todas menos "Items totales") suman el Total. "Requiere Irving" muestra solo lo accionable.</div>
 
+      <!-- #9991164 — Adjuntos (maquetas, capturas, PDFs, evidencia) amarrables a items. Panel
+           colapsado por defecto para no quitarle espacio al Panorama; vive aquí, no en una pestaña
+           aparte, porque es donde Irving decide y de donde la terminal lee (Fase 3 inyecta las
+           rutas absolutas en el prompt al despachar). Origen: #9990934 construyó a ciegas por una
+           maqueta que nunca existió en el repo. -->
+      <torre-adjuntos v-if="hasPermission.data.canView('roadmap.adjuntos.view')" />
+
       <div class="tc-grid">
         <!-- Bandeja: requiere_irving -->
         <div class="tc-card">
@@ -671,11 +678,16 @@ import axios from 'axios';
 import { darkMode } from '../../../../hook/appConfig.js';
 import { useEscuchar, verMas } from './torreEscuchar.js';
 import TorreTrabajandoAhora from './TorreTrabajandoAhora.vue';
+import TorreAdjuntos from './TorreAdjuntos.vue';
+import Permission from '../../../../helpers/Permission';
+import { allViewHasPermission } from '../../../../helpers/Request';
 
 export default {
     name: 'TorreControl',
-    components: { TorreTrabajandoAhora },
+    components: { TorreTrabajandoAhora, TorreAdjuntos },
     setup() {
+        // #9991164 — mismo helper de permisos que ReleasesIndex: el panel de adjuntos solo se monta con roadmap.adjuntos.view.
+        const hasPermission = reactive({ data: new Permission({}) });
         // 🔊 Escuchar + 🔎 Ver más de la bandeja: MISMA lógica que la tarjeta de Integración.
         const { hablando, vozTts, rateTts, leer, initVoces } = useEscuchar();
         const loading = ref(true);
@@ -1516,6 +1528,7 @@ export default {
         }
 
         onMounted(() => {
+            allViewHasPermission().then(p => { hasPermission.data = new Permission(p); }).catch(() => {}); // #9991164
             load();
             initVoces();
             // Polling en vivo del estado ligero + ticker local para el cronómetro/heartbeat.
@@ -1530,6 +1543,7 @@ export default {
         });
 
         return {
+            hasPermission, // #9991164
             loading, toggling, pausado, pausadoInfo, pausaOlvidada, pausaHorasTxt, pausaLimiteCuenta, pausaLimiteHoraTxt, generatedAt, total, est, nivel, niveles, barH,
             cola, colaEjecutable, resumenCola, agendados, agendadosOpen, fechaCorta, actividad, riesgos, auditItem, lvClass, sevLabel, sevClass, riskText,
             // #9990906 (CIRC-03 Fase C) — "Esperan un insumo tuyo"
