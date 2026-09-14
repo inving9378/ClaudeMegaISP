@@ -298,32 +298,43 @@ class UserController extends Controller
             // Nunca se quitan estos roles aunque no vengan en el payload:
             //   super-administrator / DESARROLLADOR / ADMINISTRADOR_COMPLETO (sistema)
             //   client (rompería MegaFamilia y el portal de un staff-cliente).
-            $neverRemove = ['super-administrator', 'DESARROLLADOR', 'ADMINISTRADOR_COMPLETO', 'client'];
-            $selected = array_values(array_unique($roles));
-            $current  = $user->roles()->pluck('name')->all();
+            //
+            // GUARD (item #9991149): $roles se construye solo a partir de $request->role
+            // (singular). Si la key 'role' NO viene en el payload (ausencia total, no vacío/null
+            // explícito), $roles queda [] y el diff de abajo removería cualquier rol de staff
+            // actual no protegido — un caller que simplemente no manda 'role' le borraría roles.
+            // $request->has('role') distingue "la key no vino" de "vino vacía/null"; en ese caso
+            // se salta TODO el bloque (no se toca $user->roles, no se llama assignRole/removeRole,
+            // no se escribe el Log::info) dejando los roles intactos. Si 'role' SÍ viene (aunque
+            // sea vacío/null), el diff dirigido corre igual que antes.
+            if ($request->has('role')) {
+                $neverRemove = ['super-administrator', 'DESARROLLADOR', 'ADMINISTRADOR_COMPLETO', 'client'];
+                $selected = array_values(array_unique($roles));
+                $current  = $user->roles()->pluck('name')->all();
 
-            // Quitar: roles de staff actuales NO seleccionados y NO protegidos.
-            $toRemove = array_values(array_filter($current, function ($r) use ($selected, $neverRemove) {
-                return !in_array($r, $selected, true) && !in_array($r, $neverRemove, true);
-            }));
-            // Agregar: seleccionados que aún no tiene.
-            $toAdd = array_values(array_diff($selected, $current));
+                // Quitar: roles de staff actuales NO seleccionados y NO protegidos.
+                $toRemove = array_values(array_filter($current, function ($r) use ($selected, $neverRemove) {
+                    return !in_array($r, $selected, true) && !in_array($r, $neverRemove, true);
+                }));
+                // Agregar: seleccionados que aún no tiene.
+                $toAdd = array_values(array_diff($selected, $current));
 
-            foreach ($toRemove as $roleName) {
-                $user->removeRole($roleName);
-            }
-            foreach ($toAdd as $roleName) {
-                $user->assignRole($roleName);
-            }
+                foreach ($toRemove as $roleName) {
+                    $user->removeRole($roleName);
+                }
+                foreach ($toAdd as $roleName) {
+                    $user->assignRole($roleName);
+                }
 
-            if (!empty($toAdd) || !empty($toRemove)) {
-                \Log::info('Roles actualizados desde el form de Usuarios (diff dirigido)', [
-                    'actor'     => Auth::user()?->login_user,
-                    'target'    => $user->login_user,
-                    'agregados' => $toAdd,
-                    'quitados'  => $toRemove,
-                    'timestamp' => now()->toDateTimeString(),
-                ]);
+                if (!empty($toAdd) || !empty($toRemove)) {
+                    \Log::info('Roles actualizados desde el form de Usuarios (diff dirigido)', [
+                        'actor'     => Auth::user()?->login_user,
+                        'target'    => $user->login_user,
+                        'agregados' => $toAdd,
+                        'quitados'  => $toRemove,
+                        'timestamp' => now()->toDateTimeString(),
+                    ]);
+                }
             }
 
             // Solo actualizar regla de comisión si llega un ID numérico válido y el usuario tiene vendedor.
