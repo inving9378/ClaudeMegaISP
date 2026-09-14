@@ -1,24 +1,32 @@
 <template>
-    <div class="d-flex justify-content-between">
-        <Breadcrumb :list="breadcrumbList" />
-        <div class="d-flex gap-2 mb-3">
-            <button
-                @click="goToPreviousSeller"
-                class="btn btn-outline-primary"
-                :disabled="isFirstSeller"
-            >
-                <i class="fas fa-chevron-left"></i>
-            </button>
-            <button
-                @click="goToNextSeller"
-                class="btn btn-outline-primary"
-                :disabled="isLastSeller"
-            >
-                <i class="fas fa-chevron-right"></i>
-            </button>
+    <div class="q-pa-md vnd-wrap">
+        <div class="d-flex justify-content-between flex-wrap gap-2">
+            <Breadcrumb :list="breadcrumbList" />
+            <div class="d-flex gap-2 mb-3">
+                <button
+                    @click="goToPreviousSeller"
+                    class="btn btn-outline-primary"
+                    :disabled="isFirstSeller"
+                >
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <button
+                    @click="goToNextSeller"
+                    class="btn btn-outline-primary"
+                    :disabled="isLastSeller"
+                >
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
         </div>
-    </div>
-    <div class="row">
+        <div class="d-flex align-items-center gap-2 mb-3">
+            <i class="bi bi-person-vcard fs-4"></i>
+            <h1 class="h4 fw-bold mb-0">Ficha del vendedor</h1>
+        </div>
+
+        <q-card class="vnd-card">
+        <q-card-section>
+        <div class="row">
         <q-tabs
             v-model="activeTab"
             dense
@@ -118,6 +126,9 @@
                 <InventoryItemSeller v-if="user_id" :user_id="user_id" />
             </q-tab-panel>
         </q-tab-panels>
+        </div>
+        </q-card-section>
+        </q-card>
     </div>
 </template>
 
@@ -241,4 +252,15 @@ const goToNextSeller = () => {
 };
 </script>
 
-<style scoped></style>
+<style scoped>
+/* Restyle con el sistema visual de la Torre de Control (resources/js/components/module/releases/
+   torre-control): réplica local del mismo patrón ya aplicado en VendedorListar.vue (#9991075) —
+   tarjeta flat con borde sutil, sin tocar los archivos de la Torre ni el override global
+   !important de resources/sass/base/dark_mode/dark_mode.scss (que ya cubre .q-card en modo
+   oscuro). Se mantiene q-tabs (bajo riesgo: activeTab/setActiveTab es estado compartido con
+   otras vistas de Vendedores) en vez de migrar a nav-tabs Bootstrap. Item roadmap #9991078. */
+.vnd-card {
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+</style>
