@@ -50,6 +50,9 @@ class RoadmapItem extends Model
         'depende_de',   // MR-36 (#9990332): ids que deben estar cerrados antes de reclamar éste
         'started_at', 'completed_at',
         'subtasks', 'log',
+        // Fase 2 de #9991086 (#9991090) — columna dedicada para la metadata de descomposición
+        // (depende_de entre hermanos); reemplaza subtasks.descomposicion (ver DependenciaGate).
+        'descomposicion',
         // Circuito de mejora continua (Parte 1.1)
         'modulo', 'nivel_riesgo', 'estado_aprobacion',
         // Quién fijó el nivel_riesgo vigente: interno|externo (circuito #260)
@@ -137,6 +140,7 @@ class RoadmapItem extends Model
         'claimed_at'   => 'datetime',
         'position'     => 'integer',
         'subtasks'     => 'array',
+        'descomposicion' => 'array',
         'log'          => 'array',
         'opciones'     => 'array',
         'preguntas'    => 'array',
