@@ -9,6 +9,44 @@ use Illuminate\Support\Facades\Storage;
 
 class DocumentTemplateService
 {
+    /**
+     * dompdf no carga CSS externo: solo respeta <style> embebido dentro del HTML que recibe.
+     * Subset clásico (sin flex/grid) compatible con dompdf ^2.0.
+     */
+    private const CONTRACT_BASE_STYLES = <<<'CSS'
+        @page { margin: 2.2cm 1.8cm; }
+        body { font-family: "DejaVu Sans", Arial, sans-serif; font-size: 12px; line-height: 1.5; color: #222; }
+        h1, h2, h3, h4 { font-family: "DejaVu Sans", Arial, sans-serif; color: #111; margin: 0.7em 0 0.35em; }
+        h1 { font-size: 18px; }
+        h2 { font-size: 16px; }
+        h3 { font-size: 14px; }
+        p { margin: 0 0 0.6em; text-align: justify; }
+        table { width: 100%; border-collapse: collapse; margin: 0.6em 0; }
+        table, th, td { border: 1px solid #ccc; }
+        th, td { padding: 4px 6px; text-align: left; font-size: 11px; }
+        ul, ol { margin: 0 0 0.6em 1.4em; padding: 0; }
+        img { max-width: 100%; }
+        strong, b { font-weight: bold; }
+        CSS;
+
+    /**
+     * Inyecta la hoja de estilos base dentro del HTML antes de pasarlo a dompdf
+     * (Pdf::loadHTML), que ignora CSS externo. Solo presentación, no toca el contenido.
+     */
+    public function wrapHtmlWithBaseStyles(string $html): string
+    {
+        $style = '<style>' . self::CONTRACT_BASE_STYLES . '</style>';
+
+        if (stripos($html, '<head') !== false) {
+            return preg_replace('/<head(\s[^>]*)?>/i', '$0' . $style, $html, 1);
+        }
+
+        if (stripos($html, '<html') !== false || stripos($html, '<body') !== false) {
+            return $style . $html;
+        }
+
+        return '<html><head><meta charset="UTF-8">' . $style . '</head><body>' . $html . '</body></html>';
+    }
 
     const DATA_CLIENT_VARIABLES_VALUE  = [
         'Client' => [
@@ -310,6 +348,7 @@ class DocumentTemplateService
 
         // Convertir la vista a PDF
         $html = str_replace('\n', '', $validation);
+        $html = $this->wrapHtmlWithBaseStyles($html);
 
         $pdf = Pdf::loadHTML($html);
         $output = $pdf->output();
