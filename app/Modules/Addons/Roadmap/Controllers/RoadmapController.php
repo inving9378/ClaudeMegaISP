@@ -2296,6 +2296,8 @@ class RoadmapController extends Controller
     /** Payload completo (read-only) para la página de detalle de un item. */
     private function itemDetallePayload(RoadmapItem $i): array
     {
+        [$subtasks, $descomposicion] = self::separarSubtasks($i->subtasks); // #9991082
+
         return [
             'id'                 => $i->id,
             'title'              => $i->title,
@@ -2315,7 +2317,8 @@ class RoadmapController extends Controller
             'branch'             => $i->branch,
             'merge_commit'       => $i->merge_commit,
             'target_version'     => $i->target_version,
-            'subtasks'           => $i->subtasks,
+            'subtasks'           => $subtasks,
+            'descomposicion'     => $descomposicion,
             'log'                => $i->log,
             'worker_sid'         => $i->worker_sid,
             'worker_nombre'      => $i->worker_sid ? $this->svc->nombreWorker($i->worker_sid) : null,
@@ -3217,6 +3220,9 @@ class RoadmapController extends Controller
         // los items sin prompt de esta página, para no ensanchar el listado general de golpe.
         $this->marcarBloqueoHeuristico($items);
 
+        // #9991082 — `subtasks` siempre lista (+ `descomposicion` aparte); ver normalizarSubtasks().
+        $items->each(fn (RoadmapItem $i) => self::normalizarSubtasks($i));
+
         return response()->json($items);
     }
 
@@ -3247,7 +3253,7 @@ class RoadmapController extends Controller
     {
         $this->authorize('roadmap_view');
 
-        return response()->json(RoadmapItem::findOrFail($id));
+        return response()->json(self::normalizarSubtasks(RoadmapItem::findOrFail($id)));
     }
 
     // POST /api/roadmap/items
@@ -3483,7 +3489,7 @@ class RoadmapController extends Controller
         }
 
         return response()->json([
-            'item'    => $item,
+            'item'    => self::normalizarSubtasks($item),
             'disparo' => $disparo,
             'aviso'   => $aviso,
         ], 201);
@@ -3507,7 +3513,7 @@ class RoadmapController extends Controller
 
         $item->update($data);
 
-        return response()->json($item->fresh());
+        return response()->json(self::normalizarSubtasks($item->fresh()));
     }
 
     // POST /api/roadmap/items/{id}/start
@@ -3518,7 +3524,7 @@ class RoadmapController extends Controller
         $item = RoadmapItem::findOrFail($id);
 
         if ($item->status === 'in_progress') {
-            return response()->json($item);
+            return response()->json(self::normalizarSubtasks($item));
         }
 
         $item->update([
@@ -3526,7 +3532,7 @@ class RoadmapController extends Controller
             'started_at' => $item->started_at ?? now(),
         ]);
 
-        return response()->json($item->fresh());
+        return response()->json(self::normalizarSubtasks($item->fresh()));
     }
 
     // POST /api/roadmap/items/{id}/complete
@@ -3540,7 +3546,7 @@ class RoadmapController extends Controller
             'completed_at' => $item->completed_at ?? now(),
         ]);
 
-        return response()->json($item->fresh());
+        return response()->json(self::normalizarSubtasks($item->fresh()));
     }
 
     // POST /api/roadmap/items/{id}/cancel
@@ -3625,6 +3631,41 @@ class RoadmapController extends Controller
         $item->update(['log' => $log]);
 
         return response()->json($item->fresh());
+    }
+
+    /**
+     * #9991082 — `roadmap_items.subtasks` carga DOS formas incompatibles en la misma columna: la
+     * lista de sub-tareas `[{title,completed,completed_at}]` (la que iteran la Hoja de ruta y el
+     * detalle) y, desde `circuito:sub-item` (SubItemCommand::117 / DependenciaGate), el objeto de
+     * metadata `{"descomposicion":{"depende_de":[…]}}`. Serializado tal cual, ese objeto llega al
+     * navegador y `subs.filter` truena (RoadmapTab::lastAdvance). Aquí las dos formas se SEPARAN
+     * en el payload: `subtasks` es SIEMPRE lista y la metadata viaja aparte en `descomposicion`.
+     * Solo toca el modelo en memoria (setAttribute, sin save) y SOLO al serializar — nunca llamar
+     * antes de un save(), o se perdería la metadata. La columna y DependenciaGate (que lee el
+     * atributo crudo del modelo) quedan intactos.
+     */
+    private static function normalizarSubtasks(RoadmapItem $i): RoadmapItem
+    {
+        [$lista, $meta] = self::separarSubtasks($i->subtasks);
+        $i->setAttribute('subtasks', $lista);
+        $i->setAttribute('descomposicion', $meta);
+
+        return $i;
+    }
+
+    /** @return array{0: array<int, mixed>, 1: array<string, mixed>|null} [lista de sub-tareas, metadata de descomposición o null] */
+    private static function separarSubtasks(mixed $raw): array
+    {
+        if (! is_array($raw) || $raw === []) {
+            return [[], null];
+        }
+        if (array_is_list($raw)) {
+            return [array_values($raw), null];
+        }
+        $meta  = $raw['descomposicion'] ?? null;
+        $lista = array_values(array_filter($raw, fn ($v, $k) => is_int($k) && is_array($v), ARRAY_FILTER_USE_BOTH));
+
+        return [$lista, is_array($meta) ? $meta : null];
     }
 
     private static function defaultSubtasks(): array
