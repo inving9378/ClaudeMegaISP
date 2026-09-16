@@ -686,14 +686,7 @@ export default {
                 visible: true,
             },
 
-            {
-                name: "actions",
-                align: "start",
-                label: "Acciones",
-                field: "actions",
-                sortable: false,
-                visible: true,
-            },
+            
         ]);
 
         const columnsAccepted = ref([
