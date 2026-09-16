@@ -5,17 +5,22 @@ namespace App\Modules\Addons\DevTools\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Core\ModuleManager\Models\ModuleRegistry;
 use App\Modules\Core\ModuleManager\Services\ModuleManagerService;
+use App\Services\TerminalIdentityTokenService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class DevToolsController extends Controller
 {
     /** Mismo default que el resto de la app — IAChatController y ModuleManager. */
     private const CLAUDE_MODEL_DEFAULT = 'claude-sonnet-4-6';
     private const CLAUDE_MAX_TOKENS = 2048;
+
+    /** Cookie de identidad de terminal — Fase 1 ttyd-por-usuario (item #9991177). */
+    private const TERMINAL_TOKEN_COOKIE = 'megaisp_term_token';
 
     /**
      * Devuelve la página standalone /devtools. Solamente accesible a
@@ -28,10 +33,32 @@ class DevToolsController extends Controller
             return redirect('/home');
         }
 
-        return view('addon-devtools::index', [
+        $response = response()->view('addon-devtools::index', [
             'ttydUrl' => $this->resolveTtydUrl(),
             'csrfToken' => csrf_token(),
         ]);
+
+        return $this->withTerminalTokenCookie($response);
+    }
+
+    /**
+     * GET /devtools/terminal-token — emite (o renueva) la cookie de identidad
+     * de terminal. Fase 1 ttyd-por-usuario (item #9991177): a diferencia del
+     * resto de DevTools, este endpoint NO se restringe a DESARROLLADOR/
+     * super-administrator — "cada usuario del admin" según el diseño
+     * aprobado — por eso vive en su propio grupo de rutas (`web`+`auth`,
+     * sin `role:`) en routes.php. El token en sí NO otorga acceso a ttyd:
+     * solo permite, una vez activado el paso root del runbook
+     * (deploy/README-terminal-por-usuario.md), nombrar la sesión tmux con
+     * el login_user real en vez de "cualquiera libre".
+     */
+    public function terminalToken(): JsonResponse
+    {
+        if (! Auth::check()) {
+            return response()->json(['success' => false, 'error' => 'No autenticado'], 401);
+        }
+
+        return $this->withTerminalTokenCookie(response()->json(['success' => true]));
     }
 
     /**
@@ -304,6 +331,41 @@ class DevToolsController extends Controller
     private function isAuthorized(): bool
     {
         return Auth::check() && Auth::user()->hasAnyRole(['DESARROLLADOR', 'super-administrator']);
+    }
+
+    /**
+     * Adjunta la cookie de identidad de terminal (Fase 1 ttyd-por-usuario,
+     * item #9991177) a la respuesta dada, para el usuario admin actualmente
+     * autenticado. No-op si no hay usuario en sesión.
+     *
+     * Tipado contra el Response base de Symfony (no Illuminate\Http\Response)
+     * porque también recibe JsonResponse, que NO extiende a aquel — ambos
+     * comparten `cookie()` vía Illuminate\Http\ResponseTrait.
+     */
+    private function withTerminalTokenCookie(SymfonyResponse $response): SymfonyResponse
+    {
+        $user = Auth::user();
+        if (! $user) {
+            return $response;
+        }
+
+        $loginUser = (string) ($user->login_user ?? $user->getAuthIdentifier());
+        $token = app(TerminalIdentityTokenService::class)->issue($loginUser);
+
+        // 1 minuto de cookie (~60s, igual al TTL real que valida el HMAC
+        // dentro del propio token) — Secure solo si la request ya es HTTPS,
+        // para no romper el acceso actual por HTTP plano en LAN/dev.
+        return $response->cookie(
+            self::TERMINAL_TOKEN_COOKIE,
+            $token,
+            1,
+            '/',
+            null,
+            request()->isSecure(),
+            true,
+            false,
+            'Lax'
+        );
     }
 
     /**

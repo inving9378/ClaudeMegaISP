@@ -28,6 +28,18 @@ Route::middleware(['web', 'auth', 'role:DESARROLLADOR|super-administrator'])
         Route::get('/nav-items', [DevToolsController::class, 'navItems'])->name('devtools.nav-items');
     });
 
+// Fase 1 ttyd-por-usuario (item #9991177): emitir el token de identidad de
+// terminal para CUALQUIER usuario autenticado del panel admin, no solo
+// DESARROLLADOR/super-administrator — "cada usuario del admin" en el diseño
+// aprobado por Irving. Grupo aparte a propósito: el gate real de "quién puede
+// ABRIR una terminal" sigue siendo el grupo de arriba (todo /devtools). El
+// token por sí solo no da acceso a shell — ver DevToolsController::terminalToken().
+Route::middleware(['web', 'auth'])
+    ->prefix('devtools')
+    ->group(function () {
+        Route::get('/terminal-token', [DevToolsController::class, 'terminalToken'])->name('devtools.terminal-token');
+    });
+
 // Git tooling — sub-namespace dentro de DevTools, pero gating con
 // `check_route_permission` (NO role:DESARROLLADOR) para preservar la
 // política legacy: la pestaña de Releases consume /git/get-tags y no
