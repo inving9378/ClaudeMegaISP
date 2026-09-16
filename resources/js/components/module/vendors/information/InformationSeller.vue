@@ -346,6 +346,58 @@ const update = async () => {
     background: var(--tc-line, #e5e8ec);
 }
 
+/* Botones de acción (Ver/Imprimir/Firmar/Completar) — Bootstrap default (azul/gris/rojo
+   genéricos) desentonaba con el tema Torre. Mismo mecanismo :deep(), mismos tokens/tc-btn. */
+:deep(.list-group-item .btn) {
+    border-radius: 8px;
+    font-weight: 600;
+    border: 1px solid transparent;
+    transition: filter 0.15s, background 0.15s;
+}
+:deep(.list-group-item .btn:hover) {
+    filter: brightness(1.06);
+}
+:deep(.list-group-item .btn-primary) {
+    background: var(--tc-accent, #0d9488);
+    border-color: var(--tc-accent, #0d9488);
+    color: #fff;
+}
+:deep(.list-group-item .btn-secondary) {
+    background: transparent;
+    border-color: var(--tc-line, #d3d8de);
+    color: var(--tc-ink, #1a2230);
+}
+:deep(.list-group-item .btn-danger) {
+    background: transparent;
+    border-color: var(--tc-bad, #dc2626);
+    color: var(--tc-bad, #dc2626);
+}
+:deep(.list-group-item .btn-danger:hover) {
+    background: var(--tc-bad, #dc2626);
+    color: #fff;
+}
+
+/* Badge de estado (Completo/Pendiente/Pendiente de firma) — el bg-success/warning/danger
+   sólido de Bootstrap se veía plano; pill suave con los mismos tonos del tema. */
+:deep(.list-group-item .badge) {
+    font-weight: 600;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 999px;
+}
+:deep(.list-group-item .badge.bg-success) {
+    background: rgba(22, 163, 74, 0.16) !important;
+    color: var(--tc-ok, #16a34a) !important;
+}
+:deep(.list-group-item .badge.bg-warning) {
+    background: rgba(217, 119, 6, 0.16) !important;
+    color: var(--tc-warn, #d97706) !important;
+}
+:deep(.list-group-item .badge.bg-danger) {
+    background: rgba(220, 38, 38, 0.16) !important;
+    color: var(--tc-bad, #dc2626) !important;
+}
+
 .credential {
     width: 380px;
     height: 600px;
