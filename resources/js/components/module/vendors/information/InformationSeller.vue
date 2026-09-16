@@ -327,73 +327,83 @@ const update = async () => {
 /* Lista de documentos (talento-expediente-documentos, COMPARTIDA con el Portal de
    Colaborador de Talento). :deep() la estiliza como zebra de tabla SOLO cuando se
    renderiza aquí, dentro de la ficha de Vendedores — no afecta a Talento. */
-:deep(.list-group) {
+:deep(.documentos-table) {
     border-radius: 12px;
     overflow: hidden;
 }
-:deep(.list-group-item) {
+:deep(.documentos-table thead th) {
+    border: none;
+    background: var(--tc-thead, #e4e7eb);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    padding: 12px 16px;
+}
+:deep(.documentos-table tbody td) {
     border: none;
     border-bottom: 1px solid var(--tc-line, #e5e8ec);
     background: transparent;
+    padding: 12px 16px;
 }
-:deep(.list-group-item:last-child) {
+:deep(.documentos-table tbody tr:last-child td) {
     border-bottom: none;
 }
-:deep(.list-group-item:nth-child(even)) {
+:deep(.documentos-table tbody tr:nth-child(even) td) {
     background: var(--tc-zebra, #f5f6f8);
 }
-:deep(.list-group-item:hover) {
+:deep(.documentos-table tbody tr:hover td) {
     background: var(--tc-line, #e5e8ec);
 }
 
 /* Botones de acción (Ver/Imprimir/Firmar/Completar) — Bootstrap default (azul/gris/rojo
    genéricos) desentonaba con el tema Torre. Mismo mecanismo :deep(), mismos tokens/tc-btn. */
-:deep(.list-group-item .btn) {
+:deep(.documentos-table .btn) {
     border-radius: 8px;
     font-weight: 600;
     border: 1px solid transparent;
     transition: filter 0.15s, background 0.15s;
 }
-:deep(.list-group-item .btn:hover) {
+:deep(.documentos-table .btn:hover) {
     filter: brightness(1.06);
 }
-:deep(.list-group-item .btn-primary) {
+:deep(.documentos-table .btn-primary) {
     background: var(--tc-accent, #0d9488);
     border-color: var(--tc-accent, #0d9488);
     color: #fff;
 }
-:deep(.list-group-item .btn-secondary) {
+:deep(.documentos-table .btn-secondary) {
     background: transparent;
     border-color: var(--tc-line, #d3d8de);
     color: var(--tc-ink, #1a2230);
 }
-:deep(.list-group-item .btn-danger) {
+:deep(.documentos-table .btn-danger) {
     background: transparent;
     border-color: var(--tc-bad, #dc2626);
     color: var(--tc-bad, #dc2626);
 }
-:deep(.list-group-item .btn-danger:hover) {
+:deep(.documentos-table .btn-danger:hover) {
     background: var(--tc-bad, #dc2626);
     color: #fff;
 }
 
 /* Badge de estado (Completo/Pendiente/Pendiente de firma) — el bg-success/warning/danger
    sólido de Bootstrap se veía plano; pill suave con los mismos tonos del tema. */
-:deep(.list-group-item .badge) {
+:deep(.documentos-table .badge) {
     font-weight: 600;
     font-size: 11px;
     padding: 4px 10px;
     border-radius: 999px;
 }
-:deep(.list-group-item .badge.bg-success) {
+:deep(.documentos-table .badge.bg-success) {
     background: rgba(22, 163, 74, 0.16) !important;
     color: var(--tc-ok, #16a34a) !important;
 }
-:deep(.list-group-item .badge.bg-warning) {
+:deep(.documentos-table .badge.bg-warning) {
     background: rgba(217, 119, 6, 0.16) !important;
     color: var(--tc-warn, #d97706) !important;
 }
-:deep(.list-group-item .badge.bg-danger) {
+:deep(.documentos-table .badge.bg-danger) {
     background: rgba(220, 38, 38, 0.16) !important;
     color: var(--tc-bad, #dc2626) !important;
 }
