@@ -62,15 +62,29 @@
                                     class="q-ml-md"
                                 />
                                 <q-input
-                                    borderless
+                                    outlined
                                     dense
                                     v-model="filter"
                                     placeholder="Buscar"
-                                    class="mb-0"
-                                    style="margin-left: 16px; border: 1px solid"
+                                    class="tc-search mb-0"
+                                    clearable
                                     :dark="darkMode"
-                                />
+                                >
+                                    <template v-slot:prepend>
+                                        <q-icon name="search" />
+                                    </template>
+                                </q-input>
                             </div>
+                        </template>
+                        <template v-slot:body-cell-type_item="props">
+                            <q-td :props="props">
+                                <span class="tc-status is-slate">{{ props.row.type_item }}</span>
+                            </q-td>
+                        </template>
+                        <template v-slot:body-cell-status_name="props">
+                            <q-td :props="props">
+                                <span class="tc-status" :class="estadoBadge(props.row.status_name)">{{ props.row.status_name }}</span>
+                            </q-td>
                         </template>
                         <template v-slot:body-cell-No="props">
                             <q-td :props="props">
@@ -130,15 +144,29 @@
                                     class="q-ml-md"
                                 />
                                 <q-input
-                                    borderless
+                                    outlined
                                     dense
                                     v-model="filter"
                                     placeholder="Buscar"
-                                    class="mb-0"
-                                    style="margin-left: 16px; border: 1px solid"
+                                    class="tc-search mb-0"
+                                    clearable
                                     :dark="darkMode"
-                                />
+                                >
+                                    <template v-slot:prepend>
+                                        <q-icon name="search" />
+                                    </template>
+                                </q-input>
                             </div>
+                        </template>
+                        <template v-slot:body-cell-type_item="props">
+                            <q-td :props="props">
+                                <span class="tc-status is-slate">{{ props.row.type_item }}</span>
+                            </q-td>
+                        </template>
+                        <template v-slot:body-cell-status_name="props">
+                            <q-td :props="props">
+                                <span class="tc-status" :class="estadoBadge(props.row.status_name)">{{ props.row.status_name }}</span>
+                            </q-td>
                         </template>
                         <template v-slot:body-cell-No="props">
                             <q-td :props="props">
@@ -204,15 +232,29 @@
                                     class="q-ml-md"
                                 />
                                 <q-input
-                                    borderless
+                                    outlined
                                     dense
                                     v-model="filter"
                                     placeholder="Buscar"
-                                    class="mb-0"
-                                    style="margin-left: 16px; border: 1px solid"
+                                    class="tc-search mb-0"
+                                    clearable
                                     :dark="darkMode"
-                                />
+                                >
+                                    <template v-slot:prepend>
+                                        <q-icon name="search" />
+                                    </template>
+                                </q-input>
                             </div>
+                        </template>
+                        <template v-slot:body-cell-type_item="props">
+                            <q-td :props="props">
+                                <span class="tc-status is-slate">{{ props.row.type_item }}</span>
+                            </q-td>
+                        </template>
+                        <template v-slot:body-cell-status_name="props">
+                            <q-td :props="props">
+                                <span class="tc-status" :class="estadoBadge(props.row.status_name)">{{ props.row.status_name }}</span>
+                            </q-td>
                         </template>
                         <template v-slot:body-cell-No="props">
                             <q-td :props="props">
@@ -282,15 +324,29 @@
                                     class="q-ml-md"
                                 />
                                 <q-input
-                                    borderless
+                                    outlined
                                     dense
                                     v-model="filter"
                                     placeholder="Buscar"
-                                    class="mb-0"
-                                    style="margin-left: 16px; border: 1px solid"
+                                    class="tc-search mb-0"
+                                    clearable
                                     :dark="darkMode"
-                                />
+                                >
+                                    <template v-slot:prepend>
+                                        <q-icon name="search" />
+                                    </template>
+                                </q-input>
                             </div>
+                        </template>
+                        <template v-slot:body-cell-type_item="props">
+                            <q-td :props="props">
+                                <span class="tc-status is-slate">{{ props.row.type_item }}</span>
+                            </q-td>
+                        </template>
+                        <template v-slot:body-cell-status_name="props">
+                            <q-td :props="props">
+                                <span class="tc-status" :class="estadoBadge(props.row.status_name)">{{ props.row.status_name }}</span>
+                            </q-td>
                         </template>
                         <template v-slot:body-cell-No="props">
                             <q-td :props="props">
@@ -349,6 +405,16 @@
                         :loading="loading"
                         no-data-label="No hay elementos para mostrar"
                     >
+                        <template v-slot:body-cell-type_item="props">
+                            <q-td :props="props">
+                                <span class="tc-status is-slate">{{ props.row.type_item }}</span>
+                            </q-td>
+                        </template>
+                        <template v-slot:body-cell-status_name="props">
+                            <q-td :props="props">
+                                <span class="tc-status" :class="estadoBadge(props.row.status_name)">{{ props.row.status_name }}</span>
+                            </q-td>
+                        </template>
                         <template v-slot:body-cell-No="props">
                             <q-td :props="props">
                                 {{ props.pageIndex + 1 }}
@@ -802,6 +868,14 @@ export default {
             reloadCrud.value = !reloadCrud.value;
         };
 
+        const estadoBadge = (v) => {
+            const t = String(v || "").toLowerCase();
+            if (t.includes("acept") || t.includes("entreg") || t.includes("aprob") || t.includes("activ")) return "is-ok";
+            if (t.includes("pend") || t.includes("proces")) return "is-warn";
+            if (t.includes("rechaz") || t.includes("cancel") || t.includes("devuel") || t.includes("baja")) return "is-bad";
+            return "is-info";
+        };
+
         return {
             itemsPending,
             itemsAccepted,
@@ -830,12 +904,20 @@ export default {
             darkMode,
             lastActions,
             columnsLastActions,
+            estadoBadge,
         };
     },
 };
 </script>
 
 <style scoped>
+.tc-search {
+    min-width: 220px;
+}
+.tc-search :deep(.q-field__control) {
+    border-radius: 8px;
+}
+
 .q-tab {
     flex: 0 1 auto; /* Esto hace que las pestañas se ajusten al contenido */
     white-space: nowrap; /* Evita que el texto se divida en varias líneas */
