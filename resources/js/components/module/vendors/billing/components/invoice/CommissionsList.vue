@@ -50,10 +50,10 @@
         <template v-slot:after>
             <div class="q-pa-md">
                 <div class="row no-gutter-x">
-                    <div class="col-8">
+                    <div class="col-12 col-sm-8">
                         <div class="text-h6 q-mb-md">Ventas adicionales</div>
                     </div>
-                    <div class="col-4 text-right">
+                    <div class="col-12 col-sm-4 text-sm-end">
                         <q-btn
                             label="Crear pago"
                             color="primary"

@@ -18,7 +18,7 @@
     >
         <template v-slot:top="props">
             <div class="row">
-                <div class="col-4 no-padding">
+                <div class="col-12 col-sm-6 col-md-4 no-padding">
                     <VueDatePicker
                         v-model="pagination.activation_date"
                         position="right"
@@ -35,8 +35,8 @@
                     >
                     </VueDatePicker>
                 </div>
-                <div class="col-8">
-                    <div class="d-flex justify-content-end">
+                <div class="col-12 col-md-8">
+                    <div class="d-flex flex-wrap justify-content-md-end gap-2">
                         <button
                             type="button"
                             class="btn btn-outline-info"
@@ -57,7 +57,7 @@
                             v-model="searchInput"
                             placeholder="Buscar"
                             class="mb-0"
-                            style="margin-left: 16px; border: 1px solid"
+                            style="margin-left: 0; min-width: 180px; flex: 1 1 180px; max-width: 260px; border: 1px solid"
                             :dark="darkMode"
                         >
                         </q-input>
