@@ -70,7 +70,7 @@
                                     clearable
                                     :dark="darkMode"
                                 >
-                                    <template v-slot:prepend>
+                                    <template v-slot:prepend-inner>
                                         <q-icon name="search" />
                                     </template>
                                 </q-input>
@@ -152,7 +152,7 @@
                                     clearable
                                     :dark="darkMode"
                                 >
-                                    <template v-slot:prepend>
+                                    <template v-slot:prepend-inner>
                                         <q-icon name="search" />
                                     </template>
                                 </q-input>
@@ -240,7 +240,7 @@
                                     clearable
                                     :dark="darkMode"
                                 >
-                                    <template v-slot:prepend>
+                                    <template v-slot:prepend-inner>
                                         <q-icon name="search" />
                                     </template>
                                 </q-input>
@@ -332,7 +332,7 @@
                                     clearable
                                     :dark="darkMode"
                                 >
-                                    <template v-slot:prepend>
+                                    <template v-slot:prepend-inner>
                                         <q-icon name="search" />
                                     </template>
                                 </q-input>
