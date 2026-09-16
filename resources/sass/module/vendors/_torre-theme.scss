@@ -673,6 +673,18 @@
         }
     }
 
+    // ── Barras de progreso (StatusProspects, etc.) ──
+    .progress {
+        background: var(--tc-line);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .progress-bar {
+        border-radius: 8px;
+        font-weight: 600;
+        transition: width 0.4s ease;
+    }
+
     // ── KPI cards (dashboard / estadísticas) ──
     .tc-kpi {
         background: var(--tc-surface);
@@ -691,4 +703,48 @@
         font-size: 12px;
         color: var(--tc-muted);
     }
+}
+
+/* =========================================================================
+   VueDatePicker (@vuepic/vue-datepicker) — MODO OSCURO GLOBAL.
+   El calendario se teletransporta a <body> (:teleport="true"), FUERA de
+   .tc-wrap, así que su tema oscuro NO puede depender de .tc-wrap: se ancla en
+   body[data-layout-mode="dark"] — el mismo switch de modo oscuro del layout
+   Medussa que ya usa el resto del codebase y que conmuta solo en runtime.
+   Sobreescribe las variables --dp-* del plugin con la paleta oscura de Torre
+   para que combine con el resto del UI. Antes los datepickers se quedaban
+   BLANCOS en modo oscuro; esto cubre el input visible Y el popup teleportado.
+   Alcance: TODOS los datepickers de la app en modo oscuro (fix universal del
+   mismo bug, no una imposición de estilo por pantalla).
+   ========================================================================= */
+[data-layout-mode="dark"] .dp__theme_light,
+[data-layout-mode="dark"] .dp__theme_dark {
+    --dp-background-color: #151d2e;
+    --dp-text-color: #e8edf6;
+    --dp-hover-color: #222731;
+    --dp-hover-text-color: #ffffff;
+    --dp-hover-icon-color: #9aa7bd;
+    --dp-primary-color: #0d9488;
+    --dp-primary-disabled-color: #0f766e;
+    --dp-primary-text-color: #ffffff;
+    --dp-secondary-color: #64748b;
+    --dp-border-color: #2a3550;
+    --dp-menu-border-color: #2a3550;
+    --dp-border-color-hover: #3a4a6b;
+    --dp-border-color-focus: #2dd4bf;
+    --dp-disabled-color: #1b2436;
+    --dp-disabled-color-text: #64748b;
+    --dp-scroll-bar-background: #151d2e;
+    --dp-scroll-bar-color: #2a3550;
+    --dp-success-color: #22c55e;
+    --dp-success-color-disabled: #166534;
+    --dp-icon-color: #9aa7bd;
+    --dp-danger-color: #f87171;
+    --dp-marker-color: #f87171;
+    --dp-tooltip-color: #1b2436;
+    --dp-highlight-color: rgb(13 148 136 / 20%);
+    --dp-range-between-dates-background-color: #222731;
+    --dp-range-between-dates-text-color: #ffffff;
+    --dp-range-between-border-color: #2a3550;
+    --dp-loader: 5px solid #0d9488;
 }

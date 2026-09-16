@@ -78,16 +78,16 @@
                         </q-item-section>
                         <q-item-section avatar>
                             <span
-                                class="text-primary"
+                                class="tc-status is-ok"
                                 v-if="client.state === 'pagada'"
                                 >PAGADA</span
                             >
                             <span
-                                class="text-danger"
+                                class="tc-status is-bad"
                                 v-else-if="client.state === 'descontada'"
                                 >DESCONTADA</span
                             >
-                            <span class="text-success" v-else>PENDIENTE</span>
+                            <span class="tc-status is-warn" v-else>PENDIENTE</span>
                         </q-item-section>
                     </q-item>
                 </q-list>

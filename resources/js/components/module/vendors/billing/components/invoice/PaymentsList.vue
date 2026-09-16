@@ -141,7 +141,17 @@
                     />
                 </q-td>
                 <q-td v-for="col in props.cols" :key="col.name" :props="props">
-                    {{ col.value }}
+                    <q-btn
+                        v-if="col.name === 'actions'"
+                        :href="`/vendedores/payments-sellers/payment-receipt-by-type/${props.row.id}`"
+                        target="_blank"
+                        icon="fa fa-file-pdf"
+                        flat
+                        size="xs"
+                        round
+                        color="primary"
+                    />
+                    <template v-else>{{ col.value }}</template>
                 </q-td>
             </q-tr>
             <q-tr v-show="props.expand" :props="props">
@@ -231,6 +241,13 @@ const columns = [
         label: "Número de recibo",
         align: "left",
         sortable: true,
+    },
+    {
+        name: "actions",
+        field: "actions",
+        label: "Recibo",
+        align: "center",
+        sortable: false,
     },
 ];
 

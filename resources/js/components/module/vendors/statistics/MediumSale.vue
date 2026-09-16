@@ -60,16 +60,17 @@ const date = ref();
 const series = ref([]);
 const labels = ref([]);
 
-// Paleta del tema (acento teal + semánticos).
+// Paleta vibrante y armónica (colores distintos entre slices adyacentes; los dos primeros
+// —slices más grandes— contrastan bien juntos, en vez del teal+azul apagado anterior).
 const PALETTE = [
-    "#0d9488",
-    "#2563eb",
-    "#d97706",
-    "#dc2626",
-    "#7c3aed",
-    "#0891b2",
-    "#64748b",
-    "#16a34a",
+    "#6366F1", // indigo
+    "#F59E0B", // ámbar
+    "#EC4899", // rosa
+    "#10B981", // esmeralda
+    "#06B6D4", // cian
+    "#8B5CF6", // violeta
+    "#EF4444", // rojo
+    "#84CC16", // lima
 ];
 
 // "Rounded Spaced Donut": el stroke grueso del color de la superficie crea el ESPACIADO

@@ -17,18 +17,18 @@
                                 </q-item-section>
                                 <q-item-section avatar>
                                     <span
-                                        class="text-primary"
+                                        class="mg-state pagada"
                                         v-if="client.state === 'pagada'"
                                         >PAGADA</span
                                     >
                                     <span
-                                        class="text-danger"
+                                        class="mg-state descontada"
                                         v-else-if="
                                             client.state === 'descontada'
                                         "
                                         >DESCONTADA</span
                                     >
-                                    <span class="text-success" v-else
+                                    <span class="mg-state pendiente" v-else
                                         >PENDIENTE</span
                                     >
                                 </q-item-section>
@@ -174,5 +174,27 @@ const getRound = (val) => {
 .q-field__control-container.row,
 .q-field__control-container.row .q-field__native {
     padding-right: 0px !important;
+}
+
+/* Pills de estado del popover (teleportado a body, siempre claro) */
+.mg-state {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 30px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+.mg-state.pagada {
+    background-color: rgba(22, 163, 74, 0.14);
+    color: #16a34a;
+}
+.mg-state.descontada {
+    background-color: rgba(220, 38, 38, 0.14);
+    color: #dc2626;
+}
+.mg-state.pendiente {
+    background-color: rgba(217, 119, 6, 0.16);
+    color: #d97706;
 }
 </style>
