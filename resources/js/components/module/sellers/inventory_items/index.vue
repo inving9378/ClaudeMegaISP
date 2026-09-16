@@ -20,15 +20,16 @@
             </q-tabs>
         </div>
     </div>
+    <div class="tc-wrap" :class="{ 'tc-dark': darkMode }">
     <q-tab-panels v-model="activeTab" animated :dark="darkMode">
         <q-tab-panel
             name="accepted"
             v-if="tabs.includes('accepted') && activeTab == 'accepted'"
         >
             <div class="q-pa-md">
-                <q-card>
+                <q-card flat class="tc-card">
                     <q-card-section
-                        class="d-flex"
+                        class="d-flex tc-cardhead"
                         style="justify-content: space-between"
                     >
                         <div class="text-h6">Materiales</div>
@@ -94,9 +95,9 @@
             </div>
 
             <div class="q-pa-md">
-                <q-card>
+                <q-card flat class="tc-card">
                     <q-card-section
-                        class="d-flex"
+                        class="d-flex tc-cardhead"
                         style="justify-content: space-between"
                     >
                         <div class="text-h6">Herramientas</div>
@@ -168,9 +169,9 @@
             v-if="tabs.includes('pending') && activeTab == 'pending'"
         >
             <div class="q-pa-md">
-                <q-card>
+                <q-card flat class="tc-card">
                     <q-card-section
-                        class="d-flex"
+                        class="d-flex tc-cardhead"
                         style="justify-content: space-between"
                     >
                         <div class="text-h6">Materiales</div>
@@ -246,9 +247,9 @@
             </div>
 
             <div class="q-pa-md">
-                <q-card>
+                <q-card flat class="tc-card">
                     <q-card-section
-                        class="d-flex"
+                        class="d-flex tc-cardhead"
                         style="justify-content: space-between"
                     >
                         <div class="text-h6">Herramientas</div>
@@ -328,9 +329,9 @@
             v-if="tabs.includes('last_actions') && activeTab == 'last_actions'"
         >
             <div class="q-pa-md">
-                <q-card>
+                <q-card flat class="tc-card">
                     <q-card-section
-                        class="d-flex"
+                        class="d-flex tc-cardhead"
                         style="justify-content: space-between"
                     >
                         <div class="text-h6">Ultimas Acciones</div>
@@ -358,6 +359,7 @@
             </div>
         </q-tab-panel>
     </q-tab-panels>
+    </div>
 
     <div
         class="modal fade"
