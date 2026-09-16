@@ -912,10 +912,15 @@ export default {
 
 <style scoped>
 .tc-search {
-    min-width: 220px;
+    width: 260px;
+    max-width: 100%;
+    flex: 0 0 auto;
 }
 .tc-search :deep(.q-field__control) {
     border-radius: 8px;
+}
+.tc-search :deep(.q-field__native) {
+    min-width: 90px;
 }
 
 .q-tab {
