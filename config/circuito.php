@@ -1790,11 +1790,37 @@ return [
     | Bloque máximo: id 2026-09-11T21:00:00.000Z, 1,167,999,671 tokens totales (6168 entries,
     | modelos claude-sonnet-5 + claude-opus-4-8). Ver deploy/README-calibracion-tope-carlos.md
     | para el comando exacto y cómo recalibrar.
+    |
+    | mensaje_limite_sesion (item #9991180, Fase 5 parte 1 de #9991175): decisión ya aprobada
+    | por Irving — al bloquear a Carlos, el mensaje debe verse IDÉNTICO al que Claude Code
+    | muestra al topar el límite real de la cuenta, no un candado custom. Texto capturado de
+    | un evento REAL (no inventado ni provocado a propósito): sesión
+    | ~/.claude/projects/-var-www/ad06b1ec-f9d6-470e-867d-4dcd86600c09.jsonl, Claude Code
+    | v2.1.270, 2026-09-15T12:08:37Z (uso manual de Irving, topó el límite semanal — el
+    | formato del aviso es el mismo mecanismo para cualquier tipo de límite, incluido el de
+    | sesión de 5h que aplica a Carlos). Esto CORRIGE el supuesto de #9991178: el marcador
+    | "Claude AI usage limit reached|<epoch>" que documenta ese item nunca se confirmó
+    | empíricamente (0 ocurrencias); el evento real capturado aquí sí ocurrió y tiene esta
+    | forma en el .jsonl — `type:"system"`, `subtype:"informational"`, `level:"notice"`.
+    | Evidencia cruda completa + el texto hermano (mensaje sintético del CLI, distinto de
+    | este aviso) en deploy/README-mensaje-limite-sesion-carlos.md. El shim de Fase 3+4
+    | (#9991179) debe leer `mensaje_limite_sesion.aviso` de aquí tal cual (sustituyendo el
+    | `%s` por la hora de reinicio calculada del ledger) — NO inventar un texto propio.
     */
     'terminal' => [
         'tope_sesion_carlos_pct' => (int) env('CIRCUITO_TERMINAL_TOPE_CARLOS_PCT', 40),
         'tope_sesion_carlos_tokens' => (int) env('CIRCUITO_TERMINAL_TOPE_CARLOS_TOKENS', 467199868),
         'tokens_totales_ventana_sesion' => (int) env('CIRCUITO_TERMINAL_TOKENS_VENTANA_SESION', 1167999671),
+        'mensaje_limite_sesion' => [
+            // Aviso literal (type:"system", subtype:"informational") que Claude Code
+            // persiste en el .jsonl y muestra en la terminal al topar el límite real.
+            // %s = hora de reinicio ya formateada (ver 'formato_hora').
+            'aviso' => 'Usage limit reached · continuing automatically at %s · esc or type to cancel',
+            // Formato date() de PHP para la hora: 'g' = hora 12h sin cero a la izquierda,
+            // 'a' = am/pm minúsculas. Único ejemplo real visto: "10pm" (sin minutos porque
+            // cayó en punto; no hay evidencia local de cómo se ve con minutos != 00).
+            'formato_hora' => 'ga',
+        ],
     ],
 
 ];
