@@ -178,7 +178,21 @@ class EnvironmentHealthService
     /** Ejecuta un git de solo lectura en `$cwd`; lanza si falla (capturado por `seguro()` en `resumen()`). */
     private function git(string $cwd, array $args): string
     {
-        $process = new Process(array_merge(['git'], $args), $cwd);
+        // Env con safe.directory inyectado (GIT_CONFIG_KEY_0): el repo es meganet:www-data y
+        // php-fpm corre como www-data; SIN esto git rehúsa por "dubious ownership" y esta tarjeta
+        // de la Torre (Checkout principal) queda en estado=desconocido para SIEMPRE al servirse
+        // por HTTP (funciona bien por CLI porque ahí sí coincide el dueño). Mismo patrón ya
+        // aplicado en RoadmapCircuitoService::git().
+        $env = [
+            'PATH'               => '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+            'HOME'               => '/root',
+            'LC_ALL'             => 'C',
+            'LANG'               => 'C',
+            'GIT_CONFIG_COUNT'   => '1',
+            'GIT_CONFIG_KEY_0'   => 'safe.directory',
+            'GIT_CONFIG_VALUE_0' => $cwd,
+        ];
+        $process = new Process(array_merge(['git'], $args), $cwd, $env);
         $process->setTimeout(10);
         $process->run();
         if (! $process->isSuccessful()) {
