@@ -45,6 +45,7 @@
                         v-model:pagination="pagination"
                         binary-state-sort
                         :loading="loading"
+                        loading-label="Obteniendo artículos, espere un momento..."
                         no-data-label="No hay elementos para mostrar"
                     >
                         <template v-slot:top="props">
@@ -127,6 +128,7 @@
                         v-model:pagination="pagination"
                         binary-state-sort
                         :loading="loading"
+                        loading-label="Obteniendo artículos, espere un momento..."
                         no-data-label="No hay elementos para mostrar"
                     >
                         <template v-slot:top="props">
@@ -215,6 +217,7 @@
                         v-model:pagination="pagination"
                         binary-state-sort
                         :loading="loading"
+                        loading-label="Obteniendo artículos, espere un momento..."
                         no-data-label="No hay elementos para mostrar"
                     >
                         <template v-slot:top="props">
@@ -307,6 +310,7 @@
                         v-model:pagination="pagination"
                         binary-state-sort
                         :loading="loading"
+                        loading-label="Obteniendo artículos, espere un momento..."
                         no-data-label="No hay elementos para mostrar"
                     >
                         <template v-slot:top="props">
@@ -403,6 +407,7 @@
                         v-model:pagination="pagination"
                         binary-state-sort
                         :loading="loading"
+                        loading-label="Obteniendo artículos, espere un momento..."
                         no-data-label="No hay elementos para mostrar"
                     >
                         <template v-slot:body-cell-type_item="props">
@@ -468,9 +473,7 @@ export default {
         const activeTab = ref("accepted");
 
         const setActiveTab = async (tab) => {
-            showLoading("showTextDef");
             await getItemsByUser(userId.value, tab);
-            hideLoading();
         };
 
         watch(activeTab, () => {
@@ -509,7 +512,7 @@ export default {
         });
 
         const getItemsByUser = async (userId) => {
-            showLoading("showTextDef");
+            loading.value = true;
             await axios
                 .post(
                     `/inventory/inventory_item_stock/get_items_by_user/${userId}`,
@@ -558,7 +561,7 @@ export default {
                         "error"
                     );
                 });
-            hideLoading();
+            loading.value = false;
         };
 
         const columns = ref([
