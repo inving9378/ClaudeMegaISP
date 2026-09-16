@@ -1771,4 +1771,30 @@ return [
         'hide_blocked_heuristic' => (bool) env('SUPERVISOR_HIDE_BLOCKED', true),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Terminal — tope de sesión de Carlos (item #9991178, Fase 2 de #9991175)
+    |--------------------------------------------------------------------------
+    |
+    | Decisión ya aprobada por Irving (q2 del padre #9991175): la cuenta OAuth es COMPARTIDA
+    | por las ~6 terminales del circuito a la vez + uso manual → el tope de Carlos se calibra
+    | como % de la ventana de sesión (bloque rodante de 5h), NO diario ni semanal.
+    |
+    | Calibración real (2026-09-16, `ccusage blocks --json -O` sobre ~/.claude/projects/*.jsonl,
+    | 4694 archivos, rango 2026-08-18→2026-09-14, 76 bloques completados): NINGUNA sesión mostró
+    | el marcador real de tope de cuenta ("Claude AI usage limit reached|<epoch>", 0 ocurrencias
+    | genuinas en todo el histórico — solo auto-match del propio comando de búsqueda contra su
+    | propia transcripción). Aplicado el piso conservador del propio item: se usa el MÁXIMO
+    | observado como referencia del 100%, dejando explícito que es una COTA INFERIOR (el tope
+    | real de la cuenta puede ser mayor; no hay evidencia local de haberlo alcanzado nunca).
+    | Bloque máximo: id 2026-09-11T21:00:00.000Z, 1,167,999,671 tokens totales (6168 entries,
+    | modelos claude-sonnet-5 + claude-opus-4-8). Ver deploy/README-calibracion-tope-carlos.md
+    | para el comando exacto y cómo recalibrar.
+    */
+    'terminal' => [
+        'tope_sesion_carlos_pct' => (int) env('CIRCUITO_TERMINAL_TOPE_CARLOS_PCT', 40),
+        'tope_sesion_carlos_tokens' => (int) env('CIRCUITO_TERMINAL_TOPE_CARLOS_TOKENS', 467199868),
+        'tokens_totales_ventana_sesion' => (int) env('CIRCUITO_TERMINAL_TOKENS_VENTANA_SESION', 1167999671),
+    ],
+
 ];
