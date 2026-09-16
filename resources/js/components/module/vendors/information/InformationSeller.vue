@@ -409,8 +409,12 @@ const update = async () => {
 }
 
 .credential {
-    width: 380px;
-    height: 600px;
+    width: 100%;
+    max-width: 380px;
+    aspect-ratio: 380 / 600;
+    margin-left: auto;
+    margin-right: auto;
+    overflow: hidden;
 }
 
 .background-credential-front {
@@ -436,8 +440,8 @@ const update = async () => {
 
 .image-perfil {
     border-radius: 50%;
-    width: 150px;
-    height: 150px;
+    width: clamp(70px, 30%, 150px);
+    height: clamp(70px, 30%, 150px);
     border: 5px solid #004790;
     margin-bottom: 10px;
 }
@@ -450,7 +454,7 @@ const update = async () => {
 }
 
 .title-user {
-    font-size: 0.8rem;
+    font-size: clamp(0.55rem, 2.2vw, 0.8rem);
     color: #fff;
     text-align: center;
     text-transform: uppercase;
@@ -458,22 +462,30 @@ const update = async () => {
 
 .name-credential {
     margin-top: 10px;
-    font-size: 1.3rem;
+    font-size: clamp(0.8rem, 3.4vw, 1.3rem);
     font-weight: bold;
     color: #fff;
     text-align: center;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    padding: 0 8px;
 }
 
 .credential-text {
-    font-size: 1.1rem;
+    font-size: clamp(0.62rem, 2.8vw, 1.1rem);
     color: #fff;
     text-align: center;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    padding: 0 10px;
 }
 
 .credential-text-black {
-    font-size: 1rem;
+    font-size: clamp(0.6rem, 2.5vw, 1rem);
     color: #504f4f;
     text-align: justify;
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 .text-back {
@@ -495,23 +507,12 @@ const update = async () => {
 }
 
 @media (max-width: 1600px) {
-    .image-perfil {
-        width: 120px;
-        height: 120px;
-    }
-
     .title-credential {
         font-size: 1.1rem;
     }
 
     .name-credential {
-        font-size: 1.2rem;
         padding-top: 50px;
-    }
-
-    .credential-text,
-    .credential-text-black {
-        font-size: 0.9rem;
     }
 
     .signature {
@@ -529,24 +530,13 @@ const update = async () => {
 }
 
 @media (max-width: 900px) {
-    .image-perfil {
-        width: 100px;
-        height: 100px;
-    }
-
     .title-credential {
         font-size: 1rem;
     }
 
     .name-credential {
-        font-size: 1.1rem;
         padding-top: 0;
         margin-top: 0;
-    }
-
-    .credential-text,
-    .credential-text-black {
-        font-size: 1rem;
     }
 
     .text-back {
@@ -573,22 +563,8 @@ const update = async () => {
 }
 
 @media (max-width: 480px) {
-    .image-perfil {
-        width: 80px;
-        height: 80px;
-    }
-
     .title-credential {
         font-size: 0.8rem;
-    }
-
-    .name-credential {
-        font-size: 1rem;
-    }
-
-    .credential-text,
-    .credential-text-black {
-        font-size: 0.7rem;
     }
 
     .signature {

@@ -8,12 +8,6 @@
     </div>
     <div v-else class="table-responsive">
       <table class="table documentos-table align-middle mb-0">
-        <thead>
-          <tr>
-            <th>Documento</th>
-            <th class="text-end">Acciones</th>
-          </tr>
-        </thead>
         <tbody>
           <tr v-for="doc in items" :key="doc.id">
             <td>
