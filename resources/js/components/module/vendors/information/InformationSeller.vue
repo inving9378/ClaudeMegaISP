@@ -205,8 +205,8 @@
 
     <div class="row" v-if="activeTab === '#navs-pills-justified-information' && hasDocumentPermission">
         <div class="col-md-12">
-            <div class="card mb-4 mt-4">
-                <h5 class="card-header">Documentos</h5>
+            <div class="card mb-4 mt-4 tc-card">
+                <h5 class="card-header tc-cardhead">Documentos</h5>
                 <div class="card-body">
                     <div v-if="!colaboradorId" class="text-muted small text-center py-3">
                         No se pudo cargar el expediente de documentos.
