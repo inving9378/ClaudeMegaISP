@@ -6,37 +6,42 @@
     <div v-else-if="!items.length" class="text-muted small text-center py-3">
       Este colaborador no tiene documentos generados (sin puesto asignado o sin plantillas para su puesto).
     </div>
-    <ul v-else class="list-group">
-      <li v-for="doc in items" :key="doc.id"
-          class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <div>
-          <div class="fw-semibold">{{ doc.template?.name ?? '—' }}</div>
-          <span class="badge" :class="statusBadgeClass(doc)">{{ statusBadgeText(doc) }}</span>
-          <div v-if="doc.firmado && !tieneSlots(doc)" class="small text-muted mt-1">
-            Firmado el {{ formatFecha(doc.signed_at) }}
-            <img v-if="doc.signature_url" :src="doc.signature_url" alt="Firma" class="firma-preview-inline d-block mt-1">
-          </div>
-        </div>
-        <div class="d-flex flex-wrap gap-1">
-          <a :href="documentoUrl(doc)" target="_blank" class="btn btn-sm btn-primary">
-            <i class="fa fa-eye me-1"></i>Ver
-          </a>
-          <button @click="imprimir(doc)" type="button" class="btn btn-sm btn-secondary">
-            <i class="fa fa-print me-1"></i>Imprimir
-          </button>
-          <button v-if="doc.pendiente_firma" @click="abrirFirma(doc)" type="button" class="btn btn-sm btn-danger">
-            <i class="fa fa-signature me-1"></i>Firmar
-          </button>
-          <button v-else-if="doc.requires_signature" @click="abrirFirma(doc)" type="button" class="btn btn-sm btn-secondary">
-            <i class="fa fa-signature me-1"></i>{{ tieneSlots(doc) ? 'Firmas completas' : 'Volver a firmar' }}
-          </button>
-          <button v-if="(doc.huecos_count ?? 0) > 0"
-                  @click="abrirCompletar(doc)" type="button" class="btn btn-sm btn-primary">
-            <i class="fa fa-clipboard-check me-1"></i>Completar documento
-          </button>
-        </div>
-      </li>
-    </ul>
+    <div v-else class="table-responsive">
+      <table class="table documentos-table align-middle mb-0">
+        <tbody>
+          <tr v-for="doc in items" :key="doc.id">
+            <td>
+              <div class="fw-semibold">{{ doc.template?.name ?? '—' }}</div>
+              <span class="badge" :class="statusBadgeClass(doc)">{{ statusBadgeText(doc) }}</span>
+              <div v-if="doc.firmado && !tieneSlots(doc)" class="small text-muted mt-1">
+                Firmado el {{ formatFecha(doc.signed_at) }}
+                <img v-if="doc.signature_url" :src="doc.signature_url" alt="Firma" class="firma-preview-inline d-block mt-1">
+              </div>
+            </td>
+            <td class="text-end">
+              <div class="d-flex flex-wrap gap-1 justify-content-end">
+                <a :href="documentoUrl(doc)" target="_blank" class="btn btn-sm btn-primary">
+                  <i class="fa fa-eye me-1"></i>Ver
+                </a>
+                <button @click="imprimir(doc)" type="button" class="btn btn-sm btn-secondary">
+                  <i class="fa fa-print me-1"></i>Imprimir
+                </button>
+                <button v-if="doc.pendiente_firma" @click="abrirFirma(doc)" type="button" class="btn btn-sm btn-danger">
+                  <i class="fa fa-signature me-1"></i>Firmar
+                </button>
+                <button v-else-if="doc.requires_signature" @click="abrirFirma(doc)" type="button" class="btn btn-sm btn-secondary">
+                  <i class="fa fa-signature me-1"></i>{{ tieneSlots(doc) ? 'Firmas completas' : 'Volver a firmar' }}
+                </button>
+                <button v-if="(doc.huecos_count ?? 0) > 0"
+                        @click="abrirCompletar(doc)" type="button" class="btn btn-sm btn-primary">
+                  <i class="fa fa-clipboard-check me-1"></i>Completar documento
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
     <!-- Modal de captura de firma -->
     <div v-if="firmaModal.show" class="modal d-block firma-modal-backdrop" tabindex="-1">

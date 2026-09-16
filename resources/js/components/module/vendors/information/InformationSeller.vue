@@ -205,8 +205,8 @@
 
     <div class="row" v-if="activeTab === '#navs-pills-justified-information' && hasDocumentPermission">
         <div class="col-md-12">
-            <div class="card mb-4 mt-4">
-                <h5 class="card-header">Documentos</h5>
+            <div class="card mb-4 mt-4 tc-card">
+                <h5 class="card-header tc-cardhead">Documentos</h5>
                 <div class="card-body">
                     <div v-if="!colaboradorId" class="text-muted small text-center py-3">
                         No se pudo cargar el expediente de documentos.
@@ -324,9 +324,107 @@ const update = async () => {
 </script>
 
 <style scoped>
+/* Card "Información Principal": las labels (Correo electrónico, etc.) no tenían
+   overflow-wrap — un correo largo sin espacios no encontraba dónde cortar línea y se
+   salía del card. Además el tamaño de letra fijo no reducía en viewports angostos. */
+.form-label {
+    overflow-wrap: break-word;
+    word-break: break-word;
+    font-size: clamp(0.8rem, 2.2vw, 1rem);
+    display: block;
+}
+
+/* Lista de documentos (talento-expediente-documentos, COMPARTIDA con el Portal de
+   Colaborador de Talento). :deep() la estiliza como zebra de tabla SOLO cuando se
+   renderiza aquí, dentro de la ficha de Vendedores — no afecta a Talento. */
+:deep(.documentos-table) {
+    border-radius: 12px;
+    overflow: hidden;
+}
+:deep(.documentos-table thead th) {
+    border: none;
+    background: var(--tc-thead, #e4e7eb);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    padding: 12px 16px;
+}
+:deep(.documentos-table tbody td) {
+    border: none;
+    border-bottom: 1px solid var(--tc-line, #e5e8ec);
+    background: transparent;
+    padding: 12px 16px;
+}
+:deep(.documentos-table tbody tr:last-child td) {
+    border-bottom: none;
+}
+:deep(.documentos-table tbody tr:nth-child(even) td) {
+    background: var(--tc-zebra, #f5f6f8);
+}
+:deep(.documentos-table tbody tr:hover td) {
+    background: var(--tc-line, #e5e8ec);
+}
+
+/* Botones de acción (Ver/Imprimir/Firmar/Completar) — Bootstrap default (azul/gris/rojo
+   genéricos) desentonaba con el tema Torre. Mismo mecanismo :deep(), mismos tokens/tc-btn. */
+:deep(.documentos-table .btn) {
+    border-radius: 8px;
+    font-weight: 600;
+    border: 1px solid transparent;
+    transition: filter 0.15s, background 0.15s;
+}
+:deep(.documentos-table .btn:hover) {
+    filter: brightness(1.06);
+}
+:deep(.documentos-table .btn-primary) {
+    background: var(--tc-accent, #0d9488);
+    border-color: var(--tc-accent, #0d9488);
+    color: #fff;
+}
+:deep(.documentos-table .btn-secondary) {
+    background: transparent;
+    border-color: var(--tc-line, #d3d8de);
+    color: var(--tc-ink, #1a2230);
+}
+:deep(.documentos-table .btn-danger) {
+    background: transparent;
+    border-color: var(--tc-bad, #dc2626);
+    color: var(--tc-bad, #dc2626);
+}
+:deep(.documentos-table .btn-danger:hover) {
+    background: var(--tc-bad, #dc2626);
+    color: #fff;
+}
+
+/* Badge de estado (Completo/Pendiente/Pendiente de firma) — el bg-success/warning/danger
+   sólido de Bootstrap se veía plano; pill suave con los mismos tonos del tema. */
+:deep(.documentos-table .badge) {
+    font-weight: 600;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 999px;
+}
+:deep(.documentos-table .badge.bg-success) {
+    background: rgba(22, 163, 74, 0.16) !important;
+    color: var(--tc-ok, #16a34a) !important;
+}
+:deep(.documentos-table .badge.bg-warning) {
+    background: rgba(217, 119, 6, 0.16) !important;
+    color: var(--tc-warn, #d97706) !important;
+}
+:deep(.documentos-table .badge.bg-danger) {
+    background: rgba(220, 38, 38, 0.16) !important;
+    color: var(--tc-bad, #dc2626) !important;
+}
+
 .credential {
-    width: 380px;
-    height: 600px;
+    width: 100%;
+    max-width: 380px;
+    aspect-ratio: 380 / 600;
+    margin-left: auto;
+    margin-right: auto;
+    overflow: hidden;
 }
 
 .background-credential-front {
@@ -352,8 +450,8 @@ const update = async () => {
 
 .image-perfil {
     border-radius: 50%;
-    width: 150px;
-    height: 150px;
+    width: clamp(70px, 30%, 150px);
+    height: clamp(70px, 30%, 150px);
     border: 5px solid #004790;
     margin-bottom: 10px;
 }
@@ -366,7 +464,7 @@ const update = async () => {
 }
 
 .title-user {
-    font-size: 0.8rem;
+    font-size: clamp(0.55rem, 2.2vw, 0.8rem);
     color: #fff;
     text-align: center;
     text-transform: uppercase;
@@ -374,22 +472,30 @@ const update = async () => {
 
 .name-credential {
     margin-top: 10px;
-    font-size: 1.3rem;
+    font-size: clamp(0.8rem, 3.4vw, 1.3rem);
     font-weight: bold;
     color: #fff;
     text-align: center;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    padding: 0 8px;
 }
 
 .credential-text {
-    font-size: 1.1rem;
+    font-size: clamp(0.62rem, 2.8vw, 1.1rem);
     color: #fff;
     text-align: center;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    padding: 0 10px;
 }
 
 .credential-text-black {
-    font-size: 1rem;
+    font-size: clamp(0.6rem, 2.5vw, 1rem);
     color: #504f4f;
     text-align: justify;
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 .text-back {
@@ -411,23 +517,12 @@ const update = async () => {
 }
 
 @media (max-width: 1600px) {
-    .image-perfil {
-        width: 120px;
-        height: 120px;
-    }
-
     .title-credential {
         font-size: 1.1rem;
     }
 
     .name-credential {
-        font-size: 1.2rem;
         padding-top: 50px;
-    }
-
-    .credential-text,
-    .credential-text-black {
-        font-size: 0.9rem;
     }
 
     .signature {
@@ -445,24 +540,13 @@ const update = async () => {
 }
 
 @media (max-width: 900px) {
-    .image-perfil {
-        width: 100px;
-        height: 100px;
-    }
-
     .title-credential {
         font-size: 1rem;
     }
 
     .name-credential {
-        font-size: 1.1rem;
         padding-top: 0;
         margin-top: 0;
-    }
-
-    .credential-text,
-    .credential-text-black {
-        font-size: 1rem;
     }
 
     .text-back {
@@ -489,22 +573,8 @@ const update = async () => {
 }
 
 @media (max-width: 480px) {
-    .image-perfil {
-        width: 80px;
-        height: 80px;
-    }
-
     .title-credential {
         font-size: 0.8rem;
-    }
-
-    .name-credential {
-        font-size: 1rem;
-    }
-
-    .credential-text,
-    .credential-text-black {
-        font-size: 0.7rem;
     }
 
     .signature {

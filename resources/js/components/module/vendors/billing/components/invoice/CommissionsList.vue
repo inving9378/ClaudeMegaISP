@@ -50,10 +50,10 @@
         <template v-slot:after>
             <div class="q-pa-md">
                 <div class="row no-gutter-x">
-                    <div class="col-8">
+                    <div class="col-12 col-sm-8">
                         <div class="text-h6 q-mb-md">Ventas adicionales</div>
                     </div>
-                    <div class="col-4 text-right">
+                    <div class="col-12 col-sm-4 text-sm-end">
                         <q-btn
                             label="Crear pago"
                             color="primary"
@@ -78,16 +78,16 @@
                         </q-item-section>
                         <q-item-section avatar>
                             <span
-                                class="text-primary"
+                                class="tc-status is-ok"
                                 v-if="client.state === 'pagada'"
                                 >PAGADA</span
                             >
                             <span
-                                class="text-danger"
+                                class="tc-status is-bad"
                                 v-else-if="client.state === 'descontada'"
                                 >DESCONTADA</span
                             >
-                            <span class="text-success" v-else>PENDIENTE</span>
+                            <span class="tc-status is-warn" v-else>PENDIENTE</span>
                         </q-item-section>
                     </q-item>
                 </q-list>

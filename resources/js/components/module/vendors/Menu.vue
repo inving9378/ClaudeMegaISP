@@ -1,118 +1,147 @@
 <template>
-    <div class="q-pa-md vnd-wrap">
-        <div class="d-flex justify-content-between flex-wrap gap-2">
+    <div class="tc-wrap" :class="{ 'tc-dark': darkMode }">
+        <div class="d-flex justify-content-between align-items-center">
             <Breadcrumb :list="breadcrumbList" />
             <div class="d-flex gap-2 mb-3">
                 <button
                     @click="goToPreviousSeller"
-                    class="btn btn-outline-primary"
+                    class="tc-btn tc-btn-seg"
                     :disabled="isFirstSeller"
+                    title="Vendedor anterior"
                 >
-                    <i class="fas fa-chevron-left"></i>
+                    <i class="bi bi-chevron-left"></i>
                 </button>
                 <button
                     @click="goToNextSeller"
-                    class="btn btn-outline-primary"
+                    class="tc-btn tc-btn-seg"
                     :disabled="isLastSeller"
+                    title="Vendedor siguiente"
                 >
-                    <i class="fas fa-chevron-right"></i>
+                    <i class="bi bi-chevron-right"></i>
                 </button>
             </div>
         </div>
-        <div class="d-flex align-items-center gap-2 mb-3">
-            <i class="bi bi-person-vcard fs-4"></i>
-            <h1 class="h4 fw-bold mb-0">Ficha del vendedor</h1>
-        </div>
 
-        <q-card class="vnd-card">
-        <q-card-section>
-        <div class="row">
-        <q-tabs
-            v-model="activeTab"
-            dense
-            no-caps
-            :dark="darkMode"
-            :class="!darkMode ? 'bg-grey-3 text-grey-7' : null"
-            active-color="primary"
-            indicator-color="primary"
-            align="justify"
-            content-class="no-gutter-x width-auto"
-            @update:model-value="setActiveTab"
-        >
-            <q-tab
-                name="#navs-pills-justified-information"
-                label="Información"
-                icon="fas fa-user"
-            />
-            <q-tab
-                name="#navs-pills-justified-prospects"
-                label="Prospectos"
-                icon="fas fa-users"
-            />
-            <q-tab
-                name="#navs-pills-justified-sales"
-                label="Ventas"
-                icon="fas fa-wallet"
-            />
-            <q-tab
-                name="#navs-pills-justified-statistics"
-                label="Estadísticas"
-                icon="fas fa-chart-bar"
-            />
-            <q-tab
-                name="#navs-pills-justified-billing"
-                label="Facturación"
-                icon="fas fa-money-bill"
-            />
-            <q-tab
-                name="#navs-pills-justified-cutting"
-                label="Corte mostrador"
-                icon="fas fa-calendar"
-                v-if="hasPermission.data.canView('seller_cuts') && is_counter"
-            />
-            <q-tab
-                name="#navs-pills-justified-inventory-items"
-                label="Artículos"
-                icon="fas fa-file-invoice"
-            />
-        </q-tabs>
         <!-- #9990601 — QUIÉN se está viendo. Sin esto, abrir el panel del vendedor equivocado
              (o de uno dado de baja) se ve idéntico a que el módulo esté roto: tablas en blanco y
              ninguna pista. Pasó el 2026-09-08 y costó media hora de diagnóstico. -->
-        <div v-if="seller_nombre" class="col-12 mb-2">
-            <div
-                class="d-flex align-items-center gap-2 px-3 py-2 rounded"
-                :class="seller_activo ? 'bg-light' : 'bg-warning-subtle border border-warning'"
+        <div
+            v-if="seller_nombre"
+            class="tc-sellerbar"
+            :class="{ 'tc-sellerbar--warn': !seller_activo }"
+        >
+            <i class="bi bi-person-badge"></i>
+            <strong>{{ seller_nombre }}</strong>
+            <span class="tc-muted-txt"
+                >· vendedor #{{ seller_id }} · usuario #{{ user_id }}</span
             >
-                <i class="fas fa-user-tie text-muted"></i>
-                <strong>{{ seller_nombre }}</strong>
-                <span class="text-muted small">· vendedor #{{ seller_id }} · usuario #{{ user_id }}</span>
-                <span v-if="!seller_activo" class="badge bg-warning text-dark ms-auto">
-                    <i class="fas fa-triangle-exclamation me-1"></i>
-                    Vendedor {{ seller_estado || "inactivo" }} — es normal que no tenga movimientos
-                </span>
-            </div>
+            <span v-if="!seller_activo" class="tc-badge-warn ms-auto">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                Vendedor {{ seller_estado || "inactivo" }} — es normal que no
+                tenga movimientos
+            </span>
         </div>
 
-        <q-tab-panels v-model="activeTab" animated :dark="darkMode">
-            <q-tab-panel name="#navs-pills-justified-information">
-                <InformationSeller :id="seller_id" />
-            </q-tab-panel>
-            <q-tab-panel name="#navs-pills-justified-prospects">
-                <ListProspects :id="user_id" />
-            </q-tab-panel>
-            <q-tab-panel name="#navs-pills-justified-sales">
-                <ListSales :id="user_id" />
-            </q-tab-panel>
-            <q-tab-panel name="#navs-pills-justified-statistics">
-                <Dashboard :id="user_id" :mediums_of_sales="mediums_of_sales" />
-            </q-tab-panel>
-            <q-tab-panel name="#navs-pills-justified-billing">
-                <Billing :user_id="user_id" :seller_id="seller_id" />
-            </q-tab-panel>
-            <q-tab-panel
-                name="#navs-pills-justified-cutting"
+        <!-- Pestañas estilo Torre (nav-tabs + iconos bi) -->
+        <ul class="nav nav-tabs tc-tabs">
+            <li class="nav-item">
+                <a
+                    class="nav-link"
+                    :class="{ active: activeTab === '#navs-pills-justified-information' }"
+                    href="#"
+                    @click.prevent="setActiveTab('#navs-pills-justified-information')"
+                >
+                    <i class="bi bi-person me-1"></i> Información
+                </a>
+            </li>
+            <li class="nav-item">
+                <a
+                    class="nav-link"
+                    :class="{ active: activeTab === '#navs-pills-justified-prospects' }"
+                    href="#"
+                    @click.prevent="setActiveTab('#navs-pills-justified-prospects')"
+                >
+                    <i class="bi bi-people me-1"></i> Prospectos
+                </a>
+            </li>
+            <li class="nav-item">
+                <a
+                    class="nav-link"
+                    :class="{ active: activeTab === '#navs-pills-justified-sales' }"
+                    href="#"
+                    @click.prevent="setActiveTab('#navs-pills-justified-sales')"
+                >
+                    <i class="bi bi-wallet2 me-1"></i> Ventas
+                </a>
+            </li>
+            <li class="nav-item">
+                <a
+                    class="nav-link"
+                    :class="{ active: activeTab === '#navs-pills-justified-statistics' }"
+                    href="#"
+                    @click.prevent="setActiveTab('#navs-pills-justified-statistics')"
+                >
+                    <i class="bi bi-bar-chart me-1"></i> Estadísticas
+                </a>
+            </li>
+            <li class="nav-item">
+                <a
+                    class="nav-link"
+                    :class="{ active: activeTab === '#navs-pills-justified-billing' }"
+                    href="#"
+                    @click.prevent="setActiveTab('#navs-pills-justified-billing')"
+                >
+                    <i class="bi bi-cash-stack me-1"></i> Facturación
+                </a>
+            </li>
+            <li
+                class="nav-item"
                 v-if="hasPermission.data.canView('seller_cuts') && is_counter"
+            >
+                <a
+                    class="nav-link"
+                    :class="{ active: activeTab === '#navs-pills-justified-cutting' }"
+                    href="#"
+                    @click.prevent="setActiveTab('#navs-pills-justified-cutting')"
+                >
+                    <i class="bi bi-calendar-check me-1"></i> Corte mostrador
+                </a>
+            </li>
+            <li class="nav-item">
+                <a
+                    class="nav-link"
+                    :class="{ active: activeTab === '#navs-pills-justified-inventory-items' }"
+                    href="#"
+                    @click.prevent="setActiveTab('#navs-pills-justified-inventory-items')"
+                >
+                    <i class="bi bi-box-seam me-1"></i> Artículos
+                </a>
+            </li>
+        </ul>
+
+        <!-- Paneles (montaje perezoso del activo, como q-tab-panels) -->
+        <div class="tc-panel">
+            <div v-if="activeTab === '#navs-pills-justified-information'">
+                <InformationSeller :id="seller_id" />
+            </div>
+            <div v-if="activeTab === '#navs-pills-justified-prospects'">
+                <ListProspects :id="user_id" />
+            </div>
+            <div v-if="activeTab === '#navs-pills-justified-sales'">
+                <ListSales :id="user_id" />
+            </div>
+            <div v-if="activeTab === '#navs-pills-justified-statistics'">
+                <Dashboard :id="user_id" :mediums_of_sales="mediums_of_sales" />
+            </div>
+            <div v-if="activeTab === '#navs-pills-justified-billing'">
+                <Billing :user_id="user_id" :seller_id="seller_id" />
+            </div>
+            <div
+                v-if="
+                    activeTab === '#navs-pills-justified-cutting' &&
+                    hasPermission.data.canView('seller_cuts') &&
+                    is_counter
+                "
             >
                 <cuts-component
                     :seller-id="seller_id"
@@ -121,14 +150,11 @@
                     :is-counter="is_counter"
                     :has-permission="hasPermission"
                 />
-            </q-tab-panel>
-            <q-tab-panel name="#navs-pills-justified-inventory-items">
+            </div>
+            <div v-if="activeTab === '#navs-pills-justified-inventory-items'">
                 <InventoryItemSeller v-if="user_id" :user_id="user_id" />
-            </q-tab-panel>
-        </q-tab-panels>
+            </div>
         </div>
-        </q-card-section>
-        </q-card>
     </div>
 </template>
 
@@ -253,14 +279,129 @@ const goToNextSeller = () => {
 </script>
 
 <style scoped>
-/* Restyle con el sistema visual de la Torre de Control (resources/js/components/module/releases/
-   torre-control): réplica local del mismo patrón ya aplicado en VendedorListar.vue (#9991075) —
-   tarjeta flat con borde sutil, sin tocar los archivos de la Torre ni el override global
-   !important de resources/sass/base/dark_mode/dark_mode.scss (que ya cubre .q-card en modo
-   oscuro). Se mantiene q-tabs (bajo riesgo: activeTab/setActiveTab es estado compartido con
-   otras vistas de Vendedores) en vez de migrar a nav-tabs Bootstrap. Item roadmap #9991078. */
-.vnd-card {
-    border-radius: 14px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+/* ── Sistema visual de la Torre (mismos tokens --tc-* que TorreControl) ── */
+.tc-wrap {
+    --tc-surface: #ffffff;
+    --tc-ink: #111827;
+    --tc-muted: #6b7280;
+    --tc-line: #e5e7eb;
+    --tc-bg2: #f8fafc;
+    --tc-ok: #16a34a;
+    --tc-info: #2563eb;
+    --tc-warn: #d97706;
+    --tc-bad: #dc2626;
+    --tc-slate: #64748b;
+    --tc-accent: #0d9488;
+    color: var(--tc-ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
+        Arial, sans-serif;
+}
+.tc-wrap.tc-dark {
+    --tc-surface: #151d2e;
+    --tc-ink: #e8edf6;
+    --tc-muted: #9aa7bd;
+    --tc-line: #2a3550;
+    --tc-bg2: #1b2436;
+    --tc-ok: #22c55e;
+    --tc-info: #60a5fa;
+    --tc-warn: #f59e0b;
+    --tc-bad: #f87171;
+    --tc-slate: #94a3b8;
+    --tc-accent: #2dd4bf;
+}
+
+/* Botones estilo Torre */
+.tc-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid var(--tc-line);
+    background: var(--tc-surface);
+    color: var(--tc-ink);
+    cursor: pointer;
+    text-decoration: none;
+    transition: filter 0.15s, background 0.15s;
+}
+.tc-btn:hover {
+    filter: brightness(0.97);
+}
+.tc-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.tc-btn-seg {
+    color: var(--tc-info);
+    border-color: var(--tc-info);
+    background: transparent;
+}
+
+/* Pestañas estilo Torre */
+.tc-tabs {
+    border-bottom: 1px solid var(--tc-line);
+    gap: 2px;
+    flex-wrap: wrap;
+}
+.tc-tabs .nav-link {
+    color: var(--tc-muted);
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    padding: 8px 14px;
+    font-weight: 600;
+    font-size: 13px;
+    background: transparent;
+    cursor: pointer;
+}
+.tc-tabs .nav-link:hover {
+    color: var(--tc-ink);
+    background: var(--tc-bg2);
+}
+.tc-tabs .nav-link.active {
+    color: var(--tc-accent);
+    background: var(--tc-surface);
+    border-color: var(--tc-line);
+    border-bottom-color: var(--tc-surface);
+    margin-bottom: -1px;
+}
+
+/* Contenedor de paneles */
+.tc-panel {
+    padding-top: 14px;
+}
+
+/* Barra de identidad del vendedor */
+.tc-sellerbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    background: var(--tc-bg2);
+    border: 1px solid var(--tc-line);
+    color: var(--tc-ink);
+}
+.tc-sellerbar--warn {
+    background: rgba(217, 119, 6, 0.1);
+    border-color: var(--tc-warn);
+}
+.tc-muted-txt {
+    color: var(--tc-muted);
+    font-size: 12px;
+}
+.tc-badge-warn {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--tc-warn);
+    border: 1px solid var(--tc-warn);
+    background: rgba(217, 119, 6, 0.12);
 }
 </style>

@@ -20,15 +20,16 @@
             </q-tabs>
         </div>
     </div>
+    <div class="tc-wrap" :class="{ 'tc-dark': darkMode }">
     <q-tab-panels v-model="activeTab" animated :dark="darkMode">
         <q-tab-panel
             name="accepted"
             v-if="tabs.includes('accepted') && activeTab == 'accepted'"
         >
             <div class="q-pa-md">
-                <q-card>
+                <q-card flat class="tc-card">
                     <q-card-section
-                        class="d-flex"
+                        class="d-flex tc-cardhead"
                         style="justify-content: space-between"
                     >
                         <div class="text-h6">Materiales</div>
@@ -44,6 +45,7 @@
                         v-model:pagination="pagination"
                         binary-state-sort
                         :loading="loading"
+                        loading-label="Obteniendo artículos, espere un momento..."
                         no-data-label="No hay elementos para mostrar"
                     >
                         <template v-slot:top="props">
@@ -61,15 +63,29 @@
                                     class="q-ml-md"
                                 />
                                 <q-input
-                                    borderless
+                                    outlined
                                     dense
                                     v-model="filter"
                                     placeholder="Buscar"
-                                    class="mb-0"
-                                    style="margin-left: 16px; border: 1px solid"
+                                    class="tc-search mb-0"
+                                    clearable
                                     :dark="darkMode"
-                                />
+                                >
+                                    <template v-slot:prepend-inner>
+                                        <q-icon name="search" />
+                                    </template>
+                                </q-input>
                             </div>
+                        </template>
+                        <template v-slot:body-cell-type_item="props">
+                            <q-td :props="props">
+                                <span class="tc-status is-slate">{{ props.row.type_item }}</span>
+                            </q-td>
+                        </template>
+                        <template v-slot:body-cell-status_name="props">
+                            <q-td :props="props">
+                                <span class="tc-status" :class="estadoBadge(props.row.status_name)">{{ props.row.status_name }}</span>
+                            </q-td>
                         </template>
                         <template v-slot:body-cell-No="props">
                             <q-td :props="props">
@@ -94,9 +110,9 @@
             </div>
 
             <div class="q-pa-md">
-                <q-card>
+                <q-card flat class="tc-card">
                     <q-card-section
-                        class="d-flex"
+                        class="d-flex tc-cardhead"
                         style="justify-content: space-between"
                     >
                         <div class="text-h6">Herramientas</div>
@@ -112,6 +128,7 @@
                         v-model:pagination="pagination"
                         binary-state-sort
                         :loading="loading"
+                        loading-label="Obteniendo artículos, espere un momento..."
                         no-data-label="No hay elementos para mostrar"
                     >
                         <template v-slot:top="props">
@@ -129,15 +146,29 @@
                                     class="q-ml-md"
                                 />
                                 <q-input
-                                    borderless
+                                    outlined
                                     dense
                                     v-model="filter"
                                     placeholder="Buscar"
-                                    class="mb-0"
-                                    style="margin-left: 16px; border: 1px solid"
+                                    class="tc-search mb-0"
+                                    clearable
                                     :dark="darkMode"
-                                />
+                                >
+                                    <template v-slot:prepend-inner>
+                                        <q-icon name="search" />
+                                    </template>
+                                </q-input>
                             </div>
+                        </template>
+                        <template v-slot:body-cell-type_item="props">
+                            <q-td :props="props">
+                                <span class="tc-status is-slate">{{ props.row.type_item }}</span>
+                            </q-td>
+                        </template>
+                        <template v-slot:body-cell-status_name="props">
+                            <q-td :props="props">
+                                <span class="tc-status" :class="estadoBadge(props.row.status_name)">{{ props.row.status_name }}</span>
+                            </q-td>
                         </template>
                         <template v-slot:body-cell-No="props">
                             <q-td :props="props">
@@ -168,9 +199,9 @@
             v-if="tabs.includes('pending') && activeTab == 'pending'"
         >
             <div class="q-pa-md">
-                <q-card>
+                <q-card flat class="tc-card">
                     <q-card-section
-                        class="d-flex"
+                        class="d-flex tc-cardhead"
                         style="justify-content: space-between"
                     >
                         <div class="text-h6">Materiales</div>
@@ -186,6 +217,7 @@
                         v-model:pagination="pagination"
                         binary-state-sort
                         :loading="loading"
+                        loading-label="Obteniendo artículos, espere un momento..."
                         no-data-label="No hay elementos para mostrar"
                     >
                         <template v-slot:top="props">
@@ -203,15 +235,29 @@
                                     class="q-ml-md"
                                 />
                                 <q-input
-                                    borderless
+                                    outlined
                                     dense
                                     v-model="filter"
                                     placeholder="Buscar"
-                                    class="mb-0"
-                                    style="margin-left: 16px; border: 1px solid"
+                                    class="tc-search mb-0"
+                                    clearable
                                     :dark="darkMode"
-                                />
+                                >
+                                    <template v-slot:prepend-inner>
+                                        <q-icon name="search" />
+                                    </template>
+                                </q-input>
                             </div>
+                        </template>
+                        <template v-slot:body-cell-type_item="props">
+                            <q-td :props="props">
+                                <span class="tc-status is-slate">{{ props.row.type_item }}</span>
+                            </q-td>
+                        </template>
+                        <template v-slot:body-cell-status_name="props">
+                            <q-td :props="props">
+                                <span class="tc-status" :class="estadoBadge(props.row.status_name)">{{ props.row.status_name }}</span>
+                            </q-td>
                         </template>
                         <template v-slot:body-cell-No="props">
                             <q-td :props="props">
@@ -246,9 +292,9 @@
             </div>
 
             <div class="q-pa-md">
-                <q-card>
+                <q-card flat class="tc-card">
                     <q-card-section
-                        class="d-flex"
+                        class="d-flex tc-cardhead"
                         style="justify-content: space-between"
                     >
                         <div class="text-h6">Herramientas</div>
@@ -264,6 +310,7 @@
                         v-model:pagination="pagination"
                         binary-state-sort
                         :loading="loading"
+                        loading-label="Obteniendo artículos, espere un momento..."
                         no-data-label="No hay elementos para mostrar"
                     >
                         <template v-slot:top="props">
@@ -281,15 +328,29 @@
                                     class="q-ml-md"
                                 />
                                 <q-input
-                                    borderless
+                                    outlined
                                     dense
                                     v-model="filter"
                                     placeholder="Buscar"
-                                    class="mb-0"
-                                    style="margin-left: 16px; border: 1px solid"
+                                    class="tc-search mb-0"
+                                    clearable
                                     :dark="darkMode"
-                                />
+                                >
+                                    <template v-slot:prepend-inner>
+                                        <q-icon name="search" />
+                                    </template>
+                                </q-input>
                             </div>
+                        </template>
+                        <template v-slot:body-cell-type_item="props">
+                            <q-td :props="props">
+                                <span class="tc-status is-slate">{{ props.row.type_item }}</span>
+                            </q-td>
+                        </template>
+                        <template v-slot:body-cell-status_name="props">
+                            <q-td :props="props">
+                                <span class="tc-status" :class="estadoBadge(props.row.status_name)">{{ props.row.status_name }}</span>
+                            </q-td>
                         </template>
                         <template v-slot:body-cell-No="props">
                             <q-td :props="props">
@@ -328,9 +389,9 @@
             v-if="tabs.includes('last_actions') && activeTab == 'last_actions'"
         >
             <div class="q-pa-md">
-                <q-card>
+                <q-card flat class="tc-card">
                     <q-card-section
-                        class="d-flex"
+                        class="d-flex tc-cardhead"
                         style="justify-content: space-between"
                     >
                         <div class="text-h6">Ultimas Acciones</div>
@@ -346,8 +407,19 @@
                         v-model:pagination="pagination"
                         binary-state-sort
                         :loading="loading"
+                        loading-label="Obteniendo artículos, espere un momento..."
                         no-data-label="No hay elementos para mostrar"
                     >
+                        <template v-slot:body-cell-type_item="props">
+                            <q-td :props="props">
+                                <span class="tc-status is-slate">{{ props.row.type_item }}</span>
+                            </q-td>
+                        </template>
+                        <template v-slot:body-cell-status_name="props">
+                            <q-td :props="props">
+                                <span class="tc-status" :class="estadoBadge(props.row.status_name)">{{ props.row.status_name }}</span>
+                            </q-td>
+                        </template>
                         <template v-slot:body-cell-No="props">
                             <q-td :props="props">
                                 {{ props.pageIndex + 1 }}
@@ -358,6 +430,7 @@
             </div>
         </q-tab-panel>
     </q-tab-panels>
+    </div>
 
     <div
         class="modal fade"
@@ -400,9 +473,7 @@ export default {
         const activeTab = ref("accepted");
 
         const setActiveTab = async (tab) => {
-            showLoading("showTextDef");
             await getItemsByUser(userId.value, tab);
-            hideLoading();
         };
 
         watch(activeTab, () => {
@@ -441,7 +512,7 @@ export default {
         });
 
         const getItemsByUser = async (userId) => {
-            showLoading("showTextDef");
+            loading.value = true;
             await axios
                 .post(
                     `/inventory/inventory_item_stock/get_items_by_user/${userId}`,
@@ -490,7 +561,7 @@ export default {
                         "error"
                     );
                 });
-            hideLoading();
+            loading.value = false;
         };
 
         const columns = ref([
@@ -618,14 +689,7 @@ export default {
                 visible: true,
             },
 
-            {
-                name: "actions",
-                align: "start",
-                label: "Acciones",
-                field: "actions",
-                sortable: false,
-                visible: true,
-            },
+            
         ]);
 
         const columnsAccepted = ref([
@@ -800,6 +864,14 @@ export default {
             reloadCrud.value = !reloadCrud.value;
         };
 
+        const estadoBadge = (v) => {
+            const t = String(v || "").toLowerCase();
+            if (t.includes("acept") || t.includes("entreg") || t.includes("aprob") || t.includes("activ")) return "is-ok";
+            if (t.includes("pend") || t.includes("proces")) return "is-warn";
+            if (t.includes("rechaz") || t.includes("cancel") || t.includes("devuel") || t.includes("baja")) return "is-bad";
+            return "is-info";
+        };
+
         return {
             itemsPending,
             itemsAccepted,
@@ -828,12 +900,25 @@ export default {
             darkMode,
             lastActions,
             columnsLastActions,
+            estadoBadge,
         };
     },
 };
 </script>
 
 <style scoped>
+.tc-search {
+    width: 260px;
+    max-width: 100%;
+    flex: 0 0 auto;
+}
+.tc-search :deep(.q-field__control) {
+    border-radius: 8px;
+}
+.tc-search :deep(.q-field__native) {
+    min-width: 90px;
+}
+
 .q-tab {
     flex: 0 1 auto; /* Esto hace que las pestañas se ajusten al contenido */
     white-space: nowrap; /* Evita que el texto se divida en varias líneas */

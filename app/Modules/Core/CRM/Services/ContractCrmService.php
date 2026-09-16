@@ -41,7 +41,7 @@ class ContractCrmService
         $html = str_replace('\n', '', $validation['html']);
         $html = $documentTemplateService->wrapHtmlWithBaseStyles($html);
 
-        $pdf = Pdf::loadHTML($html);
+        $pdf = Pdf::loadHTML(\App\Support\ContractPdfTemplate::wrap($html));
         $documentTemplateRepository = new DocumentTemplateRepository();
         if (isset($request->name) && !empty($request->name)) {
             $nameTemplate = $request->name;

@@ -43,7 +43,12 @@
                     :has-edit="hasPermission.data.canView('seller_add_payment')"
                 />
             </q-tab-panel>
-            <q-tab-panel name="tab-facture"> </q-tab-panel>
+            <q-tab-panel
+                name="tab-facture"
+                style="padding: 5px 2px; --bs-gutter-x: 0px !important"
+            >
+                <payments-list :user="user_id" />
+            </q-tab-panel>
             <q-tab-panel
                 name="tab-debt"
                 style="padding: 5px 2px; --bs-gutter-x: 0px !important"
@@ -137,6 +142,7 @@ import DebtComponent from "./components/invoice/DebtComponent.vue";
 import GeneralInformation from "./components/invoice/GeneralInformation.vue";
 import CommissionsList from "./components/invoice/CommissionsList.vue";
 import PaymentsComponent from "./components/invoice/PaymentsComponent.vue";
+import PaymentsList from "./components/invoice/PaymentsList.vue";
 
 import { date, from, to, errorMessage } from "./helper/helper.js";
 import { useDatePicker } from "../../../../composables/useDatePicker.js";

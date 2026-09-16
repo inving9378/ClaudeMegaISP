@@ -18,7 +18,7 @@
     >
         <template v-slot:top="props">
             <div class="row">
-                <div class="col-4 no-padding">
+                <div class="col-12 col-sm-6 col-md-4 no-padding">
                     <VueDatePicker
                         v-model="pagination.activation_date"
                         position="right"
@@ -35,8 +35,8 @@
                     >
                     </VueDatePicker>
                 </div>
-                <div class="col-8">
-                    <div class="d-flex justify-content-end">
+                <div class="col-12 col-md-8">
+                    <div class="d-flex flex-wrap justify-content-md-end gap-2">
                         <button
                             type="button"
                             class="btn btn-outline-info"
@@ -57,7 +57,7 @@
                             v-model="searchInput"
                             placeholder="Buscar"
                             class="mb-0"
-                            style="margin-left: 16px; border: 1px solid"
+                            style="margin-left: 0; min-width: 180px; flex: 1 1 180px; max-width: 260px; border: 1px solid"
                             :dark="darkMode"
                         >
                         </q-input>
@@ -99,6 +99,13 @@
                 </span>
                 <span class="badge-red" v-else>
                     {{ props.row.pending_payment }}
+                </span>
+            </q-td>
+        </template>
+        <template v-slot:body-cell-estado="props">
+            <q-td :props="props">
+                <span class="tc-status" :class="estadoPill(props.row.css_state)">
+                    {{ props.row.estado }}
                 </span>
             </q-td>
         </template>
@@ -363,6 +370,21 @@ watch(
     }
 );
 
+const estadoPill = (cssState) => {
+    switch (cssState) {
+        case "client-active":
+            return "is-ok";
+        case "client-block":
+            return "is-bad";
+        case "client-cancel":
+            return "is-slate";
+        case "client-inactive":
+            return "is-warn";
+        default:
+            return "is-slate";
+    }
+};
+
 const updateFilters = (column, params) => {
     let index = pagination.value.filters.findIndex((f) => f.column === column);
     if (index >= 0) {
@@ -434,33 +456,32 @@ const visibleColumns = computed(() =>
 );
 </script>
 <style scoped>
+.badge-yellow,
+.badge-red,
+.badge-primary {
+    display: inline-block;
+    min-width: 28px;
+    text-align: center;
+    padding: 3px 12px;
+    border-radius: 30px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+/* ok -> verde, in_term -> ámbar, else -> rojo (tokens Torre, claro/oscuro) */
+.badge-primary {
+    background-color: rgba(22, 163, 74, 0.14);
+    color: var(--tc-ok, #16a34a);
+}
+
 .badge-yellow {
-    background-color: #fd7e14;
-    color: #ffffff;
-    padding: 0 8px;
-    padding-top: 2px;
-    padding-bottom: 2px;
-    border-radius: 3px;
-    font-weight: 500;
+    background-color: rgba(217, 119, 6, 0.16);
+    color: var(--tc-warn, #d97706);
 }
 
 .badge-red {
-    background-color: red;
-    color: #ffffff;
-    padding: 0 8px;
-    padding-top: 2px;
-    padding-bottom: 2px;
-    border-radius: 3px;
-    font-weight: 500;
-}
-
-.badge-primary {
-    background-color: #357bf2;
-    color: #ffffff;
-    padding: 0 8px;
-    padding-top: 2px;
-    padding-bottom: 2px;
-    border-radius: 3px;
-    font-weight: 500;
+    background-color: rgba(220, 38, 38, 0.14);
+    color: var(--tc-bad, #dc2626);
 }
 </style>

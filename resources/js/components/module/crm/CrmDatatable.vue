@@ -40,7 +40,7 @@
                 :dark="darkMode"
                 :no-data-label="noDataLabel"
                 rows-per-page-label="Elementos por página"
-                loading-label="Obteniendo datos"
+                :loading-label="loadingLabel"
                 :selected-rows-label="
                     (numberOfRows) =>
                         `${numberOfRows} ${
@@ -259,7 +259,13 @@
                                 'max-width': '250px',
                             }"
                         >
-                            <q-item-label lines="1"
+                            <span
+                                v-if="isStatusCol(col.name)"
+                                class="tc-status"
+                                :class="statusClass(props.row[col.name])"
+                                >{{ statusText(props.row[col.name]) }}</span
+                            >
+                            <q-item-label v-else lines="1"
                                 ><span v-html="props.row[col.name]"></span
                             ></q-item-label>
                         </q-td>
@@ -494,6 +500,24 @@ const props = defineProps({
         type: Array,
         default: [],
     },
+    // OPCIONAL (opt-in): pinta una columna como pill de estado (.tc-status). Default null →
+    // el CRM y demás consumidores NO cambian. Forma:
+    // { column: 'crm_status', map: { Nuevo: 'is-info', Ganado: 'is-ok', ... } }.
+    statusBadge: {
+        type: Object,
+        default: null,
+    },
+    // OPCIONAL: overlay de carga a pantalla completa. Default true = comportamiento actual
+    // (CRM igual). En false, la carga se muestra SOLO con el loading del q-table (no tapa la vista).
+    overlayLoading: {
+        type: Boolean,
+        default: true,
+    },
+    // Texto del loading del q-table (default conserva el del CRM).
+    loadingLabel: {
+        type: String,
+        default: "Obteniendo datos",
+    },
 });
 
 const emits = defineEmits([
@@ -510,6 +534,20 @@ const emits = defineEmits([
 ]);
 
 const { getColumns, saveColumns } = useDataTable();
+
+// Helpers del pill de estado (solo activos si se pasa el prop opcional `statusBadge`).
+// El nombre de columna del datatable puede traer sufijo (p.ej. "crm_status/datatable123"),
+// por eso el match es por igualdad o por prefijo "columna/".
+const isStatusCol = (name) => {
+    if (!props.statusBadge) return false;
+    const c = props.statusBadge.column;
+    return name === c || String(name).startsWith(c + "/");
+};
+const statusText = (v) => String(v ?? "").replace(/<[^>]*>/g, "").trim();
+const statusClass = (v) => {
+    const map = props.statusBadge?.map || {};
+    return map[statusText(v)] || "is-slate";
+};
 
 const showModal = ref(false);
 const lengthButtons = _.values(props.buttons).length;
@@ -923,6 +961,9 @@ const setFilter = (obj) => {
 };
 
 watch(loading, () => {
+    // Con overlayLoading=false, la carga se muestra SOLO con el loading del q-table
+    // (no se tapa la vista). Default true conserva el comportamiento del CRM.
+    if (!props.overlayLoading) return;
     if (loading.value) {
         showLoading();
     } else {
