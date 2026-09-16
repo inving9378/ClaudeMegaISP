@@ -324,6 +324,28 @@ const update = async () => {
 </script>
 
 <style scoped>
+/* Lista de documentos (talento-expediente-documentos, COMPARTIDA con el Portal de
+   Colaborador de Talento). :deep() la estiliza como zebra de tabla SOLO cuando se
+   renderiza aquí, dentro de la ficha de Vendedores — no afecta a Talento. */
+:deep(.list-group) {
+    border-radius: 12px;
+    overflow: hidden;
+}
+:deep(.list-group-item) {
+    border: none;
+    border-bottom: 1px solid var(--tc-line, #e5e8ec);
+    background: transparent;
+}
+:deep(.list-group-item:last-child) {
+    border-bottom: none;
+}
+:deep(.list-group-item:nth-child(even)) {
+    background: var(--tc-zebra, #f5f6f8);
+}
+:deep(.list-group-item:hover) {
+    background: var(--tc-line, #e5e8ec);
+}
+
 .credential {
     width: 380px;
     height: 600px;
