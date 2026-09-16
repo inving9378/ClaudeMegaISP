@@ -324,6 +324,16 @@ const update = async () => {
 </script>
 
 <style scoped>
+/* Card "Información Principal": las labels (Correo electrónico, etc.) no tenían
+   overflow-wrap — un correo largo sin espacios no encontraba dónde cortar línea y se
+   salía del card. Además el tamaño de letra fijo no reducía en viewports angostos. */
+.form-label {
+    overflow-wrap: break-word;
+    word-break: break-word;
+    font-size: clamp(0.8rem, 2.2vw, 1rem);
+    display: block;
+}
+
 /* Lista de documentos (talento-expediente-documentos, COMPARTIDA con el Portal de
    Colaborador de Talento). :deep() la estiliza como zebra de tabla SOLO cuando se
    renderiza aquí, dentro de la ficha de Vendedores — no afecta a Talento. */
