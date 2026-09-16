@@ -112,4 +112,43 @@
     bottom: auto !important;
     transform: none !important;
 }
+/* Fase 1 responsive header global (#9991183): el clúster derecho del header (avatar +
+   nombre + chevron del dropdown de usuario, más los SVGs/íconos de Torre/conciliación/
+   notificaciones/modo oscuro) usaba tamaños FIJOS en px sin ninguna regla de reducción
+   continua — el avatar 36x36 fijo, el nombre sin tope de ancho, los SVGs de feather
+   (campana, sol/luna) y los íconos de fuente en 20px/16px fijos. Como .btn trae
+   white-space:nowrap y #page-topbar es position:fixed sin overflow declarado, en viewports
+   angostos (o con varios widgets activos a la vez) el ancho natural del row de la derecha
+   supera el disponible y lo que no cabe queda fuera del viewport — el avatar, al ser lo más
+   a la derecha, es lo primero que "se corta". clamp() reduce estos tamaños de forma continua
+   en vez de quedar fijos; el nombre gana tope de ancho + ellipsis para nunca desbordar;
+   object-fit + flex-shrink:0 evitan que la imagen se deforme o se aplaste en el layout flex. */
+.header-profile-user {
+    width: clamp(28px, 4vw, 36px);
+    height: clamp(28px, 4vw, 36px);
+    object-fit: cover;
+    object-position: center;
+    flex-shrink: 0;
+}
+#page-header-user-dropdown > span.fw-medium {
+    display: inline-block;
+    max-width: clamp(60px, 12vw, 160px);
+    font-size: clamp(0.72rem, 1.4vw, 0.875rem);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+#page-header-user-dropdown > i.mdi-chevron-down {
+    font-size: clamp(0.85rem, 1.4vw, 1.1rem);
+}
+#page-topbar .icon-lg {
+    width: clamp(16px, 2vw, 20px);
+    height: clamp(16px, 2vw, 20px);
+}
+#page-topbar .header-item > i.fa,
+#page-topbar .header-item > i.fas,
+#page-topbar .header-item > i.far {
+    font-size: clamp(14px, 1.6vw, 16px);
+}
 </style>

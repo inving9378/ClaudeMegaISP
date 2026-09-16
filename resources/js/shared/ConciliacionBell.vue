@@ -7,7 +7,7 @@
             @click="goToQueue"
             :title="`Pagos por conciliar: ${count} pendiente(s)`"
         >
-            <i class="mdi mdi-cash-multiple icon-lg" style="font-size: 20px;"></i>
+            <i class="mdi mdi-cash-multiple icon-lg" style="font-size: clamp(16px, 2vw, 20px);"></i>
             <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">{{ count }}</span>
         </button>
     </div>
