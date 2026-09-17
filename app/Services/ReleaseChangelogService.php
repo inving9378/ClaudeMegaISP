@@ -208,11 +208,23 @@ class ReleaseChangelogService
         return implode(' ', $parts);
     }
 
+    /**
+     * Convención de los tags de versión del pipeline (`V1.35-17.09.2026`). Un tag fuera de esta
+     * forma (p. ej. `v0.3.0`, 2026-09-11) NO cuenta como "versión previa": ni para el rango del
+     * changelog ni para el preflight — si no, las notas de la siguiente versión se resumirían
+     * "desde v0.3.0" y el preflight reportaría en rojo una versión que nunca fue del pipeline
+     * (#9991209). El tag ajeno se filtra, no se borra.
+     */
+    public const TAG_CONVENCION = '/^V\d+\.\d+-\d{2}\.\d{2}\.\d{4}$/';
+
     private function findPreviousTag(array $env, string $base, string $newVersion): ?string
     {
         $output = $this->runGit('git tag --sort=-version:refname', $env, $base);
         $tags   = array_filter(explode("\n", trim($output)));
-        $tags   = array_values(array_filter($tags, fn($t) => $t !== $newVersion));
+        $tags   = array_values(array_filter(
+            $tags,
+            fn ($t) => $t !== $newVersion && preg_match(self::TAG_CONVENCION, $t) === 1
+        ));
         return $tags[0] ?? null;
     }
 
