@@ -23,6 +23,17 @@ use Illuminate\Support\Str;
  */
 class GeneradorCredenciales
 {
+    /**
+     * $clave llega como variable a `yaDefinida()`, no como literal, así que no se
+     * puede mover mecánicamente a un env() dentro de config/ — mismo caso que
+     * `UsesApiIntegration::ENV_FALLBACK_CONFIG_MAP` (#1000012). Mapa explícito
+     * env → config, ya reflejado en `config/voip.php`.
+     */
+    private const CLAVE_CONFIG_MAP = [
+        'AMI_SECRET'        => 'voip.ami_pass',
+        'ASTERISK_ARI_PASS' => 'voip.ari_pass',
+    ];
+
     public function generarYPersistir(string $uuid, string $version): array
     {
         $env = new EscritorEnv(base_path('.env'));
@@ -80,7 +91,8 @@ class GeneradorCredenciales
 
     private function yaDefinida(string $clave): bool
     {
-        $v = env($clave);
+        $configKey = self::CLAVE_CONFIG_MAP[$clave] ?? null;
+        $v = $configKey ? config($configKey) : null;
 
         // Un marcador sin sustituir no cuenta como definida: es justo el caso que
         // dejó ASTERISK_AMI_PASS=CAMBIAR_AMI_PASS_VOIP durante meses.
