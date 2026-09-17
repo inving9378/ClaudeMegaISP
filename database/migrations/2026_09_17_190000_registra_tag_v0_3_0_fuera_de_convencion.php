@@ -46,15 +46,18 @@ return new class extends Migration
             return;
         }
 
-        Release::create([
-            'version'                   => self::VERSION,
-            'release_date'              => '2026-09-11',
-            'origin'                    => 'tag_fuera_de_convencion',
-            'commit_sha'                => self::COMMIT_SHA,
-            'estado_publicacion'        => 'historica_fuera_de_convencion',
-            'estado_publicacion_motivo' => self::MOTIVO,
-            'created_by'                => User::systemBot()?->id ?? 1,
+        // `estado_publicacion_motivo` NO está en `$fillable` de Release (a propósito: no es
+        // mass-assignable desde request de usuario) — `DeploymentService::registrarPublicacion()`
+        // usa el mismo `forceFill()` para escribirlo, se sigue aquí el mismo patrón.
+        $release = Release::create([
+            'version'            => self::VERSION,
+            'release_date'       => '2026-09-11',
+            'origin'             => 'tag_fuera_de_convencion',
+            'commit_sha'         => self::COMMIT_SHA,
+            'estado_publicacion' => 'historica_fuera_de_convencion',
+            'created_by'         => User::systemBot()?->id ?? 1,
         ]);
+        $release->forceFill(['estado_publicacion_motivo' => self::MOTIVO])->save();
     }
 
     public function down(): void
