@@ -479,28 +479,35 @@ class MergeRunner
      *  - Si `checkoutPrincipalPath()` === `workDir()` (el caso de los tests: ambos seams
      *    sobreescritos al mismo repo temporal) → no-op explícito, `true` (nada que sincronizar).
      *  - Si ese checkout NO está en la rama `main` (alguien tiene una rama de trabajo checada a
-     *    mano ahí) → NO SE TOCA absolutamente nada — ni checkout, ni reset, ni fetch. `main` ya
-     *    avanzó en el repositorio compartido; ese checkout se pondrá al día solo la próxima vez
+     *    mano ahí) → NO SE TOCA absolutamente nada — ni checkout, ni read-tree, ni fetch. `main`
+     *    ya avanzó en el repositorio compartido; ese checkout se pondrá al día solo la próxima vez
      *    que sí esté en main. Devuelve `false` (no sincronizado esta vez).
-     *  - Si SÍ está en `main` pero tiene cambios sin commitear (contra `$shaAnterior`, ver abajo)
-     *    → tampoco se toca (un `reset --hard` los destruiría) — se loguea fuerte para que alguien
-     *    lo resuelva a mano. Devuelve `false`.
-     *  - Si está en `main` y limpio → `git reset --hard HEAD` (HEAD ahí es un ref simbólico a
-     *    `refs/heads/main`, que ya apunta al commit nuevo tras el `update-ref` de arriba; esto solo
-     *    pone el índice/árbol de trabajo al día con su propio HEAD, no descarta nada real porque ya
-     *    verificamos que está limpio). Devuelve `true` si terminó sincronizado de verdad.
+     *  - En cualquier otro caso: `git read-tree -u -m $shaAnterior $sha` — el "two-way merge"
+     *    documentado de git (el mismo mecanismo que usan `git merge`/`git pull` por debajo para
+     *    un fast-forward con el árbol de trabajo sucio). Compara, archivo por archivo, el tree
+     *    VIEJO (`$shaAnterior`, el punto de partida real del checkout) contra el NUEVO (`$sha`, lo
+     *    que ya apunta HEAD tras el `update-ref` de arriba): lo que NO cambió entre ambos lo deja
+     *    tal cual esté en el checkout (incluida cualquier edición local sin commitear ajena al
+     *    merge); lo que SÍ cambió y el checkout no tocó, lo actualiza al contenido nuevo; lo que SÍ
+     *    cambió Y el checkout también tiene modificado sin commitear (el traslape real) hace que
+     *    git ABORTE ATÓMICAMENTE sin escribir NADA (ni ese archivo ni ningún otro). Devuelve `true`
+     *    si terminó sincronizado (con o sin ediciones locales ajenas intactas), `false` si abortó.
      *
-     * #9991086 — BUG DE ORIGEN (0 syncs reales desde 2026-09-09, medido en el item): la limpieza se
-     * comprobaba con `git status --porcelain`, que compara índice/árbol contra HEAD — pero para
-     * cuando se llega aquí, `update-ref` (en `performMerge()`, arriba) YA avanzó `refs/heads/main`
-     * al commit NUEVO del merge, y HEAD en este checkout es un símbolo que sigue a esa rama. El
-     * índice/árbol del checkout, en cambio, seguían con el contenido VIEJO (nadie los tocó). Así que
-     * `git status --porcelain` veía DIFERENCIA entre índice-viejo y HEAD-ya-nuevo, y la reportaba
-     * como "staged" — TODO archivo que el propio merge tocara se leía como "sucio", así que el
-     * checkout nunca calificaba para sincronizar. Fix: comparar contra `$shaAnterior` (el sha de
-     * `main` justo ANTES de este merge, capturado en `performMerge()`), que es el punto de partida
-     * real del checkout — así un merge sin tocar nada humano SIEMPRE da limpio, sea cual sea lo que
-     * el merge en sí haya cambiado.
+     * #9991211 — BUG (25052bf5 pisó 8b1f6909): el `reset --hard` de antes exigía el checkout 100%
+     * limpio para sincronizar CUALQUIER COSA — bastaba un solo archivo sin relación con el merge
+     * (p.ej. Irving editando un .vue de Talento mientras el merge tocaba `DeploymentService.php`)
+     * para que el sync se omitiera por completo. Como `update-ref` ya había avanzado
+     * `refs/heads/main`, cuando ese archivo sin relación se commiteaba (`git commit -a`), el commit
+     * nuevo se construía desde un ÍNDICE que seguía con el contenido VIEJO de los archivos que el
+     * merge tocó — sin que nadie lo notara, el commit humano DESHACÍA el merge ahí. El two-way
+     * merge de arriba resuelve el caso común (sin traslape) sincronizando de verdad en vez de
+     * omitirlo entero, y sigue abortando sin tocar nada en el caso real de traslape — ese caso
+     * sigue visible en la Torre (`status --porcelain` queda "sucio", ver
+     * `EnvironmentHealthService::checkoutPrincipal()`, #9991088).
+     *
+     * #9991086 — BUG DE ORIGEN (0 syncs reales desde 2026-09-09, ya resuelto entonces): comparar
+     * contra `$shaAnterior` en vez de contra HEAD (que `update-ref` ya había avanzado) sigue siendo
+     * el punto de partida correcto — es justo el "tree viejo" que este two-way merge necesita.
      */
     protected function syncCheckoutPrincipal(string $sha, string $shaAnterior): bool
     {
@@ -525,63 +532,19 @@ class MergeRunner
             return false;
         }
 
-        // Archivos trackeados con diferencias (staged o no) contra el sha ANTERIOR — `git diff
-        // <commit>` compara el ÁRBOL DE TRABAJO directo contra ese commit, sin pasar por el índice,
-        // así que capta staged+unstaged en una sola llamada sin el falso positivo de `status`
-        // contra un HEAD ya movido (ver docblock arriba).
-        $diffTrabajo = new Process(['git', 'diff', '--quiet', $shaAnterior], $principal);
-        $diffTrabajo->setTimeout(30);
-        $diffTrabajo->run();
-        $codigo = $diffTrabajo->getExitCode();
-        // exit 0 = sin diferencias, 1 = hay diferencias, cualquier otro (o null) = error real
-        // (p.ej. $shaAnterior no resuelve) → fail-closed, igual que el resto del método.
-        if ($codigo === null || $codigo > 1) {
-            Log::channel('roadmap_externo')->warning('sync-checkout-principal-fallo', [
-                'motivo' => 'no se pudo comparar el checkout contra el sha anterior',
-                'merge_commit' => $sha, 'sha_anterior' => $shaAnterior,
-                'error' => trim($diffTrabajo->getErrorOutput()),
-            ]);
+        // Two-way merge (tree viejo → tree nuevo) directo sobre índice + árbol de trabajo: git
+        // actualiza SOLO lo que el merge tocó y el checkout no había modificado, y aborta
+        // ATÓMICAMENTE (sin escribir nada) si hay traslape real con una edición local sin
+        // commitear — ver docblock arriba.
+        $readTree = new Process(['git', 'read-tree', '-u', '-m', $shaAnterior, $sha], $principal);
+        $readTree->setTimeout(60);
+        $readTree->run();
 
-            return false;
-        }
-        $sucio = $codigo === 1;
-        $motivoSucio = $sucio ? 'archivos trackeados modificados sin commitear' : null;
-
-        // Archivos SIN trackear (git diff no los ve). Respeta .gitignore + .git/info/exclude tal
-        // cual `status --porcelain` lo hacía (p.ej. public/.well-known/ del reto ACME).
-        if (! $sucio) {
-            $untracked = new Process(['git', 'ls-files', '--others', '--exclude-standard'], $principal);
-            $untracked->setTimeout(30);
-            $untracked->run();
-            if (! $untracked->isSuccessful()) {
-                Log::channel('roadmap_externo')->warning('sync-checkout-principal-fallo', [
-                    'motivo' => 'no se pudo listar archivos sin trackear', 'merge_commit' => $sha,
-                    'error' => trim($untracked->getErrorOutput()),
-                ]);
-
-                return false;
-            }
-            if (trim($untracked->getOutput()) !== '') {
-                $sucio = true;
-                $motivoSucio = 'archivos sin trackear';
-            }
-        }
-
-        if ($sucio) {
+        if (! $readTree->isSuccessful()) {
             Log::channel('roadmap_externo')->warning('sync-checkout-principal-sucio', [
-                'motivo' => "checkout principal tiene cambios sin commitear ({$motivoSucio}), no se sincroniza para no perderlos",
+                'motivo' => 'cambios locales sin commitear se traslapan con archivos que este merge también toca, no se sincroniza para no perderlos',
                 'merge_commit' => $sha, 'sha_anterior' => $shaAnterior,
-            ]);
-
-            return false;
-        }
-
-        $reset = new Process(['git', 'reset', '--hard', 'HEAD'], $principal);
-        $reset->setTimeout(60);
-        $reset->run();
-        if (! $reset->isSuccessful()) {
-            Log::channel('roadmap_externo')->warning('sync-checkout-principal-fallo', [
-                'merge_commit' => $sha, 'error' => trim($reset->getErrorOutput()),
+                'detalle' => trim($readTree->getErrorOutput()),
             ]);
 
             return false;

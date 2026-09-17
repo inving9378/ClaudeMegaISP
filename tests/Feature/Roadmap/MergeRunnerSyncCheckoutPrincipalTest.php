@@ -12,11 +12,20 @@ use Symfony\Component\Process\Process;
 use Tests\CreatesApplication;
 
 /**
- * Candado de regresión del item #9991086 (BUG DE ORIGEN, 0 syncs reales desde 2026-09-09): la
- * limpieza del checkout principal se comprobaba con `git status --porcelain`, que compara contra
- * HEAD — pero `update-ref` (en `performMerge()`) ya había avanzado `refs/heads/main` al commit
- * NUEVO antes de llegar a `syncCheckoutPrincipal()`, así que CUALQUIER archivo tocado por el merge
- * se veía "sucio" (índice viejo vs HEAD ya nuevo) y el checkout nunca sincronizaba.
+ * Candado de regresión de dos items:
+ *
+ *  - #9991086 (BUG DE ORIGEN, 0 syncs reales desde 2026-09-09): la limpieza del checkout principal
+ *    se comprobaba con `git status --porcelain`, que compara contra HEAD — pero `update-ref` (en
+ *    `performMerge()`) ya había avanzado `refs/heads/main` al commit NUEVO antes de llegar a
+ *    `syncCheckoutPrincipal()`, así que CUALQUIER archivo tocado por el merge se veía "sucio"
+ *    (índice viejo vs HEAD ya nuevo) y el checkout nunca sincronizaba.
+ *  - #9991211 (25052bf5 pisó 8b1f6909): incluso ya arreglado #9991086, un solo archivo SIN
+ *    relación con el merge y editado a mano (p.ej. Irving en un .vue de Talento) bastaba para
+ *    omitir el sync ENTERO — y como `refs/heads/main` ya había avanzado, el siguiente commit
+ *    humano ahí construía su árbol desde un índice con contenido VIEJO de los archivos que el
+ *    merge sí tocó, deshaciéndolo en silencio. `syncCheckoutPrincipal()` ahora usa el two-way
+ *    merge de git (`read-tree -u -m`) para sincronizar de verdad lo que el merge tocó y dejar
+ *    intacto lo demás, abortando atómicamente solo si hay traslape real.
  *
  * Reproduce el mismo montaje que producción (dos `git worktree` del mismo repo: uno detached en
  * main para el runner, otro con `main` checada de verdad para el "checkout principal") sobre un
@@ -70,19 +79,63 @@ class MergeRunnerSyncCheckoutPrincipalTest extends TestCase
     }
 
     /**
-     * El bug real: un archivo modificado A MANO (sin commitear, sin relación con el merge) en el
-     * checkout principal debe seguir bloqueando el sync — pero por ser trabajo humano de verdad,
-     * NO por el falso positivo de comparar contra el HEAD ya avanzado.
+     * #9991211 — escenario 1 (el común): un archivo modificado A MANO sin commitear en el checkout
+     * principal, SIN relación con lo que el merge toca. Antes esto bloqueaba el sync ENTERO; ahora
+     * debe sincronizar el archivo nuevo del merge y dejar la edición humana intacta.
      */
-    public function test_checkout_principal_con_archivo_modificado_a_mano_no_se_sincroniza(): void
+    public function test_checkout_principal_con_archivo_sin_relacion_modificado_a_mano_se_sincroniza_sin_perder_la_edicion(): void
     {
         [$principal, $workDir] = $this->crearRepoConWorktreesDedicados();
 
-        // Trabajo humano sin commitear en el checkout principal: modifica un archivo YA trackeado.
+        // Trabajo humano sin commitear en el checkout principal: modifica un archivo YA trackeado
+        // que el merge (item-branch, ver crearRepoConWorktreesDedicados) NO toca — solo agrega
+        // feature.php.
         file_put_contents($principal.'/base.php', "<?php\n// base\n// editado a mano, sin commitear\n");
 
         $item = RoadmapItem::create([
-            'title' => 'Item de prueba #9991086 (checkout sucio) '.uniqid(),
+            'title' => 'Item de prueba #9991211 (checkout sucio, sin traslape) '.uniqid(),
+            'status' => 'pending',
+            'estado_aprobacion' => 'en_progreso',
+            'branch' => 'item-branch',
+        ]);
+
+        $runner = $this->runner($workDir, $principal);
+        $res = $runner->performMerge($item);
+
+        $this->assertTrue($res['ok'] ?? false, 'El merge debía aterrizar limpio: '.($res['salida'] ?? 'sin detalle'));
+        $this->assertNotNull($res['merge_commit']);
+
+        // La edición humana sigue intacta...
+        $this->assertStringContainsString(
+            'editado a mano, sin commitear',
+            file_get_contents($principal.'/base.php'),
+            'El archivo editado a mano no debe perderse: el merge nunca lo tocó.'
+        );
+        // ...y el archivo nuevo del merge SÍ se materializa: el árbol queda al día.
+        $this->assertFileExists($principal.'/feature.php', 'Sin traslape, el archivo del merge debe sincronizarse aunque haya otro archivo sucio.');
+        $this->assertStringContainsString('feature', file_get_contents($principal.'/feature.php'));
+
+        $item->refresh();
+        $this->assertSame('completado', $item->estado_aprobacion, 'El item se marca integrado independientemente del resultado del sync (best-effort).');
+    }
+
+    /**
+     * #9991211 — escenario 2 (el peligroso, el que de verdad debe seguir bloqueado): un archivo
+     * modificado A MANO sin commitear que el merge TAMBIÉN toca. Debe abortar atómicamente —
+     * la edición humana permanece exactamente como estaba, sin ninguna mezcla con el contenido del
+     * merge (eso sería peor que no sincronizar: un archivo a medias, sin representar ni la edición
+     * humana ni el commit real).
+     */
+    public function test_checkout_principal_con_archivo_traslapado_no_se_sincroniza(): void
+    {
+        [$principal, $workDir] = $this->crearRepoConWorktreesDedicados(modificarBaseEnItemBranch: true);
+
+        // Trabajo humano sin commitear en el checkout principal, sobre el MISMO archivo
+        // (base.php) que item-branch modifica.
+        file_put_contents($principal.'/base.php', "<?php\n// base\n// editado a mano, sin commitear\n");
+
+        $item = RoadmapItem::create([
+            'title' => 'Item de prueba #9991211 (checkout sucio, traslapado) '.uniqid(),
             'status' => 'pending',
             'estado_aprobacion' => 'en_progreso',
             'branch' => 'item-branch',
@@ -96,17 +149,14 @@ class MergeRunnerSyncCheckoutPrincipalTest extends TestCase
         $this->assertTrue($res['ok'] ?? false, 'El merge debía aterrizar limpio: '.($res['salida'] ?? 'sin detalle'));
         $this->assertNotNull($res['merge_commit']);
 
-        // Pero el checkout principal NO se toca: la edición humana sigue intacta y el archivo nuevo
-        // del merge nunca se materializó ahí (nada corrió `reset --hard`).
-        $this->assertStringContainsString(
-            'editado a mano, sin commitear',
-            file_get_contents($principal.'/base.php'),
-            'El archivo editado a mano debe seguir intacto: el sync debe omitirse, no pisarlo.'
-        );
-        $this->assertFileDoesNotExist($principal.'/feature.php', 'Sin sync, el archivo del merge nunca debe aparecer en el checkout principal.');
+        // El checkout principal NO se toca: la edición humana sigue EXACTAMENTE igual, sin mezcla
+        // con el contenido del merge (ni el commit real de `base.php` se aplicó).
+        $contenido = file_get_contents($principal.'/base.php');
+        $this->assertStringContainsString('editado a mano, sin commitear', $contenido, 'La edición humana debe seguir intacta tras el aborto.');
+        $this->assertStringNotContainsString('modificado por item-branch', $contenido, 'El contenido del merge NO debe mezclarse con la edición local: debe abortar atómico.');
 
         $item->refresh();
-        $this->assertSame('completado', $item->estado_aprobacion, 'El item se marca integrado aunque el sync del checkout principal se haya omitido (best-effort).');
+        $this->assertSame('completado', $item->estado_aprobacion, 'El item se marca integrado aunque el sync del checkout principal haya abortado (best-effort).');
     }
 
     /**
@@ -115,8 +165,12 @@ class MergeRunnerSyncCheckoutPrincipalTest extends TestCase
      * la vez, así que NO puede ser un `git worktree add` como en `MergeRunnerNoTocaCheckoutAjenoTest`)
      * y $workDir es un worktree SECUNDARIO detached en main, colgado de ese mismo repo — como el
      * worktree exclusivo del runner (`MERGE_WORKTREE`).
+     *
+     * `$modificarBaseEnItemBranch` (#9991211): además de agregar `feature.php`, la rama del item
+     * también modifica `base.php` — usado por el escenario de traslape real (la misma ruta que el
+     * checkout principal tiene editada a mano sin commitear).
      */
-    private function crearRepoConWorktreesDedicados(): array
+    private function crearRepoConWorktreesDedicados(bool $modificarBaseEnItemBranch = false): array
     {
         $principal = sys_get_temp_dir().'/mergerunner-principal-'.uniqid();
         mkdir($principal, 0775, true);
@@ -133,6 +187,10 @@ class MergeRunnerSyncCheckoutPrincipalTest extends TestCase
         $this->git($principal, ['checkout', '-q', '-b', 'item-branch']);
         file_put_contents($principal.'/feature.php', "<?php\n// feature\n");
         $this->git($principal, ['add', 'feature.php']);
+        if ($modificarBaseEnItemBranch) {
+            file_put_contents($principal.'/base.php', "<?php\n// base\n// modificado por item-branch\n");
+            $this->git($principal, ['add', 'base.php']);
+        }
         $this->git($principal, ['commit', '-q', '-m', 'feature']);
         $this->git($principal, ['checkout', '-q', 'main']);
 
