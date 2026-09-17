@@ -49,7 +49,7 @@
             </thead>
             <tbody>
               <tr v-for="liq in liquidaciones" :key="liq.id">
-                <td class="fw-semibold small">{{ liq.colaborador?.user?.name }}</td>
+                <td class="fw-semibold small">{{ fullName(liq.colaborador?.user) }}</td>
                 <td class="small">{{ formatDate(liq.period_start) }} – {{ formatDate(liq.period_end) }}</td>
                 <td class="text-center">{{ liq.total_units }}</td>
                 <td class="text-end">${{ fmt(liq.base_paid) }}</td>
@@ -141,7 +141,7 @@
       <div class="modal-dialog modal-xl">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">{{ detail.liq?.colaborador?.user?.name }} — {{ formatDate(detail.liq?.period_start) }} al {{ formatDate(detail.liq?.period_end) }}</h5>
+            <h5 class="modal-title">{{ fullName(detail.liq?.colaborador?.user) }} — {{ formatDate(detail.liq?.period_start) }} al {{ formatDate(detail.liq?.period_end) }}</h5>
             <button @click="detail.show=false" type="button" class="btn-close"></button>
           </div>
           <div class="modal-body" v-if="detail.liq">
@@ -217,7 +217,7 @@
           </div>
           <div class="modal-footer">
             <button @click="detail.show=false" class="btn btn-secondary">Cerrar</button>
-            <button v-if="detail.liq?.status === 'draft'" @click="openCerrar(detail.liq)" class="btn btn-success">
+            <button v-if="detail.liq?.status === 'draft'" @click="openCerrar(detail.liq)" class="tc-btn tc-btn-bad-solid">
               <i class="fa fa-lock me-1"></i>Cerrar liquidación
             </button>
           </div>
@@ -229,16 +229,16 @@
     <div v-if="cerrarModal.show" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.55);z-index:10001">
       <div class="modal-dialog">
         <div class="modal-content">
-          <div class="modal-header bg-warning-subtle">
+          <div class="modal-header tc-modal-header-danger">
             <h5 class="modal-title"><i class="fa fa-lock me-2"></i>Cerrar liquidación</h5>
             <button @click="cerrarModal.show=false" type="button" class="btn-close"></button>
           </div>
           <div class="modal-body">
-            <p>Esta acción es <strong>irreversible</strong>. ¿Cerrar la liquidación de <strong>{{ cerrarModal.liq?.colaborador?.user?.name }}</strong> por <strong>${{ fmt(cerrarModal.liq?.gross_pay) }}</strong>?</p>
+            <p>Esta acción es <strong>irreversible</strong>. ¿Cerrar la liquidación de <strong>{{ fullName(cerrarModal.liq?.colaborador?.user) }}</strong> por <strong>${{ fmt(cerrarModal.liq?.gross_pay) }}</strong>?</p>
           </div>
           <div class="modal-footer">
             <button @click="cerrarModal.show=false" class="btn btn-secondary" :disabled="cerrarModal.saving">Cancelar</button>
-            <button @click="confirmCerrar" class="btn btn-warning" :disabled="cerrarModal.saving">
+            <button @click="confirmCerrar" class="tc-btn tc-btn-bad-solid" :disabled="cerrarModal.saving">
               <span v-if="cerrarModal.saving"><span class="spinner-border spinner-border-sm me-1"></span></span>
               Sí, cerrar
             </button>
@@ -377,3 +377,16 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* El modal de confirmar cierre usaba bg-warning-subtle (Bootstrap) para el
+   header — en oscuro queda transparente (sin tratamiento verificado, mismo
+   hallazgo que .bg-light en otras pantallas), perdiendo el aviso visual de
+   "acción de peso". Recoloreado con --tc-bad (ya es danger, coherente con
+   el botón "Cerrar" de la fila) en vez de --tc-warn, con transparencia para
+   que funcione igual de bien en claro y en oscuro. */
+.talento-liquidaciones .tc-modal-header-danger {
+  background: rgba(220, 38, 38, 0.12);
+  border-bottom-color: rgba(220, 38, 38, 0.25);
+}
+</style>
