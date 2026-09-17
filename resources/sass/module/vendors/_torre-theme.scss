@@ -137,6 +137,64 @@
         border-color: var(--tc-bad);
         background: transparent;
     }
+    // Rellenos (acción de peso, distinta de tc-btn-ok/tc-accent): info = lectura/
+    // ver, primary = la acción principal de la fila cuando ya hay un "ok" teal
+    // ocupado por otra cosa (ej. "Ver" vs "Iniciar" en Talento — Órdenes de Trabajo).
+    .tc-btn-info {
+        background: var(--tc-info);
+        border-color: var(--tc-info);
+        color: #fff;
+        &:hover {
+            filter: brightness(1.08);
+            color: #fff;
+        }
+    }
+    .tc-btn-primary {
+        background: #4f46e5;
+        border-color: #4f46e5;
+        color: #fff;
+        &:hover {
+            filter: brightness(1.1);
+            color: #fff;
+        }
+    }
+    &.tc-dark .tc-btn-primary {
+        background: #6366f1;
+        border-color: #6366f1;
+    }
+
+    // ── Form controls (inputs/selects nativos dentro de una pantalla Torre) ──
+    // Bootstrap los deja "de fábrica" (borde/fondo default) frente al resto ya
+    // rediseñado — recoloreados aquí con los mismos tokens --tc-*, una sola vez
+    // para que cualquier pantalla envuelta en .tc-wrap los herede gratis.
+    .form-control,
+    .form-select {
+        border-color: var(--tc-line);
+        color: var(--tc-ink);
+        background-color: var(--tc-surface);
+    }
+    .form-control::placeholder {
+        color: var(--tc-muted);
+    }
+    .form-control:focus,
+    .form-select:focus {
+        border-color: var(--tc-accent);
+        box-shadow: 0 0 0 0.2rem rgba(13, 148, 136, 0.15);
+    }
+
+    // Select con chevron propio (claro/oscuro) + foco --tc-accent, en vez del
+    // look nativo del navegador.
+    .tc-select {
+        border-radius: 9px;
+        padding: 0.45rem 2.1rem 0.45rem 0.75rem;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%236b7280' d='M8 11 3 6h10z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.7rem center;
+        background-size: 12px;
+    }
+    &.tc-dark .tc-select {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%239aa7bd' d='M8 11 3 6h10z'/%3E%3C/svg%3E");
+    }
 
     // ── Pestañas estilo Torre (nav-tabs + subpestañas) ──
     .tc-tabs {

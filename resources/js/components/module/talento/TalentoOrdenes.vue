@@ -463,60 +463,13 @@ export default {
 </script>
 
 <style scoped>
-/* Filtros (buscador/selects/fechas): #9991200 dejó las clases Bootstrap
-   (form-control/form-select) sin retocar — se veían "crudas" frente al resto
-   ya con tema Torre (mismo hallazgo que el buscador de Vendedores/Artículos).
-   Recoloreados aquí con los tokens --tc-*, sin depender de :deep() porque
-   son elementos nativos del propio template (no de un componente hijo). */
-.talento-ordenes .form-control,
-.talento-ordenes .form-select {
-  border-color: var(--tc-line, #e5e7eb);
-  color: var(--tc-ink, #111827);
-  background-color: var(--tc-surface, #fff);
-}
-.talento-ordenes .form-control::placeholder {
-  color: var(--tc-muted, #6b7280);
-}
-.talento-ordenes .form-control:focus,
-.talento-ordenes .form-select:focus {
-  border-color: var(--tc-accent, #0d9488);
-  box-shadow: 0 0 0 0.2rem rgba(13, 148, 136, 0.15);
-}
-
-/* Botones "Ver"/"Iniciar-Completar": el tema Torre solo trae tc-btn-ok
-   (relleno, acento teal) y tc-btn-seg/warn/bad (outline). "Ver" y el botón
-   de avanzar estado usaban tc-btn-seg (outline azul) los dos — se ven
-   iguales pese a ser acciones distintas (una de solo lectura, otra que
-   cambia el estado de la orden). Se agregan dos variantes RELLENAS,
-   locales a esta pantalla (no se tocó _torre-theme.scss compartido):
-   - tc-btn-info: relleno con --tc-info (mismo azul de "Interno" en
-     Vendedores) — para la acción de solo-lectura "Ver".
-   - tc-btn-primary: relleno índigo, un tono distinto de --tc-accent
-     (que ya usan "Nueva orden"/"Validar") y de --tc-info, para que
-     "Iniciar"/"Completar" (la acción que de verdad avanza la orden)
-     se note como la más importante de la fila. */
-.talento-ordenes .tc-btn-info {
-  background: var(--tc-info, #2563eb);
-  border-color: var(--tc-info, #2563eb);
-  color: #fff;
-}
-.talento-ordenes .tc-btn-info:hover {
-  filter: brightness(1.08);
-  color: #fff;
-}
-.talento-ordenes .tc-btn-primary {
-  background: #4f46e5;
-  border-color: #4f46e5;
-  color: #fff;
-}
-.talento-ordenes .tc-btn-primary:hover {
-  filter: brightness(1.1);
-  color: #fff;
-}
-.talento-ordenes.tc-dark .tc-btn-primary {
-  background: #6366f1;
-  border-color: #6366f1;
-}
+/* form-control/form-select, tc-select (chevron+foco) y tc-btn-info/
+   tc-btn-primary vivían aquí como estilos LOCALES (#9991200); al construir
+   la 2ª pantalla con el mismo tratamiento (Talento — Compensación) se
+   promovieron a _torre-theme.scss (bajo .tc-wrap, mismo patrón que
+   tc-card/tc-btn-ok/tc-status) para no duplicar la misma hoja de estilos
+   en cada pantalla nueva. Lo que sigue abajo es específico de ESTA
+   pantalla (paginación propia, grupo de prospecto). */
 
 /* Paginación: el tema Torre no trae reglas para .pagination (#9991200),
    así que se recolorea aquí con los mismos tokens --tc-* en vez de dejar

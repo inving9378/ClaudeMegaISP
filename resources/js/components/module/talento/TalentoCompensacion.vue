@@ -1,18 +1,16 @@
 <template>
-  <div class="talento-compensacion">
+  <div class="talento-compensacion tc-wrap" :class="{ 'tc-dark': darkMode }">
 
-    <div class="d-flex align-items-center justify-content-between mb-3">
-      <h5 class="mb-0"><i class="fa fa-coins me-2 text-primary"></i>Compensación</h5>
-      <button @click="openCreateRule" class="btn btn-primary btn-sm">
-        <i class="fa fa-plus me-1"></i> Nueva regla
-      </button>
-    </div>
+    <div class="tc-card mb-3">
+      <div class="tc-cardhead d-flex flex-wrap align-items-center justify-content-between gap-2 p-3">
+        <h5 class="tc-h1"><i class="fa fa-coins me-2"></i>Compensación</h5>
+        <button @click="openCreateRule" class="tc-btn tc-btn-ok">
+          <i class="fa fa-plus me-1"></i> Nueva regla
+        </button>
+      </div>
 
-    <div class="row g-4">
-
-      <!-- REGLAS DEFINIDAS -->
-      <div class="col-12">
-        <h6 class="text-uppercase text-muted small mb-2">Reglas definidas</h6>
+      <div class="p-3">
+        <h2 class="tc-h2">Reglas definidas</h2>
         <div v-if="loadingRules" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></div>
         <div v-else class="table-responsive">
           <table class="table table-hover table-sm align-middle">
@@ -31,16 +29,16 @@
             <tbody>
               <tr v-for="r in rules" :key="r.id">
                 <td class="fw-semibold">{{ r.name }}</td>
-                <td><span class="badge bg-light text-dark">{{ targetLabel(r.target_type) }}</span></td>
-                <td><span class="badge bg-light text-dark">{{ periodLabel(r.period) }}</span></td>
+                <td><span class="tc-status is-slate">{{ targetLabel(r.target_type) }}</span></td>
+                <td><span class="tc-status is-slate">{{ periodLabel(r.period) }}</span></td>
                 <td class="text-end">${{ fmt(r.base_salary) }}</td>
                 <td class="text-center">{{ r.weekly_quota_units }}</td>
                 <td class="text-end text-success fw-semibold">${{ fmt(r.value_per_unit) }}</td>
                 <td class="text-center">
-                  <span class="badge" :class="r.active ? 'bg-success' : 'bg-secondary'">{{ r.active ? 'Sí' : 'No' }}</span>
+                  <span class="tc-status" :class="r.active ? 'is-ok' : 'is-slate'">{{ r.active ? 'Sí' : 'No' }}</span>
                 </td>
                 <td>
-                  <button @click="openEditRule(r)" class="btn btn-xs btn-outline-primary">Editar</button>
+                  <button @click="openEditRule(r)" class="tc-btn tc-btn-info">Editar</button>
                 </td>
               </tr>
               <tr v-if="!rules.length">
@@ -50,60 +48,60 @@
           </table>
         </div>
       </div>
+    </div>
 
-      <!-- ASIGNAR REGLA -->
-      <div class="col-12">
-        <h6 class="text-uppercase text-muted small mb-2">Asignar regla a colaborador</h6>
-        <div class="card border-0 shadow-sm">
-          <div class="card-body">
-            <div class="row g-3 align-items-end">
-              <div class="col-md-4">
-                <label class="form-label form-label-sm">Colaborador</label>
-                <input v-model="assign.search" @input="debounceAssignSearch" type="text"
-                       class="form-control form-control-sm" placeholder="Buscar…">
-                <ul v-if="assign.suggestions.length" class="list-group mt-1 position-absolute shadow" style="z-index:9999;max-height:160px;overflow-y:auto">
-                  <li v-for="c in assign.suggestions" :key="c.id" @click="selectAssignCol(c)"
-                      class="list-group-item list-group-item-action small cursor-pointer">
-                    {{ c.user?.name }}
-                  </li>
-                </ul>
-                <div v-if="assign.colaborador_id" class="mt-1 small text-success">
-                  <i class="fa fa-check-circle me-1"></i>{{ assign.colaborador_name }}
-                </div>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label form-label-sm">Regla</label>
-                <select v-model="assign.rule_id" @change="onAssignRuleChange" class="form-select form-select-sm">
-                  <option :value="null">— Seleccionar —</option>
-                  <option v-for="r in activeRules" :key="r.id" :value="r.id">{{ r.name }}</option>
-                </select>
-              </div>
-              <div class="col-md-2">
-                <label class="form-label form-label-sm">Fecha efectiva</label>
-                <input v-model="assign.assigned_at" type="date" class="form-control form-control-sm">
-              </div>
-              <div class="col-md-3 d-flex align-items-end gap-2">
-                <button @click="saveAssign" class="btn btn-primary btn-sm" :disabled="assign.saving">
-                  <span v-if="assign.saving"><span class="spinner-border spinner-border-sm"></span></span>
-                  <span v-else>Asignar</span>
-                </button>
-              </div>
+    <!-- ASIGNAR REGLA -->
+    <div class="tc-card mb-3">
+      <div class="p-3">
+        <h2 class="tc-h2">Asignar regla a colaborador</h2>
+        <div class="row g-3 align-items-end">
+          <div class="col-md-4 position-relative">
+            <label class="form-label form-label-sm">Colaborador</label>
+            <input v-model="assign.search" @input="debounceAssignSearch" type="text"
+                   class="form-control form-control-sm" placeholder="Buscar…">
+            <ul v-if="assign.suggestions.length" class="list-group mt-1 position-absolute shadow" style="z-index:9999;max-height:160px;overflow-y:auto">
+              <li v-for="c in assign.suggestions" :key="c.id" @click="selectAssignCol(c)"
+                  class="list-group-item list-group-item-action small cursor-pointer">
+                {{ fullName(c.user) }}
+              </li>
+            </ul>
+            <div v-if="assign.colaborador_id" class="mt-1 small text-success">
+              <i class="fa fa-check-circle me-1"></i>{{ assign.colaborador_name }}
             </div>
-            <div v-if="assign.rulePreview" class="mt-2 small text-muted">
-              <i class="fa fa-info-circle me-1"></i>
-              {{ assign.rulePreview.name }} — Base ${{ fmt(assign.rulePreview.base_salary) }},
-              cuota {{ assign.rulePreview.weekly_quota_units }} ud/sem,
-              ${{ fmt(assign.rulePreview.value_per_unit) }}/unidad
-            </div>
-            <div v-if="assign.error" class="mt-2 small text-danger">{{ assign.error }}</div>
-            <div v-if="assign.success" class="mt-2 small text-success">{{ assign.success }}</div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label form-label-sm">Regla</label>
+            <select v-model="assign.rule_id" @change="onAssignRuleChange" class="form-select form-select-sm tc-select">
+              <option :value="null">— Seleccionar —</option>
+              <option v-for="r in activeRules" :key="r.id" :value="r.id">{{ r.name }}</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label form-label-sm">Fecha efectiva</label>
+            <input v-model="assign.assigned_at" type="date" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-3 d-flex align-items-end gap-2">
+            <button @click="saveAssign" class="tc-btn tc-btn-ok" :disabled="assign.saving">
+              <span v-if="assign.saving"><span class="spinner-border spinner-border-sm"></span></span>
+              <span v-else>Asignar</span>
+            </button>
           </div>
         </div>
+        <div v-if="assign.rulePreview" class="mt-2 small text-muted">
+          <i class="fa fa-info-circle me-1"></i>
+          {{ assign.rulePreview.name }} — Base ${{ fmt(assign.rulePreview.base_salary) }},
+          cuota {{ assign.rulePreview.weekly_quota_units }} ud/sem,
+          ${{ fmt(assign.rulePreview.value_per_unit) }}/unidad
+        </div>
+        <div v-if="assign.error" class="mt-2 small text-danger">{{ assign.error }}</div>
+        <div v-if="assign.success" class="mt-2 small text-success">{{ assign.success }}</div>
       </div>
+    </div>
 
-      <!-- HISTORIAL DEL COLABORADOR SELECCIONADO -->
-      <div v-if="assign.colaborador_id" class="col-12">
-        <h6 class="text-uppercase text-muted small mb-2">Historial de asignaciones — {{ assign.colaborador_name }}</h6>
+    <!-- HISTORIAL DEL COLABORADOR SELECCIONADO -->
+    <div v-if="assign.colaborador_id" class="tc-card mb-3">
+      <div class="p-3">
+        <h2 class="tc-h2">Historial de asignaciones — {{ assign.colaborador_name }}</h2>
         <div v-if="assign.loadingHistory" class="text-center py-2"><div class="spinner-border spinner-border-sm text-primary"></div></div>
         <div v-else class="table-responsive">
           <table class="table table-sm">
@@ -149,7 +147,7 @@
               </div>
               <div class="col-md-3">
                 <label class="form-label">Aplica a</label>
-                <select v-model="ruleModal.target_type" class="form-select">
+                <select v-model="ruleModal.target_type" class="form-select tc-select">
                   <option value="technician">Técnico</option>
                   <option value="seller">Vendedor</option>
                   <option value="counter">Mostrador</option>
@@ -160,7 +158,7 @@
               </div>
               <div class="col-md-3">
                 <label class="form-label">Período</label>
-                <select v-model="ruleModal.period" class="form-select">
+                <select v-model="ruleModal.period" class="form-select tc-select">
                   <option value="weekly">Semanal</option>
                   <option value="biweekly">Quincenal</option>
                   <option value="monthly">Mensual</option>
@@ -199,7 +197,7 @@
               </div>
               <div class="col-md-4">
                 <label class="form-label">Tipo de variable</label>
-                <select v-model="ruleModal.variable_type" class="form-select">
+                <select v-model="ruleModal.variable_type" class="form-select tc-select">
                   <option :value="null">— Ninguno (cuota/unidad) —</option>
                   <option value="comision_kpi">Comisión por KPI</option>
                 </select>
@@ -257,8 +255,13 @@
 </template>
 
 <script>
+import { darkMode } from "../../../hook/appConfig.js";
+
 export default {
   name: 'TalentoCompensacion',
+  setup() {
+    return { darkMode };
+  },
   data() {
     return {
       rules: [],
@@ -344,10 +347,16 @@ export default {
       const { data } = await axios.get('/talento/api/colaboradores', { params: { search: this.assign.search, per_page: 10 } });
       this.assign.suggestions = data?.data ?? [];
     },
+    // Varios colaboradores comparten nombre de pila (mismo hallazgo que en Órdenes
+    // de Trabajo) — nombre completo para diferenciarlos, null-safe.
+    fullName(user) {
+      return [user?.name, user?.father_last_name, user?.mother_last_name]
+        .filter(Boolean).join(' ');
+    },
     selectAssignCol(c) {
       this.assign.colaborador_id = c.id;
-      this.assign.colaborador_name = c.user?.name;
-      this.assign.search = c.user?.name;
+      this.assign.colaborador_name = this.fullName(c.user);
+      this.assign.search = this.fullName(c.user);
       this.assign.suggestions = [];
       this.loadHistory();
     },
