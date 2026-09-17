@@ -424,6 +424,8 @@ export default {
 
       // Alertas
       alertCredentials: [], loadingAlerts: true, alertFilter: '',
+      // Conteo de vencidas SIEMPRE independiente de alertFilter (ver loadExpiredCount).
+      expiredCount: 0,
 
       // Por colaborador
       selectedColId: null, loadingCol: false,
@@ -451,7 +453,7 @@ export default {
   },
   computed: {
     alertCount() {
-      return (this.alertCredentials ?? []).filter(c => c.status === 'expired').length || null;
+      return this.expiredCount || null;
     },
     pendingFundsCount() {
       return this.pendingFunds?.length || null;
@@ -459,6 +461,7 @@ export default {
   },
   mounted() {
     this.loadAlerts();
+    this.loadExpiredCount();
     this.loadColaboradores();
     this.loadPendingFunds();
   },
@@ -474,6 +477,18 @@ export default {
         const { data } = await axios.get('/talento/api/credentials/expiring', { params });
         this.alertCredentials = data ?? [];
       } finally { this.loadingAlerts = false; }
+    },
+    // Bug (mismo patrón que Asistencia/flaggedCount): antes el badge "N" de la
+    // pestaña se calculaba filtrando alertCredentials, que ES la lista visible
+    // — si el usuario cambiaba el desplegable a "Por vencer"/"Sin registro", las
+    // vencidas dejaban de estar cargadas y el badge se apagaba aunque sí
+    // existieran. Conteo aparte, SIEMPRE con status=expired, independiente de
+    // alertFilter.
+    async loadExpiredCount() {
+      try {
+        const { data } = await axios.get('/talento/api/credentials/expiring', { params: { status: 'expired' } });
+        this.expiredCount = (data ?? []).length;
+      } catch { this.expiredCount = 0; }
     },
     async loadColData() {
       if (!this.selectedColId) return;
@@ -547,6 +562,7 @@ export default {
         }
         this.credModal.show = false;
         this.loadAlerts();
+        this.loadExpiredCount();
         if (this.selectedColId) this.loadColData();
       } catch (e) {
         this.credModal.error = e.response?.data?.message ?? 'Error al guardar.';
