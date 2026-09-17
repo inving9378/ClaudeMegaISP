@@ -651,6 +651,27 @@ class OrdenTrabajoUnifiedService
 
     // ── Admin SPA — LIST + SHOW ───────────────────────────────────────────────
 
+    /** Resuelve datos de prospecto CRM a partir de crm_lead_information.id */
+    private function prospectoByCrmLeadId(?int $crmLeadId): ?array
+    {
+        if (! $crmLeadId) {
+            return null;
+        }
+        $info = DB::table('crm_lead_information')
+            ->join('crm_main_information', 'crm_main_information.crm_id', '=', 'crm_lead_information.crm_id')
+            ->where('crm_lead_information.id', $crmLeadId)
+            ->first(['crm_main_information.name', 'crm_main_information.father_last_name', 'crm_main_information.mother_last_name']);
+        if (! $info) {
+            return null;
+        }
+        $nombre = trim(implode(' ', array_filter([
+            $info->name,
+            $info->father_last_name,
+            $info->mother_last_name,
+        ])));
+        return ['id' => $crmLeadId, 'nombre' => $nombre ?: null];
+    }
+
     private function adminItemFromTask(Task $task): array
     {
         $firstUser   = $task->users->first();
@@ -695,6 +716,7 @@ class OrdenTrabajoUnifiedService
             ] : null,
             'assigned_by'    => null,
             'work_activities' => [],
+            'prospecto'      => $this->prospectoByCrmLeadId($task->crm_lead_id),
             '_source'        => 'task',
         ];
     }
