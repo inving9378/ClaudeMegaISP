@@ -83,7 +83,10 @@ body[data-layout-mode="dark"] {
     color: #FFFFFF !important;
 }
 
-[data-layout-mode="dark"] span {
+/* :not() de los 6 badges de Vendedores (Torre pill, ver AJUSTE 2 más abajo):
+   son <span> — este reset genérico de texto les pisaba el color semántico
+   (--tc-info/--tc-accent/etc.) aunque AJUSTE 2 ya los excluyera a ellos. */
+[data-layout-mode="dark"] span:not(.badge-Interno):not(.badge-Externo):not(.badge-Distribuidor):not(.badge-Activo):not(.badge-Inactivo):not(.badge-Bloqueado) {
     color: #FFFFFF !important;
 }
 
@@ -163,16 +166,19 @@ table.dataTable.table-striped>tbody>tr.even>* {
 /* ============================================================================
  * AJUSTE 2 — Badges de estado: texto blanco + línea de color abajo (sin fondo
  * de color). El color comunica el estado; el texto SIEMPRE se lee. Centralizado.
- * Cubre: Bootstrap .badge (.bg-*), badges de vendedor (.badge-*), factura
- * (.badge-invoice-). Los fondos de fila (.client- y tr. de estado) NO se tocan.
+ * Cubre: Bootstrap .badge (.bg-*), factura (.badge-invoice-). Los fondos de
+ * fila (.client- y tr. de estado) NO se tocan.
+ *
+ * EXCLUIDOS a propósito (item dark-mode-vendedores-tipo-pill, 2026-09-17):
+ * .badge-Interno/.badge-Externo/.badge-Distribuidor/.badge-Activo/
+ * .badge-Inactivo/.badge-Bloqueado — son EXCLUSIVOS de VendedorListar.vue (0
+ * usos en el resto del código) y ya tienen su propio tratamiento oscuro
+ * correcto vía _torre-theme.scss (.tc-wrap.tc-dark, tokens --tc-*, pill con
+ * fondo+borde). Este AJUSTE 2 es !important y los aplanaba (sin fondo, sin
+ * radius, solo línea inferior) pisando ese pill — "el pill no aparece en modo
+ * oscuro" era justo este choque de especificidad entre dos hojas globales.
  * ========================================================================== */
-[data-layout-mode="dark"] .badge:not(.hdr-badge),
-[data-layout-mode="dark"] .badge-Interno,
-[data-layout-mode="dark"] .badge-Externo,
-[data-layout-mode="dark"] .badge-Distribuidor,
-[data-layout-mode="dark"] .badge-Activo,
-[data-layout-mode="dark"] .badge-Inactivo,
-[data-layout-mode="dark"] .badge-Bloqueado,
+[data-layout-mode="dark"] .badge:not(.hdr-badge):not(.badge-Interno):not(.badge-Externo):not(.badge-Distribuidor):not(.badge-Activo):not(.badge-Inactivo):not(.badge-Bloqueado),
 [data-layout-mode="dark"] [class*="badge-invoice-"] {
     background-color: transparent !important;
     background-image: none !important;
@@ -183,16 +189,10 @@ table.dataTable.table-striped>tbody>tr.even>* {
 }
 
 /* Color de estado en la línea inferior (por variante) */
-[data-layout-mode="dark"] .badge-Interno            { border-bottom-color: #03c3ec !important; }
-[data-layout-mode="dark"] .badge-Externo            { border-bottom-color: #696cff !important; }
-[data-layout-mode="dark"] .badge-Distribuidor       { border-bottom-color: #9aa7b5 !important; }
-[data-layout-mode="dark"] .badge-Activo,
 [data-layout-mode="dark"] .badge.bg-success,
 [data-layout-mode="dark"] .badge-invoice-Pagada     { border-bottom-color: #34d399 !important; }
-[data-layout-mode="dark"] .badge-Inactivo,
 [data-layout-mode="dark"] .badge.bg-warning,
 [data-layout-mode="dark"] .badge-invoice-Parcialmente_Pagada { border-bottom-color: #fbbf24 !important; }
-[data-layout-mode="dark"] .badge-Bloqueado,
 [data-layout-mode="dark"] .badge.bg-danger,
 [data-layout-mode="dark"] .badge-invoice-Borrador,
 [data-layout-mode="dark"] .badge-invoice-Emitida,

@@ -21,14 +21,22 @@
            sessionStorage (NO compartido entre pestañas → sin conflicto). Una
            pestaña nueva arranca con el default del usuario (el data-layout-mode
            que ya vino renderizado desde BD) y lo fija para esta pestaña.
-           Corre como primer elemento del <body> → sin parpadeo. */
+           Corre como primer elemento del <body> → sin parpadeo.
+
+           FIX (2026-09-17, gemelo del fix en master-without-nav.blade.php):
+           `hasServerConfig` evita persistir un "light" de relleno cuando el
+           body no trae `data-layout-mode` real (no debería pasar aquí porque
+           esta vista solo se usa autenticado, pero mantiene el mismo guard
+           por si el usuario aún no tiene fila en app_layout_configurations —
+           incluso ahí, no hay que fijar un default falso en sessionStorage). */
         (function () {
             try {
                 var KEY = "layout-mode";
+                var hasServerConfig = document.body.hasAttribute("data-layout-mode");
                 var def = document.body.getAttribute("data-layout-mode") || "light";
                 var stored = sessionStorage.getItem(KEY);
                 var mode = stored || def;
-                if (!stored) sessionStorage.setItem(KEY, mode);
+                if (!stored && hasServerConfig) sessionStorage.setItem(KEY, mode);
                 document.body.setAttribute("data-layout-mode", mode);
                 document.body.setAttribute("data-topbar", mode);
                 document.body.setAttribute("data-sidebar", mode);
