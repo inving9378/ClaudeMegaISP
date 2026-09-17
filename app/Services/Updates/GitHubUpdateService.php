@@ -3,6 +3,7 @@
 namespace App\Services\Updates;
 
 use App\Models\Release;
+use App\Services\Release\ReleaseNotesRenderer;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -10,6 +11,10 @@ use Illuminate\Support\Facades\Log;
 class GitHubUpdateService
 {
     const CACHE_KEY = 'github_update_check';
+
+    public function __construct(private ReleaseNotesRenderer $renderer)
+    {
+    }
 
     /**
      * Devuelve info del último GitHub Release si es más reciente que la versión instalada.
@@ -136,10 +141,13 @@ class GitHubUpdateService
 
     private function buildResult(array $release): array
     {
+        $body = $release['body'] ?? '';
+
         return [
             'tag'          => $release['tag_name'],
             'name'         => $release['name'] ?? $release['tag_name'],
-            'body'         => $release['body'] ?? '',
+            'body'         => $body,
+            'body_html'    => $this->renderer->markdown((string) $body),
             'published_at' => $release['published_at'],
             'url'          => $release['html_url'] ?? '',
         ];
@@ -174,6 +182,7 @@ class GitHubUpdateService
                 'tag'          => $base['tag'],
                 'name'         => $base['name'],
                 'body'         => $base['body'],
+                'body_html'    => $base['body_html'],
                 'published_at' => $base['published_at'],
                 'url'          => $base['url'],
                 'manual_steps' => $this->extractManualSteps($base['body']),
@@ -243,14 +252,19 @@ class GitHubUpdateService
             return [$pa['major'], $pa['minor']] <=> [$pb['major'], $pb['minor']];
         });
 
-        return array_map(fn ($r) => [
-            'tag'          => $r['tag_name'],
-            'name'         => $r['name'] ?? $r['tag_name'],
-            'body'         => $r['body'] ?? '',
-            'published_at' => $r['published_at'] ?? null,
-            'url'          => $r['html_url'] ?? '',
-            'manual_steps' => $this->extractManualSteps((string) ($r['body'] ?? '')),
-        ], $enRango);
+        return array_map(function ($r) {
+            $body = (string) ($r['body'] ?? '');
+
+            return [
+                'tag'          => $r['tag_name'],
+                'name'         => $r['name'] ?? $r['tag_name'],
+                'body'         => $body,
+                'body_html'    => $this->renderer->markdown($body),
+                'published_at' => $r['published_at'] ?? null,
+                'url'          => $r['html_url'] ?? '',
+                'manual_steps' => $this->extractManualSteps($body),
+            ];
+        }, $enRango);
     }
 
     /**
