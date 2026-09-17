@@ -9,8 +9,10 @@ use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderType;
 use App\Modules\Addons\Talento\Services\LevelService;
 use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
+use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppGateway;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class TalentoWorkOrderController extends Controller
 {
@@ -23,7 +25,10 @@ class TalentoWorkOrderController extends Controller
         5 => 9,  // Baja/retiro → Planta Externa Garantias
     ];
 
-    public function __construct(private OrdenTrabajoUnifiedService $unified) {}
+    public function __construct(
+        private OrdenTrabajoUnifiedService $unified,
+        private WhatsAppGateway $whatsapp,
+    ) {}
 
     public function index()
     {
@@ -105,7 +110,7 @@ class TalentoWorkOrderController extends Controller
         }
 
         // Parsear scheduled_at → start_date + start_time
-        $scheduled = $data['scheduled_at'] ? Carbon::parse($data['scheduled_at']) : null;
+        $scheduled = ! empty($data['scheduled_at']) ? Carbon::parse($data['scheduled_at']) : null;
 
         // Resolver project_id: mapeo estático tipo→proyecto; fallback al primero disponible
         $projectId = self::TYPE_PROJECT_MAP[$data['type_id']]
@@ -143,13 +148,48 @@ class TalentoWorkOrderController extends Controller
         if ($colaborador->user_id) {
             $task->users()->sync([$colaborador->user_id]);
 
-            // Push al técnico si tiene tokens FCM registrados
+            $cuando = $scheduled ? ' para el ' . $scheduled->format('d/m H:i') : '';
+
+            // Push al técnico si tiene tokens FCM registrados (app móvil)
             \App\Modules\Addons\Talento\Controllers\TalentoMobileApiController::sendPushToUser(
                 $colaborador->user_id,
                 'Nueva orden de trabajo',
-                "Se te asignó: {$type->name}" . ($scheduled ? ' para el ' . $scheduled->format('d/m H:i') : ''),
+                "Se te asignó: {$type->name}{$cuando}",
                 ['type' => 'ot_assigned', 'ot_id' => $task->id]
             );
+
+            // Notificación en su usuario (campanita del topbar / Portal de Colaborador):
+            // mismo mecanismo que usa Scheduling para "tarea asignada" — Task::
+            // sendNotifications() ya sabe escribir la fila en task_notifications +
+            // Notification::send(..., StandardNotification) → tabla `notifications`.
+            // Aislado: un fallo aquí no debe tumbar la creación de la orden.
+            try {
+                $task->sendNotifications();
+            } catch (\Throwable $e) {
+                Log::warning('Talento OT: fallo notificación en-app al crear orden', [
+                    'task_id' => $task->id, 'error' => $e->getMessage(),
+                ]);
+            }
+
+            // WhatsApp al técnico (gateway único de WhatsAppAgent — nunca una
+            // integración Evolution propia). Mismo freno maestro que el resto del
+            // sistema (WHATSAPP_SENDER_ENABLED, default false → log-only) y mismo
+            // aislamiento: un fallo aquí no debe tumbar la creación de la orden.
+            $phone = self::normalizeMxWhatsappNumber($colaborador->user->phone ?? null);
+            if ($phone) {
+                try {
+                    $this->whatsapp->sendText(
+                        null,
+                        $phone,
+                        "Hola {$colaborador->user->name}, se te asignó una nueva orden de trabajo: "
+                            . "{$type->name}{$cuando}. Consulta el detalle en tu Portal de Colaborador o en la app."
+                    );
+                } catch (\Throwable $e) {
+                    Log::warning('Talento OT: fallo notificación WhatsApp al crear orden', [
+                        'task_id' => $task->id, 'error' => $e->getMessage(),
+                    ]);
+                }
+            }
         }
 
         return response()->json(
@@ -277,5 +317,29 @@ class TalentoWorkOrderController extends Controller
 
         $type->update($data);
         return response()->json($type);
+    }
+
+    /**
+     * MX 10 dígitos → prefijo 521 (mismo formato que espera whatsapp_conversations.
+     * contact_number — ver SendReferralShareListener::normalizeNumber, WhatsAppAgent).
+     * Devuelve null si no hay teléfono o no matchea un patrón MX reconocible (evita
+     * mandar un número mal formado en vez de fallar silenciosamente en la API).
+     */
+    private static function normalizeMxWhatsappNumber(?string $phone): ?string
+    {
+        if (! $phone) {
+            return null;
+        }
+        $digits = preg_replace('/\D/', '', $phone) ?? '';
+        if (strlen($digits) === 10) {
+            return '521' . $digits;
+        }
+        if (strlen($digits) === 12 && str_starts_with($digits, '52')) {
+            return '521' . substr($digits, 2);
+        }
+        if (strlen($digits) === 13 && str_starts_with($digits, '521')) {
+            return $digits;
+        }
+        return null;
     }
 }
