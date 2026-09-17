@@ -163,7 +163,8 @@
                                     {{ v.tag }}
                                     <span v-if="v.name && v.name !== v.tag" class="text-muted ms-1 fw-normal">— {{ v.name }}</span>
                                 </h6>
-                                <pre class="small text-wrap mb-0" style="white-space:pre-wrap;word-break:break-word">{{ v.body }}</pre>
+                                <!-- #9991213 — `body_html` viene RENDERIZADO y SANEADO del backend (markdown→CommonMark, mismo ReleaseNotesRenderer de #9991208); nunca body crudo. -->
+                                <div class="small release-notes mb-0" v-html="v.body_html !== undefined ? v.body_html : ''"></div>
                             </div>
 
                             <div v-if="manualStepsList.length" class="mt-3">
@@ -174,7 +175,7 @@
                                 </div>
                             </div>
                         </template>
-                        <pre v-else class="small text-wrap" style="white-space:pre-wrap;word-break:break-word">{{ release.body }}</pre>
+                        <div v-else class="small release-notes" v-html="release.body_html !== undefined ? release.body_html : ''"></div>
                     </div>
                     <div class="modal-footer">
                         <button class="btn btn-secondary btn-sm" @click="showChangelog = false">Cerrar</button>
