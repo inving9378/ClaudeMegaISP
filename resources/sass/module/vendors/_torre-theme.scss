@@ -27,8 +27,20 @@
         Arial, sans-serif;
 
     // ── Tokens (oscuro) ──
+    // FIX (2026-09-17): --tc-surface era #151d2e (navy, el mismo azul copiado
+    // de TorreControl.vue — ver comentario del header). Pero en Vendedores
+    // (VendedorListar.vue) el card es un <q-card class="tc-card">, y el
+    // reset global de dark_mode.scss ([data-layout-mode="dark"] .q-card {
+    // background-color: #1A1A1A !important }) le gana a este token (no es
+    // !important) → Vendedores en realidad SIEMPRE se vio gris/transparente,
+    // nunca navy. Talento — Órdenes de Trabajo usa <div class="tc-card">
+    // (sin q-card) → sí mostraba el navy real del token → "fondo azul" que
+    // no coincidía con el look ya establecido en Vendedores. Irving pidió
+    // explícitamente que combine con Vendedores, así que el token pasa a
+    // #1a1a1a (mismo valor que ese !important) para que CUALQUIER consumidor
+    // de este tema (con o sin q-card) se vea igual, sin parchar cada página.
     &.tc-dark {
-        --tc-surface: #151d2e;
+        --tc-surface: #1a1a1a;
         --tc-ink: #e8edf6;
         --tc-muted: #9aa7bd;
         --tc-line: #2a3550;
