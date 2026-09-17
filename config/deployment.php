@@ -12,6 +12,13 @@
  *   skip_on_nothing_to_commit — exit-code 1 en este paso = skip, no error (para git commit)
  *   skip_if_tag_exists        — si el tag ya existe localmente, el paso se marca skip
  *   skip_if_no_remote         — omite el paso si DEPLOY_REMOTE_URL no está configurado
+ *   config                    — #9991207: cómo se semaforiza un skip por FALTA DE CONFIGURACIÓN
+ *                               (hoy solo aplica a skip_if_no_remote):
+ *                                 'opcional'  → fila amarilla "pendiente de configuración" con su
+ *                                               motivo, visible, pero NO tiñe el encabezado del deploy;
+ *                                 'requerida' → fila amarilla Y tiñe el encabezado (cuenta como omisión).
+ *                               Los skips por condición legítima del flujo (commit sin cambios en el
+ *                               stage, tag ya existente, entorno) van en gris "no aplica" y nunca cuentan.
  *   skip_if_not_production    — omite el paso (marcado 'skipped') si app()->environment() no es
  *                               'production'. Item roadmap #245: evita que crear una Release en
  *                               dev dispare push/GitHub Release/deploy remoto reales.
@@ -131,6 +138,11 @@ return [
             'critical'          => false,
             'enabled'           => true,
             'skip_if_no_remote' => true,
+            // #9991207 — DEPLOY_REMOTE_URL es OPCIONAL mientras #9991210 (canal pipeline→prod) esté
+            // sin decidir: el release sale verde y este paso queda listado en amarillo como único
+            // pendiente de configuración. Cuando se decida y configure el canal, cambiar a
+            // 'requerida' en esta línea para que su omisión vuelva a teñir el encabezado.
+            'config'            => 'opcional',
             'skip_if_not_production' => true,
         ],
     ],

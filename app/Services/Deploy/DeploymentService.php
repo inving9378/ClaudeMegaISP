@@ -65,8 +65,12 @@ class DeploymentService
             if (($step['skip_if_no_remote'] ?? false) && empty(config('deployment.remote_url'))) {
                 $log->updateStep($step['key'], [
                     'status'      => 'skipped',
-                    'by_design'   => true, // item #9991207: gate esperado, no cuenta como omisión real
-                    'output'      => 'DEPLOY_REMOTE_URL no configurado — paso omitido.',
+                    // #9991207 — omisión por FALTA DE CONFIGURACIÓN, no por diseño del flujo: se pinta
+                    // amarilla siempre; si cuenta para el encabezado lo decide `config` del paso
+                    // ('opcional' no tiñe, 'requerida' sí). Ver config/deployment.php.
+                    'skip_kind'   => 'config_pendiente',
+                    'config'      => $step['config'] ?? 'requerida',
+                    'output'      => 'DEPLOY_REMOTE_URL no configurado — pendiente de configuración.',
                     'exit_code'   => 0,
                     'duration_ms' => 0,
                     'ran_at'      => now()->toIso8601String(),

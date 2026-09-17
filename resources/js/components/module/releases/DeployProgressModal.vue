@@ -70,6 +70,7 @@
                                     <div v-else-if="step.status === 'running'" class="spinner-border spinner-border-sm text-primary" role="status" style="width:18px;height:18px"></div>
                                     <i v-else-if="step.status === 'success'" class="bi bi-check-circle-fill text-success" style="font-size:18px"></i>
                                     <i v-else-if="step.status === 'failed'"  class="bi bi-x-circle-fill text-danger"   style="font-size:18px"></i>
+                                    <i v-else-if="step.status === 'skipped' && step.skip_kind === 'config_pendiente'" class="bi bi-exclamation-circle-fill text-warning" style="font-size:18px" title="Pendiente de configuración"></i>
                                     <i v-else-if="step.status === 'skipped'" class="bi bi-dash-circle text-muted"       style="font-size:18px"></i>
                                 </div>
 
@@ -81,6 +82,13 @@
                                         </span>
                                         <span v-if="step.status === 'skipped' && step.by_design" class="badge bg-secondary bg-opacity-10 text-muted ms-2 fw-normal flex-shrink-0">
                                             no aplica
+                                        </span>
+                                        <!-- #9991207 — omisión por FALTA DE CONFIGURACIÓN: siempre amarilla y visible; si además
+                                             es `requerida`, cuenta para el encabezado (ver skippedSteps). -->
+                                        <span v-else-if="step.status === 'skipped' && step.skip_kind === 'config_pendiente'"
+                                              class="badge bg-warning bg-opacity-25 text-warning-emphasis ms-2 fw-semibold flex-shrink-0"
+                                              :title="step.config === 'requerida' ? 'Configuración requerida: cuenta como omisión' : 'Configuración opcional: no cambia el estado del release'">
+                                            pendiente de configuración{{ step.config === 'opcional' ? ' (opcional)' : '' }}
                                         </span>
                                         <small v-if="step.duration_ms > 0" class="text-muted ms-2 flex-shrink-0">
                                             {{ formatDuration(step.duration_ms) }}
@@ -221,8 +229,16 @@
                         <template v-else-if="overallStatus === 'success'">
                             <i class="bi bi-rocket-takeoff-fill me-2 text-success fs-5"></i>
                             <div>
-                                <strong class="text-success">Deploy completado exitosamente</strong>
-                                <span v-if="totalDuration" class="text-muted small ms-2">en {{ totalDuration }}</span>
+                                <!-- #9991207 — "Release publicado — 1m 31s" cuando el pipeline publicó (github_release ok). -->
+                                <strong class="text-success">{{ esReleasePublicado ? 'Release publicado' : 'Deploy completado exitosamente' }}</strong>
+                                <span v-if="totalDuration" class="text-muted small ms-2">— {{ totalDuration }}</span>
+                            <!-- #9991207 — pendientes de configuración OPCIONALES: no cambian el verde, pero no se esconden. -->
+                                <ul v-if="configOpcionalPendientes.length" class="mb-0 mt-2 small ps-3 text-warning-emphasis">
+                                    <li v-for="s in configOpcionalPendientes" :key="s.key">
+                                        <i class="bi bi-exclamation-circle-fill text-warning me-1"></i>
+                                        <strong>{{ s.name }}</strong> — pendiente de configuración (opcional)<span v-if="s.output">: {{ s.output }}</span>
+                                    </li>
+                                </ul>
                             </div>
                         </template>
                         <template v-else>
@@ -323,8 +339,20 @@ export default {
         // remote_deploy sin DEPLOY_REMOTE_URL son gates ESPERADOS del pipeline (marcados
         // `by_design` por DeploymentService), no algo que revisar. Solo cuentan aquí — y solo esos
         // disparan el ámbar — los `skipped` SIN `by_design`.
+        // #9991207 (ajuste de Irving): un skip por FALTA DE CONFIGURACIÓN cuenta para el encabezado
+        // SOLO si el paso se declaró `config: requerida`; si es `opcional` (hoy remote_deploy, mientras
+        // #9991210 no se decida) queda visible en amarillo en su fila pero el release sale verde.
         const skippedSteps = computed(() =>
-            (steps.value || []).filter(s => s.status === "skipped" && !s.by_design)
+            (steps.value || []).filter(s =>
+                s.status === "skipped" && !s.by_design
+                && !(s.skip_kind === "config_pendiente" && s.config === "opcional")
+            )
+        );
+        const esReleasePublicado = computed(() =>
+            (steps.value || []).some(s => s.key === "github_release" && s.status === "success")
+        );
+        const configOpcionalPendientes = computed(() =>
+            (steps.value || []).filter(s => s.status === "skipped" && s.skip_kind === "config_pendiente" && s.config === "opcional")
         );
         const isPartial = computed(() =>
             overallStatus.value === "success" && skippedSteps.value.length > 0
@@ -581,7 +609,7 @@ export default {
         return {
             overallStatus, steps, errorMessage, durationSecs,
             outputVisible, retrying, activeVersion,
-            isRunning, isDone, isFailed, isPartial, skippedSteps,
+            isRunning, isDone, isFailed, isPartial, skippedSteps, configOpcionalPendientes, esReleasePublicado,
             headerBg, summaryBg, headerTitle, totalDuration,
             progressPercent, progressLabel, progressBarClass, progressTextClass,
             elapsedSeconds, elapsedFormatted,
