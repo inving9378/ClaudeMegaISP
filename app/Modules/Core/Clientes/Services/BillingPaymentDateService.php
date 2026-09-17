@@ -32,6 +32,34 @@ class BillingPaymentDateService
             $billingConfiguration = $client->billing_configuration;
             $billingDate = $billingConfiguration->billing_date;
 
+            // Pago TARDE (después de fecha_corte, el corte con gracia que ya le
+            // tocaba a ESTE ciclo): el nuevo ciclo se ancla al día REAL en que
+            // pagó (hoy), no al día de facturación fijo configurado. Sin esto,
+            // un cliente que debía pagar el 15 y paga el 20 seguía viendo su
+            // próximo corte el 15 del mes siguiente — ~5 días menos de servicio
+            // de los que en realidad pagó, sin importar cuántos días de atraso
+            // llevara. Pago a tiempo o adelantado: se conserva el comportamiento
+            // de siempre (ancla al día de facturación fijo) — no se toca ese
+            // caso, no fue lo reportado.
+            //
+            // OJO: comparar contra fecha_pago (no fecha_corte) hubiera marcado
+            // TODO pago como "tarde" — al momento de renovar, "hoy" SIEMPRE es
+            // posterior a la fecha_pago del ciclo anterior (por eso se está
+            // renovando). fecha_corte ya incluye el billing_expiration (días de
+            // gracia) y todavía no se ha recalculado en este punto de la
+            // llamada (setNewFechaCorteForClient corre después en
+            // ClientBillingService::billingServicesByClient) — es el corte real
+            // que aplicaba a ESTE pago.
+            $pagoTarde = !$restarDia && $client->fecha_corte
+                && Carbon::now()->gt(Carbon::parse($client->fecha_corte));
+            if ($pagoTarde) {
+                $newFechaPago = Carbon::now()->addMonthsWithoutOverflow($cuantasVecesSeLePuedeCobrar)->endOfDay()->toDateTimeString();
+                if ($includeLogs) {
+                    $log->log($client, 'Cliente #' . $client->id . ' pagó tarde (le tocaba ' . $fechaPago . ') — nueva fecha de pago anclada al día real del pago: ' . $newFechaPago);
+                }
+                return $newFechaPago;
+            }
+
             $month = Carbon::parse($fechaPago)->addMonthsWithoutOverflow($cuantasVecesSeLePuedeCobrar)->startOfMonth();
             if ($billingDate > $month->daysInMonth) {
                 $billingDate = $month->daysInMonth;
