@@ -69,9 +69,9 @@
                 <td class="small">{{ formatDatetime(o.scheduled_at) }}</td>
                 <td><span class="tc-status" :class="statusBadge(o.status)">{{ statusLabel(o.status) }}</span></td>
                 <td class="text-end">
-                  <button @click="viewOrder(o)" class="tc-btn tc-btn-seg me-1">Ver</button>
+                  <button @click="viewOrder(o)" class="tc-btn tc-btn-info me-1">Ver</button>
                   <button v-if="o.status === 'completed'" @click="openValidate(o)" class="tc-btn tc-btn-ok me-1">Validar</button>
-                  <button v-if="canAdvance(o.status)" @click="advanceStatus(o)" class="tc-btn tc-btn-seg">
+                  <button v-if="canAdvance(o.status)" @click="advanceStatus(o)" class="tc-btn tc-btn-primary">
                     {{ nextStatusLabel(o.status) }}
                   </button>
                 </td>
@@ -370,6 +370,41 @@ export default {
 .talento-ordenes .form-select:focus {
   border-color: var(--tc-accent, #0d9488);
   box-shadow: 0 0 0 0.2rem rgba(13, 148, 136, 0.15);
+}
+
+/* Botones "Ver"/"Iniciar-Completar": el tema Torre solo trae tc-btn-ok
+   (relleno, acento teal) y tc-btn-seg/warn/bad (outline). "Ver" y el botón
+   de avanzar estado usaban tc-btn-seg (outline azul) los dos — se ven
+   iguales pese a ser acciones distintas (una de solo lectura, otra que
+   cambia el estado de la orden). Se agregan dos variantes RELLENAS,
+   locales a esta pantalla (no se tocó _torre-theme.scss compartido):
+   - tc-btn-info: relleno con --tc-info (mismo azul de "Interno" en
+     Vendedores) — para la acción de solo-lectura "Ver".
+   - tc-btn-primary: relleno índigo, un tono distinto de --tc-accent
+     (que ya usan "Nueva orden"/"Validar") y de --tc-info, para que
+     "Iniciar"/"Completar" (la acción que de verdad avanza la orden)
+     se note como la más importante de la fila. */
+.talento-ordenes .tc-btn-info {
+  background: var(--tc-info, #2563eb);
+  border-color: var(--tc-info, #2563eb);
+  color: #fff;
+}
+.talento-ordenes .tc-btn-info:hover {
+  filter: brightness(1.08);
+  color: #fff;
+}
+.talento-ordenes .tc-btn-primary {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #fff;
+}
+.talento-ordenes .tc-btn-primary:hover {
+  filter: brightness(1.1);
+  color: #fff;
+}
+.talento-ordenes.tc-dark .tc-btn-primary {
+  background: #6366f1;
+  border-color: #6366f1;
 }
 
 /* Paginación: el tema Torre no trae reglas para .pagination (#9991200),
