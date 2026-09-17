@@ -16,6 +16,10 @@
             <input v-model="filters.search" @input="debounceLoad" type="text"
                    class="form-control form-control-sm" placeholder="Buscar colaborador…">
           </div>
+          <div class="col-12 col-sm-6 col-md-3">
+            <input v-model="filters.prospecto" @input="debounceLoad" type="text"
+                   class="form-control form-control-sm" placeholder="Buscar prospecto…">
+          </div>
           <div class="col-6 col-sm-6 col-md-2">
             <select v-model="filters.status" @change="load" class="form-select form-select-sm">
               <option value="">Todos los estados</option>
@@ -283,7 +287,7 @@ export default {
       types: [],
       loading: true,
       pagination: { current_page: 1, last_page: 1 },
-      filters: { search: '', status: '', type_id: '', from: '', to: '' },
+      filters: { search: '', prospecto: '', status: '', type_id: '', from: '', to: '' },
       searchTimeout: null,
       createModal: { show: false, colaborador_id: null, colaborador_name: '', type_id: null, scheduled_at: '', notes: '', saving: false, error: '', crm_lead_id: null, crm_lead_name: '' },
       detail: { show: false, order: null },

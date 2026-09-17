@@ -36,7 +36,7 @@ class TalentoWorkOrderController extends Controller
         $this->authorize('talento.work_orders.view');
 
         $result = $this->unified->listForAdmin(
-            $request->only(['colaborador_id', 'status', 'type_id', 'from', 'to', 'search']),
+            $request->only(['colaborador_id', 'status', 'type_id', 'from', 'to', 'search', 'prospecto']),
             (int)($request->per_page ?? 25),
             (int)($request->query('page', 1))
         );

@@ -791,6 +791,24 @@ class OrdenTrabajoUnifiedService
         $from          = $filters['from']           ?? null;
         $to            = $filters['to']             ?? null;
         $search        = $filters['search']         ?? null;
+        $prospecto     = $filters['prospecto']      ?? null;
+
+        // Filtro "Buscar prospecto" (#9991201): TalentoWorkOrder no tiene crm_lead_id
+        // (tabla sin uso, 0 filas — decisión ya tomada al construir #9991205/#9991206),
+        // así que solo puede matchear tasks. Resolver primero los crm_lead_information.id
+        // que matchean el texto, luego whereIn en el task query de abajo.
+        $prospectoLeadIds = null;
+        if ($prospecto) {
+            $prospectoLeadIds = DB::table('crm_lead_information as cli')
+                ->join('crm_main_information as cmi', 'cmi.crm_id', '=', 'cli.crm_id')
+                ->where(function ($w) use ($prospecto) {
+                    $w->where('cmi.name', 'like', "%{$prospecto}%")
+                        ->orWhere('cmi.father_last_name', 'like', "%{$prospecto}%")
+                        ->orWhere('cmi.mother_last_name', 'like', "%{$prospecto}%");
+                })
+                ->pluck('cli.id')
+                ->all();
+        }
 
         $woQuery = TalentoWorkOrder::with(['colaborador.user', 'type', 'assignedBy'])
             ->when($colaboradorId, fn($q, $v) => $q->where('colaborador_id', $v))
@@ -798,7 +816,8 @@ class OrdenTrabajoUnifiedService
             ->when($typeId,        fn($q, $v) => $q->where('type_id', $v))
             ->when($from,          fn($q, $v) => $q->where('scheduled_at', '>=', $v))
             ->when($to,            fn($q, $v) => $q->where('scheduled_at', '<=', $v . ' 23:59:59'))
-            ->when($search, fn($q, $s) => $q->whereHas('colaborador.user', fn($u) => $u->where('name', 'like', "%$s%")));
+            ->when($search, fn($q, $s) => $q->whereHas('colaborador.user', fn($u) => $u->where('name', 'like', "%$s%")))
+            ->when($prospecto, fn($q) => $q->whereRaw('1=0'));
 
         $workOrders = $woQuery->orderByDesc('scheduled_at')
             ->get()
@@ -813,7 +832,8 @@ class OrdenTrabajoUnifiedService
             ->when($typeId, fn($q, $v) => $q->where('talento_type_id', $v))
             ->when($from,   fn($q, $v) => $q->whereDate('start_date', '>=', $v))
             ->when($to,     fn($q, $v) => $q->whereDate('start_date', '<=', $v))
-            ->when($search, fn($q, $s) => $q->whereHas('users', fn($u) => $u->where('name', 'like', "%$s%")));
+            ->when($search, fn($q, $s) => $q->whereHas('users', fn($u) => $u->where('name', 'like', "%$s%")))
+            ->when($prospectoLeadIds !== null, fn($q) => $q->whereIn('crm_lead_id', $prospectoLeadIds ?: [-1]));
 
         if ($status) {
             $taskStatus = array_search($status, self::TASK_STATUS_MAP);
