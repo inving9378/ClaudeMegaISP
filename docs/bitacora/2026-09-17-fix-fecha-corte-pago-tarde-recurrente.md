@@ -54,3 +54,49 @@ proyecto no tiene `.env.testing`/`megaisp_test` configurado en este entorno ahor
 este fix puntual). La verificación se hizo con transacción+rollback contra datos reales, que
 para este caso es igual de confiable — pero si se decide invertir en cobertura automatizada
 de billing más adelante, este es un buen primer caso a fijar en un test.
+
+## 2026-09-17 (continuación) — Mismo bug en la rama CUSTOM + auditoría amplia de pagos
+
+**Contexto:** Irving pidió una auditoría exhaustiva de todas las vías de pago ("verifica por
+todas las formas posibles que no quede ningún error... si encuentras algo corrígelo") tras el
+fix de arriba en la rama RECURRENT.
+
+**Bug hermano encontrado y corregido:** `BillingPaymentDateService::getNewFechaPagoByClient()`,
+rama `TYPE_OF_BILLING_PREPAID_CUSTOM` — mismo defecto que RECURRENT: sumaba N meses a la
+`fecha_pago` ANTERIOR sin mirar cuándo llegó el pago realmente. Reproducido con cliente real
+(id=19): a tiempo y tarde-por-10-días daban exactamente la misma `fecha_pago` nueva
+(`2026-07-28`). Fix aplicado con el mismo patrón (ancla al día real del pago solo si
+`Carbon::now() > fecha_corte`; pago a tiempo/adelantado y cliente nuevo sin `fecha_pago` previa
+quedan intactos). Verificado con transacción simulada (`Carbon::setTestNow`) contra el cliente
+real: a tiempo/adelantado sin cambio, tarde 10 días → `2026-08-09` (antes daba la misma fecha
+que a tiempo). Commit `f7d7f969`.
+
+`TYPE_OF_BILLING_PREPAID_DAILY` revisada y descartada — su fórmula es `fecha_pago + N días`,
+sin referencia a `Carbon::now()` ni a un día fijo de calendario, estructuralmente no puede
+sufrir esta clase de bug.
+
+**Resto de la auditoría — sin cambios de código, todo verificado correcto:**
+- `client_invoices.deleted_at` (error real en logs del 2026-09-11, `DomiciliacionCobrarCommand`)
+  → ya estaba corregido por el commit histórico `f4223bad`, previo a esta sesión.
+- `PaymentApplicationService::applyPayment()` — leído completo, arquitectura intencional y bien
+  documentada (siempre `paymentable_type=Client`, `matchPendingInvoice()` deliberadamente
+  desconectado por decisión de producto pendiente — items #191/#193). Sin bugs.
+- Idempotencia de webhooks (SPEI/OpenPay) — el chequeo de duplicado por
+  `(provider, external_id, status=processed)` corre ANTES de aplicar el pago. Correcto.
+- `ClientRepository::removePeriodoGracia()` — llama a `setNewFechaCorteForClient(null, $mult,
+  false, true)` (rama compleja, no anclada a `fecha_pago`), pero en el flujo real
+  (`ClientBillingService::billingForce()`) ese valor se recalcula y SOBRESCRIBE justo después
+  con la llamada correcta (bool `true` por default) que ya lee la `fecha_pago` recién
+  actualizada por mi fix — el resultado final es correcto. Caso residual no confirmado como bug
+  real: si `cuantasVecesSeLePuedeCobrar` fuera exactamente 0 en un cobro forzado, esa segunda
+  llamada correctora no se ejecutaría y quedaría el valor de la rama vieja — no se tocó por ser
+  especulativo (edge case estrecho, requiere decisión/confirmación humana antes de tocar el
+  camino de reactivación de clientes suspendidos).
+- `failed_jobs` — sin fallos relacionados a pagos/billing en la tabla (solo
+  `RectifyClientsInRouterJob`, de MikroTik, no de pagos).
+- Kill-switches confirmados en `false` en dev: `DOMICILIACION_COBRO_LIVE_ENABLED`,
+  `PAGOS_RECURRENTES_CRON_ENABLED`, `payments.auto_apply_enabled`.
+
+**Pendiente de decisión humana (no tocado):** el edge case de `removePeriodoGracia()` arriba —
+si vale la pena blindarlo, es una decisión de Irving por tocar el camino de reactivación de
+clientes suspendidos (dinero + estado del cliente).
