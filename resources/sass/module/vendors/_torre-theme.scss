@@ -196,6 +196,31 @@
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%239aa7bd' d='M8 11 3 6h10z'/%3E%3C/svg%3E");
     }
 
+    // ── Paginación (Bootstrap .pagination dentro de una pantalla Torre) ──
+    // Sin esto queda con el azul default de Bootstrap, ajeno a los tokens
+    // --tc-*. SIN :deep() — ese pseudo-selector solo existe dentro de un
+    // <style scoped> de un .vue; este archivo es CSS global normal (ya
+    // viene calificado por .tc-wrap, que es justo lo que :deep() habría
+    // necesitado emular).
+    .page-link {
+        border-color: var(--tc-line);
+        color: var(--tc-ink);
+        background: var(--tc-surface);
+    }
+    .page-link:hover {
+        background: var(--tc-bg2);
+        color: var(--tc-accent);
+    }
+    .page-item.active .page-link {
+        background: var(--tc-accent);
+        border-color: var(--tc-accent);
+        color: #fff;
+    }
+    .page-item.disabled .page-link {
+        color: var(--tc-muted);
+        background: var(--tc-bg2);
+    }
+
     // ── Pestañas estilo Torre (nav-tabs + subpestañas) ──
     .tc-tabs {
         border-bottom: 1px solid var(--tc-line);

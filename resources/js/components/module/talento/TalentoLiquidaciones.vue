@@ -1,81 +1,85 @@
 <template>
-  <div class="talento-liquidaciones">
+  <div class="talento-liquidaciones tc-wrap" :class="{ 'tc-dark': darkMode }">
 
-    <div class="d-flex align-items-center justify-content-between mb-3">
-      <h5 class="mb-0"><i class="fa fa-file-invoice-dollar me-2 text-primary"></i>Liquidaciones Semanales</h5>
-      <button @click="openCalc" class="btn btn-primary btn-sm">
-        <i class="fa fa-calculator me-1"></i> Calcular
-      </button>
-    </div>
+    <div class="tc-card">
+      <div class="tc-cardhead d-flex flex-wrap align-items-center justify-content-between gap-2 p-3">
+        <h5 class="tc-h1"><i class="fa fa-file-invoice-dollar me-2"></i>Liquidaciones Semanales</h5>
+        <button @click="openCalc" class="tc-btn tc-btn-ok">
+          <i class="fa fa-calculator me-1"></i> Calcular
+        </button>
+      </div>
 
-    <!-- Filtros -->
-    <div class="row g-2 mb-3">
-      <div class="col-md-3">
-        <input v-model="filters.search" @input="debounceLoad" type="text"
-               class="form-control form-control-sm" placeholder="Buscar colaborador…">
-      </div>
-      <div class="col-md-2">
-        <select v-model="filters.status" @change="load" class="form-select form-select-sm">
-          <option value="">Todos</option>
-          <option value="draft">Borrador</option>
-          <option value="closed">Cerrada</option>
-        </select>
-      </div>
-      <div class="col-md-2">
-        <input v-model="filters.from" @change="load" type="date" class="form-control form-control-sm" title="Desde">
-      </div>
-      <div class="col-md-2">
-        <input v-model="filters.to" @change="load" type="date" class="form-control form-control-sm" title="Hasta">
-      </div>
-    </div>
+      <div class="p-3">
+        <!-- Filtros -->
+        <div class="row g-2 mb-3">
+          <div class="col-md-3">
+            <input v-model="filters.search" @input="debounceLoad" type="text"
+                   class="form-control form-control-sm" placeholder="Buscar colaborador…">
+          </div>
+          <div class="col-md-2">
+            <select v-model="filters.status" @change="load" class="form-select form-select-sm tc-select">
+              <option value="">Todos</option>
+              <option value="draft">Borrador</option>
+              <option value="closed">Cerrada</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <input v-model="filters.from" @change="load" type="date" class="form-control form-control-sm" title="Desde">
+          </div>
+          <div class="col-md-2">
+            <input v-model="filters.to" @change="load" type="date" class="form-control form-control-sm" title="Hasta">
+          </div>
+        </div>
 
-    <!-- Tabla -->
-    <div v-if="loading" class="text-center py-5"><div class="spinner-border text-primary"></div></div>
-    <div v-else class="table-responsive">
-      <table class="table table-hover table-sm align-middle">
-        <thead class="table-light">
-          <tr>
-            <th>Colaborador</th>
-            <th>Período</th>
-            <th class="text-center">Unidades</th>
-            <th class="text-end">Base</th>
-            <th class="text-end">Sobreprod.</th>
-            <th class="text-end">Gross</th>
-            <th>Estado</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="liq in liquidaciones" :key="liq.id">
-            <td class="fw-semibold small">{{ liq.colaborador?.user?.name }}</td>
-            <td class="small">{{ formatDate(liq.period_start) }} – {{ formatDate(liq.period_end) }}</td>
-            <td class="text-center">{{ liq.total_units }}</td>
-            <td class="text-end">${{ fmt(liq.base_paid) }}</td>
-            <td class="text-end text-success">${{ fmt(liq.overproduction_paid) }}</td>
-            <td class="text-end fw-bold">${{ fmt(liq.gross_pay) }}</td>
-            <td><span class="badge" :class="liq.status === 'closed' ? 'bg-success' : 'bg-warning text-dark'">{{ liq.status === 'closed' ? 'Cerrada' : 'Borrador' }}</span></td>
-            <td class="text-end">
-              <button @click="viewLiq(liq)" class="btn btn-xs btn-outline-secondary me-1">Ver</button>
-              <button v-if="liq.status === 'draft'" @click="openCerrar(liq)" class="btn btn-xs btn-outline-success">Cerrar</button>
-            </td>
-          </tr>
-          <tr v-if="!liquidaciones.length">
-            <td colspan="8" class="text-center text-muted py-4">No hay liquidaciones. Usa "Calcular" para generar la primera.</td>
-          </tr>
-        </tbody>
-      </table>
-      <div v-if="pagination.last_page > 1" class="d-flex justify-content-end">
-        <nav><ul class="pagination pagination-sm mb-0">
-          <li class="page-item" :class="{disabled: pagination.current_page<=1}">
-            <button class="page-link" @click="goPage(pagination.current_page-1)">‹</button>
-          </li>
-          <li v-for="p in pagination.last_page" :key="p" class="page-item" :class="{active: p===pagination.current_page}">
-            <button class="page-link" @click="goPage(p)">{{ p }}</button>
-          </li>
-          <li class="page-item" :class="{disabled: pagination.current_page>=pagination.last_page}">
-            <button class="page-link" @click="goPage(pagination.current_page+1)">›</button>
-          </li>
-        </ul></nav>
+        <!-- Tabla -->
+        <div v-if="loading" class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+        <div v-else class="table-responsive">
+          <table class="table table-hover table-sm align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Colaborador</th>
+                <th>Período</th>
+                <th class="text-center">Unidades</th>
+                <th class="text-end">Base</th>
+                <th class="text-end">Sobreprod.</th>
+                <th class="text-end">Gross</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="liq in liquidaciones" :key="liq.id">
+                <td class="fw-semibold small">{{ liq.colaborador?.user?.name }}</td>
+                <td class="small">{{ formatDate(liq.period_start) }} – {{ formatDate(liq.period_end) }}</td>
+                <td class="text-center">{{ liq.total_units }}</td>
+                <td class="text-end">${{ fmt(liq.base_paid) }}</td>
+                <td class="text-end text-success">${{ fmt(liq.overproduction_paid) }}</td>
+                <td class="text-end fw-bold">${{ fmt(liq.gross_pay) }}</td>
+                <td><span class="tc-status" :class="liq.status === 'closed' ? 'is-ok' : 'is-warn'">{{ liq.status === 'closed' ? 'Cerrada' : 'Borrador' }}</span></td>
+                <td class="text-end">
+                  <button @click="viewLiq(liq)" class="tc-btn tc-btn-info me-1">Ver</button>
+                  <button v-if="liq.status === 'draft'" @click="openCerrar(liq)" class="tc-btn tc-btn-warn">Cerrar</button>
+                </td>
+              </tr>
+              <tr v-if="!liquidaciones.length">
+                <td colspan="8" class="text-center text-muted py-4">No hay liquidaciones. Usa "Calcular" para generar la primera.</td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-if="pagination.last_page > 1" class="d-flex justify-content-end">
+            <nav><ul class="pagination pagination-sm mb-0">
+              <li class="page-item" :class="{disabled: pagination.current_page<=1}">
+                <button class="page-link" @click="goPage(pagination.current_page-1)">‹</button>
+              </li>
+              <li v-for="p in pagination.last_page" :key="p" class="page-item" :class="{active: p===pagination.current_page}">
+                <button class="page-link" @click="goPage(p)">{{ p }}</button>
+              </li>
+              <li class="page-item" :class="{disabled: pagination.current_page>=pagination.last_page}">
+                <button class="page-link" @click="goPage(pagination.current_page+1)">›</button>
+              </li>
+            </ul></nav>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -96,7 +100,7 @@
                 <ul v-if="calcModal.suggestions.length" class="list-group mt-1 position-absolute shadow" style="z-index:10001;max-height:160px;overflow-y:auto">
                   <li v-for="c in calcModal.suggestions" :key="c.id" @click="selectCalcCol(c)"
                       class="list-group-item list-group-item-action small cursor-pointer">
-                    {{ c.user?.name }}
+                    {{ fullName(c.user) }}
                   </li>
                 </ul>
                 <div v-if="calcModal.colaborador_id" class="mt-1 small text-success">
@@ -247,8 +251,13 @@
 </template>
 
 <script>
+import { darkMode } from "../../../hook/appConfig.js";
+
 export default {
   name: 'TalentoLiquidaciones',
+  setup() {
+    return { darkMode };
+  },
   data() {
     return {
       liquidaciones: [],
@@ -302,10 +311,17 @@ export default {
       const { data } = await axios.get('/talento/api/colaboradores', { params: { search: this.calcModal.colSearch, per_page: 10 } });
       this.calcModal.suggestions = data?.data ?? [];
     },
+    // Mismo hallazgo que Órdenes/Compensación: colaboradores que comparten
+    // nombre de pila se ven como duplicados si solo se muestra el primer
+    // nombre. Null-safe.
+    fullName(user) {
+      return [user?.name, user?.father_last_name, user?.mother_last_name]
+        .filter(Boolean).join(' ');
+    },
     selectCalcCol(c) {
       this.calcModal.colaborador_id   = c.id;
-      this.calcModal.colaborador_name = c.user?.name;
-      this.calcModal.colSearch        = c.user?.name;
+      this.calcModal.colaborador_name = this.fullName(c.user);
+      this.calcModal.colSearch        = this.fullName(c.user);
       this.calcModal.suggestions      = [];
     },
     async calcular() {

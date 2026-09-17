@@ -463,56 +463,14 @@ export default {
 </script>
 
 <style scoped>
-/* form-control/form-select, tc-select (chevron+foco) y tc-btn-info/
-   tc-btn-primary vivían aquí como estilos LOCALES (#9991200); al construir
-   la 2ª pantalla con el mismo tratamiento (Talento — Compensación) se
-   promovieron a _torre-theme.scss (bajo .tc-wrap, mismo patrón que
-   tc-card/tc-btn-ok/tc-status) para no duplicar la misma hoja de estilos
-   en cada pantalla nueva. Lo que sigue abajo es específico de ESTA
-   pantalla (paginación propia, grupo de prospecto). */
-
-/* Paginación: el tema Torre no trae reglas para .pagination (#9991200),
-   así que se recolorea aquí con los mismos tokens --tc-* en vez de dejar
-   el azul default de Bootstrap. */
-.talento-ordenes :deep(.page-link) {
-  border-color: var(--tc-line, #e5e7eb);
-  color: var(--tc-ink, #111827);
-  background: var(--tc-surface, #fff);
-}
-.talento-ordenes :deep(.page-link:hover) {
-  background: var(--tc-bg2, #f8fafc);
-  color: var(--tc-accent, #0d9488);
-}
-.talento-ordenes :deep(.page-item.active .page-link) {
-  background: var(--tc-accent, #0d9488);
-  border-color: var(--tc-accent, #0d9488);
-  color: #fff;
-}
-.talento-ordenes :deep(.page-item.disabled .page-link) {
-  color: var(--tc-muted, #6b7280);
-  background: var(--tc-bg2, #f8fafc);
-}
-
-/* "Tipo de orden": mismo .form-select genérico de arriba (borde/fondo con
-   --tc-*), pero pedido explícitamente con más cuidado (foco/chevron/radius)
-   que el resto — se ve "de fábrica" del navegador frente a los tc-btn/
-   tc-status ya rediseñados alrededor. */
-.talento-ordenes .tc-select {
-  border-radius: 9px;
-  padding: 0.45rem 2.1rem 0.45rem 0.75rem;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%236b7280' d='M8 11 3 6h10z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.7rem center;
-  background-size: 12px;
-}
-.talento-ordenes .tc-select:focus {
-  border-color: var(--tc-accent, #0d9488);
-  box-shadow: 0 0 0 0.2rem rgba(13, 148, 136, 0.15);
-  outline: none;
-}
-.talento-ordenes.tc-dark .tc-select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%239aa7bd' d='M8 11 3 6h10z'/%3E%3C/svg%3E");
-}
+/* form-control/form-select, tc-select (chevron+foco), tc-btn-info/
+   tc-btn-primary y la paginación (:deep(.page-link) etc.) vivían aquí como
+   estilos LOCALES (#9991200); al construir más pantallas con el mismo
+   tratamiento (Compensación, Liquidaciones) se promovieron a
+   _torre-theme.scss (bajo .tc-wrap, mismo patrón que tc-card/tc-btn-ok/
+   tc-status) para no duplicar la misma hoja de estilos en cada pantalla
+   nueva. Lo que sigue abajo es específico de ESTA pantalla (grupo de
+   prospecto). */
 
 /* Grupo "Prospectos de X" / "Otros prospectos" dentro del dropdown de
    prospecto: NO se usa .bg-light (Bootstrap, sin tratamiento oscuro
