@@ -133,6 +133,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::put('/order-types/{id}',  [TalentoWorkOrderController::class, 'updateType']);
 
             // ── Órdenes de trabajo ────────────────────────────────────────────
+            // #9991204 (Fase A1 de #9991201): prospectos CRM para el dropdown del modal
+            // "Nueva Orden de Trabajo" — antes de /ordenes/{id} por la misma regla de
+            // orden de rutas del módulo (paths fijos antes de los parametrizados).
+            Route::get('/prospectos-crm',                   [TalentoWorkOrderController::class, 'prospectosCrm']);
             Route::get('/ordenes',                          [TalentoWorkOrderController::class, 'data']);
             Route::post('/ordenes',                         [TalentoWorkOrderController::class, 'store']);
             Route::get('/ordenes/{id}',                     [TalentoWorkOrderController::class, 'show']);

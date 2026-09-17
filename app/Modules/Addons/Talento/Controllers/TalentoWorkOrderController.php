@@ -44,6 +44,20 @@ class TalentoWorkOrderController extends Controller
         return response()->json($result);
     }
 
+    public function prospectosCrm(Request $request)
+    {
+        $this->authorize('talento.work_orders.manage');
+
+        $data = $request->validate([
+            'colaborador_id' => 'nullable|exists:talento_colaboradores,id',
+            'search'         => 'nullable|string|max:100',
+        ]);
+
+        return response()->json(
+            $this->unified->searchProspectosCrm($data['colaborador_id'] ?? null, $data['search'] ?? null)
+        );
+    }
+
     public function store(Request $request)
     {
         $this->authorize('talento.work_orders.manage');
@@ -66,6 +80,17 @@ class TalentoWorkOrderController extends Controller
 
         $type        = TalentoWorkOrderType::findOrFail($data['type_id']);
         $colaborador = TalentoColaborador::findOrFail($data['colaborador_id']);
+
+        // "Colaborador requerido" solo protegía que la FILA exista, no que sea
+        // asignable: un colaborador sin user_id vinculado pasaba la validación
+        // de arriba y luego el sync() de abajo se saltaba en silencio → orden
+        // creada con la columna Colaborador vacía en el listado (caso real
+        // detectado: OT #1684). Se corta aquí, antes de crear nada.
+        if (! $colaborador->user_id) {
+            return response()->json([
+                'error' => 'Este colaborador no tiene un usuario de sistema vinculado; no se le puede asignar la orden.',
+            ], 422);
+        }
 
         // Gating por nivel (Fase 7b): si el tipo requiere un nivel, validar rank del colaborador
         if ($type->required_level_id) {

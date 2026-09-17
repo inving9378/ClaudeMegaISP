@@ -124,7 +124,7 @@
               </div>
               <div class="col-md-6">
                 <label class="form-label">Tipo de orden <span class="text-danger">*</span></label>
-                <select v-model="createModal.type_id" @change="onTypeChange" class="form-select">
+                <select v-model="createModal.type_id" @change="onTypeChange" class="form-select tc-select">
                   <option :value="null">— Seleccionar —</option>
                   <option v-for="t in activeTypes" :key="t.id" :value="t.id">{{ t.name }}</option>
                 </select>
@@ -132,6 +132,44 @@
                   {{ selectedType.points }} pts
                   · {{ selectedType.is_billable ? '💲 Pagable' : 'No pagable' }}
                   {{ selectedType.requires_validation ? '· Requiere validación' : '' }}
+                </div>
+              </div>
+              <div class="col-md-6 position-relative">
+                <label class="form-label">Prospecto (CRM)</label>
+                <div class="input-group">
+                  <input v-model="prospSearch" @input="debounceProspSearch" @focus="openProspList"
+                         @blur="closeProspListDelayed"
+                         type="text" class="form-control" placeholder="Buscar prospecto…"
+                         :disabled="!!createModal.crm_lead_id">
+                  <button v-if="createModal.crm_lead_id" @click="clearProspecto" type="button"
+                          class="btn btn-outline-secondary" title="Quitar prospecto">
+                    <i class="fa fa-times"></i>
+                  </button>
+                </div>
+                <div v-if="prospListOpen && (prospSuggestions.propios.length || prospSuggestions.generales.length)"
+                     class="list-group mt-1 position-absolute shadow" style="z-index:10001;max-height:220px;overflow-y:auto;width:100%">
+                  <template v-if="prospSuggestions.propios.length">
+                    <li class="list-group-item prosp-group-header small fw-semibold py-1">
+                      Prospectos de {{ createModal.colaborador_name || 'este colaborador' }}
+                    </li>
+                    <li v-for="p in prospSuggestions.propios" :key="'p'+p.id" @click="selectProspecto(p)"
+                        class="list-group-item list-group-item-action small cursor-pointer">
+                      {{ p.nombre }} <span class="text-muted">· {{ p.telefono }} · {{ p.status }}</span>
+                    </li>
+                  </template>
+                  <template v-if="prospSuggestions.generales.length">
+                    <li class="list-group-item prosp-group-header small fw-semibold py-1">Otros prospectos</li>
+                    <li v-for="p in prospSuggestions.generales" :key="'g'+p.id" @click="selectProspecto(p)"
+                        class="list-group-item list-group-item-action small cursor-pointer">
+                      {{ p.nombre }} <span class="text-muted">· {{ p.telefono }} · {{ p.status }}</span>
+                    </li>
+                  </template>
+                </div>
+                <div v-if="createModal.crm_lead_id" class="mt-1 small text-success">
+                  <i class="fa fa-check-circle me-1"></i>{{ createModal.crm_lead_name }}
+                </div>
+                <div v-if="createModal.client_id && createModal.crm_lead_id" class="mt-1 small text-danger">
+                  Una orden es para un cliente o un prospecto, no ambos.
                 </div>
               </div>
               <div class="col-md-6">
@@ -237,12 +275,18 @@ export default {
       pagination: { current_page: 1, last_page: 1 },
       filters: { search: '', status: '', type_id: '', from: '', to: '' },
       searchTimeout: null,
-      createModal: { show: false, colaborador_id: null, colaborador_name: '', type_id: null, scheduled_at: '', notes: '', saving: false, error: '' },
+      createModal: { show: false, colaborador_id: null, colaborador_name: '', type_id: null, scheduled_at: '', notes: '', saving: false, error: '', crm_lead_id: null, crm_lead_name: '' },
       detail: { show: false, order: null },
       validateModal: { show: false, order: null, saving: false },
       colSearch: '',
       colSuggestions: [],
       colSearchTimeout: null,
+      // #9991201/#9991204: dropdown de prospecto CRM en el modal de crear orden.
+      prospSearch: '',
+      prospSuggestions: { propios: [], generales: [] },
+      prospListOpen: false,
+      prospSearchTimeout: null,
+      prospCloseTimeout: null,
     };
   },
   computed: {
@@ -272,9 +316,12 @@ export default {
     },
     goPage(p) { if (p >= 1 && p <= this.pagination.last_page) this.load(p); },
     openCreate() {
-      this.createModal = { show: true, colaborador_id: null, colaborador_name: '', type_id: null, scheduled_at: '', notes: '', saving: false, error: '' };
+      this.createModal = { show: true, colaborador_id: null, colaborador_name: '', type_id: null, scheduled_at: '', notes: '', saving: false, error: '', crm_lead_id: null, crm_lead_name: '' };
       this.colSearch = '';
       this.colSuggestions = [];
+      this.prospSearch = '';
+      this.prospSuggestions = { propios: [], generales: [] };
+      this.prospListOpen = false;
     },
     debounceColSearch() {
       clearTimeout(this.colSearchTimeout);
@@ -290,8 +337,47 @@ export default {
       this.createModal.colaborador_name = c.user?.name;
       this.colSearch = c.user?.name;
       this.colSuggestions = [];
+      // El colaborador cambió → los "propios" del prospecto quedaron obsoletos.
+      this.prospSuggestions = { propios: [], generales: [] };
     },
     onTypeChange() { /* selectedType computed updates automatically */ },
+    // ── Prospecto CRM (#9991201/#9991204) ──────────────────────────────────
+    openProspList() {
+      clearTimeout(this.prospCloseTimeout);
+      this.prospListOpen = true;
+      if (!this.prospSuggestions.propios.length && !this.prospSuggestions.generales.length) {
+        this.searchProspectos();
+      }
+    },
+    closeProspListDelayed() {
+      // Delay para que el click en un <li> registre antes de cerrar por blur.
+      this.prospCloseTimeout = setTimeout(() => { this.prospListOpen = false; }, 200);
+    },
+    debounceProspSearch() {
+      clearTimeout(this.prospSearchTimeout);
+      this.prospSearchTimeout = setTimeout(() => this.searchProspectos(), 300);
+    },
+    async searchProspectos() {
+      const { data } = await axios.get('/talento/api/prospectos-crm', {
+        params: {
+          colaborador_id: this.createModal.colaborador_id || undefined,
+          search: this.prospSearch.trim() || undefined,
+        },
+      });
+      this.prospSuggestions = { propios: data?.propios ?? [], generales: data?.generales ?? [] };
+    },
+    selectProspecto(p) {
+      this.createModal.crm_lead_id = p.id;
+      this.createModal.crm_lead_name = p.nombre;
+      this.prospSearch = p.nombre;
+      this.prospListOpen = false;
+    },
+    clearProspecto() {
+      this.createModal.crm_lead_id = null;
+      this.createModal.crm_lead_name = '';
+      this.prospSearch = '';
+      this.prospSuggestions = { propios: [], generales: [] };
+    },
     async saveOrder() {
       this.createModal.error = '';
       if (!this.createModal.colaborador_id) { this.createModal.error = 'Selecciona un colaborador.'; return; }
@@ -303,11 +389,12 @@ export default {
           type_id:        this.createModal.type_id,
           scheduled_at:   this.createModal.scheduled_at || null,
           notes:          this.createModal.notes || null,
+          crm_lead_id:    this.createModal.crm_lead_id || null,
         });
         this.createModal.show = false;
         this.load();
       } catch (e) {
-        this.createModal.error = e.response?.data?.message ?? 'Error al crear la orden.';
+        this.createModal.error = e.response?.data?.error ?? e.response?.data?.message ?? 'Error al crear la orden.';
       } finally { this.createModal.saving = false; }
     },
     async viewOrder(o) {
@@ -427,5 +514,34 @@ export default {
 .talento-ordenes :deep(.page-item.disabled .page-link) {
   color: var(--tc-muted, #6b7280);
   background: var(--tc-bg2, #f8fafc);
+}
+
+/* "Tipo de orden": mismo .form-select genérico de arriba (borde/fondo con
+   --tc-*), pero pedido explícitamente con más cuidado (foco/chevron/radius)
+   que el resto — se ve "de fábrica" del navegador frente a los tc-btn/
+   tc-status ya rediseñados alrededor. */
+.talento-ordenes .tc-select {
+  border-radius: 9px;
+  padding: 0.45rem 2.1rem 0.45rem 0.75rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%236b7280' d='M8 11 3 6h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 12px;
+}
+.talento-ordenes .tc-select:focus {
+  border-color: var(--tc-accent, #0d9488);
+  box-shadow: 0 0 0 0.2rem rgba(13, 148, 136, 0.15);
+  outline: none;
+}
+.talento-ordenes.tc-dark .tc-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%239aa7bd' d='M8 11 3 6h10z'/%3E%3C/svg%3E");
+}
+
+/* Grupo "Prospectos de X" / "Otros prospectos" dentro del dropdown de
+   prospecto: NO se usa .bg-light (Bootstrap, sin tratamiento oscuro
+   verificado) — se recolorea con los tokens --tc-* como el resto. */
+.talento-ordenes .prosp-group-header {
+  background: var(--tc-bg2, #f8fafc);
+  color: var(--tc-muted, #6b7280);
 }
 </style>

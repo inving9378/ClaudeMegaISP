@@ -672,6 +672,68 @@ class OrdenTrabajoUnifiedService
         return ['id' => $crmLeadId, 'nombre' => $nombre ?: null];
     }
 
+    /**
+     * #9991204 (Fase A1 de #9991201) — prospectos CRM para el dropdown del modal
+     * "Nueva Orden de Trabajo". Devuelve 2 grupos: los del propio técnico primero
+     * (crm_techical_user_id = colaborador.user_id — decisión q3 de Irving) y el
+     * resto del listado activo. "Activo" = decisión q1 de Irving: Nuevo, Contactado,
+     * Interesado, Instalacion — EXCLUYE Ganado (ya es cliente) y Perdido (descartado).
+     */
+    public function searchProspectosCrm(?int $colaboradorId, ?string $search, int $limit = 10): array
+    {
+        $activeStatuses = ['Nuevo', 'Contactado', 'Interesado', 'Instalacion'];
+        $select = ['cli.id', 'cmi.name', 'cmi.father_last_name', 'cmi.mother_last_name', 'cmi.phone', 'cli.crm_status'];
+
+        $base = fn () => DB::table('crm_lead_information as cli')
+            ->join('crm_main_information as cmi', 'cmi.crm_id', '=', 'cli.crm_id')
+            ->whereIn('cli.crm_status', $activeStatuses);
+
+        $applySearch = function ($q) use ($search) {
+            if (! $search) {
+                return;
+            }
+            $q->where(function ($w) use ($search) {
+                $w->where('cmi.name', 'like', "%{$search}%")
+                    ->orWhere('cmi.father_last_name', 'like', "%{$search}%")
+                    ->orWhere('cmi.mother_last_name', 'like', "%{$search}%")
+                    ->orWhere('cmi.phone', 'like', "%{$search}%");
+            });
+        };
+
+        $userId = $colaboradorId ? TalentoColaborador::where('id', $colaboradorId)->value('user_id') : null;
+
+        $propios = [];
+        $propiosIds = [];
+        if ($userId) {
+            $q = $base()->where('cli.crm_techical_user_id', $userId);
+            $applySearch($q);
+            $rows = $q->orderByDesc('cli.id')->limit($limit)->get($select);
+            $propiosIds = $rows->pluck('id')->all();
+            $propios = $rows->map(fn ($r) => $this->formatProspecto($r))->all();
+        }
+
+        $q2 = $base();
+        if ($propiosIds) {
+            $q2->whereNotIn('cli.id', $propiosIds);
+        }
+        $applySearch($q2);
+        $generales = $q2->orderByDesc('cli.id')->limit($limit)->get($select)
+            ->map(fn ($r) => $this->formatProspecto($r))->all();
+
+        return ['propios' => $propios, 'generales' => $generales];
+    }
+
+    private function formatProspecto(object $r): array
+    {
+        $nombre = trim(implode(' ', array_filter([$r->name, $r->father_last_name, $r->mother_last_name])));
+        return [
+            'id'       => $r->id,
+            'nombre'   => $nombre ?: '(sin nombre)',
+            'telefono' => $r->phone,
+            'status'   => $r->crm_status,
+        ];
+    }
+
     private function adminItemFromTask(Task $task): array
     {
         $firstUser   = $task->users->first();
