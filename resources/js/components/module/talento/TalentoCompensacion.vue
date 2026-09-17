@@ -290,7 +290,7 @@ export default {
     },
     blankRuleModal() {
       return { show: false, id: null, name: '', target_type: 'technician', base_salary: 0,
-               period: 'weekly', weekly_quota_units: 0, active: true, error: '', saving: false,
+               period: 'daily', weekly_quota_units: 0, active: true, error: '', saving: false,
                variable_type: null, kpi_key: '', valid_from: '', valid_until: '',
                monthly_cutoff_day: '', clawback_days: '', clawback_requires_collection: false };
     },
