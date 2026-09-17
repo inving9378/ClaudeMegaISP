@@ -60,4 +60,18 @@ return [
         (int) env('VOIP_RESERVED_EXTENSION_FROM', 1001),
         (int) env('VOIP_RESERVED_EXTENSION_TO', 1004),
     ],
+
+    // Consumidas por GeneradorConfigAsterisk::valoresDelServidor() para rellenar
+    // las plantillas de pjsip/manager (#9991217, continuación de #794 — antes
+    // vivían como env() runtime fuera de config/, bloqueando `config:cache`).
+    'asterisk' => [
+        'odbc_dsn'            => env('ASTERISK_ODBC_DSN', 'asterisk-connector'),
+        'bind_sip'            => env('ASTERISK_BIND_SIP', '0.0.0.0'),
+        'external_media'      => env('ASTERISK_EXTERNAL_MEDIA', ''),
+        'external_signaling'  => env('ASTERISK_EXTERNAL_SIGNALING', ''),
+        'local_net'           => env('ASTERISK_LOCAL_NET', ''),
+        'rtp_start'           => env('ASTERISK_RTP_START', 10000),
+        'rtp_end'             => env('ASTERISK_RTP_END', 20000),
+        'ami_permit'          => env('ASTERISK_AMI_PERMIT', '127.0.0.1/255.255.255.255'),
+    ],
 ];

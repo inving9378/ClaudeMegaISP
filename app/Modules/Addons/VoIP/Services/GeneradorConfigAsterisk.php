@@ -161,7 +161,7 @@ class GeneradorConfigAsterisk
             'DB_NAME'            => $db['database'] ?? 'asterisk',
             'DB_USER'            => $db['username'] ?? '',
             'DB_PASSWORD'        => $db['password'] ?? '',
-            'ODBC_DSN'           => env('ASTERISK_ODBC_DSN', 'asterisk-connector'),
+            'ODBC_DSN'           => config('voip.asterisk.odbc_dsn', 'asterisk-connector'),
             // El mismo nombre que referencian las extensiones publicadas al
             // realtime. Si estos dos dejan de coincidir, Asterisk rechaza cada
             // llamada con «Unable to retrieve PJSIP transport».
@@ -169,17 +169,17 @@ class GeneradorConfigAsterisk
             // Dónde deja MegaISP los .conf que genera (grupos, ruteo entrante,
             // contexto restringido). extensions.conf los incluye por esta ruta.
             'GENERADOS_DIR'      => rtrim(config('requisitos-voip.asterisk.generados_dir', '/etc/asterisk/megaisp.d'), '/'),
-            'BIND_SIP'           => env('ASTERISK_BIND_SIP', '0.0.0.0'),
-            'EXTERNAL_MEDIA'     => env('ASTERISK_EXTERNAL_MEDIA', ''),
-            'EXTERNAL_SIGNALING' => env('ASTERISK_EXTERNAL_SIGNALING', ''),
-            'LOCAL_NET'          => env('ASTERISK_LOCAL_NET', ''),
-            'RTP_START'          => env('ASTERISK_RTP_START', 10000),
-            'RTP_END'            => env('ASTERISK_RTP_END', 20000),
+            'BIND_SIP'           => config('voip.asterisk.bind_sip', '0.0.0.0'),
+            'EXTERNAL_MEDIA'     => config('voip.asterisk.external_media', ''),
+            'EXTERNAL_SIGNALING' => config('voip.asterisk.external_signaling', ''),
+            'LOCAL_NET'          => config('voip.asterisk.local_net', ''),
+            'RTP_START'          => config('voip.asterisk.rtp_start', 10000),
+            'RTP_END'            => config('voip.asterisk.rtp_end', 20000),
             'AMI_BIND'           => config('voip.ami_host', '127.0.0.1'),
             'AMI_PORT'           => config('voip.ami_port', 5038),
             'AMI_USER'           => config('voip.ami_user', 'megaisp'),
             'AMI_SECRET'         => config('voip.ami_pass', ''),
-            'AMI_PERMIT'         => env('ASTERISK_AMI_PERMIT', '127.0.0.1/255.255.255.255'),
+            'AMI_PERMIT'         => config('voip.asterisk.ami_permit', '127.0.0.1/255.255.255.255'),
             'ARI_BIND'           => config('voip.ari_host', '127.0.0.1'),
             'ARI_PORT'           => config('voip.ari_port', 8088),
             'ARI_USER'           => config('voip.ari_user', 'medussa'),
