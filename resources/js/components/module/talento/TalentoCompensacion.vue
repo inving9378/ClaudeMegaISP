@@ -159,6 +159,7 @@
               <div class="col-md-3">
                 <label class="form-label">Período</label>
                 <select v-model="ruleModal.period" class="form-select tc-select">
+                  <option value="daily">Diario</option>
                   <option value="weekly">Semanal</option>
                   <option value="biweekly">Quincenal</option>
                   <option value="monthly">Mensual</option>
@@ -388,7 +389,7 @@ export default {
       } finally { this.assign.saving = false; }
     },
     targetLabel(t) { return { technician: 'Técnico', seller: 'Vendedor', counter: 'Mostrador', accounting: 'Contabilidad', support: 'Atención a clientes', all: 'Todos' }[t] ?? t; },
-    periodLabel(p) { return { weekly: 'Semanal', biweekly: 'Quincenal', monthly: 'Mensual' }[p] ?? p; },
+    periodLabel(p) { return { daily: 'Diario', weekly: 'Semanal', biweekly: 'Quincenal', monthly: 'Mensual' }[p] ?? p; },
     fmt(n) { return Number(n ?? 0).toFixed(2); },
     formatDate(d) {
       if (!d) return '—';
