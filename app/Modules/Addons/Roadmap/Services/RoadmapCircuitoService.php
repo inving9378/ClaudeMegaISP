@@ -3613,15 +3613,39 @@ class RoadmapCircuitoService
     }
 
     /** Último tag publicado (orden semver descendente), o null si no hay ninguno. Solo lectura. */
+    /**
+     * Mismo bug que tuvo `ReleaseChangelogService::findPreviousTag()` (fix e4e74145,
+     * 2026-09-17): `git tag --sort=-version:refname` sin filtrar mete en la comparación
+     * tags AJENOS a la convención de versión (p. ej. `v0.3.0`, sin sufijo de fecha) — el
+     * "version sort" de git los trata como release FINAL y los ordena por encima de
+     * `V1.35-17.09.2026` (que git ve como pre-release por el sufijo `-dd.mm.yyyy`), así
+     * que `ultimoTag()` devolvía `v0.3.0` en vez del tag real más reciente. Efecto medido:
+     * `itemsCandidatosVersion()` contaba ~225 items viejos (todo lo mergeado desde
+     * 2026-09-11) como "candidatos a la próxima versión" en vez de solo lo nuevo desde
+     * V1.35. Mismo patrón de regex que `NextVersionResolver::PATRON` — solo tags
+     * `V<major>.<build>-dd.mm.yyyy`, el build más alto gana (nunca orden lexicográfico).
+     */
     private function ultimoTag(): ?string
     {
-        $p = $this->git(['tag', '--sort=-version:refname']);
+        $p = $this->git(['tag', '--list', 'V*']);
         if (! $p->isSuccessful()) {
             return null;
         }
         $tags = array_values(array_filter(preg_split('/\R/', trim($p->getOutput()))));
 
-        return $tags[0] ?? null;
+        $maxBuild = 0;
+        $maxTag   = null;
+        foreach ($tags as $tag) {
+            if (preg_match('/^V(\d+)\.(\d+)-\d{2}\.\d{2}\.\d{4}$/', $tag, $m)) {
+                $build = (int) $m[2];
+                if ($build > $maxBuild) {
+                    $maxBuild = $build;
+                    $maxTag   = $tag;
+                }
+            }
+        }
+
+        return $maxTag;
     }
 
     /**
