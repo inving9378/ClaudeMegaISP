@@ -48,6 +48,7 @@
               <tr>
                 <th>#</th>
                 <th>Colaborador</th>
+                <th>Prospecto</th>
                 <th>Tipo</th>
                 <th class="text-center">Pts</th>
                 <th>Agendada</th>
@@ -60,6 +61,12 @@
                 <td class="text-muted small">{{ o.id }}</td>
                 <td>
                   <div class="fw-semibold small">{{ o.colaborador?.user?.name }}</div>
+                </td>
+                <td>
+                  <span v-if="o.prospecto?.nombre" class="small">
+                    <i class="fa fa-user-clock text-muted me-1" title="Prospecto CRM (aún no es cliente)"></i>{{ o.prospecto.nombre }}
+                  </span>
+                  <span v-else class="text-muted small">—</span>
                 </td>
                 <td>
                   <span class="tc-status is-slate">{{ o.type?.name }}</span>
@@ -77,7 +84,7 @@
                 </td>
               </tr>
               <tr v-if="!orders.length">
-                <td colspan="7" class="text-center text-muted py-4">No hay órdenes que mostrar.</td>
+                <td colspan="8" class="text-center text-muted py-4">No hay órdenes que mostrar.</td>
               </tr>
             </tbody>
           </table>
@@ -210,6 +217,9 @@
               <div class="col-md-2"><strong>Pts:</strong> {{ detail.order.points }}</div>
               <div class="col-md-3"><strong>Estado:</strong> <span class="tc-status" :class="statusBadge(detail.order.status)">{{ statusLabel(detail.order.status) }}</span></div>
               <div class="col-md-3"><strong>Agendada:</strong> {{ formatDatetime(detail.order.scheduled_at) }}</div>
+              <div class="col-md-4" v-if="detail.order.prospecto?.nombre">
+                <strong>Prospecto (CRM):</strong> {{ detail.order.prospecto.nombre }}
+              </div>
               <div class="col-md-4" v-if="detail.order.validated_at">
                 <strong>Validada:</strong> {{ formatDatetime(detail.order.validated_at) }}<br>
                 <small class="text-muted">por {{ detail.order.validated_by?.name }}</small>
