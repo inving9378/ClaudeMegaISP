@@ -292,6 +292,19 @@ class ReconcileReleasesCommand extends Command
      * @return array{0: array<string,array>, 1: array<string,array>, 2: bool, 3: ?string}
      *         [tag_name => release cruda, tag_name => {html_url, published_at}, ok, error]
      */
+    /**
+     * #9991209 — Mapa tag → {id, html_url, published_at} de los GitHub Releases del repo, para
+     * quien necesite reconciliar POR TAG sin duplicar la paginación (releases:backfill-publicacion).
+     *
+     * @return array{0: array<string, array{id:?int, html_url:string, published_at:?string}>, 1: bool, 2: ?string}
+     */
+    public function githubReleasesPorTag(): array
+    {
+        [, $extra, $ok, $error] = $this->releasesDeGithub();
+
+        return [$extra, $ok, $error];
+    }
+
     private function releasesDeGithub(): array
     {
         $token = config('deployment.github.token', '');
@@ -328,6 +341,7 @@ class ReconcileReleasesCommand extends Command
                     }
                     $tags[$tag] = true;
                     $extra[$tag] = [
+                        'id'           => $release['id'] ?? null,          // #9991209: lo usa releases:backfill-publicacion
                         'html_url'     => $release['html_url'] ?? '',
                         'published_at' => $release['published_at'] ?? null,
                     ];
