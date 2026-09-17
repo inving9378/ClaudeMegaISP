@@ -54,6 +54,8 @@ class ReleasePreflightService
             $this->safeCheck('token_github_valido', 'Token de GitHub válido', fn () => $this->checkTokenGithubValido()),
             $this->safeCheck('changelog_no_truncado', 'El changelog no se truncaría', fn () => $this->checkChangelogNoTruncado($cobertura, $coberturaError)),
             $this->safeCheck('version_previa_publicada', 'La versión previa quedó publicada', fn () => $this->checkVersionPreviaPublicada($prevTag, $coberturaError)),
+            // #9991209 — informativo, nunca bloquea: la señal que la regla base del versionado quiere atrapar.
+            $this->safeCheck('trabajo_sin_publicar', 'Todo lo que hay en dev está publicado', fn () => $this->checkTrabajoSinPublicar($env, $base, $ref, $version, $prevTag)),
         ];
 
         return [
@@ -278,6 +280,36 @@ class ReleasePreflightService
         $resumidos = $cobertura['resumidos_commits'] ?? 0;
         $tag       = $cobertura['desde_tag'] ?? '(sin tag previo)';
         return ['status' => 'fail', 'detail' => "Se resumirían {$resumidos} de {$total} commits desde {$tag}."];
+    }
+
+    /**
+     * #9991209 — ¿HEAD ya no es el commit del último tag emitido? Cuando se está EMITIENDO una
+     * versión nueva es lo esperado (esos commits entran en ella → ok con el conteo); cuando se
+     * evalúa una versión que ya es tag y HEAD va más adelante, hay trabajo en dev sin publicar
+     * (warn). Informativo: jamás bloquea.
+     */
+    private function checkTrabajoSinPublicar(array $env, string $base, string $ref, string $version, ?string $prevTag): array
+    {
+        $versionYaEsTag = trim($this->runGit('git tag --list ' . escapeshellarg($version), $env, $base)->getOutput()) !== '';
+        $ultimoTag      = $versionYaEsTag ? $version : $prevTag;
+        if ($ultimoTag === null) {
+            return ['status' => 'ok', 'detail' => 'Sin tag previo con el que comparar.'];
+        }
+        $pendientes = trim($this->runGit(
+            'git rev-list --count ' . escapeshellarg($ultimoTag) . '..' . escapeshellarg($ref), $env, $base
+        )->getOutput());
+        $n = ctype_digit($pendientes) ? (int) $pendientes : null;
+        if ($n === null) {
+            return ['status' => 'warn', 'detail' => "No se pudo contar los commits entre {$ultimoTag} y {$ref}."];
+        }
+        if ($n === 0) {
+            return ['status' => 'ok', 'detail' => "{$ref} es exactamente el commit del último tag ({$ultimoTag})."];
+        }
+        if (! $versionYaEsTag) {
+            return ['status' => 'ok', 'detail' => "{$n} commit(s) en dev desde {$ultimoTag}: entran en {$version}."];
+        }
+
+        return ['status' => 'warn', 'detail' => "Hay trabajo en dev sin publicar: {$n} commit(s) después del último tag ({$ultimoTag})."];
     }
 
     private function checkVersionPreviaPublicada(?string $prevTag, ?string $coberturaError): array

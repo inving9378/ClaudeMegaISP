@@ -716,7 +716,8 @@ class DeploymentService
                     ]);
                 $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
                 if ($response->successful()) {
-                    return [0, "GitHub Release actualizado: " . $response->json('html_url'), $durationMs];
+                    $aviso = $this->registrarPublicacion($release, $response->json(), $log);
+                    return [0, "GitHub Release actualizado: " . $response->json('html_url') . $aviso, $durationMs];
                 }
                 return [0, "No se pudo actualizar el GitHub Release ({$response->status()}): " . $response->body(), $durationMs];
             }
@@ -737,18 +738,69 @@ class DeploymentService
 
             if ($response->successful()) {
                 Log::channel('single')->info("Deploy #{$log->id} — GitHub Release creado: " . $response->json('html_url'));
-                return [0, "GitHub Release creado: " . $response->json('html_url'), $durationMs];
+                $aviso = $this->registrarPublicacion($release, $response->json(), $log);
+                return [0, "GitHub Release creado: " . $response->json('html_url') . $aviso, $durationMs];
             }
 
             $msg = "GitHub Releases API ({$response->status()}): " . $response->body();
             Log::channel('single')->warning("Deploy #{$log->id} — github_release falló (no crítico): {$msg}");
+            $this->registrarNoPublicada($release, $msg, $log);
             // Salida 0: no crítico, el publish no debe romperse por esto
             return [0, $msg, $durationMs];
         } catch (\Throwable $e) {
             $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
             $msg = 'Excepción al publicar GitHub Release: ' . $e->getMessage();
             Log::channel('single')->warning("Deploy #{$log->id} — github_release excepción: {$msg}");
+            $this->registrarNoPublicada($release, $msg, $log);
             return [0, $msg, $durationMs];
+        }
+    }
+
+    /**
+     * #9991209 — Persiste en `releases` lo que GitHub acaba de confirmar: id del Release,
+     * `published_at` REAL de la API (no now()) y `estado_publicacion = publicada`. Publicar es lo
+     * crítico y registrar es secundario: cualquier fallo aquí se loguea y se devuelve como aviso
+     * en el output del paso, nunca cambia su éxito. Sin esto la fila quedaba con los tres campos
+     * en NULL y el preflight ("versión previa publicada") no tenía de dónde leer.
+     */
+    private function registrarPublicacion(?\App\Models\Release $release, $json, DeploymentLog $log): string
+    {
+        if (! $release) {
+            return ' (sin fila en releases: no se registró la publicación)';
+        }
+        try {
+            $json = is_array($json) ? $json : [];
+            $publishedAt = ! empty($json['published_at'])
+                ? \Carbon\Carbon::parse($json['published_at'])->setTimezone(config('app.timezone'))
+                : now();
+            $release->forceFill([
+                'github_release_id'         => isset($json['id']) ? (int) $json['id'] : $release->github_release_id,
+                'published_at'              => $publishedAt,
+                'estado_publicacion'        => 'publicada',
+                'estado_publicacion_motivo' => null,
+            ])->save();
+
+            return '';
+        } catch (\Throwable $e) {
+            Log::channel('single')->warning("Deploy #{$log->id} — github_release: publicado, pero no se pudo registrar en releases: " . $e->getMessage());
+
+            return ' (AVISO: no se pudo registrar la publicación en la tabla releases: ' . $e->getMessage() . ')';
+        }
+    }
+
+    /** #9991209 — Fallo al publicar: deja constancia solo si la fila no tenía ya un estado. */
+    private function registrarNoPublicada(?\App\Models\Release $release, string $motivo, DeploymentLog $log): void
+    {
+        if (! $release || $release->estado_publicacion !== null) {
+            return;
+        }
+        try {
+            $release->forceFill([
+                'estado_publicacion'        => 'no_publicada',
+                'estado_publicacion_motivo' => \Illuminate\Support\Str::limit($motivo, 1000, '…'),
+            ])->save();
+        } catch (\Throwable $e) {
+            Log::channel('single')->warning("Deploy #{$log->id} — github_release: no se pudo registrar no_publicada: " . $e->getMessage());
         }
     }
 
