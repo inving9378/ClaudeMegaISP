@@ -12,11 +12,11 @@
       <div class="p-3">
         <!-- Filtros -->
         <div class="row g-2 mb-3">
-          <div class="col-12 col-sm-6 col-md-3">
+          <div class="col-6 col-sm-6 col-md-2">
             <input v-model="filters.search" @input="debounceLoad" type="text"
                    class="form-control form-control-sm" placeholder="Buscar colaborador…">
           </div>
-          <div class="col-12 col-sm-6 col-md-3">
+          <div class="col-6 col-sm-6 col-md-2">
             <input v-model="filters.prospecto" @input="debounceLoad" type="text"
                    class="form-control form-control-sm" placeholder="Buscar prospecto…">
           </div>
