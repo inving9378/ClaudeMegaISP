@@ -352,6 +352,26 @@ export default {
 </script>
 
 <style scoped>
+/* Filtros (buscador/selects/fechas): #9991200 dejó las clases Bootstrap
+   (form-control/form-select) sin retocar — se veían "crudas" frente al resto
+   ya con tema Torre (mismo hallazgo que el buscador de Vendedores/Artículos).
+   Recoloreados aquí con los tokens --tc-*, sin depender de :deep() porque
+   son elementos nativos del propio template (no de un componente hijo). */
+.talento-ordenes .form-control,
+.talento-ordenes .form-select {
+  border-color: var(--tc-line, #e5e7eb);
+  color: var(--tc-ink, #111827);
+  background-color: var(--tc-surface, #fff);
+}
+.talento-ordenes .form-control::placeholder {
+  color: var(--tc-muted, #6b7280);
+}
+.talento-ordenes .form-control:focus,
+.talento-ordenes .form-select:focus {
+  border-color: var(--tc-accent, #0d9488);
+  box-shadow: 0 0 0 0.2rem rgba(13, 148, 136, 0.15);
+}
+
 /* Paginación: el tema Torre no trae reglas para .pagination (#9991200),
    así que se recolorea aquí con los mismos tokens --tc-* en vez de dejar
    el azul default de Bootstrap. */
