@@ -188,6 +188,16 @@ class Kernel extends ConsoleKernel
             ->onOneServer()
             ->name('warroom:refresh-snapshot');
 
+        // Verificación diaria de pagos (pedido de Irving 2026-09-17, tras el fix de fecha de
+        // corte en pagos tardíos): invariantes de RECURRENT/CUSTOM/DAILY + idempotencia de
+        // webhooks. Si algo falla, levanta/actualiza un ticket en la Torre de Control (dedupe
+        // por huella, no duplica ticket cada noche). Ventana pedida: antes de que acabe el día.
+        $schedule->command('pagos:verificar-recurrentes')
+            ->dailyAt('23:15')
+            ->withoutOverlapping(10)
+            ->onOneServer()
+            ->name('pagos:verificar-recurrentes');
+
         // CobranzaBlaster (Fase 6) — dispara el blast cada 5 minutos en campañas activas
         $schedule->call(function () {
             \App\Modules\Addons\CobranzaBlaster\Models\CobranzaCampana::activa()->get()
