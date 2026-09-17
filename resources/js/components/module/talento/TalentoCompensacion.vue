@@ -54,7 +54,7 @@
     <div class="tc-card tc-card-overflow-visible mb-3">
       <div class="p-3">
         <h2 class="tc-h2">Asignar regla a colaborador</h2>
-        <div class="row g-3 align-items-end">
+        <div class="row g-3">
           <div class="col-md-4 position-relative">
             <label class="form-label form-label-sm">Colaborador</label>
             <input v-model="assign.search" @input="debounceAssignSearch" type="text"
@@ -80,7 +80,8 @@
             <label class="form-label form-label-sm">Fecha efectiva</label>
             <input v-model="assign.assigned_at" type="date" class="form-control form-control-sm">
           </div>
-          <div class="col-md-3 d-flex align-items-end gap-2">
+          <div class="col-md-3">
+            <label class="form-label form-label-sm d-block invisible">&nbsp;</label>
             <button @click="saveAssign" class="tc-btn tc-btn-ok" :disabled="assign.saving">
               <span v-if="assign.saving"><span class="spinner-border spinner-border-sm"></span></span>
               <span v-else>Asignar</span>
