@@ -20,7 +20,7 @@
                 <th>Tipo</th>
                 <th>Período</th>
                 <th class="text-end">Sueldo base</th>
-                <th class="text-center">Cuota/sem</th>
+                <th class="text-center">Cuota</th>
                 <th class="text-end">$/unidad</th>
                 <th class="text-center">Activa</th>
                 <th></th>
@@ -91,7 +91,7 @@
         <div v-if="assign.rulePreview" class="mt-2 small text-muted">
           <i class="fa fa-info-circle me-1"></i>
           {{ assign.rulePreview.name }} — Base ${{ fmt(assign.rulePreview.base_salary) }},
-          cuota {{ assign.rulePreview.weekly_quota_units }} ud/sem,
+          cuota {{ assign.rulePreview.weekly_quota_units }} ud/{{ quotaPeriodLabel(assign.rulePreview.period) }},
           ${{ fmt(assign.rulePreview.value_per_unit) }}/unidad
         </div>
         <div v-if="assign.error" class="mt-2 small text-danger">{{ assign.error }}</div>
@@ -174,7 +174,7 @@
                 </div>
               </div>
               <div class="col-md-4">
-                <label class="form-label">Cuota semanal (unidades)</label>
+                <label class="form-label">Cuota {{ quotaPeriodLabel(ruleModal.period) }} (unidades)</label>
                 <input v-model="ruleModal.weekly_quota_units" type="number" min="0" class="form-control">
               </div>
               <div class="col-md-4 d-flex flex-column justify-content-end">
@@ -391,6 +391,9 @@ export default {
     },
     targetLabel(t) { return { technician: 'Técnico', seller: 'Vendedor', counter: 'Mostrador', accounting: 'Contabilidad', support: 'Atención a clientes', all: 'Todos' }[t] ?? t; },
     periodLabel(p) { return { daily: 'Diario', weekly: 'Semanal', biweekly: 'Quincenal', monthly: 'Mensual' }[p] ?? p; },
+    // Forma femenina para "Cuota ___ (unidades)" / "ud/___" — periodLabel() ya no
+    // concuerda en género ("Cuota Diario" está mal, "cuota" es femenino).
+    quotaPeriodLabel(p) { return { daily: 'diaria', weekly: 'semanal', biweekly: 'quincenal', monthly: 'mensual' }[p] ?? p; },
     fmt(n) { return Number(n ?? 0).toFixed(2); },
     formatDate(d) {
       if (!d) return '—';

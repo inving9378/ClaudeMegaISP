@@ -79,9 +79,6 @@
                                         <span class="fw-semibold" :class="stepTextClass(step)">
                                             {{ step.name }}
                                         </span>
-                                        <span v-if="step.status === 'skipped' && step.by_design" class="badge bg-secondary bg-opacity-10 text-muted ms-2 fw-normal flex-shrink-0">
-                                            no aplica
-                                        </span>
                                         <small v-if="step.duration_ms > 0" class="text-muted ms-2 flex-shrink-0">
                                             {{ formatDuration(step.duration_ms) }}
                                         </small>
@@ -318,13 +315,8 @@ export default {
         // pero con pasos OMITIDOS no es un "completado exitosamente" verde: en dev SIEMPRE se omite
         // el despliegue remoto (skip_if_not_production) y a veces git_push/github_release, así que
         // el verde ocultaba que el release se publicó pero NO se desplegó. Se distingue en ÁMBAR.
-        //
-        // Item #9991207 — pero NO todo 'skipped' es una omisión real: git_commit con stage vacío o
-        // remote_deploy sin DEPLOY_REMOTE_URL son gates ESPERADOS del pipeline (marcados
-        // `by_design` por DeploymentService), no algo que revisar. Solo cuentan aquí — y solo esos
-        // disparan el ámbar — los `skipped` SIN `by_design`.
         const skippedSteps = computed(() =>
-            (steps.value || []).filter(s => s.status === "skipped" && !s.by_design)
+            (steps.value || []).filter(s => s.status === "skipped")
         );
         const isPartial = computed(() =>
             overallStatus.value === "success" && skippedSteps.value.length > 0

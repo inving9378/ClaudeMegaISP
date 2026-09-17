@@ -65,7 +65,6 @@ class DeploymentService
             if (($step['skip_if_no_remote'] ?? false) && empty(config('deployment.remote_url'))) {
                 $log->updateStep($step['key'], [
                     'status'      => 'skipped',
-                    'by_design'   => true, // item #9991207: gate esperado, no cuenta como omisión real
                     'output'      => 'DEPLOY_REMOTE_URL no configurado — paso omitido.',
                     'exit_code'   => 0,
                     'duration_ms' => 0,
@@ -82,7 +81,6 @@ class DeploymentService
             if (($step['skip_if_not_publisher'] ?? false) && config('deployment.publisher', false) !== true) {
                 $log->updateStep($step['key'], [
                     'status'      => 'skipped',
-                    'by_design'   => true, // item #9991207: gate esperado, no cuenta como omisión real
                     'output'      => 'Instancia no publicadora — paso omitido (DEPLOY_IS_PUBLISHER=false).',
                     'exit_code'   => 0,
                     'duration_ms' => 0,
@@ -96,7 +94,6 @@ class DeploymentService
             if (($step['skip_if_not_production'] ?? false) && !app()->environment('production')) {
                 $log->updateStep($step['key'], [
                     'status'      => 'skipped',
-                    'by_design'   => true, // item #9991207: gate esperado, no cuenta como omisión real
                     'output'      => 'Entorno no-producción — paso omitido (política de release, item #245).',
                     'exit_code'   => 0,
                     'duration_ms' => 0,
@@ -109,7 +106,6 @@ class DeploymentService
             if (($step['skip_if_tag_exists'] ?? false) && $this->tagExists($version)) {
                 $log->updateStep($step['key'], [
                     'status'      => 'skipped',
-                    'by_design'   => true, // item #9991207: gate esperado, no cuenta como omisión real
                     'output'      => "Tag {$version} ya existe localmente.",
                     'exit_code'   => 0,
                     'duration_ms' => 0,
@@ -124,7 +120,6 @@ class DeploymentService
             if (($step['skip_on_nothing_to_commit'] ?? false) && $this->nothingStaged()) {
                 $log->updateStep($step['key'], [
                     'status'      => 'skipped',
-                    'by_design'   => true, // item #9991207: gate esperado, no cuenta como omisión real
                     'output'      => 'Sin cambios en el stage — commit omitido.',
                     'exit_code'   => 0,
                     'duration_ms' => 0,
