@@ -76,6 +76,21 @@ class BillingPaymentDateService
             if ($restarDia) {
                 return Carbon::parse($fechaPago)->addMonthsWithoutOverflow($cuantasVecesSeLePuedeCobrar)->subDay()->endOfDay()->toDateTimeString();
             }
+
+            // Mismo fix que PREPAID_RECURRENT (ver comentario arriba): sin esto,
+            // un pago tardío sumaba los N meses a la fecha_pago ANTERIOR en vez
+            // de anclar al día real del pago — el cliente perdía los días de
+            // atraso sin importar cuántos fueran. Pago a tiempo o adelantado:
+            // sin cambios.
+            $pagoTarde = $client->fecha_corte && Carbon::now()->gt(Carbon::parse($client->fecha_corte));
+            if ($pagoTarde) {
+                $newFechaPago = Carbon::now()->addMonthsWithoutOverflow($cuantasVecesSeLePuedeCobrar)->endOfDay()->toDateTimeString();
+                if ($includeLogs) {
+                    $log->log($client, 'Cliente #' . $client->id . ' pagó tarde (le tocaba ' . $fechaPago . ') — nueva fecha de pago anclada al día real del pago: ' . $newFechaPago);
+                }
+                return $newFechaPago;
+            }
+
             return Carbon::parse($fechaPago)->addMonthsWithoutOverflow($cuantasVecesSeLePuedeCobrar)->endOfDay()->toDateTimeString();
         }
 
