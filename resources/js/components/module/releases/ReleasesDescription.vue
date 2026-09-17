@@ -75,7 +75,8 @@
                     <h6 class="card-title fw-bold">
                         {{ desc.title || "Sin título" }}
                     </h6>
-                    <div class="card-text" v-html="desc.description"></div>
+                    <!-- #9991208 — `html` viene RENDERIZADO y SANEADO del backend (markdown→CommonMark, html→HTMLPurifier); nunca description cruda. -->
+                    <div class="card-text release-notes" v-html="desc.html !== undefined ? desc.html : ''"></div>
 
                     <div class="text-end mt-3">
                         <button
@@ -344,6 +345,11 @@ export default {
 </script>
 
 <style>
+/* #9991208 — notas renderizadas desde markdown/html saneado (estilo NO scoped: el HTML llega por v-html) */
+.release-notes ul{padding-left:1.2rem;margin-bottom:.5rem;}
+.release-notes h3{font-size:1rem;margin:.6rem 0 .3rem;}
+.release-notes p{margin-bottom:.4rem;}
+
 /* --- Contenedor principal del contenido del CKEditor --- */
 .card-text {
     max-width: 100%;
