@@ -146,10 +146,15 @@ class ReleaseController extends Controller
             // Si el usuario generó un resumen con IA, crearlo como release_description
             $aiDescription = trim($request->input('ai_description', ''));
             if ($aiDescription !== '') {
+                // #9991208 — se guarda el MARKDOWN CRUDO (antes nl2br(e()) dejaba `<br />` y texto
+                // literal); el render saneado lo hace el backend al leer (ReleaseDescription::html).
+                // limpiarGenerador() quita el `- -` duplicado y el `### Mejoras en esta versión`
+                // redundante (el título del bloque ya lo dice).
                 ReleaseDescription::create([
                     'release_id'  => $release->id,
                     'title'       => 'Mejoras de esta versión (generado por IA)',
-                    'description' => nl2br(e($aiDescription)),
+                    'description' => app(\App\Services\Release\ReleaseNotesRenderer::class)->limpiarGenerador($aiDescription),
+                    'formato'     => ReleaseDescription::FORMATO_MARKDOWN,
                     'created_by'  => auth()->user()?->id,
                 ]);
             }

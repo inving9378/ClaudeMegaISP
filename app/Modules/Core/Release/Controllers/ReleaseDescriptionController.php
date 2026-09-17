@@ -36,6 +36,9 @@ class ReleaseDescriptionController extends Controller
             DB::beginTransaction();
             $data = $validator->validated();
             $data['created_by'] = auth()->user()->id;
+            // #9991208 — lo que entra por este formulario viene del editor WYSIWYG (input-editor):
+            // se declara html explícito; el render lo sanea (HTMLPurifier) al leer.
+            $data['formato'] = ReleaseDescription::FORMATO_HTML;
             $model = ReleaseDescription::create($data);
             DB::commit();
             return response()->json([
@@ -68,6 +71,8 @@ class ReleaseDescriptionController extends Controller
             DB::beginTransaction();
             $data = $validator->validated();
             $data['updated_by'] = auth()->user()->id;
+            // #9991208 — editado en el WYSIWYG: pasa a html (aunque naciera como markdown del generador).
+            $data['formato'] = ReleaseDescription::FORMATO_HTML;
             $model->update($data);
             DB::commit();
 

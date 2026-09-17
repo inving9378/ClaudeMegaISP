@@ -650,7 +650,7 @@ class DeploymentService
      * igual se rescata el campo `improvements` por regex en vez de publicar el JSON crudo
      * de cara al usuario final.
      */
-    private function normalizeReleaseNotes(string $raw): string
+    public function normalizeReleaseNotes(string $raw): string
     {
         $texto = trim(html_entity_decode($raw));
 
