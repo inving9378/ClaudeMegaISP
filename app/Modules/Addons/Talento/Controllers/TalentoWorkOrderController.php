@@ -53,10 +53,16 @@ class TalentoWorkOrderController extends Controller
             'type_id'        => 'required|exists:talento_work_order_types,id',
             'assigned_by'    => 'nullable|exists:users,id',
             'client_id'      => 'nullable|exists:clients,id',
+            'crm_lead_id'    => 'nullable|exists:crm_lead_information,id',
             'olt_onu_id'     => 'nullable|exists:olt_onus,id',
             'scheduled_at'   => 'nullable|date',
             'notes'          => 'nullable|string',
         ]);
+
+        // Una OT es para un cliente ya alta O para un prospecto del CRM, nunca ambos (decisión q2 Irving).
+        if (!empty($data['client_id']) && !empty($data['crm_lead_id'])) {
+            return response()->json(['error' => 'Una OT es para un cliente o un prospecto, no ambos.'], 422);
+        }
 
         $type        = TalentoWorkOrderType::findOrFail($data['type_id']);
         $colaborador = TalentoColaborador::findOrFail($data['colaborador_id']);
@@ -98,6 +104,7 @@ class TalentoWorkOrderController extends Controller
             'is_billable'                => $type->is_billable,
             'project_id'                 => $projectId,
             'client_main_information_id' => $clientInfoId,
+            'crm_lead_id'                => $data['crm_lead_id'] ?? null,
             'olt_onu_id'                 => $data['olt_onu_id'] ?? null,
             'start_date'                 => $scheduled?->toDateString(),
             'start_time'                 => $scheduled?->format('H:i:s'),
