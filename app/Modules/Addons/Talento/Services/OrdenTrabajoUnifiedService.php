@@ -765,7 +765,12 @@ class OrdenTrabajoUnifiedService
             'colaborador'    => $colaborador ? [
                 'id'      => $colaborador->id,
                 'user_id' => $firstUser->id,
-                'user'    => ['id' => $firstUser->id, 'name' => $firstUser->name],
+                'user'    => [
+                    'id'                => $firstUser->id,
+                    'name'              => $firstUser->name,
+                    'father_last_name'  => $firstUser->father_last_name,
+                    'mother_last_name'  => $firstUser->mother_last_name,
+                ],
             ] : null,
             'type' => $type ? [
                 'id'                  => $type->id,

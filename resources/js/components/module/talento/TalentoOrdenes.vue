@@ -64,7 +64,7 @@
               <tr v-for="o in orders" :key="o.id">
                 <td class="text-muted small">{{ o.id }}</td>
                 <td>
-                  <div class="fw-semibold small">{{ o.colaborador?.user?.name }}</div>
+                  <div class="fw-semibold small">{{ fullName(o.colaborador?.user) }}</div>
                 </td>
                 <td>
                   <span v-if="o.prospecto?.nombre" class="small">
@@ -126,7 +126,7 @@
                 <ul v-if="colSuggestions.length" class="list-group mt-1 position-absolute shadow" style="z-index:10001;max-height:180px;overflow-y:auto">
                   <li v-for="c in colSuggestions" :key="c.id" @click="selectCol(c)"
                       class="list-group-item list-group-item-action small cursor-pointer">
-                    {{ c.user?.name }} <span class="text-muted">· {{ c.type }}</span>
+                    {{ fullName(c.user) }} <span class="text-muted">· {{ c.type }}</span>
                   </li>
                 </ul>
                 <div v-if="createModal.colaborador_id" class="mt-1 small text-success">
@@ -212,7 +212,7 @@
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">Orden #{{ detail.order?.id }} — {{ detail.order?.colaborador?.user?.name }}</h5>
+            <h5 class="modal-title">Orden #{{ detail.order?.id }} — {{ fullName(detail.order?.colaborador?.user) }}</h5>
             <button @click="detail.show=false" type="button" class="btn-close"></button>
           </div>
           <div class="modal-body" v-if="detail.order">
@@ -346,10 +346,20 @@ export default {
       const { data } = await axios.get('/talento/api/colaboradores', { params: { search: this.colSearch, per_page: 10 } });
       this.colSuggestions = data?.data ?? [];
     },
+    // Varios colaboradores comparten el mismo nombre de pila (ej. 3 "GUADALUPE"
+    // distintas, cada una con su propio user_id/colaborador_id real) — solo el
+    // primer nombre los hacía ver como duplicados en el dropdown/tabla. Nombre
+    // completo con apellidos para diferenciarlos (mismo patrón que el resto del
+    // sistema). Acepta cualquier objeto user-like (name/father_last_name/
+    // mother_last_name), null-safe.
+    fullName(user) {
+      return [user?.name, user?.father_last_name, user?.mother_last_name]
+        .filter(Boolean).join(' ');
+    },
     selectCol(c) {
       this.createModal.colaborador_id = c.id;
-      this.createModal.colaborador_name = c.user?.name;
-      this.colSearch = c.user?.name;
+      this.createModal.colaborador_name = this.fullName(c.user);
+      this.colSearch = this.fullName(c.user);
       this.colSuggestions = [];
       // El colaborador cambió → los "propios" del prospecto quedaron obsoletos.
       this.prospSuggestions = { propios: [], generales: [] };
