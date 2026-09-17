@@ -5,6 +5,7 @@
       <div class="tc-cardhead d-flex flex-wrap align-items-center justify-content-between gap-2 p-3">
         <h5 class="tc-h1"><i class="fa fa-calendar-check me-2"></i>Asistencia</h5>
         <div class="d-flex align-items-center gap-2">
+          <button @click="setRange('all')"   class="tc-btn" :class="range==='all'   ? 'tc-btn-info' : 'tc-btn-seg'">Todos</button>
           <button @click="setRange('today')" class="tc-btn" :class="range==='today' ? 'tc-btn-info' : 'tc-btn-seg'">Hoy</button>
           <button @click="setRange('week')"  class="tc-btn" :class="range==='week'  ? 'tc-btn-info' : 'tc-btn-seg'">Esta semana</button>
           <span v-if="flaggedCount > 0" class="tc-status is-warn">
@@ -36,7 +37,7 @@
           </div>
           <div class="col-md-2 d-flex align-items-center gap-2">
             <div class="form-check mb-0">
-              <input v-model="filters.flagged" @change="onFlaggedChange" type="checkbox" class="form-check-input" id="onlyFlagged">
+              <input v-model="filters.flagged" @change="load" type="checkbox" class="form-check-input" id="onlyFlagged">
               <label class="form-check-label small" for="onlyFlagged">Solo flagged</label>
             </div>
           </div>
@@ -210,13 +211,18 @@ export default {
     return { darkMode };
   },
   data() {
-    const today = new Date().toISOString().substring(0, 10);
     return {
       attendances: [],
       loading: true,
       pagination: { current_page: 1, last_page: 1 },
-      filters: { search: '', status: '', from: today, to: today, flagged: false },
-      range: 'today',
+      // Sin restricción de fecha por defecto: la lista debe mostrar TODO (flagged
+      // mezclado con el resto) — "Hoy"/"Esta semana" son atajos opcionales para
+      // acotar, no el estado inicial. Antes el default era "Hoy", así que en
+      // cuanto no había check-ins el mismo día la lista salía vacía — daba la
+      // impresión de que los flagged estaban ocultos "a propósito" cuando en
+      // realidad TODO se ocultaba por la fecha, flagged incluido.
+      filters: { search: '', status: '', from: '', to: '', flagged: false },
+      range: 'all',
       flaggedCount: 0,
       searchTimeout: null,
       detail: { show: false, att: null, dayType: 'worked', notes: '', saving: false },
@@ -228,7 +234,9 @@ export default {
     setRange(r) {
       this.range = r;
       const today = new Date();
-      if (r === 'today') {
+      if (r === 'all') {
+        this.filters.from = ''; this.filters.to = '';
+      } else if (r === 'today') {
         const d = today.toISOString().substring(0, 10);
         this.filters.from = d; this.filters.to = d;
       } else {
@@ -242,21 +250,6 @@ export default {
     debounceLoad() {
       clearTimeout(this.searchTimeout);
       this.searchTimeout = setTimeout(() => this.load(), 350);
-    },
-    // Bug reportado: el badge "N flagged" cuenta TODO el historial (loadFlaggedCount
-    // no manda from/to), pero "Solo flagged" se combinaba con el rango de fecha
-    // vigente (Hoy/Esta semana) — si los flagged reales caían fuera de ese rango,
-    // el checkbox no mostraba nada aunque el badge dijera que sí había. Al activar
-    // el checkbox se limpia el rango de fecha (coherente con lo que el badge ya
-    // cuenta); al desactivarlo, vuelve a "Hoy".
-    onFlaggedChange() {
-      if (this.filters.flagged) {
-        this.filters.from = '';
-        this.filters.to = '';
-        this.load();
-      } else {
-        this.setRange('today');
-      }
     },
     async load(page = 1) {
       this.loading = true;

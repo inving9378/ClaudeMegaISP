@@ -46,4 +46,18 @@ detalle (header de aviso + panel de extensión + selects), y el checkbox "Solo
 flagged" mostrando los 2 registros reales tras el fix. `grep` confirmó que ambos
 cambios (theme + fix) llegaron al bundle compilado antes de las capturas.
 
+**Corrección tras feedback de Irving (mismo día, segunda vuelta):** el fix anterior
+(limpiar fechas solo al marcar "Solo flagged") enmascaraba el problema real en vez
+de resolverlo — la vista por defecto seguía siendo "Hoy", así que sin datos del
+día de hoy en la BD la lista salía vacía SIEMPRE (flagged y no-flagged por igual),
+dando la impresión de que los flagged estaban ocultos "a propósito". Corregido de
+raíz: nuevo botón **"Todos"** (tercer toggle junto a Hoy/Esta semana) que pasa a
+ser el estado inicial por defecto (`range: 'all'`, `filters.from/to: ''`) — la
+lista ahora muestra TODO por defecto (flagged mezclado con el resto, tal como se
+esperaba), y "Solo flagged" vuelve a ser un filtro simple y compositivo
+(`@change="load"`) que actúa sobre lo que ya se esté viendo, sin tocar fechas por
+detrás. Verificado con Playwright: vista por defecto muestra las 5 filas de
+prueba (2 flagged con su tinte, 3 normales); marcar el checkbox sobre esa misma
+vista narrows a los 2 flagged sin alterar los campos de fecha (que siguen vacíos).
+
 **Commit:** ver historial (`fix/feat` en `TalentoAsistencia.vue`), pusheado a `main`.
