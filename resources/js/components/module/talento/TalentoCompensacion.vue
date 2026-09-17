@@ -51,7 +51,7 @@
     </div>
 
     <!-- ASIGNAR REGLA -->
-    <div class="tc-card mb-3">
+    <div class="tc-card tc-card-overflow-visible mb-3">
       <div class="p-3">
         <h2 class="tc-h2">Asignar regla a colaborador</h2>
         <div class="row g-3 align-items-end">
@@ -398,3 +398,14 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* .tc-card trae overflow:hidden (_torre-theme.scss) para recortar limpio a su
+   border-radius — pero eso también corta el dropdown de sugerencias de
+   "Buscar colaborador" (position:absolute), que necesita salirse del card.
+   Se levanta SOLO en esta card (no se toca el .tc-card global: otras cards
+   sí dependen de ese recorte para esquinas limpias). */
+.talento-compensacion .tc-card-overflow-visible {
+  overflow: visible;
+}
+</style>
