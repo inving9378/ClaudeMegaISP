@@ -124,9 +124,18 @@
                 permiso: es una consola de estado del circuito, no un ajuste del sistema.
                 Se usa auth()->user()->hasRole(...) y no @@role/@@can, que en este layout no
                 evalúan (mismo motivo por el que aquí se escribe @@if(auth()->user()->can(...))). --}}
+            {{-- Engrane ocultado a solicitud de Irving 2026-09-17 — ver Hoja de Ruta #9991216.
+                 Solo deja de MONTARSE el componente <torre-compuertas> (resources/js/shared/TorreCompuertas.vue:
+                 semáforo de compuertas del circuito con badge de rojos, enlace a /releases?tab=configuracion,
+                 polling cada 30 s). Ruta, controlador, permiso y el .vue quedan intactos: la pantalla sigue
+                 accesible por la pestaña Configuración de la Torre y por la burbuja de Jarvis.
+                 Reversa: descomentar el bloque de abajo + view:clear && config:clear && route:clear && view:cache.
+                 Revisión a 7 días: eliminar definitivo o consolidar el semáforo en JarvisBurbuja.vue. --}}
+            {{--
             @if(auth()->user()->hasRole('super-administrator') || auth()->user()->hasRole('DESARROLLADOR'))
                 <torre-compuertas></torre-compuertas>
             @endif
+            --}}
 
             {{-- Fase 6 — Campana de conciliación de pagos pendiente (solo con permiso). --}}
             @if(auth()->user() && auth()->user()->can('conciliacion.manage'))
