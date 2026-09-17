@@ -32,6 +32,15 @@ class DocumentTemplateService
     /**
      * Inyecta la hoja de estilos base dentro del HTML antes de pasarlo a dompdf
      * (Pdf::loadHTML), que ignora CSS externo. Solo presentación, no toca el contenido.
+     *
+     * @deprecated Item roadmap #9991219: su @page competía con el de plantillas que
+     * ya son documentos <html> completos y rompía headers position:fixed calibrados
+     * a mano (causa raíz del PDF deformado al Generar Contrato). Se quitó de
+     * ContractClientService/ContractCrmService::generateContractClient(); el único
+     * call site que queda (saveTemporalTemplateAndReturnPath, más abajo en esta
+     * misma clase) es código muerto sin ruta viva. No usar en código nuevo —
+     * ContractPdfTemplate::wrap() ya decide correctamente cuándo aplicar estilos
+     * base. Pendiente de borrado junto con el resto de la limpieza registrada.
      */
     public function wrapHtmlWithBaseStyles(string $html): string
     {
