@@ -162,6 +162,19 @@
         background: #6366f1;
         border-color: #6366f1;
     }
+    // Relleno de tc-btn-warn (que es outline) — para una acción de peso que
+    // sigue siendo semánticamente "atención/irreversible" (ej. "Cerrar
+    // liquidación") pero necesita destacar como las demás filled (tc-btn-ok/
+    // info/primary), no verse secundaria en outline.
+    .tc-btn-warn-solid {
+        background: var(--tc-warn);
+        border-color: var(--tc-warn);
+        color: #fff;
+        &:hover {
+            filter: brightness(1.08);
+            color: #fff;
+        }
+    }
 
     // ── Form controls (inputs/selects nativos dentro de una pantalla Torre) ──
     // Bootstrap los deja "de fábrica" (borde/fondo default) frente al resto ya
