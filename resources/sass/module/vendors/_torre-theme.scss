@@ -175,6 +175,18 @@
             color: #fff;
         }
     }
+    // Relleno de tc-btn-bad (que es outline) — mismo patrón que tc-btn-warn-solid,
+    // para acciones de peso que son "danger" (ej. cerrar/bloquear algo irreversible)
+    // y necesitan verse igual de presentes que las demás filled.
+    .tc-btn-bad-solid {
+        background: var(--tc-bad);
+        border-color: var(--tc-bad);
+        color: #fff;
+        &:hover {
+            filter: brightness(1.08);
+            color: #fff;
+        }
+    }
 
     // ── Form controls (inputs/selects nativos dentro de una pantalla Torre) ──
     // Bootstrap los deja "de fábrica" (borde/fondo default) frente al resto ya

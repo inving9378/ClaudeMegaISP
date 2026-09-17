@@ -58,7 +58,7 @@
                 <td><span class="tc-status" :class="liq.status === 'closed' ? 'is-ok' : 'is-warn'">{{ liq.status === 'closed' ? 'Cerrada' : 'Borrador' }}</span></td>
                 <td class="text-end">
                   <button @click="viewLiq(liq)" class="tc-btn tc-btn-info me-1">Ver</button>
-                  <button v-if="liq.status === 'draft'" @click="openCerrar(liq)" class="tc-btn tc-btn-warn-solid">Cerrar</button>
+                  <button v-if="liq.status === 'draft'" @click="openCerrar(liq)" class="tc-btn tc-btn-bad-solid">Cerrar</button>
                 </td>
               </tr>
               <tr v-if="!liquidaciones.length">
