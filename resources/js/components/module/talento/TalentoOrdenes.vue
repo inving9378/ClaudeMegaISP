@@ -1,96 +1,100 @@
 <template>
-  <div class="talento-ordenes">
+  <div class="talento-ordenes tc-wrap" :class="{ 'tc-dark': darkMode }">
 
-    <div class="d-flex align-items-center justify-content-between mb-3">
-      <h5 class="mb-0"><i class="fa fa-clipboard-list me-2 text-primary"></i>Órdenes de Trabajo</h5>
-      <button @click="openCreate" class="btn btn-primary btn-sm">
-        <i class="fa fa-plus me-1"></i> Nueva orden
-      </button>
-    </div>
+    <div class="tc-card">
+      <div class="tc-cardhead d-flex flex-wrap align-items-center justify-content-between gap-2 p-3">
+        <h5 class="tc-h1 mb-0"><i class="fa fa-clipboard-list me-2"></i>Órdenes de Trabajo</h5>
+        <button @click="openCreate" class="tc-btn tc-btn-ok">
+          <i class="fa fa-plus me-1"></i> Nueva orden
+        </button>
+      </div>
 
-    <!-- Filtros -->
-    <div class="row g-2 mb-3">
-      <div class="col-md-3">
-        <input v-model="filters.search" @input="debounceLoad" type="text"
-               class="form-control form-control-sm" placeholder="Buscar colaborador…">
-      </div>
-      <div class="col-md-2">
-        <select v-model="filters.status" @change="load" class="form-select form-select-sm">
-          <option value="">Todos los estados</option>
-          <option value="pending">Pendiente</option>
-          <option value="in_progress">En curso</option>
-          <option value="completed">Completada</option>
-          <option value="validated">Validada</option>
-          <option value="cancelled">Cancelada</option>
-        </select>
-      </div>
-      <div class="col-md-2">
-        <select v-model="filters.type_id" @change="load" class="form-select form-select-sm">
-          <option value="">Todos los tipos</option>
-          <option v-for="t in types" :key="t.id" :value="t.id">{{ t.name }}</option>
-        </select>
-      </div>
-      <div class="col-md-2">
-        <input v-model="filters.from" @change="load" type="date" class="form-control form-control-sm" title="Desde">
-      </div>
-      <div class="col-md-2">
-        <input v-model="filters.to" @change="load" type="date" class="form-control form-control-sm" title="Hasta">
-      </div>
-    </div>
+      <div class="p-3">
+        <!-- Filtros -->
+        <div class="row g-2 mb-3">
+          <div class="col-12 col-sm-6 col-md-3">
+            <input v-model="filters.search" @input="debounceLoad" type="text"
+                   class="form-control form-control-sm" placeholder="Buscar colaborador…">
+          </div>
+          <div class="col-6 col-sm-6 col-md-2">
+            <select v-model="filters.status" @change="load" class="form-select form-select-sm">
+              <option value="">Todos los estados</option>
+              <option value="pending">Pendiente</option>
+              <option value="in_progress">En curso</option>
+              <option value="completed">Completada</option>
+              <option value="validated">Validada</option>
+              <option value="cancelled">Cancelada</option>
+            </select>
+          </div>
+          <div class="col-6 col-sm-6 col-md-2">
+            <select v-model="filters.type_id" @change="load" class="form-select form-select-sm">
+              <option value="">Todos los tipos</option>
+              <option v-for="t in types" :key="t.id" :value="t.id">{{ t.name }}</option>
+            </select>
+          </div>
+          <div class="col-6 col-sm-3 col-md-2">
+            <input v-model="filters.from" @change="load" type="date" class="form-control form-control-sm" title="Desde">
+          </div>
+          <div class="col-6 col-sm-3 col-md-2">
+            <input v-model="filters.to" @change="load" type="date" class="form-control form-control-sm" title="Hasta">
+          </div>
+        </div>
 
-    <!-- Tabla -->
-    <div v-if="loading" class="text-center py-5"><div class="spinner-border text-primary"></div></div>
-    <div v-else class="table-responsive">
-      <table class="table table-hover table-sm align-middle">
-        <thead class="table-light">
-          <tr>
-            <th>#</th>
-            <th>Colaborador</th>
-            <th>Tipo</th>
-            <th class="text-center">Pts</th>
-            <th>Agendada</th>
-            <th>Estado</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="o in orders" :key="o.id">
-            <td class="text-muted small">{{ o.id }}</td>
-            <td>
-              <div class="fw-semibold small">{{ o.colaborador?.user?.name }}</div>
-            </td>
-            <td>
-              <span class="badge bg-light text-dark">{{ o.type?.name }}</span>
-              <i v-if="o.is_billable" class="fa fa-dollar-sign text-success ms-1" title="Pagable"></i>
-            </td>
-            <td class="text-center fw-bold">{{ o.points }}</td>
-            <td class="small">{{ formatDatetime(o.scheduled_at) }}</td>
-            <td><span class="badge" :class="statusBadge(o.status)">{{ statusLabel(o.status) }}</span></td>
-            <td class="text-end">
-              <button @click="viewOrder(o)" class="btn btn-xs btn-outline-secondary me-1">Ver</button>
-              <button v-if="o.status === 'completed'" @click="openValidate(o)" class="btn btn-xs btn-outline-success">Validar</button>
-              <button v-if="canAdvance(o.status)" @click="advanceStatus(o)" class="btn btn-xs btn-outline-primary">
-                {{ nextStatusLabel(o.status) }}
-              </button>
-            </td>
-          </tr>
-          <tr v-if="!orders.length">
-            <td colspan="7" class="text-center text-muted py-4">No hay órdenes que mostrar.</td>
-          </tr>
-        </tbody>
-      </table>
-      <div v-if="pagination.last_page > 1" class="d-flex justify-content-end">
-        <nav><ul class="pagination pagination-sm mb-0">
-          <li class="page-item" :class="{disabled: pagination.current_page <= 1}">
-            <button class="page-link" @click="goPage(pagination.current_page-1)">‹</button>
-          </li>
-          <li v-for="p in pagination.last_page" :key="p" class="page-item" :class="{active: p === pagination.current_page}">
-            <button class="page-link" @click="goPage(p)">{{ p }}</button>
-          </li>
-          <li class="page-item" :class="{disabled: pagination.current_page >= pagination.last_page}">
-            <button class="page-link" @click="goPage(pagination.current_page+1)">›</button>
-          </li>
-        </ul></nav>
+        <!-- Tabla -->
+        <div v-if="loading" class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+        <div v-else class="table-responsive">
+          <table class="table table-hover table-sm align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>#</th>
+                <th>Colaborador</th>
+                <th>Tipo</th>
+                <th class="text-center">Pts</th>
+                <th>Agendada</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="o in orders" :key="o.id">
+                <td class="text-muted small">{{ o.id }}</td>
+                <td>
+                  <div class="fw-semibold small">{{ o.colaborador?.user?.name }}</div>
+                </td>
+                <td>
+                  <span class="tc-status is-slate">{{ o.type?.name }}</span>
+                  <i v-if="o.is_billable" class="fa fa-dollar-sign text-success ms-1" title="Pagable"></i>
+                </td>
+                <td class="text-center fw-bold">{{ o.points }}</td>
+                <td class="small">{{ formatDatetime(o.scheduled_at) }}</td>
+                <td><span class="tc-status" :class="statusBadge(o.status)">{{ statusLabel(o.status) }}</span></td>
+                <td class="text-end">
+                  <button @click="viewOrder(o)" class="tc-btn tc-btn-seg me-1">Ver</button>
+                  <button v-if="o.status === 'completed'" @click="openValidate(o)" class="tc-btn tc-btn-ok me-1">Validar</button>
+                  <button v-if="canAdvance(o.status)" @click="advanceStatus(o)" class="tc-btn tc-btn-seg">
+                    {{ nextStatusLabel(o.status) }}
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="!orders.length">
+                <td colspan="7" class="text-center text-muted py-4">No hay órdenes que mostrar.</td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-if="pagination.last_page > 1" class="d-flex justify-content-end">
+            <nav><ul class="pagination pagination-sm mb-0">
+              <li class="page-item" :class="{disabled: pagination.current_page <= 1}">
+                <button class="page-link" @click="goPage(pagination.current_page-1)">‹</button>
+              </li>
+              <li v-for="p in pagination.last_page" :key="p" class="page-item" :class="{active: p === pagination.current_page}">
+                <button class="page-link" @click="goPage(p)">{{ p }}</button>
+              </li>
+              <li class="page-item" :class="{disabled: pagination.current_page >= pagination.last_page}">
+                <button class="page-link" @click="goPage(pagination.current_page+1)">›</button>
+              </li>
+            </ul></nav>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -166,7 +170,7 @@
             <div class="row g-3">
               <div class="col-md-4"><strong>Tipo:</strong> {{ detail.order.type?.name }}</div>
               <div class="col-md-2"><strong>Pts:</strong> {{ detail.order.points }}</div>
-              <div class="col-md-3"><strong>Estado:</strong> <span class="badge" :class="statusBadge(detail.order.status)">{{ statusLabel(detail.order.status) }}</span></div>
+              <div class="col-md-3"><strong>Estado:</strong> <span class="tc-status" :class="statusBadge(detail.order.status)">{{ statusLabel(detail.order.status) }}</span></div>
               <div class="col-md-3"><strong>Agendada:</strong> {{ formatDatetime(detail.order.scheduled_at) }}</div>
               <div class="col-md-4" v-if="detail.order.validated_at">
                 <strong>Validada:</strong> {{ formatDatetime(detail.order.validated_at) }}<br>
@@ -218,8 +222,13 @@
 </template>
 
 <script>
+import { darkMode } from "../../../hook/appConfig.js";
+
 export default {
   name: 'TalentoOrdenes',
+  setup() {
+    return { darkMode };
+  },
   data() {
     return {
       orders: [],
@@ -325,8 +334,10 @@ export default {
       this.load();
     },
     statusBadge(s) {
-      return { pending: 'bg-secondary', in_progress: 'bg-primary', completed: 'bg-info text-dark',
-               validated: 'bg-success', cancelled: 'bg-danger' }[s] ?? 'bg-light';
+      // Mapeo Torre (#9991200): completed queda is-warn porque aún requiere validación
+      // (is-ok se reserva para el estado final positivo, validated).
+      return { pending: 'is-slate', in_progress: 'is-info', completed: 'is-warn',
+               validated: 'is-ok', cancelled: 'is-bad' }[s] ?? 'is-slate';
     },
     statusLabel(s) {
       return { pending: 'Pendiente', in_progress: 'En curso', completed: 'Completada',
@@ -339,3 +350,27 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* Paginación: el tema Torre no trae reglas para .pagination (#9991200),
+   así que se recolorea aquí con los mismos tokens --tc-* en vez de dejar
+   el azul default de Bootstrap. */
+.talento-ordenes :deep(.page-link) {
+  border-color: var(--tc-line, #e5e7eb);
+  color: var(--tc-ink, #111827);
+  background: var(--tc-surface, #fff);
+}
+.talento-ordenes :deep(.page-link:hover) {
+  background: var(--tc-bg2, #f8fafc);
+  color: var(--tc-accent, #0d9488);
+}
+.talento-ordenes :deep(.page-item.active .page-link) {
+  background: var(--tc-accent, #0d9488);
+  border-color: var(--tc-accent, #0d9488);
+  color: #fff;
+}
+.talento-ordenes :deep(.page-item.disabled .page-link) {
+  color: var(--tc-muted, #6b7280);
+  background: var(--tc-bg2, #f8fafc);
+}
+</style>
