@@ -88,6 +88,23 @@ class ClientBillingService
 
         if ($typeOfBilling == TypeBilling::TYPE_OF_BILLING_PREPAID_RECURRENT && $typeBillingExecute == self::TYPE_BILLING_EXECUTED_PROCESS) {
             $this->actionBilling($clientRepository, $client, 1, $transaction);
+
+            // FIX (2026-09-18, encontrado en prod al reparar los 30 clientes de la
+            // regresión de V1.35): esta rama avanzaba fecha_pago vía actionBilling()
+            // pero NUNCA llamaba a setNewFechaCorteForClient() — a diferencia de la
+            // rama hermana de arriba ($cuantasVecesSeLePuedeCobrar), que sí hace
+            // ambas cosas. Resultado real: un cliente RECURRENT sin saldo suficiente
+            // que el cron igual cobra (billing_service_command:process, rama "no
+            // tiene suficiente balance pero le cobro el servicio") veía fecha_pago
+            // avanzar mes a mes mientras fecha_corte quedaba CONGELADA en el valor
+            // que tenía desde que salió del período de gracia — con fecha_corte vieja
+            // y fecha_pago muy adelantada, el cron de suspensión lo bloqueaba
+            // injustamente pese a estar "al día" según su fecha_pago real (casos
+            // reales en prod: #7408, #6861).
+            $service = new BillingExpirationService($client);
+            $client->refresh();
+            $service->setNewFechaCorteForClient(null, 1);
+
             $this->logService->log($client, 'Cliente #' . $client->id . ' no tiene suficiente balance pero le cobro el servicio');
             return;
         }

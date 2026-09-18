@@ -96,8 +96,54 @@ intactos tras correr el comando).
 - `app/Modules/Core/Clientes/Services/BillingExpirationService.php` (`getFechaCorteForBillingPrepaidCustom`)
 - `app/Console/Commands/Active/VerificarPagosRecurrentesCommand.php` (+2 chequeos de regresión)
 
+### Publicado
+
+**V1.36-18.09.2026** — https://github.com/inving9378/ClaudeMegaISP/releases/tag/V1.36-18.09.2026
+(emitida por el flujo real de la app, `redeploy()` sobre el intento inicial que el pipeline
+bloqueó correctamente por archivos sueltos de otro terminal del circuito — `git_staging_gate`
+haciendo su trabajo).
+
 ### Pendiente
-- **Publicar en una versión nueva** — esta es una corrección de un bug real ya en producción
-  (V1.35). Falta decisión de Irving sobre cuándo/cómo emitirla.
 - Decisión de Irving sobre el Problema 3 (día extra que se recupera vs. se pierde el ciclo
   siguiente).
+- Aplicar el parche manual en prod (`RemoteDeployCommand.php` desactualizado, documentado en la
+  memoria `project_prod_update_mechanism`) para que la auto-actualización deje de revertirse sola
+  — sigue siendo el paso que falta para que V1.36 llegue a prod sin intervención manual.
+
+---
+
+## 2026-09-18 (continuación) — Segundo bug real, encontrado en prod reparando los 30 clientes
+
+Irving (con otra sesión trabajando directo en prod) reparó los 27 clientes afectados por la
+regresión de arriba y encontró un **bug distinto y separado**, no relacionado con el fix de
+pago tardío: en `ClientBillingService::billingServicesByClient()`, la rama "cliente RECURRENT
+sin saldo suficiente pero el cron lo cobra de todos modos" (usada por
+`billing_service_command:process`, el cron diario de cobro) llamaba a `actionBilling()` (avanza
+`fecha_pago`) pero **nunca** llamaba a `setNewFechaCorteForClient()` — a diferencia de la rama
+hermana justo arriba en el mismo método, que sí hace ambas cosas.
+
+**Efecto real:** `fecha_pago` avanza mes a mes mientras `fecha_corte` queda **congelada** en el
+valor que tenía desde que el cliente salió de su último período de gracia. Con `fecha_corte`
+vieja y `fecha_pago` muy adelantada, el cron de suspensión bloqueaba clientes que en realidad
+estaban al día — casos reales encontrados por Irving: **#7408** (2 meses de desfase, ya
+bloqueado, sin urgencia) y **#6861** (Activo, a punto de suspenderse injustamente el mismo día).
+
+**Verificado con cliente real #17** (transacción+rollback): forzado saldo insuficiente
+(`getCuantasVecesSeLePuedenCobrarLosServiciosActivos()` → `null`), corrida la rama exacta del
+cron → antes del fix `fecha_corte` se habría quedado en `2026-07-01` mientras `fecha_pago`
+saltaba a `2026-10-18`; con el fix, `fecha_corte` avanza también a `2026-10-19`.
+
+**Fix:** se agrega la misma llamada a `BillingExpirationService::setNewFechaCorteForClient()`
+que ya tiene la rama hermana, justo después de `actionBilling()` en esa tercera rama.
+
+**Chequeo nuevo** en `pagos:verificar-recurrentes`
+(`recurrent_balance_insuficiente_corte_avanza`): fuerza saldo insuficiente en una transacción
+siempre revertida, corre la rama exacta del cron y verifica que `fecha_corte` avance junto con
+`fecha_pago`. Los 7 chequeos (4 de ayer + 3 de hoy) pasan en vivo.
+
+**Archivo tocado:** `app/Modules/Core/Clientes/Services/ClientBillingService.php`.
+
+**Pendiente de Irving:** terminar el paso 2 de su plan (buscar en toda la BD cuántos clientes
+RECURRENT tienen este mismo patrón fecha_corte-vieja/fecha_pago-avanzada, para dimensionar el
+alcance real fuera de la muestra de 30). **Este fix llegó DESPUÉS de publicar V1.36** — queda
+commiteado en `main`, pendiente de empaquetarse en la siguiente versión.

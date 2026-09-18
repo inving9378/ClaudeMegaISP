@@ -9,6 +9,7 @@ use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Core\Clientes\Repositories\ClientRepository;
 use App\Modules\Core\Clientes\Services\BillingExpirationService;
 use App\Modules\Core\Clientes\Services\BillingPaymentDateService;
+use App\Modules\Core\Clientes\Services\ClientBillingService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -55,6 +56,11 @@ class VerificarPagosRecurrentesCommand extends Command
             // producción (V1.35) sin que este comando lo cachara. Ver bitácora 2026-09-18.
             'recurrent_suspendido_pago_tarde' => fn () => $this->checkRecurrentSuspendidoPagoTarde(),
             'custom_corte_sincronizado_con_pago' => fn () => $this->checkCustomCorteSincronizadoConPago(),
+            // 2026-09-18 (bug distinto, encontrado en prod reparando los 30 clientes de la
+            // regresión anterior): ClientBillingService::billingServicesByClient(), rama "no
+            // tiene suficiente balance pero le cobro el servicio" (cron billing_service_command:
+            // process), avanzaba fecha_pago sin nunca llamar a setNewFechaCorteForClient().
+            'recurrent_balance_insuficiente_corte_avanza' => fn () => $this->checkRecurrentBalanceInsuficienteCorteAvanza(),
             'webhooks_sin_duplicado'  => fn () => $this->checkWebhooksSinAplicacionDuplicada(),
         ];
 
@@ -290,6 +296,70 @@ class VerificarPagosRecurrentesCommand extends Command
     }
 
     /**
+     * Regresión del bug real de producción (2026-09-18, encontrado por Irving al reparar los
+     * clientes de la regresión anterior): en `ClientBillingService::billingServicesByClient()`,
+     * la rama "cliente RECURRENT sin saldo suficiente pero el cron lo cobra de todos modos"
+     * (`billing_service_command:process`) llamaba a `actionBilling()` (avanza fecha_pago) pero
+     * NUNCA a `setNewFechaCorteForClient()` — fecha_corte quedaba congelada mientras fecha_pago
+     * seguía avanzando mes a mes, y el cron de suspensión terminaba bloqueando injustamente a un
+     * cliente "al día" según su fecha_pago real (casos reales: #7408, #6861). Este chequeo fuerza
+     * saldo insuficiente en memoria+BD (dentro de una transacción SIEMPRE revertida) y replica el
+     * mismo `billingServicesByClient()` que corre el cron.
+     */
+    private function checkRecurrentBalanceInsuficienteCorteAvanza(): array
+    {
+        $client = Client::whereHas('client_main_information', function ($q) {
+            $q->where('type_of_billing_id', TypeBilling::TYPE_OF_BILLING_PREPAID_RECURRENT);
+        })
+            ->whereNotNull('fecha_corte')
+            ->whereNotNull('fecha_pago')
+            ->whereHas('billing_configuration')
+            ->first();
+
+        if (!$client) {
+            return ['ok' => true, 'detalle' => 'Sin cliente RECURRENT con fecha_corte+fecha_pago+billing_configuration — chequeo omitido.'];
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $corteAntes = $client->fecha_corte;
+
+            // Fuerza saldo insuficiente: getCuantasVecesSeLePuedenCobrarLosServiciosActivos()
+            // debe devolver null/0 para caer en la rama del bug.
+            $client->load('balance');
+            $client->balance->amount = -99999;
+            $client->balance->save();
+
+            $clientRepository = new ClientRepository();
+            $veces = $clientRepository->getCuantasVecesSeLePuedenCobrarLosServiciosActivos($client);
+            if ($veces) {
+                return ['ok' => true, 'detalle' => "Cliente #{$client->id}: no se pudo forzar saldo insuficiente en este entorno — chequeo omitido."];
+            }
+
+            $billingService = new ClientBillingService();
+            $billingService->billingServicesByClient($client, ClientBillingService::TYPE_BILLING_EXECUTED_PROCESS);
+            $client->refresh();
+
+            if ($client->fecha_corte === $corteAntes) {
+                return [
+                    'ok' => false,
+                    'detalle' => "Cliente #{$client->id}: la rama 'sin saldo pero se cobra' avanzó fecha_pago ({$client->fecha_pago}) sin mover "
+                        . "fecha_corte (sigue en {$corteAntes}) — el cliente quedaría con fecha_corte congelada mientras fecha_pago avanza, "
+                        . 'expuesto a suspensión injusta. Revisar ClientBillingService::billingServicesByClient() (rama TYPE_BILLING_EXECUTED_PROCESS).',
+                ];
+            }
+
+            return [
+                'ok' => true,
+                'detalle' => "Cliente #{$client->id}: fecha_corte avanzó junto con fecha_pago ({$corteAntes} → {$client->fecha_corte}).",
+            ];
+        } finally {
+            DB::rollBack();
+        }
+    }
+
+    /**
      * DAILY (fecha_pago + N días) no debe depender de Carbon::now() — a diferencia de
      * RECURRENT/CUSTOM, no hay "día fijo de facturación" que snapear, así que estructuralmente
      * no puede sufrir el mismo bug. Este chequeo es una red de regresión: si alguna vez alguien
@@ -425,6 +495,7 @@ class VerificarPagosRecurrentesCommand extends Command
             'custom_pago_tarde' => 'fecha de corte no se mueve con pago tardío (CUSTOM)',
             'recurrent_suspendido_pago_tarde' => 'un RECURRENT ya suspendido que paga tarde no ancla bien la fecha_pago',
             'custom_corte_sincronizado_con_pago' => 'fecha_corte quedó antes que la nueva fecha_pago en CUSTOM',
+            'recurrent_balance_insuficiente_corte_avanza' => 'fecha_corte no avanzó cuando el cron cobra sin saldo suficiente (RECURRENT)',
             'daily_now_independiente' => 'DAILY dejó de ser independiente de la hora actual',
             'webhooks_sin_duplicado' => 'webhook de pago aplicado más de una vez',
             default => $checkKey,
