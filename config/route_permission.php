@@ -1495,6 +1495,11 @@ return [
     'documentos.template.exportar_acuse' => [
         '/administracion/document_template/acuse/exportar',
     ],
+    // Item roadmap #9991221 (decisión de Irving, q1 opción 1): preview de plantillas
+    // desde Clientes/CRM vía ruta neutral, separada de Administración.
+    'plantillas.preview' => [
+        '/plantillas/preview',
+    ],
 
     //Principal
     'config_view_main' => [],
