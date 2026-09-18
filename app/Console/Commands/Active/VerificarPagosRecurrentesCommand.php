@@ -6,9 +6,12 @@ use App\Models\TypeBilling;
 use App\Modules\Core\Clientes\Models\Client;
 use App\Modules\Addons\Payments\Models\PaymentWebhookLog;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Core\Clientes\Repositories\ClientRepository;
+use App\Modules\Core\Clientes\Services\BillingExpirationService;
 use App\Modules\Core\Clientes\Services\BillingPaymentDateService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -17,9 +20,13 @@ use Illuminate\Support\Facades\Log;
  * (Kernel.php), SOLO LECTURA — nunca escribe en `clients`/`payments`/`billing_configurations`.
  *
  * Cada chequeo:
- *  - Los de fecha de pago (RECURRENT/CUSTOM/DAILY) mutan en MEMORIA un cliente real ya cargado
- *    (fecha_corte/fecha_pago) para forzar los dos escenarios (a tiempo / tarde) y comparan el
- *    resultado — nunca llaman a $client->save(), así que no hay nada que reponer en BD.
+ *  - `checkFechaPagoTardeInvariante` (RECURRENT/CUSTOM) y `checkDailyIndependienteDeNow` mutan
+ *    en MEMORIA un cliente real ya cargado (fecha_corte/fecha_pago) — nunca llaman a
+ *    $client->save(), así que no hay nada que reponer en BD.
+ *  - `checkRecurrentSuspendidoPagoTarde` y `checkCustomCorteSincronizadoConPago` (2026-09-18)
+ *    SÍ escriben (replican el flujo real de suspensión/removePeriodoGracia, que hace updates de
+ *    verdad) — corren dentro de una transacción que SIEMPRE se revierte en su propio finally,
+ *    nunca dejan nada persistido.
  *  - El de idempotencia de webhooks es 100% de solo lectura sobre datos reales.
  *
  * Si algún chequeo falla, crea (o reabre/actualiza) UN item en la Hoja de Ruta por chequeo,
@@ -41,6 +48,13 @@ class VerificarPagosRecurrentesCommand extends Command
             'recurrent_pago_tarde' => fn () => $this->checkFechaPagoTardeInvariante(TypeBilling::TYPE_OF_BILLING_PREPAID_RECURRENT, 'RECURRENT'),
             'custom_pago_tarde'    => fn () => $this->checkFechaPagoTardeInvariante(TypeBilling::TYPE_OF_BILLING_PREPAID_CUSTOM, 'CUSTOM'),
             'daily_now_independiente' => fn () => $this->checkDailyIndependienteDeNow(),
+            // 2026-09-18 — los dos de abajo replican el FLUJO REAL (suspensión/removePeriodoGracia),
+            // no solo la fórmula aislada. Necesario: el invariante de arriba pasaba en aislado pese a
+            // que el fix de RECURRENT no se disparaba en el camino real de un cliente ya suspendido
+            // (fecha_corte se reescribe ANTES de que este método la lea) — un bug real que llegó a
+            // producción (V1.35) sin que este comando lo cachara. Ver bitácora 2026-09-18.
+            'recurrent_suspendido_pago_tarde' => fn () => $this->checkRecurrentSuspendidoPagoTarde(),
+            'custom_corte_sincronizado_con_pago' => fn () => $this->checkCustomCorteSincronizadoConPago(),
             'webhooks_sin_duplicado'  => fn () => $this->checkWebhooksSinAplicacionDuplicada(),
         ];
 
@@ -144,6 +158,134 @@ class VerificarPagosRecurrentesCommand extends Command
             Carbon::setTestNow();
             $client->fecha_corte = $fechaCorteOriginal;
             $client->fecha_pago = $fechaPagoOriginal;
+        }
+    }
+
+    /**
+     * Regresión del bug real de producción (2026-09-18, V1.35): el chequeo de arriba
+     * (`checkFechaPagoTardeInvariante`) muta fecha_corte/fecha_pago EN MEMORIA sobre un cliente
+     * intacto — pasa aunque el fix esté roto en el camino real, porque un cliente RECURRENT
+     * realmente suspendido llega a BillingPaymentDateService con fecha_corte ya reescrita por
+     * SuspendService (null) y luego por ClientRepository::removePeriodoGracia() (un valor nuevo
+     * sin relación con el corte original) ANTES de que el guard la lea. Este chequeo SÍ replica
+     * ese flujo completo con escrituras reales — por eso corre dentro de una transacción que
+     * SIEMPRE se revierte en el finally, pase lo que pase (incluida una excepción a medio camino).
+     */
+    private function checkRecurrentSuspendidoPagoTarde(): array
+    {
+        $client = Client::whereHas('client_main_information', function ($q) {
+            $q->where('type_of_billing_id', TypeBilling::TYPE_OF_BILLING_PREPAID_RECURRENT);
+        })
+            ->whereNotNull('fecha_corte')
+            ->whereNotNull('fecha_pago')
+            ->whereHas('billing_configuration')
+            ->first();
+
+        if (!$client) {
+            return ['ok' => true, 'detalle' => 'Sin cliente RECURRENT con fecha_corte+fecha_pago+billing_configuration — chequeo omitido.'];
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $corteOriginal = $client->fecha_corte;
+            $estadoOriginal = $client->client_main_information->estado;
+
+            // 1) Suspensión real: fecha_corte -> null (SuspendService::ifClientChangeToBlockedRemoveDateCorte)
+            //    + período de gracia (solo RECURRENT).
+            $clientRepository = new ClientRepository();
+            $clientRepository->removeFechaCorteById($client->id);
+            $clientRepository->addPeriodoGracia($client);
+            $client->client_main_information->estado = 'Bloqueado';
+            $client->client_main_information->save();
+            $client->refresh();
+
+            // 2) Paga 5 días después del corte que aplicaba, DENTRO del período de gracia.
+            $fechaPagoReal = Carbon::parse($corteOriginal)->addDays(5);
+            Carbon::setTestNow($fechaPagoReal);
+
+            // 3) billingForce(): removePeriodoGracia() SIEMPRE corre antes que el guard de fecha_pago.
+            $clientRepository->removePeriodoGracia($client, true, 1);
+            $client->refresh();
+
+            $service = new BillingPaymentDateService();
+            $resultado = $service->getNewFechaPagoByClient($client, 1, false);
+
+            $esperado = $fechaPagoReal->copy()->addMonthsWithoutOverflow(1)->endOfDay()->toDateTimeString();
+
+            if ($resultado !== $esperado) {
+                return [
+                    'ok' => false,
+                    'detalle' => "Cliente #{$client->id}: un cliente RECURRENT suspendido (corte {$corteOriginal}) que paga el "
+                        . "{$fechaPagoReal->toDateString()} dentro del período de gracia debería anclar su nueva fecha_pago a "
+                        . "{$esperado}, pero dio {$resultado}. El guard de pago tardío no está detectando la suspensión real "
+                        . '(revisar la señal estado=Bloqueado en BillingPaymentDateService, rama RECURRENT).',
+                ];
+            }
+
+            return [
+                'ok' => true,
+                'detalle' => "Cliente #{$client->id}: flujo real de suspensión + pago tardío dentro del período de gracia ancla correctamente a {$resultado}.",
+            ];
+        } finally {
+            Carbon::setTestNow();
+            DB::rollBack();
+        }
+    }
+
+    /**
+     * Regresión del bug real de producción (2026-09-18, commit del fix de BillingExpirationService):
+     * en CUSTOM, fecha_corte se calculaba desde fecha_corte_anterior + N meses, TOTALMENTE
+     * desconectado de fecha_pago — un pago tardío podía dejar fecha_corte ANTES de la nueva
+     * fecha_pago (suspensión prematura). Ahora fecha_corte deriva de fecha_pago + billing_expiration,
+     * igual que RECURRENT. Este chequeo replica actionBilling()+setNewFechaCorteForClient() en
+     * orden real, con escrituras reales revertidas siempre en el finally.
+     */
+    private function checkCustomCorteSincronizadoConPago(): array
+    {
+        $client = Client::whereHas('client_main_information', function ($q) {
+            $q->where('type_of_billing_id', TypeBilling::TYPE_OF_BILLING_PREPAID_CUSTOM);
+        })
+            ->whereNotNull('fecha_corte')
+            ->whereNotNull('fecha_pago')
+            ->whereHas('billing_configuration')
+            ->first();
+
+        if (!$client) {
+            return ['ok' => true, 'detalle' => 'Sin cliente CUSTOM con fecha_corte+fecha_pago+billing_configuration — chequeo omitido.'];
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $corte = Carbon::parse($client->fecha_corte);
+            Carbon::setTestNow($corte->copy()->addDays(5)); // paga 5 días tarde
+
+            $paymentService = new BillingPaymentDateService();
+            $newFechaPago = $paymentService->getNewFechaPagoByClient($client, 1, false);
+            $client->fecha_pago = $newFechaPago;
+            $client->save();
+            $client->refresh();
+
+            $expirationService = new BillingExpirationService($client);
+            $newFechaCorte = $expirationService->setNewFechaCorteForClient(null, 1);
+
+            if (Carbon::parse($newFechaCorte)->lte(Carbon::parse($newFechaPago))) {
+                return [
+                    'ok' => false,
+                    'detalle' => "Cliente #{$client->id}: tras un pago CUSTOM tardío, fecha_corte ({$newFechaCorte}) quedó ANTES O IGUAL "
+                        . "que la nueva fecha_pago ({$newFechaPago}) — el cliente se suspendería antes de que le toque volver a pagar. "
+                        . 'Revisar BillingExpirationService::getFechaCorteForBillingPrepaidCustom() (debe derivar de fecha_pago).',
+                ];
+            }
+
+            return [
+                'ok' => true,
+                'detalle' => "Cliente #{$client->id}: fecha_corte ({$newFechaCorte}) queda después de la nueva fecha_pago ({$newFechaPago}).",
+            ];
+        } finally {
+            Carbon::setTestNow();
+            DB::rollBack();
         }
     }
 
@@ -281,6 +423,8 @@ class VerificarPagosRecurrentesCommand extends Command
         return match ($checkKey) {
             'recurrent_pago_tarde' => 'fecha de corte no se mueve con pago tardío (RECURRENT)',
             'custom_pago_tarde' => 'fecha de corte no se mueve con pago tardío (CUSTOM)',
+            'recurrent_suspendido_pago_tarde' => 'un RECURRENT ya suspendido que paga tarde no ancla bien la fecha_pago',
+            'custom_corte_sincronizado_con_pago' => 'fecha_corte quedó antes que la nueva fecha_pago en CUSTOM',
             'daily_now_independiente' => 'DAILY dejó de ser independiente de la hora actual',
             'webhooks_sin_duplicado' => 'webhook de pago aplicado más de una vez',
             default => $checkKey,

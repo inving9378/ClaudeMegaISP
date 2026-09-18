@@ -110,10 +110,27 @@ class BillingExpirationService
             ->toDateTimeString(); // Convierte a string completo
     }
 
+    /**
+     * FIX (2026-09-18): antes calculaba `fecha_corte_anterior + N meses`, TOTALMENTE
+     * desconectado de `fecha_pago` — cuando un pago tardío (BillingPaymentDateService,
+     * fix del 2026-09-17) mueve fecha_pago al día real del pago, fecha_corte seguía su
+     * propio calendario fijo y podía quedar ANTES de la nueva fecha_pago. Confirmado
+     * con datos reales (cliente #19): pago tardío → fecha_pago nueva = 04-ago, pero
+     * fecha_corte (sin este fix) = 29-jul — el cron de suspensión lo habría cortado
+     * 6 días antes de su fecha de pago real. Ahora deriva de fecha_pago +
+     * billing_expiration, igual que ya hace PREPAID_RECURRENT — por eso el
+     * multiplicador de meses deja de usarse aquí (ya viaja implícito en fecha_pago,
+     * que BillingPaymentDateService::getNewFechaPagoByClient ya calculó para N
+     * ciclos). Requiere que fecha_pago esté actualizada ANTES de llamar a este
+     * método — ya lo está en los 2 call sites reales (ClientBillingService, con
+     * $client->refresh() o mutación in-memory de Eloquent::update() antes de aquí).
+     */
     private function getFechaCorteForBillingPrepaidCustom(mixed $typeOfBilling, $fechaCorteAnterior, $cantidadDeDiasOmesesAMultiplicarLaFechaSegunEltipoDeBilling)
     {
         if ($typeOfBilling == TypeBilling::TYPE_OF_BILLING_PREPAID_CUSTOM) {
-            return Carbon::parse($fechaCorteAnterior)->addMonthsWithoutOverflow($cantidadDeDiasOmesesAMultiplicarLaFechaSegunEltipoDeBilling)->endOfDay()->toDateTimeString();
+            $billingExpiration = $this->client->billing_configuration->billing_expiration;
+            $fechaPago = $this->client->fecha_pago;
+            return Carbon::parse($fechaPago)->addDays($billingExpiration)->endOfDay()->toDateTimeString();
         }
         return null;
     }

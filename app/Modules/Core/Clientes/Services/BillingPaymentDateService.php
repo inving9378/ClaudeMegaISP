@@ -2,6 +2,7 @@
 
 namespace App\Modules\Core\Clientes\Services;
 
+use App\Http\Controllers\Utils\ComunConstantsController;
 use App\Http\Controllers\Utils\UtilController;
 use App\Modules\Core\Clientes\Repositories\ClientRepository;
 use App\Http\Repository\TransactionRepository;
@@ -50,8 +51,32 @@ class BillingPaymentDateService
             // llamada (setNewFechaCorteForClient corre después en
             // ClientBillingService::billingServicesByClient) — es el corte real
             // que aplicaba a ESTE pago.
-            $pagoTarde = !$restarDia && $client->fecha_corte
-                && Carbon::now()->gt(Carbon::parse($client->fecha_corte));
+            //
+            // SEGUNDA SEÑAL (2026-09-18, corrige un gap real del fix anterior):
+            // fecha_corte NO SIRVE para detectar el caso más común de pago
+            // tardío — un cliente RECURRENT que de verdad se suspendió. En ese
+            // camino: (1) al bloquearse, el observer pone fecha_corte=null
+            // (SuspendService::ifClientChangeToBlockedRemoveDateCorte); (2) si
+            // paga dentro del período de gracia, ClientBillingService::
+            // billingForce() llama removePeriodoGracia() ANTES de llegar aquí,
+            // que vuelve a escribir fecha_corte con un valor NUEVO (calculado
+            // desde "hoy", no relacionado con el corte original) — así que para
+            // cuando este método corre, fecha_corte ya no es "el corte real que
+            // aplicaba a este pago", es un valor recién sobreescrito que casi
+            // siempre da $pagoTarde=false aunque el cliente lleve días
+            // suspendido. Verificado con datos reales: cliente #17, corte
+            // 01-jul, paga 06-jul ya suspendido → con solo fecha_corte el guard
+            // daba 30-jul (❌, igual que sin el fix) en vez de 06-ago (✅).
+            // Por eso se suma: si el cliente está bloqueado AHORA MISMO (justo
+            // antes de que ClientBillingService::cobrarYActivarCliente() lo
+            // reactive, que corre DESPUÉS de este método en la misma request),
+            // es un hecho que su corte ya pasó — no hace falta saber la fecha
+            // exacta del corte viejo para eso, solo que sí pasó.
+            $clienteSuspendidoAhora = optional($client->client_main_information)->estado === ComunConstantsController::STATE_BLOCKED;
+            $pagoTarde = !$restarDia && (
+                ($client->fecha_corte && Carbon::now()->gt(Carbon::parse($client->fecha_corte)))
+                || $clienteSuspendidoAhora
+            );
             if ($pagoTarde) {
                 $newFechaPago = Carbon::now()->addMonthsWithoutOverflow($cuantasVecesSeLePuedeCobrar)->endOfDay()->toDateTimeString();
                 if ($includeLogs) {
