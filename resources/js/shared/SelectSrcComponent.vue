@@ -37,7 +37,7 @@
 </template>
 
 <script>
-import { reactive, ref, watch, onMounted, nextTick } from "vue";
+import { reactive, ref, watch, onMounted, onBeforeUnmount, nextTick } from "vue";
 import {
     selectTransform,
     getOptions,
@@ -76,7 +76,13 @@ export default {
                 props.property.position
             }_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
         );
+        let choiceInstance = null;
+        let syncingFromProp = false;
+
         watch(val, (newValue, oldValue) => {
+            if (syncingFromProp) {
+                return;
+            }
             if (newValue != oldValue) {
                 emit("update-field", {
                     value: val.value,
@@ -93,11 +99,22 @@ export default {
             }
         });
 
-        watch(() => props.modelValue, (newValue) => {
-            if (newValue !== val.value) {
-                val.value = newValue;
+        const destroyChoices = () => {
+            if (!choiceInstance) {
+                return;
             }
-        });
+            try {
+                choiceInstance.destroy();
+            } catch (error) {
+                console.error(error);
+            }
+            choiceInstance = null;
+        };
+
+        const renderChoices = async () => {
+            destroyChoices();
+            choiceInstance = await convertToSelect2(uniqueId.value, options, val);
+        };
 
         onMounted(async () => {
             let defaulValue = props.property.default_value;
@@ -117,11 +134,31 @@ export default {
                 ? selectTransform(props.property.options)
                 : await getOptions(props.property.search);
 
-            await nextTick(function () {
-                convertToSelect2(uniqueId.value, options, val);
-            });
+            await nextTick();
+            await renderChoices();
 
             isInitialized.value = true;
+        });
+
+        // Mismo bug que SelectComponent.vue: fieldsJson es un singleton compartido
+        // entre pantallas del SPA, así que al cambiar de registro dentro del mismo
+        // módulo Vue reutiliza esta instancia en vez de desmontarla. Sin resincronizar
+        // Choices.js aquí, el widget visual se queda con el valor del registro anterior.
+        watch(
+            () => props.modelValue,
+            (newValue) => {
+                if (!isInitialized.value || newValue === val.value) {
+                    return;
+                }
+                syncingFromProp = true;
+                val.value = newValue;
+                syncingFromProp = false;
+                renderChoices();
+            }
+        );
+
+        onBeforeUnmount(() => {
+            destroyChoices();
         });
 
         return {

@@ -36,7 +36,7 @@
 </template>
 
 <script>
-import { reactive, ref, watch, onMounted } from "vue";
+import { reactive, ref, watch, onMounted, onBeforeUnmount } from "vue";
 import {
     selectTransform,
     getOptions,
@@ -90,8 +90,16 @@ export default {
         watch(
             () => props.modelValue,
             (actual, actionBefore) => {
-                if (choice.value) {
-                    choice.value.setChoiceByValue(actual);
+                if (!choice.value) {
+                    return;
+                }
+                try {
+                    choice.value.removeActiveItems();
+                    if (actual !== null && actual !== undefined && actual !== "") {
+                        choice.value.setChoiceByValue(actual.toString());
+                    }
+                } catch (error) {
+                    console.error(error);
                 }
             }
         );
@@ -109,6 +117,21 @@ export default {
                     props.property.placeholder
                 );
             });
+        });
+
+        // fieldsJson es un singleton compartido entre pantallas del SPA: al cambiar
+        // de registro dentro del mismo módulo, Vue reutiliza esta instancia en vez
+        // de desmontarla/remontarla, dejando colgada la instancia de Choices.js
+        // (listeners globales de document) si no se destruye aquí.
+        onBeforeUnmount(() => {
+            if (choice.value) {
+                try {
+                    choice.value.destroy();
+                } catch (error) {
+                    console.error(error);
+                }
+                choice.value = null;
+            }
         });
 
         return {

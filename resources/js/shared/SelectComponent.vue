@@ -44,7 +44,7 @@
 </template>
 
 <script>
-import { reactive, ref, watch, onMounted, nextTick } from "vue";
+import { reactive, ref, watch, onMounted, onBeforeUnmount, nextTick } from "vue";
 import {
     selectTransform,
     getOptions,
@@ -84,7 +84,13 @@ export default {
                 props.property.position
             }_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
         );
+        let choiceInstance = null;
+        let syncingFromProp = false;
+
         watch(val, (newValue, oldValue) => {
+            if (syncingFromProp) {
+                return;
+            }
             if (newValue != oldValue) {
                 emit("update-field", {
                     value: val,
@@ -100,6 +106,23 @@ export default {
                 );
             }
         });
+
+        const destroyChoices = () => {
+            if (!choiceInstance) {
+                return;
+            }
+            try {
+                choiceInstance.destroy();
+            } catch (error) {
+                console.error(error);
+            }
+            choiceInstance = null;
+        };
+
+        const renderChoices = async () => {
+            destroyChoices();
+            choiceInstance = await convertToSelect2(uniqueId.value, options, val);
+        };
 
         onMounted(async () => {
             let defaulValue = props.property.default_value;
@@ -119,11 +142,41 @@ export default {
                 ? selectTransform(props.property.options)
                 : await getOptions(props.property.search);
 
-            await nextTick(function () {
-                convertToSelect2(uniqueId.value, options, val);
-            });
+            await nextTick();
+            await renderChoices();
 
             isInitialized.value = true;
+        });
+
+        // fieldsJson (hook/crudHook.js) es un singleton compartido entre pantallas
+        // del SPA: al cambiar de registro dentro del mismo módulo, Vue reutiliza esta
+        // misma instancia del componente (misma llave en el v-for) en vez de
+        // desmontarla/remontarla, así que "modelValue" cambia pero onMounted no
+        // vuelve a correr. Sin este watch, el widget de Choices.js se queda
+        // mostrando el valor/estado visual del registro anterior (a veces "abierto",
+        // a veces sin su wrapper y con pinta de deshabilitado) hasta recargar.
+        watch(
+            () => props.modelValue,
+            (newValue) => {
+                if (!isInitialized.value) {
+                    return;
+                }
+                const nextVal =
+                    typeof newValue === "number"
+                        ? newValue.toString()
+                        : newValue ?? null;
+                if (nextVal === val.value) {
+                    return;
+                }
+                syncingFromProp = true;
+                val.value = nextVal;
+                syncingFromProp = false;
+                renderChoices();
+            }
+        );
+
+        onBeforeUnmount(() => {
+            destroyChoices();
         });
 
         return {
