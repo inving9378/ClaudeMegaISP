@@ -75,6 +75,56 @@ Sigue pendiente, fuera de alcance de este fix, la misma familia de bug aplicada 
 codebase por el mismo patrón") — es el mismo tipo de defecto (listener/estado que sobrevive al
 desmontaje en la SPA), pero en un mecanismo distinto.
 
+**Verificado en navegador real (Playwright + Chromium, commit `b092c177` incluido) — Irving pidió
+probarlo antes de mergear:**
+- Se leyó `resources/js/spa-nav.js` completo para confirmar el mecanismo real: `spaNavigate()`
+  hace `window.__megaVueApp.unmount()` + `window.createMainApp()` en cada navegación (desmontaje y
+  remontaje GENUINOS del árbol de Vue, no un patch en el sitio) — pero el **módulo JS** (y
+  cualquier singleton module-level, como `fieldsJson`/`isEdit`) sobreviven porque los imports de
+  JS no se re-evalúan. Confirma que el bug real es el singleton, no el ciclo de vida de Vue en sí.
+- Con credenciales de prueba reales (`david_marsal`, rol DESARROLLADOR) se reprodujo el bug ANTES
+  del fix: cargar `/crm/editar/763` (crm_status real = "Instalacion") y navegar por SPA (con
+  `window.__spaNavigate`, el mismo mecanismo que un click real) a `/crm/editar/466` (crm_status
+  real = "Interesado") deja el select **congelado mostrando "Instalacion"** — reproducción exacta
+  del síntoma reportado. Con el fix aplicado (mismo flujo, misma sesión), el select muestra
+  correctamente "Interesado".
+- El fix de `isEdit` (commit `b092c177`) no rompió el fix de Choices.js — se re-corrió la misma
+  prueba 763→466 después de aplicarlo y el resultado sigue correcto.
+- **Bonus, hallazgo aparte sin tocar (fuera de alcance):** durante la prueba se vio en consola un
+  error real y distinto: `500 POST /helper/get-value-colony-state-municipality — Unknown column ''
+  in where clause` al montar `Select2EstadoMunicipioColoniaComponent` en el tab "Información" de
+  CRM — un bug de backend no relacionado con Choices.js/isEdit, no investigado ni corregido aquí.
+
+**Verificación adicional pedida por Irving — "las plantillas de CRM también se arreglaron"**
+(sobre el fix de #9991219, Generar-vs-Previsualizar): se rastreó el flujo REAL con calma, porque
+hay dos pares de rutas/componentes con el mismo nombre de método que NO son los que usa la UI viva:
+- La UI real de "Generar Contrato" en CRM (`DocumentCrmCrud.vue` → `CrmTemplate.vue`) usa el
+  componente compartido `TextTemplate.vue` (el mismo que usa `PlantillasClientes.vue` del lado
+  Cliente) — su botón "Previsualizar" pega a la ruta GENÉRICA
+  `/administracion/document_template/show_content_template`
+  (`DocumentTemplateController::showContentTemplate()` → `returnPath()`, **sin** wrap) — no a
+  `crm/document/show_content_template` (`DocumentCrmController::showContentTemplate()` →
+  `saveTemporalTemplateAndReturnPath()`, que **sí** wrappea pero está **muerto**: 0 referencias en
+  el frontend, igual que su análogo de Cliente y que `ContractTemplate.vue`, que tampoco lo importa
+  nadie). Confirmado por grep exhaustivo antes de concluir nada.
+- El botón "Generar" sí pega a la ruta real `crm/document/generate_contract/{id}` →
+  `ContractCrmService::generateContractClient()`, que ya tenía el wrap quitado (mismo commit que
+  el de Cliente).
+- **Prueba end-to-end real con Playwright** sobre el lead CRM #763 (real, no sintético): abrir tab
+  Documentos → "Generar Contrato" → tipo "Cliente Potencial" → plantilla "CONTRATO 6 MESES" →
+  "Cargar" (82,876 caracteres de HTML) → "Previsualizar" (interceptando la respuesta blob real) →
+  "Generar" (interceptando la respuesta JSON + descargando el PDF resultante). Resultado: **ambos
+  PDFs, 29,933 bytes, 5 páginas cada uno**, diff byte a byte confirma que las únicas 62 posiciones
+  distintas son `/CreationDate`+`/ModDate` (1 segundo de diferencia entre ambos renders) y el
+  `/ID` del trailer (derivado del timestamp) — cero diferencia de contenido real. **Las plantillas
+  de CRM sí quedaron arregladas**, mismo patrón y misma garantía que Clientes.
+- Se limpió el documento de prueba (`document_crms` id 864 + `files` id 9044, ambos sobre el lead
+  real #763) generado por esta verificación. El PDF físico
+  (`storage/app/public/client/763/document/CONTRATO 6 MESES.pdf`) quedó huérfano en disco —
+  `meganet` no tiene permiso de escritura sobre ese árbol (`www-data:www-data`, sin sudo sin
+  contraseña disponible) para borrarlo; es exactamente el tipo de archivo que ya cubre la pantalla
+  existente `crm/documentos-huerfanos`, 29 KB, sin dato real, sin URL pública nueva expuesta.
+
 **Hallazgo adicional, no corregido (fuera de alcance de este fix):** `hook/comunValues.js:82`
 — `export const isEdit = window.location.href.includes('editar');` es una constante calculada
 UNA sola vez, al cargar el bundle — no reacciona a la navegación SPA. Puede quedar "congelado"
