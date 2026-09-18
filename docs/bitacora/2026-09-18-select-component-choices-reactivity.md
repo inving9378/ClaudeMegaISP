@@ -39,14 +39,41 @@ campo, que es una configuración de MÓDULO, no de registro) y reconstruye Choic
 siempre la instancia. Mismo patrón que ya usa el propio código en
 `Select2TypeTemplateSelectComponent.vue::changeTemplate()`. `npm run dev` compiló limpio.
 
-**Alcance de esta vuelta:** solo `SelectComponent.vue` (el más usado). El resto de la familia
-Choices.js (`Select2Component.vue`, `SelectComponentTask.vue`, `SelectComponentWithSearch.vue`,
-`SelectComponentWithSearchClient.vue`, `SelectTemplateListVerificationComponent.vue`,
-`Select2WithLabelComponent.vue`, `SelectSrcComponent.vue`) comparte el mismo defecto en
-distintos grados y queda pendiente de la misma auditoría/fix — igual que el ítem ya abierto en
-CLAUDE.md para el antipatrón `$(document).on` sin `.off()` ("Falta auditar el resto del
-codebase por el mismo patrón"), esto es la misma familia de bug aplicada a Choices.js en vez
-de jQuery.
+**Extendido a los 7 hermanos (commit `c1f08690`, misma rama):** Irving pidió extender el mismo
+fix a toda la familia, no solo a `SelectComponent.vue`. Mismo copy-paste original, mismo
+defecto en distintos grados:
+
+- `SelectComponentTask.vue` — copia exacta del bug de `SelectComponent.vue` (sin watch de
+  `modelValue`, sin destroy al desmontar). Mismo fix aplicado íntegro.
+- `SelectSrcComponent.vue` — ya tenía un `watch(() => props.modelValue)`, pero solo
+  actualizaba el `ref` interno `val` sin refrescar el widget visual de Choices.js (el "select"
+  seguía mostrando el valor/opciones del registro anterior aunque el valor interno sí
+  cambiara). Se completó con destroy+reconstrucción, igual que `SelectComponent.vue`.
+- `Select2Component.vue`, `SelectComponentWithSearch.vue`, `SelectComponentWithSearchClient.vue`,
+  `SelectTemplateListVerificationComponent.vue` — estos ya tenían un
+  `watch(() => props.modelValue)` que llamaba `choice.value.setChoiceByValue(actual)`
+  directamente sobre la instancia existente (sin destruir/reconstruir), pero (a) nunca
+  destruían la instancia al desmontar el componente, y (b) no limpiaban la selección previa
+  (`removeActiveItems()`) antes de fijar la nueva ni manejaban el caso de valor vacío/null. Se
+  completaron ambos puntos + `try/catch` defensivo (Choices.js puede tronar si su contenedor ya
+  no está en el DOM).
+- `Select2WithLabelComponent.vue` — **sin ningún uso actual en el codebase**
+  (`grep -rln "Select2WithLabelComponent" resources/js` solo encuentra el propio archivo). Se
+  le aplicó el mismo destroy preventivo por consistencia, pero **no** se tocó un bug
+  preexistente y no relacionado detectado de paso en su llamada a `convertToSelect2` (los
+  argumentos `val`/`options.val` están en el orden equivocado respecto a la firma real de la
+  función) — al no estar en uso por nada, no hay forma de probarlo en producción; se deja
+  anotado aquí si algún día se reactiva este componente.
+
+`npm run dev` compiló limpio después de los 7 cambios. Todo en la rama
+`fix/select-component-choices-reactivity-spa` (2 commits: `948475a9` + `c1f08690`), pusheada,
+pendiente de que Irving la revise/mergee y de una prueba visual en el navegador (no se pudo
+probar en vivo esta sesión — sin herramientas de navegador disponibles).
+
+Sigue pendiente, fuera de alcance de este fix, la misma familia de bug aplicada a jQuery
+(`$(document).on` sin `.off()`, ítem ya abierto en CLAUDE.md: "Falta auditar el resto del
+codebase por el mismo patrón") — es el mismo tipo de defecto (listener/estado que sobrevive al
+desmontaje en la SPA), pero en un mecanismo distinto.
 
 **Hallazgo adicional, no corregido (fuera de alcance de este fix):** `hook/comunValues.js:82`
 — `export const isEdit = window.location.href.includes('editar');` es una constante calculada
