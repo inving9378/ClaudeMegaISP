@@ -146,8 +146,12 @@ export default {
                     data.module = props.module;
                 }
 
+                // Ruta neutral (item roadmap #9991221): TextTemplate.vue lo consumen
+                // Clientes y CRM además de Administración; la ruta de admin exigía
+                // documentos.view/config_view_system, que ningún rol operativo tiene
+                // (Vendedor/Mostrador/TECNICO/Almacen) → 403 al previsualizar desde ahí.
                 const response = await axios.post(
-                    `/administracion/document_template/show_content_template`,
+                    `/plantillas/preview`,
                     data,
                     { responseType: "blob" } // Especifica que esperas un blob como respuesta
                 );

@@ -45,3 +45,13 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/table', [DocumentTypeTemplateController::class, 'table']);
         });
     });
+
+// Item roadmap #9991221 (Irving, opción 1 de q1): TextTemplate.vue (Previsualizar) lo
+// consumen Clientes y CRM, no solo Administración — un usuario Vendedor/Mostrador/TECNICO/
+// Almacen sin permiso de Administración recibía 403 al previsualizar una plantilla desde
+// la ficha de cliente o de CRM (bug funcional confirmado, NO fuga de permisos — ver
+// docs/bitacora/2026-09-18-plantillas-preview-permiso-item-9991221.md). Ruta neutral,
+// mismo controller/método (sin duplicar lógica), gateada por su propio permiso
+// `plantillas.preview` — la ruta de Administración queda intacta para TemplateManager.vue.
+Route::middleware(['web', 'auth', 'check_route_permission'])
+    ->post('/plantillas/preview', [DocumentTemplateController::class, 'showContentTemplate']);
