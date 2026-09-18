@@ -2,6 +2,8 @@
 //
 // ROLLBACK: cambia SPA_ENABLED a false para volver a recarga completa al instante.
 
+import { refreshIsEdit } from "./hook/comunValues";
+
 const SPA_ENABLED = true;
 
 // Vistas con @push('scripts') propios: entrar O salir → recarga completa.
@@ -276,6 +278,13 @@ async function spaNavigate(url, pushState) {
         container.style.transition = 'opacity 60ms';
         container.style.opacity = '0';
         container.innerHTML = newContent.innerHTML;
+
+        // 5.5 Refrescar isEdit ANTES de remontar, con la URL destino (no
+        // window.location.href — todavía no se actualiza aquí para una
+        // navegación hacia adelante, el pushState pasa hasta el paso 9). Así
+        // los componentes que se monten en el paso 6 ya ven el valor correcto
+        // desde su primer render (ver hook/comunValues.js).
+        refreshIsEdit(url);
 
         // 6. Re-montar app de contenido
         if (typeof window.createMainApp === 'function') {
