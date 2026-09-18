@@ -87,6 +87,21 @@ class ClientBillingService
         }
 
         if ($typeOfBilling == TypeBilling::TYPE_OF_BILLING_PREPAID_RECURRENT && $typeBillingExecute == self::TYPE_BILLING_EXECUTED_PROCESS) {
+            // FIX (2026-09-18, decisión de Irving): un cliente RECURRENT sin saldo
+            // suficiente solo debe seguir acumulando adeudo automático mientras siga
+            // DENTRO de la duración de su contrato (ej. contrató 12 meses, pagó 2 → los
+            // 10 restantes SÍ se acumulan; el mes 13 en adelante NO — prepago nunca
+            // acumula, eso ya era así). Antes esta rama cobraba indefinidamente sin
+            // tope: 93 clientes reales en prod llevaban hasta 26 meses de sobre-cobro
+            // automático estando ya Bloqueados. Reusa clientHasReachedContractCap(),
+            // que a su vez reusa el cálculo YA EXISTENTE y usado en el documento de
+            // contrato (ClientService::getDataPendingPayments()) — cuenta PAGOS REALES
+            // hechos vs. duración contratada, no cuántas veces el cron ya cobró de más.
+            if ($this->clientHasReachedContractCap($client)) {
+                $this->logService->log($client, 'Cliente #' . $client->id . ' ya cubrió (con pagos reales) la duración completa de su contrato — no se le cobra más automáticamente sin saldo.');
+                return;
+            }
+
             $this->actionBilling($clientRepository, $client, 1, $transaction);
 
             // FIX (2026-09-18, encontrado en prod al reparar los 30 clientes de la
@@ -194,6 +209,23 @@ class ClientBillingService
     private function clientHasGracePeriodActive(Client $client)
     {
         return $client->fecha_fin_periodo_gracia != null;
+    }
+
+    /**
+     * ¿Ya cubrió (con pagos REALES) la duración completa de su contrato? Reusa
+     * ClientService::getDataPendingPayments() — el mismo cálculo ya usado para el
+     * documento de contrato (contract_months de duration_contracts vs. pagos reales
+     * en `transactions` tipo Pago) — en vez de duplicar la fórmula. `mesesRestantes`
+     * ya viene topado en 0 por ese método si el cliente pagó igual o más meses de los
+     * que contrató. Sin `duration_contract` asignado (0 meses) → conservador: se trata
+     * como ya cubierto (no se le acumula nada más sin ese dato).
+     */
+    private function clientHasReachedContractCap(Client $client): bool
+    {
+        $clientService = new ClientService($client);
+        $data = $clientService->getDataPendingPayments();
+
+        return ($data['mesesRestantes'] ?? 0) <= 0;
     }
 
     private function eliminaGracePeriod(Client $client)

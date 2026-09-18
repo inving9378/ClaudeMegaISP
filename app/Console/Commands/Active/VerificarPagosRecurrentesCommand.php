@@ -61,6 +61,10 @@ class VerificarPagosRecurrentesCommand extends Command
             // tiene suficiente balance pero le cobro el servicio" (cron billing_service_command:
             // process), avanzaba fecha_pago sin nunca llamar a setNewFechaCorteForClient().
             'recurrent_balance_insuficiente_corte_avanza' => fn () => $this->checkRecurrentBalanceInsuficienteCorteAvanza(),
+            // 2026-09-18 (decisión de política de Irving, tras encontrar 93 clientes con hasta 26
+            // meses de sobre-cobro automático): un RECURRENT sin saldo solo debe seguir acumulando
+            // adeudo mientras siga DENTRO de la duración de su contrato — no indefinidamente.
+            'recurrent_tope_duracion_contrato' => fn () => $this->checkRecurrentTopeDuracionContrato(),
             'webhooks_sin_duplicado'  => fn () => $this->checkWebhooksSinAplicacionDuplicada(),
         ];
 
@@ -308,16 +312,38 @@ class VerificarPagosRecurrentesCommand extends Command
      */
     private function checkRecurrentBalanceInsuficienteCorteAvanza(): array
     {
-        $client = Client::whereHas('client_main_information', function ($q) {
+        // Excluye clientes que ya taparon la duración de su contrato (checkRecurrentTopeDuracionContrato,
+        // 2026-09-18) — para esos, NO cobrar es el comportamiento correcto, así que fecha_corte/fecha_pago
+        // se quedan quietos a propósito y este chequeo (que verifica que SÍ se cobre) daría un falso
+        // positivo si tomara uno de esos clientes.
+        // Orden descendente por id: los clientes más recientes tienen más probabilidad de seguir
+        // DENTRO de su contrato original (los más viejos ya lo cubrieron tras años de pagos) —
+        // encuentra un candidato válido explorando muchos menos registros.
+        $candidatos = Client::whereHas('client_main_information', function ($q) {
             $q->where('type_of_billing_id', TypeBilling::TYPE_OF_BILLING_PREPAID_RECURRENT);
         })
             ->whereNotNull('fecha_corte')
             ->whereNotNull('fecha_pago')
             ->whereHas('billing_configuration')
-            ->first();
+            ->orderByDesc('id')
+            ->limit(300)
+            ->get();
+
+        $client = null;
+        foreach ($candidatos as $c) {
+            try {
+                $data = (new \App\Modules\Core\Clientes\Services\ClientService($c))->getDataPendingPayments();
+            } catch (\Throwable $e) {
+                continue;
+            }
+            if (($data['mesesRestantes'] ?? 1) > 0) {
+                $client = $c;
+                break;
+            }
+        }
 
         if (!$client) {
-            return ['ok' => true, 'detalle' => 'Sin cliente RECURRENT con fecha_corte+fecha_pago+billing_configuration — chequeo omitido.'];
+            return ['ok' => true, 'detalle' => 'Sin cliente RECURRENT con fecha_corte+fecha_pago+billing_configuration dentro de su contrato — chequeo omitido.'];
         }
 
         DB::beginTransaction();
@@ -353,6 +379,102 @@ class VerificarPagosRecurrentesCommand extends Command
             return [
                 'ok' => true,
                 'detalle' => "Cliente #{$client->id}: fecha_corte avanzó junto con fecha_pago ({$corteAntes} → {$client->fecha_corte}).",
+            ];
+        } finally {
+            DB::rollBack();
+        }
+    }
+
+    /**
+     * Regresión de la decisión de política de Irving (2026-09-18): un cliente RECURRENT sin
+     * saldo suficiente solo debe seguir acumulando adeudo automático mientras siga DENTRO de la
+     * duración de su contrato (ClientBillingService::clientHasReachedContractCap(), que reusa
+     * ClientService::getDataPendingPayments()). Verifica los DOS lados con clientes reales:
+     * uno que aún debe meses de su contrato (debe seguir cobrando) y uno que ya cubrió toda su
+     * duración con pagos reales (NO debe cobrar más). Escritura real de saldo, siempre revertida.
+     */
+    private function checkRecurrentTopeDuracionContrato(): array
+    {
+        $candidatos = Client::whereHas('client_main_information', function ($q) {
+            $q->where('type_of_billing_id', TypeBilling::TYPE_OF_BILLING_PREPAID_RECURRENT)
+                ->whereNotNull('duration_contract_id');
+        })
+            ->whereHas('billing_configuration')
+            ->limit(500)
+            ->get(['id']);
+
+        if ($candidatos->isEmpty()) {
+            return ['ok' => true, 'detalle' => 'Sin clientes RECURRENT con duration_contract_id — chequeo omitido.'];
+        }
+
+        $dentro = null;
+        $fuera = null;
+
+        foreach ($candidatos as $row) {
+            $c = Client::find($row->id);
+            if (!$c) {
+                continue;
+            }
+            try {
+                $data = (new \App\Modules\Core\Clientes\Services\ClientService($c))->getDataPendingPayments();
+            } catch (\Throwable $e) {
+                continue;
+            }
+
+            if (!$dentro && ($data['mesesRestantes'] ?? 0) > 0) {
+                $dentro = $c;
+            }
+            if (!$fuera && ($data['mesesRestantes'] ?? 0) <= 0 && ($data['contractMonthsDuration'] ?? 0) > 0) {
+                $fuera = $c;
+            }
+            if ($dentro && $fuera) {
+                break;
+            }
+        }
+
+        if (!$dentro || !$fuera) {
+            return ['ok' => true, 'detalle' => 'No se encontraron ambos casos (dentro/fuera de contrato) entre los primeros 500 candidatos — chequeo omitido.'];
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $jobsAntes = DB::table('jobs')->count();
+
+            foreach ([$dentro, $fuera] as $c) {
+                $c->load('balance');
+                $c->balance->amount = -99999;
+                $c->balance->save();
+            }
+
+            $billingService = new ClientBillingService();
+
+            $billingService->billingServicesByClient($dentro, ClientBillingService::TYPE_BILLING_EXECUTED_PROCESS);
+            $jobsTrasDentro = DB::table('jobs')->count();
+
+            $billingService->billingServicesByClient($fuera, ClientBillingService::TYPE_BILLING_EXECUTED_PROCESS);
+            $jobsTrasFuera = DB::table('jobs')->count();
+
+            $seCobroDentro = $jobsTrasDentro > $jobsAntes;
+            $seCobroFuera = $jobsTrasFuera > $jobsTrasDentro;
+
+            if (!$seCobroDentro) {
+                return [
+                    'ok' => false,
+                    'detalle' => "Cliente #{$dentro->id} (aún dentro de su contrato) NO se cobró sin saldo — el tope de contrato está bloqueando cobros legítimos.",
+                ];
+            }
+
+            if ($seCobroFuera) {
+                return [
+                    'ok' => false,
+                    'detalle' => "Cliente #{$fuera->id} (ya cubrió con pagos reales la duración completa de su contrato) SÍ se cobró sin saldo — el tope de contrato dejó de aplicarse (regresión del fix de política de Irving, 2026-09-18).",
+                ];
+            }
+
+            return [
+                'ok' => true,
+                'detalle' => "Cliente #{$dentro->id} (dentro de contrato) sí se cobra; cliente #{$fuera->id} (ya cubrió su contrato) no se cobra más.",
             ];
         } finally {
             DB::rollBack();
@@ -496,6 +618,7 @@ class VerificarPagosRecurrentesCommand extends Command
             'recurrent_suspendido_pago_tarde' => 'un RECURRENT ya suspendido que paga tarde no ancla bien la fecha_pago',
             'custom_corte_sincronizado_con_pago' => 'fecha_corte quedó antes que la nueva fecha_pago en CUSTOM',
             'recurrent_balance_insuficiente_corte_avanza' => 'fecha_corte no avanzó cuando el cron cobra sin saldo suficiente (RECURRENT)',
+            'recurrent_tope_duracion_contrato' => 'el tope de duración de contrato para cobro automático dejó de funcionar (RECURRENT)',
             'daily_now_independiente' => 'DAILY dejó de ser independiente de la hora actual',
             'webhooks_sin_duplicado' => 'webhook de pago aplicado más de una vez',
             default => $checkKey,
