@@ -41,7 +41,7 @@
 </template>
 
 <script>
-import { reactive, ref, watch, onMounted } from "vue";
+import { reactive, ref, watch, onMounted, onBeforeUnmount } from "vue";
 import {
     selectTransform,
     getOptions,
@@ -77,6 +77,8 @@ export default {
             val: [],
         });
 
+        let choiceInstance = null;
+
         watch(val, () => {
             emit("update-field", { value: val, field: props.field });
         });
@@ -86,9 +88,24 @@ export default {
                 ? selectTransform(props.options.options)
                 : await getOptions(props.options.search);
 
-            $(document).ready(function () {
-                convertToSelect2(props.field, val, options.val);
+            $(document).ready(async () => {
+                choiceInstance = await convertToSelect2(props.field, val, options.val);
             });
+        });
+
+        // Sin componente activo, este onBeforeUnmount es preventivo: evita que, si
+        // alguna pantalla llega a reutilizar esta instancia (mismo patrón de
+        // fieldsJson singleton que los demás select-component), la instancia de
+        // Choices.js quede colgada con listeners globales de document sin liberar.
+        onBeforeUnmount(() => {
+            if (choiceInstance) {
+                try {
+                    choiceInstance.destroy();
+                } catch (error) {
+                    console.error(error);
+                }
+                choiceInstance = null;
+            }
         });
 
         return {
