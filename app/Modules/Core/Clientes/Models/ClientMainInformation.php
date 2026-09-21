@@ -250,11 +250,27 @@ class ClientMainInformation extends BaseModel
         }
     }
 
+    private $serviceAttributeCache;
+    private $serviceAttributeCached = false;
+
+    /**
+     * Memoización POR INSTANCIA (no persiste entre requests — cada consulta
+     * crea instancias nuevas). getCostAllService() hace una cascada de ~12
+     * queries (cliente, servicios, bundle, facturación...) y este accessor no
+     * tenía memoria propia: se recalculaba desde cero en CADA acceso a
+     * ->service, incluso sobre la MISMA instancia — costoso en cualquier
+     * lugar que itere colecciones de clientes accediendo a ->service más de
+     * una vez (ej. CalculateBalanceSellerService, que la accedía cientos de
+     * veces sobre las mismas ventas). No cambia el valor devuelto.
+     */
     public function getServiceAttribute()
     {
-        $repository = new ClientRepository();
-        $service = $repository->getCostAllService($this->client_id);
-        return $service;
+        if (! $this->serviceAttributeCached) {
+            $repository = new ClientRepository();
+            $this->serviceAttributeCache = $repository->getCostAllService($this->client_id);
+            $this->serviceAttributeCached = true;
+        }
+        return $this->serviceAttributeCache;
     }
 
     public function getCssStateAttribute()
@@ -343,10 +359,10 @@ class ClientMainInformation extends BaseModel
                     'id' => $p->id,
                     'date' => Carbon::createFromFormat('Y-m-d', substr($p->date, 0, 10))->format('d/m/Y'),
                     'amount' => number_format($p->amount, 2, '.'),
-                    'method' => $p->payment_method->type,
+                    'method' => $p->payment_method?->type,
                     'period' => $p->payment_period,
                     'receipt' => $p->receipt,
-                    'created_by' => $p->user->name
+                    'created_by' => $p->user?->name
                 ];
             }
             return [

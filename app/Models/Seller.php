@@ -20,6 +20,28 @@ class Seller extends BaseModel
         'balance'
     ];
 
+    /**
+     * Memoización POR INSTANCIA (vive mientras viva este objeto Seller en
+     * memoria — normalmente la duración de un request; nunca persiste entre
+     * requests). hasPaymentByRuleInPeriod()/hasNotBeenPaid() se llamaban antes
+     * con una consulta DB por invocación — dentro del ciclo semana×tipo de
+     * CalculateBalanceSellerService eso son cientos de queries idénticas salvo
+     * por el rango. Aquí se trae el detalle de pagos completo del vendedor UNA
+     * vez y se filtra en memoria, sin cambiar ningún resultado.
+     */
+    private ?\Illuminate\Support\Collection $paymentByRuleDetailsCache = null;
+
+    private function paymentByRuleDetails(): \Illuminate\Support\Collection
+    {
+        if ($this->paymentByRuleDetailsCache === null) {
+            $id = $this->id;
+            $this->paymentByRuleDetailsCache = PaymentByRuleDetails::whereHas('payment', function ($query) use ($id) {
+                $query->where('seller_id', $id);
+            })->get();
+        }
+        return $this->paymentByRuleDetailsCache;
+    }
+
     public static function boot()
     {
         parent::boot();
@@ -125,25 +147,29 @@ class Seller extends BaseModel
 
     public function hasPaymentByRuleInPeriod($data, $type)
     {
-        $id = $this->id;
-        $payment = PaymentByRuleDetails::whereHas('payment', function ($query) use ($id) {
-            $query->where('seller_id', $id);
-        })->with(['payment' => function ($query) use ($id) {
-            $query->where('seller_id', $id);
-        }])->where('type', $type)->whereDate('start_date', $data['from'])->whereDate('end_date', $data['to'])->first();
+        $from = substr($data['from'], 0, 10);
+        $to = substr($data['to'], 0, 10);
+        $payment = $this->paymentByRuleDetails()->first(function ($row) use ($type, $from, $to) {
+            return $row->type === $type
+                && $row->start_date?->format('Y-m-d') === $from
+                && $row->end_date?->format('Y-m-d') === $to;
+        });
         return $payment != null;
     }
 
     public function hasNotBeenPaid($sale)
     {
-        $id = $this->id;
-        $payment = PaymentByRuleDetails::whereHas('payment', function ($query) use ($id) {
-            $query->where('seller_id', $id);
-        })->with(['payment' => function ($query) use ($id) {
-            $query->where('seller_id', $id);
-        }])->where('type', 'additional_sales_commissions')->whereJsonContains('sales', [
-            'id' => $sale->client_id
-        ])->first();
+        $payment = $this->paymentByRuleDetails()->first(function ($row) use ($sale) {
+            if ($row->type !== 'additional_sales_commissions' || !is_array($row->sales)) {
+                return false;
+            }
+            foreach ($row->sales as $s) {
+                if (is_array($s) && ($s['id'] ?? null) == $sale->client_id) {
+                    return true;
+                }
+            }
+            return false;
+        });
         return $payment == null;
     }
 
