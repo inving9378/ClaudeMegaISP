@@ -1,5 +1,5 @@
 <template>
-  <div class="talento-expediente-documentos">
+  <div class="talento-expediente-documentos tc-wrap" :class="{ 'tc-dark': darkMode }">
     <div v-if="loading" class="text-center py-4">
       <div class="spinner-border spinner-border-sm text-primary"></div>
     </div>
@@ -12,7 +12,7 @@
           <tr v-for="doc in items" :key="doc.id">
             <td>
               <div class="fw-semibold">{{ doc.template?.name ?? '—' }}</div>
-              <span class="badge" :class="statusBadgeClass(doc)">{{ statusBadgeText(doc) }}</span>
+              <span class="tc-status" :class="statusBadgeClass(doc)">{{ statusBadgeText(doc) }}</span>
               <div v-if="doc.firmado && !tieneSlots(doc)" class="small text-muted mt-1">
                 Firmado el {{ formatFecha(doc.signed_at) }}
                 <img v-if="doc.signature_url" :src="doc.signature_url" alt="Firma" class="firma-preview-inline d-block mt-1">
@@ -20,20 +20,20 @@
             </td>
             <td class="text-end">
               <div class="d-flex flex-wrap gap-1 justify-content-end">
-                <a :href="documentoUrl(doc)" target="_blank" class="btn btn-sm btn-primary">
+                <a :href="documentoUrl(doc)" target="_blank" class="tc-btn tc-btn-info btn-sm">
                   <i class="fa fa-eye me-1"></i>Ver
                 </a>
-                <button @click="imprimir(doc)" type="button" class="btn btn-sm btn-secondary">
+                <button @click="imprimir(doc)" type="button" class="tc-btn tc-btn-seg btn-sm">
                   <i class="fa fa-print me-1"></i>Imprimir
                 </button>
-                <button v-if="doc.pendiente_firma" @click="abrirFirma(doc)" type="button" class="btn btn-sm btn-danger">
+                <button v-if="doc.pendiente_firma" @click="abrirFirma(doc)" type="button" class="tc-btn tc-btn-bad-solid btn-sm">
                   <i class="fa fa-signature me-1"></i>Firmar
                 </button>
-                <button v-else-if="doc.requires_signature" @click="abrirFirma(doc)" type="button" class="btn btn-sm btn-secondary">
+                <button v-else-if="doc.requires_signature" @click="abrirFirma(doc)" type="button" class="tc-btn tc-btn-seg btn-sm">
                   <i class="fa fa-signature me-1"></i>{{ tieneSlots(doc) ? 'Firmas completas' : 'Volver a firmar' }}
                 </button>
                 <button v-if="(doc.huecos_count ?? 0) > 0"
-                        @click="abrirCompletar(doc)" type="button" class="btn btn-sm btn-primary">
+                        @click="abrirCompletar(doc)" type="button" class="tc-btn tc-btn-primary btn-sm">
                   <i class="fa fa-clipboard-check me-1"></i>Completar documento
                 </button>
               </div>
@@ -62,7 +62,7 @@
                 <i class="fa fa-check-circle text-success me-1"></i>Ya firmado
                 <img v-if="recuadro.signatureUrlInicial" :src="recuadro.signatureUrlInicial" alt="Firma actual"
                      class="firma-preview-inline d-block mt-1">
-                <button type="button" class="btn btn-sm btn-secondary mt-2" @click="activarEdicion(idx)">
+                <button type="button" class="tc-btn tc-btn-seg btn-sm mt-2" @click="activarEdicion(idx)">
                   <i class="fa fa-signature me-1"></i>Volver a firmar
                 </button>
               </div>
@@ -89,10 +89,10 @@
                   </div>
                   <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
                     <div class="btn-group btn-group-sm">
-                      <button type="button" class="btn btn-secondary" @click="deshacerPad(idx)">
+                      <button type="button" class="tc-btn tc-btn-seg" @click="deshacerPad(idx)">
                         <i class="fa fa-undo me-1"></i>Deshacer
                       </button>
-                      <button type="button" class="btn btn-secondary" @click="limpiarPad(idx)">
+                      <button type="button" class="tc-btn tc-btn-seg" @click="limpiarPad(idx)">
                         <i class="fa fa-eraser me-1"></i>Limpiar
                       </button>
                     </div>
@@ -131,10 +131,10 @@
             <div v-if="firmaModal.error" class="alert alert-danger mt-3 mb-0 py-2 small">{{ firmaModal.error }}</div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" :disabled="firmaModal.saving" @click="cerrarFirma">
+            <button type="button" class="tc-btn tc-btn-seg" :disabled="firmaModal.saving" @click="cerrarFirma">
               Cancelar
             </button>
-            <button type="button" class="btn btn-primary" :disabled="firmaModal.saving" @click="guardarFirma">
+            <button type="button" class="tc-btn tc-btn-ok" :disabled="firmaModal.saving" @click="guardarFirma">
               <span v-if="firmaModal.saving" class="spinner-border spinner-border-sm me-1"></span>
               Guardar firma{{ firmaModal.recuadros.length > 1 ? 's' : '' }}
             </button>
@@ -187,10 +187,10 @@
             <div v-if="completarModal.error" class="alert alert-danger mt-3 mb-0 py-2 small">{{ completarModal.error }}</div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" :disabled="completarModal.saving" @click="cerrarCompletar">
+            <button type="button" class="tc-btn tc-btn-seg" :disabled="completarModal.saving" @click="cerrarCompletar">
               Cancelar
             </button>
-            <button type="button" class="btn btn-primary" :disabled="completarModal.saving" @click="guardarCompletar">
+            <button type="button" class="tc-btn tc-btn-ok" :disabled="completarModal.saving" @click="guardarCompletar">
               <span v-if="completarModal.saving" class="spinner-border spinner-border-sm me-1"></span>
               Guardar
             </button>
@@ -210,6 +210,7 @@
  * el componente padre que lo use (Hijo E3/E4) — este componente NO valida permisos.
  */
 import SignaturePad from 'signature_pad';
+import { darkMode } from "../../../hook/appConfig.js";
 
 // Umbral mínimo de puntos dibujados para aceptar la firma como real (opción q3 aprobada:
 // no basta con "no vacío", se exige un mínimo de trazo para filtrar un toque accidental).
@@ -217,6 +218,9 @@ const MIN_PUNTOS_FIRMA = 8;
 
 export default {
   name: 'TalentoExpedienteDocumentos',
+  setup() {
+    return { darkMode };
+  },
   props: {
     colaboradorId: { type: Number, required: true },
   },
@@ -293,8 +297,8 @@ export default {
       }
     },
     statusBadgeClass(doc) {
-      if (doc.pendiente_firma) return 'bg-danger';
-      return doc.status_efectivo === 'completo' ? 'bg-success' : 'bg-warning text-dark';
+      if (doc.pendiente_firma) return 'is-bad';
+      return doc.status_efectivo === 'completo' ? 'is-ok' : 'is-warn';
     },
     statusBadgeText(doc) {
       if (doc.pendiente_firma) return 'Pendiente de firma';
