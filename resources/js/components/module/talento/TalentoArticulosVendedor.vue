@@ -1,67 +1,78 @@
 <template>
-  <div class="talento-articulos-vendedor">
-    <div class="d-flex align-items-center justify-content-between mb-3">
-      <h5 class="mb-0"><i class="fa fa-boxes me-2 text-primary"></i>Catálogo de Artículos de Vendedor</h5>
-    </div>
-    <p class="text-muted small mb-3">
-      Catálogo global de artículos asignados a vendedores (solo lectura, reusa el inventario de Vendedores).
-    </p>
+  <div class="talento-articulos-vendedor tc-wrap" :class="{ 'tc-dark': darkMode }">
 
-    <div class="row mb-3">
-      <div class="col-md-5">
-        <input v-model="search" @input="debounceBuscar" type="text"
-               class="form-control" placeholder="Buscar por artículo o vendedor...">
-      </div>
-    </div>
-
-    <div v-if="loading" class="text-center py-3">
-      <div class="spinner-border spinner-border-sm text-primary"></div>
-    </div>
-    <div v-else>
-      <div v-if="!items.length" class="alert alert-light text-muted">
-        No hay artículos asignados a vendedores.
-      </div>
-      <div v-else class="table-responsive">
-        <table class="table table-sm table-hover align-middle">
-          <thead class="table-light">
-            <tr>
-              <th>Artículo</th>
-              <th>Tipo</th>
-              <th>Categoría</th>
-              <th>Cantidad</th>
-              <th>Condición</th>
-              <th>Vendedor</th>
-              <th>Asignado</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="it in items" :key="it.stock_id">
-              <td>{{ it.item_name }}</td>
-              <td>{{ it.tipo ?? '—' }}</td>
-              <td>{{ it.categoria ?? '—' }}</td>
-              <td>{{ it.current_stock }}</td>
-              <td>{{ it.condition ?? '—' }}</td>
-              <td>{{ it.seller_name || '—' }}</td>
-              <td class="small">{{ formatDate(it.assigned_at) }}</td>
-            </tr>
-          </tbody>
-        </table>
+    <div class="tc-card">
+      <div class="tc-cardhead d-flex flex-wrap align-items-center justify-content-between gap-2 p-3">
+        <h5 class="tc-h1"><i class="fa fa-boxes me-2 text-primary"></i>Catálogo de Artículos de Vendedor</h5>
       </div>
 
-      <nav v-if="lastPage > 1" class="d-flex justify-content-between align-items-center mt-2">
-        <span class="small text-muted">Página {{ page }} de {{ lastPage }} ({{ total }} artículos)</span>
-        <div class="btn-group btn-group-sm">
-          <button class="btn btn-outline-secondary" :disabled="page <= 1" @click="goPage(page - 1)">Anterior</button>
-          <button class="btn btn-outline-secondary" :disabled="page >= lastPage" @click="goPage(page + 1)">Siguiente</button>
+      <div class="p-3">
+        <p class="text-muted small mb-3">
+          Catálogo global de artículos asignados a vendedores (solo lectura, reusa el inventario de Vendedores).
+        </p>
+
+        <div class="row mb-3">
+          <div class="col-md-5">
+            <input v-model="search" @input="debounceBuscar" type="text"
+                   class="form-control" placeholder="Buscar por artículo o vendedor...">
+          </div>
         </div>
-      </nav>
+
+        <div v-if="loading" class="text-center py-3">
+          <div class="spinner-border spinner-border-sm text-primary"></div>
+        </div>
+        <div v-else>
+          <div v-if="!items.length" class="alert alert-light text-muted">
+            No hay artículos asignados a vendedores.
+          </div>
+          <div v-else class="table-responsive">
+            <table class="table table-sm table-hover align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>Artículo</th>
+                  <th>Tipo</th>
+                  <th>Categoría</th>
+                  <th>Cantidad</th>
+                  <th>Condición</th>
+                  <th>Vendedor</th>
+                  <th>Asignado</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="it in items" :key="it.stock_id">
+                  <td>{{ it.item_name }}</td>
+                  <td>{{ it.tipo ?? '—' }}</td>
+                  <td>{{ it.categoria ?? '—' }}</td>
+                  <td>{{ it.current_stock }}</td>
+                  <td>{{ it.condition ?? '—' }}</td>
+                  <td>{{ it.seller_name || '—' }}</td>
+                  <td class="small">{{ formatDate(it.assigned_at) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <nav v-if="lastPage > 1" class="d-flex justify-content-between align-items-center mt-2">
+            <span class="small text-muted">Página {{ page }} de {{ lastPage }} ({{ total }} artículos)</span>
+            <div class="btn-group btn-group-sm">
+              <button class="tc-btn tc-btn-seg" :disabled="page <= 1" @click="goPage(page - 1)">Anterior</button>
+              <button class="tc-btn tc-btn-seg" :disabled="page >= lastPage" @click="goPage(page + 1)">Siguiente</button>
+            </div>
+          </nav>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script>
+import { darkMode } from "../../../hook/appConfig.js";
+
 export default {
   name: 'TalentoArticulosVendedor',
+  setup() {
+    return { darkMode };
+  },
   data() {
     return {
       items: [],

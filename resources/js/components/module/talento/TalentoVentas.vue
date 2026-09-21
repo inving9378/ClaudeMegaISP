@@ -1,5 +1,5 @@
 <template>
-  <div class="talento-ventas">
+  <div class="talento-ventas tc-wrap" :class="{ 'tc-dark': darkMode }">
 
     <div class="alert alert-light small mb-3 py-2">
       <i class="fa fa-info-circle me-1 text-primary"></i>
@@ -22,7 +22,7 @@
           <input v-model="filters.to" @change="load" type="date" class="form-control form-control-sm" title="Hasta">
         </div>
         <div class="col-auto" v-if="filters.from || filters.to">
-          <button @click="clearRange" class="btn btn-sm btn-outline-secondary"><i class="fa fa-times me-1"></i>Limpiar</button>
+          <button @click="clearRange" class="tc-btn tc-btn-seg btn-sm"><i class="fa fa-times me-1"></i>Limpiar</button>
         </div>
       </div>
 
@@ -31,7 +31,7 @@
         <div class="col-6 col-md-4">
           <div class="card h-100 border-0 shadow-sm">
             <div class="card-body d-flex align-items-center gap-3">
-              <div class="rounded-circle p-3 bg-primary-subtle" style="width:50px;height:50px;display:flex;align-items:center;justify-content:center;">
+              <div class="tv-icon-circle tv-icon-info rounded-circle p-3" style="width:50px;height:50px;display:flex;align-items:center;justify-content:center;">
                 <i class="fa fa-handshake text-primary" style="font-size:18px;"></i>
               </div>
               <div>
@@ -44,7 +44,7 @@
         <div class="col-6 col-md-4">
           <div class="card h-100 border-0 shadow-sm">
             <div class="card-body d-flex align-items-center gap-3">
-              <div class="rounded-circle p-3 bg-info-subtle" style="width:50px;height:50px;display:flex;align-items:center;justify-content:center;">
+              <div class="tv-icon-circle tv-icon-accent rounded-circle p-3" style="width:50px;height:50px;display:flex;align-items:center;justify-content:center;">
                 <i class="fa fa-user-plus text-info" style="font-size:18px;"></i>
               </div>
               <div>
@@ -57,7 +57,7 @@
         <div class="col-6 col-md-4">
           <div class="card h-100 border-0 shadow-sm">
             <div class="card-body d-flex align-items-center gap-3">
-              <div class="rounded-circle p-3 bg-danger-subtle" style="width:50px;height:50px;display:flex;align-items:center;justify-content:center;">
+              <div class="tv-icon-circle tv-icon-bad rounded-circle p-3" style="width:50px;height:50px;display:flex;align-items:center;justify-content:center;">
                 <i class="fa fa-times-circle text-danger" style="font-size:18px;"></i>
               </div>
               <div>
@@ -143,9 +143,13 @@
 
 <script>
 import Chart from 'chart.js/auto';
+import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoVentas',
+  setup() {
+    return { darkMode };
+  },
   data() {
     return {
       loading: true,
@@ -235,3 +239,19 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* Gap del tema Torre (paso 8): bg-primary/info/danger-subtle (Bootstrap) son
+   planas y casi invisibles en modo oscuro (dark_mode.scss no las cubre). Se
+   reemplazan por tokens del tema con la misma fórmula de opacidad usada en
+   el resto de Talento (rgba del color semántico al 12%). */
+.tv-icon-circle.tv-icon-info {
+  background-color: rgba(37, 99, 235, .12);
+}
+.tv-icon-circle.tv-icon-accent {
+  background-color: rgba(13, 148, 136, .12);
+}
+.tv-icon-circle.tv-icon-bad {
+  background-color: rgba(220, 38, 38, .12);
+}
+</style>
