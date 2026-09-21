@@ -76,8 +76,12 @@ export default {
         const choice = ref();
         const idMod = ref(props.idModel);
         const isInitialized = ref(false);
+        let syncingFromProp = false;
 
         watch(val, (newValue, oldValue) => {
+            if (syncingFromProp) {
+                return;
+            }
             if (newValue != oldValue) {
                 emit("update-field", {
                     value: val,
@@ -101,20 +105,52 @@ export default {
             }
         );
 
+        const destroyChoice = () => {
+            if (!choice.value) {
+                return;
+            }
+            try {
+                choice.value.destroy();
+            } catch (error) {
+                console.error(error);
+            }
+            choice.value = null;
+        };
+
+        const renderChoice = async (value) => {
+            destroyChoice();
+            choice.value = await convertToSelect2(
+                props.property.field,
+                options,
+                value,
+                props.property.placeholder
+            );
+        };
+
+        // fieldsJson (hook/crudHook.js) es un singleton compartido entre pantallas
+        // del SPA: al cambiar de registro dentro del mismo módulo, Vue reutiliza
+        // esta misma instancia del componente en vez de desmontarla/remontarla, así
+        // que "modelValue" cambia pero onMounted no vuelve a correr. Antes este watch
+        // solo reasignaba la selección (removeActiveItems + setChoiceByValue) sin
+        // cerrar el dropdown de Choices.js — si el usuario lo había dejado abierto
+        // (o cualquier otro estado visual interno) al navegar a otro cliente, quedaba
+        // "abierto" mostrando ya las opciones del registro nuevo hasta recargar (F5).
+        // Reconstruir el widget completo (mismo patrón que SelectComponent.vue) lo
+        // cierra y arranca limpio en cada cambio de registro.
         watch(
             () => props.modelValue,
-            (actual, actionBefore) => {
-                if (!choice.value) {
+            async (actual) => {
+                if (!isInitialized.value || !choice.value) {
                     return;
                 }
-                try {
-                    choice.value.removeActiveItems();
-                    if (actual !== null && actual !== undefined && actual !== "") {
-                        choice.value.setChoiceByValue(actual.toString());
-                    }
-                } catch (error) {
-                    console.error(error);
+                const nextVal = actual ?? null;
+                if (nextVal === val.value) {
+                    return;
                 }
+                syncingFromProp = true;
+                val.value = nextVal;
+                syncingFromProp = false;
+                await renderChoice(nextVal);
             }
         );
 
@@ -124,30 +160,14 @@ export default {
                 : await getOptions(props.property.search, idMod.value);
 
             $(document).ready(async () => {
-                choice.value = await convertToSelect2(
-                    props.property.field,
-                    options,
-                    props.modelValue,
-                    props.property.placeholder
-                );
+                await renderChoice(props.modelValue);
             });
 
             isInitialized.value = true;
         });
 
-        // fieldsJson es un singleton compartido entre pantallas del SPA: al cambiar
-        // de registro dentro del mismo módulo, Vue reutiliza esta instancia en vez
-        // de desmontarla/remontarla, así que la instancia de Choices.js quedaría
-        // colgada (listeners globales de document sin liberar) si no se destruye aquí.
         onBeforeUnmount(() => {
-            if (choice.value) {
-                try {
-                    choice.value.destroy();
-                } catch (error) {
-                    console.error(error);
-                }
-                choice.value = null;
-            }
+            destroyChoice();
         });
 
         return {

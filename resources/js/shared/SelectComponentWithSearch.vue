@@ -69,8 +69,13 @@ export default {
         const opts = reactive(options);
         const choice = ref();
         const idMod = ref(props.idModel);
+        const isInitialized = ref(false);
+        let syncingFromProp = false;
 
         watch(val, (newValue, oldValue) => {
+            if (syncingFromProp) {
+                return;
+            }
             if (newValue != oldValue) {
                 emit("update-field", {
                     value: val,
@@ -87,20 +92,49 @@ export default {
             }
         );
 
+        const destroyChoice = () => {
+            if (!choice.value) {
+                return;
+            }
+            try {
+                choice.value.destroy();
+            } catch (error) {
+                console.error(error);
+            }
+            choice.value = null;
+        };
+
+        const renderChoice = async (value) => {
+            destroyChoice();
+            choice.value = await convertToSelect2WithSearch(
+                props.property.field,
+                options,
+                value,
+                props.property.placeholder
+            );
+        };
+
+        // Mismo bug/fix que Select2Component.vue: fieldsJson (hook/crudHook.js) es
+        // un singleton compartido entre pantallas del SPA — al cambiar de registro
+        // dentro del mismo módulo, Vue reutiliza esta instancia en vez de
+        // desmontarla/remontarla. Reasignar solo la selección (sin reconstruir el
+        // widget) dejaba el dropdown de Choices.js "abierto" si así había quedado
+        // en el registro anterior. Reconstruir el widget completo lo cierra y
+        // arranca limpio en cada cambio de registro.
         watch(
             () => props.modelValue,
-            (actual, actionBefore) => {
-                if (!choice.value) {
+            async (actual) => {
+                if (!isInitialized.value || !choice.value) {
                     return;
                 }
-                try {
-                    choice.value.removeActiveItems();
-                    if (actual !== null && actual !== undefined && actual !== "") {
-                        choice.value.setChoiceByValue(actual.toString());
-                    }
-                } catch (error) {
-                    console.error(error);
+                const nextVal = actual ?? null;
+                if (nextVal === val.value) {
+                    return;
                 }
+                syncingFromProp = true;
+                val.value = nextVal;
+                syncingFromProp = false;
+                await renderChoice(nextVal);
             }
         );
 
@@ -110,28 +144,14 @@ export default {
                 : await getOptions(props.property.search, idMod.value);
 
             $(document).ready(async () => {
-                choice.value = await convertToSelect2WithSearch(
-                    props.property.field,
-                    options,
-                    props.modelValue,
-                    props.property.placeholder
-                );
+                await renderChoice(props.modelValue);
             });
+
+            isInitialized.value = true;
         });
 
-        // fieldsJson es un singleton compartido entre pantallas del SPA: al cambiar
-        // de registro dentro del mismo módulo, Vue reutiliza esta instancia en vez
-        // de desmontarla/remontarla, dejando colgada la instancia de Choices.js
-        // (listeners globales de document) si no se destruye aquí.
         onBeforeUnmount(() => {
-            if (choice.value) {
-                try {
-                    choice.value.destroy();
-                } catch (error) {
-                    console.error(error);
-                }
-                choice.value = null;
-            }
+            destroyChoice();
         });
 
         return {
