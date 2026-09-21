@@ -1,12 +1,12 @@
 <template>
-  <div class="talento-penalizaciones">
+  <div class="talento-penalizaciones tc-wrap" :class="{ 'tc-dark': darkMode }">
 
     <!-- Tabs -->
     <ul class="nav nav-tabs mb-3">
       <li class="nav-item">
         <a class="nav-link" :class="{ active: tab === 'penalties' }" href="#" @click.prevent="tab='penalties'">
           <i class="fa fa-gavel me-1"></i>Penalizaciones
-          <span v-if="pendingAppeals" class="badge bg-warning text-dark ms-1">{{ pendingAppeals }}</span>
+          <span v-if="pendingAppeals" class="tc-status is-warn ms-1">{{ pendingAppeals }}</span>
         </a>
       </li>
       <li class="nav-item">
@@ -25,15 +25,15 @@
     <div v-if="tab === 'penalties'">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
         <div class="d-flex gap-2 flex-wrap">
-          <select v-model="pFilters.colaborador_id" @change="loadPenalties" class="form-select form-select-sm" style="width:200px">
+          <select v-model="pFilters.colaborador_id" @change="loadPenalties" class="form-select form-select-sm tc-select" style="width:200px">
             <option value="">Todos los técnicos</option>
             <option v-for="c in colaboradores" :key="c.id" :value="c.id">{{ c.user?.name }}</option>
           </select>
-          <select v-model="pFilters.category" @change="loadPenalties" class="form-select form-select-sm" style="width:160px">
+          <select v-model="pFilters.category" @change="loadPenalties" class="form-select form-select-sm tc-select" style="width:160px">
             <option value="">Todas las categorías</option>
             <option v-for="(label, val) in categoryLabels" :key="val" :value="val">{{ label }}</option>
           </select>
-          <select v-model="pFilters.status" @change="loadPenalties" class="form-select form-select-sm" style="width:150px">
+          <select v-model="pFilters.status" @change="loadPenalties" class="form-select form-select-sm tc-select" style="width:150px">
             <option value="">Todos los estados</option>
             <option value="applied">Applied</option>
             <option value="appealed">En apelación</option>
@@ -41,7 +41,7 @@
             <option value="upheld">Mantenida</option>
           </select>
         </div>
-        <button @click="openApply" class="btn btn-sm btn-danger">
+        <button @click="openApply" class="tc-btn tc-btn-bad-solid btn-sm">
           <i class="fa fa-gavel me-1"></i>Aplicar penalización
         </button>
       </div>
@@ -56,15 +56,15 @@
             <tr v-for="p in penalties" :key="p.id">
               <td class="fw-semibold small">{{ p.colaborador?.user?.name ?? '—' }}</td>
               <td class="small">
-                <span class="badge me-1" :class="catColor(p.penalty_type?.category)">{{ categoryLabels[p.penalty_type?.category] ?? '?' }}</span>
+                <span class="tc-status me-1" :class="catColor(p.penalty_type?.category)">{{ categoryLabels[p.penalty_type?.category] ?? '?' }}</span>
                 {{ p.penalty_type?.name ?? '—' }}
               </td>
               <td class="small fw-bold text-danger">{{ fmtMXN(p.amount) }}</td>
               <td class="small text-muted">{{ p.applied_by_colaborador?.user?.name ?? '—' }}</td>
               <td class="small">{{ fmtDate(p.created_at) }}</td>
-              <td><span class="badge" :class="statusColor(p.status)">{{ statusLabel(p.status) }}</span></td>
+              <td><span class="tc-status" :class="statusColor(p.status)">{{ statusLabel(p.status) }}</span></td>
               <td>
-                <button @click="openView(p.id)" class="btn btn-xs btn-outline-secondary">
+                <button @click="openView(p.id)" class="tc-btn tc-btn-info btn-xs">
                   <i class="fa fa-eye"></i>
                 </button>
               </td>
@@ -77,7 +77,7 @@
         <!-- Paginación simple -->
         <div v-if="pPagination.last_page > 1" class="d-flex justify-content-center gap-1 mt-2">
           <button v-for="pg in pPagination.last_page" :key="pg" @click="loadPenalties(pg)"
-                  class="btn btn-xs" :class="pg === pPagination.current_page ? 'btn-danger' : 'btn-outline-secondary'">
+                  class="tc-btn btn-xs" :class="pg === pPagination.current_page ? 'tc-btn-bad-solid' : 'tc-btn-seg'">
             {{ pg }}
           </button>
         </div>
@@ -109,12 +109,12 @@
               <td class="small text-muted">{{ ap.penalty?.applied_by_colaborador?.user?.name ?? '—' }}</td>
               <td class="small text-truncate" style="max-width:220px" :title="ap.reason">{{ ap.reason }}</td>
               <td>
-                <span v-if="ap.decision === null" class="badge bg-warning text-dark">⏳ Pendiente</span>
-                <span v-else-if="ap.decision === 'overturned'" class="badge bg-success">✅ Revocada</span>
-                <span v-else class="badge bg-danger">❌ Mantenida</span>
+                <span v-if="ap.decision === null" class="tc-status is-warn">⏳ Pendiente</span>
+                <span v-else-if="ap.decision === 'overturned'" class="tc-status is-ok">✅ Revocada</span>
+                <span v-else class="tc-status is-bad">❌ Mantenida</span>
               </td>
               <td>
-                <button @click="openResolve(ap)" class="btn btn-xs btn-outline-warning"
+                <button @click="openResolve(ap)" class="tc-btn tc-btn-warn btn-xs"
                         :disabled="ap.decision !== null">
                   {{ ap.decision !== null ? 'Ver' : 'Resolver' }}
                 </button>
@@ -131,11 +131,11 @@
     <!-- ── TAB CATÁLOGO ── -->
     <div v-if="tab === 'types'">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-        <select v-model="tFilter" @change="loadTypes" class="form-select form-select-sm" style="width:200px">
+        <select v-model="tFilter" @change="loadTypes" class="form-select form-select-sm tc-select" style="width:200px">
           <option value="">Todas las categorías</option>
           <option v-for="(label, val) in categoryLabels" :key="val" :value="val">{{ label }}</option>
         </select>
-        <button @click="openNewType" class="btn btn-sm btn-primary">
+        <button @click="openNewType" class="tc-btn tc-btn-ok btn-sm">
           <i class="fa fa-plus me-1"></i>Nuevo tipo
         </button>
       </div>
@@ -149,25 +149,25 @@
           <div class="row g-3">
             <div v-for="t in group" :key="t.id" class="col-md-4 col-lg-3">
               <div class="card h-100 shadow-sm">
-                <div v-if="t.reference_image_path" style="height:100px;overflow:hidden;background:#f8f9fa;">
+                <div v-if="t.reference_image_path" class="pen-bg-neutral" style="height:100px;overflow:hidden;">
                   <img :src="`/storage/${t.reference_image_path}`" class="w-100 h-100"
                        style="object-fit:cover;" :alt="t.name" @error="$event.target.style.display='none'">
                 </div>
-                <div v-else class="d-flex align-items-center justify-content-center bg-light" style="height:70px;">
+                <div v-else class="d-flex align-items-center justify-content-center pen-bg-neutral" style="height:70px;">
                   <i class="fa fa-2x" :class="catIcon(t.category)" style="opacity:.3"></i>
                 </div>
                 <div class="card-body p-2">
                   <div class="fw-semibold small">{{ t.name }}</div>
                   <div class="d-flex align-items-center gap-1 mt-1">
-                    <span class="badge badge-sm" :class="catColor(t.category)" style="font-size:10px">{{ categoryLabels[t.category] }}</span>
-                    <span class="badge bg-light text-muted border" style="font-size:10px">{{ t.penalty_kind === 'event' ? 'Evento' : 'Estado' }}</span>
-                    <span v-if="!t.active" class="badge bg-secondary" style="font-size:10px">Inactivo</span>
+                    <span class="tc-status" :class="catColor(t.category)" style="font-size:10px">{{ categoryLabels[t.category] }}</span>
+                    <span class="tc-status is-slate" style="font-size:10px">{{ t.penalty_kind === 'event' ? 'Evento' : 'Estado' }}</span>
+                    <span v-if="!t.active" class="tc-status is-slate" style="font-size:10px">Inactivo</span>
                   </div>
                   <div class="text-danger fw-bold mt-1 small">{{ fmtMXN(t.amount) }}</div>
                 </div>
                 <div class="card-footer p-1 d-flex gap-1">
-                  <button @click="openEditType(t)" class="btn btn-xs btn-outline-primary flex-fill"><i class="fa fa-pen"></i></button>
-                  <button @click="openTypeImg(t)" class="btn btn-xs btn-outline-secondary flex-fill" title="Imagen de referencia"><i class="fa fa-image"></i></button>
+                  <button @click="openEditType(t)" class="tc-btn tc-btn-info btn-xs flex-fill"><i class="fa fa-pen"></i></button>
+                  <button @click="openTypeImg(t)" class="tc-btn tc-btn-seg btn-xs flex-fill" title="Imagen de referencia"><i class="fa fa-image"></i></button>
                 </div>
               </div>
             </div>
@@ -189,14 +189,14 @@
             <div class="row g-3">
               <div class="col-md-6">
                 <label class="form-label">Técnico <span class="text-danger">*</span></label>
-                <select v-model="applyModal.colaborador_id" class="form-select">
+                <select v-model="applyModal.colaborador_id" class="form-select tc-select">
                   <option :value="null">— Seleccionar —</option>
                   <option v-for="c in colaboradores" :key="c.id" :value="c.id">{{ c.user?.name }}</option>
                 </select>
               </div>
               <div class="col-md-6">
                 <label class="form-label">Tipo de penalización <span class="text-danger">*</span></label>
-                <select v-model="applyModal.penalty_type_id" @change="onTypeSelected" class="form-select">
+                <select v-model="applyModal.penalty_type_id" @change="onTypeSelected" class="form-select tc-select">
                   <option :value="null">— Seleccionar —</option>
                   <option v-for="t in penaltyTypes" :key="t.id" :value="t.id">
                     [{{ categoryLabels[t.category] }}] {{ t.name }} — {{ fmtMXN(t.amount) }}
@@ -206,7 +206,7 @@
 
               <!-- Referencia del tipo -->
               <div v-if="selectedType" class="col-12">
-                <div class="d-flex gap-3 align-items-start p-2 bg-light rounded">
+                <div class="d-flex gap-3 align-items-start p-2 pen-bg-neutral rounded">
                   <img v-if="selectedType.reference_image_path"
                        :src="`/storage/${selectedType.reference_image_path}`"
                        class="img-thumbnail" style="width:80px;height:60px;object-fit:cover;"
@@ -247,7 +247,7 @@
                 <input v-model.number="applyModal.captured_lng" type="number" step="any" class="form-control form-control-sm">
               </div>
               <div class="col-md-4 d-flex align-items-end">
-                <button @click="useGps" class="btn btn-sm btn-outline-secondary w-100">
+                <button @click="useGps" class="tc-btn tc-btn-seg btn-sm w-100">
                   <i class="fa fa-map-marker-alt me-1"></i>Mi ubicación
                 </button>
               </div>
@@ -264,8 +264,8 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button @click="applyModal.show=false" class="btn btn-secondary" :disabled="applyModal.saving">Cancelar</button>
-            <button @click="submitPenalty" class="btn btn-danger" :disabled="applyModal.saving">
+            <button @click="applyModal.show=false" class="tc-btn tc-btn-seg" :disabled="applyModal.saving">Cancelar</button>
+            <button @click="submitPenalty" class="tc-btn tc-btn-bad-solid" :disabled="applyModal.saving">
               <span v-if="applyModal.saving"><span class="spinner-border spinner-border-sm me-1"></span>Aplicando…</span>
               <span v-else><i class="fa fa-gavel me-1"></i>Aplicar penalización</span>
             </button>
@@ -281,7 +281,7 @@
           <div class="modal-header">
             <h5 class="modal-title">
               Penalización #{{ viewModal.penalty?.id }}
-              <span class="ms-2 badge" :class="statusColor(viewModal.penalty?.status)">
+              <span class="ms-2 tc-status" :class="statusColor(viewModal.penalty?.status)">
                 {{ statusLabel(viewModal.penalty?.status) }}
               </span>
             </h5>
@@ -300,7 +300,7 @@
               </div>
               <div class="col-md-6 small text-muted">Tipo:
                 <span class="text-dark fw-semibold">{{ viewModal.penalty.penalty_type?.name }}</span>
-                <span class="badge ms-2" :class="catColor(viewModal.penalty.penalty_type?.category)">
+                <span class="tc-status ms-2" :class="catColor(viewModal.penalty.penalty_type?.category)">
                   {{ categoryLabels[viewModal.penalty.penalty_type?.category] }}
                 </span>
               </div>
@@ -331,7 +331,7 @@
                   <span class="text-muted">Motivo:</span> {{ viewModal.penalty.appeal.reason }}
                 </div>
                 <div v-if="viewModal.penalty.appeal.decision" class="col-12">
-                  <span class="badge fs-6" :class="viewModal.penalty.appeal.decision === 'overturned' ? 'bg-success' : 'bg-danger'">
+                  <span class="tc-status fs-6" :class="viewModal.penalty.appeal.decision === 'overturned' ? 'is-ok' : 'is-bad'">
                     {{ viewModal.penalty.appeal.decision === 'overturned' ? '✅ Revocada' : '❌ Mantenida' }}
                   </span>
                   <span class="small text-muted ms-2">{{ viewModal.penalty.appeal.decision_notes }}</span>
@@ -359,7 +359,7 @@
                   <div class="alert alert-danger py-2 small mb-0">{{ viewModal.appealError }}</div>
                 </div>
                 <div class="col-12">
-                  <button @click="submitAppeal" class="btn btn-warning" :disabled="viewModal.submittingAppeal">
+                  <button @click="submitAppeal" class="tc-btn tc-btn-warn-solid" :disabled="viewModal.submittingAppeal">
                     <span v-if="viewModal.submittingAppeal"><span class="spinner-border spinner-border-sm me-1"></span>Enviando…</span>
                     <span v-else><i class="fa fa-balance-scale me-1"></i>Enviar apelación</span>
                   </button>
@@ -368,7 +368,7 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button @click="viewModal.show=false" class="btn btn-secondary">Cerrar</button>
+            <button @click="viewModal.show=false" class="tc-btn tc-btn-seg">Cerrar</button>
           </div>
         </div>
       </div>
@@ -383,7 +383,7 @@
             <button @click="resolveModal.show=false" type="button" class="btn-close"></button>
           </div>
           <div class="modal-body" v-if="resolveModal.appeal">
-            <div class="card mb-3 border-0 bg-light">
+            <div class="card mb-3 border-0 pen-bg-neutral">
               <div class="card-body py-2 small">
                 <div><span class="text-muted">Penalización:</span>
                   <strong class="ms-1">{{ resolveModal.appeal.penalty?.penalty_type?.name }}</strong>
@@ -400,7 +400,7 @@
 
             <div class="mb-3">
               <label class="form-label small text-muted">Motivo del técnico</label>
-              <div class="p-2 bg-light rounded small">{{ resolveModal.appeal.reason }}</div>
+              <div class="p-2 pen-bg-neutral rounded small">{{ resolveModal.appeal.reason }}</div>
             </div>
 
             <!-- Regla de justicia -->
@@ -446,7 +446,7 @@
             <!-- Vista resolved -->
             <template v-if="resolveModal.appeal.decision">
               <div>
-                <span class="badge fs-6" :class="resolveModal.appeal.decision === 'overturned' ? 'bg-success' : 'bg-danger'">
+                <span class="tc-status fs-6" :class="resolveModal.appeal.decision === 'overturned' ? 'is-ok' : 'is-bad'">
                   {{ resolveModal.appeal.decision === 'overturned' ? '✅ Revocada' : '❌ Mantenida' }}
                 </span>
                 <span v-if="resolveModal.appeal.decision_notes" class="small text-muted ms-2">
@@ -456,9 +456,9 @@
             </template>
           </div>
           <div class="modal-footer">
-            <button @click="resolveModal.show=false" class="btn btn-secondary">Cerrar</button>
+            <button @click="resolveModal.show=false" class="tc-btn tc-btn-seg">Cerrar</button>
             <button v-if="!resolveModal.appeal?.decision && !resolveModal.isApplier"
-                    @click="confirmResolve" class="btn btn-warning"
+                    @click="confirmResolve" class="tc-btn tc-btn-warn-solid"
                     :disabled="resolveModal.saving || !resolveModal.decision">
               <span v-if="resolveModal.saving"><span class="spinner-border spinner-border-sm me-1"></span>Guardando…</span>
               <span v-else><i class="fa fa-gavel me-1"></i>Confirmar decisión</span>
@@ -484,13 +484,13 @@
               </div>
               <div class="col-md-6">
                 <label class="form-label">Categoría</label>
-                <select v-model="typeModal.category" class="form-select">
+                <select v-model="typeModal.category" class="form-select tc-select">
                   <option v-for="(label, val) in categoryLabels" :key="val" :value="val">{{ label }}</option>
                 </select>
               </div>
               <div class="col-md-6">
                 <label class="form-label">Tipo de penalización</label>
-                <select v-model="typeModal.penalty_kind" class="form-select">
+                <select v-model="typeModal.penalty_kind" class="form-select tc-select">
                   <option value="event">Evento puntual</option>
                   <option value="status">Estado persistente</option>
                 </select>
@@ -512,8 +512,8 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button @click="typeModal.show=false" class="btn btn-secondary">Cancelar</button>
-            <button @click="saveType" class="btn btn-primary" :disabled="typeModal.saving">
+            <button @click="typeModal.show=false" class="tc-btn tc-btn-seg">Cancelar</button>
+            <button @click="saveType" class="tc-btn tc-btn-ok" :disabled="typeModal.saving">
               <span v-if="typeModal.saving"><span class="spinner-border spinner-border-sm me-1"></span></span>
               <span v-else>Guardar</span>
             </button>
@@ -539,8 +539,8 @@
             <div v-if="imgModal.error" class="alert alert-danger py-2 small mt-2 mb-0">{{ imgModal.error }}</div>
           </div>
           <div class="modal-footer">
-            <button @click="imgModal.show=false" class="btn btn-secondary">Cancelar</button>
-            <button @click="uploadTypeImg" class="btn btn-primary" :disabled="imgModal.saving || !imgModal.file">
+            <button @click="imgModal.show=false" class="tc-btn tc-btn-seg">Cancelar</button>
+            <button @click="uploadTypeImg" class="tc-btn tc-btn-ok" :disabled="imgModal.saving || !imgModal.file">
               <span v-if="imgModal.saving"><span class="spinner-border spinner-border-sm me-1"></span>Subiendo…</span>
               <span v-else>Subir imagen</span>
             </button>
@@ -553,8 +553,13 @@
 </template>
 
 <script>
+import { darkMode } from "../../../hook/appConfig.js";
+
 export default {
   name: 'TalentoPenalizaciones',
+  setup() {
+    return { darkMode };
+  },
   data() {
     return {
       tab: 'penalties',
@@ -835,13 +840,13 @@ export default {
 
     // ── Helpers ────────────────────────────────────────────────────────────
     statusColor(s) {
-      return { applied:'bg-primary', appealed:'bg-warning text-dark', overturned:'bg-success', upheld:'bg-danger' }[s] ?? 'bg-secondary';
+      return { applied:'is-info', appealed:'is-warn', overturned:'is-ok', upheld:'is-bad' }[s] ?? 'is-slate';
     },
     statusLabel(s) {
       return { applied:'Aplicada', appealed:'En apelación', overturned:'Revocada', upheld:'Mantenida' }[s] ?? s;
     },
     catColor(c) {
-      return { safety:'bg-danger', malpractice:'bg-warning text-dark', aesthetic:'bg-info text-dark', other:'bg-secondary' }[c] ?? 'bg-light';
+      return { safety:'is-bad', malpractice:'is-warn', aesthetic:'is-info', other:'is-slate' }[c] ?? 'is-slate';
     },
     catTextColor(c) {
       return { safety:'text-danger', malpractice:'text-warning', aesthetic:'text-info', other:'text-muted' }[c] ?? 'text-muted';
@@ -859,3 +864,16 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* Gap del tema Torre: bg-light (Bootstrap) no está cubierto por el recoloreo
+   automático de .tc-wrap y se ve plano/incorrecto en modo oscuro (mismo
+   hallazgo ya resuelto en TalentoAcademia/TalentoCredenciales/TalentoNiveles
+   con el mismo patrón). Fondo neutro equivalente vía var(--tc-bg2), correcto
+   en claro y oscuro. Usado en: placeholder de imagen del tipo, tarjeta de
+   referencia del modal Aplicar, resumen del modal Resolver apelación y el
+   motivo citado del técnico. */
+.pen-bg-neutral {
+  background: var(--tc-bg2, #f8fafc);
+}
+</style>
