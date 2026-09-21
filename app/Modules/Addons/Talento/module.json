@@ -81,6 +81,7 @@
                 { "label": "Escalafón",        "url": "/talento/escalafon",          "permission": "talento.escalafon.view" },
                 { "label": "Embajadores",      "url": "/talento/embajadores-colabs", "permission": "talento.embajadores.view" },
                 { "label": "Mis ventas",       "url": "/talento/mis-ventas",         "permission": "talento.ventas.view" },
+                { "label": "Ranking de ventas", "url": "/talento/ventas/ranking",    "permission": "talento.ventas.view" },
                 { "label": "Artículos de vendedor", "url": "/talento/articulos-vendedor", "permission": "talento.selleritems.view" },
                 { "label": "Documentos pendientes", "url": "/talento/documentos-pendientes", "permission": "talento.documentos.ver-todos" }
             ]
@@ -165,6 +166,8 @@
         { "method": "GET",  "path": "/talento/api/colaboradores/{id}/level-eligibility","description": "Elegibilidad de nivel de un colaborador",                "permission": "talento.levels.view" },
         { "method": "GET",  "path": "/talento/api/my-certifications",                   "description": "Certificaciones propias del colaborador autenticado",    "permission": "talento.academy.view" },
         { "method": "GET",  "path": "/talento/api/mis-ventas",                          "description": "Estadísticas de ventas del colaborador autenticado (self-scoped, reusa Vendedores)", "permission": "talento.ventas.view" },
+        { "method": "GET",  "path": "/talento/api/ventas/ranking",                      "description": "Ranking de ventas admin-wide de todos los colaboradores-vendedor",           "permission": "talento.ventas.view" },
+        { "method": "GET",  "path": "/talento/api/prospectos",                          "description": "Prospectos CRM admin-wide, filtrable por colaborador",                       "permission": "talento.ventas.view" },
         { "method": "GET",  "path": "/talento/api/articulos-vendedor",                  "description": "Catálogo global de artículos de vendedor (solo lectura, reusa Vendedores/Inventario)", "permission": "talento.selleritems.view" }
     ],
 

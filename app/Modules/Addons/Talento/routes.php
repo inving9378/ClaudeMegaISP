@@ -62,6 +62,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/escalafon',      [TalentoEscalafonController::class, 'index']);
         Route::get('/embajadores-colabs', [TalentoEmbajadoresController::class, 'index']);
         Route::get('/mis-ventas',     [TalentoVentasController::class, 'index']);
+        Route::get('/ventas/ranking', [TalentoVentasController::class, 'indexRanking']);
         Route::get('/config/evidencias',  [TalentoEvidenciaConfigController::class, 'index']);
         Route::get('/expediente/paquetes', [TalentoPaqueteDocumentoController::class, 'index']);
         Route::get('/puestos',        [TalentoPuestoController::class, 'index']);
@@ -379,6 +380,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
             // ── Mis ventas (self-scoped, reusa StaticsController) ─────────
             Route::get('/mis-ventas', [TalentoVentasController::class, 'misVentas']);
+
+            // ── Ranking admin-wide de ventas/prospectos (item: brecha Vendedores→Talento) ──
+            Route::get('/ventas/ranking', [TalentoVentasController::class, 'rankingAdmin']);
+            Route::get('/prospectos',     [TalentoVentasController::class, 'prospectosAdmin']);
 
             // ── Config: evidencias por tipo de OT ─────────────────────────
             Route::get('/config/evidencias',       [TalentoEvidenciaConfigController::class, 'catalogo']);
