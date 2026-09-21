@@ -10,7 +10,7 @@ class TalentoResponsibilityWindow extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'colaborador_id', 'client_id', 'caja_id', 'source_work_order_id',
+        'colaborador_id', 'client_id', 'caja_id', 'source_work_order_id', 'tarea_id',
         'starts_at', 'expires_at', 'active',
     ];
 

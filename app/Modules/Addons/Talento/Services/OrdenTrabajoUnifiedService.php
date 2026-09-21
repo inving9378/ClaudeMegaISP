@@ -1053,7 +1053,26 @@ class OrdenTrabajoUnifiedService
             } catch (\Throwable $e) {
                 Log::warning('Health bonus evaluation failed for task', ['task_id' => $id, 'err' => $e->getMessage()]);
             }
-            // WarrantyWindowService requiere TalentoWorkOrder model — skip para tasks (Capa 6.1)
+
+            // Roadmap interno Fase 11 (Capa 6.1, resuelto): WarrantyWindowService ahora
+            // acepta parámetros desacoplados — ya no requiere un TalentoWorkOrder model.
+            if ($task->is_billable) {
+                $clientId = $task->client_main_information_id
+                    ? DB::table('client_main_information')->where('id', $task->client_main_information_id)->value('client_id')
+                    : null;
+                if ($clientId) {
+                    try {
+                        $firstUser = $task->users->first();
+                        $colaboradorId = $firstUser ? TalentoColaborador::where('user_id', $firstUser->id)->value('id') : null;
+                        if ($colaboradorId) {
+                            app(\App\Modules\Addons\Talento\Services\WarrantyWindowService::class)
+                                ->refreshWindow($colaboradorId, $clientId, $task->caja_id, null, $task->id);
+                        }
+                    } catch (\Throwable $e) {
+                        Log::warning('Warranty window refresh failed for task', ['task_id' => $id, 'err' => $e->getMessage()]);
+                    }
+                }
+            }
 
             return ['success' => true, 'data' => $this->showForAdmin($id)];
         }
@@ -1075,7 +1094,7 @@ class OrdenTrabajoUnifiedService
             }
             if ($wo->is_billable && $wo->client_id) {
                 try {
-                    app(\App\Modules\Addons\Talento\Services\WarrantyWindowService::class)->refreshWindow($wo->fresh());
+                    app(\App\Modules\Addons\Talento\Services\WarrantyWindowService::class)->refreshWindowForOrder($wo->fresh());
                 } catch (\Throwable $e) {
                     Log::warning('Warranty window refresh failed', ['order_id' => $wo->id, 'err' => $e->getMessage()]);
                 }
