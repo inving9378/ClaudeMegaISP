@@ -662,9 +662,12 @@ class PaymentSellerController extends Controller
                 }
             }
         }
-        $expenses = PaymentByRuleDetails::with(['payment' => function ($query) use ($user) {
+        // Bug corregido: with() eager-carga la relación pero NO filtra el query base
+        // de PaymentByRuleDetails — ->get()->sum('amount') sumaba TODOS los pagos de
+        // TODOS los vendedores, no solo los de este. whereHas() sí filtra la consulta.
+        $expenses = PaymentByRuleDetails::whereHas('payment', function ($query) use ($user) {
             $query->where('seller_id', $user->seller->id);
-        }])->get()->sum('amount');
+        })->sum('amount');
         $debt = $user->seller->getTotalDebtBySales();
         $discountBySales = $user->seller->getTotalDiscountBySales();
         return response()->json([
