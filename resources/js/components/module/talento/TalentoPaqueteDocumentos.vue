@@ -1,130 +1,139 @@
 <template>
-  <div class="pkg-docs">
-    <!-- Encabezado -->
-    <div class="d-flex align-items-center justify-content-between mb-3">
-      <div>
-        <h5 class="mb-0">Paquete de documentos por puesto</h5>
-        <small class="text-muted">
-          Elige un puesto, marca qué plantillas del expediente le corresponden
-          (ej. técnico recibe el paquete completo, un puesto de oficina solo el suyo)
-          y guarda: todos los cambios se mandan en un solo request.
-        </small>
+  <div class="pkg-docs tc-wrap" :class="{ 'tc-dark': darkMode }">
+    <div class="tc-card">
+      <!-- Encabezado -->
+      <div class="tc-cardhead d-flex flex-wrap align-items-center justify-content-between gap-2 p-3">
+        <div>
+          <h5 class="tc-h1 mb-0">Paquete de documentos por puesto</h5>
+          <small class="text-muted">
+            Elige un puesto, marca qué plantillas del expediente le corresponden
+            (ej. técnico recibe el paquete completo, un puesto de oficina solo el suyo)
+            y guarda: todos los cambios se mandan en un solo request.
+          </small>
+        </div>
+        <span v-if="saving" class="tc-status is-warn ms-3">
+          <i class="fas fa-spinner fa-spin me-1"></i>Guardando…
+        </span>
+        <span v-else-if="dirty" class="tc-status is-info ms-3">
+          <i class="fas fa-circle me-1"></i>Cambios sin guardar
+        </span>
+        <span v-else-if="lastSaved" class="tc-status is-ok ms-3">
+          <i class="fas fa-check me-1"></i>Guardado
+        </span>
       </div>
-      <span v-if="saving" class="badge bg-warning text-dark ms-3">
-        <i class="fas fa-spinner fa-spin me-1"></i>Guardando…
-      </span>
-      <span v-else-if="dirty" class="badge bg-info text-dark ms-3">
-        <i class="fas fa-circle me-1"></i>Cambios sin guardar
-      </span>
-      <span v-else-if="lastSaved" class="badge bg-success ms-3">
-        <i class="fas fa-check me-1"></i>Guardado
-      </span>
-    </div>
 
-    <!-- Skeleton / error inicial -->
-    <div v-if="loading" class="text-center py-5">
-      <div class="spinner-border text-primary" role="status"></div>
-      <div class="mt-2 text-muted">Cargando catálogo…</div>
-    </div>
+      <div class="p-3">
+        <!-- Skeleton / error inicial -->
+        <div v-if="loading" class="text-center py-5">
+          <div class="spinner-border text-primary" role="status"></div>
+          <div class="mt-2 text-muted">Cargando catálogo…</div>
+        </div>
 
-    <div v-else-if="errorMsg" class="alert alert-danger">
-      <i class="fas fa-exclamation-triangle me-2"></i>{{ errorMsg }}
-      <button class="btn btn-sm btn-outline-danger ms-3" @click="load">Reintentar</button>
-    </div>
+        <div v-else-if="errorMsg" class="alert alert-danger">
+          <i class="fas fa-exclamation-triangle me-2"></i>{{ errorMsg }}
+          <button class="tc-btn tc-btn-bad ms-3" @click="load">Reintentar</button>
+        </div>
 
-    <div v-else>
-      <!-- Selector de puesto (superficie glass) -->
-      <div class="pkg-docs__panel mb-3">
-        <div class="row">
-          <div class="col-md-5">
-            <label class="form-label fw-semibold">Puesto</label>
-            <select class="form-select" v-model="puestoSeleccionado">
-              <option :value="null" disabled>Selecciona un puesto…</option>
-              <option v-for="p in puestos" :key="p.id" :value="p.id">{{ p.nombre }}</option>
-            </select>
-            <small v-if="!puestos.length" class="text-muted">
-              No hay puestos capturados aún (catálogo Talento → Puestos).
-            </small>
+        <div v-else>
+          <!-- Selector de puesto -->
+          <div class="pkg-docs__panel mb-3">
+            <div class="row">
+              <div class="col-md-5">
+                <label class="form-label fw-semibold">Puesto</label>
+                <select class="form-select tc-select" v-model="puestoSeleccionado">
+                  <option :value="null" disabled>Selecciona un puesto…</option>
+                  <option v-for="p in puestos" :key="p.id" :value="p.id">{{ p.nombre }}</option>
+                </select>
+                <small v-if="!puestos.length" class="text-muted">
+                  No hay puestos capturados aún (catálogo Talento → Puestos).
+                </small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Checklist de plantillas -->
+          <div v-if="!puestoSeleccionado" class="alert alert-secondary">
+            Selecciona un puesto para ver y editar su paquete de documentos.
+          </div>
+
+          <div v-else-if="loadingAsignaciones" class="text-center py-4">
+            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+          </div>
+
+          <div v-else>
+            <!-- Barra de acciones -->
+            <div class="pkg-docs__panel pkg-docs__toolbar mb-3">
+              <div class="btn-group btn-group-sm" role="group">
+                <button type="button" class="tc-btn tc-btn-seg" @click="marcarTodos">
+                  Marcar todos
+                </button>
+                <button type="button" class="tc-btn tc-btn-seg" @click="marcarNinguno">
+                  Marcar ninguno
+                </button>
+                <button type="button" class="tc-btn tc-btn-seg" @click="invertirSeleccion">
+                  Invertir selección
+                </button>
+              </div>
+            </div>
+
+            <!-- Píldoras neumórficas por documento (reemplaza la tabla oscura) -->
+            <div class="pkg-docs__doc-grid" role="group" aria-label="Documentos del paquete">
+              <label
+                v-for="tpl in templates"
+                :key="tpl.id"
+                class="pkg-docs__doc-pill"
+                :class="{ 'is-checked': isAssigned(tpl.id) }"
+              >
+                <input
+                  class="pkg-docs__doc-checkbox"
+                  type="checkbox"
+                  :checked="isAssigned(tpl.id)"
+                  @change="toggleLocal(tpl.id, $event.target.checked)"
+                />
+                <span class="pkg-docs__doc-indicator" aria-hidden="true">
+                  <i class="fas fa-check"></i>
+                </span>
+                <span class="pkg-docs__doc-name">{{ tpl.name }}</span>
+              </label>
+            </div>
+
+            <button
+              type="button"
+              class="tc-btn tc-btn-ok pkg-docs__save-btn mt-3"
+              :disabled="!dirty || saving"
+              @click="guardar"
+            >
+              <i class="fas fa-spinner fa-spin me-1" v-if="saving"></i>
+              <i class="fas fa-save me-1" v-else></i>
+              Guardar
+            </button>
           </div>
         </div>
-      </div>
 
-      <!-- Checklist de plantillas -->
-      <div v-if="!puestoSeleccionado" class="alert alert-secondary">
-        Selecciona un puesto para ver y editar su paquete de documentos.
-      </div>
-
-      <div v-else-if="loadingAsignaciones" class="text-center py-4">
-        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-      </div>
-
-      <div v-else>
-        <!-- Barra de acciones (superficie glass) -->
-        <div class="pkg-docs__panel pkg-docs__toolbar mb-3">
-          <div class="btn-group btn-group-sm" role="group">
-            <button type="button" class="btn btn-outline-secondary" @click="marcarTodos">
-              Marcar todos
-            </button>
-            <button type="button" class="btn btn-outline-secondary" @click="marcarNinguno">
-              Marcar ninguno
-            </button>
-            <button type="button" class="btn btn-outline-secondary" @click="invertirSeleccion">
-              Invertir selección
-            </button>
-          </div>
-        </div>
-
-        <!-- Píldoras neumórficas por documento (reemplaza la tabla oscura) -->
-        <div class="pkg-docs__doc-grid" role="group" aria-label="Documentos del paquete">
-          <label
-            v-for="tpl in templates"
-            :key="tpl.id"
-            class="pkg-docs__doc-pill"
-            :class="{ 'is-checked': isAssigned(tpl.id) }"
-          >
-            <input
-              class="pkg-docs__doc-checkbox"
-              type="checkbox"
-              :checked="isAssigned(tpl.id)"
-              @change="toggleLocal(tpl.id, $event.target.checked)"
-            />
-            <span class="pkg-docs__doc-indicator" aria-hidden="true">
-              <i class="fas fa-check"></i>
-            </span>
-            <span class="pkg-docs__doc-name">{{ tpl.name }}</span>
-          </label>
-        </div>
-
-        <button
-          type="button"
-          class="btn btn-primary pkg-docs__save-btn mt-3"
-          :disabled="!dirty || saving"
-          @click="guardar"
+        <!-- Toast de error inline -->
+        <div
+          v-if="saveError"
+          class="alert alert-danger alert-dismissible mt-2"
+          role="alert"
         >
-          <i class="fas fa-spinner fa-spin me-1" v-if="saving"></i>
-          <i class="fas fa-save me-1" v-else></i>
-          Guardar
-        </button>
+          <i class="fas fa-exclamation-circle me-2"></i>{{ saveError }}
+          <button type="button" class="btn-close" @click="saveError = null"></button>
+        </div>
       </div>
-    </div>
-
-    <!-- Toast de error inline -->
-    <div
-      v-if="saveError"
-      class="alert alert-danger alert-dismissible mt-2"
-      role="alert"
-    >
-      <i class="fas fa-exclamation-circle me-2"></i>{{ saveError }}
-      <button type="button" class="btn-close" @click="saveError = null"></button>
     </div>
   </div>
 </template>
 
 <script>
 import axios from 'axios';
+import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoPaqueteDocumentos',
+
+  setup() {
+    return { darkMode };
+  },
 
   data() {
     return {
@@ -291,18 +300,17 @@ export default {
    o sus descendientes. `scoped` además ata cada regla al data-attribute de este
    componente, así que nada se fuga a otras pantallas (ver incidente Flotas).
 
-   TEMA CLARO/OSCURO — todo el color sale de los tokens canónicos de
-   `resources/css/dark-light-tokens.css` (importados en `resources/sass/app.scss`),
-   que conmutan solos con `data-layout-mode="light|dark"` en el <body>. NADA de
-   color hardcodeado aquí: esa era justamente la causa de que la pantalla fuera
-   ilegible en oscuro. */
-.pkg-docs {
-  position: relative;
-  padding: 16px 18px;
-  border-radius: 14px;
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-}
+   TEMA TORRE — el marco exterior (tarjeta, encabezado, botones, badges/estado,
+   select) ya lo entrega el tema global vía `.tc-wrap`/`.tc-card` (ver
+   `_torre-theme.scss`), así que la raíz `.pkg-docs` ya NO pinta su propia caja
+   de fondo/borde/padding (antes lo hacía con los tokens de
+   `dark-light-tokens.css`) — eso evitaba el efecto "caja dentro de caja" al
+   quedar un `.tc-card` anidado adentro. Las píldoras de documentos
+   (`.pkg-docs__panel` / `.pkg-docs__doc-pill`) siguen con los tokens
+   `--bg-*`/`--text-*` de `dark-light-tokens.css` (conmutan solos con
+   `data-layout-mode="light|dark"` en el <body>) — un sistema de theming
+   distinto al de Torre, pero igual de correcto en claro/oscuro, y fuera del
+   alcance de esta conversión. */
 
 /* Antes era una superficie "glass" (blanco translúcido + blur). Se retiró: el
    blanco al 55% sobre el fondo oscuro daba un panel lechoso con texto ilegible,
@@ -400,16 +408,6 @@ export default {
   color: var(--bg-primary);
 }
 
-/* Mismo tratamiento que los encabezados de sección de la Torre (.tc-h2):
-   versalitas pequeñas en color secundario. */
-.pkg-docs :deep(h5) {
-  font-size: 12.5px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-weight: 700;
-  color: var(--text-secondary);
-}
-
 .pkg-docs__doc-name {
   color: var(--text-primary);
   font-size: 0.92rem;
@@ -423,7 +421,10 @@ export default {
   color: var(--text-secondary) !important;
 }
 
-/* Mismo caso con el <select> de Bootstrap: fondo blanco fijo sobre tema oscuro. */
+/* Mismo caso con el <select> de Bootstrap: fondo blanco fijo sobre tema oscuro.
+   (El tema Torre también recolorea `.form-select` dentro de `.tc-wrap`, pero
+   por instrucción explícita de la receta de conversión NO se toca esta regla
+   local — sigue ganando por especificidad y ya es correcta en ambos modos.) */
 .pkg-docs :deep(.form-select) {
   background-color: var(--bg-primary);
   color: var(--text-primary);

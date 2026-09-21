@@ -1,5 +1,5 @@
 <template>
-  <div class="talento-finiquito">
+  <div class="talento-finiquito tc-wrap" :class="{ 'tc-dark': darkMode }">
 
     <ul class="nav nav-tabs mb-3">
       <li class="nav-item">
@@ -18,17 +18,17 @@
     <div v-if="tab === 'loans'">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
         <div class="d-flex gap-2 flex-wrap">
-          <select v-model="lFilters.colaborador_id" @change="loadLoans" class="form-select form-select-sm" style="width:200px">
+          <select v-model="lFilters.colaborador_id" @change="loadLoans" class="form-select form-select-sm tc-select" style="width:200px">
             <option value="">Todos los técnicos</option>
             <option v-for="c in colaboradores" :key="c.id" :value="c.id">{{ c.user?.name }}</option>
           </select>
-          <select v-model="lFilters.status" @change="loadLoans" class="form-select form-select-sm" style="width:140px">
+          <select v-model="lFilters.status" @change="loadLoans" class="form-select form-select-sm tc-select" style="width:140px">
             <option value="">Todos</option>
             <option value="active">Activos</option>
             <option value="paid">Pagados</option>
           </select>
         </div>
-        <button @click="openNewLoan" class="btn btn-sm btn-primary">
+        <button @click="openNewLoan" class="tc-btn tc-btn-ok btn-sm">
           <i class="fa fa-plus me-1"></i>Registrar préstamo
         </button>
       </div>
@@ -50,19 +50,19 @@
               <td class="small text-muted text-truncate" style="max-width:160px" :title="loan.reason">{{ loan.reason ?? '—' }}</td>
               <td class="text-center">
                 <i v-if="loan.authorized" class="fa fa-check-circle text-success"></i>
-                <span v-else class="badge bg-warning text-dark small">Pendiente</span>
+                <span v-else class="tc-status is-warn small">Pendiente</span>
               </td>
               <td>
-                <span class="badge" :class="loan.status === 'active' ? 'bg-primary' : 'bg-secondary'">
+                <span class="tc-status small" :class="loan.status === 'active' ? 'is-accent' : 'is-slate'">
                   {{ loan.status === 'active' ? 'Activo' : 'Pagado' }}
                 </span>
               </td>
               <td class="d-flex gap-1">
                 <button v-if="!loan.authorized && loan.status === 'active'"
-                        @click="authorizeLoan(loan)" class="btn btn-xs btn-warning" title="Autorizar">
+                        @click="authorizeLoan(loan)" class="tc-btn tc-btn-warn btn-xs" title="Autorizar">
                   <i class="fa fa-pen-fancy"></i>
                 </button>
-                <span v-if="loan.status === 'active' && loan.repayment_weekly" class="badge bg-light text-muted border small">
+                <span v-if="loan.status === 'active' && loan.repayment_weekly" class="tc-status is-slate small">
                   ~{{ weeksRemaining(loan) }}sem
                 </span>
               </td>
@@ -81,7 +81,7 @@
       <div class="row g-3 mb-3 align-items-end">
         <div class="col-md-5">
           <label class="form-label small text-muted">Colaborador</label>
-          <select v-model="sColId" class="form-select">
+          <select v-model="sColId" class="form-select tc-select">
             <option :value="null">— Seleccionar colaborador —</option>
             <option v-for="c in colaboradores" :key="c.id" :value="c.id">{{ c.user?.name }}</option>
           </select>
@@ -91,7 +91,7 @@
           <input v-model="sDate" type="date" class="form-control">
         </div>
         <div class="col-md-3">
-          <button @click="loadDraft" class="btn btn-primary w-100" :disabled="!sColId || loadingS">
+          <button @click="loadDraft" class="tc-btn tc-btn-ok w-100" :disabled="!sColId || loadingS">
             <span v-if="loadingS"><span class="spinner-border spinner-border-sm me-1"></span>Calculando…</span>
             <span v-else><i class="fa fa-calculator me-1"></i>Calcular borrador</span>
           </button>
@@ -101,7 +101,7 @@
       <div v-if="settlement">
         <!-- Badge estado -->
         <div class="d-flex align-items-center gap-2 mb-3">
-          <span class="badge fs-6" :class="settlement.status === 'closed' ? 'bg-secondary' : 'bg-info text-dark'">
+          <span class="tc-status fs-6" :class="settlement.status === 'closed' ? 'is-slate' : 'is-info'">
             {{ settlement.status === 'closed' ? '🔒 Cerrado' : '📋 Borrador' }}
           </span>
           <span class="small text-muted">Fecha: {{ fmtDate(settlement.settlement_date) }}</span>
@@ -111,14 +111,14 @@
         </div>
 
         <!-- Resumen de cuenta corriente -->
-        <div class="card mb-4 border-0 shadow-sm">
-          <div class="card-header bg-light py-2">
+        <div class="tc-card mb-4 border-0 shadow-sm">
+          <div class="tc-cardhead py-2">
             <strong class="small text-uppercase">Resumen de cuenta corriente</strong>
           </div>
           <div class="card-body p-0">
             <table class="table table-sm mb-0">
               <tbody>
-                <tr class="table-success">
+                <tr class="finiquito-row-credit">
                   <td colspan="2" class="fw-semibold small ps-3">CRÉDITOS a favor del colaborador</td>
                 </tr>
                 <tr>
@@ -134,7 +134,7 @@
                   <td class="text-end text-success pe-3">+${{ fmt2(settlement.gross_credits) }}</td>
                 </tr>
 
-                <tr class="table-danger">
+                <tr class="finiquito-row-debit">
                   <td colspan="2" class="fw-semibold small ps-3 pt-2">DÉBITOS en su contra</td>
                 </tr>
                 <tr>
@@ -183,10 +183,10 @@
         </div>
 
         <!-- Material en custodia -->
-        <div class="card mb-4 border-0 shadow-sm">
-          <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
+        <div class="tc-card mb-4 border-0 shadow-sm">
+          <div class="tc-cardhead py-2 d-flex justify-content-between align-items-center">
             <strong class="small text-uppercase">Material en custodia</strong>
-            <span class="badge bg-info text-dark">{{ settlement.items?.length ?? 0 }} ítems</span>
+            <span class="tc-status is-info">{{ settlement.items?.length ?? 0 }} ítems</span>
           </div>
           <div class="card-body p-0">
             <div v-if="!settlement.items?.length" class="text-center text-muted py-3 small">
@@ -215,8 +215,8 @@
                           </label>
                         </div>
                       </div>
-                      <span v-else class="badge"
-                            :class="item.disposition==='returned'?'bg-success':item.disposition==='damaged'?'bg-warning text-dark':'bg-danger'">
+                      <span v-else class="tc-status"
+                            :class="item.disposition==='returned'?'is-ok':item.disposition==='damaged'?'is-warn':'is-bad'">
                         {{ item.disposition==='returned' ? 'Devuelto' : item.disposition==='damaged' ? 'Dañado' : 'Faltante' }}
                       </span>
                     </td>
@@ -231,7 +231,7 @@
                       <span v-else class="text-muted">{{ item.notes ?? '—' }}</span>
                     </td>
                     <td v-if="settlement.status === 'draft'">
-                      <button @click="saveItem(item)" class="btn btn-xs btn-outline-primary" :disabled="savingItems[item.id]">
+                      <button @click="saveItem(item)" class="tc-btn tc-btn-info btn-xs" :disabled="savingItems[item.id]">
                         <span v-if="savingItems[item.id]"><span class="spinner-border spinner-border-sm"></span></span>
                         <span v-else><i class="fa fa-save"></i></span>
                       </button>
@@ -245,7 +245,7 @@
 
         <!-- Botón cerrar (solo draft) -->
         <div v-if="settlement.status === 'draft'" class="d-flex justify-content-end">
-          <button @click="openClose" class="btn btn-danger">
+          <button @click="openClose" class="tc-btn tc-btn-bad-solid">
             <i class="fa fa-lock me-1"></i>Cerrar finiquito — IRREVERSIBLE
           </button>
         </div>
@@ -268,7 +268,7 @@
             <div class="row g-3">
               <div class="col-12">
                 <label class="form-label">Colaborador <span class="text-danger">*</span></label>
-                <select v-model="loanModal.colaborador_id" class="form-select">
+                <select v-model="loanModal.colaborador_id" class="form-select tc-select">
                   <option :value="null">— Seleccionar —</option>
                   <option v-for="c in colaboradores" :key="c.id" :value="c.id">{{ c.user?.name }}</option>
                 </select>
@@ -300,8 +300,8 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button @click="loanModal.show=false" class="btn btn-secondary" :disabled="loanModal.saving">Cancelar</button>
-            <button @click="saveLoan" class="btn btn-primary" :disabled="loanModal.saving">
+            <button @click="loanModal.show=false" class="tc-btn tc-btn-seg" :disabled="loanModal.saving">Cancelar</button>
+            <button @click="saveLoan" class="tc-btn tc-btn-ok" :disabled="loanModal.saving">
               <span v-if="loanModal.saving"><span class="spinner-border spinner-border-sm me-1"></span>Registrando…</span>
               <span v-else>Registrar préstamo</span>
             </button>
@@ -343,8 +343,8 @@
             <div v-if="closeModal.error" class="alert alert-danger py-2 small mt-2 mb-0">{{ closeModal.error }}</div>
           </div>
           <div class="modal-footer">
-            <button @click="closeModal.show=false" class="btn btn-secondary" :disabled="closeModal.saving">Cancelar</button>
-            <button @click="confirmClose" class="btn btn-danger" :disabled="!closeModal.confirmed || closeModal.saving">
+            <button @click="closeModal.show=false" class="tc-btn tc-btn-seg" :disabled="closeModal.saving">Cancelar</button>
+            <button @click="confirmClose" class="tc-btn tc-btn-bad-solid" :disabled="!closeModal.confirmed || closeModal.saving">
               <span v-if="closeModal.saving"><span class="spinner-border spinner-border-sm me-1"></span>Cerrando…</span>
               <span v-else><i class="fa fa-lock me-1"></i>Confirmar cierre definitivo</span>
             </button>
@@ -357,8 +357,13 @@
 </template>
 
 <script>
+import { darkMode } from "../../../hook/appConfig.js";
+
 export default {
   name: 'TalentoFiniquito',
+  setup() {
+    return { darkMode };
+  },
   data() {
     const today = new Date().toISOString().substring(0, 10);
     return {
@@ -524,3 +529,15 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* Resaltado de las cabeceras CRÉDITOS/DÉBITOS del resumen de cuenta corriente
+   (antes .table-success/.table-danger de Bootstrap, que no se adaptan al
+   tema Torre en modo oscuro — gap detectado por la receta del tema Torre). */
+.finiquito-row-credit {
+  background: rgba(21, 128, 61, .12);
+}
+.finiquito-row-debit {
+  background: rgba(220, 38, 38, .12);
+}
+</style>

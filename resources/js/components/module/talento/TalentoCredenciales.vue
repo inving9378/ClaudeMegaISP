@@ -1,12 +1,12 @@
 <template>
-  <div class="talento-credenciales">
+  <div class="talento-credenciales tc-wrap" :class="{ 'tc-dark': darkMode }">
 
     <!-- Tabs -->
     <ul class="nav nav-tabs mb-3">
       <li class="nav-item">
         <a class="nav-link" :class="{ active: tab === 'alerts' }" href="#" @click.prevent="tab='alerts'">
           <i class="fa fa-bell me-1"></i>Alertas de vencimiento
-          <span v-if="alertCount" class="badge bg-danger ms-1">{{ alertCount }}</span>
+          <span v-if="alertCount" class="tc-status is-bad ms-1">{{ alertCount }}</span>
         </a>
       </li>
       <li class="nav-item">
@@ -17,7 +17,7 @@
       <li class="nav-item">
         <a class="nav-link" :class="{ active: tab === 'funds' }" href="#" @click.prevent="tab='funds'">
           <i class="fa fa-piggy-bank me-1"></i>Fondos pendientes
-          <span v-if="pendingFundsCount" class="badge bg-warning text-dark ms-1">{{ pendingFundsCount }}</span>
+          <span v-if="pendingFundsCount" class="tc-status is-warn ms-1">{{ pendingFundsCount }}</span>
         </a>
       </li>
     </ul>
@@ -25,7 +25,7 @@
     <!-- ── TAB ALERTAS ── -->
     <div v-if="tab === 'alerts'">
       <div class="d-flex gap-2 mb-3 flex-wrap">
-        <select v-model="alertFilter" @change="loadAlerts" class="form-select form-select-sm" style="width:180px">
+        <select v-model="alertFilter" @change="loadAlerts" class="form-select form-select-sm tc-select" style="width:180px">
           <option value="">Todos los estados</option>
           <option value="expiring">Por vencer</option>
           <option value="expired">Vencidas</option>
@@ -53,10 +53,10 @@
                 <span v-else class="text-muted">—</span>
               </td>
               <td>
-                <span class="badge" :class="credStatusColor(c.status)">{{ credStatusLabel(c.status) }}</span>
+                <span class="tc-status" :class="credStatusColor(c.status)">{{ credStatusLabel(c.status) }}</span>
               </td>
               <td>
-                <button @click="openEditCred(c)" class="btn btn-xs btn-outline-primary">
+                <button @click="openEditCred(c)" class="tc-btn tc-btn-info btn-xs">
                   <i class="fa fa-pen"></i>
                 </button>
               </td>
@@ -74,7 +74,7 @@
       <div class="row g-3 mb-3">
         <div class="col-md-5">
           <label class="form-label small text-muted">Colaborador</label>
-          <select v-model="selectedColId" @change="loadColData" class="form-select">
+          <select v-model="selectedColId" @change="loadColData" class="form-select tc-select">
             <option :value="null">— Seleccionar colaborador —</option>
             <option v-for="c in colaboradores" :key="c.id" :value="c.id">{{ c.user?.name }}</option>
           </select>
@@ -88,11 +88,11 @@
         <h6 class="text-uppercase text-muted small mb-2">Credenciales</h6>
         <div v-if="colCredentials?.length" class="row g-3 mb-3">
           <div v-for="cred in colCredentials" :key="cred.id" class="col-md-5">
-            <div class="card shadow-sm">
+            <div class="tc-card shadow-sm">
               <div class="card-body py-2">
                 <div class="d-flex align-items-center justify-content-between mb-1">
                   <span class="fw-semibold small"><i class="fa fa-id-card me-1 text-primary"></i>{{ typeLabel(cred.type) }}</span>
-                  <span class="badge" :class="credStatusColor(cred.status)">{{ credStatusLabel(cred.status) }}</span>
+                  <span class="tc-status" :class="credStatusColor(cred.status)">{{ credStatusLabel(cred.status) }}</span>
                 </div>
                 <div class="small text-muted">
                   Núm: <span class="text-dark">{{ cred.document_number ?? '—' }}</span>
@@ -108,10 +108,10 @@
               </div>
               <div class="card-footer p-1 d-flex gap-1">
                 <a :href="`/talento/credential-doc/${cred.id}`" target="_blank"
-                   class="btn btn-xs btn-outline-secondary flex-fill" title="Ver documento (cifrado)">
+                   class="tc-btn tc-btn-info btn-xs flex-fill" title="Ver documento (cifrado)">
                   <i class="fa fa-lock me-1"></i>Documento
                 </a>
-                <button @click="openEditCred(cred)" class="btn btn-xs btn-outline-primary flex-fill">
+                <button @click="openEditCred(cred)" class="tc-btn tc-btn-info btn-xs flex-fill">
                   <i class="fa fa-pen me-1"></i>Editar
                 </button>
               </div>
@@ -122,7 +122,7 @@
           <i class="fa fa-exclamation-circle text-warning me-1"></i>
           Sin credenciales registradas para este colaborador.
         </div>
-        <button @click="openNewCred" class="btn btn-sm btn-outline-primary mb-4">
+        <button @click="openNewCred" class="tc-btn tc-btn-ok btn-sm mb-4">
           <i class="fa fa-plus me-1"></i>Registrar credencial
         </button>
 
@@ -130,13 +130,13 @@
         <h6 class="text-uppercase text-muted small mb-2">Fondos de ahorro</h6>
         <div v-if="colFunds?.length" class="row g-3 mb-3">
           <div v-for="fund in colFunds" :key="fund.id" class="col-md-6">
-            <div class="card shadow-sm" :class="!fund.authorized ? 'border-warning' : ''">
+            <div class="tc-card shadow-sm" :class="!fund.authorized ? 'border-warning' : ''">
               <div class="card-body py-2">
                 <div class="d-flex align-items-center justify-content-between mb-1">
                   <span class="fw-semibold small">
                     <i class="fa fa-piggy-bank me-1 text-info"></i>{{ purposeLabel(fund.purpose) }}
                   </span>
-                  <span class="badge" :class="fundStatusColor(fund.status)">{{ fundStatusLabel(fund.status) }}</span>
+                  <span class="tc-status" :class="fundStatusColor(fund.status)">{{ fundStatusLabel(fund.status) }}</span>
                 </div>
                 <!-- Progreso -->
                 <div class="d-flex align-items-center gap-2 my-2">
@@ -166,15 +166,15 @@
               </div>
               <div class="card-footer p-1 d-flex gap-1">
                 <button v-if="!fund.authorized" @click="openAuthorizeFund(fund)"
-                        class="btn btn-xs btn-warning flex-fill">
+                        class="tc-btn tc-btn-warn-solid btn-xs flex-fill">
                   <i class="fa fa-pen-fancy me-1"></i>Autorizar
                 </button>
                 <button v-if="fund.status === 'ready'" @click="markSpent(fund)"
-                        class="btn btn-xs btn-outline-success flex-fill">
+                        class="tc-btn tc-btn-ok btn-xs flex-fill">
                   <i class="fa fa-check me-1"></i>Marcar usado
                 </button>
                 <span v-if="fund.authorized && fund.status === 'accumulating'"
-                      class="btn btn-xs btn-outline-secondary flex-fill disabled">
+                      class="tc-btn tc-btn-seg btn-xs flex-fill disabled">
                   Activo ✓
                 </span>
               </div>
@@ -182,7 +182,7 @@
           </div>
         </div>
         <div v-else class="text-muted small mb-3 fst-italic">Sin fondos de ahorro activos.</div>
-        <button @click="openNewFund" class="btn btn-sm btn-outline-info">
+        <button @click="openNewFund" class="tc-btn tc-btn-ok btn-sm">
           <i class="fa fa-plus me-1"></i>Crear fondo manualmente
         </button>
       </template>
@@ -198,7 +198,7 @@
               <tr><th>Técnico</th><th>Propósito</th><th>Objetivo</th><th>Acumulado</th><th>$/sem</th><th>Estado</th><th></th></tr>
             </thead>
             <tbody>
-              <tr v-for="f in pendingFunds" :key="f.id" class="table-warning-row">
+              <tr v-for="f in pendingFunds" :key="f.id" class="tc-row-pending">
                 <td class="fw-semibold small">{{ f.collaborator_name ?? '—' }}</td>
                 <td class="small">{{ purposeLabel(f.purpose) }}</td>
                 <td class="small">${{ fmt2(f.target_amount) }}</td>
@@ -212,10 +212,10 @@
                 </td>
                 <td class="small">${{ fmt2(f.weekly_deduction) }}</td>
                 <td>
-                  <span class="badge bg-warning text-dark">⚠ Sin autorizar</span>
+                  <span class="tc-status is-warn">⚠ Sin autorizar</span>
                 </td>
                 <td>
-                  <button @click="openAuthorizeFund(f)" class="btn btn-xs btn-warning">
+                  <button @click="openAuthorizeFund(f)" class="tc-btn tc-btn-warn-solid btn-xs">
                     <i class="fa fa-pen-fancy me-1"></i>Autorizar
                   </button>
                 </td>
@@ -245,7 +245,7 @@
             <div class="row g-3">
               <div class="col-md-5" v-if="!credModal.id">
                 <label class="form-label">Colaborador <span class="text-danger">*</span></label>
-                <select v-model="credModal.colaborador_id" class="form-select">
+                <select v-model="credModal.colaborador_id" class="form-select tc-select">
                   <option :value="null">— Seleccionar —</option>
                   <option v-for="c in colaboradores" :key="c.id" :value="c.id">{{ c.user?.name }}</option>
                 </select>
@@ -303,8 +303,8 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button @click="credModal.show=false" class="btn btn-secondary" :disabled="credModal.saving">Cancelar</button>
-            <button @click="saveCred" class="btn btn-primary" :disabled="credModal.saving">
+            <button @click="credModal.show=false" class="tc-btn tc-btn-seg" :disabled="credModal.saving">Cancelar</button>
+            <button @click="saveCred" class="tc-btn tc-btn-ok" :disabled="credModal.saving">
               <span v-if="credModal.saving"><span class="spinner-border spinner-border-sm me-1"></span>Guardando…</span>
               <span v-else>Guardar credencial</span>
             </button>
@@ -331,7 +331,7 @@
             <div class="row g-3">
               <div class="col-md-6">
                 <label class="form-label">Propósito</label>
-                <select v-model="fundModal.purpose" class="form-select form-select-sm">
+                <select v-model="fundModal.purpose" class="form-select form-select-sm tc-select">
                   <option value="license">Renovación de licencia</option>
                   <option value="other">Otro</option>
                 </select>
@@ -363,8 +363,8 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button @click="fundModal.show=false" class="btn btn-secondary">Cancelar</button>
-            <button @click="saveFund" class="btn btn-info" :disabled="fundModal.saving">
+            <button @click="fundModal.show=false" class="tc-btn tc-btn-seg">Cancelar</button>
+            <button @click="saveFund" class="tc-btn tc-btn-ok" :disabled="fundModal.saving">
               <span v-if="fundModal.saving"><span class="spinner-border spinner-border-sm me-1"></span>Creando…</span>
               <span v-else>Crear fondo</span>
             </button>
@@ -382,7 +382,7 @@
             <button @click="authModal.show=false" type="button" class="btn-close"></button>
           </div>
           <div class="modal-body">
-            <div class="card border-0 bg-light mb-3">
+            <div class="tc-card tc-neutral-bg border-0 mb-3">
               <div class="card-body py-2 small">
                 <div><span class="text-muted">Técnico:</span> <strong>{{ authModal.fund?.collaborator_name ?? authModal.fund?.colaborador?.user?.name }}</strong></div>
                 <div><span class="text-muted">Propósito:</span> {{ purposeLabel(authModal.fund?.purpose) }}</div>
@@ -402,8 +402,8 @@
             <div v-if="authModal.error" class="alert alert-danger py-2 small mb-0">{{ authModal.error }}</div>
           </div>
           <div class="modal-footer">
-            <button @click="authModal.show=false" class="btn btn-secondary" :disabled="authModal.saving">Cancelar</button>
-            <button @click="confirmAuthorize" class="btn btn-warning" :disabled="authModal.saving">
+            <button @click="authModal.show=false" class="tc-btn tc-btn-seg" :disabled="authModal.saving">Cancelar</button>
+            <button @click="confirmAuthorize" class="tc-btn tc-btn-warn-solid" :disabled="authModal.saving">
               <span v-if="authModal.saving"><span class="spinner-border spinner-border-sm me-1"></span>Autorizando…</span>
               <span v-else><i class="fa fa-check me-1"></i>Confirmar — hay firma LFT</span>
             </button>
@@ -416,8 +416,13 @@
 </template>
 
 <script>
+import { darkMode } from "../../../hook/appConfig.js";
+
 export default {
   name: 'TalentoCredenciales',
+  setup() {
+    return { darkMode };
+  },
   data() {
     return {
       tab: 'alerts',
@@ -621,13 +626,13 @@ export default {
 
     // ── Helpers ─────────────────────────────────────────────────────────────
     credStatusColor(s) {
-      return { valid:'bg-success', expiring:'bg-warning text-dark', expired:'bg-danger', missing:'bg-secondary' }[s] ?? 'bg-light';
+      return { valid:'is-ok', expiring:'is-warn', expired:'is-bad', missing:'is-slate' }[s] ?? 'is-slate';
     },
     credStatusLabel(s) {
       return { valid:'✅ Vigente', expiring:'🟡 Por vencer', expired:'🔴 Vencida', missing:'⚫ Sin registro' }[s] ?? s;
     },
     fundStatusColor(s) {
-      return { accumulating:'bg-info text-dark', ready:'bg-success', spent:'bg-secondary' }[s] ?? 'bg-light';
+      return { accumulating:'is-info', ready:'is-ok', spent:'is-slate' }[s] ?? 'is-slate';
     },
     fundStatusLabel(s) {
       return { accumulating:'Acumulando', ready:'Listo para usar', spent:'Aplicado' }[s] ?? s;
@@ -642,3 +647,15 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* Neutraliza bg-light (tarjeta-resumen del modal Autorizar fondo). */
+.tc-neutral-bg {
+  background: var(--tc-bg2);
+}
+/* Reemplaza el antiguo .table-warning-row (dead class, sin CSS propio) por un
+   resaltado ámbar real para las filas de fondos pendientes de autorizar. */
+.tc-row-pending > * {
+  background: rgba(217, 119, 6, 0.12);
+}
+</style>

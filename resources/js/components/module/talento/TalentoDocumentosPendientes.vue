@@ -1,5 +1,5 @@
 <template>
-  <div class="talento-documentos-pendientes">
+  <div class="talento-documentos-pendientes tc-wrap" :class="{ 'tc-dark': darkMode }">
 
     <div class="alert alert-light small mb-3 py-2">
       <i class="fa fa-info-circle me-1 text-primary"></i>
@@ -11,7 +11,7 @@
 
     <div v-else-if="loadError" class="alert alert-warning">
       <i class="fa fa-exclamation-triangle me-1"></i> {{ loadError }}
-      <button @click="load" class="btn btn-sm btn-outline-secondary ms-2">Reintentar</button>
+      <button @click="load" class="tc-btn tc-btn-seg btn-sm ms-2">Reintentar</button>
     </div>
 
     <div v-else>
@@ -20,7 +20,7 @@
         <div class="col-6 col-md-4">
           <div class="card h-100 border-0 shadow-sm">
             <div class="card-body d-flex align-items-center gap-3">
-              <div class="rounded-circle p-3 bg-primary-subtle" style="width:50px;height:50px;display:flex;align-items:center;justify-content:center;">
+              <div class="tdp-icon-circle tdp-icon-info rounded-circle p-3" style="width:50px;height:50px;display:flex;align-items:center;justify-content:center;">
                 <i class="fa fa-file-signature text-primary" style="font-size:18px;"></i>
               </div>
               <div>
@@ -33,7 +33,7 @@
         <div class="col-6 col-md-4">
           <div class="card h-100 border-0 shadow-sm">
             <div class="card-body d-flex align-items-center gap-3">
-              <div class="rounded-circle p-3 bg-warning-subtle" style="width:50px;height:50px;display:flex;align-items:center;justify-content:center;">
+              <div class="tdp-icon-circle tdp-icon-warn rounded-circle p-3" style="width:50px;height:50px;display:flex;align-items:center;justify-content:center;">
                 <i class="fa fa-clock text-warning" style="font-size:18px;"></i>
               </div>
               <div>
@@ -46,7 +46,7 @@
         <div class="col-6 col-md-4">
           <div class="card h-100 border-0 shadow-sm">
             <div class="card-body d-flex align-items-center gap-3">
-              <div class="rounded-circle p-3 bg-danger-subtle" style="width:50px;height:50px;display:flex;align-items:center;justify-content:center;">
+              <div class="tdp-icon-circle tdp-icon-bad rounded-circle p-3" style="width:50px;height:50px;display:flex;align-items:center;justify-content:center;">
                 <i class="fa fa-exclamation-circle text-danger" style="font-size:18px;"></i>
               </div>
               <div>
@@ -62,7 +62,7 @@
       <div class="card border-0 shadow-sm">
         <div class="card-header bg-white fw-semibold small d-flex justify-content-between align-items-center">
           <span>Documentos pendientes de firma</span>
-          <button @click="load" class="btn btn-sm btn-outline-secondary"><i class="fa fa-sync-alt me-1"></i>Actualizar</button>
+          <button @click="load" class="tc-btn tc-btn-seg btn-sm"><i class="fa fa-sync-alt me-1"></i>Actualizar</button>
         </div>
         <div class="card-body p-0">
           <div v-if="!grupos.length" class="alert alert-light text-center m-3 mb-0">
@@ -84,18 +84,18 @@
                   <tr class="table-light">
                     <td colspan="5" class="small fw-semibold">
                       <i class="fa fa-user me-1 text-muted"></i>{{ grupo.colaborador_nombre }}
-                      <span class="badge bg-secondary ms-2">{{ grupo.docs.length }}</span>
+                      <span class="tc-status is-slate ms-2">{{ grupo.docs.length }}</span>
                     </td>
                   </tr>
                   <tr v-for="doc in grupo.docs" :key="doc.documento_id">
                     <td></td>
                     <td class="small">{{ doc.documento_nombre }}</td>
                     <td class="text-end">
-                      <span class="badge" :class="diasBadgeClass(doc.dias_pendiente)">{{ fmtDias(doc.dias_pendiente) }}</span>
+                      <span class="tc-status" :class="diasBadgeClass(doc.dias_pendiente)">{{ fmtDias(doc.dias_pendiente) }}</span>
                     </td>
                     <td class="small text-muted">{{ fmtFecha(doc.ultima_accion) }}</td>
                     <td class="text-end">
-                      <button @click="openRecordar(doc, grupo)" class="btn btn-sm btn-outline-primary">
+                      <button @click="openRecordar(doc, grupo)" class="tc-btn tc-btn-info btn-sm">
                         <i class="fa fa-paper-plane me-1"></i>Recordar
                       </button>
                     </td>
@@ -141,10 +141,15 @@
 </template>
 
 <script>
+import { darkMode } from "../../../hook/appConfig.js";
+
 const MAX_PAGINAS = 40;
 
 export default {
   name: 'TalentoDocumentosPendientes',
+  setup() {
+    return { darkMode };
+  },
   data() {
     return {
       loading: true,
@@ -243,10 +248,10 @@ export default {
       return v == null ? '—' : `${v} día${Number(v) === 1 ? '' : 's'}`;
     },
     diasBadgeClass(v) {
-      if (v == null) return 'bg-secondary';
-      if (Number(v) > 30) return 'bg-danger';
-      if (Number(v) > 7) return 'bg-warning text-dark';
-      return 'bg-secondary';
+      if (v == null) return 'is-slate';
+      if (Number(v) > 30) return 'is-bad';
+      if (Number(v) > 7) return 'is-warn';
+      return 'is-slate';
     },
     fmtFecha(v) {
       if (!v) return '—';
@@ -256,3 +261,19 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* Gap del tema Torre (paso 8): bg-primary/warning/danger-subtle son planas y
+   casi invisibles en modo oscuro (dark_mode.scss no las cubre). Se reemplazan
+   por tokens del tema con la misma fórmula de opacidad usada en el resto de
+   Talento (rgba del color semántico al 12%). */
+.tdp-icon-circle.tdp-icon-info {
+  background-color: rgba(37, 99, 235, .12);
+}
+.tdp-icon-circle.tdp-icon-warn {
+  background-color: rgba(217, 119, 6, .12);
+}
+.tdp-icon-circle.tdp-icon-bad {
+  background-color: rgba(220, 38, 38, .12);
+}
+</style>
