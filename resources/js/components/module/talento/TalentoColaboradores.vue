@@ -1,115 +1,118 @@
 <template>
-  <div class="talento-colaboradores">
+  <div class="talento-colaboradores tc-wrap" :class="{ 'tc-dark': darkMode }">
 
-    <!-- Header -->
-    <div class="d-flex align-items-center justify-content-between mb-3">
-      <h5 class="mb-0"><i class="fa fa-id-badge me-2 text-primary"></i>Colaboradores</h5>
-      <button v-if="canManage" @click="openModal(null)" class="btn btn-primary btn-sm">
-        <i class="fa fa-plus me-1"></i> Nuevo colaborador
-      </button>
-    </div>
+    <div class="tc-card">
+      <div class="tc-cardhead d-flex align-items-center justify-content-between gap-2 p-3">
+        <h5 class="tc-h1"><i class="fa fa-id-badge me-2"></i>Colaboradores</h5>
+        <button v-if="canManage" @click="openModal(null)" class="tc-btn tc-btn-ok">
+          <i class="fa fa-plus me-1"></i> Nuevo colaborador
+        </button>
+      </div>
 
-    <!-- Filtros -->
-    <div class="row g-2 mb-3">
-      <div class="col-md-4">
-        <input v-model="filters.search" @input="debounceLoad" type="text"
-               class="form-control form-control-sm" placeholder="Buscar nombre o email…">
+      <div class="p-3">
+      <!-- Filtros -->
+      <div class="row g-2 mb-3">
+        <div class="col-md-4">
+          <input v-model="filters.search" @input="debounceLoad" type="text"
+                 class="form-control form-control-sm" placeholder="Buscar nombre o email…">
+        </div>
+        <div class="col-md-2">
+          <select v-model="filters.status" @change="load" class="form-select form-select-sm tc-select">
+            <option value="">Todos los status</option>
+            <option value="active">Activo</option>
+            <option value="inactive">Inactivo</option>
+            <option value="suspended">Suspendido</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <select v-model="filters.type" @change="load" class="form-select form-select-sm tc-select">
+            <option value="">Todos los tipos</option>
+            <option value="interno">Interno</option>
+            <option value="externo">Externo</option>
+          </select>
+        </div>
       </div>
-      <div class="col-md-2">
-        <select v-model="filters.status" @change="load" class="form-select form-select-sm">
-          <option value="">Todos los status</option>
-          <option value="active">Activo</option>
-          <option value="inactive">Inactivo</option>
-          <option value="suspended">Suspendido</option>
-        </select>
-      </div>
-      <div class="col-md-2">
-        <select v-model="filters.type" @change="load" class="form-select form-select-sm">
-          <option value="">Todos los tipos</option>
-          <option value="interno">Interno</option>
-          <option value="externo">Externo</option>
-        </select>
-      </div>
-    </div>
 
-    <!-- Tabla -->
-    <div v-if="loading" class="text-center py-5">
-      <div class="spinner-border text-primary"></div>
-    </div>
-    <div v-else class="table-responsive">
-      <table class="table table-hover table-sm align-middle">
-        <thead class="table-light">
-          <tr>
-            <th>Nombre</th>
-            <th>Tipo</th>
-            <th>Departamento</th>
-            <th>Supervisor</th>
-            <th>Ingreso</th>
-            <th>Status</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="col in items" :key="col.id">
-            <td>
-              <div class="fw-semibold">{{ col.user?.name }}</div>
-              <div class="small text-muted">{{ col.user?.email }}</div>
-              <!-- Roles Spatie (solo lectura) — la gestión vive en Administradores -->
-              <div v-if="col.user?.role_names?.length" class="mt-1">
-                <span v-for="r in col.user.role_names" :key="r"
-                      class="badge bg-light text-secondary border me-1" style="font-size:10px;">
-                  {{ r }}
+      <!-- Tabla -->
+      <div v-if="loading" class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+      </div>
+      <div v-else class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Nombre</th>
+              <th>Tipo</th>
+              <th>Departamento</th>
+              <th>Supervisor</th>
+              <th>Ingreso</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="col in items" :key="col.id">
+              <td>
+                <div class="fw-semibold">{{ col.user?.name }}</div>
+                <div class="small text-muted">{{ col.user?.email }}</div>
+                <!-- Roles Spatie (solo lectura) — la gestión vive en Administradores -->
+                <div v-if="col.user?.role_names?.length" class="mt-1">
+                  <span v-for="r in col.user.role_names" :key="r"
+                        class="tc-status is-slate me-1" style="font-size:10px;">
+                    {{ r }}
+                  </span>
+                </div>
+              </td>
+              <td>
+                <span class="tc-status" :class="col.type === 'interno' ? 'is-info' : 'is-slate'">
+                  {{ col.type }}
                 </span>
-              </div>
-            </td>
-            <td>
-              <span class="badge" :class="col.type === 'interno' ? 'bg-primary-subtle text-primary' : 'bg-secondary-subtle text-secondary'">
-                {{ col.type }}
-              </span>
-            </td>
-            <td>{{ col.department ?? '—' }}</td>
-            <td>{{ col.supervisor?.user?.name ?? '—' }}</td>
-            <td class="small">{{ formatDate(col.hire_date) }}</td>
-            <td><span class="badge" :class="statusBadge(col.status)">{{ statusLabel(col.status) }}</span></td>
-            <td class="text-end">
-              <button v-if="canManage" @click="openModal(col)" class="btn btn-xs btn-outline-primary me-1">
-                <i class="fa fa-pen"></i>
-              </button>
-              <a :href="`/talento/custodia`" class="btn btn-xs btn-outline-secondary me-1" title="Custodia">
-                <i class="fa fa-boxes"></i>
-              </a>
-              <button @click="openDocumentos(col)" class="btn btn-xs btn-outline-secondary me-1" title="Documentos">
-                <i class="fa fa-file-alt"></i>
-              </button>
-              <!-- Cross-link: gestión de acceso en Administradores -->
-              <a :href="`/administracion/user/${col.user_id}/editar`"
-                 class="btn btn-xs btn-outline-info" title="Gestión de acceso (Administradores)"
-                 target="_blank">
-                <i class="fa fa-key"></i>
-              </a>
-            </td>
-          </tr>
-          <tr v-if="!items.length">
-            <td colspan="7" class="text-center text-muted py-4">No se encontraron colaboradores.</td>
-          </tr>
-        </tbody>
-      </table>
+              </td>
+              <td>{{ col.department ?? '—' }}</td>
+              <td>{{ col.supervisor?.user?.name ?? '—' }}</td>
+              <td class="small">{{ formatDate(col.hire_date) }}</td>
+              <td><span class="tc-status" :class="statusBadge(col.status)">{{ statusLabel(col.status) }}</span></td>
+              <td class="text-end">
+                <button v-if="canManage" @click="openModal(col)" class="tc-btn tc-btn-info me-1">
+                  <i class="fa fa-pen"></i>
+                </button>
+                <a :href="`/talento/custodia`" class="tc-btn tc-btn-seg me-1" title="Custodia">
+                  <i class="fa fa-boxes"></i>
+                </a>
+                <button @click="openDocumentos(col)" class="tc-btn tc-btn-seg me-1" title="Documentos">
+                  <i class="fa fa-file-alt"></i>
+                </button>
+                <!-- Cross-link: gestión de acceso en Administradores -->
+                <a :href="`/administracion/user/${col.user_id}/editar`"
+                   class="tc-btn tc-btn-info" title="Gestión de acceso (Administradores)"
+                   target="_blank">
+                  <i class="fa fa-key"></i>
+                </a>
+              </td>
+            </tr>
+            <tr v-if="!items.length">
+              <td colspan="7" class="text-center text-muted py-4">No se encontraron colaboradores.</td>
+            </tr>
+          </tbody>
+        </table>
 
-      <!-- Paginación -->
-      <div v-if="pagination.last_page > 1" class="d-flex justify-content-end">
-        <nav>
-          <ul class="pagination pagination-sm mb-0">
-            <li class="page-item" :class="{ disabled: pagination.current_page <= 1 }">
-              <button class="page-link" @click="goPage(pagination.current_page - 1)">‹</button>
-            </li>
-            <li v-for="p in pagination.last_page" :key="p" class="page-item" :class="{ active: p === pagination.current_page }">
-              <button class="page-link" @click="goPage(p)">{{ p }}</button>
-            </li>
-            <li class="page-item" :class="{ disabled: pagination.current_page >= pagination.last_page }">
-              <button class="page-link" @click="goPage(pagination.current_page + 1)">›</button>
-            </li>
-          </ul>
-        </nav>
+        <!-- Paginación -->
+        <div v-if="pagination.last_page > 1" class="d-flex justify-content-end">
+          <nav>
+            <ul class="pagination pagination-sm mb-0">
+              <li class="page-item" :class="{ disabled: pagination.current_page <= 1 }">
+                <button class="page-link" @click="goPage(pagination.current_page - 1)">‹</button>
+              </li>
+              <li v-for="p in pagination.last_page" :key="p" class="page-item" :class="{ active: p === pagination.current_page }">
+                <button class="page-link" @click="goPage(p)">{{ p }}</button>
+              </li>
+              <li class="page-item" :class="{ disabled: pagination.current_page >= pagination.last_page }">
+                <button class="page-link" @click="goPage(pagination.current_page + 1)">›</button>
+              </li>
+            </ul>
+          </nav>
+        </div>
+      </div>
       </div>
     </div>
 
@@ -156,7 +159,7 @@
                 <div v-if="modal.role_names?.length" class="mt-2">
                   <small class="text-muted me-2">Roles:</small>
                   <span v-for="r in modal.role_names" :key="r"
-                        class="badge bg-light text-secondary border me-1">{{ r }}</span>
+                        class="tc-status is-slate me-1">{{ r }}</span>
                   <small class="text-muted fst-italic">
                     (Gestión de roles en <a href="/administracion/user" target="_blank">Administradores</a>)
                   </small>
@@ -181,7 +184,7 @@
               <!-- Status -->
               <div class="col-md-4">
                 <label class="form-label">Status <span class="text-danger">*</span></label>
-                <select v-model="modal.status" class="form-select">
+                <select v-model="modal.status" class="form-select tc-select">
                   <option value="active">Activo</option>
                   <option value="inactive">Inactivo</option>
                   <option value="suspended">Suspendido</option>
@@ -200,7 +203,7 @@
               <!-- Supervisor -->
               <div class="col-md-6">
                 <label class="form-label">Supervisor</label>
-                <select v-model="modal.supervisor_id" class="form-select">
+                <select v-model="modal.supervisor_id" class="form-select tc-select">
                   <option :value="null">— Sin supervisor —</option>
                   <option v-for="c in supervisores" :key="c.id" :value="c.id">
                     {{ c.user?.name }}
@@ -253,7 +256,7 @@
 
               <div class="col-md-4">
                 <label class="form-label">Puesto</label>
-                <select v-model="modal.puesto_id" class="form-select" @change="onPuestoChange">
+                <select v-model="modal.puesto_id" class="form-select tc-select" @change="onPuestoChange">
                   <option :value="null">— Sin especificar —</option>
                   <option v-for="p in puestos" :key="p.id" :value="p.id">{{ p.nombre }}</option>
                 </select>
@@ -263,7 +266,7 @@
               </div>
               <div class="col-md-4">
                 <label class="form-label">Tipo de relación laboral</label>
-                <select v-model="modal.relation_type" class="form-select">
+                <select v-model="modal.relation_type" class="form-select tc-select">
                   <option :value="null">— Sin especificar —</option>
                   <option value="indeterminada">Indeterminada</option>
                   <option value="determinada">Determinada</option>
@@ -277,7 +280,7 @@
 
               <div class="col-md-4">
                 <label class="form-label">Periodicidad de pago</label>
-                <select v-model="modal.pay_frequency" class="form-select">
+                <select v-model="modal.pay_frequency" class="form-select tc-select">
                   <option :value="null">— Sin especificar —</option>
                   <option value="semanal">Semanal</option>
                   <option value="quincenal">Quincenal</option>
@@ -352,8 +355,13 @@
 </template>
 
 <script>
+import { darkMode } from "../../../hook/appConfig.js";
+
 export default {
   name: 'TalentoColaboradores',
+  setup() {
+    return { darkMode };
+  },
   data() {
     return {
       items: [],
@@ -581,7 +589,7 @@ export default {
       }
     },
     statusBadge(s) {
-      return { active: 'bg-success', inactive: 'bg-secondary', suspended: 'bg-warning text-dark' }[s] ?? 'bg-light';
+      return { active: 'is-ok', inactive: 'is-slate', suspended: 'is-warn' }[s] ?? 'is-slate';
     },
     statusLabel(s) {
       return { active: 'Activo', inactive: 'Inactivo', suspended: 'Suspendido' }[s] ?? s;

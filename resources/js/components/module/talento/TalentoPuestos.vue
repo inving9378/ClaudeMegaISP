@@ -1,45 +1,51 @@
 <template>
-  <div class="talento-puestos">
-    <div class="d-flex justify-content-end mb-3">
-      <button @click="openNew" class="btn btn-sm btn-primary">
-        <i class="fa fa-plus me-1"></i>Nuevo puesto
-      </button>
-    </div>
+  <div class="talento-puestos tc-wrap" :class="{ 'tc-dark': darkMode }">
 
-    <div v-if="loading" class="text-center py-5">
-      <div class="spinner-border text-primary"></div>
-    </div>
+    <div class="tc-card">
+      <div class="tc-cardhead d-flex flex-wrap align-items-center justify-content-between gap-2 p-3">
+        <h5 class="tc-h1 mb-0"><i class="fa fa-id-badge me-2"></i>Puestos</h5>
+        <button @click="openNew" class="tc-btn tc-btn-ok">
+          <i class="fa fa-plus me-1"></i>Nuevo puesto
+        </button>
+      </div>
 
-    <div v-else-if="errorMsg" class="alert alert-danger">
-      <i class="fa fa-exclamation-triangle me-2"></i>{{ errorMsg }}
-      <button class="btn btn-sm btn-outline-danger ms-3" @click="load">Reintentar</button>
-    </div>
+      <div class="p-3">
+        <div v-if="loading" class="text-center py-5">
+          <div class="spinner-border text-primary"></div>
+        </div>
 
-    <div v-else class="table-responsive">
-      <table class="table table-hover table-sm align-middle">
-        <thead class="table-light">
-          <tr><th>Nombre</th><th>Colaboradores</th><th>Activo</th><th></th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="p in puestos" :key="p.id">
-            <td class="fw-semibold">{{ p.nombre }}</td>
-            <td class="small text-muted">{{ p.colaboradores_count }}</td>
-            <td>
-              <span class="badge" :class="p.activo ? 'bg-success' : 'bg-secondary'">
-                {{ p.activo ? 'Activo' : 'Inactivo' }}
-              </span>
-            </td>
-            <td>
-              <button @click="openEdit(p)" class="btn btn-xs btn-outline-primary">
-                <i class="fa fa-pen"></i>
-              </button>
-            </td>
-          </tr>
-          <tr v-if="!puestos.length">
-            <td colspan="4" class="text-center text-muted py-4">Sin puestos capturados.</td>
-          </tr>
-        </tbody>
-      </table>
+        <div v-else-if="errorMsg" class="alert alert-danger">
+          <i class="fa fa-exclamation-triangle me-2"></i>{{ errorMsg }}
+          <button class="tc-btn tc-btn-bad ms-3" @click="load">Reintentar</button>
+        </div>
+
+        <div v-else class="table-responsive">
+          <table class="table table-hover table-sm align-middle">
+            <thead class="table-light">
+              <tr><th>Nombre</th><th>Colaboradores</th><th>Activo</th><th></th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="p in puestos" :key="p.id">
+                <td class="fw-semibold">{{ p.nombre }}</td>
+                <td class="small text-muted">{{ p.colaboradores_count }}</td>
+                <td>
+                  <span class="tc-status" :class="p.activo ? 'is-ok' : 'is-slate'">
+                    {{ p.activo ? 'Activo' : 'Inactivo' }}
+                  </span>
+                </td>
+                <td>
+                  <button @click="openEdit(p)" class="tc-btn tc-btn-info">
+                    <i class="fa fa-pen"></i>
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="!puestos.length">
+                <td colspan="4" class="text-center text-muted py-4">Sin puestos capturados.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <!-- ── MODAL PUESTO (crear / editar) ── -->
@@ -80,9 +86,13 @@
 
 <script>
 import axios from 'axios';
+import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoPuestos',
+  setup() {
+    return { darkMode };
+  },
   data() {
     return {
       puestos: [],

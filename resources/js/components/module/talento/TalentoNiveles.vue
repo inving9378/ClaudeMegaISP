@@ -1,5 +1,5 @@
 <template>
-  <div class="talento-niveles">
+  <div class="talento-niveles tc-wrap" :class="{ 'tc-dark': darkMode }">
 
     <ul class="nav nav-tabs mb-3">
       <li class="nav-item">
@@ -27,7 +27,7 @@
       <div class="row g-3 mb-3">
         <div class="col-md-5">
           <label class="form-label small text-muted">Colaborador</label>
-          <select v-model="selectedColId" @change="loadEligibility" class="form-select">
+          <select v-model="selectedColId" @change="loadEligibility" class="form-select tc-select">
             <option :value="null">— Seleccionar colaborador —</option>
             <option v-for="c in colaboradores" :key="c.id" :value="c.id">{{ c.user?.name }}</option>
           </select>
@@ -39,14 +39,14 @@
       <div v-else-if="eligibility" class="row g-3">
         <!-- Panel principal -->
         <div class="col-md-8">
-          <div class="card shadow-sm">
+          <div class="tc-card">
             <div class="card-body">
               <!-- Nivel actual -->
               <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
                 <div>
                   <div class="small text-muted">Nivel actual</div>
                   <div v-if="eligibility.current_level" class="d-flex align-items-center gap-2 mt-1">
-                    <span class="badge fs-6" :class="rankColor(eligibility.current_level.rank)">
+                    <span class="tc-status fs-6" :class="rankColor(eligibility.current_level.rank)">
                       {{ eligibility.current_level.name }}
                     </span>
                     <span class="small text-muted">rank {{ eligibility.current_level.rank }}</span>
@@ -57,7 +57,7 @@
                 <div v-if="eligibility.eligible_level" class="ms-md-3">
                   <div class="small text-muted">Nivel elegible ahora</div>
                   <div class="d-flex align-items-center gap-2 mt-1">
-                    <span class="badge fs-6" :class="rankColor(eligibility.eligible_level.rank)">
+                    <span class="tc-status fs-6" :class="rankColor(eligibility.eligible_level.rank)">
                       {{ eligibility.eligible_level.name }}
                     </span>
                     <span class="fw-bold text-success">${{ fmtMXN(eligibility.eligible_level.base_salary) }}</span>
@@ -80,8 +80,8 @@
                        class="col-md-6 small d-flex align-items-center gap-1">
                     <i class="fa" :class="c.certified ? 'fa-check-circle text-success' : 'fa-circle text-light border rounded-circle'"></i>
                     <span :class="c.certified ? '' : 'text-muted'">{{ c.title }}</span>
-                    <span v-if="!c.certified && c.exam_passed && !c.practical_ok" class="badge bg-warning text-dark ms-1" style="font-size:9px">sin práctica</span>
-                    <span v-if="!c.certified && !c.exam_passed" class="badge bg-light text-muted border ms-1" style="font-size:9px">sin examen</span>
+                    <span v-if="!c.certified && c.exam_passed && !c.practical_ok" class="tc-status is-warn ms-1" style="font-size:9px">sin práctica</span>
+                    <span v-if="!c.certified && !c.exam_passed" class="tc-status is-slate ms-1" style="font-size:9px">sin examen</span>
                   </div>
                 </div>
               </div>
@@ -98,16 +98,16 @@
                     ${{ fmtMXN(lv.base_salary) }}
                   </div>
                   <div class="mt-1">
-                    <span v-if="lv.is_current" class="badge bg-primary" style="font-size:9px">Actual</span>
-                    <span v-else-if="lv.qualifies" class="badge bg-success" style="font-size:9px">✓ Califica</span>
-                    <span v-else class="badge bg-light text-muted border" style="font-size:9px">{{ reqLabel(lv.required_certifications) }}</span>
+                    <span v-if="lv.is_current" class="tc-status is-info" style="font-size:9px">Actual</span>
+                    <span v-else-if="lv.qualifies" class="tc-status is-ok" style="font-size:9px">✓ Califica</span>
+                    <span v-else class="tc-status is-slate" style="font-size:9px">{{ reqLabel(lv.required_certifications) }}</span>
                   </div>
                 </div>
               </div>
 
               <!-- Botón promover -->
               <div v-if="eligibility.can_promote" class="mt-3 d-flex align-items-center gap-2">
-                <button @click="openPromote" class="btn btn-success">
+                <button @click="openPromote" class="tc-btn tc-btn-ok">
                   <i class="fa fa-arrow-up me-1"></i>
                   Promover a {{ eligibility.eligible_level?.name }}
                   (${{ fmtMXN(eligibility.eligible_level?.base_salary) }})
@@ -134,8 +134,8 @@
 
         <!-- Historial de niveles -->
         <div class="col-md-4">
-          <div class="card shadow-sm h-100">
-            <div class="card-header py-2 bg-light">
+          <div class="tc-card h-100">
+            <div class="tc-cardhead py-2 tc-bg-neutral">
               <strong class="small text-uppercase">Historial de niveles</strong>
             </div>
             <div class="card-body p-0">
@@ -144,7 +144,7 @@
               <ul v-else class="list-group list-group-flush">
                 <li v-for="h in levelHistory" :key="h.id" class="list-group-item py-2 small">
                   <div class="d-flex justify-content-between">
-                    <span class="badge" :class="rankColor(h.level?.rank ?? 1)">{{ h.level?.name ?? '?' }}</span>
+                    <span class="tc-status" :class="rankColor(h.level?.rank ?? 1)">{{ h.level?.name ?? '?' }}</span>
                     <span class="text-muted">{{ fmtDate(h.assigned_at) }}</span>
                   </div>
                   <div class="text-muted mt-1" style="font-size:11px;">
@@ -161,7 +161,7 @@
     <!-- ── TAB DEFINICIÓN DE NIVELES ── -->
     <div v-if="tab === 'definition'">
       <div class="d-flex justify-content-end mb-3">
-        <button @click="openNewLevel" class="btn btn-sm btn-primary">
+        <button @click="openNewLevel" class="tc-btn tc-btn-ok btn-sm">
           <i class="fa fa-plus me-1"></i>Nuevo nivel
         </button>
       </div>
@@ -174,17 +174,17 @@
           </thead>
           <tbody>
             <tr v-for="lv in levels" :key="lv.id">
-              <td><span class="badge" :class="rankColor(lv.rank)">{{ lv.rank }}</span></td>
+              <td><span class="tc-status" :class="rankColor(lv.rank)">{{ lv.rank }}</span></td>
               <td class="fw-semibold">{{ lv.name }}</td>
               <td class="fw-bold text-primary">${{ fmtMXN(lv.base_salary) }}</td>
               <td class="small text-muted">{{ reqLabel(lv.required_certifications) }}</td>
               <td>
-                <span class="badge" :class="lv.active ? 'bg-success' : 'bg-secondary'">
+                <span class="tc-status" :class="lv.active ? 'is-ok' : 'is-slate'">
                   {{ lv.active ? 'Activo' : 'Inactivo' }}
                 </span>
               </td>
               <td>
-                <button @click="openEditLevel(lv)" class="btn btn-xs btn-outline-primary">
+                <button @click="openEditLevel(lv)" class="tc-btn tc-btn-info btn-xs">
                   <i class="fa fa-pen"></i>
                 </button>
               </td>
@@ -216,7 +216,7 @@
                 <td class="small text-muted">{{ wot.category ?? '—' }}</td>
                 <td>
                   <select :value="wot.required_level_id" @change="setWotLevel(wot, $event.target.value)"
-                          class="form-select form-select-sm" style="width:160px">
+                          class="form-select form-select-sm tc-select" style="width:160px">
                     <option :value="null">Sin restricción</option>
                     <option v-for="lv in levels" :key="lv.id" :value="lv.id">
                       {{ lv.name }} (rank {{ lv.rank }})
@@ -247,7 +247,7 @@
                 <td class="small">{{ at.points_per_unit }}</td>
                 <td>
                   <select :value="at.required_level_id" @change="setActLevel(at, $event.target.value)"
-                          class="form-select form-select-sm" style="width:160px">
+                          class="form-select form-select-sm tc-select" style="width:160px">
                     <option :value="null">Sin restricción</option>
                     <option v-for="lv in levels" :key="lv.id" :value="lv.id">
                       {{ lv.name }} (rank {{ lv.rank }})
@@ -320,8 +320,8 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button @click="levelModal.show=false" class="btn btn-secondary">Cancelar</button>
-            <button @click="saveLevel" class="btn btn-primary" :disabled="levelModal.saving">
+            <button @click="levelModal.show=false" class="tc-btn tc-btn-seg">Cancelar</button>
+            <button @click="saveLevel" class="tc-btn tc-btn-ok" :disabled="levelModal.saving">
               <span v-if="levelModal.saving"><span class="spinner-border spinner-border-sm me-1"></span></span>
               <span v-else>Guardar</span>
             </button>
@@ -343,7 +343,7 @@
               <strong>{{ colName }}</strong> será promovido a
               <strong>{{ eligibility?.eligible_level?.name }}</strong>.
             </div>
-            <div class="card border-0 bg-light mb-3">
+            <div class="tc-card border-0 tc-bg-neutral mb-3">
               <div class="card-body py-2 small">
                 <div>
                   Nuevo sueldo base:
@@ -374,8 +374,8 @@
             <div v-if="promoteModal.error" class="alert alert-danger py-2 small mb-0">{{ promoteModal.error }}</div>
           </div>
           <div class="modal-footer">
-            <button @click="promoteModal.show=false" class="btn btn-secondary" :disabled="promoteModal.saving">Cancelar</button>
-            <button @click="confirmPromote" class="btn btn-success" :disabled="promoteModal.saving">
+            <button @click="promoteModal.show=false" class="tc-btn tc-btn-seg" :disabled="promoteModal.saving">Cancelar</button>
+            <button @click="confirmPromote" class="tc-btn tc-btn-ok" :disabled="promoteModal.saving">
               <span v-if="promoteModal.saving"><span class="spinner-border spinner-border-sm me-1"></span>Promoviendo…</span>
               <span v-else><i class="fa fa-arrow-up me-1"></i>Confirmar promoción</span>
             </button>
@@ -388,8 +388,13 @@
 </template>
 
 <script>
+import { darkMode } from "../../../hook/appConfig.js";
+
 export default {
   name: 'TalentoNiveles',
+  setup() {
+    return { darkMode };
+  },
   data() {
     return {
       tab: 'colaboradores',
@@ -546,7 +551,7 @@ export default {
 
     // ── Helpers ─────────────────────────────────────────────────────────────
     rankColor(rank) {
-      return { 1:'bg-secondary', 2:'bg-primary', 3:'bg-info text-dark', 4:'bg-warning text-dark' }[rank] ?? 'bg-dark';
+      return { 1:'is-slate', 2:'is-info', 3:'is-accent', 4:'is-warn' }[rank] ?? 'is-slate';
     },
     reqLabel(req) {
       if (!req) return '—';
@@ -563,3 +568,12 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* .bg-light (Bootstrap) no tiene tratamiento verificado en modo oscuro dentro
+   de .tc-wrap — recoloreado con el token --tc-bg2 (mismo patrón ya usado en
+   TalentoOrdenes/TalentoAsistencia para el mismo hallazgo). */
+.talento-niveles .tc-bg-neutral {
+  background: var(--tc-bg2, #f8fafc);
+}
+</style>
