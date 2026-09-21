@@ -1,107 +1,111 @@
 <template>
-  <div class="talento-escalafon">
+  <div class="talento-escalafon tc-wrap" :class="{ 'tc-dark': darkMode }">
 
-    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-      <h5 class="mb-0"><i class="fa fa-trophy me-2 text-warning"></i>Escalafón de Colaboradores</h5>
-      <div class="d-flex gap-2 align-items-center">
-        <label class="small text-muted">Semanas:</label>
-        <select v-model="weeksBack" @change="load" class="form-select form-select-sm" style="width:80px">
-          <option :value="2">2</option>
-          <option :value="4">4</option>
-          <option :value="8">8</option>
-          <option :value="12">12</option>
-        </select>
-        <button v-if="canManage" @click="openConfig" class="btn btn-sm btn-outline-secondary">
-          <i class="fa fa-sliders-h me-1"></i>Pesos
-        </button>
+    <div class="tc-card">
+      <div class="tc-cardhead d-flex align-items-center justify-content-between flex-wrap gap-2 p-3">
+        <h5 class="mb-0"><i class="fa fa-trophy me-2 text-warning"></i>Escalafón de Colaboradores</h5>
+        <div class="d-flex gap-2 align-items-center">
+          <label class="small text-muted">Semanas:</label>
+          <select v-model="weeksBack" @change="load" class="form-select form-select-sm tc-select" style="width:80px">
+            <option :value="2">2</option>
+            <option :value="4">4</option>
+            <option :value="8">8</option>
+            <option :value="12">12</option>
+          </select>
+          <button v-if="canManage" @click="openConfig" class="tc-btn tc-btn-seg btn-sm">
+            <i class="fa fa-sliders-h me-1"></i>Pesos
+          </button>
+        </div>
       </div>
-    </div>
 
-    <!-- Tabs -->
-    <ul class="nav nav-tabs mb-3">
-      <li class="nav-item"><a class="nav-link" :class="{active:tab==='ranking'}" href="#" @click.prevent="tab='ranking'"><i class="fa fa-list-ol me-1"></i>Posiciones</a></li>
-      <li class="nav-item"><a class="nav-link" :class="{active:tab==='improved'}" href="#" @click.prevent="tab='improved'"><i class="fa fa-chart-line me-1"></i>Más mejorado</a></li>
-    </ul>
+      <div class="p-3">
+        <!-- Tabs -->
+        <ul class="nav nav-tabs mb-3">
+          <li class="nav-item"><a class="nav-link" :class="{active:tab==='ranking'}" href="#" @click.prevent="tab='ranking'"><i class="fa fa-list-ol me-1"></i>Posiciones</a></li>
+          <li class="nav-item"><a class="nav-link" :class="{active:tab==='improved'}" href="#" @click.prevent="tab='improved'"><i class="fa fa-chart-line me-1"></i>Más mejorado</a></li>
+        </ul>
 
-    <div v-if="loading" class="text-center py-5"><div class="spinner-border text-warning"></div></div>
+        <div v-if="loading" class="text-center py-5"><div class="spinner-border text-warning"></div></div>
 
-    <!-- Ranking -->
-    <div v-else-if="tab==='ranking'">
-      <div v-if="!ranking.length" class="alert alert-light text-center">Sin datos de colaboradores activos</div>
-      <div v-else class="table-responsive">
-        <table class="table table-hover table-sm align-middle">
-          <thead class="table-light">
-            <tr>
-              <th style="width:50px">#</th>
-              <th>Colaborador</th>
-              <th>Nivel</th>
-              <th>Estrellas</th>
-              <th>Puntaje</th>
-              <th title="Cuota">Cuota</th>
-              <th title="Calidad inspecciones">Calidad</th>
-              <th title="Bono salud">Salud</th>
-              <th title="Sin penalizaciones">Normas</th>
-              <th title="Asistencia">Asist.</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in ranking" :key="row.colaborador_id"
-                :class="row.rank<=3 ? 'table-warning' : ''">
-              <td class="text-center fw-bold">
-                <span v-if="row.rank===1">🥇</span>
-                <span v-else-if="row.rank===2">🥈</span>
-                <span v-else-if="row.rank===3">🥉</span>
-                <span v-else>{{ row.rank }}</span>
-              </td>
-              <td>
-                <div class="fw-semibold small">{{ row.name }}</div>
-                <div v-if="row.improvement_delta != null" class="small" :class="row.improvement_delta>=0?'text-success':'text-danger'">
-                  <i :class="['fa', row.improvement_delta>=0?'fa-arrow-up':'fa-arrow-down']"></i>
-                  {{ Math.abs(row.improvement_delta) }} pts vs periodo anterior
-                </div>
-              </td>
-              <td class="small text-muted">{{ row.level ?? '—' }}</td>
-              <td>
-                <span v-for="s in row.stars" :key="s" class="text-warning">★</span>
-                <span v-for="s in (5-row.stars)" :key="'e'+s" class="text-muted">☆</span>
-              </td>
-              <td>
-                <div class="fw-bold">{{ row.total_score }}</div>
-                <div class="progress" style="height:4px;min-width:60px">
-                  <div class="progress-bar bg-warning" :style="{width:row.total_score+'%'}"></div>
-                </div>
-              </td>
-              <td class="small">{{ fmt1(row.components?.quota) }}%</td>
-              <td class="small">{{ fmt1(row.components?.quality) }}%</td>
-              <td class="small">{{ fmt1(row.components?.health_bonus) }}%</td>
-              <td class="small">{{ fmt1(row.components?.normas) }}%</td>
-              <td class="small">{{ fmt1(row.components?.attendance) }}%</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+        <!-- Ranking -->
+        <div v-else-if="tab==='ranking'">
+          <div v-if="!ranking.length" class="alert alert-light text-center">Sin datos de colaboradores activos</div>
+          <div v-else class="table-responsive">
+            <table class="table table-hover table-sm align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th style="width:50px">#</th>
+                  <th>Colaborador</th>
+                  <th>Nivel</th>
+                  <th>Estrellas</th>
+                  <th>Puntaje</th>
+                  <th title="Cuota">Cuota</th>
+                  <th title="Calidad inspecciones">Calidad</th>
+                  <th title="Bono salud">Salud</th>
+                  <th title="Sin penalizaciones">Normas</th>
+                  <th title="Asistencia">Asist.</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in ranking" :key="row.colaborador_id"
+                    :class="row.rank<=3 ? 'escalafon-toprank' : ''">
+                  <td class="text-center fw-bold">
+                    <span v-if="row.rank===1">🥇</span>
+                    <span v-else-if="row.rank===2">🥈</span>
+                    <span v-else-if="row.rank===3">🥉</span>
+                    <span v-else>{{ row.rank }}</span>
+                  </td>
+                  <td>
+                    <div class="fw-semibold small">{{ row.name }}</div>
+                    <div v-if="row.improvement_delta != null" class="small" :class="row.improvement_delta>=0?'text-success':'text-danger'">
+                      <i :class="['fa', row.improvement_delta>=0?'fa-arrow-up':'fa-arrow-down']"></i>
+                      {{ Math.abs(row.improvement_delta) }} pts vs periodo anterior
+                    </div>
+                  </td>
+                  <td class="small text-muted">{{ row.level ?? '—' }}</td>
+                  <td>
+                    <span v-for="s in row.stars" :key="s" class="text-warning">★</span>
+                    <span v-for="s in (5-row.stars)" :key="'e'+s" class="text-muted">☆</span>
+                  </td>
+                  <td>
+                    <div class="fw-bold">{{ row.total_score }}</div>
+                    <div class="progress" style="height:4px;min-width:60px">
+                      <div class="progress-bar bg-warning" :style="{width:row.total_score+'%'}"></div>
+                    </div>
+                  </td>
+                  <td class="small">{{ fmt1(row.components?.quota) }}%</td>
+                  <td class="small">{{ fmt1(row.components?.quality) }}%</td>
+                  <td class="small">{{ fmt1(row.components?.health_bonus) }}%</td>
+                  <td class="small">{{ fmt1(row.components?.normas) }}%</td>
+                  <td class="small">{{ fmt1(row.components?.attendance) }}%</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-    <!-- Más mejorado -->
-    <div v-else-if="tab==='improved'">
-      <div class="alert alert-info alert-sm py-2 mb-3 small">
-        <i class="fa fa-info-circle me-1"></i>Compara las últimas 2 semanas vs las 2 anteriores.
-      </div>
-      <div v-if="!mostImproved.length" class="alert alert-light text-center">Sin datos suficientes</div>
-      <div v-else class="table-responsive">
-        <table class="table table-sm align-middle">
-          <thead class="table-light"><tr><th>#</th><th>Colaborador</th><th>Δ Puntaje</th><th>Puntaje actual</th></tr></thead>
-          <tbody>
-            <tr v-for="(row, idx) in mostImproved" :key="row.colaborador_id">
-              <td>{{ idx + 1 }}</td>
-              <td class="fw-semibold small">{{ row.name }}</td>
-              <td :class="row.improvement_delta>=0?'text-success fw-bold':'text-danger'">
-                {{ row.improvement_delta >= 0 ? '+' : '' }}{{ row.improvement_delta }}
-              </td>
-              <td>{{ row.total_score }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <!-- Más mejorado -->
+        <div v-else-if="tab==='improved'">
+          <div class="alert alert-info alert-sm py-2 mb-3 small">
+            <i class="fa fa-info-circle me-1"></i>Compara las últimas 2 semanas vs las 2 anteriores.
+          </div>
+          <div v-if="!mostImproved.length" class="alert alert-light text-center">Sin datos suficientes</div>
+          <div v-else class="table-responsive">
+            <table class="table table-sm align-middle">
+              <thead class="table-light"><tr><th>#</th><th>Colaborador</th><th>Δ Puntaje</th><th>Puntaje actual</th></tr></thead>
+              <tbody>
+                <tr v-for="(row, idx) in mostImproved" :key="row.colaborador_id">
+                  <td>{{ idx + 1 }}</td>
+                  <td class="fw-semibold small">{{ row.name }}</td>
+                  <td :class="row.improvement_delta>=0?'text-success fw-bold':'text-danger'">
+                    {{ row.improvement_delta >= 0 ? '+' : '' }}{{ row.improvement_delta }}
+                  </td>
+                  <td>{{ row.total_score }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -121,8 +125,8 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
-            <button class="btn btn-primary btn-sm" @click="saveConfig" :disabled="savingConfig">
+            <button class="tc-btn tc-btn-seg btn-sm" data-bs-dismiss="modal">Cancelar</button>
+            <button class="tc-btn tc-btn-ok btn-sm" @click="saveConfig" :disabled="savingConfig">
               <span v-if="savingConfig" class="spinner-border spinner-border-sm me-1"></span>
               Guardar
             </button>
@@ -135,8 +139,13 @@
 </template>
 
 <script>
+import { darkMode } from "../../../hook/appConfig.js";
+
 export default {
   name: 'TalentoEscalafon',
+  setup() {
+    return { darkMode };
+  },
   data() {
     return {
       tab: 'ranking',
@@ -193,3 +202,13 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* Resalta el top-3 del ranking (antes .table-warning de Bootstrap, que no se
+   adapta al tema Torre en modo oscuro — gap detectado por la receta del
+   tema Torre). Ámbar suave, consistente con el resto de highlights
+   "atención/positivo" de _torre-theme.scss. */
+.escalafon-toprank {
+  background: rgba(217, 119, 6, .12);
+}
+</style>

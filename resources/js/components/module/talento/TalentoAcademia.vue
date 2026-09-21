@@ -1,5 +1,5 @@
 <template>
-  <div class="talento-academia">
+  <div class="talento-academia tc-wrap" :class="{ 'tc-dark': darkMode }">
 
     <!-- Tabs principales -->
     <ul class="nav nav-tabs mb-3">
@@ -26,19 +26,19 @@
       <!-- Vista detalle del curso -->
       <template v-if="courseDetail">
         <div class="d-flex align-items-center gap-3 mb-3">
-          <button @click="courseDetail=null; examScreen=false" class="btn btn-sm btn-outline-secondary">
+          <button @click="courseDetail=null; examScreen=false" class="tc-btn tc-btn-seg">
             <i class="fa fa-arrow-left me-1"></i>Catálogo
           </button>
           <h5 class="mb-0">{{ courseDetail.title }}</h5>
-          <span v-if="myCertMap[courseDetail.id]" class="badge bg-success ms-2">
+          <span v-if="myCertMap[courseDetail.id]" class="tc-status is-ok ms-2">
             <i class="fa fa-medal me-1"></i>Certificado
           </span>
         </div>
 
         <!-- Pantalla de examen -->
         <div v-if="examScreen">
-          <div class="card shadow-sm">
-            <div class="card-header bg-primary text-white py-2">
+          <div class="tc-card shadow-sm">
+            <div class="tc-cardhead bg-primary text-white py-2">
               <strong>{{ courseDetail.exams?.[0]?.title }}</strong>
               <span class="float-end small">Puntaje mínimo: {{ courseDetail.exams?.[0]?.passing_score }}%</span>
             </div>
@@ -56,7 +56,7 @@
                     <i class="fa fa-medal me-1"></i>¡Certificación otorgada!
                   </div>
                   <div class="mt-3">
-                    <button @click="examScreen=false; examResult=null; loadCourseDetail(courseDetail.id)" class="btn btn-primary">
+                    <button @click="examScreen=false; examResult=null; loadCourseDetail(courseDetail.id)" class="tc-btn tc-btn-info">
                       Volver al curso
                     </button>
                   </div>
@@ -65,7 +65,7 @@
               <div v-else>
                 <div v-for="(q, idx) in examQuestions" :key="q.id" class="mb-4">
                   <div class="fw-semibold mb-2">{{ idx + 1 }}. {{ q.question }}
-                    <span class="badge bg-light text-muted border ms-1" style="font-size:10px">{{ q.points }} pt{{ q.points > 1 ? 's' : '' }}</span>
+                    <span class="tc-status is-slate ms-1" style="font-size:10px">{{ q.points }} pt{{ q.points > 1 ? 's' : '' }}</span>
                   </div>
                   <div v-for="(opt, oi) in q.options" :key="oi" class="form-check ms-2">
                     <input :id="`q${q.id}o${oi}`" class="form-check-input"
@@ -76,7 +76,7 @@
                     <label :for="`q${q.id}o${oi}`" class="form-check-label">{{ opt }}</label>
                   </div>
                 </div>
-                <button @click="submitExam" class="btn btn-success" :disabled="submittingExam">
+                <button @click="submitExam" class="tc-btn tc-btn-ok" :disabled="submittingExam">
                   <span v-if="submittingExam"><span class="spinner-border spinner-border-sm me-1"></span>Calificando…</span>
                   <span v-else><i class="fa fa-paper-plane me-1"></i>Enviar y calificar</span>
                 </button>
@@ -92,7 +92,7 @@
           <!-- Materiales -->
           <div v-if="courseDetail.materials?.length" class="mb-4">
             <h6 class="text-uppercase text-muted small mb-2">Material del curso</h6>
-            <div v-for="mat in courseDetail.materials" :key="mat.id" class="card mb-2 shadow-sm">
+            <div v-for="mat in courseDetail.materials" :key="mat.id" class="tc-card mb-2 shadow-sm">
               <div class="card-body py-2">
                 <div class="fw-semibold small mb-1">
                   <i class="fa me-1" :class="matIcon(mat.type)"></i>{{ mat.title ?? typeLabelMat(mat.type) }}
@@ -141,7 +141,7 @@
           <div v-else class="text-muted small fst-italic mb-3">Sin materiales cargados aún.</div>
 
           <!-- Sección examen -->
-          <div v-if="courseDetail.exams?.length" class="card shadow-sm mb-3">
+          <div v-if="courseDetail.exams?.length" class="tc-card shadow-sm mb-3">
             <div class="card-body py-2">
               <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <div>
@@ -153,7 +153,7 @@
                   </div>
                   <div v-else class="small text-muted mt-1">No presentado aún.</div>
                 </div>
-                <button @click="startExam" class="btn btn-sm btn-primary" :disabled="loadingExam">
+                <button @click="startExam" class="tc-btn tc-btn-ok" :disabled="loadingExam">
                   <span v-if="loadingExam"><span class="spinner-border spinner-border-sm me-1"></span></span>
                   <span v-else><i class="fa fa-pencil-alt me-1"></i>{{ myBestAttempt?.passed ? 'Re-presentar' : 'Presentar examen' }}</span>
                 </button>
@@ -162,12 +162,12 @@
           </div>
 
           <!-- Evaluación práctica (solo evaluadores) -->
-          <div v-if="canEvaluate" class="card shadow-sm mb-3 border-info">
+          <div v-if="canEvaluate" class="tc-card shadow-sm mb-3 border-info">
             <div class="card-body py-2">
               <h6 class="small mb-2"><i class="fa fa-user-check me-1 text-info"></i>Evaluación práctica</h6>
               <div class="row g-2">
                 <div class="col-md-4">
-                  <select v-model="practForm.colaborador_id" class="form-select form-select-sm">
+                  <select v-model="practForm.colaborador_id" class="form-select form-select-sm tc-select">
                     <option :value="null">— Técnico —</option>
                     <option v-for="c in colaboradores" :key="c.id" :value="c.id">{{ c.user?.name }}</option>
                   </select>
@@ -187,7 +187,7 @@
                 <div class="col-md-5 d-flex gap-2">
                   <input type="file" class="form-control form-control-sm" accept="image/*"
                          @change="e => practForm.evidenceFile = e.target.files[0]">
-                  <button @click="submitPractical" class="btn btn-sm btn-info text-white" :disabled="practForm.saving || !practForm.colaborador_id">
+                  <button @click="submitPractical" class="tc-btn tc-btn-ok" :disabled="practForm.saving || !practForm.colaborador_id">
                     <span v-if="practForm.saving"><span class="spinner-border spinner-border-sm"></span></span>
                     <span v-else>Registrar</span>
                   </button>
@@ -206,7 +206,7 @@
       <!-- Lista de cursos (catálogo) -->
       <template v-else>
         <div class="d-flex gap-2 mb-3 flex-wrap">
-          <select v-model="catFilter" @change="loadCourses" class="form-select form-select-sm" style="width:180px">
+          <select v-model="catFilter" @change="loadCourses" class="form-select form-select-sm tc-select" style="width:180px">
             <option value="">Todos los departamentos</option>
             <option value="técnicos">Técnicos</option>
             <option value="general">General</option>
@@ -216,17 +216,17 @@
         <div v-if="loadingCourses" class="text-center py-5"><div class="spinner-border text-primary"></div></div>
         <div v-else class="row g-3">
           <div v-for="c in courses" :key="c.id" class="col-md-4 col-lg-3">
-            <div class="card h-100 shadow-sm" :class="myCertMap[c.id] ? 'border-success' : ''">
+            <div class="tc-card h-100 shadow-sm" :class="myCertMap[c.id] ? 'border-success' : ''">
               <div class="card-body">
                 <div class="d-flex align-items-start justify-content-between mb-1">
                   <h6 class="card-title mb-0 small fw-semibold">{{ c.title }}</h6>
-                  <span v-if="myCertMap[c.id]" class="badge bg-success ms-1" style="white-space:nowrap"><i class="fa fa-medal"></i></span>
+                  <span v-if="myCertMap[c.id]" class="tc-status is-ok ms-1" style="white-space:nowrap"><i class="fa fa-medal"></i></span>
                 </div>
-                <div v-if="c.department" class="badge bg-light text-muted border small mb-2">{{ c.department }}</div>
+                <div v-if="c.department" class="tc-status is-slate small mb-2">{{ c.department }}</div>
                 <p v-if="c.description" class="card-text small text-muted" style="font-size:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">{{ c.description }}</p>
               </div>
               <div class="card-footer p-1">
-                <button @click="loadCourseDetail(c.id)" class="btn btn-xs btn-primary w-100">
+                <button @click="loadCourseDetail(c.id)" class="tc-btn tc-btn-info w-100">
                   <i class="fa fa-book-open me-1"></i>Ver curso
                 </button>
               </div>
@@ -242,7 +242,7 @@
       <div v-if="loadingCerts" class="text-center py-5"><div class="spinner-border text-success"></div></div>
       <div v-else>
         <!-- Progreso global -->
-        <div v-if="myProgress" class="card mb-4 shadow-sm border-0 bg-light">
+        <div v-if="myProgress" class="tc-card mb-4 shadow-sm border-0 aca-bg-neutral">
           <div class="card-body py-2">
             <div class="d-flex align-items-center gap-3 flex-wrap">
               <div class="progress flex-fill" style="height:12px;min-width:150px;">
@@ -255,7 +255,7 @@
         </div>
         <div class="row g-3">
           <div v-for="cert in myCertifications" :key="cert.id" class="col-md-4 col-lg-3">
-            <div class="card h-100 shadow-sm border-success">
+            <div class="tc-card h-100 shadow-sm border-success">
               <div class="card-body text-center py-3">
                 <div class="display-6 mb-2">🏅</div>
                 <div class="fw-semibold">{{ cert.course?.title }}</div>
@@ -263,7 +263,7 @@
                 <div v-if="cert.exam_attempt" class="small text-success mt-1">
                   Examen: {{ cert.exam_attempt.score }}%
                 </div>
-                <span class="badge mt-2" :class="cert.status === 'active' ? 'bg-success' : 'bg-secondary'">
+                <span class="tc-status mt-2" :class="cert.status === 'active' ? 'is-ok' : 'is-slate'">
                   {{ cert.status === 'active' ? 'Activo' : 'Revocado' }}
                 </span>
               </div>
@@ -280,7 +280,7 @@
     <!-- ── TAB ADMIN ── -->
     <div v-if="tab === 'admin' && canManage">
       <div class="d-flex justify-content-end mb-3">
-        <button @click="openNewCourse" class="btn btn-sm btn-primary">
+        <button @click="openNewCourse" class="tc-btn tc-btn-ok">
           <i class="fa fa-plus me-1"></i>Nuevo curso
         </button>
       </div>
@@ -291,17 +291,17 @@
             <button class="accordion-button collapsed py-2" type="button"
                     data-bs-toggle="collapse" :data-bs-target="`#acc-${c.id}`">
               <span class="fw-semibold me-2">{{ c.title }}</span>
-              <span class="badge bg-light text-muted border small me-2">{{ c.department ?? 'sin depto' }}</span>
-              <span class="badge" :class="c.active ? 'bg-success' : 'bg-secondary'">{{ c.active ? 'Activo' : 'Inactivo' }}</span>
+              <span class="tc-status is-slate small me-2">{{ c.department ?? 'sin depto' }}</span>
+              <span class="tc-status" :class="c.active ? 'is-ok' : 'is-slate'">{{ c.active ? 'Activo' : 'Inactivo' }}</span>
             </button>
           </h2>
           <div :id="`acc-${c.id}`" class="accordion-collapse collapse" data-bs-parent="#coursesAccordion">
             <div class="accordion-body py-2">
               <div class="d-flex gap-2 mb-3 flex-wrap">
-                <button @click="openEditCourse(c)" class="btn btn-xs btn-outline-primary"><i class="fa fa-pen me-1"></i>Editar curso</button>
-                <button @click="openAddMaterial(c.id)" class="btn btn-xs btn-outline-secondary"><i class="fa fa-plus me-1"></i>Material</button>
-                <button @click="openAddExam(c.id)" class="btn btn-xs btn-outline-info"><i class="fa fa-file-alt me-1"></i>Examen</button>
-                <button @click="viewColCerts(c.id)" class="btn btn-xs btn-outline-success"><i class="fa fa-medal me-1"></i>Certificaciones</button>
+                <button @click="openEditCourse(c)" class="tc-btn tc-btn-seg"><i class="fa fa-pen me-1"></i>Editar curso</button>
+                <button @click="openAddMaterial(c.id)" class="tc-btn tc-btn-seg"><i class="fa fa-plus me-1"></i>Material</button>
+                <button @click="openAddExam(c.id)" class="tc-btn tc-btn-seg"><i class="fa fa-file-alt me-1"></i>Examen</button>
+                <button @click="viewColCerts(c.id)" class="tc-btn tc-btn-info"><i class="fa fa-medal me-1"></i>Certificaciones</button>
               </div>
 
               <!-- Materials list -->
@@ -310,7 +310,7 @@
                 <ul class="list-group list-group-flush">
                   <li v-for="m in adminMaterials[c.id]" :key="m.id" class="list-group-item py-1 d-flex justify-content-between align-items-center small">
                     <span><i class="fa me-1" :class="matIcon(m.type)"></i>{{ m.title ?? typeLabelMat(m.type) }}</span>
-                    <button @click="deleteMaterial(m.id, c.id)" class="btn btn-xs btn-outline-danger"><i class="fa fa-trash"></i></button>
+                    <button @click="deleteMaterial(m.id, c.id)" class="tc-btn tc-btn-bad"><i class="fa fa-trash"></i></button>
                   </li>
                 </ul>
               </div>
@@ -320,10 +320,10 @@
       </div>
 
       <!-- Cert viewer por colaborador -->
-      <div v-if="adminCertView.show" class="card mt-4 shadow-sm">
-        <div class="card-header py-2 d-flex align-items-center justify-content-between">
+      <div v-if="adminCertView.show" class="tc-card mt-4 shadow-sm">
+        <div class="tc-cardhead py-2 d-flex align-items-center justify-content-between">
           <strong class="small">Certificaciones — {{ adminCertView.courseTitle }}</strong>
-          <button @click="adminCertView.show=false" class="btn btn-xs btn-outline-secondary">✕</button>
+          <button @click="adminCertView.show=false" class="tc-btn tc-btn-seg">✕</button>
         </div>
         <div class="card-body p-0">
           <div v-if="!adminCertView.certs?.length" class="text-center text-muted py-3 small">Sin certificaciones para este curso.</div>
@@ -333,9 +333,9 @@
               <tr v-for="cert in adminCertView.certs" :key="cert.id">
                 <td class="small fw-semibold">{{ cert.colaborador?.user?.name }}</td>
                 <td class="small">{{ fmtDate(cert.certified_at) }}</td>
-                <td><span class="badge" :class="cert.status==='active'?'bg-success':'bg-secondary'">{{ cert.status==='active'?'Activo':'Revocado' }}</span></td>
+                <td><span class="tc-status" :class="cert.status==='active'?'is-ok':'is-slate'">{{ cert.status==='active'?'Activo':'Revocado' }}</span></td>
                 <td>
-                  <button v-if="cert.status==='active'" @click="revokeCart(cert)" class="btn btn-xs btn-outline-danger">Revocar</button>
+                  <button v-if="cert.status==='active'" @click="revokeCart(cert)" class="tc-btn tc-btn-bad">Revocar</button>
                 </td>
               </tr>
             </tbody>
@@ -372,8 +372,8 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button @click="courseModal.show=false" class="btn btn-secondary">Cancelar</button>
-            <button @click="saveCourse" class="btn btn-primary" :disabled="courseModal.saving">
+            <button @click="courseModal.show=false" class="tc-btn tc-btn-seg">Cancelar</button>
+            <button @click="saveCourse" class="tc-btn tc-btn-ok" :disabled="courseModal.saving">
               <span v-if="courseModal.saving"><span class="spinner-border spinner-border-sm me-1"></span></span>
               <span v-else>Guardar</span>
             </button>
@@ -393,7 +393,7 @@
           <div class="modal-body">
             <div class="row g-3">
               <div class="col-md-5"><label class="form-label">Tipo</label>
-                <select v-model="matModal.type" class="form-select form-select-sm">
+                <select v-model="matModal.type" class="form-select form-select-sm tc-select">
                   <option value="text">Texto</option>
                   <option value="video">Video</option>
                   <option value="reference">Referencia (norma/penalización)</option>
@@ -414,13 +414,13 @@
               </div>
               <template v-if="matModal.type === 'reference'">
                 <div class="col-md-6"><label class="form-label">Estándar de construcción</label>
-                  <select v-model="matModal.reference_standard_id" class="form-select form-select-sm">
+                  <select v-model="matModal.reference_standard_id" class="form-select form-select-sm tc-select">
                     <option :value="null">— Ninguno —</option>
                     <option v-for="s in allStandards" :key="s.id" :value="s.id">{{ s.name }}</option>
                   </select>
                 </div>
                 <div class="col-md-6"><label class="form-label">Tipo de penalización</label>
-                  <select v-model="matModal.reference_penalty_type_id" class="form-select form-select-sm">
+                  <select v-model="matModal.reference_penalty_type_id" class="form-select form-select-sm tc-select">
                     <option :value="null">— Ninguno —</option>
                     <option v-for="p in allPenaltyTypes" :key="p.id" :value="p.id">{{ p.name }}</option>
                   </select>
@@ -432,8 +432,8 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button @click="matModal.show=false" class="btn btn-secondary">Cancelar</button>
-            <button @click="saveMaterial" class="btn btn-primary" :disabled="matModal.saving">
+            <button @click="matModal.show=false" class="tc-btn tc-btn-seg">Cancelar</button>
+            <button @click="saveMaterial" class="tc-btn tc-btn-ok" :disabled="matModal.saving">
               <span v-if="matModal.saving"><span class="spinner-border spinner-border-sm me-1"></span></span>
               <span v-else>Agregar</span>
             </button>
@@ -458,19 +458,19 @@
               <div class="col-md-3"><label class="form-label">Puntaje mínimo (%)</label>
                 <input v-model.number="examModal.passing_score" type="number" min="1" max="100" class="form-control form-control-sm"></div>
               <div class="col-md-3 d-flex align-items-end">
-                <button @click="createExam" class="btn btn-primary btn-sm w-100" :disabled="examModal.saving">Crear examen</button>
+                <button @click="createExam" class="tc-btn tc-btn-ok w-100" :disabled="examModal.saving">Crear examen</button>
               </div>
             </div>
 
             <!-- Paso 2: agregar preguntas -->
             <div v-if="examModal.examId">
               <div class="alert alert-success py-1 small mb-3">Examen creado. Agrega preguntas:</div>
-              <div v-for="(q, qi) in examModal.questions" :key="qi" class="card mb-3 shadow-sm">
+              <div v-for="(q, qi) in examModal.questions" :key="qi" class="tc-card mb-3 shadow-sm">
                 <div class="card-body py-2">
                   <div class="row g-2">
                     <div class="col-12"><input v-model="q.question" type="text" class="form-control form-control-sm" placeholder="Pregunta…"></div>
                     <div class="col-md-4">
-                      <select v-model="q.type" class="form-select form-select-sm">
+                      <select v-model="q.type" class="form-select form-select-sm tc-select">
                         <option value="single">Opción única</option>
                         <option value="multiple">Múltiple</option>
                         <option value="true_false">Verdadero/Falso</option>
@@ -484,12 +484,12 @@
                                :checked="q.correct_answer.includes(oi)"
                                @change="toggleCorrect(q, oi)">
                         <input v-model="q.options[oi]" type="text" class="form-control form-control-sm" placeholder="Opción…">
-                        <button @click="q.options.splice(oi,1)" class="btn btn-xs btn-outline-danger">✕</button>
+                        <button @click="q.options.splice(oi,1)" class="tc-btn tc-btn-bad">✕</button>
                       </div>
-                      <button @click="q.options.push('')" class="btn btn-xs btn-outline-secondary mt-1">+ Opción</button>
+                      <button @click="q.options.push('')" class="tc-btn tc-btn-seg mt-1">+ Opción</button>
                     </div>
                     <div class="col-12 d-flex justify-content-end">
-                      <button @click="saveQuestion(qi)" class="btn btn-xs btn-success" :disabled="q.saving">
+                      <button @click="saveQuestion(qi)" class="tc-btn tc-btn-ok" :disabled="q.saving">
                         <span v-if="q.saving"><span class="spinner-border spinner-border-sm"></span></span>
                         <span v-else-if="q.saved"><i class="fa fa-check text-white"></i> Guardada</span>
                         <span v-else>Guardar pregunta</span>
@@ -499,14 +499,14 @@
                 </div>
               </div>
               <button @click="examModal.questions.push({question:'',type:'single',options:['',''],correct_answer:[],points:1,saving:false,saved:false})"
-                      class="btn btn-sm btn-outline-primary">
+                      class="tc-btn tc-btn-seg">
                 <i class="fa fa-plus me-1"></i>Nueva pregunta
               </button>
             </div>
             <div v-if="examModal.error" class="alert alert-danger py-2 small mt-2 mb-0">{{ examModal.error }}</div>
           </div>
           <div class="modal-footer">
-            <button @click="examModal.show=false" class="btn btn-secondary">Cerrar</button>
+            <button @click="examModal.show=false" class="tc-btn tc-btn-seg">Cerrar</button>
           </div>
         </div>
       </div>
@@ -516,8 +516,13 @@
 </template>
 
 <script>
+import { darkMode } from "../../../hook/appConfig.js";
+
 export default {
   name: 'TalentoAcademia',
+  setup() {
+    return { darkMode };
+  },
   data() {
     return {
       tab: 'catalog',
@@ -821,3 +826,12 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* Gap del tema Torre: bg-light no está cubierto por el recoloreo automático
+   de .card (aquí ya convertido a .tc-card). Fondo neutro equivalente a
+   var(--tc-bg2), correcto en claro y oscuro. */
+.aca-bg-neutral {
+  background: var(--tc-bg2);
+}
+</style>
