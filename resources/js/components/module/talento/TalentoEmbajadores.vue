@@ -1,22 +1,24 @@
 <template>
-  <div class="talento-embajadores">
+  <div class="talento-embajadores tc-wrap" :class="{ 'tc-dark': darkMode }">
 
-    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-      <h5 class="mb-0"><i class="fa fa-link me-2 text-primary"></i>Colaboradores con Roles Múltiples</h5>
-      <div class="d-flex gap-2">
-        <input v-model="search" @input="debounceLoad" type="text" class="form-control form-control-sm" placeholder="Buscar colaborador…" style="width:220px">
+    <div class="tc-card">
+      <div class="tc-cardhead d-flex align-items-center justify-content-between flex-wrap gap-2 p-3">
+        <h5 class="tc-h1"><i class="fa fa-link me-2 text-primary"></i>Colaboradores con Roles Múltiples</h5>
+        <div class="d-flex gap-2">
+          <input v-model="search" @input="debounceLoad" type="text" class="form-control form-control-sm" placeholder="Buscar colaborador…" style="width:220px">
+        </div>
       </div>
-    </div>
 
-    <div class="alert alert-light small mb-3 py-2">
-      <i class="fa fa-info-circle me-1 text-primary"></i>
-      Vista <strong>solo lectura</strong>. Un colaborador puede ser también cliente/embajador o vendedor. Esta pantalla muestra ese vínculo sin modificar ninguna tabla externa.
-    </div>
+      <div class="p-3">
+      <div class="alert alert-light small mb-3 py-2">
+        <i class="fa fa-info-circle me-1 text-primary"></i>
+        Vista <strong>solo lectura</strong>. Un colaborador puede ser también cliente/embajador o vendedor. Esta pantalla muestra ese vínculo sin modificar ninguna tabla externa.
+      </div>
 
-    <div v-if="loading" class="text-center py-5"><div class="spinner-border text-primary"></div></div>
-    <div v-else-if="!items.length" class="alert alert-light text-center">Sin colaboradores encontrados</div>
-    <div v-else>
-      <div class="table-responsive">
+      <div v-if="loading" class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+      <div v-else-if="!items.length" class="alert alert-light text-center">Sin colaboradores encontrados</div>
+      <div v-else>
+        <div class="table-responsive">
         <table class="table table-hover table-sm align-middle">
           <thead class="table-light">
             <tr>
@@ -36,13 +38,13 @@
                 <div class="fw-semibold small">{{ col.user?.name }}</div>
                 <div class="small text-muted">{{ col.user?.email }}</div>
               </td>
-              <td><span class="badge" :class="col.type==='interno'?'bg-primary-subtle text-primary':'bg-secondary-subtle text-secondary'">{{ col.type }}</span></td>
+              <td><span class="tc-status" :class="col.type==='interno'?'is-info':'is-slate'">{{ col.type }}</span></td>
               <td>
                 <span v-if="col._embajador === null" class="text-muted small">—</span>
-                <span v-else-if="col._embajador?.is_ambassador" class="badge bg-success-subtle text-success">
+                <span v-else-if="col._embajador?.is_ambassador" class="tc-status is-ok">
                   <i class="fa fa-check me-1"></i>Sí
                 </span>
-                <span v-else class="badge bg-light text-secondary">No</span>
+                <span v-else class="tc-status is-slate">No</span>
               </td>
               <td class="small">{{ col._embajador?.total_referrals ?? '—' }}</td>
               <td class="small text-success">
@@ -51,17 +53,17 @@
               </td>
               <td>
                 <span v-if="col._seller === null" class="text-muted small">—</span>
-                <span v-else-if="col._seller?.is_seller" class="badge bg-info-subtle text-info">
+                <span v-else-if="col._seller?.is_seller" class="tc-status is-info">
                   <i class="fa fa-store me-1"></i>Sí
                 </span>
-                <span v-else class="badge bg-light text-secondary">No</span>
+                <span v-else class="tc-status is-slate">No</span>
               </td>
               <td class="small">
                 <span v-if="col._seller?.is_seller">${{ fmt2(col._seller.last_4w_commission) }}</span>
                 <span v-else class="text-muted">—</span>
               </td>
               <td>
-                <button @click="loadDetail(col)" class="btn btn-xs btn-outline-primary" title="Cargar detalle">
+                <button @click="loadDetail(col)" class="tc-btn tc-btn-info btn-xs" title="Cargar detalle">
                   <i class="fa fa-eye"></i>
                 </button>
               </td>
@@ -81,6 +83,8 @@
           </li>
         </ul>
       </nav>
+      </div>
+      </div>
     </div>
 
     <!-- Detalle modal -->
@@ -96,7 +100,7 @@
               <!-- Embajador -->
               <div class="col-md-6">
                 <div class="card border-0 shadow-sm h-100">
-                  <div class="card-header small fw-semibold bg-success-subtle text-success"><i class="fa fa-share-alt me-1"></i>Como Embajador</div>
+                  <div class="card-header small fw-semibold tae-chead-ok"><i class="fa fa-share-alt me-1"></i>Como Embajador</div>
                   <div class="card-body small">
                     <div v-if="detailEmbajador === null" class="text-muted">Cargando…</div>
                     <div v-else-if="!detailEmbajador.is_ambassador" class="text-muted">{{ detailEmbajador.message }}</div>
@@ -108,7 +112,7 @@
                         <div class="fw-semibold mb-1">Referidos recientes:</div>
                         <div v-for="r in detailEmbajador.recent_referrals.slice(0,5)" :key="r.id" class="border-bottom py-1 d-flex justify-content-between">
                           <span>{{ r.referred_client?.name ?? 'Cliente #'+r.referred_client_id }}</span>
-                          <span class="badge" :class="r.status==='active'?'bg-success-subtle text-success':'bg-secondary-subtle text-secondary'">{{ r.status }}</span>
+                          <span class="tc-status" :class="r.status==='active'?'is-ok':'is-slate'">{{ r.status }}</span>
                         </div>
                       </div>
                     </div>
@@ -118,7 +122,7 @@
               <!-- Vendedor -->
               <div class="col-md-6">
                 <div class="card border-0 shadow-sm h-100">
-                  <div class="card-header small fw-semibold bg-info-subtle text-info"><i class="fa fa-store me-1"></i>Como Vendedor</div>
+                  <div class="card-header small fw-semibold tae-chead-info"><i class="fa fa-store me-1"></i>Como Vendedor</div>
                   <div class="card-body small">
                     <div v-if="detailSeller === null" class="text-muted">Cargando…</div>
                     <div v-else-if="!detailSeller.is_seller" class="text-muted">{{ detailSeller.message }}</div>
@@ -136,7 +140,7 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+            <button class="tc-btn tc-btn-seg btn-sm" data-bs-dismiss="modal">Cerrar</button>
           </div>
         </div>
       </div>
@@ -146,8 +150,13 @@
 </template>
 
 <script>
+import { darkMode } from "../../../hook/appConfig.js";
+
 export default {
   name: 'TalentoEmbajadores',
+  setup() {
+    return { darkMode };
+  },
   data() {
     return {
       items: [],
@@ -209,3 +218,20 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* Gap del tema Torre (paso 8): bg-success-subtle/bg-info-subtle en el
+   card-header del modal de detalle son planas en modo oscuro (.card-header
+   del theme solo pone background:transparent sin !important, así que la
+   utilidad !important de Bootstrap le gana). Se reemplazan por tokens del
+   tema con la misma fórmula de opacidad usada en el resto de Talento (rgba
+   del color semántico al 12%, texto con la variable --tc-* correspondiente). */
+.tae-chead-ok {
+  background-color: rgba(21, 128, 61, .12);
+  color: var(--tc-ok);
+}
+.tae-chead-info {
+  background-color: rgba(37, 99, 235, .12);
+  color: var(--tc-info);
+}
+</style>

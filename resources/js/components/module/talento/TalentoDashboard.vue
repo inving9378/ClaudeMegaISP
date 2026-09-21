@@ -1,5 +1,5 @@
 <template>
-  <div class="talento-dashboard">
+  <div class="talento-dashboard tc-wrap" :class="{ 'tc-dark': darkMode }">
 
     <!-- Info cards -->
     <div class="row g-3 mb-4">
@@ -19,7 +19,7 @@
     </div>
 
     <!-- Tabs -->
-    <ul class="nav nav-tabs mb-3">
+    <ul class="nav nav-tabs tc-tabs mb-3">
       <li class="nav-item"><a class="nav-link" :class="{active:tab==='produccion'}" href="#" @click.prevent="tab='produccion'"><i class="fa fa-chart-bar me-1"></i>Producción diaria</a></li>
       <li class="nav-item"><a class="nav-link" :class="{active:tab==='tecnico'}" href="#" @click.prevent="tab='tecnico'"><i class="fa fa-hard-hat me-1"></i>Mi panel</a></li>
       <li class="nav-item"><a class="nav-link" :class="{active:tab==='calculadora'}" href="#" @click.prevent="tab='calculadora'"><i class="fa fa-calculator me-1"></i>Calculadora de pago</a></li>
@@ -30,7 +30,7 @@
     <div v-if="tab==='produccion'">
       <div class="d-flex gap-2 flex-wrap mb-3 align-items-center">
         <label class="small text-muted me-1">Días:</label>
-        <select v-model="prodDays" @change="loadDailyProduction" class="form-select form-select-sm" style="width:90px">
+        <select v-model="prodDays" @change="loadDailyProduction" class="form-select tc-select form-select-sm" style="width:90px">
           <option :value="7">7</option>
           <option :value="14">14</option>
           <option :value="30">30</option>
@@ -63,7 +63,7 @@
     <div v-if="tab==='tecnico'">
       <div class="mb-3 d-flex gap-2 align-items-center">
         <label class="small text-muted">Colaborador:</label>
-        <select v-model="tecnicoId" @change="loadTecnico" class="form-select form-select-sm" style="width:240px">
+        <select v-model="tecnicoId" @change="loadTecnico" class="form-select tc-select form-select-sm" style="width:240px">
           <option value="">— Seleccionar —</option>
           <option v-for="c in colaboradores" :key="c.id" :value="c.id">{{ c.user?.name ?? c.id }}</option>
         </select>
@@ -114,7 +114,7 @@
         <div class="card-body">
           <div class="mb-3">
             <label class="form-label small fw-semibold">Colaborador</label>
-            <select v-model="calcColabId" class="form-select form-select-sm">
+            <select v-model="calcColabId" class="form-select tc-select form-select-sm">
               <option value="">— Seleccionar —</option>
               <option v-for="c in colaboradores" :key="c.id" :value="c.id">{{ c.user?.name ?? c.id }}</option>
             </select>
@@ -123,7 +123,7 @@
             <label class="form-label small fw-semibold">Unidades hipotéticas</label>
             <input v-model.number="calcUnits" type="number" min="0" class="form-control form-control-sm">
           </div>
-          <button @click="runSimulation" class="btn btn-primary btn-sm w-100" :disabled="loadingCalc || !calcColabId">
+          <button @click="runSimulation" class="tc-btn tc-btn-primary btn-sm w-100" :disabled="loadingCalc || !calcColabId">
             <span v-if="loadingCalc" class="spinner-border spinner-border-sm me-1"></span>
             Simular pago
           </button>
@@ -138,7 +138,7 @@
                 <thead class="table-light"><tr><th>Unidades</th><th>Pago bruto</th></tr></thead>
                 <tbody>
                   <tr v-for="s in simResult.scenarios" :key="s.units"
-                      :class="s.units===simResult.hypothetical_units ? 'table-success' : ''">
+                      :class="s.units===simResult.hypothetical_units ? 'tdb-row-highlight' : ''">
                     <td>{{ s.units }}</td>
                     <td>${{ fmt2(s.gross) }}</td>
                   </tr>
@@ -154,7 +154,7 @@
     <div v-if="tab==='supervisor'">
       <div class="mb-3 d-flex gap-2 align-items-center">
         <label class="small text-muted">Supervisor:</label>
-        <select v-model="supervisorId" @change="loadEquipo" class="form-select form-select-sm" style="width:240px">
+        <select v-model="supervisorId" @change="loadEquipo" class="form-select tc-select form-select-sm" style="width:240px">
           <option value="">— Seleccionar —</option>
           <option v-for="c in colaboradores" :key="c.id" :value="c.id">{{ c.user?.name ?? c.id }}</option>
         </select>
@@ -194,9 +194,13 @@
 
 <script>
 import Chart from 'chart.js/auto';
+import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoDashboard',
+  setup() {
+    return { darkMode };
+  },
   data() {
     return {
       tab: 'produccion',
@@ -226,10 +230,10 @@ export default {
       if (!this.infoCardData) return [];
       const d = this.infoCardData;
       return [
-        { key: 'colabs', label: 'Colaboradores activos', value: d.active_colaboradores ?? 0, icon: 'fa-users', bgClass: 'bg-primary-subtle', textClass: 'text-primary' },
-        { key: 'asist',  label: 'Asistencia hoy',        value: d.checked_in_today ?? 0,    icon: 'fa-clock',  bgClass: 'bg-success-subtle', textClass: 'text-success' },
-        { key: 'ord',    label: 'Órdenes hoy',           value: d.orders_today ?? 0,         icon: 'fa-tasks',  bgClass: 'bg-warning-subtle', textClass: 'text-warning' },
-        { key: 'alrt',   label: 'Alertas',               value: (d.alerts?.credentials ?? 0) + (d.alerts?.desvios ?? 0), icon: 'fa-exclamation-triangle', bgClass: 'bg-danger-subtle', textClass: 'text-danger' },
+        { key: 'colabs', label: 'Colaboradores activos', value: d.active_colaboradores ?? 0, icon: 'fa-users', bgClass: 'tdb-icon-primary', textClass: 'text-primary' },
+        { key: 'asist',  label: 'Asistencia hoy',        value: d.checked_in_today ?? 0,    icon: 'fa-clock',  bgClass: 'tdb-icon-success', textClass: 'text-success' },
+        { key: 'ord',    label: 'Órdenes hoy',           value: d.orders_today ?? 0,         icon: 'fa-tasks',  bgClass: 'tdb-icon-warn', textClass: 'text-warning' },
+        { key: 'alrt',   label: 'Alertas',               value: (d.alerts?.credentials ?? 0) + (d.alerts?.desvios ?? 0), icon: 'fa-exclamation-triangle', bgClass: 'tdb-icon-bad', textClass: 'text-danger' },
       ];
     },
     quotaPct() {
@@ -311,3 +315,27 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* Gaps del tema Torre (paso 8): bg-primary/success/warning/danger-subtle son
+   planas y casi invisibles en modo oscuro (dark_mode.scss no las cubre) →
+   reemplazadas por tokens rgba propios, mismo patrón/valores ya usados en
+   TalentoDocumentosPendientes.vue (icon circles de KPI). table-success (fila
+   resaltada del simulador de pago) tampoco se adapta a oscuro → clase local
+   equivalente, mismo patrón que TalentoEscalafon.vue (.escalafon-toprank). */
+.tdb-icon-primary {
+  background-color: rgba(37, 99, 235, .12);
+}
+.tdb-icon-success {
+  background-color: rgba(21, 128, 61, .12);
+}
+.tdb-icon-warn {
+  background-color: rgba(217, 119, 6, .12);
+}
+.tdb-icon-bad {
+  background-color: rgba(220, 38, 38, .12);
+}
+.tdb-row-highlight {
+  background: rgba(21, 128, 61, .14);
+}
+</style>

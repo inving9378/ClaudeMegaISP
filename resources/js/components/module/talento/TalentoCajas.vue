@@ -1,5 +1,5 @@
 <template>
-  <div class="talento-cajas">
+  <div class="talento-cajas tc-wrap" :class="{ 'tc-dark': darkMode }">
 
     <!-- Settings bono -->
     <div class="card border-0 shadow-sm mb-4">
@@ -20,7 +20,7 @@
               <span class="input-group-text">dB</span>
             </div>
           </div>
-          <button @click="saveSettings" class="btn btn-sm btn-outline-primary" :disabled="settings.saving">
+          <button @click="saveSettings" class="tc-btn tc-btn-ok" :disabled="settings.saving">
             <span v-if="settings.saving"><span class="spinner-border spinner-border-sm me-1"></span></span>
             Guardar settings
           </button>
@@ -36,71 +36,81 @@
     <div class="row g-4">
       <!-- Tabla de baselines -->
       <div class="col-md-7">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <h6 class="mb-0"><i class="fa fa-signal text-primary me-2"></i>Baselines por caja</h6>
-          <button @click="openCreate" class="btn btn-sm btn-primary">
-            <i class="fa fa-plus me-1"></i>Registrar
-          </button>
-        </div>
-        <div class="mb-2">
-          <input v-model="search" @input="debounce" type="text" class="form-control form-control-sm" placeholder="Buscar caja…" style="max-width:220px">
-        </div>
-        <div v-if="loading" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>
-        <div v-else class="table-responsive">
-          <table class="table table-hover table-sm align-middle">
-            <thead class="table-light">
-              <tr><th>Ref. caja</th><th>Baseline</th><th>Registrada</th><th>Notas</th><th></th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="b in baselines" :key="b.id">
-                <td class="font-monospace fw-semibold">{{ b.caja_ref }}</td>
-                <td class="fw-bold" :class="parseFloat(b.baseline_power_dbm) < -25 ? 'text-danger' : 'text-success'">
-                  {{ fmt1(b.baseline_power_dbm) }} dBm
-                </td>
-                <td class="small">{{ fmtdt(b.registered_at) }}</td>
-                <td class="small text-muted">{{ b.notes ?? '—' }}</td>
-                <td>
-                  <button @click="openCreate(b.caja_ref)" class="btn btn-xs btn-outline-secondary">+ Nuevo</button>
-                </td>
-              </tr>
-              <tr v-if="!baselines.length">
-                <td colspan="5" class="text-center text-muted py-4">Sin baselines registradas.</td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="tc-card">
+          <div class="tc-cardhead d-flex align-items-center justify-content-between gap-2 p-3">
+            <h6 class="tc-h1 mb-0"><i class="fa fa-signal text-primary me-2"></i>Baselines por caja</h6>
+            <button @click="openCreate" class="tc-btn tc-btn-ok">
+              <i class="fa fa-plus me-1"></i>Registrar
+            </button>
+          </div>
+          <div class="p-3">
+            <div class="mb-2">
+              <input v-model="search" @input="debounce" type="text" class="form-control form-control-sm" placeholder="Buscar caja…" style="max-width:220px">
+            </div>
+            <div v-if="loading" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>
+            <div v-else class="table-responsive">
+              <table class="table table-hover table-sm align-middle">
+                <thead class="table-light">
+                  <tr><th>Ref. caja</th><th>Baseline</th><th>Registrada</th><th>Notas</th><th></th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="b in baselines" :key="b.id">
+                    <td class="font-monospace fw-semibold">{{ b.caja_ref }}</td>
+                    <td class="fw-bold" :class="parseFloat(b.baseline_power_dbm) < -25 ? 'text-danger' : 'text-success'">
+                      {{ fmt1(b.baseline_power_dbm) }} dBm
+                    </td>
+                    <td class="small">{{ fmtdt(b.registered_at) }}</td>
+                    <td class="small text-muted">{{ b.notes ?? '—' }}</td>
+                    <td>
+                      <button @click="openCreate(b.caja_ref)" class="tc-btn tc-btn-seg">+ Nuevo</button>
+                    </td>
+                  </tr>
+                  <tr v-if="!baselines.length">
+                    <td colspan="5" class="text-center text-muted py-4">Sin baselines registradas.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- Log de bonos -->
       <div class="col-md-5">
-        <h6 class="mb-2"><i class="fa fa-award text-warning me-2"></i>Log de bonos recientes</h6>
-        <div v-if="loadingLog" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>
-        <div v-else class="table-responsive">
-          <table class="table table-sm align-middle">
-            <thead class="table-light">
-              <tr><th>OT#</th><th>Caja</th><th>Pérdida</th><th>Bono</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="l in bonusLog" :key="l.id" :class="l.bonus_awarded ? '' : 'text-muted'">
-                <td class="small">{{ l.work_order_id }}</td>
-                <td class="font-monospace small">{{ l.caja_ref ?? '—' }}</td>
-                <td class="small">
-                  <span v-if="l.loss_db !== null">
-                    {{ fmt2(l.loss_db) }} dB
-                    <span class="text-muted small">({{ fmt2(l.baseline_power_dbm) }} / {{ fmt2(l.client_power_dbm) }})</span>
-                  </span>
-                  <span v-else class="fst-italic">{{ l.skip_reason }}</span>
-                </td>
-                <td>
-                  <span v-if="l.bonus_awarded" class="badge bg-success">${{ fmt2(l.bonus_amount) }}</span>
-                  <span v-else class="badge bg-secondary">—</span>
-                </td>
-              </tr>
-              <tr v-if="!bonusLog.length">
-                <td colspan="4" class="text-muted small text-center py-2">Sin evaluaciones aún.</td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="tc-card">
+          <div class="tc-cardhead p-3">
+            <h6 class="tc-h1 mb-0"><i class="fa fa-award text-warning me-2"></i>Log de bonos recientes</h6>
+          </div>
+          <div class="p-3">
+            <div v-if="loadingLog" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div></div>
+            <div v-else class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead class="table-light">
+                  <tr><th>OT#</th><th>Caja</th><th>Pérdida</th><th>Bono</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="l in bonusLog" :key="l.id" :class="l.bonus_awarded ? '' : 'text-muted'">
+                    <td class="small">{{ l.work_order_id }}</td>
+                    <td class="font-monospace small">{{ l.caja_ref ?? '—' }}</td>
+                    <td class="small">
+                      <span v-if="l.loss_db !== null">
+                        {{ fmt2(l.loss_db) }} dB
+                        <span class="text-muted small">({{ fmt2(l.baseline_power_dbm) }} / {{ fmt2(l.client_power_dbm) }})</span>
+                      </span>
+                      <span v-else class="fst-italic">{{ l.skip_reason }}</span>
+                    </td>
+                    <td>
+                      <span v-if="l.bonus_awarded" class="tc-status is-ok">${{ fmt2(l.bonus_amount) }}</span>
+                      <span v-else class="tc-status is-slate">—</span>
+                    </td>
+                  </tr>
+                  <tr v-if="!bonusLog.length">
+                    <td colspan="4" class="text-muted small text-center py-2">Sin evaluaciones aún.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -149,8 +159,13 @@
 </template>
 
 <script>
+import { darkMode } from "../../../hook/appConfig.js";
+
 export default {
   name: 'TalentoCajas',
+  setup() {
+    return { darkMode };
+  },
   data() {
     return {
       baselines: [],

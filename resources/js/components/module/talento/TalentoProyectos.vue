@@ -1,65 +1,69 @@
 <template>
-  <div class="talento-proyectos">
+  <div class="talento-proyectos tc-wrap" :class="{ 'tc-dark': darkMode }">
 
     <!-- ── LIST ── -->
     <template v-if="!detail">
-      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-        <h5 class="mb-0"><i class="fa fa-project-diagram me-2 text-primary"></i>Proyectos de Planta Externa</h5>
-        <button @click="openCreate" class="btn btn-sm btn-primary"><i class="fa fa-plus me-1"></i>Nuevo proyecto</button>
-      </div>
-      <div class="row g-2 mb-3">
-        <div class="col-md-3"><input v-model="filters.search" @input="debounce" type="text" class="form-control form-control-sm" placeholder="Buscar…"></div>
-        <div class="col-md-2">
-          <select v-model="filters.status" @change="load" class="form-select form-select-sm">
-            <option value="">Todos</option>
-            <option value="planning">Planificación</option>
-            <option value="active">Activo</option>
-            <option value="paused">Pausado</option>
-            <option value="done">Finalizado</option>
-          </select>
+      <div class="tc-card">
+        <div class="tc-cardhead d-flex align-items-center justify-content-between flex-wrap gap-2 p-3">
+          <h5 class="mb-0"><i class="fa fa-project-diagram me-2 text-primary"></i>Proyectos de Planta Externa</h5>
+          <button @click="openCreate" class="tc-btn tc-btn-ok"><i class="fa fa-plus me-1"></i>Nuevo proyecto</button>
         </div>
-      </div>
-      <div v-if="loading" class="text-center py-5"><div class="spinner-border text-primary"></div></div>
-      <div v-else class="table-responsive">
-        <table class="table table-hover table-sm align-middle">
-          <thead class="table-light">
-            <tr><th>Nombre</th><th>Estado</th><th>Lead</th><th>Vigencia</th><th>Avance</th><th></th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="p in projects" :key="p.id">
-              <td class="fw-semibold">{{ p.name }}</td>
-              <td><span class="badge" :class="statusColor(p.status)">{{ statusLabel(p.status) }}</span></td>
-              <td class="small">{{ p.lead?.user?.name ?? '—' }}</td>
-              <td class="small">{{ p.end_date ? fmtDate(p.end_date) : '—' }}</td>
-              <td>
-                <div v-if="p.overall_pct != null" class="d-flex align-items-center gap-2">
-                  <div class="progress flex-fill" style="height:6px;min-width:80px;">
-                    <div class="progress-bar" :class="p.overall_pct >= 100 ? 'bg-success' : 'bg-primary'"
-                         :style="`width:${Math.min(100, p.overall_pct)}%`"></div>
-                  </div>
-                  <span class="small fw-bold">{{ fmt1(p.overall_pct) }}%</span>
-                </div>
-                <span v-else class="text-muted small">—</span>
-              </td>
-              <td>
-                <button @click="openDetail(p.id)" class="btn btn-xs btn-primary me-1"><i class="fa fa-eye"></i> Ver</button>
-                <button v-if="p.status === 'active' || p.status === 'done'" @click="openBonus(p)" class="btn btn-xs btn-outline-warning"><i class="fa fa-award"></i></button>
-              </td>
-            </tr>
-            <tr v-if="!projects.length"><td colspan="6" class="text-center text-muted py-4">Sin proyectos.</td></tr>
-          </tbody>
-        </table>
+        <div class="p-3">
+          <div class="row g-2 mb-3">
+            <div class="col-md-3"><input v-model="filters.search" @input="debounce" type="text" class="form-control form-control-sm" placeholder="Buscar…"></div>
+            <div class="col-md-2">
+              <select v-model="filters.status" @change="load" class="form-select form-select-sm tc-select">
+                <option value="">Todos</option>
+                <option value="planning">Planificación</option>
+                <option value="active">Activo</option>
+                <option value="paused">Pausado</option>
+                <option value="done">Finalizado</option>
+              </select>
+            </div>
+          </div>
+          <div v-if="loading" class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+          <div v-else class="table-responsive">
+            <table class="table table-hover table-sm align-middle">
+              <thead class="table-light">
+                <tr><th>Nombre</th><th>Estado</th><th>Lead</th><th>Vigencia</th><th>Avance</th><th></th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="p in projects" :key="p.id">
+                  <td class="fw-semibold">{{ p.name }}</td>
+                  <td><span class="tc-status" :class="statusColor(p.status)">{{ statusLabel(p.status) }}</span></td>
+                  <td class="small">{{ p.lead?.user?.name ?? '—' }}</td>
+                  <td class="small">{{ p.end_date ? fmtDate(p.end_date) : '—' }}</td>
+                  <td>
+                    <div v-if="p.overall_pct != null" class="d-flex align-items-center gap-2">
+                      <div class="progress flex-fill" style="height:6px;min-width:80px;">
+                        <div class="progress-bar" :class="p.overall_pct >= 100 ? 'bg-success' : 'bg-primary'"
+                             :style="`width:${Math.min(100, p.overall_pct)}%`"></div>
+                      </div>
+                      <span class="small fw-bold">{{ fmt1(p.overall_pct) }}%</span>
+                    </div>
+                    <span v-else class="text-muted small">—</span>
+                  </td>
+                  <td>
+                    <button @click="openDetail(p.id)" class="tc-btn tc-btn-info btn-xs me-1"><i class="fa fa-eye"></i> Ver</button>
+                    <button v-if="p.status === 'active' || p.status === 'done'" @click="openBonus(p)" class="tc-btn tc-btn-warn btn-xs"><i class="fa fa-award"></i></button>
+                  </td>
+                </tr>
+                <tr v-if="!projects.length"><td colspan="6" class="text-center text-muted py-4">Sin proyectos.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </template>
 
     <!-- ── DETAIL ── -->
     <template v-else>
       <div class="d-flex align-items-center gap-3 mb-3">
-        <button @click="detail=null; destroyCorridorMap()" class="btn btn-sm btn-outline-secondary"><i class="fa fa-arrow-left me-1"></i>Volver</button>
+        <button @click="detail=null; destroyCorridorMap()" class="tc-btn tc-btn-seg btn-sm"><i class="fa fa-arrow-left me-1"></i>Volver</button>
         <h5 class="mb-0">{{ detail.name }}
-          <span class="ms-2 badge" :class="statusColor(detail.status)">{{ statusLabel(detail.status) }}</span>
+          <span class="ms-2 tc-status" :class="statusColor(detail.status)">{{ statusLabel(detail.status) }}</span>
         </h5>
-        <button @click="editDetail=true" class="ms-auto btn btn-xs btn-outline-primary"><i class="fa fa-pen"></i> Editar</button>
+        <button @click="editDetail=true" class="ms-auto tc-btn tc-btn-info btn-xs"><i class="fa fa-pen"></i> Editar</button>
       </div>
 
       <!-- Meta info -->
@@ -83,7 +87,7 @@
         <div class="col-md-8">
           <div class="d-flex align-items-center justify-content-between mb-2">
             <h6 class="mb-0 text-uppercase text-muted small">Pool de actividades</h6>
-            <button @click="openAddActivity" class="btn btn-xs btn-outline-primary"><i class="fa fa-plus me-1"></i>Agregar actividad</button>
+            <button @click="openAddActivity" class="tc-btn tc-btn-ok btn-xs"><i class="fa fa-plus me-1"></i>Agregar actividad</button>
           </div>
           <div class="table-responsive">
             <table class="table table-sm align-middle">
@@ -109,8 +113,8 @@
                     </div>
                   </td>
                   <td>
-                    <button v-if="act.remaining > 0" @click="openReport(act)" class="btn btn-xs btn-outline-success"><i class="fa fa-plus"></i></button>
-                    <button @click="openActReports(act)" class="btn btn-xs btn-outline-secondary ms-1"><i class="fa fa-list"></i></button>
+                    <button v-if="act.remaining > 0" @click="openReport(act)" class="tc-btn tc-btn-ok btn-xs"><i class="fa fa-plus"></i></button>
+                    <button @click="openActReports(act)" class="tc-btn tc-btn-seg btn-xs ms-1"><i class="fa fa-list"></i></button>
                   </td>
                 </tr>
                 <tr v-if="!detail.activities?.length"><td colspan="6" class="text-muted small text-center py-2">Sin actividades. Agrega una.</td></tr>
@@ -125,7 +129,7 @@
               Escala: <span v-for="(b,i) in detail.bonus_scale" :key="i">≥{{ b.threshold_pct }}% → ${{ fmt2(b.amount) }}<span v-if="i < detail.bonus_scale.length-1"> · </span></span>
             </span>
             <span v-else>Bono plano: ${{ fmt2(detail.bonus_amount) }}</span>
-            <button v-if="detail.status !== 'done'" @click="awardBonus" class="btn btn-xs btn-warning ms-2" :disabled="awardingBonus">
+            <button v-if="detail.status !== 'done'" @click="awardBonus" class="tc-btn tc-btn-warn-solid btn-xs ms-2" :disabled="awardingBonus">
               <span v-if="awardingBonus"><span class="spinner-border spinner-border-sm me-1"></span></span>
               <span v-else><i class="fa fa-award me-1"></i>Otorgar bono</span>
             </button>
@@ -147,12 +151,12 @@
       </div>
 
       <!-- ── SECCIÓN CORREDOR ── -->
-      <div class="mt-4 border rounded">
-        <div class="d-flex align-items-center justify-content-between px-3 py-2 bg-light rounded-top"
+      <div class="tc-card mt-4">
+        <div class="tc-cardhead d-flex align-items-center justify-content-between px-3 py-2"
              style="cursor:pointer" @click="corridorOpen = !corridorOpen">
           <h6 class="mb-0 text-uppercase text-muted small">
             <i class="fa fa-route me-1 text-primary"></i>Corredor de línea
-            <span v-if="corridor.path?.length" class="badge bg-primary ms-2">{{ corridor.path.length }} pts</span>
+            <span v-if="corridor.path?.length" class="tc-status is-info ms-2">{{ corridor.path.length }} pts</span>
           </h6>
           <i class="fa" :class="corridorOpen ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
         </div>
@@ -164,12 +168,12 @@
             <!-- controles sobre el mapa -->
             <div class="position-absolute top-0 end-0 m-2 d-flex gap-1" style="z-index:500;">
               <button v-if="corridor.editMode" @click="clearCorridor"
-                      class="btn btn-xs btn-danger shadow-sm" title="Limpiar trazado">
+                      class="tc-btn tc-btn-bad-solid btn-xs shadow-sm" title="Limpiar trazado">
                 <i class="fa fa-trash"></i>
               </button>
               <button v-if="corridor.editMode && corridor.draft?.length >= 2"
                       @click="finishDraw"
-                      class="btn btn-xs btn-success shadow-sm">
+                      class="tc-btn tc-btn-ok btn-xs shadow-sm">
                 <i class="fa fa-check me-1"></i>Terminar
               </button>
             </div>
@@ -187,15 +191,15 @@
               <span v-else>Sin corredor trazado</span>
             </span>
             <button v-if="corridor.draft?.length >= 2 && corridor.editMode"
-                    @click="saveCorridor" class="btn btn-sm btn-primary ms-auto" :disabled="corridor.saving">
+                    @click="saveCorridor" class="tc-btn tc-btn-ok btn-sm ms-auto" :disabled="corridor.saving">
               <span v-if="corridor.saving"><span class="spinner-border spinner-border-sm me-1"></span>Guardando…</span>
               <span v-else><i class="fa fa-save me-1"></i>Guardar corredor</span>
             </button>
             <button v-if="!corridor.editMode" @click="startEdit"
-                    class="btn btn-sm btn-outline-primary ms-auto">
+                    class="tc-btn tc-btn-info btn-sm ms-auto">
               <i class="fa fa-pen me-1"></i>{{ corridor.path?.length ? 'Redibujar' : 'Trazar corredor' }}
             </button>
-            <button v-if="corridor.editMode" @click="cancelEdit" class="btn btn-sm btn-outline-secondary">
+            <button v-if="corridor.editMode" @click="cancelEdit" class="tc-btn tc-btn-seg btn-sm">
               Cancelar
             </button>
           </div>
@@ -206,7 +210,7 @@
               <h6 class="text-uppercase text-muted small mb-0">
                 <i class="fa fa-exclamation-triangle text-warning me-1"></i>Desvíos detectados
               </h6>
-              <button @click="analyzeDeviations" class="btn btn-xs btn-outline-warning" :disabled="corridor.analyzing">
+              <button @click="analyzeDeviations" class="tc-btn tc-btn-warn btn-xs" :disabled="corridor.analyzing">
                 <span v-if="corridor.analyzing"><span class="spinner-border spinner-border-sm me-1"></span>Analizando…</span>
                 <span v-else><i class="fa fa-search me-1"></i>Analizar últimos 7 días</span>
               </button>
@@ -222,7 +226,7 @@
                 <tbody>
                   <tr v-for="dev in corridor.deviations" :key="dev.id"
                       style="cursor:pointer" @click="focusDeviation(dev)"
-                      :class="{ 'table-warning': dev.id === corridor.focusedDevId }">
+                      :class="{ 'tp-row-focused': dev.id === corridor.focusedDevId }">
                     <td class="small fw-semibold">{{ dev.colaborador?.user?.name ?? '—' }}</td>
                     <td class="small">{{ fmtDate(dev.detected_at) }}</td>
                     <td class="small">{{ dev.sustained_minutes }} min</td>
@@ -259,7 +263,7 @@
               <div class="col-12"><label class="form-label">Descripción</label>
                 <textarea v-model="projectModal.description" class="form-control" rows="2"></textarea></div>
               <div class="col-md-4"><label class="form-label">Estado</label>
-                <select v-model="projectModal.status" class="form-select">
+                <select v-model="projectModal.status" class="form-select tc-select">
                   <option value="planning">Planificación</option>
                   <option value="active">Activo</option>
                   <option value="paused">Pausado</option>
@@ -321,7 +325,7 @@
             <div class="row g-3">
               <div class="col-12">
                 <label class="form-label">Tipo de actividad <span class="text-danger">*</span></label>
-                <select v-model="actModal.activity_type_id" class="form-select">
+                <select v-model="actModal.activity_type_id" class="form-select tc-select">
                   <option :value="null">— Seleccionar —</option>
                   <option v-for="t in activityTypes" :key="t.id" :value="t.id">
                     {{ t.name }} ({{ t.unit }}, {{ t.points_per_unit }} pts/ud)
@@ -443,7 +447,7 @@
                     <td class="small">{{ fmtDate(r.report_date) }}</td>
                     <td class="small">{{ fmt2(r.quantity) }}</td>
                     <td class="small fw-semibold text-success">{{ fmt2(r.approved_quantity) }}</td>
-                    <td><span class="badge" :class="reportStatusColor(r.status)">{{ reportStatusLabel(r.status) }}</span></td>
+                    <td><span class="tc-status" :class="reportStatusColor(r.status)">{{ reportStatusLabel(r.status) }}</span></td>
                     <td class="small">{{ (r.participants ?? []).map(p => p.colaborador?.user?.name).join(', ') }}</td>
                     <td class="small">{{ fmt3((r.participants ?? [])[0]?.points_earned ?? 0) }}</td>
                   </tr>
@@ -462,9 +466,13 @@
 
 <script>
 import L from 'leaflet';
+import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoProyectos',
+  setup() {
+    return { darkMode };
+  },
   data() {
     const today = new Date().toISOString().substring(0, 10);
     return {
@@ -648,9 +656,9 @@ export default {
         alert(e.response?.data?.error ?? 'Error al otorgar bono.');
       } finally { this.awardingBonus = false; }
     },
-    statusColor(s) { return {planning:'bg-secondary',active:'bg-primary',paused:'bg-warning text-dark',done:'bg-success'}[s]??'bg-light'; },
+    statusColor(s) { return {planning:'is-slate',active:'is-info',paused:'is-warn',done:'is-ok'}[s]??'is-slate'; },
     statusLabel(s) { return {planning:'Planificación',active:'Activo',paused:'Pausado',done:'Finalizado'}[s]??s; },
-    reportStatusColor(s) { return {pending:'bg-secondary',approved:'bg-success',capped:'bg-warning text-dark',rejected:'bg-danger'}[s]??'bg-light'; },
+    reportStatusColor(s) { return {pending:'is-slate',approved:'is-ok',capped:'is-warn',rejected:'is-bad'}[s]??'is-slate'; },
     reportStatusLabel(s) { return {pending:'Pendiente',approved:'Aprobado',capped:'Recortado',rejected:'Rechazado'}[s]??s; },
     fmtDate(d) { if(!d)return'—'; return new Date(d+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}); },
     fmt1(n) { return Number(n??0).toFixed(1); },
@@ -843,3 +851,13 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* .table-warning (Bootstrap) no está cubierto por _torre-theme.scss — se
+   aplana en modo oscuro y pierde el resaltado del desvío enfocado en el mapa
+   (mismo hallazgo que en Talento-rutas). Recoloreado con el tinte ámbar
+   estándar del theme. */
+.talento-proyectos .tp-row-focused {
+  background: rgba(217, 119, 6, 0.12);
+}
+</style>
