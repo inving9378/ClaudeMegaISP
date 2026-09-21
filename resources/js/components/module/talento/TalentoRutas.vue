@@ -1,63 +1,67 @@
 <template>
-  <div class="talento-rutas">
+  <div class="talento-rutas tc-wrap" :class="{ 'tc-dark': darkMode }">
 
     <!-- LIST VIEW -->
     <template v-if="!selectedRouteId">
-      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-        <h5 class="mb-0"><i class="fa fa-route me-2 text-primary"></i>Rutas de Planta Interna</h5>
-        <button @click="openCreate" class="btn btn-sm btn-primary"><i class="fa fa-plus me-1"></i>Nueva ruta</button>
-      </div>
-
-      <div class="row g-2 mb-3">
-        <div class="col-md-2">
-          <input v-model="filters.date" @change="load" type="date" class="form-control form-control-sm">
+      <div class="tc-card">
+        <div class="tc-cardhead d-flex align-items-center justify-content-between flex-wrap gap-2 p-3">
+          <h5 class="mb-0"><i class="fa fa-route me-2 text-primary"></i>Rutas de Planta Interna</h5>
+          <button @click="openCreate" class="tc-btn tc-btn-ok"><i class="fa fa-plus me-1"></i>Nueva ruta</button>
         </div>
-        <div class="col-md-2">
-          <select v-model="filters.status" @change="load" class="form-select form-select-sm">
-            <option value="">Todos</option>
-            <option value="draft">Borrador</option>
-            <option value="active">Activa</option>
-            <option value="completed">Completada</option>
-          </select>
-        </div>
-      </div>
 
-      <div v-if="loading" class="text-center py-5"><div class="spinner-border text-primary"></div></div>
-      <div v-else class="table-responsive">
-        <table class="table table-hover table-sm align-middle">
-          <thead class="table-light">
-            <tr><th>Técnico</th><th>Fecha</th><th>Paradas</th><th>Estado</th><th></th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="r in routes" :key="r.id">
-              <td class="fw-semibold small">{{ r.colaborador?.user?.name }}</td>
-              <td class="small">{{ fmtDate(r.date) }}</td>
-              <td class="text-center">{{ r.stops_count ?? '—' }}</td>
-              <td><span class="badge" :class="statusColor(r.status)">{{ statusLabel(r.status) }}</span></td>
-              <td class="d-flex gap-1">
-                <button @click="openRoute(r.id)" class="btn btn-xs btn-primary">Ver ruta</button>
-                <button v-if="r.status === 'draft'" @click="activateRoute(r.id)" class="btn btn-xs btn-outline-success">Activar</button>
-              </td>
-            </tr>
-            <tr v-if="!routes.length">
-              <td colspan="5" class="text-center text-muted py-4">Sin rutas para esta fecha.</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="p-3">
+          <div class="row g-2 mb-3">
+            <div class="col-md-2">
+              <input v-model="filters.date" @change="load" type="date" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+              <select v-model="filters.status" @change="load" class="form-select form-select-sm tc-select">
+                <option value="">Todos</option>
+                <option value="draft">Borrador</option>
+                <option value="active">Activa</option>
+                <option value="completed">Completada</option>
+              </select>
+            </div>
+          </div>
+
+          <div v-if="loading" class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+          <div v-else class="table-responsive">
+            <table class="table table-hover table-sm align-middle">
+              <thead class="table-light">
+                <tr><th>Técnico</th><th>Fecha</th><th>Paradas</th><th>Estado</th><th></th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="r in routes" :key="r.id">
+                  <td class="fw-semibold small">{{ r.colaborador?.user?.name }}</td>
+                  <td class="small">{{ fmtDate(r.date) }}</td>
+                  <td class="text-center">{{ r.stops_count ?? '—' }}</td>
+                  <td><span class="tc-status" :class="statusColor(r.status)">{{ statusLabel(r.status) }}</span></td>
+                  <td class="d-flex gap-1">
+                    <button @click="openRoute(r.id)" class="tc-btn tc-btn-info btn-xs">Ver ruta</button>
+                    <button v-if="r.status === 'draft'" @click="activateRoute(r.id)" class="tc-btn tc-btn-ok btn-xs">Activar</button>
+                  </td>
+                </tr>
+                <tr v-if="!routes.length">
+                  <td colspan="5" class="text-center text-muted py-4">Sin rutas para esta fecha.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </template>
 
     <!-- ROUTE DETAIL VIEW -->
     <template v-else-if="routeData">
       <div class="d-flex align-items-center gap-3 mb-3">
-        <button @click="selectedRouteId=null; routeData=null" class="btn btn-sm btn-outline-secondary">
+        <button @click="selectedRouteId=null; routeData=null" class="tc-btn tc-btn-seg">
           <i class="fa fa-arrow-left me-1"></i>Volver
         </button>
         <h5 class="mb-0">
           {{ routeData.colaborador?.user?.name }} — {{ fmtDate(routeData.date) }}
-          <span class="ms-2 badge" :class="statusColor(routeData.status)">{{ statusLabel(routeData.status) }}</span>
+          <span class="ms-2 tc-status" :class="statusColor(routeData.status)">{{ statusLabel(routeData.status) }}</span>
         </h5>
-        <button v-if="routeData.status !== 'draft'" @click="analyzeDeviations" class="ms-auto btn btn-sm btn-outline-warning" :disabled="analyzing">
+        <button v-if="routeData.status !== 'draft'" @click="analyzeDeviations" class="ms-auto tc-btn tc-btn-warn" :disabled="analyzing">
           <span v-if="analyzing"><span class="spinner-border spinner-border-sm me-1"></span></span>
           <span v-else><i class="fa fa-search-location me-1"></i>Analizar desvíos</span>
         </button>
@@ -67,7 +71,7 @@
         <!-- Mapa -->
         <div class="col-md-8 col-xl-9">
           <div v-if="mapReady" ref="mapEl" style="height:100%;border-radius:8px 0 0 8px;"></div>
-          <div v-else class="bg-light d-flex align-items-center justify-content-center h-100 rounded">
+          <div v-else class="tr-loading-bg d-flex align-items-center justify-content-center h-100 rounded">
             <div class="spinner-border text-primary"></div>
           </div>
         </div>
@@ -98,7 +102,7 @@
               </h6>
               <div v-for="d in routeData.deviations" :key="d.id"
                    @click="focusDeviation(d)"
-                   class="card bg-warning-subtle border-warning border mb-2 cursor-pointer p-2 small">
+                   class="card tr-deviation-card border-warning border mb-2 cursor-pointer p-2 small">
                 <div class="fw-semibold">{{ d.deviation_m }}m · {{ d.sustained_minutes }} min</div>
                 <div class="text-muted">{{ fmtdt(d.detected_at) }}</div>
               </div>
@@ -146,14 +150,14 @@
                       @click="addStop(wo)"
                       class="list-group-item list-group-item-action d-flex justify-content-between small cursor-pointer">
                     <span>OT #{{ wo.id }} — {{ wo.type?.name }}</span>
-                    <span class="badge bg-light text-dark">{{ wo.latitude ? '📍' : '—' }}</span>
+                    <span class="tc-status is-slate">{{ wo.latitude ? '📍' : '—' }}</span>
                   </li>
                 </ul>
                 <div v-for="(stop, i) in createModal.stops" :key="i"
                      class="d-flex align-items-center gap-2 mb-1 small">
-                  <span class="badge bg-primary">{{ i+1 }}</span>
+                  <span class="tc-status is-info">{{ i+1 }}</span>
                   <span>OT #{{ stop.id }} — {{ stop.type?.name }}</span>
-                  <button @click="createModal.stops.splice(i,1)" class="btn btn-xs btn-outline-danger ms-auto">✕</button>
+                  <button @click="createModal.stops.splice(i,1)" class="tc-btn tc-btn-bad btn-xs ms-auto">✕</button>
                 </div>
               </div>
               <div v-if="createModal.error" class="col-12">
@@ -162,8 +166,8 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button @click="createModal.show=false" class="btn btn-secondary" :disabled="createModal.saving">Cancelar</button>
-            <button @click="saveRoute" class="btn btn-primary" :disabled="createModal.saving">
+            <button @click="createModal.show=false" class="tc-btn tc-btn-seg" :disabled="createModal.saving">Cancelar</button>
+            <button @click="saveRoute" class="tc-btn tc-btn-ok" :disabled="createModal.saving">
               <span v-if="createModal.saving"><span class="spinner-border spinner-border-sm me-1"></span>Guardando…</span>
               <span v-else>Crear ruta</span>
             </button>
@@ -177,9 +181,13 @@
 
 <script>
 import L from 'leaflet';
+import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoRutas',
+  setup() {
+    return { darkMode };
+  },
   data() {
     const today = new Date().toISOString().substring(0, 10);
     return {
@@ -337,7 +345,7 @@ export default {
         this.createModal.error = e.response?.data?.message ?? 'Error al crear ruta.';
       } finally { this.createModal.saving = false; }
     },
-    statusColor(s) { return { draft: 'bg-secondary', active: 'bg-primary', completed: 'bg-success' }[s] ?? 'bg-light'; },
+    statusColor(s) { return { draft: 'is-slate', active: 'is-info', completed: 'is-ok' }[s] ?? 'is-slate'; },
     statusLabel(s) { return { draft: 'Borrador', active: 'Activa', completed: 'Completada' }[s] ?? s; },
     fmtDate(d) {
       if (!d) return '—';
@@ -354,3 +362,17 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* .bg-light / .bg-warning-subtle (Bootstrap) no están cubiertos por
+   _torre-theme.scss — quedan transparentes en modo oscuro, perdiendo el
+   fondo neutro del placeholder del mapa y el aviso visual de los desvíos
+   (mismo hallazgo que en Talento-liquidaciones / Talento-asistencia).
+   Recoloreados con los tokens --tc-*. */
+.talento-rutas .tr-loading-bg {
+  background: var(--tc-bg2);
+}
+.talento-rutas .tr-deviation-card {
+  background: rgba(217, 119, 6, 0.12);
+}
+</style>

@@ -774,6 +774,14 @@
     .card-body {
         color: var(--tc-ink);
     }
+    // .card-footer quedaba fuera del recoloreo (solo .card/.card-header/.card-body
+    // estaban cubiertos) — se veía como una franja blanca pegada al fondo de la
+    // tarjeta en modo oscuro (hallazgo real: TalentoAcademia.vue, botón "Ver curso").
+    .card-footer {
+        background: transparent;
+        border-top: 1px solid var(--tc-line);
+        color: var(--tc-ink);
+    }
 
     // ── Legibilidad de ApexCharts en modo oscuro ──
     &.tc-dark {

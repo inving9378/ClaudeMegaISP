@@ -1,14 +1,14 @@
 <template>
-  <div class="talento-dispositivos">
+  <div class="talento-dispositivos tc-wrap" :class="{ 'tc-dark': darkMode }">
 
     <!-- ── Descarga APK ──────────────────────────────────────────────────── -->
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-header bg-white d-flex align-items-center gap-2 py-3">
+    <div class="tc-card mb-4">
+      <div class="tc-cardhead d-flex align-items-center gap-2 p-3">
         <i class="fa fa-download text-success"></i>
         <strong>Descarga de la App — Talento Equipo</strong>
-        <span v-if="release" class="badge bg-success ms-1">v{{ release.version_name }}</span>
+        <span v-if="release" class="tc-status is-ok ms-1">v{{ release.version_name }}</span>
       </div>
-      <div class="card-body">
+      <div class="p-3">
 
         <div v-if="loadingRelease" class="text-center py-3">
           <div class="spinner-border spinner-border-sm text-success"></div>
@@ -37,10 +37,10 @@
             </p>
             <p v-if="release.changelog" class="mb-2 text-muted small">{{ release.changelog }}</p>
             <a :href="release.apk_url" target="_blank" rel="noopener"
-               class="btn btn-success btn-sm me-2">
+               class="tc-btn tc-btn-ok-solid btn-sm me-2">
               <i class="fa fa-download me-1"></i>Descargar APK
             </a>
-            <button class="btn btn-outline-secondary btn-sm" @click="copyApkUrl">
+            <button class="tc-btn tc-btn-seg btn-sm" @click="copyApkUrl">
               <i class="fa fa-copy me-1"></i>Copiar enlace
             </button>
             <p class="text-muted small mt-2 mb-0">
@@ -53,82 +53,90 @@
     </div>
 
     <!-- ── Dispositivos vinculados ───────────────────────────────────────── -->
-    <div class="d-flex align-items-center justify-content-between mb-3">
-      <h5 class="mb-0"><i class="fa fa-mobile-alt me-2 text-primary"></i>Dispositivos Vinculados</h5>
-    </div>
-    <p class="text-muted small mb-3">
-      Cada colaborador puede tener un único dispositivo activo. Al vincular uno nuevo, el anterior se revoca automáticamente.
-      Las re-vinculaciones pueden requerir aprobación manual.
-    </p>
-
-    <!-- Buscador colaborador -->
-    <div class="row mb-3">
-      <div class="col-md-5">
-        <input v-model="searchColaborador" @input="buscarColaborador" type="text"
-               class="form-control" placeholder="Buscar colaborador...">
+    <div class="tc-card">
+      <div class="tc-cardhead d-flex align-items-center justify-content-between p-3">
+        <h5 class="tc-h1 mb-0"><i class="fa fa-mobile-alt me-2"></i>Dispositivos Vinculados</h5>
       </div>
-    </div>
+      <div class="p-3">
+        <p class="text-muted small mb-3">
+          Cada colaborador puede tener un único dispositivo activo. Al vincular uno nuevo, el anterior se revoca automáticamente.
+          Las re-vinculaciones pueden requerir aprobación manual.
+        </p>
 
-    <div v-if="loadingColaboradores" class="text-center py-3">
-      <div class="spinner-border spinner-border-sm text-primary"></div>
-    </div>
+        <!-- Buscador colaborador -->
+        <div class="row mb-3">
+          <div class="col-md-5">
+            <input v-model="searchColaborador" @input="buscarColaborador" type="text"
+                   class="form-control" placeholder="Buscar colaborador...">
+          </div>
+        </div>
 
-    <div v-else class="table-responsive">
-      <table class="table table-hover table-sm align-middle">
-        <thead class="table-light">
-          <tr>
-            <th>Colaborador</th>
-            <th>Dispositivo</th>
-            <th>Plataforma</th>
-            <th>Último acceso</th>
-            <th>Estado</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          <template v-for="col in colaboradores" :key="col.id">
-            <tr v-if="(col.devices ?? []).length === 0">
-              <td>{{ col.user?.name }}</td>
-              <td colspan="4" class="text-muted small fst-italic">Sin dispositivo vinculado</td>
-              <td></td>
-            </tr>
-            <tr v-for="dev in (col.devices ?? [])" :key="dev.id">
-              <td>{{ col.user?.name }}</td>
-              <td>
-                <span class="font-monospace small">{{ dev.device_key?.substring(0, 16) }}…</span>
-                <div v-if="dev.label" class="text-muted small">{{ dev.label }}</div>
-              </td>
-              <td>{{ dev.platform ?? '—' }}</td>
-              <td class="small">{{ formatDatetime(dev.last_seen_at) }}</td>
-              <td>
-                <span v-if="dev.revoked_at" class="badge bg-danger">Revocado</span>
-                <span v-else-if="dev.approval_required && !dev.approved" class="badge bg-warning text-dark">Pendiente aprobación</span>
-                <span v-else class="badge bg-success">Activo</span>
-              </td>
-              <td>
-                <button v-if="dev.approval_required && !dev.approved && !dev.revoked_at"
-                        @click="approveDevice(col.id, dev.id)"
-                        class="btn btn-xs btn-outline-success me-1">Aprobar</button>
-                <button v-if="!dev.revoked_at"
-                        @click="revokeDevice(col.id, dev.id)"
-                        class="btn btn-xs btn-outline-danger">Revocar</button>
-              </td>
-            </tr>
-          </template>
-          <tr v-if="!colaboradores.length">
-            <td colspan="6" class="text-center text-muted py-4">No hay colaboradores que mostrar.</td>
-          </tr>
-        </tbody>
-      </table>
+        <div v-if="loadingColaboradores" class="text-center py-3">
+          <div class="spinner-border spinner-border-sm text-primary"></div>
+        </div>
+
+        <div v-else class="table-responsive">
+          <table class="table table-hover table-sm align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Colaborador</th>
+                <th>Dispositivo</th>
+                <th>Plataforma</th>
+                <th>Último acceso</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-for="col in colaboradores" :key="col.id">
+                <tr v-if="(col.devices ?? []).length === 0">
+                  <td>{{ col.user?.name }}</td>
+                  <td colspan="4" class="text-muted small fst-italic">Sin dispositivo vinculado</td>
+                  <td></td>
+                </tr>
+                <tr v-for="dev in (col.devices ?? [])" :key="dev.id">
+                  <td>{{ col.user?.name }}</td>
+                  <td>
+                    <span class="font-monospace small">{{ dev.device_key?.substring(0, 16) }}…</span>
+                    <div v-if="dev.label" class="text-muted small">{{ dev.label }}</div>
+                  </td>
+                  <td>{{ dev.platform ?? '—' }}</td>
+                  <td class="small">{{ formatDatetime(dev.last_seen_at) }}</td>
+                  <td>
+                    <span v-if="dev.revoked_at" class="tc-status is-bad">Revocado</span>
+                    <span v-else-if="dev.approval_required && !dev.approved" class="tc-status is-warn">Pendiente aprobación</span>
+                    <span v-else class="tc-status is-ok">Activo</span>
+                  </td>
+                  <td>
+                    <button v-if="dev.approval_required && !dev.approved && !dev.revoked_at"
+                            @click="approveDevice(col.id, dev.id)"
+                            class="tc-btn tc-btn-ok btn-xs me-1">Aprobar</button>
+                    <button v-if="!dev.revoked_at"
+                            @click="revokeDevice(col.id, dev.id)"
+                            class="tc-btn tc-btn-bad btn-xs">Revocar</button>
+                  </td>
+                </tr>
+              </template>
+              <tr v-if="!colaboradores.length">
+                <td colspan="6" class="text-center text-muted py-4">No hay colaboradores que mostrar.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script>
 // QR generado via img tag (api.qrserver.com) — no requiere paquete npm
+import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoDispositivos',
+  setup() {
+    return { darkMode };
+  },
   data() {
     return {
       colaboradores: [],

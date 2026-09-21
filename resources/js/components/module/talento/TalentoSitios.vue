@@ -1,75 +1,79 @@
 <template>
-  <div class="talento-sitios">
+  <div class="talento-sitios tc-wrap" :class="{ 'tc-dark': darkMode }">
 
-    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-      <h5 class="mb-0"><i class="fa fa-map-pin me-2 text-primary"></i>Ubicaciones de Checada</h5>
-      <div class="d-flex align-items-center gap-3">
-        <div class="d-flex align-items-center gap-2">
-          <label class="form-label mb-0 small fw-semibold">Radio global:</label>
-          <input v-model.number="defaultRadius" type="number" min="10" max="5000" step="10"
-                 class="form-control form-control-sm" style="width:90px;">
-          <span class="small text-muted">m</span>
-          <button @click="saveDefaultRadius" class="btn btn-sm btn-outline-primary" :disabled="savingRadius">
-            <span v-if="savingRadius"><span class="spinner-border spinner-border-sm"></span></span>
-            <span v-else>Guardar</span>
+    <div class="tc-card">
+      <div class="tc-cardhead d-flex align-items-center justify-content-between flex-wrap gap-2 p-3">
+        <h5 class="tc-h1 mb-0"><i class="fa fa-map-pin me-2 text-primary"></i>Ubicaciones de Checada</h5>
+        <div class="d-flex align-items-center gap-3">
+          <div class="d-flex align-items-center gap-2">
+            <label class="form-label mb-0 small fw-semibold">Radio global:</label>
+            <input v-model.number="defaultRadius" type="number" min="10" max="5000" step="10"
+                   class="form-control form-control-sm" style="width:90px;">
+            <span class="small text-muted">m</span>
+            <button @click="saveDefaultRadius" class="tc-btn tc-btn-ok" :disabled="savingRadius">
+              <span v-if="savingRadius"><span class="spinner-border spinner-border-sm"></span></span>
+              <span v-else>Guardar</span>
+            </button>
+          </div>
+          <button @click="openCreate" class="tc-btn tc-btn-ok">
+            <i class="fa fa-plus me-1"></i> Nueva ubicación
           </button>
         </div>
-        <button @click="openCreate" class="btn btn-primary btn-sm">
-          <i class="fa fa-plus me-1"></i> Nueva ubicación
-        </button>
       </div>
-    </div>
 
-    <!-- Filtros -->
-    <div class="row g-2 mb-3">
-      <div class="col-md-3">
-        <input v-model="filters.search" @input="debounceLoad" type="text"
-               class="form-control form-control-sm" placeholder="Buscar…">
+      <div class="p-3">
+      <!-- Filtros -->
+      <div class="row g-2 mb-3">
+        <div class="col-md-3">
+          <input v-model="filters.search" @input="debounceLoad" type="text"
+                 class="form-control form-control-sm" placeholder="Buscar…">
+        </div>
+        <div class="col-md-2">
+          <select v-model="filters.type" @change="load" class="form-select form-select-sm tc-select">
+            <option value="">Todos los tipos</option>
+            <option value="bodega">Bodega</option>
+            <option value="oficina">Oficina</option>
+            <option value="predio">Predio</option>
+            <option value="otro">Otro</option>
+          </select>
+        </div>
       </div>
-      <div class="col-md-2">
-        <select v-model="filters.type" @change="load" class="form-select form-select-sm">
-          <option value="">Todos los tipos</option>
-          <option value="bodega">Bodega</option>
-          <option value="oficina">Oficina</option>
-          <option value="predio">Predio</option>
-          <option value="otro">Otro</option>
-        </select>
-      </div>
-    </div>
 
-    <!-- Tabla -->
-    <div v-if="loading" class="text-center py-5"><div class="spinner-border text-primary"></div></div>
-    <div v-else class="table-responsive mb-3">
-      <table class="table table-hover table-sm align-middle">
-        <thead class="table-light">
-          <tr>
-            <th>Nombre</th>
-            <th>Tipo</th>
-            <th class="text-center">Radio</th>
-            <th>Coordenadas</th>
-            <th class="text-center">Activa</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="s in sites" :key="s.id">
-            <td class="fw-semibold">{{ s.name }}</td>
-            <td><span class="badge bg-light text-dark">{{ typeLabel(s.type) }}</span></td>
-            <td class="text-center">{{ s.radius_m }}m</td>
-            <td class="font-monospace small">{{ round(s.latitude, 5) }}, {{ round(s.longitude, 5) }}</td>
-            <td class="text-center">
-              <span class="badge" :class="s.active ? 'bg-success' : 'bg-secondary'">{{ s.active ? 'Sí' : 'No' }}</span>
-            </td>
-            <td>
-              <button @click="openEdit(s)" class="btn btn-xs btn-outline-primary me-1">Editar</button>
-              <button @click="deleteSite(s)" class="btn btn-xs btn-outline-danger">Borrar</button>
-            </td>
-          </tr>
-          <tr v-if="!sites.length">
-            <td colspan="6" class="text-center text-muted py-4">No hay ubicaciones configuradas. Crea la primera.</td>
-          </tr>
-        </tbody>
-      </table>
+      <!-- Tabla -->
+      <div v-if="loading" class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+      <div v-else class="table-responsive mb-3">
+        <table class="table table-hover table-sm align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Nombre</th>
+              <th>Tipo</th>
+              <th class="text-center">Radio</th>
+              <th>Coordenadas</th>
+              <th class="text-center">Activa</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="s in sites" :key="s.id">
+              <td class="fw-semibold">{{ s.name }}</td>
+              <td><span class="tc-status is-slate">{{ typeLabel(s.type) }}</span></td>
+              <td class="text-center">{{ s.radius_m }}m</td>
+              <td class="font-monospace small">{{ round(s.latitude, 5) }}, {{ round(s.longitude, 5) }}</td>
+              <td class="text-center">
+                <span class="tc-status" :class="s.active ? 'is-ok' : 'is-slate'">{{ s.active ? 'Sí' : 'No' }}</span>
+              </td>
+              <td>
+                <button @click="openEdit(s)" class="tc-btn tc-btn-info me-1">Editar</button>
+                <button @click="deleteSite(s)" class="tc-btn tc-btn-bad">Borrar</button>
+              </td>
+            </tr>
+            <tr v-if="!sites.length">
+              <td colspan="6" class="text-center text-muted py-4">No hay ubicaciones configuradas. Crea la primera.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      </div>
     </div>
 
     <!-- Modal crear/editar con mapa -->
@@ -90,7 +94,7 @@
                   </div>
                   <div class="col-6">
                     <label class="form-label">Tipo <span class="text-danger">*</span></label>
-                    <select v-model="modal.type" class="form-select">
+                    <select v-model="modal.type" class="form-select tc-select">
                       <option value="bodega">Bodega</option>
                       <option value="oficina">Oficina</option>
                       <option value="predio">Predio</option>
@@ -122,7 +126,7 @@
               </div>
               <div class="col-md-8">
                 <div v-if="modal.mapReady" ref="siteMapEl" style="height:380px;border-radius:8px;"></div>
-                <div v-else class="bg-light d-flex align-items-center justify-content-center" style="height:380px;border-radius:8px;">
+                <div v-else class="tc-map-placeholder d-flex align-items-center justify-content-center" style="height:380px;border-radius:8px;">
                   <div class="spinner-border text-primary"></div>
                 </div>
               </div>
@@ -132,8 +136,8 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button @click="closeModal" class="btn btn-secondary" :disabled="modal.saving">Cancelar</button>
-            <button @click="saveSite" class="btn btn-primary" :disabled="modal.saving">
+            <button @click="closeModal" class="tc-btn tc-btn-seg" :disabled="modal.saving">Cancelar</button>
+            <button @click="saveSite" class="tc-btn tc-btn-ok" :disabled="modal.saving">
               <span v-if="modal.saving"><span class="spinner-border spinner-border-sm me-1"></span>Guardando…</span>
               <span v-else>Guardar</span>
             </button>
@@ -147,9 +151,11 @@
 
 <script>
 import L from 'leaflet';
+import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoSitios',
+  setup() { return { darkMode }; },
   data() {
     return {
       sites: [],
@@ -278,3 +284,9 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.tc-map-placeholder {
+  background: var(--tc-bg2, #f8fafc);
+}
+</style>
