@@ -2407,6 +2407,8 @@ return [
     'talento.ventas.view' => [
         '/talento/mis-ventas',
         '/talento/api/mis-ventas',
+        '/talento/api/ventas/ranking',
+        '/talento/api/prospectos',
     ],
     'talento.selleritems.view' => [
         '/talento/articulos-vendedor',
