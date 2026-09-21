@@ -25,7 +25,8 @@ class FieldMediaService
      * For sensitive types the path itself is encrypted at rest using Laravel's Crypt.
      *
      * @param  UploadedFile  $file
-     * @param  int           $workOrderId
+     * @param  string        $origen        'work_order' | 'task' (ver FieldFlowEntity::resolve)
+     * @param  int           $entityId      id de talento_work_orders o de tasks, según $origen
      * @param  string        $type
      * @param  float|null    $capturedLat   From app (trusted), NOT EXIF
      * @param  float|null    $capturedLng   From app (trusted), NOT EXIF
@@ -34,7 +35,8 @@ class FieldMediaService
      */
     public function store(
         UploadedFile $file,
-        int          $workOrderId,
+        string       $origen,
+        int          $entityId,
         string       $type,
         ?float       $capturedLat = null,
         ?float       $capturedLng = null,
@@ -42,8 +44,13 @@ class FieldMediaService
     ): TalentoWorkOrderMedia {
         $isSensitive = in_array($type, self::SENSITIVE_TYPES);
         $disk        = $isSensitive ? 'local' : 'local'; // private disk; serve via signed URL
+        $isTask      = $origen === 'task';
 
-        $dir  = "talento/media/{$workOrderId}";
+        // Carpeta distinta para tasks: work_order_id y tarea_id son secuencias
+        // de ids independientes (mismo patrón que SignatureService::store()),
+        // así una OT #12 y una tarea #12 nunca comparten directorio.
+        $folder = $isTask ? "tarea_{$entityId}" : $entityId;
+        $dir  = "talento/media/{$folder}";
         $ext  = $file->getClientOriginalExtension() ?: 'jpg';
         $name = Str::uuid() . '.' . $ext;
         $path = $file->storeAs($dir, $name, $disk);
@@ -57,23 +64,29 @@ class FieldMediaService
             );
         }
 
-        // Check location proximity to order
+        // Check location proximity to order — solo aplica a work_order: tasks
+        // no tienen columnas latitude/longitude propias, así que para ellas
+        // esto queda deshabilitado (no hay contra qué comparar).
         $locationFlagged  = false;
         $distanceM        = null;
-        $order = TalentoWorkOrder::find($workOrderId);
-        if ($order && $order->latitude && $order->longitude && $capturedLat && $capturedLng) {
-            $distanceM = AttendanceService::haversineMeters(
-                $capturedLat, $capturedLng,
-                (float)$order->latitude, (float)$order->longitude
-            );
-            $locationFlagged = $distanceM > $this->flaggedRadius();
+        if (! $isTask) {
+            $order = TalentoWorkOrder::find($entityId);
+            if ($order && $order->latitude && $order->longitude && $capturedLat && $capturedLng) {
+                $distanceM = AttendanceService::haversineMeters(
+                    $capturedLat, $capturedLng,
+                    (float)$order->latitude, (float)$order->longitude
+                );
+                $locationFlagged = $distanceM > $this->flaggedRadius();
+            }
         }
 
         // Encrypt the stored path for sensitive documents (LFPDPPP)
         $storedPath = $isSensitive ? Crypt::encryptString($path) : $path;
 
+        $fkCol = $isTask ? 'tarea_id' : 'work_order_id';
+
         return TalentoWorkOrderMedia::create([
-            'work_order_id'      => $workOrderId,
+            $fkCol                => $entityId,
             'type'               => $type,
             'file_path'          => $storedPath,
             'captured_lat'       => $capturedLat,

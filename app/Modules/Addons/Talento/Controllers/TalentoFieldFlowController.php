@@ -10,7 +10,9 @@ use App\Modules\Addons\Talento\Models\TalentoWorkOrderSignature;
 use App\Modules\Addons\Talento\Services\FieldFlowService;
 use App\Modules\Addons\Talento\Services\FieldIaValidationService;
 use App\Modules\Addons\Talento\Services\FieldMediaService;
+use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
 use App\Modules\Addons\Talento\Services\SignatureService;
+use App\Modules\Addons\Talento\Support\FieldFlowEntity;
 use App\Models\Task;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -20,7 +22,8 @@ class TalentoFieldFlowController extends Controller
     public function __construct(
         private FieldMediaService      $mediaService,
         private FieldIaValidationService $iaService,
-        private FieldFlowService       $flowService
+        private FieldFlowService       $flowService,
+        private OrdenTrabajoUnifiedService $unified
     ) {}
 
     // ── Vista admin del flujo ─────────────────────────────────────────────────
@@ -45,10 +48,12 @@ class TalentoFieldFlowController extends Controller
             'captured_at' => 'nullable|date',
         ]);
 
-        TalentoWorkOrder::findOrFail($workOrderId); // ensure exists
+        $resolved = FieldFlowEntity::resolve((int)$workOrderId);
+        abort_if(! $resolved, 404, 'Orden de trabajo no encontrada.');
 
         $media = $this->mediaService->store(
             $data['file'],
+            $resolved['origen'],
             (int)$workOrderId,
             $data['type'],
             isset($data['captured_lat']) ? (float)$data['captured_lat'] : null,
@@ -72,7 +77,7 @@ class TalentoFieldFlowController extends Controller
 
         $canViewSensitive = auth()->user()?->can('talento.media.view_sensitive');
 
-        $media = TalentoWorkOrderMedia::where('work_order_id', $workOrderId)
+        $media = TalentoWorkOrderMedia::where(FieldFlowEntity::fkColumn($workOrderId), $workOrderId)
             ->orderBy('created_at')
             ->get()
             ->map(function ($m) use ($canViewSensitive) {
@@ -145,7 +150,7 @@ class TalentoFieldFlowController extends Controller
         $this->authorize('talento.ia_validation.view');
 
         $validation = \App\Modules\Addons\Talento\Models\TalentoWorkOrderIaValidation
-            ::where('work_order_id', $workOrderId)
+            ::where(FieldFlowEntity::fkColumn($workOrderId), $workOrderId)
             ->where('validation_type', 'field_flow')
             ->latest('created_at')
             ->first();
@@ -168,18 +173,11 @@ class TalentoFieldFlowController extends Controller
         ]);
 
         // Resuelve la OT como work_order o como task (la operación de campo corre en tasks).
-        $origen = TalentoWorkOrder::whereKey($workOrderId)->exists() ? 'work_order' : null;
-        if (! $origen) {
-            $esTask = Task::where('id', $workOrderId)
-                ->where('tipo', 'campo')
-                ->whereNotNull('talento_type_id')
-                ->exists();
-            $origen = $esTask ? 'task' : null;
-        }
-        abort_if(! $origen, 404);
+        $resolved = FieldFlowEntity::resolve((int) $workOrderId);
+        abort_if(! $resolved, 404);
 
         $sig = app(SignatureService::class)->store(
-            $origen,
+            $resolved['origen'],
             (int) $workOrderId,
             $data['signer_type'],
             $data['signature_data'],
@@ -196,7 +194,7 @@ class TalentoFieldFlowController extends Controller
     {
         $this->authorize('talento.signatures.view');
 
-        $sigs = TalentoWorkOrderSignature::where('work_order_id', $workOrderId)->get(['id','signer_type','signed_at','signed_lat','signed_lng']);
+        $sigs = TalentoWorkOrderSignature::where(FieldFlowEntity::fkColumn($workOrderId), $workOrderId)->get(['id','signer_type','signed_at','signed_lat','signed_lng']);
         return response()->json($sigs);
     }
 
@@ -261,7 +259,7 @@ class TalentoFieldFlowController extends Controller
     /** 'work_order_id' si $id es una OT real; 'tarea_id' en cualquier otro caso. */
     private function resolveFieldFlowOwnerColumn($id): string
     {
-        return TalentoWorkOrder::whereKey($id)->exists() ? 'work_order_id' : 'tarea_id';
+        return FieldFlowEntity::fkColumn((int) $id);
     }
 
     // ── Sub-paso 6: Onboarding + encuesta ────────────────────────────────────
@@ -309,10 +307,18 @@ class TalentoFieldFlowController extends Controller
     {
         $this->authorize('talento.work_orders.view');
 
-        $order = TalentoWorkOrder::with(['colaborador.user', 'type'])->findOrFail($workOrderId);
+        // El listado admin (OrdenTrabajoUnifiedService::listForAdmin) unifica
+        // talento_work_orders + tasks (tipo=campo) en una sola tabla — "Ver
+        // flujo" debe poder abrir CUALQUIERA de las dos filas, no solo las
+        // que ya viven en talento_work_orders (showForAdmin ya sabe resolver
+        // ambos orígenes y arma el mismo shape que el front espera en `order`).
+        $order = $this->unified->showForAdmin((int) $workOrderId);
+        abort_if(! $order, 404, 'Orden de trabajo no encontrada.');
+
+        $fkCol = FieldFlowEntity::fkColumn((int) $workOrderId);
         $canViewSensitive = auth()->user()?->can('talento.media.view_sensitive');
 
-        $media = TalentoWorkOrderMedia::where('work_order_id', $workOrderId)
+        $media = TalentoWorkOrderMedia::where($fkCol, $workOrderId)
             ->orderBy('created_at')
             ->get()
             ->map(fn($m) => [
@@ -326,21 +332,30 @@ class TalentoFieldFlowController extends Controller
                 'captured_at'       => $m->captured_at,
             ]);
 
-        $signatures = TalentoWorkOrderSignature::where('work_order_id', $workOrderId)
+        $signatures = TalentoWorkOrderSignature::where($fkCol, $workOrderId)
             ->get(['id', 'signer_type', 'signed_at']);
 
         $iaValidation = \App\Modules\Addons\Talento\Models\TalentoWorkOrderIaValidation
-            ::where('work_order_id', $workOrderId)
+            ::where($fkCol, $workOrderId)
             ->where('validation_type', 'field_flow')
             ->latest('created_at')
             ->first();
 
         $activation = \App\Modules\Addons\Talento\Models\TalentoWorkOrderActivation
-            ::where('work_order_id', $workOrderId)
+            ::where($fkCol, $workOrderId)
             ->latest('created_at')
             ->first();
 
-        $survey = TalentoInstallationSurvey::where('work_order_id', $workOrderId)->first();
+        $survey = TalentoInstallationSurvey::where($fkCol, $workOrderId)->first();
+
+        // Para una task, activation_confirmed_at/activation_by no existen como
+        // columna propia (esa columna solo vive en talento_work_orders) — el
+        // front lee flow.order.activation_confirmed_at para decidir si ya se
+        // activó, así que se refleja aquí desde la fila real de activación.
+        if ($fkCol === 'tarea_id' && $activation?->activated_at) {
+            $order['activation_confirmed_at'] = $activation->activated_at;
+            $order['activation_by']           = $activation->activated_by;
+        }
 
         return response()->json([
             'order'         => $order,

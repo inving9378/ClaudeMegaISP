@@ -10,7 +10,7 @@ class TalentoWorkOrderIaValidation extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'work_order_id', 'validation_type', 'flags', 'raw_response',
+        'work_order_id', 'tarea_id', 'validation_type', 'flags', 'raw_response',
         'overridden', 'override_reason', 'overridden_by', 'overridden_at', 'created_by',
     ];
 

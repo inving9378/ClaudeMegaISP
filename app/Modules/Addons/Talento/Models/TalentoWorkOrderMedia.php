@@ -12,7 +12,7 @@ class TalentoWorkOrderMedia extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'work_order_id', 'type', 'file_path', 'captured_lat', 'captured_lng',
+        'work_order_id', 'tarea_id', 'type', 'file_path', 'captured_lat', 'captured_lng',
         'captured_at', 'captured_in_app', 'watermark_applied',
         'location_flagged', 'location_distance_m', 'created_by',
     ];

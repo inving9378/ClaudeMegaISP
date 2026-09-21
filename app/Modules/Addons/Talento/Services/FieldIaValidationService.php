@@ -3,9 +3,9 @@
 namespace App\Modules\Addons\Talento\Services;
 
 use App\Modules\Addons\Marketing\Services\ClaudeApiClient;
-use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderIaValidation;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderMedia;
+use App\Modules\Addons\Talento\Support\FieldFlowEntity;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -21,13 +21,20 @@ class FieldIaValidationService
      */
     public function validateOrder(int $workOrderId): TalentoWorkOrderIaValidation
     {
-        $order = TalentoWorkOrder::with(['media'])->findOrFail($workOrderId);
+        $resolved = FieldFlowEntity::resolve($workOrderId);
+        abort_if(! $resolved, 404, 'Orden de trabajo no encontrada.');
+        ['origen' => $origen, 'model' => $order, 'fk' => $fkCol] = $resolved;
+        $isTask = $origen === 'task';
+
+        $modemSn  = $order->modem_sn;
+        $clientId = $isTask ? FieldFlowEntity::clientIdForTask($order) : $order->client_id;
+        $mediaQuery = fn() => TalentoWorkOrderMedia::where($fkCol, $workOrderId);
 
         $flags = [];
 
         // 1. Modem SN match
-        if ($order->modem_sn) {
-            $snMedia = $order->media()
+        if ($modemSn) {
+            $snMedia = $mediaQuery()
                 ->where('type', 'modem_sn')
                 ->latest('created_at')
                 ->first();
@@ -35,10 +42,10 @@ class FieldIaValidationService
             if ($snMedia) {
                 $ocrResult = $this->ocrImage($snMedia, "Extract the serial number or MAC address text exactly as it appears.");
                 $extractedSn = trim($ocrResult['text'] ?? '');
-                if ($extractedSn && stripos($extractedSn, $order->modem_sn) === false) {
+                if ($extractedSn && stripos($extractedSn, $modemSn) === false) {
                     $flags[] = [
                         'field'    => 'modem_sn',
-                        'issue'    => "SN capturado '{$extractedSn}' no coincide con '{$order->modem_sn}'",
+                        'issue'    => "SN capturado '{$extractedSn}' no coincide con '{$modemSn}'",
                         'severity' => 'error',
                     ];
                 }
@@ -52,9 +59,9 @@ class FieldIaValidationService
         }
 
         // 2. INE OCR — check name consistency against client
-        $ineMedia = $order->media()->whereIn('type', ['ine_front'])->latest('created_at')->first();
+        $ineMedia = $mediaQuery()->whereIn('type', ['ine_front'])->latest('created_at')->first();
         if ($ineMedia) {
-            $client = $order->client_id ? \App\Models\Client::find($order->client_id) : null;
+            $client = $clientId ? \App\Models\Client::find($clientId) : null;
             $clientUser = $client ? \App\Models\User::where('client_id', $client->id)->first() : null;
 
             $ocrResult = $this->ocrImage(
@@ -84,7 +91,7 @@ class FieldIaValidationService
         }
 
         // 3. General media completeness check
-        $mediaTypes = $order->media()->pluck('type')->toArray();
+        $mediaTypes = $mediaQuery()->pluck('type')->toArray();
         $required = ['presentation', 'completion'];
         foreach ($required as $req) {
             if (!in_array($req, $mediaTypes)) {
@@ -97,12 +104,12 @@ class FieldIaValidationService
         }
 
         // Persist result
-        TalentoWorkOrderIaValidation::where('work_order_id', $workOrderId)
+        TalentoWorkOrderIaValidation::where($fkCol, $workOrderId)
             ->where('validation_type', 'field_flow')
             ->delete();
 
         return TalentoWorkOrderIaValidation::create([
-            'work_order_id'   => $workOrderId,
+            $fkCol             => $workOrderId,
             'validation_type' => 'field_flow',
             'flags'           => $flags,
             'raw_response'    => null,
