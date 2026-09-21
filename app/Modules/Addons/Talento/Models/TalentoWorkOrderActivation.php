@@ -11,7 +11,7 @@ class TalentoWorkOrderActivation extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'work_order_id', 'activated_by', 'requested_at', 'activated_at',
+        'work_order_id', 'tarea_id', 'activated_by', 'requested_at', 'activated_at',
         'olt_dispatched', 'olt_response', 'notes',
     ];
 

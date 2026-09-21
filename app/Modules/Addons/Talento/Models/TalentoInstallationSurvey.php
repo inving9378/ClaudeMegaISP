@@ -10,7 +10,7 @@ class TalentoInstallationSurvey extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'work_order_id', 'client_id',
+        'work_order_id', 'tarea_id', 'client_id',
         'rating_overall', 'rating_technician', 'comments',
         'google_review_offered', 'google_review_opened',
         'submitted_at', 'reminder_sent_at', 'auto_closed',

@@ -246,12 +246,22 @@ class TalentoFieldFlowController extends Controller
     {
         $this->authorize('talento.activations.manage');
 
+        // work_order_id y tarea_id son secuencias de ids independientes — nunca
+        // hacer OR entre ambas sin resolver primero el origen real, o dos filas
+        // de órdenes distintas con el mismo número podrían mezclarse.
+        $fkCol = $this->resolveFieldFlowOwnerColumn($workOrderId);
         $activation = \App\Modules\Addons\Talento\Models\TalentoWorkOrderActivation
-            ::where('work_order_id', $workOrderId)
+            ::where($fkCol, $workOrderId)
             ->latest('created_at')
             ->first();
 
         return response()->json($activation);
+    }
+
+    /** 'work_order_id' si $id es una OT real; 'tarea_id' en cualquier otro caso. */
+    private function resolveFieldFlowOwnerColumn($id): string
+    {
+        return TalentoWorkOrder::whereKey($id)->exists() ? 'work_order_id' : 'tarea_id';
     }
 
     // ── Sub-paso 6: Onboarding + encuesta ────────────────────────────────────
@@ -288,7 +298,8 @@ class TalentoFieldFlowController extends Controller
     {
         $this->authorize('talento.survey.view');
 
-        $survey = TalentoInstallationSurvey::where('work_order_id', $workOrderId)->first();
+        $fkCol = $this->resolveFieldFlowOwnerColumn($workOrderId);
+        $survey = TalentoInstallationSurvey::where($fkCol, $workOrderId)->first();
         return response()->json($survey);
     }
 
