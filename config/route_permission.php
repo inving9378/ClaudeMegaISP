@@ -2437,6 +2437,24 @@ return [
         '/talento/api/caja/instalaciones',
         '/talento/api/caja/instalaciones/{id}',
     ],
+    // Fase D: comisiones. Mismo motor que Vendedores (CalculateBalanceSellerService,
+    // PaymentByRule, Discount) — ninguna tabla/lógica nueva, solo UI replicada.
+    'talento.comisiones.view' => [
+        '/talento/comisiones',
+        '/talento/api/comisiones/metodos-pago',
+        '/talento/api/colaboradores/{id}/comisiones/reglas',
+        '/talento/api/colaboradores/{id}/comisiones/estado-cuenta',
+        '/talento/api/colaboradores/{id}/comisiones/pendientes',
+        '/talento/api/colaboradores/{id}/comisiones/pagos',
+        '/talento/api/comisiones/pagos/{id}/pdf',
+        '/talento/api/colaboradores/{id}/comisiones/descuentos',
+        '/talento/api/colaboradores/{id}/comisiones/deuda-pendiente',
+        '/talento/api/comisiones/descuentos/{id}/pdf',
+    ],
+    'talento.comisiones.manage' => [
+        '/talento/api/colaboradores/{id}/comisiones/pagos',
+        '/talento/api/colaboradores/{id}/comisiones/cobrar-deuda',
+    ],
     'talento.selleritems.view' => [
         '/talento/articulos-vendedor',
         '/talento/api/articulos-vendedor',

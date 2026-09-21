@@ -31,6 +31,7 @@ use App\Modules\Addons\Talento\Controllers\TalentoPaqueteDocumentoController;
 use App\Modules\Addons\Talento\Controllers\TalentoPuestoController;
 use App\Modules\Addons\Talento\Controllers\TalentoSellerItemsController;
 use App\Modules\Addons\Talento\Controllers\TalentoCajaVendedorController;
+use App\Modules\Addons\Talento\Controllers\TalentoComisionSellerController;
 use App\Modules\Addons\Talento\Controllers\PortalTecnicoController;
 use Illuminate\Support\Facades\Route;
 
@@ -69,6 +70,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/puestos',        [TalentoPuestoController::class, 'index']);
         Route::get('/articulos-vendedor', [TalentoSellerItemsController::class, 'index']);
         Route::get('/caja-vendedor',  [TalentoCajaVendedorController::class, 'index']);
+        Route::get('/comisiones',     [TalentoComisionSellerController::class, 'index']);
 
         // ── Tablero de pendientes cross-colaborador, Fase 3 UI (item #9990832) ────────────
         Route::get('/documentos-pendientes', fn() => view('addon-talento::talento.documentos_pendientes'));
@@ -435,6 +437,19 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/caja/instalaciones',                  [TalentoCajaVendedorController::class, 'installationsStore']);
             Route::put('/caja/instalaciones/{id}',              [TalentoCajaVendedorController::class, 'installationsUpdate']);
             Route::delete('/caja/instalaciones/{id}',           [TalentoCajaVendedorController::class, 'installationsDestroy']);
+
+            // ── Fase D — Comisiones (UI replicada, MISMO motor que Vendedores) ──
+            Route::get('/comisiones/metodos-pago',                       [TalentoComisionSellerController::class, 'paymentMethods']);
+            Route::get('/colaboradores/{id}/comisiones/reglas',          [TalentoComisionSellerController::class, 'rules']);
+            Route::get('/colaboradores/{id}/comisiones/estado-cuenta',   [TalentoComisionSellerController::class, 'statementAccount']);
+            Route::get('/colaboradores/{id}/comisiones/pendientes',      [TalentoComisionSellerController::class, 'pendingPayments']);
+            Route::get('/colaboradores/{id}/comisiones/pagos',           [TalentoComisionSellerController::class, 'payments']);
+            Route::post('/colaboradores/{id}/comisiones/pagos',          [TalentoComisionSellerController::class, 'registerPayment']);
+            Route::get('/comisiones/pagos/{paymentId}/pdf',              [TalentoComisionSellerController::class, 'paymentReceiptPdf']);
+            Route::get('/colaboradores/{id}/comisiones/descuentos',      [TalentoComisionSellerController::class, 'discounts']);
+            Route::get('/colaboradores/{id}/comisiones/deuda-pendiente', [TalentoComisionSellerController::class, 'pendingDebt']);
+            Route::post('/colaboradores/{id}/comisiones/cobrar-deuda',   [TalentoComisionSellerController::class, 'collectDebt']);
+            Route::get('/comisiones/descuentos/{discountId}/pdf',        [TalentoComisionSellerController::class, 'discountReceiptPdf']);
         });
     });
 

@@ -53,7 +53,9 @@
         { "name": "talento.ventas.view",          "description": "Ver mis estadísticas de ventas (colaborador vendedor, solo lectura)" },
         { "name": "talento.selleritems.view",     "description": "Ver catálogo de artículos de vendedor (solo lectura, reusa Vendedores/Inventario)" },
         { "name": "talento.caja-vendedor.view",   "description": "Ver caja diaria de efectivo del colaborador (Fase C, mismas tablas que Vendedores/sellers/cuts)" },
-        { "name": "talento.caja-vendedor.manage", "description": "Cerrar caja, registrar extras/proveedores/observaciones/instalaciones" }
+        { "name": "talento.caja-vendedor.manage", "description": "Cerrar caja, registrar extras/proveedores/observaciones/instalaciones" },
+        { "name": "talento.comisiones.view",      "description": "Ver reglas, estado de cuenta, pagos y deudas de comisiones del colaborador (Fase D, mismo motor que Vendedores)" },
+        { "name": "talento.comisiones.manage",    "description": "Registrar pagos de comisión y cobros de deuda" }
     ],
 
     "menu": [
@@ -86,6 +88,7 @@
                 { "label": "Ranking de ventas", "url": "/talento/ventas/ranking",    "permission": "talento.ventas.view" },
                 { "label": "Artículos de vendedor", "url": "/talento/articulos-vendedor", "permission": "talento.selleritems.view" },
                 { "label": "Caja de vendedor", "url": "/talento/caja-vendedor",    "permission": "talento.caja-vendedor.view" },
+                { "label": "Comisiones",       "url": "/talento/comisiones",       "permission": "talento.comisiones.view" },
                 { "label": "Documentos pendientes", "url": "/talento/documentos-pendientes", "permission": "talento.documentos.ver-todos" }
             ]
         }
@@ -173,7 +176,9 @@
         { "method": "GET",  "path": "/talento/api/prospectos",                          "description": "Prospectos CRM admin-wide, filtrable por colaborador",                       "permission": "talento.ventas.view" },
         { "method": "GET",  "path": "/talento/api/articulos-vendedor",                  "description": "Catálogo global de artículos de vendedor (solo lectura, reusa Vendedores/Inventario)", "permission": "talento.selleritems.view" },
         { "method": "GET",  "path": "/talento/api/colaboradores/{id}/caja",             "description": "Lista de cajas (cortes) diarias del colaborador",         "permission": "talento.caja-vendedor.view" },
-        { "method": "POST", "path": "/talento/api/caja/box/{id}/cerrar",                "description": "Cierra la caja y calcula los totales del corte",          "permission": "talento.caja-vendedor.manage" }
+        { "method": "POST", "path": "/talento/api/caja/box/{id}/cerrar",                "description": "Cierra la caja y calcula los totales del corte",          "permission": "talento.caja-vendedor.manage" },
+        { "method": "GET",  "path": "/talento/api/colaboradores/{id}/comisiones/estado-cuenta", "description": "Resumen de balance de comisiones del colaborador",  "permission": "talento.comisiones.view" },
+        { "method": "POST", "path": "/talento/api/colaboradores/{id}/comisiones/pagos",  "description": "Registra un pago de comisión (mismo motor que Vendedores)", "permission": "talento.comisiones.manage" }
     ],
 
     "ai": {

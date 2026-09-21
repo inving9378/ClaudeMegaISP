@@ -199,6 +199,7 @@ import TalentoPuestos from "./components/module/talento/TalentoPuestos.vue";
 import TalentoExpedienteDocumentos from "./components/module/talento/TalentoExpedienteDocumentos.vue";
 import TalentoArticulosVendedor from "./components/module/talento/TalentoArticulosVendedor.vue";
 import TalentoCajaVendedor from "./components/module/talento/TalentoCajaVendedor.vue";
+import TalentoComisiones from "./components/module/talento/TalentoComisiones.vue";
 import TalentoDocumentosPendientes from "./components/module/talento/TalentoDocumentosPendientes.vue";
 
 //Mapas
@@ -662,6 +663,7 @@ const app = createApp({
         'talento-puestos': TalentoPuestos,
         'talento-articulos-vendedor': TalentoArticulosVendedor,
         'talento-caja-vendedor': TalentoCajaVendedor,
+        'talento-comisiones': TalentoComisiones,
         'talento-documentos-pendientes': TalentoDocumentosPendientes,
         ImportListar,
         ImportCrud,
