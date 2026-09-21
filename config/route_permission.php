@@ -2410,6 +2410,33 @@ return [
         '/talento/api/ventas/ranking',
         '/talento/api/prospectos',
     ],
+    // Fase C: caja diaria de EFECTIVO (Vendedores). Nombre "caja-vendedor" a
+    // propósito — NO confundir con "talento.caja.*" (caja de HERRAMIENTAS/bono
+    // de salud, concepto distinto). Mismas tablas que sellers/cuts/*, ninguna
+    // tabla/lógica nueva.
+    'talento.caja-vendedor.view' => [
+        '/talento/caja-vendedor',
+        '/talento/api/colaboradores/{id}/caja',
+        '/talento/api/caja/box/{id}',
+        '/talento/api/caja/box/{id}/pagos-recibidos',
+        '/talento/api/caja/box/{id}/pdf',
+        '/talento/api/caja/tecnicos',
+        '/talento/api/caja/extras/{id}',
+        '/talento/api/caja/observaciones/{id}',
+        '/talento/api/caja/proveedores/{id}',
+        '/talento/api/caja/instalaciones/{id}',
+    ],
+    'talento.caja-vendedor.manage' => [
+        '/talento/api/caja/box/{id}/cerrar',
+        '/talento/api/caja/extras',
+        '/talento/api/caja/extras/{id}',
+        '/talento/api/caja/observaciones',
+        '/talento/api/caja/observaciones/{id}',
+        '/talento/api/caja/proveedores',
+        '/talento/api/caja/proveedores/{id}',
+        '/talento/api/caja/instalaciones',
+        '/talento/api/caja/instalaciones/{id}',
+    ],
     'talento.selleritems.view' => [
         '/talento/articulos-vendedor',
         '/talento/api/articulos-vendedor',

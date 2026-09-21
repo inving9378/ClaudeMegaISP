@@ -30,6 +30,7 @@ use App\Modules\Addons\Talento\Controllers\TalentoEvidenciaConfigController;
 use App\Modules\Addons\Talento\Controllers\TalentoPaqueteDocumentoController;
 use App\Modules\Addons\Talento\Controllers\TalentoPuestoController;
 use App\Modules\Addons\Talento\Controllers\TalentoSellerItemsController;
+use App\Modules\Addons\Talento\Controllers\TalentoCajaVendedorController;
 use App\Modules\Addons\Talento\Controllers\PortalTecnicoController;
 use Illuminate\Support\Facades\Route;
 
@@ -67,6 +68,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/expediente/paquetes', [TalentoPaqueteDocumentoController::class, 'index']);
         Route::get('/puestos',        [TalentoPuestoController::class, 'index']);
         Route::get('/articulos-vendedor', [TalentoSellerItemsController::class, 'index']);
+        Route::get('/caja-vendedor',  [TalentoCajaVendedorController::class, 'index']);
 
         // ── Tablero de pendientes cross-colaborador, Fase 3 UI (item #9990832) ────────────
         Route::get('/documentos-pendientes', fn() => view('addon-talento::talento.documentos_pendientes'));
@@ -405,6 +407,34 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
             // ── Catálogo de artículos de vendedor (item #9990450, solo lectura, reusa Vendedores/Inventario) ──
             Route::get('/articulos-vendedor', [TalentoSellerItemsController::class, 'data']);
+
+            // ── Fase C — Caja diaria de efectivo (UI replicada, MISMAS tablas que sellers/cuts) ──
+            Route::get('/colaboradores/{id}/caja',              [TalentoCajaVendedorController::class, 'cuts']);
+            Route::get('/caja/box/{id}',                        [TalentoCajaVendedorController::class, 'box']);
+            Route::get('/caja/box/{id}/pagos-recibidos',        [TalentoCajaVendedorController::class, 'receivedPayments']);
+            Route::post('/caja/box/{id}/cerrar',                [TalentoCajaVendedorController::class, 'close']);
+            Route::get('/caja/box/{id}/pdf',                    [TalentoCajaVendedorController::class, 'pdf']);
+            Route::get('/caja/tecnicos',                        [TalentoCajaVendedorController::class, 'technicals']);
+
+            Route::get('/caja/extras/{boxId}',                  [TalentoCajaVendedorController::class, 'extrasIndex']);
+            Route::post('/caja/extras',                         [TalentoCajaVendedorController::class, 'extrasStore']);
+            Route::put('/caja/extras/{id}',                     [TalentoCajaVendedorController::class, 'extrasUpdate']);
+            Route::delete('/caja/extras/{id}',                  [TalentoCajaVendedorController::class, 'extrasDestroy']);
+
+            Route::get('/caja/observaciones/{boxId}',           [TalentoCajaVendedorController::class, 'observationsIndex']);
+            Route::post('/caja/observaciones',                  [TalentoCajaVendedorController::class, 'observationsStore']);
+            Route::put('/caja/observaciones/{id}',              [TalentoCajaVendedorController::class, 'observationsUpdate']);
+            Route::delete('/caja/observaciones/{id}',           [TalentoCajaVendedorController::class, 'observationsDestroy']);
+
+            Route::get('/caja/proveedores/{boxId}',             [TalentoCajaVendedorController::class, 'suppliersIndex']);
+            Route::post('/caja/proveedores',                    [TalentoCajaVendedorController::class, 'suppliersStore']);
+            Route::put('/caja/proveedores/{id}',                [TalentoCajaVendedorController::class, 'suppliersUpdate']);
+            Route::delete('/caja/proveedores/{id}',             [TalentoCajaVendedorController::class, 'suppliersDestroy']);
+
+            Route::get('/caja/instalaciones/{boxId}',           [TalentoCajaVendedorController::class, 'installationsIndex']);
+            Route::post('/caja/instalaciones',                  [TalentoCajaVendedorController::class, 'installationsStore']);
+            Route::put('/caja/instalaciones/{id}',              [TalentoCajaVendedorController::class, 'installationsUpdate']);
+            Route::delete('/caja/instalaciones/{id}',           [TalentoCajaVendedorController::class, 'installationsDestroy']);
         });
     });
 

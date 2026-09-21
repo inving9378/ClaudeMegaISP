@@ -51,7 +51,9 @@
         { "name": "talento.escalafon.manage",     "description": "Configurar pesos del puntaje compuesto" },
         { "name": "talento.embajadores.view",     "description": "Ver cross-link colaborador↔embajador/vendedor (solo lectura)" },
         { "name": "talento.ventas.view",          "description": "Ver mis estadísticas de ventas (colaborador vendedor, solo lectura)" },
-        { "name": "talento.selleritems.view",     "description": "Ver catálogo de artículos de vendedor (solo lectura, reusa Vendedores/Inventario)" }
+        { "name": "talento.selleritems.view",     "description": "Ver catálogo de artículos de vendedor (solo lectura, reusa Vendedores/Inventario)" },
+        { "name": "talento.caja-vendedor.view",   "description": "Ver caja diaria de efectivo del colaborador (Fase C, mismas tablas que Vendedores/sellers/cuts)" },
+        { "name": "talento.caja-vendedor.manage", "description": "Cerrar caja, registrar extras/proveedores/observaciones/instalaciones" }
     ],
 
     "menu": [
@@ -83,6 +85,7 @@
                 { "label": "Mis ventas",       "url": "/talento/mis-ventas",         "permission": "talento.ventas.view" },
                 { "label": "Ranking de ventas", "url": "/talento/ventas/ranking",    "permission": "talento.ventas.view" },
                 { "label": "Artículos de vendedor", "url": "/talento/articulos-vendedor", "permission": "talento.selleritems.view" },
+                { "label": "Caja de vendedor", "url": "/talento/caja-vendedor",    "permission": "talento.caja-vendedor.view" },
                 { "label": "Documentos pendientes", "url": "/talento/documentos-pendientes", "permission": "talento.documentos.ver-todos" }
             ]
         }
@@ -168,7 +171,9 @@
         { "method": "GET",  "path": "/talento/api/mis-ventas",                          "description": "Estadísticas de ventas del colaborador autenticado (self-scoped, reusa Vendedores)", "permission": "talento.ventas.view" },
         { "method": "GET",  "path": "/talento/api/ventas/ranking",                      "description": "Ranking de ventas admin-wide de todos los colaboradores-vendedor",           "permission": "talento.ventas.view" },
         { "method": "GET",  "path": "/talento/api/prospectos",                          "description": "Prospectos CRM admin-wide, filtrable por colaborador",                       "permission": "talento.ventas.view" },
-        { "method": "GET",  "path": "/talento/api/articulos-vendedor",                  "description": "Catálogo global de artículos de vendedor (solo lectura, reusa Vendedores/Inventario)", "permission": "talento.selleritems.view" }
+        { "method": "GET",  "path": "/talento/api/articulos-vendedor",                  "description": "Catálogo global de artículos de vendedor (solo lectura, reusa Vendedores/Inventario)", "permission": "talento.selleritems.view" },
+        { "method": "GET",  "path": "/talento/api/colaboradores/{id}/caja",             "description": "Lista de cajas (cortes) diarias del colaborador",         "permission": "talento.caja-vendedor.view" },
+        { "method": "POST", "path": "/talento/api/caja/box/{id}/cerrar",                "description": "Cierra la caja y calcula los totales del corte",          "permission": "talento.caja-vendedor.manage" }
     ],
 
     "ai": {
