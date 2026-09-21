@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Talento\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\ClientMainInformation;
 use App\Models\Referrals\Referral;
 use App\Models\Referrals\ReferralCommission;
 use App\Models\Referrals\ReferralReward;
@@ -27,46 +28,62 @@ class TalentoEmbajadoresController extends Controller
 
         $col = TalentoColaborador::with('user')->findOrFail($colaboradorId);
 
-        // Find the client record linked to this user (same email)
-        $client = DB::table('clients')
-            ->where('email', $col->user?->email)
-            ->first(['id', 'name', 'email']);
+        // Find the client record linked to this user (same email). `clients`
+        // itself has no `name`/`email` columns — esos datos viven en
+        // client_main_information (mismo patrón ya usado en
+        // EmbajadorExtApiController::arbol()/recompensas()).
+        $cmi = ClientMainInformation::where('email', $col->user?->email)
+            ->first(['client_id', 'name']);
 
-        if (!$client) {
+        if (!$cmi) {
             return response()->json(['is_ambassador' => false, 'message' => 'No está registrado como cliente/embajador']);
         }
 
+        $clientId = $cmi->client_id;
+        $clientName = $cmi->name;
+
         // Check if this client has referrals as ambassador
-        $referralCount = Referral::where('embajador_id', $client->id)->count();
+        $referralCount = Referral::where('embajador_id', $clientId)->count();
 
         if ($referralCount === 0) {
             return response()->json([
                 'is_ambassador' => false,
-                'client_id'     => $client->id,
-                'client_name'   => $client->name,
+                'client_id'     => $clientId,
+                'client_name'   => $clientName,
                 'message'       => 'Es cliente pero no tiene referidos como embajador',
             ]);
         }
 
         // Summary: referrals + commissions
-        $referrals = Referral::where('embajador_id', $client->id)
-            ->with('referredClient:id,name,email')
+        $referrals = Referral::where('embajador_id', $clientId)
+            ->with('referredClient.client_main_information:client_id,name')
             ->orderByDesc('id')
             ->limit(20)
-            ->get(['id', 'referred_client_id', 'status', 'commissions_paid_count', 'commission_window_start']);
+            ->get(['id', 'referred_client_id', 'status', 'commissions_paid_count', 'commission_window_start'])
+            ->map(fn ($r) => [
+                'id'                       => $r->id,
+                'referred_client_id'       => $r->referred_client_id,
+                'status'                   => $r->status,
+                'commissions_paid_count'   => $r->commissions_paid_count,
+                'commission_window_start'  => $r->commission_window_start,
+                'referred_client'          => [
+                    'id'   => $r->referred_client_id,
+                    'name' => $r->referredClient?->client_main_information?->name,
+                ],
+            ]);
 
         $totalCommissions = ReferralCommission::whereIn(
-            'referral_id', Referral::where('embajador_id', $client->id)->pluck('id')
+            'referral_id', Referral::where('embajador_id', $clientId)->pluck('id')
         )->sum('amount');
 
-        $pendingRewards = ReferralReward::where('embajador_id', $client->id)
+        $pendingRewards = ReferralReward::where('embajador_id', $clientId)
             ->where('status', 'pending')
             ->sum('amount');
 
         return response()->json([
             'is_ambassador'      => true,
-            'client_id'          => $client->id,
-            'client_name'        => $client->name,
+            'client_id'          => $clientId,
+            'client_name'        => $clientName,
             'total_referrals'    => $referralCount,
             'total_commissions'  => round((float)$totalCommissions, 2),
             'pending_rewards'    => round((float)$pendingRewards, 2),
