@@ -222,7 +222,7 @@
                   <h6 class="card-title mb-0 small fw-semibold">{{ c.title }}</h6>
                   <span v-if="myCertMap[c.id]" class="tc-status is-ok ms-1" style="white-space:nowrap"><i class="fa fa-medal"></i></span>
                 </div>
-                <div v-if="c.department" class="tc-status is-slate small mb-2">{{ c.department }}</div>
+                <div v-if="c.department" class="tc-status small mb-2" :class="departmentVariant(c.department)">{{ c.department }}</div>
                 <p v-if="c.description" class="card-text small text-muted" style="font-size:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">{{ c.description }}</p>
               </div>
               <div class="card-footer p-1">
@@ -291,7 +291,7 @@
             <button class="accordion-button collapsed py-2" type="button"
                     data-bs-toggle="collapse" :data-bs-target="`#acc-${c.id}`">
               <span class="fw-semibold me-2">{{ c.title }}</span>
-              <span class="tc-status is-slate small me-2">{{ c.department ?? 'sin depto' }}</span>
+              <span class="tc-status small me-2" :class="c.department ? departmentVariant(c.department) : 'is-slate'">{{ c.department ?? 'sin depto' }}</span>
               <span class="tc-status" :class="c.active ? 'is-ok' : 'is-slate'">{{ c.active ? 'Activo' : 'Inactivo' }}</span>
             </button>
           </h2>
@@ -568,6 +568,21 @@ export default {
     this.loadColaboradores();
   },
   methods: {
+    // ── Variante visual por departamento (pill distinguible por plaza) ────────
+    // Mapa fijo para los departamentos conocidos + fallback determinista (hash
+    // simple del texto) para cualquier departamento nuevo que se dé de alta a
+    // futuro, así nunca se ven dos plazas distintas con el mismo color por
+    // "no estar en la lista".
+    departmentVariant(dept) {
+      if (!dept) return 'is-slate';
+      const known = { 'técnicos': 'is-info', 'tecnicos': 'is-info', 'general': 'is-accent' };
+      const key = dept.toLowerCase();
+      if (known[key]) return known[key];
+      const variants = ['is-warn', 'is-ok', 'is-bad', 'is-slate', 'is-info', 'is-accent'];
+      let hash = 0;
+      for (let i = 0; i < dept.length; i++) hash = (hash * 31 + dept.charCodeAt(i)) >>> 0;
+      return variants[hash % variants.length];
+    },
     // ── Data loading ────────────────────────────────────────────────────────
     async loadCourses() {
       this.loadingCourses = true;

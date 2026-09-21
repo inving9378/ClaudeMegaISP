@@ -1,73 +1,77 @@
 <template>
-  <div class="talento-campo">
+  <div class="talento-campo tc-wrap" :class="{ 'tc-dark': darkMode }">
 
     <!-- LIST VIEW -->
     <template v-if="!selectedOrderId">
-      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-        <h5 class="mb-0"><i class="fa fa-hard-hat me-2 text-primary"></i>Órdenes de Campo</h5>
-      </div>
-
-      <div class="row g-2 mb-3">
-        <div class="col-md-3">
-          <input v-model="filters.search" @input="debounce" type="text"
-                 class="form-control form-control-sm" placeholder="Buscar técnico o cliente…">
+      <div class="tc-card">
+        <div class="tc-cardhead d-flex align-items-center justify-content-between flex-wrap gap-2 p-3">
+          <h5 class="tc-h1 mb-0"><i class="fa fa-hard-hat me-2 text-primary"></i>Órdenes de Campo</h5>
         </div>
-        <div class="col-md-2">
-          <select v-model="filters.status" @change="load" class="form-select form-select-sm">
-            <option value="">Todos los estados</option>
-            <option value="in_progress">En curso</option>
-            <option value="completed">Completada</option>
-            <option value="validated">Validada</option>
-            <option value="pending_activation">Pend. Activación</option>
-            <option value="active">Activa</option>
-            <option value="survey_pending">Pend. Encuesta</option>
-          </select>
-        </div>
-      </div>
 
-      <div v-if="loading" class="text-center py-5"><div class="spinner-border text-primary"></div></div>
-      <div v-else class="table-responsive">
-        <table class="table table-hover table-sm align-middle">
-          <thead class="table-light">
-            <tr>
-              <th>OT#</th>
-              <th>Técnico</th>
-              <th>Tipo</th>
-              <th>Agendada</th>
-              <th>Estado</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="o in orders" :key="o.id">
-              <td class="text-muted small">{{ o.id }}</td>
-              <td class="small fw-semibold">{{ o.colaborador?.user?.name }}</td>
-              <td class="small">{{ o.type?.name }}</td>
-              <td class="small">{{ fmtdt(o.scheduled_at) }}</td>
-              <td><span class="badge" :class="statusColor(o.status)">{{ statusLabel(o.status) }}</span></td>
-              <td>
-                <button @click="openOrder(o.id)" class="btn btn-xs btn-primary">
-                  <i class="fa fa-bolt me-1"></i>Ver flujo
-                </button>
-              </td>
-            </tr>
-            <tr v-if="!orders.length">
-              <td colspan="6" class="text-center text-muted py-4">Sin órdenes de campo.</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="p-3">
+          <div class="row g-2 mb-3">
+            <div class="col-md-3">
+              <input v-model="filters.search" @input="debounce" type="text"
+                     class="form-control form-control-sm" placeholder="Buscar técnico o cliente…">
+            </div>
+            <div class="col-md-2">
+              <select v-model="filters.status" @change="load" class="form-select form-select-sm tc-select">
+                <option value="">Todos los estados</option>
+                <option value="in_progress">En curso</option>
+                <option value="completed">Completada</option>
+                <option value="validated">Validada</option>
+                <option value="pending_activation">Pend. Activación</option>
+                <option value="active">Activa</option>
+                <option value="survey_pending">Pend. Encuesta</option>
+              </select>
+            </div>
+          </div>
+
+          <div v-if="loading" class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+          <div v-else class="table-responsive">
+            <table class="table table-hover table-sm align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>OT#</th>
+                  <th>Técnico</th>
+                  <th>Tipo</th>
+                  <th>Agendada</th>
+                  <th>Estado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="o in orders" :key="o.id">
+                  <td class="text-muted small">{{ o.id }}</td>
+                  <td class="small fw-semibold">{{ o.colaborador?.user?.name }}</td>
+                  <td class="small">{{ o.type?.name }}</td>
+                  <td class="small">{{ fmtdt(o.scheduled_at) }}</td>
+                  <td><span class="tc-status" :class="statusColor(o.status)">{{ statusLabel(o.status) }}</span></td>
+                  <td>
+                    <button @click="openOrder(o.id)" class="tc-btn tc-btn-info btn-xs">
+                      <i class="fa fa-bolt me-1"></i>Ver flujo
+                    </button>
+                  </td>
+                </tr>
+                <tr v-if="!orders.length">
+                  <td colspan="6" class="text-center text-muted py-4">Sin órdenes de campo.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </template>
 
     <!-- FIELD FLOW DETAIL VIEW -->
     <template v-else>
       <div class="d-flex align-items-center gap-3 mb-3">
-        <button @click="selectedOrderId=null; flow=null" class="btn btn-sm btn-outline-secondary">
+        <button @click="selectedOrderId=null; flow=null" class="tc-btn tc-btn-seg btn-sm">
           <i class="fa fa-arrow-left me-1"></i>Volver
         </button>
         <h5 class="mb-0">
           OT #{{ flow?.order?.id }} — {{ flow?.order?.type?.name }}
-          <span class="ms-2 badge" :class="statusColor(flow?.order?.status)">{{ statusLabel(flow?.order?.status) }}</span>
+          <span class="ms-2 tc-status" :class="statusColor(flow?.order?.status)">{{ statusLabel(flow?.order?.status) }}</span>
         </h5>
       </div>
 
@@ -77,7 +81,7 @@
         <!-- Colaborador + info rápida -->
         <div class="row g-3 mb-4">
           <div class="col-md-6">
-            <div class="card border-0 shadow-sm p-3">
+            <div class="tc-card p-3">
               <div class="d-flex gap-3 align-items-center">
                 <i class="fa fa-id-badge fa-2x text-primary"></i>
                 <div>
@@ -111,22 +115,22 @@
           <div class="col-md-8">
 
             <!-- PASO 1: Evidencia -->
-            <div class="card border-0 shadow-sm mb-3">
-              <div class="card-header bg-light d-flex align-items-center justify-content-between">
+            <div class="tc-card mb-3">
+              <div class="tc-cardhead d-flex align-items-center justify-content-between p-3">
                 <span><i class="fa fa-camera me-2"></i>Evidencia fotográfica</span>
-                <span v-if="mediaComplete" class="badge bg-success"><i class="fa fa-check me-1"></i>Completa</span>
-                <span v-else class="badge bg-warning text-dark">Pendiente</span>
+                <span v-if="mediaComplete" class="tc-status is-ok"><i class="fa fa-check me-1"></i>Completa</span>
+                <span v-else class="tc-status is-warn">Pendiente</span>
               </div>
-              <div class="card-body">
+              <div class="p-3">
                 <div class="row g-2">
                   <div v-for="mtype in mediaTypes" :key="mtype.key" class="col-6 col-md-4">
                     <div class="border rounded p-2 text-center small"
-                         :class="mediaHas(mtype.key) ? 'border-success bg-success-subtle' : 'border-dashed bg-light'">
+                         :class="mediaHas(mtype.key) ? 'border-success tc-slot-filled' : 'border-dashed tc-slot-empty'">
                       <i :class="['fa fa-2x mb-1 d-block', mtype.icon, mtype.sensitive ? 'text-warning' : 'text-primary']"></i>
                       <div>{{ mtype.label }}</div>
                       <div v-if="mediaHas(mtype.key)" class="text-success mt-1">
                         <i class="fa fa-check-circle"></i>
-                        <span v-if="mediaGet(mtype.key)?.location_flagged" class="badge bg-warning text-dark ms-1">⚠️GPS</span>
+                        <span v-if="mediaGet(mtype.key)?.location_flagged" class="tc-status is-warn ms-1">⚠️GPS</span>
                       </div>
                       <div v-else class="text-muted mt-1">Falta</div>
                     </div>
@@ -136,7 +140,7 @@
                 <div class="mt-3 border-top pt-3">
                   <div class="row g-2 align-items-end">
                     <div class="col-md-3">
-                      <select v-model="upload.type" class="form-select form-select-sm">
+                      <select v-model="upload.type" class="form-select form-select-sm tc-select">
                         <option v-for="m in mediaTypes" :key="m.key" :value="m.key">{{ m.label }}</option>
                       </select>
                     </div>
@@ -145,7 +149,7 @@
                              class="form-control form-control-sm">
                     </div>
                     <div class="col-md-3">
-                      <button @click="uploadMedia" class="btn btn-sm btn-outline-primary" :disabled="upload.uploading || !upload.file">
+                      <button @click="uploadMedia" class="tc-btn tc-btn-ok btn-sm" :disabled="upload.uploading || !upload.file">
                         <span v-if="upload.uploading"><span class="spinner-border spinner-border-sm me-1"></span></span>
                         <span v-else><i class="fa fa-upload me-1"></i>Subir</span>
                       </button>
@@ -157,15 +161,15 @@
             </div>
 
             <!-- PASO 2: Validación IA -->
-            <div class="card border-0 shadow-sm mb-3">
-              <div class="card-header bg-light d-flex align-items-center justify-content-between">
+            <div class="tc-card mb-3">
+              <div class="tc-cardhead d-flex align-items-center justify-content-between p-3">
                 <span><i class="fa fa-robot me-2"></i>Validación IA</span>
-                <button @click="runIa" class="btn btn-xs btn-outline-secondary" :disabled="ia.running">
+                <button @click="runIa" class="tc-btn tc-btn-seg btn-xs" :disabled="ia.running">
                   <span v-if="ia.running"><span class="spinner-border spinner-border-sm me-1"></span></span>
                   <span v-else><i class="fa fa-sync-alt me-1"></i>Ejecutar</span>
                 </button>
               </div>
-              <div class="card-body">
+              <div class="p-3">
                 <div v-if="!flow.ia_validation" class="text-muted small">Sin validación ejecutada aún.</div>
                 <div v-else>
                   <div v-if="!flow.ia_validation.flags?.length" class="text-success small">
@@ -173,7 +177,7 @@
                   </div>
                   <div v-for="(flag, fi) in flow.ia_validation.flags" :key="fi"
                        class="d-flex align-items-start gap-2 mb-2 small">
-                    <span class="badge mt-1" :class="flag.severity==='error'?'bg-danger':'bg-warning text-dark'">
+                    <span class="tc-status mt-1" :class="flag.severity==='error'?'is-bad':'is-warn'">
                       {{ flag.severity === 'error' ? 'Error' : 'Aviso' }}
                     </span>
                     <span>{{ flag.issue }}</span>
@@ -181,7 +185,7 @@
                   <div v-if="!flow.ia_validation.overridden && flow.ia_validation.flags?.length" class="mt-2">
                     <div class="input-group input-group-sm">
                       <input v-model="ia.overrideReason" type="text" class="form-control" placeholder="Motivo del override…">
-                      <button @click="overrideIa" class="btn btn-outline-warning" :disabled="!ia.overrideReason">
+                      <button @click="overrideIa" class="tc-btn tc-btn-warn" :disabled="!ia.overrideReason">
                         Confirmar override
                       </button>
                     </div>
@@ -194,11 +198,11 @@
             </div>
 
             <!-- PASO 3: Firmas -->
-            <div class="card border-0 shadow-sm mb-3">
-              <div class="card-header bg-light"><i class="fa fa-signature me-2"></i>Firmas</div>
-              <div class="card-body d-flex gap-4">
+            <div class="tc-card mb-3">
+              <div class="tc-cardhead p-3"><i class="fa fa-signature me-2"></i>Firmas</div>
+              <div class="p-3 d-flex gap-4">
                 <div v-for="st in ['technician','client']" :key="st" class="flex-fill">
-                  <div class="border rounded p-3 text-center" :class="hasSig(st) ? 'border-success bg-success-subtle' : 'bg-light'">
+                  <div class="border rounded p-3 text-center" :class="hasSig(st) ? 'border-success tc-slot-filled' : 'tc-slot-empty'">
                     <i class="fa fa-pen-fancy fa-2x mb-2 d-block" :class="hasSig(st) ? 'text-success' : 'text-muted'"></i>
                     <div class="small fw-semibold">{{ st === 'technician' ? 'Técnico' : 'Cliente' }}</div>
                     <div v-if="hasSig(st)" class="small text-success mt-1">
@@ -211,9 +215,9 @@
             </div>
 
             <!-- PASO 4: Aceptar -->
-            <div class="card border-0 shadow-sm mb-3">
-              <div class="card-header bg-light"><i class="fa fa-check-double me-2"></i>Aceptar instalación</div>
-              <div class="card-body">
+            <div class="tc-card mb-3">
+              <div class="tc-cardhead p-3"><i class="fa fa-check-double me-2"></i>Aceptar instalación</div>
+              <div class="p-3">
                 <div v-if="!canAccept" class="text-muted small">
                   <i class="fa fa-lock me-1"></i>Requiere ambas firmas
                   <span v-if="!iaCleared"> y validación IA resuelta</span>.
@@ -222,7 +226,7 @@
                   <p class="small text-muted mb-2">
                     Al aceptar: se registra la ubicación GPS oficial, se transfiere la custodia del módem al cliente y la orden avanza a <strong>Pendiente de Activación</strong>.
                   </p>
-                  <button @click="acceptOrder" class="btn btn-success" :disabled="accepting">
+                  <button @click="acceptOrder" class="tc-btn tc-btn-ok" :disabled="accepting">
                     <span v-if="accepting"><span class="spinner-border spinner-border-sm me-1"></span></span>
                     <span v-else><i class="fa fa-check-double me-1"></i>Aceptar instalación</span>
                   </button>
@@ -231,17 +235,17 @@
             </div>
 
             <!-- PASO 5: Activación (solo admin/activaciones) -->
-            <div v-if="flow.order?.status === 'pending_activation' || flow.activation" class="card border-0 shadow-sm mb-3">
-              <div class="card-header bg-light d-flex align-items-center justify-content-between">
+            <div v-if="flow.order?.status === 'pending_activation' || flow.activation" class="tc-card mb-3">
+              <div class="tc-cardhead d-flex align-items-center justify-content-between p-3">
                 <span><i class="fa fa-bolt me-2"></i>Activación</span>
-                <span v-if="flow.order?.activation_confirmed_at" class="badge bg-success">Activada</span>
-                <span v-else class="badge bg-warning text-dark">Pendiente</span>
+                <span v-if="flow.order?.activation_confirmed_at" class="tc-status is-ok">Activada</span>
+                <span v-else class="tc-status is-warn">Pendiente</span>
               </div>
-              <div class="card-body">
+              <div class="p-3">
                 <div v-if="flow.order?.activation_confirmed_at" class="small text-success">
                   <i class="fa fa-check-circle me-1"></i>Activada por {{ flow.activation?.activated_by }}
                   el {{ fmtdt(flow.order.activation_confirmed_at) }}
-                  <span v-if="flow.activation?.olt_dispatched" class="ms-2 badge bg-info text-dark">OLT ✓</span>
+                  <span v-if="flow.activation?.olt_dispatched" class="ms-2 tc-status is-info">OLT ✓</span>
                 </div>
                 <div v-else>
                   <div class="d-flex align-items-center gap-3">
@@ -249,7 +253,7 @@
                       <input v-model="activation.dispatchOlt" type="checkbox" class="form-check-input" id="dispOlt">
                       <label class="form-check-label small" for="dispOlt">Disparar OLT (OLTsService)</label>
                     </div>
-                    <button @click="confirmActivation" class="btn btn-warning btn-sm" :disabled="activation.confirming">
+                    <button @click="confirmActivation" class="tc-btn tc-btn-warn-solid btn-sm" :disabled="activation.confirming">
                       <span v-if="activation.confirming"><span class="spinner-border spinner-border-sm me-1"></span></span>
                       <span v-else><i class="fa fa-bolt me-1"></i>Confirmar activación</span>
                     </button>
@@ -259,12 +263,12 @@
             </div>
 
             <!-- PASO 6: Onboarding + Encuesta -->
-            <div v-if="flow.order?.status === 'active' || flow.order?.status === 'survey_pending'" class="card border-0 shadow-sm mb-3">
-              <div class="card-header bg-light"><i class="fa fa-user-plus me-2"></i>Onboarding + Encuesta</div>
-              <div class="card-body">
+            <div v-if="flow.order?.status === 'active' || flow.order?.status === 'survey_pending'" class="tc-card mb-3">
+              <div class="tc-cardhead p-3"><i class="fa fa-user-plus me-2"></i>Onboarding + Encuesta</div>
+              <div class="p-3">
                 <div v-if="!onboarding.done && flow.order?.status === 'active'">
                   <p class="small text-muted mb-2">Genera la contraseña temporal del cliente y crea la encuesta de instalación.</p>
-                  <button @click="doOnboard" class="btn btn-primary btn-sm" :disabled="onboarding.loading">
+                  <button @click="doOnboard" class="tc-btn tc-btn-ok btn-sm" :disabled="onboarding.loading">
                     <span v-if="onboarding.loading"><span class="spinner-border spinner-border-sm me-1"></span></span>
                     <span v-else><i class="fa fa-user-plus me-1"></i>Generar onboarding</span>
                   </button>
@@ -284,14 +288,14 @@
                     <div class="row g-2 align-items-end">
                       <div class="col-md-2">
                         <label class="form-label form-label-sm">General</label>
-                        <select v-model.number="survey.rating_overall" class="form-select form-select-sm">
+                        <select v-model.number="survey.rating_overall" class="form-select form-select-sm tc-select">
                           <option value="">—</option>
                           <option v-for="n in 5" :key="n" :value="n">{{ n }}</option>
                         </select>
                       </div>
                       <div class="col-md-2">
                         <label class="form-label form-label-sm">Técnico</label>
-                        <select v-model.number="survey.rating_technician" class="form-select form-select-sm">
+                        <select v-model.number="survey.rating_technician" class="form-select form-select-sm tc-select">
                           <option value="">—</option>
                           <option v-for="n in 5" :key="n" :value="n">{{ n }}</option>
                         </select>
@@ -311,7 +315,7 @@
                         </div>
                       </div>
                       <div class="col-md-2">
-                        <button @click="submitSurvey" class="btn btn-primary btn-sm w-100" :disabled="survey.submitting">
+                        <button @click="submitSurvey" class="tc-btn tc-btn-ok btn-sm w-100" :disabled="survey.submitting">
                           <span v-if="survey.submitting"><span class="spinner-border spinner-border-sm"></span></span>
                           <span v-else>Guardar</span>
                         </button>
@@ -326,21 +330,21 @@
 
           <!-- COL DERECHA: fotos capturadas -->
           <div class="col-md-4">
-            <div class="card border-0 shadow-sm">
-              <div class="card-header bg-light small text-uppercase text-muted">Evidencia capturada</div>
-              <div class="card-body p-2">
+            <div class="tc-card">
+              <div class="tc-cardhead small text-uppercase text-muted p-3">Evidencia capturada</div>
+              <div class="p-2">
                 <div v-if="!flow.media?.length" class="text-muted small text-center py-3">Sin fotos aún.</div>
                 <div v-for="m in flow.media" :key="m.id" class="mb-2 border rounded overflow-hidden">
                   <div v-if="m.url" class="position-relative">
                     <img :src="m.url" class="img-fluid w-100" style="max-height:120px;object-fit:cover;" @error="m.url=null">
-                    <span v-if="m.watermark_applied" class="position-absolute bottom-0 start-0 badge bg-dark bg-opacity-75 m-1" style="font-size:9px;">Marca de agua ✓</span>
+                    <span v-if="m.watermark_applied" class="position-absolute bottom-0 start-0 tc-status is-slate m-1" style="font-size:9px;">Marca de agua ✓</span>
                   </div>
-                  <div v-else class="bg-light d-flex align-items-center justify-content-center" style="height:60px;">
+                  <div v-else class="tc-slot-empty d-flex align-items-center justify-content-center" style="height:60px;">
                     <span class="small text-muted">{{ m.restricted ? '🔒 Restringido' : '—' }}</span>
                   </div>
                   <div class="px-2 py-1 d-flex justify-content-between align-items-center">
-                    <span class="badge bg-light text-dark" style="font-size:10px;">{{ mediaLabel(m.type) }}</span>
-                    <span v-if="m.location_flagged" class="badge bg-warning text-dark" style="font-size:10px;">⚠️GPS</span>
+                    <span class="tc-status is-slate" style="font-size:10px;">{{ mediaLabel(m.type) }}</span>
+                    <span v-if="m.location_flagged" class="tc-status is-warn" style="font-size:10px;">⚠️GPS</span>
                   </div>
                 </div>
               </div>
@@ -355,8 +359,13 @@
 </template>
 
 <script>
+import { darkMode } from "../../../hook/appConfig.js";
+
 export default {
   name: 'TalentoCampo',
+  setup() {
+    return { darkMode };
+  },
   data() {
     return {
       orders: [],
@@ -446,7 +455,7 @@ export default {
     stepClass(status) {
       if (status === 'done')   return 'bg-success text-white';
       if (status === 'active') return 'bg-primary text-white';
-      return 'bg-light text-muted border';
+      return 'tc-step-pending';
     },
     mediaHas(type) { return (this.flow?.media ?? []).some(m => m.type === type); },
     mediaGet(type) { return (this.flow?.media ?? []).find(m => m.type === type); },
@@ -527,11 +536,11 @@ export default {
       } finally { this.survey.submitting = false; }
     },
     statusColor(s) {
-      const m = { pending:'bg-secondary', in_progress:'bg-primary', completed:'bg-info text-dark',
-                  validated:'bg-success', cancelled:'bg-danger',
-                  pending_activation:'bg-warning text-dark', active:'bg-success',
-                  survey_pending:'bg-info text-dark' };
-      return m[s] ?? 'bg-light text-muted';
+      const m = { pending:'is-slate', in_progress:'is-info', completed:'is-warn',
+                  validated:'is-ok', cancelled:'is-bad',
+                  pending_activation:'is-warn', active:'is-ok',
+                  survey_pending:'is-info' };
+      return m[s] ?? 'is-slate';
     },
     statusLabel(s) {
       const m = { pending:'Pendiente', in_progress:'En curso', completed:'Completada',
@@ -547,3 +556,22 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* Los estados de "slot" (evidencia/firma pendiente vs. capturada) y el paso
+   pendiente del stepper usaban border-success/bg-success-subtle y bg-light
+   (Bootstrap) — no cubiertos por _torre-theme.scss, quedan sin contraste en
+   modo oscuro (mismo hallazgo que en otras pantallas Talento). Recoloreados
+   con los tokens --tc-*. */
+.talento-campo .tc-slot-filled {
+  background: rgba(21, 128, 61, 0.12);
+}
+.talento-campo .tc-slot-empty {
+  background: var(--tc-bg2);
+}
+.talento-campo .tc-step-pending {
+  background: var(--tc-bg2);
+  color: var(--tc-muted);
+  border: 1px solid var(--tc-line);
+}
+</style>

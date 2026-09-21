@@ -1,56 +1,59 @@
 <template>
-  <div class="talento-mapa-vivo">
-    <div class="d-flex align-items-center justify-content-between mb-3">
-      <h5 class="mb-0"><i class="fa fa-map-marked-alt me-2 text-primary"></i>Ubicación en Vivo</h5>
-      <div class="d-flex align-items-center gap-3">
-        <span class="badge bg-primary">{{ checados.length }} checado{{ checados.length !== 1 ? 's' : '' }}</span>
-        <button @click="refresh" :disabled="loading" class="btn btn-sm btn-outline-secondary">
-          <i class="fa fa-sync-alt" :class="{'fa-spin': loading}"></i> Actualizar
-        </button>
-        <small class="text-muted">Auto-refresh 30s</small>
-      </div>
-    </div>
-
-    <div class="row g-0" style="height: calc(100vh - 200px); min-height: 500px;">
-
-      <!-- Mapa -->
-      <div class="col-md-8 col-xl-9">
-        <div v-if="mapReady" ref="mapEl" style="height:100%;width:100%;border-radius:8px 0 0 8px;"></div>
-        <div v-else class="d-flex align-items-center justify-content-center h-100 bg-light rounded">
-          <div class="spinner-border text-primary"></div>
+  <div class="talento-mapa-vivo tc-wrap" :class="{ 'tc-dark': darkMode }">
+    <div class="tc-card p-0" style="overflow:visible;">
+      <div class="tc-cardhead d-flex flex-wrap align-items-center justify-content-between gap-2 p-3">
+        <h5 class="tc-h1 mb-0"><i class="fa fa-map-marked-alt me-2"></i>Ubicación en Vivo</h5>
+        <div class="d-flex align-items-center gap-3">
+          <span class="tc-status is-accent">{{ checados.length }} checado{{ checados.length !== 1 ? 's' : '' }}</span>
+          <button @click="refresh" :disabled="loading" class="tc-btn tc-btn-seg">
+            <i class="fa fa-sync-alt" :class="{'fa-spin': loading}"></i> Actualizar
+          </button>
+          <small class="text-muted">Auto-refresh 30s</small>
         </div>
       </div>
 
-      <!-- Panel lateral -->
-      <div class="col-md-4 col-xl-3 border-start" style="overflow-y:auto;height:100%;">
-        <div class="p-3">
-          <h6 class="text-uppercase text-muted small mb-3">Colaboradores checados</h6>
-          <div v-if="!checados.length" class="text-muted small text-center py-4">
-            <i class="fa fa-satellite-dish fa-2x mb-2 d-block text-muted"></i>
-            Sin colaboradores checados ahora mismo.
+      <div class="row g-0" style="height: calc(100vh - 200px); min-height: 500px;">
+
+        <!-- Mapa (NO envuelto en tc-card aparte: es hijo directo de la tarjeta con overflow:visible de arriba,
+             para no recortar controles de zoom/popups de Leaflet) -->
+        <div class="col-md-8 col-xl-9">
+          <div v-if="mapReady" ref="mapEl" style="height:100%;width:100%;border-radius:0 0 0 16px;"></div>
+          <div v-else class="d-flex align-items-center justify-content-center h-100 tmv-map-loading">
+            <div class="spinner-border text-primary"></div>
           </div>
-          <div v-for="c in checados" :key="c.colaborador_id"
-               @click="focusColaborador(c)"
-               :class="['card border-0 shadow-sm mb-2 cursor-pointer', selected?.colaborador_id === c.colaborador_id ? 'border-primary border' : '']"
-               style="transition: box-shadow 0.15s;">
-            <div class="card-body py-2 px-3">
-              <div class="d-flex align-items-center justify-content-between mb-1">
-                <div class="fw-semibold small">{{ c.name }}</div>
-                <span v-if="c.flagged" class="badge bg-warning text-dark"><i class="fa fa-flag"></i></span>
+        </div>
+
+        <!-- Panel lateral -->
+        <div class="col-md-4 col-xl-3 border-start" style="overflow-y:auto;height:100%;">
+          <div class="p-3">
+            <h6 class="text-uppercase text-muted small mb-3">Colaboradores checados</h6>
+            <div v-if="!checados.length" class="text-muted small text-center py-4">
+              <i class="fa fa-satellite-dish fa-2x mb-2 d-block text-muted"></i>
+              Sin colaboradores checados ahora mismo.
+            </div>
+            <div v-for="c in checados" :key="c.colaborador_id"
+                 @click="focusColaborador(c)"
+                 :class="['card border-0 shadow-sm mb-2 cursor-pointer', selected?.colaborador_id === c.colaborador_id ? 'border-primary border' : '']"
+                 style="transition: box-shadow 0.15s;">
+              <div class="card-body py-2 px-3">
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                  <div class="fw-semibold small">{{ c.name }}</div>
+                  <span v-if="c.flagged" class="tc-status is-warn"><i class="fa fa-flag"></i></span>
+                </div>
+                <div class="small text-muted">
+                  <i class="fa fa-sign-in-alt me-1"></i>{{ fmtTime(c.check_in_at) }}
+                  <span v-if="c.expected_end_at" class="ms-2">
+                    <i class="fa fa-clock me-1"></i>{{ fmtTime(c.expected_end_at) }}
+                  </span>
+                </div>
+                <div v-if="c.last_ping" class="small text-muted mt-1">
+                  <i class="fa fa-location-arrow me-1"></i>Último ping: {{ timeAgo(c.last_ping.recorded_at) }}
+                  <span v-if="c.last_ping.battery != null" class="ms-2">
+                    <i class="fa fa-battery-half me-1"></i>{{ c.last_ping.battery }}%
+                  </span>
+                </div>
+                <div v-else class="small text-warning mt-1"><i class="fa fa-exclamation-circle me-1"></i>Sin pings aún</div>
               </div>
-              <div class="small text-muted">
-                <i class="fa fa-sign-in-alt me-1"></i>{{ fmtTime(c.check_in_at) }}
-                <span v-if="c.expected_end_at" class="ms-2">
-                  <i class="fa fa-clock me-1"></i>{{ fmtTime(c.expected_end_at) }}
-                </span>
-              </div>
-              <div v-if="c.last_ping" class="small text-muted mt-1">
-                <i class="fa fa-location-arrow me-1"></i>Último ping: {{ timeAgo(c.last_ping.recorded_at) }}
-                <span v-if="c.last_ping.battery != null" class="ms-2">
-                  <i class="fa fa-battery-half me-1"></i>{{ c.last_ping.battery }}%
-                </span>
-              </div>
-              <div v-else class="small text-warning mt-1"><i class="fa fa-exclamation-circle me-1"></i>Sin pings aún</div>
             </div>
           </div>
         </div>
@@ -61,9 +64,13 @@
 
 <script>
 import L from 'leaflet';
+import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoMapaVivo',
+  setup() {
+    return { darkMode };
+  },
   data() {
     return {
       checados: [],
@@ -184,3 +191,12 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* Gap del tema Torre: bg-light no se recolorea automáticamente (item receta paso 9).
+   Placeholder de carga del mapa, mientras el ref del contenedor aún no está listo. */
+.tmv-map-loading {
+  background: var(--tc-bg2);
+  border-radius: 0 0 0 16px;
+}
+</style>
