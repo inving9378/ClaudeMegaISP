@@ -39,6 +39,19 @@ class CalculateBalanceSellerService
     const MONTH_PERIOD = 'month';
     const WEEK_PERIOD = 'week';
 
+    /**
+     * Memoización POR INSTANCIA (no persiste entre requests — cada controller
+     * hace `new CalculateBalanceSellerService()`, así que no hay riesgo de
+     * fuga entre peticiones/usuarios). getRule()/getSales() se llamaban antes
+     * una vez por cada semana×tipo de comisión del histórico completo del
+     * vendedor (cientos de queries idénticas salvo por el rango de fechas) —
+     * aquí se trae el dato completo UNA vez por vendedor y se filtra/busca en
+     * memoria para cada rango, sin cambiar ningún cálculo ni el resultado de
+     * ninguna consulta individual.
+     */
+    private array $ruleHistoryCache = [];
+    private array $salesHistoryCache = [];
+
     public function getSalary($period, $user, $from, $to, $general = false)
     {
         $contracts = $this->getDurationsContracts();
@@ -300,10 +313,25 @@ class CalculateBalanceSellerService
 
     public function getSales($user, $from, $to)
     {
-        $sales = ClientMainInformation::whereHas('client')
-            ->where('seller_id', $user->id)->whereDate('client_main_information.activation_date', '>=', $from)
-            ->whereDate('client_main_information.activation_date', '<=', $to)
-            ->distinct()->orderByRaw("STR_TO_DATE(client_main_information.activation_date, '%Y-%m-%d') ASC, client_id ASC")->get();
+        if (!isset($this->salesHistoryCache[$user->id])) {
+            // Trae TODO el historial de ventas del vendedor una sola vez (misma
+            // condición whereHas('client')+seller_id+orden que el original, sin
+            // el rango de fechas) — cada llamada de aquí en adelante filtra este
+            // mismo conjunto en memoria en vez de repetir la consulta.
+            $this->salesHistoryCache[$user->id] = ClientMainInformation::whereHas('client')
+                ->where('seller_id', $user->id)
+                ->orderByRaw("STR_TO_DATE(client_main_information.activation_date, '%Y-%m-%d') ASC, client_id ASC")
+                ->get();
+        }
+
+        $sales = $this->salesHistoryCache[$user->id]->filter(function ($cmi) use ($from, $to) {
+            if (!$cmi->activation_date) {
+                return false;
+            }
+            $activation = substr($cmi->activation_date, 0, 10);
+            return $activation >= substr($from, 0, 10) && $activation <= substr($to, 0, 10);
+        })->values();
+
         return $sales->where('service', '>', 0);
     }
 
@@ -314,11 +342,30 @@ class CalculateBalanceSellerService
 
     public function getRule($user, $from)
     {
-        $rule = HistorySellerRule::where('seller_id', $user->seller->id)->where('created_at', '<=', $from)->latest()->first();
-        if ($rule == null) {
-            $rule = HistorySellerRule::where('seller_id', $user->seller->id)->orderBy('created_at', 'ASC')->first();
+        $sellerId = $user->seller->id;
+
+        if (!isset($this->ruleHistoryCache[$sellerId])) {
+            // Trae TODAS las reglas históricas del vendedor una sola vez, ordenadas
+            // ascendente — de aquí en adelante cada llamada busca en memoria en vez
+            // de repetir la consulta por cada semana/mes del histórico.
+            $this->ruleHistoryCache[$sellerId] = HistorySellerRule::where('seller_id', $sellerId)
+                ->orderBy('created_at', 'ASC')
+                ->get();
         }
-        return $rule;
+
+        $rules = $this->ruleHistoryCache[$sellerId];
+        if ($rules->isEmpty()) {
+            return null;
+        }
+
+        $fromDate = Carbon::parse($from);
+        // Misma semántica que el original: la regla más reciente cuyo created_at
+        // sea <= $from (equivalente a ->where('created_at','<=',$from)->latest()->first()).
+        $rule = $rules->filter(fn($r) => $r->created_at->lte($fromDate))->last();
+
+        // Mismo fallback que el original: si ninguna regla es anterior a $from,
+        // usar la más antigua registrada.
+        return $rule ?? $rules->first();
     }
 
     public function getPeriodFromType($period, $from, $year = null)
