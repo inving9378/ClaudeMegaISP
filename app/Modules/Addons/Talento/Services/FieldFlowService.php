@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoInstallationSurvey;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderActivation;
+use App\Modules\Addons\Talento\Support\FieldFlowEntity;
 use App\Services\OLTsService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -51,31 +52,17 @@ class FieldFlowService
      */
     private function resolveEntity(int $id): array
     {
-        $wo = TalentoWorkOrder::find($id);
-        if ($wo) {
-            return ['origen' => 'work_order', 'model' => $wo];
+        $resolved = FieldFlowEntity::resolve($id);
+        if (! $resolved) {
+            throw new \RuntimeException('Orden de trabajo no encontrada.');
         }
-
-        $task = Task::where('id', $id)
-            ->where('tipo', 'campo')
-            ->whereNotNull('talento_type_id')
-            ->first();
-        if ($task) {
-            return ['origen' => 'task', 'model' => $task];
-        }
-
-        throw new \RuntimeException('Orden de trabajo no encontrada.');
+        return $resolved;
     }
 
     /** Resuelve clients.id a partir de tasks.client_main_information_id. */
     private function clientIdForTask(Task $task): ?int
     {
-        if (! $task->client_main_information_id) {
-            return null;
-        }
-        return DB::table('client_main_information')
-            ->where('id', $task->client_main_information_id)
-            ->value('client_id');
+        return FieldFlowEntity::clientIdForTask($task);
     }
 
     // ── Sub-paso 4: Aceptar ──────────────────────────────────────────────────
