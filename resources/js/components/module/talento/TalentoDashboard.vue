@@ -82,7 +82,7 @@
                 <span class="text-muted">Meta: {{ tecnicoData.weekly_quota }}</span>
               </div>
               <div class="progress mb-2" style="height:12px">
-                <div class="progress-bar" :class="quotaPct>=100?'bg-success':'quotaPct>=75?\'bg-warning\':\'bg-danger\''"
+                <div class="progress-bar" :class="quotaPct>=100?'bg-success':(quotaPct>=75?'bg-warning':'bg-danger')"
                      :style="{width: Math.min(quotaPct,100)+'%'}"></div>
               </div>
               <div class="small text-muted">{{ fmt1(quotaPct) }}% alcanzado</div>
