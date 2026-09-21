@@ -1,5 +1,5 @@
 <template>
-  <div class="talento-calidad">
+  <div class="talento-calidad tc-wrap" :class="{ 'tc-dark': darkMode }">
 
     <!-- Tabs -->
     <ul class="nav nav-tabs mb-3">
@@ -21,18 +21,18 @@
         <div class="d-flex gap-2 flex-wrap">
           <input v-model="filters.caja_ref" @input="debounceLoad" type="text" class="form-control form-control-sm"
                  placeholder="Buscar caja…" style="width:160px">
-          <select v-model="filters.project_id" @change="loadInspecciones" class="form-select form-select-sm" style="width:180px">
+          <select v-model="filters.project_id" @change="loadInspecciones" class="form-select form-select-sm tc-select" style="width:180px">
             <option value="">Todos los proyectos</option>
             <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
           </select>
-          <select v-model="filters.result" @change="loadInspecciones" class="form-select form-select-sm" style="width:150px">
+          <select v-model="filters.result" @change="loadInspecciones" class="form-select form-select-sm tc-select" style="width:150px">
             <option value="">Todos los resultados</option>
             <option value="pass">Pass ✅</option>
             <option value="needs_rework">Necesita trabajo ⚠</option>
             <option value="fail">Falla ❌</option>
           </select>
         </div>
-        <button @click="openNew" class="btn btn-sm btn-primary">
+        <button @click="openNew" class="tc-btn tc-btn-ok btn-sm">
           <i class="fa fa-plus me-1"></i>Nueva inspección
         </button>
       </div>
@@ -69,7 +69,7 @@
               </td>
               <td class="small">{{ insp.aesthetic_score != null ? insp.aesthetic_score + '/10' : '—' }}</td>
               <td>
-                <span v-if="insp.overall_result" class="badge" :class="resultColor(insp.overall_result)">
+                <span v-if="insp.overall_result" class="tc-status" :class="resultColor(insp.overall_result)">
                   {{ resultLabel(insp.overall_result) }}
                 </span>
                 <span v-else class="text-muted small">—</span>
@@ -79,7 +79,7 @@
                 <i v-else class="fa fa-clock text-muted"></i>
               </td>
               <td>
-                <button @click="openView(insp.id)" class="btn btn-xs btn-outline-primary">
+                <button @click="openView(insp.id)" class="tc-btn tc-btn-info btn-xs">
                   <i class="fa fa-eye"></i>
                 </button>
               </td>
@@ -89,24 +89,25 @@
             </tr>
           </tbody>
         </table>
-        <div v-if="inspPagination.last_page > 1" class="d-flex justify-content-center gap-2 mt-2">
-          <button v-for="p in inspPagination.last_page" :key="p"
-                  @click="loadInspecciones(p)"
-                  class="btn btn-xs" :class="p === inspPagination.current_page ? 'btn-primary' : 'btn-outline-secondary'">
-            {{ p }}
-          </button>
-        </div>
+        <nav v-if="inspPagination.last_page > 1" class="mt-2 d-flex justify-content-center">
+          <ul class="pagination pagination-sm mb-0">
+            <li v-for="p in inspPagination.last_page" :key="p" class="page-item"
+                :class="{ active: p === inspPagination.current_page }">
+              <button class="page-link" @click="loadInspecciones(p)">{{ p }}</button>
+            </li>
+          </ul>
+        </nav>
       </div>
     </div>
 
     <!-- ── TAB CATÁLOGO ── -->
     <div v-if="tab === 'standards'">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-        <select v-model="stdFilter" @change="loadStandards" class="form-select form-select-sm" style="width:200px">
+        <select v-model="stdFilter" @change="loadStandards" class="form-select form-select-sm tc-select" style="width:200px">
           <option value="">Todos los tipos</option>
           <option v-for="(label, val) in typeLabels" :key="val" :value="val">{{ label }}</option>
         </select>
-        <button @click="openNewStd" class="btn btn-sm btn-primary">
+        <button @click="openNewStd" class="tc-btn tc-btn-ok btn-sm">
           <i class="fa fa-plus me-1"></i>Nuevo estándar
         </button>
       </div>
@@ -120,12 +121,12 @@
           <div class="row g-3">
             <div v-for="std in group" :key="std.id" class="col-md-4 col-lg-3">
               <div class="card h-100 shadow-sm">
-                <div v-if="std.reference_image_path" class="card-img-top"
-                     style="height:120px;overflow:hidden;background:#f8f9fa;">
+                <div v-if="std.reference_image_path" class="card-img-top tc-imgbox"
+                     style="height:120px;overflow:hidden;">
                   <img :src="`/storage/${std.reference_image_path}`" class="w-100 h-100"
                        style="object-fit:cover;" :alt="std.name" @error="$event.target.style.display='none'">
                 </div>
-                <div v-else class="card-img-top d-flex align-items-center justify-content-center bg-light"
+                <div v-else class="card-img-top tc-imgbox d-flex align-items-center justify-content-center"
                      style="height:80px;">
                   <i class="fa fa-image text-muted fa-2x"></i>
                 </div>
@@ -134,13 +135,13 @@
                   <div v-if="std.ideal_value" class="text-muted mt-1" style="font-size:11px;">
                     <i class="fa fa-bullseye me-1 text-success"></i>{{ std.ideal_value }}
                   </div>
-                  <span v-if="!std.active" class="badge bg-secondary mt-1" style="font-size:10px;">Inactivo</span>
+                  <span v-if="!std.active" class="tc-status is-slate mt-1" style="font-size:10px;">Inactivo</span>
                 </div>
                 <div class="card-footer p-1 d-flex gap-1">
-                  <button @click="openEditStd(std)" class="btn btn-xs btn-outline-primary flex-fill">
+                  <button @click="openEditStd(std)" class="tc-btn tc-btn-info btn-xs flex-fill">
                     <i class="fa fa-pen"></i>
                   </button>
-                  <button @click="openStdImage(std)" class="btn btn-xs btn-outline-secondary flex-fill" title="Subir imagen de referencia">
+                  <button @click="openStdImage(std)" class="tc-btn tc-btn-seg btn-xs flex-fill" title="Subir imagen de referencia">
                     <i class="fa fa-image"></i>
                   </button>
                 </div>
@@ -172,7 +173,7 @@
               </div>
               <div class="col-md-5">
                 <label class="form-label">Proyecto (opcional)</label>
-                <select v-model="inspModal.project_id" :disabled="!!inspModal.id" class="form-select form-select-sm">
+                <select v-model="inspModal.project_id" :disabled="!!inspModal.id" class="form-select form-select-sm tc-select">
                   <option :value="null">— Sin proyecto —</option>
                   <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
                 </select>
@@ -206,7 +207,7 @@
                 <input v-model.number="inspModal.captured_lng" type="number" step="any" class="form-control form-control-sm">
               </div>
               <div v-if="!inspModal.id" class="col-md-4 d-flex align-items-end">
-                <button @click="useGps" class="btn btn-sm btn-outline-secondary w-100">
+                <button @click="useGps" class="tc-btn tc-btn-seg btn-sm w-100">
                   <i class="fa fa-map-marker-alt me-1"></i>Mi ubicación
                 </button>
               </div>
@@ -243,13 +244,13 @@
                 <div class="d-flex align-items-center gap-2">
                   <input v-model.number="inspModal.aesthetic_score" :disabled="!!inspModal.id" type="range"
                          min="1" max="10" step="1" class="form-range flex-fill">
-                  <span class="badge" :class="inspModal.aesthetic_score >= 7 ? 'bg-success' : inspModal.aesthetic_score >= 4 ? 'bg-warning text-dark' : 'bg-danger'"
+                  <span class="tc-status" :class="inspModal.aesthetic_score >= 7 ? 'is-ok' : inspModal.aesthetic_score >= 4 ? 'is-warn' : 'is-bad'"
                         style="min-width:32px">{{ inspModal.aesthetic_score ?? '—' }}</span>
                 </div>
               </div>
 
               <!-- Panel IA -->
-              <div class="col-12"><hr class="my-1"><h6 class="small text-uppercase text-muted">Análisis IA <span class="badge bg-light text-muted ms-1">Asesora</span></h6></div>
+              <div class="col-12"><hr class="my-1"><h6 class="small text-uppercase text-muted">Análisis IA <span class="tc-status is-slate ms-1">Asesora</span></h6></div>
               <div v-if="inspModal.ia_flags?.length" class="col-12">
                 <div class="alert alert-light border py-2 mb-2">
                   <div class="fw-semibold small mb-1">{{ inspModal.ia_summary }}</div>
@@ -266,7 +267,7 @@
                 <div class="small text-muted fst-italic">Sin análisis IA registrado.</div>
               </div>
               <div v-if="inspModal.id" class="col-12">
-                <button @click="runIa" class="btn btn-sm btn-outline-primary" :disabled="inspModal.runningIa">
+                <button @click="runIa" class="tc-btn tc-btn-info btn-sm" :disabled="inspModal.runningIa">
                   <span v-if="inspModal.runningIa"><span class="spinner-border spinner-border-sm me-1"></span>Analizando…</span>
                   <span v-else><i class="fa fa-robot me-1"></i>Analizar foto con IA</span>
                 </button>
@@ -276,10 +277,10 @@
               <div v-if="inspModal.overall_result" class="col-12">
                 <div class="d-flex align-items-center gap-2 mt-1">
                   <span class="small text-muted">Resultado:</span>
-                  <span class="badge fs-6" :class="resultColor(inspModal.overall_result)">
+                  <span class="tc-status fs-6" :class="resultColor(inspModal.overall_result)">
                     {{ resultLabel(inspModal.overall_result) }}
                   </span>
-                  <span v-if="inspModal.supervisor_validated" class="badge bg-info text-dark">
+                  <span v-if="inspModal.supervisor_validated" class="tc-status is-info">
                     <i class="fa fa-user-check me-1"></i>Validado por supervisor
                   </span>
                 </div>
@@ -305,7 +306,7 @@
                 <div class="col-12"><hr class="my-1"><h6 class="small text-uppercase text-muted">Validación de supervisor</h6></div>
                 <div class="col-md-5">
                   <label class="form-label">Override resultado</label>
-                  <select v-model="inspModal.override_result" class="form-select form-select-sm">
+                  <select v-model="inspModal.override_result" class="form-select form-select-sm tc-select">
                     <option value="pass">Pass ✅</option>
                     <option value="needs_rework">Necesita trabajo ⚠</option>
                     <option value="fail">Falla ❌</option>
@@ -316,7 +317,7 @@
                   <input v-model="inspModal.override_notes" type="text" class="form-control form-control-sm">
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
-                  <button @click="supervisorValidate" class="btn btn-sm btn-success w-100" :disabled="inspModal.validating">
+                  <button @click="supervisorValidate" class="tc-btn tc-btn-ok btn-sm w-100" :disabled="inspModal.validating">
                     <span v-if="inspModal.validating"><span class="spinner-border spinner-border-sm"></span></span>
                     <span v-else><i class="fa fa-check me-1"></i>Validar</span>
                   </button>
@@ -329,8 +330,8 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button @click="inspModal.show=false" class="btn btn-secondary">Cerrar</button>
-            <button v-if="!inspModal.id" @click="saveInspection" class="btn btn-primary" :disabled="inspModal.saving">
+            <button @click="inspModal.show=false" class="tc-btn tc-btn-seg">Cerrar</button>
+            <button v-if="!inspModal.id" @click="saveInspection" class="tc-btn tc-btn-ok" :disabled="inspModal.saving">
               <span v-if="inspModal.saving"><span class="spinner-border spinner-border-sm me-1"></span>Guardando…</span>
               <span v-else>Guardar inspección</span>
             </button>
@@ -355,7 +356,7 @@
               </div>
               <div class="col-md-6">
                 <label class="form-label">Tipo <span class="text-danger">*</span></label>
-                <select v-model="stdModal.type" class="form-select">
+                <select v-model="stdModal.type" class="form-select tc-select">
                   <option v-for="(label, val) in typeLabels" :key="val" :value="val">{{ label }}</option>
                 </select>
               </div>
@@ -373,8 +374,8 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button @click="stdModal.show=false" class="btn btn-secondary">Cancelar</button>
-            <button @click="saveStandard" class="btn btn-primary" :disabled="stdModal.saving">
+            <button @click="stdModal.show=false" class="tc-btn tc-btn-seg">Cancelar</button>
+            <button @click="saveStandard" class="tc-btn tc-btn-ok" :disabled="stdModal.saving">
               <span v-if="stdModal.saving"><span class="spinner-border spinner-border-sm me-1"></span></span>
               <span v-else>Guardar</span>
             </button>
@@ -401,8 +402,8 @@
             <div v-if="imgModal.error" class="alert alert-danger py-2 small mt-2 mb-0">{{ imgModal.error }}</div>
           </div>
           <div class="modal-footer">
-            <button @click="imgModal.show=false" class="btn btn-secondary">Cancelar</button>
-            <button @click="uploadStdImage" class="btn btn-primary" :disabled="imgModal.saving || !imgModal.file">
+            <button @click="imgModal.show=false" class="tc-btn tc-btn-seg">Cancelar</button>
+            <button @click="uploadStdImage" class="tc-btn tc-btn-ok" :disabled="imgModal.saving || !imgModal.file">
               <span v-if="imgModal.saving"><span class="spinner-border spinner-border-sm me-1"></span>Subiendo…</span>
               <span v-else>Subir imagen</span>
             </button>
@@ -415,8 +416,13 @@
 </template>
 
 <script>
+import { darkMode } from "../../../hook/appConfig.js";
+
 export default {
   name: 'TalentoCalidad',
+  setup() {
+    return { darkMode };
+  },
   data() {
     return {
       tab: 'inspecciones',
@@ -661,7 +667,7 @@ export default {
 
     // ── Helpers ─────────────────────────────────────────────────────────────
     resultColor(r) {
-      return { pass: 'bg-success', needs_rework: 'bg-warning text-dark', fail: 'bg-danger' }[r] ?? 'bg-secondary';
+      return { pass: 'is-ok', needs_rework: 'is-warn', fail: 'is-bad' }[r] ?? 'is-slate';
     },
     resultLabel(r) {
       return { pass: '✅ Pass', needs_rework: '⚠ Necesita trabajo', fail: '❌ Falla' }[r] ?? r;
@@ -675,3 +681,12 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* Gap del tema Torre (paso 8): la miniatura del estándar (con foto o
+   placeholder) usaba background:#f8f9fa / bg-light — plano en modo oscuro.
+   Recoloreado con el token neutro del theme. */
+.tc-imgbox {
+  background: var(--tc-bg2);
+}
+</style>
