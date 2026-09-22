@@ -3,7 +3,7 @@
         <template #chart>
             <label class="form-label my-1">Filtrar por rango de fecha</label>
             <div
-                id="sales-chart"
+                id="ranking-sales-chart"
                 class="relative-position"
                 style="min-height: 365px"
             >
@@ -25,7 +25,11 @@
                     height="350"
                     :options="chartOptions"
                     :series="series"
+                    v-if="series.length > 0"
                 ></apexchart>
+                <p v-if="!showLoading && series.length === 0">
+                    No existen datos
+                </p>
                 <q-inner-loading :showing="showLoading" color="primary" />
             </div>
         </template>
