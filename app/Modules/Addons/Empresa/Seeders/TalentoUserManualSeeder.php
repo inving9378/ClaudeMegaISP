@@ -6,10 +6,13 @@ use App\Modules\Addons\Manual\Models\ManualSection;
 use Illuminate\Database\Seeder;
 
 /**
- * Capítulo "Talento" del Manual de Usuario (addon-manual, /manual) —
- * decisión de Irving (2026-09-22): se movió aquí desde el "Manual Operativo
- * de Meganet" (addon-empresa, /empresa/manual), que ya lo tuvo antes (ver
+ * Capítulo "Talento" del Manual Operativo de Meganet (addon-manual, /manual
+ * — renombrado de "Manual de Usuario" el 2026-09-22) — decisión de Irving:
+ * se movió aquí desde /empresa/manual (addon-empresa, que sigue existiendo
+ * con solo su contenido de identidad/misión/valores; ver
  * TalentoManualSeeder.php, ahora sin uso — el capítulo se dio de baja ahí).
+ * Nota: ambos módulos comparten hoy el mismo nombre visible "Manual
+ * Operativo de Meganet" — decisión explícita de Irving, no un descuido.
  *
  * Este destino es un sistema DISTINTO (ver App\Modules\Addons\Manual\):
  * - Una fila por PANTALLA (module_slug único), no capítulo→sección.

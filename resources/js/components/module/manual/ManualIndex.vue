@@ -8,7 +8,7 @@
             </button>
             <h1 class="wiki-title mb-0">
                 <span class="me-2">📖</span>
-                Manual de Usuario - MegaISP
+                Manual Operativo de Meganet
             </h1>
             <div class="ms-auto d-flex align-items-center gap-2">
                 <span
@@ -103,7 +103,7 @@
 
                 <div v-else-if="!activeItem" class="wiki-empty">
                     <i data-feather="book-open" class="wiki-empty-icon"></i>
-                    <h3>Bienvenido al Manual de MegaISP</h3>
+                    <h3>Bienvenido al Manual Operativo de Meganet</h3>
                     <p class="text-muted">Selecciona un módulo del menú izquierdo para ver su documentación.</p>
                 </div>
 

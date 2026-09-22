@@ -1,7 +1,7 @@
 @extends('core-layout::master')
 
 @section('title')
-    Manual de Usuario
+    Manual Operativo de Meganet
 @endsection
 
 @section('content')

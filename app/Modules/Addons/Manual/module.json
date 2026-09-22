@@ -1,15 +1,15 @@
 {
     "slug": "addon-manual",
-    "name": "Manual de Usuario",
+    "name": "Manual Operativo de Meganet",
     "version": "0.1.0",
-    "description": "Manual de usuario generado automáticamente vía Claude API. Documentación viva por módulo con versionado y regeneración bajo demanda.",
+    "description": "Manual operativo de Meganet: documentación de cómo funciona cada módulo, generada automáticamente vía Claude API (y capítulos curados a mano, como Talento) con versionado y regeneración bajo demanda.",
     "type": "addon",
     "dependencies": [],
     "active": true,
 
     "permissions": [
-        { "name": "manual_view",     "description": "Ver el manual de usuario del sistema" },
-        { "name": "manual_generate", "description": "Regenerar el manual con Claude API" }
+        { "name": "manual_view",     "description": "Ver el Manual Operativo de Meganet" },
+        { "name": "manual_generate", "description": "Regenerar el Manual Operativo con Claude API" }
     ],
 
     "menu": [
@@ -23,7 +23,7 @@
 
     "admin_cards": [
         {
-            "title": "Manual de Usuario",
+            "title": "Manual Operativo de Meganet",
             "description": "Documentación del sistema generada automáticamente con Claude AI.",
             "icon": "book-open",
             "url": "/manual",
