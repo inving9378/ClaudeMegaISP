@@ -1,5 +1,5 @@
 <template>
-    <div class="manual-wiki" :class="{ 'sidebar-open': sidebarOpen }">
+    <div class="manual-wiki tc-wrap" :class="{ 'sidebar-open': sidebarOpen, 'tc-dark': darkMode }">
 
         <!-- Header superior -->
         <header class="wiki-header">
@@ -172,6 +172,7 @@
 
 <script>
 import axios from 'axios';
+import { darkMode } from '../../../hook/appConfig.js';
 
 const MENU = [
     { label: 'Dashboard',        icon: 'home',       search: 'dashboard' },
@@ -201,6 +202,38 @@ const MENU = [
         { label: 'Dashboard',           search: 'sellerdashboard' },
         { label: 'Lista de vendedores', search: 'seller' },
         { label: 'Mi panel',            search: 'sellerpanel' },
+    ]},
+    { label: 'Talento', icon: 'briefcase', children: [
+        { label: 'Qué es Talento',                          search: 'talento-que-es' },
+        { label: 'Colaboradores',                            search: 'talento-colaboradores' },
+        { label: 'Órdenes de trabajo',                       search: 'talento-ordenes-de-trabajo' },
+        { label: 'Compensación',                             search: 'talento-compensacion' },
+        { label: 'Liquidaciones',                            search: 'talento-liquidaciones' },
+        { label: 'Custodia',                                 search: 'talento-custodia' },
+        { label: 'Dispositivos',                             search: 'talento-dispositivos' },
+        { label: 'Roadmap',                                  search: 'talento-roadmap' },
+        { label: 'Proyectos',                                search: 'talento-proyectos' },
+        { label: 'Calidad de caja',                          search: 'talento-calidad-de-caja' },
+        { label: 'Penalizaciones',                           search: 'talento-penalizaciones' },
+        { label: 'Credenciales y fondos de ahorro',          search: 'talento-credenciales-y-fondos-de-ahorro' },
+        { label: 'Expediente RH — paquete de documentos',    search: 'talento-expediente-paquete-de-documentos' },
+        { label: 'Préstamos y finiquito',                    search: 'talento-prestamos-y-finiquito' },
+        { label: 'Academia',                                 search: 'talento-academia' },
+        { label: 'Niveles',                                  search: 'talento-niveles' },
+        { label: 'Dashboard de Talento',                     search: 'talento-dashboard' },
+        { label: 'Escalafón',                                search: 'talento-escalafon' },
+        { label: 'Colaboradores con roles múltiples',        search: 'talento-roles-multiples' },
+        { label: 'Mis ventas y ranking de ventas',           search: 'talento-mis-ventas' },
+        { label: 'Artículos de vendedor',                    search: 'talento-articulos-de-vendedor' },
+        { label: 'Caja de vendedor',                         search: 'talento-caja-de-vendedor' },
+        { label: 'Comisiones',                                search: 'talento-comisiones' },
+        { label: 'Documentos pendientes',                    search: 'talento-documentos-pendientes' },
+        { label: 'Portal — Mi día',                          search: 'talento-portal-mi-dia' },
+        { label: 'Portal — Mi dinero',                       search: 'talento-portal-mi-dinero' },
+        { label: 'Portal — Mi material',                     search: 'talento-portal-mi-material' },
+        { label: 'Portal — Mis prospectos',                  search: 'talento-portal-mis-prospectos' },
+        { label: 'Portal — Mis documentos',                  search: 'talento-portal-mis-documentos' },
+        { label: 'Portal — Perfil',                          search: 'talento-portal-perfil' },
     ]},
     { label: 'Ticket', icon: 'grid', children: [
         { label: 'Dashboard',     search: 'ticketdashboard' },
@@ -251,6 +284,9 @@ export default {
     name: 'ManualIndex',
     props: {
         isDeveloper: { type: Boolean, default: false },
+    },
+    setup() {
+        return { darkMode };
     },
     data() {
         return {
@@ -548,6 +584,9 @@ export default {
         },
         inline(s) {
             return s
+                // Imagen ![alt](src) — antes que el link [text](url), que si no la
+                // confunde con un link precedido de un "!" suelto.
+                .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img class="wiki-img" src="$2" alt="$1" loading="lazy">')
                 .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
                 .replace(/`([^`]+)`/g, '<code>$1</code>')
                 .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
@@ -567,11 +606,15 @@ export default {
 </script>
 
 <style scoped>
+/* Estilo "Torre de Control" — mismos tokens --tc-* de _torre-theme.scss (.tc-wrap
+   en el elemento raíz ya los define, en claro y en .tc-dark); estas reglas locales
+   solo los consumen, así que ambos temas salen gratis sin duplicar bloques. */
 .manual-wiki {
     display: flex;
     flex-direction: column;
     height: calc(100vh - 70px);
-    background: #fff;
+    background: var(--tc-surface);
+    color: var(--tc-ink);
 }
 
 .wiki-header {
@@ -579,14 +622,14 @@ export default {
     align-items: center;
     gap: 0.75rem;
     padding: 0.75rem 1.25rem;
-    border-bottom: 1px solid #e5e7eb;
-    background: #fff;
+    border-bottom: 1px solid var(--tc-line);
+    background: var(--tc-surface);
     flex-shrink: 0;
 }
 .wiki-title {
     font-size: 1.15rem;
     font-weight: 600;
-    color: #111827;
+    color: var(--tc-ink);
 }
 .wiki-btn-icon {
     width: 14px;
@@ -611,8 +654,8 @@ export default {
 .wiki-sidebar {
     width: 280px;
     flex-shrink: 0;
-    background: #f8f9fa;
-    border-right: 1px solid #e5e7eb;
+    background: var(--tc-bg2);
+    border-right: 1px solid var(--tc-line);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -620,30 +663,32 @@ export default {
 .wiki-search {
     position: relative;
     padding: 0.75rem;
-    border-bottom: 1px solid #e5e7eb;
-    background: #fff;
+    border-bottom: 1px solid var(--tc-line);
+    background: var(--tc-surface);
 }
 .wiki-search-icon {
     position: absolute;
     left: 1.4rem;
     top: 50%;
     transform: translateY(-50%);
-    color: #9ca3af;
+    color: var(--tc-muted);
     width: 14px;
     height: 14px;
 }
 .wiki-search-input {
     width: 100%;
     padding: 0.4rem 0.6rem 0.4rem 1.9rem;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
+    border: 1px solid var(--tc-line);
+    border-radius: 9px;
     font-size: 0.875rem;
-    background: #fff;
+    background: var(--tc-surface);
+    color: var(--tc-ink);
 }
+.wiki-search-input::placeholder { color: var(--tc-muted); }
 .wiki-search-input:focus {
     outline: none;
-    border-color: #0d6efd;
-    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.15);
+    border-color: var(--tc-accent);
+    box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.15);
 }
 .wiki-nav {
     flex: 1;
@@ -658,7 +703,7 @@ export default {
     padding: 0.45rem 0.9rem;
     border: 0;
     background: transparent;
-    color: #374151;
+    color: var(--tc-ink);
     font-size: 0.875rem;
     text-align: left;
     text-decoration: none;
@@ -667,21 +712,21 @@ export default {
     transition: background-color 0.12s, color 0.12s;
 }
 .wiki-nav-item:hover {
-    background: rgba(13, 110, 253, 0.06);
-    color: #0d6efd;
+    background: rgba(13, 148, 136, 0.08);
+    color: var(--tc-accent);
 }
 .wiki-nav-icon {
     width: 16px;
     height: 16px;
-    color: #6b7280;
+    color: var(--tc-muted);
     flex-shrink: 0;
 }
 .wiki-nav-item:hover .wiki-nav-icon,
-.wiki-nav-item:hover .wiki-nav-chevron { color: #0d6efd; }
+.wiki-nav-item:hover .wiki-nav-chevron { color: var(--tc-accent); }
 .wiki-nav-chevron {
     width: 13px;
     height: 13px;
-    color: #9ca3af;
+    color: var(--tc-muted);
     flex-shrink: 0;
 }
 .wiki-nav-group-toggle {
@@ -689,41 +734,41 @@ export default {
 }
 .wiki-nav-children {
     padding-left: 0;
-    background: rgba(0,0,0,0.015);
+    background: var(--tc-bg2);
 }
 .wiki-nav-child {
     padding-left: 2.4rem;
     font-size: 0.84rem;
-    color: #4b5563;
+    color: var(--tc-muted);
 }
 .wiki-nav-item.active {
-    background: rgba(13, 110, 253, 0.10);
-    color: #0d6efd;
+    background: rgba(13, 148, 136, 0.14);
+    color: var(--tc-accent);
     font-weight: 600;
-    border-left-color: #0d6efd;
+    border-left-color: var(--tc-accent);
 }
-.wiki-nav-item.active .wiki-nav-icon { color: #0d6efd; }
+.wiki-nav-item.active .wiki-nav-icon { color: var(--tc-accent); }
 
 .wiki-content {
     flex: 1;
     min-width: 0;
     overflow-y: auto;
-    background: #fff;
+    background: var(--tc-surface);
     padding: 1.75rem 2rem;
 }
 .wiki-loading, .wiki-empty {
     text-align: center;
     padding: 4rem 1rem;
-    color: #6b7280;
+    color: var(--tc-muted);
 }
 .wiki-empty-icon {
     width: 52px;
     height: 52px;
-    color: #d1d5db;
+    color: var(--tc-line);
     margin-bottom: 1rem;
 }
 .wiki-empty h3 {
-    color: #374151;
+    color: var(--tc-ink);
     margin-bottom: 0.5rem;
 }
 .wiki-article {
@@ -731,14 +776,14 @@ export default {
     margin: 0 auto;
 }
 .wiki-article-header {
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--tc-line);
     padding-bottom: 1rem;
     margin-bottom: 1.5rem;
 }
 .wiki-article-title {
     font-size: 1.75rem;
     font-weight: 700;
-    color: #111827;
+    color: var(--tc-ink);
     margin-bottom: 0.5rem;
 }
 .wiki-article-meta {
@@ -750,41 +795,41 @@ export default {
 .wiki-no-content {
     text-align: center;
     padding: 3rem 1rem;
-    background: #f9fafb;
-    border: 1px dashed #d1d5db;
-    border-radius: 8px;
+    background: var(--tc-bg2);
+    border: 1px dashed var(--tc-line);
+    border-radius: 12px;
 }
 .wiki-no-content-icon {
     width: 40px;
     height: 40px;
-    color: #9ca3af;
+    color: var(--tc-muted);
     margin-bottom: 1rem;
 }
 .wiki-no-content h4 {
-    color: #374151;
+    color: var(--tc-ink);
     margin-bottom: 0.5rem;
 }
 
 .wiki-markdown {
     font-size: 15px;
     line-height: 1.65;
-    color: #374151;
+    color: var(--tc-ink);
 }
 .wiki-markdown :deep(h3) {
     font-size: 1.45rem;
     margin-top: 1.75rem;
     margin-bottom: 0.75rem;
-    color: #111827;
+    color: var(--tc-ink);
 }
 .wiki-markdown :deep(h4) {
     font-size: 1.25rem;
     margin-top: 1.5rem;
     margin-bottom: 0.75rem;
-    color: #1f2937;
+    color: var(--tc-ink);
 }
 /* Separador entre secciones H2 (renderizadas como h4.wiki-h2) */
 .wiki-markdown :deep(h4.wiki-h2:not(:first-child)) {
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid var(--tc-line);
     padding-top: 1.5rem;
     margin-top: 2.25rem;
 }
@@ -792,12 +837,12 @@ export default {
     font-size: 1.08rem;
     margin-top: 1.25rem;
     margin-bottom: 0.5rem;
-    color: #374151;
+    color: var(--tc-ink);
 }
 .wiki-markdown :deep(p) {
     font-size: 15px;
     line-height: 1.65;
-    color: #374151;
+    color: var(--tc-ink);
     margin-bottom: 0.85rem;
 }
 .wiki-markdown :deep(ul),
@@ -808,23 +853,32 @@ export default {
     font-size: 15px;
 }
 .wiki-markdown :deep(code) {
-    background: #f3f4f6;
-    color: #be185d;
+    background: var(--tc-bg2);
+    color: var(--tc-accent);
     padding: 1px 5px;
-    border-radius: 3px;
+    border-radius: 5px;
     font-size: 0.9em;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
-.wiki-markdown :deep(strong) { color: #111827; }
+.wiki-markdown :deep(strong) { color: var(--tc-ink); }
 .wiki-markdown :deep(a) {
-    color: #0d6efd;
+    color: var(--tc-accent);
     text-decoration: none;
 }
 .wiki-markdown :deep(a:hover) { text-decoration: underline; }
 .wiki-markdown :deep(hr) {
     border: 0;
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid var(--tc-line);
     margin: 2rem 0;
+}
+.wiki-markdown :deep(img.wiki-img) {
+    width: 100%;
+    max-width: 760px;
+    display: block;
+    margin: 0.5rem 0;
+    border: 1px solid var(--tc-line);
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 .wiki-markdown :deep(table.wiki-table) {
     border-collapse: collapse;
@@ -834,18 +888,18 @@ export default {
 }
 .wiki-markdown :deep(table.wiki-table th),
 .wiki-markdown :deep(table.wiki-table td) {
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--tc-line);
     padding: 0.5rem 0.75rem;
     text-align: left;
     vertical-align: top;
 }
 .wiki-markdown :deep(table.wiki-table th) {
-    background: #f9fafb;
+    background: var(--tc-thead);
+    color: var(--tc-muted);
     font-weight: 600;
-    color: #111827;
 }
 .wiki-markdown :deep(table.wiki-table tr:nth-child(even) td) {
-    background: #fafbfc;
+    background: var(--tc-zebra);
 }
 
 .wiki-overlay {
