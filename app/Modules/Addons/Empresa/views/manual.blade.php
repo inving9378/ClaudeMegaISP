@@ -7,17 +7,18 @@
 <title>Manual General de la Empresa — Meganet</title>
 <style>
 @verbatim
+/* Paleta "Torre de Control" (mismos tokens --tc-* de _torre-theme.scss / TorreControl.vue) */
 :root{
-  --bg:#f4f6f9; --panel:#ffffff; --ink:#1c2434; --muted:#6b7688;
-  --line:#e2e7ee; --brand:#1f6feb; --brand-soft:#e8f0fe;
-  --warn-bg:#fff6e5; --warn-ink:#8a5a00; --warn-line:#f0d9a8;
-  --shadow:0 1px 2px rgba(16,24,40,.06),0 4px 12px rgba(16,24,40,.05);
+  --bg:#f8fafc; --panel:#ffffff; --ink:#111827; --muted:#6b7280;
+  --line:#e5e7eb; --brand:#0d9488; --brand-soft:#e3f4f2;
+  --warn-bg:#fff6e5; --warn-ink:#d97706; --warn-line:#f0d9a8;
+  --shadow:0 1px 3px rgba(0,0,0,.06);
 }
 html[data-theme="dark"]{
-  --bg:#0f1420; --panel:#161d2c; --ink:#e6ebf3; --muted:#95a1b5;
-  --line:#243044; --brand:#5b9bff; --brand-soft:#1b2b47;
-  --warn-bg:#2c2413; --warn-ink:#e0b567; --warn-line:#4a3b1c;
-  --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.35);
+  --bg:#1b2436; --panel:#1a1a1a; --ink:#e8edf6; --muted:#9aa7bd;
+  --line:#2a3550; --brand:#2dd4bf; --brand-soft:#173733;
+  --warn-bg:#2c2413; --warn-ink:#f59e0b; --warn-line:#4a3b1c;
+  --shadow:0 1px 3px rgba(0,0,0,.35);
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
@@ -33,13 +34,14 @@ a{color:var(--brand)}
   display:grid;place-items:center;color:#fff;font-size:13px;font-weight:800}
 .crumb{color:var(--muted);font-size:13px}
 .spacer{flex:1}
-.btn{border:1px solid var(--line);background:transparent;color:var(--ink);
-  border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit;text-decoration:none;display:inline-block}
-.btn:hover{background:var(--brand-soft);border-color:var(--brand)}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  border-radius:9px;padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;text-decoration:none;display:inline-block}
+.btn:hover{filter:brightness(.97)}
 .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
-.btn.danger{border-color:#e14b4b;color:#e14b4b}
-.btn.danger:hover{background:#fdeaea}
-.btn.small{padding:4px 9px;font-size:12px;border-radius:6px}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{border-color:#dc2626;color:#dc2626}
+.btn.danger:hover{background:rgba(220,38,38,.1)}
+.btn.small{padding:4px 9px;font-size:12px;border-radius:7px}
 .btn[disabled]{opacity:.45;cursor:default;pointer-events:none}
 .mock-note{background:var(--warn-bg);color:var(--warn-ink);border-bottom:1px solid var(--warn-line);
   padding:8px 20px;font-size:13px}
@@ -48,7 +50,7 @@ a{color:var(--brand)}
 .wrap{display:grid;grid-template-columns:300px 1fr;gap:22px;
   max-width:1280px;margin:22px auto;padding:0 20px;align-items:start}
 .side{position:sticky;top:80px;background:var(--panel);border:1px solid var(--line);
-  border-radius:12px;padding:14px;box-shadow:var(--shadow);max-height:calc(100vh - 110px);
+  border-radius:16px;padding:14px;box-shadow:var(--shadow);max-height:calc(100vh - 110px);
   overflow:auto}
 .search{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;
   background:transparent;color:var(--ink);font-family:inherit;font-size:14px;margin-bottom:10px}
@@ -63,7 +65,7 @@ a{color:var(--brand)}
 .toc .sub{padding-left:14px;font-size:13.5px;color:var(--muted)}
 .hidden{display:none !important}
 
-.doc{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+.doc{background:var(--panel);border:1px solid var(--line);border-radius:16px;
   padding:34px 40px;box-shadow:var(--shadow)}
 .cover{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:26px}
 .cover h1{margin:0 0 6px;font-size:26px;letter-spacing:-.3px}
@@ -86,13 +88,24 @@ html[data-theme="dark"] mark{background:#6b5410;color:#ffe9ad}
 .foot{color:var(--muted);font-size:12.5px;text-align:center;margin:24px 0 40px}
 .empty{color:var(--muted);font-size:14px;padding:30px 0;text-align:center}
 
+/* visibilidad por rol de cada sección */
+.roles-note{color:var(--muted);font-size:12px;margin:0 0 8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.roles-note .tag{background:var(--brand-soft);color:var(--brand);border-radius:999px;padding:1px 9px;font-weight:600}
+.roles-editor{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px;padding:9px 11px;
+  border:1px dashed var(--line);border-radius:9px;background:var(--bg)}
+.roles-editor .re-label{width:100%;color:var(--muted);font-size:12px;margin-bottom:2px}
+.roles-editor label{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;
+  border:1px solid var(--line);border-radius:999px;padding:3px 10px;cursor:pointer;user-select:none}
+.roles-editor label:has(input:checked){background:var(--brand-soft);border-color:var(--brand);color:var(--brand)}
+.roles-editor input{accent-color:var(--brand)}
+
 @media (max-width:900px){
   .wrap{grid-template-columns:1fr}
   .side{position:static;max-height:none}
   .doc{padding:24px 20px}
 }
 @media print{
-  .topbar,.side,.mock-note,.foot,.sect-tools,.chapter-tools{display:none !important}
+  .topbar,.side,.mock-note,.foot,.sect-tools,.chapter-tools,.roles-editor{display:none !important}
   .wrap{display:block;max-width:none;margin:0;padding:0}
   .doc{border:0;box-shadow:none;padding:0}
   h2{page-break-after:avoid}
@@ -158,6 +171,8 @@ html[data-theme="dark"] mark{background:#6b5410;color:#ffe9ad}
 const CSRF = document.querySelector('meta[name=csrf-token]').content;
 const API = '/empresa/manual/api';
 const PERMS = @json($permsForJs);
+const ASSIGNABLE_ROLES = @json($assignableRoles);
+const ADMIN_ONLY_ROLE = @json($adminOnlyRole);
 @verbatim
 
 let DATA = null;
@@ -242,6 +257,21 @@ function sectionEl(chapter, section) {
   }
   box.appendChild(h3);
 
+  if (editMode && PERMS.edit) {
+    box.appendChild(rolesEditorEl(section));
+  } else if ((section.visible_roles || []).length) {
+    const note = document.createElement('div');
+    note.className = 'roles-note';
+    note.appendChild(document.createTextNode('Visible solo para:'));
+    section.visible_roles.forEach(r => {
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.textContent = r === ADMIN_ONLY_ROLE ? 'Solo administración' : r;
+      note.appendChild(tag);
+    });
+    box.appendChild(note);
+  }
+
   const body = document.createElement('div');
   body.className = 'sect-body';
   const shown = (section.published_content ?? section.content) || '<p class="pend">Sin contenido todavía.</p>';
@@ -276,6 +306,45 @@ function sectionEl(chapter, section) {
   }
 
   return box;
+}
+
+function rolesEditorEl(section) {
+  const wrap = document.createElement('div');
+  wrap.className = 'roles-editor';
+  const label = document.createElement('div');
+  label.className = 're-label';
+  label.textContent = 'Visible para (nada marcado = todos los que pueden abrir el manual; "Solo administración" la oculta de todo el staff operativo):';
+  wrap.appendChild(label);
+
+  const allOptions = ASSIGNABLE_ROLES.concat([ADMIN_ONLY_ROLE]);
+  allOptions.forEach(role => {
+    const id = 'role-' + section.id + '-' + role;
+    const lbl = document.createElement('label');
+    lbl.htmlFor = id;
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = id;
+    cb.checked = (section.visible_roles || []).includes(role);
+    cb.onchange = () => guardarRoles(section, wrap);
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode(role === ADMIN_ONLY_ROLE ? 'Solo administración' : role));
+    wrap.appendChild(lbl);
+  });
+
+  return wrap;
+}
+
+async function guardarRoles(section, editorEl) {
+  const allOptions = ASSIGNABLE_ROLES.concat([ADMIN_ONLY_ROLE]);
+  const checked = [...editorEl.querySelectorAll('input:checked')].map(cb =>
+    allOptions.find(r => cb.id === 'role-' + section.id + '-' + r)
+  );
+  try {
+    const { section: updated } = await api('PUT', '/sections/' + section.id, { visible_roles: checked });
+    section.visible_roles = updated.visible_roles || [];
+  } catch (e) {
+    alert('No se pudo guardar la visibilidad: ' + e.message);
+  }
 }
 
 function iconBtn(symbol, title, onClick) {
