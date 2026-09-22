@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
  * como default de paquete, y su routes.php solo registra el endpoint de API
  * (/api/demo/items), sin ninguna ruta de página para /demo ni /demo/items.
  *
- * Quedó activado en la fila de module_registries desde una prueba del
+ * Quedó activado en la fila de module_registry desde una prueba del
  * 2026-05-29 que nunca se revirtió — así que el link "Demo" del sidebar
  * dinámico (visible para cualquiera con el permiso demo_view) apuntaba a una
  * URL sin ruta de página real, dando 404.
@@ -22,7 +22,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::table('module_registries')
+        DB::table('module_registry')
             ->where('slug', 'addon-demo')
             ->update(['active' => false]);
     }
