@@ -9,7 +9,7 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
 /**
- * Capítulo "Talento" del Manual General de la Empresa — primer capítulo del
+ * Capítulo "Talento" del Manual Operativo de Meganet — primer capítulo del
  * manual de usuario pantalla-por-pantalla (los demás módulos se irán
  * agregando con este mismo patrón). Idempotente: correrlo de nuevo
  * actualiza el contenido y lo re-publica, sin duplicar capítulo/secciones

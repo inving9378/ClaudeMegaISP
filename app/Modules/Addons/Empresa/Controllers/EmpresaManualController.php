@@ -14,12 +14,13 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
- * Manual General de la Empresa (#838, Parte B del #795): documento vivo,
- * editable, con contenido en BD (capítulos → secciones → versiones). La
- * pantalla en sí sigue autocontenida (no extiende core-layout::master, ver
- * manual.blade.php) para que su CSS/JS propios no interfieran con el chrome
- * del admin; esta clase expone además la API JSON que esa pantalla consume
- * en modo edición.
+ * Manual Operativo de Meganet (#838, Parte B del #795; renombrado de "Manual
+ * General de la Empresa" el 2026-09-22, mismo módulo/tablas/rutas — solo
+ * cambió el nombre visible): documento vivo, editable, con contenido en BD
+ * (capítulos → secciones → versiones). La pantalla en sí sigue autocontenida
+ * (no extiende core-layout::master, ver manual.blade.php) para que su CSS/JS
+ * propios no interfieran con el chrome del admin; esta clase expone además
+ * la API JSON que esa pantalla consume en modo edición.
  */
 class EmpresaManualController extends Controller
 {
@@ -289,7 +290,7 @@ class EmpresaManualController extends Controller
         ])->setPaper('letter')
             ->setOption('isRemoteEnabled', true); // capturas de pantalla embebidas en el contenido
 
-        return $pdf->stream('manual-general-empresa.pdf');
+        return $pdf->stream('manual-operativo-meganet.pdf');
     }
 
     private function uniqueSlug(string $modelClass, string $title): string

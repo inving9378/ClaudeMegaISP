@@ -181,12 +181,12 @@
 
                 {{-- 13. War Room — accesible desde el panel de Administración (/administracion), no como ítem suelto del sidebar. --}}
 
-                {{-- 13.2 Manual General de la Empresa — item #796. Ítem suelto, sin submenú. --}}
+                {{-- 13.2 Manual Operativo de Meganet — item #796. Ítem suelto, sin submenú. --}}
                 @if(auth()->user() && auth()->user()->can('empresa_manual_view'))
                     <li>
                         <a href="{{ url('/empresa/manual') }}">
                             <i data-feather="book"></i>
-                            <span>Manual de la Empresa</span>
+                            <span>Manual Operativo de Meganet</span>
                         </a>
                     </li>
                 @endif

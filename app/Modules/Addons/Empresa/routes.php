@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Route;
 /*
  * Rutas del módulo addon-empresa.
  *
- * - GET  /empresa/manual                     → Manual General de la Empresa (documento autocontenido)
+ * - GET  /empresa/manual                     → Manual Operativo de Meganet (documento autocontenido)
  * - GET  /empresa/manual/pdf                  → Exportar a PDF (contenido publicado)
  * - API bajo /empresa/manual/api/*            → CRUD de capítulos/secciones + publicar (#838)
  *
