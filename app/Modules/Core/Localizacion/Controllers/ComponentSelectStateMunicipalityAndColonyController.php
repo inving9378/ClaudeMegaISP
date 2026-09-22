@@ -4,8 +4,8 @@ namespace App\Modules\Core\Localizacion\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\ClientMainInformation;
-use App\Modules\Core\Configuracion\Models\CompanyInformation;
-use App\Modules\Core\CRM\Models\CrmMainInformation;
+use App\Models\CompanyInformation;
+use App\Models\CrmMainInformation;
 use Illuminate\Http\Request;
 
 class ComponentSelectStateMunicipalityAndColonyController extends Controller
