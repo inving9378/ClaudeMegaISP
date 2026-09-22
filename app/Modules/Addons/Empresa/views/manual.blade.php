@@ -151,16 +151,14 @@ html[data-theme="dark"] mark{background:#6b5410;color:#ffe9ad}
   </main>
 </div>
 
+@php
+    $permsForJs = ['edit' => $canEdit, 'create' => $canCreate, 'del' => $canDelete, 'publish' => $canPublish];
+@endphp
 <script>
-@verbatim
 const CSRF = document.querySelector('meta[name=csrf-token]').content;
 const API = '/empresa/manual/api';
-const PERMS = {
-  edit: @endverbatim{{ $canEdit ? 'true' : 'false' }}@verbatim,
-  create: @endverbatim{{ $canCreate ? 'true' : 'false' }}@verbatim,
-  del: @endverbatim{{ $canDelete ? 'true' : 'false' }}@verbatim,
-  publish: @endverbatim{{ $canPublish ? 'true' : 'false' }}@verbatim
-};
+const PERMS = @json($permsForJs);
+@verbatim
 
 let DATA = null;
 let editMode = false;

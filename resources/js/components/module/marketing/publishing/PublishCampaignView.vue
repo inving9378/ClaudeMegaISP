@@ -202,7 +202,7 @@ export default {
   methods: {
     async loadCampaigns() {
       const { data } = await axios.get('/api/marketing/multivariant-campaigns');
-      this.campaigns = (data.campaigns ?? data).filter(c => c.status === 'completed');
+      this.campaigns = (data.data ?? []).filter(c => c.status === 'completed');
     },
     async loadChannels() {
       const { data } = await axios.get('/api/marketing/publishing/channels');

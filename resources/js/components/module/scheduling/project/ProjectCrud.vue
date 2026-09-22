@@ -124,10 +124,6 @@ export default {
 
         const loadAllTeams = async () => {
             try {
-                const { data } = await axios.get("/get-options-select", {
-                    params: {},
-                });
-                // Usar el endpoint de teams directamente
                 const res = await axios.post("/get-options-select", {
                     model: "App\\Models\\Team",
                     id: "id",
