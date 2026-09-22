@@ -211,22 +211,17 @@ class TicketController extends Controller
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * La vista "meganet.module.tickets.edit" no existe — nunca se creó tras
+     * pasar la edición de tickets a ver() (mismo patrón que success(), arriba).
+     * Nada del frontend enlaza aquí; si alguien visita la ruta a mano, mandarlo
+     * a la ficha real en vez de un 500 por vista faltante.
      *
      * @param int $id
      * @return \Illuminate\Http\Response
      */
     public function edit($id)
     {
-        $this->includeLibraryDinamic($this->data['model']);
-
-        $model = $this->data['model']::findOrFail($id);
-        $this->data['fields'] = collect(
-            $this->includeFields($this->data['model'], collect($this->data['fields'])->toArray(), $model)
-        )->toJson();
-        $this->data['id'] = $id;
-
-        return view($this->data['url'] . '.edit', $this->data);
+        return redirect('/tickets/ver/' . $id);
     }
 
     /**
