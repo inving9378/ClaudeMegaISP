@@ -26,6 +26,17 @@ class StateController extends Controller
         return view('meganet.module.administration.state.listar', $this->data);
     }
 
+    /**
+     * Alta/edición viven en un modal sobre la lista (ver store()/update()) —
+     * este controlador nunca tuvo edit() y la ruta GET /editar/{id} quedó
+     * registrada sin destino, dando 500. Nadie enlaza a ella desde el frontend;
+     * si alguien la visita a mano, mandarlo a la lista real en vez de un 500.
+     */
+    public function edit($id)
+    {
+        return redirect('/administracion/estado');
+    }
+
     public function store(Request $request)
     {
         $this->validateFieldByRulesInTableFiledModules($this->data['module'],$request);
