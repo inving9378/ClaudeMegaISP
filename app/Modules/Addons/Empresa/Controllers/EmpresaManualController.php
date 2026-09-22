@@ -32,23 +32,28 @@ class EmpresaManualController extends Controller
             'canCreate' => auth()->user()->can('empresa_manual_create'),
             'canDelete' => auth()->user()->can('empresa_manual_delete'),
             'canPublish' => auth()->user()->can('empresa_manual_publish'),
+            'assignableRoles' => ManualSection::ROLES_ASSIGNABLE,
+            'adminOnlyRole' => ManualSection::ROLE_ADMIN_ONLY,
         ]);
     }
 
-    /** GET /empresa/manual/api/data — árbol completo para pintar/editar el documento. */
+    /** GET /empresa/manual/api/data — árbol completo para pintar/editar el documento, filtrado por rol del que mira. */
     public function data(): JsonResponse
     {
         $this->authorize('empresa_manual_view');
 
+        $user = auth()->user();
         $chapters = ManualChapter::with(['sections.publishedVersion'])->orderBy('order')->get();
 
         return response()->json([
-            'chapters' => $chapters->map(function (ManualChapter $chapter) {
+            'chapters' => $chapters->map(function (ManualChapter $chapter) use ($user) {
+                $sections = $chapter->sections->filter(fn (ManualSection $s) => $s->isVisibleFor($user));
+
                 return [
                     'id' => $chapter->id,
                     'title' => $chapter->title,
                     'order' => $chapter->order,
-                    'sections' => $chapter->sections->map(function (ManualSection $section) {
+                    'sections' => $sections->map(function (ManualSection $section) {
                         return [
                             'id' => $section->id,
                             'title' => $section->title,
@@ -56,10 +61,16 @@ class EmpresaManualController extends Controller
                             'content' => $section->content,
                             'published_content' => optional($section->publishedVersion)->content,
                             'has_unpublished_changes' => $section->hasUnpublishedChanges(),
+                            'visible_roles' => $section->visible_roles ?? [],
                         ];
                     })->values(),
                 ];
-            })->values(),
+            })
+            // Un capítulo sin ninguna sección visible para este rol no se muestra (salvo que
+            // ya estuviera realmente vacío de origen, caso que solo ve un rol bypass — ellos
+            // nunca filtran secciones, así que aquí nunca aplica).
+            ->filter(fn (array $ch) => count($ch['sections']) > 0 || $user->hasAnyRole(ManualSection::ROLES_BYPASS))
+            ->values(),
         ]);
     }
 
@@ -127,6 +138,8 @@ class EmpresaManualController extends Controller
         $data = $request->validate([
             'chapter_id' => ['required', 'integer', 'exists:empresa_manual_chapters,id'],
             'title' => ['required', 'string', 'max:255'],
+            'visible_roles' => ['sometimes', 'nullable', 'array'],
+            'visible_roles.*' => ['string', 'in:' . implode(',', array_merge(ManualSection::ROLES_ASSIGNABLE, [ManualSection::ROLE_ADMIN_ONLY]))],
         ]);
 
         $section = ManualSection::create([
@@ -135,6 +148,7 @@ class EmpresaManualController extends Controller
             'slug' => $this->uniqueSectionSlug((int) $data['chapter_id'], $data['title']),
             'order' => (int) ManualSection::where('chapter_id', $data['chapter_id'])->max('order') + 1,
             'content' => '',
+            'visible_roles' => $data['visible_roles'] ?? null,
             'created_by' => auth()->id(),
             'updated_by' => auth()->id(),
         ]);
@@ -150,6 +164,8 @@ class EmpresaManualController extends Controller
         $data = $request->validate([
             'title' => ['sometimes', 'string', 'max:255'],
             'content' => ['sometimes', 'string'],
+            'visible_roles' => ['sometimes', 'nullable', 'array'],
+            'visible_roles.*' => ['string', 'in:' . implode(',', array_merge(ManualSection::ROLES_ASSIGNABLE, [ManualSection::ROLE_ADMIN_ONLY]))],
         ]);
 
         $section = ManualSection::findOrFail($id);
@@ -157,6 +173,10 @@ class EmpresaManualController extends Controller
         DB::transaction(function () use ($section, $data) {
             if (array_key_exists('title', $data)) {
                 $section->title = $data['title'];
+            }
+
+            if (array_key_exists('visible_roles', $data)) {
+                $section->visible_roles = $data['visible_roles'] ?: null;
             }
 
             if (array_key_exists('content', $data) && $data['content'] !== $section->content) {
@@ -239,12 +259,28 @@ class EmpresaManualController extends Controller
         return response()->json(['section' => $section->fresh()]);
     }
 
-    /** GET /empresa/manual/pdf — exporta el contenido PUBLICADO (nunca borradores) con membrete de CompanyInformation. */
+    /**
+     * GET /empresa/manual/pdf — exporta el contenido PUBLICADO (nunca borradores) con membrete
+     * de CompanyInformation. Respeta la misma visibilidad por rol que data(): quien exporta
+     * solo se lleva a PDF lo que puede ver en pantalla.
+     */
     public function pdf()
     {
         $this->authorize('empresa_manual_view');
 
-        $chapters = ManualChapter::with(['sections.publishedVersion'])->orderBy('order')->get();
+        $user = auth()->user();
+        $chapters = ManualChapter::with(['sections.publishedVersion'])->orderBy('order')->get()
+            ->map(function (ManualChapter $chapter) use ($user) {
+                $chapter->setRelation(
+                    'sections',
+                    $chapter->sections->filter(fn (ManualSection $s) => $s->isVisibleFor($user))->values()
+                );
+
+                return $chapter;
+            })
+            ->filter(fn (ManualChapter $ch) => $ch->sections->count() > 0 || $user->hasAnyRole(ManualSection::ROLES_BYPASS))
+            ->values();
+
         $company = CompanyInformation::first();
 
         $pdf = Pdf::loadView('addon-empresa::manual_pdf', [

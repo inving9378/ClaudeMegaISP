@@ -5,11 +5,11 @@
 <title>Manual General de la Empresa</title>
 <style>
     body{font-family: DejaVu Sans, sans-serif; font-size:12px; color:#1c2434; line-height:1.5;}
-    .letterhead{border-bottom:2px solid #1f6feb; padding-bottom:14px; margin-bottom:22px; overflow:hidden;}
+    .letterhead{border-bottom:2px solid #0d9488; padding-bottom:14px; margin-bottom:22px; overflow:hidden;}
     .letterhead img{max-height:60px; float:left; margin-right:16px;}
     .letterhead h1{font-size:20px; margin:0 0 4px;}
     .letterhead .company{font-size:12px; color:#444; margin:0;}
-    h2{font-size:15px; color:#1f6feb; margin:22px 0 6px; border-bottom:1px solid #e2e7ee; padding-bottom:4px;}
+    h2{font-size:15px; color:#0d9488; margin:22px 0 6px; border-bottom:1px solid #e5e7eb; padding-bottom:4px;}
     h3{font-size:13px; margin:14px 0 4px;}
     p{margin:0 0 8px;}
     .pend{background:#fff6e5; border:1px dashed #f0d9a8; color:#8a5a00; padding:6px 9px; font-size:11px;}
