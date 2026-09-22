@@ -286,7 +286,8 @@ class EmpresaManualController extends Controller
         $pdf = Pdf::loadView('addon-empresa::manual_pdf', [
             'chapters' => $chapters,
             'company' => $company,
-        ])->setPaper('letter');
+        ])->setPaper('letter')
+            ->setOption('isRemoteEnabled', true); // capturas de pantalla embebidas en el contenido
 
         return $pdf->stream('manual-general-empresa.pdf');
     }

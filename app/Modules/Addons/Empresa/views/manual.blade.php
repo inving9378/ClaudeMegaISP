@@ -81,6 +81,14 @@ p{margin:0 0 12px}
 .sect{border-top:1px solid transparent}
 .sect-body{outline:none}
 .sect-body.editing{border:1px dashed var(--brand);border-radius:8px;padding:10px 12px;background:var(--brand-soft)}
+.sect-body figure{margin:14px 0;padding:0}
+.sect-body figure img{width:100%;max-width:760px;display:block;border:1px solid var(--line);
+  border-radius:10px;box-shadow:var(--shadow)}
+.sect-body figcaption{color:var(--muted);font-size:12.5px;margin-top:6px}
+.sect-body ul{padding-left:20px;margin:0 0 12px}
+.sect-body li{margin:0 0 6px}
+.sect-body code{background:var(--bg);border:1px solid var(--line);border-radius:5px;
+  padding:1px 6px;font-size:.92em}
 .sect-tools{display:flex;gap:8px;align-items:center;margin:8px 0 4px;flex-wrap:wrap}
 .chapter-tools{display:flex;gap:8px;align-items:center;margin:6px 0 16px}
 mark{background:#ffe58a;color:#3a2c00;border-radius:3px}
@@ -88,9 +96,7 @@ html[data-theme="dark"] mark{background:#6b5410;color:#ffe9ad}
 .foot{color:var(--muted);font-size:12.5px;text-align:center;margin:24px 0 40px}
 .empty{color:var(--muted);font-size:14px;padding:30px 0;text-align:center}
 
-/* visibilidad por rol de cada sección */
-.roles-note{color:var(--muted);font-size:12px;margin:0 0 8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.roles-note .tag{background:var(--brand-soft);color:var(--brand);border-radius:999px;padding:1px 9px;font-weight:600}
+/* visibilidad por rol de cada sección — solo se ve/edita en modo edición */
 .roles-editor{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px;padding:9px 11px;
   border:1px dashed var(--line);border-radius:9px;background:var(--bg)}
 .roles-editor .re-label{width:100%;color:var(--muted);font-size:12px;margin-bottom:2px}
@@ -257,19 +263,13 @@ function sectionEl(chapter, section) {
   }
   box.appendChild(h3);
 
+  // La restricción de a quién le toca ver esta sección se APLICA en el servidor
+  // (data() ya solo manda las secciones que le corresponden a quien mira) — no se
+  // anuncia dentro del propio documento, para no ensuciar la lectura con "visible
+  // para X". El único lugar donde se ve/edita la lista de roles es aquí, en modo
+  // edición, como herramienta de curación para quien administra el manual.
   if (editMode && PERMS.edit) {
     box.appendChild(rolesEditorEl(section));
-  } else if ((section.visible_roles || []).length) {
-    const note = document.createElement('div');
-    note.className = 'roles-note';
-    note.appendChild(document.createTextNode('Visible solo para:'));
-    section.visible_roles.forEach(r => {
-      const tag = document.createElement('span');
-      tag.className = 'tag';
-      tag.textContent = r === ADMIN_ONLY_ROLE ? 'Solo administración' : r;
-      note.appendChild(tag);
-    });
-    box.appendChild(note);
   }
 
   const body = document.createElement('div');
