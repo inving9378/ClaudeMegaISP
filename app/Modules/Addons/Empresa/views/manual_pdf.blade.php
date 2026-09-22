@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Manual General de la Empresa</title>
+<title>Manual Operativo de Meganet</title>
 <style>
     body{font-family: DejaVu Sans, sans-serif; font-size:12px; color:#1c2434; line-height:1.5;}
     .letterhead{border-bottom:2px solid #0d9488; padding-bottom:14px; margin-bottom:22px; overflow:hidden;}
@@ -23,7 +23,7 @@
         @if($company && $company->url_logo)
             <img src="{{ $company->url_logo }}" alt="Logo">
         @endif
-        <h1>Manual General de la Empresa</h1>
+        <h1>Manual Operativo de Meganet</h1>
         <p class="company">
             {{ $company->company_name ?? 'Meganet Telecomunicaciones' }}
             @if($company && $company->rfc) · RFC {{ $company->rfc }} @endif
@@ -52,6 +52,6 @@
         <p>El manual todavía no tiene capítulos.</p>
     @endforelse
 
-    <div class="foot">Meganet Telecomunicaciones · Manual General de la Empresa · documento interno</div>
+    <div class="foot">Meganet Telecomunicaciones · Manual Operativo de Meganet · documento interno</div>
 </body>
 </html>

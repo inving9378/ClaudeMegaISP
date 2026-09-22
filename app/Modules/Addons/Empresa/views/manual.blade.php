@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="csrf-token" content="{{ csrf_token() }}">
-<title>Manual General de la Empresa — Meganet</title>
+<title>Manual Operativo de Meganet</title>
 <style>
 @verbatim
 /* Paleta "Torre de Control" (mismos tokens --tc-* de _torre-theme.scss / TorreControl.vue) */
@@ -129,7 +129,7 @@ html[data-theme="dark"] mark{background:#6b5410;color:#ffe9ad}
 
 <div class="topbar">
   <div class="logo"><span class="dot">M</span> MegaISP</div>
-  <span class="crumb">Empresa › Manual General</span>
+  <span class="crumb">Meganet › Manual Operativo</span>
   <span class="spacer"></span>
   <button class="btn" onclick="expandAll()">Expandir todo</button>
   <a class="btn" href="{{ url('/empresa/manual/pdf') }}" target="_blank">Exportar PDF</a>
@@ -150,7 +150,7 @@ html[data-theme="dark"] mark{background:#6b5410;color:#ffe9ad}
   <main class="doc" id="doc">
     <div class="cover">
       <span class="chip">Documento vivo</span>
-      <h1>Manual General de la Empresa</h1>
+      <h1>Manual Operativo de Meganet</h1>
       <div class="meta">
         <span>Meganet Telecomunicaciones</span>
         <span>Editable desde este panel</span>
@@ -166,7 +166,7 @@ html[data-theme="dark"] mark{background:#6b5410;color:#ffe9ad}
       </div>
     @endif
 
-    <div class="foot">Meganet Telecomunicaciones · Manual General · documento interno</div>
+    <div class="foot">Meganet Telecomunicaciones · Manual Operativo · documento interno</div>
   </main>
 </div>
 
