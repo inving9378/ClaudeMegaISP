@@ -19,29 +19,36 @@ class ManualController extends Controller
     }
 
     /**
-     * Devuelve las secciones del manual (versión más reciente por módulo)
-     * agrupadas por el campo `group` de la tabla `modules`.
+     * Devuelve las secciones del manual (versión más reciente por módulo,
+     * filtradas a lo que el rol de quien mira puede ver — ver
+     * App\Support\Manual\HasManualRoleVisibility) agrupadas por el campo
+     * `group` de la tabla `modules`.
      */
     public function index(): JsonResponse
     {
-        $latest = DB::table('manual_sections as s1')
-            ->select('s1.*')
+        $latest = ManualSection::query()
+            ->select('manual_sections.*')
             ->join(DB::raw('(SELECT module_slug, MAX(version) AS max_version FROM manual_sections GROUP BY module_slug) s2'),
                 function ($join) {
-                    $join->on('s1.module_slug', '=', 's2.module_slug')
-                         ->on('s1.version', '=', 's2.max_version');
+                    $join->on('manual_sections.module_slug', '=', 's2.module_slug')
+                         ->on('manual_sections.version', '=', 's2.max_version');
                 })
-            ->orderBy('s1.title')
+            ->orderBy('manual_sections.title')
             ->get();
 
+        $user = Auth::user();
         $modulesMeta = DB::table('modules')->get()->keyBy(function ($m) {
             return preg_replace('/[^A-Za-z0-9]+/', '-', strtolower((string) $m->name));
         });
 
         $grouped = [];
         foreach ($latest as $section) {
+            if (!$section->isVisibleFor($user)) {
+                continue;
+            }
+
             $meta = $modulesMeta[$section->module_slug] ?? null;
-            $group = $meta->group ?? 'General';
+            $group = $meta->group ?? $this->fallbackGroup($section->module_slug);
             $grouped[$group][] = [
                 'id'           => $section->id,
                 'module_slug'  => $section->module_slug,
@@ -68,13 +75,26 @@ class ManualController extends Controller
         ]);
     }
 
+    /**
+     * Cuando module_slug no calza con ninguna fila real de `modules` (caso de
+     * las secciones de un módulo de negocio como Talento, agregadas a mano —
+     * no un row del catálogo de formularios), agrupa por el primer segmento
+     * antes del guion (p. ej. "talento-colaboradores" -> "Talento").
+     */
+    private function fallbackGroup(string $moduleSlug): string
+    {
+        $first = explode('-', $moduleSlug)[0] ?? $moduleSlug;
+
+        return ucfirst($first);
+    }
+
     public function show(string $slug): JsonResponse
     {
         $section = ManualSection::where('module_slug', $slug)
             ->orderByDesc('version')
             ->first();
 
-        if (!$section) {
+        if (!$section || !$section->isVisibleFor(Auth::user())) {
             return response()->json(['message' => 'Sección no encontrada.'], 404);
         }
 
