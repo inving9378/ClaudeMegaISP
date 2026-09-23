@@ -21,11 +21,15 @@
 
             <div class="mv-marcar">
                 <input class="mv-input" v-model="destino" placeholder="Número a marcar…"
-                       @keyup.enter="llamar" :disabled="estado !== 'registrado'">
+                       @input="consultarDisponibilidad" @keyup.enter="llamar"
+                       :disabled="estado !== 'registrado'">
                 <button class="mv-btn mv-btn--ok" @click="llamar"
                         :disabled="estado !== 'registrado' || !destino" title="Llamar">
                     <i class="fa fa-phone"></i>
                 </button>
+            </div>
+            <div v-if="destino" class="mv-disponibilidad" :class="'mv-disponibilidad--' + claseDisponibilidad">
+                <span class="mv-disp-dot"></span>{{ textoDisponibilidad }}
             </div>
         </div>
 
@@ -120,6 +124,11 @@ export default {
             // propósito, así que sesion.isEstablished() nunca dispara un
             // re-render cuando cambia solo por dentro).
             estadoLlamada: null,
+            // Disponibilidad del NÚMERO QUE SE ESTÁ MARCANDO (no la propia) — null
+            // = todavía sin consultar (o cambió el texto y no ha llegado la
+            // respuesta), true/false = resultado real contra Asterisk.
+            destinoDisponible: null,
+            _dispDebounce: null,
         };
     },
 
@@ -132,6 +141,16 @@ export default {
                 error:      'No se pudo conectar',
             };
             return mapa[this.estado] || this.estado;
+        },
+        claseDisponibilidad() {
+            if (this.destinoDisponible === true) return 'ok';
+            if (this.destinoDisponible === false) return 'no';
+            return 'consultando';
+        },
+        textoDisponibilidad() {
+            if (this.destinoDisponible === true) return 'Disponible';
+            if (this.destinoDisponible === false) return 'Sin conexión — puede que no conteste';
+            return 'Consultando…';
         },
     },
 
@@ -162,6 +181,7 @@ export default {
     beforeUnmount() {
         if (this.ua) this.ua.stop();
         clearInterval(this._timerId);
+        clearTimeout(this._dispDebounce);
     },
 
     methods: {
@@ -266,6 +286,30 @@ export default {
             this.engancharSesion();
         },
 
+        consultarDisponibilidad() {
+            clearTimeout(this._dispDebounce);
+            const numero = this.destino;
+            if (! numero) {
+                this.destinoDisponible = null;
+                return;
+            }
+            this.destinoDisponible = null; // "Consultando…" mientras llega la respuesta
+            this._dispDebounce = setTimeout(async () => {
+                // El texto pudo cambiar mientras esperaba el debounce — no pisar
+                // el resultado de un número que ya no es el que se ve en pantalla.
+                if (numero !== this.destino) return;
+                try {
+                    const r = await fetch(`/voip/mi-telefono/disponibilidad/${encodeURIComponent(numero)}`, {
+                        headers: { 'Accept': 'application/json' },
+                    });
+                    const body = await r.json();
+                    if (numero === this.destino) this.destinoDisponible = body.disponible;
+                } catch {
+                    if (numero === this.destino) this.destinoDisponible = null;
+                }
+            }, 450);
+        },
+
         contestar() {
             if (! this.sesion) return;
             this.sesion.answer({ mediaConstraints: { audio: true, video: false } });
@@ -295,6 +339,7 @@ export default {
             this.estadoLlamada = null;
             this.remotoId = '';
             this.destino = '';
+            this.destinoDisponible = null;
             if (this.$refs.audioRemoto) this.$refs.audioRemoto.srcObject = null;
         },
     },
@@ -353,6 +398,15 @@ export default {
 .mv-estado-txt { color: #6b7280; font-size: 12px; margin-bottom: 10px; }
 
 .mv-marcar { display: flex; gap: 6px; }
+.mv-disponibilidad {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11.5px; margin-top: 6px; color: #6b7280;
+}
+.mv-disp-dot { width: 7px; height: 7px; border-radius: 50%; background: #9ca3af; flex-shrink: 0; }
+.mv-disponibilidad--ok .mv-disp-dot { background: #16a34a; }
+.mv-disponibilidad--ok { color: #16a34a; }
+.mv-disponibilidad--no .mv-disp-dot { background: #d97706; }
+.mv-disponibilidad--no { color: #b45309; }
 .mv-input {
     flex: 1; border: 1px solid #d1d5db; border-radius: 8px;
     padding: 6px 10px; font-size: 13.5px;

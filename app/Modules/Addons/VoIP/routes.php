@@ -74,4 +74,5 @@ Route::middleware(['web', 'auth'])->prefix('voip')->group(function () {
     // PROPIAS credenciales (el controller resuelve por auth()->id(), nunca por
     // un id que llegue del cliente) — no expone nada de nadie más.
     Route::get('/mi-telefono/credenciales', [MiTelefonoController::class, 'credenciales'])->name('voip.mi-telefono.credenciales');
+    Route::get('/mi-telefono/disponibilidad/{numero}', [MiTelefonoController::class, 'disponibilidad'])->name('voip.mi-telefono.disponibilidad');
 });

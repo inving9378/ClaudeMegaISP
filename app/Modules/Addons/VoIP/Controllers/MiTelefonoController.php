@@ -5,6 +5,7 @@ namespace App\Modules\Addons\VoIP\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\VoIP\Models\Extension;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Http;
 
 /**
  * MegaVoz Fase 2 — credenciales para el mini-teléfono WebRTC del navegador.
@@ -37,5 +38,45 @@ class MiTelefonoController extends Controller
             // solo identifica al endpoint, la ruta real la decide el transporte.
             'realm'          => request()->getHost(),
         ]);
+    }
+
+    /**
+     * ¿Hay alguien registrado ahí ahora mismo? Mismo mecanismo (ARI) que ya
+     * usa ExtensionController::verificar(), pero sin permiso voip.* — cualquier
+     * usuario autenticado con teléfono propio puede consultar disponibilidad
+     * de un destino antes de marcar (no expone nada sensible, solo en línea/no).
+     */
+    public function disponibilidad(string $numero): JsonResponse
+    {
+        if (! preg_match('/^[a-zA-Z0-9]{1,20}$/', $numero)) {
+            return response()->json(['disponible' => false, 'estado' => 'invalido']);
+        }
+
+        $host = config('voip.ari_host');
+        $port = config('voip.ari_port', 8088);
+        $user = config('voip.ari_user');
+        $pass = config('voip.ari_pass');
+
+        try {
+            $resp = Http::withBasicAuth($user, $pass)
+                ->timeout(3)
+                ->get("http://{$host}:{$port}/ari/endpoints/PJSIP/{$numero}");
+
+            if ($resp->status() === 404) {
+                return response()->json(['disponible' => false, 'estado' => 'no_existe']);
+            }
+
+            $body   = $resp->json();
+            $estado = $body['state'] ?? 'unknown';
+
+            return response()->json([
+                'disponible' => $resp->successful() && $estado === 'online',
+                'estado'     => $estado,
+            ]);
+        } catch (\Throwable $e) {
+            // Fallo del propio chequeo (ARI caído, timeout) — no bloquea marcar,
+            // solo no se puede confirmar disponibilidad de antemano.
+            return response()->json(['disponible' => null, 'estado' => 'sin_datos']);
+        }
     }
 }
