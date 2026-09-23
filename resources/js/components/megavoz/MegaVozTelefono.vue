@@ -8,7 +8,7 @@
         </div>
 
         <!-- Panel expandido (solo para marcar — mientras hay llamada, el modal de abajo manda) -->
-        <div v-else-if="abierto && !llamadaEntrante && !enLlamada" class="mv-panel">
+        <div v-else-if="abierto && !estadoLlamada" class="mv-panel">
             <div class="mv-head">
                 <span class="mv-dot" :class="'mv-dot--' + estado"></span>
                 <span class="mv-titulo">{{ nombre }} <small>({{ numero }})</small></span>
@@ -34,15 +34,28 @@
                 @click="abierto = !abierto"
                 :title="sinHttps ? 'Requiere HTTPS' : etiquetaEstado">
             <i class="fa fa-phone"></i>
-            <span v-if="llamadaEntrante || enLlamada" class="mv-badge"></span>
+            <span v-if="estadoLlamada" class="mv-badge"></span>
         </button>
 
-        <!-- Modal de llamada activa — SIEMPRE visible mientras suena o está conectada, sin
+        <!-- Modal de llamada — SIEMPRE visible mientras se marca, suena o está conectada, sin
              importar si la burbuja está abierta o cerrada. Antes el botón de colgar solo
              existía dentro del panel colapsable y se perdía de vista con facilidad. -->
-        <div v-if="llamadaEntrante || enLlamada" class="mv-call-backdrop">
+        <div v-if="estadoLlamada" class="mv-call-backdrop">
             <div class="mv-call-modal">
-                <div v-if="llamadaEntrante">
+                <!-- Marcando (saliente, todavía sin contestar) -->
+                <div v-if="estadoLlamada === 'saliente'">
+                    <i class="fa fa-phone mv-call-icon mv-call-icon--saliente"></i>
+                    <div class="mv-call-titulo">Llamando a…</div>
+                    <div class="mv-call-remoto">{{ remotoId }}</div>
+                    <div class="mv-call-acciones">
+                        <button class="mv-btn mv-btn--bad mv-btn--grande mv-btn--solo" @click="colgar" title="Colgar">
+                            <i class="fa fa-phone-slash"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Entrante -->
+                <div v-else-if="estadoLlamada === 'entrante'">
                     <i class="fa fa-phone-volume mv-ring mv-call-icon"></i>
                     <div class="mv-call-titulo">Llamada entrante</div>
                     <div class="mv-call-remoto">{{ remotoId }}</div>
@@ -55,6 +68,8 @@
                         </button>
                     </div>
                 </div>
+
+                <!-- Conectada -->
                 <div v-else>
                     <i class="fa fa-phone mv-call-icon mv-call-icon--activa"></i>
                     <div class="mv-call-titulo">Llamada en curso</div>
@@ -99,16 +114,16 @@ export default {
             inicioLlamada: null,
             duracionTexto: '00:00',
             _timerId: null,
+            // Estado de la llamada como dato reactivo PROPIO — null | 'saliente' |
+            // 'entrante' | 'activa'. No se puede derivar leyendo this.sesion (ver
+            // el porqué en iniciarUA: markRaw lo saca de la reactividad de Vue a
+            // propósito, así que sesion.isEstablished() nunca dispara un
+            // re-render cuando cambia solo por dentro).
+            estadoLlamada: null,
         };
     },
 
     computed: {
-        llamadaEntrante() {
-            return this.sesion && this.sesion.direction === 'incoming' && !this.sesion.isEstablished();
-        },
-        enLlamada() {
-            return this.sesion && this.sesion.isEstablished();
-        },
         etiquetaEstado() {
             const mapa = {
                 inactivo:   'Sin conexión',
@@ -183,6 +198,7 @@ export default {
                 this.remotoId = data.session.remote_identity?.uri?.user
                     || data.session.remote_identity?.display_name
                     || '—';
+                this.estadoLlamada = 'entrante';
                 this.abierto = true;
                 this.engancharSesion();
             });
@@ -205,10 +221,18 @@ export default {
                 });
             }
 
-            this.sesion.on('accepted', () => {
+            // 'accepted'/'confirmed': el momento exacto en que cada uno dispara
+            // difiere según quién llamó y quién contestó — se escuchan los dos
+            // y se marca "activa" una sola vez (idempotente) con lo que llegue
+            // primero, en vez de apostarle a uno solo de los dos eventos.
+            const marcarActiva = () => {
+                if (this.estadoLlamada === 'activa') return;
+                this.estadoLlamada = 'activa';
                 this.inicioLlamada = Date.now();
                 this._timerId = setInterval(this.tick, 1000);
-            });
+            };
+            this.sesion.on('accepted', marcarActiva);
+            this.sesion.on('confirmed', marcarActiva);
             this.sesion.on('ended', () => this.limpiarSesion());
             this.sesion.on('failed', () => this.limpiarSesion());
         },
@@ -234,10 +258,11 @@ export default {
 
         llamar() {
             if (! this.destino || ! this.ua) return;
+            this.remotoId = this.destino;
+            this.estadoLlamada = 'saliente';
             this.sesion = markRaw(this.ua.call(`sip:${this.destino}@${location.hostname}`, {
                 mediaConstraints: { audio: true, video: false },
             }));
-            this.remotoId = this.destino;
             this.engancharSesion();
         },
 
@@ -267,6 +292,8 @@ export default {
             this.duracionTexto = '00:00';
             this.silenciado = false;
             this.sesion = null;
+            this.estadoLlamada = null;
+            this.remotoId = '';
             this.destino = '';
             if (this.$refs.audioRemoto) this.$refs.audioRemoto.srcObject = null;
         },
@@ -364,6 +391,8 @@ export default {
 }
 .mv-call-icon { font-size: 30px; color: #16a34a; margin-bottom: 8px; display: block; }
 .mv-call-icon--activa { color: #0d9488; }
+.mv-call-icon--saliente { color: #2563eb; animation: mv-pulse 1.2s infinite; }
+.mv-btn--solo { width: 60px; height: 60px; font-size: 24px; }
 .mv-call-titulo { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; font-weight: 700; }
 .mv-call-remoto { font-size: 18px; font-weight: 700; color: #1f2937; margin: 4px 0 10px; }
 .mv-call-acciones { display: flex; gap: 14px; justify-content: center; margin-top: 14px; }
