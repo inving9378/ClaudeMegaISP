@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Talento\Observers;
 use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Services\EmployeeDocumentPackageService;
+use App\Modules\Addons\VoIP\Services\ReclamadorExtensionAutomatico;
 use Illuminate\Support\Facades\Log;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -24,6 +25,7 @@ class TalentoColaboradorObserver
     {
         $this->sync($colaborador);
         $this->generarDocumentos($colaborador);
+        $this->reclamarExtension($colaborador);
     }
 
     public function updated(TalentoColaborador $colaborador): void
@@ -31,6 +33,9 @@ class TalentoColaboradorObserver
         // Solo reacciona a cambios de estado (alta/baja), no a cualquier update.
         if ($colaborador->wasChanged('status')) {
             $this->sync($colaborador);
+            if ($colaborador->status === 'active') {
+                $this->reclamarExtension($colaborador);
+            }
         }
     }
 
@@ -75,6 +80,24 @@ class TalentoColaboradorObserver
             app(EmployeeDocumentPackageService::class)->generateForColaborador($colaborador);
         } catch (\Throwable $e) {
             Log::warning('Talento: fallo al generar paquete de documentos (Hijo D2) al alta del colaborador', [
+                'colaborador_id' => $colaborador->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * MegaVoz Fase 1 (23-sep-2026). Reclama una extensión SIP ya sembrada del
+     * rango que le corresponde por rol (solo roles de atención directa — ver
+     * ReclamadorExtensionAutomatico::ROL_A_RANGO). Best-effort: un fallo aquí
+     * NUNCA debe bloquear el alta/activación del colaborador.
+     */
+    private function reclamarExtension(TalentoColaborador $colaborador): void
+    {
+        try {
+            app(ReclamadorExtensionAutomatico::class)->reclamarParaColaborador($colaborador);
+        } catch (\Throwable $e) {
+            Log::warning('Talento: fallo al reclamar extensión SIP automática (MegaVoz Fase 1)', [
                 'colaborador_id' => $colaborador->id,
                 'error' => $e->getMessage(),
             ]);

@@ -11,7 +11,7 @@ class Troncal extends Model
     protected $table = 'voip_troncales';
 
     protected $fillable = [
-        'nombre', 'proveedor', 'tipo', 'direccion',
+        'nombre', 'proveedor', 'tipo', 'direccion', 'proposito',
         'host', 'puerto', 'usuario', 'secret',
         'contexto', 'did', 'grupo_entrante_id', 'codecs', 'transporte',
         'activo', 'provisionado_at',

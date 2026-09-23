@@ -58,6 +58,9 @@
                                     <span v-if="t.grupo_entrante_nombre" class="d-block text-muted" style="font-size:0.78rem">
                                         <i class="fa fa-phone-volume me-1"></i>{{ t.grupo_entrante_nombre }}
                                     </span>
+                                    <span v-if="t.proposito" class="d-block text-info" style="font-size:0.78rem">
+                                        <i class="fa fa-bullseye me-1"></i>{{ propositoEtiqueta(t.proposito) }}
+                                    </span>
                                 </td>
                                 <td class="text-muted">{{ t.proveedor || '—' }}</td>
                                 <td>
@@ -194,6 +197,21 @@
                                     <option value="ambas">Ambas</option>
                                 </select>
                                 <div class="invalid-feedback">{{ errores.direccion }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small">
+                                    Propósito (MegaVoz)
+                                    <small class="text-muted">(opcional)</small>
+                                </label>
+                                <select class="form-select form-select-sm" v-model="form.proposito"
+                                        :class="{'is-invalid': errores.proposito}">
+                                    <option :value="null">— Sin propósito específico —</option>
+                                    <option value="registro_ucm">Registro UCM (respaldo)</option>
+                                    <option value="saliente_cobranza">Saliente: Cobranza</option>
+                                    <option value="saliente_avisos">Saliente: Avisos</option>
+                                    <option value="saliente_corte">Saliente: Corte de servicio</option>
+                                </select>
+                                <div class="invalid-feedback">{{ errores.proposito }}</div>
                             </div>
                             <div class="col-md-8">
                                 <label class="form-label small">Host / IP <span class="text-danger">*</span></label>
@@ -415,6 +433,7 @@ export default {
                 proveedor:         '',
                 tipo:              'registro',
                 direccion:         'saliente',
+                proposito:         null,
                 host:              '',
                 puerto:            5060,
                 usuario:           '',
@@ -458,6 +477,7 @@ export default {
                     proveedor:         troncal.proveedor || '',
                     tipo:              troncal.tipo,
                     direccion:         troncal.direccion,
+                    proposito:         troncal.proposito ?? null,
                     host:              troncal.host,
                     puerto:            troncal.puerto,
                     usuario:           troncal.usuario || '',
@@ -679,6 +699,16 @@ export default {
             } finally {
                 this.probando = false;
             }
+        },
+
+        propositoEtiqueta(valor) {
+            const etiquetas = {
+                registro_ucm:       'Registro UCM (respaldo)',
+                saliente_cobranza:  'Saliente: Cobranza',
+                saliente_avisos:    'Saliente: Avisos',
+                saliente_corte:     'Saliente: Corte de servicio',
+            };
+            return etiquetas[valor] || valor;
         },
 
         headers() {
