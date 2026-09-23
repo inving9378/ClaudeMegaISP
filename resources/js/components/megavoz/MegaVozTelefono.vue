@@ -7,8 +7,8 @@
             Entra por <code>https://dev.meganett.com.mx</code>, no por la IP directa.
         </div>
 
-        <!-- Panel expandido -->
-        <div v-else-if="abierto" class="mv-panel">
+        <!-- Panel expandido (solo para marcar — mientras hay llamada, el modal de abajo manda) -->
+        <div v-else-if="abierto && !llamadaEntrante && !enLlamada" class="mv-panel">
             <div class="mv-head">
                 <span class="mv-dot" :class="'mv-dot--' + estado"></span>
                 <span class="mv-titulo">{{ nombre }} <small>({{ numero }})</small></span>
@@ -19,38 +19,7 @@
 
             <div class="mv-estado-txt">{{ etiquetaEstado }}</div>
 
-            <!-- Llamada entrante -->
-            <div v-if="llamadaEntrante" class="mv-llamando">
-                <div class="mv-llamando-de">
-                    <i class="fa fa-phone-volume mv-ring"></i>
-                    Llamada de <strong>{{ remotoId }}</strong>
-                </div>
-                <div class="mv-acciones">
-                    <button class="mv-btn mv-btn--ok" @click="contestar" title="Contestar">
-                        <i class="fa fa-phone"></i>
-                    </button>
-                    <button class="mv-btn mv-btn--bad" @click="colgar" title="Rechazar">
-                        <i class="fa fa-phone-slash"></i>
-                    </button>
-                </div>
-            </div>
-
-            <!-- En llamada -->
-            <div v-else-if="enLlamada" class="mv-en-llamada">
-                <div class="mv-remoto"><i class="fa fa-user me-1"></i>{{ remotoId }}</div>
-                <div class="mv-cronometro">{{ duracionTexto }}</div>
-                <div class="mv-acciones">
-                    <button class="mv-btn" :class="silenciado ? 'mv-btn--warn' : ''" @click="toggleMute" :title="silenciado ? 'Activar mic' : 'Silenciar'">
-                        <i :class="silenciado ? 'fa fa-microphone-slash' : 'fa fa-microphone'"></i>
-                    </button>
-                    <button class="mv-btn mv-btn--bad" @click="colgar" title="Colgar">
-                        <i class="fa fa-phone-slash"></i>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Marcar -->
-            <div v-else class="mv-marcar">
+            <div class="mv-marcar">
                 <input class="mv-input" v-model="destino" placeholder="Número a marcar…"
                        @keyup.enter="llamar" :disabled="estado !== 'registrado'">
                 <button class="mv-btn mv-btn--ok" @click="llamar"
@@ -67,6 +36,41 @@
             <i class="fa fa-phone"></i>
             <span v-if="llamadaEntrante || enLlamada" class="mv-badge"></span>
         </button>
+
+        <!-- Modal de llamada activa — SIEMPRE visible mientras suena o está conectada, sin
+             importar si la burbuja está abierta o cerrada. Antes el botón de colgar solo
+             existía dentro del panel colapsable y se perdía de vista con facilidad. -->
+        <div v-if="llamadaEntrante || enLlamada" class="mv-call-backdrop">
+            <div class="mv-call-modal">
+                <div v-if="llamadaEntrante">
+                    <i class="fa fa-phone-volume mv-ring mv-call-icon"></i>
+                    <div class="mv-call-titulo">Llamada entrante</div>
+                    <div class="mv-call-remoto">{{ remotoId }}</div>
+                    <div class="mv-call-acciones">
+                        <button class="mv-btn mv-btn--ok mv-btn--grande" @click="contestar" title="Contestar">
+                            <i class="fa fa-phone"></i>
+                        </button>
+                        <button class="mv-btn mv-btn--bad mv-btn--grande" @click="colgar" title="Rechazar">
+                            <i class="fa fa-phone-slash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div v-else>
+                    <i class="fa fa-phone mv-call-icon mv-call-icon--activa"></i>
+                    <div class="mv-call-titulo">Llamada en curso</div>
+                    <div class="mv-call-remoto">{{ remotoId }}</div>
+                    <div class="mv-cronometro">{{ duracionTexto }}</div>
+                    <div class="mv-call-acciones">
+                        <button class="mv-btn" :class="silenciado ? 'mv-btn--warn' : ''" @click="toggleMute" :title="silenciado ? 'Activar mic' : 'Silenciar'">
+                            <i :class="silenciado ? 'fa fa-microphone-slash' : 'fa fa-microphone'"></i>
+                        </button>
+                        <button class="mv-btn mv-btn--bad mv-btn--grande" @click="colgar" title="Colgar">
+                            <i class="fa fa-phone-slash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <audio ref="audioRemoto" autoplay></audio>
     </div>
@@ -344,4 +348,23 @@ export default {
 .mv-btn--bad  { background: #dc2626; color: #fff; }
 .mv-btn--warn { background: #d97706; color: #fff; }
 .mv-btn:disabled { opacity: .4; cursor: not-allowed; }
+.mv-btn--grande { width: 52px; height: 52px; font-size: 20px; }
+
+/* Modal de llamada activa — visible siempre, no depende de la burbuja */
+.mv-call-backdrop {
+    position: fixed; inset: 0; z-index: 1041;
+    background: rgba(15, 23, 42, .35);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding-top: 90px;
+}
+.mv-call-modal {
+    background: #fff; border-radius: 16px; padding: 24px 28px;
+    width: 260px; text-align: center;
+    box-shadow: 0 20px 50px rgba(0,0,0,.35);
+}
+.mv-call-icon { font-size: 30px; color: #16a34a; margin-bottom: 8px; display: block; }
+.mv-call-icon--activa { color: #0d9488; }
+.mv-call-titulo { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; font-weight: 700; }
+.mv-call-remoto { font-size: 18px; font-weight: 700; color: #1f2937; margin: 4px 0 10px; }
+.mv-call-acciones { display: flex; gap: 14px; justify-content: center; margin-top: 14px; }
 </style>
