@@ -1,7 +1,14 @@
 <template>
-    <div v-if="tieneTelefono" class="mv-wrap">
+    <div v-if="tieneTelefono || sinHttps" class="mv-wrap">
+        <!-- Sin HTTPS: bubble visible pero deshabilitada, para que la ausencia
+             del teléfono no se confunda con "no tengo extensión asignada". -->
+        <div v-if="sinHttps" class="mv-panel-aviso" v-show="abierto">
+            Este mini-teléfono necesita HTTPS.<br>
+            Entra por <code>https://dev.meganett.com.mx</code>, no por la IP directa.
+        </div>
+
         <!-- Panel expandido -->
-        <div v-if="abierto" class="mv-panel">
+        <div v-else-if="abierto" class="mv-panel">
             <div class="mv-head">
                 <span class="mv-dot" :class="'mv-dot--' + estado"></span>
                 <span class="mv-titulo">{{ nombre }} <small>({{ numero }})</small></span>
@@ -54,8 +61,9 @@
         </div>
 
         <!-- Burbuja -->
-        <button class="mv-bubble" :class="'mv-bubble--' + estado" @click="abierto = !abierto"
-                :title="etiquetaEstado">
+        <button class="mv-bubble" :class="sinHttps ? 'mv-bubble--sinhttps' : 'mv-bubble--' + estado"
+                @click="abierto = !abierto"
+                :title="sinHttps ? 'Requiere HTTPS' : etiquetaEstado">
             <i class="fa fa-phone"></i>
             <span v-if="llamadaEntrante || enLlamada" class="mv-badge"></span>
         </button>
@@ -66,6 +74,7 @@
 
 <script>
 import JsSIP from 'jssip';
+import { markRaw } from 'vue';
 
 export default {
     name: 'MegaVozTelefono',
@@ -73,6 +82,7 @@ export default {
     data() {
         return {
             tieneTelefono: false,
+            sinHttps: false,
             abierto: false,
             estado: 'inactivo', // inactivo | registrando | registrado | error
             numero: '',
@@ -107,8 +117,10 @@ export default {
     },
 
     async mounted() {
-        // WebRTC exige contexto seguro — sin HTTPS ni lo intenta.
+        // WebRTC exige contexto seguro — sin HTTPS ni lo intenta. Se avisa en vez
+        // de desaparecer en silencio (antes no se distinguía de "sin extensión").
         if (location.protocol !== 'https:') {
+            this.sinHttps = true;
             return;
         }
         try {
@@ -138,14 +150,18 @@ export default {
             const socket = new JsSIP.WebSocketInterface(cred.wss_url);
             socket.via_transport = 'wss';
 
-            this.ua = new JsSIP.UA({
+            // markRaw: JsSIP.UA trae propiedades internas no configurables — si Vue
+            // lo vuelve reactivo (los objetos en data() lo son por defecto), leer
+            // esas propiedades a través del Proxy revienta con "proxy invariant
+            // violation" en cuanto arma el INVITE (JsSIP/vue-3 no combinan).
+            this.ua = markRaw(new JsSIP.UA({
                 sockets: [socket],
                 uri: `sip:${cred.numero}@${cred.realm}`,
                 password: cred.secret,
                 display_name: cred.nombre,
                 register: true,
                 session_timers: false,
-            });
+            }));
 
             this.estado = 'registrando';
 
@@ -159,7 +175,7 @@ export default {
                     data.session.terminate();
                     return;
                 }
-                this.sesion = data.session;
+                this.sesion = markRaw(data.session);
                 this.remotoId = data.session.remote_identity?.uri?.user
                     || data.session.remote_identity?.display_name
                     || '—';
@@ -201,9 +217,9 @@ export default {
 
         llamar() {
             if (! this.destino || ! this.ua) return;
-            this.sesion = this.ua.call(`sip:${this.destino}@${location.hostname}`, {
+            this.sesion = markRaw(this.ua.call(`sip:${this.destino}@${location.hostname}`, {
                 mediaConstraints: { audio: true, video: false },
-            });
+            }));
             this.remotoId = this.destino;
             this.engancharSesion();
         },
@@ -273,6 +289,13 @@ export default {
     box-shadow: 0 10px 30px rgba(0,0,0,.2);
     font-size: 13.5px; color: #1f2937;
 }
+.mv-bubble--sinhttps { background: #94a3b8; }
+.mv-panel-aviso {
+    position: absolute; bottom: 62px; right: 0; width: 220px;
+    background: #1f2937; color: #fff; border-radius: 10px; padding: 12px;
+    font-size: 12.5px; line-height: 1.5; box-shadow: 0 10px 30px rgba(0,0,0,.2);
+}
+.mv-panel-aviso code { color: #93c5fd; }
 .mv-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
 .mv-titulo { font-weight: 700; flex: 1; }
 .mv-titulo small { font-weight: 400; color: #6b7280; }
