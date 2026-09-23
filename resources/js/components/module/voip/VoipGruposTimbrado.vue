@@ -1,5 +1,5 @@
 <template>
-    <div class="voip-grupos">
+    <div class="voip-grupos tc-wrap" :class="{ 'tc-dark': darkMode }">
         <!-- Header -->
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h4 class="mb-0">
@@ -38,7 +38,7 @@
                             <tr v-for="g in grupos" :key="g.id">
                                 <td class="fw-medium">{{ g.nombre }}</td>
                                 <td>
-                                    <span class="badge bg-secondary">{{ g.estrategia }}</span>
+                                    <span class="tc-status is-slate">{{ g.estrategia }}</span>
                                 </td>
                                 <td class="text-center">{{ g.ring_time }}s</td>
                                 <td class="text-muted">{{ g.destino_fallback }}</td>
@@ -46,7 +46,7 @@
                                     <span v-if="g.miembros.length === 0" class="text-muted small">Sin miembros</span>
                                     <span v-else>
                                         <span v-for="(m, i) in g.miembros" :key="m.id"
-                                              class="badge bg-light text-dark border me-1">
+                                              class="tc-status is-slate me-1">
                                             {{ m.numero }}
                                         </span>
                                     </span>
@@ -105,7 +105,7 @@
 
                             <div class="col-md-6">
                                 <label class="form-label small">Estrategia de timbrado</label>
-                                <select class="form-select form-select-sm" v-model="form.estrategia">
+                                <select class="form-select form-select-sm tc-select" v-model="form.estrategia">
                                     <option value="ringall">Ring all — todos a la vez</option>
                                     <option value="hunt">Hunt — en orden</option>
                                     <option value="memoryhunt">Memory hunt — orden rotativo</option>
@@ -113,7 +113,7 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label small">Destino si no contesta</label>
-                                <select class="form-select form-select-sm" v-model="form.destino_fallback">
+                                <select class="form-select form-select-sm tc-select" v-model="form.destino_fallback">
                                     <option value="colgar">Colgar</option>
                                     <option value="buzon">Buzón de voz</option>
                                     <option value="repetir">Repetir</option>
@@ -208,12 +208,18 @@
 </template>
 
 <script>
+import { darkMode } from '../../../hook/appConfig.js';
+
 export default {
     name: 'VoipGruposTimbrado',
 
     props: {
         csrfToken: { type: String, required: true },
         baseUrl:   { type: String, required: true },
+    },
+
+    setup() {
+        return { darkMode };
     },
 
     data() {

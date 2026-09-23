@@ -1,5 +1,5 @@
 <template>
-    <div class="voip-troncales">
+    <div class="voip-troncales tc-wrap" :class="{ 'tc-dark': darkMode }">
         <!-- Header -->
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h4 class="mb-0">
@@ -61,16 +61,16 @@
                                 </td>
                                 <td class="text-muted">{{ t.proveedor || '—' }}</td>
                                 <td>
-                                    <span class="badge" :class="t.tipo === 'registro' ? 'bg-info' : 'bg-secondary'">
+                                    <span class="tc-status" :class="t.tipo === 'registro' ? 'is-info' : 'is-slate'">
                                         {{ t.tipo }}
                                     </span>
                                 </td>
                                 <td>
-                                    <span class="badge"
+                                    <span class="tc-status"
                                           :class="{
-                                              'bg-success': t.direccion === 'entrante',
-                                              'bg-warning text-dark': t.direccion === 'saliente',
-                                              'bg-primary': t.direccion === 'ambas'
+                                              'is-ok': t.direccion === 'entrante',
+                                              'is-warn': t.direccion === 'saliente',
+                                              'is-info': t.direccion === 'ambas'
                                           }">
                                         {{ t.direccion }}
                                     </span>
@@ -85,29 +85,15 @@
                                         <i class="fa fa-circle-notch me-1"></i>
                                         Sin provisionar
                                     </span>
-                                    <!-- Resultado de verificación inline -->
+                                    <!-- Resultado de verificación inline (estado real contra Asterisk) -->
                                     <template v-if="verificaciones[t.id]">
-                                        <span v-if="verificaciones[t.id].status === 'Registered'"
-                                              class="badge bg-success ms-2">
-                                            <i class="fa fa-check-circle me-1"></i>Registered
-                                        </span>
-                                        <span v-else-if="verificaciones[t.id].status === 'Registering'"
-                                              class="badge bg-warning text-dark ms-2">
-                                            <i class="fa fa-circle-notch fa-spin me-1"></i>Registering
-                                        </span>
-                                        <span v-else-if="verificaciones[t.id].status === 'Rejected'"
-                                              class="badge bg-danger ms-2"
+                                        <span class="tc-status ms-2"
+                                              :class="verifClase(verificaciones[t.id].status)"
                                               :title="verificaciones[t.id].last_error">
-                                            <i class="fa fa-times-circle me-1"></i>Rejected
-                                        </span>
-                                        <span v-else-if="verificaciones[t.id].status === 'n/a'"
-                                              class="badge bg-secondary ms-2">
-                                            IP directa
-                                        </span>
-                                        <span v-else
-                                              class="badge bg-secondary ms-2"
-                                              :title="verificaciones[t.id].last_error">
-                                            {{ verificaciones[t.id].status || 'Sin datos' }}
+                                            <i v-if="verificaciones[t.id].status === 'Registered'" class="fa fa-check-circle me-1"></i>
+                                            <i v-else-if="verificaciones[t.id].status === 'Registering'" class="fa fa-circle-notch fa-spin me-1"></i>
+                                            <i v-else-if="['Rejected','Stopped','Error AMI'].includes(verificaciones[t.id].status)" class="fa fa-times-circle me-1"></i>
+                                            {{ verifEtiqueta(verificaciones[t.id].status) }}
                                         </span>
                                     </template>
                                 </td>
@@ -176,7 +162,7 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label small">Tipo <span class="text-danger">*</span></label>
-                                <select class="form-select form-select-sm" v-model="form.tipo"
+                                <select class="form-select form-select-sm tc-select" v-model="form.tipo"
                                         :class="{'is-invalid': errores.tipo}">
                                     <option value="">— Seleccionar —</option>
                                     <option value="registro">Registro SIP (usuario + secret)</option>
@@ -186,7 +172,7 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label small">Dirección <span class="text-danger">*</span></label>
-                                <select class="form-select form-select-sm" v-model="form.direccion"
+                                <select class="form-select form-select-sm tc-select" v-model="form.direccion"
                                         :class="{'is-invalid': errores.direccion}">
                                     <option value="">— Seleccionar —</option>
                                     <option value="entrante">Entrante</option>
@@ -248,7 +234,7 @@
                                     Grupo entrante
                                     <small class="text-muted">(opcional)</small>
                                 </label>
-                                <select class="form-select form-select-sm" v-model="form.grupo_entrante_id">
+                                <select class="form-select form-select-sm tc-select" v-model="form.grupo_entrante_id">
                                     <option :value="null">— Sin grupo (usar dialplan manual) —</option>
                                     <option v-for="g in grupos" :key="g.id" :value="g.id">
                                         {{ g.nombre }} ({{ g.estrategia }}, {{ g.miembros?.length ?? 0 }} miembros)
@@ -357,12 +343,18 @@
 </template>
 
 <script>
+import { darkMode } from '../../../hook/appConfig.js';
+
 export default {
     name: 'VoipTroncales',
 
     props: {
         csrfToken: { type: String, required: true },
         baseUrl:   { type: String, required: true },
+    },
+
+    setup() {
+        return { darkMode };
     },
 
     data() {
@@ -679,6 +671,38 @@ export default {
             } finally {
                 this.probando = false;
             }
+        },
+
+        // Traduce el status crudo que devuelve AsteriskProvisioningService::verificarRegistro()
+        // (AMI/PJSIP, en inglés) a una etiqueta en español — antes se mostraba el string
+        // crudo tal cual para cualquier status no contemplado explícitamente (ej. "Not
+        // provisioned", "Stopped", "Unknown", "Error AMI").
+        verifEtiqueta(status) {
+            const etiquetas = {
+                'Registered':      'Registrada',
+                'Registering':     'Registrando…',
+                'Rejected':        'Rechazada',
+                'Stopped':         'Detenida',
+                'Unknown':         'Desconocido',
+                'n/a':             'IP directa',
+                'Error AMI':       'Error de conexión AMI',
+                'Not provisioned': 'Sin bloque en Asterisk',
+            };
+            return etiquetas[status] || (status || 'Sin datos');
+        },
+
+        verifClase(status) {
+            const clases = {
+                'Registered':      'is-ok',
+                'Registering':     'is-warn',
+                'Rejected':        'is-bad',
+                'Stopped':         'is-bad',
+                'Unknown':         'is-slate',
+                'n/a':             'is-slate',
+                'Error AMI':       'is-bad',
+                'Not provisioned': 'is-warn',
+            };
+            return clases[status] || 'is-slate';
         },
 
         headers() {
