@@ -405,6 +405,22 @@ class AsteriskProvisioningService
         if ($ext->callerid) {
             $endpoint['callerid'] = $ext->callerid;
         }
+
+        // MegaVoz Fase 2 — la gemela WebRTC de una extensión. `webrtc=yes` es
+        // el atajo oficial desde Asterisk 16: activa solo rtcp_mux, use_avpf,
+        // ice_support y use_received_transport — lo que hace falta para que
+        // el audio negocie con un navegador. DTLS (cifrado) es aparte.
+        // auto_generate_cert es la opción "para arrancar rápido" — un
+        // certificado propio (el mismo del sitio) es lo que tocaría en
+        // producción, no aquí.
+        if ($ext->es_webrtc) {
+            $endpoint['webrtc']                  = 'yes';
+            $endpoint['media_encryption']        = 'dtls';
+            $endpoint['dtls_auto_generate_cert'] = 'yes';
+            $endpoint['dtls_verify']             = 'fingerprint';
+            $endpoint['dtls_setup']              = 'actpass';
+        }
+
         $this->upsert('ps_endpoints', $endpoint);
 
         $ext->update(['provisionado_at' => now()->toDateTimeString()]);
