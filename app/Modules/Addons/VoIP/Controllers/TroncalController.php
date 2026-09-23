@@ -44,6 +44,7 @@ class TroncalController extends Controller
                 'proveedor'            => $t->proveedor,
                 'tipo'                 => $t->tipo,
                 'direccion'            => $t->direccion,
+                'proposito'            => $t->proposito,
                 'host'                 => $t->host,
                 'puerto'               => $t->puerto,
                 'usuario'              => $t->usuario,
@@ -74,6 +75,7 @@ class TroncalController extends Controller
             'proveedor'         => 'nullable|string|max:100',
             'tipo'              => 'required|in:registro,ip',
             'direccion'         => 'required|in:entrante,saliente,ambas',
+            'proposito'         => 'nullable|in:registro_ucm,saliente_cobranza,saliente_avisos,saliente_corte',
             'host'              => 'required|string|max:255',
             'puerto'            => 'nullable|integer|min:1|max:65535',
             'usuario'           => 'nullable|string|max:100',
@@ -102,7 +104,7 @@ class TroncalController extends Controller
 
         return response()->json(array_merge(
             $troncal->only([
-                'id', 'nombre', 'proveedor', 'tipo', 'direccion',
+                'id', 'nombre', 'proveedor', 'tipo', 'direccion', 'proposito',
                 'host', 'puerto', 'usuario', 'contexto', 'did',
                 'grupo_entrante_id', 'codecs', 'transporte', 'activo', 'provisionado_at',
             ]),
@@ -121,6 +123,7 @@ class TroncalController extends Controller
             'proveedor'         => 'nullable|string|max:100',
             'tipo'              => 'required|in:registro,ip',
             'direccion'         => 'required|in:entrante,saliente,ambas',
+            'proposito'         => 'nullable|in:registro_ucm,saliente_cobranza,saliente_avisos,saliente_corte',
             'host'              => 'required|string|max:255',
             'puerto'            => 'nullable|integer|min:1|max:65535',
             'usuario'           => 'nullable|string|max:100',
