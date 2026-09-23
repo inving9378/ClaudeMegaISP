@@ -96,6 +96,14 @@
             <jarvis-burbuja url="{{ url('/') }}"></jarvis-burbuja>
         </div>
     @endif
+    @auth
+        <div id="megavoz-telefono-root">
+            {{-- MegaVoz Fase 2: mini-teléfono WebRTC. Sin gate de permiso — el propio
+                 componente pregunta por sus credenciales y no se dibuja nada si el
+                 usuario no tiene una extensión WebRTC asignada (o si no hay HTTPS). --}}
+            <megavoz-telefono></megavoz-telefono>
+        </div>
+    @endauth
     <!-- JAVASCRIPT -->
     @include('core-layout::vendor-scripts')
 

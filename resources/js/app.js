@@ -406,6 +406,7 @@ import HelpFloat from "./components/ayuda/HelpFloat.vue";
 //Chat IA flotante (#9 / #636): gateado por permiso usar-ia-chat en el layout
 import IaChatFloat from "./components/ia/IaChatFloat.vue";
 import JarvisBurbuja from "./components/jarvis/JarvisBurbuja.vue";
+import MegaVozTelefono from "./components/megavoz/MegaVozTelefono.vue";
 
 //Evaluador Empresarial — portado desde MEGANET 2026-05-22
 import EvaluadorEmpresarial from "./components/module/sellers/EvaluadorEmpresarial.vue";
@@ -1040,6 +1041,16 @@ store
             const jarvisApp = createApp({});
             jarvisApp.component('jarvis-burbuja', JarvisBurbuja);
             jarvisApp.mount('#jarvis-burbuja-root');
+        }
+
+        // MegaVoz Fase 2 — mini-teléfono WebRTC. App propia y montaje propio, fuera
+        // de #init-vue, mismo patrón que jarvis-burbuja: sobrevive a spa-nav para
+        // que una llamada activa no se corte al navegar a otra pantalla.
+        const telefonoEl = document.querySelector('#megavoz-telefono-root');
+        if (telefonoEl) {
+            const telefonoApp = createApp({});
+            telefonoApp.component('megavoz-telefono', MegaVozTelefono);
+            telefonoApp.mount('#megavoz-telefono-root');
         }
     })
     .catch((error) => {
