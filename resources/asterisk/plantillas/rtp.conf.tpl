@@ -9,4 +9,7 @@ rtpend={{RTP_END}}
 ; exige ICE siempre, no es opcional del lado del navegador. Antes de la Fase 2
 ; nada de esto usaba WebRTC y quedaba en "no" a propósito.
 icesupport=yes
-stunaddr=
+; stunaddr en blanco dejaba en el log de arranque: "ERROR res_rtp_asterisk.c:
+; Failed to setup recurring DNS resolution of stunaddr ''" — un STUN público
+; real evita ese fallo de inicialización del lado de ICE.
+stunaddr=stun.l.google.com:19302
