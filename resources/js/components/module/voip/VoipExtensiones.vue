@@ -1,5 +1,5 @@
 <template>
-    <div class="voip-extensiones">
+    <div class="voip-extensiones tc-wrap" :class="{ 'tc-dark': darkMode }">
         <!-- Header -->
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h4 class="mb-0">
@@ -41,7 +41,7 @@
                                 <td>{{ e.nombre }}</td>
                                 <td class="text-muted">{{ e.agente_nombre || '—' }}</td>
                                 <td>
-                                    <span class="badge" :class="e.tipo_dispositivo === 'softphone' ? 'bg-info' : 'bg-secondary'">
+                                    <span class="tc-status" :class="e.tipo_dispositivo === 'softphone' ? 'is-info' : 'is-slate'">
                                         {{ e.tipo_dispositivo === 'softphone' ? 'Softphone' : 'Teléfono IP' }}
                                     </span>
                                 </td>
@@ -83,18 +83,18 @@
                                         <i class="fa fa-circle-notch me-1"></i>Sin provisionar
                                     </span>
                                     <span v-if="e.provisionado_at" class="ms-2">
-                                        <span v-if="conectadas.includes(e.numero)" class="badge bg-success text-white">
+                                        <span v-if="conectadas.includes(e.numero)" class="tc-status is-ok">
                                             <i class="fa fa-wifi me-1"></i>Conectada
                                         </span>
-                                        <span v-else class="badge bg-secondary text-white">
+                                        <span v-else class="tc-status is-slate">
                                             Desconectada
                                         </span>
                                     </span>
                                     <span v-if="verificaciones[e.id]" class="ms-2">
-                                        <span v-if="verificaciones[e.id].ok" class="badge bg-success-subtle text-success">
+                                        <span v-if="verificaciones[e.id].ok" class="tc-status is-ok">
                                             {{ verificaciones[e.id].estado }}
                                         </span>
-                                        <span v-else class="badge bg-danger-subtle text-danger">
+                                        <span v-else class="tc-status is-bad">
                                             {{ verificaciones[e.id].estado || 'error' }}
                                         </span>
                                     </span>
@@ -200,7 +200,7 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label small">Agente (usuario del sistema)</label>
-                                <select class="form-select form-select-sm" v-model="form.user_id">
+                                <select class="form-select form-select-sm tc-select" v-model="form.user_id">
                                     <option :value="null">— Sin asignar —</option>
                                     <option v-for="u in usuarios" :key="u.id" :value="u.id">
                                         {{ u.nombre }}
@@ -210,7 +210,7 @@
 
                             <div class="col-md-6">
                                 <label class="form-label small">Tipo de dispositivo</label>
-                                <select class="form-select form-select-sm" v-model="form.tipo_dispositivo">
+                                <select class="form-select form-select-sm tc-select" v-model="form.tipo_dispositivo">
                                     <option value="softphone">Softphone</option>
                                     <option value="telefono_ip">Teléfono IP</option>
                                 </select>
@@ -298,12 +298,18 @@
 </template>
 
 <script>
+import { darkMode } from '../../../hook/appConfig.js';
+
 export default {
     name: 'VoipExtensiones',
 
     props: {
         csrfToken: { type: String, required: true },
         baseUrl:   { type: String, required: true },
+    },
+
+    setup() {
+        return { darkMode };
     },
 
     data() {

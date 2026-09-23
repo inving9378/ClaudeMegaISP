@@ -594,6 +594,29 @@
         }
     }
 
+    // ── Grupos de botones de acción de fila (btn-group dentro de una <td>) ──
+    // Patrón usado por pantallas con botones Bootstrap reales (ej. VoIP: verificar/
+    // editar/eliminar), distinto al datatable de arriba (que usa <a id-item> plano).
+    // Sin esto, la regla global .btn-outline-* de más abajo (REVISIÓN PROFUNDA) les
+    // pinta un fondo sólido del mismo color semántico que el icono (ej. tacho rojo
+    // sobre fondo rojo = invisible) y el gris de .btn-outline-secondary desentonaba.
+    // Aquí quedan transparentes — solo el icono, con su color semántico heredado de
+    // las reglas td .fa-* de arriba (o gris neutro si el icono no tiene una regla
+    // propia, ej. buscar/subir/probar conexión).
+    td .btn-group .btn {
+        background: transparent !important;
+        border-color: transparent !important;
+        color: var(--tc-muted) !important;
+        border-radius: 8px;
+
+        &:hover:not(:disabled) {
+            background: var(--tc-bg2) !important;
+        }
+        &:disabled {
+            opacity: 0.4;
+        }
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // REVISIÓN PROFUNDA — formularios, selects, botones sólidos y modales
     // ══════════════════════════════════════════════════════════════════════

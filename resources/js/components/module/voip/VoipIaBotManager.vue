@@ -1,5 +1,5 @@
 <template>
-  <div class="ia-bot-manager">
+  <div class="ia-bot-manager tc-wrap" :class="{ 'tc-dark': darkMode }">
     <!-- Header -->
     <div class="d-flex align-items-center justify-content-between mb-4">
       <div>
@@ -7,7 +7,7 @@
         <small class="text-muted">María — Atención a clientes y ventas</small>
       </div>
       <div class="d-flex align-items-center gap-2">
-        <span :class="['badge', config.enabled ? 'bg-success' : 'bg-secondary']">
+        <span :class="['tc-status', config.enabled ? 'is-ok' : 'is-slate']">
           {{ config.enabled ? 'Habilitado' : 'Deshabilitado' }}
         </span>
         <button v-if="canConfig" class="btn btn-sm btn-outline-primary" @click="toggleEnabled" :disabled="saving">
@@ -17,7 +17,7 @@
     </div>
 
     <!-- Tabs -->
-    <ul class="nav nav-tabs mb-3">
+    <ul class="nav nav-tabs tc-tabs mb-3">
       <li class="nav-item">
         <button class="nav-link" :class="{ active: tab === 'config' }" @click="tab = 'config'">
           <i class="fas fa-cog me-1"></i>Configuración
@@ -26,13 +26,13 @@
       <li class="nav-item">
         <button class="nav-link" :class="{ active: tab === 'conversations' }" @click="tab = 'conversations'; loadConversaciones()">
           <i class="fas fa-phone-alt me-1"></i>Conversaciones
-          <span v-if="convTotal" class="badge bg-secondary ms-1">{{ convTotal }}</span>
+          <span v-if="convTotal" class="tc-status is-slate ms-1">{{ convTotal }}</span>
         </button>
       </li>
       <li class="nav-item" v-if="canLeads">
         <button class="nav-link" :class="{ active: tab === 'leads' }" @click="tab = 'leads'; loadLeads()">
           <i class="fas fa-user-plus me-1"></i>Leads
-          <span v-if="leadsNew" class="badge bg-warning text-dark ms-1">{{ leadsNew }}</span>
+          <span v-if="leadsNew" class="tc-status is-warn ms-1">{{ leadsNew }}</span>
         </button>
       </li>
       <li class="nav-item" v-if="canKb">
@@ -76,7 +76,7 @@
           <!-- Voz -->
           <div class="col-md-4">
             <label class="form-label">Voz (OpenAI TTS)</label>
-            <select class="form-select" v-model="config.voice">
+            <select class="form-select tc-select" v-model="config.voice">
               <option value="nova">Nova (mujer, recomendada)</option>
               <option value="shimmer">Shimmer (mujer)</option>
               <option value="alloy">Alloy (neutral)</option>
@@ -157,14 +157,14 @@
           <input class="form-control form-control-sm" v-model="convFilter.phone" placeholder="Buscar por teléfono..." @input="debouncedLoadConv">
         </div>
         <div class="col-md-3">
-          <select class="form-select form-select-sm" v-model="convFilter.type" @change="loadConversaciones">
+          <select class="form-select form-select-sm tc-select" v-model="convFilter.type" @change="loadConversaciones">
             <option value="">Todos los tipos</option>
             <option value="customer_support">Atención cliente</option>
             <option value="sales_lead">Lead / venta</option>
           </select>
         </div>
         <div class="col-md-3">
-          <select class="form-select form-select-sm" v-model="convFilter.status" @change="loadConversaciones">
+          <select class="form-select form-select-sm tc-select" v-model="convFilter.status" @change="loadConversaciones">
             <option value="">Todos los estados</option>
             <option value="completed">Completada</option>
             <option value="transferred">Transferida</option>
@@ -196,14 +196,14 @@
             <tr v-for="c in conversaciones" :key="c.id">
               <td>{{ c.phone_number }}</td>
               <td>
-                <span :class="['badge', c.conversation_type === 'customer_support' ? 'bg-info text-dark' : 'bg-warning text-dark']">
+                <span :class="['tc-status', c.conversation_type === 'customer_support' ? 'is-info' : 'is-warn']">
                   {{ c.conversation_type === 'customer_support' ? 'Atención' : 'Lead' }}
                 </span>
               </td>
               <td>{{ c.customer_name || '—' }}</td>
               <td>{{ c.duration ? `${c.duration}s` : '—' }}</td>
               <td>
-                <span :class="['badge', statusBadge(c.status)]">{{ c.status }}</span>
+                <span :class="['tc-status', statusBadge(c.status)]">{{ c.status }}</span>
               </td>
               <td>{{ formatDate(c.started_at) }}</td>
               <td>${{ c.cost_usd || '0.00' }}</td>
@@ -236,7 +236,7 @@
     <div v-show="tab === 'leads'">
       <div class="row g-3 mb-3 align-items-center">
         <div class="col-md-3">
-          <select class="form-select form-select-sm" v-model="leadsFilter.status" @change="loadLeads">
+          <select class="form-select form-select-sm tc-select" v-model="leadsFilter.status" @change="loadLeads">
             <option value="">Todos los estados</option>
             <option value="new">Nuevo</option>
             <option value="contacted">Contactado</option>
@@ -271,7 +271,7 @@
               <td>{{ lead.email || '—' }}</td>
               <td>{{ lead.interest_service || '—' }}</td>
               <td>
-                <select class="form-select form-select-sm" v-model="lead.status" @change="updateLead(lead)" style="width:120px">
+                <select class="form-select form-select-sm tc-select" v-model="lead.status" @change="updateLead(lead)" style="width:120px">
                   <option value="new">Nuevo</option>
                   <option value="contacted">Contactado</option>
                   <option value="interested">Interesado</option>
@@ -350,7 +350,7 @@
           <div class="modal-body" style="max-height:500px;overflow-y:auto">
             <div v-if="selectedConv" class="d-flex flex-column gap-2">
               <div v-for="(turn, i) in selectedConv.transcript" :key="i"
-                   :class="['p-2 rounded', turn.role === 'user' ? 'bg-light align-self-end text-end' : 'bg-primary bg-opacity-10']"
+                   :class="['p-2 rounded', turn.role === 'user' ? 'tc-turn-user align-self-end text-end' : 'tc-turn-bot']"
                    style="max-width:80%">
                 <small class="text-muted d-block">{{ turn.role === 'user' ? 'Cliente' : 'María' }}</small>
                 {{ turn.text || turn.content }}
@@ -376,7 +376,7 @@
             <div class="row g-3">
               <div class="col-md-4">
                 <label class="form-label">Categoría</label>
-                <select class="form-select" v-model="kbForm.category">
+                <select class="form-select tc-select" v-model="kbForm.category">
                   <option value="internet">Internet</option>
                   <option value="voip">VoIP</option>
                   <option value="facturacion">Facturación</option>
@@ -441,7 +441,7 @@
               <dt class="col-sm-4">Plan interés</dt><dd class="col-sm-8">{{ selectedLead.interest_plan || '—' }}</dd>
               <dt class="col-sm-4">Estado</dt>
               <dd class="col-sm-8">
-                <select class="form-select form-select-sm" v-model="selectedLead.status" @change="updateLead(selectedLead)" style="width:150px">
+                <select class="form-select form-select-sm tc-select" v-model="selectedLead.status" @change="updateLead(selectedLead)" style="width:150px">
                   <option value="new">Nuevo</option>
                   <option value="contacted">Contactado</option>
                   <option value="interested">Interesado</option>
@@ -466,6 +466,8 @@
 </template>
 
 <script>
+import { darkMode } from '../../../hook/appConfig.js';
+
 export default {
   name: 'VoipIaBotManager',
   props: {
@@ -474,6 +476,9 @@ export default {
     canConfig: { type: String, default: '0' },
     canLeads:  { type: String, default: '0' },
     canKb:     { type: String, default: '0' },
+  },
+  setup() {
+    return { darkMode };
   },
   data() {
     return {
@@ -657,7 +662,7 @@ export default {
     },
 
     statusBadge(status) {
-      return { completed: 'bg-success', transferred: 'bg-info text-dark', timeout: 'bg-warning text-dark', failed: 'bg-danger' }[status] || 'bg-secondary';
+      return { completed: 'is-ok', transferred: 'is-info', timeout: 'is-warn', failed: 'is-bad' }[status] || 'is-slate';
     },
 
     categoryIcon(cat) {
@@ -698,4 +703,6 @@ export default {
 
 <style scoped>
 .btn-xs { padding: 0.15rem 0.4rem; font-size: 0.75rem; }
+.tc-turn-user { background: var(--tc-bg2); }
+.tc-turn-bot { background: rgba(13, 148, 136, 0.12); }
 </style>
