@@ -187,24 +187,37 @@ export default {
         },
 
         engancharSesion() {
+            // El track remoto puede llegar en cualquier momento del ciclo de la
+            // llamada (a veces antes de "accepted") — escuchar el evento 'track'
+            // de la conexión es lo único confiable; leer getReceivers() UNA vez
+            // en accepted/confirmed se perdía el audio si el track llegaba
+            // después de ese instante (el bug real: la llamada conectaba, pero
+            // nunca sonaba).
+            if (this.sesion.connection) {
+                this.sesion.connection.addEventListener('track', this.onRemoteTrack);
+            } else {
+                this.sesion.on('peerconnection', (data) => {
+                    data.peerconnection.addEventListener('track', this.onRemoteTrack);
+                });
+            }
+
             this.sesion.on('accepted', () => {
                 this.inicioLlamada = Date.now();
                 this._timerId = setInterval(this.tick, 1000);
-                this.engancharAudio();
             });
-            this.sesion.on('confirmed', () => this.engancharAudio());
             this.sesion.on('ended', () => this.limpiarSesion());
             this.sesion.on('failed', () => this.limpiarSesion());
         },
 
-        engancharAudio() {
-            const remoteStream = new MediaStream();
-            this.sesion.connection.getReceivers().forEach((receiver) => {
-                if (receiver.track) remoteStream.addTrack(receiver.track);
-            });
-            if (this.$refs.audioRemoto) {
-                this.$refs.audioRemoto.srcObject = remoteStream;
-            }
+        onRemoteTrack(event) {
+            if (! this.$refs.audioRemoto) return;
+            const stream = event.streams?.[0]
+                || new MediaStream([event.track]);
+            this.$refs.audioRemoto.srcObject = stream;
+            // autoplay puede quedar pausado si el navegador aún no vio una
+            // interacción del usuario en ESTE documento — marcar (el clic para
+            // llamar ya cuenta como interacción, pero por si acaso).
+            this.$refs.audioRemoto.play().catch(() => {});
         },
 
         tick() {
