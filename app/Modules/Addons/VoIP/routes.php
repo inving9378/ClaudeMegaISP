@@ -3,6 +3,7 @@
 use App\Modules\Addons\VoIP\Controllers\ExtensionController;
 use App\Modules\Addons\VoIP\Controllers\GrupoTimbradoController;
 use App\Modules\Addons\VoIP\Controllers\IaBotController;
+use App\Modules\Addons\VoIP\Controllers\MiTelefonoController;
 use App\Modules\Addons\VoIP\Controllers\TroncalController;
 use Illuminate\Support\Facades\Route;
 
@@ -65,4 +66,12 @@ Route::middleware(['web', 'auth'])->prefix('voip')->group(function () {
     Route::post('/ia-bot/kb',                           [IaBotController::class, 'kbStore'])->name('voip.ia-bot.kb.store');
     Route::put('/ia-bot/kb/{kb}',                       [IaBotController::class, 'kbUpdate'])->name('voip.ia-bot.kb.update');
     Route::delete('/ia-bot/kb/{kb}',                    [IaBotController::class, 'kbDestroy'])->name('voip.ia-bot.kb.destroy');
+
+    // ════════════════════════════════════════════════════════════════════════
+    // MI TELÉFONO (MegaVoz Fase 2 — mini-teléfono WebRTC)
+    // ════════════════════════════════════════════════════════════════════════
+    // Sin permiso voip.* propio: cualquier usuario autenticado puede pedir SUS
+    // PROPIAS credenciales (el controller resuelve por auth()->id(), nunca por
+    // un id que llegue del cliente) — no expone nada de nadie más.
+    Route::get('/mi-telefono/credenciales', [MiTelefonoController::class, 'credenciales'])->name('voip.mi-telefono.credenciales');
 });

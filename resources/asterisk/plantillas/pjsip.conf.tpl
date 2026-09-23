@@ -11,3 +11,22 @@ bind={{BIND_SIP}}
 {{#EXTERNAL_MEDIA}}external_media_address={{EXTERNAL_MEDIA}}{{/EXTERNAL_MEDIA}}
 {{#EXTERNAL_SIGNALING}}external_signaling_address={{EXTERNAL_SIGNALING}}{{/EXTERNAL_SIGNALING}}
 {{#LOCAL_NET}}local_net={{LOCAL_NET}}{{/LOCAL_NET}}
+
+; MegaVoz Fase 2 — mini-teléfono WebRTC. La señalización viaja por el mismo
+; servidor HTTP que ya usa ARI (http.conf, loopback:{{ARI_PORT}}); este objeto
+; solo declara el transporte para que los endpoints WebRTC lo referencien —
+; res_pjsip_transport_websocket registra la ruta /ws sola, sin bind propio.
+; Lo que de verdad expone esto a internet es nginx, vía proxy wss:// -> /ws
+; sobre el mismo dominio y certificado del sitio (sin puerto nuevo que abrir).
+[transport-wss]
+type=transport
+protocol=wss
+bind=0.0.0.0
+
+; Registraciones salientes de troncales tipo "registro" (AsteriskProvisioningService
+; escribe ahí, uno por troncal). Sin este #include el archivo se escribe pero
+; Asterisk NUNCA lo carga: el sorcery de [res_pjsip] (sorcery.conf) no mapea
+; "registration" a realtime, así que su única fuente posible es un archivo
+; incluido aquí. El provisionador crea el archivo vacío en una instalación
+; nueva para que este #include nunca apunte a algo que no existe.
+#include "{{GENERADOS_DIR}}/megaisp_registrations.conf"

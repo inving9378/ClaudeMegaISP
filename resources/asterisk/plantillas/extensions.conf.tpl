@@ -40,6 +40,14 @@ exten = _[1-9]XX,1,NoOp(Interno: ${CALLERID(num)} -> ${EXTEN})
  same = n,Dial(PJSIP/${EXTEN},30)
  same = n,Hangup()
 
+; MegaVoz Fase 2 — gemela WebRTC de una extensión (webNNNN). El endpoint de
+; PJSIP se llama igual que el número completo con el prefijo, igual que el
+; resto de este contexto.
+exten = _web[1-9]XXX,1,NoOp(Interno (WebRTC): ${CALLERID(num)} -> ${EXTEN})
+ same = n,Set(CDR(userfield)=interno)
+ same = n,Dial(PJSIP/${EXTEN},30)
+ same = n,Hangup()
+
 ; ─── Servicios del sistema ─────────────────────────────────────────────────
 ;
 ; Viven en 1900-1999, el rango que el plan de numeración marca como protegido

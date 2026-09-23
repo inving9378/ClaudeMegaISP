@@ -19,12 +19,16 @@ class Extension extends Model
         // sobrescritura, departamento de origen y marca de sembrada por el sistema.
         'voip_rango_numeracion_id', 'voip_perfil_extension_id',
         'departamento', 'sembrada_por_sistema',
+        // MegaVoz Fase 2: "endpoint doble" — la gemela WebRTC de una extensión
+        // de escritorio (ver migración 2026_09_23_190000).
+        'es_webrtc',
     ];
 
     protected $casts = [
         'activo'               => 'boolean',
         'provisionado_at'      => 'datetime',
         'sembrada_por_sistema' => 'boolean',
+        'es_webrtc'            => 'boolean',
     ];
 
     protected $hidden = ['secret'];

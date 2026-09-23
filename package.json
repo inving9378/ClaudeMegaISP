@@ -50,6 +50,7 @@
         "dotenv": "^10.0.0",
         "drift-zoom": "^1.5.0",
         "jspdf": "^3.0.4",
+        "jssip": "^3.13.8",
         "jszip": "^3.10.1",
         "leaflet": "^1.9.4",
         "leaflet-cascade-buttons": "^1.0.10",

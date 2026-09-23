@@ -93,7 +93,47 @@ class ReclamadorExtensionAutomatico
             Log::warning("VoIP: extensión {$extension->numero} reclamada para colaborador #{$colaborador->id} pero falló el provisionamiento: {$e->getMessage()}");
         }
 
+        $this->crearGemelaWebrtc($extension, $user);
+
         return $extension->fresh();
+    }
+
+    /**
+     * MegaVoz Fase 2 — "endpoint doble" (plan 22-sep-2026): la extensión de
+     * escritorio recién reclamada recibe una gemela para el mini-teléfono del
+     * navegador (`web{numero}`). A diferencia de la de escritorio, esta SÍ se
+     * crea nueva — no hay un pool de gemelas pre-sembradas que reclamar,
+     * porque es 100% derivada del número de la extensión dueña.
+     */
+    private function crearGemelaWebrtc(Extension $extension, User $user): void
+    {
+        $numeroWeb = 'web' . $extension->numero;
+
+        if (Extension::where('numero', $numeroWeb)->exists()) {
+            return; // ya la tiene (reintento de un alta previo)
+        }
+
+        $gemela = Extension::create([
+            'numero'                   => $numeroWeb,
+            'nombre'                   => $user->name . ' (navegador)',
+            'user_id'                  => $user->id,
+            'secret'                   => Str::random(32),
+            'tipo_dispositivo'         => 'softphone',
+            'es_webrtc'                => true,
+            'contexto'                 => $extension->contexto,
+            'codecs'                   => 'opus,alaw,ulaw',
+            'transporte'               => 'transport-wss',
+            'callerid'                 => $extension->numero,
+            'activo'                   => true,
+            'voip_rango_numeracion_id' => $extension->voip_rango_numeracion_id,
+            'sembrada_por_sistema'     => false,
+        ]);
+
+        try {
+            $this->provisioner->provisionarExtension($gemela);
+        } catch (\Throwable $e) {
+            Log::warning("VoIP: gemela WebRTC {$numeroWeb} creada para colaborador pero falló el provisionamiento: {$e->getMessage()}");
+        }
     }
 
     private function rangoParaUsuario(User $user): ?string
