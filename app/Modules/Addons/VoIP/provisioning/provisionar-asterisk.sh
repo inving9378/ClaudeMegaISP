@@ -973,8 +973,27 @@ GEN
         echo "    ${dialplan} ya presente, se respeta"
     fi
 
+    # Mismo caso que megaisp_dialplan.conf, para pjsip.conf: el #include de las
+    # registraciones salientes de troncales no debe apuntar al aire en una
+    # instalación recién hecha.
+    local registros="${ASTERISK_GENERADOS_DIR}/megaisp_registrations.conf"
+
+    if [[ ! -f "$registros" ]]; then
+        cat > "$registros" <<'GEN'
+; MegaISP — lo generado automáticamente. No editar a mano.
+; Vacío hasta que haya troncales tipo "registro" que generar.
+GEN
+        echo "    creado ${registros} (vacío, para que el #include no apunte al aire)"
+    else
+        echo "    ${registros} ya presente, se respeta"
+    fi
+
     chown -R asterisk:asterisk "$ASTERISK_GENERADOS_DIR" 2>/dev/null || true
-    chmod 750 "$ASTERISK_GENERADOS_DIR"
+    # 770, no 750: www-data (grupo asterisk desde MegaVoz Fase 0/1) escribe aquí
+    # en vivo (AsteriskProvisioningService::mergeBlock, extensiones/grupos vía
+    # DialplanGeneratorService) cada vez que alguien provisiona algo desde la
+    # UI — con 750 esas escrituras fallan con Permission denied en silencio.
+    chmod 770 "$ASTERISK_GENERADOS_DIR"
 }
 
 escribir_dsn_odbc() {

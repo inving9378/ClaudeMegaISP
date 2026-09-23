@@ -22,3 +22,11 @@ bind={{BIND_SIP}}
 type=transport
 protocol=wss
 bind=0.0.0.0
+
+; Registraciones salientes de troncales tipo "registro" (AsteriskProvisioningService
+; escribe ahí, uno por troncal). Sin este #include el archivo se escribe pero
+; Asterisk NUNCA lo carga: el sorcery de [res_pjsip] (sorcery.conf) no mapea
+; "registration" a realtime, así que su única fuente posible es un archivo
+; incluido aquí. El provisionador crea el archivo vacío en una instalación
+; nueva para que este #include nunca apunte a algo que no existe.
+#include "{{GENERADOS_DIR}}/megaisp_registrations.conf"
