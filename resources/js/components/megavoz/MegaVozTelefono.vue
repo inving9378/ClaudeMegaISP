@@ -88,6 +88,34 @@
                         </button>
                     </div>
                 </div>
+
+                <!-- MegaVoz Fase 4 — ficha del cliente que llama, si se identificó -->
+                <div v-if="cargandoFicha" class="mv-ficha mv-ficha--cargando">Buscando cliente…</div>
+                <div v-else-if="fichaCliente" class="mv-ficha">
+                    <div class="mv-ficha-nombre">{{ fichaCliente.name }}</div>
+                    <div class="mv-ficha-fila">
+                        <span>Saldo</span>
+                        <b :class="fichaCliente.balance < 0 ? 'mv-saldo--debe' : 'mv-saldo--ok'">
+                            {{ formatoSaldo(fichaCliente.balance) }}
+                        </b>
+                    </div>
+                    <div class="mv-ficha-fila" v-if="fichaCliente.active_services.length">
+                        <span>Servicio</span>
+                        <b>{{ fichaCliente.active_services[0].description }}</b>
+                    </div>
+                    <div class="mv-ficha-fila">
+                        <span>Tickets abiertos</span>
+                        <b :class="fichaCliente.tickets_open > 0 ? 'mv-saldo--debe' : ''">{{ fichaCliente.tickets_open }}</b>
+                    </div>
+                    <div class="mv-ficha-acciones">
+                        <a :href="`/cliente/editar/${fichaCliente.id}`" target="_blank" class="mv-ficha-link">Ver ficha</a>
+                        <a :href="`/tickets/crear/${fichaCliente.id}`" target="_blank" class="mv-ficha-link mv-ficha-link--ticket">+ Crear ticket</a>
+                    </div>
+                </div>
+                <div v-else-if="fichaCliente === false" class="mv-ficha mv-ficha--sinidentificar">
+                    Número no identificado.
+                    <a href="/tickets/crear" target="_blank" class="mv-ficha-link mv-ficha-link--ticket">+ Crear ticket</a>
+                </div>
             </div>
         </div>
 
@@ -129,6 +157,11 @@ export default {
             // respuesta), true/false = resultado real contra Asterisk.
             destinoDisponible: null,
             _dispDebounce: null,
+            // MegaVoz Fase 4 — ficha del que llama/al que se llama. null = sin
+            // buscar todavía (o remoto no parece número externo), false =
+            // buscado y NO identificado, objeto = cliente encontrado.
+            fichaCliente: null,
+            cargandoFicha: false,
         };
     },
 
@@ -221,6 +254,7 @@ export default {
                 this.estadoLlamada = 'entrante';
                 this.abierto = true;
                 this.engancharSesion();
+                this.cargarFicha(this.remotoId);
             });
 
             this.ua.start();
@@ -284,6 +318,35 @@ export default {
                 mediaConstraints: { audio: true, video: false },
             }));
             this.engancharSesion();
+            this.cargarFicha(this.destino);
+        },
+
+        // MegaVoz Fase 4 — solo se busca si el remoto PARECE un número externo
+        // real (>=7 dígitos): una extensión interna de 3-4 dígitos nunca va a
+        // hacer match en client_main_information, y mostrar "no identificado"
+        // en cada llamada entre compañeros sería puro ruido.
+        async cargarFicha(numero) {
+            this.fichaCliente = null;
+            const soloDigitos = (numero || '').replace(/\D/g, '');
+            if (soloDigitos.length < 7) return;
+
+            this.cargandoFicha = true;
+            try {
+                const r = await fetch(`/voip/mi-telefono/ficha/${encodeURIComponent(numero)}`, {
+                    headers: { 'Accept': 'application/json' },
+                });
+                const body = await r.json();
+                this.fichaCliente = body.found ? body : false;
+            } catch {
+                this.fichaCliente = false;
+            } finally {
+                this.cargandoFicha = false;
+            }
+        },
+
+        formatoSaldo(balance) {
+            const n = Number(balance) || 0;
+            return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
         },
 
         consultarDisponibilidad() {
@@ -340,6 +403,8 @@ export default {
             this.remotoId = '';
             this.destino = '';
             this.destinoDisponible = null;
+            this.fichaCliente = null;
+            this.cargandoFicha = false;
             if (this.$refs.audioRemoto) this.$refs.audioRemoto.srcObject = null;
         },
     },
@@ -450,4 +515,26 @@ export default {
 .mv-call-titulo { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; font-weight: 700; }
 .mv-call-remoto { font-size: 18px; font-weight: 700; color: #1f2937; margin: 4px 0 10px; }
 .mv-call-acciones { display: flex; gap: 14px; justify-content: center; margin-top: 14px; }
+
+/* MegaVoz Fase 4 — ficha del cliente que llama */
+.mv-ficha {
+    margin-top: 16px; padding-top: 14px; border-top: 1px solid #e5e7eb;
+    text-align: left; font-size: 12.5px;
+}
+.mv-ficha--cargando { text-align: center; color: #9ca3af; font-style: italic; }
+.mv-ficha--sinidentificar { text-align: center; color: #9ca3af; }
+.mv-ficha-nombre { font-weight: 700; font-size: 14px; color: #1f2937; margin-bottom: 6px; }
+.mv-ficha-fila {
+    display: flex; justify-content: space-between; gap: 8px;
+    padding: 2px 0; color: #6b7280;
+}
+.mv-saldo--debe { color: #dc2626; }
+.mv-saldo--ok   { color: #16a34a; }
+.mv-ficha-acciones { display: flex; gap: 10px; margin-top: 10px; justify-content: center; }
+.mv-ficha-link {
+    font-size: 12px; font-weight: 600; text-decoration: none;
+    color: #2563eb; border: 1px solid #bfdbfe; border-radius: 6px;
+    padding: 4px 10px;
+}
+.mv-ficha-link--ticket { color: #b45309; border-color: #fde68a; }
 </style>

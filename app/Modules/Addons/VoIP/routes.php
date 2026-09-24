@@ -75,4 +75,6 @@ Route::middleware(['web', 'auth'])->prefix('voip')->group(function () {
     // un id que llegue del cliente) — no expone nada de nadie más.
     Route::get('/mi-telefono/credenciales', [MiTelefonoController::class, 'credenciales'])->name('voip.mi-telefono.credenciales');
     Route::get('/mi-telefono/disponibilidad/{numero}', [MiTelefonoController::class, 'disponibilidad'])->name('voip.mi-telefono.disponibilidad');
+    // MegaVoz Fase 4 — ventana emergente al contestar: identifica al que llama.
+    Route::get('/mi-telefono/ficha/{numero}', [MiTelefonoController::class, 'ficha'])->name('voip.mi-telefono.ficha');
 });
