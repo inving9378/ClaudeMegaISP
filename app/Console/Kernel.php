@@ -34,6 +34,9 @@ class Kernel extends ConsoleKernel
         $schedule->command('app:reminder-payment-command')->dailyAt('03:00');
         $schedule->command('app:send-all-emails-command')->everyFiveMinutes(); */
 
+        // Antes de invoice:create-proformas (03:00): concluir pausas hoy recalcula fecha_corte
+        // para que esa corrida ya la retome normal en el mismo día.
+        $schedule->command('billing:procesar-pausas')->dailyAt('02:00')->withoutOverlapping();
         $schedule->command('invoice:create-proformas')->dailyAt('03:00')->withoutOverlapping();
         $schedule->command('billing:send-pending-notifications')->everyFifteenMinutes()->withoutOverlapping();
         $schedule->command('auditoria:minar-bitacora')->everyFifteenMinutes()->withoutOverlapping();
