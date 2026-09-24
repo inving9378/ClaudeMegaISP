@@ -994,6 +994,15 @@ GEN
     # DialplanGeneratorService) cada vez que alguien provisiona algo desde la
     # UI — con 750 esas escrituras fallan con Permission denied en silencio.
     chmod 770 "$ASTERISK_GENERADOS_DIR"
+    # El directorio en 770 solo controla crear/borrar archivos — SOBRESCRIBIR
+    # uno que ya existe (file_put_contents de PHP) necesita que el ARCHIVO
+    # mismo tenga bit de escritura de grupo. `cat >` los crea en 640 por
+    # omisión: sin este chmod, la primera escritura desde la UI (después de
+    # que este script ya los pre-creó) fallaba con Permission denied —
+    # encontrado hoy mismo al provisionar la cola de la Fase 3. -R y sin
+    # filtrar por nombre: cualquier .conf que este directorio contenga hoy o
+    # en el futuro (dialplan/grupos/registraciones) queda cubierto igual.
+    chmod -R g+w "$ASTERISK_GENERADOS_DIR"
 }
 
 escribir_dsn_odbc() {
