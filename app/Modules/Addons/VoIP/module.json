@@ -2,7 +2,7 @@
     "id": 210,
     "slug": "addon-voip",
     "name": "VoIP",
-    "version": "1.2.0",
+    "version": "1.0.0",
     "description": "Módulo VoIP — gestión de troncales PJSIP con provisión automática a Asterisk Realtime (PJSIP ARA).",
     "type": "addon",
     "dependencies": [],
