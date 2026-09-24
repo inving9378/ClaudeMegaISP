@@ -83,4 +83,9 @@ return [
         'dir'            => env('MEGAISP_ASTERISK_GRABACIONES_DIR', '/var/lib/megaisp/grabaciones'),
         'retencion_dias' => (int) env('MEGAVOZ_GRABACIONES_RETENCION_DIAS', 90),
     ],
+
+    // MegaVoz Fase 5 — de dónde importa megavoz:importar-queue-log. Es el log
+    // NATIVO de app_queue (formato propio de Asterisk, no realtime) — única
+    // fuente confiable para KPIs por agente.
+    'queue_log_path' => env('MEGAISP_ASTERISK_QUEUE_LOG', '/var/log/asterisk/queue_log'),
 ];

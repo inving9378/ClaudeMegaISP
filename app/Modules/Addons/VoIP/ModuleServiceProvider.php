@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\VoIP;
 
+use App\Modules\Addons\VoIP\Console\ImportarQueueLogCommand;
 use App\Modules\Addons\VoIP\Console\PurgarGrabacionesCommand;
 use App\Modules\Addons\VoIP\Console\ReconciliarCommand;
 use App\Modules\Addons\VoIP\Console\ReconciliarEstadosCommand;
@@ -31,6 +32,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 ReconciliarEstadosCommand::class,
                 \App\Modules\Addons\VoIP\Console\ProvisionarAsteriskCommand::class,
                 PurgarGrabacionesCommand::class,
+                ImportarQueueLogCommand::class,
             ]);
         }
     }

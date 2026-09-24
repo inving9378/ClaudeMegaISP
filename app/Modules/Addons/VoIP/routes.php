@@ -3,6 +3,7 @@
 use App\Modules\Addons\VoIP\Controllers\ExtensionController;
 use App\Modules\Addons\VoIP\Controllers\GrupoTimbradoController;
 use App\Modules\Addons\VoIP\Controllers\IaBotController;
+use App\Modules\Addons\VoIP\Controllers\MegaVozKpiController;
 use App\Modules\Addons\VoIP\Controllers\MiTelefonoController;
 use App\Modules\Addons\VoIP\Controllers\TroncalController;
 use Illuminate\Support\Facades\Route;
@@ -77,4 +78,10 @@ Route::middleware(['web', 'auth'])->prefix('voip')->group(function () {
     Route::get('/mi-telefono/disponibilidad/{numero}', [MiTelefonoController::class, 'disponibilidad'])->name('voip.mi-telefono.disponibilidad');
     // MegaVoz Fase 4 — ventana emergente al contestar: identifica al que llama.
     Route::get('/mi-telefono/ficha/{numero}', [MiTelefonoController::class, 'ficha'])->name('voip.mi-telefono.ficha');
+
+    // ════════════════════════════════════════════════════════════════════════
+    // KPIs (MegaVoz Fase 5)
+    // ════════════════════════════════════════════════════════════════════════
+    Route::get('/kpis',      [MegaVozKpiController::class, 'vista'])->name('voip.kpis.index');
+    Route::get('/kpis/data', [MegaVozKpiController::class, 'data'])->name('voip.kpis.data');
 });

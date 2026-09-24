@@ -15,7 +15,8 @@
         { "name": "voip.troncales.edit",     "description": "Editar troncales VoIP" },
         { "name": "voip.troncales.delete",   "description": "Eliminar troncales VoIP" },
         { "name": "voip.troncales.provision","description": "Provisionar/desprovisionar troncales en Asterisk" },
-        { "name": "voip.troncales.test",     "description": "Probar conexión ARI y verificar estado de troncal" }
+        { "name": "voip.troncales.test",     "description": "Probar conexión ARI y verificar estado de troncal" },
+        { "name": "voip.kpis.view",          "description": "Ver el tablero de KPIs de la cola" }
     ],
 
     "api_endpoints": [
@@ -46,7 +47,9 @@
         { "method": "GET",    "path": "/voip/ia-bot/config",       "description": "Obtiene la configuración del bot IA",     "scope": "voip.ia-bot.config", "permission": "voip.ia-bot.config" },
         { "method": "PUT",    "path": "/voip/ia-bot/config",       "description": "Guarda la configuración del bot IA",      "scope": "voip.ia-bot.config", "permission": "voip.ia-bot.config" },
         { "method": "GET",    "path": "/voip/ia-bot/leads",        "description": "Lista leads capturados por el bot IA",    "scope": "voip.ia-bot.leads",  "permission": "voip.ia-bot.leads" },
-        { "method": "GET",    "path": "/voip/ia-bot/kb",           "description": "Lista la base de conocimiento del bot IA","scope": "voip.ia-bot.kb",     "permission": "voip.ia-bot.kb" }
+        { "method": "GET",    "path": "/voip/ia-bot/kb",           "description": "Lista la base de conocimiento del bot IA","scope": "voip.ia-bot.kb",     "permission": "voip.ia-bot.kb" },
+
+        { "method": "GET",    "path": "/voip/kpis/data",           "description": "KPIs de la cola (entradas/atendidas/abandonadas/por agente)", "scope": "voip.kpis.view", "permission": "voip.kpis.view" }
     ],
 
     "menu": [
@@ -56,7 +59,8 @@
             "permission": "voip.view",
             "url": "/voip/troncales",
             "children": [
-                { "label": "Troncales", "url": "/voip/troncales", "permission": "voip.troncales.view" }
+                { "label": "Troncales", "url": "/voip/troncales", "permission": "voip.troncales.view" },
+                { "label": "KPIs", "url": "/voip/kpis", "permission": "voip.kpis.view" }
             ]
         }
     ],
