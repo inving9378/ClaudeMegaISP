@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\VoIP\Services;
 
 use App\Modules\Addons\VoIP\Models\GrupoTimbrado;
+use App\Modules\Addons\VoIP\Models\IaBotConfig;
 use App\Modules\Addons\VoIP\Models\Troncal;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -190,17 +191,38 @@ class DialplanGeneratorService
      * `format_mp3` — la conversión a MP3, si se quiere, es un paso aparte
      * sobre el archivo ya cerrado (ffmpeg, ya presente para Marketing), no
      * parte de este dialplan.
+     *
+     * MegaVoz Fase 6 (conectar el motor real) — `AudioSocket()` se emite
+     * SOLO si `ia_bot_config.enabled` está en true AL GENERAR este archivo
+     * (`IaBotController::saveConfig()` ya llama `regenerar()` cada vez que
+     * cambia). El % de piloto y el horario de oficina NO viven aquí — los
+     * evalúa el daemon EN VIVO por cada llamada
+     * (`IaBotConfig::debeAtenderAhora()`), porque son una tirada aleatoria y
+     * una ventana de horario, no algo que tenga sentido congelar en texto
+     * estático. Si el daemon decide no atender (fuera del piloto, fuera de
+     * horario, o simplemente no está corriendo), cierra el socket casi de
+     * inmediato sin decir nada — `AudioSocket()` regresa rápido y el
+     * dialplan sigue exactamente igual que si Fase 6 no existiera.
+     * `Playback(beep)` sigue sonando SIEMPRE primero, la atienda o no
+     * María — es el mismo "algo está pasando" para el que llama en los dos
+     * casos, no dos contestadores distintos.
      */
     private function buildColaExten(GrupoTimbrado $grupo, int $ringTime): array
     {
         $nombreCola = $grupo->nombreCola();
+        $botHabilitado = IaBotConfig::current()->enabled;
+        $botHostPuerto = config('voip.bot_voz.host', '127.0.0.1') . ':' . config('voip.bot_voz.port', 9099);
 
         return [
             "exten = s,1,NoOp(Grupo {$grupo->id} — {$grupo->nombre} — cola real, MegaVoz Fase 3)",
             " same = n,Answer()",
             " same = n,Set(CDR(grabacion)=\${UNIQUEID}.wav)",
             " same = n,MixMonitor(\${GRABACIONES_DIR}/\${UNIQUEID}.wav)  ; retención y purga: megavoz:purgar-grabaciones",
-            " same = n,Playback(beep)  ; contestador de RELLENO — aquí conecta la IA real (Fase 6)",
+            " same = n,Playback(beep)  ; contestador — María (si le toca esta llamada) sigue justo después",
+            ...($botHabilitado ? [
+                " same = n,Set(BOT_UUID=\${UUID()})",
+                " same = n,AudioSocket(\${BOT_UUID},{$botHostPuerto})  ; Fase 6 — el daemon decide en vivo si atiende (piloto/horario)",
+            ] : []),
             " same = n,GotoIf(\$[\${QUEUE_MEMBER({$nombreCola},ready)} > 0]?con_agente:sin_agente)",
             " same = n(con_agente),Queue({$nombreCola},t,,,{$ringTime})",
             " same = n,Goto(s,fallback)",

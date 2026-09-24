@@ -26,7 +26,7 @@ use Illuminate\Support\Facades\Log;
  */
 class BotVozEscucharCommand extends Command
 {
-    protected $signature = 'voip:bot-voz-escuchar {--host=127.0.0.1} {--port=9099}';
+    protected $signature = 'voip:bot-voz-escuchar {--host=} {--port=}';
 
     protected $description = 'Daemon AudioSocket de María (MegaVoz Fase 6) — NO conectado al dialplan real todavía';
 
@@ -34,8 +34,11 @@ class BotVozEscucharCommand extends Command
 
     public function handle(): int
     {
-        $host = (string) $this->option('host');
-        $port = (int) $this->option('port');
+        // Sin --host/--port explícitos, misma fuente que ya lee el dialplan
+        // generado (config/voip.php → bot_voz) — un solo lugar donde vive
+        // esta dirección, no dos valores que puedan desincronizarse.
+        $host = (string) ($this->option('host') ?: config('voip.bot_voz.host', '127.0.0.1'));
+        $port = (int) ($this->option('port') ?: config('voip.bot_voz.port', 9099));
 
         $server = @stream_socket_server("tcp://{$host}:{$port}", $errno, $errstr);
         if (! $server) {
@@ -117,9 +120,24 @@ class BotVozEscucharCommand extends Command
             $this->log("{$peer}: no llegó UUID — cerrando.", 'warning');
             return;
         }
-        $this->log("{$peer}: llamada uuid={$uuid} — inicia conversación.");
 
         $config = IaBotConfig::current();
+
+        // El interruptor de piloto (%) + horario de oficina se decide AQUÍ,
+        // por llamada, en vivo — nunca en el dialplan (texto estático). Si
+        // esta llamada NO le toca a María, se cierra el socket sin decir
+        // nada — el dialplan generado ya está preparado para eso:
+        // AudioSocket() regresa y sigue exactamente como si Fase 6 no
+        // existiera. No se crea IaBotConversation para las que se declinan
+        // — solo ensuciaría la lista de conversaciones con "llamadas" que
+        // María nunca llegó a atender.
+        if (! $config->debeAtenderAhora()) {
+            $this->log("{$peer}: uuid={$uuid} — fuera del piloto/horario, se declina (dialplan sigue solo).");
+            return;
+        }
+
+        $this->log("{$peer}: llamada uuid={$uuid} — inicia conversación.");
+
         $conversacion = IaBotConversation::create([
             'call_id'           => $uuid,
             'conversation_type' => 'sales_lead',

@@ -7,11 +7,17 @@ use App\Modules\Addons\VoIP\Models\IaBotConfig;
 use App\Modules\Addons\VoIP\Models\IaBotConversation;
 use App\Modules\Addons\VoIP\Models\IaBotKnowledgeBase;
 use App\Modules\Addons\VoIP\Models\IaBotLead;
+use App\Modules\Addons\VoIP\Services\DialplanGeneratorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class IaBotController extends Controller
 {
+    public function __construct(private DialplanGeneratorService $dialplan)
+    {
+    }
+
     // ── Vista principal ───────────────────────────────────────────────────────
 
     public function index()
@@ -34,6 +40,9 @@ class IaBotController extends Controller
 
         $data = $request->validate([
             'enabled'              => 'boolean',
+            'piloto_porcentaje'    => 'integer|min:0|max:100',
+            'horario_inicio'       => 'date_format:H:i',
+            'horario_fin'          => 'date_format:H:i',
             'voice'                => 'string|in:nova,alloy,echo,fable,onyx,shimmer',
             'language'             => 'string|max:20',
             'temperature'          => 'numeric|min:0|max:1',
@@ -48,6 +57,18 @@ class IaBotController extends Controller
 
         $config = IaBotConfig::current();
         $config->update($data);
+
+        // `enabled` decide si el dialplan siquiera intenta AudioSocket() —
+        // eso es texto ESTÁTICO generado en config-time, así que un cambio
+        // de este switch necesita regenerar. piloto_porcentaje/horario los
+        // evalúa el daemon EN VIVO por cada llamada (IaBotConfig::
+        // debeAtenderAhora()) — no requieren regenerar, pero hacerlo de
+        // todos modos es barato e idempotente.
+        try {
+            $this->dialplan->regenerar();
+        } catch (\Throwable $e) {
+            Log::warning("VoIP: error regenerando dialplan tras guardar ia_bot_config: {$e->getMessage()}");
+        }
 
         return response()->json(['success' => true, 'data' => $config->fresh()]);
     }
