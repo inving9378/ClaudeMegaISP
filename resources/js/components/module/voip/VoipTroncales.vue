@@ -194,9 +194,10 @@
                                 <select class="form-select form-select-sm tc-select" v-model="form.proposito"
                                         :class="{'is-invalid': errores.proposito}">
                                     <option :value="null">— Sin propósito específico —</option>
-                                    <option value="registro_ucm">Registro UCM (respaldo)</option>
+                                    <option value="registro_ucm">Registro UCM (entrada de llamadas)</option>
                                     <option value="saliente_cobranza">Saliente: Cobranza</option>
                                     <option value="saliente_avisos">Saliente: Avisos</option>
+                                    <option value="saliente_anuncio">Saliente: Anuncios</option>
                                     <option value="saliente_corte">Saliente: Corte de servicio</option>
                                 </select>
                                 <div class="invalid-feedback">{{ errores.proposito }}</div>
@@ -702,9 +703,10 @@ export default {
 
         propositoEtiqueta(valor) {
             const etiquetas = {
-                registro_ucm:       'Registro UCM (respaldo)',
+                registro_ucm:       'Registro UCM (entrada de llamadas)',
                 saliente_cobranza:  'Saliente: Cobranza',
                 saliente_avisos:    'Saliente: Avisos',
+                saliente_anuncio:   'Saliente: Anuncios',
                 saliente_corte:     'Saliente: Corte de servicio',
             };
             return etiquetas[valor] || valor;

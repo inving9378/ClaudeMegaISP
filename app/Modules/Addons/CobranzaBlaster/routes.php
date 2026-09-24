@@ -35,6 +35,18 @@ Route::middleware(['web', 'auth'])->prefix('cobranza')->group(function () {
     Route::get('/campanas/{id}/llamadas', [CampanaController::class, 'llamadas'])
         ->name('cobranza.campanas.llamadas');
 
+    // MegaVoz Fase 7 — activar campaña aviso/anuncio/corte por zona geográfica
+    Route::post('/campanas/{id}/activar-por-zona', [CampanaController::class, 'activarPorZona'])
+        ->name('cobranza.campanas.activar-por-zona');
+
+    // MegaVoz Fase 7 — lookups del selector distrito/zona/caja
+    Route::get('/zonas/distritos',                [CampanaController::class, 'distritos'])
+        ->name('cobranza.zonas.distritos');
+    Route::get('/zonas/distritos/{districtId}/zonas', [CampanaController::class, 'zonasPorDistrito'])
+        ->name('cobranza.zonas.por-distrito');
+    Route::get('/zonas/zonas/{zoneId}/cajas',      [CampanaController::class, 'cajasPorZona'])
+        ->name('cobranza.zonas.cajas-por-zona');
+
     // ── Configuración VoIP ────────────────────────────────────────────────────
     Route::get('/voip',                [VoipConfiguracionController::class, 'index'])
         ->name('cobranza.voip.index');

@@ -64,7 +64,10 @@
                 <tbody>
                     <tr v-for="c in campanas" :key="c.id">
                         <td>
-                            <div class="fw-600">{{ c.nombre }}</div>
+                            <div class="fw-600">
+                                {{ c.nombre }}
+                                <span class="badge bg-light text-dark border ms-1">{{ tipoEtiqueta(c.tipo) }}</span>
+                            </div>
                             <div class="text-muted small">{{ c.notas }}</div>
                         </td>
                         <td>
@@ -80,10 +83,15 @@
                         <td class="text-end text-info fw-600">{{ c.pagadas }}</td>
                         <td class="text-end text-warning">{{ c.pendientes }}</td>
                         <td class="text-center">
-                            <button v-if="['borrador','pausada'].includes(c.estado)"
+                            <button v-if="['borrador','pausada'].includes(c.estado) && c.tipo === 'cobranza'"
                                     class="btn btn-sm btn-success me-1" @click="activar(c)"
                                     :disabled="procesando === c.id" title="Activar">
                                 <i class="fa fa-play"></i>
+                            </button>
+                            <button v-if="['borrador','pausada'].includes(c.estado) && c.tipo !== 'cobranza'"
+                                    class="btn btn-sm btn-success me-1" @click="abrirZona(c)"
+                                    :disabled="procesando === c.id" title="Activar por zona">
+                                <i class="fa fa-map-marker-alt"></i>
                             </button>
                             <button v-if="c.estado === 'activa'"
                                     class="btn btn-sm btn-warning me-1" @click="pausar(c)"
@@ -127,6 +135,38 @@
                         <input class="form-control form-control-sm" v-model="nueva.nombre"
                                :class="{'is-invalid': erroresNueva.nombre}">
                         <div class="invalid-feedback">{{ erroresNueva.nombre }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small">Tipo *</label>
+                        <select class="form-select form-select-sm" v-model="nueva.tipo">
+                            <option value="cobranza">Cobranza (a morosos)</option>
+                            <option value="aviso">Aviso (por zona)</option>
+                            <option value="anuncio">Anuncio (por zona)</option>
+                            <option value="corte">Corte de servicio (por zona)</option>
+                        </select>
+                        <div class="form-text small" v-if="nueva.tipo !== 'cobranza'">
+                            Se activa eligiendo distrito/zona/caja, no aquí — el botón
+                            <i class="fa fa-map-marker-alt"></i> de la lista abre ese paso.
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small">Troncal de salida</label>
+                        <select class="form-select form-select-sm" v-model="nueva.troncal_id">
+                            <option :value="null">— Usar la troncal por defecto del sistema —</option>
+                            <option v-for="t in troncales" :key="t.id" :value="t.id">{{ t.nombre }}</option>
+                        </select>
+                    </div>
+                    <div class="col-12" v-if="nueva.tipo !== 'cobranza'">
+                        <label class="form-label small">Mensaje a leer (se lee tal cual, por voz) *</label>
+                        <textarea class="form-control form-control-sm" v-model="nueva.audio_mensaje" rows="3"
+                                  :class="{'is-invalid': erroresNueva.audio_mensaje}"
+                                  placeholder="Ej: Le informamos que el día... habrá un corte programado de servicio en su zona..."></textarea>
+                        <div class="invalid-feedback">{{ erroresNueva.audio_mensaje }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small">Canales simultáneos (opcional)</label>
+                        <input type="number" class="form-control form-control-sm" v-model.number="nueva.max_canales_simultaneos" min="1" max="100"
+                               placeholder="Sin límite">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small">Fecha inicio</label>
@@ -212,6 +252,50 @@
                 </div>
             </div>
         </div>
+
+        <!-- Modal Activar por zona (MegaVoz Fase 7 — aviso/anuncio/corte) -->
+        <div v-if="modal.zona" class="modal-overlay" @click.self="modal.zona = false">
+            <div class="modal-box card p-4" style="max-width:480px;width:100%;">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"><i class="fa fa-map-marker-alt me-2 text-primary"></i>Activar por zona</h5>
+                    <button class="btn btn-sm btn-outline-secondary" @click="modal.zona = false">✕</button>
+                </div>
+                <p class="text-muted small">
+                    "{{ campanaSeleccionada?.nombre }}" se activará llamando a los clientes del área elegida.
+                    Zona/caja son opcionales — sin elegirlas, se llama a TODO el distrito.
+                </p>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label small">Distrito *</label>
+                        <select class="form-select form-select-sm" v-model.number="zona.district_id" @change="cargarZonasDeDistrito">
+                            <option :value="null">— Elegir —</option>
+                            <option v-for="d in distritos" :key="d.id" :value="d.id">{{ d.name }}</option>
+                        </select>
+                    </div>
+                    <div class="col-12" v-if="zona.district_id">
+                        <label class="form-label small">Zona (opcional)</label>
+                        <select class="form-select form-select-sm" v-model.number="zona.zone_id" @change="cargarCajasDeZona">
+                            <option :value="null">— Todas las zonas del distrito —</option>
+                            <option v-for="z in zonasDelDistrito" :key="z.id" :value="z.id">{{ z.name }}</option>
+                        </select>
+                    </div>
+                    <div class="col-12" v-if="zona.zone_id">
+                        <label class="form-label small">Caja (opcional)</label>
+                        <select class="form-select form-select-sm" v-model.number="zona.box_id">
+                            <option :value="null">— Todas las cajas de la zona —</option>
+                            <option v-for="c in cajasDeZona" :key="c.id" :value="c.id">{{ c.name }}</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-end gap-2 mt-4">
+                    <button class="btn btn-sm btn-outline-secondary" @click="modal.zona = false">Cancelar</button>
+                    <button class="btn btn-sm btn-success" @click="activarPorZona"
+                            :disabled="!zona.district_id || activandoZona">
+                        {{ activandoZona ? 'Activando…' : 'Activar campaña' }}
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -229,8 +313,9 @@ export default {
             pagination:  {},
             kpis:        {},
             procesando:  null,
-            modal:       { nueva: false, llamadas: false },
-            nueva:       { nombre: '', fecha_inicio: '', fecha_fin: '', hora_inicio: '09:00',
+            modal:       { nueva: false, llamadas: false, zona: false },
+            nueva:       { nombre: '', tipo: 'cobranza', troncal_id: null, max_canales_simultaneos: null,
+                           audio_mensaje: '', fecha_inicio: '', fecha_fin: '', hora_inicio: '09:00',
                            hora_fin: '20:00', max_intentos: 3, minutos_entre_intentos: 180, dias_vencimiento: 1, notas: '' },
             erroresNueva:        {},
             creando:             false,
@@ -239,11 +324,20 @@ export default {
             cargandoLlamadas:    false,
             filtroEstadoLlamadas:'',
             estadosLlamada:      ['pendiente','marcando','contestada','no_contesto','ocupado','fallida','pagada','excluida'],
+            // MegaVoz Fase 7 — troncales para el selector + distrito/zona/caja
+            // del "activar por zona" (aviso/anuncio/corte).
+            troncales:         [],
+            distritos:         [],
+            zonasDelDistrito:  [],
+            cajasDeZona:       [],
+            zona:              { district_id: null, zone_id: null, box_id: null },
+            activandoZona:     false,
         };
     },
     mounted() {
         this.cargar();
         this.cargarKpis();
+        this.cargarTroncales();
     },
     methods: {
         async cargar(page = 1) {
@@ -268,10 +362,85 @@ export default {
         },
         cambiarPagina(page) { this.cargar(page); },
         abrirNueva() {
-            this.nueva         = { nombre: '', fecha_inicio: '', fecha_fin: '', hora_inicio: '09:00',
+            this.nueva         = { nombre: '', tipo: 'cobranza', troncal_id: null, max_canales_simultaneos: null,
+                                   audio_mensaje: '', fecha_inicio: '', fecha_fin: '', hora_inicio: '09:00',
                                    hora_fin: '20:00', max_intentos: 3, minutos_entre_intentos: 180, dias_vencimiento: 1, notas: '' };
             this.erroresNueva  = {};
             this.modal.nueva   = true;
+        },
+        // MegaVoz Fase 7 — lista de troncales para el selector (best-effort:
+        // si el usuario no tiene voip.troncales.view, la lista queda vacía y
+        // el select se queda en "usar la troncal por defecto", sin bloquear
+        // la creación de la campaña).
+        async cargarTroncales() {
+            try {
+                const { data } = await axios.get('/voip/troncales/data');
+                this.troncales = data;
+            } catch (e) {
+                this.troncales = [];
+            }
+        },
+        tipoEtiqueta(tipo) {
+            return { cobranza: 'Cobranza', aviso: 'Aviso', anuncio: 'Anuncio', corte: 'Corte' }[tipo] || 'Cobranza';
+        },
+        abrirZona(campana) {
+            this.campanaSeleccionada = campana;
+            this.zona                = { district_id: null, zone_id: null, box_id: null };
+            this.zonasDelDistrito    = [];
+            this.cajasDeZona         = [];
+            this.modal.zona          = true;
+            if (this.distritos.length === 0) this.cargarDistritos();
+        },
+        async cargarDistritos() {
+            try {
+                const { data } = await axios.get(`${this.baseUrl}/zonas/distritos`);
+                this.distritos = data;
+            } catch (e) {
+                console.error(e);
+            }
+        },
+        async cargarZonasDeDistrito() {
+            this.zona.zone_id   = null;
+            this.zona.box_id    = null;
+            this.cajasDeZona     = [];
+            this.zonasDelDistrito = [];
+            if (!this.zona.district_id) return;
+            try {
+                const { data } = await axios.get(`${this.baseUrl}/zonas/distritos/${this.zona.district_id}/zonas`);
+                this.zonasDelDistrito = data;
+            } catch (e) {
+                console.error(e);
+            }
+        },
+        async cargarCajasDeZona() {
+            this.zona.box_id = null;
+            this.cajasDeZona  = [];
+            if (!this.zona.zone_id) return;
+            try {
+                const { data } = await axios.get(`${this.baseUrl}/zonas/zonas/${this.zona.zone_id}/cajas`);
+                this.cajasDeZona = data;
+            } catch (e) {
+                console.error(e);
+            }
+        },
+        async activarPorZona() {
+            if (!this.campanaSeleccionada || !this.zona.district_id) return;
+            this.activandoZona = true;
+            try {
+                const { data } = await axios.post(
+                    `${this.baseUrl}/campanas/${this.campanaSeleccionada.id}/activar-por-zona`,
+                    this.zona,
+                    { headers: { 'X-CSRF-TOKEN': this.csrfToken } }
+                );
+                this.modal.zona = false;
+                alert(`Campaña activada: ${data.insertados} clientes cargados.`);
+                await this.cargar();
+                await this.cargarKpis();
+            } catch (e) {
+                alert(e.response?.data?.error || 'Error al activar por zona.');
+            } finally {
+                this.activandoZona = false;
+            }
         },
         async crearCampana() {
             this.creando      = true;
