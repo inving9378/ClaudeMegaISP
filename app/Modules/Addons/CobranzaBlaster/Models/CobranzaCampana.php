@@ -9,7 +9,7 @@ class CobranzaCampana extends BaseModel
     protected $table = 'cobranza_campanas';
 
     protected $fillable = [
-        'nombre', 'estado', 'fecha_inicio', 'fecha_fin',
+        'nombre', 'tipo', 'troncal_id', 'max_canales_simultaneos', 'estado', 'fecha_inicio', 'fecha_fin',
         'hora_inicio', 'hora_fin', 'max_intentos', 'minutos_entre_intentos',
         'audio_mensaje', 'dias_vencimiento', 'notas',
     ];
@@ -29,6 +29,13 @@ class CobranzaCampana extends BaseModel
     public function llamadas()
     {
         return $this->hasMany(CobranzaLlamada::class, 'campana_id');
+    }
+
+    // Sin FK dura: voip_troncales vive en el módulo addon-voip, distinto de
+    // este addon. Igual que el resto de relaciones entre-addons del sistema.
+    public function troncal()
+    {
+        return $this->belongsTo(\App\Modules\Addons\VoIP\Models\Troncal::class, 'troncal_id');
     }
 
     public function llamadasPendientes()

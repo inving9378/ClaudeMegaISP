@@ -63,6 +63,72 @@ class CobranzaCampanaService
         Log::info("Campaña #{$campana->id} activada con {$insertados} llamadas cargadas.");
     }
 
+    /**
+     * MegaVoz Fase 7 — "botón de corte por distrito/zona/caja". Resuelve
+     * clientes vía `box_zones` (distrito → zona → caja, la nomenclatura
+     * DxZyCz de `NomenclatureController`) en vez de por morosidad. Usado por
+     * los tipos aviso/anuncio/corte — cobranza sigue siendo SIEMPRE por
+     * morosos (activarCampana(), sin tocar).
+     *
+     * $districtId es obligatorio (no se dispara un blast a "todo el país" por
+     * accidente); $zoneId/$boxId opcionales van angostando el alcance.
+     */
+    public function cargarPorZona(CobranzaCampana $campana, int $districtId, ?int $zoneId = null, ?int $boxId = null): int
+    {
+        $query = DB::table('box_zones as bz')
+            ->join('zones as z', 'z.id', '=', 'bz.zone_id')
+            ->join('clients as c', 'c.id', '=', 'bz.client')
+            ->join('client_main_information as cmi', 'cmi.client_id', '=', 'c.id')
+            ->where('z.district_id', $districtId)
+            ->where('c.status', 'active')
+            ->whereNotNull('cmi.phone')
+            ->whereNotExists(function ($q) use ($campana) {
+                $q->from('cobranza_llamadas')
+                    ->whereColumn('cobranza_llamadas.client_id', 'c.id')
+                    ->where('cobranza_llamadas.campana_id', $campana->id);
+            });
+
+        if ($zoneId) {
+            $query->where('bz.zone_id', $zoneId);
+        }
+        if ($boxId) {
+            $query->where('bz.id', $boxId);
+        }
+
+        $clientes = $query->select('c.id as client_id', 'cmi.phone', 'cmi.name')
+            ->distinct()
+            ->get();
+
+        $insertados = 0;
+        foreach ($clientes as $cliente) {
+            CobranzaLlamada::create([
+                'campana_id'         => $campana->id,
+                'client_id'          => $cliente->client_id,
+                'telefono'           => $cliente->phone,
+                'estado'             => 'pendiente',
+                'proximo_intento_at' => null,
+            ]);
+            $insertados++;
+        }
+
+        Log::info("CobranzaCampanaService: {$insertados} clientes de zona (D{$districtId}" .
+            ($zoneId ? "Z{$zoneId}" : '') . ($boxId ? "C{$boxId}" : '') .
+            ") cargados en campaña #{$campana->id}");
+
+        return $insertados;
+    }
+
+    public function activarCampanaPorZona(CobranzaCampana $campana, int $districtId, ?int $zoneId = null, ?int $boxId = null): int
+    {
+        $insertados = $this->cargarPorZona($campana, $districtId, $zoneId, $boxId);
+        $campana->update(['estado' => 'activa']);
+        BlastCampanaJob::dispatch($campana->id);
+
+        Log::info("Campaña #{$campana->id} ({$campana->tipo}) activada por zona con {$insertados} llamadas cargadas.");
+
+        return $insertados;
+    }
+
     public function pausarCampana(CobranzaCampana $campana): void
     {
         $campana->update(['estado' => 'pausada']);

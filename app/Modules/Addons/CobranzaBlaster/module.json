@@ -11,7 +11,8 @@
     "permissions": [
         { "name": "cobranza.view",      "description": "Ver campañas y KPIs de cobranza" },
         { "name": "cobranza.manage",    "description": "Crear, activar y pausar campañas de cobranza" },
-        { "name": "cobranza.configure", "description": "Configurar VoIP/SIP y parámetros del blaster" }
+        { "name": "cobranza.configure", "description": "Configurar VoIP/SIP y parámetros del blaster" },
+        { "name": "cobranza.corte.lanzar", "description": "Lanzar campañas de corte de servicio por zona (MegaVoz Fase 7)" }
     ],
 
     "menu": [
@@ -90,7 +91,9 @@
         { "method": "POST",   "path": "/cobranza/campanas",               "description": "Crear campaña",         "scope": "cobranza.manage",    "permission": "cobranza.manage" },
         { "method": "GET",    "path": "/cobranza/voip/configuracion",     "description": "Configuración VoIP",    "scope": "cobranza.configure", "permission": "cobranza.configure" },
         { "method": "POST",   "path": "/cobranza/voip/configuracion",     "description": "Guardar VoIP",          "scope": "cobranza.configure", "permission": "cobranza.configure" },
-        { "method": "GET",    "path": "/cobranza/voip/test",              "description": "Probar conexión AMI",   "scope": "cobranza.configure", "permission": "cobranza.configure" }
+        { "method": "GET",    "path": "/cobranza/voip/test",              "description": "Probar conexión AMI",   "scope": "cobranza.configure", "permission": "cobranza.configure" },
+        { "method": "POST",   "path": "/cobranza/campanas/{id}/activar-por-zona", "description": "Activa aviso/anuncio/corte por distrito/zona/caja", "scope": "cobranza.manage", "permission": "cobranza.manage" },
+        { "method": "GET",    "path": "/cobranza/zonas/distritos",        "description": "Lista distritos",       "scope": "cobranza.view",      "permission": "cobranza.view" }
     ],
 
     "ai": {

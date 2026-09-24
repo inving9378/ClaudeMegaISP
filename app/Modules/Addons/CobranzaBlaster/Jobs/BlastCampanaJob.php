@@ -7,6 +7,7 @@ use App\Modules\Addons\CobranzaBlaster\Models\CobranzaLlamada;
 use App\Modules\Addons\CobranzaBlaster\Models\CobranzaLlamadaEvento;
 use App\Modules\Addons\CobranzaBlaster\Services\AmiConnectionService;
 use App\Modules\Addons\CobranzaBlaster\Services\CobranzaTtsService;
+use App\Modules\Addons\VoIP\Models\Troncal;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -39,12 +40,29 @@ class BlastCampanaJob implements ShouldQueue
             return;
         }
 
+        // MegaVoz Fase 7 — límite de canales simultáneos por campaña. Antes
+        // "50" era solo el tamaño del LOTE que esta corrida del job procesa,
+        // nunca un tope de cuántas de esas 50 pueden estar sonando/hablando
+        // AL MISMO TIEMPO. Con max_canales_simultaneos configurado, se resta
+        // lo que ya está en curso (estado 'marcando') y solo se completa el
+        // lote hasta ese tope — sin configurar, comportamiento de siempre.
+        $lote = 50;
+        if ($campana->max_canales_simultaneos) {
+            $enCurso = CobranzaLlamada::where('campana_id', $this->campanaId)
+                ->where('estado', 'marcando')
+                ->count();
+            $lote = max(0, $campana->max_canales_simultaneos - $enCurso);
+            if ($lote === 0) {
+                return;
+            }
+        }
+
         $llamadas = CobranzaLlamada::where('campana_id', $this->campanaId)
             ->where('estado', 'pendiente')
             ->where(fn ($q) => $q->whereNull('proximo_intento_at')
                 ->orWhere('proximo_intento_at', '<=', now()))
             ->with('client.client_main_information')
-            ->limit(50)
+            ->limit($lote)
             ->get();
 
         if ($llamadas->isEmpty()) {
@@ -56,6 +74,16 @@ class BlastCampanaJob implements ShouldQueue
             return;
         }
 
+        // MegaVoz Fase 7 — troncal propia por campaña (voip_troncales, elegida
+        // al crearla). Sin una elegida, originate() cae al default global de
+        // siempre — comportamiento sin cambio para las campañas de cobranza
+        // ya existentes.
+        $endpointId = null;
+        if ($campana->troncal_id) {
+            $troncal = Troncal::find($campana->troncal_id);
+            $endpointId = $troncal?->endpointId();
+        }
+
         foreach ($llamadas as $llamada) {
             $cmi = $llamada->client?->client_main_information;
 
@@ -64,15 +92,23 @@ class BlastCampanaJob implements ShouldQueue
                 continue;
             }
 
-            $audioPath = $tts->generateAudio(
-                $llamada->id,
-                $cmi->name,
-                (float) $llamada->monto_vencido,
-                $campana->fecha_fin?->format('d/m/Y') ?? 'la brevedad posible',
-                (string) $llamada->client_id
-            );
+            // MegaVoz Fase 7 — cobranza sigue con SU mensaje (nombre+monto+
+            // fecha, plantilla ya probada); aviso/anuncio/corte hablan el
+            // texto libre que el admin escribió al crear la campaña
+            // (audio_mensaje), cacheado por contenido (generateAudioCached
+            // ya cachea por hash del texto — un solo audio para toda la
+            // campaña, no uno por llamada).
+            $audioPath = $campana->tipo === 'cobranza'
+                ? $tts->generateAudio(
+                    $llamada->id,
+                    $cmi->name,
+                    (float) $llamada->monto_vencido,
+                    $campana->fecha_fin?->format('d/m/Y') ?? 'la brevedad posible',
+                    (string) $llamada->client_id
+                )
+                : $tts->generateAudioCached('campana_' . $campana->id, (string) $campana->audio_mensaje);
 
-            $result = $ami->originate($llamada->telefono, $audioPath, $llamada->id, $cmi->name);
+            $result = $ami->originate($llamada->telefono, $audioPath, $llamada->id, $cmi->name, $endpointId);
 
             $nuevosIntentos = $llamada->intentos + 1;
             $puedeReintentar = !$result['success'] && $nuevosIntentos < $campana->max_intentos;
