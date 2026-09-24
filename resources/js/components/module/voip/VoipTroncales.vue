@@ -348,9 +348,14 @@
             </div>
         </div>
 
-        <!-- Toast -->
-        <div class="position-fixed bottom-0 end-0 p-3" style="z-index:11000">
+        <!-- Toast. pointer-events:none en el contenedor: vacío/inactivo (fuera de los ~3.5s
+             que dura mostrado) NO debe bloquear clics de nada que ande cerca en esa esquina —
+             pasó con la burbuja del mini-teléfono de MegaVoz, tapada por esta misma caja aun
+             sin ningún mensaje visible. auto en el .toast mismo para que, cuando sí se muestra,
+             su botón de cerrar siga siendo clickeable. -->
+        <div class="position-fixed bottom-0 end-0 p-3" style="z-index:11000; pointer-events:none">
             <div ref="toastEl" class="toast align-items-center text-bg-success border-0" role="alert"
+                 style="pointer-events:auto"
                  :class="toastTipo === 'error' ? 'text-bg-danger' : 'text-bg-success'">
                 <div class="d-flex">
                     <div class="toast-body">{{ toastMsg }}</div>
