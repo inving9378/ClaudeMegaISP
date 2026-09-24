@@ -46,8 +46,17 @@
              existía dentro del panel colapsable y se perdía de vista con facilidad. -->
         <div v-if="estadoLlamada" class="mv-call-backdrop">
             <div class="mv-call-modal">
+                <!-- Terminó (sin respuesta, colgaron, etc.) — se muestra el motivo
+                     un momento antes de cerrar, en vez de que el modal desaparezca
+                     de golpe sin explicación. -->
+                <div v-if="finalizando" class="mv-call-fin">
+                    <i class="fa fa-phone-slash mv-call-icon mv-call-icon--fin"></i>
+                    <div class="mv-call-titulo">{{ mensajeFinal }}</div>
+                    <div class="mv-call-cerrando">Cerrando…</div>
+                </div>
+
                 <!-- Marcando (saliente, todavía sin contestar) -->
-                <div v-if="estadoLlamada === 'saliente'">
+                <div v-else-if="estadoLlamada === 'saliente'">
                     <i class="fa fa-phone mv-call-icon mv-call-icon--saliente"></i>
                     <div class="mv-call-titulo">Llamando a…</div>
                     <div class="mv-call-remoto">{{ remotoId }}</div>
@@ -162,6 +171,11 @@ export default {
             // buscado y NO identificado, objeto = cliente encontrado.
             fichaCliente: null,
             cargandoFicha: false,
+            // Modal en "cerrando…" — true mientras se muestra el motivo por
+            // el que terminó la llamada (sin respuesta, colgaron, etc.)
+            // antes de limpiar la sesión de verdad.
+            finalizando: false,
+            mensajeFinal: '',
         };
     },
 
@@ -241,6 +255,16 @@ export default {
             this.ua.on('unregistered', () => { this.estado = 'inactivo'; });
             this.ua.on('registrationFailed', () => { this.estado = 'error'; });
 
+            // JsSIP dispara este MISMO evento para las dos direcciones —
+            // entrante (originator 'remote') Y saliente (originator 'local',
+            // disparado DENTRO de ua.call(), de forma síncrona, antes de que
+            // esa función siquiera regrese). Antes `llamar()` fijaba
+            // estadoLlamada='saliente' y ESTE handler lo pisaba con
+            // 'entrante' sin mirar el originator — el bug real que reportó
+            // David (marcar a 1001 se veía como "llamada entrante"). Un solo
+            // dueño del estado para las dos direcciones, diferenciado por
+            // `data.originator`, en vez de que `llamar()` y este handler se
+            // pisen entre sí.
             this.ua.on('newRTCSession', (data) => {
                 // Ya hay una sesión activa — no se apilan llamadas en este mini-teléfono.
                 if (this.sesion) {
@@ -251,7 +275,7 @@ export default {
                 this.remotoId = data.session.remote_identity?.uri?.user
                     || data.session.remote_identity?.display_name
                     || '—';
-                this.estadoLlamada = 'entrante';
+                this.estadoLlamada = data.originator === 'local' ? 'saliente' : 'entrante';
                 this.abierto = true;
                 this.engancharSesion();
                 this.cargarFicha(this.remotoId);
@@ -287,8 +311,8 @@ export default {
             };
             this.sesion.on('accepted', marcarActiva);
             this.sesion.on('confirmed', marcarActiva);
-            this.sesion.on('ended', () => this.limpiarSesion());
-            this.sesion.on('failed', () => this.limpiarSesion());
+            this.sesion.on('ended', () => this.terminarConMensaje('Llamada finalizada'));
+            this.sesion.on('failed', (data) => this.terminarConMensaje(this.mensajeDeFallo(data)));
         },
 
         onRemoteTrack(event) {
@@ -312,13 +336,14 @@ export default {
 
         llamar() {
             if (! this.destino || ! this.ua) return;
-            this.remotoId = this.destino;
-            this.estadoLlamada = 'saliente';
-            this.sesion = markRaw(this.ua.call(`sip:${this.destino}@${location.hostname}`, {
+            // Todo lo demás (asignar this.sesion, estadoLlamada='saliente',
+            // remotoId, engancharSesion, la ficha) lo hace el handler de
+            // 'newRTCSession' de arriba — dispara síncrono dentro de
+            // ua.call(), así que duplicarlo aquí es justo lo que causaba el
+            // bug del estado pisado.
+            this.ua.call(`sip:${this.destino}@${location.hostname}`, {
                 mediaConstraints: { audio: true, video: false },
-            }));
-            this.engancharSesion();
-            this.cargarFicha(this.destino);
+            });
         },
 
         // MegaVoz Fase 4 — solo se busca si el remoto PARECE un número externo
@@ -392,6 +417,31 @@ export default {
             this.silenciado = ! this.silenciado;
         },
 
+        // Muestra el motivo por el que terminó la llamada (sin respuesta,
+        // colgaron, cancelada…) un par de segundos antes de cerrar el modal
+        // de verdad — antes desaparecía sin avisar nada, y con una llamada
+        // saliente sin respuesta eso se veía como que el mini-teléfono se
+        // había quedado colgado.
+        terminarConMensaje(mensaje) {
+            clearInterval(this._timerId);
+            this._timerId = null;
+            this.mensajeFinal = mensaje;
+            this.finalizando = true;
+            setTimeout(() => this.limpiarSesion(), 2000);
+        },
+
+        mensajeDeFallo(data) {
+            const mapa = {
+                'No Answer':        'No contestaron',
+                'Request Timeout':  'No contestaron',
+                'Busy':             'Ocupado',
+                'Rejected':         'Llamada rechazada',
+                'Canceled':         'Llamada cancelada',
+                'Unavailable':      'No disponible',
+            };
+            return mapa[data?.cause] || 'No se pudo completar la llamada';
+        },
+
         limpiarSesion() {
             clearInterval(this._timerId);
             this._timerId = null;
@@ -405,6 +455,8 @@ export default {
             this.destinoDisponible = null;
             this.fichaCliente = null;
             this.cargandoFicha = false;
+            this.finalizando = false;
+            this.mensajeFinal = '';
             if (this.$refs.audioRemoto) this.$refs.audioRemoto.srcObject = null;
         },
     },
@@ -511,6 +563,9 @@ export default {
 .mv-call-icon { font-size: 30px; color: #16a34a; margin-bottom: 8px; display: block; }
 .mv-call-icon--activa { color: #0d9488; }
 .mv-call-icon--saliente { color: #2563eb; animation: mv-pulse 1.2s infinite; }
+.mv-call-icon--fin { color: #6b7280; }
+.mv-call-fin { text-align: center; }
+.mv-call-cerrando { font-size: 11px; color: #9ca3af; margin-top: 6px; }
 .mv-btn--solo { width: 60px; height: 60px; font-size: 24px; }
 .mv-call-titulo { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; font-weight: 700; }
 .mv-call-remoto { font-size: 18px; font-weight: 700; color: #1f2937; margin: 4px 0 10px; }
