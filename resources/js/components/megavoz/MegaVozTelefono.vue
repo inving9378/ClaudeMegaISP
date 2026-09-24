@@ -176,6 +176,13 @@ export default {
             // antes de limpiar la sesión de verdad.
             finalizando: false,
             mensajeFinal: '',
+            // Tono de "está timbrando" para llamadas salientes — ver
+            // iniciarTonoLlamando(). Por SIP el que llama NUNCA recibe audio
+            // real mientras el otro lado suena (eso solo empieza cuando
+            // contestan) — el "tuut… tuut…" que se oye en un teléfono normal
+            // lo genera el propio aparato/app que llama, no la central.
+            _audioCtx: null,
+            _ringInterval: null,
         };
     },
 
@@ -229,6 +236,7 @@ export default {
         if (this.ua) this.ua.stop();
         clearInterval(this._timerId);
         clearTimeout(this._dispDebounce);
+        this.detenerTonoLlamando();
     },
 
     methods: {
@@ -279,6 +287,7 @@ export default {
                 this.abierto = true;
                 this.engancharSesion();
                 this.cargarFicha(this.remotoId);
+                if (data.originator === 'local') this.iniciarTonoLlamando();
             });
 
             this.ua.start();
@@ -304,6 +313,7 @@ export default {
             // y se marca "activa" una sola vez (idempotente) con lo que llegue
             // primero, en vez de apostarle a uno solo de los dos eventos.
             const marcarActiva = () => {
+                this.detenerTonoLlamando();
                 if (this.estadoLlamada === 'activa') return;
                 this.estadoLlamada = 'activa';
                 this.inicioLlamada = Date.now();
@@ -425,9 +435,55 @@ export default {
         terminarConMensaje(mensaje) {
             clearInterval(this._timerId);
             this._timerId = null;
+            this.detenerTonoLlamando();
             this.mensajeFinal = mensaje;
             this.finalizando = true;
             setTimeout(() => this.limpiarSesion(), 2000);
+        },
+
+        // Cadencia clásica de ringback (440Hz+480Hz, 2s tono / 4s silencio) —
+        // sintetizado con Web Audio, sin depender de ningún archivo de audio.
+        // Arranca dentro del mismo clic de "Llamar" (o del disparo síncrono
+        // de newRTCSession que provoca), así que no choca con las políticas
+        // de autoplay del navegador (exigen que el audio arranque a partir
+        // de una interacción real del usuario, y esto lo es).
+        iniciarTonoLlamando() {
+            try {
+                const Ctx = window.AudioContext || window.webkitAudioContext;
+                const ctx = new Ctx();
+                const gain = ctx.createGain();
+                gain.gain.value = 0;
+                gain.connect(ctx.destination);
+
+                [440, 480].forEach((freq) => {
+                    const osc = ctx.createOscillator();
+                    osc.frequency.value = freq;
+                    osc.connect(gain);
+                    osc.start();
+                });
+
+                const ciclo = () => {
+                    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+                    gain.gain.setValueAtTime(0, ctx.currentTime + 2);
+                };
+                ciclo();
+
+                this._audioCtx = ctx;
+                this._ringGain = gain;
+                this._ringInterval = setInterval(ciclo, 6000);
+            } catch {
+                // Sin Web Audio (navegador viejo o autoplay bloqueado) — la
+                // llamada sigue igual, solo sin el tono.
+            }
+        },
+
+        detenerTonoLlamando() {
+            clearInterval(this._ringInterval);
+            this._ringInterval = null;
+            if (this._audioCtx) {
+                this._audioCtx.close().catch(() => {});
+                this._audioCtx = null;
+            }
         },
 
         mensajeDeFallo(data) {
@@ -445,6 +501,7 @@ export default {
         limpiarSesion() {
             clearInterval(this._timerId);
             this._timerId = null;
+            this.detenerTonoLlamando();
             this.inicioLlamada = null;
             this.duracionTexto = '00:00';
             this.silenciado = false;
@@ -464,7 +521,12 @@ export default {
 </script>
 
 <style scoped>
-.mv-wrap { position: fixed; right: 160px; bottom: 24px; z-index: 1039; }
+/* z-index alto a propósito: help-float-btn (ayuda) usa 9997 — más que este
+   widget antes (1039). Sin confirmar overlap real, pero es la sospecha más
+   probable del botón "solo clickeable en una esquina" que reportó David, y
+   subirlo no tiene downside (este widget SIEMPRE debe ganar sobre paneles
+   informativos de fondo, nunca al revés). */
+.mv-wrap { position: fixed; right: 160px; bottom: 24px; z-index: 10050; }
 
 .mv-bubble {
     width: 52px; height: 52px; border-radius: 50%;
@@ -550,7 +612,7 @@ export default {
 
 /* Modal de llamada activa — visible siempre, no depende de la burbuja */
 .mv-call-backdrop {
-    position: fixed; inset: 0; z-index: 1041;
+    position: fixed; inset: 0; z-index: 10052;
     background: rgba(15, 23, 42, .35);
     display: flex; align-items: flex-start; justify-content: center;
     padding-top: 90px;
