@@ -321,6 +321,18 @@ export default {
             };
             this.sesion.on('accepted', marcarActiva);
             this.sesion.on('confirmed', marcarActiva);
+            // Contestar pide el micrófono en ese momento (contestar() ->
+            // session.answer({mediaConstraints:{audio:true}})) — si el
+            // navegador no tiene permiso (nunca se concedió, se negó, o el
+            // usuario tardó y el navegador lo descartó), JsSIP dispara ESTE
+            // evento y la llamada muere ahí mismo, silenciosa: sin esto el
+            // que contesta solo ve "se cortó" sin ninguna pista de por qué
+            // (investigando el reporte de Irving/David 24-sep: "se corta
+            // cuando contesta" — no se pudo reproducir en vivo esta sesión
+            // por falta de navegador, este es el hueco más probable
+            // encontrado revisando el código: el mismo síntoma exacto que
+            // produciría un permiso de micrófono denegado/ignorado).
+            this.sesion.on('getusermediafailed', () => this.terminarConMensaje('No se pudo acceder al micrófono — revisa el permiso en el navegador'));
             this.sesion.on('ended', () => this.terminarConMensaje('Llamada finalizada'));
             this.sesion.on('failed', (data) => this.terminarConMensaje(this.mensajeDeFallo(data)));
         },
@@ -494,6 +506,11 @@ export default {
                 'Rejected':         'Llamada rechazada',
                 'Canceled':         'Llamada cancelada',
                 'Unavailable':      'No disponible',
+                // JsSIP también puede reportar el fallo de micrófono aquí
+                // (aparte del evento dedicado 'getusermediafailed' de
+                // arriba) — mismo mensaje en los dos casos.
+                'USER_DENIED_MEDIA_ACCESS': 'No se pudo acceder al micrófono — revisa el permiso en el navegador',
+                'RTP_TIMEOUT':      'Se perdió la conexión de audio (red inestable)',
             };
             return mapa[data?.cause] || 'No se pudo completar la llamada';
         },
