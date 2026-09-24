@@ -505,6 +505,12 @@ class ProvisionadorAsterisk
             // nombrar la misma ruta o el #include apuntaría al aire.
             'ASTERISK_GENERADOS_DIR'       => (string) app(GeneradorConfigAsterisk::class)
                 ->valoresDelServidor()['GENERADOS_DIR'],
+            // Misma razón: dónde deja MixMonitor las grabaciones (MegaVoz
+            // Fase 3). El script prepara el directorio y el global
+            // GRABACIONES_DIR de extensions.conf lo referencia — los dos
+            // lados tienen que decir la misma ruta.
+            'ASTERISK_GRABACIONES_DIR'     => (string) app(GeneradorConfigAsterisk::class)
+                ->valoresDelServidor()['GRABACIONES_DIR'],
         ];
     }
 

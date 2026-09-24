@@ -74,4 +74,13 @@ return [
         'rtp_end'             => env('ASTERISK_RTP_END', 20000),
         'ami_permit'          => env('ASTERISK_AMI_PERMIT', '127.0.0.1/255.255.255.255'),
     ],
+
+    // MegaVoz Fase 3 — grabación de llamadas de la cola. Directorio compartido
+    // entre Asterisk (usuario `asterisk`, escribe con MixMonitor) y MegaISP
+    // (usuario `www-data`, lee/purga) — mismo patrón de permisos de grupo que
+    // `asterisk.generados_dir` más arriba, aplicado por el provisionador.
+    'grabaciones' => [
+        'dir'            => env('MEGAISP_ASTERISK_GRABACIONES_DIR', '/var/lib/megaisp/grabaciones'),
+        'retencion_dias' => (int) env('MEGAVOZ_GRABACIONES_RETENCION_DIAS', 90),
+    ],
 ];

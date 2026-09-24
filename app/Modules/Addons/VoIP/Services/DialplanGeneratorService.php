@@ -179,6 +179,17 @@ class DialplanGeneratorService
      * Además `joinempty=no` en la propia cola (AsteriskProvisioningService::
      * provisionarCola) es un segundo candado, a nivel de Asterisk, por si
      * este chequeo de dialplan se saltara por algún camino no previsto.
+     *
+     * Grabación (`MixMonitor`) arranca justo después de `Answer()`, ANTES del
+     * `Playback(beep)` — cubre la llamada completa, incluido el contestador
+     * (relleno hoy, la IA real en Fase 6), no solo el tramo con el agente.
+     * El nombre de archivo es `${UNIQUEID}.wav` (único por diseño de
+     * Asterisk, sin colisiones) y se guarda también como `CDR(grabacion)`
+     * para que quede ligado a la fila de `voip_llamadas` sin necesidad de
+     * derivarlo después. Formato WAV porque el servidor no trae compilado
+     * `format_mp3` — la conversión a MP3, si se quiere, es un paso aparte
+     * sobre el archivo ya cerrado (ffmpeg, ya presente para Marketing), no
+     * parte de este dialplan.
      */
     private function buildColaExten(GrupoTimbrado $grupo, int $ringTime): array
     {
@@ -187,6 +198,8 @@ class DialplanGeneratorService
         return [
             "exten = s,1,NoOp(Grupo {$grupo->id} — {$grupo->nombre} — cola real, MegaVoz Fase 3)",
             " same = n,Answer()",
+            " same = n,Set(CDR(grabacion)=\${UNIQUEID}.wav)",
+            " same = n,MixMonitor(\${GRABACIONES_DIR}/\${UNIQUEID}.wav)  ; retención y purga: megavoz:purgar-grabaciones",
             " same = n,Playback(beep)  ; contestador de RELLENO — aquí conecta la IA real (Fase 6)",
             " same = n,GotoIf(\$[\${QUEUE_MEMBER({$nombreCola},ready)} > 0]?con_agente:sin_agente)",
             " same = n(con_agente),Queue({$nombreCola},t,,,{$ringTime})",

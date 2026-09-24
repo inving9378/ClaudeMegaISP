@@ -182,6 +182,11 @@ fi
 # Dónde deja MegaISP los .conf que genera. extensions.conf los incluye por esta
 # ruta, así que el script y el generador de PHP tienen que decir lo mismo.
 : "${ASTERISK_GENERADOS_DIR:=/etc/asterisk/megaisp.d}"
+# MegaVoz Fase 3 — dónde deja MixMonitor las grabaciones de la cola. Mismo
+# criterio que ASTERISK_GENERADOS_DIR arriba: el script y GeneradorConfigAsterisk
+# tienen que decir la misma ruta, o el global GRABACIONES_DIR de extensions.conf
+# apuntaría a un directorio que este script nunca preparó.
+: "${ASTERISK_GRABACIONES_DIR:=/var/lib/megaisp/grabaciones}"
 
 # El directorio de trabajo es PERSISTENTE y ya no un `mktemp -d`: con las fases
 # separadas, el tarball que baja `descargar` tiene que seguir ahí cuando corre
@@ -205,7 +210,7 @@ export ASTERISK_VERSION ASTERISK_ORIGEN ASTERISK_ARCHIVO ASTERISK_SHA256 \
        ASTERISK_MODO_DESCUBRIMIENTO \
        ASTERISK_DB_HOST ASTERISK_DB_PORT ASTERISK_DB_NAME \
        ASTERISK_DB_USER ASTERISK_DB_PASSWORD ASTERISK_DB_DRIVER ASTERISK_ODBC_DSN \
-       ASTERISK_GENERADOS_DIR
+       ASTERISK_GENERADOS_DIR ASTERISK_GRABACIONES_DIR
 
 # ── EL CONTRATO ──────────────────────────────────────────────────────────
 #
@@ -1005,6 +1010,23 @@ GEN
     chmod -R g+w "$ASTERISK_GENERADOS_DIR"
 }
 
+# MegaVoz Fase 3 — dónde deja MixMonitor las grabaciones de la cola.
+#
+# asterisk:asterisk + 2770 (setgid), NO asterisk:www-data: www-data ya es
+# miembro del grupo `asterisk` desde MegaVoz Fase 0/1 (mismo grupo que
+# ASTERISK_GENERADOS_DIR arriba) — no hace falta un segundo grupo. El setgid
+# es lo que importa: cada archivo que MixMonitor cree (dueño `asterisk`)
+# hereda el grupo del directorio automáticamente, así que www-data —el
+# purgador (megavoz:purgar-grabaciones) y cualquier endpoint de reproducción—
+# puede leerlo y borrarlo sin que el proceso de Asterisk tenga que saber nada
+# de permisos de aplicación web.
+preparar_grabaciones_dir() {
+    echo "--- preparando ${ASTERISK_GRABACIONES_DIR} ---"
+    mkdir -p "$ASTERISK_GRABACIONES_DIR"
+    chown asterisk:asterisk "$ASTERISK_GRABACIONES_DIR" 2>/dev/null || true
+    chmod 2770 "$ASTERISK_GRABACIONES_DIR"
+}
+
 escribir_dsn_odbc() {
     echo "--- registrando el DSN de unixODBC ---"
 
@@ -1142,6 +1164,9 @@ PYINI
 
     # ── Lo que MegaISP genera ──
     preparar_generados_dir
+
+    # ── Dónde graba MixMonitor (MegaVoz Fase 3) ──
+    preparar_grabaciones_dir
 
     # ── DSN de unixODBC ──
     escribir_dsn_odbc

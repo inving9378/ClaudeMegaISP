@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\VoIP;
 
+use App\Modules\Addons\VoIP\Console\PurgarGrabacionesCommand;
 use App\Modules\Addons\VoIP\Console\ReconciliarCommand;
 use App\Modules\Addons\VoIP\Console\ReconciliarEstadosCommand;
 use App\Modules\Addons\VoIP\Services\AsteriskProvisioningService;
@@ -29,6 +30,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 ReconciliarCommand::class,
                 ReconciliarEstadosCommand::class,
                 \App\Modules\Addons\VoIP\Console\ProvisionarAsteriskCommand::class,
+                PurgarGrabacionesCommand::class,
             ]);
         }
     }

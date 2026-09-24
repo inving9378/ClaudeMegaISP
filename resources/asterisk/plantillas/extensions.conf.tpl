@@ -20,6 +20,11 @@ writeprotect = yes
 clearglobalvars = no
 
 [globals]
+; MegaVoz Fase 3 — dónde deja MixMonitor las grabaciones de la cola. Un solo
+; global en vez de repetir la ruta en cada contexto que genera MegaISP; si
+; cambia, se regenera aquí (config/voip.php → grabaciones.dir), no en el
+; contenido que produce DialplanGeneratorService.
+GRABACIONES_DIR={{GRABACIONES_DIR}}
 
 ; ─── Llamada entre extensiones ─────────────────────────────────────────────
 ;

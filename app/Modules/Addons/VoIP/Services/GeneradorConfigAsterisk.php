@@ -169,6 +169,9 @@ class GeneradorConfigAsterisk
             // Dónde deja MegaISP los .conf que genera (grupos, ruteo entrante,
             // contexto restringido). extensions.conf los incluye por esta ruta.
             'GENERADOS_DIR'      => rtrim(config('requisitos-voip.asterisk.generados_dir', '/etc/asterisk/megaisp.d'), '/'),
+            // MegaVoz Fase 3 — dónde deja MixMonitor las grabaciones. Mismo
+            // valor que lee el purgador (megavoz:purgar-grabaciones).
+            'GRABACIONES_DIR'    => rtrim(config('voip.grabaciones.dir', '/var/lib/megaisp/grabaciones'), '/'),
             'BIND_SIP'           => config('voip.asterisk.bind_sip', '0.0.0.0'),
             'EXTERNAL_MEDIA'     => config('voip.asterisk.external_media', ''),
             'EXTERNAL_SIGNALING' => config('voip.asterisk.external_signaling', ''),

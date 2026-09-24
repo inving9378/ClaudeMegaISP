@@ -64,6 +64,10 @@ class Kernel extends ConsoleKernel
         // backup_db:process. Comando ya blindado (solo toca {V}/{V}.zip con match exacto).
         $schedule->command('backups:purge-test --force')->dailyAt('02:20')->withoutOverlapping();
 
+        // MegaVoz Fase 3 — retención de grabaciones de la cola (config voip.grabaciones.retencion_dias).
+        // Borra el .wav por antigüedad, conserva la fila de voip_llamadas (solo limpia la referencia).
+        $schedule->command('megavoz:purgar-grabaciones --force')->dailyAt('03:00')->withoutOverlapping();
+
         // Archivar activity_logs con más de 90 días a la BD meganet_logs
         $schedule->command('activitylog:archive --days=90')->dailyAt('02:00')->withoutOverlapping();
 
