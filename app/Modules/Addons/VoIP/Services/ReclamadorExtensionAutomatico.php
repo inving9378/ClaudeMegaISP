@@ -104,8 +104,17 @@ class ReclamadorExtensionAutomatico
      * navegador (`web{numero}`). A diferencia de la de escritorio, esta SÍ se
      * crea nueva — no hay un pool de gemelas pre-sembradas que reclamar,
      * porque es 100% derivada del número de la extensión dueña.
+     *
+     * PÚBLICO desde 24-sep-2026: además del alta automática de arriba,
+     * `ExtensionController::store()/update()` reusa este mismo método cuando
+     * un admin asigna `user_id` a una extensión A MANO (el camino que la
+     * propia clase ya documentaba como soportado — "se asigna a mano si hace
+     * falta, vía la pantalla de Extensiones" — pero nunca creaba la gemela
+     * web, así que el mini-teléfono no aparecía para nadie asignado por ese
+     * camino). Idempotente (early-return si `web{numero}` ya existe), así
+     * que es seguro llamarlo en cada guardado sin duplicar nada.
      */
-    private function crearGemelaWebrtc(Extension $extension, User $user): void
+    public function crearGemelaWebrtc(Extension $extension, User $user): void
     {
         $numeroWeb = 'web' . $extension->numero;
 

@@ -38,6 +38,25 @@ class IaBotController extends Controller
     {
         $this->authorize('voip.ia-bot.config');
 
+        // BUG REAL (encontrado en vivo 24-sep-2026, David/Irving: "no
+        // guarda nada nuevo que se le pone"): getConfig() devuelve
+        // horario_inicio/horario_fin tal cual los da MySQL — "09:00:00",
+        // CON segundos — porque el modelo no los castea. La pantalla no
+        // tiene campo propio para esas dos horas, así que las recibe del
+        // GET dentro de `config` y las reenvía intactas en CADA guardado
+        // (aunque el usuario solo haya tocado, por ejemplo, el prompt).
+        // La validación de abajo exige el formato H:i (SIN segundos) ->
+        // fallaba 422 en TODOS los guardados, sin excepción, sin importar
+        // qué campo se editara. Normalizar antes de validar: acepta tanto
+        // "09:00" (si algún día hay un <input type=time>) como "09:00:00"
+        // (el round-trip actual).
+        foreach (['horario_inicio', 'horario_fin'] as $campoHorario) {
+            $valor = $request->input($campoHorario);
+            if (is_string($valor) && strlen($valor) > 5) {
+                $request->merge([$campoHorario => substr($valor, 0, 5)]);
+            }
+        }
+
         $data = $request->validate([
             'enabled'              => 'boolean',
             'piloto_porcentaje'    => 'integer|min:0|max:100',

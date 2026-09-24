@@ -100,6 +100,31 @@
             <div class="form-text">Nombre del endpoint PJSIP del grupo.</div>
           </div>
 
+          <!-- Piloto: % de llamadas reales que atiende María + horario -->
+          <div class="col-12">
+            <hr class="my-2">
+            <h6 class="text-muted mb-2">
+              <i class="fas fa-percentage me-1"></i>Piloto — cuánto de la cola real atiende María
+            </h6>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Piloto: <strong>{{ config.piloto_porcentaje }}%</strong></label>
+            <input type="range" class="form-range" min="0" max="100" step="5" v-model.number="config.piloto_porcentaje">
+            <div class="form-text">
+              0% = nadie habla con María (aunque esté "Habilitado"). 100% = TODO cliente real que
+              llame dentro del horario de abajo.
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Horario — inicio</label>
+            <input type="time" class="form-control" v-model="config.horario_inicio">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Horario — fin</label>
+            <input type="time" class="form-control" v-model="config.horario_fin">
+            <div class="form-text">Fuera de este horario, María no atiende aunque el piloto esté arriba de 0%.</div>
+          </div>
+
           <!-- Límites -->
           <div class="col-md-4">
             <label class="form-label">Turnos máximos: <strong>{{ config.max_turns }}</strong></label>
@@ -483,7 +508,8 @@ export default {
   data() {
     return {
       tab: 'config',
-      config: { enabled: false, system_prompt: '', greeting_customer: '', greeting_lead: '',
+      config: { enabled: false, piloto_porcentaje: 0, horario_inicio: '09:00', horario_fin: '20:00',
+                system_prompt: '', greeting_customer: '', greeting_lead: '',
                 voice: 'nova', temperature: 0.7, max_turns: 12, max_duration_seconds: 480,
                 timeout_seconds: 15, grupo_timbrado_name: '' },
       saving: false,
@@ -543,6 +569,12 @@ export default {
       this.loadingConfig = true;
       try {
         const data = await this.request('GET', '/ia-bot/config');
+        // horario_inicio/horario_fin vienen de MySQL como "09:00:00" (con
+        // segundos) -- <input type="time"> quiere "09:00". Recortar aquí
+        // es la mitad "defensiva" del fix (la otra mitad, la que de verdad
+        // arregla el guardado, ya normaliza en el backend por si acaso).
+        if (typeof data.horario_inicio === 'string') data.horario_inicio = data.horario_inicio.slice(0, 5);
+        if (typeof data.horario_fin === 'string') data.horario_fin = data.horario_fin.slice(0, 5);
         this.config = data;
       } catch (e) { this.$notify?.({ type: 'error', title: e.message }); }
       finally { this.loadingConfig = false; }
