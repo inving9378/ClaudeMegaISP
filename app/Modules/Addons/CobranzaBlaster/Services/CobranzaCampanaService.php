@@ -18,7 +18,13 @@ class CobranzaCampanaService
             ->where('i.due_date', '<', now())
             ->where('i.pending_balance', '>', 0)
             ->whereNotIn('i.status', ['paid', 'cancelled'])
-            ->where('c.status', 'active')
+            // Bug real preexistente encontrado en Fase 7 al copiar este mismo
+            // filtro para cargarPorZona(): `clients` NO TIENE columna `status`
+            // — el estado del cliente vive en client_main_information.estado
+            // ('Activo'/'Bloqueado'/'Cancelado'/'Inactivo'). `c.status`
+            // habría tronado con "Column not found" en cuanto activarCampana()
+            // se corriera de verdad — nunca se había ejecutado en dev.
+            ->where('cmi.estado', 'Activo')
             ->whereNotNull('cmi.phone')
             ->whereNotExists(function ($q) use ($campana) {
                 $q->from('cobranza_llamadas')
@@ -80,7 +86,7 @@ class CobranzaCampanaService
             ->join('clients as c', 'c.id', '=', 'bz.client')
             ->join('client_main_information as cmi', 'cmi.client_id', '=', 'c.id')
             ->where('z.district_id', $districtId)
-            ->where('c.status', 'active')
+            ->where('cmi.estado', 'Activo')
             ->whereNotNull('cmi.phone')
             ->whereNotExists(function ($q) use ($campana) {
                 $q->from('cobranza_llamadas')
