@@ -255,6 +255,17 @@ export default {
                 display_name: cred.nombre,
                 register: true,
                 session_timers: false,
+                // Sin esto, JsSIP nunca manda tráfico de mantenimiento sobre
+                // el websocket — encontrado en vivo 24-sep-2026 (Irving↔Diana
+                // probando llamadas reales): "Web socket closed abruptly" se
+                // repite cada 1-2 minutos en el log de Asterisk durante TODA
+                // la sesión, no solo durante llamadas. Si la desconexión cae
+                // justo mientras una llamada está timbrando/conectando, la
+                // llamada se muere con la conexión — coincide exacto con "se
+                // cae a los 2 tonos". 30s mantiene el socket con actividad
+                // regular, muy por debajo de cualquier timeout de inactividad
+                // razonable (el de nginx para /ws es de 3600s).
+                keepalive_interval: 30,
             }));
 
             this.estado = 'registrando';
