@@ -199,19 +199,41 @@ class DialplanGeneratorService
      * evalúa el daemon EN VIVO por cada llamada
      * (`IaBotConfig::debeAtenderAhora()`), porque son una tirada aleatoria y
      * una ventana de horario, no algo que tenga sentido congelar en texto
-     * estático. Si el daemon decide no atender (fuera del piloto, fuera de
-     * horario, o simplemente no está corriendo), cierra el socket casi de
-     * inmediato sin decir nada — `AudioSocket()` regresa rápido y el
-     * dialplan sigue exactamente igual que si Fase 6 no existiera.
-     * `Playback(beep)` sigue sonando SIEMPRE primero, la atienda o no
-     * María — es el mismo "algo está pasando" para el que llama en los dos
+     * estático. Si el daemon SÍ está corriendo y decide no atender (fuera
+     * del piloto, fuera de horario) cierra el socket casi de inmediato sin
+     * decir nada — confirmado en el código fuente de Asterisk
+     * (`app_audiosocket.c`: el cierre remoto se detecta como hangup y
+     * `AudioSocket()` regresa 0, "normal exit") — y el dialplan sigue
+     * exactamente igual que si Fase 6 no existiera.
+     *
+     * ⚠️ PERO si el daemon simplemente NO ESTÁ CORRIENDO (crash, aún no
+     * arrancado, puerto equivocado), `ast_audiosocket_connect()` falla y
+     * `audiosocket_exec()` regresa `-1` ANTES de intentar nada más — y un
+     * valor negativo de una app de dialplan es la convención clásica de
+     * Asterisk para "colgar el canal", NO "seguir a la siguiente
+     * prioridad". Confirmado en vivo (2026-09-24): un `channel originate`
+     * contra `grupo-1` con el daemon apagado colgó el canal sin que
+     * apareciera NUNCA un `ENTERQUEUE` en `queue_log` — la regla de oro
+     * (`Answer()` primero, cola después SIEMPRE) se rompía en silencio
+     * justo en el caso más probable de estar mal (daemon caído). Por eso
+     * el `TrySystem(nc)` de abajo: es un candado de PRE-VUELO barato (nc ya
+     * viene en el sistema) que decide, con la MISMA convención segura que
+     * ya usa toda la cola (`SYSTEMSTATUS`, que `TrySystem` nunca deja
+     * colgar el canal pase lo que pase), si vale la pena intentar
+     * `AudioSocket()` siquiera. Sin este candado, dejar `enabled=true` sin
+     * el daemon corriendo como servicio persistente (systemd, aún
+     * pendiente) desconectaría clientes reales en silencio.
+     * `Playback(beep)` sigue sonando SIEMPRE primero, la atienda María o
+     * no — es el mismo "algo está pasando" para el que llama en los dos
      * casos, no dos contestadores distintos.
      */
     private function buildColaExten(GrupoTimbrado $grupo, int $ringTime): array
     {
         $nombreCola = $grupo->nombreCola();
         $botHabilitado = IaBotConfig::current()->enabled;
-        $botHostPuerto = config('voip.bot_voz.host', '127.0.0.1') . ':' . config('voip.bot_voz.port', 9099);
+        $botHost = config('voip.bot_voz.host', '127.0.0.1');
+        $botPort = config('voip.bot_voz.port', 9099);
+        $botHostPuerto = "{$botHost}:{$botPort}";
 
         return [
             "exten = s,1,NoOp(Grupo {$grupo->id} — {$grupo->nombre} — cola real, MegaVoz Fase 3)",
@@ -220,8 +242,11 @@ class DialplanGeneratorService
             " same = n,MixMonitor(\${GRABACIONES_DIR}/\${UNIQUEID}.wav)  ; retención y purga: megavoz:purgar-grabaciones",
             " same = n,Playback(beep)  ; contestador — María (si le toca esta llamada) sigue justo después",
             ...($botHabilitado ? [
+                " same = n,TrySystem(nc -z -w1 {$botHost} {$botPort})  ; Fase 6 — pre-vuelo: sin esto, un AudioSocket() a un daemon caído cuelga el canal en vez de seguir a la cola (ver nota arriba)",
+                " same = n,GotoIf(\$[\"\${SYSTEMSTATUS}\" != \"SUCCESS\"]?sigue_bot)",
                 " same = n,Set(BOT_UUID=\${UUID()})",
-                " same = n,AudioSocket(\${BOT_UUID},{$botHostPuerto})  ; Fase 6 — el daemon decide en vivo si atiende (piloto/horario)",
+                " same = n,AudioSocket(\${BOT_UUID},{$botHostPuerto})  ; el daemon decide en vivo si atiende (piloto/horario)",
+                " same = n(sigue_bot),NoOp(Fase 6 — fin del intento de bot)",
             ] : []),
             " same = n,GotoIf(\$[\${QUEUE_MEMBER({$nombreCola},ready)} > 0]?con_agente:sin_agente)",
             " same = n(con_agente),Queue({$nombreCola},t,,,{$ringTime})",
