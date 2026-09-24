@@ -169,8 +169,13 @@ class DialplanGeneratorService
      * instalación) en vez de un prompt en español para no depender de un
      * archivo que podría no existir en este servidor.
      *
-     * `QUEUE_MEMBER(cola,logged)` se puede leer ANTES de Answer() y ANTES de
+     * `QUEUE_MEMBER(cola,ready)` se puede leer ANTES de Answer() y ANTES de
      * intentar Queue() — confirmado que no depende del estado del canal.
+     * "ready" y no "logged" a propósito: "logged" solo cuenta miembros
+     * CONFIGURADOS en la cola, sin importar si su teléfono está de verdad
+     * conectado — con eso la regla de oro habría dado luz verde aunque nadie
+     * pudiera contestar en realidad. "ready" excluye a quien esté
+     * desconectado/ocupado — es la que refleja disponibilidad real.
      * Además `joinempty=no` en la propia cola (AsteriskProvisioningService::
      * provisionarCola) es un segundo candado, a nivel de Asterisk, por si
      * este chequeo de dialplan se saltara por algún camino no previsto.
@@ -183,7 +188,7 @@ class DialplanGeneratorService
             "exten = s,1,NoOp(Grupo {$grupo->id} — {$grupo->nombre} — cola real, MegaVoz Fase 3)",
             " same = n,Answer()",
             " same = n,Playback(beep)  ; contestador de RELLENO — aquí conecta la IA real (Fase 6)",
-            " same = n,GotoIf(\$[\${QUEUE_MEMBER({$nombreCola},logged)} > 0]?con_agente:sin_agente)",
+            " same = n,GotoIf(\$[\${QUEUE_MEMBER({$nombreCola},ready)} > 0]?con_agente:sin_agente)",
             " same = n(con_agente),Queue({$nombreCola},t,,,{$ringTime})",
             " same = n,Goto(s,fallback)",
             " same = n(sin_agente),NoOp(Sin agentes libres en {$nombreCola} — no se intenta encolar)",
