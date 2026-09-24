@@ -68,6 +68,9 @@ class Kernel extends ConsoleKernel
         // Borra el .wav por antigüedad, conserva la fila de voip_llamadas (solo limpia la referencia).
         $schedule->command('megavoz:purgar-grabaciones --force')->dailyAt('03:00')->withoutOverlapping();
 
+        // MegaVoz Fase 5 — importa queue_log a voip_queue_log para el tablero de KPIs.
+        $schedule->command('megavoz:importar-queue-log')->everyFiveMinutes()->withoutOverlapping();
+
         // Archivar activity_logs con más de 90 días a la BD meganet_logs
         $schedule->command('activitylog:archive --days=90')->dailyAt('02:00')->withoutOverlapping();
 
