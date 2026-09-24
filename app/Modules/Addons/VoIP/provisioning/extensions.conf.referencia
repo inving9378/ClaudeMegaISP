@@ -1,0 +1,111 @@
+; ═══════════════════════════════════════════════════════════════════════════
+; COPIA DE REFERENCIA de /etc/asterisk/extensions.conf — NO se aplica sola.
+; ═══════════════════════════════════════════════════════════════════════════
+;
+; Este archivo vive FUERA del control de versiones de Asterisk (no hay ningún
+; generador PHP/shell en este repo que lo produzca — a diferencia de
+; /etc/asterisk/megaisp.d/*, que sí regenera DialplanGeneratorService cada vez
+; que cambian troncales/grupos). Se creó a mano una sola vez durante MegaVoz
+; Fase 1/2 y desde entonces se edita directo en el servidor cuando hace falta
+; — esta copia es solo para que el cambio quede en el historial de git y
+; cualquiera pueda ver qué dice el archivo real sin permiso de lectura sobre
+; /etc/asterisk (meganet no lo tiene; solo www-data y root).
+;
+; Cómo aplicar un cambio a este archivo en el servidor real:
+;   1. Editar esta copia.
+;   2. cp <esta copia> /tmp/ast_extensions.conf
+;   3. sudo bash actualizar-extensions.sh   (mismo directorio — usa el sudoers
+;      NOPASSWD ya existente para scripts .sh de esta carpeta; internamente
+;      hace `cp /tmp/ast_extensions.conf /etc/asterisk/extensions.conf` +
+;      `asterisk -rx "dialplan reload"`)
+;
+; (El truco de "escribir vía www-data" que funciona para /etc/asterisk/megaisp.d/*
+; NO funciona aquí — ese subdirectorio tiene permiso de escritura de grupo para
+; www-data, pero extensions.conf en sí no.)
+
+[general]
+static = yes
+; No se permite que Asterisk reescriba este archivo desde el CLI: lo genera el
+; provisionador, y un `dialplan save` lo dejaría fuera de sincronía con MegaISP
+; sin que quede rastro de quién lo cambió.
+writeprotect = yes
+clearglobalvars = no
+
+[globals]
+; MegaVoz Fase 3 — dónde deja MixMonitor las grabaciones de la cola. Un solo
+; global en vez de repetir la ruta en cada contexto que genera MegaISP; si
+; cambia, se regenera aquí (config/voip.php → grabaciones.dir), no en el
+; contenido que produce DialplanGeneratorService.
+GRABACIONES_DIR=/var/lib/megaisp/grabaciones
+
+; ─── Llamada entre extensiones ─────────────────────────────────────────────
+;
+; El endpoint de PJSIP se llama igual que el número de la extensión, así que el
+; destino sale del propio ${EXTEN} y este contexto no necesita regenerarse cada
+; vez que se da de alta una extensión nueva.
+[from-internal]
+
+; Internos de 4 dígitos — el plan de numeración de MegaISP vive en 1000-1999.
+;
+; Timbra la de escritorio Y la gemela WebRTC (web${EXTEN}) A LA VEZ —
+; contesta la que esté conectada. Antes solo timbraba PJSIP/${EXTEN}: si esa
+; persona no tenía su teléfono físico prendido (el caso normal para alguien
+; que solo usa el navegador), marcar su número de 4 dígitos fallaba de
+; inmediato ("Could not create dialog... Is endpoint registered and
+; reachable?") aunque su línea de navegador SÍ estuviera conectada — y quien
+; marcaba tenía que saber de memoria el prefijo "web" para encontrarla, algo
+; que nadie recuerda en la práctica (encontrado en vivo 24-sep-2026, Irving
+; marcando "1003" repetidamente en vez de "web1003" para llamar a Diana). Si
+; web${EXTEN} no existe como endpoint (la mayoría de las extensiones no
+; tienen gemela), ese segundo canal simplemente no se puede crear y Asterisk
+; sigue con el primero — no rompe nada, solo dos líneas de log de más.
+exten = _[1-9]XXX,1,NoOp(Interno: ${CALLERID(num)} -> ${EXTEN})
+ same = n,Set(CDR(userfield)=interno)
+ same = n,Dial(PJSIP/${EXTEN}&PJSIP/web${EXTEN},30)
+ same = n,Hangup()
+
+; Internos de 3 dígitos — instalaciones con plan corto. Mismo criterio que
+; arriba (timbra escritorio + gemela web a la vez).
+exten = _[1-9]XX,1,NoOp(Interno: ${CALLERID(num)} -> ${EXTEN})
+ same = n,Set(CDR(userfield)=interno)
+ same = n,Dial(PJSIP/${EXTEN}&PJSIP/web${EXTEN},30)
+ same = n,Hangup()
+
+; MegaVoz Fase 2 — gemela WebRTC de una extensión (webNNNN). El endpoint de
+; PJSIP se llama igual que el número completo con el prefijo, igual que el
+; resto de este contexto.
+exten = _web[1-9]XXX,1,NoOp(Interno (WebRTC): ${CALLERID(num)} -> ${EXTEN})
+ same = n,Set(CDR(userfield)=interno)
+ same = n,Dial(PJSIP/${EXTEN},30)
+ same = n,Hangup()
+
+; ─── Servicios del sistema ─────────────────────────────────────────────────
+;
+; Viven en 1900-1999, el rango que el plan de numeración marca como protegido
+; justamente para esto: ahí no se dan de alta extensiones de persona, así que un
+; servicio no le puede quitar el número a nadie.
+
+; Eco: devuelve lo que entra. Es la forma de comprobar que el audio va y viene
+; con UN solo teléfono, sin depender de que haya alguien del otro lado.
+exten = 1999,1,NoOp(Prueba de eco desde ${CALLERID(num)})
+ same = n,Answer()
+ same = n,Playback(demo-echotest)
+ same = n,Echo()
+ same = n,Hangup()
+
+; Dice el número desde el que se llama. Sirve para confirmar que el teléfono
+; quedó registrado con la extensión que se creía.
+exten = 1998,1,NoOp(Quién soy: ${CALLERID(num)})
+ same = n,Answer()
+ same = n,SayDigits(${CALLERID(num)})
+ same = n,Hangup()
+
+exten = i,1,Hangup()
+exten = t,1,Hangup()
+
+; ─── Lo que genera MegaISP ─────────────────────────────────────────────────
+;
+; Grupos de timbrado, ruteo entrante por troncal y contexto restringido. El
+; archivo lo crea el provisionador —vacío si aún no hay nada que generar— para
+; que este #include nunca apunte a algo que no existe.
+#include "/etc/asterisk/megaisp.d/megaisp_dialplan.conf"
