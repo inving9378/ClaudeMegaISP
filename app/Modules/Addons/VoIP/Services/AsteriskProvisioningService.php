@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\VoIP\Services;
 
 use App\Modules\Addons\VoIP\Models\Extension;
+use App\Modules\Addons\VoIP\Models\GrupoTimbrado;
 use App\Modules\Addons\VoIP\Models\Troncal;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -226,6 +227,83 @@ class AsteriskProvisioningService
             }
         } catch (\Throwable) {
             // No bloquear la provisión si el check de transporte falla
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // COLAS (MegaVoz Fase 3)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private const ESTRATEGIA_A_ASTERISK = [
+        'ringall'    => 'ringall',
+        'hunt'       => 'linear',
+        'memoryhunt' => 'rrmemory',
+    ];
+
+    /**
+     * Provisiona un grupo de timbrado con `es_cola=true` como cola real de
+     * Asterisk (app_queue) — miembros en queue_members, config en queues.
+     *
+     * `joinempty=no` es la "regla de oro" reforzada A NIVEL DE ASTERISK: si
+     * nadie está logueado en la cola, Asterisk mismo rechaza que alguien
+     * entre — no depende solo del chequeo QUEUE_MEMBER() en el dialplan.
+     */
+    public function provisionarCola(GrupoTimbrado $grupo): void
+    {
+        $nombreCola = $grupo->nombreCola();
+
+        $this->upsertBy('queues', 'name', [
+            'name'           => $nombreCola,
+            'strategy'       => self::ESTRATEGIA_A_ASTERISK[$grupo->estrategia] ?? 'ringall',
+            'timeout'        => $grupo->ring_time ?: 20,
+            'wrapuptime'     => 0,
+            'ringinuse'      => 'yes',
+            'joinempty'      => 'no',
+            'leavewhenempty' => 'no',
+        ]);
+
+        $interfaces = $grupo->extensiones->map(fn (Extension $e) => "PJSIP/{$e->numero}")->all();
+
+        // Quita del realtime cualquier miembro que ya no esté en el pivote.
+        $this->db()->table('queue_members')
+            ->where('queue_name', $nombreCola)
+            ->when(! empty($interfaces), fn ($q) => $q->whereNotIn('interface', $interfaces))
+            ->delete();
+
+        foreach ($grupo->extensiones as $ext) {
+            $interface = "PJSIP/{$ext->numero}";
+            $this->db()->table('queue_members')
+                ->updateOrInsert(
+                    ['queue_name' => $nombreCola, 'interface' => $interface],
+                    ['membername' => $ext->nombre, 'state_interface' => $interface, 'penalty' => 0, 'paused' => 0]
+                );
+        }
+
+        $this->reloadQueues();
+        Log::info("VoIP: cola {$nombreCola} provisionada — " . count($interfaces) . ' miembro(s).');
+    }
+
+    public function desprovisionarCola(GrupoTimbrado $grupo): void
+    {
+        $nombreCola = $grupo->nombreCola();
+        $this->db()->table('queue_members')->where('queue_name', $nombreCola)->delete();
+        $this->db()->table('queues')->where('name', $nombreCola)->delete();
+        $this->reloadQueues();
+        Log::info("VoIP: cola {$nombreCola} desprovisionada.");
+    }
+
+    public function reloadQueues(): bool
+    {
+        try {
+            $raw = $this->amiSend("Action: Reload\r\nModule: app_queue.so\r\n\r\n", readAll: false);
+            $ok  = str_contains($raw, 'Response: Success') || str_contains($raw, 'Module reloaded');
+            if (! $ok) {
+                Log::warning("VoIP: queue reload AMI response: {$raw}");
+            }
+            return $ok;
+        } catch (\Throwable $e) {
+            Log::warning("VoIP: queue reload AMI failed: {$e->getMessage()}");
+            return false;
         }
     }
 
@@ -529,10 +607,19 @@ class AsteriskProvisioningService
 
     private function upsert(string $table, array $data): void
     {
-        $id     = $data['id'];
-        $exists = $this->db()->table($table)->where('id', $id)->exists();
+        $this->upsertBy($table, 'id', $data);
+    }
+
+    /**
+     * Igual que upsert(), pero para tablas realtime cuya llave natural no se
+     * llama "id" (ej. queues, cuya llave es "name") — MegaVoz Fase 3.
+     */
+    private function upsertBy(string $table, string $keyColumn, array $data): void
+    {
+        $valor  = $data[$keyColumn];
+        $exists = $this->db()->table($table)->where($keyColumn, $valor)->exists();
         if ($exists) {
-            $this->db()->table($table)->where('id', $id)->update($data);
+            $this->db()->table($table)->where($keyColumn, $valor)->update($data);
         } else {
             $this->db()->table($table)->insert($data);
         }

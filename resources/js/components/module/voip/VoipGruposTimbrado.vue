@@ -36,7 +36,12 @@
                         </thead>
                         <tbody>
                             <tr v-for="g in grupos" :key="g.id">
-                                <td class="fw-medium">{{ g.nombre }}</td>
+                                <td class="fw-medium">
+                                    {{ g.nombre }}
+                                    <span v-if="g.es_cola" class="tc-status is-info d-block" style="width:fit-content;font-size:0.72rem">
+                                        <i class="fa fa-headset me-1"></i>Cola real
+                                    </span>
+                                </td>
                                 <td>
                                     <span class="tc-status is-slate">{{ g.estrategia }}</span>
                                 </td>
@@ -153,6 +158,19 @@
 
                             <div class="col-12">
                                 <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" v-model="form.es_cola" id="chkEsCola">
+                                    <label class="form-check-label" for="chkEsCola">
+                                        Cola real de Asterisk (MegaVoz)
+                                        <small class="text-muted d-block">
+                                            En vez de timbrar directo, contesta primero y solo entra a los
+                                            agentes si hay al menos uno libre.
+                                        </small>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-check form-switch">
                                     <input class="form-check-input" type="checkbox" v-model="form.activo" id="chkActivoGrupo">
                                     <label class="form-check-label" for="chkActivoGrupo">Grupo activo</label>
                                 </div>
@@ -254,6 +272,7 @@ export default {
             return {
                 nombre:           '',
                 estrategia:       'ringall',
+                es_cola:          false,
                 ring_time:        20,
                 destino_fallback: 'colgar',
                 activo:           true,
@@ -304,6 +323,7 @@ export default {
                 this.form = {
                     nombre:           grupo.nombre,
                     estrategia:       grupo.estrategia,
+                    es_cola:          grupo.es_cola,
                     ring_time:        grupo.ring_time,
                     destino_fallback: grupo.destino_fallback,
                     activo:           grupo.activo,
