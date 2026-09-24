@@ -67,10 +67,24 @@ class AudioSocketServer
         $framesMax = (int) (($maxSegundos * 1000) / self::MS_POR_FRAME);
         $frames = 0;
 
-        // Umbral de energía: RMS bajo (~200 sobre 16-bit) ya se considera
-        // silencio — conservador a propósito, mejor perder un poco de
-        // sensibilidad que cortar a media palabra por ruido de línea.
-        $umbralRms = 250.0;
+        // Umbral de energía — SUBIDO de 250 a 500 (24-sep-2026, prueba real
+        // contra el troncal de Irving): con 250, puro ruido de línea de una
+        // llamada real (más alto que el audio sintético de prueba con el
+        // que se calibró originalmente) ya disparaba "detecté voz" — el
+        // resultado: turnos enteros hechos de silencio/ruido se mandaban a
+        // Whisper, que ALUCINA texto de sus datos de entrenamiento (subtítulos
+        // de YouTube) cuando le llega audio sin habla real — visto en vivo
+        // como "cliente dijo: ¡SUSCRÍBETE!" y "Subtítulos realizados por la
+        // comunidad de Amara.org" sin que nadie dijera nada. 500 sigue muy
+        // por debajo de la energía típica de una voz real hablando.
+        $umbralRms = 500.0;
+
+        // Además del umbral por energía: exigir un mínimo de tiempo
+        // sostenido con esa energía (no solo un frame aislado) antes de
+        // tratarlo como habla real — un blip de ruido de 20-40ms no es una
+        // palabra. Segunda capa contra el mismo problema de alucinaciones.
+        $framesVozMinimos = (int) (300 / self::MS_POR_FRAME);
+        $framesConVoz = 0;
 
         while ($frames < $framesMax) {
             $frame = $this->leerFrame();
@@ -92,6 +106,7 @@ class AudioSocketServer
             $rms = $this->rms($frame['payload']);
             if ($rms >= $umbralRms) {
                 $huboVoz = true;
+                $framesConVoz++;
                 $framesSilencioSeguidos = 0;
             } elseif ($huboVoz) {
                 $framesSilencioSeguidos++;
@@ -101,7 +116,7 @@ class AudioSocketServer
             }
         }
 
-        if (! $huboVoz || $pcm === '') {
+        if (! $huboVoz || $pcm === '' || $framesConVoz < $framesVozMinimos) {
             return null;
         }
 

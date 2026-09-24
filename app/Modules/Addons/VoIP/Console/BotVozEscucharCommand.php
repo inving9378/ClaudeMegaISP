@@ -40,6 +40,20 @@ class BotVozEscucharCommand extends Command
 
     private const LOG_CHANNEL_PATH = 'logs/megavoz-bot-voz.log';
 
+    // Frases de relleno — se habla UNA justo después de detectar que la
+    // persona terminó su turno y ANTES de arrancar transcribir→pensar→
+    // convertir a voz (los 3 pasos reales, que entre los tres suman varios
+    // segundos). Sin esto el que llama escucha puro silencio mientras
+    // María "procesa" — encontrado en vivo (24-sep-2026, David probando):
+    // "se demora en responder". Cacheadas igual que el saludo — el costo
+    // real de generarlas solo se paga la primera vez.
+    private const FRASES_ESPERA = [
+        'Mmm, dame un segundo...',
+        'Déjame revisar eso...',
+        'Un momento, por favor...',
+        'Ok, permíteme un momento...',
+    ];
+
     public function handle(): int
     {
         // Sin --host/--port explícitos, misma fuente que ya lee el dialplan
@@ -59,11 +73,48 @@ class BotVozEscucharCommand extends Command
             return self::FAILURE;
         }
 
-        // No dejar zombies de los hijos que van terminando.
-        pcntl_signal(SIGCHLD, SIG_IGN);
-
         $this->info("🎙️  Bot de voz escuchando en tcp://{$host}:{$port} (AISLADO, sin conectar a llamadas reales). Ctrl+C para detener.");
         $this->log("Daemon iniciado en {$host}:{$port}");
+
+        // Pre-calienta la caché del saludo ANTES de aceptar la primera
+        // llamada — si el saludo se sintetizara en frío en la primera
+        // conversación real, esa primera llamada pagaría la misma latencia
+        // de OpenAI+ffmpeg que causó el bug del timeout de 2000ms (ver
+        // VoiceTtsService::sintetizarCacheado()). Best-effort: si falla
+        // (ej. sin red al arrancar), no tumba el daemon — la primera
+        // llamada simplemente cachearía en caliente como antes.
+        //
+        // ⚠️ DEBE correr ANTES de poner SIGCHLD=SIG_IGN (abajo): ese ignore
+        // es para no dejar zombies de LLAMADAS ya terminadas, pero también
+        // rompe silenciosamente la espera de Symfony Process por EL PROPIO
+        // ffmpeg de este pre-calentado (mismo bug ya conocido y corregido
+        // para los hijos por-llamada — encontrado de nuevo aquí en vivo:
+        // "Caché de saludo FALLÓ: No se pudo convertir el audio a PCM" con
+        // SIGCHLD ya en SIG_IGN, aunque OpenAI sí respondió bien).
+        try {
+            $ttsCache = app(VoiceTtsService::class);
+
+            $config = IaBotConfig::current();
+            $saludo = trim(str_replace('[nombre]', '', $config->greeting_lead));
+            if ($saludo !== '') {
+                $r = $ttsCache->sintetizarCacheado($saludo);
+                $this->log('Caché de saludo ' . (($r['success'] ?? false) ? 'lista' : ('FALLÓ: ' . ($r['error'] ?? '?'))));
+            }
+
+            foreach (self::FRASES_ESPERA as $frase) {
+                $r = $ttsCache->sintetizarCacheado($frase);
+                if (! ($r['success'] ?? false)) {
+                    $this->log("Caché de frase de espera FALLÓ (\"{$frase}\"): " . ($r['error'] ?? '?'), 'warning');
+                }
+            }
+            $this->log('Caché de frases de espera lista (' . count(self::FRASES_ESPERA) . ')');
+        } catch (\Throwable $e) {
+            $this->log('No se pudo pre-calentar la caché de audio: ' . $e->getMessage(), 'warning');
+        }
+
+        // No dejar zombies de los hijos que van terminando (llamadas, no
+        // este pre-calentado, que ya corrió arriba).
+        pcntl_signal(SIGCHLD, SIG_IGN);
 
         while (true) {
             $conn = @stream_socket_accept($server, -1, $peer);
@@ -158,7 +209,10 @@ class BotVozEscucharCommand extends Command
         $cerebro = app(ConversacionBotService::class);
 
         // Saludo inicial — se habla ANTES de escuchar el primer turno.
-        $this->hablar($socket, $tts, str_replace('[nombre]', '', $config->greeting_lead), $conversacion);
+        // Cacheado (ver VoiceTtsService::sintetizarCacheado): el texto es
+        // fijo, así que se manda casi instantáneo en vez de esperar una
+        // llamada real a OpenAI — evita el timeout de 2000ms de AudioSocket.
+        $this->hablarCacheado($socket, $tts, str_replace('[nombre]', '', $config->greeting_lead), $conversacion);
 
         $turno = 0;
         $inicio = time();
@@ -178,18 +232,33 @@ class BotVozEscucharCommand extends Command
                 continue;
             }
 
+            // Relleno cacheado ANTES de los 3 pasos reales (transcribir→
+            // pensar→hablar) — esos suman varios segundos, sin esto el que
+            // llama escucha silencio muerto en lo que María "procesa".
+            $this->hablarCacheado($socket, $tts, self::FRASES_ESPERA[array_rand(self::FRASES_ESPERA)], $conversacion);
+
+            $t0 = microtime(true);
             $r = $stt->transcribir($wav);
             @unlink($wav);
+            $msStt = round((microtime(true) - $t0) * 1000);
+
             if (! ($r['success'] ?? false) || trim((string) ($r['texto'] ?? '')) === '') {
+                $this->log("{$uuid}: turno descartado (silencio/alucinación) — STT={$msStt}ms");
                 $turno++;
                 continue;
             }
 
-            $this->log("{$uuid}: cliente dijo: \"{$r['texto']}\"");
-            $respuesta = $cerebro->turno($conversacion, $r['texto']);
-            $this->log("{$uuid}: María responde: \"{$respuesta['texto_hablado']}\"" . ($respuesta['transferir'] ? ' [TRANSFERIR]' : ''));
+            $this->log("{$uuid}: cliente dijo: \"{$r['texto']}\" (STT={$msStt}ms)");
 
+            $t0 = microtime(true);
+            $respuesta = $cerebro->turno($conversacion, $r['texto']);
+            $msLlm = round((microtime(true) - $t0) * 1000);
+            $this->log("{$uuid}: María responde: \"{$respuesta['texto_hablado']}\"" . ($respuesta['transferir'] ? ' [TRANSFERIR]' : '') . " (LLM={$msLlm}ms)");
+
+            $t0 = microtime(true);
             $this->hablar($socket, $tts, $respuesta['texto_hablado'], $conversacion);
+            $msTts = round((microtime(true) - $t0) * 1000);
+            $this->log("{$uuid}: turno completo — STT={$msStt}ms LLM={$msLlm}ms TTS={$msTts}ms total=" . ($msStt + $msLlm + $msTts) . 'ms');
 
             if ($respuesta['transferir']) {
                 $transferido = true;
@@ -228,6 +297,28 @@ class BotVozEscucharCommand extends Command
 
         $socket->enviarAudio($audio['pcm_path']);
         @unlink($audio['pcm_path']);
+    }
+
+    /**
+     * Igual que hablar(), pero para texto FIJO cacheable en disco (el
+     * saludo) — NUNCA borra el .pcm después de usarlo, es el mismo archivo
+     * que reutilizan todas las llamadas siguientes.
+     */
+    private function hablarCacheado(AudioSocketServer $socket, VoiceTtsService $tts, string $texto, IaBotConversation $conversacion): void
+    {
+        $texto = trim($texto);
+        if ($texto === '') {
+            return;
+        }
+        $audio = $tts->sintetizarCacheado($texto);
+        if (! ($audio['success'] ?? false)) {
+            $this->log('TTS (cacheado) falló al hablar: ' . ($audio['error'] ?? '?'), 'warning');
+            return;
+        }
+        $conversacion->cost_usd = (float) $conversacion->cost_usd + (float) ($audio['costo_usd'] ?? 0);
+        $conversacion->save();
+
+        $socket->enviarAudio($audio['pcm_path']);
     }
 
     private function log(string $message, string $level = 'info'): void
