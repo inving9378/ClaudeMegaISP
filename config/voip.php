@@ -84,6 +84,16 @@ return [
         'retencion_dias' => (int) env('MEGAVOZ_GRABACIONES_RETENCION_DIAS', 90),
     ],
 
+    // MegaVoz Fase 6 — dónde escucha el daemon del motor de voz
+    // (voip:bot-voz-escuchar). Debe coincidir con lo que arranca el propio
+    // comando (--host/--port) y con lo que este mismo valor le manda a
+    // AudioSocket() en el dialplan generado — DialplanGeneratorService lee
+    // este MISMO config, una sola fuente de verdad.
+    'bot_voz' => [
+        'host' => env('MEGAVOZ_BOT_VOZ_HOST', '127.0.0.1'),
+        'port' => (int) env('MEGAVOZ_BOT_VOZ_PORT', 9099),
+    ],
+
     // MegaVoz Fase 5 — de dónde importa megavoz:importar-queue-log. Es el log
     // NATIVO de app_queue (formato propio de Asterisk, no realtime) — única
     // fuente confiable para KPIs por agente.
