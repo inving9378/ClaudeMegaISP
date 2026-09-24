@@ -608,6 +608,13 @@ export default {
 .mv-btn--bad  { background: #dc2626; color: #fff; }
 .mv-btn--warn { background: #d97706; color: #fff; }
 .mv-btn:disabled { opacity: .4; cursor: not-allowed; }
+/* El ícono (FontAwesome, <i>) dentro de un botón puede no repasar el clic a
+   su padre de forma confiable en algunos navegadores — el reporte real de
+   David: "solo funciona el clic en la esquina" de la burbuja, exactamente
+   este patrón. pointer-events:none saca al ícono de la jugada del todo: el
+   clic SIEMPRE cae directo en el botón, sin importar dónde del ícono se
+   haga clic. */
+.mv-bubble i, .mv-btn i, .mv-close i { pointer-events: none; }
 .mv-btn--grande { width: 52px; height: 52px; font-size: 20px; }
 
 /* Modal de llamada activa — visible siempre, no depende de la burbuja */
