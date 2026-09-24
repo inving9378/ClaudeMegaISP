@@ -121,7 +121,19 @@ class ReclamadorExtensionAutomatico
             'tipo_dispositivo'         => 'softphone',
             'es_webrtc'                => true,
             'contexto'                 => $extension->contexto,
-            'codecs'                   => 'opus,alaw,ulaw',
+            // ulaw PRIMERO (no opus) — este Asterisk NO tiene transcodificador
+            // de Opus instalado (solo res_format_attr_opus.so, que negocia el
+            // formato pero no convierte audio; confirmado: "module show like
+            // opus" no lista ningún codec_opus). Con opus primero, una
+            // llamada navegador→teléfono de escritorio (que solo tiene
+            // ulaw/alaw) terminaba con cada lado negociando un códec
+            // distinto → "No path to translate" → la llamada se caía al
+            // conectar. ulaw es soportado por cualquier navegador WebRTC
+            // (parte obligatoria del estándar), así que no rompe nada — solo
+            // dejamos de depender de una conversión que este servidor no
+            // puede hacer. Encontrado en vivo 24-sep-2026 (David llamando de
+            // MegaVoz a la extensión de escritorio de Irving).
+            'codecs'                   => 'ulaw,alaw,opus',
             'transporte'               => 'transport-wss',
             'callerid'                 => $extension->numero,
             'activo'                   => true,
