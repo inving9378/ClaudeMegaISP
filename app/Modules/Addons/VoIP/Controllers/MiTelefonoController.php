@@ -4,6 +4,8 @@ namespace App\Modules\Addons\VoIP\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\VoIP\Models\Extension;
+use App\Modules\Addons\VoIP\Services\IABotCustomerService;
+use App\Modules\Core\Clientes\Controllers\ClientInformationController;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Http;
 
@@ -78,5 +80,48 @@ class MiTelefonoController extends Controller
             // solo no se puede confirmar disponibilidad de antemano.
             return response()->json(['disponible' => null, 'estado' => 'sin_datos']);
         }
+    }
+
+    /**
+     * MegaVoz Fase 4 — ventana emergente al contestar/marcar: identifica al
+     * cliente por CallerID y trae saldo + servicio + tickets abiertos.
+     *
+     * Reusa `IABotCustomerService` (ya existía en el módulo, sin consumidor
+     * todavía — servía de base para el bot de IA de Fase 6) para el match de
+     * teléfono y el servicio activo, y `ClientInformationController` (el
+     * mismo que usa la ficha del cliente) para saldo y tickets — nada de
+     * queries nuevas paralelas a las que ya existen.
+     *
+     * Sin permiso `voip.*` propio, mismo criterio que `disponibilidad()`: solo
+     * llega aquí un usuario con teléfono asignado (staff ya vetado por
+     * `ReclamadorExtensionAutomatico`), y es exactamente el caso de uso
+     * — "quién me está llamando ahora".
+     */
+    public function ficha(string $numero): JsonResponse
+    {
+        if (! preg_match('/^[+0-9 ()\-]{3,20}$/', $numero)) {
+            return response()->json(['found' => false]);
+        }
+
+        $identidad = app(IABotCustomerService::class)->identifyCustomer($numero);
+
+        if (! $identidad['found']) {
+            return response()->json(['found' => false]);
+        }
+
+        $clienteId = $identidad['id'];
+        $clientInfo = app(ClientInformationController::class);
+        $balance = $clientInfo->getClientWithBalance($clienteId);
+        $tickets = $clientInfo->getClientTicketsOpen($clienteId);
+
+        return response()->json([
+            'found'           => true,
+            'id'              => $clienteId,
+            'name'            => $identidad['name'],
+            'email'           => $identidad['email'],
+            'balance'         => $balance['balance'],
+            'active_services' => $identidad['active_services'],
+            'tickets_open'    => $tickets['open'],
+        ]);
     }
 }
