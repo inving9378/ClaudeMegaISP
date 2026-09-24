@@ -19,10 +19,18 @@ use Illuminate\Support\Facades\Log;
  * concurrencia desde el día uno (varias llamadas a la vez), por eso
  * pcntl_fork() por conexión entrante en vez del "una a la vez" del GPS.
  *
- * ⚠️ Esta pasada NO conecta este daemon al dialplan real (grupo-1). Se
- * prueba aislado — ver `voip:bot-voz-probar` primero, y un cliente
- * AudioSocket de prueba antes de tocar Asterisk siquiera. Conectarlo al
- * flujo real de clientes es una pasada aparte (con luz verde aparte).
+ * Conectado al dialplan real (grupo-1, cola de Atención a Clientes) desde
+ * el 2026-09-24 — con `ia_bot_config.piloto_porcentaje=0` de default, así
+ * que ningún cliente real habla con María hasta que alguien suba ese
+ * número en `/voip/ia-bot`. El dialplan generado antepone un candado de
+ * pre-vuelo (`TrySystem(nc -z ...)`) antes de intentar `AudioSocket()`: si
+ * ESTE daemon no está corriendo, la llamada sigue derecho a la cola real
+ * — nunca se cuelga (ver `DialplanGeneratorService::buildColaExten()` y
+ * `deploy/README-bot-voz.md` para el detalle del bug que eso corrige).
+ * Para que el piloto realmente atienda algo, este comando debe quedar
+ * corriendo de forma persistente — ver `deploy/megaisp-bot-voz.service`
+ * (NO instalado todavía, requiere systemd con privilegios que este
+ * usuario no tiene).
  */
 class BotVozEscucharCommand extends Command
 {

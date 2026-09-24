@@ -1,0 +1,17 @@
+[Unit]
+Description=MegaISP MegaVoz Fase 6 — daemon AudioSocket de María (voip:bot-voz-escuchar)
+After=mysql.service network.target asterisk.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/megaisp
+ExecStart=/usr/bin/php /var/www/megaisp/artisan voip:bot-voz-escuchar
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/megaisp-bot-voz.log
+StandardError=append:/var/log/megaisp-bot-voz.error.log
+
+[Install]
+WantedBy=multi-user.target
