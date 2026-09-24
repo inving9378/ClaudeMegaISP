@@ -32,4 +32,9 @@ export default {
 </script>
 
 <style scoped>
+.list-group-item {
+    background: var(--tc-surface, #fff);
+    border-color: var(--tc-line, #dee2e6);
+    color: var(--tc-ink, #212529);
+}
 </style>

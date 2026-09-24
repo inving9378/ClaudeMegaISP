@@ -46,6 +46,7 @@
                                 <th>Tipo</th>
                                 <th>Dirección</th>
                                 <th>Host</th>
+                                <th>DID</th>
                                 <th>Estado</th>
                                 <th class="text-center">Activa</th>
                                 <th class="text-end" style="min-width:190px">Acciones</th>
@@ -79,6 +80,7 @@
                                     </span>
                                 </td>
                                 <td><code>{{ t.host }}:{{ t.puerto }}</code></td>
+                                <td><code v-if="t.did">{{ t.did }}</code><span v-else class="text-muted">—</span></td>
                                 <td>
                                     <span v-if="t.provisionado_at" class="text-success">
                                         <i class="fa fa-dot-circle me-1"></i>

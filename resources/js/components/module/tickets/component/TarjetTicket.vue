@@ -1,6 +1,6 @@
 <template>
     <div class="col-md-3 col-xl-3 cursor-pointer" @click="redirect(link)">
-        <div class="card text-dark bg-light mb-3" style="min-height: 200px;">
+        <div class="card mb-3" style="min-height: 200px;">
             <div class="card-body">
                 <h5 class="card-title d-flex justify-content-between">
                     <div>

@@ -1,50 +1,52 @@
 <template>
-    <div class="row">
-        <template v-for="val in stats">
-            <tarjet-ticket
-                :key="val.permission"
-                v-if="hasPermission.data.canView(`${val.permission}`)"
-                :icon="val.icon"
-                :label="val.estado"
-                :value="val.total"
-                :link="val.link"
-                :porcent="val.porcent"
-                :labelPorcent="val.time_human"
-            ></tarjet-ticket>
-        </template>
-    </div>
+    <div class="tc-wrap" :class="{ 'tc-dark': darkMode }">
+        <div class="row">
+            <template v-for="val in stats">
+                <tarjet-ticket
+                    :key="val.permission"
+                    v-if="hasPermission.data.canView(`${val.permission}`)"
+                    :icon="val.icon"
+                    :label="val.estado"
+                    :value="val.total"
+                    :link="val.link"
+                    :porcent="val.porcent"
+                    :labelPorcent="val.time_human"
+                ></tarjet-ticket>
+            </template>
+        </div>
 
-    <div class="row mb-3">
-        <card-text-dashboard
-            v-if="
-                hasPermission.data.canView(
-                    `dashboard_view_info_invoice_transaction`
-                )
-            "
-        ></card-text-dashboard>
-    </div>
+        <div class="row mb-3">
+            <card-text-dashboard
+                v-if="
+                    hasPermission.data.canView(
+                        `dashboard_view_info_invoice_transaction`
+                    )
+                "
+            ></card-text-dashboard>
+        </div>
 
-    <div class="row">
-        <card-stats
-            v-if="hasPermission.data.canView(`dashboard_view_block_client`)"
-            tableName="Clientes"
-            :dataStat="dataStatClient"
-        ></card-stats>
-        <card-stats
-            v-if="hasPermission.data.canView(`dashboard_view_block_ticket`)"
-            tableName="Tickets"
-            :dataStat="dataStatTicket"
-        ></card-stats>
-        <card-stats
-            v-if="hasPermission.data.canView(`dashboard_view_block_finance`)"
-            tableName="Finanzas"
-            :dataStat="dataStatFinance"
-        ></card-stats>
-        <card-stats
-            v-if="hasPermission.data.canView(`dashboard_view_block_finance`)"
-            tableName="Servidores"
-            :dataStat="dataStatServer"
-        ></card-stats>
+        <div class="row">
+            <card-stats
+                v-if="hasPermission.data.canView(`dashboard_view_block_client`)"
+                tableName="Clientes"
+                :dataStat="dataStatClient"
+            ></card-stats>
+            <card-stats
+                v-if="hasPermission.data.canView(`dashboard_view_block_ticket`)"
+                tableName="Tickets"
+                :dataStat="dataStatTicket"
+            ></card-stats>
+            <card-stats
+                v-if="hasPermission.data.canView(`dashboard_view_block_finance`)"
+                tableName="Finanzas"
+                :dataStat="dataStatFinance"
+            ></card-stats>
+            <card-stats
+                v-if="hasPermission.data.canView(`dashboard_view_block_finance`)"
+                tableName="Servidores"
+                :dataStat="dataStatServer"
+            ></card-stats>
+        </div>
     </div>
 </template>
 
@@ -63,6 +65,7 @@ import {
 } from "./helper/request";
 import Permission from "../../../helpers/Permission";
 import { allViewHasPermission } from "../../../helpers/Request";
+import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
     name: "Dashboard",
@@ -133,6 +136,7 @@ export default {
             dataStatFinance,
             hasPermission,
             dataStatServer,
+            darkMode,
         };
     },
 };
