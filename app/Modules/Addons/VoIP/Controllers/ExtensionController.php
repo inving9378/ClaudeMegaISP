@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Modules\Addons\VoIP\Models\Extension;
 use App\Modules\Addons\VoIP\Services\AsteriskProvisioningService;
+use App\Modules\Addons\VoIP\Services\ReclamadorExtensionAutomatico;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -15,7 +16,36 @@ use Illuminate\Support\Facades\Log;
 
 class ExtensionController extends Controller
 {
-    public function __construct(private AsteriskProvisioningService $provisioner) {}
+    public function __construct(
+        private AsteriskProvisioningService $provisioner,
+        private ReclamadorExtensionAutomatico $reclamador,
+    ) {}
+
+    /**
+     * Crea (si falta) la gemela WebRTC de una extensión de escritorio recién
+     * ligada a un usuario a mano — mismo mecanismo que el alta automática de
+     * colaboradores (Fase 1), reusado aquí porque sin esto el mini-teléfono
+     * NUNCA aparecía para nadie asignado desde esta pantalla (encontrado en
+     * vivo 24-sep-2026: Diana tenía la extensión 1003 asignada, pero sin
+     * `web1003` el widget no se dibuja — "el propio componente... no se
+     * dibuja nada si el usuario no tiene una extensión WebRTC asignada").
+     * Best-effort: un fallo aquí no debe tumbar el guardado de la extensión.
+     */
+    private function asegurarGemelaWebrtc(Extension $extension): void
+    {
+        if ($extension->es_webrtc || ! $extension->user_id) {
+            return;
+        }
+        $user = User::find($extension->user_id);
+        if (! $user) {
+            return;
+        }
+        try {
+            $this->reclamador->crearGemelaWebrtc($extension, $user);
+        } catch (\Throwable $e) {
+            Log::warning("VoIP: no se pudo crear la gemela WebRTC de la extensión {$extension->numero}: {$e->getMessage()}");
+        }
+    }
 
     public function index()
     {
@@ -106,6 +136,8 @@ class ExtensionController extends Controller
             Log::warning("VoIP: auto-provisión falló para ext {$ext->numero}: {$e->getMessage()}");
         }
 
+        $this->asegurarGemelaWebrtc($ext);
+
         return response()->json(['id' => $ext->id, 'endpoint_id' => $ext->endpointId()], 201);
     }
 
@@ -139,6 +171,8 @@ class ExtensionController extends Controller
         } catch (\Throwable $e) {
             Log::warning("VoIP: re-provisión falló para ext {$extension->numero}: {$e->getMessage()}");
         }
+
+        $this->asegurarGemelaWebrtc($extension);
 
         return response()->json(['ok' => true]);
     }
