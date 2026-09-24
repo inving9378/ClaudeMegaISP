@@ -287,7 +287,19 @@ export default {
                 this.abierto = true;
                 this.engancharSesion();
                 this.cargarFicha(this.remotoId);
-                if (data.originator === 'local') this.iniciarTonoLlamando();
+                // Saliente: tono de "está timbrando" (ver iniciarTonoLlamando).
+                // Entrante: hasta hoy NO sonaba NADA — el modal se abría en
+                // silencio total. Si quien recibe la llamada no está viendo
+                // la pantalla en ese instante exacto, nunca se entera — esto
+                // es lo que David describió como "Irving llama y a Diana no
+                // le suena nada, solo se le abre el modal" (24-sep-2026). Un
+                // teléfono real SIEMPRE suena para avisar una llamada
+                // entrante; aquí faltaba esa pieza por completo.
+                if (data.originator === 'local') {
+                    this.iniciarTonoLlamando();
+                } else {
+                    this.iniciarTimbreEntrante();
+                }
             });
 
             this.ua.start();
@@ -463,6 +475,16 @@ export default {
             try {
                 const Ctx = window.AudioContext || window.webkitAudioContext;
                 const ctx = new Ctx();
+                // Defensivo: algunos navegadores crean el AudioContext en
+                // estado "suspended" incluso dentro del mismo gesto de clic
+                // (depende del navegador/versión) — sin resume() el tono
+                // queda armado pero MUDO, sin ningún error visible (el
+                // try/catch de aquí abajo no lo atrapa porque no lanza
+                // excepción, simplemente no suena). resume() sobre un
+                // contexto que ya está "running" no hace nada, así que es
+                // seguro llamarlo siempre.
+                ctx.resume().catch(() => {});
+
                 const gain = ctx.createGain();
                 gain.gain.value = 0;
                 gain.connect(ctx.destination);
@@ -486,6 +508,49 @@ export default {
             } catch {
                 // Sin Web Audio (navegador viejo o autoplay bloqueado) — la
                 // llamada sigue igual, solo sin el tono.
+            }
+        },
+
+        // Llamada ENTRANTE — timbre de aviso para quien recibe. Antes
+        // (hasta 24-sep-2026) no existía nada de esto: solo se abría el
+        // modal, sin ningún sonido — si la persona no estaba viendo la
+        // pantalla justo en ese momento, nunca se enteraba de la llamada.
+        // Mismo mecanismo de síntesis que iniciarTonoLlamando() (Web
+        // Audio, sin archivo), pero con cadencia de "ring-ring" (dos
+        // ráfagas cortas) en vez del tono largo de "está timbrando" —
+        // para que suenen distinguibles entre sí.
+        iniciarTimbreEntrante() {
+            try {
+                const Ctx = window.AudioContext || window.webkitAudioContext;
+                const ctx = new Ctx();
+                ctx.resume().catch(() => {});
+
+                const gain = ctx.createGain();
+                gain.gain.value = 0;
+                gain.connect(ctx.destination);
+
+                [440, 480].forEach((freq) => {
+                    const osc = ctx.createOscillator();
+                    osc.frequency.value = freq;
+                    osc.connect(gain);
+                    osc.start();
+                });
+
+                const ciclo = () => {
+                    const t = ctx.currentTime;
+                    // Dos ráfagas de 0.4s separadas por 0.2s de silencio.
+                    gain.gain.setValueAtTime(0.15, t);
+                    gain.gain.setValueAtTime(0, t + 0.4);
+                    gain.gain.setValueAtTime(0.15, t + 0.6);
+                    gain.gain.setValueAtTime(0, t + 1.0);
+                };
+                ciclo();
+
+                this._audioCtx = ctx;
+                this._ringGain = gain;
+                this._ringInterval = setInterval(ciclo, 3000);
+            } catch {
+                // Sin Web Audio — la llamada sigue igual, solo sin timbre.
             }
         },
 
