@@ -111,15 +111,41 @@ class ReclamadorExtensionAutomatico
      * propia clase ya documentaba como soportado — "se asigna a mano si hace
      * falta, vía la pantalla de Extensiones" — pero nunca creaba la gemela
      * web, así que el mini-teléfono no aparecía para nadie asignado por ese
-     * camino). Idempotente (early-return si `web{numero}` ya existe), así
-     * que es seguro llamarlo en cada guardado sin duplicar nada.
+     * camino). Idempotente si el dueño no cambió (early-return si
+     * `web{numero}` ya existe CON el mismo `user_id`).
+     *
+     * REASIGNACIÓN (24-sep-2026): si `web{numero}` ya existe pero con OTRO
+     * `user_id` (la extensión de escritorio se le quitó a alguien y se le
+     * dio a otra persona), se actualiza la gemela en vez de dejarla como
+     * estaba — si no, quedaba a nombre de la persona anterior para
+     * siempre. Se rota también el `secret` (la persona anterior pudo
+     * haberlo visto/guardado) y se reprovisiona contra PJSIP realtime para
+     * que el cambio de credencial surta efecto de inmediato.
      */
     public function crearGemelaWebrtc(Extension $extension, User $user): void
     {
         $numeroWeb = 'web' . $extension->numero;
+        $gemela    = Extension::where('numero', $numeroWeb)->first();
 
-        if (Extension::where('numero', $numeroWeb)->exists()) {
-            return; // ya la tiene (reintento de un alta previo)
+        if ($gemela) {
+            if ((int) $gemela->user_id === (int) $user->id) {
+                return; // ya es de este mismo usuario — nada que hacer
+            }
+
+            // Reasignación: la gemela existe pero era de otra persona.
+            $gemela->update([
+                'nombre'  => $user->name . ' (navegador)',
+                'user_id' => $user->id,
+                'secret'  => Str::random(32),
+            ]);
+
+            try {
+                $this->provisioner->provisionarExtension($gemela);
+            } catch (\Throwable $e) {
+                Log::warning("VoIP: reasignación de gemela WebRTC {$numeroWeb} guardada pero falló el reprovisionamiento: {$e->getMessage()}");
+            }
+
+            return;
         }
 
         $gemela = Extension::create([
