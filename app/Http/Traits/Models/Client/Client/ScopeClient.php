@@ -6,6 +6,7 @@ use App\Http\Controllers\Utils\ComunConstantsController;
 use App\Modules\Core\Configuracion\Repositories\CommandConfigRepository;
 use App\Models\ClientMainInformation;
 use App\Models\TypeBilling;
+use App\Modules\Core\Clientes\Models\ClientBillingPause;
 use App\Modules\Core\Clientes\Services\ClienteSearchService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -403,6 +404,12 @@ trait ScopeClient
             ->whereDate('fecha_corte', '<', $date)
             ->whereHas('client_main_information', function ($query) {
                 $query->stateActive();
+            })
+            // Pausa de facturación programada (2026-09-24): un cliente en_curso no debe
+            // bloquearse por falta de pago — la suspensión de su servicio ya la maneja
+            // el job de la pausa, no el cron de adeudo.
+            ->whereDoesntHave('billingPauses', function ($query) {
+                $query->where('estado', ClientBillingPause::ESTADO_EN_CURSO);
             });
     }
 
@@ -414,7 +421,12 @@ trait ScopeClient
         $query
             ->where('active_promise_payment', 0)
             ->whereNotNull('fecha_pago')
-            ->whereDate('fecha_pago', '<=', $date);
+            ->whereDate('fecha_pago', '<=', $date)
+            // Pausa de facturación programada (2026-09-24): mientras esté en_curso no se
+            // le cobra el servicio recurrente (billing_service_command:process).
+            ->whereDoesntHave('billingPauses', function ($query) {
+                $query->where('estado', ClientBillingPause::ESTADO_EN_CURSO);
+            });
     }
 
 

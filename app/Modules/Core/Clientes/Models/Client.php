@@ -193,6 +193,11 @@ class Client extends BaseModel
         return $this->morphOne(Balance::class, 'balanceable');
     }
 
+    public function billingPauses()
+    {
+        return $this->hasMany(ClientBillingPause::class, 'client_id');
+    }
+
     public function receipt()
     {
         return $this->morphOne(Receipt::class, 'receiptable');
