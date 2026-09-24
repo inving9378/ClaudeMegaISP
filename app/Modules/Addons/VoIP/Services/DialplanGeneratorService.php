@@ -133,6 +133,10 @@ class DialplanGeneratorService
             return implode("\n", $lines);
         }
 
+        if ($grupo->es_cola) {
+            return implode("\n", array_merge($lines, $this->buildColaExten($grupo, $ringTime)));
+        }
+
         $lines[] = "exten = s,1,NoOp(Grupo {$grupo->id} — {$grupo->nombre} — {$grupo->estrategia})";
 
         if ($grupo->estrategia === 'ringall') {
@@ -153,6 +157,42 @@ class DialplanGeneratorService
         $lines[] = "";
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * MegaVoz Fase 3 — "regla de oro" (revisada 23-sep-2026 por David): el
+     * asistente SIEMPRE contesta primero, haya o no agente libre — nunca se
+     * timbra directo a los agentes. Solo se entra a la cola real después de
+     * contestar. `Playback(beep)` es el contestador de RELLENO — es donde se
+     * conecta la IA de voz en tiempo real cuando exista (Fase 6); se eligió
+     * un sonido core de Asterisk (garantizado presente en cualquier
+     * instalación) en vez de un prompt en español para no depender de un
+     * archivo que podría no existir en este servidor.
+     *
+     * `QUEUE_MEMBER(cola,logged)` se puede leer ANTES de Answer() y ANTES de
+     * intentar Queue() — confirmado que no depende del estado del canal.
+     * Además `joinempty=no` en la propia cola (AsteriskProvisioningService::
+     * provisionarCola) es un segundo candado, a nivel de Asterisk, por si
+     * este chequeo de dialplan se saltara por algún camino no previsto.
+     */
+    private function buildColaExten(GrupoTimbrado $grupo, int $ringTime): array
+    {
+        $nombreCola = $grupo->nombreCola();
+
+        return [
+            "exten = s,1,NoOp(Grupo {$grupo->id} — {$grupo->nombre} — cola real, MegaVoz Fase 3)",
+            " same = n,Answer()",
+            " same = n,Playback(beep)  ; contestador de RELLENO — aquí conecta la IA real (Fase 6)",
+            " same = n,GotoIf(\$[\${QUEUE_MEMBER({$nombreCola},logged)} > 0]?con_agente:sin_agente)",
+            " same = n(con_agente),Queue({$nombreCola},t,,,{$ringTime})",
+            " same = n,Goto(s,fallback)",
+            " same = n(sin_agente),NoOp(Sin agentes libres en {$nombreCola} — no se intenta encolar)",
+            " same = n(fallback)," . $this->fallbackLine($grupo),
+            "",
+            "exten = i,1,Hangup()",
+            "exten = t,1,Hangup()",
+            "",
+        ];
     }
 
     private function buildContextoRestringido(): string

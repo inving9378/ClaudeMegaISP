@@ -5,6 +5,7 @@ namespace App\Modules\Addons\VoIP\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\VoIP\Models\Extension;
 use App\Modules\Addons\VoIP\Models\GrupoTimbrado;
+use App\Modules\Addons\VoIP\Services\AsteriskProvisioningService;
 use App\Modules\Addons\VoIP\Services\DialplanGeneratorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -12,7 +13,10 @@ use Illuminate\Support\Facades\Log;
 
 class GrupoTimbradoController extends Controller
 {
-    public function __construct(private DialplanGeneratorService $generator) {}
+    public function __construct(
+        private DialplanGeneratorService $generator,
+        private AsteriskProvisioningService $provisioner,
+    ) {}
     public function index()
     {
         if (! auth()->user()->can('voip.grupos.view')) {
@@ -31,6 +35,7 @@ class GrupoTimbradoController extends Controller
             'id'               => $g->id,
             'nombre'           => $g->nombre,
             'estrategia'       => $g->estrategia,
+            'es_cola'          => $g->es_cola,
             'ring_time'        => $g->ring_time,
             'destino_fallback' => $g->destino_fallback,
             'activo'           => $g->activo,
@@ -65,6 +70,7 @@ class GrupoTimbradoController extends Controller
         $data = $request->validate([
             'nombre'           => 'required|string|max:100|unique:voip_grupos_timbrado,nombre',
             'estrategia'       => 'nullable|in:ringall,hunt,memoryhunt',
+            'es_cola'          => 'nullable|boolean',
             'ring_time'        => 'nullable|integer|min:5|max:120',
             'destino_fallback' => 'nullable|in:buzon,colgar,repetir',
             'activo'           => 'nullable|boolean',
@@ -75,6 +81,7 @@ class GrupoTimbradoController extends Controller
 
         $grupo = GrupoTimbrado::create($data);
         $this->sincronizarMiembros($grupo, $data['miembros'] ?? []);
+        $this->sincronizarCola($grupo);
         $this->generarDialplan();
 
         return response()->json(['id' => $grupo->id], 201);
@@ -89,6 +96,7 @@ class GrupoTimbradoController extends Controller
         $data = $request->validate([
             'nombre'           => "required|string|max:100|unique:voip_grupos_timbrado,nombre,{$grupoTimbrado->id}",
             'estrategia'       => 'nullable|in:ringall,hunt,memoryhunt',
+            'es_cola'          => 'nullable|boolean',
             'ring_time'        => 'nullable|integer|min:5|max:120',
             'destino_fallback' => 'nullable|in:buzon,colgar,repetir',
             'activo'           => 'nullable|boolean',
@@ -97,8 +105,10 @@ class GrupoTimbradoController extends Controller
             'miembros.*.orden' => 'nullable|integer|min:0',
         ]);
 
+        $eraCola = $grupoTimbrado->es_cola;
         $grupoTimbrado->update($data);
         $this->sincronizarMiembros($grupoTimbrado, $data['miembros'] ?? []);
+        $this->sincronizarCola($grupoTimbrado->fresh(), $eraCola);
         $this->generarDialplan();
 
         return response()->json(['ok' => true]);
@@ -110,11 +120,36 @@ class GrupoTimbradoController extends Controller
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
+        if ($grupoTimbrado->es_cola) {
+            try {
+                $this->provisioner->desprovisionarCola($grupoTimbrado);
+            } catch (\Throwable $e) {
+                Log::warning("VoIP: error desprovisionando cola al eliminar grupo #{$grupoTimbrado->id}: {$e->getMessage()}");
+            }
+        }
+
         $grupoTimbrado->extensiones()->detach();
         $grupoTimbrado->delete();
         $this->generarDialplan();
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Provisiona/desprovisiona la cola real según cambie es_cola, o
+     * re-provisiona (miembros/estrategia pudieron cambiar) si ya lo era.
+     */
+    private function sincronizarCola(GrupoTimbrado $grupo, bool $eraCola = false): void
+    {
+        try {
+            if ($grupo->es_cola) {
+                $this->provisioner->provisionarCola($grupo->fresh('extensiones'));
+            } elseif ($eraCola) {
+                $this->provisioner->desprovisionarCola($grupo);
+            }
+        } catch (\Throwable $e) {
+            Log::warning("VoIP: error sincronizando cola del grupo #{$grupo->id}: {$e->getMessage()}");
+        }
     }
 
     private function generarDialplan(): void
