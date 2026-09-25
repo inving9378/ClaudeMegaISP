@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prueba STUN — MegaISP</title>
+<style>
+  :root {
+    --ground: #f6f7f8; --surface: #ffffff; --ink: #1a2230; --muted: #5b6672; --faint: #8a94a1;
+    --accent: #0d7d72; --accent-soft: #e2f1ef;
+    --ok: #15803d; --ok-soft: #dcfce7; --bad: #b91c1c; --bad-soft: #fee2e2;
+    --hair: #e5e8ec; --chip: #eef1f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0f141a; --surface: #161d26; --ink: #e7ecf2; --muted: #95a1b0; --faint: #6b7684;
+      --accent: #2dd4bf; --accent-soft: #123330;
+      --ok: #4ade80; --ok-soft: #12331f; --bad: #f87171; --bad-soft: #3a1414;
+      --hair: #263039; --chip: #1e2731;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--ground); color: var(--ink);
+    font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.55; margin: 0; padding: 1.5rem 1rem 3rem;
+  }
+  .wrap { max-width: 480px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin: 0 0 .3rem; letter-spacing: -.01em; }
+  .lede { color: var(--muted); font-size: .92rem; margin: 0 0 1.5rem; }
+  button {
+    display: block; width: 100%; padding: .9rem; font-size: 1.05rem; font-weight: 600;
+    background: var(--accent); color: #fff; border: none; border-radius: 10px;
+    cursor: pointer; margin-bottom: 1.5rem;
+  }
+  button:disabled { opacity: .6; }
+  .verdict {
+    display: none; padding: 1rem 1.1rem; border-radius: 10px; margin-bottom: 1.2rem;
+    font-size: .95rem; font-weight: 600;
+  }
+  .verdict.show { display: block; }
+  .verdict.ok { background: var(--ok-soft); color: var(--ok); }
+  .verdict.bad { background: var(--bad-soft); color: var(--bad); }
+  .status { color: var(--muted); font-size: .9rem; margin-bottom: 1rem; }
+  .cand {
+    background: var(--surface); border: 1px solid var(--hair); border-radius: 8px;
+    padding: .6rem .8rem; margin-bottom: .5rem; font-size: .82rem;
+    display: flex; align-items: center; gap: .6rem;
+  }
+  .cand .tipo {
+    font-family: ui-monospace, monospace; font-size: .72rem; font-weight: 700;
+    padding: .15rem .45rem; border-radius: 5px; text-transform: uppercase; flex-shrink: 0;
+  }
+  .cand .tipo.host { background: var(--chip); color: var(--muted); }
+  .cand .tipo.srflx { background: var(--ok-soft); color: var(--ok); }
+  .cand .tipo.relay { background: var(--accent-soft); color: var(--accent); }
+  .cand .addr { font-family: ui-monospace, monospace; color: var(--ink); word-break: break-all; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Prueba de conexión STUN</h1>
+  <p class="lede">Revisa si esta red deja que el navegador encuentre su dirección pública real — sin eso, las llamadas entre navegadores fallan.</p>
+
+  <button id="btnProbar">Probar esta red</button>
+
+  <div id="verdict" class="verdict"></div>
+  <div id="status" class="status"></div>
+  <div id="candidatos"></div>
+</div>
+
+<script>
+  const btn = document.getElementById('btnProbar');
+  const verdictEl = document.getElementById('verdict');
+  const statusEl = document.getElementById('status');
+  const listaEl = document.getElementById('candidatos');
+
+  function tipoLegible(cand) {
+    if (cand.type === 'srflx') return 'srflx';
+    if (cand.type === 'relay') return 'relay';
+    if (cand.type === 'host') return 'host';
+    return cand.type || '?';
+  }
+
+  function agregarFila(cand) {
+    const tipo = tipoLegible(cand);
+    const div = document.createElement('div');
+    div.className = 'cand';
+    div.innerHTML = `<span class="tipo ${tipo}">${tipo}</span><span class="addr">${cand.address || '?'}:${cand.port || '?'}</span>`;
+    listaEl.appendChild(div);
+  }
+
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    btn.textContent = 'Probando...';
+    verdictEl.className = 'verdict';
+    listaEl.innerHTML = '';
+    statusEl.textContent = 'Reuniendo candidatos (hasta 6 segundos)...';
+
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+    });
+    pc.createDataChannel('prueba');
+
+    const encontrados = [];
+    let srflxEncontrado = false;
+
+    pc.addEventListener('icecandidate', (e) => {
+      if (!e.candidate) return;
+      const partes = e.candidate.candidate.split(' ');
+      const idxTyp = partes.indexOf('typ');
+      const tipo = idxTyp >= 0 ? partes[idxTyp + 1] : '?';
+      const cand = { type: tipo, address: partes[4], port: partes[5] };
+      encontrados.push(cand);
+      agregarFila(cand);
+      if (tipo === 'srflx' || tipo === 'relay') srflxEncontrado = true;
+    });
+
+    try {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+    } catch (err) {
+      statusEl.textContent = 'Error armando la prueba: ' + err.message;
+      btn.disabled = false;
+      btn.textContent = 'Probar esta red';
+      return;
+    }
+
+    setTimeout(() => {
+      pc.close();
+      btn.disabled = false;
+      btn.textContent = 'Probar de nuevo';
+
+      if (encontrados.length === 0) {
+        statusEl.textContent = 'El navegador no reunió ningún candidato — revisa que el permiso de red esté activo.';
+      } else {
+        statusEl.textContent = `Listo. ${encontrados.length} candidato(s) encontrado(s).`;
+      }
+
+      verdictEl.classList.add('show');
+      if (srflxEncontrado) {
+        verdictEl.classList.add('ok');
+        verdictEl.textContent = '✓ Esta red SÍ deja pasar el STUN — encontró una dirección pública (srflx/relay).';
+      } else {
+        verdictEl.classList.add('bad');
+        verdictEl.textContent = '✗ Esta red NO dejó pasar el STUN — solo aparecen direcciones locales (host). Confirma el bloqueo.';
+      }
+    }, 6000);
+  });
+</script>
+</body>
+</html>
