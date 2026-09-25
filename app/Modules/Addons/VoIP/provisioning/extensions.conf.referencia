@@ -74,17 +74,9 @@ exten = _[1-9]XX,1,NoOp(Interno: ${CALLERID(num)} -> ${EXTEN})
 ; MegaVoz Fase 2 — gemela WebRTC de una extensión (webNNNN). El endpoint de
 ; PJSIP se llama igual que el número completo con el prefijo, igual que el
 ; resto de este contexto.
-;
-; 25-sep-2026 — DIAGNÓSTICO TEMPORAL: 30s -> 60s. Las pruebas en vivo con
-; David/Diana muestran que el navegador que contesta nunca llega a mandar
-; NADA (ni 200 OK ni ningún otro mensaje) dentro de los 30s — el log de
-; Asterisk queda en silencio total entre el 180 Ringing y el CANCEL/603 por
-; timeout (NO ANSWER). Esto da más margen para confirmar si el navegador SÍ
-; contesta pero tarda más de 30s en terminar de armar el ICE/TURN, o si de
-; plano nunca manda nada. Revertir a 30 una vez diagnosticado.
 exten = _web[1-9]XXX,1,NoOp(Interno (WebRTC): ${CALLERID(num)} -> ${EXTEN})
  same = n,Set(CDR(userfield)=interno)
- same = n,Dial(PJSIP/${EXTEN},60)
+ same = n,Dial(PJSIP/${EXTEN},30)
  same = n,Hangup()
 
 ; ─── Servicios del sistema ─────────────────────────────────────────────────
