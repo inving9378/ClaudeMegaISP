@@ -4,6 +4,7 @@ namespace App\Modules\Core\Clientes\Services;
 
 use App\Http\Controllers\Utils\ComunConstantsController;
 use App\Jobs\SuspendServiceJob;
+use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppGateway;
 use App\Modules\Core\Clientes\Models\Client;
 use App\Modules\Core\Clientes\Models\ClientBillingPause;
 use App\Modules\Core\Clientes\Repositories\ClientRepository;
@@ -11,6 +12,7 @@ use App\Modules\Core\Clientes\Services\BillingExpirationService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Spatie\Activitylog\Models\Activity;
 
 /**
@@ -163,6 +165,10 @@ class BillingPauseService
             $activity->client_id = $client->id;
         })->log("Pausa de facturación #{$pausa->id} solicitada ({$tipo}, {$meses} " . ($meses == 1 ? 'mes' : 'meses') . '): ' . ($pausa->estado === ClientBillingPause::ESTADO_ESPERANDO_PAGO ? "esperando pago de la cuota (\${$pausa->monto_cuota})." : 'programada.'));
 
+        if ($pausa->estado === ClientBillingPause::ESTADO_PROGRAMADA) {
+            $this->notificarWhatsApp($client, $pausa, 'programada');
+        }
+
         return $pausa;
     }
 
@@ -241,7 +247,10 @@ class BillingPauseService
             })->log("Pausa de facturación #{$pausa->id} reanudada anticipadamente. Servicio reactivado." . ($huboSaldoAFavor ? " Saldo a favor de \${$montoAFavor} por meses no usados." : ''));
         });
 
-        return $pausa->refresh();
+        $pausa->refresh();
+        $this->notificarWhatsApp($pausa->client, $pausa, 'concluida');
+
+        return $pausa;
     }
 
     /**
@@ -283,6 +292,9 @@ class BillingPauseService
                 $activity->client_id = $pausa->client_id;
             })->log("Pausa de facturación #{$pausa->id} programada: cuota de conservación (\${$pausa->monto_cuota}) detectada como pagada y descontada del balance.");
         });
+
+        $pausa->refresh();
+        $this->notificarWhatsApp($pausa->client, $pausa, 'programada');
 
         return $pausa->refresh();
     }
@@ -330,6 +342,35 @@ class BillingPauseService
 
         $client->refresh();
         (new BillingExpirationService($client))->setNewFechaCorteForClient(null, 1, true, false);
+    }
+
+    /**
+     * Confirmación al cliente por WhatsApp (gateway único — App\Modules\Addons\WhatsAppAgent\
+     * Services\WhatsAppGateway, nadie más monta su propia integración). Best-effort a propósito:
+     * un fallo aquí NUNCA debe tumbar el cambio de estado de la pausa (ya se guardó antes).
+     */
+    public function notificarWhatsApp(Client $client, ClientBillingPause $pausa, string $evento): void
+    {
+        try {
+            $telefono = $client->client_main_information->phone ?? null;
+            if (!$telefono) {
+                return;
+            }
+
+            $mensajes = [
+                'programada' => "Hola, tu pausa de facturación quedó programada del {$pausa->fecha_inicio->format('d/m/Y')} al {$pausa->fecha_fin->format('d/m/Y')}. En ese periodo tu servicio estará suspendido y no se te facturará.",
+                'iniciada' => "Hola, tu pausa de facturación inició hoy. Tu servicio queda suspendido hasta el {$pausa->fecha_fin->format('d/m/Y')}, cuando se reactivará automáticamente.",
+                'concluida' => 'Hola, tu pausa de facturación terminó y tu servicio ya fue reactivado. La facturación normal se reanuda en tu siguiente periodo.',
+            ];
+
+            if (!isset($mensajes[$evento])) {
+                return;
+            }
+
+            app(WhatsAppGateway::class)->sendText(null, $telefono, $mensajes[$evento]);
+        } catch (\Throwable $e) {
+            Log::warning("[BillingPauseService] No se pudo notificar por WhatsApp la pausa #{$pausa->id}: " . $e->getMessage());
+        }
     }
 
     private function acreditarBalance(Client $client, float $monto, string $motivoLog): void

@@ -103,6 +103,8 @@ class BillingPauseProcessCommand extends Command
                     $activity->client_id = $pausa->client_id;
                 })->log("Pausa de facturación #{$pausa->id} iniciada: servicio suspendido, sin cobro por {$pausa->meses} " . ($pausa->meses == 1 ? 'mes' : 'meses') . '.');
 
+                $this->pauseService->notificarWhatsApp($pausa->client, $pausa, 'iniciada');
+
                 $this->info("Pausa #{$pausa->id} (cliente {$pausa->client_id}) iniciada.");
             } catch (\Throwable $e) {
                 Log::error("[billing:procesar-pausas] Error iniciando pausa #{$pausa->id}: " . $e->getMessage());
@@ -130,6 +132,8 @@ class BillingPauseProcessCommand extends Command
                 activity()->tap(function (Activity $activity) use ($pausa) {
                     $activity->client_id = $pausa->client_id;
                 })->log("Pausa de facturación #{$pausa->id} concluida: servicio reactivado, facturación normal reanudada.");
+
+                $this->pauseService->notificarWhatsApp($pausa->client, $pausa, 'concluida');
 
                 $this->info("Pausa #{$pausa->id} (cliente {$pausa->client_id}) concluida.");
             } catch (\Throwable $e) {
