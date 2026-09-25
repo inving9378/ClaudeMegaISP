@@ -260,7 +260,17 @@ export default {
                     credential: cred.turn_credential,
                 });
             }
-            this.pcConfig = { iceServers };
+            // markRaw: mismo motivo que ua/sesion más abajo — pasar un
+            // objeto reactivo de Vue a una API nativa del navegador
+            // (RTCPeerConnection, vía JsSIP) puede reventar en silencio.
+            // Sospecha real 25-sep-2026: la primera llamada probada tras
+            // conectar el TURN nunca llegó a generar ni un INVITE en
+            // Asterisk (el tono que se oía era el ringback LOCAL, que no
+            // depende de que la llamada saliera de verdad) — encaja con
+            // que ua.call() esté lanzando una excepción no capturada al
+            // construir el RTCPeerConnection con este objeto todavía
+            // reactivo.
+            this.pcConfig = markRaw({ iceServers });
 
             // markRaw: JsSIP.UA trae propiedades internas no configurables — si Vue
             // lo vuelve reactivo (los objetos en data() lo son por defecto), leer
@@ -404,10 +414,19 @@ export default {
             // 'newRTCSession' de arriba — dispara síncrono dentro de
             // ua.call(), así que duplicarlo aquí es justo lo que causaba el
             // bug del estado pisado.
-            this.ua.call(`sip:${this.destino}@${location.hostname}`, {
-                mediaConstraints: { audio: true, video: false },
-                pcConfig: this.pcConfig,
-            });
+            try {
+                this.ua.call(`sip:${this.destino}@${location.hostname}`, {
+                    mediaConstraints: { audio: true, video: false },
+                    pcConfig: this.pcConfig,
+                });
+            } catch (err) {
+                // Antes esto podía fallar en silencio (ej. RTCPeerConnection
+                // rechazando un pcConfig mal formado) — el tono local de
+                // "está timbrando" ni se entera, así que parecía que la
+                // llamada salió cuando en realidad nunca llegó al servidor.
+                console.error('MegaVoz: llamar() falló', err);
+                alert('No se pudo iniciar la llamada: ' + err.message);
+            }
         },
 
         // MegaVoz Fase 4 — solo se busca si el remoto PARECE un número externo
@@ -473,7 +492,12 @@ export default {
             // "estilo música de espera" — coincide con el propio timbre
             // (dos ráfagas repetidas cada 3s) quedándose sonando de más.
             this.detenerTonoLlamando();
-            this.sesion.answer({ mediaConstraints: { audio: true, video: false }, pcConfig: this.pcConfig });
+            try {
+                this.sesion.answer({ mediaConstraints: { audio: true, video: false }, pcConfig: this.pcConfig });
+            } catch (err) {
+                console.error('MegaVoz: contestar() falló', err);
+                alert('No se pudo contestar la llamada: ' + err.message);
+            }
         },
 
         colgar() {
