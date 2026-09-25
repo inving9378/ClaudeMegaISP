@@ -136,24 +136,16 @@
 import JsSIP from 'jssip';
 import { markRaw } from 'vue';
 
-// Sin esto, el RTCPeerConnection del navegador solo reúne candidatos ICE
-// "host" (interfaces locales) — nunca uno público vía STUN. Confirmado con
-// evidencia directa 25-sep-2026 (no solo sospecha): con `rtp set debug on`
-// sobre una llamada real en curso, Asterisk mandaba el audio a
-// `192.168.1.109` — una IP PRIVADA de la laptop de David, inalcanzable
-// desde internet — mientras SÍ recibía bien desde su IP pública real. Sin
-// un candidato público real que negociar por ICE, Asterisk no tiene a
-// dónde más mandar el audio que a la dirección local (inútil) declarada en
-// el SDP. Mismo servidor STUN que ya usa Asterisk del lado servidor
-// (rtp.conf, desde Fase 2).
-//
-// ⚠️ Segundo intento (el primero causó una regresión real en celular —
-// retraso de casi 1 minuto + caída al contestar, ver
-// docs/bitacora/2026-09-25-megavoz-revert-stun-navegador.md). Sin una forma
-// confiable de acotar el tiempo de espera de ICE dentro de la API de alto
-// nivel de JsSIP, se reintenta tal cual — probar con cuidado en celular
-// además de laptop antes de darlo por bueno.
-const PC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+// ⚠️ REVERTIDO POR SEGUNDA VEZ 25-sep-2026 — ver
+// docs/bitacora/2026-09-25-megavoz-revert-stun-navegador-2.md. Confirmado en
+// DOS pruebas reales separadas: agregar STUN aquí (pcConfig) arregla el
+// audio asimétrico (evidencia directa: Asterisk mandaba el audio a una IP
+// privada sin STUN) pero cuelga/retrasa la llamada en celular de forma
+// reproducible las dos veces. STUN simple no basta para el NAT de operador
+// celular (carrier-grade NAT) — la solución real probablemente necesita un
+// servidor TURN (relay), que es trabajo de infraestructura (instalar
+// coturn, abrir puertos), no un cambio de código. NO reintentar este mismo
+// pcConfig sin eso — ya se probó dos veces con el mismo resultado.
 
 export default {
     name: 'MegaVozTelefono',
@@ -407,7 +399,6 @@ export default {
             // bug del estado pisado.
             this.ua.call(`sip:${this.destino}@${location.hostname}`, {
                 mediaConstraints: { audio: true, video: false },
-                pcConfig: PC_CONFIG,
             });
         },
 
@@ -474,7 +465,7 @@ export default {
             // "estilo música de espera" — coincide con el propio timbre
             // (dos ráfagas repetidas cada 3s) quedándose sonando de más.
             this.detenerTonoLlamando();
-            this.sesion.answer({ mediaConstraints: { audio: true, video: false }, pcConfig: PC_CONFIG });
+            this.sesion.answer({ mediaConstraints: { audio: true, video: false } });
         },
 
         colgar() {
