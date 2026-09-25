@@ -136,6 +136,19 @@
 import JsSIP from 'jssip';
 import { markRaw } from 'vue';
 
+// Sin esto, el RTCPeerConnection del navegador solo puede reunir candidatos
+// ICE "host" (interfaces de red locales) — nunca uno público vía STUN. Se
+// veía en el SDP real de una llamada de prueba: puros candidatos locales
+// (hasta de redes de Docker, 172.x.x.x), cero "typ srflx". Asterisk sí tenía
+// su propio STUN de servidor configurado desde Fase 2 (rtp.conf) — a esto
+// le faltaba el mismo tipo de configuración pero del lado del navegador.
+// Mismo servidor STUN público que ya usa el lado de Asterisk.
+// Encontrado en vivo 25-sep-2026: "cuando la llamo yo, ella no escucha
+// nada" — asimétrico porque depende de la red de quien esté detrás de un
+// NAT más estricto; sin STUN propio, cualquiera puede tocarle en cualquier
+// llamada según cómo esté conectado.
+const PC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
 export default {
     name: 'MegaVozTelefono',
 
@@ -388,6 +401,7 @@ export default {
             // bug del estado pisado.
             this.ua.call(`sip:${this.destino}@${location.hostname}`, {
                 mediaConstraints: { audio: true, video: false },
+                pcConfig: PC_CONFIG,
             });
         },
 
@@ -454,7 +468,7 @@ export default {
             // "estilo música de espera" — coincide con el propio timbre
             // (dos ráfagas repetidas cada 3s) quedándose sonando de más.
             this.detenerTonoLlamando();
-            this.sesion.answer({ mediaConstraints: { audio: true, video: false } });
+            this.sesion.answer({ mediaConstraints: { audio: true, video: false }, pcConfig: PC_CONFIG });
         },
 
         colgar() {
