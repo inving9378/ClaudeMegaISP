@@ -94,6 +94,23 @@ return [
         'port' => (int) env('MEGAVOZ_BOT_VOZ_PORT', 9099),
     ],
 
+    // MegaVoz — servidor TURN (coturn, 25-sep-2026) para el mini-teléfono
+    // WebRTC. Sin esto, el navegador solo reúne candidatos ICE "host"
+    // (locales) — confirmado en vivo con `rtp set debug on` que Asterisk
+    // termina mandando el audio a una IP privada inalcanzable. El STUN
+    // simple (Google) sí deja que el navegador encuentre su propia IP
+    // pública (verificado con una prueba dedicada), pero eso solo no basta
+    // para que la llamada conecte de forma confiable — un TURN (relay)
+    // propio es la pieza que faltaba. `MiTelefonoController::credenciales()`
+    // reenvía esto al navegador — la contraseña NUNCA va hardcodeada en el
+    // .vue (viola la convención de secretos solo-en-.env), viaja por este
+    // mismo endpoint que ya manda el secret SIP de cada quien.
+    'turn' => [
+        'url'        => env('MEGAVOZ_TURN_URL', 'turn:38.123.192.199:3478'),
+        'username'   => env('MEGAVOZ_TURN_USERNAME'),
+        'credential' => env('MEGAVOZ_TURN_PASSWORD'),
+    ],
+
     // MegaVoz Fase 5 — de dónde importa megavoz:importar-queue-log. Es el log
     // NATIVO de app_queue (formato propio de Asterisk, no realtime) — única
     // fuente confiable para KPIs por agente.

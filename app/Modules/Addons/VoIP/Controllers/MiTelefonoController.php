@@ -39,6 +39,14 @@ class MiTelefonoController extends Controller
             // El dominio de identidad SIP no tiene que ser real ni resolver:
             // solo identifica al endpoint, la ruta real la decide el transporte.
             'realm'          => request()->getHost(),
+            // Servidor TURN (25-sep-2026, ver config/voip.php 'turn') — la
+            // contraseña viaja por AQUÍ (nunca hardcodeada en el .vue) para
+            // no violar la convención de secretos-solo-en-.env. Null si aún
+            // no está configurado (turn_username vacío) — el frontend debe
+            // tolerar no traer TURN, cae solo al STUN público.
+            'turn_url'        => config('voip.turn.url'),
+            'turn_username'   => config('voip.turn.username'),
+            'turn_credential' => config('voip.turn.credential'),
         ]);
     }
 

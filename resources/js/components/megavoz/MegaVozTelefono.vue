@@ -136,17 +136,6 @@
 import JsSIP from 'jssip';
 import { markRaw } from 'vue';
 
-// ⚠️ REVERTIDO POR SEGUNDA VEZ 25-sep-2026 — ver
-// docs/bitacora/2026-09-25-megavoz-revert-stun-navegador-2.md. Confirmado en
-// DOS pruebas reales separadas: agregar STUN aquí (pcConfig) arregla el
-// audio asimétrico (evidencia directa: Asterisk mandaba el audio a una IP
-// privada sin STUN) pero cuelga/retrasa la llamada en celular de forma
-// reproducible las dos veces. STUN simple no basta para el NAT de operador
-// celular (carrier-grade NAT) — la solución real probablemente necesita un
-// servidor TURN (relay), que es trabajo de infraestructura (instalar
-// coturn, abrir puertos), no un cambio de código. NO reintentar este mismo
-// pcConfig sin eso — ya se probó dos veces con el mismo resultado.
-
 export default {
     name: 'MegaVozTelefono',
 
@@ -160,6 +149,7 @@ export default {
             nombre: '',
             destino: '',
             ua: null,
+            pcConfig: null,
             sesion: null,
             remotoId: '',
             silenciado: false,
@@ -254,6 +244,23 @@ export default {
         iniciarUA(cred) {
             const socket = new JsSIP.WebSocketInterface(cred.wss_url);
             socket.via_transport = 'wss';
+
+            // ICE: STUN público (rápido, para cuando alcanza) + TURN propio
+            // (relay — la pieza real que faltaba, ver config/voip.php 'turn'
+            // y docs/bitacora/2026-09-25-megavoz-turn-coturn.md). La
+            // contraseña del TURN viene del backend (MiTelefonoController::
+            // credenciales()), nunca hardcodeada aquí — mismo criterio que
+            // el secret SIP. Sin TURN configurado (turn_username vacío),
+            // cae solo al STUN público, como antes.
+            const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+            if (cred.turn_url && cred.turn_username) {
+                iceServers.push({
+                    urls: cred.turn_url,
+                    username: cred.turn_username,
+                    credential: cred.turn_credential,
+                });
+            }
+            this.pcConfig = { iceServers };
 
             // markRaw: JsSIP.UA trae propiedades internas no configurables — si Vue
             // lo vuelve reactivo (los objetos en data() lo son por defecto), leer
@@ -399,6 +406,7 @@ export default {
             // bug del estado pisado.
             this.ua.call(`sip:${this.destino}@${location.hostname}`, {
                 mediaConstraints: { audio: true, video: false },
+                pcConfig: this.pcConfig,
             });
         },
 
@@ -465,7 +473,7 @@ export default {
             // "estilo música de espera" — coincide con el propio timbre
             // (dos ráfagas repetidas cada 3s) quedándose sonando de más.
             this.detenerTonoLlamando();
-            this.sesion.answer({ mediaConstraints: { audio: true, video: false } });
+            this.sesion.answer({ mediaConstraints: { audio: true, video: false }, pcConfig: this.pcConfig });
         },
 
         colgar() {
