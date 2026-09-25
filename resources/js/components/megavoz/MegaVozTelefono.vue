@@ -247,14 +247,23 @@ export default {
             const socket = new JsSIP.WebSocketInterface(cred.wss_url);
             socket.via_transport = 'wss';
 
-            // ICE: STUN público (rápido, para cuando alcanza) + TURN propio
-            // (relay — la pieza real que faltaba, ver config/voip.php 'turn'
-            // y docs/bitacora/2026-09-25-megavoz-turn-coturn.md). La
-            // contraseña del TURN viene del backend (MiTelefonoController::
+            // ICE: SOLO el TURN propio (ver config/voip.php 'turn' y
+            // docs/bitacora/2026-09-25-megavoz-turn-coturn.md) — YA NO se
+            // agrega el STUN público de Google aparte. Un servidor TURN
+            // también responde peticiones STUN normales (es un superset),
+            // así que agregar los dos por separado solo suma un segundo
+            // servidor externo al que esperar durante la reunión de
+            // candidatos ICE — con uno propio, local, rápido (confirmado
+            // con turnutils_uclient: <1s de conexión), ya no hace falta
+            // esperar también a Google. Sospecha 25-sep-2026: las demoras
+            // de 30-60s en conectar/contestar coinciden con tener DOS
+            // servidores distintos que consultar en vez de uno solo.
+            // Contraseña del TURN viene del backend (MiTelefonoController::
             // credenciales()), nunca hardcodeada aquí — mismo criterio que
             // el secret SIP. Sin TURN configurado (turn_username vacío),
-            // cae solo al STUN público, como antes.
-            const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+            // el navegador se queda solo con candidatos locales — mismo
+            // comportamiento de antes de conectar el TURN.
+            const iceServers = [];
             if (cred.turn_url && cred.turn_username) {
                 iceServers.push({
                     urls: cred.turn_url,
