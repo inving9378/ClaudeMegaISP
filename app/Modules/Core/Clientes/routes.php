@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Core\Clientes\Controllers\ClientBillingAddressController;
+use App\Modules\Core\Clientes\Controllers\ClientBillingPauseController;
 use App\Modules\Core\Clientes\Controllers\ClientFiscalDataController;
 use App\Modules\Core\Clientes\Controllers\ClientBillingConfigurationController;
 use App\Modules\Core\Clientes\Controllers\ClientBillingRemindersConfigurationController;
@@ -159,6 +160,14 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/datos-fiscales/{clientId}', [ClientFiscalDataController::class, 'upsert']);
             Route::get('/datos-fiscales/{clientId}/constancia', [ClientFiscalDataController::class, 'downloadConstancia']);
             Route::post('/datos-fiscales/{clientId}/timbrar', [ClientFiscalDataController::class, 'timbrar']);
+
+            // Pausa de facturación programada
+            Route::prefix('pause')->group(function () {
+                Route::get('/estado/{id}', [ClientBillingPauseController::class, 'estado']);
+                Route::post('/crear/{id}', [ClientBillingPauseController::class, 'crear']);
+                Route::post('/cancelar/{id}/{pausaId}', [ClientBillingPauseController::class, 'cancelar']);
+                Route::post('/reanudar/{id}/{pausaId}', [ClientBillingPauseController::class, 'reanudar']);
+            });
 
             // Pagos
             Route::prefix('payment')->group(function () {

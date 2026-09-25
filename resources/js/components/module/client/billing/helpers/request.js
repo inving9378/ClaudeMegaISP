@@ -134,4 +134,34 @@ export const getTecnicos = async () => {
     return data;
 };
 
+// Pausa de facturación programada — bump para que ClientBillingPausePanel se
+// refresque cuando ClientBillingPauseButton crea/cancela/reanuda una pausa.
+export const pausaRefreshTrigger = ref(0);
+
+export const requestEstadoPausa = async (client_id) => {
+    const { data } = await axios.get(`/cliente/billing/pause/estado/${client_id}`);
+    return data;
+};
+
+export const crearPausa = async (client_id, payload) => {
+    const formData = new FormData();
+    Object.keys(payload).forEach((key) => {
+        if (payload[key] !== null && payload[key] !== undefined) {
+            formData.append(key, payload[key]);
+        }
+    });
+    const { data } = await axios.post(`/cliente/billing/pause/crear/${client_id}`, formData);
+    return data;
+};
+
+export const cancelarPausa = async (client_id, pausa_id) => {
+    const { data } = await axios.post(`/cliente/billing/pause/cancelar/${client_id}/${pausa_id}`);
+    return data;
+};
+
+export const reanudarPausa = async (client_id, pausa_id) => {
+    const { data } = await axios.post(`/cliente/billing/pause/reanudar/${client_id}/${pausa_id}`);
+    return data;
+};
+
 

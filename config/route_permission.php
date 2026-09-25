@@ -187,7 +187,18 @@ return [
         '/cliente/billing/payment/get-active-service-expiration/{id}',
         '/cliente/billing/payment/get-cost-all-service/{id}',
         '/cliente/get-is-promise-payment/{id}',
-        '/finanzas/invoices/get-available-periods-by-client/{id}'
+        '/finanzas/invoices/get-available-periods-by-client/{id}',
+        '/cliente/billing/pause/estado/{id}',
+    ],
+    // Pausa de facturación programada (item roadmap, 2026-09-24)
+    'clientes.pausa.crear' => [
+        '/cliente/billing/pause/crear/{id}',
+    ],
+    'clientes.pausa.cancelar' => [
+        '/cliente/billing/pause/cancelar/{id}/{pausaId}',
+    ],
+    'clientes.pausa.reanudar' => [
+        '/cliente/billing/pause/reanudar/{id}/{pausaId}',
     ],
     'client_payroll_payment_add_client' => [
         '/cliente/billing/payment/crear/{id}',

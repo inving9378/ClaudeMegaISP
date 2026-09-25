@@ -5,6 +5,7 @@ namespace App\Console\Commands\Active;
 use App\Http\Repository\ClientRepository;
 use App\Modules\Core\Configuracion\Repositories\ConfigFinanceNotificationRepository;
 use App\Modules\Core\Clientes\Models\Client;
+use App\Modules\Core\Clientes\Models\ClientBillingPause;
 use App\Models\Invoice;
 use App\Services\Finance\Invoice\InvoiceService;
 use App\Services\Finance\Billing\BillingDocumentService;
@@ -62,6 +63,11 @@ class CreateProformaInvoiceCommand extends Command
                 ->whereDate('fecha_corte', '<=', $ultimoDiaPeriodo->format('Y-m-d'))
                 ->whereDoesntHave('invoices', function ($query) use ($periodo) {
                     $query->where('period', $periodo);
+                })
+                // Pausa de facturación programada (2026-09-24): mientras esté en_curso no se
+                // le genera proforma — el job de la pausa la retoma normal al concluir.
+                ->whereDoesntHave('billingPauses', function ($query) {
+                    $query->where('estado', ClientBillingPause::ESTADO_EN_CURSO);
                 })
                 ->get();
 

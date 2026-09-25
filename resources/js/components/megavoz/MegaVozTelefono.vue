@@ -445,6 +445,15 @@ export default {
 
         contestar() {
             if (! this.sesion) return;
+            // Corta el timbre de aviso AQUÍ, en el clic mismo — no esperar a
+            // los eventos 'accepted'/'confirmed' de la sesión (que ya lo
+            // hacían vía marcarActiva(), pero con margen para que quede
+            // sonando de más mientras la llamada termina de conectar).
+            // Encontrado en vivo 24-sep-2026: David probando el timbre
+            // entrante nuevo reportó que al contestar se escuchaba algo
+            // "estilo música de espera" — coincide con el propio timbre
+            // (dos ráfagas repetidas cada 3s) quedándose sonando de más.
+            this.detenerTonoLlamando();
             this.sesion.answer({ mediaConstraints: { audio: true, video: false } });
         },
 
