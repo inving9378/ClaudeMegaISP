@@ -370,6 +370,42 @@ export default {
                 });
             }
 
+            // Acota la reunión de rutas de red (ICE) antes de mandar la
+            // respuesta SIP — JsSIP, por diseño, espera a que el navegador la
+            // dé por TERMINADA (node_modules/jssip/lib/RTCSession.js,
+            // _createLocalDescription()) y NO trae ningún límite de tiempo
+            // propio. Si esa reunión se traba (red lenta llegando al TURN, o
+            // el navegador nunca la declara "completa"), el que llama o
+            // contesta se queda sin mandar NADA — el síntoma real probado en
+            // vivo 25-sep: "le di contestar al toque y de todos modos se cae
+            // a los 30/60s", con el log de Asterisk en silencio total de ese
+            // lado durante toda la espera. `event.ready()` es el escape que
+            // la propia librería expone para esto: se apura en cuanto
+            // aparece una ruta ÚTIL (srflx/relay, la que sirve para conectar
+            // fuera de la LAN), y como respaldo, se apura de todos modos a
+            // los 3s con lo que haya — mejor una llamada con lo que se tenga
+            // que una que nunca llega a mandarse.
+            let iceResuelto = false;
+            let iceTimer = null;
+            this.sesion.on('icecandidate', (event) => {
+                if (iceResuelto) return;
+                const cand = event.candidate;
+                const util = cand && cand.candidate && /\btyp (srflx|relay)\b/.test(cand.candidate);
+                if (util) {
+                    iceResuelto = true;
+                    if (iceTimer) clearTimeout(iceTimer);
+                    event.ready();
+                    return;
+                }
+                if (! iceTimer) {
+                    iceTimer = setTimeout(() => {
+                        if (iceResuelto) return;
+                        iceResuelto = true;
+                        event.ready();
+                    }, 3000);
+                }
+            });
+
             // 'accepted'/'confirmed': el momento exacto en que cada uno dispara
             // difiere según quién llamó y quién contestó — se escuchan los dos
             // y se marca "activa" una sola vez (idempotente) con lo que llegue
