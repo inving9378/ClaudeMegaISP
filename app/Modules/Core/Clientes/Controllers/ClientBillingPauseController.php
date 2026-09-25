@@ -8,6 +8,7 @@ use App\Modules\Core\Clientes\Models\ClientBillingPause;
 use App\Modules\Core\Clientes\Services\BillingPauseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Spatie\Activitylog\Models\Activity;
 
 /**
  * Endpoints de la pausa de facturación programada (Etapa 3 del feature, 2026-09-24).
@@ -33,15 +34,22 @@ class ClientBillingPauseController extends Controller
             ->first();
 
         $historial = ClientBillingPause::where('client_id', $id)
-            ->with(['creador:id,name,last_name_father', 'canceladoPor:id,name,last_name_father'])
+            ->with(['creador:id,name,father_last_name', 'canceladoPor:id,name,father_last_name'])
             ->orderByDesc('id')
             ->limit(20)
             ->get();
+
+        $bitacora = Activity::where('client_id', $id)
+            ->where('description', 'like', '%pausa de facturación%')
+            ->orderByDesc('id')
+            ->limit(15)
+            ->get(['id', 'description', 'created_at']);
 
         return response()->json([
             'success' => true,
             'elegibilidad' => $elegibilidad,
             'pausa_viva' => $pausaViva,
+            'bitacora' => $bitacora,
             'historial' => $historial,
         ]);
     }
