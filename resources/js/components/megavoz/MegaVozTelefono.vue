@@ -136,15 +136,24 @@
 import JsSIP from 'jssip';
 import { markRaw } from 'vue';
 
-// ⚠️ REVERTIDO 25-sep-2026 — ver docs/bitacora/2026-09-25-megavoz-revert-stun-navegador.md.
-// Se había agregado un STUN público (pcConfig) para arreglar audio
-// asimétrico en llamadas desde laptop — pero causó una regresión real en
-// celular (retraso de casi 1 minuto antes de que timbrara + se caía al
-// contestar), probablemente por NAT de operador celular donde STUN solo
-// no basta y la espera de ICE se cuelga. Revertido para no seguir
-// bloqueando pruebas reales mientras se investiga una solución que no
-// perjudique al celular (candidato: TURN, o limitar el tiempo de espera
-// de ICE en vez de quitar STUN del todo).
+// Sin esto, el RTCPeerConnection del navegador solo reúne candidatos ICE
+// "host" (interfaces locales) — nunca uno público vía STUN. Confirmado con
+// evidencia directa 25-sep-2026 (no solo sospecha): con `rtp set debug on`
+// sobre una llamada real en curso, Asterisk mandaba el audio a
+// `192.168.1.109` — una IP PRIVADA de la laptop de David, inalcanzable
+// desde internet — mientras SÍ recibía bien desde su IP pública real. Sin
+// un candidato público real que negociar por ICE, Asterisk no tiene a
+// dónde más mandar el audio que a la dirección local (inútil) declarada en
+// el SDP. Mismo servidor STUN que ya usa Asterisk del lado servidor
+// (rtp.conf, desde Fase 2).
+//
+// ⚠️ Segundo intento (el primero causó una regresión real en celular —
+// retraso de casi 1 minuto + caída al contestar, ver
+// docs/bitacora/2026-09-25-megavoz-revert-stun-navegador.md). Sin una forma
+// confiable de acotar el tiempo de espera de ICE dentro de la API de alto
+// nivel de JsSIP, se reintenta tal cual — probar con cuidado en celular
+// además de laptop antes de darlo por bueno.
+const PC_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
 export default {
     name: 'MegaVozTelefono',
@@ -398,6 +407,7 @@ export default {
             // bug del estado pisado.
             this.ua.call(`sip:${this.destino}@${location.hostname}`, {
                 mediaConstraints: { audio: true, video: false },
+                pcConfig: PC_CONFIG,
             });
         },
 
@@ -464,7 +474,7 @@ export default {
             // "estilo música de espera" — coincide con el propio timbre
             // (dos ráfagas repetidas cada 3s) quedándose sonando de más.
             this.detenerTonoLlamando();
-            this.sesion.answer({ mediaConstraints: { audio: true, video: false } });
+            this.sesion.answer({ mediaConstraints: { audio: true, video: false }, pcConfig: PC_CONFIG });
         },
 
         colgar() {
