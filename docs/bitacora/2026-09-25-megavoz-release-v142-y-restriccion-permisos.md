@@ -41,7 +41,7 @@ mecanismo real de prod es "Buscar actualizaciones", documentado en el runbook).
 Nota operativa: el primer intento falló en `git_staging_gate` por 2 archivos ajenos
 sin commitear en el checkout compartido (`docs/maquetas/panorama-arbol.html` +
 su bitácora, del sistema de adjuntos del roadmap, dejados a propósito sin commitear
-por otro proceso). Se apartaron con `git stash` (reversible), se reintentó el pipeline,//
+por otro proceso). Se apartaron con `git stash` (reversible), se reintentó el pipeline,
 y se restauraron intactos al terminar — no se tocó ni se perdió nada de ese trabajo
 ajeno.
 
