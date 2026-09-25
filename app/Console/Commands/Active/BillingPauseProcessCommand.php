@@ -2,11 +2,8 @@
 
 namespace App\Console\Commands\Active;
 
-use App\Http\Controllers\Utils\ComunConstantsController;
-use App\Jobs\SuspendServiceJob;
 use App\Modules\Core\Clientes\Models\ClientBillingPause;
-use App\Modules\Core\Clientes\Repositories\ClientRepository;
-use App\Modules\Core\Clientes\Services\BillingExpirationService;
+use App\Modules\Core\Clientes\Services\BillingPauseService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -14,28 +11,58 @@ use Spatie\Activitylog\Models\Activity;
 
 /**
  * Job diario de la pausa de facturación programada (Etapa 2 del feature, 2026-09-24):
- * (a) inicia las pausas `programada` cuyo fecha_inicio ya llegó — suspende el servicio y
- *     pasa a en_curso; (b) concluye las `en_curso` cuyo fecha_fin ya llegó — reactiva el
- *     servicio, recalcula fecha_corte/fecha_pago para que invoice:create-proformas la
- *     retome normal en su próxima corrida, y pasa a concluida; (c) cancela las
- *     `esperando_pago` cuyo fecha_inicio ya llegó sin que la cuota se haya pagado (Regla 9
- *     del spec: "si no se paga antes de la fecha de inicio, la pausa se cancela").
+ * (a) activa las `esperando_pago` cuyo balance ya cubre la cuota (Opción A: se detecta por
+ *     delta de balance, no por una factura — ver BillingPauseService::crearPausa()); (b) inicia
+ *     las `programada` cuyo fecha_inicio ya llegó — suspende el servicio y pasa a en_curso;
+ *     (c) concluye las `en_curso` cuyo fecha_fin ya llegó — reactiva el servicio, recalcula
+ *     fecha_corte/fecha_pago para que invoice:create-proformas la retome normal en su próxima
+ *     corrida, y pasa a concluida; (d) cancela las `esperando_pago` cuyo fecha_inicio ya llegó
+ *     sin que la cuota se haya pagado (Regla 9 del spec).
  *
  * Deliberadamente NO genera la proforma directamente al concluir — se apoya en que
  * invoice:create-proformas corre después (02:00 este comando, 03:00 esa) y ya la
  * generará normal en cuanto el cliente deje de estar en_curso y su fecha_corte recalculada
  * caiga en el período correspondiente. Evita duplicar esa lógica.
+ *
+ * La lógica de suspender/reactivar servicios y recalcular fechas vive en BillingPauseService
+ * (fuente única) — este comando solo orquesta el recorrido diario, y BillingPauseService::
+ * reanudarAnticipada() (acción manual desde la UI) reusa exactamente los mismos métodos.
  */
 class BillingPauseProcessCommand extends Command
 {
     protected $signature = 'billing:procesar-pausas';
     protected $description = 'Inicia y concluye las pausas de facturación programadas del día';
 
+    public function __construct(private BillingPauseService $pauseService)
+    {
+        parent::__construct();
+    }
+
     public function handle()
     {
+        $this->activarPorPagoDeCuota();
         $this->cancelarEsperandoPagoVencidas();
         $this->iniciarProgramadas();
         $this->concluirEnCurso();
+    }
+
+    private function activarPorPagoDeCuota(): void
+    {
+        $pausas = ClientBillingPause::where('estado', ClientBillingPause::ESTADO_ESPERANDO_PAGO)
+            ->whereNotNull('balance_al_crear')
+            ->get();
+
+        foreach ($pausas as $pausa) {
+            try {
+                if ($this->pauseService->cuotaYaFuePagada($pausa)) {
+                    $this->pauseService->activarPorPagoDeCuota($pausa);
+                    $this->info("Pausa #{$pausa->id} (cliente {$pausa->client_id}) activada: cuota de conservación pagada.");
+                }
+            } catch (\Throwable $e) {
+                Log::error("[billing:procesar-pausas] Error activando pausa #{$pausa->id} por pago de cuota: " . $e->getMessage());
+                $this->error("Error con pausa #{$pausa->id}: " . $e->getMessage());
+            }
+        }
     }
 
     private function cancelarEsperandoPagoVencidas(): void
@@ -68,7 +95,7 @@ class BillingPauseProcessCommand extends Command
 
         foreach ($pausas as $pausa) {
             try {
-                $this->suspenderServiciosDelCliente($pausa->client_id);
+                $this->pauseService->suspenderServiciosDelCliente($pausa->client_id);
 
                 $pausa->update(['estado' => ClientBillingPause::ESTADO_EN_CURSO]);
 
@@ -92,8 +119,8 @@ class BillingPauseProcessCommand extends Command
 
         foreach ($pausas as $pausa) {
             try {
-                $this->reactivarServiciosDelCliente($pausa->client_id);
-                $this->recalcularFechasDeFacturacion($pausa->client_id, $pausa->fecha_fin);
+                $this->pauseService->reactivarServiciosDelCliente($pausa->client_id);
+                $this->pauseService->recalcularFechasDeFacturacion($pausa->client_id, $pausa->fecha_fin);
 
                 $pausa->update([
                     'estado' => ClientBillingPause::ESTADO_CONCLUIDA,
@@ -110,50 +137,5 @@ class BillingPauseProcessCommand extends Command
                 $this->error("Error con pausa #{$pausa->id}: " . $e->getMessage());
             }
         }
-    }
-
-    private function suspenderServiciosDelCliente(int $clientId): void
-    {
-        $clientRepository = new ClientRepository();
-        $clientWithServices = $clientRepository->getServicesForClient($clientId);
-
-        foreach (ComunConstantsController::ALL_CLIENT_SERVICE as $service) {
-            foreach ($clientWithServices->$service as $clientService) {
-                SuspendServiceJob::dispatchSync($clientService);
-            }
-        }
-    }
-
-    private function reactivarServiciosDelCliente(int $clientId): void
-    {
-        $clientRepository = new ClientRepository();
-        $clientWithServices = $clientRepository->getServicesForClient($clientId);
-
-        foreach (ComunConstantsController::ALL_CLIENT_SERVICE as $service) {
-            foreach ($clientWithServices->$service as $clientService) {
-                $repository = $clientService->getRepository();
-                (new $repository())->setDeployedTrueAndActiveService($clientService);
-            }
-        }
-    }
-
-    /**
-     * Recorre fecha_pago y fecha_corte al terminar la pausa, para que
-     * invoice:create-proformas retome al cliente normal en su siguiente corrida.
-     * Se fija fecha_pago = fecha_fin de la pausa (equivalente a "como si hubiera
-     * renovado el día que termina la pausa") y de ahí se deriva fecha_corte con el
-     * servicio existente, respetando el tipo de facturación real del cliente.
-     */
-    private function recalcularFechasDeFacturacion(int $clientId, $fechaFinPausa): void
-    {
-        $clientRepository = new ClientRepository();
-        $client = $clientRepository->getClientById($clientId);
-
-        $client->fecha_pago = Carbon::parse($fechaFinPausa)->toDateTimeString();
-        $client->fecha_corte = Carbon::parse($fechaFinPausa)->toDateTimeString();
-        $client->save();
-
-        $client->refresh();
-        (new BillingExpirationService($client))->setNewFechaCorteForClient(null, 1, true, false);
     }
 }

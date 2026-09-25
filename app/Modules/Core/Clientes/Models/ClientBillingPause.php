@@ -36,7 +36,7 @@ class ClientBillingPause extends BaseModel
 
     protected $fillable = [
         'client_id', 'tipo', 'meses', 'fecha_inicio', 'fecha_fin', 'fecha_fin_real',
-        'estado', 'cuota_mensual', 'monto_cuota', 'factura_cuota_id',
+        'estado', 'cuota_mensual', 'monto_cuota', 'balance_al_crear', 'factura_cuota_id',
         'motivo', 'canal', 'evidencia_path',
         'created_by', 'updated_by', 'cancelled_by',
     ];
@@ -48,6 +48,7 @@ class ClientBillingPause extends BaseModel
         'meses' => 'integer',
         'cuota_mensual' => 'decimal:2',
         'monto_cuota' => 'decimal:2',
+        'balance_al_crear' => 'decimal:2',
     ];
 
     protected static function boot()
