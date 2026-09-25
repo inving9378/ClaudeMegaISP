@@ -29,6 +29,12 @@
                                 Crear Factura Manual
                             </button>
                         </div>
+                        <div
+                            v-if="hasPermission.data.canView('clientes.pausa.crear')"
+                            class="col-12 col-md-6 col-lg-3 text-center"
+                        >
+                            <ClientBillingPauseButton :client-id="id" />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -211,6 +217,11 @@
                     </div>
                 </div>
 
+                <ClientBillingPausePanel
+                    v-if="hasPermission.data.canView('clientes.pausa.crear')"
+                    :client-id="id"
+                />
+
                 <ClientPaymentAccount :id="id" />
                 <br />
                 <ClientBillingAddress :id="id" />
@@ -335,6 +346,8 @@ import ClientBillingConfiguration from "./ClientBillingConfiguration";
 import ClientPaymentAccount from "./ClientPaymentAccount";
 import ClientBillingAddress from "./ClientBillingAddress";
 import ClientRemindersConfiguration from "./ClientRemindersConfiguration";
+import ClientBillingPauseButton from "./ClientBillingPauseButton.vue";
+import ClientBillingPausePanel from "./ClientBillingPausePanel.vue";
 import ClientInfoAccountBalance from "../info/ClientInfoAccountBalance.vue";
 import ComponentFormDefault from "../../../../components/ComponentFormDefault";
 import UpdateCourt from "./helpers/UpdateCourt.vue";
@@ -365,6 +378,8 @@ export default {
         ClientBillingAddress,
         ClientPaymentAccount,
         ClientBillingConfiguration,
+        ClientBillingPauseButton,
+        ClientBillingPausePanel,
         ClientInfoAccountBalance,
         ComponentFormDefault,
         requestPaymentMethod,
