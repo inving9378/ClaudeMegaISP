@@ -184,6 +184,8 @@ export default {
             // lo genera el propio aparato/app que llama, no la central.
             _audioCtx: null,
             _ringInterval: null,
+            // Blindaje contra doble clic en "Contestar" — ver contestar().
+            _contestando: false,
         };
     },
 
@@ -483,6 +485,16 @@ export default {
 
         contestar() {
             if (! this.sesion) return;
+            // Blindaje contra doble clic — encontrado en vivo 25-sep-2026:
+            // "Invalid status: 5" de JsSIP (RTCSession ya estaba en
+            // STATUS_ANSWERED cuando se llamó answer() otra vez) — un
+            // segundo clic mientras la primera llamada a answer() seguía en
+            // curso (pidiendo el micrófono, armando el SDP) reintentaba
+            // sobre una sesión que ya iba a medias. Sin el guard, ese
+            // segundo intento tronaba y colgaba la llamada real.
+            if (this._contestando) return;
+            this._contestando = true;
+
             // Corta el timbre de aviso AQUÍ, en el clic mismo — no esperar a
             // los eventos 'accepted'/'confirmed' de la sesión (que ya lo
             // hacían vía marcarActiva(), pero con margen para que quede
@@ -497,6 +509,7 @@ export default {
             } catch (err) {
                 console.error('MegaVoz: contestar() falló', err);
                 alert('No se pudo contestar la llamada: ' + err.message);
+                this._contestando = false;
             }
         },
 
@@ -658,6 +671,7 @@ export default {
             this.fichaCliente = null;
             this.cargandoFicha = false;
             this.finalizando = false;
+            this._contestando = false;
             this.mensajeFinal = '';
             if (this.$refs.audioRemoto) this.$refs.audioRemoto.srcObject = null;
         },
