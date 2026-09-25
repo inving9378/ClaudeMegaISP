@@ -14,9 +14,11 @@ use Illuminate\Support\Facades\DB;
 use Spatie\Activitylog\Models\Activity;
 
 /**
- * Reglas de elegibilidad para la pausa de facturación programada (decididas por Irving,
- * 2026-09-24). No toca facturación real todavía (eso es Etapa 2) — aquí solo se decide
- * si un cliente PUEDE pedir una pausa y con qué duración máxima.
+ * Motor de la pausa de facturación programada (reglas decididas por Irving, 2026-09-24):
+ * elegibilidad, alta/cancelación/reanudación anticipada, y las operaciones de servicio/balance
+ * que esos cambios de estado disparan (suspender/reactivar PPPoE, recalcular fecha_corte/
+ * fecha_pago, acreditar/descontar saldo). El job diario (BillingPauseProcessCommand) y los
+ * futuros endpoints de la UI (Etapa 3) son solo orquestación fina sobre este servicio.
  */
 class BillingPauseService
 {
