@@ -1139,7 +1139,12 @@ url = "mysql+{drv}://{u}:{p}@{h}:{P}/{d}".format(
 )
 
 txt = open(ruta, encoding="utf-8").read()
-txt, n = re.subn(r"(?m)^sqlalchemy\.url\s*=.*$", "sqlalchemy.url = " + url.replace("\\", "\\\\"), txt)
+# configparser (lo que usa Alembic para leer config.ini) interpola '%' por
+# defecto: un password con `/` -> quote_plus lo deja como `%2F`, y sin escapar
+# el '%' revienta con InterpolationSyntaxError al leer el archivo, después de
+# haber compilado/instalado todo. '%%' es literal para configparser.
+url_ini = url.replace("%", "%%")
+txt, n = re.subn(r"(?m)^sqlalchemy\.url\s*=.*$", "sqlalchemy.url = " + url_ini.replace("\\", "\\\\"), txt)
 
 # Si el sample cambia de forma y la línea no aparece, el archivo quedaría con la
 # URL de ejemplo (`user:pass@localhost`) y Alembic apuntaría a una base que no
