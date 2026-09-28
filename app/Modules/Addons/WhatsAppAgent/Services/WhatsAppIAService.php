@@ -3,26 +3,23 @@
 namespace App\Modules\Addons\WhatsAppAgent\Services;
 
 use App\Modules\Addons\IA\Models\IAProveedor;
-use Illuminate\Support\Facades\Http;
+use App\Modules\Addons\IA\Services\IAAdaptadorFactory;
 use Illuminate\Support\Facades\Log;
-use RuntimeException;
 
 class WhatsAppIAService
 {
-    private string $defaultModel = 'claude-sonnet-4-20250514';
-
-    private function getClaudeProveedor(): IAProveedor
+    /**
+     * Proveedor de IA a usar: el activo de mayor prioridad del Hub. Antes
+     * exigía driver=claude específico (le pegaba directo a Anthropic con
+     * Http::post(), sin pasar por el Hub) — si esa cuenta se quedaba sin
+     * crédito, este bot quedaba ciego aunque hubiera otro proveedor activo
+     * (mismo bug ya encontrado y corregido en PaymentReceiptExtractor,
+     * 2026-09-28). Ahora usa cualquier proveedor activo, igual que el resto
+     * del sistema.
+     */
+    private function resolverProveedor(): ?IAProveedor
     {
-        $proveedor = IAProveedor::where('driver', 'claude')
-            ->where('activo', true)
-            ->orderByDesc('id')
-            ->first();
-
-        if (!$proveedor) {
-            throw new RuntimeException('No hay IAProveedor activo con driver=claude en ia_proveedores.');
-        }
-
-        return $proveedor;
+        return IAProveedor::where('activo', true)->orderByDesc('id')->first();
     }
 
     /**
@@ -173,26 +170,21 @@ CRÍTICO — USO DE "DATOS YA RECOPILADOS":
   mensaje actual; el backend ya tiene los previos.
 PROMPT;
 
-        $proveedor = $this->getClaudeProveedor();
-        $endpoint  = $proveedor->endpoint_url ?: 'https://api.anthropic.com/v1/messages';
-        $model     = $proveedor->modelo_default ?: $this->defaultModel;
-
-        $response = Http::withHeaders([
-            'x-api-key'         => $proveedor->api_key,
-            'anthropic-version' => '2023-06-01',
-            'content-type'      => 'application/json',
-        ])->timeout(20)->post($endpoint, [
-            'model'      => $model,
-            'max_tokens' => 1024,
-            'messages'   => [['role' => 'user', 'content' => $prompt]],
-        ]);
-
-        if (!$response->successful()) {
-            Log::error('WhatsAppIA Claude error', ['body' => $response->body()]);
+        $proveedor = $this->resolverProveedor();
+        if (!$proveedor) {
+            Log::error('WhatsAppIA: sin proveedor de IA activo en ia_proveedores');
             return $this->fallbackAssist($incomingMessage, $tone);
         }
 
-        $text  = (string) $response->json('content.0.text', '{}');
+        try {
+            $adaptador = IAAdaptadorFactory::crear($proveedor);
+            $resultado = $adaptador->enviarMensaje([], $prompt, [], null);
+        } catch (\Throwable $e) {
+            Log::error('WhatsAppIA error', ['proveedor' => $proveedor->nombre ?? null, 'error' => $e->getMessage()]);
+            return $this->fallbackAssist($incomingMessage, $tone);
+        }
+
+        $text  = (string) ($resultado['texto'] ?? '');
         $clean = trim(preg_replace('/```json|```/', '', $text));
         $data  = json_decode($clean, true);
 
