@@ -174,6 +174,18 @@ class TalentoColaboradorController extends Controller
                 || auth()->user()->can('talento.liquidation.view')
                 || (bool) ($miPropioColaborador?->subordinados()->exists()),
             'custodia'        => auth()->user()->can('talento.custody.view') || $tieneAccesoAmplio,
+            // David (28-sep): "a no ser que sea supervisor o los otros
+            // roles... quita el buscador de colaboradores" — el
+            // buscador/grilla es una capacidad GLOBAL (no atada al
+            // colaborador de ESTA ficha), mismo criterio que
+            // proyectos_manage/credenciales_manage. NO se usa
+            // talento.custody.view aquí (a propósito): ese permiso lo
+            // tiene también TECNICO directo (ver
+            // TalentoCustodiaController::puedeVerCustodiaDe()) y por eso
+            // NO sirve para distinguir "staff que puede buscar a
+            // cualquiera" de "técnico viendo solo lo suyo".
+            'custodia_buscador' => auth()->user()->can('talento.employees.view')
+                || (bool) ($miPropioColaborador?->subordinados()->exists()),
             'dispositivos'    => auth()->user()->can('talento.devices.view') || $tieneAccesoAmplio,
             'roles_multiples' => auth()->user()->can('talento.embajadores.view') || $tieneAccesoAmplio,
             // Nuevas (item 1b, 28-sep): expediente/paquetes de documentos y
