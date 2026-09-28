@@ -209,10 +209,50 @@
 <script>
 import { darkMode } from "../../../hook/appConfig.js";
 import TalentoFichaInformacion from "./TalentoFichaInformacion.vue";
+import TalentoOrdenes from "./TalentoOrdenes.vue";
+import TalentoCompensacion from "./TalentoCompensacion.vue";
+import TalentoLiquidaciones from "./TalentoLiquidaciones.vue";
+import TalentoAsistencia from "./TalentoAsistencia.vue";
+import TalentoCampo from "./TalentoCampo.vue";
+import TalentoCajas from "./TalentoCajas.vue";
+import TalentoRutas from "./TalentoRutas.vue";
+import TalentoCalidad from "./TalentoCalidad.vue";
+import TalentoProyectos from "./TalentoProyectos.vue";
+import TalentoPenalizaciones from "./TalentoPenalizaciones.vue";
+import TalentoCredenciales from "./TalentoCredenciales.vue";
+import TalentoFiniquito from "./TalentoFiniquito.vue";
+import TalentoCustodia from "./TalentoCustodia.vue";
+import TalentoDispositivos from "./TalentoDispositivos.vue";
+import TalentoEmbajadores from "./TalentoEmbajadores.vue";
 
 export default {
   name: "TalentoColaboradorFicha",
-  components: { TalentoFichaInformacion },
+  // Registro LOCAL explícito de cada pestaña reusada — necesario aunque estos
+  // mismos componentes YA estén en el objeto `components` de createApp() en
+  // app.js: ese registro es local a la instancia RAÍZ (options del objeto que
+  // recibe createApp()), no global vía app.component(), así que un componente
+  // anidado (como este, usado dentro de <talento-colaborador-ficha>) NO lo
+  // hereda — solo ve sus propios `components` + lo registrado con
+  // app.component() de verdad. Sin esto cada <talento-xxx> se renderiza
+  // literal sin resolver (bug real encontrado con Playwright 28-sep-2026).
+  components: {
+    TalentoFichaInformacion,
+    TalentoOrdenes,
+    TalentoCompensacion,
+    TalentoLiquidaciones,
+    TalentoAsistencia,
+    TalentoCampo,
+    TalentoCajas,
+    TalentoRutas,
+    TalentoCalidad,
+    TalentoProyectos,
+    TalentoPenalizaciones,
+    TalentoCredenciales,
+    TalentoFiniquito,
+    TalentoCustodia,
+    TalentoDispositivos,
+    TalentoEmbajadores,
+  },
   props: {
     id: { type: [Number, String], required: true },
     // Flags de permiso del VIEWER, resueltas server-side en la vista Blade
