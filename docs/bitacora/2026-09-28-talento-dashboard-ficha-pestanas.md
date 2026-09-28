@@ -781,3 +781,84 @@ su propia fila sin buscador, supervisor sí ve el buscador completo. 5/5.
 ### Commits
 
 - `19f3fb87` — oculta el buscador de colaboradores, igual que Custodia
+
+## 2026-09-28 14:06 — Calidad de caja: el controller con MENOS protección de toda la ficha
+
+David pidió "verifica". "Calidad de caja" es el control de calidad de las
+cajas de empalme (ODB) que construyen los técnicos en campo: fotografían
+la caja, miden pérdida de fusión (dB) y potencia óptica (dBm), califican
+la organización (1-10), pueden pedirle a una IA que analice la foto
+(asesora, no decide), y **un supervisor valida** el resultado final —
+igual o distinto al que sugirió la IA.
+
+### 🔴 El hallazgo más grave de toda esta ronda — CERO autorización en casi todo el controller
+
+De los 10 métodos de `TalentoQualityController`, **9 no tenían NINGÚN
+chequeo de permiso** (ni `authorize()`, ni scoping propio, nada) — solo
+`servePhoto()` tenía algo, y estaba mal (admin-only sin self-view). Esto
+incluía:
+
+- **`supervisorValidate()` — la acción que literalmente se llama
+  "supervisor valida" — cualquiera, incluido el propio técnico que hizo la
+  inspección, podía llamarla y auto-aprobar su propio trabajo.** Es el
+  control de calidad entero, vaciado de sentido.
+- `storeStandard()`/`updateStandard()`/`uploadStandardImage()`/
+  `destroyStandard()` — cualquiera podía crear, editar, subir imagen o
+  **borrar** un estándar de construcción del catálogo de la empresa.
+- `runIaAnalysis()` — cualquiera podía disparar análisis de IA (cuesta
+  dinero real) sobre la inspección de cualquier otro.
+- `inspectionsIndex()`/`showInspection()` — sin scoping, cualquiera veía
+  la inspección de cualquiera (fotos, mediciones, resultado).
+
+**La única razón por la que esto no era explotable hoy:** ninguna de estas
+rutas (`/talento/api/inspecciones`, `/talento/api/standards`) estaba
+cubierta por NINGÚN bloque de `route_permission.php` — ni siquiera
+`talento.quality.view`/`.manage` las incluían. El middleware bloqueaba
+TODO antes de llegar al controller, para cualquiera que no fuera admin vía
+bypass. **Efecto colateral: ni siquiera `storeInspection()` — que SÍ
+estaba bien diseñado, self-scoped por `auth()->id()` — era alcanzable.
+Ningún técnico pudo enviar una inspección de calidad desde que se escribió
+esta pestaña.**
+
+### Fix
+
+- Agregado `authorize('talento.quality.manage')` a las 4 acciones de
+  escritura del catálogo (crear/editar/imagen/borrar estándar) — política
+  de empresa, admin-only a propósito, SIN excepción de supervisor (a
+  diferencia del resto del módulo).
+- Nuevo `puedeVerInspeccionDe()` (uno mismo/supervisor directo/staff) en
+  `inspectionsIndex()`/`showInspection()`/`runIaAnalysis()`/`servePhoto()`.
+- Nuevo `esSupervisorDeInspeccion()` (supervisor directo del inspector, o
+  staff — **SIN autoservicio**) en `supervisorValidate()`: quien hizo la
+  inspección no puede validar su propio trabajo, sea cual sea su otro
+  permiso.
+- `route_permission.php`: abiertas `/talento/api/standards` (+`**`) y
+  `/talento/api/inspecciones` (+`**`) en `talento.view` — las 4 acciones
+  de catálogo y `supervisorValidate()` quedan protegidas por su propio
+  `authorize()`/scoping nuevo, así que abrir la ruta no las abre de
+  verdad.
+- `permisos.calidad_validar` (ficha()) = supervisor directo de ESTE
+  colaborador o staff — controla si se muestra el bloque "Validación de
+  supervisor" en el modal (quien inspeccionó nunca lo ve para su propia
+  inspección).
+- `permisos.calidad_estandares_manage` (ficha()) = solo
+  `talento.quality.manage` — controla "Nuevo estándar"/"Editar"/"Subir
+  imagen"; a propósito ni siquiera el supervisor lo ve (política de
+  empresa, no gestión de equipo).
+- El botón **"Nueva inspección" queda SIN gating** — es medición de campo
+  (mismo criterio que el baseline de Cajas ODB), cualquier técnico puede
+  registrar la suya.
+
+**Verificado con Playwright** (cuentas desechables, borradas al terminar):
+técnico crea su propia inspección (antes 403 SIEMPRE — la pestaña nunca
+funcionó para nadie), técnico ajeno bloqueado de verla, técnico dueño la
+ve, ni el propio técnico ni un ajeno pueden autovalidarla (403 en ambos
+casos), el supervisor SÍ la valida correctamente, UI oculta "Nuevo
+estándar" tanto a técnico como a supervisor (solo admin), "Nueva
+inspección" visible para el técnico, catálogo de estándares legible en
+autoservicio, y el listado global sin filtro sigue bloqueado para
+técnico. 13/13.
+
+### Commits
+
+- `ca51f56d` — el controller con MENOS protección de toda la ficha
