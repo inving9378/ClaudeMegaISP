@@ -2081,6 +2081,11 @@ return [
         // distinción real (ver puede_gestionar en la respuesta de
         // getSettings() y el abort_unless de updateSettings()).
         '/talento/api/cajas/settings',
+        // Ver/crear rutas de un colaborador: uno mismo, su supervisor
+        // directo, o el permiso de STAFF — el controller
+        // (store()/esSuSupervisor) hace la distinción real.
+        '/talento/api/rutas',
+        '/talento/api/rutas/{id}',
     ],
     'talento.dashboard.view' => [
         '/talento',

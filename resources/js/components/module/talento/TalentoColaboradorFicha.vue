@@ -194,7 +194,7 @@
           <talento-cajas :colaborador-id="id" />
         </div>
         <div v-if="activeTab === 'rutas'">
-          <talento-rutas :colaborador-id="id" />
+          <talento-rutas :colaborador-id="id" :colaborador-nombre="colaborador?.user?.name ?? ''" :puede-gestionar="permisos.rutas_manage" />
         </div>
         <div v-if="activeTab === 'calidad'">
           <talento-calidad :colaborador-id="id" />

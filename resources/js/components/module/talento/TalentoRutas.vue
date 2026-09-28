@@ -6,7 +6,7 @@
       <div class="tc-card">
         <div class="tc-cardhead d-flex align-items-center justify-content-between flex-wrap gap-2 p-3">
           <h5 class="mb-0"><i class="fa fa-route me-2 text-primary"></i>Rutas de Planta Interna</h5>
-          <button @click="openCreate" class="tc-btn tc-btn-ok"><i class="fa fa-plus me-1"></i>Nueva ruta</button>
+          <button v-if="puedeCrear" @click="openCreate" class="tc-btn tc-btn-ok"><i class="fa fa-plus me-1"></i>Nueva ruta</button>
         </div>
 
         <div class="p-3">
@@ -127,15 +127,22 @@
             <div class="row g-3">
               <div class="col-md-6">
                 <label class="form-label">Colaborador <span class="text-danger">*</span></label>
-                <input v-model="createModal.colSearch" @input="debounceColSearch" type="text"
-                       class="form-control" placeholder="Buscar…">
-                <ul v-if="createModal.suggestions.length" class="list-group mt-1 position-absolute shadow" style="z-index:10001;max-height:160px;overflow-y:auto">
-                  <li v-for="c in createModal.suggestions" :key="c.id" @click="selectCol(c)"
-                      class="list-group-item list-group-item-action small cursor-pointer">{{ c.user?.name }}</li>
-                </ul>
-                <div v-if="createModal.colaborador_id" class="mt-1 small text-success">
-                  <i class="fa fa-check-circle me-1"></i>{{ createModal.colaborador_name }}
+                <!-- Dentro de la ficha de un colaborador: fija, sin buscador —
+                     mismo criterio que TalentoOrdenes.vue. -->
+                <div v-if="colaboradorId" class="form-control-plaintext small">
+                  <i class="fa fa-check-circle text-success me-1"></i>{{ createModal.colaborador_name }}
                 </div>
+                <template v-else>
+                  <input v-model="createModal.colSearch" @input="debounceColSearch" type="text"
+                         class="form-control" placeholder="Buscar…">
+                  <ul v-if="createModal.suggestions.length" class="list-group mt-1 position-absolute shadow" style="z-index:10001;max-height:160px;overflow-y:auto">
+                    <li v-for="c in createModal.suggestions" :key="c.id" @click="selectCol(c)"
+                        class="list-group-item list-group-item-action small cursor-pointer">{{ c.user?.name }}</li>
+                  </ul>
+                  <div v-if="createModal.colaborador_id" class="mt-1 small text-success">
+                    <i class="fa fa-check-circle me-1"></i>{{ createModal.colaborador_name }}
+                  </div>
+                </template>
               </div>
               <div class="col-md-3">
                 <label class="form-label">Fecha</label>
@@ -182,14 +189,31 @@
 <script>
 import L from 'leaflet';
 import { darkMode } from "../../../hook/appConfig.js";
+import Permission from "../../../helpers/Permission.js";
+import { allViewHasPermission } from "../../../helpers/Request.js";
 
 export default {
   name: 'TalentoRutas',
   props: {
     colaboradorId: { type: [Number, String], default: null },
+    colaboradorNombre: { type: String, default: '' },
+    // Resuelto server-side por la ficha (permisos.rutas_manage): admin/
+    // DESARROLLADOR o supervisor directo de ESTE colaborador — David,
+    // 28-sep: "esa ruta debería hacerla el superior o superiores".
+    puedeGestionar: { type: Boolean, default: false },
   },
   setup() {
     return { darkMode };
+  },
+  computed: {
+    puedeCrear() {
+      // Dentro de la ficha: lo que ya resolvió el servidor. En la pantalla
+      // suelta: el permiso global del viewer (mismo patrón que
+      // TalentoOrdenes.vue/TalentoCampo.vue).
+      return this.colaboradorId
+        ? this.puedeGestionar
+        : new Permission(this.permisosGlobales).canDo('talento.routes.manage');
+    },
   },
   data() {
     const today = new Date().toISOString().substring(0, 10);
@@ -209,9 +233,15 @@ export default {
       },
       colSearchTimeout: null,
       woSearchTimeout: null,
+      permisosGlobales: {},
     };
   },
-  mounted() { this.load(); },
+  async mounted() {
+    // Solo hace falta el permiso GLOBAL en la pantalla suelta (sin
+    // colaboradorId) — dentro de la ficha, puedeGestionar ya viene resuelto.
+    if (!this.colaboradorId) this.permisosGlobales = await allViewHasPermission();
+    this.load();
+  },
   beforeUnmount() { if (this.map) { this.map.remove(); this.map = null; } },
   methods: {
     async load() {
@@ -298,8 +328,10 @@ export default {
     },
     openCreate() {
       this.createModal = {
-        show: true, colaborador_id: null, colaborador_name: '', colSearch: '',
-        suggestions: [], date: this.filters.date, stops: [], woSearch: '', woSuggestions: [],
+        show: true,
+        colaborador_id: this.colaboradorId || null,
+        colaborador_name: this.colaboradorId ? this.colaboradorNombre : '',
+        colSearch: '', suggestions: [], date: this.filters.date, stops: [], woSearch: '', woSuggestions: [],
         saving: false, error: '',
       };
     },

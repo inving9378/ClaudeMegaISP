@@ -120,6 +120,11 @@ class TalentoColaboradorController extends Controller
             'campo'           => auth()->user()->can('talento.work_orders.view') || $tieneAccesoAmplio,
             'cajas'           => auth()->user()->can('talento.caja.view') || $tieneAccesoAmplio,
             'rutas'           => auth()->user()->can('talento.routes.view') || $tieneAccesoAmplio,
+            // David (28-sep): "esa ruta debería hacerla el superior o
+            // superiores" — mismo criterio que ordenes_manage, a propósito
+            // SIN $tieneAccesoAmplio (verse a uno mismo no da de gratis la
+            // capacidad de armarse su propia ruta).
+            'rutas_manage'    => auth()->user()->can('talento.routes.manage') || $esSuSupervisor,
             'calidad'         => auth()->user()->can('talento.quality.view') || $tieneAccesoAmplio,
             'proyectos'       => auth()->user()->can('talento.projects.view') || $tieneAccesoAmplio,
             'penalizaciones'  => auth()->user()->can('talento.penalties.view') || $tieneAccesoAmplio,

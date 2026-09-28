@@ -7,12 +7,33 @@ use App\Modules\Addons\Talento\Models\TalentoLocationPing;
 use App\Modules\Addons\Talento\Models\TalentoRoute;
 use App\Modules\Addons\Talento\Models\TalentoRouteStop;
 use App\Modules\Addons\Talento\Services\RouteDeviationService;
+use App\Modules\Addons\Talento\Support\Actor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class TalentoRouteController extends Controller
 {
     public function __construct(private RouteDeviationService $deviationService) {}
+
+    /**
+     * Ver rutas de un colaborador puntual: uno mismo, su supervisor
+     * directo, o el permiso de STAFF — mismo criterio que
+     * TalentoCompensacionController::puedeVerCompensacionDe().
+     */
+    private function puedeVerRutasDe($colaboradorId): bool
+    {
+        if (auth()->user()->can('talento.routes.view')) {
+            return true;
+        }
+
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        if (! $miPropioColaborador) {
+            return false;
+        }
+
+        return (string) $miPropioColaborador->id === (string) $colaboradorId
+            || $miPropioColaborador->subordinados()->where('id', $colaboradorId)->exists();
+    }
 
     public function index()
     {
@@ -22,7 +43,14 @@ class TalentoRouteController extends Controller
 
     public function data(Request $request)
     {
-        $this->authorize('talento.routes.view');
+        // Sin filtro por colaborador_id = listado global → exige el
+        // permiso de STAFF de verdad. Con filtro = uno mismo o supervisor
+        // directo también pueden verlo.
+        if ($request->colaborador_id) {
+            abort_unless($this->puedeVerRutasDe($request->colaborador_id), 403);
+        } else {
+            $this->authorize('talento.routes.view');
+        }
 
         $q = TalentoRoute::with(['colaborador.user'])
             ->when($request->colaborador_id, fn($q, $v) => $q->where('colaborador_id', $v))
@@ -36,14 +64,25 @@ class TalentoRouteController extends Controller
 
     public function store(Request $request)
     {
-        $this->authorize('talento.routes.manage');
-
         $data = $request->validate([
             'colaborador_id' => 'required|exists:talento_colaboradores,id',
             'date'           => 'required|date',
             'work_order_ids' => 'required|array|min:1|max:8',
             'work_order_ids.*' => 'exists:talento_work_orders,id',
         ]);
+
+        // David (28-sep): "esa ruta debería hacerla el superior o
+        // superiores" — mismo patrón que TalentoWorkOrderController::store():
+        // permiso general (admin/DESARROLLADOR) o supervisor DIRECTO del
+        // colaborador para el que se arma la ruta.
+        if (! auth()->user()->can('talento.routes.manage')) {
+            $esSuSupervisor = Actor::for(auth()->user())->talento()
+                ?->subordinados()
+                ->where('id', $data['colaborador_id'])
+                ->exists();
+
+            abort_unless($esSuSupervisor, 403, 'No tienes permiso para crear rutas para este colaborador.');
+        }
 
         $route = TalentoRoute::updateOrCreate(
             ['colaborador_id' => $data['colaborador_id'], 'date' => $data['date']],
@@ -66,13 +105,13 @@ class TalentoRouteController extends Controller
 
     public function show($id)
     {
-        $this->authorize('talento.routes.view');
-
         $route = TalentoRoute::with([
             'colaborador.user',
             'stops.workOrder',
             'deviations',
         ])->findOrFail($id);
+
+        abort_unless($this->puedeVerRutasDe($route->colaborador_id), 403);
 
         // Fetch today's pings for the map
         $attendanceIds = DB::table('talento_attendances')
