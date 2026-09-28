@@ -32,6 +32,14 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
             \App\Modules\Addons\WhatsAppAgent\Listeners\IaAutoReplyListener::class,
         );
 
+        // Agente de Ventas (IA) — aislado, gateado por su propia función
+        // 'agente_ventas' (ver seed 2026_09_28_100000). Cero código
+        // compartido con IaAutoReplyListener de arriba.
+        \Illuminate\Support\Facades\Event::listen(
+            \App\Modules\Addons\WhatsAppAgent\Events\WhatsAppTextReceived::class,
+            \App\Modules\Addons\WhatsAppAgent\Listeners\AgenteVentasTextListener::class,
+        );
+
         // Consumidor de un evento de dominio SALIENTE de otro módulo (item #253):
         // Embajadores publica la intención de compartir, este listener la traduce
         // al gateway. Embajadores no conoce Evolution ni WhatsAppGateway.

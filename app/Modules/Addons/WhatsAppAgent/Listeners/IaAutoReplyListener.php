@@ -33,6 +33,14 @@ class IaAutoReplyListener implements ShouldQueue
             return;
         }
 
+        // Candado cruzado con el Agente de Ventas (IA) nuevo y aislado
+        // (agente_ventas): si por error de configuración una línea tiene
+        // ambas funciones activas, este bot genérico calla y deja responder
+        // solo al agente nuevo — evita doble respuesta al mismo mensaje.
+        if ($event->hasFunction('agente_ventas')) {
+            return;
+        }
+
         $message      = WhatsAppMessage::find($event->messageId);
         $conversation = WhatsAppConversation::find($event->conversationId);
         if (!$message || !$conversation) {
