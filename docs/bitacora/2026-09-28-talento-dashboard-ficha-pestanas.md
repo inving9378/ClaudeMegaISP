@@ -989,3 +989,63 @@ ve lo suyo (200), supervisor ve a su subordinado (200). 4/4.
 ### Commits
 
 - `96ab06c2` — fix(talento): pestaña Paquetes de documentos 403eaba para TODO técnico/supervisor
+
+## 2026-09-28 15:45 — Documentos: firma y huecos, "igual que en vendedor" (reemplaza el fix anterior)
+
+David: "verifica que funcione igual que en vendedor para la parte de las
+firmas y los campos faltantes en los documentos, que todo este igual que
+ya aquello esta mas que probado y esta bien".
+
+**Hallazgo:** el fix de las 15:30 (commit `96ab06c2`) solo arregló la
+LISTA de documentos — pero la pestaña seguía usando un componente propio
+de solo lectura (`TalentoFichaDocumentos.vue`), sin firmar ni completar
+huecos. Vendedores (`InformationSeller.vue`) y el modal admin
+(`TalentoColaboradores.vue`) ya usan un componente distinto, mucho más
+completo y "más que probado": `talento-expediente-documentos`
+(Ver/Imprimir/Firmar con pad+subida/Completar documento con huecos
+agrupados). David pedía que la ficha tuviera ESO, no una versión
+recortada aparte.
+
+**Decisión de arquitectura:** en vez de duplicar el componente rico con
+una copia self-scoped (lo que habría significado mantener dos veces la
+misma UI de firma/huecos), se ensanchó el ÚNICO controller que ya
+consumen Vendedores y el modal admin
+(`TalentoEmployeeDocumentController`) para aceptar TAMBIÉN a uno mismo o
+al supervisor directo, sin tocar el comportamiento de quien ya lo usaba
+(staff sigue entrando exactamente igual, por los mismos permisos de
+siempre). Se eliminó la ruta paralela `/mi-ficha/{id}/documentos` y el
+componente `TalentoFichaDocumentos.vue` que el fix anterior había creado
+— ya no hacían falta, la ficha llama al MISMO endpoint que Vendedores.
+
+**Reglas de autorización aplicadas (documentadas en el código, mismo
+criterio que el resto de la ficha esta sesión):**
+- **Ver** (listar/mostrar/imagen de firma/huecos): uno mismo, su
+  supervisor directo, o staff — el buscador/CRUD sigue igual.
+- **Firmar:** uno mismo puede firmar, pero SOLO su(s) propio(s)
+  recuadro(s) (`firmante_tipo='colaborador'`) — el recuadro de la
+  EMPRESA sigue exclusivo de supervisor/staff, replicando la misma regla
+  anti-escalada que ya tenía el autoservicio del Portal
+  (`PortalTecnicoController::firmarDocumento`, "nunca queda accesible
+  por autoservicio"). El modal de firma en la ficha, cuando el que mira
+  no puede gestionar, ya ni siquiera OFRECE el recuadro ajeno (además
+  del rechazo del servidor).
+- **Completar documento (huecos):** NO se abre a uno mismo — esto edita
+  CURP/RFC/NSS/domicilio del propio empleado o datos de la EMPRESA
+  (compartidos por TODOS los colaboradores), mismo criterio que
+  `credenciales_manage`/`settlement_manage` ya establecido esta sesión
+  (identidad/datos compartidos = nunca autoservicio). Solo supervisor
+  directo o staff. El botón se oculta en la ficha cuando no aplica.
+
+**Verificado con Playwright real** (técnico + supervisor desechables,
+plantilla real con 2 recuadros — empresa/admin y trabajador/colaborador
+— más un documento con 1 campo faltante de prueba): técnico ve su
+propia lista y firma su recuadro (200); intenta firmar el recuadro de
+la empresa → 403 con el mensaje correcto; intenta completar huecos →
+403; intenta ver los documentos de SU supervisor (no es su subordinado)
+→ 403. Supervisor ve la lista de su subordinado (200), firma el
+recuadro de la empresa del subordinado (200), completa huecos del
+subordinado (200). 8/8.
+
+### Commits
+
+- `a95daae3` — reusa talento-expediente-documentos, reemplaza el enfoque del commit 96ab06c2
