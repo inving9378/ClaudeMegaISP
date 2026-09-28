@@ -616,3 +616,44 @@ del APK sigue pública sin sesión. 8/8.
 ### Commits
 
 - `54324a96` — IDOR real + tab vacía en autoservicio + hallazgo de diseño
+
+## 2026-09-28 13:34 — Custodia: quita el buscador de colaboradores a quien no es supervisor/staff
+
+David: "a no ser que sea supervisor o los otros roles que te he dicho
+quita de la vista el buscador de colaboradores" — el buscador+grilla de
+"Custodia" (que deja navegar y ver la custodia de CUALQUIER colaborador)
+debía ocultarse para un técnico simple.
+
+**Dos lugares donde el buscador era alcanzable, ambos corregidos:**
+1. **Ficha embebida** — un técnico self-viendo su propia ficha ya saltaba
+   directo a su propia custodia (sin buscador visible de entrada), pero el
+   botón **"Volver"** lo regresaba a la grilla COMPLETA de todos los
+   colaboradores, exponiendo el buscador de todos modos. Botón oculto para
+   quien no gestiona.
+2. **Pantalla suelta `/talento/custodia`** — mostraba el buscador+grilla
+   completos a CUALQUIERA con `talento.custody.view` (que, como ya se
+   documentó, la tiene TECNICO directo). Ahora un técnico que entra ahí
+   directo ve **su propia custodia de inmediato, sin buscador ni grilla**
+   (mismo criterio que la ficha).
+
+**Detalle técnico no trivial:** el permiso que gatea el buscador NO puede
+ser `talento.custody.view` (es justo la que ya tienen los técnicos, no
+distingue nada) ni tampoco un chequeo puramente de permisos Spatie en el
+cliente para "¿soy supervisor?" — eso no es un permiso, es la relación
+`talento_colaboradores.supervisor_id`. Nuevo `permisos.custodia_buscador`
+(ficha(), servidor) = `talento.employees.view` o CUALQUIER supervisor. En
+la pantalla suelta (sin ficha que lo resuelva), se reusa
+`GET /talento/api/mi-equipo?per_page=1` (ya scoped a "mis subordinados
+directos") para contestar "¿tengo equipo?" del lado del cliente — primer
+intento solo miraba `talento.employees.view` y fallaba para un supervisor
+sin ese permiso amplio (encontrado y corregido en la misma verificación).
+
+**Verificado con Playwright** (cuentas desechables, borradas al terminar):
+en la ficha, técnico sin equipo no ve buscador ni "Volver"; supervisor SÍ
+ve ambos en la ficha de su subordinado. En la pantalla suelta, técnico
+entra directo a ver SU PROPIA custodia sin buscador; supervisor sí ve el
+buscador completo. 7/7.
+
+### Commits
+
+- `6c479ff6` — quita el buscador de colaboradores a quien no es supervisor/staff
