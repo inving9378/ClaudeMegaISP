@@ -178,7 +178,7 @@ class WhatsAppCrmService
                 'type'          => 'Solicitud de función',
                 'topic'         => 'Instalación WhatsApp',
                 'estado'        => 'Nuevo',
-                'priority'      => 'Media',
+                'priority'      => Ticket::Normal, // 'tickets.priority' es int (constantes en Ticket); 'Media' (string) nunca funcionó
                 'group'         => 'Instalaciones',
                 'assigned_to'   => $tecnicoUserId,
                 'date_time'     => $fechaIso,
