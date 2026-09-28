@@ -179,7 +179,7 @@
           <talento-ordenes :colaborador-id="id" :colaborador-nombre="colaborador?.user?.name ?? ''" :puede-gestionar="permisos.ordenes_manage" />
         </div>
         <div v-if="activeTab === 'compensacion'">
-          <talento-compensacion :colaborador-id="id" :colaborador-nombre="colaborador?.user?.name ?? ''" />
+          <talento-compensacion :colaborador-id="id" :colaborador-nombre="colaborador?.user?.name ?? ''" :puede-gestionar="permisos.compensacion_manage" />
         </div>
         <div v-if="activeTab === 'liquidaciones'">
           <talento-liquidaciones :colaborador-id="id" />

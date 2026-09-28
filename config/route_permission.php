@@ -2061,6 +2061,18 @@ return [
         '/talento/mi-ficha/{id}/documentos',
         '/talento/mi-ficha/{id}/academia',
         '/talento/api/mi-equipo',
+        // Ver/asignar la compensación de un colaborador: uno mismo, su
+        // supervisor directo, o el permiso de STAFF — el controller
+        // (puedeVerCompensacionDe()/assignRule()) hace la distinción real;
+        // esto solo deja pasar la request. Antes solo estaba bajo
+        // talento.employees.view/.manage, así que un supervisor sin esos
+        // dos ni siquiera llegaba al controller (28-sep-2026).
+        '/talento/api/colaboradores/{id}/regla',
+        '/talento/api/colaboradores/{id}/regla/historial',
+        // Catálogo de reglas — un supervisor sin talento.compensation.view
+        // lo necesita para el selector de "Asignar regla" (rules(), mismo
+        // criterio de excepción que arriba).
+        '/talento/api/reglas',
     ],
     'talento.dashboard.view' => [
         '/talento',

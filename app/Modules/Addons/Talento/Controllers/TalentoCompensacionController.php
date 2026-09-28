@@ -6,10 +6,33 @@ use App\Http\Controllers\Controller;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoCompensationRule;
 use App\Modules\Addons\Talento\Models\TalentoCompensationRuleHistory;
+use App\Modules\Addons\Talento\Support\Actor;
 use Illuminate\Http\Request;
 
 class TalentoCompensacionController extends Controller
 {
+    /**
+     * Ver la compensación de un colaborador: uno mismo, su supervisor
+     * directo, o quien tenga el permiso general de STAFF
+     * (talento.compensation.view/.manage) — mismo criterio que
+     * `$tieneAccesoAmplio` en TalentoColaboradorController::ficha(), pero
+     * sin duplicar esa variable (vive en otro controller).
+     */
+    private function puedeVerCompensacionDe($colaboradorId): bool
+    {
+        if (auth()->user()->can('talento.compensation.view') || auth()->user()->can('talento.compensation.manage')) {
+            return true;
+        }
+
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        if (! $miPropioColaborador) {
+            return false;
+        }
+
+        return (string) $miPropioColaborador->id === (string) $colaboradorId
+            || $miPropioColaborador->subordinados()->where('id', $colaboradorId)->exists();
+    }
+
     public function index()
     {
         $this->authorize('talento.compensation.view');
@@ -18,7 +41,14 @@ class TalentoCompensacionController extends Controller
 
     public function rules(Request $request)
     {
-        $this->authorize('talento.compensation.view');
+        // Catálogo de reglas — hace falta para el selector de "Asignar
+        // regla", así que cualquier supervisor (tiene AL MENOS un
+        // subordinado directo) también puede consultarlo, no solo quien
+        // tiene el permiso general de STAFF.
+        if (! auth()->user()->can('talento.compensation.view')) {
+            $esSupervisor = Actor::for(auth()->user())->talento()?->subordinados()->exists();
+            abort_unless($esSupervisor, 403);
+        }
 
         $q = TalentoCompensationRule::when($request->active, fn($q) => $q->active())
             ->orderBy('name')
@@ -96,7 +126,21 @@ class TalentoCompensacionController extends Controller
      */
     public function assignRule(Request $request, $colaboradorId)
     {
-        $this->authorize('talento.compensation.manage');
+        // David (28-sep): "solo el superior o superiores deberían poder
+        // asignarle reglas [de compensación], no uno mismo" — mismo patrón
+        // ya usado en TalentoWorkOrderController::store(): el permiso
+        // general de gestión (admin/DESARROLLADOR) sigue siendo la vía
+        // normal, y se suma como excepción el supervisor DIRECTO
+        // (talento_colaboradores.supervisor_id) de este colaborador
+        // específico — nunca el colaborador mismo.
+        if (! auth()->user()->can('talento.compensation.manage')) {
+            $esSuSupervisor = Actor::for(auth()->user())->talento()
+                ?->subordinados()
+                ->where('id', $colaboradorId)
+                ->exists();
+
+            abort_unless($esSuSupervisor, 403, 'No tienes permiso para asignar reglas de compensación a este colaborador.');
+        }
 
         $colaborador = TalentoColaborador::findOrFail($colaboradorId);
 
@@ -122,7 +166,7 @@ class TalentoCompensacionController extends Controller
      */
     public function historyForColaborador($colaboradorId)
     {
-        $this->authorize('talento.compensation.view');
+        abort_unless($this->puedeVerCompensacionDe($colaboradorId), 403);
 
         TalentoColaborador::findOrFail($colaboradorId);
 
@@ -139,7 +183,7 @@ class TalentoCompensacionController extends Controller
      */
     public function currentRule($colaboradorId)
     {
-        $this->authorize('talento.compensation.view');
+        abort_unless($this->puedeVerCompensacionDe($colaboradorId), 403);
 
         TalentoColaborador::findOrFail($colaboradorId);
 

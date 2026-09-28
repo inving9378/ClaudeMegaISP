@@ -106,6 +106,11 @@ class TalentoColaboradorController extends Controller
             // mismo no debe dar de gratis el botón "Nueva orden").
             'ordenes_manage'  => auth()->user()->can('talento.work_orders.manage') || $esSuSupervisor,
             'compensacion'    => auth()->user()->can('talento.compensation.view') || $tieneAccesoAmplio,
+            // David (28-sep): "solo el superior o superiores deberían poder
+            // asignarle reglas, no uno mismo" — mismo criterio que
+            // ordenes_manage, a propósito SIN $tieneAccesoAmplio (verse a
+            // uno mismo no da de gratis la capacidad de asignarse una regla).
+            'compensacion_manage' => auth()->user()->can('talento.compensation.manage') || $esSuSupervisor,
             'liquidaciones'   => auth()->user()->can('talento.liquidation.view') || $tieneAccesoAmplio,
             'asistencia'      => auth()->user()->can('talento.attendance.view') || $tieneAccesoAmplio,
             // Las 4 "técnicas" también llevan $tieneAccesoAmplio — el filtro

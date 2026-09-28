@@ -1,7 +1,15 @@
 <template>
   <div class="talento-compensacion tc-wrap" :class="{ 'tc-dark': darkMode }">
 
-    <div class="tc-card mb-3">
+    <!-- Catálogo de reglas (crear/editar tipos de regla) y el formulario de
+         asignación son acciones de GESTIÓN — David (28-sep): "solo el
+         superior o superiores deberían poder asignarle reglas, no uno
+         mismo". Fuera de una ficha (colaboradorId ausente, pantalla global
+         de administración) siempre se muestran igual que antes; dentro de
+         una ficha, solo si puedeGestionar (permiso general o supervisor
+         directo de ESE colaborador). El historial de abajo (lectura, lo que
+         de verdad es "mi compensación") se ve siempre. -->
+    <div v-if="!colaboradorId || puedeGestionar" class="tc-card mb-3">
       <div class="tc-cardhead d-flex flex-wrap align-items-center justify-content-between gap-2 p-3">
         <h5 class="tc-h1"><i class="fa fa-coins me-2"></i>Compensación</h5>
         <button @click="openCreateRule" class="tc-btn tc-btn-ok">
@@ -51,7 +59,7 @@
     </div>
 
     <!-- ASIGNAR REGLA -->
-    <div class="tc-card tc-card-overflow-visible mb-3">
+    <div v-if="!colaboradorId || puedeGestionar" class="tc-card tc-card-overflow-visible mb-3">
       <div class="p-3">
         <h2 class="tc-h2">Asignar regla a colaborador</h2>
         <div class="row g-3">
@@ -264,6 +272,11 @@ export default {
   props: {
     colaboradorId: { type: [Number, String], default: null },
     colaboradorNombre: { type: String, default: '' },
+    // Resuelto server-side por la ficha (TalentoColaboradorController::ficha,
+    // permisos.compensacion_manage) — admin/DESARROLLADOR o supervisor
+    // directo de ESTE colaborador. Sin efecto en la pantalla global
+    // (colaboradorId ausente), que siempre requirió el permiso normal.
+    puedeGestionar: { type: Boolean, default: false },
   },
   setup() {
     return { darkMode };
@@ -285,7 +298,10 @@ export default {
     activeRules() { return this.rules.filter(r => r.active); },
   },
   mounted() {
-    this.loadRules();
+    // El catálogo de reglas solo hace falta si se va a mostrar (ver el
+    // v-if de la sección) — evita un 403 inofensivo pero ruidoso para quien
+    // ve su propia ficha sin permiso de gestión.
+    if (!this.colaboradorId || this.puedeGestionar) this.loadRules();
     if (this.colaboradorId) {
       this.assign.colaborador_id = this.colaboradorId;
       this.assign.colaborador_name = this.colaboradorNombre;
