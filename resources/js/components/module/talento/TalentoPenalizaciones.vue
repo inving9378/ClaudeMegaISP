@@ -687,11 +687,16 @@ export default {
     },
     async loadMyProfile() {
       try {
-        const { data } = await axios.get('/talento/api/colaboradores', { params: { my_profile: 1, per_page: 1 } });
-        // Intentamos encontrar el colaborador cuyo user_id coincide con el auth
-        // Usamos el primer resultado si el endpoint filtra por el usuario actual
-        if (data?.data?.length) this.myColaboradorId = data.data[0]?.id ?? null;
-      } catch { /* graceful */ }
+        // BUG real encontrado 28-sep: `my_profile` NUNCA existió como
+        // filtro en TalentoColaboradorController::data() — esto devolvía
+        // el colaborador con el id MÁS ALTO de TODA la empresa, no el del
+        // usuario logueado, así que canAppeal()/isApplier() nunca
+        // funcionaban de verdad. GET /talento/mi-ficha (sin id) SÍ resuelve
+        // el colaborador propio de verdad (mismo Actor que usa toda la
+        // ficha) — reusado tal cual, sin endpoint nuevo.
+        const { data } = await axios.get('/talento/mi-ficha');
+        this.myColaboradorId = data?.id ?? null;
+      } catch { /* graceful: admin/Mostrador sin colaborador propio */ }
     },
     async loadColaboradores() {
       const { data } = await axios.get('/talento/api/colaboradores', { params: { per_page: 300, status: 'active' } });
