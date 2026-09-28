@@ -103,6 +103,11 @@
                                 <i class="bi bi-check-circle-fill"></i>
                                 Ya hay una API key guardada. Deja este campo vacío para conservarla; escribe una nueva solo si quieres reemplazarla.
                             </small>
+                            <small v-if="form.driver === 'claude_code'" class="form-text text-info d-block">
+                                <i class="bi bi-info-circle"></i>
+                                No necesita API key — usa la sesión de Claude Code ya autenticada en este servidor.
+                                Solo texto (sin imágenes), pensado para dev/pruebas: en producción usa un proveedor con API key real.
+                            </small>
                         </div>
                         <div class="col-md-8">
                             <label class="form-label">Endpoint URL</label>
@@ -190,6 +195,7 @@ const DEFAULTS = {
         endpoint: "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
         modelo: "gemini-2.0-flash",
     },
+    claude_code: { endpoint: "", modelo: "sonnet" },
     custom: { endpoint: "", modelo: "" },
 };
 
@@ -200,7 +206,7 @@ export default {
     },
     emits: ["close", "refresh"],
     setup(props, { emit }) {
-        const drivers = ref(["claude", "openai", "openai_compatible", "gemini", "custom"]);
+        const drivers = ref(["claude", "openai", "openai_compatible", "gemini", "claude_code", "custom"]);
         const formAbierto = ref(false);
         const form = ref({});
         const mostrarKey = ref(false);
