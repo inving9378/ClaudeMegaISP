@@ -2073,6 +2073,14 @@ return [
         // lo necesita para el selector de "Asignar regla" (rules(), mismo
         // criterio de excepción que arriba).
         '/talento/api/reglas',
+        // Registrar baseline de caja (store()) — cualquier técnico activo
+        // puede hacerlo (es una lectura de campo, no requiere el permiso
+        // general talento.caja.manage) — ver TalentoCajaController::store().
+        '/talento/api/cajas',
+        // Ver/guardar settings del bono — el controller decide la
+        // distinción real (ver puede_gestionar en la respuesta de
+        // getSettings() y el abort_unless de updateSettings()).
+        '/talento/api/cajas/settings',
     ],
     'talento.dashboard.view' => [
         '/talento',

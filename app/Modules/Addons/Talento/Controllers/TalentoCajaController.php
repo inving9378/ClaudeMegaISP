@@ -6,12 +6,32 @@ use App\Http\Controllers\Controller;
 use App\Modules\Addons\Talento\Models\TalentoCajaBaseline;
 use App\Modules\Addons\Talento\Models\TalentoHealthBonusLog;
 use App\Modules\Addons\Talento\Services\HealthBonusService;
+use App\Modules\Addons\Talento\Support\Actor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class TalentoCajaController extends Controller
 {
+    /** Mismos 3 roles que ya usa esTecnico() en TalentoColaboradorFicha.vue. */
+    private const ROLES_TECNICO = ['TECNICO', 'TECNICO_INSTALADOR', 'TECNICO_PLANTA'];
+
     public function __construct(private HealthBonusService $bonusService) {}
+
+    /**
+     * "Guardar settings" (política del bono: monto/umbral) — admin/
+     * DESARROLLADOR, o CUALQUIER supervisor (tiene al menos un subordinado
+     * directo — David, 28-sep: a diferencia de "registrar baseline", esto
+     * SÍ es una decisión, no una lectura de campo, y no está atada a un
+     * colaborador puntual como para exigir que sea "su" supervisor).
+     */
+    private function puedeGestionarSettings(): bool
+    {
+        if (auth()->user()->can('talento.caja.manage')) {
+            return true;
+        }
+
+        return (bool) Actor::for(auth()->user())->talento()?->subordinados()->exists();
+    }
 
     public function index()
     {
@@ -52,7 +72,20 @@ class TalentoCajaController extends Controller
 
     public function store(Request $request)
     {
-        $this->authorize('talento.caja.manage');
+        // David (28-sep, corrigiendo su propio pedido anterior): "registrar
+        // baseline" es la LECTURA REAL de dBm que el técnico toma en campo
+        // con su medidor, parado frente a la caja — nadie más tiene ese
+        // dato. A diferencia de "Guardar settings" (política del bono, esa
+        // SÍ solo admin/supervisor), esto lo puede hacer cualquier técnico
+        // activo además de quien tenga el permiso general.
+        if (! auth()->user()->can('talento.caja.manage')) {
+            $miColaborador = Actor::for(auth()->user())->talento();
+            $esTecnico = $miColaborador && !empty(array_intersect(
+                $miColaborador->user?->getRoleNames()->toArray() ?? [],
+                self::ROLES_TECNICO
+            ));
+            abort_unless($esTecnico, 403, 'No tienes permiso para registrar baselines de cajas.');
+        }
 
         $data = $request->validate([
             'caja_ref'           => 'required|string|max:60',
@@ -97,16 +130,22 @@ class TalentoCajaController extends Controller
 
     public function getSettings()
     {
-        $this->authorize('talento.caja.view');
+        // Sin authorize('talento.caja.view') puro: un técnico viendo su
+        // propia ficha (pestaña Cajas ODB, lectura) no lo tiene como
+        // permiso Spatie directo — basta con talento.view (ya exigido por
+        // el middleware de ruta) para leer; puede_gestionar en la
+        // respuesta es lo que decide si el frontend muestra el botón de
+        // guardar.
         return response()->json([
             'health_bonus_amount'    => (float)(DB::table('settings')->where('key','talento_health_bonus_amount')->value('value') ?? 30),
             'health_bonus_max_loss_db' => (float)(DB::table('settings')->where('key','talento_health_bonus_max_loss_db')->value('value') ?? 1.0),
+            'puede_gestionar' => $this->puedeGestionarSettings(),
         ]);
     }
 
     public function updateSettings(Request $request)
     {
-        $this->authorize('talento.caja.manage');
+        abort_unless($this->puedeGestionarSettings(), 403);
 
         $data = $request->validate([
             'health_bonus_amount'      => 'sometimes|numeric|min:0',

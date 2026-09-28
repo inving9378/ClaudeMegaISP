@@ -1,13 +1,15 @@
 <template>
   <div class="talento-cajas tc-wrap" :class="{ 'tc-dark': darkMode }">
 
-    <!-- Settings bono + registrar baseline — son GESTIÓN de infraestructura
-         compartida, no "de un técnico". David (28-sep): "no se supone que
-         el tecnico cree sus ajustes eso lo debe hacer el o los
-         superiores" — antes se mostraban sin filtro alguno (el backend ya
-         los bloqueaba con talento.caja.manage, pero el técnico veía los
-         botones igual, sin poder usarlos). -->
-    <div v-if="puedeGestionar" class="card border-0 shadow-sm mb-4">
+    <!-- "Guardar settings" (bono/umbral) es POLÍTICA — admin/DESARROLLADOR
+         o cualquier supervisor (David, 28-sep, aclarado él mismo tras su
+         primer pedido: "Registrar baseline" en cambio es la LECTURA REAL
+         de dBm que el técnico toma en campo con su medidor — nadie más
+         tiene ese dato, así que ESE botón SÍ se le deja al técnico, ver
+         más abajo). El backend ya bloqueaba settings con
+         talento.caja.manage; esto solo evita mostrar el botón a quien no
+         puede usarlo. -->
+    <div v-if="puedeGestionarSettings" class="card border-0 shadow-sm mb-4">
       <div class="card-body">
         <div class="d-flex align-items-center flex-wrap gap-3">
           <strong class="me-1"><i class="fa fa-cog text-primary me-2"></i>Bono de salud de red:</strong>
@@ -44,7 +46,8 @@
         <div class="tc-card">
           <div class="tc-cardhead d-flex align-items-center justify-content-between gap-2 p-3">
             <h6 class="tc-h1 mb-0"><i class="fa fa-signal text-primary me-2"></i>Baselines por caja</h6>
-            <button v-if="puedeGestionar" @click="openCreate" class="tc-btn tc-btn-ok">
+            <!-- Sin gate: lectura de campo, ver nota junto al card de settings arriba. -->
+            <button @click="openCreate" class="tc-btn tc-btn-ok">
               <i class="fa fa-plus me-1"></i>Registrar
             </button>
           </div>
@@ -56,7 +59,7 @@
             <div v-else class="table-responsive">
               <table class="table table-hover table-sm align-middle">
                 <thead class="table-light">
-                  <tr><th>Ref. caja</th><th>Baseline</th><th>Registrada</th><th>Notas</th><th v-if="puedeGestionar"></th></tr>
+                  <tr><th>Ref. caja</th><th>Baseline</th><th>Registrada</th><th>Notas</th><th></th></tr>
                 </thead>
                 <tbody>
                   <tr v-for="b in baselines" :key="b.id">
@@ -66,7 +69,7 @@
                     </td>
                     <td class="small">{{ fmtdt(b.registered_at) }}</td>
                     <td class="small text-muted">{{ b.notes ?? '—' }}</td>
-                    <td v-if="puedeGestionar">
+                    <td>
                       <button @click="openCreate(b.caja_ref)" class="tc-btn tc-btn-seg">+ Nuevo</button>
                     </td>
                   </tr>
@@ -165,15 +168,18 @@
 
 <script>
 import { darkMode } from "../../../hook/appConfig.js";
-import Permission from "../../../helpers/Permission.js";
-import { allViewHasPermission } from "../../../helpers/Request.js";
 
 export default {
   name: 'TalentoCajas',
   props: {
     // Si viene, acota el LOG de bonos de salud (bonusLog) a este técnico —
-    // el catálogo de cajas/baselines/config sigue siendo global a propósito
-    // (no es "de una persona", es infraestructura compartida).
+    // el catálogo de cajas/baselines sigue siendo global a propósito (no
+    // es "de una persona", es infraestructura compartida). "Registrar
+    // baseline" tampoco lleva gate: es la lectura real de dBm que el
+    // técnico toma en campo (David, 28-sep). Solo "Guardar settings"
+    // (política del bono) es gestión — puedeGestionarSettings, calculado
+    // server-side en getSettings() (admin/DESARROLLADOR o cualquier
+    // supervisor).
     colaboradorId: { type: [Number, String], default: null },
   },
   setup() {
@@ -189,23 +195,10 @@ export default {
       debounceTimer: null,
       settings: { amount: 30, maxLoss: 1.0, saving: false },
       modal: { show: false, caja_ref: '', baseline_power_dbm: '', notes: '', saving: false, error: '' },
-      permisosGlobales: {},
+      puedeGestionarSettings: false,
     };
   },
-  computed: {
-    // David (28-sep): "no se supone que el tecnico cree sus ajustes eso lo
-    // debe hacer el o los superiores" — registrar baseline/config del bono
-    // es GESTIÓN de infraestructura compartida (no algo "de este técnico"),
-    // así que se queda en el permiso general (talento.caja.manage, hoy
-    // admin/DESARROLLADOR) sin la excepción de supervisor-directo que sí
-    // aplica a órdenes/compensación (esas SÍ son de un colaborador
-    // puntual; una caja no lo es).
-    puedeGestionar() {
-      return new Permission(this.permisosGlobales).canDo('talento.caja.manage');
-    },
-  },
-  async mounted() {
-    this.permisosGlobales = await allViewHasPermission();
+  mounted() {
     this.loadSettings();
     this.loadBaselines();
     this.loadBonusLog();
@@ -220,6 +213,9 @@ export default {
         const { data } = await axios.get('/talento/api/cajas/settings');
         this.settings.amount  = data?.health_bonus_amount ?? 30;
         this.settings.maxLoss = data?.health_bonus_max_loss_db ?? 1.0;
+        // Calculado server-side (admin/DESARROLLADOR o cualquier
+        // supervisor) — ver TalentoCajaController::puedeGestionarSettings().
+        this.puedeGestionarSettings = data?.puede_gestionar ?? false;
       } catch {}
     },
     async saveSettings() {
