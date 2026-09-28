@@ -203,7 +203,7 @@
           <talento-proyectos :colaborador-id="id" :puede-gestionar="permisos.proyectos_manage" />
         </div>
         <div v-if="activeTab === 'penalizaciones'">
-          <talento-penalizaciones :colaborador-id="id" />
+          <talento-penalizaciones :colaborador-id="id" :puede-gestionar="permisos.penalizaciones_manage" />
         </div>
         <div v-if="activeTab === 'credenciales'">
           <talento-credenciales :colaborador-id="id" />

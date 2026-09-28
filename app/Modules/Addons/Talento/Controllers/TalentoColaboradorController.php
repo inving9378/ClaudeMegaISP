@@ -138,6 +138,15 @@ class TalentoColaboradorController extends Controller
             'proyectos_manage' => auth()->user()->can('talento.projects.manage')
                 || (bool) ($miPropioColaborador?->subordinados()->exists()),
             'penalizaciones'  => auth()->user()->can('talento.penalties.view') || $tieneAccesoAmplio,
+            // David (28-sep): "los técnicos no pueden penalizarse, eso no lo
+            // haría nadie ahí, solo debe mostrarse las penalizaciones... el
+            // superior es el que penaliza, no ellos mismos, en caso de tener
+            // subordinados sí lo pueden hacer" — mismo criterio que
+            // ordenes_manage/rutas_manage, a propósito SIN $tieneAccesoAmplio
+            // (verse a uno mismo no da de gratis la capacidad de
+            // penalizarse — y de hecho es estructuralmente imposible, ver
+            // TalentoPenaltyController::applyPenalty()).
+            'penalizaciones_manage' => auth()->user()->can('talento.penalties.manage') || $esSuSupervisor,
             'credenciales'    => auth()->user()->can('talento.credentials.view') || $tieneAccesoAmplio,
             'finiquito'       => auth()->user()->can('talento.loans.view') || $tieneAccesoAmplio,
             'custodia'        => auth()->user()->can('talento.custody.view') || $tieneAccesoAmplio,

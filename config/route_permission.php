@@ -2105,6 +2105,16 @@ return [
         // Aprobar un reporte (approveReport()) vive bajo otro prefijo — el
         // controller (aprobación por supervisor/admin) hace la distinción.
         '/talento/api/project-reports/**',
+        // Ver/aplicar/apelar penalizaciones: uno mismo, su supervisor
+        // directo, o el permiso de STAFF — el controller
+        // (puedeVerPenalizacionesDe()/applyPenalty()/submitAppeal()) hace
+        // la distinción real. David, 28-sep: "el superior es el que
+        // penaliza, no ellos mismos". La cola de apelaciones/catálogo de
+        // tipos (/penalty-appeals/**, gestión de /penalty-types) queda
+        // FUERA a propósito — sigue exigiendo el permiso de STAFF completo.
+        '/talento/api/penalties',
+        '/talento/api/penalties/**',
+        '/talento/penalty-evidence/{id}',
     ],
     'talento.dashboard.view' => [
         '/talento',
