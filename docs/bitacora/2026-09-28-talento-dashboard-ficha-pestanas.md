@@ -909,3 +909,32 @@ transparencia.
 ### Commits
 
 - `7017a9a4` — IDOR menor en bonusLog(), resto del catálogo/config verificado OK
+
+## 2026-09-28 14:15 — Dispositivos: se me había pasado el buscador (David lo notó)
+
+David, en medio de la verificación de otra pestaña: "en dispositivos
+vinculados sigue el buscar colaborador" — correcto, se me había quedado
+pendiente aplicar el mismo tratamiento que ya tenían Custodia y Roles
+múltiples.
+
+Mismo patrón exacto que las otras dos: nuevo `permisos.dispositivos_buscador`
+(ficha()) = `talento.employees.view` o CUALQUIER supervisor (no
+`talento.devices.view`, que TECNICO/TECNICO_PLANTA/TECNICO_INSTALADOR
+también tienen directo — necesaria para ver la tarjeta de descarga del
+APK, no sirve para distinguir). Buscador oculto sin ese permiso; en la
+pantalla suelta (`/talento/dispositivos`, alcanzable por técnico
+precisamente por esa tarjeta de descarga) se reusa la misma detección
+"¿tengo equipo?" vía `/talento/api/mi-equipo` ya construida para Custodia,
+y sin permiso se resuelve directo la fila propia en vez del listado
+completo. La tarjeta de descarga del APK (pública, sin gate) quedó
+intacta.
+
+**Verificado con Playwright** (cuentas desechables, borradas al terminar):
+en la ficha, técnico sin equipo no ve el buscador, supervisor sí en la
+ficha de su subordinado; en la pantalla suelta, técnico entra directo a
+su propia fila sin buscador (y sigue viendo la tarjeta del APK),
+supervisor sí ve el buscador completo. 6/6.
+
+### Commits
+
+- `eff94eeb` — oculta el buscador de colaboradores (pendiente de Custodia/Roles múltiples)
