@@ -167,3 +167,73 @@ nombre inexistente lanza `PermissionDoesNotExist`, atrapado por el guard
 
 - `13eb2c85` — pestañas propias + 2 nuevas + listado por rol
 - `28c6377f` — fix de `talento.employees.view` (creaba la fila real)
+
+## 2026-09-28 11:09 — Proyectos: mismo criterio supervisor + arregla auto-aprobación sin revisión
+
+David, revisando la pestaña Proyectos: "el proyecto lo crea un superior y el
+técnico lo ve, o el técnico por código si podría crear proyectos?" → se
+confirmó que `store()` ya exigía `talento.projects.manage` (solo admin/
+DESARROLLADOR, un técnico NO podía por código), pero al investigar
+`submitReport()` apareció un defecto real que David pidió corregir de paso
+("sí, arregla eso también") + pidió ocultar el botón "Nuevo proyecto" para
+técnicos.
+
+**Defecto encontrado:** `ProjectActivityService::submitReport()` SIEMPRE
+auto-aprobaba el reporte (nunca escribía `status='pending'`), dejando el
+método `approve()` como código muerto. Inofensivo mientras solo un admin
+podía llamar al endpoint (`talento.project_reports.create` era admin-only),
+pero un riesgo real en cuanto un técnico reporta su propio avance de
+proyecto (se autoacreditaría puntos sin revisión de nadie). Tampoco existía
+validación de "pertenencia": nada impedía acreditarle avance a un
+colaborador ajeno al que reporta.
+
+**Fix (mismo criterio ya aplicado a Órdenes/Compensación/Cajas/Rutas — uno
+mismo, supervisor directo, o staff):**
+- `ProjectActivityService::submitReport()` — nuevo parámetro `$autoApprove`.
+  Si es `false`, el reporte queda `status='pending'` en vez de auto-aprobarse
+  (la cantidad aprobada se guarda como vista previa; `approve()` la
+  recalcula de verdad al aprobar).
+- `TalentoProjectController::submitReport()` — sin `talento.project_reports.create`,
+  exige que TODOS los `colaborador_ids` reportados sean uno mismo o
+  subordinados directos (nunca un colaborador ajeno). Auto-aprueba
+  (`$autoApprove=true`) si quien reporta tiene el permiso de staff O es
+  supervisor de verdad (tiene subordinados); si no, queda `pending`.
+- `TalentoProjectController::approveReport()` — sin el permiso de staff,
+  exige ser supervisor (tener subordinados) Y que TODOS los participantes
+  del reporte sean uno mismo o subordinados directos. Un técnico sin
+  subordinados nunca puede aprobar su propio reporte pendiente.
+- `TalentoProjectController::store()` — agrega la misma excepción de
+  supervisor que ya tienen Órdenes/Rutas: admin/DESARROLLADOR o CUALQUIER
+  supervisor (no hay un `colaborador_id` puntual al crear el proyecto).
+- `permisos.proyectos_manage` (nuevo, en `ficha()`) — controla el botón
+  "Nuevo proyecto" en `TalentoProyectos.vue` (`puedeGestionar`/`puedeCrear`,
+  mismo patrón que `TalentoRutas.vue`): oculto para técnico, visible para
+  supervisor/admin/DESARROLLADOR.
+
+**Gap de `route_permission.php` (mismo patrón recurrente de esta sesión):**
+`/talento/api/proyectos/**` y `/talento/api/project-reports/**` no estaban
+mapeados a ningún permiso que un técnico/supervisor tuviera — el middleware
+bloqueaba la request ANTES de llegar al controller, dejando todo el fix
+anterior inerte hasta agregarlos a `talento.view`. Detalle fino: `**` exige
+un carácter después de la barra (`convertRouteToRegex` → `.+`), así que el
+path pelón `/talento/api/proyectos` (listar/crear) necesitó su propia
+entrada además del wildcard — mismo hallazgo que ya se documentó para
+`/talento/api/rutas` en una vuelta anterior.
+
+**Efecto secundario cerrado de paso:** al abrir `/talento/api/proyectos/**`
+a autoservicio, `data()`/`show()` devolvían `bonus_amount`/`bonus_scale`
+(dinero) a cualquier técnico que las alcanzara. Se agregó
+`hideBonusFields()` (mismo patrón que `hideExpedienteFields()`): oculta esos
+2 campos a quien no gestiona proyectos ni es supervisor.
+
+**Verificado con Playwright** (cuentas desechables, borradas al terminar):
+botón oculto para técnico sin equipo / visible para supervisor; técnico
+reporta por sí mismo → queda `pending`; técnico reporta por un colaborador
+ajeno → 403; técnico intenta autoaprobarse → 403; supervisor aprueba el
+reporte de su subordinado → 200, pasa a `approved`; supervisor reporta por
+su equipo → auto-aprobado directo; técnico crea proyecto vía API → 403;
+supervisor crea proyecto vía API → 201. Los 12 checks pasaron limpio.
+
+### Commits
+
+- `036a7e7c` — supervisor crea/aprueba, técnico solo reporta lo propio, oculta botón
