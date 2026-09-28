@@ -478,3 +478,72 @@ préstamo queda `paid`; finiquito cerrado conserva el neto correcto. 16/16
 ### Commits
 
 - `9502b68b` — permisos supervisor + BUG DE DINERO real en close()
+
+## 2026-09-28 13:11 — Custodia: qué es, y BUG QUE LA TENÍA ROTA SIEMPRE + IDOR reales
+
+David pidió explicar para qué sirve y **verificar que funcione bien**. Es
+la vista de solo lectura de qué material/herramienta tiene un colaborador
+asignado ahora mismo (taladros, cascos, cable, ONTs…) — reusa
+`inventory_item_stocks` (custodia polimórfica por usuario) sin tabla
+propia, más sus últimos 50 movimientos de entrada/salida.
+
+### 🔴 BUG FUNCIONAL — la pestaña tronaba 500 SIEMPRE, para cualquiera
+
+`TalentoCustodiaController::show()` hacía `LEFT JOIN inventory_categories
+ON c.id = i.category_id` y seleccionaba `i.sku`/`i.unit` — tabla y
+columnas que **nunca existieron** en este esquema (`inventory_items` no
+tiene `category_id` ni `sku` ni `unit`; el catálogo real de categoría vive
+en `inventory_item_types.categoria`, FK `inventory_item_type_id`). El JOIN
+falla al **parsear** la query, así que tronaba 500 para CUALQUIER
+colaborador, tuviera o no material en custodia — la pestaña nunca funcionó,
+para nadie, desde que se escribió.
+
+**Lo curioso:** el bug ya estaba documentado — un comentario en
+`EmployeeDocumentPackageService::herramientasData()` (usado para el
+finiquito/offboarding) dice textual: *"el controller referenciaba
+i.sku/i.unit/i.category_id, columnas que no existen en el esquema
+actual"* — alguien ya lo había descubierto al construir OTRA función que
+necesitaba la misma custodia, la resolvió ahí con las columnas correctas,
+pero **nunca volvió a corregir el original**. Mismo patrón exacto que el
+bug de `SettlementService::getCustody()` que corregí en la pestaña
+anterior (Préstamos/Finiquito) — es la MISMA suposición de esquema
+equivocada, repetida en 2 sitios.
+
+**Fix:** JOIN correcto a `inventory_item_types` (FK real
+`inventory_item_type_id`), `i.serial_number` en vez de `i.sku` (columna
+real, ya usada en el offboarding), y `t.categoria` como categoría real
+(herramienta/material/equipo_cliente/equipo_red — el mismo campo de la
+auditoría de inventario #218/#684/#1007). `i.unit` se quitó (no existe
+ningún concepto de "unidad" real en el esquema). Frontend actualizado a
+juego: columna "SKU" → "No. serie", categoría ahora muestra un valor real
+con etiqueta legible, columna de unidad quitada.
+
+### 🔴 IDOR real — cualquier técnico podía ver la custodia de CUALQUIERA
+
+`show()` no tenía NINGÚN scoping propio (mismo patrón recurrente de esta
+sesión), pero acá con un matiz: `talento.custody.view` está clasificado
+**"context=portal"** en la migración `classify_portal_permissions`, con
+comentario explícito de Irving — *"EXCLUSIVAS del colaborador en su
+app/portal"* — y por eso lo tienen TECNICO/TECNICO_PLANTA/TECNICO_INSTALADOR
+**directamente**. Sin scoping en el controller, ese permiso "exclusivo de
+lo mío" terminaba abriendo `/talento/api/colaboradores/{id}/custodia` para
+**cualquier** `{id}`, contradiciendo la propia clasificación de Irving —
+cualquier técnico podía ver qué herramienta tiene cualquier otro colega.
+Corregido: nuevo `puedeVerCustodiaDe()` (uno mismo, su supervisor directo,
+o `talento.employees.view` — la señal real de "staff que ve a cualquiera";
+NO se usó `talento.custody.view` para esa rama porque ES la que ya tienen
+los técnicos y hubiera dejado el hueco intacto). Verificado que esto no
+rompe a ningún rol admin real: super-administrator/DESARROLLADOR/Super
+Administrador/Administrador pasan por el bypass de `CheckRoutePermission`
+antes de llegar aquí; Mostrador sí tiene `talento.employees.view` directo.
+
+**Verificado con Playwright** (cuentas + item de inventario de prueba,
+borrados al terminar): técnico ve su propia custodia (antes 500, ahora 200
+con datos reales — nombre del ítem, categoría real "herramienta", sin el
+campo `sku` roto), la UI pinta la fila con la categoría legible, un técnico
+AJENO no puede ver la custodia de otro (403), y el supervisor sí ve la de
+su subordinado. 8/8.
+
+### Commits
+
+- `1e9ddffb` — bug que la tenía rota SIEMPRE (500) + IDOR real
