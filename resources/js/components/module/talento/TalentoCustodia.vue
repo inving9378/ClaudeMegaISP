@@ -71,7 +71,7 @@
                 <thead class="table-light">
                   <tr>
                     <th>Artículo</th>
-                    <th>SKU</th>
+                    <th>No. serie</th>
                     <th>Categoría</th>
                     <th>Cantidad</th>
                     <th>Condición</th>
@@ -81,9 +81,9 @@
                 <tbody>
                   <tr v-for="s in selected.stocks" :key="s.stock_id">
                     <td>{{ s.item_name }}</td>
-                    <td class="font-monospace small">{{ s.sku ?? '—' }}</td>
-                    <td>{{ s.category ?? '—' }}</td>
-                    <td>{{ s.current_stock }} {{ s.unit }}</td>
+                    <td class="font-monospace small">{{ s.serial_number ?? '—' }}</td>
+                    <td>{{ categoryLabel(s.category) }}</td>
+                    <td>{{ s.current_stock }}</td>
                     <td>{{ s.condition ?? '—' }}</td>
                     <td class="small">{{ formatDate(s.assigned_at) }}</td>
                   </tr>
@@ -183,6 +183,14 @@ export default {
     formatDate(d) {
       if (!d) return '—';
       return new Date(d).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
+    },
+    categoryLabel(c) {
+      // inventory_item_types.categoria — item #218/#684/#1007: 'herramienta'/
+      // 'material'/'equipo_cliente'/'equipo_red'; NULL = sin clasificar.
+      return {
+        herramienta: 'Herramienta', material: 'Material',
+        equipo_cliente: 'Equipo de cliente', equipo_red: 'Equipo de red',
+      }[c] ?? (c ?? 'Sin clasificar');
     },
   },
 };

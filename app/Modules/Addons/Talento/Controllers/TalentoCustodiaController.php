@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Talento\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
+use App\Modules\Addons\Talento\Support\Actor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -17,19 +18,53 @@ class TalentoCustodiaController extends Controller
     }
 
     /**
+     * `talento.custody.view` está clasificado "context=portal" (migración
+     * classify_portal_permissions, decisión de Irving: "EXCLUSIVAS del
+     * colaborador en su app/portal") — por eso también lo tienen
+     * TECNICO/TECNICO_PLANTA/TECNICO_INSTALADOR directamente. Pero
+     * show() no tenía NINGÚN scoping propio, así que ese permiso
+     * "solo lo mío" terminaba abriendo la custodia de CUALQUIER
+     * colaborador para cualquier técnico (contradice la propia
+     * clasificación). talento.employees.view sí es la señal real de
+     * "staff que ve a cualquiera" (admin/DESARROLLADOR/Mostrador — el
+     * resto de roles admin pasa por el bypass de CheckRoutePermission
+     * antes de llegar aquí).
+     */
+    private function puedeVerCustodiaDe($colaboradorId): bool
+    {
+        if (auth()->user()->can('talento.employees.view')) {
+            return true;
+        }
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        if (! $miPropioColaborador) return false;
+        return (string) $miPropioColaborador->id === (string) $colaboradorId
+            || $miPropioColaborador->subordinados()->where('id', $colaboradorId)->exists();
+    }
+
+    /**
      * Returns inventory items in custody for a specific collaborator (read-only).
      * Consumes inventory_item_stocks (modelable_type = App\Models\User) without new tables.
      */
     public function show($colaboradorId)
     {
-        $this->authorize('talento.custody.view');
+        abort_unless($this->puedeVerCustodiaDe($colaboradorId), 403);
 
         $colaborador = TalentoColaborador::with('user')->findOrFail($colaboradorId);
         $userId = $colaborador->user_id;
 
+        // Bug real encontrado 28-sep: el JOIN a inventory_categories/
+        // i.category_id apuntaba a tabla/columna que NUNCA existieron en
+        // este esquema — tronaba 500 SIEMPRE, para cualquier colaborador
+        // (mismo hallazgo, ya documentado en un comentario de
+        // EmployeeDocumentPackageService::herramientasData(), que nunca se
+        // aplicó aquí). i.sku/i.unit tampoco existen. Columnas reales:
+        // inventory_items.serial_number (no "sku") + inventory_item_types
+        // .categoria (FK inventory_item_type_id, no inventory_categories)
+        // para la categoría real (herramienta/material/equipo_cliente/
+        // equipo_red).
         $stocks = DB::table('inventory_item_stocks as s')
             ->join('inventory_items as i', 'i.id', '=', 's.inventory_item_id')
-            ->leftJoin('inventory_categories as c', 'c.id', '=', 'i.category_id')
+            ->leftJoin('inventory_item_types as t', 't.id', '=', 'i.inventory_item_type_id')
             ->where('s.modelable_type', 'App\\Models\\User')
             ->where('s.modelable_id', $userId)
             ->whereNull('s.deleted_at')
@@ -38,15 +73,14 @@ class TalentoCustodiaController extends Controller
                 's.id as stock_id',
                 'i.id as item_id',
                 'i.name as item_name',
-                'i.sku',
-                'i.unit',
-                'c.name as category',
+                'i.serial_number',
+                't.categoria as category',
                 's.current_stock',
                 's.condition',
                 's.unit_cost',
                 's.created_at as assigned_at'
             )
-            ->orderBy('c.name')
+            ->orderBy('t.categoria')
             ->orderBy('i.name')
             ->get();
 
@@ -69,7 +103,6 @@ class TalentoCustodiaController extends Controller
                 'm.quantity',
                 'm.description',
                 'i.name as item_name',
-                'i.sku',
                 'm.created_at'
             )
             ->orderBy('m.created_at', 'desc')
