@@ -351,6 +351,15 @@ import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoColaboradores',
+  props: {
+    // Resuelto server-side (TalentoColaboradorController::index) — true si
+    // quien mira es supervisor SIN talento.employees.view: la tabla se
+    // apunta a /talento/api/mi-equipo (self-scoped a sus subordinados
+    // directos) en vez de /talento/api/colaboradores (roster completo).
+    // David, 28-sep: "el supervisor debe poder controlar lo que hacen los
+    // trabajadores a su cargo" — solo a ellos, no a todos.
+    soloMiEquipo: { type: Boolean, default: false },
+  },
   setup() {
     return { darkMode };
   },
@@ -424,7 +433,8 @@ export default {
     async load(page = 1) {
       this.loading = true;
       try {
-        const { data } = await axios.get('/talento/api/colaboradores', {
+        const url = this.soloMiEquipo ? '/talento/api/mi-equipo' : '/talento/api/colaboradores';
+        const { data } = await axios.get(url, {
           params: { ...this.filters, page }
         });
         this.items = data?.data ?? [];

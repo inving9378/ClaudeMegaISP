@@ -8,28 +8,43 @@ use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoRoleDepartment;
 use App\Modules\Addons\Talento\Support\Actor;
+// TalentoEmployeeDocumentController y TalentoAcademyController están en este
+// MISMO namespace (Controllers) — sin use, se referencian por nombre corto.
 use Illuminate\Http\Request;
 
 class TalentoColaboradorController extends Controller
 {
     /**
-     * David (28-sep): quien NO tiene visibilidad de roster completo
-     * (talento.employees.view — hoy solo admin/DESARROLLADOR) no debería
-     * aterrizar en el listado de "Colaboradores" al entrar a Talento — va
-     * derecho a SU PROPIA ficha (las pestañas que le aplican a él). El
-     * listado completo queda solo para quien de verdad necesita ver/buscar
-     * a todos.
+     * David (28-sep, corregido el mismo día): 3 comportamientos al entrar a
+     * Talento, según quién es:
+     *   1. talento.employees.view (admin/DESARROLLADOR/Mostrador) → listado
+     *      COMPLETO, sin cambios.
+     *   2. Supervisor (tiene subordinados directos vía
+     *      talento_colaboradores.supervisor_id, sin el permiso de arriba) →
+     *      MISMO listado, pero data() lo filtra solo a sus subordinados —
+     *      "el supervisor debe poder controlar lo que hacen los
+     *      trabajadores a su cargo".
+     *   3. Cualquier otro colaborador con ficha propia → redirige derecho a
+     *      ELLA (no tiene a nadie que listar).
+     *   4. Sin nada de lo anterior (fallback raro, sin datos que mostrar de
+     *      todos modos) → cae al listado.
      */
     public function index()
     {
+        $soloMiEquipo = false;
+
         if (! auth()->user()->can('talento.employees.view')) {
             $miPropioColaborador = Actor::for(auth()->user())->talento();
-            if ($miPropioColaborador) {
+            $esSupervisor = $miPropioColaborador && $miPropioColaborador->subordinados()->exists();
+
+            if ($miPropioColaborador && ! $esSupervisor) {
                 return redirect("/talento/colaborador/{$miPropioColaborador->id}");
             }
+            // Si es supervisor, cae al listado, pero apuntado a /mi-equipo.
+            $soloMiEquipo = $esSupervisor;
         }
 
-        return view('addon-talento::talento.index');
+        return view('addon-talento::talento.index', ['soloMiEquipo' => $soloMiEquipo]);
     }
 
     /**
@@ -55,30 +70,6 @@ class TalentoColaboradorController extends Controller
             && $colaboradorDeLaFicha
             && (int) $colaboradorDeLaFicha->supervisor_id === (int) $miPropioColaborador->id;
 
-        $permisos = [
-            'ordenes'         => auth()->user()->can('talento.work_orders.view'),
-            // Distinción ver-lo-mío vs gestionar-de-todos (David, 28-sep):
-            // un técnico viendo SU PROPIA ficha ya tiene sus órdenes dentro de
-            // "Mi trabajo (Portal)" — esta pestaña admin (con crear/validar)
-            // solo se le muestra si además gestiona órdenes O es su supervisor
-            // directo.
-            'ordenes_manage'  => auth()->user()->can('talento.work_orders.manage') || $esSuSupervisor,
-            'compensacion'    => auth()->user()->can('talento.compensation.view'),
-            'liquidaciones'   => auth()->user()->can('talento.liquidation.view'),
-            'asistencia'      => auth()->user()->can('talento.attendance.view'),
-            'campo'           => auth()->user()->can('talento.work_orders.view'),
-            'cajas'           => auth()->user()->can('talento.caja.view'),
-            'rutas'           => auth()->user()->can('talento.routes.view'),
-            'calidad'         => auth()->user()->can('talento.quality.view'),
-            'proyectos'       => auth()->user()->can('talento.projects.view'),
-            'penalizaciones'  => auth()->user()->can('talento.penalties.view'),
-            'credenciales'    => auth()->user()->can('talento.credentials.view'),
-            'finiquito'       => auth()->user()->can('talento.loans.view'),
-            'custodia'        => auth()->user()->can('talento.custody.view'),
-            'dispositivos'    => auth()->user()->can('talento.devices.view'),
-            'roles_multiples' => auth()->user()->can('talento.embajadores.view'),
-        ];
-
         // ¿Es la ficha de uno mismo? Un colaborador SIN talento.employees.view
         // (roster completo — staff, no técnicos) igual necesita poder abrir SU
         // PROPIA ficha, su supervisor directo necesita poder abrir la de SU
@@ -90,9 +81,54 @@ class TalentoColaboradorController extends Controller
         // /talento/api/colaboradores/{id} SÍ exige esa permission a nivel de
         // ruta (check_route_permission), así que el frontend usa un endpoint
         // aparte (miFicha(), por Actor) cuando alguno de los tres aplica.
-        // ($miPropioColaborador y $esSuSupervisor ya se resolvieron arriba.)
         $esPropia = $miPropioColaborador && (string) $miPropioColaborador->id === (string) $id;
         $usarEndpointPropio = $esPropia || $esSuSupervisor || auth()->user()->can('talento.work_orders.manage');
+
+        // David (28-sep), corrigiendo la pasada anterior: "las que tienen que
+        // ver con partes técnicas... que las vean los técnicos, LO DEMÁS LO
+        // DEBE VER TODO EL MUNDO" — o sea, la ficha PROPIA de un colaborador
+        // debe mostrarle SUS PROPIOS datos (compensación, liquidaciones,
+        // asistencia, etc.) aunque el rol de ese colaborador (ej. TECNICO) no
+        // tenga otorgado el permiso de STAFF correspondiente — esos permisos
+        // son para que un admin vea a CUALQUIERA, no deberían ser requisito
+        // para verse a uno mismo. Mismo criterio que ya se usa para decidir
+        // el endpoint (arriba): uno mismo, su supervisor directo, o quien
+        // gestiona en general.
+        $tieneAccesoAmplio = $esPropia || $esSuSupervisor || auth()->user()->can('talento.employees.view');
+
+        $permisos = [
+            'ordenes'         => auth()->user()->can('talento.work_orders.view') || $tieneAccesoAmplio,
+            // Distinción ver-lo-mío vs gestionar-de-todos (David, 28-sep):
+            // un técnico viendo SU PROPIA ficha ya tiene sus órdenes dentro de
+            // "Mi trabajo (Portal)" — esta pestaña admin (con crear/validar)
+            // solo se le muestra si además gestiona órdenes O es su supervisor
+            // directo. A propósito NO lleva $tieneAccesoAmplio (verse a uno
+            // mismo no debe dar de gratis el botón "Nueva orden").
+            'ordenes_manage'  => auth()->user()->can('talento.work_orders.manage') || $esSuSupervisor,
+            'compensacion'    => auth()->user()->can('talento.compensation.view') || $tieneAccesoAmplio,
+            'liquidaciones'   => auth()->user()->can('talento.liquidation.view') || $tieneAccesoAmplio,
+            'asistencia'      => auth()->user()->can('talento.attendance.view') || $tieneAccesoAmplio,
+            // Las 4 "técnicas" también llevan $tieneAccesoAmplio — el filtro
+            // real de "solo técnicos" ya lo impone esTecnico() en el
+            // frontend (depende del colaborador VISTO, no de quién mira), no
+            // hace falta duplicarlo aquí.
+            'campo'           => auth()->user()->can('talento.work_orders.view') || $tieneAccesoAmplio,
+            'cajas'           => auth()->user()->can('talento.caja.view') || $tieneAccesoAmplio,
+            'rutas'           => auth()->user()->can('talento.routes.view') || $tieneAccesoAmplio,
+            'calidad'         => auth()->user()->can('talento.quality.view') || $tieneAccesoAmplio,
+            'proyectos'       => auth()->user()->can('talento.projects.view') || $tieneAccesoAmplio,
+            'penalizaciones'  => auth()->user()->can('talento.penalties.view') || $tieneAccesoAmplio,
+            'credenciales'    => auth()->user()->can('talento.credentials.view') || $tieneAccesoAmplio,
+            'finiquito'       => auth()->user()->can('talento.loans.view') || $tieneAccesoAmplio,
+            'custodia'        => auth()->user()->can('talento.custody.view') || $tieneAccesoAmplio,
+            'dispositivos'    => auth()->user()->can('talento.devices.view') || $tieneAccesoAmplio,
+            'roles_multiples' => auth()->user()->can('talento.embajadores.view') || $tieneAccesoAmplio,
+            // Nuevas (item 1b, 28-sep): expediente/paquetes de documentos y
+            // academia — antes solo pantallas globales, ahora también
+            // pestañas de la ficha propia.
+            'documentos'      => auth()->user()->can('talento.expediente.view') || $tieneAccesoAmplio,
+            'academia'        => auth()->user()->can('talento.academy.view') || $tieneAccesoAmplio,
+        ];
 
         // "Mi trabajo (Portal)" — SOLO para uno mismo, JAMÁS para el
         // supervisor viendo a su subordinado: el Portal (completar OT,
@@ -123,22 +159,7 @@ class TalentoColaboradorController extends Controller
      */
     public function miFicha(?string $id = null)
     {
-        $miPropioColaborador = Actor::for(auth()->user())->talento();
-
-        if ($id !== null && $miPropioColaborador === null && auth()->user()->can('talento.work_orders.manage')) {
-            // Quien gestiona órdenes en general (ej. Mostrador) no
-            // necesariamente tiene su propio registro de colaborador —
-            // Diana no es "un talento", pero sí puede crearle órdenes a uno.
-            $colaborador = TalentoColaborador::find($id);
-            abort_if(! $colaborador, 404);
-        } elseif ($id === null || (string) $id === (string) ($miPropioColaborador->id ?? null)) {
-            abort_if(! $miPropioColaborador, 404, 'No tienes un perfil de colaborador activo.');
-            $colaborador = $miPropioColaborador;
-        } else {
-            $colaborador = $miPropioColaborador->subordinados()->where('id', $id)->first()
-                ?? (auth()->user()->can('talento.work_orders.manage') ? TalentoColaborador::find($id) : null);
-            abort_if(! $colaborador, 403, 'No tienes permiso para ver a este colaborador.');
-        }
+        $colaborador = $this->resolverColaboradorAutoservicio($id);
 
         $colaborador->load(['user', 'supervisor.user', 'subordinados.user', 'puesto']);
 
@@ -149,6 +170,111 @@ class TalentoColaboradorController extends Controller
         $this->hideExpedienteFields($colaborador);
 
         return response()->json($colaborador);
+    }
+
+    /**
+     * Documentos del expediente — self/supervisor/manage-scoped (item 1b,
+     * 28-sep). /talento/api/colaboradores/{id}/documentos exige
+     * talento.employees.view a nivel de ruta (roster completo); un técnico
+     * viendo SU PROPIA pestaña "Paquetes de documentos" no debería necesitar
+     * ese permiso de staff solo para ver su propio expediente. Delega en la
+     * MISMA lógica ya construida (TalentoEmployeeDocumentController::
+     * forColaborador) — no duplica nada, solo cambia la puerta de entrada.
+     */
+    public function miFichaDocumentos(string $id)
+    {
+        $colaborador = $this->resolverColaboradorAutoservicio($id);
+
+        return app(TalentoEmployeeDocumentController::class)->forColaborador($colaborador->id);
+    }
+
+    /**
+     * Progreso académico + certificaciones — mismo criterio de acceso que
+     * miFichaDocumentos() de arriba, para la pestaña "Academia".
+     */
+    public function miFichaAcademia(string $id)
+    {
+        $colaborador = $this->resolverColaboradorAutoservicio($id);
+
+        $academyController = app(TalentoAcademyController::class);
+
+        return response()->json([
+            'progress' => json_decode($academyController->progressForColaborador($colaborador->id)->getContent()),
+            'certifications' => json_decode($academyController->certificationsForColaborador($colaborador->id)->getContent()),
+        ]);
+    }
+
+    /**
+     * Resuelve — o aborta 403/404 — el colaborador que el usuario logueado
+     * puede ver en autoservicio: él mismo, su subordinado directo
+     * (talento_colaboradores.supervisor_id), o cualquiera si gestiona
+     * órdenes en general (talento.work_orders.manage — admin/DESARROLLADOR/
+     * Mostrador). Punto único de esta regla — la usan miFicha(),
+     * miFichaDocumentos() y miFichaAcademia() para no repetirla 3 veces.
+     */
+    private function resolverColaboradorAutoservicio(?string $id): TalentoColaborador
+    {
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+
+        if ($id !== null && $miPropioColaborador === null && auth()->user()->can('talento.work_orders.manage')) {
+            // Quien gestiona órdenes en general (ej. Mostrador) no
+            // necesariamente tiene su propio registro de colaborador —
+            // Diana no es "un talento", pero sí puede crearle órdenes a uno.
+            $colaborador = TalentoColaborador::find($id);
+            abort_if(! $colaborador, 404);
+
+            return $colaborador;
+        }
+
+        if ($id === null || (string) $id === (string) ($miPropioColaborador->id ?? null)) {
+            abort_if(! $miPropioColaborador, 404, 'No tienes un perfil de colaborador activo.');
+
+            return $miPropioColaborador;
+        }
+
+        $colaborador = $miPropioColaborador->subordinados()->where('id', $id)->first()
+            ?? (auth()->user()->can('talento.work_orders.manage') ? TalentoColaborador::find($id) : null);
+        abort_if(! $colaborador, 403, 'No tienes permiso para ver a este colaborador.');
+
+        return $colaborador;
+    }
+
+    /**
+     * Listado de "mi equipo" — self-scoped, SOLO los subordinados DIRECTOS
+     * del que pide (talento_colaboradores.supervisor_id) — sin exigir
+     * talento.employees.view (roster completo). "El supervisor debe poder
+     * controlar lo que hacen los trabajadores a su cargo" (David, 28-sep),
+     * pero nada más — es un candado de seguridad, no un filtro opcional:
+     * el where('supervisor_id', ...) es SIEMPRE forzado, ignorando
+     * cualquier otro id que alguien intente mandar.
+     */
+    public function miEquipo(Request $request)
+    {
+        $this->authorize('talento.view');
+
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        abort_if(! $miPropioColaborador, 404, 'No tienes un perfil de colaborador activo.');
+
+        $q = TalentoColaborador::with(['user', 'supervisor.user', 'puesto'])
+            ->where('supervisor_id', $miPropioColaborador->id)
+            ->when($request->search, fn($q, $s) =>
+                $q->whereHas('user', fn($u) => $u->where('name', 'like', "%$s%")->orWhere('email', 'like', "%$s%"))
+            )
+            ->when($request->status, fn($q, $s) => $q->where('status', $s))
+            ->when($request->type,   fn($q, $t) => $q->where('type', $t))
+            ->when($request->department, fn($q, $d) => $q->where('department', $d))
+            ->orderBy('id', 'desc')
+            ->paginate($request->per_page ?? 25);
+
+        $q->each(function ($col) {
+            if ($col->user) {
+                $col->user->role_names = $col->user->getRoleNames();
+            }
+        });
+
+        $this->hideExpedienteFields($q->getCollection());
+
+        return response()->json($q);
     }
 
     public function data(Request $request)

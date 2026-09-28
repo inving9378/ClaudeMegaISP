@@ -52,6 +52,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         // /colaborador/{id} por convención de este archivo (fijas antes que
         // con parámetro), aunque aquí no colisionan (prefijos distintos).
         Route::get('/mi-ficha/{id?}', [TalentoColaboradorController::class, 'miFicha']);
+        Route::get('/mi-ficha/{id}/documentos', [TalentoColaboradorController::class, 'miFichaDocumentos']);
+        Route::get('/mi-ficha/{id}/academia',   [TalentoColaboradorController::class, 'miFichaAcademia']);
         Route::get('/custodia',       [TalentoCustodiaController::class,     'index']);
         Route::get('/dispositivos',   [TalentoDeviceController::class,       'index']);
         Route::get('/roadmap',        [TalentoRoadmapController::class,      'index']);
@@ -94,6 +96,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
             // ── Colaboradores ────────────────────────────────────────────────
             Route::get('/colaboradores',                   [TalentoColaboradorController::class, 'data']);
+            Route::get('/mi-equipo',                       [TalentoColaboradorController::class, 'miEquipo']);
             Route::post('/colaboradores',                  [TalentoColaboradorController::class, 'store']);
             Route::get('/colaboradores/users-disponibles', [TalentoColaboradorController::class, 'usersDisponibles']);
             Route::get('/colaboradores/role-departments',  [TalentoColaboradorController::class, 'roleDepartments']);

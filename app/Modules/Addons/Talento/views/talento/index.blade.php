@@ -13,7 +13,7 @@
             </div>
         </div>
         <div>
-            <talento-colaboradores></talento-colaboradores>
+            <talento-colaboradores :solo-mi-equipo="{{ $soloMiEquipo ?? false ? 'true' : 'false' }}"></talento-colaboradores>
         </div>
     </div>
 </div>

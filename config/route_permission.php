@@ -2058,6 +2058,9 @@ return [
         '/talento/colaborador/{id}',
         '/talento/mi-ficha',
         '/talento/mi-ficha/{id}',
+        '/talento/mi-ficha/{id}/documentos',
+        '/talento/mi-ficha/{id}/academia',
+        '/talento/api/mi-equipo',
     ],
     'talento.dashboard.view' => [
         '/talento',
@@ -2237,7 +2240,10 @@ return [
         '/talento/api/courses/{id}',
         '/talento/practical-evidence/{id}',
         '/talento/api/colaboradores/{id}/academy-progress',
-        '/talento.api/colaboradores/{id}/certifications',
+        // Typo pre-existente corregido (28-sep): faltaba la barra después de
+        // "talento" — este patrón nunca hacía match, así que
+        // talento.academy.view solo no bastaba para /certifications.
+        '/talento/api/colaboradores/{id}/certifications',
     ],
     'talento.academy.manage' => [
         '/talento/api/courses',

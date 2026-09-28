@@ -153,6 +153,18 @@
             <i class="bi bi-link-45deg me-1"></i> Roles múltiples
           </a>
         </li>
+        <li class="nav-item" v-if="permisos.documentos">
+          <a class="nav-link" :class="{ active: activeTab === 'documentos' }" href="#"
+             @click.prevent="setActiveTab('documentos')">
+            <i class="bi bi-folder2-open me-1"></i> Paquetes de documentos
+          </a>
+        </li>
+        <li class="nav-item" v-if="permisos.academia">
+          <a class="nav-link" :class="{ active: activeTab === 'academia' }" href="#"
+             @click.prevent="setActiveTab('academia')">
+            <i class="bi bi-mortarboard me-1"></i> Academia
+          </a>
+        </li>
       </ul>
 
       <!-- Paneles — montaje perezoso del activo, como Menu.vue -->
@@ -208,6 +220,12 @@
         <div v-if="activeTab === 'roles_multiples'">
           <talento-embajadores :colaborador-id="id" />
         </div>
+        <div v-if="activeTab === 'documentos'">
+          <talento-ficha-documentos :colaborador-id="id" />
+        </div>
+        <div v-if="activeTab === 'academia'">
+          <talento-ficha-academia :colaborador-id="id" />
+        </div>
       </div>
     </template>
 
@@ -233,6 +251,8 @@ import TalentoFiniquito from "./TalentoFiniquito.vue";
 import TalentoCustodia from "./TalentoCustodia.vue";
 import TalentoDispositivos from "./TalentoDispositivos.vue";
 import TalentoEmbajadores from "./TalentoEmbajadores.vue";
+import TalentoFichaDocumentos from "./TalentoFichaDocumentos.vue";
+import TalentoFichaAcademia from "./TalentoFichaAcademia.vue";
 
 export default {
   name: "TalentoColaboradorFicha",
@@ -261,6 +281,8 @@ export default {
     TalentoCustodia,
     TalentoDispositivos,
     TalentoEmbajadores,
+    TalentoFichaDocumentos,
+    TalentoFichaAcademia,
   },
   props: {
     id: { type: [Number, String], required: true },
