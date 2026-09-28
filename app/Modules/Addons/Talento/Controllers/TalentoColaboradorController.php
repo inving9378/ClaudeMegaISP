@@ -215,6 +215,22 @@ class TalentoColaboradorController extends Controller
             // academia — antes solo pantallas globales, ahora también
             // pestañas de la ficha propia.
             'documentos'      => auth()->user()->can('talento.expediente.view') || $tieneAccesoAmplio,
+            // David (28-sep): "que funcione igual que en vendedor para la
+            // parte de las firmas y los campos faltantes" — la pestaña
+            // reusa el MISMO componente/endpoints que Vendedores
+            // (TalentoExpedienteDocumentos.vue). Este flag decide si el
+            // viewer puede firmar CUALQUIER slot (incluido 'empresa') y
+            // completar huecos (edita CURP/RFC/NSS/domicilio del empleado o
+            // datos de la EMPRESA compartidos por todos) — a propósito SIN
+            // $tieneAccesoAmplio: verse a uno mismo NO da estas dos
+            // capacidades (mismo criterio que credenciales_manage/
+            // settlement_manage). Uno mismo SÍ puede firmar su(s) propio(s)
+            // slot(s) 'colaborador' — eso lo permite el controller sin
+            // necesitar este flag (ver TalentoEmployeeDocumentController::
+            // puedeGestionarDocumentosDe()/esUnoMismo()).
+            'documentos_gestionar' => auth()->user()->can('talento.expediente.documentos.gestionar')
+                || auth()->user()->can('talento.work_orders.manage')
+                || $esSuSupervisor,
             'academia'        => auth()->user()->can('talento.academy.view') || $tieneAccesoAmplio,
         ];
 
@@ -258,31 +274,6 @@ class TalentoColaboradorController extends Controller
         $this->hideExpedienteFields($colaborador);
 
         return response()->json($colaborador);
-    }
-
-    /**
-     * Documentos del expediente — self/supervisor/manage-scoped (item 1b,
-     * 28-sep). /talento/api/colaboradores/{id}/documentos exige
-     * talento.employees.view a nivel de ruta (roster completo); un técnico
-     * viendo SU PROPIA pestaña "Paquetes de documentos" no debería necesitar
-     * ese permiso de staff solo para ver su propio expediente.
-     *
-     * FIX (28-sep, verificación de esta pestaña): NO llama a forColaborador()
-     * — ese método hace ADEMÁS $this->authorize('talento.expediente.view'),
-     * permiso que solo tiene super-administrator/DESARROLLADOR y que ningún
-     * técnico posee directo. resolverColaboradorAutoservicio() de arriba YA
-     * resolvió si el que pide puede ver a $id (uno mismo/su subordinado
-     * directo/quien gestiona órdenes) — exigir el permiso de staff completo
-     * ENCIMA de eso bloqueaba el autoservicio con 403 pese a que la ruta
-     * pretendía ser self-scoped. Se llama al cuerpo real sin ese segundo
-     * candado (TalentoEmployeeDocumentController::documentosDe) — no
-     * duplica la lógica, solo evita el authorize() de más.
-     */
-    public function miFichaDocumentos(string $id)
-    {
-        $colaborador = $this->resolverColaboradorAutoservicio($id);
-
-        return app(TalentoEmployeeDocumentController::class)->documentosDe($colaborador->id);
     }
 
     /**

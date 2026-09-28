@@ -2058,9 +2058,19 @@ return [
         '/talento/colaborador/{id}',
         '/talento/mi-ficha',
         '/talento/mi-ficha/{id}',
-        '/talento/mi-ficha/{id}/documentos',
         '/talento/mi-ficha/{id}/academia',
         '/talento/api/mi-equipo',
+        // Documentos del expediente (28-sep): mismo endpoint que ya usan
+        // Vendedores/el modal admin — el controller ensancha el candado a
+        // uno mismo/supervisor directo (puedeVerDocumentosDe()/
+        // puedeGestionarDocumentosDe()), así que el middleware solo necesita
+        // dejar pasar a cualquiera con acceso al módulo; talento.employees
+        // .view (abajo) sigue cubriendo el roster completo para staff.
+        '/talento/api/colaboradores/{id}/documentos',
+        '/talento/colaboradores/{id}/documentos/{docId}',
+        '/talento/api/colaboradores/{id}/documentos/{docId}/firma',
+        '/talento/api/colaboradores/{id}/documentos/{docId}/huecos',
+        '/talento/api/colaboradores/{id}/documentos/{docId}/completar',
         // Ver/asignar la compensación de un colaborador: uno mismo, su
         // supervisor directo, o el permiso de STAFF — el controller
         // (puedeVerCompensacionDe()/assignRule()) hace la distinción real;

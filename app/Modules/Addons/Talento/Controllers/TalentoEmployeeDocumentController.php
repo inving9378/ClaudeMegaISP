@@ -9,6 +9,7 @@ use App\Modules\Addons\Talento\Models\TalentoEmployeeDocument;
 use App\Modules\Addons\Talento\Models\TalentoEmployeeDocumentSignature;
 use App\Modules\Addons\Talento\Services\EmployeeDocumentPackageService;
 use App\Modules\Addons\Talento\Services\TemplateRenderService;
+use App\Modules\Addons\Talento\Support\Actor;
 use App\Modules\Addons\Talento\Support\SignatureSlotStatus;
 use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppGateway;
 use Illuminate\Http\Request;
@@ -36,31 +37,79 @@ class TalentoEmployeeDocumentController extends Controller
     private const FIRMA_MAX_BYTES = 2 * 1024 * 1024; // 2MB
     private const FIRMA_MIME_EXT = ['image/png' => 'png', 'image/jpeg' => 'jpeg', 'image/webp' => 'webp'];
 
-    public function forColaborador($colaboradorId)
+    /**
+     * David (28-sep): "verifica que funcione igual que en vendedor para la
+     * parte de las firmas y los campos faltantes... ya aquello está más que
+     * probado y está bien". El endpoint que ya usan Vendedores
+     * (InformationSeller.vue) y el modal admin de TalentoColaboradores.vue —
+     * este mismo controller, gate 'talento.expediente.view' — es AHORA el
+     * ÚNICO camino que también usa la pestaña de la ficha propia: en vez de
+     * duplicar el componente/las rutas con una copia "self-scoped" aparte
+     * (lo que se había hecho en un primer intento), se ensancha ESTE
+     * candado para aceptar además a uno mismo y a su supervisor directo —
+     * Vendedores/el modal admin no cambian nada (siguen entrando por
+     * talento.expediente.view, sin excepción).
+     *
+     * VER (listar/mostrar/imagen de firma/huecos) — uno mismo, su
+     * supervisor directo, o staff (talento.expediente.view/
+     * talento.employees.view, este último por Mostrador vía
+     * talento.work_orders.manage — mismo criterio que el resto de la
+     * ficha).
+     */
+    private function puedeVerDocumentosDe($colaboradorId): bool
     {
-        $this->authorize('talento.expediente.view');
+        if (auth()->user()->can('talento.expediente.view') || auth()->user()->can('talento.employees.view')) {
+            return true;
+        }
 
-        return $this->documentosDe($colaboradorId);
+        return $this->esUnoMismoOSupervisorDe($colaboradorId);
     }
 
     /**
-     * Item roadmap (28-sep, hallazgo al verificar la pestaña "Paquetes de
-     * documentos" de la ficha): el cuerpo real de forColaborador(), separado
-     * de su authorize('talento.expediente.view') — permiso que solo tienen
-     * super-administrator/DESARROLLADOR, NUNCA técnico. TalentoColaborador
-     * Controller::miFichaDocumentos() (self/supervisor/manage-scoped vía
-     * resolverColaboradorAutoservicio()) llama a ESTE método directo: la
-     * autorización YA se resolvió ahí (uno mismo/supervisor directo/quien
-     * gestiona órdenes), así que exigir aquí ADEMÁS el permiso de staff
-     * completo rompía el autoservicio — un técnico viendo su propia pestaña
-     * de documentos recibía 403 pese a que el endpoint decía ser self-scoped.
-     * forColaborador() (la ruta /talento/api/colaboradores/{id}/documentos,
-     * bajo talento.employees.view a nivel de middleware) sigue exigiendo el
-     * permiso amplio antes de delegar aquí — mismo patrón que
-     * TalentoCajaController::puedeVerBonusLogDe()/TalentoEmbajadoresController.
+     * GESTIONAR (firmar cualquier slot incluido 'empresa', completar huecos
+     * que tocan datos del empleado/empresa) — SOLO el supervisor directo o
+     * staff (talento.expediente.documentos.gestionar/talento.work_orders.
+     * manage) — a propósito SIN uno mismo: completar() escribe CURP/RFC/
+     * NSS/domicilio del propio colaborador o datos de la EMPRESA
+     * (compartidos por todos), y firmar el slot 'empresa' es la
+     * contraparte de la compañía sobre el documento del colaborador —
+     * ninguno de los dos es autoservicio, igual que ya decidió
+     * PortalTecnicoController::firmarDocumento() para el slot 'empresa'
+     * ("nunca queda accesible por autoservicio").
      */
-    public function documentosDe($colaboradorId)
+    private function puedeGestionarDocumentosDe($colaboradorId): bool
     {
+        if (auth()->user()->can('talento.expediente.documentos.gestionar') || auth()->user()->can('talento.work_orders.manage')) {
+            return true;
+        }
+
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+
+        return (bool) ($miPropioColaborador?->subordinados()->where('id', $colaboradorId)->exists());
+    }
+
+    private function esUnoMismoOSupervisorDe($colaboradorId): bool
+    {
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        if (! $miPropioColaborador) {
+            return false;
+        }
+
+        return (string) $miPropioColaborador->id === (string) $colaboradorId
+            || $miPropioColaborador->subordinados()->where('id', $colaboradorId)->exists();
+    }
+
+    private function esUnoMismo($colaboradorId): bool
+    {
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+
+        return $miPropioColaborador && (string) $miPropioColaborador->id === (string) $colaboradorId;
+    }
+
+    public function forColaborador($colaboradorId)
+    {
+        abort_unless($this->puedeVerDocumentosDe($colaboradorId), 403);
+
         $service = app(EmployeeDocumentPackageService::class);
 
         $documentos = TalentoEmployeeDocument::where('colaborador_id', $colaboradorId)
@@ -339,7 +388,7 @@ class TalentoEmployeeDocumentController extends Controller
 
     public function show($colaboradorId, $docId)
     {
-        $this->authorize('talento.expediente.view');
+        abort_unless($this->puedeVerDocumentosDe($colaboradorId), 403);
 
         $documento = TalentoEmployeeDocument::where('colaborador_id', $colaboradorId)
             ->where('id', $docId)
@@ -458,7 +507,16 @@ HTML;
      */
     public function sign(Request $request, $colaboradorId, $docId)
     {
-        $this->authorize('talento.expediente.documentos.gestionar');
+        // David (28-sep): mismo endpoint que ya usa Vendedores (probado) —
+        // se ensancha a uno mismo, pero SOLO para su(s) propio(s) slot(s)
+        // 'colaborador' (abajo). El slot 'empresa'/cualquier otro sigue
+        // exclusivo de supervisor/staff, igual que ya hacía
+        // PortalTecnicoController::firmarDocumento() para el autoservicio
+        // puro — esa regla de anti-escalada se replica aquí en vez de
+        // mantenerla en dos sitios con criterios distintos.
+        $puedeGestionar = $this->puedeGestionarDocumentosDe($colaboradorId);
+        $esUnoMismo = $this->esUnoMismo($colaboradorId);
+        abort_unless($puedeGestionar || $esUnoMismo, 403);
 
         $documento = TalentoEmployeeDocument::where('colaborador_id', $colaboradorId)
             ->where('id', $docId)
@@ -471,7 +529,11 @@ HTML;
         if ($slots->isNotEmpty()) {
             $request->validate(['slot_key' => 'required|string']);
             $slotKey = $request->input('slot_key');
-            abort_unless($slots->contains('key', $slotKey), 422, 'El slot de firma indicado no existe en esta plantilla.');
+            $slot = $slots->firstWhere('key', $slotKey);
+            abort_unless($slot, 422, 'El slot de firma indicado no existe en esta plantilla.');
+            if (! $puedeGestionar) {
+                abort_unless($slot->firmante_tipo === 'colaborador', 403, 'Este recuadro de firma no corresponde al colaborador.');
+            }
         }
 
         $trazos = null;
@@ -666,7 +728,7 @@ HTML;
      */
     public function huecos($colaboradorId, $docId)
     {
-        $this->authorize('talento.expediente.view');
+        abort_unless($this->puedeVerDocumentosDe($colaboradorId), 403);
 
         $documento = TalentoEmployeeDocument::where('colaborador_id', $colaboradorId)
             ->where('id', $docId)
@@ -694,7 +756,7 @@ HTML;
      */
     public function completar(Request $request, $colaboradorId, $docId)
     {
-        $this->authorize('talento.expediente.documentos.gestionar');
+        abort_unless($this->puedeGestionarDocumentosDe($colaboradorId), 403);
 
         $documento = TalentoEmployeeDocument::where('colaborador_id', $colaboradorId)
             ->where('id', $docId)
@@ -724,7 +786,7 @@ HTML;
      */
     public function firma(Request $request, $colaboradorId, $docId)
     {
-        $this->authorize('talento.expediente.view');
+        abort_unless($this->puedeVerDocumentosDe($colaboradorId), 403);
 
         $slotKey = $request->query('slot_key');
 

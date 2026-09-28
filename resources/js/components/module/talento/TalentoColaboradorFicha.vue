@@ -230,7 +230,11 @@
             :puede-gestionar="permisos.embajadores_buscador" />
         </div>
         <div v-if="activeTab === 'documentos'">
-          <talento-ficha-documentos :colaborador-id="id" />
+          <!-- David (28-sep): MISMO componente que ya usan Vendedores/el
+               modal admin (TalentoColaboradores.vue) — "igual que en
+               vendedor" para firmas/huecos, no una copia aparte. -->
+          <talento-expediente-documentos :colaborador-id="Number(id)"
+            :puede-gestionar="permisos.documentos_gestionar" />
         </div>
         <div v-if="activeTab === 'academia'">
           <talento-ficha-academia :colaborador-id="id" />
@@ -260,7 +264,6 @@ import TalentoFiniquito from "./TalentoFiniquito.vue";
 import TalentoCustodia from "./TalentoCustodia.vue";
 import TalentoDispositivos from "./TalentoDispositivos.vue";
 import TalentoEmbajadores from "./TalentoEmbajadores.vue";
-import TalentoFichaDocumentos from "./TalentoFichaDocumentos.vue";
 import TalentoFichaAcademia from "./TalentoFichaAcademia.vue";
 
 export default {
@@ -290,7 +293,6 @@ export default {
     TalentoCustodia,
     TalentoDispositivos,
     TalentoEmbajadores,
-    TalentoFichaDocumentos,
     TalentoFichaAcademia,
   },
   props: {

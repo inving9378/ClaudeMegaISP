@@ -52,7 +52,13 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         // /colaborador/{id} por convención de este archivo (fijas antes que
         // con parámetro), aunque aquí no colisionan (prefijos distintos).
         Route::get('/mi-ficha/{id?}', [TalentoColaboradorController::class, 'miFicha']);
-        Route::get('/mi-ficha/{id}/documentos', [TalentoColaboradorController::class, 'miFichaDocumentos']);
+        // NOTA (28-sep): ya NO hay /mi-ficha/{id}/documentos aparte — la
+        // pestaña "Paquetes de documentos" de la ficha ahora reusa el MISMO
+        // endpoint de siempre (/api/colaboradores/{id}/documentos y sus
+        // hermanos de firma/completar), ensanchado en el controller para
+        // aceptar uno mismo/supervisor además de staff — "igual que en
+        // Vendedores", no una copia paralela. Ver TalentoEmployeeDocument
+        // Controller::puedeVerDocumentosDe()/puedeGestionarDocumentosDe().
         Route::get('/mi-ficha/{id}/academia',   [TalentoColaboradorController::class, 'miFichaAcademia']);
         Route::get('/custodia',       [TalentoCustodiaController::class,     'index']);
         Route::get('/dispositivos',   [TalentoDeviceController::class,       'index']);

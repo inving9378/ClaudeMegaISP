@@ -32,7 +32,7 @@
                 <button v-else-if="doc.requires_signature" @click="abrirFirma(doc)" type="button" class="tc-btn tc-btn-seg btn-sm">
                   <i class="fa fa-signature me-1"></i>{{ tieneSlots(doc) ? 'Firmas completas' : 'Volver a firmar' }}
                 </button>
-                <button v-if="(doc.huecos_count ?? 0) > 0"
+                <button v-if="puedeGestionar && (doc.huecos_count ?? 0) > 0"
                         @click="abrirCompletar(doc)" type="button" class="tc-btn tc-btn-primary btn-sm">
                   <i class="fa fa-clipboard-check me-1"></i>Completar documento
                 </button>
@@ -223,6 +223,14 @@ export default {
   },
   props: {
     colaboradorId: { type: Number, required: true },
+    // David (28-sep): true para Vendedores/el modal admin (staff siempre
+    // gestiona), y para el supervisor directo/staff en la ficha propia —
+    // false cuando el que mira es el propio colaborador (autoservicio):
+    // oculta "Completar documento" (huecos, edita datos del empleado/
+    // empresa) y, en el modal de firma, solo ofrece sus propios recuadros
+    // 'colaborador' — el servidor rechaza igual cualquier intento sobre un
+    // recuadro ajeno (defensa en profundidad, no solo ocultar el botón).
+    puedeGestionar: { type: Boolean, default: true },
   },
   data() {
     return {
@@ -326,9 +334,18 @@ export default {
       // Doc sin slots declarados (legado, 1 sola firma): recuadro sintético que abre SIEMPRE
       // en modo edición — mismo comportamiento de "un solo recuadro" que tenía el modal antes
       // de este item (item #9990649: "no romper el flujo de firma actual").
-      const slots = esLegacy
+      let slots = esLegacy
         ? [{ key: null, label: null, requerido: true, firmado: doc.firmado, signature_url: doc.signature_url }]
         : doc.signature_slots;
+
+      // Autoservicio puro (puedeGestionar=false, la ficha propia de un
+      // colaborador sin ser supervisor/staff): solo se ofrecen SUS propios
+      // recuadros 'colaborador' — el de 'admin'/empresa ni se muestra
+      // (el servidor lo rechaza igual si se intentara, ver sign() en
+      // TalentoEmployeeDocumentController — esto es solo la capa visual).
+      if (!esLegacy && !this.puedeGestionar) {
+        slots = slots.filter((s) => s.firmante_tipo === 'colaborador');
+      }
 
       this.firmaModal.recuadros = slots.map((s) => ({
         key: s.key,
