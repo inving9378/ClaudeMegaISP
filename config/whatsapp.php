@@ -54,4 +54,21 @@ return [
     'auto_reply'                 => (bool)  env('WHATSAPP_AUTO_REPLY', false),
     'auto_reply_min_confidence'  => (float) env('WHATSAPP_AUTO_REPLY_MIN_CONFIDENCE', 0.80),
     'auto_reply_tone'            => (string) env('WHATSAPP_AUTO_REPLY_TONE', 'friendly'),
+
+    /*
+    | Agente de Ventas (IA) — freno maestro PROPIO, separado de `auto_reply`
+    | de arriba (que solo gatea el bot genérico de Soporte/Cobranza/Atención/
+    | Ventas). Apagado por defecto: activarlo en dev/prod es decisión de
+    | Irving. Sigue respetando `sender_enabled` de arriba (el candado de envío
+    | real del gateway) — este flag solo decide si el CEREBRO del agente
+    | corre y genera respuesta.
+    |
+    | `max_instalaciones_dia`: tope de instalaciones nuevas por día que el
+    | agente respeta al agendar. Es un ESTIMADO inicial (decisión de Irving,
+    | 2026-09-28: "no sé el número exacto, usemos un estimado y lo ajustamos
+    | después") — ajustable aquí sin tocar código.
+    */
+    'agente_ventas_enabled'                => (bool)  env('WHATSAPP_AGENTE_VENTAS_ENABLED', false),
+    'agente_ventas_min_confidence'          => (float) env('WHATSAPP_AGENTE_VENTAS_MIN_CONFIDENCE', 0.80),
+    'agente_ventas_max_instalaciones_dia'   => (int)   env('WHATSAPP_AGENTE_VENTAS_MAX_INSTALACIONES_DIA', 5),
 ];
