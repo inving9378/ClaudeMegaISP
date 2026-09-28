@@ -2055,6 +2055,7 @@ return [
     'talento.view' => [
         '/talento',
         '/talento/dashboard',
+        '/talento/colaborador/{id}',
     ],
     'talento.dashboard.view' => [
         '/talento',

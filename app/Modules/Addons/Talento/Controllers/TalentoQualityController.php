@@ -78,6 +78,10 @@ class TalentoQualityController extends Controller
         if ($request->filled('caja_ref'))  $q->where('caja_ref', $request->caja_ref);
         if ($request->filled('project_id')) $q->where('project_id', $request->project_id);
         if ($request->filled('result'))    $q->where('overall_result', $request->result);
+        // Pestaña "Calidad de caja" de la ficha de un colaborador (David, 2026-09-28).
+        // La FK real es `inspected_by` (ver TalentoCajaInspection::colaborador()), NO
+        // `colaborador_id` — la tabla no tiene esa columna.
+        if ($request->filled('colaborador_id')) $q->where('inspected_by', $request->colaborador_id);
 
         return response()->json($q->paginate(25));
     }

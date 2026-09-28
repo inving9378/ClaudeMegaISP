@@ -16,6 +16,39 @@ class TalentoColaboradorController extends Controller
         return view('addon-talento::talento.index');
     }
 
+    /**
+     * Ficha por pestañas de UN colaborador (reestructuración a como está
+     * Vendedores: dashboard + ficha — David, 2026-09-28). Las flags de
+     * permiso del VIEWER se resuelven aquí server-side (mismo criterio que
+     * @can en el resto del proyecto) y se pasan a Vue ya calculadas, en vez
+     * de depender de un store de permisos en el cliente solo para decidir
+     * qué pestaña mostrar.
+     */
+    public function ficha($id)
+    {
+        $this->authorize('talento.view');
+
+        $permisos = [
+            'ordenes'         => auth()->user()->can('talento.work_orders.view'),
+            'compensacion'    => auth()->user()->can('talento.compensation.view'),
+            'liquidaciones'   => auth()->user()->can('talento.liquidation.view'),
+            'asistencia'      => auth()->user()->can('talento.attendance.view'),
+            'campo'           => auth()->user()->can('talento.work_orders.view'),
+            'cajas'           => auth()->user()->can('talento.caja.view'),
+            'rutas'           => auth()->user()->can('talento.routes.view'),
+            'calidad'         => auth()->user()->can('talento.quality.view'),
+            'proyectos'       => auth()->user()->can('talento.projects.view'),
+            'penalizaciones'  => auth()->user()->can('talento.penalties.view'),
+            'credenciales'    => auth()->user()->can('talento.credentials.view'),
+            'finiquito'       => auth()->user()->can('talento.loans.view'),
+            'custodia'        => auth()->user()->can('talento.custody.view'),
+            'dispositivos'    => auth()->user()->can('talento.devices.view'),
+            'roles_multiples' => auth()->user()->can('talento.embajadores.view'),
+        ];
+
+        return view('addon-talento::talento.ficha', ['id' => $id, 'permisos' => $permisos]);
+    }
+
     public function data(Request $request)
     {
         $this->authorize('talento.view');

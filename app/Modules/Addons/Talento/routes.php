@@ -41,6 +41,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
         // ── Vistas web (ANTES de rutas con parámetros) ──────────────────────
         Route::get('/',               [TalentoColaboradorController::class,  'index']);
+        // Ficha por pestañas de un colaborador (David, 2026-09-28 — reestructuración
+        // a como está Vendedores). Singular "colaborador" a propósito: no colisiona
+        // con nada bajo /talento/colaboradores/* (plural, prefijo /api).
+        Route::get('/colaborador/{id}', [TalentoColaboradorController::class, 'ficha']);
         Route::get('/custodia',       [TalentoCustodiaController::class,     'index']);
         Route::get('/dispositivos',   [TalentoDeviceController::class,       'index']);
         Route::get('/roadmap',        [TalentoRoadmapController::class,      'index']);
