@@ -757,3 +757,27 @@ sin exponer la de un ajeno. 10/10.
 ### Commits
 
 - `49e1c120` — IDOR de dinero real + seller-data roto siempre + tab vacía
+
+## 2026-09-28 13:53 — Roles múltiples: oculta el buscador, igual que Custodia
+
+David: "oculta el buscador aquí también, igual que en Custodia" — aunque
+el IDOR de dinero de la pasada anterior ya cerraba la fuga real, se aplicó
+el mismo tratamiento visual/consistente que Custodia.
+
+**Cambios:** nuevo `permisos.embajadores_buscador` (ficha(), mismo
+criterio que `custodia_buscador`: `talento.employees.view` o CUALQUIER
+supervisor — no `talento.embajadores.view`, que técnico también tiene
+directo). En la pantalla suelta se reusa la misma detección de "¿tengo
+equipo?" vía `/talento/api/mi-equipo` que ya se construyó para Custodia.
+La lógica de auto-resolver la fila propia (ya escrita en la pasada
+anterior, sin condición) ahora queda detrás de `puedeGestionarResuelto`,
+consistente con el mismo patrón en las otras 2 pestañas.
+
+**Verificado con Playwright** (cuentas desechables, borradas al terminar):
+en la ficha, técnico sin equipo no ve el buscador, supervisor sí lo ve en
+la ficha de su subordinado; en la pantalla suelta, técnico entra directo a
+su propia fila sin buscador, supervisor sí ve el buscador completo. 5/5.
+
+### Commits
+
+- `19f3fb87` — oculta el buscador de colaboradores, igual que Custodia
