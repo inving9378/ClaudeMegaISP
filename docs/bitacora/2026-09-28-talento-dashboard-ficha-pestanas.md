@@ -689,3 +689,71 @@ buscador completo, igual que un supervisor.
 ### Commits
 
 - `5cb193d2` — otorga talento.custody.view a Mostrador (no podía entrar a Custodia)
+
+## 2026-09-28 13:45 — Roles múltiples: qué es, IDOR de dinero real, y un gap que rompía "Es vendedor" para todos
+
+David pidió explicar y **verificar**. Es una vista de solo lectura que
+cruza el expediente de Talento con OTROS dos sistemas del negocio: si el
+colaborador es TAMBIÉN cliente/embajador (gana comisiones por referir
+clientes nuevos) y/o TAMBIÉN vendedor (gana comisiones por ventas) —
+útil porque, por ejemplo, un técnico puede referir clientes y ganar sus
+propias comisiones de embajador sin que eso tenga nada que ver con su
+trabajo de campo.
+
+### 🔴 IDOR real (dinero) — el más serio de esta familia hasta ahora
+
+`embajadorData()`/`sellerData()` solo exigían `talento.view` — el permiso
+MÁS BÁSICO que absolutamente todo el mundo tiene con ficha. Sin ningún
+scoping propio, **cualquier técnico podía consultar las comisiones de
+referidos y de ventas de CUALQUIER OTRO colaborador** con solo cambiar el
+id en la URL — datos de dinero real (comisiones pagadas, recompensas
+pendientes, % de comisión de ventas). Corregido con el mismo
+`puedeVerRolesMultiplesDe()` (uno mismo/supervisor directo/
+`talento.employees.view` — NO `talento.embajadores.view`, que también la
+tiene TECNICO directo).
+
+### 🔴 Gap real — "Es vendedor" tronaba 403 SIEMPRE en autoservicio, para cualquiera
+
+`talento.embajadores.view` cubría `/embajador-data` en
+`route_permission.php` pero **`/seller-data` nunca estuvo en ningún bloque
+que un técnico tuviera** — ni siquiera por accidente. Cualquier técnico
+viendo su propia ficha (o la de cualquiera) SIEMPRE recibía 403 al
+consultar si es vendedor, columna que quedaba en blanco. Agregado junto a
+`embajador-data`.
+
+### 🔴 Bug real — tab vacía en autoservicio (mismo patrón que Dispositivos)
+
+`TalentoEmbajadores.vue`, igual que `TalentoDispositivos.vue` antes de
+corregirlo, pedía el nombre/email/tipo del colaborador con una llamada
+APARTE a `GET /talento/api/colaboradores/{id}` (fuera de `talento.view`).
+Un técnico self-viendo: esa llamada 403eaba (con `.catch(()=>null)`, sin
+crash pero con `items=[]`), y la tabla mostraba "Sin colaboradores
+encontrados" pese a que `embajador-data`/`seller-data` ya funcionaban.
+Corregido igual que Dispositivos: el componente recibe nombre/email/tipo
+por props en vez de pedirlos aparte.
+
+### Extra — pantalla suelta `/talento/embajadores-colabs`: mismo self-view fallback que Custodia
+
+Un técnico entrando directo a la pantalla suelta no alcanza el listado
+paginado completo (`/talento/api/colaboradores` bare, fuera de
+`talento.view` — igual que en Custodia). En vez de dejarlo con una tabla
+vacía, ahora ve directo SU PROPIA fila (reusando `GET /talento/mi-ficha`,
+mismo patrón que el fix de Custodia). **A diferencia de Custodia, NO se
+ocultó el buscador/tabla completa aquí** — el buscador en el contexto de
+la ficha embebida ya era inerte de por sí (siempre ignora el texto
+buscado cuando hay `colaboradorId`), y en la pantalla suelta el listado ya
+estaba bloqueado para técnico por el gap de `/talento/api/colaboradores`.
+Con el IDOR cerrado, no hay ninguna fuga real que ocultar — se lo dejo
+avisado a David por si de todos modos prefiere ocultarlo por consistencia
+visual con Custodia.
+
+**Verificado con Playwright** (cuentas desechables, borradas al terminar):
+técnico ajeno bloqueado de ambos cross-links de otro (403), técnico ve los
+suyos propios (incluido `seller-data`, antes siempre roto), supervisor ve
+los de su subordinado, la ficha ya no muestra "Sin colaboradores
+encontrados" en autoservicio, y la pantalla suelta resuelve la fila propia
+sin exponer la de un ajeno. 10/10.
+
+### Commits
+
+- `49e1c120` — IDOR de dinero real + seller-data roto siempre + tab vacía
