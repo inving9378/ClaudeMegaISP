@@ -340,3 +340,65 @@ envía → sin error. Confirmado en BD: `status='appealed'`,
 ### Commits
 
 - `34c6ec6a` — apelar la propia penalización estaba roto (my_profile fantasma)
+
+## 2026-09-28 11:55 — Credenciales: "Por colaborador" solo para superiores (sin excepción de autoservicio)
+
+David, tras explicarle para qué sirve la pestaña "Credenciales" (control de
+vencimiento de licencias del personal + fondo de ahorro forzoso para
+renovación): "dentro de esa pestaña la pestaña de por colaborador debe
+salirle solo a los superiores".
+
+**Diferencia clave con el resto del módulo:** en Órdenes/Compensación/
+Cajas/Rutas/Proyectos/Penalizaciones, uno mismo SIEMPRE conserva acceso de
+LECTURA a lo suyo (solo la acción de gestionar se restringe al superior).
+Aquí David pidió algo más estricto — ni siquiera autoservicio: "Por
+colaborador" (registrar/editar credenciales, crear/autorizar/marcar-usado
+fondos) es 100% de superiores, un colaborador no gestiona su propia
+credencial/fondo desde aquí — se entera del vencimiento por el correo
+automático que ya manda `talento:check-credential-expirations`.
+
+**Estado previo (bug real encontrado):** `listForColaborador()` y
+`listFunds()` **no tenían NINGÚN chequeo de autorización** — cualquiera
+que alcanzara la ruta veía la credencial/fondo de cualquier colaborador
+(IDOR). Las rutas de escritura (`store()`/`update()` de credenciales,
+`storeFund()`) estaban además **inalcanzables incluso para admin normal**
+— ningún bloque de `route_permission.php` cubría sus paths reales
+(`/talento/api/credentials`, `/talento/api/credentials/{id}`,
+`/talento/api/funds` sin trailing), así que solo funcionaban vía el bypass
+de super-administrator/DESARROLLADOR, nunca para un supervisor.
+
+**Fix:**
+- Nuevo `esSuperiorDe()`/`esGestorDe()` en `TalentoCredentialController` —
+  admin/staff O supervisor DIRECTO del colaborador, **sin** rama de
+  autoservicio (a propósito). Aplicado en las 7 acciones: listar
+  credenciales/fondos, registrar/editar credencial, ver el documento
+  cifrado, crear/autorizar/marcar-usado fondo.
+- `permisos.credenciales_manage` (ficha()) — mismo criterio: admin/staff o
+  CUALQUIER supervisor (no está atado al colaborador de ESTA ficha, ya que
+  "Por colaborador" trae su propio selector).
+- `TalentoCredenciales.vue` — pestaña "Por colaborador" oculta sin
+  `puedeGestionar`; su auto-selección al entrar desde la ficha también
+  queda condicionada (sin gestión, no hay nada que auto-cargar ahí).
+- `route_permission.php` — mismo gap recurrente: se abrieron los paths
+  reales de escritura (antes ni admin normal los alcanzaba). ⚠️ Cuidado
+  real detectado y evitado: `/talento/api/credentials/{id}` como patrón
+  hubiera matcheado TAMBIÉN `/talento/api/credentials/expiring` y
+  `/talento/api/credentials/funds-alert` (las listas globales, que deben
+  seguir 100% admin-only) — `{id}` se traduce a `[^/]+` (cualquier
+  segmento) y el middleware es method-agnostic. Se usó un regex numérico
+  explícito (`/talento/api/credentials/[0-9]+`) en su lugar, verificado
+  contra el propio `convertRouteToRegex()` real antes de aplicarlo.
+
+**Verificado con Playwright** (cuentas desechables, borradas al terminar,
+incluyendo limpieza de `talento_ledger_entries`): pestaña oculta para
+técnico sin equipo / visible para supervisor en la ficha de su
+subordinado; técnico bloqueado de ver SUS PROPIAS credenciales (sin
+autoservicio, a propósito); supervisor ve/registra/edita las de su
+subordinado; técnico bloqueado de crear un fondo para sí mismo; supervisor
+crea y autoriza un fondo para su subordinado; y — regresión clave —
+`/credentials/expiring` y `/credentials/funds-alert` siguen 403 para el
+supervisor (el regex numérico no las abrió por accidente). 11/11.
+
+### Commits
+
+- `ee4ba949` — "Por colaborador" solo para superiores, sin autoservicio
