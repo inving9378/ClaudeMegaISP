@@ -4,6 +4,7 @@ namespace App\Modules\Addons\WhatsAppAgent\Services;
 
 use App\Models\Seller;
 use App\Models\Ticket;
+use App\Models\TicketThread;
 use App\Modules\Addons\WhatsAppAgent\Models\WhatsAppConversation;
 use App\Modules\Addons\WhatsAppAgent\Models\WhatsAppMessage;
 use App\Modules\Core\CRM\Models\Crm;
@@ -185,7 +186,18 @@ class WhatsAppCrmService
                 'phone'         => $conversation->contact_number,
                 'colony_id'     => $main->colony_id ?? null,
                 'reporter_id'   => auth()->id(),
-                'description'   => $this->buildTicketDescription($conversation, $main, $notas),
+            ]);
+
+            // 'tickets' no tiene columna 'description' — el cuerpo/nota de un
+            // ticket vive en 'ticket_threads' (mismo patrón que
+            // SoporteController::store, el único otro creador de tickets con
+            // descripción en el repo). 'description' nunca existió en el
+            // schema real; este insert directo a Ticket::create() truena.
+            TicketThread::create([
+                'ticket_id' => $ticket->id,
+                'edited_by' => auth()->id(),
+                'message'   => $this->buildTicketDescription($conversation, $main, $notas),
+                'hidden'    => 0,
             ]);
 
             $this->notifyClient($conversation, $fechaIso, $main, $ticket);
