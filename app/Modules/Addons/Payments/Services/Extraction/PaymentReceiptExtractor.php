@@ -2,7 +2,8 @@
 
 namespace App\Modules\Addons\Payments\Services\Extraction;
 
-use App\Modules\Addons\Marketing\Services\ClaudeApiClient;
+use App\Modules\Addons\IA\Models\IAProveedor;
+use App\Modules\Addons\IA\Services\IAAdaptadorFactory;
 use App\Modules\Addons\Payments\Services\Extraction\Profiles\SpeiTransferProfile;
 use Illuminate\Support\Facades\Log;
 
@@ -10,9 +11,16 @@ use Illuminate\Support\Facades\Log;
  * FASE PAGOS 3 (pieza 2) — Motor de extracción de datos de comprobantes por IA.
  *
  * ALCANCE: SOLO lee una imagen y devuelve los campos estructurados con su
- * confianza. NO aplica pagos, NO busca cliente, NO decide nada. Reusa
- * ClaudeApiClient y el patrón de visión probado en Talento
- * (FieldIaValidationService / CajaInspectionService).
+ * confianza. NO aplica pagos, NO busca cliente, NO decide nada.
+ *
+ * Usa el Hub de IA compartido (IAAdaptadorFactory), mismo patrón ya probado en
+ * FleetDocumentOcrService — NO un cliente propio de un solo proveedor. Antes
+ * usaba ClaudeApiClient hardcodeado a Anthropic: si esa cuenta se quedaba sin
+ * crédito, TODO el módulo de comprobantes quedaba ciego aunque hubiera otro
+ * proveedor activo (encontrado 2026-09-28 probando en vivo). Con el Hub, cae
+ * a cualquier proveedor activo que soporte imágenes — igual límite ya conocido
+ * que Flotas: PDF solo lo lee un proveedor driver=claude (los demás no
+ * soportan ese bloque), fotos/imágenes sí con cualquiera.
  *
  * Extensible por perfiles: para soportar Oxxo/CEP se agrega un
  * ReceiptProfileInterface y se registra en $profiles; el motor no cambia.
@@ -24,7 +32,7 @@ class PaymentReceiptExtractor
     /** Perfiles registrados por tipo de documento. */
     private array $profiles;
 
-    public function __construct(private ClaudeApiClient $claude)
+    public function __construct()
     {
         $this->profiles = [
             SpeiTransferProfile::TYPE => new SpeiTransferProfile(),
@@ -44,11 +52,11 @@ class PaymentReceiptExtractor
      * lista en 'unreadable'. Cualquier error (API caída, key inválida, JSON
      * malformado) → ok=false + 'error' con mensaje claro, jamás datos inventados.
      *
-     * Acepta imagen (JPEG/PNG/WebP) Y PDF. Claude lee el PDF de forma nativa
-     * (bloque 'document'); para imagen usa el bloque 'image'. Se decide por el
-     * mime del archivo guardado. Los comprobantes PDF pueden tener varias
-     * páginas: al mandar el PDF completo, Claude las lee todas y encuentra el
-     * dato esté en la página que esté.
+     * Acepta imagen (JPEG/PNG/WebP) con cualquier proveedor activo que soporte
+     * imágenes. PDF SOLO lo lee un proveedor driver=claude (los demás
+     * adaptadores no soportan ese bloque) — Claude lo lee nativo y multipágina;
+     * sin un proveedor Claude activo, un PDF falla con mensaje claro (nunca
+     * se intenta como imagen).
      *
      * @param string $fileBytes     Contenido binario del comprobante (imagen o PDF).
      * @param string $mimeType      Ej. image/jpeg, image/png, application/pdf.
@@ -69,24 +77,38 @@ class PaymentReceiptExtractor
             return $this->fail($documentType, 'El comprobante está vacío o no se pudo leer.');
         }
 
-        try {
-            $response = $this->claude->messages([
-                'model'      => config('services.anthropic.model', 'claude-sonnet-4-6'),
-                'max_tokens' => 1024,
-                'messages'   => [[
-                    'role'    => 'user',
-                    'content' => [
-                        $this->mediaBlock($fileBytes, $mimeType),
-                        ['type' => 'text', 'text' => $profile->prompt()],
-                    ],
-                ]],
-            ]);
+        $proveedor = $this->resolverProveedor();
+        if (!$proveedor) {
+            return $this->fail(
+                $documentType,
+                'No hay un proveedor de IA activo con soporte de imágenes. Configúralo en /ia/configuracion.'
+            );
+        }
 
-            $raw = $response['content'][0]['text'] ?? '';
-            return $this->parse($profile, $raw);
+        $mime = strtolower(trim($mimeType));
+        if ($mime === 'application/pdf' && $proveedor->driver !== 'claude') {
+            return $this->fail(
+                $documentType,
+                'El proveedor de IA configurado no lee PDF. Sube el comprobante como imagen (JPG/PNG) '
+                . 'o activa un proveedor Claude en /ia/configuracion.'
+            );
+        }
+
+        try {
+            $adaptador = IAAdaptadorFactory::crear($proveedor);
+
+            $resultado = $adaptador->enviarMensaje(
+                [],
+                $profile->prompt(),
+                [['mime' => $mime ?: 'image/jpeg', 'data' => base64_encode($fileBytes)]],
+                'Responde únicamente con el JSON solicitado, sin explicaciones.'
+            );
+
+            return $this->parse($profile, (string) ($resultado['texto'] ?? ''));
         } catch (\Throwable $e) {
             Log::channel('claude')->warning('PaymentReceiptExtractor falló', [
                 'document_type' => $documentType,
+                'proveedor'     => $proveedor->nombre ?? null,
                 'error'         => $e->getMessage(),
             ]);
             return $this->fail(
@@ -97,34 +119,16 @@ class PaymentReceiptExtractor
     }
 
     /**
-     * Arma el bloque de contenido para Claude según el tipo de archivo:
-     * - application/pdf → bloque 'document' (Claude lee el PDF nativo, multipágina).
-     * - imagen (jpeg/png/webp/…) → bloque 'image'.
-     * El ClaudeApiClient reenvía tal cual; no requiere cambios.
+     * Proveedor de IA a usar: activo y con soporte de imágenes. Este servicio
+     * nunca define credenciales — las toma del catálogo (mismo patrón que
+     * FleetDocumentOcrService::resolverProveedor).
      */
-    private function mediaBlock(string $fileBytes, string $mimeType): array
+    private function resolverProveedor(): ?IAProveedor
     {
-        $mime = strtolower(trim($mimeType));
-
-        if ($mime === 'application/pdf') {
-            return [
-                'type'   => 'document',
-                'source' => [
-                    'type'       => 'base64',
-                    'media_type' => 'application/pdf',
-                    'data'       => base64_encode($fileBytes),
-                ],
-            ];
-        }
-
-        return [
-            'type'   => 'image',
-            'source' => [
-                'type'       => 'base64',
-                'media_type' => $mime ?: 'image/jpeg',
-                'data'       => base64_encode($fileBytes),
-            ],
-        ];
+        return IAProveedor::where('activo', true)
+            ->where('soporta_imagenes', true)
+            ->orderBy('id')
+            ->first();
     }
 
     /**
