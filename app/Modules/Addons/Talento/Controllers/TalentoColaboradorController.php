@@ -127,6 +127,16 @@ class TalentoColaboradorController extends Controller
             'rutas_manage'    => auth()->user()->can('talento.routes.manage') || $esSuSupervisor,
             'calidad'         => auth()->user()->can('talento.quality.view') || $tieneAccesoAmplio,
             'proyectos'       => auth()->user()->can('talento.projects.view') || $tieneAccesoAmplio,
+            // David (28-sep): "el proyecto lo crea un superior... quita el
+            // botón Nuevo proyecto y déjalo solo para los superiores" — es
+            // una acción GLOBAL (no hay un colaborador_id puntual al crear
+            // un proyecto), así que el criterio es "ser supervisor de
+            // alguien" (igual que compensacion.rules()/cajas settings), NO
+            // $esSuSupervisor (que es respecto al colaborador de ESTA
+            // ficha) ni $tieneAccesoAmplio (verse a uno mismo no da de
+            // gratis el botón).
+            'proyectos_manage' => auth()->user()->can('talento.projects.manage')
+                || (bool) ($miPropioColaborador?->subordinados()->exists()),
             'penalizaciones'  => auth()->user()->can('talento.penalties.view') || $tieneAccesoAmplio,
             'credenciales'    => auth()->user()->can('talento.credentials.view') || $tieneAccesoAmplio,
             'finiquito'       => auth()->user()->can('talento.loans.view') || $tieneAccesoAmplio,

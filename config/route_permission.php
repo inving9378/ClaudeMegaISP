@@ -2086,6 +2086,25 @@ return [
         // (store()/esSuSupervisor) hace la distinción real.
         '/talento/api/rutas',
         '/talento/api/rutas/{id}',
+        // Proyectos de planta externa (ver/reportar avance): uno mismo, su
+        // supervisor, o el permiso de STAFF — el controller
+        // (submitReport()/approveReport()/store()) hace la distinción real;
+        // esto solo deja pasar la request. Antes solo estaba bajo
+        // talento.projects.view/.manage, así que un técnico o supervisor sin
+        // esos dos ni siquiera llegaba al controller (28-sep-2026, mismo
+        // hallazgo que compensación/cajas/rutas). bonus_amount/bonus_scale
+        // se ocultan en la respuesta a quien no gestiona (ver
+        // TalentoProjectController::hideBonusFields()). La pantalla suelta
+        // /talento/proyectos sigue exigiendo talento.projects.view completo
+        // (index() la autoriza aparte) — mismo criterio que /talento/rutas.
+        // '**' exige un carácter después de la barra (convertRouteToRegex:
+        // .+) — NO matchea el path pelón /talento/api/proyectos (listar/
+        // crear), por eso va aparte igual que /talento/api/rutas arriba.
+        '/talento/api/proyectos',
+        '/talento/api/proyectos/**',
+        // Aprobar un reporte (approveReport()) vive bajo otro prefijo — el
+        // controller (aprobación por supervisor/admin) hace la distinción.
+        '/talento/api/project-reports/**',
     ],
     'talento.dashboard.view' => [
         '/talento',

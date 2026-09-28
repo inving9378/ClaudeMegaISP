@@ -200,7 +200,7 @@
           <talento-calidad :colaborador-id="id" />
         </div>
         <div v-if="activeTab === 'proyectos'">
-          <talento-proyectos :colaborador-id="id" />
+          <talento-proyectos :colaborador-id="id" :puede-gestionar="permisos.proyectos_manage" />
         </div>
         <div v-if="activeTab === 'penalizaciones'">
           <talento-penalizaciones :colaborador-id="id" />

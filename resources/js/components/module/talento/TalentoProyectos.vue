@@ -6,7 +6,7 @@
       <div class="tc-card">
         <div class="tc-cardhead d-flex align-items-center justify-content-between flex-wrap gap-2 p-3">
           <h5 class="mb-0"><i class="fa fa-project-diagram me-2 text-primary"></i>Proyectos de Planta Externa</h5>
-          <button @click="openCreate" class="tc-btn tc-btn-ok"><i class="fa fa-plus me-1"></i>Nuevo proyecto</button>
+          <button v-if="puedeCrear" @click="openCreate" class="tc-btn tc-btn-ok"><i class="fa fa-plus me-1"></i>Nuevo proyecto</button>
         </div>
         <div class="p-3">
           <div class="row g-2 mb-3">
@@ -467,11 +467,34 @@
 <script>
 import L from 'leaflet';
 import { darkMode } from "../../../hook/appConfig.js";
+import Permission from "../../../helpers/Permission.js";
+import { allViewHasPermission } from "../../../helpers/Request.js";
 
 export default {
   name: 'TalentoProyectos',
+  props: {
+    colaboradorId: { type: [Number, String], default: null },
+    // Resuelto server-side por la ficha (permisos.proyectos_manage): admin/
+    // DESARROLLADOR o cualquier supervisor — David, 28-sep: "el proyecto
+    // lo crea un superior... déjalo solo para los superiores".
+    puedeGestionar: { type: Boolean, default: false },
+  },
   setup() {
     return { darkMode };
+  },
+  computed: {
+    puedeCrear() {
+      // Dentro de la ficha: lo que ya resolvió el servidor. En la pantalla
+      // suelta (/talento/proyectos): el permiso global del viewer (mismo
+      // patrón que TalentoRutas.vue/TalentoOrdenes.vue).
+      return this.colaboradorId
+        ? this.puedeGestionar
+        : new Permission(this.permisosGlobales).canDo('talento.projects.manage');
+    },
+    selectedTypeUnit() {
+      const t = this.activityTypes.find(t => t.id === this.actModal.activity_type_id);
+      return t?.unit ?? 'ud';
+    },
   },
   data() {
     const today = new Date().toISOString().substring(0, 10);
@@ -510,15 +533,13 @@ export default {
       _corridorDraftLine: null, // polyline del draft
       _corridorMarkers: [],     // circleMarkers de puntos del draft
       _deviationMarkers: [],    // markers rojos de desvíos
+      permisosGlobales: {},
     };
   },
-  computed: {
-    selectedTypeUnit() {
-      const t = this.activityTypes.find(t => t.id === this.actModal.activity_type_id);
-      return t?.unit ?? 'ud';
-    },
-  },
-  mounted() {
+  async mounted() {
+    // Solo hace falta el permiso GLOBAL en la pantalla suelta (sin
+    // colaboradorId) — dentro de la ficha, puedeGestionar ya viene resuelto.
+    if (!this.colaboradorId) this.permisosGlobales = await allViewHasPermission();
     this.load();
     this.loadActivityTypes();
     this.loadColaboradores();

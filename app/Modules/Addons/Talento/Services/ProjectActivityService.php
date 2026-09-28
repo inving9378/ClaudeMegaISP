@@ -19,11 +19,20 @@ class ProjectActivityService
      *
      * 1/N split: approved_quantity ÷ N × points_per_unit = each participant's points.
      *
+     * David (28-sep): antes esto SIEMPRE auto-aprobaba (el status 'pending'
+     * nunca se escribía, dejando approve() como código muerto) — inofensivo
+     * mientras solo un admin podía llamar a este método, pero un riesgo real
+     * en cuanto un técnico reporta su propio avance (se autoacreditaría
+     * puntos sin revisión). $autoApprove lo decide el controller: true solo
+     * si quien reporta tiene el permiso de STAFF o es supervisor de verdad;
+     * false → el reporte queda 'pending' hasta que approve() lo revise.
+     *
      * @param  int    $projectActivityId
      * @param  float  $quantity            Raw quantity submitted
      * @param  string $reportDate
      * @param  int[]  $colaboradorIds      Participant collaborator IDs
      * @param  string|null $notes
+     * @param  bool   $autoApprove
      * @return TalentoProjectActivityReport
      */
     public function submitReport(
@@ -31,7 +40,8 @@ class ProjectActivityService
         float  $quantity,
         string $reportDate,
         array  $colaboradorIds,
-        ?string $notes = null
+        ?string $notes = null,
+        bool   $autoApprove = true
     ): TalentoProjectActivityReport {
         if (empty($colaboradorIds)) {
             throw new \InvalidArgumentException('Debe haber al menos un participante.');
@@ -45,12 +55,20 @@ class ProjectActivityService
             throw new \RuntimeException("Esta actividad ya alcanzó su techo planeado ({$activity->planned_quantity} {$activity->activityType->unit}). No se puede reportar más.");
         }
 
-        // Determine approved quantity (cap at remaining)
+        // Determine approved quantity (cap at remaining — solo como vista
+        // previa cuando queda 'pending': approve() la recalcula contra el
+        // remaining() vigente al momento real de aprobar).
         $approvedQty = min($quantity, $remaining);
-        $status      = $approvedQty < $quantity ? 'capped' : 'approved';
-        $capNote     = $status === 'capped'
-            ? " [Excedente {$activity->activityType->unit} recortado: se aprobaron {$approvedQty} de {$quantity} solicitados]"
-            : '';
+
+        if ($autoApprove) {
+            $status  = $approvedQty < $quantity ? 'capped' : 'approved';
+            $capNote = $status === 'capped'
+                ? " [Excedente {$activity->activityType->unit} recortado: se aprobaron {$approvedQty} de {$quantity} solicitados]"
+                : '';
+        } else {
+            $status  = 'pending';
+            $capNote = '';
+        }
 
         return DB::transaction(function () use (
             $activity, $quantity, $approvedQty, $status, $reportDate,
