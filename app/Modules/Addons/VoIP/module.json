@@ -16,7 +16,24 @@
         { "name": "voip.troncales.delete",   "description": "Eliminar troncales VoIP" },
         { "name": "voip.troncales.provision","description": "Provisionar/desprovisionar troncales en Asterisk" },
         { "name": "voip.troncales.test",     "description": "Probar conexión ARI y verificar estado de troncal" },
-        { "name": "voip.kpis.view",          "description": "Ver el tablero de KPIs de la cola" }
+        { "name": "voip.kpis.view",          "description": "Ver el tablero de KPIs de la cola" },
+
+        { "name": "voip.extensiones.view",     "description": "Ver listado de extensiones" },
+        { "name": "voip.extensiones.create",   "description": "Crear extensiones VoIP" },
+        { "name": "voip.extensiones.edit",     "description": "Editar extensiones VoIP" },
+        { "name": "voip.extensiones.delete",   "description": "Eliminar extensiones VoIP" },
+        { "name": "voip.extensiones.provision","description": "Provisionar/desprovisionar extensiones en Asterisk" },
+        { "name": "voip.extensiones.test",     "description": "Verificar registro de la extensión en Asterisk" },
+
+        { "name": "voip.grupos.view",   "description": "Ver grupos de timbrado" },
+        { "name": "voip.grupos.create", "description": "Crear grupos de timbrado" },
+        { "name": "voip.grupos.edit",   "description": "Editar grupos de timbrado" },
+        { "name": "voip.grupos.delete", "description": "Eliminar grupos de timbrado" },
+
+        { "name": "voip.ia-bot.view",   "description": "Ver el módulo del bot IA (conversaciones)" },
+        { "name": "voip.ia-bot.config", "description": "Configurar el bot IA" },
+        { "name": "voip.ia-bot.leads",  "description": "Ver y editar leads capturados por el bot IA" },
+        { "name": "voip.ia-bot.kb",     "description": "Gestionar la base de conocimiento del bot IA" }
     ],
 
     "api_endpoints": [
