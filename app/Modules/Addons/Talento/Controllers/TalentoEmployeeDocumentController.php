@@ -40,6 +40,27 @@ class TalentoEmployeeDocumentController extends Controller
     {
         $this->authorize('talento.expediente.view');
 
+        return $this->documentosDe($colaboradorId);
+    }
+
+    /**
+     * Item roadmap (28-sep, hallazgo al verificar la pestaña "Paquetes de
+     * documentos" de la ficha): el cuerpo real de forColaborador(), separado
+     * de su authorize('talento.expediente.view') — permiso que solo tienen
+     * super-administrator/DESARROLLADOR, NUNCA técnico. TalentoColaborador
+     * Controller::miFichaDocumentos() (self/supervisor/manage-scoped vía
+     * resolverColaboradorAutoservicio()) llama a ESTE método directo: la
+     * autorización YA se resolvió ahí (uno mismo/supervisor directo/quien
+     * gestiona órdenes), así que exigir aquí ADEMÁS el permiso de staff
+     * completo rompía el autoservicio — un técnico viendo su propia pestaña
+     * de documentos recibía 403 pese a que el endpoint decía ser self-scoped.
+     * forColaborador() (la ruta /talento/api/colaboradores/{id}/documentos,
+     * bajo talento.employees.view a nivel de middleware) sigue exigiendo el
+     * permiso amplio antes de delegar aquí — mismo patrón que
+     * TalentoCajaController::puedeVerBonusLogDe()/TalentoEmbajadoresController.
+     */
+    public function documentosDe($colaboradorId)
+    {
         $service = app(EmployeeDocumentPackageService::class);
 
         $documentos = TalentoEmployeeDocument::where('colaborador_id', $colaboradorId)

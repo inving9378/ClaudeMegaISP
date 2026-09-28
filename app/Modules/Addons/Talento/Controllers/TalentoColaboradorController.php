@@ -265,15 +265,24 @@ class TalentoColaboradorController extends Controller
      * 28-sep). /talento/api/colaboradores/{id}/documentos exige
      * talento.employees.view a nivel de ruta (roster completo); un técnico
      * viendo SU PROPIA pestaña "Paquetes de documentos" no debería necesitar
-     * ese permiso de staff solo para ver su propio expediente. Delega en la
-     * MISMA lógica ya construida (TalentoEmployeeDocumentController::
-     * forColaborador) — no duplica nada, solo cambia la puerta de entrada.
+     * ese permiso de staff solo para ver su propio expediente.
+     *
+     * FIX (28-sep, verificación de esta pestaña): NO llama a forColaborador()
+     * — ese método hace ADEMÁS $this->authorize('talento.expediente.view'),
+     * permiso que solo tiene super-administrator/DESARROLLADOR y que ningún
+     * técnico posee directo. resolverColaboradorAutoservicio() de arriba YA
+     * resolvió si el que pide puede ver a $id (uno mismo/su subordinado
+     * directo/quien gestiona órdenes) — exigir el permiso de staff completo
+     * ENCIMA de eso bloqueaba el autoservicio con 403 pese a que la ruta
+     * pretendía ser self-scoped. Se llama al cuerpo real sin ese segundo
+     * candado (TalentoEmployeeDocumentController::documentosDe) — no
+     * duplica la lógica, solo evita el authorize() de más.
      */
     public function miFichaDocumentos(string $id)
     {
         $colaborador = $this->resolverColaboradorAutoservicio($id);
 
-        return app(TalentoEmployeeDocumentController::class)->forColaborador($colaborador->id);
+        return app(TalentoEmployeeDocumentController::class)->documentosDe($colaborador->id);
     }
 
     /**
