@@ -83,3 +83,4 @@ docs/decisiones-pendientes-irving.md
 
 # Reportes generados/temporales servidos desde public — no van al repo (item release 2026-09-08)
 /public/reportes/
+package-lock.json
