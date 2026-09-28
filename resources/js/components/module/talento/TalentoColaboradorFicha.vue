@@ -219,7 +219,8 @@
           <talento-custodia :colaborador-id="id" :puede-gestionar="permisos.custodia_buscador" />
         </div>
         <div v-if="activeTab === 'dispositivos'">
-          <talento-dispositivos :colaborador-id="id" :colaborador-nombre="colaborador?.user?.name ?? ''" />
+          <talento-dispositivos :colaborador-id="id" :colaborador-nombre="colaborador?.user?.name ?? ''"
+            :puede-gestionar="permisos.dispositivos_buscador" />
         </div>
         <div v-if="activeTab === 'roles_multiples'">
           <talento-embajadores :colaborador-id="id"

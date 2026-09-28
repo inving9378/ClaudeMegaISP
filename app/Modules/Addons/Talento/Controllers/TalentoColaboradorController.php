@@ -196,6 +196,13 @@ class TalentoColaboradorController extends Controller
             'custodia_buscador' => auth()->user()->can('talento.employees.view')
                 || (bool) ($miPropioColaborador?->subordinados()->exists()),
             'dispositivos'    => auth()->user()->can('talento.devices.view') || $tieneAccesoAmplio,
+            // David (28-sep): "en dispositivos vinculados sigue el buscar
+            // colaborador" — mismo criterio que custodia_buscador/
+            // embajadores_buscador: talento.employees.view o CUALQUIER
+            // supervisor, NO talento.devices.view (esa también la tiene
+            // TECNICO directo, no distingue).
+            'dispositivos_buscador' => auth()->user()->can('talento.employees.view')
+                || (bool) ($miPropioColaborador?->subordinados()->exists()),
             'roles_multiples' => auth()->user()->can('talento.embajadores.view') || $tieneAccesoAmplio,
             // David (28-sep): "oculta el buscador aquí también, igual que
             // en Custodia" — mismo criterio que custodia_buscador:

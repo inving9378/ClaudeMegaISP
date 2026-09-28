@@ -70,8 +70,9 @@
           de la app (no hay ninguna verificación de dispositivo en el login móvil todavía).
         </div>
 
-        <!-- Buscador colaborador -->
-        <div class="row mb-3">
+        <!-- Buscador colaborador — David, 28-sep: "sigue el buscar
+             colaborador" (mismo tratamiento que Custodia/Roles múltiples). -->
+        <div v-if="puedeGestionarResuelto" class="row mb-3">
           <div class="col-md-5">
             <input v-model="searchColaborador" @input="buscarColaborador" type="text"
                    class="form-control" placeholder="Buscar colaborador...">
@@ -138,6 +139,8 @@
 <script>
 // QR generado via img tag (api.qrserver.com) — no requiere paquete npm
 import { darkMode } from "../../../hook/appConfig.js";
+import Permission from "../../../helpers/Permission.js";
+import { allViewHasPermission } from "../../../helpers/Request.js";
 
 export default {
   name: 'TalentoDispositivos',
@@ -151,6 +154,10 @@ export default {
     // ahí y la tabla quedaba vacía pese a que .../dispositivos sí
     // funcionaba). Mismo patrón que TalentoOrdenes.vue/TalentoRutas.vue.
     colaboradorNombre: { type: String, default: '' },
+    // Resuelto server-side por la ficha (permisos.dispositivos_buscador):
+    // talento.employees.view o CUALQUIER supervisor — NO
+    // talento.devices.view (esa también la tiene TECNICO directo).
+    puedeGestionar: { type: Boolean, default: false },
   },
   setup() {
     return { darkMode };
@@ -163,11 +170,54 @@ export default {
       searchTimeout: null,
       release: null,
       loadingRelease: true,
+      permisosGlobales: {},
+      // "¿Soy supervisor de alguien?" no es un permiso Spatie — se
+      // resuelve aparte reusando /talento/api/mi-equipo (mismo patrón que
+      // TalentoCustodia.vue).
+      esSupervisorGlobal: false,
     };
   },
-  mounted() {
-    this.loadColaboradores();
+  computed: {
+    puedeGestionarResuelto() {
+      return this.colaboradorId
+        ? this.puedeGestionar
+        : (new Permission(this.permisosGlobales).canDo('talento.employees.view') || this.esSupervisorGlobal);
+    },
+  },
+  async mounted() {
     this.loadRelease();
+    if (this.colaboradorId) {
+      this.loadColaboradores();
+      return;
+    }
+    // Pantalla suelta (/talento/dispositivos, alcanzable por técnico —
+    // necesita ver la tarjeta de descarga del APK): resolver permiso
+    // global + "¿tengo equipo?" primero.
+    this.permisosGlobales = await allViewHasPermission();
+    if (!new Permission(this.permisosGlobales).canDo('talento.employees.view')) {
+      try {
+        const { data } = await axios.get('/talento/api/mi-equipo', { params: { per_page: 1 } });
+        this.esSupervisorGlobal = (data?.total ?? 0) > 0;
+      } catch { this.esSupervisorGlobal = false; }
+    }
+    if (this.puedeGestionarResuelto) {
+      this.loadColaboradores();
+      return;
+    }
+    // Sin permiso de buscar: resolver directo la propia fila en vez de
+    // pedir el listado completo (que 403earía de todos modos).
+    try {
+      const { data } = await axios.get('/talento/mi-ficha');
+      if (data?.id) {
+        const col = { id: data.id, user: { name: data.user?.name }, devices: [] };
+        try {
+          const r = await axios.get(`/talento/api/colaboradores/${col.id}/dispositivos`);
+          col.devices = r.data ?? [];
+        } catch { col.devices = []; }
+        this.colaboradores = [col];
+      }
+    } catch { /* sin colaborador propio — se queda sin nada que mostrar */ }
+    finally { this.loadingColaboradores = false; }
   },
   methods: {
     async loadRelease() {
