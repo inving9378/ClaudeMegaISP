@@ -58,10 +58,17 @@
         <h5 class="tc-h1 mb-0"><i class="fa fa-mobile-alt me-2"></i>Dispositivos Vinculados</h5>
       </div>
       <div class="p-3">
-        <p class="text-muted small mb-3">
+        <p class="text-muted small mb-2">
           Cada colaborador puede tener un único dispositivo activo. Al vincular uno nuevo, el anterior se revoca automáticamente.
           Las re-vinculaciones pueden requerir aprobación manual.
         </p>
+        <div class="alert alert-warning py-2 small mb-3">
+          <i class="fa fa-exclamation-triangle me-1"></i>
+          <strong>Registro manual, no automático:</strong> la app móvil "Talento Equipo" hoy NO
+          vincula el dispositivo por su cuenta al iniciar sesión — este panel es solo para que
+          staff registre/revoque un dispositivo a mano. Revocar aquí no bloquea el acceso real
+          de la app (no hay ninguna verificación de dispositivo en el login móvil todavía).
+        </div>
 
         <!-- Buscador colaborador -->
         <div class="row mb-3">
@@ -138,6 +145,12 @@ export default {
     // Si viene, acota la lista a este único colaborador (uso: pestaña
     // "Dispositivos" de la ficha) — sin esto, se comporta igual que siempre.
     colaboradorId: { type: [Number, String], default: null },
+    // La ficha ya conoce el nombre (colaborador?.user?.name) — usarlo
+    // directo evita depender de GET /talento/api/colaboradores/{id}, que
+    // NO está en talento.view (un técnico viendo su propia ficha 403eaba
+    // ahí y la tabla quedaba vacía pese a que .../dispositivos sí
+    // funcionaba). Mismo patrón que TalentoOrdenes.vue/TalentoRutas.vue.
+    colaboradorNombre: { type: String, default: '' },
   },
   setup() {
     return { darkMode };
@@ -189,11 +202,10 @@ export default {
       try {
         let cols;
         if (this.colaboradorId) {
-          // Ficha de un colaborador: se trae directo por id (no por búsqueda de
-          // texto/paginación) — evita el bug de "no aparece si no está en la
-          // primera página de 50".
-          const { data: col } = await axios.get(`/talento/api/colaboradores/${this.colaboradorId}`);
-          cols = [col];
+          // Ficha de un colaborador: el nombre ya viene resuelto por props
+          // (evita GET /talento/api/colaboradores/{id}, fuera de
+          // talento.view — ver comentario del prop).
+          cols = [{ id: this.colaboradorId, user: { name: this.colaboradorNombre } }];
         } else {
           const { data } = await axios.get('/talento/api/colaboradores', {
             params: { search: this.searchColaborador, per_page: 50 }

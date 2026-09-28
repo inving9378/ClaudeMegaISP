@@ -217,7 +217,7 @@
           <talento-custodia :colaborador-id="id" />
         </div>
         <div v-if="activeTab === 'dispositivos'">
-          <talento-dispositivos :colaborador-id="id" />
+          <talento-dispositivos :colaborador-id="id" :colaborador-nombre="colaborador?.user?.name ?? ''" />
         </div>
         <div v-if="activeTab === 'roles_multiples'">
           <talento-embajadores :colaborador-id="id" />
