@@ -657,3 +657,35 @@ buscador completo. 7/7.
 ### Commits
 
 - `6c479ff6` — quita el buscador de colaboradores a quien no es supervisor/staff
+
+## 2026-09-28 13:39 — Custodia: bug real que la pregunta de David encontró — Mostrador NO podía entrar
+
+David preguntó "¿y el supervisor y mostrador no lo ven?" tras el fix
+anterior. Supervisor ya estaba verificado (7/7 del commit previo), pero
+**Mostrador nunca se había probado con una cuenta real** — y la pregunta
+encontró un bug genuino: Mostrador quedaba **redirigida en silencio a
+Dashboard** al entrar a `/talento/custodia` (denegación silenciosa de
+navegación completa, el mecanismo estándar de `CheckRoutePermission`).
+
+**Causa:** `talento.custody.view` — la ÚNICA que gatea `/talento/custodia`
+(tanto a nivel middleware en `route_permission.php` como en
+`TalentoCustodiaController::index()`) — nunca incluyó a Mostrador, solo
+TECNICO/TECNICO_PLANTA/TECNICO_INSTALADOR y los roles admin con bypass.
+El permiso que Mostrador SÍ tiene (`talento.employees.view`, otorgado
+horas antes en esta misma rama) solo cubre el endpoint de DATOS
+(`/talento/api/colaboradores/{id}/custodia`), no la ruta de la PÁGINA —
+por eso el gap pasó desapercibido hasta probarlo con una cuenta real.
+
+**Fix:** migración `2026_09_28_133500_grant_talento_custody_view_to_mostrador.php`
+(mismo patrón que las 3 migraciones previas de esta rama para Mostrador —
+`firstOrCreate` + `givePermissionTo`, idempotente, `down()` no revoca).
+
+**Verificado con Playwright** (cuenta Mostrador desechable, borrada al
+terminar): antes del fix, Mostrador entraba a `/talento/custodia` y
+terminaba en `http://.../` (Dashboard) sin ningún error visible — solo
+"desapareció" la pantalla que pidió. Después del fix: entra normal y ve el
+buscador completo, igual que un supervisor.
+
+### Commits
+
+- `5cb193d2` — otorga talento.custody.view a Mostrador (no podía entrar a Custodia)
