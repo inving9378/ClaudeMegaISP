@@ -126,6 +126,15 @@ class TalentoColaboradorController extends Controller
             // capacidad de armarse su propia ruta).
             'rutas_manage'    => auth()->user()->can('talento.routes.manage') || $esSuSupervisor,
             'calidad'         => auth()->user()->can('talento.quality.view') || $tieneAccesoAmplio,
+            // Validar una inspección es revisión INDEPENDIENTE — a
+            // propósito SIN $tieneAccesoAmplio (quien inspeccionó no
+            // valida su propio trabajo, mismo criterio que
+            // esSupervisorDeInspeccion() en el controller).
+            'calidad_validar' => auth()->user()->can('talento.quality.manage') || $esSuSupervisor,
+            // Catálogo de estándares (crear/editar/imagen) es política de
+            // empresa, no gestión de equipo — a propósito SOLO admin
+            // (talento.quality.manage), sin excepción de supervisor.
+            'calidad_estandares_manage' => auth()->user()->can('talento.quality.manage'),
             'proyectos'       => auth()->user()->can('talento.projects.view') || $tieneAccesoAmplio,
             // David (28-sep): "el proyecto lo crea un superior... quita el
             // botón Nuevo proyecto y déjalo solo para los superiores" — es

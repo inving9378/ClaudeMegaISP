@@ -8,6 +8,7 @@ use App\Modules\Addons\Talento\Models\TalentoCajaInspection;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoConstructionStandard;
 use App\Modules\Addons\Talento\Services\CajaInspectionService;
+use App\Modules\Addons\Talento\Support\Actor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -15,8 +16,40 @@ class TalentoQualityController extends Controller
 {
     public function __construct(private CajaInspectionService $svc) {}
 
+    /**
+     * Ver una inspección puntual: quien la hizo, su supervisor directo, o
+     * el permiso de STAFF — mismo criterio que el resto del módulo.
+     */
+    private function puedeVerInspeccionDe($inspectedBy): bool
+    {
+        if (auth()->user()->can('talento.quality.view')) {
+            return true;
+        }
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        if (! $miPropioColaborador) return false;
+        return (string) $miPropioColaborador->id === (string) $inspectedBy
+            || $miPropioColaborador->subordinados()->where('id', $inspectedBy)->exists();
+    }
+
+    /**
+     * Validar una inspección (supervisorValidate) es una revisión
+     * INDEPENDIENTE — a propósito SIN excepción de autoservicio: quien
+     * hizo la inspección no puede validar su propio trabajo (mismo
+     * criterio "conflicto de interés" que resolveAppeal() en
+     * Penalizaciones). Supervisor directo del inspector, o staff.
+     */
+    private function esSupervisorDeInspeccion($inspectedBy): bool
+    {
+        if (auth()->user()->can('talento.quality.manage')) {
+            return true;
+        }
+        return (bool) Actor::for(auth()->user())->talento()
+            ?->subordinados()->where('id', $inspectedBy)->exists();
+    }
+
     // ── Construction Standards ─────────────────────────────────────────────
 
+    /** Catálogo de referencia (ideal_value/imagen) — sin datos sensibles, lectura abierta a todo el que llega a la ruta. */
     public function standardsIndex(Request $request)
     {
         $q = TalentoConstructionStandard::query();
@@ -27,6 +60,7 @@ class TalentoQualityController extends Controller
 
     public function storeStandard(Request $request)
     {
+        $this->authorize('talento.quality.manage');
         $data = $request->validate([
             'name'        => 'required|string|max:160',
             'type'        => 'required|in:fusion_loss,power,raqueta,organization,other',
@@ -39,6 +73,7 @@ class TalentoQualityController extends Controller
 
     public function updateStandard(Request $request, int $id)
     {
+        $this->authorize('talento.quality.manage');
         $std = TalentoConstructionStandard::findOrFail($id);
         $data = $request->validate([
             'name'        => 'sometimes|string|max:160',
@@ -52,6 +87,7 @@ class TalentoQualityController extends Controller
 
     public function uploadStandardImage(Request $request, int $id)
     {
+        $this->authorize('talento.quality.manage');
         $std = TalentoConstructionStandard::findOrFail($id);
         $request->validate(['image' => 'required|image|max:4096']);
 
@@ -64,6 +100,7 @@ class TalentoQualityController extends Controller
 
     public function destroyStandard(int $id)
     {
+        $this->authorize('talento.quality.manage');
         TalentoConstructionStandard::findOrFail($id)->delete();
         return response()->json(['ok' => true]);
     }
@@ -72,6 +109,15 @@ class TalentoQualityController extends Controller
 
     public function inspectionsIndex(Request $request)
     {
+        // Sin filtro por colaborador_id = listado global → exige el
+        // permiso de STAFF de verdad. Con filtro = quien inspeccionó,
+        // su supervisor directo, o staff también pueden verlo.
+        if ($request->filled('colaborador_id')) {
+            abort_unless($this->puedeVerInspeccionDe($request->colaborador_id), 403);
+        } else {
+            $this->authorize('talento.quality.view');
+        }
+
         $q = TalentoCajaInspection::with(['colaborador.user', 'project:id,name'])
             ->orderByDesc('created_at');
 
@@ -89,6 +135,7 @@ class TalentoQualityController extends Controller
     public function showInspection(int $id)
     {
         $insp = TalentoCajaInspection::with(['colaborador.user', 'project:id,name'])->findOrFail($id);
+        abort_unless($this->puedeVerInspeccionDe($insp->inspected_by), 403);
         return response()->json($insp);
     }
 
@@ -162,6 +209,10 @@ class TalentoQualityController extends Controller
     public function runIaAnalysis(int $id)
     {
         $inspection = TalentoCajaInspection::findOrFail($id);
+        // Cuesta dinero real (llamada a la API de IA) — mismo criterio de
+        // visibilidad que ver la inspección: quien la hizo, su supervisor
+        // directo, o staff.
+        abort_unless($this->puedeVerInspeccionDe($inspection->inspected_by), 403);
         $result     = $this->svc->analyzePhoto($inspection);
 
         $update = ['ia_flags' => $result['flags']];
@@ -189,6 +240,10 @@ class TalentoQualityController extends Controller
     public function supervisorValidate(Request $request, int $id)
     {
         $inspection = TalentoCajaInspection::findOrFail($id);
+        // Revisión INDEPENDIENTE — a propósito SIN excepción de
+        // autoservicio, ni siquiera con permiso amplio propio: quien hizo
+        // la inspección no puede validar su propio trabajo.
+        abort_unless($this->esSupervisorDeInspeccion($inspection->inspected_by), 403);
         $data = $request->validate([
             'overall_result'      => 'required|in:pass,fail,needs_rework',
             'supervisor_validated'=> 'boolean',
@@ -203,7 +258,7 @@ class TalentoQualityController extends Controller
     public function servePhoto(int $id)
     {
         $insp = TalentoCajaInspection::findOrFail($id);
-        $this->authorize('talento.quality.view');
+        abort_unless($this->puedeVerInspeccionDe($insp->inspected_by), 403);
 
         if (!$insp->photo_path || !Storage::disk('local')->exists($insp->photo_path)) {
             abort(404);

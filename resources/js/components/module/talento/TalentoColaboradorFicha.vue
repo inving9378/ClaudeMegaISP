@@ -197,7 +197,9 @@
           <talento-rutas :colaborador-id="id" :colaborador-nombre="colaborador?.user?.name ?? ''" :puede-gestionar="permisos.rutas_manage" />
         </div>
         <div v-if="activeTab === 'calidad'">
-          <talento-calidad :colaborador-id="id" />
+          <talento-calidad :colaborador-id="id"
+            :puede-validar="permisos.calidad_validar"
+            :puede-gestionar-estandares="permisos.calidad_estandares_manage" />
         </div>
         <div v-if="activeTab === 'proyectos'">
           <talento-proyectos :colaborador-id="id" :puede-gestionar="permisos.proyectos_manage" />

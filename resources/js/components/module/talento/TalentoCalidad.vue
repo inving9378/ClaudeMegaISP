@@ -107,7 +107,7 @@
           <option value="">Todos los tipos</option>
           <option v-for="(label, val) in typeLabels" :key="val" :value="val">{{ label }}</option>
         </select>
-        <button @click="openNewStd" class="tc-btn tc-btn-ok btn-sm">
+        <button v-if="puedeGestionarEstandaresResuelto" @click="openNewStd" class="tc-btn tc-btn-ok btn-sm">
           <i class="fa fa-plus me-1"></i>Nuevo estándar
         </button>
       </div>
@@ -137,7 +137,7 @@
                   </div>
                   <span v-if="!std.active" class="tc-status is-slate mt-1" style="font-size:10px;">Inactivo</span>
                 </div>
-                <div class="card-footer p-1 d-flex gap-1">
+                <div v-if="puedeGestionarEstandaresResuelto" class="card-footer p-1 d-flex gap-1">
                   <button @click="openEditStd(std)" class="tc-btn tc-btn-info btn-xs flex-fill">
                     <i class="fa fa-pen"></i>
                   </button>
@@ -301,8 +301,9 @@
                 </div>
               </div>
 
-              <!-- Validación supervisor -->
-              <template v-if="inspModal.id && !inspModal.supervisor_validated">
+              <!-- Validación supervisor — revisión INDEPENDIENTE: quien
+                   inspeccionó no puede validar su propio trabajo. -->
+              <template v-if="inspModal.id && !inspModal.supervisor_validated && puedeValidarResuelto">
                 <div class="col-12"><hr class="my-1"><h6 class="small text-uppercase text-muted">Validación de supervisor</h6></div>
                 <div class="col-md-5">
                   <label class="form-label">Override resultado</label>
@@ -417,11 +418,22 @@
 
 <script>
 import { darkMode } from "../../../hook/appConfig.js";
+import Permission from "../../../helpers/Permission.js";
+import { allViewHasPermission } from "../../../helpers/Request.js";
 
 export default {
   name: 'TalentoCalidad',
   props: {
     colaboradorId: { type: [Number, String], default: null },
+    // Resuelto server-side por la ficha (permisos.calidad_validar): admin/
+    // DESARROLLADOR o supervisor DIRECTO de ESTE colaborador — quien
+    // inspeccionó no puede validar su propio trabajo (revisión
+    // independiente).
+    puedeValidar: { type: Boolean, default: false },
+    // permisos.calidad_estandares_manage — el catálogo de estándares es
+    // política de empresa, SOLO admin/DESARROLLADOR, sin excepción de
+    // supervisor.
+    puedeGestionarEstandares: { type: Boolean, default: false },
   },
   setup() {
     return { darkMode };
@@ -471,6 +483,7 @@ export default {
         show: false, stdId: null, stdName: '', currentPath: null,
         file: null, saving: false, error: '',
       },
+      permisosGlobales: {},
     };
   },
   computed: {
@@ -482,8 +495,23 @@ export default {
       }
       return groups;
     },
+    // Dentro de la ficha: lo que ya resolvió el servidor (props). En la
+    // pantalla suelta (/talento/calidad, solo alcanzable por staff — un
+    // técnico no tiene talento.quality.view): el permiso global del
+    // viewer — mismo patrón que TalentoRutas.vue/TalentoProyectos.vue.
+    puedeValidarResuelto() {
+      return this.colaboradorId
+        ? this.puedeValidar
+        : new Permission(this.permisosGlobales).canDo('talento.quality.manage');
+    },
+    puedeGestionarEstandaresResuelto() {
+      return this.colaboradorId
+        ? this.puedeGestionarEstandares
+        : new Permission(this.permisosGlobales).canDo('talento.quality.manage');
+    },
   },
-  mounted() {
+  async mounted() {
+    if (!this.colaboradorId) this.permisosGlobales = await allViewHasPermission();
     this.loadInspecciones();
     this.loadStandards();
     this.loadProjects();

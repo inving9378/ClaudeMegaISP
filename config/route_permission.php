@@ -2153,6 +2153,22 @@ return [
         '/talento/api/settlements/[0-9]+',
         '/talento/api/settlements/[0-9]+/close',
         '/talento/api/settlement-items/{id}',
+        // Calidad de caja: catálogo de estándares (lectura pública, sin
+        // datos sensibles) + inspecciones (uno mismo/supervisor directo/
+        // staff — el controller hace la distinción real). Faltaba POR
+        // COMPLETO — ni siquiera storeInspection() (self-scoped por
+        // diseño, crea siempre como auth()->id()) era alcanzable por un
+        // técnico: nadie pudo enviar una inspección de calidad desde que
+        // se escribió (bug real encontrado 28-sep). Las 4 acciones de
+        // ESCRITURA del catálogo (storeStandard/updateStandard/
+        // uploadStandardImage/destroyStandard) y supervisorValidate()
+        // quedaron con su propio authorize()/scoping nuevo en el
+        // controller — abrir la ruta aquí no las abre de verdad.
+        '/talento/api/standards',
+        '/talento/api/standards/**',
+        '/talento/api/inspecciones',
+        '/talento/api/inspecciones/**',
+        '/talento/inspection-photo/{id}',
     ],
     'talento.dashboard.view' => [
         '/talento',
