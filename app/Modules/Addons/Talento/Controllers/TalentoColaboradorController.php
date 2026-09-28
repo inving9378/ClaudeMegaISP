@@ -161,6 +161,18 @@ class TalentoColaboradorController extends Controller
                 || auth()->user()->can('talento.employees.view')
                 || (bool) ($miPropioColaborador?->subordinados()->exists()),
             'finiquito'       => auth()->user()->can('talento.loans.view') || $tieneAccesoAmplio,
+            // Préstamos: uno mismo puede VER su saldo (mismo criterio que
+            // ordenes_manage) — registrar/autorizar un préstamo SÍ es
+            // gestión, a propósito SIN $tieneAccesoAmplio.
+            'prestamos_manage' => auth()->user()->can('talento.loans.manage')
+                || (bool) ($miPropioColaborador?->subordinados()->exists()),
+            // Finiquito: a diferencia del resto, SIN excepción de
+            // autoservicio ni siquiera para ver (calcular/cerrar tu propio
+            // finiquito no tiene sentido estando activo) — mismo criterio
+            // que credenciales_manage.
+            'settlement_manage' => auth()->user()->can('talento.settlement.view')
+                || auth()->user()->can('talento.liquidation.view')
+                || (bool) ($miPropioColaborador?->subordinados()->exists()),
             'custodia'        => auth()->user()->can('talento.custody.view') || $tieneAccesoAmplio,
             'dispositivos'    => auth()->user()->can('talento.devices.view') || $tieneAccesoAmplio,
             'roles_multiples' => auth()->user()->can('talento.embajadores.view') || $tieneAccesoAmplio,

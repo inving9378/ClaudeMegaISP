@@ -176,21 +176,29 @@ class SettlementService
                 $fund->update(['status' => 'spent']); // marcado como aplicado en el finiquito
             }
 
-            // 2. Marcar préstamos activos con saldo pendiente como parte del cálculo
-            //    (el descuento ya está en gross_debits como active_loan_balance)
-            TalentoLoan::where('colaborador_id', $colaboradorId)
-                ->where('status', 'active')
-                ->update(['status' => 'paid']); // saldados al cerrar el finiquito
-
-            // 3. Procesar material: devuelto → mover de regreso al almacén
+            // 2. Procesar material: devuelto → mover de regreso al almacén
             foreach ($settlement->items as $item) {
                 if ($item->disposition === 'returned' && $item->current_stock > 0) {
                     $this->returnStockToWarehouse($item, $colaborador);
                 }
             }
 
-            // 4. Recalcular final (ahora fund_return está en el ledger)
+            // 3. Recalcular final (ahora fund_return está en el ledger) —
+            //    ANTES de marcar los préstamos como pagados. Bug real
+            //    encontrado y corregido 28-sep: recalculate() suma
+            //    active_loan_balance consultando préstamos status='active'
+            //    — si se marcaban 'paid' primero, el descuento del
+            //    préstamo desaparecía del neto final del finiquito (la
+            //    empresa habría pagado de más exactamente el saldo del
+            //    préstamo, mientras el préstamo quedaba "saldado" sin
+            //    haberse descontado de nada).
             $settlement = $this->recalculate($settlement->fresh());
+
+            // 4. Marcar préstamos activos como saldados — el saldo ya
+            //    quedó reflejado en gross_debits del paso anterior.
+            TalentoLoan::where('colaborador_id', $colaboradorId)
+                ->where('status', 'active')
+                ->update(['status' => 'paid']);
 
             $settlement->update([
                 'status'    => 'closed',
@@ -205,15 +213,24 @@ class SettlementService
 
     private function getCustody(int $userId): \Illuminate\Support\Collection
     {
+        // Bug real encontrado 28-sep: el JOIN original apuntaba a
+        // `inventory_categories`/`i.category_id`, columnas/tabla que NUNCA
+        // existieron en este esquema (`inventory_items` no tiene
+        // `category_id`; el catálogo real de tipo/categoría vive en
+        // `inventory_item_types`, FK `inventory_item_type_id`) — tronaba
+        // 500 SIEMPRE al calcular cualquier borrador de finiquito,
+        // tuviera o no custodia el colaborador. `sku`/`category` tampoco
+        // se usan en ningún lado (ni acá ni en TalentoFiniquito.vue), así
+        // que se quitan del select en vez de repararlos contra un valor
+        // que nadie consume.
         return collect(DB::table('inventory_item_stocks as s')
             ->join('inventory_items as i', 'i.id', '=', 's.inventory_item_id')
-            ->leftJoin('inventory_categories as c', 'c.id', '=', 'i.category_id')
             ->where('s.modelable_type', 'App\\Models\\User')
             ->where('s.modelable_id', $userId)
             ->whereNull('s.deleted_at')
             ->where('s.current_stock', '>', 0)
             ->select('s.id as stock_id', 'i.id as item_id', 'i.name as item_name',
-                     'i.sku', 's.current_stock', 's.unit_cost', 'c.name as category')
+                     's.current_stock', 's.unit_cost')
             ->get());
     }
 

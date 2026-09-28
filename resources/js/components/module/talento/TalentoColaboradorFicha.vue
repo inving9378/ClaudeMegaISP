@@ -209,7 +209,9 @@
           <talento-credenciales :colaborador-id="id" :puede-gestionar="permisos.credenciales_manage" />
         </div>
         <div v-if="activeTab === 'finiquito'">
-          <talento-finiquito :colaborador-id="id" />
+          <talento-finiquito :colaborador-id="id"
+            :puede-gestionar-prestamos="permisos.prestamos_manage"
+            :puede-gestionar-finiquito="permisos.settlement_manage" />
         </div>
         <div v-if="activeTab === 'custodia'">
           <talento-custodia :colaborador-id="id" />

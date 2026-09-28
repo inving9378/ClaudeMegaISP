@@ -7,7 +7,11 @@
           <i class="fa fa-hand-holding-usd me-1"></i>Préstamos
         </a>
       </li>
-      <li class="nav-item">
+      <!-- Finiquito, a diferencia de Préstamos, no tiene autoservicio ni
+           siquiera para ver: calcular/cerrar tu propio finiquito no tiene
+           sentido estando activo (mismo criterio que "Por colaborador" en
+           Credenciales). -->
+      <li v-if="puedeGestionarFiniquitoResuelto" class="nav-item">
         <a class="nav-link" :class="{ active: tab === 'settlement' }" href="#" @click.prevent="tab='settlement'">
           <i class="fa fa-file-invoice-dollar me-1"></i>Finiquito
         </a>
@@ -28,7 +32,7 @@
             <option value="paid">Pagados</option>
           </select>
         </div>
-        <button @click="openNewLoan" class="tc-btn tc-btn-ok btn-sm">
+        <button v-if="puedeGestionarPrestamosResuelto" @click="openNewLoan" class="tc-btn tc-btn-ok btn-sm">
           <i class="fa fa-plus me-1"></i>Registrar préstamo
         </button>
       </div>
@@ -58,7 +62,7 @@
                 </span>
               </td>
               <td class="d-flex gap-1">
-                <button v-if="!loan.authorized && loan.status === 'active'"
+                <button v-if="puedeGestionarPrestamosResuelto && !loan.authorized && loan.status === 'active'"
                         @click="authorizeLoan(loan)" class="tc-btn tc-btn-warn btn-xs" title="Autorizar">
                   <i class="fa fa-pen-fancy"></i>
                 </button>
@@ -358,11 +362,20 @@
 
 <script>
 import { darkMode } from "../../../hook/appConfig.js";
+import Permission from "../../../helpers/Permission.js";
+import { allViewHasPermission } from "../../../helpers/Request.js";
 
 export default {
   name: 'TalentoFiniquito',
   props: {
     colaboradorId: { type: [Number, String], default: null },
+    // Resuelto server-side por la ficha (permisos.prestamos_manage):
+    // admin/DESARROLLADOR/staff o CUALQUIER supervisor — SIN autoservicio
+    // (registrar/autorizar un préstamo es gestión).
+    puedeGestionarPrestamos: { type: Boolean, default: false },
+    // permisos.settlement_manage — mismo criterio, pero ni siquiera con
+    // excepción de autoservicio para VER (Finiquito no es self-service).
+    puedeGestionarFiniquito: { type: Boolean, default: false },
   },
   setup() {
     return { darkMode };
@@ -392,14 +405,30 @@ export default {
         saving: false, error: '',
       },
       closeModal: { show: false, confirmed: false, saving: false, error: '' },
+      permisosGlobales: {},
     };
   },
   computed: {
     detail() {
       return this.settlement?.detail ?? {};
     },
+    // Dentro de la ficha: lo que ya resolvió el servidor (props). En la
+    // pantalla suelta (/talento/finiquito): el permiso global del viewer —
+    // mismo patrón que TalentoRutas.vue/TalentoProyectos.vue.
+    puedeGestionarPrestamosResuelto() {
+      return this.colaboradorId
+        ? this.puedeGestionarPrestamos
+        : new Permission(this.permisosGlobales).canDo('talento.loans.manage');
+    },
+    puedeGestionarFiniquitoResuelto() {
+      return this.colaboradorId
+        ? this.puedeGestionarFiniquito
+        : (new Permission(this.permisosGlobales).canDo('talento.settlement.view')
+           || new Permission(this.permisosGlobales).canDo('talento.liquidation.view'));
+    },
   },
-  mounted() {
+  async mounted() {
+    if (!this.colaboradorId) this.permisosGlobales = await allViewHasPermission();
     if (this.colaboradorId) {
       this.lFilters.colaborador_id = this.colaboradorId;
       this.sColId = this.colaboradorId;

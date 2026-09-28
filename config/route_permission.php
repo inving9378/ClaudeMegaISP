@@ -2137,6 +2137,22 @@ return [
         '/talento/credential-doc/{id}',
         '/talento/api/funds',
         '/talento/api/funds/**',
+        // Préstamos: uno mismo puede VER su saldo (mismo criterio que
+        // Penalizaciones — se entera, no gestiona), su supervisor directo,
+        // o el permiso de STAFF — el controller (puedeVerPrestamosDe()/
+        // esGestorDePrestamosDe()) hace la distinción real.
+        '/talento/api/loans',
+        '/talento/api/loans/**',
+        '/talento/api/colaboradores/{id}/loans',
+        // Finiquito: SIN excepción de autoservicio (mismo criterio que
+        // "Por colaborador" en Credenciales — calcular/cerrar tu propio
+        // finiquito no tiene sentido estando activo) — supervisor directo
+        // o el permiso de STAFF. /talento/api/settlements (bare, listado
+        // GLOBAL) NO se lista aquí a propósito — sigue 100% admin-only.
+        '/talento/api/colaboradores/{id}/settlement/draft',
+        '/talento/api/settlements/[0-9]+',
+        '/talento/api/settlements/[0-9]+/close',
+        '/talento/api/settlement-items/{id}',
     ],
     'talento.dashboard.view' => [
         '/talento',
