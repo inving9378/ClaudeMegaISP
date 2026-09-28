@@ -300,3 +300,43 @@ subordinado).
 ### Commits
 
 - `deb7cdcd` — técnico no puede penalizar(se), supervisor sí a su equipo
+
+## 2026-09-28 11:40 — Penalizaciones: fix real — apelar la propia penalización estaba silenciosamente roto
+
+David, tras la pasada anterior: "quitaste apelaciones de la pestaña
+penalizaciones, cuando a alguien lo penalizan debe poder apelar". Aclaración
+importante: la pestaña "Apelaciones" que se ocultó es la **cola completa de
+apelaciones de TODOS** (para revisar/resolver — gestión, admin-only, sigue
+así a propósito). Apelar TU PROPIA penalización es una acción distinta que
+**siempre vivió** dentro del botón "Ver" de cada fila (`viewModal`), con un
+formulario inline que aparece solo si `canAppeal` es verdadero.
+
+**El bug real:** `canAppeal` dependía de `myColaboradorId`, resuelto en
+`loadMyProfile()` vía `GET /talento/api/colaboradores?my_profile=1`. Ese
+parámetro `my_profile` **nunca existió** en el backend
+(`TalentoColaboradorController::data()` no lo lee) — la llamada devolvía
+simplemente el colaborador con el **id más alto de toda la empresa**
+(`orderBy('id','desc')` + `per_page:1`), no el del usuario logueado. Así que
+`canAppeal` casi nunca coincidía de verdad — el botón de apelar llevaba
+**tiempo silenciosamente roto para cualquiera**, no solo desde la pasada
+anterior; con la pestaña "Apelaciones" visible antes, el síntoma pasaba
+desapercibido porque nadie notaba que faltaba un botón puntual dentro de un
+modal.
+
+**Fix:** `loadMyProfile()` ahora llama `GET /talento/mi-ficha` (sin id) —
+el mismo endpoint self-scoped por `Actor` que ya usa toda la ficha
+(`resolverColaboradorAutoservicio(null)`), sin backend nuevo. Esto corrige
+de una vez **dos** cosas: `canAppeal` (que el propio penalizado vea el
+formulario de apelar) y `isApplier` (la regla de justicia en `resolveModal`
+que impide que quien APLICÓ la penalización sea quien la resuelva — también
+dependía del mismo dato roto).
+
+**Verificado con Playwright** (cuentas desechables, borradas al terminar):
+supervisor penaliza a tec1 → tec1 entra a su propia ficha → ve su fila en
+la tabla → abre "Ver" → el formulario de apelar SÍ aparece → lo llena y
+envía → sin error. Confirmado en BD: `status='appealed'`,
+`appealed_by=<colaborador de tec1>`, `reason` guardado correcto.
+
+### Commits
+
+- `34c6ec6a` — apelar la propia penalización estaba roto (my_profile fantasma)
