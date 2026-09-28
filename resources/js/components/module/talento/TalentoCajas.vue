@@ -163,6 +163,12 @@ import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoCajas',
+  props: {
+    // Si viene, acota el LOG de bonos de salud (bonusLog) a este técnico —
+    // el catálogo de cajas/baselines/config sigue siendo global a propósito
+    // (no es "de una persona", es infraestructura compartida).
+    colaboradorId: { type: [Number, String], default: null },
+  },
   setup() {
     return { darkMode };
   },
@@ -214,7 +220,9 @@ export default {
     async loadBonusLog() {
       this.loadingLog = true;
       try {
-        const { data } = await axios.get('/talento/api/cajas/bonus-log', { params: { per_page: 30 } });
+        const params = { per_page: 30 };
+        if (this.colaboradorId) params.colaborador_id = this.colaboradorId;
+        const { data } = await axios.get('/talento/api/cajas/bonus-log', { params });
         this.bonusLog = data?.data ?? [];
       } finally { this.loadingLog = false; }
     },

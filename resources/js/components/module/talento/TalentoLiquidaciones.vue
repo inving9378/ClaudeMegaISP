@@ -255,6 +255,9 @@ import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoLiquidaciones',
+  props: {
+    colaboradorId: { type: [Number, String], default: null },
+  },
   setup() {
     return { darkMode };
   },
@@ -283,7 +286,9 @@ export default {
     async load(page = 1) {
       this.loading = true;
       try {
-        const { data } = await axios.get('/talento/api/liquidaciones', { params: { ...this.filters, page } });
+        const params = { ...this.filters, page };
+        if (this.colaboradorId) params.colaborador_id = this.colaboradorId;
+        const { data } = await axios.get('/talento/api/liquidaciones', { params });
         this.liquidaciones = data?.data ?? [];
         this.pagination = { current_page: data?.current_page ?? 1, last_page: data?.last_page ?? 1 };
       } finally { this.loading = false; }

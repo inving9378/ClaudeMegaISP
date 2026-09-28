@@ -363,6 +363,9 @@ import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoCampo',
+  props: {
+    colaboradorId: { type: [Number, String], default: null },
+  },
   setup() {
     return { darkMode };
   },
@@ -427,7 +430,9 @@ export default {
     async load() {
       this.loading = true;
       try {
-        const { data } = await axios.get('/talento/api/ordenes', { params: { ...this.filters, per_page: 50 } });
+        const params = { ...this.filters, per_page: 50 };
+        if (this.colaboradorId) params.colaborador_id = this.colaboradorId;
+        const { data } = await axios.get('/talento/api/ordenes', { params });
         this.orders = data?.data ?? [];
       } finally { this.loading = false; }
     },

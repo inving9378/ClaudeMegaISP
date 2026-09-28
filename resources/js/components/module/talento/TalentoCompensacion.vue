@@ -261,6 +261,10 @@ import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoCompensacion',
+  props: {
+    colaboradorId: { type: [Number, String], default: null },
+    colaboradorNombre: { type: String, default: '' },
+  },
   setup() {
     return { darkMode };
   },
@@ -280,7 +284,15 @@ export default {
   computed: {
     activeRules() { return this.rules.filter(r => r.active); },
   },
-  mounted() { this.loadRules(); },
+  mounted() {
+    this.loadRules();
+    if (this.colaboradorId) {
+      this.assign.colaborador_id = this.colaboradorId;
+      this.assign.colaborador_name = this.colaboradorNombre;
+      this.assign.search = this.colaboradorNombre;
+      this.loadHistory();
+    }
+  },
   methods: {
     async loadRules() {
       this.loadingRules = true;

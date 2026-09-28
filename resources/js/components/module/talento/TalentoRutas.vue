@@ -185,6 +185,9 @@ import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoRutas',
+  props: {
+    colaboradorId: { type: [Number, String], default: null },
+  },
   setup() {
     return { darkMode };
   },
@@ -214,7 +217,9 @@ export default {
     async load() {
       this.loading = true;
       try {
-        const { data } = await axios.get('/talento/api/rutas', { params: this.filters });
+        const params = { ...this.filters };
+        if (this.colaboradorId) params.colaborador_id = this.colaboradorId;
+        const { data } = await axios.get('/talento/api/rutas', { params });
         this.routes = data?.data ?? [];
       } finally { this.loading = false; }
     },

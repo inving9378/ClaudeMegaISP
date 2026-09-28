@@ -420,6 +420,9 @@ import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoCalidad',
+  props: {
+    colaboradorId: { type: [Number, String], default: null },
+  },
   setup() {
     return { darkMode };
   },
@@ -497,6 +500,7 @@ export default {
         if (!params.caja_ref) delete params.caja_ref;
         if (!params.project_id) delete params.project_id;
         if (!params.result) delete params.result;
+        if (this.colaboradorId) params.colaborador_id = this.colaboradorId;
         const { data } = await axios.get('/talento/api/inspecciones', { params });
         this.inspecciones = data?.data ?? [];
         this.inspPagination = {

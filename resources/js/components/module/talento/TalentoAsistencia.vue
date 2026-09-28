@@ -207,6 +207,9 @@ import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoAsistencia',
+  props: {
+    colaboradorId: { type: [Number, String], default: null },
+  },
   setup() {
     return { darkMode };
   },
@@ -254,9 +257,9 @@ export default {
     async load(page = 1) {
       this.loading = true;
       try {
-        const { data } = await axios.get('/talento/api/asistencia', {
-          params: { ...this.filters, flagged: this.filters.flagged ? 1 : undefined, page }
-        });
+        const params = { ...this.filters, flagged: this.filters.flagged ? 1 : undefined, page };
+        if (this.colaboradorId) params.colaborador_id = this.colaboradorId;
+        const { data } = await axios.get('/talento/api/asistencia', { params });
         this.attendances = data?.data ?? [];
         this.pagination = { current_page: data?.current_page ?? 1, last_page: data?.last_page ?? 1 };
       } finally { this.loading = false; }
