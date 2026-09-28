@@ -402,3 +402,79 @@ supervisor (el regex numérico no las abrió por accidente). 11/11.
 ### Commits
 
 - `ee4ba949` — "Por colaborador" solo para superiores, sin autoservicio
+
+## 2026-09-28 12:12 — Préstamos/Finiquito: qué es, permisos supervisor/técnico, y BUG DE DINERO real corregido
+
+David pidió explicar para qué sirve la pestaña y **verificar que funcione
+bien**. Es el módulo de: (1) **Préstamos** — adelantos de nómina al
+colaborador, con saldo pendiente y descuento semanal, que por ley (LFT
+Art. 110) no se puede descontar de nómina sin autorización por escrito; y
+(2) **Finiquito** — el cálculo de cuenta corriente al separarse un
+colaborador (créditos: salario/bonos pendientes + fondos de ahorro no
+gastados; débitos: penalizaciones + saldo de préstamos + material dañado o
+faltante de su custodia), que al **cerrarse (irreversible)** escribe los
+asientos finales al ledger, salda los préstamos activos y regresa el
+material devuelto al almacén.
+
+### Permisos (mismo criterio ya aplicado al resto de la ficha)
+
+- **Préstamos**: uno mismo puede VER su saldo (mismo criterio que
+  Penalizaciones — se entera, no gestiona); registrar/autorizar un
+  préstamo es del supervisor directo o staff, SIN autoservicio.
+- **Finiquito**: a diferencia de todo lo demás, SIN excepción de
+  autoservicio NI SIQUIERA para ver — calcular/cerrar tu propio finiquito
+  no tiene sentido estando activo (mismo criterio que "Por colaborador" en
+  Credenciales). Supervisor directo o staff.
+- Igual que en Proyectos/Penalizaciones/Credenciales: `loansForColaborador()`,
+  `showSettlement()` y `settlementsIndex()` **no tenían NINGÚN chequeo de
+  autorización** (cualquiera que alcanzara la ruta veía el préstamo/finiquito
+  de cualquiera). `/talento/api/loans` (listar/registrar) y `/talento/api/
+  settlements/{id}` no estaban cubiertos por ningún bloque de
+  `route_permission.php` real (solo alcanzables por el bypass admin) —
+  mismo patrón recurrente de esta sesión.
+
+### 🔴 BUG DE DINERO REAL encontrado y corregido (no era de permisos)
+
+Verificando el flujo completo (registrar préstamo → autorizar → calcular
+borrador → **cerrar**), el borrador calculaba bien (créditos $500, débito
+préstamo $300, neto $200) pero **el finiquito CERRADO perdía el descuento
+del préstamo** (quedaba en débitos $0, neto $500 — la empresa habría
+pagado $300 de más). Causa: `SettlementService::close()` marcaba los
+préstamos activos como `'paid'` **ANTES** de recalcular los totales
+finales; `recalculate()` suma `active_loan_balance` consultando préstamos
+`status='active'` — al ya estar en `'paid'`, el saldo desaparecía del
+cálculo, mientras el préstamo quedaba "saldado" sin haberse descontado de
+nada realmente. Corregido: se invirtió el orden — `recalculate()` corre
+**antes** de marcar los préstamos pagados, así el neto congela el saldo
+real que se está saldando. Verificado con dinero de prueba en transacción
+real: antes del fix, cerrado quedaba en neto=$500 (incorrecto); después,
+neto=$200 (correcto), préstamo igual queda `status=paid`.
+
+### 🔴 BUG FUNCIONAL real encontrado y corregido (bloqueaba TODO cierre)
+
+`SettlementService::getCustody()` — el JOIN a `inventory_categories`/
+`i.category_id` apuntaba a una tabla/columna que **nunca existieron** en
+este esquema (`inventory_items` no tiene `category_id`; el catálogo real
+vive en `inventory_item_types`, FK `inventory_item_type_id`). Esto tronaba
+**500 SIEMPRE** al calcular CUALQUIER borrador de finiquito — para
+cualquier colaborador, tuviera o no material en custodia (el JOIN falla al
+parsear la query, no al ejecutarla). Es decir: **la mitad "Finiquito" de
+esta pestaña nunca funcionó, para nadie, desde que se escribió.** También
+select-eaba `i.sku` (columna que tampoco existe) y `c.name as category`
+(ninguno de los dos se usa en ningún lado, ni en el service ni en
+`TalentoFiniquito.vue`) — se quitaron del query en vez de repararlos contra
+un valor que nadie consume.
+
+**Verificado con Playwright** (cuentas desechables, borradas al terminar,
+con dinero real en transacción de prueba): pestaña/botones ocultos para
+técnico sin equipo, visibles para supervisor en la ficha de su
+subordinado; técnico ve su propio saldo de préstamos pero NO puede
+registrar uno ni ver/calcular su propio finiquito; flujo completo real del
+supervisor — registra préstamo → autoriza → calcula borrador (créditos y
+débitos correctos) → cierra (irreversible) — funciona de punta a punta;
+préstamo queda `paid`; finiquito cerrado conserva el neto correcto. 16/16
++ verificación aparte del fix de dinero.
+
+### Commits
+
+- `9502b68b` — permisos supervisor + BUG DE DINERO real en close()
