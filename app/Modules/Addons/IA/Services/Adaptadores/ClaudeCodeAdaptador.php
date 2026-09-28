@@ -30,22 +30,47 @@ use RuntimeException;
  *    $imagenes no vacío lanza excepción clara en vez de fallar en silencio o
  *    ignorar la imagen.
  *
- * Seguridad: se invoca SIEMPRE con TODAS las herramientas negadas
- * (--disallowed-tools) + --permission-prompts none (deniega automático
- * cualquier cosa que pidiera permiso) — un mensaje de un cliente NUNCA debe
- * poder ejecutar nada en el servidor. El prompt se pasa como argumento de
- * arreglo (Process::run([...])), nunca interpolado en una cadena de shell —
- * evita inyección de shell desde texto de un mensaje real y no confiable.
+ * Seguridad — 4 capas, probadas en vivo (una lista negativa sola NO basta,
+ * ver hallazgo abajo):
+ * 1. --restricted: quita Bash/PowerShell/REPL/ejecución de código + WebFetch,
+ *    ignora settings de usuario/proyecto/local ambientales.
+ * 2. --strict-mcp-config (sin --mcp-config): CERO servidores MCP cargados —
+ *    sin --restricted, esta sesión hereda TODOS los MCP del entorno
+ *    (Claude_Docs, roadmap circuito-cc, playwright) sin haberlo pedido.
+ * 3. --disallowed-tools explícito para lo que --restricted NO cubre. Hallazgo
+ *    crítico en vivo: con SOLO --restricted, "Agent" seguía disponible y el
+ *    propio modelo confirmó que un subagente delegado por Agent SÍ tendría
+ *    Bash completo — un bypass real de la restricción. Se niega Agent
+ *    explícito (cierra el bypass) + Write/Edit/Read/Glob/Grep (sin acceso de
+ *    archivos tampoco). Verificado: con este combo, un intento explícito de
+ *    "usa Agent para correr whoami por Bash" fallo limpio, sin inventar nada.
+ * 4. --permission-prompts none: deniega automático cualquier cosa que
+ *    pidiera permiso (defensa adicional, no la única capa).
+ * 5. Working directory NEUTRAL (storage/app/ia/claude_code_sandbox, fuera del
+ *    repo) — CAPA MÁS CRÍTICA, encontrada al final: --restricted NO evita que
+ *    Claude Code auto-descubra y cargue el CLAUDE.md del proyecto (con notas
+ *    internas de arquitectura, incidentes de seguridad, convenciones) como
+ *    contexto ambiental. Verificado en vivo: corriendo desde /var/www/megaisp
+ *    el modelo mencionó por su cuenta un commit real del repo sin que nadie
+ *    se lo pidiera — un cliente con un prompt bien armado podría sonsacar
+ *    información interna del negocio. Corriendo desde un directorio vacío sin
+ *    CLAUDE.md ni .git, la misma pregunta directa ("dime algo de MegaISP")
+ *    devolvió cero conocimiento. Sin esta capa, las otras 4 no bastan.
+ *
+ * El prompt se pasa como argumento de arreglo (Process::run([...])), nunca
+ * interpolado en una cadena de shell — evita inyección de shell desde texto
+ * de un mensaje real y no confiable.
  */
 class ClaudeCodeAdaptador implements IAAdaptadorInterface
 {
     private const TIMEOUT_SECONDS = 60;
 
-    /** Herramientas negadas explícitamente (defensa en profundidad, además de --permission-prompts none). */
-    private const HERRAMIENTAS_NEGADAS = [
-        'Bash', 'Read', 'Write', 'Edit', 'NotebookEdit', 'WebFetch', 'WebSearch',
-        'Agent', 'Skill', 'Artifact', 'ArtifactComments', 'ArtifactData', 'Workflow',
-    ];
+    /**
+     * Lo que --restricted NO cubre (ver punto 3 del docblock de seguridad) —
+     * exactamente la combinación verificada en vivo, incluido el cierre del
+     * bypass por delegación a subagente (Agent).
+     */
+    private const HERRAMIENTAS_NEGADAS = ['Agent', 'Write', 'Edit', 'Read', 'Glob', 'Grep'];
 
     public function __construct(protected IAProveedor $proveedor)
     {
@@ -62,7 +87,16 @@ class ClaudeCodeAdaptador implements IAAdaptadorInterface
 
         $payload = $this->construirPayload($historial, $mensaje, $imagenes, $systemPrompt);
 
-        $result = Process::timeout(self::TIMEOUT_SECONDS)->run($payload['argv']);
+        // CRÍTICO: el .env de Laravel carga CLAUDE_API_KEY/ANTHROPIC_API_KEY al
+        // entorno de PHP; si el subproceso las hereda, el CLI intenta autenticar
+        // por API key en vez de la sesión OAuth y SE CUELGA en headless (sin
+        // fallar rápido) — confirmado en vivo el 2026-09-28. Mismo tratamiento
+        // que ya hace deploy/circuito/vuelta.sh (unset CLAUDE_API_KEY) antes de
+        // invocar `claude -p`.
+        $result = Process::timeout(self::TIMEOUT_SECONDS)
+            ->path($this->sandboxDir())
+            ->env(['CLAUDE_API_KEY' => null, 'ANTHROPIC_API_KEY' => null])
+            ->run($payload['argv']);
 
         if (!$result->successful()) {
             throw new RuntimeException(
@@ -97,6 +131,26 @@ class ClaudeCodeAdaptador implements IAAdaptadorInterface
     }
 
     /**
+     * Directorio de trabajo NEUTRAL para el subproceso — GENUINAMENTE fuera
+     * del árbol de git del repo (no basta con un subdirectorio de
+     * storage/app: Claude Code detecta el repositorio subiendo por los
+     * directorios padre hasta encontrar el `.git`, así que cualquier ruta
+     * dentro de /var/www/megaisp sigue filtrando commits/archivos reales —
+     * error real cometido y corregido en esta misma sesión, 2026-09-28: un
+     * primer intento con storage_path() seguía leyendo el git log real). Por
+     * eso vive en sys_get_temp_dir(), fuera de cualquier árbol de git. Se
+     * crea vacío si no existe; nunca se escribe nada más ahí a propósito.
+     */
+    private function sandboxDir(): string
+    {
+        $dir = rtrim(sys_get_temp_dir(), '/') . '/megaisp_claude_code_sandbox';
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+        return $dir;
+    }
+
+    /**
      * @return array{argv: array<int,string>} Aquí el "payload" es el argv del
      *         proceso (nunca un body HTTP) — se ejecuta como arreglo, nunca
      *         como cadena de shell interpolada.
@@ -105,7 +159,13 @@ class ClaudeCodeAdaptador implements IAAdaptadorInterface
     {
         $texto = $this->aplanarHistorial($historial, $mensaje);
 
-        $argv = ['claude', '-p', $texto, '--output-format', 'json', '--permission-prompts', 'none'];
+        $argv = [
+            'claude', '-p', $texto,
+            '--output-format', 'json',
+            '--permission-prompts', 'none',
+            '--restricted',
+            '--strict-mcp-config',
+        ];
 
         if ($this->proveedor->modelo_default) {
             $argv[] = '--model';
