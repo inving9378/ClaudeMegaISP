@@ -171,6 +171,45 @@ function reexecuteSpaScripts(doc) {
     });
 }
 
+// ─── librerías declaradas por la página (fuera de #init-vue) ────────────────
+//
+// El swap solo reemplaza #init-vue: el <head> y los <script> de vendor-scripts
+// se quedan como los dejó el primer full-load. Pero cada página de módulo
+// declara ahí sus propias librerías (tabla `packages` vía IncludeLibraryTrait:
+// choices.min.css, select2, bootstrap-multiselect, DataTables, CKEditor…) y el
+// Dashboard no trae ninguna. Sin esta revisión, entrar por el menú desde el
+// Dashboard a /cliente/crear montaba los selects de Choices.js sin su CSS (la
+// lista de opciones salía impresa en línea) hasta recargar la página.
+
+// URLs absolutas de hojas de estilo y scripts externos que declara `root`.
+// Excluye <noscript> (DOMParser parsea sin scripting y sí los convierte en
+// elementos) y #__spa-scripts (lo re-ejecuta reexecuteSpaScripts).
+function pageAssetUrls(root, baseUrl) {
+    const urls = new Set();
+    root.querySelectorAll('link[href], script[src]').forEach((el) => {
+        if (el.closest('noscript, #__spa-scripts')) return;
+        if (el.tagName === 'LINK') {
+            const rel = (el.getAttribute('rel') || '').toLowerCase().split(/\s+/);
+            const isStyle = rel.includes('stylesheet')
+                || (rel.includes('preload') && (el.getAttribute('as') || '').toLowerCase() === 'style');
+            if (!isStyle) return;
+        }
+        const raw = el.getAttribute(el.tagName === 'LINK' ? 'href' : 'src');
+        try {
+            urls.add(new URL(raw, baseUrl).href);
+        } catch (_) {
+            // URL inválida: no se puede cargar ni comparar
+        }
+    });
+    return urls;
+}
+
+// Librerías que la página destino necesita y esta pestaña todavía no cargó.
+function missingPageAssets(doc, url) {
+    const loaded = pageAssetUrls(document, document.baseURI);
+    return [...pageAssetUrls(doc, url)].filter((asset) => !loaded.has(asset));
+}
+
 // ─── overlay mientras carga ───────────────────────────────────────────────────
 
 function dimContainer(container) {
@@ -222,6 +261,15 @@ async function spaNavigate(url, pushState) {
         if (newContent.querySelector('script')) {
             console.warn('[spa-nav] <script> en #init-vue de', url, '— recarga completa');
             throw new Error('scripts en contenido, recarga requerida');
+        }
+
+        // 2.5 La página destino declara CSS/JS que esta pestaña aún no cargó → recarga
+        // completa (el swap no trae <head> ni vendor-scripts; ver missingPageAssets).
+        // Una vez cargadas, las navegaciones siguientes vuelven a ser SPA.
+        const missingAssets = missingPageAssets(doc, url);
+        if (missingAssets.length) {
+            console.warn('[spa-nav] librerías faltantes para', url, missingAssets, '— recarga completa');
+            throw new Error('librerías de página faltantes, recarga requerida');
         }
 
         // 3. Actualizar título de pestaña
