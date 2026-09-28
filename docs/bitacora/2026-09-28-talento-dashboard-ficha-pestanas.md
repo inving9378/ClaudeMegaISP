@@ -938,3 +938,54 @@ supervisor sí ve el buscador completo. 6/6.
 ### Commits
 
 - `eff94eeb` — oculta el buscador de colaboradores (pendiente de Custodia/Roles múltiples)
+
+## 2026-09-28 15:30 — Paquetes de documentos: 403 para TODO técnico/supervisor (rota desde que se construyó)
+
+David: "siguiente pestaña, paquetes de documentos, verifica".
+
+**Para qué se usa:** pestaña de solo lectura en la ficha (`TalentoFichaDocumentos.vue`)
+que muestra los documentos ya generados del expediente de un colaborador
+(contrato, reglamento, etc.) — nombre, estado, fecha de generación y si
+está firmado/pendiente de firma. No firma ni edita nada desde ahí (eso
+vive aparte, en el Portal del colaborador — `PortalTecnicoController::
+documentos()`/`firmarDocumento()`, ya construido en items previos).
+
+**Bug encontrado (severidad alta — mismo calibre que Calidad de caja):**
+`TalentoColaboradorController::miFichaDocumentos()` (self/supervisor/
+manage-scoped vía `resolverColaboradorAutoservicio()`, ya bien construido)
+delegaba en `TalentoEmployeeDocumentController::forColaborador()`, que
+hace ADEMÁS `$this->authorize('talento.expediente.view')` — permiso que
+**solo tienen super-administrator y DESARROLLADOR** (verificado contra
+BD). Resultado: absolutamente NINGÚN técnico ni supervisor podía abrir
+esta pestaña, ni siquiera para ver SUS PROPIOS documentos — la
+autorización self-scoped de `resolverColaboradorAutoservicio()` quedaba
+anulada por el candado de staff que venía después. La pestaña ha estado
+rota al 100% desde que se construyó (item 1b, mismo día).
+
+**Fix:** se separa el cuerpo real de `forColaborador()` en un método
+nuevo `documentosDe($colaboradorId)` SIN el `authorize()` amplio.
+`forColaborador()` (la ruta staff `/talento/api/colaboradores/{id}/
+documentos`, protegida además a nivel de middleware por
+`talento.employees.view`) sigue haciendo `authorize('talento.expediente.
+view')` antes de delegar — sin cambio de comportamiento para ese camino.
+`miFichaDocumentos()` ahora llama a `documentosDe()` directo: la
+autorización para ESE colaborador puntual ya la resolvió
+`resolverColaboradorAutoservicio()` (uno mismo, su subordinado directo,
+o quien gestiona órdenes en general) — exigir el permiso de staff
+completo encima de eso era el bug. Mismo patrón de "separar el authorize
+amplio del cuerpo reusable" que `TalentoCajaController::
+puedeVerBonusLogDe()` / `TalentoEmbajadoresController` ya usaban.
+
+**Verificado con Playwright** (técnico + su supervisor, cuentas
+desechables, sin colaborador con documentos generados — probado con
+lista vacía, la lógica de mapeo de filas no se tocó, solo el candado de
+autorización): ANTES del fix, las 4 combinaciones (técnico ve lo suyo,
+técnico intenta ver a su supervisor, supervisor ve lo suyo, supervisor
+ve a su subordinado) daban 403 — incluidas las dos que debían funcionar.
+DESPUÉS del fix: técnico ve lo suyo (200), técnico intenta ver a su
+supervisor — sigue en 403, correcto, no es su subordinado — supervisor
+ve lo suyo (200), supervisor ve a su subordinado (200). 4/4.
+
+### Commits
+
+- `96ab06c2` — fix(talento): pestaña Paquetes de documentos 403eaba para TODO técnico/supervisor
