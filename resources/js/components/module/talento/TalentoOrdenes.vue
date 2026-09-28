@@ -121,17 +121,25 @@
             <div class="row g-3">
               <div class="col-md-6">
                 <label class="form-label">Colaborador <span class="text-danger">*</span></label>
-                <input v-model="colSearch" @input="debounceColSearch" type="text" class="form-control"
-                       placeholder="Buscar colaborador…">
-                <ul v-if="colSuggestions.length" class="list-group mt-1 position-absolute shadow" style="z-index:10001;max-height:180px;overflow-y:auto">
-                  <li v-for="c in colSuggestions" :key="c.id" @click="selectCol(c)"
-                      class="list-group-item list-group-item-action small cursor-pointer">
-                    {{ fullName(c.user) }} <span class="text-muted">· {{ c.type }}</span>
-                  </li>
-                </ul>
-                <div v-if="createModal.colaborador_id" class="mt-1 small text-success">
-                  <i class="fa fa-check-circle me-1"></i>{{ createModal.colaborador_name }}
+                <!-- Dentro de la ficha de un colaborador (colaboradorId presente): fija,
+                     sin buscador — un supervisor sin acceso al roster completo no puede
+                     ni debe buscar A OTROS, solo crear para éste. -->
+                <div v-if="colaboradorId" class="form-control-plaintext small">
+                  <i class="fa fa-check-circle text-success me-1"></i>{{ createModal.colaborador_name }}
                 </div>
+                <template v-else>
+                  <input v-model="colSearch" @input="debounceColSearch" type="text" class="form-control"
+                         placeholder="Buscar colaborador…">
+                  <ul v-if="colSuggestions.length" class="list-group mt-1 position-absolute shadow" style="z-index:10001;max-height:180px;overflow-y:auto">
+                    <li v-for="c in colSuggestions" :key="c.id" @click="selectCol(c)"
+                        class="list-group-item list-group-item-action small cursor-pointer">
+                      {{ fullName(c.user) }} <span class="text-muted">· {{ c.type }}</span>
+                    </li>
+                  </ul>
+                  <div v-if="createModal.colaborador_id" class="mt-1 small text-success">
+                    <i class="fa fa-check-circle me-1"></i>{{ createModal.colaborador_name }}
+                  </div>
+                </template>
               </div>
               <div class="col-md-6">
                 <label class="form-label">Tipo de orden <span class="text-danger">*</span></label>
@@ -285,6 +293,18 @@ export default {
     // "Órdenes de trabajo" de la ficha de un colaborador) — sin esto, se
     // comporta igual que siempre (lista global).
     colaboradorId: { type: [Number, String], default: null },
+    // Nombre a mostrar cuando colaboradorId viene fijo (evita otra llamada
+    // solo para mostrar el nombre — el padre, TalentoColaboradorFicha.vue,
+    // ya lo tiene cargado).
+    colaboradorNombre: { type: String, default: '' },
+    // Resuelto server-side por la ficha (TalentoColaboradorController::ficha):
+    // true si además de/en vez del permiso global talento.work_orders.manage,
+    // quien mira ES el supervisor directo (talento_colaboradores.supervisor_id)
+    // de este colaborador — David, 28-sep: "supervisor" no es un rol, es esa
+    // relación asignada al crear/editar un colaborador. Solo tiene sentido
+    // junto con colaboradorId (la lista global no tiene un "de quién" al que
+    // supervisar).
+    puedeGestionar: { type: Boolean, default: false },
   },
   setup() {
     return { darkMode };
@@ -322,7 +342,7 @@ export default {
     activeTypes() { return this.types.filter(t => t.active); },
     selectedType() { return this.types.find(t => t.id === this.createModal.type_id) || null; },
     puedeCrear() {
-      return new Permission(this.permisosOrdenes).canDo('talento.work_orders.manage');
+      return this.puedeGestionar || new Permission(this.permisosOrdenes).canDo('talento.work_orders.manage');
     },
   },
   async mounted() {
@@ -351,7 +371,14 @@ export default {
     },
     goPage(p) { if (p >= 1 && p <= this.pagination.last_page) this.load(p); },
     openCreate() {
-      this.createModal = { show: true, colaborador_id: null, colaborador_name: '', type_id: null, scheduled_at: '', notes: '', saving: false, error: '', crm_lead_id: null, crm_lead_name: '' };
+      this.createModal = {
+        show: true,
+        // Pre-llenado y fijo si viene de la ficha de un colaborador — ver la nota junto
+        // al buscador en el template.
+        colaborador_id: this.colaboradorId || null,
+        colaborador_name: this.colaboradorId ? this.colaboradorNombre : '',
+        type_id: null, scheduled_at: '', notes: '', saving: false, error: '', crm_lead_id: null, crm_lead_name: '',
+      };
       this.colSearch = '';
       this.colSuggestions = [];
       this.prospSearch = '';

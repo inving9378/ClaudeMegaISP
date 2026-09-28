@@ -164,7 +164,7 @@
           <iframe src="/talento/portal" title="Portal de Colaborador — Mi trabajo" loading="lazy"></iframe>
         </div>
         <div v-if="activeTab === 'ordenes'">
-          <talento-ordenes :colaborador-id="id" />
+          <talento-ordenes :colaborador-id="id" :colaborador-nombre="colaborador?.user?.name ?? ''" :puede-gestionar="permisos.ordenes_manage" />
         </div>
         <div v-if="activeTab === 'compensacion'">
           <talento-compensacion :colaborador-id="id" :colaborador-nombre="colaborador?.user?.name ?? ''" />
@@ -275,12 +275,16 @@ export default {
     // Resuelto server-side: true si quien mira esta ficha ES el mismo
     // colaborador (independiente de si tiene acceso al Portal o no) — decide
     // qué endpoint usar en load() (ver TalentoColaboradorController::miFicha()).
+    // Pese al nombre, cubre DOS casos desde el servidor (ficha()): verse a
+    // uno mismo, O ser el supervisor directo viendo a su subordinado — ambos
+    // usan el endpoint self/supervisor-scoped (mi-ficha) en vez del de
+    // roster completo. Solo decide QUÉ ENDPOINT llamar; mostrarPortal (abajo)
+    // es la propiedad realmente restringida a "uno mismo, nunca el supervisor".
     esPropia: {
       type: Boolean,
       default: false,
     },
-    // esPropia + permiso portal.colaborador — nunca para un admin viendo la
-    // ficha de alguien más.
+    // Literal "uno mismo" (nunca el supervisor) + permiso portal.colaborador.
     mostrarPortal: {
       type: Boolean,
       default: false,
@@ -339,11 +343,12 @@ export default {
     async load() {
       this.loading = true;
       try {
-        // Self-scoped (sin talento.employees.view) cuando es la ficha propia —
-        // un colaborador sin visibilidad de roster completo igual puede abrir
-        // SU PROPIA ficha (ver TalentoColaboradorController::miFicha()).
+        // Self/supervisor-scoped (sin talento.employees.view) cuando `esPropia`
+        // vino true desde ficha() — cubre TANTO verse a uno mismo como al
+        // supervisor viendo a su subordinado directo (miFicha() distingue por
+        // el {id}; ver TalentoColaboradorController::miFicha()).
         const url = this.esPropia
-          ? `/talento/mi-ficha`
+          ? `/talento/mi-ficha/${this.id}`
           : `/talento/api/colaboradores/${this.id}`;
         const { data } = await axios.get(url);
         this.colaborador = data;

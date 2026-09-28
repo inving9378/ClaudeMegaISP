@@ -45,12 +45,13 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         // a como está Vendedores). Singular "colaborador" a propósito: no colisiona
         // con nada bajo /talento/colaboradores/* (plural, prefijo /api).
         Route::get('/colaborador/{id}', [TalentoColaboradorController::class, 'ficha']);
-        // Self-scoped por Actor (SIN talento.employees.view) — la ficha propia
-        // de quien está logueado, para poblar TalentoColaboradorFicha.vue
-        // cuando `esPropia` (item de arriba). Antes de /colaborador/{id} por
-        // convención de este archivo (fijas antes que con parámetro), aunque
-        // aquí no colisionan (prefijos distintos).
-        Route::get('/mi-ficha', [TalentoColaboradorController::class, 'miFicha']);
+        // Self/supervisor-scoped por Actor (SIN talento.employees.view) — la
+        // ficha propia, o la de un subordinado directo (talento_colaboradores
+        // .supervisor_id), para poblar TalentoColaboradorFicha.vue cuando
+        // `esPropia` (item de arriba — el nombre cubre ambos casos). Antes de
+        // /colaborador/{id} por convención de este archivo (fijas antes que
+        // con parámetro), aunque aquí no colisionan (prefijos distintos).
+        Route::get('/mi-ficha/{id?}', [TalentoColaboradorController::class, 'miFicha']);
         Route::get('/custodia',       [TalentoCustodiaController::class,     'index']);
         Route::get('/dispositivos',   [TalentoDeviceController::class,       'index']);
         Route::get('/roadmap',        [TalentoRoadmapController::class,      'index']);

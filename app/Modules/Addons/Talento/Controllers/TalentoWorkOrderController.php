@@ -65,8 +65,6 @@ class TalentoWorkOrderController extends Controller
 
     public function store(Request $request)
     {
-        $this->authorize('talento.work_orders.manage');
-
         $data = $request->validate([
             'colaborador_id' => 'required|exists:talento_colaboradores,id',
             'type_id'        => 'required|exists:talento_work_order_types,id',
@@ -77,6 +75,21 @@ class TalentoWorkOrderController extends Controller
             'scheduled_at'   => 'nullable|date',
             'notes'          => 'nullable|string',
         ]);
+
+        // "Supervisor" (David, 28-sep) = talento_colaboradores.supervisor_id,
+        // NO un rol de Spatie — el supervisor DIRECTO del colaborador puede
+        // crearle órdenes aunque no tenga el permiso general de gestión.
+        // talento.work_orders.manage sigue siendo la vía normal (admin/
+        // DESARROLLADOR); esto SOLO abre la excepción puntual del supervisor
+        // sobre SU subordinado, nunca sobre cualquier otro colaborador.
+        if (! auth()->user()->can('talento.work_orders.manage')) {
+            $esSuSupervisor = \App\Modules\Addons\Talento\Support\Actor::for(auth()->user())->talento()
+                ?->subordinados()
+                ->where('id', $data['colaborador_id'])
+                ->exists();
+
+            abort_unless($esSuSupervisor, 403, 'No tienes permiso para crear órdenes para este colaborador.');
+        }
 
         // Una OT es para un cliente ya alta O para un prospecto del CRM, nunca ambos (decisión q2 Irving).
         if (!empty($data['client_id']) && !empty($data['crm_lead_id'])) {

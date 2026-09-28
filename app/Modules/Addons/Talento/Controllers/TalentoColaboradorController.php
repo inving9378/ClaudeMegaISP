@@ -29,13 +29,25 @@ class TalentoColaboradorController extends Controller
     {
         $this->authorize('talento.view');
 
+        // "Supervisor", tal como lo definió David (28-sep): NO es un rol de
+        // Spatie — es la relación 1:1 talento_colaboradores.supervisor_id que
+        // ya existe y se asigna al crear/editar un colaborador. El supervisor
+        // DIRECTO de este colaborador puede crear/gestionar SUS órdenes,
+        // aunque no tenga el permiso general talento.work_orders.manage.
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        $colaboradorDeLaFicha = TalentoColaborador::find($id);
+        $esSuSupervisor = $miPropioColaborador
+            && $colaboradorDeLaFicha
+            && (int) $colaboradorDeLaFicha->supervisor_id === (int) $miPropioColaborador->id;
+
         $permisos = [
             'ordenes'         => auth()->user()->can('talento.work_orders.view'),
             // Distinción ver-lo-mío vs gestionar-de-todos (David, 28-sep):
             // un técnico viendo SU PROPIA ficha ya tiene sus órdenes dentro de
             // "Mi trabajo (Portal)" — esta pestaña admin (con crear/validar)
-            // solo se le muestra si además gestiona órdenes.
-            'ordenes_manage'  => auth()->user()->can('talento.work_orders.manage'),
+            // solo se le muestra si además gestiona órdenes O es su supervisor
+            // directo.
+            'ordenes_manage'  => auth()->user()->can('talento.work_orders.manage') || $esSuSupervisor,
             'compensacion'    => auth()->user()->can('talento.compensation.view'),
             'liquidaciones'   => auth()->user()->can('talento.liquidation.view'),
             'asistencia'      => auth()->user()->can('talento.attendance.view'),
@@ -54,17 +66,21 @@ class TalentoColaboradorController extends Controller
 
         // ¿Es la ficha de uno mismo? Un colaborador SIN talento.employees.view
         // (roster completo — staff, no técnicos) igual necesita poder abrir SU
-        // PROPIA ficha: /talento/api/colaboradores/{id} exige esa permission a
+        // PROPIA ficha, y su supervisor directo necesita poder abrir la de SU
+        // subordinado — ninguno de los dos casos requiere ver el roster
+        // completo. /talento/api/colaboradores/{id} exige esa permission a
         // nivel de ruta (check_route_permission), así que el frontend usa un
-        // endpoint self-scoped aparte (miFicha(), por Actor) cuando esPropia.
-        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        // endpoint self/supervisor-scoped aparte (miFicha(), por Actor)
+        // cuando alguno de los dos aplica.
+        // ($miPropioColaborador y $esSuSupervisor ya se resolvieron arriba.)
         $esPropia = $miPropioColaborador && (string) $miPropioColaborador->id === (string) $id;
+        $usarEndpointPropio = $esPropia || $esSuSupervisor;
 
-        // "Mi trabajo (Portal)" — SOLO cuando además tiene acceso al Portal de
-        // Colaborador. Nunca para un admin viendo la ficha de alguien más: el
-        // Portal (completar OT, evidencia, firma) es autoservicio self-scoped
-        // por Actor — un admin actuando ahí "por" otro colaborador equivaldría
-        // a falsificar su firma/evidencia. Se reusa el Portal TAL CUAL (iframe)
+        // "Mi trabajo (Portal)" — SOLO para uno mismo, JAMÁS para el
+        // supervisor viendo a su subordinado: el Portal (completar OT,
+        // evidencia, firma) es autoservicio self-scoped por Actor — que el
+        // supervisor actuara ahí "por" su subordinado equivaldría a
+        // falsificar su firma/evidencia. Se reusa el Portal TAL CUAL (iframe)
         // en vez de duplicar su lógica — ver CLAUDE.md "SERVICIOS COMPARTIDOS
         // ÚNICOS".
         $mostrarPortal = $esPropia && auth()->user()->can('portal.colaborador');
@@ -72,22 +88,30 @@ class TalentoColaboradorController extends Controller
         return view('addon-talento::talento.ficha', [
             'id' => $id,
             'permisos' => $permisos,
-            'esPropia' => $esPropia,
+            'esPropia' => $usarEndpointPropio,
             'mostrarPortal' => $mostrarPortal,
         ]);
     }
 
     /**
-     * Ficha propia, self-scoped por Actor — sin exigir talento.employees.view
-     * (ese permiso es de visibilidad de ROSTER completo, no aplica a verse a
-     * uno mismo). Mismo shape de respuesta que show(), para que el frontend
-     * (TalentoColaboradorFicha.vue) pueda usar cualquiera de los dos según
-     * si `esPropia` vino true desde ficha().
+     * Ficha propia O de un subordinado directo, self/supervisor-scoped por
+     * Actor — sin exigir talento.employees.view (ese permiso es de
+     * visibilidad de ROSTER completo, no aplica a verse a uno mismo ni a
+     * supervisar a tu propia gente). Mismo shape de respuesta que show(),
+     * para que el frontend (TalentoColaboradorFicha.vue) pueda usar
+     * cualquiera de los dos endpoints según lo que decidió ficha().
      */
-    public function miFicha()
+    public function miFicha(?string $id = null)
     {
-        $colaborador = Actor::for(auth()->user())->talento();
-        abort_if(! $colaborador, 404, 'No tienes un perfil de colaborador activo.');
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        abort_if(! $miPropioColaborador, 404, 'No tienes un perfil de colaborador activo.');
+
+        if ($id === null || (string) $id === (string) $miPropioColaborador->id) {
+            $colaborador = $miPropioColaborador;
+        } else {
+            $colaborador = $miPropioColaborador->subordinados()->where('id', $id)->first();
+            abort_if(! $colaborador, 403, 'Ese colaborador no es tu subordinado directo.');
+        }
 
         $colaborador->load(['user', 'supervisor.user', 'subordinados.user', 'puesto']);
 

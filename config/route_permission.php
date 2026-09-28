@@ -2057,6 +2057,7 @@ return [
         '/talento/dashboard',
         '/talento/colaborador/{id}',
         '/talento/mi-ficha',
+        '/talento/mi-ficha/{id}',
     ],
     'talento.dashboard.view' => [
         '/talento',
@@ -2133,6 +2134,17 @@ return [
     'talento.work_orders.view' => [
         '/talento/ordenes',
         '/talento/campo',
+        // Listar Y crear comparten path (el middleware no distingue método,
+        // solo path) — el controller (store()) hace la distinción real:
+        // talento.work_orders.manage O ser supervisor directo del colaborador
+        // (talento_colaboradores.supervisor_id). Sin esto, un supervisor sin
+        // el permiso general de gestión ni siquiera podía VER la lista.
+        '/talento/api/ordenes',
+        '/talento/api/ordenes/{id}',
+        // El selector de tipo del formulario "Nueva orden" — sin esto ni
+        // siquiera el supervisor con permiso real de crear (ver store())
+        // podía ver qué tipos existen. Gap pre-existente, no de esta sesión.
+        '/talento/api/order-types',
         '/talento/api/ots/**',
         '/talento/api/campo/{workOrderId}/estado',
         '/talento/api/campo/{workOrderId}/firmas',
