@@ -6,7 +6,7 @@
 <div class="page-content">
     <div class="container-fluid">
         <div>
-            <talento-colaborador-ficha :id="{{ (int) $id }}" :permisos='@json($permisos)'></talento-colaborador-ficha>
+            <talento-colaborador-ficha :id="{{ (int) $id }}" :permisos='@json($permisos)' :es-propia="{{ $esPropia ? 'true' : 'false' }}" :mostrar-portal="{{ $mostrarPortal ? 'true' : 'false' }}"></talento-colaborador-ficha>
         </div>
     </div>
 </div>

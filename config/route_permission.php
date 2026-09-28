@@ -2056,6 +2056,7 @@ return [
         '/talento',
         '/talento/dashboard',
         '/talento/colaborador/{id}',
+        '/talento/mi-ficha',
     ],
     'talento.dashboard.view' => [
         '/talento',

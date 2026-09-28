@@ -7,6 +7,7 @@ use App\Models\Seller;
 use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoRoleDepartment;
+use App\Modules\Addons\Talento\Support\Actor;
 use Illuminate\Http\Request;
 
 class TalentoColaboradorController extends Controller
@@ -30,6 +31,11 @@ class TalentoColaboradorController extends Controller
 
         $permisos = [
             'ordenes'         => auth()->user()->can('talento.work_orders.view'),
+            // Distinción ver-lo-mío vs gestionar-de-todos (David, 28-sep):
+            // un técnico viendo SU PROPIA ficha ya tiene sus órdenes dentro de
+            // "Mi trabajo (Portal)" — esta pestaña admin (con crear/validar)
+            // solo se le muestra si además gestiona órdenes.
+            'ordenes_manage'  => auth()->user()->can('talento.work_orders.manage'),
             'compensacion'    => auth()->user()->can('talento.compensation.view'),
             'liquidaciones'   => auth()->user()->can('talento.liquidation.view'),
             'asistencia'      => auth()->user()->can('talento.attendance.view'),
@@ -46,7 +52,52 @@ class TalentoColaboradorController extends Controller
             'roles_multiples' => auth()->user()->can('talento.embajadores.view'),
         ];
 
-        return view('addon-talento::talento.ficha', ['id' => $id, 'permisos' => $permisos]);
+        // ¿Es la ficha de uno mismo? Un colaborador SIN talento.employees.view
+        // (roster completo — staff, no técnicos) igual necesita poder abrir SU
+        // PROPIA ficha: /talento/api/colaboradores/{id} exige esa permission a
+        // nivel de ruta (check_route_permission), así que el frontend usa un
+        // endpoint self-scoped aparte (miFicha(), por Actor) cuando esPropia.
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        $esPropia = $miPropioColaborador && (string) $miPropioColaborador->id === (string) $id;
+
+        // "Mi trabajo (Portal)" — SOLO cuando además tiene acceso al Portal de
+        // Colaborador. Nunca para un admin viendo la ficha de alguien más: el
+        // Portal (completar OT, evidencia, firma) es autoservicio self-scoped
+        // por Actor — un admin actuando ahí "por" otro colaborador equivaldría
+        // a falsificar su firma/evidencia. Se reusa el Portal TAL CUAL (iframe)
+        // en vez de duplicar su lógica — ver CLAUDE.md "SERVICIOS COMPARTIDOS
+        // ÚNICOS".
+        $mostrarPortal = $esPropia && auth()->user()->can('portal.colaborador');
+
+        return view('addon-talento::talento.ficha', [
+            'id' => $id,
+            'permisos' => $permisos,
+            'esPropia' => $esPropia,
+            'mostrarPortal' => $mostrarPortal,
+        ]);
+    }
+
+    /**
+     * Ficha propia, self-scoped por Actor — sin exigir talento.employees.view
+     * (ese permiso es de visibilidad de ROSTER completo, no aplica a verse a
+     * uno mismo). Mismo shape de respuesta que show(), para que el frontend
+     * (TalentoColaboradorFicha.vue) pueda usar cualquiera de los dos según
+     * si `esPropia` vino true desde ficha().
+     */
+    public function miFicha()
+    {
+        $colaborador = Actor::for(auth()->user())->talento();
+        abort_if(! $colaborador, 404, 'No tienes un perfil de colaborador activo.');
+
+        $colaborador->load(['user', 'supervisor.user', 'subordinados.user', 'puesto']);
+
+        if ($colaborador->user) {
+            $colaborador->user->role_names = $colaborador->user->getRoleNames();
+        }
+
+        $this->hideExpedienteFields($colaborador);
+
+        return response()->json($colaborador);
     }
 
     public function data(Request $request)

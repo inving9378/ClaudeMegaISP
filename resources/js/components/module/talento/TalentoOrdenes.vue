@@ -4,7 +4,7 @@
     <div class="tc-card">
       <div class="tc-cardhead d-flex flex-wrap align-items-center justify-content-between gap-2 p-3">
         <h5 class="tc-h1 mb-0"><i class="fa fa-clipboard-list me-2"></i>Órdenes de Trabajo</h5>
-        <button @click="openCreate" class="tc-btn tc-btn-ok">
+        <button v-if="puedeCrear" @click="openCreate" class="tc-btn tc-btn-ok">
           <i class="fa fa-plus me-1"></i> Nueva orden
         </button>
       </div>
@@ -275,6 +275,8 @@
 
 <script>
 import { darkMode } from "../../../hook/appConfig.js";
+import Permission from "../../../helpers/Permission.js";
+import { allViewHasPermission } from "../../../helpers/Request.js";
 
 export default {
   name: 'TalentoOrdenes',
@@ -289,6 +291,13 @@ export default {
   },
   data() {
     return {
+      // "Nueva orden" es una acción de GESTIÓN, no de ver-lo-mío — un técnico
+      // no debe poder crearse órdenes a sí mismo. talento.work_orders.manage
+      // ya está acotado a super-administrator/DESARROLLADOR (David, 28-sep:
+      // "si no eres admin, desarrollador, supervisor no deberías poder crear
+      // órdenes" — el rol de supervisor de campo pendiente de sumarse a ese
+      // permiso, ver bitácora).
+      permisosOrdenes: {},
       orders: [],
       types: [],
       loading: true,
@@ -312,10 +321,14 @@ export default {
   computed: {
     activeTypes() { return this.types.filter(t => t.active); },
     selectedType() { return this.types.find(t => t.id === this.createModal.type_id) || null; },
+    puedeCrear() {
+      return new Permission(this.permisosOrdenes).canDo('talento.work_orders.manage');
+    },
   },
-  mounted() {
+  async mounted() {
     this.loadTypes();
     this.load();
+    this.permisosOrdenes = await allViewHasPermission();
   },
   methods: {
     debounceLoad() {

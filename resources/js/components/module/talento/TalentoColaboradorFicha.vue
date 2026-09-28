@@ -57,7 +57,13 @@
             <i class="bi bi-person me-1"></i> Información
           </a>
         </li>
-        <li class="nav-item" v-if="permisos.ordenes">
+        <li class="nav-item" v-if="mostrarPortal">
+          <a class="nav-link" :class="{ active: activeTab === 'mi_trabajo' }" href="#"
+             @click.prevent="setActiveTab('mi_trabajo')">
+            <i class="bi bi-phone-vibrate me-1"></i> Mi trabajo (Portal)
+          </a>
+        </li>
+        <li class="nav-item" v-if="mostrarTabOrdenes">
           <a class="nav-link" :class="{ active: activeTab === 'ordenes' }" href="#"
              @click.prevent="setActiveTab('ordenes')">
             <i class="bi bi-clipboard-check me-1"></i> Órdenes de trabajo
@@ -153,6 +159,9 @@
       <div class="tc-panel">
         <div v-if="activeTab === 'informacion'">
           <talento-ficha-informacion :colaborador="colaborador" />
+        </div>
+        <div v-if="activeTab === 'mi_trabajo'" class="tc-portal-embed">
+          <iframe src="/talento/portal" title="Portal de Colaborador — Mi trabajo" loading="lazy"></iframe>
         </div>
         <div v-if="activeTab === 'ordenes'">
           <talento-ordenes :colaborador-id="id" />
@@ -263,6 +272,19 @@ export default {
       type: Object,
       default: () => ({}),
     },
+    // Resuelto server-side: true si quien mira esta ficha ES el mismo
+    // colaborador (independiente de si tiene acceso al Portal o no) — decide
+    // qué endpoint usar en load() (ver TalentoColaboradorController::miFicha()).
+    esPropia: {
+      type: Boolean,
+      default: false,
+    },
+    // esPropia + permiso portal.colaborador — nunca para un admin viendo la
+    // ficha de alguien más.
+    mostrarPortal: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup() {
     return { darkMode };
@@ -279,6 +301,15 @@ export default {
     esTecnico() {
       const roles = this.colaborador?.user?.role_names ?? [];
       return ["TECNICO", "TECNICO_INSTALADOR", "TECNICO_PLANTA"].some(r => roles.includes(r));
+    },
+    // Un técnico viendo SU PROPIA ficha ya tiene sus órdenes dentro de "Mi
+    // trabajo (Portal)" — la pestaña admin (con crear/validar) solo aplica
+    // si además gestiona órdenes, o si está viendo la ficha de alguien más
+    // (oversight de staff, sin cambios respecto a como estaba).
+    mostrarTabOrdenes() {
+      if (!this.permisos.ordenes) return false;
+      if (this.esPropia && !this.permisos.ordenes_manage) return false;
+      return true;
     },
     isFirst() {
       const idx = this.lista.findIndex(c => String(c.id) === String(this.id));
@@ -308,7 +339,13 @@ export default {
     async load() {
       this.loading = true;
       try {
-        const { data } = await axios.get(`/talento/api/colaboradores/${this.id}`);
+        // Self-scoped (sin talento.employees.view) cuando es la ficha propia —
+        // un colaborador sin visibilidad de roster completo igual puede abrir
+        // SU PROPIA ficha (ver TalentoColaboradorController::miFicha()).
+        const url = this.esPropia
+          ? `/talento/mi-ficha`
+          : `/talento/api/colaboradores/${this.id}`;
+        const { data } = await axios.get(url);
         this.colaborador = data;
       } catch (e) {
         this.colaborador = null;
@@ -338,3 +375,17 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.tc-portal-embed {
+  width: 100%;
+  height: 80vh;
+  min-height: 560px;
+}
+.tc-portal-embed iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 8px;
+}
+</style>
