@@ -547,3 +547,72 @@ su subordinado. 8/8.
 ### Commits
 
 - `1e9ddffb` — bug que la tenía rota SIEMPRE (500) + IDOR real
+
+## 2026-09-28 13:26 — Dispositivos: qué es, IDOR real, tab vacía por gap de permisos, y un hallazgo de diseño importante
+
+David pidió explicar y **verificar que funcione bien**. La pestaña son en
+realidad DOS cosas distintas en una misma pantalla:
+
+1. **Descarga de la app** (QR + link) — muestra la última versión activa
+   de "Talento Equipo" (`talento_app_releases`) para que el colaborador
+   instale/actualice la app de campo. Público, sin sesión
+   (`/talento/api/app/latest`, a propósito — hace falta poder descargar la
+   app antes de poder loguearse). **Verificado funcionando**: hay una
+   versión activa real (v1.7) y el APK existe en el servidor (200 real).
+2. **"Dispositivos Vinculados"** — un registro de qué teléfono está
+   autorizado a usar la cuenta de cada colaborador en la app, con
+   aprobar/revocar.
+
+### 🔴 Hallazgo de diseño importante — el "candado" de dispositivo no está conectado a nada
+
+Investigando a fondo (nadie llama a `bind()`/lee `TalentoDevice` en ningún
+otro lugar del código — ni en la app móvil, ni en el login, ni en ningún
+middleware de autenticación): **este control NUNCA se activa solo, y
+revocarlo NO bloquea nada de verdad.** El texto de la pantalla dice "al
+vincular uno nuevo, el anterior se revoca automáticamente" — describe un
+comportamiento que hoy **no ocurre en ningún lado**; la app móvil real no
+llama a este endpoint al iniciar sesión. Es una tabla + pantalla completas
+para un control de seguridad que quedó a medio conectar: el CRUD en sí
+funciona (probado: crear/aprobar/revocar un registro no truena y guarda
+bien), pero no impide que nadie use la app desde otro teléfono. Dejé una
+nota de advertencia visible en la propia pantalla para que nadie confíe en
+"Revocar" como si fuera un candado real. **Conectarlo de verdad requeriría
+tocar la app móvil (repo aparte, `/home/meganet/TalentoEquipo`) — fuera de
+alcance de esta verificación, queda documentado para que Irving decida si
+vale la pena.**
+
+### 🔴 IDOR real (mismo patrón que Custodia)
+
+`forColaborador()` no tenía scoping propio. `talento.devices.view` lo
+tienen TECNICO/TECNICO_PLANTA/TECNICO_INSTALADOR directo (necesario para
+que vean la tarjeta de descarga del APK en `/talento/dispositivos`), pero
+sin scoping ese permiso abría el listado de dispositivos de **cualquier**
+colaborador para cualquier técnico. Corregido con el mismo
+`puedeVerDispositivosDe()` (uno mismo/supervisor directo/
+`talento.employees.view`) usado en Custodia.
+
+### 🔴 Bug real — la pestaña se veía VACÍA en autoservicio (gap distinto a los anteriores)
+
+A diferencia de Custodia (que arma el nombre del colaborador desde la
+propia respuesta de su endpoint), `TalentoDispositivos.vue` hacía una
+llamada APARTE a `GET /talento/api/colaboradores/{id}` solo para mostrar
+el nombre — y ese path **nunca estuvo en `talento.view`** (solo en
+`talento.employees.view`, admin-only). Un técnico viendo su propia ficha:
+esa llamada 403eaba, el `try/finally` sin `catch` dejaba `cols` sin
+asignar, y la tabla completa quedaba en "No hay colaboradores que mostrar"
+— **pese a que el endpoint de dispositivos en sí ya funcionaba
+correctamente**. Corregido sin tocar `route_permission.php` (más seguro
+que abrir un endpoint compartido por medio proyecto): el componente ahora
+recibe el nombre por prop (`colaborador-nombre`, mismo patrón que
+`TalentoOrdenes.vue`/`TalentoRutas.vue`) en vez de pedirlo aparte.
+
+**Verificado con Playwright** (cuentas + dispositivo de prueba —
+crear/aprobar/revocar simulados directo en BD, borrados al terminar):
+técnico ve su propio dispositivo (antes tabla vacía, ahora con datos
+reales), la UI pinta la fila y el estado "Revocado" correctamente, técnico
+ajeno bloqueado (403), supervisor ve el de su subordinado, y la descarga
+del APK sigue pública sin sesión. 8/8.
+
+### Commits
+
+- `54324a96` — IDOR real + tab vacía en autoservicio + hallazgo de diseño
