@@ -176,7 +176,7 @@
           <talento-asistencia :colaborador-id="id" />
         </div>
         <div v-if="activeTab === 'campo'">
-          <talento-campo :colaborador-id="id" />
+          <talento-campo :colaborador-id="id" :colaborador-nombre="colaborador?.user?.name ?? ''" :puede-gestionar="permisos.ordenes_manage" />
         </div>
         <div v-if="activeTab === 'cajas'">
           <talento-cajas :colaborador-id="id" />

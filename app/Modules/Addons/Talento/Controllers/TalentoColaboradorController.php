@@ -12,8 +12,23 @@ use Illuminate\Http\Request;
 
 class TalentoColaboradorController extends Controller
 {
+    /**
+     * David (28-sep): quien NO tiene visibilidad de roster completo
+     * (talento.employees.view — hoy solo admin/DESARROLLADOR) no debería
+     * aterrizar en el listado de "Colaboradores" al entrar a Talento — va
+     * derecho a SU PROPIA ficha (las pestañas que le aplican a él). El
+     * listado completo queda solo para quien de verdad necesita ver/buscar
+     * a todos.
+     */
     public function index()
     {
+        if (! auth()->user()->can('talento.employees.view')) {
+            $miPropioColaborador = Actor::for(auth()->user())->talento();
+            if ($miPropioColaborador) {
+                return redirect("/talento/colaborador/{$miPropioColaborador->id}");
+            }
+        }
+
         return view('addon-talento::talento.index');
     }
 
@@ -66,15 +81,18 @@ class TalentoColaboradorController extends Controller
 
         // ¿Es la ficha de uno mismo? Un colaborador SIN talento.employees.view
         // (roster completo — staff, no técnicos) igual necesita poder abrir SU
-        // PROPIA ficha, y su supervisor directo necesita poder abrir la de SU
-        // subordinado — ninguno de los dos casos requiere ver el roster
-        // completo. /talento/api/colaboradores/{id} exige esa permission a
-        // nivel de ruta (check_route_permission), así que el frontend usa un
-        // endpoint self/supervisor-scoped aparte (miFicha(), por Actor)
-        // cuando alguno de los dos aplica.
+        // PROPIA ficha, su supervisor directo necesita poder abrir la de SU
+        // subordinado, y quien gestiona órdenes en general (admin/DESARROLLADOR
+        // o, desde el 28-sep, el rol Mostrador — David: "Diana puede crear
+        // órdenes/flujo para un técnico") necesita poder abrir la de
+        // CUALQUIERA sin que eso implique verle el roster completo. Ninguno de
+        // los tres casos requiere talento.employees.view.
+        // /talento/api/colaboradores/{id} SÍ exige esa permission a nivel de
+        // ruta (check_route_permission), así que el frontend usa un endpoint
+        // aparte (miFicha(), por Actor) cuando alguno de los tres aplica.
         // ($miPropioColaborador y $esSuSupervisor ya se resolvieron arriba.)
         $esPropia = $miPropioColaborador && (string) $miPropioColaborador->id === (string) $id;
-        $usarEndpointPropio = $esPropia || $esSuSupervisor;
+        $usarEndpointPropio = $esPropia || $esSuSupervisor || auth()->user()->can('talento.work_orders.manage');
 
         // "Mi trabajo (Portal)" — SOLO para uno mismo, JAMÁS para el
         // supervisor viendo a su subordinado: el Portal (completar OT,
@@ -94,23 +112,32 @@ class TalentoColaboradorController extends Controller
     }
 
     /**
-     * Ficha propia O de un subordinado directo, self/supervisor-scoped por
-     * Actor — sin exigir talento.employees.view (ese permiso es de
-     * visibilidad de ROSTER completo, no aplica a verse a uno mismo ni a
-     * supervisar a tu propia gente). Mismo shape de respuesta que show(),
-     * para que el frontend (TalentoColaboradorFicha.vue) pueda usar
-     * cualquiera de los dos endpoints según lo que decidió ficha().
+     * Ficha propia, de un subordinado directo, o de CUALQUIERA si quien pide
+     * gestiona órdenes en general (talento.work_orders.manage — admin/
+     * DESARROLLADOR/Mostrador) — ninguno de los tres exige
+     * talento.employees.view (esa es visibilidad de ROSTER completo, un
+     * permiso más amplio que "puedo crear/ver órdenes de este colaborador").
+     * Mismo shape de respuesta que show(), para que el frontend
+     * (TalentoColaboradorFicha.vue) pueda usar cualquiera de los dos
+     * endpoints según lo que decidió ficha().
      */
     public function miFicha(?string $id = null)
     {
         $miPropioColaborador = Actor::for(auth()->user())->talento();
-        abort_if(! $miPropioColaborador, 404, 'No tienes un perfil de colaborador activo.');
 
-        if ($id === null || (string) $id === (string) $miPropioColaborador->id) {
+        if ($id !== null && $miPropioColaborador === null && auth()->user()->can('talento.work_orders.manage')) {
+            // Quien gestiona órdenes en general (ej. Mostrador) no
+            // necesariamente tiene su propio registro de colaborador —
+            // Diana no es "un talento", pero sí puede crearle órdenes a uno.
+            $colaborador = TalentoColaborador::find($id);
+            abort_if(! $colaborador, 404);
+        } elseif ($id === null || (string) $id === (string) ($miPropioColaborador->id ?? null)) {
+            abort_if(! $miPropioColaborador, 404, 'No tienes un perfil de colaborador activo.');
             $colaborador = $miPropioColaborador;
         } else {
-            $colaborador = $miPropioColaborador->subordinados()->where('id', $id)->first();
-            abort_if(! $colaborador, 403, 'Ese colaborador no es tu subordinado directo.');
+            $colaborador = $miPropioColaborador->subordinados()->where('id', $id)->first()
+                ?? (auth()->user()->can('talento.work_orders.manage') ? TalentoColaborador::find($id) : null);
+            abort_if(! $colaborador, 403, 'No tienes permiso para ver a este colaborador.');
         }
 
         $colaborador->load(['user', 'supervisor.user', 'subordinados.user', 'puesto']);

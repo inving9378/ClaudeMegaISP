@@ -6,6 +6,9 @@
       <div class="tc-card">
         <div class="tc-cardhead d-flex align-items-center justify-content-between flex-wrap gap-2 p-3">
           <h5 class="tc-h1 mb-0"><i class="fa fa-hard-hat me-2 text-primary"></i>Órdenes de Campo</h5>
+          <button v-if="colaboradorId && puedeCrear" @click="showCrearModal = true" class="tc-btn tc-btn-ok">
+            <i class="fa fa-plus me-1"></i> Nuevo flujo
+          </button>
         </div>
 
         <div class="p-3">
@@ -355,16 +358,37 @@
       </template>
     </template>
 
+    <talento-flujo-crear-modal
+      :show="showCrearModal"
+      :colaborador-id="colaboradorId"
+      :colaborador-nombre="colaboradorNombre"
+      @close="showCrearModal = false"
+      @created="onFlujoCreado"
+    />
   </div>
 </template>
 
 <script>
 import { darkMode } from "../../../hook/appConfig.js";
+import Permission from "../../../helpers/Permission.js";
+import { allViewHasPermission } from "../../../helpers/Request.js";
+import TalentoFlujoCrearModal from "./TalentoFlujoCrearModal.vue";
 
 export default {
   name: 'TalentoCampo',
+  // Registro LOCAL — mismo motivo que TalentoColaboradorFicha.vue: el
+  // objeto `components` de createApp() en app.js solo es local a la
+  // instancia RAÍZ, un componente anidado no lo hereda.
+  components: { TalentoFlujoCrearModal },
   props: {
     colaboradorId: { type: [Number, String], default: null },
+    // Nombre a mostrar en el modal de creación cuando colaboradorId viene
+    // fijo — el padre (TalentoColaboradorFicha.vue) ya lo tiene cargado.
+    colaboradorNombre: { type: String, default: '' },
+    // Resuelto server-side por la ficha, igual que en TalentoOrdenes.vue:
+    // admin/DESARROLLADOR (permiso general) o supervisor directo de ESTE
+    // colaborador — ver TalentoColaboradorController::ficha().
+    puedeGestionar: { type: Boolean, default: false },
   },
   setup() {
     return { darkMode };
@@ -376,6 +400,8 @@ export default {
       filters: { search: '', status: '' },
       debounceTimer: null,
       selectedOrderId: null,
+      permisosGlobales: {},
+      showCrearModal: false,
       flow: null,
       loadingFlow: false,
 
@@ -420,9 +446,18 @@ export default {
     canAccept() {
       return this.hasSig('technician') && this.hasSig('client') && this.iaCleared;
     },
+    puedeCrear() {
+      return this.puedeGestionar || new Permission(this.permisosGlobales).canDo('talento.work_orders.manage');
+    },
   },
-  mounted() { this.load(); },
+  async mounted() {
+    this.load();
+    this.permisosGlobales = await allViewHasPermission();
+  },
   methods: {
+    onFlujoCreado() {
+      this.load();
+    },
     debounce() {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = setTimeout(() => this.load(), 350);
