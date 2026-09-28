@@ -154,6 +154,9 @@ import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoEmbajadores',
+  props: {
+    colaboradorId: { type: [Number, String], default: null },
+  },
   setup() {
     return { darkMode };
   },
@@ -180,10 +183,20 @@ export default {
     },
     async load(page = 1) {
       this.loading = true;
-      const r = await axios.get('/talento/api/colaboradores', { params: { page, per_page: 20, search: this.search } }).catch(() => null);
+      let data;
+      if (this.colaboradorId) {
+        // Ficha de un colaborador: se trae directo por id, no por la lista
+        // paginada de 20 (evita el bug de "no aparece si no está en la
+        // primera página").
+        const r = await axios.get(`/talento/api/colaboradores/${this.colaboradorId}`).catch(() => null);
+        data = r?.data ? [r.data] : [];
+        this.pagination = { current_page: 1, last_page: 1 };
+      } else {
+        const r = await axios.get('/talento/api/colaboradores', { params: { page, per_page: 20, search: this.search } }).catch(() => null);
+        data = r?.data?.data ?? [];
+        this.pagination = { current_page: r?.data?.current_page ?? 1, last_page: r?.data?.last_page ?? 1 };
+      }
       this.loading = false;
-      const data = r?.data?.data ?? [];
-      this.pagination = { current_page: r?.data?.current_page ?? 1, last_page: r?.data?.last_page ?? 1 };
       // Init with null cross-links (lazy loaded)
       this.items = data.map(c => ({ ...c, _embajador: undefined, _seller: undefined }));
       // Lazy load cross-links for visible rows

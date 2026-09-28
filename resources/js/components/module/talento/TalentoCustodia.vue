@@ -127,6 +127,11 @@ import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoCustodia',
+  props: {
+    // Si viene, salta directo a la custodia de este colaborador (uso: pestaña
+    // "Custodia" de la ficha) en vez de mostrar la grilla de selección.
+    colaboradorId: { type: [Number, String], default: null },
+  },
   setup() {
     return { darkMode };
   },
@@ -141,6 +146,11 @@ export default {
     };
   },
   mounted() {
+    if (this.colaboradorId) {
+      this.loadingLista = false;
+      this.selectColaborador({ id: this.colaboradorId, user: {}, type: '' });
+      return;
+    }
     this.loadLista();
   },
   methods: {

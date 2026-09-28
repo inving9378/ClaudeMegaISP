@@ -420,6 +420,9 @@ import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoCredenciales',
+  props: {
+    colaboradorId: { type: [Number, String], default: null },
+  },
   setup() {
     return { darkMode };
   },
@@ -465,6 +468,11 @@ export default {
     },
   },
   mounted() {
+    if (this.colaboradorId) {
+      this.tab = 'by_col';
+      this.selectedColId = this.colaboradorId;
+      this.loadColData();
+    }
     this.loadAlerts();
     this.loadExpiredCount();
     this.loadColaboradores();

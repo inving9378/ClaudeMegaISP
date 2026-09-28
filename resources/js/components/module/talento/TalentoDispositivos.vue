@@ -134,6 +134,11 @@ import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoDispositivos',
+  props: {
+    // Si viene, acota la lista a este único colaborador (uso: pestaña
+    // "Dispositivos" de la ficha) — sin esto, se comporta igual que siempre.
+    colaboradorId: { type: [Number, String], default: null },
+  },
   setup() {
     return { darkMode };
   },
@@ -182,10 +187,19 @@ export default {
     async loadColaboradores() {
       this.loadingColaboradores = true;
       try {
-        const { data } = await axios.get('/talento/api/colaboradores', {
-          params: { search: this.searchColaborador, per_page: 50 }
-        });
-        const cols = data?.data ?? [];
+        let cols;
+        if (this.colaboradorId) {
+          // Ficha de un colaborador: se trae directo por id (no por búsqueda de
+          // texto/paginación) — evita el bug de "no aparece si no está en la
+          // primera página de 50".
+          const { data: col } = await axios.get(`/talento/api/colaboradores/${this.colaboradorId}`);
+          cols = [col];
+        } else {
+          const { data } = await axios.get('/talento/api/colaboradores', {
+            params: { search: this.searchColaborador, per_page: 50 }
+          });
+          cols = data?.data ?? [];
+        }
         await Promise.all(cols.map(async (col) => {
           try {
             const r = await axios.get(`/talento/api/colaboradores/${col.id}/dispositivos`);

@@ -361,6 +361,9 @@ import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoFiniquito',
+  props: {
+    colaboradorId: { type: [Number, String], default: null },
+  },
   setup() {
     return { darkMode };
   },
@@ -397,6 +400,10 @@ export default {
     },
   },
   mounted() {
+    if (this.colaboradorId) {
+      this.lFilters.colaborador_id = this.colaboradorId;
+      this.sColId = this.colaboradorId;
+    }
     this.loadColaboradores();
     this.loadLoans();
   },

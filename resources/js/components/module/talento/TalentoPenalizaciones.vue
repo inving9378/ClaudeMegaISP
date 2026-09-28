@@ -557,6 +557,9 @@ import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoPenalizaciones',
+  props: {
+    colaboradorId: { type: [Number, String], default: null },
+  },
   setup() {
     return { darkMode };
   },
@@ -638,6 +641,9 @@ export default {
     },
   },
   mounted() {
+    if (this.colaboradorId) {
+      this.pFilters.colaborador_id = this.colaboradorId;
+    }
     this.loadAll();
   },
   methods: {
