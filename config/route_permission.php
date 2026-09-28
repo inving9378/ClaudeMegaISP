@@ -2115,6 +2115,28 @@ return [
         '/talento/api/penalties',
         '/talento/api/penalties/**',
         '/talento/penalty-evidence/{id}',
+        // "Por colaborador" (credencial/fondo de UN colaborador puntual):
+        // el permiso de STAFF o el supervisor DIRECTO de ese colaborador —
+        // el controller (esSuperiorDe()/esGestorDe()) hace la distinción
+        // real. David, 28-sep: "la pestaña de por colaborador debe salirle
+        // solo a los superiores" — a propósito SIN excepción de
+        // autoservicio (a diferencia del resto del módulo). Las listas
+        // globales (/credentials/expiring, /credentials/funds-alert) NO se
+        // listan aquí a propósito — siguen 100% admin-only.
+        '/talento/api/colaboradores/{id}/credentials',
+        '/talento/api/colaboradores/{id}/funds',
+        '/talento/api/credentials',
+        // ⚠️ NO usar '/talento/api/credentials/{id}' aquí: convertRouteToRegex
+        // convierte {id} en [^/]+ (cualquier segmento), lo que matchearía
+        // también /talento/api/credentials/expiring y
+        // /talento/api/credentials/funds-alert (las listas globales que
+        // deben seguir admin-only) — el middleware es method-agnostic, no
+        // distingue GET de PUT. Regex numérico explícito para que solo
+        // matchee el {id} real de update() (siempre un entero autoincrement).
+        '/talento/api/credentials/[0-9]+',
+        '/talento/credential-doc/{id}',
+        '/talento/api/funds',
+        '/talento/api/funds/**',
     ],
     'talento.dashboard.view' => [
         '/talento',

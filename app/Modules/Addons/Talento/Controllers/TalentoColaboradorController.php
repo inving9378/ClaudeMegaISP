@@ -148,6 +148,18 @@ class TalentoColaboradorController extends Controller
             // TalentoPenaltyController::applyPenalty()).
             'penalizaciones_manage' => auth()->user()->can('talento.penalties.manage') || $esSuSupervisor,
             'credenciales'    => auth()->user()->can('talento.credentials.view') || $tieneAccesoAmplio,
+            // David (28-sep): "la pestaña de por colaborador debe salirle
+            // solo a los superiores" — a diferencia del resto de los
+            // *_manage, a propósito SIN $esSuSupervisor implícito en
+            // "verse a uno mismo": aquí NI SIQUIERA uno mismo entra (el
+            // colaborador no gestiona su propia credencial/fondo, se
+            // entera por correo automático) — solo admin/DESARROLLADOR o
+            // ser supervisor de ALGUIEN. Mismo criterio que
+            // TalentoCredentialController::esSuperiorDe().
+            'credenciales_manage' => auth()->user()->can('talento.credentials.view')
+                || auth()->user()->can('talento.funds.view')
+                || auth()->user()->can('talento.employees.view')
+                || (bool) ($miPropioColaborador?->subordinados()->exists()),
             'finiquito'       => auth()->user()->can('talento.loans.view') || $tieneAccesoAmplio,
             'custodia'        => auth()->user()->can('talento.custody.view') || $tieneAccesoAmplio,
             'dispositivos'    => auth()->user()->can('talento.devices.view') || $tieneAccesoAmplio,
