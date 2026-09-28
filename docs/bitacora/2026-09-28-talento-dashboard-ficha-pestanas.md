@@ -862,3 +862,50 @@ técnico. 13/13.
 ### Commits
 
 - `ca51f56d` — el controller con MENOS protección de toda la ficha
+
+## 2026-09-28 14:11 — Cajas ODB: verificado catálogo/config, un IDOR menor encontrado y corregido
+
+David pidió verificar específicamente el catálogo/config de esta pestaña.
+Esta ya había sido trabajada con cuidado en una pasada anterior (misma
+sesión): "registrar baseline" (medición real de campo, técnico puede
+hacerlo) separado de "guardar settings" (política del bono, admin o
+cualquier supervisor) — la distinción y el diseño ya estaban bien hechos,
+con comentarios explícitos de la decisión de David.
+
+**Verificado y confirmado correcto (sin cambios):** el catálogo de
+cajas/baselines (`data()`/`latestPerCaja()`) es global a propósito
+(infraestructura compartida, no "de una persona" — decisión ya
+documentada); `getSettings()`/`updateSettings()` distinguen bien
+admin/supervisor de técnico simple (`puede_gestionar` en la respuesta,
+consumido correctamente por el frontend); "Registrar baseline" sigue sin
+gate, como debe ser.
+
+### 🔴 Encontrado y corregido: IDOR menor en el log de bono de salud
+
+`bonusLog()` exigía solo `talento.health_bonus.view` — mismo patrón
+recurrente de esta sesión: ese permiso lo tienen TECNICO/TECNICO_PLANTA/
+TECNICO_INSTALADOR **directo** (para ver su propio log en su ficha), pero
+sin scoping propio cualquier técnico podía pasar el `colaborador_id` de
+CUALQUIER otro compañero y ver su historial de bonos (qué orden de
+trabajo, cuánta pérdida óptica, si ganó bono y cuánto). Corregido con
+`puedeVerBonusLogDe()` (uno mismo/supervisor directo/`talento.employees.view`
+— no `talento.health_bonus.view`, que es justo la que ya tienen los
+técnicos).
+
+**Verificado con Playwright** (cuentas + log de bono de prueba, borrados
+al terminar): técnico registra su propio baseline; técnico sin equipo NO
+puede guardar settings (403 + `puede_gestionar:false`); supervisor SÍ
+puede (200, monto quedó guardado); técnico ajeno bloqueado del bonus-log
+de otro (403); técnico ve el suyo propio; supervisor ve el de su
+subordinado; listado global sin filtro bloqueado para técnico; UI oculta
+"Guardar settings" a técnico simple y lo muestra a supervisor. 14/14.
+
+⚠️ Nota de limpieza: al revertir el monto de bono que la prueba cambió a
+$35, se borró la fila de `settings` en vez de restaurar su valor previo
+(no capturado antes de la prueba) — queda en el default del código ($30).
+Dato de configuración de dev, bajo impacto, pero lo dejo anotado por
+transparencia.
+
+### Commits
+
+- `7017a9a4` — IDOR menor en bonusLog(), resto del catálogo/config verificado OK
