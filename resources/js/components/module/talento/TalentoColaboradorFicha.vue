@@ -223,7 +223,8 @@
           <talento-embajadores :colaborador-id="id"
             :colaborador-nombre="colaborador?.user?.name ?? ''"
             :colaborador-email="colaborador?.user?.email ?? ''"
-            :colaborador-type="colaborador?.type ?? ''" />
+            :colaborador-type="colaborador?.type ?? ''"
+            :puede-gestionar="permisos.embajadores_buscador" />
         </div>
         <div v-if="activeTab === 'documentos'">
           <talento-ficha-documentos :colaborador-id="id" />

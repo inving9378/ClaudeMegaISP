@@ -188,6 +188,13 @@ class TalentoColaboradorController extends Controller
                 || (bool) ($miPropioColaborador?->subordinados()->exists()),
             'dispositivos'    => auth()->user()->can('talento.devices.view') || $tieneAccesoAmplio,
             'roles_multiples' => auth()->user()->can('talento.embajadores.view') || $tieneAccesoAmplio,
+            // David (28-sep): "oculta el buscador aquí también, igual que
+            // en Custodia" — mismo criterio que custodia_buscador:
+            // talento.employees.view o CUALQUIER supervisor, NO
+            // talento.embajadores.view (esa también la tiene TECNICO
+            // directo, no distingue).
+            'embajadores_buscador' => auth()->user()->can('talento.employees.view')
+                || (bool) ($miPropioColaborador?->subordinados()->exists()),
             // Nuevas (item 1b, 28-sep): expediente/paquetes de documentos y
             // academia — antes solo pantallas globales, ahora también
             // pestañas de la ficha propia.
