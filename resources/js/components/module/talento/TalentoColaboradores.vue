@@ -12,10 +12,6 @@
       <div class="p-3">
       <!-- Filtros -->
       <div class="row g-2 mb-3">
-        <div class="col-md-4">
-          <input v-model="filters.search" @input="debounceLoad" type="text"
-                 class="form-control form-control-sm" placeholder="Buscar nombre o email…">
-        </div>
         <div class="col-md-2">
           <select v-model="filters.status" @change="load" class="form-select form-select-sm tc-select">
             <option value="">Todos los status</option>
@@ -33,86 +29,82 @@
         </div>
       </div>
 
-      <!-- Tabla -->
-      <div v-if="loading" class="text-center py-5">
-        <div class="spinner-border text-primary"></div>
-      </div>
-      <div v-else class="table-responsive">
-        <table class="table table-hover table-sm align-middle">
-          <thead class="table-light">
-            <tr>
-              <th>Nombre</th>
-              <th>Tipo</th>
-              <th>Departamento</th>
-              <th>Supervisor</th>
-              <th>Ingreso</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="col in items" :key="col.id">
-              <td>
-                <div class="fw-semibold">{{ col.user?.name }}</div>
-                <div class="small text-muted">{{ col.user?.email }}</div>
-                <!-- Roles Spatie (solo lectura) — la gestión vive en Administradores -->
-                <div v-if="col.user?.role_names?.length" class="mt-1">
-                  <span v-for="r in col.user.role_names" :key="r"
-                        class="tc-status is-slate me-1" style="font-size:10px;">
-                    {{ r }}
-                  </span>
-                </div>
-              </td>
-              <td>
-                <span class="tc-status" :class="col.type === 'interno' ? 'is-info' : 'is-slate'">
-                  {{ col.type }}
-                </span>
-              </td>
-              <td>{{ col.department ?? '—' }}</td>
-              <td>{{ col.supervisor?.user?.name ?? '—' }}</td>
-              <td class="small">{{ formatDate(col.hire_date) }}</td>
-              <td><span class="tc-status" :class="statusBadge(col.status)">{{ statusLabel(col.status) }}</span></td>
-              <td class="text-end">
-                <button v-if="canManage" @click="openModal(col)" class="tc-btn tc-btn-info me-1">
-                  <i class="fa fa-pen"></i>
-                </button>
-                <a :href="`/talento/custodia`" class="tc-btn tc-btn-seg me-1" title="Custodia">
-                  <i class="fa fa-boxes"></i>
-                </a>
-                <button @click="openDocumentos(col)" class="tc-btn tc-btn-seg me-1" title="Documentos">
-                  <i class="fa fa-file-alt"></i>
-                </button>
-                <!-- Cross-link: gestión de acceso en Administradores -->
-                <a :href="`/administracion/user/${col.user_id}/editar`"
-                   class="tc-btn tc-btn-info" title="Gestión de acceso (Administradores)"
-                   target="_blank">
-                  <i class="fa fa-key"></i>
-                </a>
-              </td>
-            </tr>
-            <tr v-if="!items.length">
-              <td colspan="7" class="text-center text-muted py-4">No se encontraron colaboradores.</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <!-- Paginación -->
-        <div v-if="pagination.last_page > 1" class="d-flex justify-content-end">
-          <nav>
-            <ul class="pagination pagination-sm mb-0">
-              <li class="page-item" :class="{ disabled: pagination.current_page <= 1 }">
-                <button class="page-link" @click="goPage(pagination.current_page - 1)">‹</button>
-              </li>
-              <li v-for="p in pagination.last_page" :key="p" class="page-item" :class="{ active: p === pagination.current_page }">
-                <button class="page-link" @click="goPage(p)">{{ p }}</button>
-              </li>
-              <li class="page-item" :class="{ disabled: pagination.current_page >= pagination.last_page }">
-                <button class="page-link" @click="goPage(pagination.current_page + 1)">›</button>
-              </li>
-            </ul>
-          </nav>
-        </div>
-      </div>
+      <!-- Tabla — mismo patrón visual/estructural que VendedorListar.vue -->
+      <q-table
+        :rows="items"
+        :columns="tableColumns"
+        :filter="filters.search"
+        :dark="darkMode"
+        :rows-per-page-label="'Elementos por página'"
+        v-model:pagination="qPagination"
+        binary-state-sort
+        :loading="loading"
+        no-data-label="No se encontraron colaboradores."
+        @request="onTableRequest"
+      >
+        <template v-slot:top-right>
+          <q-input
+            borderless
+            dense
+            v-model="filters.search"
+            @update:model-value="debounceLoad"
+            placeholder="Buscar nombre o email…"
+            class="mb-0"
+            style="min-width:220px"
+            :dark="darkMode"
+          />
+        </template>
+        <template v-slot:body-cell-name="props">
+          <q-td :props="props">
+            <a href="javascript:void(0)" @click="goToFicha(props.row)" class="fw-semibold">
+              {{ props.row.user?.name }}
+            </a>
+            <div class="small text-muted">{{ props.row.user?.email }}</div>
+            <div v-if="props.row.user?.role_names?.length" class="mt-1">
+              <span v-for="r in props.row.user.role_names" :key="r"
+                    class="tc-status is-slate me-1" style="font-size:10px;">
+                {{ r }}
+              </span>
+            </div>
+          </q-td>
+        </template>
+        <template v-slot:body-cell-type="props">
+          <q-td :props="props">
+            <span class="tc-status" :class="props.row.type === 'interno' ? 'is-info' : 'is-slate'">
+              {{ props.row.type }}
+            </span>
+          </q-td>
+        </template>
+        <template v-slot:body-cell-department="props">
+          <q-td :props="props">{{ props.row.department ?? '—' }}</q-td>
+        </template>
+        <template v-slot:body-cell-supervisor="props">
+          <q-td :props="props">{{ props.row.supervisor?.user?.name ?? '—' }}</q-td>
+        </template>
+        <template v-slot:body-cell-hire_date="props">
+          <q-td :props="props" class="small">{{ formatDate(props.row.hire_date) }}</q-td>
+        </template>
+        <template v-slot:body-cell-status="props">
+          <q-td :props="props">
+            <span class="tc-status" :class="statusBadge(props.row.status)">{{ statusLabel(props.row.status) }}</span>
+          </q-td>
+        </template>
+        <template v-slot:body-cell-acciones="props">
+          <q-td :props="props" class="text-end">
+            <button v-if="canManage" @click="openModal(props.row)" class="tc-btn tc-btn-info me-1" title="Editar">
+              <i class="fa fa-pen"></i>
+            </button>
+            <button @click="openDocumentos(props.row)" class="tc-btn tc-btn-seg me-1" title="Documentos">
+              <i class="fa fa-file-alt"></i>
+            </button>
+            <a :href="`/administracion/user/${props.row.user_id}/editar`"
+               class="tc-btn tc-btn-info" title="Gestión de acceso (Administradores)"
+               target="_blank">
+              <i class="fa fa-key"></i>
+            </a>
+          </q-td>
+        </template>
+      </q-table>
       </div>
     </div>
 
@@ -369,6 +361,16 @@ export default {
       loading: true,
       saving: false,
       pagination: { current_page: 1, last_page: 1 },
+      qPagination: { page: 1, rowsPerPage: 25, rowsNumber: 0 },
+      tableColumns: [
+        { name: 'name', label: 'Nombre', align: 'left', field: row => row.user?.name },
+        { name: 'type', label: 'Tipo', align: 'left', field: 'type' },
+        { name: 'department', label: 'Departamento', align: 'left', field: 'department' },
+        { name: 'supervisor', label: 'Supervisor', align: 'left', field: row => row.supervisor?.user?.name },
+        { name: 'hire_date', label: 'Ingreso', align: 'left', field: 'hire_date' },
+        { name: 'status', label: 'Status', align: 'left', field: 'status' },
+        { name: 'acciones', label: '', align: 'right', field: 'id' },
+      ],
       filters: { search: '', status: '', type: '' },
       modal: this.emptyModal(),
       errors: {},
@@ -427,9 +429,20 @@ export default {
         });
         this.items = data?.data ?? [];
         this.pagination = { current_page: data?.current_page ?? 1, last_page: data?.last_page ?? 1 };
+        this.qPagination = {
+          page: data?.current_page ?? 1,
+          rowsPerPage: data?.per_page ?? 25,
+          rowsNumber: data?.total ?? this.items.length,
+        };
       } finally {
         this.loading = false;
       }
+    },
+    onTableRequest(requestProp) {
+      this.load(requestProp?.pagination?.page ?? 1);
+    },
+    goToFicha(col) {
+      window.location.href = `/talento/colaborador/${col.id}`;
     },
     async loadSupervisores() {
       try {
