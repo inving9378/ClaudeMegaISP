@@ -90,3 +90,80 @@ importa incluso en cambios que "deberían" ser triviales.
   aquí por tiempo — no es parte del pedido central).
 - Validación visual en navegador (esta pasada fue verificación por HTTP/tinker,
   no clic real en pantalla).
+
+## 2026-09-28 (continuación) — corrección tras revisión en vivo de David
+
+David probó la ficha en vivo como técnico y reportó dos problemas reales de la
+pasada anterior:
+
+### 1. Las pestañas "no técnicas" no se veían en la ficha propia
+
+`ficha()` calculaba cada `permisos.xxx` con el permiso de STAFF puro
+(`talento.compensation.view`, etc.) — pensado para que un admin vea a
+CUALQUIERA, no para que un colaborador se vea a sí mismo. El rol TECNICO no
+tiene otorgada la mayoría de esos permisos, así que un técnico viendo su
+propia ficha casi no veía nada.
+
+Fix: `$tieneAccesoAmplio` (uno mismo || su supervisor directo ||
+`talento.employees.view`) se suma con OR a los 16 permisos. `ordenes_manage`
+queda igual a propósito (verse a uno mismo no da de gratis "Nueva orden").
+
+### 1b. Dos pestañas nuevas: "Paquetes de documentos" y "Academia"
+
+David las pidió explícitas. Nuevos endpoints self/supervisor/manage-scoped
+(`miFichaDocumentos()`/`miFichaAcademia()`, extraída la lógica de
+autorización común a `resolverColaboradorAutoservicio()` — la reusan también
+`miFicha()`) que delegan en la lógica YA construida
+(`TalentoEmployeeDocumentController::forColaborador()` y
+`TalentoAcademyController::progress/certificationsForColaborador()`) sin
+duplicarla. 2 componentes nuevos de solo lectura (`TalentoFichaDocumentos.vue`,
+`TalentoFichaAcademia.vue`) — distintos de las pantallas globales de
+catálogo/gestión (`TalentoPaqueteDocumentos.vue`/`TalentoAcademia.vue`, que
+siguen intactas, sin tocar).
+
+De paso: typo real en `route_permission.php` (`/talento.api/...` con punto
+en vez de barra) que hacía que `talento.academy.view` nunca desbloqueara
+`/certifications` — corregido.
+
+### 2. El listado `/talento` con 3 comportamientos según quién entra
+
+David: "admin, desarrollador y mostrador si debe salirle la lista completa
+menos los supervisores que debe salirles la lista de los que están a su
+cargo."
+
+- `talento.employees.view` (admin/DESARROLLADOR/Mostrador) → listado
+  COMPLETO.
+- Supervisor (subordinados vía `supervisor_id`, sin ese permiso) → mismo
+  listado, apuntado al nuevo endpoint self-scoped `/talento/api/mi-equipo`
+  (candado FORZADO `where('supervisor_id', ...)`, no opcional).
+- Cualquier otro → redirige directo a su ficha (sin cambios).
+
+**Hallazgo real durante la verificación:** `talento.employees.view` nunca
+existió como fila real en `permissions` — solo se usaba por texto en
+`route_permission.php` (~15 rutas). Nadie lo necesitó nunca porque admin/
+DESARROLLADOR pasan por el bypass de `CheckRoutePermission::isAdmin()/
+isDevelopment()` antes de cualquier chequeo de permiso. La migración de
+Mostrador tuvo que crear la fila (`firstOrCreate`) antes de otorgarla — la
+primera versión fallaba en silencio (`Role::hasPermissionTo()` con un
+nombre inexistente lanza `PermissionDoesNotExist`, atrapado por el guard
+`if ($role && $permiso...)`).
+
+### Verificado con Playwright, los 4 puntos pedidos (cuentas desechables,
+### borradas al terminar)
+
+1. Técnico Demo (colaborador 43) en su propia ficha → ahora ve las 18
+   pestañas completas (antes solo 7), confirmado contenido real (no solo el
+   botón) en Compensación/Liquidaciones/Proyectos/Paquetes de
+   documentos/Academia.
+2. Supervisor de prueba (1 subordinado) en `/talento` → ve el listado (no
+   redirige), filtrado a exactamente 1 fila (su subordinado), no las 29
+   filas del roster completo.
+3. Mostrador de prueba en `/talento` → ve el listado completo (25 filas,
+   paginado igual que admin).
+4. Admin/DESARROLLADOR en `/talento` → sigue viendo el listado completo sin
+   cambios (25 filas).
+
+### Commits de esta continuación
+
+- `13eb2c85` — pestañas propias + 2 nuevas + listado por rol
+- `28c6377f` — fix de `talento.employees.view` (creaba la fila real)
