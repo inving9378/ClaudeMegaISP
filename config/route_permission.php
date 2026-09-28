@@ -2526,6 +2526,11 @@ return [
     'talento.embajadores.view' => [
         '/talento/embajadores-colabs',
         '/talento/api/colaboradores/{id}/embajador-data',
+        // seller-data faltaba aquí — técnico tenía embajador-data pero NO
+        // esta, así que la columna "Es vendedor" siempre 403eaba en
+        // autoservicio (bug real encontrado 28-sep verificando la pestaña
+        // "Roles múltiples").
+        '/talento/api/colaboradores/{id}/seller-data',
     ],
     'talento.ventas.view' => [
         '/talento/mis-ventas',

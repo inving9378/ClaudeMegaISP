@@ -220,7 +220,10 @@
           <talento-dispositivos :colaborador-id="id" :colaborador-nombre="colaborador?.user?.name ?? ''" />
         </div>
         <div v-if="activeTab === 'roles_multiples'">
-          <talento-embajadores :colaborador-id="id" />
+          <talento-embajadores :colaborador-id="id"
+            :colaborador-nombre="colaborador?.user?.name ?? ''"
+            :colaborador-email="colaborador?.user?.email ?? ''"
+            :colaborador-type="colaborador?.type ?? ''" />
         </div>
         <div v-if="activeTab === 'documentos'">
           <talento-ficha-documentos :colaborador-id="id" />

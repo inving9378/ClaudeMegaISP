@@ -8,6 +8,7 @@ use App\Models\Referrals\Referral;
 use App\Models\Referrals\ReferralCommission;
 use App\Models\Referrals\ReferralReward;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
+use App\Modules\Addons\Talento\Support\Actor;
 use Illuminate\Support\Facades\DB;
 
 class TalentoEmbajadoresController extends Controller
@@ -19,12 +20,32 @@ class TalentoEmbajadoresController extends Controller
     }
 
     /**
+     * `talento.view` (el único gate previo, en ambos métodos) lo tienen
+     * TODOS los técnicos — sin scoping propio, cualquiera podía ver las
+     * comisiones de referidos/ventas de CUALQUIER otro colaborador (datos
+     * de dinero). Mismo patrón que puedeVerCustodiaDe()/
+     * puedeVerDispositivosDe(): uno mismo, su supervisor directo, o
+     * talento.employees.view (NO talento.embajadores.view — esa también
+     * la tiene TECNICO directo, no sirve para distinguir).
+     */
+    private function puedeVerRolesMultiplesDe($colaboradorId): bool
+    {
+        if (auth()->user()->can('talento.employees.view')) {
+            return true;
+        }
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        if (! $miPropioColaborador) return false;
+        return (string) $miPropioColaborador->id === (string) $colaboradorId
+            || $miPropioColaborador->subordinados()->where('id', $colaboradorId)->exists();
+    }
+
+    /**
      * Cross-link: collaborator who is also an ambassador (client).
      * Read-only view of their referral data. Does NOT touch Referrals tables.
      */
     public function embajadorData(int $colaboradorId)
     {
-        $this->authorize('talento.view');
+        abort_unless($this->puedeVerRolesMultiplesDe($colaboradorId), 403);
 
         $col = TalentoColaborador::with('user')->findOrFail($colaboradorId);
 
@@ -97,7 +118,7 @@ class TalentoEmbajadoresController extends Controller
      */
     public function sellerData(int $colaboradorId)
     {
-        $this->authorize('talento.view');
+        abort_unless($this->puedeVerRolesMultiplesDe($colaboradorId), 403);
 
         $col = TalentoColaborador::with('user')->findOrFail($colaboradorId);
 

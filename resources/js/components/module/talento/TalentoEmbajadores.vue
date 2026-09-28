@@ -156,6 +156,14 @@ export default {
   name: 'TalentoEmbajadores',
   props: {
     colaboradorId: { type: [Number, String], default: null },
+    // La ficha ya conoce estos datos — usarlos directo evita depender de
+    // GET /talento/api/colaboradores/{id}, que NO está en talento.view (un
+    // técnico viendo su propia ficha 403eaba ahí y la tabla quedaba vacía
+    // pese a que embajador-data/seller-data sí funcionan). Mismo patrón
+    // que TalentoDispositivos.vue.
+    colaboradorNombre: { type: String, default: '' },
+    colaboradorEmail: { type: String, default: '' },
+    colaboradorType: { type: String, default: '' },
   },
   setup() {
     return { darkMode };
@@ -173,7 +181,24 @@ export default {
       detailModal: null,
     };
   },
-  mounted() {
+  async mounted() {
+    if (this.colaboradorId) {
+      this.load(1);
+      return;
+    }
+    // Pantalla suelta (/talento/embajadores-colabs): un técnico sin
+    // talento.employees.view no alcanza el listado paginado (403) — en vez
+    // de mostrarle una tabla vacía, se le resuelve directo su propia fila
+    // (mismo criterio que TalentoCustodia.vue).
+    try {
+      const { data } = await axios.get('/talento/mi-ficha');
+      if (data?.id) {
+        this.items = [{ id: data.id, user: { name: data.user?.name, email: data.user?.email }, type: data.type, _embajador: undefined, _seller: undefined }];
+        this.loadCrossLinks(this.items[0]);
+        this.pagination = { current_page: 1, last_page: 1 };
+        return;
+      }
+    } catch { /* sin colaborador propio — cae al listado normal */ }
     this.load(1);
   },
   methods: {
@@ -185,11 +210,10 @@ export default {
       this.loading = true;
       let data;
       if (this.colaboradorId) {
-        // Ficha de un colaborador: se trae directo por id, no por la lista
-        // paginada de 20 (evita el bug de "no aparece si no está en la
-        // primera página").
-        const r = await axios.get(`/talento/api/colaboradores/${this.colaboradorId}`).catch(() => null);
-        data = r?.data ? [r.data] : [];
+        // Ficha de un colaborador: el nombre/email/tipo ya vienen resueltos
+        // por props (evita GET /talento/api/colaboradores/{id} — ver
+        // comentario de los props).
+        data = [{ id: this.colaboradorId, user: { name: this.colaboradorNombre, email: this.colaboradorEmail }, type: this.colaboradorType }];
         this.pagination = { current_page: 1, last_page: 1 };
       } else {
         const r = await axios.get('/talento/api/colaboradores', { params: { page, per_page: 20, search: this.search } }).catch(() => null);
