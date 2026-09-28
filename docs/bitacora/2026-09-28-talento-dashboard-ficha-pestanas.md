@@ -237,3 +237,66 @@ supervisor crea proyecto vía API → 201. Los 12 checks pasaron limpio.
 ### Commits
 
 - `036a7e7c` — supervisor crea/aprueba, técnico solo reporta lo propio, oculta botón
+
+## 2026-09-28 11:33 — Penalizaciones: técnico no puede penalizar (ni a sí mismo), solo ve; supervisor sí a su equipo
+
+David: "los mismos técnicos no pueden penalizarse, eso no lo haría nadie
+ahí, solo debe mostrarse las penalizaciones, lo mismo ocurre con los demás,
+el superior es el que penaliza, no ellos mismos, en caso de tener
+subordinados sí lo pueden hacer" — mismo criterio ya aplicado a Órdenes/
+Compensación/Cajas/Rutas/Proyectos.
+
+**Estado previo:** `applyPenalty()` exigía `talento.penalties.manage`
+(solo admin/DESARROLLADOR, sin excepción de supervisor). `penaltiesIndex()`
+y `showPenalty()` **no tenían NINGÚN chequeo de autorización** — quien
+lograra alcanzar la ruta veía CUALQUIER penalización de CUALQUIER
+colaborador. La ruta en sí bloqueaba a los técnicos por completo
+(`talento.penalties.view` admin-only en `route_permission.php`), así que la
+pestaña de la ficha propia quedaba inservible para autoservicio.
+
+**Fix (mismo patrón supervisor-directo del resto del módulo):**
+- `TalentoPenaltyController::applyPenalty()` — admin/DESARROLLADOR o
+  supervisor DIRECTO del `colaborador_id` a penalizar. Como nadie es su
+  propio supervisor (ya blindado en `update()`), esto hace **estructuralmente
+  imposible** autopenalizarse — no hizo falta un candado aparte.
+- Nuevo helper `puedeVerPenalizacionesDe()` (uno mismo/supervisor
+  directo/staff) aplicado en `penaltiesIndex()` (con filtro `colaborador_id`
+  vs. listado global — mismo criterio que `TalentoRouteController::data()`),
+  `showPenalty()` y `serveEvidencePhoto()` — cierra el gap de que cualquiera
+  podía ver la penalización de cualquiera.
+- `submitAppeal()` — apelar TU PROPIA penalización es defenderte, no
+  gestionar: se agregó excepción de autoservicio (colaborador propio ===
+  colaborador de la penalización), **sin** tocarla para supervisores (la
+  cola completa de apelaciones y `resolveAppeal()` siguen 100% admin-only,
+  fuera de lo pedido).
+- `permisos.penalizaciones_manage` (ficha()) — mismo patrón que
+  `ordenes_manage`/`rutas_manage`: `talento.penalties.manage` O
+  `$esSuSupervisor`, **sin** `$tieneAccesoAmplio` (verse a uno mismo nunca
+  da de gratis el botón).
+- `TalentoPenalizaciones.vue` — botón "Aplicar penalización" y tabs
+  "Apelaciones"/"Catálogo de tipos" ocultos sin `puedeGestionar` (mismo
+  patrón `puedeGestionar`/fallback `allViewHasPermission` de Rutas/
+  Proyectos). "Solo debe mostrarse las penalizaciones" tomado literal: la
+  cola completa de apelaciones de TODOS y la gestión del catálogo de tipos
+  son EXCLUSIVAS de quien gestiona — el propio flujo de apelar TU PROPIA
+  penalización sigue disponible dentro del modal "Ver" (no es lo mismo).
+- `route_permission.php` — mismo gap recurrente: `/talento/api/penalties`
+  (+`**`) y `/talento/penalty-evidence/{id}` abiertos en `talento.view`;
+  `/talento/api/penalty-appeals/**` (cola completa + resolver) queda FUERA
+  a propósito, sigue exigiendo el permiso de staff.
+
+**Verificado con Playwright** (cuentas desechables, borradas al terminar,
+incluyendo limpieza de `talento_ledger_entries` — `applyPenalty()` sí
+escribe al ledger real): botón/tabs ocultos para técnico sin equipo,
+visibles para supervisor en la ficha de su subordinado; técnico penaliza a
+un ajeno → 403; técnico se autopenaliza → 403; supervisor penaliza a su
+subordinado → 201; técnico ve su propia penalización → 200; otro técnico
+ajeno NO la ve → 403; técnico apela su propia penalización → 201; técnico
+pide el listado global (sin filtro) → 403. 10/10 (el único "fallo" inicial
+fue un error del script de prueba — probaba el botón en la ficha PROPIA del
+supervisor, donde correctamente no debe aparecer, no en la de su
+subordinado).
+
+### Commits
+
+- `deb7cdcd` — técnico no puede penalizar(se), supervisor sí a su equipo
