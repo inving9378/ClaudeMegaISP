@@ -33,6 +33,26 @@ class TalentoCajaController extends Controller
         return (bool) Actor::for(auth()->user())->talento()?->subordinados()->exists();
     }
 
+    /**
+     * Ver el log de bono de salud de un colaborador puntual: uno mismo,
+     * su supervisor directo, o staff — mismo criterio que el resto del
+     * módulo. NO se usa talento.health_bonus.view aquí a propósito: la
+     * tienen TECNICO/TECNICO_PLANTA/TECNICO_INSTALADOR directo (para ver
+     * el log de bono en su propia ficha), y sin este scoping esa misma
+     * permission abría el historial de bonos de CUALQUIER otro
+     * colaborador (qué OT, cuánta pérdida, si ganó bono y cuánto).
+     */
+    private function puedeVerBonusLogDe($colaboradorId): bool
+    {
+        if (auth()->user()->can('talento.employees.view')) {
+            return true;
+        }
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        if (! $miPropioColaborador) return false;
+        return (string) $miPropioColaborador->id === (string) $colaboradorId
+            || $miPropioColaborador->subordinados()->where('id', $colaboradorId)->exists();
+    }
+
     public function index()
     {
         $this->authorize('talento.caja.view');
@@ -107,7 +127,14 @@ class TalentoCajaController extends Controller
 
     public function bonusLog(Request $request)
     {
-        $this->authorize('talento.health_bonus.view');
+        // Sin filtro por colaborador_id = listado global → exige el
+        // permiso de STAFF de verdad. Con filtro = uno mismo, supervisor
+        // directo también pueden verlo.
+        if ($request->filled('colaborador_id')) {
+            abort_unless($this->puedeVerBonusLogDe($request->colaborador_id), 403);
+        } else {
+            $this->authorize('talento.employees.view');
+        }
 
         $q = TalentoHealthBonusLog::when($request->colaborador_id, fn($q, $v) => $q->where('colaborador_id', $v))
             ->when($request->work_order_id, fn($q, $v) => $q->where('work_order_id', $v))
