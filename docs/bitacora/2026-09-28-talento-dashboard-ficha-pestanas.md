@@ -1578,3 +1578,50 @@ desechable) sigue aterrizando en `/`, sin verse forzado a Talento.
 ### Commits
 
 - `2f4ed1cc` — técnico aterriza siempre en Talento, sin importar otros roles (Vendedor incluido)
+
+## 2026-09-29 (cont.) — Consolidación: un solo dashboard, se retira /talento/dashboard
+
+David: "cuando acabes con eso, lo que está acá,
+http://38.123.192.199:8081/talento/dashboard ponlo en el dashboard
+nuevo para que haya uno solo y elimina ese del sidebar".
+
+**Qué era `/talento/dashboard`:** una pantalla suelta previa a la
+reestructuración de hoy — 4 tarjetas KPI (colaboradores activos,
+asistencia hoy, órdenes hoy, alertas) + 4 pestañas: Producción diaria
+(gráfica), Mi panel (cuota/pago proyectado de un colaborador elegido),
+Calculadora de pago (simulador hipotético) y Mi equipo (resumen del
+equipo de un supervisor elegido).
+
+**Consolidación:** el mismo componente (`TalentoDashboard.vue`, sin
+reescribir nada) se monta ahora ARRIBA de la tabla de colaboradores en
+`TalentoColaboradores.vue` — el dashboard nuevo, `/talento`. Se retiró
+la pantalla suelta completa: ruta eliminada, blade borrado, entrada
+"Dashboard" quitada del menú del sidebar.
+
+**Hallazgo real al consolidar (no reportado por David — encontrado
+auditando antes de ampliar el alcance del dashboard):** `tecnicoPreview()`
+/`simulatePay()`/`equipoPreview()` — que muestran CUOTA y **PAGO
+PROYECTADO** (datos de nómina) de un colaborador elegido en un selector
+— no tenían NINGÚN candado por colaborador, solo el permiso general
+`talento.dashboard.view` (que TECNICO tiene directo). Además, los 5
+endpoints de datos del dashboard no estaban en NINGÚN bloque de
+`route_permission.php` — en la práctica el dashboard viejo solo
+funcionaba de verdad para admin/DESARROLLADOR (bypass total); ningún
+técnico pudo verlo jamás pese a tener el permiso. Al integrarlo ahora
+al flujo normal (alcanzable por cualquier supervisor), se cierra el
+scoping real con el mismo criterio de siempre: uno mismo/supervisor
+directo/staff. El selector de colaborador de los 3 sub-paneles (antes
+SIEMPRE pedía el roster completo de 200, sin importar quién mirara)
+ahora respeta `soloMiEquipo`, igual que la tabla de abajo.
+
+**Verificado con Playwright real:** DESARROLLADOR ve el dashboard
+completo + la tabla en `/talento`; `/talento/dashboard` ahora da 404;
+0 enlaces a esa URL en el sidebar. Un supervisor (cuenta desechable) ve
+el dashboard + su lista propia, sin el botón "Nuevo colaborador" (no es
+staff); intento de ver el pago proyectado de un colaborador ajeno →
+403 (antes sin ningún candado); de su propio subordinado o su propio
+equipo → 200.
+
+### Commits
+
+- `79eccc04` — dashboard viejo consolidado dentro de /talento, ruta suelta y entrada de sidebar retiradas, IDOR de pago proyectado cerrado
