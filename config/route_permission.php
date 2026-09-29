@@ -2366,6 +2366,16 @@ return [
         // "talento" — este patrón nunca hacía match, así que
         // talento.academy.view solo no bastaba para /certifications.
         '/talento/api/colaboradores/{id}/certifications',
+        // Faltaban por completo (29-sep, verificando "Academia") — sin
+        // esto, ningún técnico podía tomar un examen, enviarlo, ver sus
+        // propios intentos ni ver sus propias certificaciones: el
+        // autoservicio (self-scoped por auth()->id(), sin riesgo — ver
+        // TalentoAcademyController::submitExam()/myAttempts()/
+        // myCertifications()) estaba construido pero inalcanzable.
+        '/talento/api/exams/{id}/take',
+        '/talento/api/exams/{id}/submit',
+        '/talento/api/exams/{id}/my-attempts',
+        '/talento/api/my-certifications',
     ],
     'talento.academy.manage' => [
         '/talento/api/courses',
