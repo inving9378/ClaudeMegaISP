@@ -1543,3 +1543,38 @@ sesión, en vez de `/crm/listar`.
 ### Commits
 
 - `834f76d6` — /talento sube a 2ª posición en el aterrizaje post-login, solo afecta al rol TECNICO puro
+
+## 2026-09-29 (cont.) — Aterrizaje post-login, segunda vuelta: un técnico que TAMBIÉN es Vendedor no quedaba cubierto
+
+David reprobó el fix anterior: "lo volví a probar e igual me manda para
+el dashboard de clientes, así que vamos a cambiarlo por el dashboard de
+talento si es un técnico".
+
+**Por qué el fix anterior no alcanzaba:** se verificó con la cuenta demo
+real (`manual_demo_tecnico`, sesión de Playwright autenticada con su
+contraseña, que David compartió directo para este diagnóstico). Esa
+cuenta tiene roles **Vendedor+TECNICO**, y Vendedor SÍ trae
+`dashboard_view_dashboard` — así que calificaba para `/` (dashboard
+general) en la PRIMERA posición de la lista, antes de que el bucle
+llegara siquiera a revisar `/talento`. El reorden de la vuelta anterior
+solo cubría al técnico "puro" sin ningún otro rol con acceso a `/` —
+exactamente el hueco que David seguía pisando.
+
+**Corrección:** nuevo paso 0 en `PostLoginRedirectService::resolve()` —
+si el usuario tiene rol TECNICO/TECNICO_INSTALADOR/TECNICO_PLANTA
+(mismo set que `TalentoCajaController::ROLES_TECNICO`), aterriza
+SIEMPRE en `/talento`, sin importar qué otro rol tenga también, y sin
+importar `last_visited_route` (para no quedar atrapado en una ruta
+vieja de una prueba anterior). Excluido a propósito si el usuario es
+admin/Súper Administrador/DESARROLLADOR real — no se le fuerza nada a
+una cuenta de desarrollo que traiga un rol técnico de prueba cargado.
+
+**Verificado con Playwright real, con la cuenta demo real:** ahora
+aterriza directo en `/talento/colaborador/43` tras iniciar sesión (antes
+`/`). Un Vendedor puro (cuenta desechable) sigue aterrizando en `/` sin
+cambio. Un DESARROLLADOR con rol técnico de prueba cargado (cuenta
+desechable) sigue aterrizando en `/`, sin verse forzado a Talento.
+
+### Commits
+
+- `2f4ed1cc` — técnico aterriza siempre en Talento, sin importar otros roles (Vendedor incluido)
