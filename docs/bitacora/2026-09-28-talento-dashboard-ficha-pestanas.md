@@ -1248,3 +1248,63 @@ desechables) limpiados/restaurados al terminar.
 ### Commits
 
 - `6fd7e4b0` — Academia: crear/editar cursos + IDOR de certificaciones/progreso, cerrados
+
+## 2026-09-29 (cont.) — Academia: la ficha propia ahora entra a los cursos (no solo el resumen)
+
+David: "el detalle es que debes mostrar los cursos para que pueda entrar
+no solo mostrar los que estan y el progreso debe poder empezarlos por
+ahi mismo".
+
+**El problema:** el fix inicial dejó la pestaña Academia de la ficha
+como un resumen de solo lectura (progreso + certificaciones) — correcto
+para cuando ALGUIEN MÁS ve tu ficha, pero incompleto para cuando eres
+TÚ viéndote a ti mismo: no había forma de entrar a un curso ni de
+presentar un examen desde ahí.
+
+**Por qué no es "igual que Documentos":** `TalentoAcademia.vue` (el
+catálogo completo — ver curso, material, presentar examen) está
+diseñado SIEMPRE self-scoped por `auth()->id()` en el backend — a
+diferencia de `TalentoExpedienteDocumentos.vue`, no admite apuntarlo al
+"colaborador de la ficha" cuando ese no es quien mira. Por eso solo
+tiene sentido montarlo cuando el que ve la ficha ES literalmente ese
+colaborador — nunca su supervisor ("presentar el examen por él"
+falsificaría el resultado, mismo principio que ya rige "Mi trabajo
+(Portal)"). Se agregó una señal nueva, `esUnoMismoLiteral` (distinta de
+`esPropia`, que también es true para el supervisor), desde el
+controller hasta el componente: uno mismo monta el catálogo completo,
+cualquier otro viewer sigue con el resumen de solo lectura.
+
+**Bug de conexión encontrado al cablearlo:** `TalentoAcademia` está
+registrado en el objeto `components:{}` gigante de `createApp()` en
+`app.js` — en Vue 3 eso registra el componente LOCAL a ese componente
+raíz, NO en cascada a los SFCs hijos como `TalentoColaboradorFicha.vue`
+(a diferencia de `talento-expediente-documentos`, registrado vía
+`app.component()`, que sí cascada a cualquier hijo). Sin import+registro
+local aquí, Vue no podía resolver el tag — quedaba vacío en el DOM, sin
+error visible más que un warning de consola. Corregido con el mismo
+patrón que ya usan las otras 15 pestañas de este archivo.
+
+**Dos bugs de más encontrados en el propio `TalentoAcademia.vue`**
+(afectaban TAMBIÉN la pantalla suelta `/talento/academia`, preexistentes,
+no introducidos hoy): `window.__talento_perms` nunca se asignaba en
+ningún lado del código — `canManage` quedaba SIEMPRE `false` (la
+pestaña "Admin" nunca aparecía, ni para un admin real) y `canEvaluate`
+SIEMPRE `true` ("assume true for simplicity", literal en el código),
+mostrando el panel de evaluación práctica a CUALQUIER técnico (ya
+inofensivo tras el fix de autorización de la entrada anterior de hoy,
+pero seguía siendo un botón que solo iba a fallar). Corregido con el
+mecanismo real (`allViewHasPermission()`+`Permission.canDo()`) que usa
+el resto de Talento.
+
+**Verificado con Playwright real:** técnico viendo su propia ficha ve
+ahora el catálogo completo (5 cursos reales), entra a uno y ve su
+material (verificado con contenido real: "Seguridad en campo (NOM-001)"
++ su material de referencia); NO ve la pestaña Admin ni el panel de
+evaluación práctica (correcto). Su supervisor, viendo la MISMA ficha,
+sigue viendo el resumen de solo lectura sin cambio. Un DESARROLLADOR
+real en la pantalla suelta ahora SÍ ve la pestaña Admin (antes nunca la
+veía nadie).
+
+### Commits
+
+- `ae58e33f` — ficha propia monta el catálogo completo + fix de conexión + fix canManage/canEvaluate
