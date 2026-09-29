@@ -66,16 +66,14 @@ class TalentoEmployeeDocumentController extends Controller
     }
 
     /**
-     * GESTIONAR (firmar cualquier slot incluido 'empresa', completar huecos
-     * que tocan datos del empleado/empresa) — SOLO el supervisor directo o
-     * staff (talento.expediente.documentos.gestionar/talento.work_orders.
-     * manage) — a propósito SIN uno mismo: completar() escribe CURP/RFC/
-     * NSS/domicilio del propio colaborador o datos de la EMPRESA
-     * (compartidos por todos), y firmar el slot 'empresa' es la
-     * contraparte de la compañía sobre el documento del colaborador —
-     * ninguno de los dos es autoservicio, igual que ya decidió
-     * PortalTecnicoController::firmarDocumento() para el slot 'empresa'
-     * ("nunca queda accesible por autoservicio").
+     * GESTIONAR (firmar cualquier slot incluido 'empresa', completar
+     * huecos) — David (29-sep), corrigiendo el criterio anterior: "fíjate
+     * en Vendedores como está hecho" — ahí (staff viendo el expediente de
+     * un vendedor) el botón "Completar documento" y TODOS los recuadros de
+     * firma (con su etiqueta de a quién corresponde) se muestran siempre
+     * que haya huecos/slots, sin carve-out. La ficha propia debe verse
+     * EXACTAMENTE igual — mismo componente (TalentoExpedienteDocumentos.
+     * vue), mismo criterio: uno mismo, su supervisor directo, o staff.
      */
     private function puedeGestionarDocumentosDe($colaboradorId): bool
     {
@@ -83,9 +81,7 @@ class TalentoEmployeeDocumentController extends Controller
             return true;
         }
 
-        $miPropioColaborador = Actor::for(auth()->user())->talento();
-
-        return (bool) ($miPropioColaborador?->subordinados()->where('id', $colaboradorId)->exists());
+        return $this->esUnoMismoOSupervisorDe($colaboradorId);
     }
 
     private function esUnoMismoOSupervisorDe($colaboradorId): bool
@@ -97,13 +93,6 @@ class TalentoEmployeeDocumentController extends Controller
 
         return (string) $miPropioColaborador->id === (string) $colaboradorId
             || $miPropioColaborador->subordinados()->where('id', $colaboradorId)->exists();
-    }
-
-    private function esUnoMismo($colaboradorId): bool
-    {
-        $miPropioColaborador = Actor::for(auth()->user())->talento();
-
-        return $miPropioColaborador && (string) $miPropioColaborador->id === (string) $colaboradorId;
     }
 
     public function forColaborador($colaboradorId)
@@ -507,16 +496,11 @@ HTML;
      */
     public function sign(Request $request, $colaboradorId, $docId)
     {
-        // David (28-sep): mismo endpoint que ya usa Vendedores (probado) —
-        // se ensancha a uno mismo, pero SOLO para su(s) propio(s) slot(s)
-        // 'colaborador' (abajo). El slot 'empresa'/cualquier otro sigue
-        // exclusivo de supervisor/staff, igual que ya hacía
-        // PortalTecnicoController::firmarDocumento() para el autoservicio
-        // puro — esa regla de anti-escalada se replica aquí en vez de
-        // mantenerla en dos sitios con criterios distintos.
-        $puedeGestionar = $this->puedeGestionarDocumentosDe($colaboradorId);
-        $esUnoMismo = $this->esUnoMismo($colaboradorId);
-        abort_unless($puedeGestionar || $esUnoMismo, 403);
+        // David (29-sep): mismo endpoint que ya usa Vendedores (probado) —
+        // uno mismo, su supervisor directo, o staff, SIN carve-out por
+        // slot — "fíjate en Vendedores como está hecho" (ahí no hay
+        // restricción por recuadro, y la ficha propia debe verse igual).
+        abort_unless($this->puedeGestionarDocumentosDe($colaboradorId), 403);
 
         $documento = TalentoEmployeeDocument::where('colaborador_id', $colaboradorId)
             ->where('id', $docId)
@@ -529,11 +513,7 @@ HTML;
         if ($slots->isNotEmpty()) {
             $request->validate(['slot_key' => 'required|string']);
             $slotKey = $request->input('slot_key');
-            $slot = $slots->firstWhere('key', $slotKey);
-            abort_unless($slot, 422, 'El slot de firma indicado no existe en esta plantilla.');
-            if (! $puedeGestionar) {
-                abort_unless($slot->firmante_tipo === 'colaborador', 403, 'Este recuadro de firma no corresponde al colaborador.');
-            }
+            abort_unless($slots->contains('key', $slotKey), 422, 'El slot de firma indicado no existe en esta plantilla.');
         }
 
         $trazos = null;

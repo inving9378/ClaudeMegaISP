@@ -215,22 +215,20 @@ class TalentoColaboradorController extends Controller
             // academia — antes solo pantallas globales, ahora también
             // pestañas de la ficha propia.
             'documentos'      => auth()->user()->can('talento.expediente.view') || $tieneAccesoAmplio,
-            // David (28-sep): "que funcione igual que en vendedor para la
-            // parte de las firmas y los campos faltantes" — la pestaña
-            // reusa el MISMO componente/endpoints que Vendedores
-            // (TalentoExpedienteDocumentos.vue). Este flag decide si el
-            // viewer puede firmar CUALQUIER slot (incluido 'empresa') y
-            // completar huecos (edita CURP/RFC/NSS/domicilio del empleado o
-            // datos de la EMPRESA compartidos por todos) — a propósito SIN
-            // $tieneAccesoAmplio: verse a uno mismo NO da estas dos
-            // capacidades (mismo criterio que credenciales_manage/
-            // settlement_manage). Uno mismo SÍ puede firmar su(s) propio(s)
-            // slot(s) 'colaborador' — eso lo permite el controller sin
-            // necesitar este flag (ver TalentoEmployeeDocumentController::
-            // puedeGestionarDocumentosDe()/esUnoMismo()).
+            // David (29-sep), corrigiendo el criterio anterior: "fíjate en
+            // Vendedores como está hecho" — ahí (staff viendo el expediente
+            // de un vendedor) el botón "Completar documento" y los
+            // recuadros de firma se muestran sin carve-outs. La ficha
+            // propia debe verse EXACTAMENTE igual — mismo componente
+            // (TalentoExpedienteDocumentos.vue), así que este flag AHORA SÍ
+            // incluye $esPropia (uno mismo puede firmar cualquier slot de
+            // SU PROPIO documento y completar SUS propios huecos, igual
+            // que staff podría hacerlo por él). Ver
+            // TalentoEmployeeDocumentController::puedeGestionarDocumentosDe().
             'documentos_gestionar' => auth()->user()->can('talento.expediente.documentos.gestionar')
                 || auth()->user()->can('talento.work_orders.manage')
-                || $esSuSupervisor,
+                || $esSuSupervisor
+                || $esPropia,
             'academia'        => auth()->user()->can('talento.academy.view') || $tieneAccesoAmplio,
         ];
 
