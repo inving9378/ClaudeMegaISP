@@ -1308,3 +1308,18 @@ veía nadie).
 ### Commits
 
 - `ae58e33f` — ficha propia monta el catálogo completo + fix de conexión + fix canManage/canEvaluate
+
+## 2026-09-29 (cont.) — Academia: se conserva el resumen de progreso debajo del catálogo
+
+David: "ok, ya se muestran los cursos, pero no estaría mal poner debajo
+lo que estaba antes que era el progreso y las etapas del curso".
+
+Ajuste simple: el catálogo completo (nuevo) no reemplaza al resumen de
+solo lectura que ya existía (progreso general + tabla Curso/Examen/
+Práctica/Certificado + certificaciones) — ahora se muestran los dos,
+catálogo arriba, resumen abajo, para quien ve su propia ficha.
+Verificado con Playwright: ambos bloques presentes.
+
+### Commits
+
+- `f14a5a75` — conserva el resumen debajo del catálogo completo
