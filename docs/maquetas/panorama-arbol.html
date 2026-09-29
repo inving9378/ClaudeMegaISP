@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Panorama en Árbol</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#0B0F14;
+    --surface:#121821;
+    --surface-2:#19212C;
+    --surface-3:#212B39;
+    --line:#233043;
+    --line-soft:#1A2432;
+    --ink:#E4EBF3;
+    --ink-2:#9AAABF;
+    --ink-3:#65758C;
+    --accent:#22D3EE;
+    --accent-dim:#0E7490;
+    --ok:#34D399;
+    --warn:#FBBF24;
+    --bad:#F87171;
+    --epic:#A78BFA;
+    --radius:7px;
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+    font-size:14px;
+    line-height:1.5;
+    padding-block:20px;
+    padding-left:16px;
+    padding-right:16px;
+  }
+  .wrap{max-width:1180px;margin:0 auto}
+
+  /* ---------- barra de estado ---------- */
+  .statusbar{
+    display:flex;flex-wrap:wrap;align-items:center;gap:14px;
+    background:var(--surface);border:1px solid var(--line);
+    border-radius:var(--radius);padding:12px 16px;margin-bottom:10px;
+  }
+  .live{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--ok)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(52,211,153,.16)}
+  .dot.pulse{animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+  .statusbar .sep{width:1px;height:18px;background:var(--line)}
+  .stat{display:flex;align-items:baseline;gap:6px;color:var(--ink-2);font-size:13px}
+  .stat b{font-family:"IBM Plex Mono",monospace;color:var(--ink);font-size:15px;font-weight:600}
+  .stat.alert b{color:var(--warn)}
+  .statusbar .push{margin-left:auto}
+  .btn{
+    font:inherit;font-size:13px;font-weight:500;color:var(--ink);
+    background:var(--surface-3);border:1px solid var(--line);
+    border-radius:6px;padding:6px 12px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:6px;
+  }
+  .btn:hover{background:var(--surface-2);border-color:var(--accent-dim)}
+  .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .btn.primary{background:var(--accent-dim);border-color:var(--accent);color:#062028;font-weight:600}
+  .btn.primary:hover{background:var(--accent);color:#04161c}
+
+  .certwarn{
+    display:flex;gap:10px;align-items:center;
+    border-left:3px solid var(--warn);background:rgba(251,191,36,.07);
+    border-radius:4px;padding:9px 14px;margin-bottom:18px;
+    font-size:13px;color:var(--ink-2);
+  }
+  .certwarn b{color:var(--warn)}
+
+  /* ---------- controles ---------- */
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{
+    font:inherit;font-size:12.5px;font-weight:500;
+    background:transparent;color:var(--ink-2);
+    border:1px solid var(--line);border-radius:99px;
+    padding:5px 13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+  }
+  .chip:hover{color:var(--ink);border-color:var(--ink-3)}
+  .chip[aria-pressed="true"]{background:rgba(34,211,238,.13);border-color:var(--accent);color:var(--accent)}
+  .chip .n{font-family:"IBM Plex Mono",monospace;font-size:11.5px;opacity:.75}
+  .search{
+    margin-left:auto;display:flex;align-items:center;gap:8px;
+    background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:0 10px;
+  }
+  .search input{
+    font:inherit;font-size:13px;background:transparent;border:0;color:var(--ink);
+    padding:7px 0;width:190px;
+  }
+  .search input::placeholder{color:var(--ink-3)}
+  .search input:focus{outline:none}
+  .search:focus-within{border-color:var(--accent-dim)}
+
+  /* ---------- árbol ---------- */
+  .tree{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);overflow:hidden}
+
+  .row{
+    display:flex;align-items:center;gap:9px;
+    padding:8px 14px;border-bottom:1px solid var(--line-soft);
+    position:relative;
+  }
+  .row:last-child{border-bottom:0}
+  .row.mod{background:var(--surface-2);padding-top:10px;padding-bottom:10px}
+  .row.epic{background:rgba(167,139,250,.045)}
+  .row:hover{background:var(--surface-3)}
+  .row.mod:hover{background:#1D2733}
+
+  .caret{
+    flex:none;width:18px;height:18px;border:0;background:transparent;cursor:pointer;
+    color:var(--ink-3);display:grid;place-items:center;padding:0;
+    transition:transform .15s ease;
+  }
+  .caret:hover{color:var(--accent)}
+  .caret:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-radius:3px}
+  .caret svg{width:11px;height:11px}
+  .caret[aria-expanded="true"]{transform:rotate(90deg)}
+  .caret.leaf{visibility:hidden}
+
+  .indent{flex:none}
+  .lvl1 .indent{width:0}
+  .lvl2 .indent{width:22px}
+  .lvl3 .indent{width:44px}
+  .lvl4 .indent{width:66px}
+
+  .id{
+    font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-3);
+    flex:none;letter-spacing:-.2px;
+  }
+  .title{
+    flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .row.mod .title{font-weight:600;font-size:14.5px;letter-spacing:.01em}
+  .row.epic .title{font-weight:500}
+  .row.epic .title::before{
+    content:"épica";font-family:"IBM Plex Mono",monospace;font-size:9.5px;
+    text-transform:uppercase;letter-spacing:.09em;color:var(--epic);
+    border:1px solid rgba(167,139,250,.35);border-radius:3px;
+    padding:1px 5px;margin-right:9px;vertical-align:1px;
+  }
+  .title .blocker{color:var(--ink-3);font-size:12.5px}
+
+  /* pastillas */
+  .meta{flex:none;display:flex;align-items:center;gap:7px}
+  .pill{
+    font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:600;
+    border-radius:3px;padding:2px 6px;letter-spacing:.03em;flex:none;
+  }
+  .risk-A{background:rgba(52,211,153,.13);color:var(--ok)}
+  .risk-B{background:rgba(251,191,36,.13);color:var(--warn)}
+  .risk-C{background:rgba(248,113,113,.13);color:var(--bad)}
+  .tag{
+    font-size:11px;font-weight:600;border-radius:99px;padding:2px 9px;
+    display:inline-flex;align-items:center;gap:5px;flex:none;white-space:nowrap;
+  }
+  .tag.urgent{background:rgba(248,113,113,.15);color:var(--bad)}
+  .tag.queue{background:var(--surface-3);color:var(--ink-2)}
+  .tag.verify{background:rgba(34,211,238,.12);color:var(--accent)}
+  .tag.blocked{background:rgba(248,113,113,.1);color:#FCA5A5}
+  .tag.waiting{background:rgba(251,191,36,.12);color:var(--warn)}
+  .tag.working{background:rgba(52,211,153,.14);color:var(--ok)}
+  .tag.answered{background:rgba(167,139,250,.15);color:var(--epic)}
+  .tag .dot{width:6px;height:6px;box-shadow:none}
+  .tag.working .dot{background:var(--ok)}
+
+  .counts{display:flex;gap:5px;flex:none}
+  .cnt{
+    font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;
+    padding:1px 7px;border-radius:3px;background:var(--surface-3);color:var(--ink-2);
+  }
+  .cnt.on{background:rgba(52,211,153,.14);color:var(--ok)}
+  .cnt.bl{background:rgba(248,113,113,.12);color:#FCA5A5}
+
+  /* mini-pipeline en la fila */
+  .mini{display:flex;gap:2px;flex:none;align-items:center}
+  .mini i{width:13px;height:3px;border-radius:2px;background:var(--line);display:block}
+  .mini i.done{background:var(--accent-dim)}
+  .mini i.now{background:var(--accent);box-shadow:0 0 6px rgba(34,211,238,.6)}
+  .who{
+    font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-2);
+    flex:none;white-space:nowrap;
+  }
+  .who b{color:var(--ink);font-weight:600}
+  .clock{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--ink-3);flex:none}
+
+  /* acciones */
+  .acts{flex:none;display:flex;gap:3px;opacity:0;transition:opacity .12s}
+  .row:hover .acts,.row:focus-within .acts{opacity:1}
+  .act{
+    width:27px;height:27px;border-radius:5px;border:1px solid transparent;
+    background:transparent;color:var(--ink-3);cursor:pointer;
+    display:grid;place-items:center;padding:0;font-size:13px;
+  }
+  .act:hover{background:var(--surface);border-color:var(--line);color:var(--accent)}
+  .act:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .act svg{width:14px;height:14px}
+
+  /* ---------- panel expandido del item en curso ---------- */
+  .detail{
+    background:#0E141C;border-bottom:1px solid var(--line-soft);
+    padding:16px 20px 18px 66px;
+  }
+  .pipeline{display:flex;align-items:flex-start;gap:0;margin-bottom:14px;flex-wrap:wrap}
+  .ph{flex:1;min-width:88px;position:relative;padding-top:16px;text-align:center}
+  .ph::before{
+    content:"";position:absolute;top:4px;left:0;right:0;height:2px;background:var(--line);
+  }
+  .ph:first-child::before{left:50%}
+  .ph:last-child::before{right:50%}
+  .ph.done::before,.ph.now::before{background:var(--accent-dim)}
+  .ph .knob{
+    position:absolute;top:0;left:50%;transform:translateX(-50%);
+    width:10px;height:10px;border-radius:50%;background:var(--bg);
+    border:2px solid var(--line);
+  }
+  .ph.done .knob{background:var(--accent-dim);border-color:var(--accent-dim)}
+  .ph.now .knob{
+    background:var(--accent);border-color:var(--accent);
+    box-shadow:0 0 0 4px rgba(34,211,238,.18);
+  }
+  .ph span{font-size:11.5px;color:var(--ink-3);display:block}
+  .ph.done span{color:var(--ink-2)}
+  .ph.now span{color:var(--accent);font-weight:600}
+  .ph small{
+    display:block;font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--ink-3);margin-top:1px;
+  }
+
+  .dgrid{display:flex;flex-wrap:wrap;gap:22px;margin-bottom:12px}
+  .dcell{display:flex;flex-direction:column;gap:2px}
+  .dcell label{
+    font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);
+  }
+  .dcell code,.dcell .v{
+    font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink);
+  }
+  .dcell .v.warn{color:var(--warn)}
+
+  .log{
+    background:#080C11;border:1px solid var(--line-soft);border-radius:5px;
+    padding:9px 12px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;
+    color:var(--ink-2);line-height:1.65;overflow-x:auto;
+  }
+  .log b{color:var(--accent);font-weight:500}
+  .log .t{color:var(--ink-3)}
+
+  .kids{display:none}
+  .kids.open{display:block}
+
+  /* ---------- toast ---------- */
+  #toast{
+    position:fixed;left:50%;bottom:26px;transform:translate(-50%,16px);
+    background:var(--surface-3);border:1px solid var(--accent-dim);
+    color:var(--ink);border-radius:7px;padding:11px 18px;font-size:13px;
+    box-shadow:0 10px 34px rgba(0,0,0,.55);opacity:0;pointer-events:none;
+    transition:opacity .18s,transform .18s;max-width:calc(100vw - 32px);
+  }
+  #toast.show{opacity:1;transform:translate(-50%,0)}
+
+  .legend{
+    display:flex;flex-wrap:wrap;gap:16px;margin-top:14px;
+    font-size:12px;color:var(--ink-3);
+  }
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .swatch{width:9px;height:9px;border-radius:2px;display:inline-block}
+
+  .note{
+    margin-top:22px;border-top:1px solid var(--line-soft);padding-top:14px;
+    font-size:12.5px;color:var(--ink-3);max-width:72ch;
+  }
+  .note b{color:var(--ink-2)}
+
+  /* ---------- marcas de decisión y autopilot ---------- */
+  .tag.decide{
+    background:rgba(251,191,36,.18);color:#FCD34D;border:1px solid rgba(251,191,36,.45);
+    font-weight:700;letter-spacing:.02em;
+  }
+  .tag.decide .dot{background:#FCD34D;animation:pulse 2s ease-in-out infinite}
+  .tag.auto{background:rgba(167,139,250,.14);color:#C4B5FD}
+  .row.needs-you{background:rgba(251,191,36,.045)}
+  .row.needs-you:hover{background:rgba(251,191,36,.075)}
+  .row.needs-you::before{
+    content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--warn);
+  }
+
+  /* ---------- panel de decisión ---------- */
+  .decide-panel{
+    background:#100F0A;border-bottom:1px solid var(--line-soft);
+    border-left:3px solid var(--warn);padding:16px 20px 18px 24px;
+  }
+  .dp-why{
+    font-size:12px;color:var(--ink-3);margin-bottom:10px;
+    font-family:"IBM Plex Mono",monospace;
+  }
+  .dp-why b{color:var(--warn);font-weight:500}
+  .dp-q{font-size:14.5px;font-weight:600;margin:0 0 3px;color:var(--ink);text-wrap:balance}
+  .dp-ctx{font-size:13px;color:var(--ink-2);margin:0 0 14px;max-width:70ch}
+
+  .opts{display:flex;flex-direction:column;gap:7px;margin-bottom:14px}
+  .opt{
+    display:flex;gap:11px;align-items:flex-start;cursor:pointer;
+    border:1px solid var(--line);border-radius:6px;padding:11px 13px;
+    background:var(--surface);
+  }
+  .opt:hover{border-color:var(--ink-3)}
+  .opt:has(input:checked){border-color:var(--warn);background:rgba(251,191,36,.06)}
+  .opt:focus-within{outline:2px solid var(--accent);outline-offset:1px}
+  .opt input{margin:3px 0 0;accent-color:var(--warn);flex:none}
+  .opt .ot{font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .opt .oc{font-size:12.5px;color:var(--ink-2);margin-top:3px;max-width:66ch}
+  .rec{
+    font-family:"IBM Plex Mono",monospace;font-size:9.5px;text-transform:uppercase;
+    letter-spacing:.09em;color:var(--accent);border:1px solid var(--accent-dim);
+    border-radius:3px;padding:1px 6px;font-weight:600;
+  }
+  .dp-free{
+    width:100%;background:var(--surface);border:1px solid var(--line);border-radius:6px;
+    color:var(--ink);font:inherit;font-size:13px;padding:10px 12px;resize:vertical;min-height:64px;
+  }
+  .dp-free:focus{outline:none;border-color:var(--warn)}
+  .dp-free::placeholder{color:var(--ink-3)}
+  .dp-hint{
+    font-size:11.5px;color:var(--ink-3);margin:7px 0 13px;display:flex;gap:7px;align-items:flex-start;
+  }
+  .dp-hint b{color:var(--ink-2);font-weight:600}
+  .dp-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .btn.warn{background:var(--warn);border-color:var(--warn);color:#211703;font-weight:700}
+  .btn.warn:hover{background:#FCD34D}
+  .btn.ghost{background:transparent}
+  .dp-actions .check{
+    display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-2);
+    margin-left:auto;cursor:pointer;
+  }
+  .dp-actions .check input{accent-color:var(--ink-3)}
+
+  /* ---------- panel de lo decidido sin ti ---------- */
+  .auto-panel{
+    background:#0F0D16;border-bottom:1px solid var(--line-soft);
+    border-left:3px solid var(--epic);padding:15px 20px 16px 24px;
+  }
+  .ap-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:9px}
+  .ap-head .k{
+    font-family:"IBM Plex Mono",monospace;font-size:10px;text-transform:uppercase;
+    letter-spacing:.09em;color:var(--epic);
+  }
+  .ap-what{font-size:13.5px;color:var(--ink);margin:0 0 10px;max-width:70ch}
+  .ap-what b{color:#C4B5FD;font-weight:600}
+  .ap-grid{display:flex;flex-wrap:wrap;gap:20px;margin-bottom:12px}
+
+  @media (max-width:720px){
+    .row{flex-wrap:wrap;gap:7px}
+    .title{flex-basis:100%;order:5;white-space:normal}
+    .acts{opacity:1}
+    .detail{padding-left:20px}
+    .search{margin-left:0;width:100%}
+    .search input{width:100%}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important}
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="statusbar">
+    <span class="live"><i class="dot pulse"></i> Ejecutando</span>
+    <span class="sep"></span>
+    <span class="stat"><b>6</b> terminales trabajando</span>
+    <span class="stat"><b>0</b> libres</span>
+    <span class="stat"><b>196</b> en cola</span>
+    <span class="stat alert"><b>9</b> detenidos</span>
+    <span class="stat alert"><b>2</b> tu decisión</span>
+    <span class="stat"><b>5</b> decididos sin ti</span>
+    <span class="push"></span>
+    <button class="btn primary" onclick="toast('Jalando el siguiente item de la cola…')">▶ Jalar trabajo</button>
+    <button class="btn" onclick="toast('Circuito pausado. Las vueltas en curso terminan; no se asigna nada nuevo.')">⏸ Pausar</button>
+  </div>
+
+  <div class="certwarn">
+    <span>🛡</span>
+    <span>Certificado TLS de <code>dev.meganett.com.mx</code> expira en <b>26 días</b>. Si expira, se pierde la Torre completa — incluido este aviso.</span>
+  </div>
+
+  <div class="controls">
+    <div class="chips" id="chips">
+      <button class="chip" aria-pressed="true" data-f="vivo">Vivo <span class="n">36</span></button>
+      <button class="chip" aria-pressed="false" data-f="todo">Todo <span class="n">206</span></button>
+      <button class="chip" aria-pressed="false" data-f="bloq">Detenidos <span class="n">9</span></button>
+      <button class="chip" aria-pressed="false" data-f="mio">Tu decisión <span class="n">2</span></button>
+      <button class="chip" aria-pressed="false" data-f="auto">Decidido sin ti <span class="n">5</span></button>
+    </div>
+    <label class="search">
+      <span style="color:var(--ink-3);font-size:13px">⌕</span>
+      <input id="q" type="search" placeholder="Buscar item, módulo o terminal…" autocomplete="off">
+    </label>
+  </div>
+
+  <div class="tree" id="tree"></div>
+
+  <div class="legend">
+    <span><i class="swatch" style="background:var(--ok)"></i> trabajando ahora</span>
+    <span><i class="swatch" style="background:var(--accent)"></i> en verificación</span>
+    <span><i class="swatch" style="background:var(--ink-3)"></i> en cola</span>
+    <span><i class="swatch" style="background:var(--bad)"></i> bloqueado</span>
+    <span><i class="swatch" style="background:var(--epic)"></i> épica (agrupa hijos)</span>
+    <span><i class="swatch" style="background:var(--warn)"></i> espera tu decisión</span>
+    <span>A · B · C = nivel de riesgo</span>
+  </div>
+
+  <p class="note">
+    <b>Maqueta.</b> Datos reales de la Hoja de Ruta al 12 de septiembre, 18:20. Los botones simulan la acción
+    y muestran el mensaje que daría el sistema — no escriben nada. Pasa el cursor sobre una fila para ver sus acciones.
+    Abre <b>#9990854</b> o <b>#9990855</b> para el detalle de una terminal en curso,
+    <b>#283</b> o <b>#635</b> para decidir con opciones,
+    y <b>#9990822</b> para ver algo que el autopilot resolvió sin preguntarte.
+  </p>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const DATA = [
+  { id:"circ", mod:"Roadmap / Circuito CC", counts:{on:4,queue:23,bl:0}, open:true, kids:[
+    { id:9990853, t:"Items de corrección del Circuito CC", epic:true, open:true, kids:[
+      { id:9990874, t:"Items de corrección — desatorar el flujo", risk:"B", state:"working", who:"Maya", wt:"wt-1", phase:2, clock:"2m 23s",
+        branch:"circuito/item-9990861-re-triaje-de-la-cola-p…",
+        log:[["18:24","Rama creada, leyendo el item padre"],["18:25","Descomponiendo en sub-items por fase"]] },
+      { id:9990854, t:"Corrección del Circuito CC — para desatorar el flujo", risk:"B", state:"working", who:"Leo", wt:"wt-2", phase:4, clock:"5m 18s",
+        branch:"circuito/item-9990857-circ-02a-diagnostico-…",
+        log:[["18:23","Editando ServicioDespacho.php"],["18:28","<b>Verificando</b>: 3 pruebas, 3 en verde"],["18:28","Esperando turno de integración a main"]] },
+      { id:9990855, t:"Fix del escalado por timeout: no escalar items ya parqueados", risk:"B", state:"working", who:"Iván", wt:"wt-4", phase:3, clock:"5m 38s",
+        branch:"circuito/item-9990855-fix-escalado-timeout",
+        log:[["18:22","Diagnóstico: <b>commits_rama</b> se cuenta sobre la rama del cierre, no la del item"],["18:26","Guarda de estado implementada"],["18:27","Editando el manejador de paraguas"]] },
+      { id:9990873, t:"CIRC-02a Fase 2: detectar respuestas sobreescritas en comentarios_claude", risk:"B", state:"working", who:"Sofía", wt:"wt-3", phase:0, clock:"2m 47s",
+        branch:"circuito/item-9990861-re-triaje-de-la-cola-p…",
+        log:[["18:27","Triaje: nivel B, origen interno"]] },
+      { id:9990857, t:"CIRC-02a — diagnóstico de respuestas perdidas (solo lectura)", risk:"A", state:"queue" },
+      { id:9990861, t:"Re-triaje de la cola: prioridades, basura y 430 sin nivel", risk:"B", state:"queue" }
+    ]},
+    { id:9990412, t:"Freno con expiración por límite de cuenta", epic:true, kids:[
+      { id:9990419, t:"Backend: exponer causa y expira_en en pausedInfo()", risk:"B", state:"queue" },
+      { id:9990418, t:"Fase 4b: enganchar el freno en vuelta.sh", risk:"B", state:"queue" },
+      { id:9990420, t:"Frontend: banner “sin límite hasta HH:MM” en TorreControl.vue", risk:"B", state:"queue" },
+      { id:9990425, t:"Fase 4a-2: autolimpieza en isPaused() + candado de regresión", risk:"B", state:"queue" }
+    ]},
+    { id:170, t:"Freno de mano fuera de la BD (centinela en archivo)", risk:"B", state:"queue", urgent:true }
+  ]},
+
+  { id:"vt", mod:"Ventas / Talento", counts:{on:0,queue:8,bl:3}, open:true, kids:[
+    { id:9990775, t:"Reglamento de ventas y comisiones — fuente única", epic:true, open:true, kids:[
+      { id:9990790, t:"[RESPUESTA] Subir el reglamento al repo", risk:"B", state:"answered", note:"respondiste hace 6 min" },
+      { id:9990798, t:"Calculadora de comisiones: casos TC1–TC12 como tests", risk:"A", state:"blocked", by:9990790 }
+    ]},
+    { id:9990781, t:"Catálogos parametrizables: modalidades, pagos, reglamento", epic:true, kids:[
+      { id:9990808, t:"Backend: migraciones, modelos, permisos y CRUD API", risk:"C", state:"verify" },
+      { id:9990809, t:"UI CRUD de catálogos", risk:"B", state:"queue" }
+    ]},
+    { id:9990782, t:"Motor de comisiones sobre talento_ledger_entries", risk:"B", state:"blocked", by:9990790 },
+    { id:9990783, t:"Motor de maduración: meta, candado, faltante y netting", risk:"B", state:"blocked", by:9990790 },
+    { id:9990778, t:"Identidad unificada: colaborador único, sellers como puente", risk:"B", state:"queue" }
+  ]},
+
+  { id:"mr", mod:"Mapa de Red", counts:{on:0,queue:34,bl:0}, kids:[
+    { id:958, t:"MR-22 — Nueva navegación: buscador, filtros, clustering", epic:true, kids:[
+      { id:9990457, t:"Buscador global del mapa (nombre, cliente, serie ONT)", risk:"B", state:"queue" },
+      { id:9990509, t:"Endpoint backend de búsqueda global", risk:"B", state:"queue" },
+      { id:9990494, t:"Capas de Drops y Cobertura", epic:true, kids:[
+        { id:9990539, t:"Backend Drops: tabla network_drops + modelo + CRUD", risk:"C", state:"verify" },
+        { id:9990542, t:"Render read-only de capas en el mapa Leaflet", risk:"B", state:"queue" },
+        { id:9990543, t:"Edición visual + captura automática al activar cliente", risk:"B", state:"queue" }
+      ]},
+      { id:9990460, t:"Verificación DoD final (apertura <3s con 6 zonas)", risk:"B", state:"queue" }
+    ]},
+    { id:959, t:"MR-23 — Ficha lateral del elemento", epic:true, kids:[
+      { id:9990429, t:"Fase 4 — acciones Mover, Trazar, Ver impacto", epic:true, kids:[
+        { id:9990451, t:"Acción “Trazar”: dibujar y guardar enlace entre 2 nodos", risk:"C", state:"queue" },
+        { id:9990454, t:"Acción “Ver impacto”: clientes y nodos aguas abajo", risk:"C", state:"queue" },
+        { id:9990455, t:"Sección “Fotos” por nodo y enlace", risk:"C", state:"verify" },
+        { id:9990456, t:"Sección “Historial de cambios”", risk:"C", state:"verify" }
+      ]}
+    ]},
+    { id:961, t:"MR-25 — Importador KML/KMZ y exportadores", epic:true, kids:[
+      { id:9990445, t:"Exportadores KML, GeoJSON, carta de empalme PDF y BOM XLSX", risk:"B", state:"queue" }
+    ]}
+  ]},
+
+  { id:"aud", mod:"Auditoría", counts:{on:0,queue:23,bl:0}, open:true, kids:[
+    { id:9990756, t:"Fix build roto en main — flujoAnimadoConfig redeclarado", risk:"B", state:"queue", urgent:true },
+    { id:9990578, t:"document_templates: estado borrador / publicada", epic:true, kids:[
+      { id:9990584, t:"Fase 1a — Migración status + updated_by + backfill", risk:"B", state:"queue" },
+      { id:9990585, t:"Fase 1b — Modelo DocumentTemplate: fillable", risk:"B", state:"queue" },
+      { id:9990586, t:"Fase 1c — CRUD: select Borrador/Publicada + validación", risk:"B", state:"queue" }
+    ]}
+  ]},
+
+  { id:"voip", mod:"VoIP", counts:{on:0,queue:9,bl:1}, kids:[
+    { id:9990810, t:"Cerrar VoIP: de dev hasta que suene el teléfono", epic:true, kids:[
+      { id:9990824, t:"Fase 2 — merge de la rama del provisionador a main", risk:"B", state:"queue" },
+      { id:9990825, t:"Fase 3 — emitir versión y publicar el release", risk:"B", state:"blocked", by:9990824 }
+    ]}
+  ]},
+
+  { id:"gr", mod:"Gestión de Red · Clientes", counts:{on:0,queue:6,bl:2}, open:true, kids:[
+    { id:283, t:"¿Priorizar driver ZTE y/o V-SOL? Confirmar acceso a hardware piloto", risk:"B", state:"decide",
+      why:"El revisor escaló: <b>decisión de negocio e inversión</b>, fuera de su alcance.",
+      q:"¿Qué OLTs debe soportar MegaISP además de Huawei?",
+      ctx:"Hoy solo existe driver real de Huawei. Cada driver nuevo son unas 3 semanas de trabajo y requiere un equipo piloto en laboratorio para probar altas y bajas de ONU sin tocar la red viva.",
+      opts:[
+        {t:"Solo ZTE", c:"Es la segunda marca más común en el mercado mexicano. Un driver, un piloto, alcance acotado.", rec:true},
+        {t:"ZTE y V-SOL", c:"Cubre casi todo el mercado, pero duplica el trabajo y necesitas dos equipos piloto en el laboratorio."},
+        {t:"Ninguno por ahora", c:"Se congela el frente multi-marca y Medussa se ofrece solo a ISPs con OLT Huawei."}
+      ], blocks:"#671 y #692" },
+    { id:9990852, t:"Fase 3b — serie_equipo en la columna Modem Serie + origen de la serie", risk:"B", state:"auto",
+      decided:"Renderizar solo los últimos 8 caracteres de la serie y marcar con un punto de color si vino de captura manual o de la OLT.",
+      conf:"alta", rev:true, when:"hoy 17:52", wt:"wt-1" },
+    { id:9990841, t:"Fase 4a-i — Medir p50 y p95 reales del buscador (nombre vs. serie)", risk:"B", state:"auto",
+      decided:"Dar por cumplido el criterio de 10 s: p50 de 1.2 s y p95 de 4.8 s con la base de dev completa.",
+      conf:"alta", rev:true, when:"hoy 17:31", wt:"wt-6" },
+    { id:692, t:"OLT Huawei Fase A — validar escritura real en laboratorio", risk:"B", state:"waiting", need:"una sesión presencial contigo" },
+    { id:671, t:"Implementar ZteDriver real (lectura + provisioning)", risk:"B", state:"blocked", by:283 }
+  ]},
+
+  { id:"tal", mod:"Talento", counts:{on:0,queue:24,bl:0}, kids:[
+    { id:9990822, t:"Fase B — permiso Spatie talento.bypass_bloqueo_firma", risk:"B", state:"auto",
+      decided:"Crear el permiso y asignarlo únicamente al rol Administrador, sin tocar ningún otro rol.",
+      conf:"alta", rev:true, when:"hoy 17:44", wt:"wt-3" },
+    { id:9990817, t:"Reapertura de acuses", epic:true, kids:[
+      { id:9990834, t:"Implementar y pasar ReaperturaAcusesTest.php", risk:"B", state:"verify" },
+      { id:9990827, t:"Cerrar #9990806 con reporte y enlace de revisión", risk:"B", state:"queue" }
+    ]},
+    { id:9990832, t:"Tablero de pendientes Fase 3 — pantalla admin con KPIs", risk:"B", state:"queue" }
+  ]},
+
+  { id:"portal", mod:"Portal Cliente · Auth", counts:{on:0,queue:5,bl:0}, open:true, kids:[
+    { id:635, t:"Portal Cliente: ejecutar la migración de contraseñas a bcrypt", risk:"B", state:"decide",
+      why:"Nivel B con impacto en el acceso de clientes: el autopilot <b>no decide</b> aquí.",
+      q:"¿Cómo migramos las contraseñas que hoy están en texto plano?",
+      ctx:"El Portal guarda contraseñas en texto plano. Son 4,043 cuentas no privilegiadas con contraseña legacy en base64, y un fallback en PasswordService::check() que las sigue aceptando.",
+      opts:[
+        {t:"Ola escalonada con fallback", c:"Se convierten por lotes y quien no ha entrado se convierte al primer acceso. Ningún cliente se queda fuera; el fallback vive unas semanas más.", rec:true},
+        {t:"Corte único", c:"Se convierte todo en una noche y se retira el fallback. Limpio y rápido, pero quien tenga una contraseña que no migre bien se queda fuera hasta que llame."},
+        {t:"Posponer", c:"Se documenta el riesgo y se atiende después. Las contraseñas siguen en texto plano mientras tanto."}
+      ], blocks:"#679 y #680" }
+  ]},
+
+  { id:"infra", mod:"Infra · Payments", counts:{on:0,queue:8,bl:2}, kids:[
+    { id:9990350, t:"Guard explícito de path duro en backups:purge-test", risk:"B", state:"queue" },
+    { id:9990075, t:"Hook DNS-01 automatizado para dev.meganett.com.mx", risk:"B", state:"waiting", need:"tu credencial DNS + delegación NS" },
+    { id:683, t:"PAC CFDI 4.0 — integrar Facturama real", risk:"B", state:"waiting", need:"tus credenciales de Facturama" }
+  ]}
+];
+
+const PHASES = ["Triage","Decisión","Rama","Editando","Verificando","Integrando"];
+const ICON = {
+  caret:'<svg viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  play:'<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4.5 3.2v9.6c0 .4.45.65.79.43l7.3-4.8a.5.5 0 000-.86l-7.3-4.8a.5.5 0 00-.79.43z"/></svg>',
+  eye:'<svg viewBox="0 0 16 16" fill="none"><path d="M1.5 8s2.4-4.2 6.5-4.2S14.5 8 14.5 8s-2.4 4.2-6.5 4.2S1.5 8 1.5 8z" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="1.9" fill="currentColor"/></svg>',
+  chat:'<svg viewBox="0 0 16 16" fill="none"><path d="M2.5 3.5h11v7h-6l-3.2 2.4V10.5H2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>',
+  pause:'<svg viewBox="0 0 16 16" fill="currentColor"><rect x="4.2" y="3.2" width="2.6" height="9.6" rx=".7"/><rect x="9.2" y="3.2" width="2.6" height="9.6" rx=".7"/></svg>',
+  key:'<svg viewBox="0 0 16 16" fill="none"><circle cx="5.4" cy="8" r="2.9" stroke="currentColor" stroke-width="1.3"/><path d="M8.3 8h5.2M11.4 8v2.3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+  stack:'<svg viewBox="0 0 16 16" fill="none"><path d="M8 2.2l5.5 2.8L8 7.8 2.5 5zM2.5 8l5.5 2.8L13.5 8M2.5 11l5.5 2.8L13.5 11" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>'
+};
+
+function tagFor(n){
+  if(n.state==="working") return `<span class="tag working"><i class="dot"></i>${n.wt}</span>`;
+  if(n.state==="verify")  return `<span class="tag verify">en verificación</span>`;
+  if(n.state==="blocked") return `<span class="tag blocked">bloqueado</span>`;
+  if(n.state==="waiting") return `<span class="tag waiting">falta insumo</span>`;
+  if(n.state==="answered")return `<span class="tag answered">respondido</span>`;
+  if(n.state==="decide")  return `<span class="tag decide"><i class="dot"></i>TU DECISIÓN</span>`;
+  if(n.state==="auto")    return `<span class="tag auto">✓ auto · ${n.when}</span>`;
+  return `<span class="tag queue">en cola</span>`;
+}
+function actsFor(n){
+  const a=[];
+  if(n.state==="working"){
+    a.push(`<button class="act" title="Ver log en vivo" onclick="toast('Abriendo el log en vivo de ${n.wt}…')">${ICON.eye}</button>`);
+    a.push(`<button class="act" title="Congelar esta vuelta" onclick="toast('Vuelta de ${n.wt} congelada. La rama se conserva; puede reanudarse.')">${ICON.pause}</button>`);
+  } else if(n.state==="waiting"){
+    a.push(`<button class="act" title="Entregar el insumo" onclick="toast('Abriendo #${n.id} para registrar: ${n.need}')">${ICON.key}</button>`);
+  } else if(n.state==="blocked"){
+    a.push(`<button class="act" title="Ir al item que lo bloquea" onclick="toast('Saltando a #${n.by}, que es lo que lo tiene detenido.')">${ICON.stack}</button>`);
+  } else if(n.state==="answered"){
+    a.push(`<button class="act" title="Ver tu respuesta" onclick="toast('Tu respuesta está escrita y el item ya volvió a la cola.')">${ICON.chat}</button>`);
+  } else if(n.state==="decide"){
+    a.push(`<button class="act" title="Decidir ahora" onclick="openRow(this)">${ICON.chat}</button>`);
+  } else if(n.state==="auto"){
+    a.push(`<button class="act" title="Ver qué decidió" onclick="openRow(this)">${ICON.eye}</button>`);
+  } else {
+    a.push(`<button class="act" title="Hacer ahora" onclick="toast('#${n.id} encolado al frente — se lo lleva la siguiente terminal que se libere.')">${ICON.play}</button>`);
+    a.push(`<button class="act" title="Responder o comentar" onclick="toast('Tu comentario se toma como respuesta: el item vuelve a la cola solo.')">${ICON.chat}</button>`);
+  }
+  return `<span class="acts">${a.join("")}</span>`;
+}
+function mini(n){
+  if(n.state!=="working") return "";
+  return `<span class="mini" title="${PHASES[n.phase]}">`+
+    PHASES.map((_,i)=>`<i class="${i<n.phase?'done':i===n.phase?'now':''}"></i>`).join("")+
+    `</span>`;
+}
+function detail(n){
+  const phases = PHASES.map((p,i)=>
+    `<div class="ph ${i<n.phase?'done':i===n.phase?'now':''}">
+       <i class="knob"></i><span>${p}</span>${i===n.phase?'<small>ahora</small>':''}
+     </div>`).join("");
+  const log = (n.log||[]).map(([t,l])=>`<div><span class="t">[${t}]</span> ${l}</div>`).join("");
+  return `<div class="detail">
+    <div class="pipeline">${phases}</div>
+    <div class="dgrid">
+      <div class="dcell"><label>Terminal</label><span class="v">${n.who} · ${n.wt}</span></div>
+      <div class="dcell"><label>En esta vuelta</label><span class="v">${n.clock}</span></div>
+      <div class="dcell"><label>Rama</label><code>${n.branch}</code></div>
+      <div class="dcell"><label>Nivel</label><span class="v">${n.risk}</span></div>
+    </div>
+    <div class="log">${log}</div>
+  </div>`;
+}
+
+function decidePanel(n){
+  const opts = n.opts.map((o,i)=>
+    `<label class="opt">
+       <input type="radio" name="dec-${n.id}" value="${i}" ${o.rec?"checked":""}>
+       <span>
+         <span class="ot">${o.t}${o.rec?'<span class="rec">Claude recomienda</span>':''}</span>
+         <span class="oc">${o.c}</span>
+       </span>
+     </label>`).join("");
+  return `<div class="decide-panel">
+    <div class="dp-why">Llegó a tu bandeja porque: ${n.why}</div>
+    <p class="dp-q">${n.q}</p>
+    <p class="dp-ctx">${n.ctx}</p>
+    <div class="opts">${opts}</div>
+    <textarea class="dp-free" id="free-${n.id}" placeholder="O escribe tu respuesta con tus palabras — también sirve para matizar la opción que elegiste."></textarea>
+    <p class="dp-hint">
+      <span>↳</span>
+      <span><b>Lo que escribas es la instrucción vigente</b> y manda sobre el texto original del item.
+      Al decidir, el item vuelve a la cola solo: no hay que ir a destrabar nada a mano.</span>
+    </p>
+    <div class="dp-actions">
+      <button class="btn warn" onclick="decide(this,${n.id})">Decidir y devolver a la cola</button>
+      <button class="btn ghost" onclick="toast('#${n.id} rechazado. Se cierra sin ejecutarse y libera ${n.blocks}.')">No se hace</button>
+      <label class="check"><input type="checkbox" id="only-${n.id}"> Solo comentar, no ejecutar todavía</label>
+    </div>
+    <p class="dp-hint" style="margin:11px 0 0"><span>⛓</span><span>Tu decisión desbloquea ${n.blocks}.</span></p>
+  </div>`;
+}
+
+function autoPanel(n){
+  return `<div class="auto-panel">
+    <div class="ap-head">
+      <span class="k">decidido sin ti</span>
+      <span class="tag auto">confianza ${n.conf}</span>
+      ${n.rev?`<span class="tag queue">reversible</span>`:`<span class="tag blocked">no reversible</span>`}
+    </div>
+    <p class="ap-what"><b>El autopilot decidió:</b> ${n.decided}</p>
+    <div class="ap-grid">
+      <div class="dcell"><label>Cuándo</label><span class="v">${n.when}</span></div>
+      <div class="dcell"><label>Quién lo ejecutó</label><span class="v">${n.wt}</span></div>
+      <div class="dcell"><label>Nivel</label><span class="v">${n.risk}</span></div>
+    </div>
+    <div class="dp-actions">
+      <button class="btn" onclick="toast('#${n.id} ratificado. Sale de “decidido sin ti” y queda cerrado.')">Está bien, ratificar</button>
+      <button class="btn ghost" onclick="toast('Revirtiendo #${n.id}: vuelve al estado previo a la decisión y regresa a tu bandeja.')">Revertir</button>
+    </div>
+  </div>`;
+}
+
+function panelFor(n){
+  if(n.state==="working") return detail(n);
+  if(n.state==="decide")  return decidePanel(n);
+  if(n.state==="auto")    return autoPanel(n);
+  return "";
+}
+
+function rowHTML(n,lvl){
+  const hasKids = !!(n.kids&&n.kids.length);
+  const expandable = hasKids || ["working","decide","auto"].includes(n.state);
+  const cls = ["row","lvl"+lvl, n.epic?"epic":"", n.state==="decide"?"needs-you":""].join(" ");
+  const risk = n.risk?`<span class="pill risk-${n.risk}">${n.risk}</span>`:"";
+  const urgent = n.urgent?`<span class="tag urgent">urgente</span>`:"";
+  const blockNote = n.state==="blocked"?`<span class="blocker"> · espera #${n.by}</span>`
+                  : n.state==="waiting"?`<span class="blocker"> · falta ${n.need}</span>`
+                  : n.note?`<span class="blocker"> · ${n.note}</span>`:"";
+  const kidCount = hasKids?`<span class="cnt">${n.kids.length}</span>`:"";
+  return `<div class="${cls}" data-id="${n.id}">
+    <span class="indent"></span>
+    <button class="caret ${expandable?'':'leaf'}" aria-expanded="${n.open?'true':'false'}"
+      ${expandable?`onclick="toggle(this)"`:''} aria-label="Desplegar">${ICON.caret}</button>
+    <span class="id">#${n.id}</span>
+    <span class="title">${n.t}${blockNote}</span>
+    <span class="meta">${urgent}${kidCount}${risk}${mini(n)}${tagFor(n)}</span>
+    ${actsFor(n)}
+  </div>
+  <div class="kids ${n.open?'open':''}">
+    ${panelFor(n)}
+    ${hasKids?n.kids.map(k=>rowHTML(k,lvl+1)).join(""):""}
+  </div>`;
+}
+function modHTML(m){
+  const c=m.counts;
+  return `<div class="row mod lvl1" data-mod="${m.id}">
+    <button class="caret" aria-expanded="${m.open?'true':'false'}" onclick="toggle(this)" aria-label="Desplegar módulo">${ICON.caret}</button>
+    <span class="title">${m.mod}</span>
+    <span class="counts">
+      ${c.on?`<span class="cnt on">${c.on} activos</span>`:""}
+      <span class="cnt">${c.queue} en cola</span>
+      ${c.bl?`<span class="cnt bl">${c.bl} detenidos</span>`:""}
+    </span>
+    <span class="acts">
+      <button class="act" title="Jalar lo siguiente de este módulo" onclick="toast('Siguiente item de ${m.mod} encolado al frente.')">${ICON.play}</button>
+    </span>
+  </div>
+  <div class="kids ${m.open?'open':''}">${m.kids.map(k=>rowHTML(k,2)).join("")}</div>`;
+}
+
+document.getElementById("tree").innerHTML = DATA.map(modHTML).join("");
+
+function toggle(btn){
+  const open = btn.getAttribute("aria-expanded")==="true";
+  btn.setAttribute("aria-expanded", String(!open));
+  const kids = btn.closest(".row").nextElementSibling;
+  if(kids&&kids.classList.contains("kids")) kids.classList.toggle("open", !open);
+}
+function openRow(btn){
+  const row = btn.closest(".row");
+  const caret = row.querySelector(".caret");
+  const kids = row.nextElementSibling;
+  caret.setAttribute("aria-expanded","true");
+  kids.classList.add("open");
+  kids.scrollIntoView({block:"nearest",behavior:"smooth"});
+}
+
+function decide(btn,id){
+  const panel = btn.closest(".decide-panel");
+  const sel = panel.querySelector(`input[name="dec-${id}"]:checked`);
+  const label = sel ? sel.closest(".opt").querySelector(".ot").textContent.replace("Claude recomienda","").trim() : "tu respuesta escrita";
+  const free = (document.getElementById("free-"+id)||{}).value || "";
+  const only = (document.getElementById("only-"+id)||{}).checked;
+  const row = panel.closest(".kids").previousElementSibling;
+
+  if(only){
+    toast(`Comentario guardado en #${id} sin ejecutar. El item no se mueve hasta que lo decidas.`);
+    return;
+  }
+  row.querySelector(".tag").outerHTML = `<span class="tag answered">respondido · va a la cola</span>`;
+  row.classList.remove("needs-you");
+  panel.innerHTML = `<div class="ap-head"><span class="k">tu decisión quedó escrita</span></div>
+    <p class="ap-what"><b>${label}</b>${free?` — “${free}”`:""}</p>
+    <p class="dp-hint" style="margin:0"><span>✓</span><span>#${id} volvió a la cola con tu respuesta al frente del prompt. Se desbloquea lo que dependía de él.</span></p>`;
+  toast(`#${id}: “${label}”. El item ya está de vuelta en la cola.`);
+}
+
+let tt;
+function toast(msg){
+  const el=document.getElementById("toast");
+  el.textContent=msg; el.classList.add("show");
+  clearTimeout(tt); tt=setTimeout(()=>el.classList.remove("show"),3200);
+}
+document.getElementById("chips").addEventListener("click",e=>{
+  const b=e.target.closest(".chip"); if(!b) return;
+  document.querySelectorAll(".chip").forEach(c=>c.setAttribute("aria-pressed","false"));
+  b.setAttribute("aria-pressed","true");
+  const f=b.dataset.f;
+  const msg={vivo:"Mostrando solo lo vivo: en curso, en cola, detenido y lo decidido hoy sin ti.",
+             todo:"Mostrando los 206 items abiertos, incluidos los parqueados.",
+             bloq:"9 items detenidos — 3 esperan un insumo tuyo y 6 esperan a otro item.",
+             mio:"2 items esperan tu decisión: #283 (driver ZTE) y #635 (bcrypt del Portal).",
+             auto:"5 items que el autopilot resolvió hoy sin preguntarte. Todos reversibles."}[f];
+  toast(msg);
+});
+document.getElementById("q").addEventListener("input",e=>{
+  const q=e.target.value.trim().toLowerCase();
+  document.querySelectorAll(".row").forEach(r=>{
+    if(r.classList.contains("mod")) return;
+    const hit = !q || r.textContent.toLowerCase().includes(q);
+    r.style.display = hit?"":"none";
+    const k=r.nextElementSibling;
+    if(q&&k&&k.classList.contains("kids")) k.classList.add("open");
+  });
+  if(q) document.querySelectorAll(".kids").forEach(k=>k.classList.add("open"));
+});
+</script>
+</body>
+</html>
