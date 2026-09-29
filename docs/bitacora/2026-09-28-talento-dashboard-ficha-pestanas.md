@@ -1653,3 +1653,85 @@ documentado en CLAUDE.md para este archivo): 0 enlaces a
 ### Commits
 
 - `bb0414f2` — segundo enlace "Dashboard" (hardcodeado) retirado del sidebar
+
+## 2026-09-29 (cont.) — Flujo de campo: firmas sin canvas + evidencia sin cámara directa en celular
+
+David: "en la pestaña de flujo de campo hay dos firmas cuando entras a ver
+uno pero no se puede firmar, agrega un canvas como en los documentos y
+verifica primero si se deben guardar en algún lugar para hacer eso, sino haz
+la lógica para que la firma se guarde y quede completo el flujo de campo con
+la firma del cliente". Después, a media tarea: "igual revisa los botones y
+la parte de la evidencia fotográfica, si esta en una pc... que se puedan
+subir las imágenes y si esta en un teléfono que se puedan tirar las fotos
+directo".
+
+**¿Ya existía dónde guardar la firma? Sí, completo.** `TalentoWorkOrderSignature`
++ `SignatureService::store()` + los endpoints `POST/GET
+/talento/campo/{id}/firma(s)` ya estaban armados de una sesión anterior —
+esperaban exactamente `signer_type` (technician/client) + PNG base64 + geo
+opcional. Lo que faltaba por completo era la UI: el PASO 3 solo pintaba un
+ícono de candado y "Pendiente", sin ningún control para dibujar. Se conectó
+`FirmaCanvas.vue` — un componente ya construido y aislado (de la fase de
+firmas de documentos, item #9990792) que nadie había usado todavía en
+ninguna pantalla — a cada slot vacío: botón "Firmar" → abre el canvas →
+Guardar (mismo umbral de 8 puntos mínimos y geolocalización opt-in con
+timeout de 6s que ya usa Documentos) → POST a `/firma` → refresca el flujo.
+
+**Segundo hallazgo, mismo patrón de todo el día:** `TalentoFieldFlowController`
+no comprobaba NUNCA de quién era la orden. `talento.work_orders.view` (que
+TECNICO tiene directo) alcanza para leer `/estado`, `/firmas`, `/media`,
+`/ia-validacion` de CUALQUIER OT, no solo la propia — mismo IDOR ya cerrado
+hoy en Órdenes/Dashboard, aquí sin tocar todavía. Se agregan
+`puedeVerFlujoDe()`/`puedeGestionarFlujoDe()` (idéntico criterio a
+`esStaffOrdenes()` de `TalentoWorkOrderController`: staff o supervisor
+directo del colaborador dueño de la OT) y se aplican a los 3 endpoints de
+lectura reales (`fieldFlowState`, `getSignatures`, `listMedia`,
+`getIaValidation`) y a los de escritura de esta pestaña
+(`storeSignature`, `accept`, `uploadMedia`).
+
+**Decisión deliberada, no un descuido:** uno mismo puede VER su propia OT
+pero NO puede firmarla/aceptarla/subir su evidencia desde esta pantalla —
+mismo criterio que `ordenes_manage` en la ficha ("verse a uno mismo no debe
+dar de gratis el botón de gestión"). El técnico hace su propio trabajo de
+campo desde la app móvil (otro sistema, cámara obligatoria, sin galería);
+esta pantalla web es la herramienta de su supervisor directo o de staff
+(Mostrador/admin) para procesarlo. `talento.field_flow.accept` y
+`talento.media.upload` (antes solo DESARROLLADOR/super-admin) se quedan
+igual como acceso directo de staff; el supervisor entra por el check fino
+nuevo — necesitó también ensanchar 2 paths en `route_permission.php`
+(`.../firma` y `.../aceptar`, el middleware no distingue método) para que
+alcance siquiera la URL.
+
+**Evidencia fotográfica — mismo candado + cámara consciente del
+dispositivo:** el form de subida (antes sin ningún gate en la UI, y
+solo-DESARROLLADOR en el backend) recibió el mismo criterio que firmas, y
+el `<input type="file">` ahora trae `capture="environment"` cuando el
+User-Agent es móvil (Android/iPhone/iPad) — el navegador prioriza abrir la
+cámara trasera directo en vez del picker de galería; en PC el atributo no
+existe y el selector de archivos normal sigue funcionando exactamente
+igual que antes.
+
+**Verificado con pruebas de autorización directas (cuentas desechables,
+limpiadas después) + Playwright real navegando por la ficha:**
+- self (técnico dueño) ve su OT (200) pero 403 al firmar/subir/aceptar.
+- técnico ajeno: 403 en todo — IDOR cerrado.
+- supervisor directo: firma ambos slots (aparecen en verde con hora real),
+  sube evidencia, acepta la instalación → la OT avanza de "Completada" a
+  "Pend. Activación" — el flujo de campo queda completo con la firma del
+  cliente, tal como se pidió.
+- input de evidencia: sin `capture` en escritorio, `capture="environment"`
+  con user-agent Android/viewport de celular.
+
+**Nota de ambiente (no es bug de código):** al probar por CLI (`tinker`,
+usuario `meganet`) antes que por web, la primera carpeta de firmas quedó
+0700 sólo-dueño y bloqueó al proceso web (`www-data`) — mismo patrón ya
+documentado para `storage/app/private/payments`. Se ajustó el permiso de
+`storage/app/talento` en este worktree; en producción (donde todo corre
+como `www-data` desde el principio) esto no ocurre. Queda una carpeta de
+prueba huérfana (`storage/app/talento/signatures/14`, sin fila en BD que
+la referencie) que no pude borrar sin sudo — inofensiva, pendiente de un
+`rm -rf` manual si se quiere.
+
+### Commits
+
+- `e784d759` — canvas de firma + IDOR cerrado en Flujo de campo + evidencia consciente del dispositivo
