@@ -42,8 +42,28 @@ class PostLoginRedirectService
         '/red/router'             => 'router_view_router',
     ];
 
+    /** Mismos 3 roles que ya usa esTecnico() en TalentoCajaController/TalentoColaboradorFicha.vue. */
+    private const ROLES_TECNICO = ['TECNICO', 'TECNICO_INSTALADOR', 'TECNICO_PLANTA'];
+
     public function resolve(User $user): string
     {
+        // 0. David (29-sep): "cámbialo por el dashboard de talento si es un
+        // técnico" — un técnico que TAMBIÉN es Vendedor (común, ej. la
+        // cuenta demo) calificaba para '/' (dashboard general, vía
+        // dashboard_view_dashboard de Vendedor) ANTES de siquiera llegar a
+        // revisar '/talento' en el bucle de abajo — el reorden anterior
+        // (item de esta misma sesión) no alcanzaba a cubrir este caso,
+        // porque '/' seguía ganando primero. Un técnico SIEMPRE aterriza en
+        // su ficha de Talento, sin importar qué otro rol tenga también, y
+        // sin importar last_visited_route (evita quedar "atrapado" en una
+        // ruta vieja de cuando probó otra cosa). Nunca aplica a admin/
+        // DESARROLLADOR real (bypasean todo el sistema de permisos; forzar
+        // esto ahí sería una sorpresa, no una ayuda) aunque cargaran un rol
+        // técnico de prueba.
+        if ($user->hasRole(self::ROLES_TECNICO) && ! $user->isAdmin() && ! $user->isSuperAdmin() && ! $user->isDevelopment()) {
+            return '/talento';
+        }
+
         // 1. Si tiene last_visited_route Y aún tiene permiso → redirigir ahí
         $lastRoute = $user->last_visited_route;
         if ($lastRoute && $this->userCanAccessPath($user, $lastRoute)) {
