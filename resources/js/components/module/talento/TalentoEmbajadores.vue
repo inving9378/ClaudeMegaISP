@@ -202,6 +202,14 @@ export default {
         ? this.puedeGestionar
         : (new Permission(this.permisosGlobales).canDo('talento.employees.view') || this.esSupervisorGlobal);
     },
+    // David (29-sep): un supervisor puro (sin talento.employees.view) NO
+    // debe cargar el roster completo — /talento/api/colaboradores exige
+    // ese permiso de staff y le daba 403 en silencio, dejando la pantalla
+    // suelta vacía. Distingue "staff de verdad" de "solo supervisor" para
+    // elegir el endpoint correcto en load().
+    esStaffCompleto() {
+      return new Permission(this.permisosGlobales).canDo('talento.employees.view');
+    },
   },
   async mounted() {
     if (this.colaboradorId) {
@@ -248,7 +256,14 @@ export default {
         data = [{ id: this.colaboradorId, user: { name: this.colaboradorNombre, email: this.colaboradorEmail }, type: this.colaboradorType }];
         this.pagination = { current_page: 1, last_page: 1 };
       } else {
-        const r = await axios.get('/talento/api/colaboradores', { params: { page, per_page: 20, search: this.search } }).catch(() => null);
+        // Staff de verdad (talento.employees.view) -> roster completo.
+        // Supervisor puro (sin ese permiso, esSupervisorGlobal) -> SOLO su
+        // equipo, mismo endpoint que ya usa el resto de Talento para esto
+        // (/talento/api/mi-equipo) — antes se llamaba siempre al roster
+        // completo y un supervisor sin talento.employees.view recibía 403
+        // en silencio, dejando la tabla vacía (bug real, 29-sep).
+        const url = this.esStaffCompleto ? '/talento/api/colaboradores' : '/talento/api/mi-equipo';
+        const r = await axios.get(url, { params: { page, per_page: 20, search: this.search } }).catch(() => null);
         data = r?.data?.data ?? [];
         this.pagination = { current_page: r?.data?.current_page ?? 1, last_page: r?.data?.last_page ?? 1 };
       }

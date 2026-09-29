@@ -2192,6 +2192,10 @@ return [
         '/talento/api/app/latest',
     ],
     'talento.employees.view' => [
+        // Mostrador tiene este permiso pero no talento.embajadores.view —
+        // sin esta línea, la pantalla suelta redirigía a Mostrador al
+        // dashboard en silencio (29-sep, verificando "Roles múltiples").
+        '/talento/embajadores-colabs',
         '/talento/api/colaboradores',
         '/talento/api/colaboradores/role-departments',
         '/talento/api/colaboradores/users-disponibles',

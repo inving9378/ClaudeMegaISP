@@ -172,6 +172,13 @@ export default {
         ? this.puedeGestionar
         : (new Permission(this.permisosGlobales).canDo('talento.employees.view') || this.esSupervisorGlobal);
     },
+    // David (29-sep, verificando Roles múltiples — mismo bug latente en
+    // esta pantalla): un supervisor puro (sin talento.employees.view) no
+    // debe pedir el roster completo (/talento/api/colaboradores, 403 en
+    // silencio para él) — debe pedir SOLO su equipo.
+    esStaffCompleto() {
+      return new Permission(this.permisosGlobales).canDo('talento.employees.view');
+    },
   },
   async mounted() {
     if (this.colaboradorId) {
@@ -208,7 +215,8 @@ export default {
       this.loadingLista = true;
       this.selected = null;
       try {
-        const { data } = await axios.get('/talento/api/colaboradores', {
+        const url = this.esStaffCompleto ? '/talento/api/colaboradores' : '/talento/api/mi-equipo';
+        const { data } = await axios.get(url, {
           params: { search: this.searchColaborador, per_page: 60, status: 'active' }
         });
         this.colaboradores = data?.data ?? [];

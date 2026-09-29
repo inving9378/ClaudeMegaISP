@@ -13,9 +13,21 @@ use Illuminate\Support\Facades\DB;
 
 class TalentoEmbajadoresController extends Controller
 {
+    /**
+     * David (29-sep, verificando "Roles múltiples"): Mostrador tiene
+     * talento.employees.view (roster completo, puede ver la pestaña dentro
+     * de CUALQUIER ficha vía puedeVerRolesMultiplesDe() de abajo) pero NO
+     * talento.embajadores.view — así que la pantalla suelta
+     * /talento/embajadores-colabs la redirigía al dashboard en silencio
+     * (sin ver ningún error, solo "desaparecía"). Se ensancha a cualquiera
+     * de los dos permisos, igual que ya hace puedeVerRolesMultiplesDe().
+     */
     public function index()
     {
-        $this->authorize('talento.embajadores.view');
+        abort_unless(
+            auth()->user()->can('talento.embajadores.view') || auth()->user()->can('talento.employees.view'),
+            403
+        );
         return view('addon-talento::talento.embajadores');
     }
 
