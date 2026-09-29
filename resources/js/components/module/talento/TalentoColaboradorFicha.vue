@@ -248,7 +248,14 @@
                Portal). Con eso, el resumen de solo lectura
                (TalentoFichaAcademia.vue) sigue siendo lo correcto para
                cuando el que mira NO es el propio colaborador. -->
-          <talento-academia v-if="esUnoMismoLiteral" />
+          <template v-if="esUnoMismoLiteral">
+            <talento-academia />
+            <!-- David (29-sep): "no estaría mal poner debajo lo que
+                 estaba antes, el progreso y las etapas del curso" — el
+                 catálogo (arriba) no reemplaza el resumen, se agrega. -->
+            <hr class="my-4">
+            <talento-ficha-academia :colaborador-id="id" />
+          </template>
           <talento-ficha-academia v-else :colaborador-id="id" />
         </div>
       </div>
