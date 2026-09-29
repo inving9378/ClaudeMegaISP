@@ -4,6 +4,7 @@ namespace App\Modules\Addons\VoIP;
 
 use App\Modules\Addons\VoIP\Console\BotVozEscucharCommand;
 use App\Modules\Addons\VoIP\Console\BotVozProbarCommand;
+use App\Modules\Addons\VoIP\Console\GenerarGemelasWebrtcCommand;
 use App\Modules\Addons\VoIP\Console\ImportarQueueLogCommand;
 use App\Modules\Addons\VoIP\Console\PurgarGrabacionesCommand;
 use App\Modules\Addons\VoIP\Console\ReconciliarCommand;
@@ -37,6 +38,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 ImportarQueueLogCommand::class,
                 BotVozProbarCommand::class,
                 BotVozEscucharCommand::class,
+                GenerarGemelasWebrtcCommand::class,
             ]);
         }
     }

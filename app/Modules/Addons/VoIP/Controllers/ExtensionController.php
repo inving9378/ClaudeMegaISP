@@ -22,24 +22,26 @@ class ExtensionController extends Controller
     ) {}
 
     /**
-     * Crea (si falta) la gemela WebRTC de una extensión de escritorio recién
-     * ligada a un usuario a mano — mismo mecanismo que el alta automática de
-     * colaboradores (Fase 1), reusado aquí porque sin esto el mini-teléfono
-     * NUNCA aparecía para nadie asignado desde esta pantalla (encontrado en
-     * vivo 24-sep-2026: Diana tenía la extensión 1003 asignada, pero sin
-     * `web1003` el widget no se dibuja — "el propio componente... no se
-     * dibuja nada si el usuario no tiene una extensión WebRTC asignada").
-     * Best-effort: un fallo aquí no debe tumbar el guardado de la extensión.
+     * Crea (si falta) la gemela WebRTC de una extensión de escritorio —
+     * mismo mecanismo que el alta automática de colaboradores (Fase 1),
+     * reusado aquí porque sin esto el mini-teléfono NUNCA aparecía para
+     * nadie asignado desde esta pantalla (encontrado en vivo 24-sep-2026:
+     * Diana tenía la extensión 1003 asignada, pero sin `web1003` el widget
+     * no se dibuja — "el propio componente... no se dibuja nada si el
+     * usuario no tiene una extensión WebRTC asignada"). Best-effort: un
+     * fallo aquí no debe tumbar el guardado de la extensión.
+     *
+     * SIN DUEÑO (28-sep-2026): ya no exige `user_id` — Irving pidió que
+     * TODA extensión nueva (con dueño o sin él, ej. una de departamento)
+     * reciba su gemela `webNNNN` automáticamente al crearse/editarse.
+     * `crearGemelaWebrtc()` acepta `$user = null` para este caso.
      */
     private function asegurarGemelaWebrtc(Extension $extension): void
     {
-        if ($extension->es_webrtc || ! $extension->user_id) {
+        if ($extension->es_webrtc) {
             return;
         }
-        $user = User::find($extension->user_id);
-        if (! $user) {
-            return;
-        }
+        $user = $extension->user_id ? User::find($extension->user_id) : null;
         try {
             $this->reclamador->crearGemelaWebrtc($extension, $user);
         } catch (\Throwable $e) {

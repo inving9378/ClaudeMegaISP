@@ -106,7 +106,7 @@ return [
     // .vue (viola la convención de secretos solo-en-.env), viaja por este
     // mismo endpoint que ya manda el secret SIP de cada quien.
     'turn' => [
-        'url'        => env('MEGAVOZ_TURN_URL', 'turn:38.123.192.199:3478'),
+        'url'        => env('MEGAVOZ_TURN_URL', 'turn:38.123.192.198:3478'),
         'username'   => env('MEGAVOZ_TURN_USERNAME'),
         'credential' => env('MEGAVOZ_TURN_PASSWORD'),
     ],

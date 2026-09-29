@@ -114,6 +114,15 @@ class ReclamadorExtensionAutomatico
      * camino). Idempotente si el dueño no cambió (early-return si
      * `web{numero}` ya existe CON el mismo `user_id`).
      *
+     * SIN DUEÑO (28-sep-2026): `$user` es nullable a propósito — Irving pidió
+     * que TODA extensión reciba su gemela web, no solo las que ya tienen un
+     * colaborador asignado (ej. las 27 sembradas por departamento sin
+     * `user_id` de `ExtensionesArranqueSeeder`). Una gemela sin dueño queda
+     * con `user_id=null` — inerte hasta que alguien la reclame (ver rama de
+     * reasignación abajo, que ya cubre pasar de "sin dueño" a "con dueño").
+     * `ExtensionController::asegurarGemelaWebrtc()` ya no exige `user_id`
+     * para llamar aquí.
+     *
      * REASIGNACIÓN (24-sep-2026): si `web{numero}` ya existe pero con OTRO
      * `user_id` (la extensión de escritorio se le quitó a alguien y se le
      * dio a otra persona), se actualiza la gemela en vez de dejarla como
@@ -122,20 +131,22 @@ class ReclamadorExtensionAutomatico
      * haberlo visto/guardado) y se reprovisiona contra PJSIP realtime para
      * que el cambio de credencial surta efecto de inmediato.
      */
-    public function crearGemelaWebrtc(Extension $extension, User $user): void
+    public function crearGemelaWebrtc(Extension $extension, ?User $user = null): void
     {
-        $numeroWeb = 'web' . $extension->numero;
-        $gemela    = Extension::where('numero', $numeroWeb)->first();
+        $numeroWeb  = 'web' . $extension->numero;
+        $gemela     = Extension::where('numero', $numeroWeb)->first();
+        $nombreBase = $user->name ?? $extension->nombre;
+        $userId     = $user?->id;
 
         if ($gemela) {
-            if ((int) $gemela->user_id === (int) $user->id) {
-                return; // ya es de este mismo usuario — nada que hacer
+            if ((int) $gemela->user_id === (int) $userId) {
+                return; // ya es de este mismo dueño (o sigue igual sin dueño) — nada que hacer
             }
 
-            // Reasignación: la gemela existe pero era de otra persona.
+            // Reasignación: la gemela existe pero era de otra persona (o de nadie).
             $gemela->update([
-                'nombre'  => $user->name . ' (navegador)',
-                'user_id' => $user->id,
+                'nombre'  => $nombreBase . ' (navegador)',
+                'user_id' => $userId,
                 'secret'  => Str::random(32),
             ]);
 
@@ -150,8 +161,8 @@ class ReclamadorExtensionAutomatico
 
         $gemela = Extension::create([
             'numero'                   => $numeroWeb,
-            'nombre'                   => $user->name . ' (navegador)',
-            'user_id'                  => $user->id,
+            'nombre'                   => $nombreBase . ' (navegador)',
+            'user_id'                  => $userId,
             'secret'                   => Str::random(32),
             'tipo_dispositivo'         => 'softphone',
             'es_webrtc'                => true,

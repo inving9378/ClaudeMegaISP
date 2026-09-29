@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -35,8 +36,22 @@ return new class extends Migration
 {
     protected $connection = 'asterisk_rt';
 
+    private function asteriskAvailable(): bool
+    {
+        try {
+            DB::connection('asterisk_rt')->getPdo();
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
     public function up(): void
     {
+        if (! $this->asteriskAvailable()) {
+            return;
+        }
+
         if (Schema::connection('asterisk_rt')->hasTable('voip_llamadas')) {
             return;
         }
@@ -85,6 +100,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! $this->asteriskAvailable()) {
+            return;
+        }
+
         Schema::connection('asterisk_rt')->dropIfExists('voip_llamadas');
     }
 };
