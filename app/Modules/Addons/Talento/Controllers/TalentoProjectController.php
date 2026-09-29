@@ -13,6 +13,7 @@ use App\Modules\Addons\Talento\Services\CorridorDeviationService;
 use App\Modules\Addons\Talento\Services\LevelService;
 use App\Modules\Addons\Talento\Services\ProjectActivityService;
 use App\Modules\Addons\Talento\Services\ProjectBonusService;
+use App\Modules\Addons\Talento\Support\Actor;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -36,7 +37,13 @@ class TalentoProjectController extends Controller
 
     public function data(Request $request)
     {
-        $this->authorize('talento.projects.view');
+        // David, 28-sep: se abrió /talento/api/proyectos/** vía talento.view
+        // (route_permission.php) para que la pestaña "Proyectos" de la ficha
+        // funcione en autoservicio — sin talento.projects.view completo,
+        // exige al menos ser un colaborador real (nadie ajeno al módulo).
+        if (! auth()->user()->can('talento.projects.view')) {
+            abort_unless(Actor::for(auth()->user())->talento(), 403);
+        }
 
         $q = TalentoProject::with('lead.user')
             ->when($request->status, fn($q, $s) => $q->where('status', $s))
@@ -44,12 +51,22 @@ class TalentoProjectController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate($request->per_page ?? 20);
 
+        $this->hideBonusFields($q->getCollection());
+
         return response()->json($q);
     }
 
     public function store(Request $request)
     {
-        $this->authorize('talento.projects.manage');
+        // David, 28-sep: "el proyecto lo crea un superior" — mismo criterio
+        // que Órdenes/Compensación/Rutas: admin/DESARROLLADOR o CUALQUIER
+        // supervisor (no hay un colaborador_id puntual al crear un
+        // proyecto, así que el criterio es "ser supervisor de alguien",
+        // igual que TalentoCajaController::puedeGestionarSettings()).
+        if (! auth()->user()->can('talento.projects.manage')) {
+            $esSupervisor = (bool) Actor::for(auth()->user())->talento()?->subordinados()->exists();
+            abort_unless($esSupervisor, 403, 'No tienes permiso para crear proyectos.');
+        }
 
         $data = $request->validate([
             'name'                => 'required|string|max:160',
@@ -70,7 +87,9 @@ class TalentoProjectController extends Controller
 
     public function show($id)
     {
-        $this->authorize('talento.projects.view');
+        if (! auth()->user()->can('talento.projects.view')) {
+            abort_unless(Actor::for(auth()->user())->talento(), 403);
+        }
 
         $project = TalentoProject::with([
             'lead.user',
@@ -112,6 +131,8 @@ class TalentoProjectController extends Controller
             }
         }
         $project->collaborator_summary = array_values($colPoints);
+
+        $this->hideBonusFields($project);
 
         return response()->json($project);
     }
@@ -188,8 +209,6 @@ class TalentoProjectController extends Controller
 
     public function submitReport(Request $request, $projectId, $actId)
     {
-        $this->authorize('talento.project_reports.create');
-
         TalentoProjectActivity::where('project_id', $projectId)->findOrFail($actId);
 
         $data = $request->validate([
@@ -199,6 +218,29 @@ class TalentoProjectController extends Controller
             'colaborador_ids.*'=> 'exists:talento_colaboradores,id',
             'notes'           => 'nullable|string',
         ]);
+
+        // David, 28-sep ("arregla eso también"): antes esto exigía
+        // talento.project_reports.create a secas (solo admin) — sin permiso
+        // de STAFF, un técnico solo puede reportar avance PROPIO o de
+        // colaboradores a su cargo, nunca acreditar a alguien ajeno a su
+        // equipo. $miPropioColaborador se reusa más abajo para decidir el
+        // auto-aprobado.
+        $tienePermisoAmplio  = auth()->user()->can('talento.project_reports.create');
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        $esSupervisor        = (bool) ($miPropioColaborador?->subordinados()->exists());
+
+        if (! $tienePermisoAmplio) {
+            abort_unless($miPropioColaborador, 403, 'No tienes permiso para reportar avance de proyectos.');
+
+            $idsPermitidos = $miPropioColaborador->subordinados()->pluck('id')
+                ->push($miPropioColaborador->id)
+                ->map(fn($id) => (string) $id)->all();
+
+            foreach ($data['colaborador_ids'] as $colId) {
+                abort_unless(in_array((string) $colId, $idsPermitidos, true), 403,
+                    'Solo puedes reportar avance propio o de colaboradores a tu cargo.');
+            }
+        }
 
         // Gating por nivel (Fase 7b): verificar nivel de cada colaborador participante
         $activity    = TalentoProjectActivity::with('activityType')->find($actId);
@@ -217,12 +259,19 @@ class TalentoProjectController extends Controller
         }
 
         try {
+            // Auto-aprueba si quien reporta tiene el permiso de STAFF o es
+            // supervisor de verdad (confía en su propio reporte del
+            // equipo — mismo criterio que el resto del módulo). Un técnico
+            // SIN subordinados reportando solo por sí mismo queda 'pending'
+            // hasta que su supervisor o un admin lo apruebe (approveReport())
+            // — así nadie se autoacredita puntos sin revisión.
             $report = $this->activityService->submitReport(
                 $actId,
                 (float)$data['quantity'],
                 $data['report_date'],
                 $data['colaborador_ids'],
-                $data['notes'] ?? null
+                $data['notes'] ?? null,
+                $tienePermisoAmplio || $esSupervisor
             );
             return response()->json($report, 201);
         } catch (\RuntimeException $e) {
@@ -232,7 +281,25 @@ class TalentoProjectController extends Controller
 
     public function approveReport(Request $request, $reportId)
     {
-        $this->authorize('talento.project_reports.approve');
+        if (! auth()->user()->can('talento.project_reports.approve')) {
+            // Un supervisor puede aprobar reportes de su propio equipo (o
+            // los suyos propios, si reportó mezclado con su equipo) — NUNCA
+            // un colaborador sin subordinados, para que nadie se
+            // autoapruebe su propio reporte 'pending'.
+            $miPropioColaborador = Actor::for(auth()->user())->talento();
+            $esSupervisor = $miPropioColaborador && $miPropioColaborador->subordinados()->exists();
+            abort_unless($esSupervisor, 403, 'Solo un supervisor o un administrador puede aprobar reportes.');
+
+            $report = TalentoProjectActivityReport::with('participants')->findOrFail($reportId);
+            $idsPermitidos = $miPropioColaborador->subordinados()->pluck('id')
+                ->push($miPropioColaborador->id)
+                ->map(fn($id) => (string) $id)->all();
+
+            $todosSonMiEquipo = $report->participants->every(
+                fn($p) => in_array((string) $p->colaborador_id, $idsPermitidos, true)
+            );
+            abort_unless($todosSonMiEquipo, 403, 'Solo puedes aprobar reportes de colaboradores a tu cargo.');
+        }
 
         try {
             $report = $this->activityService->approve((int)$reportId);
@@ -392,5 +459,24 @@ class TalentoProjectController extends Controller
             ->get();
 
         return response()->json($deviations);
+    }
+
+    /**
+     * bonus_amount/bonus_scale son datos de compensación (dinero) — desde
+     * que /talento/api/proyectos/** se abrió a autoservicio (28-sep) para
+     * la pestaña "Proyectos" de la ficha, ocultarlos a quien no gestiona
+     * proyectos (mismo criterio que hideExpedienteFields() en
+     * TalentoColaboradorController). Acepta un Model o una Collection.
+     */
+    private function hideBonusFields($items): void
+    {
+        if (auth()->user()->can('talento.projects.manage')) {
+            return;
+        }
+        if ((bool) Actor::for(auth()->user())->talento()?->subordinados()->exists()) {
+            return;
+        }
+
+        $items->makeHidden(['bonus_amount', 'bonus_scale']);
     }
 }

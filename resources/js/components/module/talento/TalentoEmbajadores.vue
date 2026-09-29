@@ -4,7 +4,9 @@
     <div class="tc-card">
       <div class="tc-cardhead d-flex align-items-center justify-content-between flex-wrap gap-2 p-3">
         <h5 class="tc-h1"><i class="fa fa-link me-2 text-primary"></i>Colaboradores con Roles Múltiples</h5>
-        <div class="d-flex gap-2">
+        <!-- David, 28-sep: "oculta el buscador aquí también, igual que en
+             Custodia" — buscar/navegar entre TODOS es de supervisor/staff. -->
+        <div v-if="puedeGestionarResuelto" class="d-flex gap-2">
           <input v-model="search" @input="debounceLoad" type="text" class="form-control form-control-sm" placeholder="Buscar colaborador…" style="width:220px">
         </div>
       </div>
@@ -151,9 +153,28 @@
 
 <script>
 import { darkMode } from "../../../hook/appConfig.js";
+import Permission from "../../../helpers/Permission.js";
+import { allViewHasPermission } from "../../../helpers/Request.js";
 
 export default {
   name: 'TalentoEmbajadores',
+  props: {
+    colaboradorId: { type: [Number, String], default: null },
+    // La ficha ya conoce estos datos — usarlos directo evita depender de
+    // GET /talento/api/colaboradores/{id}, que NO está en talento.view (un
+    // técnico viendo su propia ficha 403eaba ahí y la tabla quedaba vacía
+    // pese a que embajador-data/seller-data sí funcionan). Mismo patrón
+    // que TalentoDispositivos.vue.
+    colaboradorNombre: { type: String, default: '' },
+    colaboradorEmail: { type: String, default: '' },
+    colaboradorType: { type: String, default: '' },
+    // Resuelto server-side por la ficha (permisos.embajadores_buscador):
+    // talento.employees.view o CUALQUIER supervisor — NO
+    // talento.embajadores.view (esa también la tiene TECNICO directo, no
+    // distingue). David, 28-sep: "oculta el buscador aquí también, igual
+    // que en Custodia".
+    puedeGestionar: { type: Boolean, default: false },
+  },
   setup() {
     return { darkMode };
   },
@@ -168,10 +189,57 @@ export default {
       detailEmbajador: null,
       detailSeller: null,
       detailModal: null,
+      permisosGlobales: {},
+      // "¿Soy supervisor de alguien?" no es un permiso de Spatie — se
+      // resuelve aparte en mounted() reusando /talento/api/mi-equipo
+      // (mismo patrón que TalentoCustodia.vue).
+      esSupervisorGlobal: false,
     };
   },
-  mounted() {
-    this.load(1);
+  computed: {
+    puedeGestionarResuelto() {
+      return this.colaboradorId
+        ? this.puedeGestionar
+        : (new Permission(this.permisosGlobales).canDo('talento.employees.view') || this.esSupervisorGlobal);
+    },
+    // David (29-sep): un supervisor puro (sin talento.employees.view) NO
+    // debe cargar el roster completo — /talento/api/colaboradores exige
+    // ese permiso de staff y le daba 403 en silencio, dejando la pantalla
+    // suelta vacía. Distingue "staff de verdad" de "solo supervisor" para
+    // elegir el endpoint correcto en load().
+    esStaffCompleto() {
+      return new Permission(this.permisosGlobales).canDo('talento.employees.view');
+    },
+  },
+  async mounted() {
+    if (this.colaboradorId) {
+      this.load(1);
+      return;
+    }
+    // Pantalla suelta (/talento/embajadores-colabs): resolver permiso
+    // global + "¿tengo equipo?" primero.
+    this.permisosGlobales = await allViewHasPermission();
+    if (!new Permission(this.permisosGlobales).canDo('talento.employees.view')) {
+      try {
+        const { data } = await axios.get('/talento/api/mi-equipo', { params: { per_page: 1 } });
+        this.esSupervisorGlobal = (data?.total ?? 0) > 0;
+      } catch { this.esSupervisorGlobal = false; }
+    }
+    if (this.puedeGestionarResuelto) {
+      this.load(1);
+      return;
+    }
+    // Sin permiso de buscar: resolver directo la propia fila (mismo
+    // criterio que TalentoCustodia.vue) en vez de una tabla vacía.
+    try {
+      const { data } = await axios.get('/talento/mi-ficha');
+      if (data?.id) {
+        this.items = [{ id: data.id, user: { name: data.user?.name, email: data.user?.email }, type: data.type, _embajador: undefined, _seller: undefined }];
+        this.loadCrossLinks(this.items[0]);
+        this.pagination = { current_page: 1, last_page: 1 };
+        return;
+      }
+    } catch { /* sin colaborador propio — se queda sin nada que mostrar */ }
   },
   methods: {
     debounceLoad() {
@@ -180,10 +248,26 @@ export default {
     },
     async load(page = 1) {
       this.loading = true;
-      const r = await axios.get('/talento/api/colaboradores', { params: { page, per_page: 20, search: this.search } }).catch(() => null);
+      let data;
+      if (this.colaboradorId) {
+        // Ficha de un colaborador: el nombre/email/tipo ya vienen resueltos
+        // por props (evita GET /talento/api/colaboradores/{id} — ver
+        // comentario de los props).
+        data = [{ id: this.colaboradorId, user: { name: this.colaboradorNombre, email: this.colaboradorEmail }, type: this.colaboradorType }];
+        this.pagination = { current_page: 1, last_page: 1 };
+      } else {
+        // Staff de verdad (talento.employees.view) -> roster completo.
+        // Supervisor puro (sin ese permiso, esSupervisorGlobal) -> SOLO su
+        // equipo, mismo endpoint que ya usa el resto de Talento para esto
+        // (/talento/api/mi-equipo) — antes se llamaba siempre al roster
+        // completo y un supervisor sin talento.employees.view recibía 403
+        // en silencio, dejando la tabla vacía (bug real, 29-sep).
+        const url = this.esStaffCompleto ? '/talento/api/colaboradores' : '/talento/api/mi-equipo';
+        const r = await axios.get(url, { params: { page, per_page: 20, search: this.search } }).catch(() => null);
+        data = r?.data?.data ?? [];
+        this.pagination = { current_page: r?.data?.current_page ?? 1, last_page: r?.data?.last_page ?? 1 };
+      }
       this.loading = false;
-      const data = r?.data?.data ?? [];
-      this.pagination = { current_page: r?.data?.current_page ?? 1, last_page: r?.data?.last_page ?? 1 };
       // Init with null cross-links (lazy loaded)
       this.items = data.map(c => ({ ...c, _embajador: undefined, _seller: undefined }));
       // Lazy load cross-links for visible rows

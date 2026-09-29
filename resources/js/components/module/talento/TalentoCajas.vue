@@ -1,8 +1,15 @@
 <template>
   <div class="talento-cajas tc-wrap" :class="{ 'tc-dark': darkMode }">
 
-    <!-- Settings bono -->
-    <div class="card border-0 shadow-sm mb-4">
+    <!-- "Guardar settings" (bono/umbral) es POLÍTICA — admin/DESARROLLADOR
+         o cualquier supervisor (David, 28-sep, aclarado él mismo tras su
+         primer pedido: "Registrar baseline" en cambio es la LECTURA REAL
+         de dBm que el técnico toma en campo con su medidor — nadie más
+         tiene ese dato, así que ESE botón SÍ se le deja al técnico, ver
+         más abajo). El backend ya bloqueaba settings con
+         talento.caja.manage; esto solo evita mostrar el botón a quien no
+         puede usarlo. -->
+    <div v-if="puedeGestionarSettings" class="card border-0 shadow-sm mb-4">
       <div class="card-body">
         <div class="d-flex align-items-center flex-wrap gap-3">
           <strong class="me-1"><i class="fa fa-cog text-primary me-2"></i>Bono de salud de red:</strong>
@@ -39,6 +46,7 @@
         <div class="tc-card">
           <div class="tc-cardhead d-flex align-items-center justify-content-between gap-2 p-3">
             <h6 class="tc-h1 mb-0"><i class="fa fa-signal text-primary me-2"></i>Baselines por caja</h6>
+            <!-- Sin gate: lectura de campo, ver nota junto al card de settings arriba. -->
             <button @click="openCreate" class="tc-btn tc-btn-ok">
               <i class="fa fa-plus me-1"></i>Registrar
             </button>
@@ -163,6 +171,17 @@ import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoCajas',
+  props: {
+    // Si viene, acota el LOG de bonos de salud (bonusLog) a este técnico —
+    // el catálogo de cajas/baselines sigue siendo global a propósito (no
+    // es "de una persona", es infraestructura compartida). "Registrar
+    // baseline" tampoco lleva gate: es la lectura real de dBm que el
+    // técnico toma en campo (David, 28-sep). Solo "Guardar settings"
+    // (política del bono) es gestión — puedeGestionarSettings, calculado
+    // server-side en getSettings() (admin/DESARROLLADOR o cualquier
+    // supervisor).
+    colaboradorId: { type: [Number, String], default: null },
+  },
   setup() {
     return { darkMode };
   },
@@ -176,6 +195,7 @@ export default {
       debounceTimer: null,
       settings: { amount: 30, maxLoss: 1.0, saving: false },
       modal: { show: false, caja_ref: '', baseline_power_dbm: '', notes: '', saving: false, error: '' },
+      puedeGestionarSettings: false,
     };
   },
   mounted() {
@@ -193,6 +213,9 @@ export default {
         const { data } = await axios.get('/talento/api/cajas/settings');
         this.settings.amount  = data?.health_bonus_amount ?? 30;
         this.settings.maxLoss = data?.health_bonus_max_loss_db ?? 1.0;
+        // Calculado server-side (admin/DESARROLLADOR o cualquier
+        // supervisor) — ver TalentoCajaController::puedeGestionarSettings().
+        this.puedeGestionarSettings = data?.puede_gestionar ?? false;
       } catch {}
     },
     async saveSettings() {
@@ -214,7 +237,9 @@ export default {
     async loadBonusLog() {
       this.loadingLog = true;
       try {
-        const { data } = await axios.get('/talento/api/cajas/bonus-log', { params: { per_page: 30 } });
+        const params = { per_page: 30 };
+        if (this.colaboradorId) params.colaborador_id = this.colaboradorId;
+        const { data } = await axios.get('/talento/api/cajas/bonus-log', { params });
         this.bonusLog = data?.data ?? [];
       } finally { this.loadingLog = false; }
     },

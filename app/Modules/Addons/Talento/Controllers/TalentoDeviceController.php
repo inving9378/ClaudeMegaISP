@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoDevice;
+use App\Modules\Addons\Talento\Support\Actor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -18,11 +19,31 @@ class TalentoDeviceController extends Controller
     }
 
     /**
+     * talento.devices.view lo tienen TECNICO/TECNICO_PLANTA/TECNICO_INSTALADOR
+     * directo (necesario para que vean la tarjeta de descarga del APK en
+     * /talento/dispositivos), pero sin scoping propio ese permiso terminaba
+     * abriendo el listado de dispositivos de CUALQUIER colaborador — mismo
+     * hallazgo que TalentoCustodiaController::puedeVerCustodiaDe(). Uno
+     * mismo, su supervisor directo, o talento.employees.view (la señal
+     * real de "staff que ve a cualquiera").
+     */
+    private function puedeVerDispositivosDe($colaboradorId): bool
+    {
+        if (auth()->user()->can('talento.employees.view')) {
+            return true;
+        }
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        if (! $miPropioColaborador) return false;
+        return (string) $miPropioColaborador->id === (string) $colaboradorId
+            || $miPropioColaborador->subordinados()->where('id', $colaboradorId)->exists();
+    }
+
+    /**
      * List devices for a collaborator.
      */
     public function forColaborador($colaboradorId)
     {
-        $this->authorize('talento.devices.view');
+        abort_unless($this->puedeVerDispositivosDe($colaboradorId), 403);
 
         $colaborador = TalentoColaborador::findOrFail($colaboradorId);
 

@@ -7,6 +7,7 @@ use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoCredential;
 use App\Modules\Addons\Talento\Models\TalentoFund;
 use App\Modules\Addons\Talento\Services\FundService;
+use App\Modules\Addons\Talento\Support\Actor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -21,10 +22,44 @@ class TalentoCredentialController extends Controller
         return view('addon-talento::talento.credenciales');
     }
 
+    /**
+     * "Por colaborador" (ver credencial/fondo de UN colaborador puntual) es
+     * gestión — David, 28-sep: "la pestaña de por colaborador debe salirle
+     * solo a los superiores". A diferencia del resto del módulo, a
+     * propósito SIN excepción de autoservicio: el propio colaborador no
+     * gestiona su credencial/fondo aquí — se entera por el correo
+     * automático de `talento:check-credential-expirations`.
+     */
+    private function esSuperiorDe($colaboradorId): bool
+    {
+        if (auth()->user()->can('talento.credentials.view')
+            || auth()->user()->can('talento.funds.view')
+            || auth()->user()->can('talento.employees.view')) {
+            return true;
+        }
+
+        return (bool) Actor::for(auth()->user())->talento()
+            ?->subordinados()->where('id', $colaboradorId)->exists();
+    }
+
+    /** Mismo criterio que esSuperiorDe(), pero para las acciones de escritura. */
+    private function esGestorDe($colaboradorId): bool
+    {
+        if (auth()->user()->can('talento.credentials.manage')
+            || auth()->user()->can('talento.funds.manage')) {
+            return true;
+        }
+
+        return (bool) Actor::for(auth()->user())->talento()
+            ?->subordinados()->where('id', $colaboradorId)->exists();
+    }
+
     // ── Credentials ────────────────────────────────────────────────────────
 
     public function listForColaborador(int $colaboradorId)
     {
+        abort_unless($this->esSuperiorDe($colaboradorId), 403);
+
         $creds = TalentoCredential::where('colaborador_id', $colaboradorId)
             ->orderByDesc('expires_at')
             ->get()
@@ -49,7 +84,6 @@ class TalentoCredentialController extends Controller
 
     public function store(Request $request)
     {
-        $this->authorize('talento.credentials.manage');
         $data = $request->validate([
             'colaborador_id'     => 'required|integer|exists:talento_colaboradores,id',
             'type'               => 'required|in:driver_license,other',
@@ -59,6 +93,8 @@ class TalentoCredentialController extends Controller
             'alert_weeks_before' => 'integer|min:1|max:52',
             'notes'              => 'nullable|string|max:500',
         ]);
+
+        abort_unless($this->esGestorDe($data['colaborador_id']), 403);
 
         // Photo/scan — cifrada con Crypt (setter en el modelo)
         $filePath = null;
@@ -93,8 +129,8 @@ class TalentoCredentialController extends Controller
 
     public function update(Request $request, int $id)
     {
-        $this->authorize('talento.credentials.manage');
         $cred = TalentoCredential::findOrFail($id);
+        abort_unless($this->esGestorDe($cred->colaborador_id), 403);
         $data = $request->validate([
             'document_number'    => 'nullable|string|max:60',
             'issued_at'          => 'nullable|date',
@@ -123,8 +159,8 @@ class TalentoCredentialController extends Controller
 
     public function serveDocument(int $id)
     {
-        $this->authorize('talento.credentials.view');
         $cred = TalentoCredential::findOrFail($id);
+        abort_unless($this->esSuperiorDe($cred->colaborador_id), 403);
         $path = $cred->getDecryptedPath();
         if (!$path || !Storage::disk('local')->exists($path)) abort(404);
         return response()->file(Storage::disk('local')->path($path));
@@ -134,6 +170,8 @@ class TalentoCredentialController extends Controller
 
     public function listFunds(int $colaboradorId)
     {
+        abort_unless($this->esSuperiorDe($colaboradorId), 403);
+
         $funds = TalentoFund::where('colaborador_id', $colaboradorId)
             ->with('credential')
             ->orderByDesc('created_at')
@@ -147,7 +185,6 @@ class TalentoCredentialController extends Controller
 
     public function storeFund(Request $request)
     {
-        $this->authorize('talento.funds.manage');
         $data = $request->validate([
             'colaborador_id'   => 'required|integer|exists:talento_colaboradores,id',
             'purpose'          => 'required|in:license,other',
@@ -156,6 +193,8 @@ class TalentoCredentialController extends Controller
             'credential_id'    => 'nullable|integer|exists:talento_credentials,id',
             'notes'            => 'nullable|string|max:500',
         ]);
+
+        abort_unless($this->esGestorDe($data['colaborador_id']), 403);
 
         $fund = TalentoFund::create(array_merge($data, [
             'accumulated' => 0,
@@ -172,8 +211,8 @@ class TalentoCredentialController extends Controller
 
     public function authorizeFund(Request $request, int $fundId)
     {
-        $this->authorize('talento.funds.manage');
         $fund = TalentoFund::findOrFail($fundId);
+        abort_unless($this->esGestorDe($fund->colaborador_id), 403);
         $resolved = $this->fundService->authorize($fund, auth()->id());
         return response()->json(array_merge($resolved->toArray(), [
             'progress_pct'    => $resolved->progressPct(),
@@ -183,8 +222,8 @@ class TalentoCredentialController extends Controller
 
     public function markFundSpent(int $fundId)
     {
-        $this->authorize('talento.funds.manage');
         $fund = TalentoFund::findOrFail($fundId);
+        abort_unless($this->esGestorDe($fund->colaborador_id), 403);
         if ($fund->status !== 'ready') {
             return response()->json(['error' => 'Solo se puede marcar como spent un fondo en estado ready.'], 422);
         }

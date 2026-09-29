@@ -815,8 +815,15 @@ class OrdenTrabajoUnifiedService
                 ->all();
         }
 
+        // David (29-sep, verificando Órdenes): colaborador_id ahora también
+        // acepta un ARREGLO (IDOR real encontrado: talento.work_orders.view
+        // lo tiene TECNICO directo, y sin scoping cualquiera veía las
+        // órdenes de CUALQUIER colaborador con solo omitir el filtro). El
+        // controller pasa un arreglo [yo + mi equipo] cuando quien pide no
+        // es staff; whereIn cubre ambos casos, where() seguía cubriendo el
+        // caso de un solo id (uso normal, ficha de un colaborador puntual).
         $woQuery = TalentoWorkOrder::with(['colaborador.user', 'type', 'assignedBy'])
-            ->when($colaboradorId, fn($q, $v) => $q->where('colaborador_id', $v))
+            ->when($colaboradorId, fn($q, $v) => is_array($v) ? $q->whereIn('colaborador_id', $v) : $q->where('colaborador_id', $v))
             ->when($status,        fn($q, $v) => $q->where('status', $v))
             ->when($typeId,        fn($q, $v) => $q->where('type_id', $v))
             ->when($from,          fn($q, $v) => $q->where('scheduled_at', '>=', $v))
@@ -850,9 +857,11 @@ class OrdenTrabajoUnifiedService
         }
 
         if ($colaboradorId) {
-            $userId = $this->getUserId((int)$colaboradorId);
-            $userId
-                ? $taskQuery->whereHas('users', fn($q) => $q->where('users.id', $userId))
+            $userIds = is_array($colaboradorId)
+                ? TalentoColaborador::whereIn('id', $colaboradorId)->pluck('user_id')->filter()->all()
+                : array_filter([$this->getUserId((int) $colaboradorId)]);
+            $userIds
+                ? $taskQuery->whereHas('users', fn($q) => $q->whereIn('users.id', $userIds))
                 : $taskQuery->whereRaw('1=0');
         }
 

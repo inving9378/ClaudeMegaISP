@@ -12,6 +12,7 @@ use App\Modules\Addons\Talento\Services\FieldIaValidationService;
 use App\Modules\Addons\Talento\Services\FieldMediaService;
 use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
 use App\Modules\Addons\Talento\Services\SignatureService;
+use App\Modules\Addons\Talento\Support\Actor;
 use App\Modules\Addons\Talento\Support\FieldFlowEntity;
 use App\Models\Task;
 use Illuminate\Http\Request;
@@ -26,6 +27,76 @@ class TalentoFieldFlowController extends Controller
         private OrdenTrabajoUnifiedService $unified
     ) {}
 
+    /**
+     * David (29-sep, verificando "Flujo de campo"): igual que en
+     * TalentoWorkOrderController, talento.work_orders.view/media.view/
+     * signatures.view los tiene TECNICO directo, pero ningún método de este
+     * controller comprobaba de QUIÉN era la orden — cualquier técnico podía
+     * leer (y, en las rutas que sí alcanzaba, firmar/aceptar) el flujo de
+     * campo de un colaborador ajeno con solo cambiar el workOrderId. Staff
+     * real = talento.work_orders.manage o talento.employees.view (mismo
+     * criterio que esStaffOrdenes() del hermano).
+     */
+    private function esStaffOrdenes(): bool
+    {
+        return auth()->user()->can('talento.work_orders.manage') || auth()->user()->can('talento.employees.view');
+    }
+
+    /** Ids de talento_colaboradores que el usuario actual puede VER: uno mismo + su equipo directo. */
+    private function idsColaboradoresVisibles(): array
+    {
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        if (! $miPropioColaborador) {
+            return [];
+        }
+
+        return $miPropioColaborador->subordinados()->pluck('id')
+            ->push($miPropioColaborador->id)
+            ->unique()->values()->all();
+    }
+
+    /**
+     * Ids de talento_colaboradores que el usuario actual puede GESTIONAR
+     * (firmar/aceptar en su nombre): SU EQUIPO DIRECTO, sin incluirse a sí
+     * mismo — mismo criterio que 'ordenes_manage' en
+     * TalentoColaboradorController::ficha() ("verse a uno mismo no debe dar
+     * de gratis" la capacidad de gestión; el propio técnico firma/completa
+     * su OT desde la app de campo, no desde esta pantalla admin).
+     */
+    private function idsColaboradoresGestionables(): array
+    {
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        if (! $miPropioColaborador) {
+            return [];
+        }
+
+        return $miPropioColaborador->subordinados()->pluck('id')->unique()->values()->all();
+    }
+
+    private function colaboradorIdDeLaOrden(int $workOrderId): ?int
+    {
+        $order = $this->unified->showForAdmin($workOrderId);
+        return $order['colaborador_id'] ?? null;
+    }
+
+    private function puedeVerFlujoDe(int $workOrderId): bool
+    {
+        if ($this->esStaffOrdenes()) {
+            return true;
+        }
+        $colaboradorId = $this->colaboradorIdDeLaOrden($workOrderId);
+        return $colaboradorId !== null && in_array($colaboradorId, $this->idsColaboradoresVisibles(), true);
+    }
+
+    private function puedeGestionarFlujoDe(int $workOrderId): bool
+    {
+        if ($this->esStaffOrdenes()) {
+            return true;
+        }
+        $colaboradorId = $this->colaboradorIdDeLaOrden($workOrderId);
+        return $colaboradorId !== null && in_array($colaboradorId, $this->idsColaboradoresGestionables(), true);
+    }
+
     // ── Vista admin del flujo ─────────────────────────────────────────────────
 
     public function index()
@@ -38,7 +109,13 @@ class TalentoFieldFlowController extends Controller
 
     public function uploadMedia(Request $request, $workOrderId)
     {
-        $this->authorize('talento.media.upload');
+        // Mismo criterio que storeSignature()/accept() (David, 29-sep):
+        // staff/DESARROLLADOR entra por el permiso directo; el supervisor
+        // directo del colaborador entra por el check fino.
+        if (! auth()->user()->can('talento.media.upload')) {
+            $this->authorize('talento.work_orders.view');
+            abort_unless($this->puedeGestionarFlujoDe((int) $workOrderId), 403);
+        }
 
         $data = $request->validate([
             'file'        => 'required|file|mimes:jpg,jpeg,png|max:10240',
@@ -74,6 +151,7 @@ class TalentoFieldFlowController extends Controller
     public function listMedia($workOrderId)
     {
         $this->authorize('talento.media.view');
+        abort_unless($this->puedeVerFlujoDe((int) $workOrderId), 403);
 
         $canViewSensitive = auth()->user()?->can('talento.media.view_sensitive');
 
@@ -148,6 +226,7 @@ class TalentoFieldFlowController extends Controller
     public function getIaValidation($workOrderId)
     {
         $this->authorize('talento.ia_validation.view');
+        abort_unless($this->puedeVerFlujoDe((int) $workOrderId), 403);
 
         $validation = \App\Modules\Addons\Talento\Models\TalentoWorkOrderIaValidation
             ::where(FieldFlowEntity::fkColumn($workOrderId), $workOrderId)
@@ -162,7 +241,14 @@ class TalentoFieldFlowController extends Controller
 
     public function storeSignature(Request $request, $workOrderId)
     {
-        $this->authorize('talento.field_flow.accept');
+        // talento.field_flow.accept sigue siendo el bypass directo de
+        // staff/DESARROLLADOR; el supervisor directo del colaborador (o
+        // Mostrador vía esStaffOrdenes()) pasa por talento.work_orders.view
+        // (que ya tiene, para poder ver la OT) + el check fino de abajo.
+        if (! auth()->user()->can('talento.field_flow.accept')) {
+            $this->authorize('talento.work_orders.view');
+            abort_unless($this->puedeGestionarFlujoDe((int) $workOrderId), 403);
+        }
 
         $data = $request->validate([
             'signer_type'    => 'required|in:technician,client',
@@ -193,6 +279,7 @@ class TalentoFieldFlowController extends Controller
     public function getSignatures($workOrderId)
     {
         $this->authorize('talento.signatures.view');
+        abort_unless($this->puedeVerFlujoDe((int) $workOrderId), 403);
 
         $sigs = TalentoWorkOrderSignature::where(FieldFlowEntity::fkColumn($workOrderId), $workOrderId)->get(['id','signer_type','signed_at','signed_lat','signed_lng']);
         return response()->json($sigs);
@@ -202,7 +289,13 @@ class TalentoFieldFlowController extends Controller
 
     public function accept(Request $request, $workOrderId)
     {
-        $this->authorize('talento.field_flow.accept');
+        // Mismo criterio que storeSignature(): staff/DESARROLLADOR entra
+        // por el permiso directo; el supervisor del colaborador entra por
+        // el check fino (necesita ya poder VER la OT + ser su gestor).
+        if (! auth()->user()->can('talento.field_flow.accept')) {
+            $this->authorize('talento.work_orders.view');
+            abort_unless($this->puedeGestionarFlujoDe((int) $workOrderId), 403);
+        }
 
         $data = $request->validate([
             'latitude'  => 'nullable|numeric|between:-90,90',
@@ -314,6 +407,14 @@ class TalentoFieldFlowController extends Controller
         // ambos orígenes y arma el mismo shape que el front espera en `order`).
         $order = $this->unified->showForAdmin((int) $workOrderId);
         abort_if(! $order, 404, 'Orden de trabajo no encontrada.');
+
+        if (! $this->esStaffOrdenes()) {
+            $colaboradorId = $order['colaborador_id'] ?? null;
+            abort_unless(
+                $colaboradorId !== null && in_array((int) $colaboradorId, $this->idsColaboradoresVisibles(), true),
+                403
+            );
+        }
 
         $fkCol = FieldFlowEntity::fkColumn((int) $workOrderId);
         $canViewSensitive = auth()->user()?->can('talento.media.view_sensitive');

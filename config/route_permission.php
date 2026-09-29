@@ -2054,11 +2054,161 @@ return [
     // Gate de módulo (sidebar + página principal)
     'talento.view' => [
         '/talento',
-        '/talento/dashboard',
+        '/talento/colaborador/{id}',
+        '/talento/mi-ficha',
+        '/talento/mi-ficha/{id}',
+        '/talento/mi-ficha/{id}/academia',
+        '/talento/api/mi-equipo',
+        // Dashboard viejo consolidado dentro de /talento (29-sep, pedido
+        // de David: "ponlo en el dashboard nuevo... elimina ese del
+        // sidebar") — la ruta /talento/dashboard se retiró, pero estos 5
+        // endpoints de datos siguen vivos (ahora dentro de
+        // TalentoColaboradores.vue, arriba de la tabla). El scoping real
+        // por colaborador vive en TalentoDashboardController
+        // (puedeVerPreviewDe()/equipoPreview()) — antes ninguno de los 5
+        // estaba en NINGÚN bloque de este archivo, así que en la práctica
+        // solo admin/DESARROLLADOR (bypass total) podía verlos.
+        '/talento/api/dashboard/info-cards',
+        '/talento/api/dashboard/daily-production',
+        '/talento/api/dashboard/tecnico/{id}',
+        '/talento/api/dashboard/simulate-pay',
+        '/talento/api/dashboard/equipo/{id}',
+        // "Gestión de acceso" (29-sep, pedido explícito de David): el
+        // supervisor directo de un colaborador puede editar SU cuenta de
+        // sistema (contraseña/contacto/rol) desde /administracion/user —
+        // pantalla del módulo Core Usuarios, fuera de Talento. El
+        // middleware solo deja pasar (cualquier técnico con talento.view
+        // alcanza la URL); el candado real por-quién-es-el-objetivo vive
+        // en UserController::puedeGestionarUsuario()/
+        // esSupervisorTalentoDe() — igual que talento.view en general no
+        // implica acceso a un colaborador puntual sin el scoping del
+        // controller.
+        '/administracion/user/{id}/editar',
+        '/administracion/user/{id}/update',
+        '/administracion/user/get-data-user/{id}',
+        '/administracion/user/getRoles',
+        // Documentos del expediente (28-sep): mismo endpoint que ya usan
+        // Vendedores/el modal admin — el controller ensancha el candado a
+        // uno mismo/supervisor directo (puedeVerDocumentosDe()/
+        // puedeGestionarDocumentosDe()), así que el middleware solo necesita
+        // dejar pasar a cualquiera con acceso al módulo; talento.employees
+        // .view (abajo) sigue cubriendo el roster completo para staff.
+        '/talento/api/colaboradores/{id}/documentos',
+        '/talento/colaboradores/{id}/documentos/{docId}',
+        '/talento/api/colaboradores/{id}/documentos/{docId}/firma',
+        '/talento/api/colaboradores/{id}/documentos/{docId}/huecos',
+        '/talento/api/colaboradores/{id}/documentos/{docId}/completar',
+        // Ver/asignar la compensación de un colaborador: uno mismo, su
+        // supervisor directo, o el permiso de STAFF — el controller
+        // (puedeVerCompensacionDe()/assignRule()) hace la distinción real;
+        // esto solo deja pasar la request. Antes solo estaba bajo
+        // talento.employees.view/.manage, así que un supervisor sin esos
+        // dos ni siquiera llegaba al controller (28-sep-2026).
+        '/talento/api/colaboradores/{id}/regla',
+        '/talento/api/colaboradores/{id}/regla/historial',
+        // Catálogo de reglas — un supervisor sin talento.compensation.view
+        // lo necesita para el selector de "Asignar regla" (rules(), mismo
+        // criterio de excepción que arriba).
+        '/talento/api/reglas',
+        // Registrar baseline de caja (store()) — cualquier técnico activo
+        // puede hacerlo (es una lectura de campo, no requiere el permiso
+        // general talento.caja.manage) — ver TalentoCajaController::store().
+        '/talento/api/cajas',
+        // Ver/guardar settings del bono — el controller decide la
+        // distinción real (ver puede_gestionar en la respuesta de
+        // getSettings() y el abort_unless de updateSettings()).
+        '/talento/api/cajas/settings',
+        // Ver/crear rutas de un colaborador: uno mismo, su supervisor
+        // directo, o el permiso de STAFF — el controller
+        // (store()/esSuSupervisor) hace la distinción real.
+        '/talento/api/rutas',
+        '/talento/api/rutas/{id}',
+        // Proyectos de planta externa (ver/reportar avance): uno mismo, su
+        // supervisor, o el permiso de STAFF — el controller
+        // (submitReport()/approveReport()/store()) hace la distinción real;
+        // esto solo deja pasar la request. Antes solo estaba bajo
+        // talento.projects.view/.manage, así que un técnico o supervisor sin
+        // esos dos ni siquiera llegaba al controller (28-sep-2026, mismo
+        // hallazgo que compensación/cajas/rutas). bonus_amount/bonus_scale
+        // se ocultan en la respuesta a quien no gestiona (ver
+        // TalentoProjectController::hideBonusFields()). La pantalla suelta
+        // /talento/proyectos sigue exigiendo talento.projects.view completo
+        // (index() la autoriza aparte) — mismo criterio que /talento/rutas.
+        // '**' exige un carácter después de la barra (convertRouteToRegex:
+        // .+) — NO matchea el path pelón /talento/api/proyectos (listar/
+        // crear), por eso va aparte igual que /talento/api/rutas arriba.
+        '/talento/api/proyectos',
+        '/talento/api/proyectos/**',
+        // Aprobar un reporte (approveReport()) vive bajo otro prefijo — el
+        // controller (aprobación por supervisor/admin) hace la distinción.
+        '/talento/api/project-reports/**',
+        // Ver/aplicar/apelar penalizaciones: uno mismo, su supervisor
+        // directo, o el permiso de STAFF — el controller
+        // (puedeVerPenalizacionesDe()/applyPenalty()/submitAppeal()) hace
+        // la distinción real. David, 28-sep: "el superior es el que
+        // penaliza, no ellos mismos". La cola de apelaciones/catálogo de
+        // tipos (/penalty-appeals/**, gestión de /penalty-types) queda
+        // FUERA a propósito — sigue exigiendo el permiso de STAFF completo.
+        '/talento/api/penalties',
+        '/talento/api/penalties/**',
+        '/talento/penalty-evidence/{id}',
+        // "Por colaborador" (credencial/fondo de UN colaborador puntual):
+        // el permiso de STAFF o el supervisor DIRECTO de ese colaborador —
+        // el controller (esSuperiorDe()/esGestorDe()) hace la distinción
+        // real. David, 28-sep: "la pestaña de por colaborador debe salirle
+        // solo a los superiores" — a propósito SIN excepción de
+        // autoservicio (a diferencia del resto del módulo). Las listas
+        // globales (/credentials/expiring, /credentials/funds-alert) NO se
+        // listan aquí a propósito — siguen 100% admin-only.
+        '/talento/api/colaboradores/{id}/credentials',
+        '/talento/api/colaboradores/{id}/funds',
+        '/talento/api/credentials',
+        // ⚠️ NO usar '/talento/api/credentials/{id}' aquí: convertRouteToRegex
+        // convierte {id} en [^/]+ (cualquier segmento), lo que matchearía
+        // también /talento/api/credentials/expiring y
+        // /talento/api/credentials/funds-alert (las listas globales que
+        // deben seguir admin-only) — el middleware es method-agnostic, no
+        // distingue GET de PUT. Regex numérico explícito para que solo
+        // matchee el {id} real de update() (siempre un entero autoincrement).
+        '/talento/api/credentials/[0-9]+',
+        '/talento/credential-doc/{id}',
+        '/talento/api/funds',
+        '/talento/api/funds/**',
+        // Préstamos: uno mismo puede VER su saldo (mismo criterio que
+        // Penalizaciones — se entera, no gestiona), su supervisor directo,
+        // o el permiso de STAFF — el controller (puedeVerPrestamosDe()/
+        // esGestorDePrestamosDe()) hace la distinción real.
+        '/talento/api/loans',
+        '/talento/api/loans/**',
+        '/talento/api/colaboradores/{id}/loans',
+        // Finiquito: SIN excepción de autoservicio (mismo criterio que
+        // "Por colaborador" en Credenciales — calcular/cerrar tu propio
+        // finiquito no tiene sentido estando activo) — supervisor directo
+        // o el permiso de STAFF. /talento/api/settlements (bare, listado
+        // GLOBAL) NO se lista aquí a propósito — sigue 100% admin-only.
+        '/talento/api/colaboradores/{id}/settlement/draft',
+        '/talento/api/settlements/[0-9]+',
+        '/talento/api/settlements/[0-9]+/close',
+        '/talento/api/settlement-items/{id}',
+        // Calidad de caja: catálogo de estándares (lectura pública, sin
+        // datos sensibles) + inspecciones (uno mismo/supervisor directo/
+        // staff — el controller hace la distinción real). Faltaba POR
+        // COMPLETO — ni siquiera storeInspection() (self-scoped por
+        // diseño, crea siempre como auth()->id()) era alcanzable por un
+        // técnico: nadie pudo enviar una inspección de calidad desde que
+        // se escribió (bug real encontrado 28-sep). Las 4 acciones de
+        // ESCRITURA del catálogo (storeStandard/updateStandard/
+        // uploadStandardImage/destroyStandard) y supervisorValidate()
+        // quedaron con su propio authorize()/scoping nuevo en el
+        // controller — abrir la ruta aquí no las abre de verdad.
+        '/talento/api/standards',
+        '/talento/api/standards/**',
+        '/talento/api/inspecciones',
+        '/talento/api/inspecciones/**',
+        '/talento/inspection-photo/{id}',
     ],
     'talento.dashboard.view' => [
         '/talento',
-        '/talento/dashboard',
         '/talento/api/cajas',
         '/talento/api/cajas/latest',
         '/talento/api/cajas/bonus-log',
@@ -2068,6 +2218,10 @@ return [
         '/talento/api/app/latest',
     ],
     'talento.employees.view' => [
+        // Mostrador tiene este permiso pero no talento.embajadores.view —
+        // sin esta línea, la pantalla suelta redirigía a Mostrador al
+        // dashboard en silencio (29-sep, verificando "Roles múltiples").
+        '/talento/embajadores-colabs',
         '/talento/api/colaboradores',
         '/talento/api/colaboradores/role-departments',
         '/talento/api/colaboradores/users-disponibles',
@@ -2131,9 +2285,30 @@ return [
     'talento.work_orders.view' => [
         '/talento/ordenes',
         '/talento/campo',
+        // Listar Y crear comparten path (el middleware no distingue método,
+        // solo path) — el controller (store()) hace la distinción real:
+        // talento.work_orders.manage O ser supervisor directo del colaborador
+        // (talento_colaboradores.supervisor_id). Sin esto, un supervisor sin
+        // el permiso general de gestión ni siquiera podía VER la lista.
+        '/talento/api/ordenes',
+        '/talento/api/ordenes/{id}',
+        // El selector de tipo del formulario "Nueva orden" — sin esto ni
+        // siquiera el supervisor con permiso real de crear (ver store())
+        // podía ver qué tipos existen. Gap pre-existente, no de esta sesión.
+        '/talento/api/order-types',
         '/talento/api/ots/**',
         '/talento/api/campo/{workOrderId}/estado',
         '/talento/api/campo/{workOrderId}/firmas',
+        // firma (singular, POST) y aceptar: el middleware no distingue
+        // método, solo path — un supervisor directo (sin
+        // talento.work_orders.manage/talento.field_flow.accept) necesita
+        // ALCANZAR estas URLs para poder firmar/aceptar la OT de su
+        // subordinado; TalentoFieldFlowController::puedeGestionarFlujoDe()
+        // hace la restricción real (staff O supervisor directo del
+        // colaborador dueño de la OT, nunca uno mismo). David, 29-sep,
+        // verificando "Flujo de campo".
+        '/talento/api/campo/{workOrderId}/firma',
+        '/talento/api/campo/{workOrderId}/aceptar',
         '/talento/api/campo/{workOrderId}/media',
         '/talento/api/campo/{workOrderId}/activacion',
         '/talento/api/campo/{workOrderId}/encuesta',
@@ -2223,7 +2398,20 @@ return [
         '/talento/api/courses/{id}',
         '/talento/practical-evidence/{id}',
         '/talento/api/colaboradores/{id}/academy-progress',
-        '/talento.api/colaboradores/{id}/certifications',
+        // Typo pre-existente corregido (28-sep): faltaba la barra después de
+        // "talento" — este patrón nunca hacía match, así que
+        // talento.academy.view solo no bastaba para /certifications.
+        '/talento/api/colaboradores/{id}/certifications',
+        // Faltaban por completo (29-sep, verificando "Academia") — sin
+        // esto, ningún técnico podía tomar un examen, enviarlo, ver sus
+        // propios intentos ni ver sus propias certificaciones: el
+        // autoservicio (self-scoped por auth()->id(), sin riesgo — ver
+        // TalentoAcademyController::submitExam()/myAttempts()/
+        // myCertifications()) estaba construido pero inalcanzable.
+        '/talento/api/exams/{id}/take',
+        '/talento/api/exams/{id}/submit',
+        '/talento/api/exams/{id}/my-attempts',
+        '/talento/api/my-certifications',
     ],
     'talento.academy.manage' => [
         '/talento/api/courses',
@@ -2414,6 +2602,11 @@ return [
     'talento.embajadores.view' => [
         '/talento/embajadores-colabs',
         '/talento/api/colaboradores/{id}/embajador-data',
+        // seller-data faltaba aquí — técnico tenía embajador-data pero NO
+        // esta, así que la columna "Es vendedor" siempre 403eaba en
+        // autoservicio (bug real encontrado 28-sep verificando la pestaña
+        // "Roles múltiples").
+        '/talento/api/colaboradores/{id}/seller-data',
     ],
     'talento.ventas.view' => [
         '/talento/mis-ventas',

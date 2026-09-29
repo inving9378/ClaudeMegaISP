@@ -9,12 +9,17 @@
           <span v-if="pendingAppeals" class="tc-status is-warn ms-1">{{ pendingAppeals }}</span>
         </a>
       </li>
-      <li class="nav-item">
+      <!-- David, 28-sep: "solo debe mostrarse las penalizaciones" — la cola
+           de apelaciones de TODOS y el catálogo de tipos son gestión, no
+           autoservicio; quedan ocultas para quien no gestiona/supervisa
+           (apelar TU PROPIA penalización sigue disponible en el modal
+           "Ver", eso no es esto). -->
+      <li v-if="puedeGestionarResuelto" class="nav-item">
         <a class="nav-link" :class="{ active: tab === 'appeals' }" href="#" @click.prevent="tab='appeals'">
           <i class="fa fa-balance-scale me-1"></i>Apelaciones
         </a>
       </li>
-      <li class="nav-item">
+      <li v-if="puedeGestionarResuelto" class="nav-item">
         <a class="nav-link" :class="{ active: tab === 'types' }" href="#" @click.prevent="tab='types'">
           <i class="fa fa-list me-1"></i>Catálogo de tipos
         </a>
@@ -41,7 +46,7 @@
             <option value="upheld">Mantenida</option>
           </select>
         </div>
-        <button @click="openApply" class="tc-btn tc-btn-bad-solid btn-sm">
+        <button v-if="puedeGestionarResuelto" @click="openApply" class="tc-btn tc-btn-bad-solid btn-sm">
           <i class="fa fa-gavel me-1"></i>Aplicar penalización
         </button>
       </div>
@@ -135,7 +140,7 @@
           <option value="">Todas las categorías</option>
           <option v-for="(label, val) in categoryLabels" :key="val" :value="val">{{ label }}</option>
         </select>
-        <button @click="openNewType" class="tc-btn tc-btn-ok btn-sm">
+        <button v-if="puedeGestionarResuelto" @click="openNewType" class="tc-btn tc-btn-ok btn-sm">
           <i class="fa fa-plus me-1"></i>Nuevo tipo
         </button>
       </div>
@@ -554,9 +559,18 @@
 
 <script>
 import { darkMode } from "../../../hook/appConfig.js";
+import Permission from "../../../helpers/Permission.js";
+import { allViewHasPermission } from "../../../helpers/Request.js";
 
 export default {
   name: 'TalentoPenalizaciones',
+  props: {
+    colaboradorId: { type: [Number, String], default: null },
+    // Resuelto server-side por la ficha (permisos.penalizaciones_manage):
+    // admin/DESARROLLADOR o supervisor DIRECTO de este colaborador —
+    // David, 28-sep: "el superior es el que penaliza, no ellos mismos".
+    puedeGestionar: { type: Boolean, default: false },
+  },
   setup() {
     return { darkMode };
   },
@@ -618,9 +632,18 @@ export default {
 
       // Auth
       myColaboradorId: null,
+      permisosGlobales: {},
     };
   },
   computed: {
+    // Dentro de la ficha: lo que ya resolvió el servidor (prop). En la
+    // pantalla suelta (/talento/penalizaciones): el permiso global del
+    // viewer — mismo patrón que TalentoRutas.vue/TalentoProyectos.vue.
+    puedeGestionarResuelto() {
+      return this.colaboradorId
+        ? this.puedeGestionar
+        : new Permission(this.permisosGlobales).canDo('talento.penalties.manage');
+    },
     selectedType() {
       if (!this.applyModal.penalty_type_id) return null;
       return this.penaltyTypes.find(t => t.id === this.applyModal.penalty_type_id) ?? null;
@@ -637,26 +660,43 @@ export default {
       return (this.appeals ?? []).filter(a => a.decision === null).length || null;
     },
   },
-  mounted() {
+  async mounted() {
+    if (this.colaboradorId) {
+      this.pFilters.colaborador_id = this.colaboradorId;
+    }
+    // Solo hace falta el permiso GLOBAL en la pantalla suelta (sin
+    // colaboradorId) — dentro de la ficha, puedeGestionar ya viene resuelto.
+    if (!this.colaboradorId) this.permisosGlobales = await allViewHasPermission();
     this.loadAll();
   },
   methods: {
     async loadAll() {
-      await Promise.all([
+      const calls = [
         this.loadColaboradores(),
-        this.loadTypes(),
         this.loadPenalties(),
-        this.loadAppeals(),
         this.loadMyProfile(),
-      ]);
+      ];
+      // "Apelaciones" (cola completa) y "Catálogo de tipos" son gestión —
+      // ni se muestran ni se piden para quien solo ve sus propias
+      // penalizaciones (evita 403 innecesarios, mismo criterio que las
+      // pestañas ocultas arriba).
+      if (this.puedeGestionarResuelto) {
+        calls.push(this.loadTypes(), this.loadAppeals());
+      }
+      await Promise.all(calls);
     },
     async loadMyProfile() {
       try {
-        const { data } = await axios.get('/talento/api/colaboradores', { params: { my_profile: 1, per_page: 1 } });
-        // Intentamos encontrar el colaborador cuyo user_id coincide con el auth
-        // Usamos el primer resultado si el endpoint filtra por el usuario actual
-        if (data?.data?.length) this.myColaboradorId = data.data[0]?.id ?? null;
-      } catch { /* graceful */ }
+        // BUG real encontrado 28-sep: `my_profile` NUNCA existió como
+        // filtro en TalentoColaboradorController::data() — esto devolvía
+        // el colaborador con el id MÁS ALTO de TODA la empresa, no el del
+        // usuario logueado, así que canAppeal()/isApplier() nunca
+        // funcionaban de verdad. GET /talento/mi-ficha (sin id) SÍ resuelve
+        // el colaborador propio de verdad (mismo Actor que usa toda la
+        // ficha) — reusado tal cual, sin endpoint nuevo.
+        const { data } = await axios.get('/talento/mi-ficha');
+        this.myColaboradorId = data?.id ?? null;
+      } catch { /* graceful: admin/Mostrador sin colaborador propio */ }
     },
     async loadColaboradores() {
       const { data } = await axios.get('/talento/api/colaboradores', { params: { per_page: 300, status: 'active' } });

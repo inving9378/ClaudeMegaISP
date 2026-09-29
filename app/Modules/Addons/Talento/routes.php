@@ -41,6 +41,25 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
         // ── Vistas web (ANTES de rutas con parámetros) ──────────────────────
         Route::get('/',               [TalentoColaboradorController::class,  'index']);
+        // Ficha por pestañas de un colaborador (David, 2026-09-28 — reestructuración
+        // a como está Vendedores). Singular "colaborador" a propósito: no colisiona
+        // con nada bajo /talento/colaboradores/* (plural, prefijo /api).
+        Route::get('/colaborador/{id}', [TalentoColaboradorController::class, 'ficha']);
+        // Self/supervisor-scoped por Actor (SIN talento.employees.view) — la
+        // ficha propia, o la de un subordinado directo (talento_colaboradores
+        // .supervisor_id), para poblar TalentoColaboradorFicha.vue cuando
+        // `esPropia` (item de arriba — el nombre cubre ambos casos). Antes de
+        // /colaborador/{id} por convención de este archivo (fijas antes que
+        // con parámetro), aunque aquí no colisionan (prefijos distintos).
+        Route::get('/mi-ficha/{id?}', [TalentoColaboradorController::class, 'miFicha']);
+        // NOTA (28-sep): ya NO hay /mi-ficha/{id}/documentos aparte — la
+        // pestaña "Paquetes de documentos" de la ficha ahora reusa el MISMO
+        // endpoint de siempre (/api/colaboradores/{id}/documentos y sus
+        // hermanos de firma/completar), ensanchado en el controller para
+        // aceptar uno mismo/supervisor además de staff — "igual que en
+        // Vendedores", no una copia paralela. Ver TalentoEmployeeDocument
+        // Controller::puedeVerDocumentosDe()/puedeGestionarDocumentosDe().
+        Route::get('/mi-ficha/{id}/academia',   [TalentoColaboradorController::class, 'miFichaAcademia']);
         Route::get('/custodia',       [TalentoCustodiaController::class,     'index']);
         Route::get('/dispositivos',   [TalentoDeviceController::class,       'index']);
         Route::get('/roadmap',        [TalentoRoadmapController::class,      'index']);
@@ -60,7 +79,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/finiquito',      [TalentoLoanSettlementController::class, 'index']);
         Route::get('/academia',       [TalentoAcademyController::class, 'index']);
         Route::get('/niveles',        [TalentoLevelController::class, 'index']);
-        Route::get('/dashboard',      [TalentoDashboardController::class, 'index']);
+        // /dashboard retirado (29-sep) — consolidado dentro de /talento
+        // (TalentoColaboradores.vue). Ver TalentoDashboardController.
         Route::get('/escalafon',      [TalentoEscalafonController::class, 'index']);
         Route::get('/embajadores-colabs', [TalentoEmbajadoresController::class, 'index']);
         Route::get('/mis-ventas',     [TalentoVentasController::class, 'index']);
@@ -83,6 +103,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
             // ── Colaboradores ────────────────────────────────────────────────
             Route::get('/colaboradores',                   [TalentoColaboradorController::class, 'data']);
+            Route::get('/mi-equipo',                       [TalentoColaboradorController::class, 'miEquipo']);
             Route::post('/colaboradores',                  [TalentoColaboradorController::class, 'store']);
             Route::get('/colaboradores/users-disponibles', [TalentoColaboradorController::class, 'usersDisponibles']);
             Route::get('/colaboradores/role-departments',  [TalentoColaboradorController::class, 'roleDepartments']);

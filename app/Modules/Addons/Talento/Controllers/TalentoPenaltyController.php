@@ -8,12 +8,36 @@ use App\Modules\Addons\Talento\Models\TalentoPenalty;
 use App\Modules\Addons\Talento\Models\TalentoPenaltyAppeal;
 use App\Modules\Addons\Talento\Models\TalentoPenaltyType;
 use App\Modules\Addons\Talento\Services\PenaltyService;
+use App\Modules\Addons\Talento\Support\Actor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class TalentoPenaltyController extends Controller
 {
     public function __construct(private PenaltyService $svc) {}
+
+    /**
+     * Ver penalizaciones de un colaborador puntual: uno mismo, su
+     * supervisor directo, o el permiso de STAFF — mismo criterio que
+     * TalentoRutaController::puedeVerRutasDe()/TalentoCompensacionController::
+     * puedeVerCompensacionDe(). David, 28-sep: "solo debe mostrarse las
+     * penalizaciones" (a quien no puede aplicarlas, sí puede verlas — las
+     * suyas o las de su equipo).
+     */
+    private function puedeVerPenalizacionesDe($colaboradorId): bool
+    {
+        if (auth()->user()->can('talento.penalties.view')) {
+            return true;
+        }
+
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        if (! $miPropioColaborador) {
+            return false;
+        }
+
+        return (string) $miPropioColaborador->id === (string) $colaboradorId
+            || $miPropioColaborador->subordinados()->where('id', $colaboradorId)->exists();
+    }
 
     // ── Web views ──────────────────────────────────────────────────────────
 
@@ -74,6 +98,15 @@ class TalentoPenaltyController extends Controller
 
     public function penaltiesIndex(Request $request)
     {
+        // Sin filtro por colaborador_id = listado global → exige el
+        // permiso de STAFF de verdad. Con filtro = uno mismo o su
+        // supervisor directo también pueden verlo.
+        if ($request->filled('colaborador_id')) {
+            abort_unless($this->puedeVerPenalizacionesDe($request->colaborador_id), 403);
+        } else {
+            $this->authorize('talento.penalties.view');
+        }
+
         $q = TalentoPenalty::with(['colaborador.user', 'penaltyType', 'appeal'])
             ->orderByDesc('created_at');
 
@@ -87,9 +120,12 @@ class TalentoPenaltyController extends Controller
 
     public function showPenalty(int $id)
     {
-        return response()->json(
-            TalentoPenalty::with(['colaborador.user', 'penaltyType', 'appliedByColaborador.user', 'appeal'])->findOrFail($id)
-        );
+        $penalty = TalentoPenalty::with(['colaborador.user', 'penaltyType', 'appliedByColaborador.user', 'appeal'])
+            ->findOrFail($id);
+
+        abort_unless($this->puedeVerPenalizacionesDe($penalty->colaborador_id), 403);
+
+        return response()->json($penalty);
     }
 
     /**
@@ -98,7 +134,6 @@ class TalentoPenaltyController extends Controller
      */
     public function applyPenalty(Request $request)
     {
-        $this->authorize('talento.penalties.manage');
         $data = $request->validate([
             'colaborador_id'  => 'required|integer|exists:talento_colaboradores,id',
             'penalty_type_id' => 'required|integer|exists:talento_penalty_types,id',
@@ -108,6 +143,22 @@ class TalentoPenaltyController extends Controller
             'captured_in_app' => 'boolean',
             'notes'           => 'nullable|string|max:1000',
         ]);
+
+        // David, 28-sep: "los mismos técnicos no pueden penalizarse... el
+        // superior es el que penaliza, no ellos mismos, en caso de tener
+        // subordinados sí lo pueden hacer" — mismo criterio que
+        // TalentoWorkOrderController::store(): admin/DESARROLLADOR o
+        // supervisor DIRECTO del colaborador penalizado. Como nadie es su
+        // propio supervisor (update() ya lo impide), esto también hace
+        // estructuralmente imposible autopenalizarse.
+        if (! auth()->user()->can('talento.penalties.manage')) {
+            $esSuSupervisor = Actor::for(auth()->user())->talento()
+                ?->subordinados()
+                ->where('id', $data['colaborador_id'])
+                ->exists();
+
+            abort_unless($esSuSupervisor, 403, 'No tienes permiso para penalizar a este colaborador.');
+        }
 
         $applierColaborador = TalentoColaborador::where('user_id', auth()->id())->first();
         if (!$applierColaborador) {
@@ -133,8 +184,8 @@ class TalentoPenaltyController extends Controller
 
     public function serveEvidencePhoto(int $id)
     {
-        $this->authorize('talento.penalties.view');
         $penalty = TalentoPenalty::findOrFail($id);
+        abort_unless($this->puedeVerPenalizacionesDe($penalty->colaborador_id), 403);
         if (!$penalty->evidence_photo_path || !Storage::disk('local')->exists($penalty->evidence_photo_path)) {
             abort(404);
         }
@@ -164,8 +215,17 @@ class TalentoPenaltyController extends Controller
 
     public function submitAppeal(Request $request, int $penaltyId)
     {
-        $this->authorize('talento.penalties.appeal');
         $penalty = TalentoPenalty::findOrFail($penaltyId);
+        $colaborador = TalentoColaborador::where('user_id', auth()->id())->first();
+
+        // Apelar tu PROPIA penalización es defenderte, no "gestionar" —
+        // distinto de ver la cola completa de apelaciones o resolverlas
+        // (eso sigue exigiendo talento.penalties.appeal/.resolve, sin
+        // excepción de autoservicio).
+        if (! auth()->user()->can('talento.penalties.appeal')) {
+            abort_unless($colaborador && (string) $colaborador->id === (string) $penalty->colaborador_id, 403,
+                'Solo puedes apelar tus propias penalizaciones.');
+        }
 
         if (!in_array($penalty->status, ['applied'])) {
             return response()->json(['error' => 'Solo se puede apelar una penalización en estado "applied".'], 422);
@@ -174,7 +234,6 @@ class TalentoPenaltyController extends Controller
             return response()->json(['error' => 'Esta penalización ya tiene una apelación abierta.'], 422);
         }
 
-        $colaborador = TalentoColaborador::where('user_id', auth()->id())->first();
         if (!$colaborador) {
             return response()->json(['error' => 'No tienes perfil de colaborador.'], 422);
         }

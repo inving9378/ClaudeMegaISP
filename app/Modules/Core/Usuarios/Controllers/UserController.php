@@ -18,10 +18,53 @@ use App\Models\Promotion;
 use App\Services\Security\PasswordService;
 use Illuminate\Support\Facades\DB;
 use App\Models\UserRoleChangeAudit;
+use App\Modules\Addons\Talento\Support\Actor;
+use App\Modules\Addons\Talento\Models\TalentoColaborador;
 
 
 class UserController extends Controller
 {
+    /**
+     * David (29-sep, "Gestión de acceso" en la ficha de Talento): pedido
+     * explícito, confirmado tras explicar el alcance real — el supervisor
+     * DIRECTO (talento_colaboradores.supervisor_id) de un usuario puede
+     * entrar a esta pantalla y editar SU cuenta (contraseña, contacto,
+     * rol), igual que un admin, SOLO para su(s) subordinado(s) directo(s)
+     * — nunca para un usuario ajeno. La ruta sigue gateada por
+     * user_edit_user a nivel de middleware (config/route_permission.php
+     * amplió estas rutas también bajo talento.view — cualquier técnico
+     * puede ALCANZAR la URL, pero solo pasa este candado si es supervisor
+     * del objetivo o admin real).
+     */
+    private function esSupervisorTalentoDe($targetUserId): bool
+    {
+        $miColaborador = Actor::for(auth()->user())->talento();
+        if (! $miColaborador) {
+            return false;
+        }
+
+        $colaboradorObjetivo = TalentoColaborador::where('user_id', $targetUserId)->first();
+
+        return $colaboradorObjetivo && (int) $colaboradorObjetivo->supervisor_id === (int) $miColaborador->id;
+    }
+
+    private function puedeGestionarUsuario($targetUserId): bool
+    {
+        return auth()->user()->can('user_edit_user') || $this->esSupervisorTalentoDe($targetUserId);
+    }
+
+    /**
+     * Roles que JAMÁS se pueden ASIGNAR desde este formulario si quien
+     * edita no es admin real (user_edit_user) — el candado evita que el
+     * acceso nuevo del supervisor sirva para convertir a su subordinado
+     * (y de ahí, indirectamente, a sí mismo) en administrador. Superset
+     * de los roles que bypasean CheckRoutePermission (isAdmin()/
+     * isSuperAdmin()/isDevelopment() en User.php) + ADMINISTRADOR_COMPLETO
+     * (mismo nivel práctico: ya tiene user_edit_user).
+     */
+    private const ROLES_SOLO_ADMIN_ASIGNA = [
+        'super-administrator', 'DESARROLLADOR', 'Super Administrador', 'Administrador', 'ADMINISTRADOR_COMPLETO',
+    ];
 
     public function index()
     {
@@ -71,6 +114,14 @@ class UserController extends Controller
     public function getRoles()
     {
         $roles = Role::all();
+
+        // Un supervisor editando a su subordinado (sin user_edit_user real)
+        // no debe ver roles admin en el selector — defensa en profundidad,
+        // el guard real está en update().
+        if (! auth()->user()->can('user_edit_user')) {
+            $roles = $roles->reject(fn ($r) => in_array($r->name, self::ROLES_SOLO_ADMIN_ASIGNA, true))->values();
+        }
+
         return response()->json($roles);
     }
 
@@ -86,6 +137,7 @@ class UserController extends Controller
     {
         $user = User::find($id);
         abort_if(!$user, 404, 'El usuario no existe!');
+        abort_unless($this->puedeGestionarUsuario($id), 403);
         // Item #216: la contraseña NUNCA se devuelve al frontend (ni siquiera la
         // legacy base64 en claro). El admin solo puede RESETEARLA escribiendo una
         // nueva; 'es_legacy' es informativo (si conviene invitar a re-guardarla).
@@ -193,6 +245,7 @@ class UserController extends Controller
     {
         $userModel = User::find($id);
         abort_if(!$userModel, 404, 'El usuario no existe!');
+        abort_unless($this->puedeGestionarUsuario($id), 403);
         $user = $id;
         // Item #216: ya no se calcula/pasa la contraseña en claro (la vista
         // tampoco la consumía: se cargaba vía getData, que ahora la vacía).
@@ -206,6 +259,9 @@ class UserController extends Controller
         $user = User::find($id);
         if (!$user) {
             return response()->json(['status' => 500, 'message' => 'El usuario no existe!']);
+        }
+        if (! $this->puedeGestionarUsuario($id)) {
+            return response()->json(['status' => 403, 'message' => 'No tienes permiso para editar este usuario.']);
         }
         $this->validate($request, [
             'name' => 'required',
@@ -260,6 +316,16 @@ class UserController extends Controller
             $roles = [];
             if ($request->role) {
                 $roles[] = \Spatie\Permission\Models\Role::findById($request->role)->name;
+            }
+
+            // GUARD — un supervisor sin user_edit_user real no puede asignar
+            // roles admin (ver ROLES_SOLO_ADMIN_ASIGNA): el acceso nuevo del
+            // supervisor no debe servir para convertir a su subordinado en
+            // administrador. getRoles() ya filtra el selector, esto es la
+            // verificación real server-side.
+            if (! auth()->user()->can('user_edit_user') && array_intersect($roles, self::ROLES_SOLO_ADMIN_ASIGNA)) {
+                DB::rollBack();
+                return response()->json(['status' => 403, 'message' => 'No puedes asignar ese rol.']);
             }
 
             // GUARD Fase 1 — una cuenta-cliente no puede recibir roles de staff.

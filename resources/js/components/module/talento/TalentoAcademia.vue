@@ -517,6 +517,8 @@
 
 <script>
 import { darkMode } from "../../../hook/appConfig.js";
+import Permission from "../../../helpers/Permission.js";
+import { allViewHasPermission } from "../../../helpers/Request.js";
 
 export default {
   name: 'TalentoAcademia',
@@ -526,8 +528,15 @@ export default {
   data() {
     return {
       tab: 'catalog',
-      canManage:  window.__talento_perms?.includes('talento.academy.manage')   ?? false,
-      canEvaluate:window.__talento_perms?.includes('talento.academy.evaluate') ?? true, // assume true for simplicity
+      // David (29-sep): `window.__talento_perms` nunca se asignaba en
+      // ningún lado del código — canManage quedaba SIEMPRE false (la
+      // pestaña Admin nunca aparecía ni para un admin real) y canEvaluate
+      // SIEMPRE true ("assume true for simplicity"), mostrando el panel
+      // de evaluación práctica a CUALQUIER técnico. Se resuelven de
+      // verdad en mounted() con el mismo mecanismo que usa el resto de
+      // Talento (allViewHasPermission + Permission.canDo).
+      canManage: false,
+      canEvaluate: false,
 
       // Catálogo
       courses: [], loadingCourses: true, catFilter: '',
@@ -562,10 +571,19 @@ export default {
                    questions:[], saving:false, error:'' },
     };
   },
-  mounted() {
+  async mounted() {
+    const permisos = await allViewHasPermission();
+    const p = new Permission(permisos);
+    this.canManage = p.canDo('talento.academy.manage');
+    this.canEvaluate = p.canDo('talento.academy.evaluate');
+
     this.loadCourses();
     this.loadMyCertMap();
-    this.loadColaboradores();
+    // /talento/api/colaboradores exige talento.employees.view (roster
+    // completo) a nivel de ruta — un técnico sin canManage/canEvaluate
+    // recibía 403 en silencio al montar este componente solo para
+    // poblar un selector que ni siquiera iba a ver.
+    if (this.canManage || this.canEvaluate) this.loadColaboradores();
   },
   methods: {
     // ── Variante visual por departamento (pill distinguible por plaza) ────────

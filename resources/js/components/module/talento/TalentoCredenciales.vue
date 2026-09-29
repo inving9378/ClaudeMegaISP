@@ -9,7 +9,11 @@
           <span v-if="alertCount" class="tc-status is-bad ms-1">{{ alertCount }}</span>
         </a>
       </li>
-      <li class="nav-item">
+      <!-- David, 28-sep: "la pestaña de por colaborador debe salirle solo a
+           los superiores" — registrar/editar credenciales y crear/
+           autorizar/marcar-usado fondos es gestión, no autoservicio (ni
+           siquiera para uno mismo: te avisa el correo automático). -->
+      <li v-if="puedeGestionarResuelto" class="nav-item">
         <a class="nav-link" :class="{ active: tab === 'by_col' }" href="#" @click.prevent="tab='by_col'">
           <i class="fa fa-id-card me-1"></i>Por colaborador
         </a>
@@ -417,9 +421,18 @@
 
 <script>
 import { darkMode } from "../../../hook/appConfig.js";
+import Permission from "../../../helpers/Permission.js";
+import { allViewHasPermission } from "../../../helpers/Request.js";
 
 export default {
   name: 'TalentoCredenciales',
+  props: {
+    colaboradorId: { type: [Number, String], default: null },
+    // Resuelto server-side por la ficha (permisos.credenciales_manage):
+    // admin/DESARROLLADOR/staff o CUALQUIER supervisor — a propósito SIN
+    // excepción de autoservicio (David, 28-sep).
+    puedeGestionar: { type: Boolean, default: false },
+  },
   setup() {
     return { darkMode };
   },
@@ -454,9 +467,18 @@ export default {
         saving: false, error: '',
       },
       authModal: { show: false, fund: null, saving: false, error: '' },
+      permisosGlobales: {},
     };
   },
   computed: {
+    // Dentro de la ficha: lo que ya resolvió el servidor (prop). En la
+    // pantalla suelta (/talento/credenciales): el permiso global del
+    // viewer — mismo patrón que TalentoRutas.vue/TalentoProyectos.vue.
+    puedeGestionarResuelto() {
+      return this.colaboradorId
+        ? this.puedeGestionar
+        : new Permission(this.permisosGlobales).canDo('talento.credentials.view');
+    },
     alertCount() {
       return this.expiredCount || null;
     },
@@ -464,10 +486,18 @@ export default {
       return this.pendingFunds?.length || null;
     },
   },
-  mounted() {
+  async mounted() {
+    if (!this.colaboradorId) this.permisosGlobales = await allViewHasPermission();
+    // "Por colaborador" es gestión (David, 28-sep) — sin puedeGestionar no
+    // hay nada que autoseleccionar ni cargar ahí.
+    if (this.colaboradorId && this.puedeGestionarResuelto) {
+      this.tab = 'by_col';
+      this.selectedColId = this.colaboradorId;
+      this.loadColData();
+    }
     this.loadAlerts();
     this.loadExpiredCount();
-    this.loadColaboradores();
+    if (this.puedeGestionarResuelto) this.loadColaboradores();
     this.loadPendingFunds();
   },
   methods: {

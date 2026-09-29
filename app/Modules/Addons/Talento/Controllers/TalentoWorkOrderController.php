@@ -9,6 +9,7 @@ use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderType;
 use App\Modules\Addons\Talento\Services\LevelService;
 use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
+use App\Modules\Addons\Talento\Support\Actor;
 use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppGateway;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -16,6 +17,35 @@ use Illuminate\Support\Facades\Log;
 
 class TalentoWorkOrderController extends Controller
 {
+    /**
+     * David (29-sep, verificando "Órdenes"): talento.work_orders.view lo
+     * tiene TECNICO directo (para ver SUS órdenes dentro de "Mi trabajo"),
+     * pero data()/show() no tenían NINGÚN scoping — cualquier técnico podía
+     * ver las órdenes de CUALQUIER otro colaborador (cliente, teléfono,
+     * notas, agenda) con solo omitir/cambiar colaborador_id o pedir un id
+     * de orden ajeno. Staff real = talento.work_orders.manage o
+     * talento.employees.view (NO talento.work_orders.view, que no
+     * distingue).
+     */
+    private function esStaffOrdenes(): bool
+    {
+        return auth()->user()->can('talento.work_orders.manage') || auth()->user()->can('talento.employees.view');
+    }
+
+    /** Ids de talento_colaboradores que el usuario actual puede ver: uno mismo + su equipo directo. */
+    private function idsColaboradoresVisibles(): array
+    {
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        if (! $miPropioColaborador) {
+            return [];
+        }
+
+        return $miPropioColaborador->subordinados()->pluck('id')
+            ->push($miPropioColaborador->id)
+            ->unique()
+            ->values()
+            ->all();
+    }
     // Mapeo tipo_id → project_id para tareas campo (Capa 6 refinará con lógica dinámica)
     private const TYPE_PROJECT_MAP = [
         1 => 2,  // Instalación nueva → INSTALACIONES
@@ -40,8 +70,25 @@ class TalentoWorkOrderController extends Controller
     {
         $this->authorize('talento.work_orders.view');
 
+        $filtros = $request->only(['colaborador_id', 'status', 'type_id', 'from', 'to', 'search', 'prospecto']);
+
+        if (! $this->esStaffOrdenes()) {
+            $idsVisibles = $this->idsColaboradoresVisibles();
+            abort_if(empty($idsVisibles), 403);
+
+            if (! empty($filtros['colaborador_id'])) {
+                // Pidió un colaborador puntual (ej. la ficha de un
+                // colaborador): debe ser uno mismo o su subordinado directo.
+                abort_unless(in_array((int) $filtros['colaborador_id'], $idsVisibles, true), 403);
+            } else {
+                // Lista global (pantalla suelta /talento/ordenes) sin
+                // filtro: forzado a uno mismo + su equipo — nunca "todos".
+                $filtros['colaborador_id'] = $idsVisibles;
+            }
+        }
+
         $result = $this->unified->listForAdmin(
-            $request->only(['colaborador_id', 'status', 'type_id', 'from', 'to', 'search', 'prospecto']),
+            $filtros,
             (int)($request->per_page ?? 25),
             (int)($request->query('page', 1))
         );
@@ -65,8 +112,6 @@ class TalentoWorkOrderController extends Controller
 
     public function store(Request $request)
     {
-        $this->authorize('talento.work_orders.manage');
-
         $data = $request->validate([
             'colaborador_id' => 'required|exists:talento_colaboradores,id',
             'type_id'        => 'required|exists:talento_work_order_types,id',
@@ -77,6 +122,21 @@ class TalentoWorkOrderController extends Controller
             'scheduled_at'   => 'nullable|date',
             'notes'          => 'nullable|string',
         ]);
+
+        // "Supervisor" (David, 28-sep) = talento_colaboradores.supervisor_id,
+        // NO un rol de Spatie — el supervisor DIRECTO del colaborador puede
+        // crearle órdenes aunque no tenga el permiso general de gestión.
+        // talento.work_orders.manage sigue siendo la vía normal (admin/
+        // DESARROLLADOR); esto SOLO abre la excepción puntual del supervisor
+        // sobre SU subordinado, nunca sobre cualquier otro colaborador.
+        if (! auth()->user()->can('talento.work_orders.manage')) {
+            $esSuSupervisor = \App\Modules\Addons\Talento\Support\Actor::for(auth()->user())->talento()
+                ?->subordinados()
+                ->where('id', $data['colaborador_id'])
+                ->exists();
+
+            abort_unless($esSuSupervisor, 403, 'No tienes permiso para crear órdenes para este colaborador.');
+        }
 
         // Una OT es para un cliente ya alta O para un prospecto del CRM, nunca ambos (decisión q2 Irving).
         if (!empty($data['client_id']) && !empty($data['crm_lead_id'])) {
@@ -205,6 +265,14 @@ class TalentoWorkOrderController extends Controller
         $data = $this->unified->showForAdmin((int)$id);
         if (! $data) {
             abort(404);
+        }
+
+        if (! $this->esStaffOrdenes()) {
+            $idsVisibles = $this->idsColaboradoresVisibles();
+            abort_unless(
+                $data['colaborador_id'] !== null && in_array((int) $data['colaborador_id'], $idsVisibles, true),
+                403
+            );
         }
 
         return response()->json($data);

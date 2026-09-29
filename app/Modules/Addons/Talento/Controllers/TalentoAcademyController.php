@@ -12,15 +12,53 @@ use App\Modules\Addons\Talento\Models\TalentoExamQuestion;
 use App\Modules\Addons\Talento\Models\TalentoPracticalEvaluation;
 use App\Modules\Addons\Talento\Services\CertificationService;
 use App\Modules\Addons\Talento\Services\ExamService;
+use App\Modules\Addons\Talento\Support\Actor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
+/**
+ * David (29-sep), verificando "Academia": el controller no tenía NINGÚN
+ * authorize()/scoping salvo serveEvidencePractical() — 8 métodos de
+ * escritura sin protección (crear/editar cursos, materiales, exámenes,
+ * evaluaciones prácticas, revocar certificaciones) + 2 de lectura sin
+ * scoping (certificaciones/progreso de CUALQUIER colaborador). El gap más
+ * grave YA ERA explotable hoy: talento.academy.view (que TECNICO/
+ * TECNICO_PLANTA/TECNICO_INSTALADOR tienen directo, para poder VER el
+ * catálogo) cubre en config/route_permission.php las mismas rutas
+ * '/talento/api/courses' y '/talento/api/courses/{id}' que storeCourse()/
+ * updateCourse() — el middleware es agnóstico al método HTTP (GET/POST/PUT
+ * comparten el mismo patrón), así que CUALQUIER técnico podía crear o
+ * editar cursos reales sin que el controller lo frenara. Mismo patrón que
+ * TalentoQualityController (item de esta sesión, 28-sep) — se cierran
+ * los 10 huecos de una vez, no solo el explotable hoy.
+ */
 class TalentoAcademyController extends Controller
 {
     public function __construct(
         private ExamService          $examSvc,
         private CertificationService $certSvc
     ) {}
+
+    /**
+     * Ver progreso/certificaciones de $colaboradorId: uno mismo, su
+     * supervisor directo, o staff (talento.employees.view — NO
+     * talento.academy.view, que también la tiene TECNICO directo para
+     * ver SU PROPIO catálogo/progreso y no distingue "staff que puede ver
+     * a cualquiera" de "técnico viendo lo suyo").
+     */
+    private function puedeVerAcademiaDe($colaboradorId): bool
+    {
+        if (auth()->user()->can('talento.employees.view')) {
+            return true;
+        }
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        if (! $miPropioColaborador) {
+            return false;
+        }
+
+        return (string) $miPropioColaborador->id === (string) $colaboradorId
+            || $miPropioColaborador->subordinados()->where('id', $colaboradorId)->exists();
+    }
 
     // ── Web view ───────────────────────────────────────────────────────────
 
@@ -52,6 +90,8 @@ class TalentoAcademyController extends Controller
 
     public function storeCourse(Request $request)
     {
+        $this->authorize('talento.academy.manage');
+
         $data = $request->validate([
             'title'       => 'required|string|max:200',
             'description' => 'nullable|string',
@@ -64,6 +104,8 @@ class TalentoAcademyController extends Controller
 
     public function updateCourse(Request $request, int $id)
     {
+        $this->authorize('talento.academy.manage');
+
         $course = TalentoCourse::findOrFail($id);
         $data   = $request->validate([
             'title'       => 'sometimes|string|max:200',
@@ -80,6 +122,8 @@ class TalentoAcademyController extends Controller
 
     public function storeMaterial(Request $request, int $courseId)
     {
+        $this->authorize('talento.academy.manage');
+
         TalentoCourse::findOrFail($courseId);
         $data = $request->validate([
             'type'                     => 'required|in:text,video,reference',
@@ -109,6 +153,8 @@ class TalentoAcademyController extends Controller
 
     public function destroyMaterial(int $id)
     {
+        $this->authorize('talento.academy.manage');
+
         TalentoCourseMaterial::findOrFail($id)->delete();
         return response()->json(['ok' => true]);
     }
@@ -117,6 +163,8 @@ class TalentoAcademyController extends Controller
 
     public function storeExam(Request $request, int $courseId)
     {
+        $this->authorize('talento.academy.manage');
+
         TalentoCourse::findOrFail($courseId);
         $data = $request->validate([
             'title'         => 'required|string|max:200',
@@ -129,6 +177,8 @@ class TalentoAcademyController extends Controller
 
     public function storeQuestion(Request $request, int $examId)
     {
+        $this->authorize('talento.academy.manage');
+
         TalentoExam::findOrFail($examId);
         $data = $request->validate([
             'question'       => 'required|string',
@@ -197,6 +247,12 @@ class TalentoAcademyController extends Controller
 
     public function storePractical(Request $request, int $courseId)
     {
+        // Sin esto, CUALQUIERA con talento.academy.view (todo técnico)
+        // podía aprobarse a sí mismo o a cualquier colaborador y emitir
+        // una certificación real — la evaluación práctica la hace un
+        // evaluador autorizado, nunca autoservicio.
+        $this->authorize('talento.academy.evaluate');
+
         TalentoCourse::findOrFail($courseId);
         $data = $request->validate([
             'colaborador_id'  => 'required|integer|exists:talento_colaboradores,id',
@@ -252,6 +308,8 @@ class TalentoAcademyController extends Controller
 
     public function certificationsForColaborador(int $colaboradorId)
     {
+        abort_unless($this->puedeVerAcademiaDe($colaboradorId), 403);
+
         return response()->json(
             TalentoCertification::with(['course:id,title', 'examAttempt:id,score,attempted_at'])
                 ->where('colaborador_id', $colaboradorId)
@@ -269,6 +327,8 @@ class TalentoAcademyController extends Controller
 
     public function revokeCertification(int $id)
     {
+        $this->authorize('talento.academy.evaluate');
+
         $cert = TalentoCertification::findOrFail($id);
         return response()->json($this->certSvc->revoke($cert));
     }
@@ -276,6 +336,8 @@ class TalentoAcademyController extends Controller
     // ── Progress snapshot (used by Fase 7b for levels) ────────────────────
     public function progressForColaborador(int $colaboradorId)
     {
+        abort_unless($this->puedeVerAcademiaDe($colaboradorId), 403);
+
         $certs  = TalentoCertification::where('colaborador_id', $colaboradorId)->where('status', 'active')->count();
         $total  = TalentoCourse::where('active', true)->count();
         $courses = TalentoCourse::with(['exams' => fn($q) => $q->where('active', true)])

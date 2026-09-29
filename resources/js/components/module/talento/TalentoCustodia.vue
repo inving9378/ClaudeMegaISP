@@ -11,8 +11,11 @@
           Muestra el inventario en custodia asignado a cada colaborador (solo lectura, desde Inventario).
         </p>
 
-        <!-- Selección de colaborador -->
-        <div class="row mb-3">
+        <!-- Selección de colaborador — David, 28-sep: "a no ser que sea
+             supervisor o los otros roles... quita el buscador de
+             colaboradores" — buscar/navegar entre TODOS es de
+             supervisor/staff; un técnico solo ve lo suyo directo. -->
+        <div v-if="puedeGestionarResuelto" class="row mb-3">
           <div class="col-md-5">
             <input v-model="searchColaborador" @input="debounceBuscar" type="text"
                    class="form-control" placeholder="Buscar colaborador...">
@@ -23,7 +26,7 @@
           <div class="spinner-border spinner-border-sm text-primary"></div>
         </div>
 
-        <div v-else-if="!selected" class="row g-3">
+        <div v-else-if="puedeGestionarResuelto && !selected" class="row g-3">
           <div v-for="col in colaboradores" :key="col.id" class="col-md-6 col-xl-4">
             <div class="card card-hover border-0 shadow-sm cursor-pointer" @click="selectColaborador(col)">
               <div class="card-body d-flex align-items-center gap-3">
@@ -46,8 +49,8 @@
         </div>
 
         <!-- Detalle custodia de colaborador seleccionado -->
-        <div v-else>
-          <button @click="selected = null" class="tc-btn tc-btn-seg mb-3">
+        <div v-else-if="selected">
+          <button v-if="puedeGestionarResuelto" @click="selected = null" class="tc-btn tc-btn-seg mb-3">
             <i class="fa fa-arrow-left me-1"></i> Volver
           </button>
           <div class="d-flex align-items-center gap-2 mb-3">
@@ -71,7 +74,7 @@
                 <thead class="table-light">
                   <tr>
                     <th>Artículo</th>
-                    <th>SKU</th>
+                    <th>No. serie</th>
                     <th>Categoría</th>
                     <th>Cantidad</th>
                     <th>Condición</th>
@@ -81,9 +84,9 @@
                 <tbody>
                   <tr v-for="s in selected.stocks" :key="s.stock_id">
                     <td>{{ s.item_name }}</td>
-                    <td class="font-monospace small">{{ s.sku ?? '—' }}</td>
-                    <td>{{ s.category ?? '—' }}</td>
-                    <td>{{ s.current_stock }} {{ s.unit }}</td>
+                    <td class="font-monospace small">{{ s.serial_number ?? '—' }}</td>
+                    <td>{{ categoryLabel(s.category) }}</td>
+                    <td>{{ s.current_stock }}</td>
                     <td>{{ s.condition ?? '—' }}</td>
                     <td class="small">{{ formatDate(s.assigned_at) }}</td>
                   </tr>
@@ -124,9 +127,22 @@
 
 <script>
 import { darkMode } from "../../../hook/appConfig.js";
+import Permission from "../../../helpers/Permission.js";
+import { allViewHasPermission } from "../../../helpers/Request.js";
 
 export default {
   name: 'TalentoCustodia',
+  props: {
+    // Si viene, salta directo a la custodia de este colaborador (uso: pestaña
+    // "Custodia" de la ficha) en vez de mostrar la grilla de selección.
+    colaboradorId: { type: [Number, String], default: null },
+    // Resuelto server-side por la ficha (permisos.custodia_buscador):
+    // talento.employees.view o CUALQUIER supervisor — NO
+    // talento.custody.view (esa también la tiene TECNICO directo, no sirve
+    // para distinguir). David, 28-sep: "quita el buscador de
+    // colaboradores" para quien no es supervisor/staff.
+    puedeGestionar: { type: Boolean, default: false },
+  },
   setup() {
     return { darkMode };
   },
@@ -138,9 +154,56 @@ export default {
       loadingLista: true,
       loadingDetalle: false,
       searchTimeout: null,
+      permisosGlobales: {},
+      // "¿Soy supervisor de alguien?" no es un permiso de Spatie (es
+      // talento_colaboradores.supervisor_id) — allViewHasPermission() no
+      // lo puede contestar. Se resuelve aparte en mounted() reusando
+      // /talento/api/mi-equipo (ya scoped a "mis subordinados directos").
+      esSupervisorGlobal: false,
     };
   },
-  mounted() {
+  computed: {
+    // Dentro de la ficha: lo que ya resolvió el servidor (prop). En la
+    // pantalla suelta (/talento/custodia): el permiso global del viewer, o
+    // ser supervisor de alguien — mismo patrón que
+    // TalentoRutas.vue/TalentoProyectos.vue + el matiz de supervisor.
+    puedeGestionarResuelto() {
+      return this.colaboradorId
+        ? this.puedeGestionar
+        : (new Permission(this.permisosGlobales).canDo('talento.employees.view') || this.esSupervisorGlobal);
+    },
+    // David (29-sep, verificando Roles múltiples — mismo bug latente en
+    // esta pantalla): un supervisor puro (sin talento.employees.view) no
+    // debe pedir el roster completo (/talento/api/colaboradores, 403 en
+    // silencio para él) — debe pedir SOLO su equipo.
+    esStaffCompleto() {
+      return new Permission(this.permisosGlobales).canDo('talento.employees.view');
+    },
+  },
+  async mounted() {
+    if (this.colaboradorId) {
+      this.loadingLista = false;
+      this.selectColaborador({ id: this.colaboradorId, user: {}, type: '' });
+      return;
+    }
+    // Pantalla suelta (/talento/custodia): resolver permiso global +
+    // "¿tengo equipo?" primero, para decidir si el técnico ve el buscador
+    // o solo lo suyo.
+    this.permisosGlobales = await allViewHasPermission();
+    if (!new Permission(this.permisosGlobales).canDo('talento.employees.view')) {
+      try {
+        const { data } = await axios.get('/talento/api/mi-equipo', { params: { per_page: 1 } });
+        this.esSupervisorGlobal = (data?.total ?? 0) > 0;
+      } catch { this.esSupervisorGlobal = false; }
+    }
+    if (!this.puedeGestionarResuelto) {
+      this.loadingLista = false;
+      try {
+        const { data } = await axios.get('/talento/mi-ficha');
+        if (data?.id) this.selectColaborador({ id: data.id, user: {}, type: '' });
+      } catch { /* sin colaborador propio — se queda sin nada que mostrar */ }
+      return;
+    }
     this.loadLista();
   },
   methods: {
@@ -152,7 +215,8 @@ export default {
       this.loadingLista = true;
       this.selected = null;
       try {
-        const { data } = await axios.get('/talento/api/colaboradores', {
+        const url = this.esStaffCompleto ? '/talento/api/colaboradores' : '/talento/api/mi-equipo';
+        const { data } = await axios.get(url, {
           params: { search: this.searchColaborador, per_page: 60, status: 'active' }
         });
         this.colaboradores = data?.data ?? [];
@@ -173,6 +237,14 @@ export default {
     formatDate(d) {
       if (!d) return '—';
       return new Date(d).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
+    },
+    categoryLabel(c) {
+      // inventory_item_types.categoria — item #218/#684/#1007: 'herramienta'/
+      // 'material'/'equipo_cliente'/'equipo_red'; NULL = sin clasificar.
+      return {
+        herramienta: 'Herramienta', material: 'Material',
+        equipo_cliente: 'Equipo de cliente', equipo_red: 'Equipo de red',
+      }[c] ?? (c ?? 'Sin clasificar');
     },
   },
 };

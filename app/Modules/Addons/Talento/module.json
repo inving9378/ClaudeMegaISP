@@ -81,7 +81,6 @@
                 { "label": "Finiquito",        "url": "/talento/finiquito",          "permission": "talento.settlement.view" },
                 { "label": "Academia",         "url": "/talento/academia",           "permission": "talento.academy.view" },
                 { "label": "Niveles",          "url": "/talento/niveles",            "permission": "talento.levels.view" },
-                { "label": "Dashboard",        "url": "/talento/dashboard",          "permission": "talento.dashboard.view" },
                 { "label": "Escalafón",        "url": "/talento/escalafon",          "permission": "talento.escalafon.view" },
                 { "label": "Embajadores",      "url": "/talento/embajadores-colabs", "permission": "talento.embajadores.view" },
                 { "label": "Mis ventas",       "url": "/talento/mis-ventas",         "permission": "talento.ventas.view" },

@@ -198,6 +198,15 @@ import { darkMode } from "../../../hook/appConfig.js";
 
 export default {
   name: 'TalentoDashboard',
+  props: {
+    // David (29-sep): consolidado dentro de TalentoColaboradores.vue (el
+    // dashboard nuevo) — mismo soloMiEquipo que ya resuelve el servidor
+    // para la tabla de abajo. Un supervisor sin talento.employees.view NO
+    // debe poder elegir en "Mi panel"/"Calculadora"/"Mi equipo" a un
+    // colaborador fuera de su equipo (antes el selector traía el roster
+    // COMPLETO sin importar quién mirara — hallazgo real al consolidar).
+    soloMiEquipo: { type: Boolean, default: false },
+  },
   setup() {
     return { darkMode };
   },
@@ -286,7 +295,13 @@ export default {
       });
     },
     async loadColaboradores() {
-      const r = await axios.get('/talento/api/colaboradores?per_page=200').catch(() => null);
+      // Antes SIEMPRE pedía el roster completo (200), sin importar quién
+      // mirara — un supervisor sin talento.employees.view podía elegir en
+      // los selectores de abajo a CUALQUIER colaborador del sistema, no
+      // solo a los suyos (el backend ya lo rechaza desde este mismo
+      // arreglo, esto evita ni siquiera ofrecerlo).
+      const url = this.soloMiEquipo ? '/talento/api/mi-equipo' : '/talento/api/colaboradores';
+      const r = await axios.get(url, { params: { per_page: 200 } }).catch(() => null);
       this.colaboradores = r?.data?.data ?? [];
     },
     async loadTecnico() {

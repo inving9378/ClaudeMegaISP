@@ -9,6 +9,7 @@ use App\Modules\Addons\Talento\Models\TalentoEmployeeDocument;
 use App\Modules\Addons\Talento\Models\TalentoEmployeeDocumentSignature;
 use App\Modules\Addons\Talento\Services\EmployeeDocumentPackageService;
 use App\Modules\Addons\Talento\Services\TemplateRenderService;
+use App\Modules\Addons\Talento\Support\Actor;
 use App\Modules\Addons\Talento\Support\SignatureSlotStatus;
 use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppGateway;
 use Illuminate\Http\Request;
@@ -36,9 +37,67 @@ class TalentoEmployeeDocumentController extends Controller
     private const FIRMA_MAX_BYTES = 2 * 1024 * 1024; // 2MB
     private const FIRMA_MIME_EXT = ['image/png' => 'png', 'image/jpeg' => 'jpeg', 'image/webp' => 'webp'];
 
+    /**
+     * David (28-sep): "verifica que funcione igual que en vendedor para la
+     * parte de las firmas y los campos faltantes... ya aquello está más que
+     * probado y está bien". El endpoint que ya usan Vendedores
+     * (InformationSeller.vue) y el modal admin de TalentoColaboradores.vue —
+     * este mismo controller, gate 'talento.expediente.view' — es AHORA el
+     * ÚNICO camino que también usa la pestaña de la ficha propia: en vez de
+     * duplicar el componente/las rutas con una copia "self-scoped" aparte
+     * (lo que se había hecho en un primer intento), se ensancha ESTE
+     * candado para aceptar además a uno mismo y a su supervisor directo —
+     * Vendedores/el modal admin no cambian nada (siguen entrando por
+     * talento.expediente.view, sin excepción).
+     *
+     * VER (listar/mostrar/imagen de firma/huecos) — uno mismo, su
+     * supervisor directo, o staff (talento.expediente.view/
+     * talento.employees.view, este último por Mostrador vía
+     * talento.work_orders.manage — mismo criterio que el resto de la
+     * ficha).
+     */
+    private function puedeVerDocumentosDe($colaboradorId): bool
+    {
+        if (auth()->user()->can('talento.expediente.view') || auth()->user()->can('talento.employees.view')) {
+            return true;
+        }
+
+        return $this->esUnoMismoOSupervisorDe($colaboradorId);
+    }
+
+    /**
+     * GESTIONAR (firmar cualquier slot incluido 'empresa', completar
+     * huecos) — David (29-sep), corrigiendo el criterio anterior: "fíjate
+     * en Vendedores como está hecho" — ahí (staff viendo el expediente de
+     * un vendedor) el botón "Completar documento" y TODOS los recuadros de
+     * firma (con su etiqueta de a quién corresponde) se muestran siempre
+     * que haya huecos/slots, sin carve-out. La ficha propia debe verse
+     * EXACTAMENTE igual — mismo componente (TalentoExpedienteDocumentos.
+     * vue), mismo criterio: uno mismo, su supervisor directo, o staff.
+     */
+    private function puedeGestionarDocumentosDe($colaboradorId): bool
+    {
+        if (auth()->user()->can('talento.expediente.documentos.gestionar') || auth()->user()->can('talento.work_orders.manage')) {
+            return true;
+        }
+
+        return $this->esUnoMismoOSupervisorDe($colaboradorId);
+    }
+
+    private function esUnoMismoOSupervisorDe($colaboradorId): bool
+    {
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        if (! $miPropioColaborador) {
+            return false;
+        }
+
+        return (string) $miPropioColaborador->id === (string) $colaboradorId
+            || $miPropioColaborador->subordinados()->where('id', $colaboradorId)->exists();
+    }
+
     public function forColaborador($colaboradorId)
     {
-        $this->authorize('talento.expediente.view');
+        abort_unless($this->puedeVerDocumentosDe($colaboradorId), 403);
 
         $service = app(EmployeeDocumentPackageService::class);
 
@@ -318,7 +377,7 @@ class TalentoEmployeeDocumentController extends Controller
 
     public function show($colaboradorId, $docId)
     {
-        $this->authorize('talento.expediente.view');
+        abort_unless($this->puedeVerDocumentosDe($colaboradorId), 403);
 
         $documento = TalentoEmployeeDocument::where('colaborador_id', $colaboradorId)
             ->where('id', $docId)
@@ -437,7 +496,11 @@ HTML;
      */
     public function sign(Request $request, $colaboradorId, $docId)
     {
-        $this->authorize('talento.expediente.documentos.gestionar');
+        // David (29-sep): mismo endpoint que ya usa Vendedores (probado) —
+        // uno mismo, su supervisor directo, o staff, SIN carve-out por
+        // slot — "fíjate en Vendedores como está hecho" (ahí no hay
+        // restricción por recuadro, y la ficha propia debe verse igual).
+        abort_unless($this->puedeGestionarDocumentosDe($colaboradorId), 403);
 
         $documento = TalentoEmployeeDocument::where('colaborador_id', $colaboradorId)
             ->where('id', $docId)
@@ -645,7 +708,7 @@ HTML;
      */
     public function huecos($colaboradorId, $docId)
     {
-        $this->authorize('talento.expediente.view');
+        abort_unless($this->puedeVerDocumentosDe($colaboradorId), 403);
 
         $documento = TalentoEmployeeDocument::where('colaborador_id', $colaboradorId)
             ->where('id', $docId)
@@ -673,7 +736,7 @@ HTML;
      */
     public function completar(Request $request, $colaboradorId, $docId)
     {
-        $this->authorize('talento.expediente.documentos.gestionar');
+        abort_unless($this->puedeGestionarDocumentosDe($colaboradorId), 403);
 
         $documento = TalentoEmployeeDocument::where('colaborador_id', $colaboradorId)
             ->where('id', $docId)
@@ -703,7 +766,7 @@ HTML;
      */
     public function firma(Request $request, $colaboradorId, $docId)
     {
-        $this->authorize('talento.expediente.view');
+        abort_unless($this->puedeVerDocumentosDe($colaboradorId), 403);
 
         $slotKey = $request->query('slot_key');
 

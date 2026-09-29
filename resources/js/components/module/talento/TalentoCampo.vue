@@ -6,6 +6,9 @@
       <div class="tc-card">
         <div class="tc-cardhead d-flex align-items-center justify-content-between flex-wrap gap-2 p-3">
           <h5 class="tc-h1 mb-0"><i class="fa fa-hard-hat me-2 text-primary"></i>Órdenes de Campo</h5>
+          <button v-if="colaboradorId && puedeCrear" @click="showCrearModal = true" class="tc-btn tc-btn-ok">
+            <i class="fa fa-plus me-1"></i> Nuevo flujo
+          </button>
         </div>
 
         <div class="p-3">
@@ -136,8 +139,11 @@
                     </div>
                   </div>
                 </div>
-                <!-- Upload form (admin) -->
-                <div class="mt-3 border-top pt-3">
+                <!-- Upload form (staff/supervisor directo — mismo criterio que Firmas/Aceptar) -->
+                <div v-if="!puedeFirmarYAceptar" class="mt-3 border-top pt-3 small text-muted">
+                  <i class="fa fa-lock me-1"></i>Solo el supervisor o staff puede subir evidencia aquí.
+                </div>
+                <div v-else class="mt-3 border-top pt-3">
                   <div class="row g-2 align-items-end">
                     <div class="col-md-3">
                       <select v-model="upload.type" class="form-select form-select-sm tc-select">
@@ -145,7 +151,11 @@
                       </select>
                     </div>
                     <div class="col-md-4">
+                      <!-- PC (sin capture): abre el explorador de archivos para subir una imagen ya
+                           existente. Celular (capture="environment"): el navegador prioriza abrir la
+                           cámara trasera directo, para tomar la foto en el momento — David, 29-sep. -->
                       <input type="file" ref="fileInput" @change="onFileChange" accept="image/*"
+                             :capture="esMovil ? 'environment' : null"
                              class="form-control form-control-sm">
                     </div>
                     <div class="col-md-3">
@@ -200,15 +210,38 @@
             <!-- PASO 3: Firmas -->
             <div class="tc-card mb-3">
               <div class="tc-cardhead p-3"><i class="fa fa-signature me-2"></i>Firmas</div>
-              <div class="p-3 d-flex gap-4">
-                <div v-for="st in ['technician','client']" :key="st" class="flex-fill">
+              <div class="p-3 d-flex gap-4 flex-wrap">
+                <div v-for="st in ['technician','client']" :key="st" class="flex-fill" style="min-width:220px;">
                   <div class="border rounded p-3 text-center" :class="hasSig(st) ? 'border-success tc-slot-filled' : 'tc-slot-empty'">
                     <i class="fa fa-pen-fancy fa-2x mb-2 d-block" :class="hasSig(st) ? 'text-success' : 'text-muted'"></i>
                     <div class="small fw-semibold">{{ st === 'technician' ? 'Técnico' : 'Cliente' }}</div>
                     <div v-if="hasSig(st)" class="small text-success mt-1">
                       <i class="fa fa-check-circle me-1"></i>{{ fmtdt(getSig(st)?.signed_at) }}
                     </div>
-                    <div v-else class="small text-muted mt-1">Pendiente</div>
+                    <template v-else>
+                      <div class="small text-muted mt-1 mb-2">Pendiente</div>
+                      <button v-if="puedeFirmarYAceptar && firma.signerType !== st"
+                              @click="abrirFirma(st)" class="tc-btn tc-btn-seg btn-xs">
+                        <i class="fa fa-pen me-1"></i>Firmar
+                      </button>
+                      <div v-else-if="!puedeFirmarYAceptar" class="small text-muted">
+                        <i class="fa fa-lock me-1"></i>Solo el supervisor o staff puede capturarla aquí
+                      </div>
+
+                      <!-- Canvas de captura -->
+                      <div v-if="firma.signerType === st" class="mt-2 text-start">
+                        <FirmaCanvas ref="firmaCanvas" :disabled="firma.saving" />
+                        <div v-if="firma.error" class="small text-danger mt-1">{{ firma.error }}</div>
+                        <div class="d-flex gap-2 mt-2">
+                          <button @click="guardarFirma(st)" class="tc-btn tc-btn-ok btn-xs" :disabled="firma.saving">
+                            <span v-if="firma.saving"><span class="spinner-border spinner-border-sm me-1"></span></span>
+                            <span v-else><i class="fa fa-check me-1"></i>Guardar</span>
+                          </button>
+                          <button @click="limpiarFirmaCanvas" class="tc-btn tc-btn-seg btn-xs" :disabled="firma.saving">Limpiar</button>
+                          <button @click="cerrarFirma" class="tc-btn tc-btn-seg btn-xs" :disabled="firma.saving">Cancelar</button>
+                        </div>
+                      </div>
+                    </template>
                   </div>
                 </div>
               </div>
@@ -221,6 +254,9 @@
                 <div v-if="!canAccept" class="text-muted small">
                   <i class="fa fa-lock me-1"></i>Requiere ambas firmas
                   <span v-if="!iaCleared"> y validación IA resuelta</span>.
+                </div>
+                <div v-else-if="!puedeFirmarYAceptar" class="text-muted small">
+                  <i class="fa fa-check-circle me-1 text-success"></i>Firmas completas — falta que tu supervisor o staff confirme este paso.
                 </div>
                 <div v-else>
                   <p class="small text-muted mb-2">
@@ -355,14 +391,43 @@
       </template>
     </template>
 
+    <talento-flujo-crear-modal
+      :show="showCrearModal"
+      :colaborador-id="colaboradorId"
+      :colaborador-nombre="colaboradorNombre"
+      @close="showCrearModal = false"
+      @created="onFlujoCreado"
+    />
   </div>
 </template>
 
 <script>
 import { darkMode } from "../../../hook/appConfig.js";
+import Permission from "../../../helpers/Permission.js";
+import { allViewHasPermission } from "../../../helpers/Request.js";
+import TalentoFlujoCrearModal from "./TalentoFlujoCrearModal.vue";
+import FirmaCanvas from "../../firma/FirmaCanvas.vue";
+
+// Mismo umbral que TalentoExpedienteDocumentos.vue (trazos mínimos para
+// considerar la firma real, no un simple toque accidental).
+const MIN_PUNTOS_FIRMA = 8;
 
 export default {
   name: 'TalentoCampo',
+  // Registro LOCAL — mismo motivo que TalentoColaboradorFicha.vue: el
+  // objeto `components` de createApp() en app.js solo es local a la
+  // instancia RAÍZ, un componente anidado no lo hereda.
+  components: { TalentoFlujoCrearModal, FirmaCanvas },
+  props: {
+    colaboradorId: { type: [Number, String], default: null },
+    // Nombre a mostrar en el modal de creación cuando colaboradorId viene
+    // fijo — el padre (TalentoColaboradorFicha.vue) ya lo tiene cargado.
+    colaboradorNombre: { type: String, default: '' },
+    // Resuelto server-side por la ficha, igual que en TalentoOrdenes.vue:
+    // admin/DESARROLLADOR (permiso general) o supervisor directo de ESTE
+    // colaborador — ver TalentoColaboradorController::ficha().
+    puedeGestionar: { type: Boolean, default: false },
+  },
   setup() {
     return { darkMode };
   },
@@ -373,12 +438,15 @@ export default {
       filters: { search: '', status: '' },
       debounceTimer: null,
       selectedOrderId: null,
+      permisosGlobales: {},
+      showCrearModal: false,
       flow: null,
       loadingFlow: false,
 
       upload: { type: 'presentation', file: null, uploading: false, error: '' },
       ia: { running: false, overrideReason: '' },
       accepting: false,
+      firma: { signerType: null, saving: false, error: '' },
       activation: { dispatchOlt: false, confirming: false },
       onboarding: { loading: false, done: false, result: null },
       survey: { rating_overall: '', rating_technician: '', comments: '', google_review_offered: false, google_review_opened: false, submitting: false },
@@ -417,9 +485,36 @@ export default {
     canAccept() {
       return this.hasSig('technician') && this.hasSig('client') && this.iaCleared;
     },
+    puedeCrear() {
+      return this.puedeGestionar || new Permission(this.permisosGlobales).canDo('talento.work_orders.manage');
+    },
+    // Firmar/aceptar/subir evidencia es gestión, no autoservicio — mismo
+    // criterio que ordenes_manage en TalentoColaboradorController::ficha()
+    // (staff o supervisor directo, nunca uno mismo). puedeGestionar ya
+    // llega resuelto server-side cuando el componente vive dentro de una
+    // ficha; el fallback a permisosGlobales cubre la pantalla admin suelta
+    // (/talento/campo, sin colaboradorId fijo), igual que puedeCrear.
+    puedeFirmarYAceptar() {
+      return this.puedeGestionar || new Permission(this.permisosGlobales).canDo('talento.work_orders.manage');
+    },
+    // El atributo HTML `capture` no tiene efecto en navegadores de
+    // escritorio (el selector de archivos normal sigue funcionando ahí);
+    // en un celular hace que el navegador priorice abrir la cámara en vez
+    // del picker de galería — David, 29-sep: "si esta en una pc que se
+    // puedan subir las imagenes y si esta en un telefono que se puedan
+    // tirar las fotos directo".
+    esMovil() {
+      return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    },
   },
-  mounted() { this.load(); },
+  async mounted() {
+    this.load();
+    this.permisosGlobales = await allViewHasPermission();
+  },
   methods: {
+    onFlujoCreado() {
+      this.load();
+    },
     debounce() {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = setTimeout(() => this.load(), 350);
@@ -427,7 +522,9 @@ export default {
     async load() {
       this.loading = true;
       try {
-        const { data } = await axios.get('/talento/api/ordenes', { params: { ...this.filters, per_page: 50 } });
+        const params = { ...this.filters, per_page: 50 };
+        if (this.colaboradorId) params.colaborador_id = this.colaboradorId;
+        const { data } = await axios.get('/talento/api/ordenes', { params });
         this.orders = data?.data ?? [];
       } finally { this.loading = false; }
     },
@@ -501,6 +598,63 @@ export default {
       } catch (e) {
         alert(e.response?.data?.error ?? 'Error al aceptar.');
       } finally { this.accepting = false; }
+    },
+    abrirFirma(signerType) {
+      this.firma.signerType = signerType;
+      this.firma.error = '';
+    },
+    cerrarFirma() {
+      this.firma.signerType = null;
+      this.firma.error = '';
+    },
+    limpiarFirmaCanvas() {
+      const canvas = Array.isArray(this.$refs.firmaCanvas) ? this.$refs.firmaCanvas[0] : this.$refs.firmaCanvas;
+      canvas?.clear();
+      this.firma.error = '';
+    },
+    // Mismo patrón que TalentoExpedienteDocumentos.vue: ubicación opt-in con
+    // timeout corto — si el navegador no responde o el usuario la niega,
+    // resuelve null y NUNCA bloquea el guardado de la firma.
+    obtenerGeolocalizacionFirma() {
+      return new Promise((resolve) => {
+        if (!navigator.geolocation) { resolve(null); return; }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          () => resolve(null),
+          { timeout: 6000, maximumAge: 60000 }
+        );
+      });
+    },
+    async guardarFirma(signerType) {
+      const canvasRef = Array.isArray(this.$refs.firmaCanvas) ? this.$refs.firmaCanvas[0] : this.$refs.firmaCanvas;
+      if (!canvasRef || canvasRef.isEmpty()) {
+        this.firma.error = 'La firma está vacía.';
+        return;
+      }
+      const trazos = canvasRef.getTrazos();
+      const puntos = trazos.reduce((total, t) => total + ((t.points || t).length || 0), 0);
+      if (puntos < MIN_PUNTOS_FIRMA) {
+        this.firma.error = 'La firma parece incompleta, inténtalo de nuevo.';
+        return;
+      }
+
+      this.firma.saving = true;
+      this.firma.error = '';
+      try {
+        const geo = await this.obtenerGeolocalizacionFirma();
+        await axios.post(`/talento/api/campo/${this.selectedOrderId}/firma`, {
+          signer_type: signerType,
+          signature_data: canvasRef.toPNG(),
+          signed_lat: geo?.lat ?? null,
+          signed_lng: geo?.lng ?? null,
+        });
+        this.firma.signerType = null;
+        await this.openOrder(this.selectedOrderId);
+      } catch (e) {
+        this.firma.error = e.response?.data?.message ?? 'No se pudo guardar la firma, intenta de nuevo.';
+      } finally {
+        this.firma.saving = false;
+      }
     },
     async confirmActivation() {
       this.activation.confirming = true;

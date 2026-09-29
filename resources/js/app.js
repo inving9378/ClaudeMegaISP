@@ -169,6 +169,7 @@ import FleetDocumentsDashboard from "./components/module/flotas/FleetDocumentsDa
 import FleetClientPlanTab from "./components/module/flotas/FleetClientPlanTab.vue";
 import FleetSubscriptionDashboard from "./components/module/flotas/FleetSubscriptionDashboard.vue";
 import TalentoColaboradores from "./components/module/talento/TalentoColaboradores.vue";
+import TalentoColaboradorFicha from "./components/module/talento/TalentoColaboradorFicha.vue";
 import TalentoCustodia from "./components/module/talento/TalentoCustodia.vue";
 import TalentoDispositivos from "./components/module/talento/TalentoDispositivos.vue";
 import TalentoRoadmap from "./components/module/talento/TalentoRoadmap.vue";
@@ -636,6 +637,7 @@ const app = createApp({
         'FleetClientPlanTab': FleetClientPlanTab,
         'fleet-subscription-dashboard': FleetSubscriptionDashboard,
         'talento-colaboradores': TalentoColaboradores,
+        'talento-colaborador-ficha': TalentoColaboradorFicha,
         'talento-custodia': TalentoCustodia,
         'talento-dispositivos': TalentoDispositivos,
         'talento-roadmap': TalentoRoadmap,
