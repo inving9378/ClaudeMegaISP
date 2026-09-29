@@ -85,9 +85,6 @@
         @if(auth()->user()->can('talento.levels.view'))
             <li><a href="{{ url('/talento/niveles') }}"><span><small><i class="fa fa-fw fa-layer-group"></i></small> Niveles</span></a></li>
         @endif
-        @if(auth()->user()->can('talento.dashboard.view'))
-            <li><a href="{{ url('/talento/dashboard') }}"><span><small><i class="fa fa-fw fa-tachometer-alt"></i></small> Dashboard</span></a></li>
-        @endif
         @if(auth()->user()->can('talento.escalafon.view'))
             <li><a href="{{ url('/talento/escalafon') }}"><span><small><i class="fa fa-fw fa-trophy"></i></small> Escalafón</span></a></li>
         @endif
