@@ -1362,3 +1362,60 @@ el botón; un DESARROLLADOR viendo la misma ficha sí lo ve.
 ### Commits
 
 - `70dea4e2` — oculta "Gestión de acceso" a quien no puede usarlo
+
+## 2026-09-29 (cont.) — Información: "Gestión de acceso" ahora es acceso real para el supervisor (frontera dura, confirmada con pregunta)
+
+David, corrigiendo el fix anterior: "el botón gestión de acceso si es
+solo para administradores quítalo de ahí y déjalo específicamente para
+los superiores y desarrollador". Dado que esto toca autorización real
+sobre cuentas de sistema (contraseña/rol) — una frontera dura — se
+preguntó explícitamente qué alcance quería antes de tocar código: ¿solo
+ocultar/mostrar el botón, o dar acceso real al supervisor? David
+confirmó **acceso real**, con la descripción completa del riesgo puesta
+por delante (el supervisor podría cambiar roles/permisos/contraseña de
+su subordinado).
+
+**Lo que se hizo:** `UserController` (módulo Core de Usuarios, FUERA de
+Talento — la pantalla real `/administracion/user/{id}/editar`) no tenía
+NINGÚN `authorize()`/scoping propio, dependía enteramente del permiso de
+ruta `user_edit_user` (solo roles admin). Se agregó
+`puedeGestionarUsuario($targetUserId)` = `user_edit_user` O ser el
+supervisor Talento DIRECTO del usuario objetivo — aplicado a
+`edit()`/`getData()`/`update()`. Las 4 rutas involucradas se agregaron a
+`talento.view` (que todo técnico tiene) para que la URL sea alcanzable;
+el candado real por-quién-es-el-objetivo vive en el controller, mismo
+patrón usado toda la sesión.
+
+**Hallazgo real al investigar antes de ampliar** (no reportado por
+David — encontrado auditando el código antes de tocarlo, exactamente
+para evitar introducir un hueco): `getRoles()` devolvía **todos** los
+roles del sistema sin ningún filtro, y `update()` protegía contra
+QUITARLE un rol de sistema a alguien que ya lo tenía, pero no contra
+**asignarle** uno nuevo. Ampliar el acceso tal cual habría dejado que un
+supervisor-técnico promoviera a su subordinado (y de ahí, indirectamente,
+a sí mismo) a `super-administrator` desde el mismo selector que usa un
+admin real — el mismo tipo de escalamiento de privilegios que se ha
+estado cerrando toda la sesión, aquí en un módulo fuera de Talento.
+Corregido con una lista de roles "solo-admin-asigna"
+(`super-administrator`/`DESARROLLADOR`/`Super Administrador`/
+`Administrador`/`ADMINISTRADOR_COMPLETO` — los que dan bypass total o ya
+tienen `user_edit_user`): `getRoles()` los excluye del selector para
+quien no es admin real, y `update()` los rechaza server-side sin
+importar lo que mande el frontend (defensa en profundidad).
+
+**Verificado con Playwright real** (cuentas desechables, borradas al
+terminar): el supervisor ve el botón en la ficha de su subordinado,
+entra, ve los datos reales, y guarda un cambio real (teléfono) — 200,
+persistido. NO ve roles admin en el selector. Un intento de asignarle
+`super-administrator` al subordinado (simulando el formulario, id de rol
+real) fue rechazado por el servidor — verificado en BD que los roles del
+subordinado quedaron intactos (`TECNICO, client`, sin cambio). Un
+usuario AJENO (no su subordinado) → 403 en `get-data-user` y `update`.
+Uno mismo viendo su propia ficha → el botón NO aparece (verse a uno
+mismo no da acceso a editar la propia cuenta desde aquí). Un colega sin
+relación de supervisión → tampoco lo ve. Un DESARROLLADOR real sigue
+viendo todos los roles y el botón en cualquier ficha, sin cambio.
+
+### Commits
+
+- `4b090e29` — supervisor directo obtiene acceso real, con guard de escalamiento de roles
