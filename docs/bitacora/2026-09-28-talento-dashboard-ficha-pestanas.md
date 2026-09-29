@@ -1096,3 +1096,51 @@ poder reproducirlo con precisión.
 ### Commits
 
 - `541fcb91` — Mostrador bloqueada + supervisores sin roster propio (Custodia/Dispositivos/Roles múltiples)
+
+## 2026-09-29 (cont.) — Datos reales asignados a la cuenta demo para probar Documentos (firmas + huecos)
+
+David: "ahora vamos a revisar bien los documentos, asígnale a este usuario
+documentos para poder probar que se muestren bien, y que esté bien a parte
+de los campos faltantes y las firmas". "Este usuario" = la cuenta demo
+(`manual_demo_tecnico`, colaborador #43, roles Vendedor+TECNICO) que David
+ya usó para revisar Roles múltiples.
+
+**Qué se hizo (dato, no código):** el colaborador #43 no tenía `job_title`
+apuntando a un puesto con plantillas asignadas (traía el texto libre
+"Técnico de campo (cuenta demo)", sin match en el catálogo). El único
+puesto con plantillas reales configuradas hoy es **Vendedor** (7 plantillas,
+`talento_puesto_document_templates`) — coincide con uno de sus dos roles
+reales. Se le asignó `job_title='Vendedor'` + `puesto_id=1` y se corrió el
+comando oficial y seguro (upsert, no borra firmas):
+```
+php artisan talento:regenerar-documentos 43
+```
+→ **7 documentos reales generados**: Contrato Individual de Trabajo,
+Entrega y Recepción de Herramientas, Responsiva de Activos Técnicos,
+Formato de Alta de Empleado, Descripción de Puesto, Reglamento Interior de
+Trabajo (el único con 4 recuadros de firma: empresa/trabajador +
+comisión-empresa/comisión-trabajador) y Convenio Individual de Comisiones
+— con una mezcla realista de campos faltantes (0 a 14 huecos por
+documento) y recuadros de firma reales (empresa/trabajador) en los 7.
+
+**Verificado (sin firmar nada a propósito — David quiere probar la acción
+él mismo, no encontrarla ya hecha):**
+- Autenticado como el propio usuario demo (sin tocar su contraseña):
+  `forColaborador(43)` devuelve los 7 documentos con sus huecos/slots
+  reales.
+- `ficha(43)` con el demo autenticado: `documentos`=true (ve la pestaña),
+  `documentos_gestionar`=false (correcto — el botón "Completar documento"
+  queda oculto, y el modal de firma solo debe ofrecerle su recuadro
+  'trabajador', nunca 'empresa' — misma regla ya verificada 8/8 la vuelta
+  anterior con cuentas desechables).
+- HTML renderizado de un documento real (Contrato Individual de Trabajo):
+  9,255 bytes, HTML válido, 9 huecos marcados visibles — se ve bien.
+
+**Listo para que David pruebe en su propia sesión:** entrar como
+`manual_demo_tecnico`, ir a su ficha → pestaña "Paquetes de documentos" →
+7 documentos reales para ver, firmar (su recuadro) y —si entra como
+supervisor/staff de este colaborador— completar campos faltantes.
+
+### Commits
+
+- (sin cambio de código — solo datos: `job_title`/`puesto_id` del colaborador #43 + documentos generados vía el comando oficial `talento:regenerar-documentos`)
