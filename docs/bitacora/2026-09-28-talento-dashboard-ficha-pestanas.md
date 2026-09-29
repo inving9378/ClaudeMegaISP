@@ -1504,3 +1504,42 @@ a un colaborador ajeno (403). 8/8 correcto — **sin cambios de código**.
 ### Commits
 
 - (sin cambios — verificación confirmó que ya estaba correctamente protegida)
+
+## 2026-09-29 (cont.) — Aterrizaje post-login: un técnico puro caía en /crm/listar en vez de su ficha
+
+David, logueado como la cuenta demo (rol TECNICO): "al ir a talento si
+no voy al dashboard nuevo no me muestra nada porque no tiene permisos
+para ver clientes y me redirige a .../ y me intenta mostrar la lista de
+clientes... debería ser que la ruta de talento cambie al nuevo
+dashboard".
+
+**Investigación:** no era un problema del enlace "Talento" del sidebar
+(ese ya apunta a `/talento`, y `/talento` ya redirige correctamente a
+la ficha propia — verificado). Era el ATERRIZAJE justo después de
+iniciar sesión: `PostLoginRedirectService::FALLBACK_ROUTES` prueba una
+lista de rutas EN ORDEN y aterriza en la primera para la que el usuario
+tenga el permiso asociado — sin verificar que esa pantalla realmente
+muestre algo útil. El rol "TECNICO" puro (a diferencia de
+TECNICO_PLANTA/TECNICO_INSTALADOR, que sí tienen
+`dashboard_view_dashboard`) no calificaba para `/` (dashboard general),
+así que caía a la siguiente de la lista: `/crm/listar` (SÍ tiene
+`crm_view_crm` — heredado, muchos técnicos también son Vendedor) — pero
+esa pantalla de clientes no le muestra nada útil, y lo deja varado sin
+poder ni llegar al sidebar para navegar a Talento por su cuenta.
+
+**Corrección:** se sube `/talento` a la 2ª posición de la lista (justo
+después de `/`) — `/talento` ya resuelve solo a la ficha propia o "mi
+equipo" (construido hoy), siempre útil para quien tiene `talento.view`.
+
+**Verificado que NO afecta a nadie más** (análisis de roles + Playwright
+real con cuentas desechables): Mostrador/TECNICO_PLANTA/TECNICO_INSTALADOR
+ya tenían `dashboard_view_dashboard` y seguían cayendo en `/` de todos
+modos, sin cambio; Vendedor no tiene `talento.view` (de hecho SÍ tiene
+`dashboard_view_dashboard`, así que tampoco llegaba nunca a `/crm/listar`
+por este mecanismo) — sin cambio. Un técnico puro (cuenta desechable)
+ahora aterriza directo en `/talento/colaborador/{id}` tras iniciar
+sesión, en vez de `/crm/listar`.
+
+### Commits
+
+- `834f76d6` — /talento sube a 2ª posición en el aterrizaje post-login, solo afecta al rol TECNICO puro
