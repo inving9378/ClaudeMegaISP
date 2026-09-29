@@ -1189,3 +1189,62 @@ David pruebe la experiencia completa ahora sí correcta.
 ### Commits
 
 - `5049e389` — uno mismo gestiona su documento igual que Vendedores, sin carve-out
+
+## 2026-09-29 (cont.) — Academia: el segundo controller más grave de la sesión (sin autorización real)
+
+David: "ya lo revisé, sale bien, pasamos a academia".
+
+**Para qué se usa:** catálogo de cursos de capacitación (Seguridad en
+campo, Fusión óptica, Calidad de caja, Atención al cliente, Uso del
+sistema), con exámenes, evaluaciones prácticas y certificaciones. La
+pestaña de la ficha (`TalentoFichaAcademia.vue`) es una vista de solo
+lectura del progreso propio — a propósito distinta de `TalentoAcademia.vue`
+(catálogo completo/gestión), mismo patrón intencional que Portal vs.
+admin en otras áreas — nada que corregir ahí.
+
+**Hallazgo grave (segundo peor de la sesión, después de Calidad de
+caja):** `TalentoAcademyController` no tenía NINGÚN `authorize()`/scoping
+salvo `serveEvidencePractical()`. Dos huecos **ya explotables hoy**,
+confirmados con Playwright antes/después:
+
+1. **Cualquier técnico podía crear o editar cursos reales.**
+   `talento.academy.view` (que TECNICO/TECNICO_PLANTA/TECNICO_INSTALADOR
+   tienen directo, para poder VER el catálogo) cubre en
+   `route_permission.php` las mismas rutas `/talento/api/courses` y
+   `/talento/api/courses/{id}` que `storeCourse()`/`updateCourse()` — el
+   middleware no distingue GET de POST/PUT. Confirmado: `POST /courses`
+   devolvía **201** antes del fix (creó un curso real, "Curso hackeado
+   por tecnico"); `PUT /courses/1` devolvía **200** (cambió el título de
+   un curso real). Limpiado tras la prueba.
+2. **Cualquier técnico podía ver las certificaciones y el progreso de
+   capacitación de CUALQUIER otro colaborador** —
+   `certificationsForColaborador()`/`progressForColaborador()` no tenían
+   ningún candado de por-quién-pregunta. Confirmado: `GET
+   /colaboradores/{ajeno}/certifications` devolvía **200** antes del fix
+   (mismo patrón de fuga que "Roles múltiples" de esta sesión).
+
+**Corrección:** scoping (uno mismo/supervisor directo/staff —
+`talento.employees.view`, NO `talento.academy.view` que también la tiene
+técnico y no distingue) en las 2 lecturas; `authorize()` con
+`talento.academy.manage`/`talento.academy.evaluate` en los 8 métodos de
+escritura que no tenían ninguno — incluidos `storePractical()`
+(autoevaluación práctica, hubiera permitido auto-certificarse) y
+`revokeCertification()`, que resultaron ya a salvo por un hueco de ruta
+no listado (defensa en profundidad de todos modos, mismo criterio que
+Calidad de caja esta sesión). Se agregaron también 4 rutas de
+autoservicio construidas pero inalcanzables (tomar examen/enviarlo/ver
+mis intentos/mis certificaciones — ya estaban self-scoped por `auth()->
+id()`, solo faltaban en `route_permission.php`).
+
+**Verificado con Playwright real, con contraprueba antes/después:**
+11/11 casos correctos tras el fix (crear/editar curso→403,
+autoevaluarse→403, revocar→403, ver lo propio→200, ver lo ajeno→403 ×2,
+mis-certificaciones→200, ruta de examen alcanzable→404 en vez de 403,
+lista de cursos sigue accesible); supervisor ve certificaciones/progreso
+de su subordinado (200/200); UI real de la pestaña renderiza
+correctamente. Datos de prueba (curso creado, título modificado, cuentas
+desechables) limpiados/restaurados al terminar.
+
+### Commits
+
+- `6fd7e4b0` — Academia: crear/editar cursos + IDOR de certificaciones/progreso, cerrados
