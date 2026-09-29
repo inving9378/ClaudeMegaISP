@@ -1323,3 +1323,42 @@ Verificado con Playwright: ambos bloques presentes.
 ### Commits
 
 - `f14a5a75` — conserva el resumen debajo del catálogo completo
+
+## 2026-09-29 (cont.) — Información: casi todo bien, un botón muerto para técnicos
+
+David: "siguiente pestaña, veamos qué falta".
+
+**Qué falta en la ficha (pestañas sin la ronda "para qué se usa +
+verifica" todavía):** Información, Mi trabajo (Portal — reusa el módulo
+Portal ya auditado aparte, fuera de alcance), Órdenes, Compensación,
+Liquidaciones, Asistencia, Campo, Rutas — el resto (Cajas ODB, Calidad,
+Proyectos, Penalizaciones, Credenciales, Finiquito, Custodia,
+Dispositivos, Roles múltiples, Documentos, Academia) ya se cubrió hoy.
+Se empezó por Información (la primera pestaña de la ficha).
+
+**Qué es:** datos generales del colaborador (nombre, email, tipo,
+departamento, puesto, supervisor, ingreso, status), roles del sistema,
+subordinados, y un botón a la pantalla de administración de usuarios.
+Casi toda presentacional — recibe el `colaborador` YA CARGADO por el
+padre, sin fetch propio (el riesgo real de "quién puede ver estos
+datos" vive en el endpoint de carga de la ficha, ya auditado).
+
+**Hallazgo (menor, pero real):** el botón "Gestión de acceso
+(Administradores)" (link directo a `/administracion/user/{id}/editar`)
+se mostraba SIEMPRE, sin ningún gate — un técnico viendo su propia
+ficha lo veía, y al hacer clic caía en el 403/redirect silencioso de
+esa pantalla (exige `user_edit_user`, solo roles admin). Mismo patrón
+recurrente de la sesión: botón visible que no lleva a nada para quien
+lo ve.
+
+**Corrección:** nuevo flag `informacion_gestion_acceso` en `ficha()`
+(`user_edit_user`, a propósito SIN el criterio amplio de "verse a uno
+mismo o ser supervisor" — la pantalla de usuarios es staff puro) oculta
+el botón para quien no puede usarlo.
+
+**Verificado con Playwright:** técnico viendo su propia ficha ya no ve
+el botón; un DESARROLLADOR viendo la misma ficha sí lo ve.
+
+### Commits
+
+- `70dea4e2` — oculta "Gestión de acceso" a quien no puede usarlo
