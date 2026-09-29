@@ -1,6 +1,15 @@
 <template>
   <div class="talento-colaboradores tc-wrap" :class="{ 'tc-dark': darkMode }">
 
+    <!-- David (29-sep): "ponlo en el dashboard nuevo para que haya uno
+         solo" — el dashboard viejo (/talento/dashboard, pantalla suelta)
+         se consolida aquí arriba, encima de la tabla de colaboradores.
+         Mismo componente de siempre (TalentoDashboard.vue), sin reescribir
+         nada — solo se le pasa soloMiEquipo para que sus 3 selectores de
+         colaborador (Mi panel/Calculadora/Mi equipo) respeten la misma
+         regla que ya respeta la tabla de abajo. -->
+    <talento-dashboard :solo-mi-equipo="soloMiEquipo" class="mb-4" />
+
     <div class="tc-card">
       <div class="tc-cardhead d-flex align-items-center justify-content-between gap-2 p-3">
         <h5 class="tc-h1"><i class="fa fa-id-badge me-2"></i>Colaboradores</h5>
@@ -348,9 +357,18 @@
 
 <script>
 import { darkMode } from "../../../hook/appConfig.js";
+// David (29-sep): TalentoDashboard está registrado en el objeto
+// components:{} gigante de createApp() (app.js), que en Vue 3 registra
+// LOCAL al componente raíz — no en cascada a SFCs hijos como este
+// (mismo gotcha ya encontrado con TalentoAcademia al conectar la ficha).
+// Sin este import local, Vue no resuelve el tag.
+import TalentoDashboard from "./TalentoDashboard.vue";
 
 export default {
   name: 'TalentoColaboradores',
+  components: {
+    TalentoDashboard,
+  },
   props: {
     // Resuelto server-side (TalentoColaboradorController::index) — true si
     // quien mira es supervisor SIN talento.employees.view: la tabla se

@@ -79,7 +79,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/finiquito',      [TalentoLoanSettlementController::class, 'index']);
         Route::get('/academia',       [TalentoAcademyController::class, 'index']);
         Route::get('/niveles',        [TalentoLevelController::class, 'index']);
-        Route::get('/dashboard',      [TalentoDashboardController::class, 'index']);
+        // /dashboard retirado (29-sep) — consolidado dentro de /talento
+        // (TalentoColaboradores.vue). Ver TalentoDashboardController.
         Route::get('/escalafon',      [TalentoEscalafonController::class, 'index']);
         Route::get('/embajadores-colabs', [TalentoEmbajadoresController::class, 'index']);
         Route::get('/mis-ventas',     [TalentoVentasController::class, 'index']);

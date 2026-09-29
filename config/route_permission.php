@@ -2054,12 +2054,25 @@ return [
     // Gate de módulo (sidebar + página principal)
     'talento.view' => [
         '/talento',
-        '/talento/dashboard',
         '/talento/colaborador/{id}',
         '/talento/mi-ficha',
         '/talento/mi-ficha/{id}',
         '/talento/mi-ficha/{id}/academia',
         '/talento/api/mi-equipo',
+        // Dashboard viejo consolidado dentro de /talento (29-sep, pedido
+        // de David: "ponlo en el dashboard nuevo... elimina ese del
+        // sidebar") — la ruta /talento/dashboard se retiró, pero estos 5
+        // endpoints de datos siguen vivos (ahora dentro de
+        // TalentoColaboradores.vue, arriba de la tabla). El scoping real
+        // por colaborador vive en TalentoDashboardController
+        // (puedeVerPreviewDe()/equipoPreview()) — antes ninguno de los 5
+        // estaba en NINGÚN bloque de este archivo, así que en la práctica
+        // solo admin/DESARROLLADOR (bypass total) podía verlos.
+        '/talento/api/dashboard/info-cards',
+        '/talento/api/dashboard/daily-production',
+        '/talento/api/dashboard/tecnico/{id}',
+        '/talento/api/dashboard/simulate-pay',
+        '/talento/api/dashboard/equipo/{id}',
         // "Gestión de acceso" (29-sep, pedido explícito de David): el
         // supervisor directo de un colaborador puede editar SU cuenta de
         // sistema (contraseña/contacto/rol) desde /administracion/user —
@@ -2196,7 +2209,6 @@ return [
     ],
     'talento.dashboard.view' => [
         '/talento',
-        '/talento/dashboard',
         '/talento/api/cajas',
         '/talento/api/cajas/latest',
         '/talento/api/cajas/bonus-log',
