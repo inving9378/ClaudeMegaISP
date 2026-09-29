@@ -237,7 +237,19 @@
             :puede-gestionar="permisos.documentos_gestionar" />
         </div>
         <div v-if="activeTab === 'academia'">
-          <talento-ficha-academia :colaborador-id="id" />
+          <!-- David (29-sep): "debe mostrar los cursos para poder entrar,
+               no solo el resumen — el progreso debe poder empezarlos ahí
+               mismo". TalentoAcademia.vue (catálogo completo: ver curso,
+               tomar examen) es SIEMPRE self-scoped por auth()->id() en el
+               backend — no se le puede apuntar al colaborador de la
+               ficha, así que solo tiene sentido para uno mismo (nunca el
+               supervisor viendo a su subordinado: "tomar el examen por
+               él" falsificaría el resultado, mismo criterio que el
+               Portal). Con eso, el resumen de solo lectura
+               (TalentoFichaAcademia.vue) sigue siendo lo correcto para
+               cuando el que mira NO es el propio colaborador. -->
+          <talento-academia v-if="esUnoMismoLiteral" />
+          <talento-ficha-academia v-else :colaborador-id="id" />
         </div>
       </div>
     </template>
@@ -265,6 +277,14 @@ import TalentoCustodia from "./TalentoCustodia.vue";
 import TalentoDispositivos from "./TalentoDispositivos.vue";
 import TalentoEmbajadores from "./TalentoEmbajadores.vue";
 import TalentoFichaAcademia from "./TalentoFichaAcademia.vue";
+// David (29-sep): a diferencia de talento-expediente-documentos (registrado
+// globalmente vía app.component(), visible en cualquier SFC hijo),
+// TalentoAcademia vive en el objeto components:{} gigante de createApp() en
+// app.js — eso lo registra LOCAL a ese componente raíz únicamente (no en
+// cascada a SFCs hijos como este). Sin este import local, Vue no podía
+// resolverlo aquí ("Failed to resolve component: talento-academia",
+// el tag quedaba vacío en el DOM).
+import TalentoAcademia from "./TalentoAcademia.vue";
 
 export default {
   name: "TalentoColaboradorFicha",
@@ -294,6 +314,7 @@ export default {
     TalentoDispositivos,
     TalentoEmbajadores,
     TalentoFichaAcademia,
+    TalentoAcademia,
   },
   props: {
     id: { type: [Number, String], required: true },
@@ -319,6 +340,14 @@ export default {
     },
     // Literal "uno mismo" (nunca el supervisor) + permiso portal.colaborador.
     mostrarPortal: {
+      type: Boolean,
+      default: false,
+    },
+    // Literal "uno mismo" SIN el requisito de portal.colaborador de
+    // mostrarPortal — decide si la pestaña Academia monta el catálogo
+    // completo (talento-academia, self-scoped) o el resumen de solo
+    // lectura (talento-ficha-academia).
+    esUnoMismoLiteral: {
       type: Boolean,
       default: false,
     },

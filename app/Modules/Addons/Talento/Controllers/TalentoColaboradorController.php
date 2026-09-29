@@ -246,6 +246,16 @@ class TalentoColaboradorController extends Controller
             'permisos' => $permisos,
             'esPropia' => $usarEndpointPropio,
             'mostrarPortal' => $mostrarPortal,
+            // David (29-sep): "Academia — debe poder entrar a los cursos y
+            // empezarlos ahí mismo". A diferencia de Documentos, TalentoAcademia
+            // .vue (catálogo completo: ver curso, tomar examen) es SIEMPRE
+            // self-scoped por auth()->id() en el backend — no tiene forma de
+            // apuntarlo al colaborador de la ficha. Solo tiene sentido montarlo
+            // cuando quien mira ES literalmente ese colaborador (nunca su
+            // supervisor: "tomar el examen por él" sería falsificarlo, mismo
+            // criterio que mostrarPortal) — señal aparte de esPropia de arriba,
+            // que también es true para el supervisor.
+            'esUnoMismoLiteral' => $esPropia,
         ]);
     }
 
