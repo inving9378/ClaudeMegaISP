@@ -1625,3 +1625,31 @@ equipo → 200.
 ### Commits
 
 - `79eccc04` — dashboard viejo consolidado dentro de /talento, ruta suelta y entrada de sidebar retiradas, IDOR de pago proyectado cerrado
+
+## 2026-09-29 (cont.) — Se me pasó un segundo enlace: el sidebar de Talento es hardcodeado, no dinámico
+
+David: "dejaste el otro dashboard en el sidebar".
+
+**Por qué se me pasó:** edité `module.json`'s `menu[]` (el mecanismo
+dinámico) para quitar la entrada "Dashboard" — pero Talento sigue en
+`$sidebarHardcoded` (`sidebar.blade.php`), así que su sidebar real se
+arma desde un parcial dedicado propio
+(`resources/views/module-sidebar/talento.blade.php`), completamente
+aparte del `menu[]` de `module.json`. Mi primer arreglo no tocó ese
+archivo.
+
+Ese parcial traía un SEGUNDO ítem de menú "Dashboard" (distinto del
+link principal "Colaboradores"/"Dashboard", que ya usa correctamente
+`/talento` con la etiqueta cambiando según el permiso) apuntando
+directo a `/talento/dashboard` — la ruta que se retiró en el commit
+anterior. Quedó como enlace muerto (404) tras la consolidación. Se
+quitó esa entrada duplicada.
+
+**Verificado con Playwright real** (+ `view:clear`, gotcha ya
+documentado en CLAUDE.md para este archivo): 0 enlaces a
+`/talento/dashboard`; el submenú pasa de "Niveles" directo a
+"Escalafón".
+
+### Commits
+
+- `bb0414f2` — segundo enlace "Dashboard" (hardcodeado) retirado del sidebar
