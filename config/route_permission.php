@@ -2060,6 +2060,20 @@ return [
         '/talento/mi-ficha/{id}',
         '/talento/mi-ficha/{id}/academia',
         '/talento/api/mi-equipo',
+        // "Gestión de acceso" (29-sep, pedido explícito de David): el
+        // supervisor directo de un colaborador puede editar SU cuenta de
+        // sistema (contraseña/contacto/rol) desde /administracion/user —
+        // pantalla del módulo Core Usuarios, fuera de Talento. El
+        // middleware solo deja pasar (cualquier técnico con talento.view
+        // alcanza la URL); el candado real por-quién-es-el-objetivo vive
+        // en UserController::puedeGestionarUsuario()/
+        // esSupervisorTalentoDe() — igual que talento.view en general no
+        // implica acceso a un colaborador puntual sin el scoping del
+        // controller.
+        '/administracion/user/{id}/editar',
+        '/administracion/user/{id}/update',
+        '/administracion/user/get-data-user/{id}',
+        '/administracion/user/getRoles',
         // Documentos del expediente (28-sep): mismo endpoint que ya usan
         // Vendedores/el modal admin — el controller ensancha el candado a
         // uno mismo/supervisor directo (puedeVerDocumentosDe()/

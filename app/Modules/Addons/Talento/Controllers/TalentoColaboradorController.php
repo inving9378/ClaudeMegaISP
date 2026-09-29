@@ -234,12 +234,21 @@ class TalentoColaboradorController extends Controller
             // de acceso (Administradores)" (link directo a /administracion/
             // user/{id}/editar) se mostraba SIEMPRE, sin gate — un técnico
             // viendo su propia ficha lo veía pero al hacer clic caía en
-            // 403/redirect silencioso (esa ruta exige user_edit_user, que
-            // solo tienen los roles admin). A propósito SIN
-            // $tieneAccesoAmplio: verse a uno mismo o ser supervisor no da
-            // acceso a la pantalla de usuarios — es una capacidad de
-            // staff pura.
-            'informacion_gestion_acceso' => auth()->user()->can('user_edit_user'),
+            // 403/redirect silencioso.
+            //
+            // CORRECCIÓN (29-sep, pedido explícito de David tras el primer
+            // fix): "si es solo para administradores, quítalo de ahí y
+            // déjalo específicamente para los superiores y desarrollador"
+            // — confirmado que quiere acceso REAL (no solo visibilidad):
+            // el supervisor directo puede editar la cuenta de sistema de
+            // su subordinado (contraseña/contacto/rol), igual que un
+            // admin, SOLO para su(s) subordinado(s) — nunca un usuario
+            // ajeno. A propósito SIN $esPropia (verse a uno mismo no da
+            // acceso a editar la propia cuenta desde aquí — es la misma
+            // pantalla admin, con su propio candado real en
+            // UserController::puedeGestionarUsuario()/
+            // esSupervisorTalentoDe(), que valida el objetivo exacto).
+            'informacion_gestion_acceso' => auth()->user()->can('user_edit_user') || $esSuSupervisor,
         ];
 
         // "Mi trabajo (Portal)" — SOLO para uno mismo, JAMÁS para el
