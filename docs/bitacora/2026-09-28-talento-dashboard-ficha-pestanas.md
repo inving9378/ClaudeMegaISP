@@ -1144,3 +1144,48 @@ supervisor/staff de este colaborador— completar campos faltantes.
 ### Commits
 
 - (sin cambio de código — solo datos: `job_title`/`puesto_id` del colaborador #43 + documentos generados vía el comando oficial `talento:regenerar-documentos`)
+
+## 2026-09-29 (cont.) — Documentos: corrección real — "Completar documento" y todos los recuadros de firma, igual que Vendedores (sin carve-out)
+
+David: "me imaginé que ibas a hacerlo mal, primeramente fíjate en
+vendedores, los documentos que tienen campos faltantes se muestra un
+botón completar documento... además se muestra un canvas por cada firma
+que tenga el documento especificando de quién es la firma. Te repito
+fíjate en vendedores como está hecho".
+
+**El error real (commit `a95daae3`, vuelta anterior):** al abrir
+"Documentos" en la ficha propia como autoservicio, se había restringido
+de más — el botón "Completar documento" quedaba OCULTO por completo, y
+el modal de firma solo mostraba el recuadro propio ('colaborador'),
+quitando de la vista el recuadro de la empresa en vez de solo bloquear
+su guardado. Esto rompía justo lo que David pedía verificar: en
+Vendedores (staff viendo el expediente de un vendedor) SIEMPRE se ve el
+botón cuando hay huecos y SIEMPRE se ven todos los recuadros de firma con
+su etiqueta ("POR LA EMPRESA"/"EL VENDEDOR") — la ficha propia debía
+verse EXACTAMENTE igual, no una versión recortada por su cuenta.
+
+**Corrección:** se quitó el carve-out que excluía a "uno mismo" de poder
+gestionar (firmar cualquier recuadro, completar huecos) su PROPIO
+documento — ahora cuenta con el mismo criterio que su supervisor directo
+o staff. `TalentoExpedienteDocumentos.vue` **no necesitó ningún cambio**
+— con el flag correcto (`puede-gestionar=true` para uno mismo) su lógica
+ya hacía exactamente lo que David describió, sin filtrar nada.
+
+**Lo que SÍ se mantiene:** un colaborador sin relación con el dueño del
+documento (no es él mismo, no es su supervisor) sigue completamente
+bloqueado — ese candado (el anti-IDOR real, `esUnoMismoOSupervisorDe`) no
+se tocó.
+
+**Verificado con Playwright real:** técnico firma su propio recuadro
+(200) y AHORA TAMBIÉN el de la empresa (200, antes 403); completa sus
+propios campos faltantes (200, antes 403); el botón "Completar
+documento" aparece en la UI real. Un colaborador ajeno sigue en 403 en
+las 3 acciones, sin cambio.
+
+**Los 7 documentos reales de la cuenta demo** (asignados en la entrada
+anterior de hoy) siguen intactos, pendientes de firma — listos para que
+David pruebe la experiencia completa ahora sí correcta.
+
+### Commits
+
+- `5049e389` — uno mismo gestiona su documento igual que Vendedores, sin carve-out
