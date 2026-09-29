@@ -1419,3 +1419,52 @@ viendo todos los roles y el botón en cualquier ficha, sin cambio.
 ### Commits
 
 - `4b090e29` — supervisor directo obtiene acceso real, con guard de escalamiento de roles
+
+## 2026-09-29 (cont.) — Órdenes: IDOR real (cualquier técnico veía todas las órdenes del sistema)
+
+David: "verifica órdenes".
+
+**Qué es:** listado de órdenes de trabajo (instalaciones, soporte,
+etc.) con crear/ver/validar/avanzar estado. Dentro de la ficha, un
+técnico viendo su PROPIA ficha ni siquiera ve esta pestaña admin — ya
+tiene sus órdenes en "Mi trabajo (Portal)" (self-service real, app
+móvil incluida); esta pestaña es para supervisor/staff.
+
+**Hallazgo grave, confirmado con contraprueba antes/después:**
+`talento.work_orders.view` lo tiene TECNICO directo (para su propio
+autoservicio vía "Mi trabajo"), pero `data()`/`show()` no tenían NINGÚN
+scoping — un técnico en la pantalla suelta `/talento/ordenes` veía
+**9 filas** (todas las órdenes del sistema, de cualquier colaborador:
+cliente, teléfono, notas, agenda) en vez de solo la suya. Mismo patrón
+de fuga que Roles múltiples/Academia esta sesión, aquí sobre datos
+operativos de campo.
+
+**Corrección:** `esStaffOrdenes()` (staff real = `talento.work_orders.
+manage` o `talento.employees.view` — NO `work_orders.view` puro) +
+`idsColaboradoresVisibles()` (uno mismo + su equipo directo). `data()`
+rechaza un `colaborador_id` pedido fuera de esos ids, y SIN filtro se
+fuerza a "yo + mi equipo" en vez de "todos" (nunca opcional). `show()`
+verifica que la orden pertenezca a alguien visible. Se extendió
+`OrdenTrabajoUnifiedService::listForAdmin()` para aceptar
+`colaborador_id` como arreglo (necesario para que un supervisor con
+varios subordinados vea a todo su equipo, no solo a uno).
+
+**Bug de UI relacionado:** los botones "Validar"/"Iniciar"/"Completar"
+se mostraban a cualquiera que viera la lista (solo el status de la
+orden los condicionaba) — acciones reales de gestión
+(`talento.work_orders.validate`/`.manage`, que ningún técnico
+autoservicio tiene) que 403eaban en silencio al hacer clic. El técnico
+avanza SU PROPIA orden desde la app móvil de campo, no desde esta
+pantalla admin. Ahora ocultos con el mismo criterio que ya protegía
+"Nueva orden".
+
+**Verificado con Playwright real** (contraprueba antes/después): la
+pantalla suelta pasó de mostrar 9 filas (todo el sistema) a 1 (solo la
+propia); ver/listar la orden de un colaborador ajeno → 403 (antes 200);
+botones Validar/Nueva orden ocultos para autoservicio. Un supervisor
+viendo la ficha de su subordinado conserva el flujo completo (crea,
+valida, avanza estado) sin ningún cambio.
+
+### Commits
+
+- `136ec14c` — IDOR de órdenes cerrado + botones de gestión ocultos para autoservicio
