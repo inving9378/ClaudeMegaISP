@@ -1468,3 +1468,39 @@ valida, avanza estado) sin ningún cambio.
 ### Commits
 
 - `136ec14c` — IDOR de órdenes cerrado + botones de gestión ocultos para autoservicio
+
+## 2026-09-29 (cont.) — Compensación: verificada, ya estaba bien construida (sin cambios de código)
+
+David: "siguiente pestaña, compensación".
+
+**Qué es:** reglas de compensación (sueldo base, cuota semanal, $/unidad,
+marco KPI opcional para roles no-técnicos) + historial de asignaciones
+por colaborador. El catálogo de reglas y "Asignar regla" son acciones de
+GESTIÓN; el historial es lo que de verdad es "mi compensación".
+
+**Resultado de la verificación:** esta pestaña ya se había corregido
+correctamente en la primera pasada del día (commit `1ceb2e3b`, antes de
+la ronda "para qué se usa + verifica" de las pestañas de la tarde) —
+`TalentoCompensacionController` ya tenía `puedeVerCompensacionDe()`
+(uno mismo/supervisor directo/staff) aplicado a `historyForColaborador()`
+y `currentRule()`, y `assignRule()` ya restringido a staff o supervisor
+directo (a propósito SIN uno mismo — "solo el superior... no uno
+mismo"). Las rutas correspondientes ya estaban en `talento.view` con la
+nota explícita de por qué (fecha 28-sep). El frontend
+(`TalentoCompensacion.vue`) ya oculta "Nueva regla"/"Asignar regla" con
+`v-if="!colaboradorId || puedeGestionar"`, dejando siempre visible el
+historial de solo lectura.
+
+**Verificado de todos modos con Playwright real** (no se dio por bueno
+solo por leer el código — esta sesión ha encontrado sorpresas en código
+que también se veía bien): técnico viendo su propia ficha NO ve "Nueva
+regla" ni "Asignar regla", SÍ ve su historial; intento de auto-asignarse
+una regla vía API directa → 403; intento de ver el historial de un
+colega sin relación → 403. Supervisor viendo la ficha de su subordinado
+SÍ ve "Nueva regla"/"Asignar regla", asigna una regla real al
+subordinado (201, verificado y limpiado) y NO puede asignarle una regla
+a un colaborador ajeno (403). 8/8 correcto — **sin cambios de código**.
+
+### Commits
+
+- (sin cambios — verificación confirmó que ya estaba correctamente protegida)
