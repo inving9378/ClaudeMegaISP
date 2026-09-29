@@ -230,6 +230,16 @@ class TalentoColaboradorController extends Controller
                 || $esSuSupervisor
                 || $esPropia,
             'academia'        => auth()->user()->can('talento.academy.view') || $tieneAccesoAmplio,
+            // David (29-sep), verificando "Información": el botón "Gestión
+            // de acceso (Administradores)" (link directo a /administracion/
+            // user/{id}/editar) se mostraba SIEMPRE, sin gate — un técnico
+            // viendo su propia ficha lo veía pero al hacer clic caía en
+            // 403/redirect silencioso (esa ruta exige user_edit_user, que
+            // solo tienen los roles admin). A propósito SIN
+            // $tieneAccesoAmplio: verse a uno mismo o ser supervisor no da
+            // acceso a la pantalla de usuarios — es una capacidad de
+            // staff pura.
+            'informacion_gestion_acceso' => auth()->user()->can('user_edit_user'),
         ];
 
         // "Mi trabajo (Portal)" — SOLO para uno mismo, JAMÁS para el

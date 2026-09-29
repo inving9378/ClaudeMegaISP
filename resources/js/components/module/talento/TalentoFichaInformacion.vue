@@ -31,7 +31,7 @@
         </div>
         <div v-else class="text-muted small">Sin subordinados.</div>
 
-        <div class="mt-4">
+        <div v-if="puedeGestionarAcceso" class="mt-4">
           <a :href="`/administracion/user/${colaborador.user_id}/editar`" target="_blank" class="tc-btn tc-btn-info">
             <i class="fa fa-key me-1"></i> Gestión de acceso (Administradores)
           </a>
@@ -46,6 +46,11 @@ export default {
   name: "TalentoFichaInformacion",
   props: {
     colaborador: { type: Object, required: true },
+    // David (29-sep): el link a /administracion/user/{id}/editar exige
+    // user_edit_user (solo roles admin) — sin este flag se mostraba a
+    // cualquiera, incluido un técnico viendo su propia ficha, que al
+    // hacer clic caía en 403/redirect silencioso.
+    puedeGestionarAcceso: { type: Boolean, default: false },
   },
   methods: {
     statusBadge(s) {

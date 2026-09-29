@@ -170,7 +170,8 @@
       <!-- Paneles — montaje perezoso del activo, como Menu.vue -->
       <div class="tc-panel">
         <div v-if="activeTab === 'informacion'">
-          <talento-ficha-informacion :colaborador="colaborador" />
+          <talento-ficha-informacion :colaborador="colaborador"
+            :puede-gestionar-acceso="permisos.informacion_gestion_acceso" />
         </div>
         <div v-if="activeTab === 'mi_trabajo'" class="tc-portal-embed">
           <iframe src="/talento/portal" title="Portal de Colaborador — Mi trabajo" loading="lazy"></iframe>
