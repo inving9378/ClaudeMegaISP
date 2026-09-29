@@ -2299,6 +2299,16 @@ return [
         '/talento/api/ots/**',
         '/talento/api/campo/{workOrderId}/estado',
         '/talento/api/campo/{workOrderId}/firmas',
+        // firma (singular, POST) y aceptar: el middleware no distingue
+        // método, solo path — un supervisor directo (sin
+        // talento.work_orders.manage/talento.field_flow.accept) necesita
+        // ALCANZAR estas URLs para poder firmar/aceptar la OT de su
+        // subordinado; TalentoFieldFlowController::puedeGestionarFlujoDe()
+        // hace la restricción real (staff O supervisor directo del
+        // colaborador dueño de la OT, nunca uno mismo). David, 29-sep,
+        // verificando "Flujo de campo".
+        '/talento/api/campo/{workOrderId}/firma',
+        '/talento/api/campo/{workOrderId}/aceptar',
         '/talento/api/campo/{workOrderId}/media',
         '/talento/api/campo/{workOrderId}/activacion',
         '/talento/api/campo/{workOrderId}/encuesta',
