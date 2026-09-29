@@ -1049,3 +1049,50 @@ subordinado (200). 8/8.
 ### Commits
 
 - `a95daae3` — reusa talento-expediente-documentos, reemplaza el enfoque del commit 96ab06c2
+
+## 2026-09-29 — Roles múltiples: investigación a fondo, dos bugs reales encontrados (no el reportado literal)
+
+David: "mira en roles multiples, verifica que no se vean roles de otros
+usuarios en la tabla que de echo al dar en mostrar da error al cargar en
+el modal en como embajador y como vendedor".
+
+**Investigación:** se probó exhaustivamente para reproducir el error
+literal del modal ("Error al cargar" en Como Embajador/Como Vendedor):
+- Backend: los 30 colaboradores reales de la BD, llamando
+  `embajadorData()`/`sellerData()` directo — 0 excepciones.
+- Frontend con Playwright: cuenta staff (DESARROLLADOR) haciendo clic en
+  "Mostrar" en las 31 filas reales de la pantalla suelta, página por
+  página — 31/31 sin error. Técnico viéndose a sí mismo en la ficha —
+  sin error. Supervisor viendo la ficha de su subordinado — sin error.
+  Mostrador viendo la ficha de otro colaborador — sin error.
+- **No se logró reproducir el error exacto del modal.**
+
+**Dos bugs reales sí encontrados, en la misma pantalla:**
+1. **Mostrador no podía ni abrir la pantalla suelta** `/talento/embajadores-colabs`
+   — tiene `talento.employees.view` (puede ver la pestaña dentro de
+   cualquier ficha) pero NO `talento.embajadores.view` (el permiso que
+   gateaba esa pantalla suelta) → la redirigía al dashboard **sin
+   ningún error visible**, solo "desaparecía". Corregido: `index()` y el
+   middleware aceptan cualquiera de los dos permisos.
+2. **Un supervisor sin `talento.employees.view` veía la tabla vacía**
+   en la pantalla suelta — el buscador SÍ se mostraba (correcto), pero
+   la carga de datos llamaba siempre al roster completo
+   (`/talento/api/colaboradores`, 403 en silencio para él) en vez de
+   `/talento/api/mi-equipo` (su equipo). Mismo patrón latente encontrado
+   y corregido en las **3 pantallas** que comparten este código: Roles
+   múltiples, Custodia y Dispositivos (las tres construidas hoy con el
+   mismo molde).
+
+**Verificado con Playwright:** Mostrador entra ahora a la pantalla
+suelta y ve el roster completo (20 filas); un supervisor técnico ve
+ahora a su subordinado activo en las 3 pantallas (antes: 0 filas en las
+3 — confirmado con un colaborador real inactivo que correctamente
+seguía sin aparecer en Custodia, que sí filtra por `status=active`).
+
+**Pendiente:** no se identificó la causa exacta del error del modal que
+David reportó — se le pidió confirmar con qué cuenta/rol lo vio para
+poder reproducirlo con precisión.
+
+### Commits
+
+- `541fcb91` — Mostrador bloqueada + supervisores sin roster propio (Custodia/Dispositivos/Roles múltiples)
