@@ -81,8 +81,16 @@
                 <td><span class="tc-status" :class="statusBadge(o.status)">{{ statusLabel(o.status) }}</span></td>
                 <td class="text-end">
                   <button @click="viewOrder(o)" class="tc-btn tc-btn-info me-1">Ver</button>
-                  <button v-if="o.status === 'completed'" @click="openValidate(o)" class="tc-btn tc-btn-ok me-1">Validar</button>
-                  <button v-if="canAdvance(o.status)" @click="advanceStatus(o)" class="tc-btn tc-btn-primary">
+                  <!-- David (29-sep): "Validar"/"Iniciar"/"Completar" son
+                       acciones de GESTIÓN (backend: talento.work_orders.
+                       validate/manage, ninguna la tiene un técnico
+                       autoservicio) — antes se mostraban a cualquiera que
+                       viera la lista (con solo status como condición) y al
+                       hacer clic 403eaban en silencio. El técnico avanza
+                       SU PROPIA orden desde la app móvil de campo, no
+                       desde aquí. Mismo flag que ya gatea "Nueva orden". -->
+                  <button v-if="puedeCrear && o.status === 'completed'" @click="openValidate(o)" class="tc-btn tc-btn-ok me-1">Validar</button>
+                  <button v-if="puedeCrear && canAdvance(o.status)" @click="advanceStatus(o)" class="tc-btn tc-btn-primary">
                     {{ nextStatusLabel(o.status) }}
                   </button>
                 </td>
@@ -342,7 +350,12 @@ export default {
     activeTypes() { return this.types.filter(t => t.active); },
     selectedType() { return this.types.find(t => t.id === this.createModal.type_id) || null; },
     puedeCrear() {
-      return this.puedeGestionar || new Permission(this.permisosOrdenes).canDo('talento.work_orders.manage');
+      // David (29-sep): mismo criterio de staff que el backend
+      // (esStaffOrdenes en TalentoWorkOrderController) — talento.employees
+      // .view cubre a Mostrador igual que talento.work_orders.manage.
+      return this.puedeGestionar
+        || new Permission(this.permisosOrdenes).canDo('talento.work_orders.manage')
+        || new Permission(this.permisosOrdenes).canDo('talento.employees.view');
     },
   },
   async mounted() {
