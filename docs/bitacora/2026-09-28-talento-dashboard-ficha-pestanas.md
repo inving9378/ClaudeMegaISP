@@ -2033,3 +2033,44 @@ hay push que hacer) y `412551b9` en `megaisp` (branch de hoy).
 ### Commits (megaisp)
 
 - `412551b9` — TalentoMobileEquipoController, 17 endpoints, mismo criterio self/supervisor/staff
+
+## 2026-09-30 (cont.) — APK de prueba real: hallazgo del escáner roto (preexistente) + bypass temporal
+
+David: "ya esta la app?" → intenté el build real (`gradlew assembleDebug`)
+y salió **BUILD FAILED**, 62 errores de compilación nativa, todos dentro de
+`vision-camera-code-scanner` (la librería del escáner de código de
+barras/serial en `EvidenciaScreen`). Confirmado con evidencia dura que no
+tiene nada que ver con el trabajo de hoy: el último commit que tocó algo
+de `android/` es el ANTERIOR al mío (`edcd78b`, de la sesión SP10/SP11) —
+mi commit de "el contenido de Talento" no tocó ni un archivo nativo. La
+librería quedó desactualizada contra la versión de ML Kit/Firebase que
+usa para leer códigos de barras (`package Barcode does not exist`,
+`convertToMap is ambiguous` — síntomas clásicos de una librería sin
+mantenimiento frente a un ML Kit más nuevo).
+
+David eligió la opción 2 ("dame el apk de prueba"): desactivar SOLO esa
+función para poder entregar un APK de prueba con todo lo demás
+funcionando. Se agregó `react-native.config.js` (nuevo, no existía)
+excluyendo `vision-camera-code-scanner` del autolinking nativo de
+Android — `SerialScanner.js` ya hacía un `import(...).catch(() => null)`
+perezoso de esa librería, así que en runtime el escáner de serial
+simplemente queda inerte (degrada solo) en vez de tronar toda la build.
+**Es un bypass explícito y documentado, no una reparación** — queda
+pendiente decidir si se repara la librería o se reemplaza.
+
+**BUILD SUCCESSFUL** (2m15s, `app-debug.apk`, `com.meganet.talento`
+versionCode 107/versionName 1.7, ~140MB sin firmar de release —
+normal para un debug build con vision-camera+firebase+webview nativos
+sin reducir). Copiado a
+`public/downloads/talento-DEBUG-prueba-contenido-talento.apk` en el
+checkout principal (mismo patrón que los `talento-vX.X.apk` ya
+existentes, nombre deliberadamente distinto para no confundirlo con un
+release numerado real) — servido, confirmado HTTP 200 en
+`http://192.168.105.11/downloads/talento-DEBUG-prueba-contenido-talento.apk`.
+
+**Commits (TalentoEquipo, repo local sin remoto):** `4b83460` (contenido
+de Talento) + `09bcde8` (bypass del escáner).
+
+### Commits (megaisp)
+
+- (sin cambios de código nuevos — solo se copió el APK ya compilado a `public/downloads/`)
