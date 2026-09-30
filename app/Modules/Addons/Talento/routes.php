@@ -26,6 +26,7 @@ use App\Modules\Addons\Talento\Controllers\TalentoEscalafonController;
 use App\Modules\Addons\Talento\Controllers\TalentoEmbajadoresController;
 use App\Modules\Addons\Talento\Controllers\TalentoVentasController;
 use App\Modules\Addons\Talento\Controllers\TalentoMobileApiController;
+use App\Modules\Addons\Talento\Controllers\TalentoMobileEquipoController;
 use App\Modules\Addons\Talento\Controllers\TalentoEvidenciaConfigController;
 use App\Modules\Addons\Talento\Controllers\TalentoPaqueteDocumentoController;
 use App\Modules\Addons\Talento\Controllers\TalentoPuestoController;
@@ -536,6 +537,27 @@ Route::middleware(['auth:sanctum'])
         Route::get('/embajador/resumen',      [TalentoMobileApiController::class, 'embajadorResumen']);
 
         Route::post('/devices/token',         [TalentoMobileApiController::class, 'registerDeviceToken']);
+
+        // ── Portal móvil (David, 30-sep-2026): "el contenido de Talento" completo
+        // en la app — uno mismo o, si se pasa ?colaborador_id=, el equipo del
+        // supervisor o staff (mismo criterio puedeVer() en TODOS los endpoints).
+        Route::get('/portal/equipo',            [TalentoMobileEquipoController::class, 'miEquipo']);
+        Route::get('/portal/informacion',       [TalentoMobileEquipoController::class, 'informacion']);
+        Route::get('/portal/compensacion',      [TalentoMobileEquipoController::class, 'compensacion']);
+        Route::get('/portal/liquidaciones',     [TalentoMobileEquipoController::class, 'liquidaciones']);
+        Route::get('/portal/asistencia',        [TalentoMobileEquipoController::class, 'asistencia']);
+        Route::get('/portal/cajas',             [TalentoMobileEquipoController::class, 'cajas']);
+        Route::get('/portal/rutas',             [TalentoMobileEquipoController::class, 'rutas']);
+        Route::get('/portal/proyectos',         [TalentoMobileEquipoController::class, 'proyectos']);
+        Route::get('/portal/calidad',           [TalentoMobileEquipoController::class, 'calidad']);
+        Route::get('/portal/penalizaciones',    [TalentoMobileEquipoController::class, 'penalizaciones']);
+        Route::post('/portal/penalizaciones/{id}/apelar', [TalentoMobileEquipoController::class, 'apelarPenalizacion']);
+        Route::get('/portal/credenciales',      [TalentoMobileEquipoController::class, 'credenciales']);
+        Route::get('/portal/documentos',        [TalentoMobileEquipoController::class, 'documentos']);
+        Route::get('/portal/academia',          [TalentoMobileEquipoController::class, 'academia']);
+        Route::get('/portal/roles-multiples',   [TalentoMobileEquipoController::class, 'rolesMultiples']);
+        Route::get('/portal/custodia',          [TalentoMobileEquipoController::class, 'custodia']);
+        Route::get('/portal/dispositivos',      [TalentoMobileEquipoController::class, 'dispositivos']);
     });
 
 // ══════════════════════════════════════════════════════════════════════════════
