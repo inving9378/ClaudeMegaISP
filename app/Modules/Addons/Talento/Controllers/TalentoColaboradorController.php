@@ -118,6 +118,16 @@ class TalentoColaboradorController extends Controller
             // frontend (depende del colaborador VISTO, no de quién mira), no
             // hace falta duplicarlo aquí.
             'campo'           => auth()->user()->can('talento.work_orders.view') || $tieneAccesoAmplio,
+            // David (30-sep), corrigiendo el criterio de ayer solo para
+            // esto: la evidencia fotográfica la sube quien ESTUVO en el
+            // sitio — el propio técnico, no su supervisor ("un supervisor
+            // no debe tener que ir al lugar a comprobar que sea verdad").
+            // A propósito CON $tieneAccesoAmplio (a diferencia de
+            // ordenes_manage/rutas_manage): subir evidencia es
+            // autoservicio, el anti-fraude real ya vive en
+            // FieldMediaService (marca de agua + distancia GPS al
+            // domicilio del cliente), no en excluir a quien la capturó.
+            'campo_evidencia_manage' => auth()->user()->can('talento.work_orders.manage') || $tieneAccesoAmplio,
             'cajas'           => auth()->user()->can('talento.caja.view') || $tieneAccesoAmplio,
             'rutas'           => auth()->user()->can('talento.routes.view') || $tieneAccesoAmplio,
             // David (28-sep): "esa ruta debería hacerla el superior o

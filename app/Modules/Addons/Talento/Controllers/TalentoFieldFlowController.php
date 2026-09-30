@@ -109,12 +109,17 @@ class TalentoFieldFlowController extends Controller
 
     public function uploadMedia(Request $request, $workOrderId)
     {
-        // Mismo criterio que storeSignature()/accept() (David, 29-sep):
-        // staff/DESARROLLADOR entra por el permiso directo; el supervisor
-        // directo del colaborador entra por el check fino.
+        // David (30-sep), corrección sobre lo de ayer: la evidencia la sube
+        // quien ESTUVO en el sitio — el propio técnico, no solo su
+        // supervisor ("un supervisor no debe tener que ir al lugar a
+        // comprobar que sea verdad"). A propósito puedeVerFlujoDe() (self
+        // incluido) en vez de puedeGestionarFlujoDe() (self excluido) —
+        // mismo criterio que campo_evidencia_manage en
+        // TalentoColaboradorController::ficha(). El anti-fraude real vive
+        // en FieldMediaService (marca de agua + distancia GPS).
         if (! auth()->user()->can('talento.media.upload')) {
             $this->authorize('talento.work_orders.view');
-            abort_unless($this->puedeGestionarFlujoDe((int) $workOrderId), 403);
+            abort_unless($this->puedeVerFlujoDe((int) $workOrderId), 403);
         }
 
         $data = $request->validate([
