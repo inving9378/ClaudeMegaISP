@@ -1963,3 +1963,73 @@ reinvestigarlos si vuelven a salir:**
 ### Commits
 
 - `a0217074` — sidebar recortado también para roster completo, mismo criterio que técnicos
+
+## 2026-09-30 (cont.) — "El contenido de Talento" en la app móvil (React Native)
+
+David: "seria la de react native pero que lo que tenga sea el contenido de
+talento" → "pon las 14 y verifica que se mantenga funcionado todo mas el
+flujo de campo".
+
+**Contexto:** la app `TalentoEquipo` (repo aparte, `/home/meganet/TalentoEquipo`,
+sin remoto — solo local) solo tenía 3 pestañas (Mi día/Órdenes/Mi semana) +
+el flujo de campo (evidencia/cierre de OT). Ninguna de las otras 15 áreas
+de la ficha web construida esta semana existía ahí — ni pantalla ni API
+(el API de la app es Sanctum bajo `/talento/api/*`, completamente distinto
+del que usa la ficha web por sesión).
+
+**Backend (megaisp):** `TalentoMobileEquipoController` nuevo, 17 endpoints
+(`/talento/api/portal/*`) — 16 GET de solo lectura + 1 POST (apelar una
+penalización). Todos siguen el MISMO patrón: `?colaborador_id=` opcional
+(default uno mismo), validado con un `puedeVer()` compartido que es
+literalmente el mismo criterio ya usado y probado en cada controller
+admin hermano — staff O uno mismo O subordinado directo
+(`talento_colaboradores.supervisor_id`).
+
+**Bug real encontrado ANTES de cerrar (mismo patrón de toda la semana):**
+al escribir el helper reusé el nombre del permiso "de lectura" de cada
+área como si fuera "el permiso de staff" — pero 4 de esos permisos
+(`talento.attendance.view`, `talento.embajadores.view`,
+`talento.custody.view`, `talento.devices.view`) los tiene TECNICO
+DIRECTO (para poder ver lo suyo), exactamente el mismo error que ya se
+había cometido y corregido en los controllers admin hermanos días atrás.
+Una prueba real (self/ajeno/supervisor × 15 endpoints) lo destapó: 4 de
+15 dejaban pasar a un técnico ajeno pidiendo el `colaborador_id` de otro.
+Corregido a usar SOLO `talento.employees.view` en esos 4, copiando el
+criterio que `TalentoCustodiaController`/`TalentoEmbajadoresController`/
+`TalentoDeviceController` YA tenían bien. Re-verificado: 51/51 casos
+correctos (15 endpoints × 3 escenarios, + Mi equipo + apelar penalización
+con datos reales — self apela la suya 201, ajeno/supervisor NO pueden
+apelar en su nombre 403, doble apelación bloqueada).
+
+**App móvil (TalentoEquipo, React Native):** una pestaña nueva "Talento" →
+`MiEquipoScreen` (si eres supervisor/staff, selector "¿a quién ver?" con
+tu equipo directo; si no, va derecho a lo tuyo) → menú de las 15 secciones
+→ `SeccionDetalleScreen`, un componente GENÉRICO que renderiza las 15
+según su tipo (ficha info, lista, compensación con desglose, academia con
+catálogo+certificaciones, penalizaciones con formulario de apelar inline)
+en vez de repetir 15 pantallas casi idénticas — config declarativa en
+`talentoSections.js`. El flujo de campo existente (Mi día/Órdenes/
+Evidencia/Cierre/Mi semana/Login) no se tocó — mismos archivos, mismo
+comportamiento.
+
+**Verificación de que nada se rompió (David lo pidió explícito):**
+ESLint limpio en los archivos nuevos/tocados (solo warnings preexistentes
+de estilo, cero errores reales); y sobre todo, **el bundle completo de
+producción de Metro compiló sin errores con TODA la app** — la prueba
+real de que nada se rompió, no solo una lectura de código. En el camino
+se encontraron y repararon 2 problemas de entorno preexistentes, sin
+relación con este cambio: `node_modules` estaba incompleto (faltaban
+`@react-native-community/netinfo` y `@react-native-firebase`, declarados
+en `package.json` pero nunca instalados — reparado con `npm install`,
+cambio real, comiteado) y 2 dependencias (`react-native-reanimated`,
+`rn-fetch-blob`) que el bundle de producción necesita pero no están en
+`package.json` — quedaron anotadas como deuda para cuando alguien arme
+el APK real con `gradlew`, no resueltas aquí (se usó un stub temporal
+solo para poder terminar de verificar, removido después, no comiteado).
+
+**Commits:** `4b83460` en `TalentoEquipo` (repo local, sin remoto — no
+hay push que hacer) y `412551b9` en `megaisp` (branch de hoy).
+
+### Commits (megaisp)
+
+- `412551b9` — TalentoMobileEquipoController, 17 endpoints, mismo criterio self/supervisor/staff
