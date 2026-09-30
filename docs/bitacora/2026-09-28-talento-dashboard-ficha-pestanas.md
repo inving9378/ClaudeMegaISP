@@ -1775,3 +1775,51 @@ la sección de Firmas sigue mostrando el candado sin cambios.
 ### Commits
 
 - `e1bc72a7` — evidencia fotográfica: uno mismo puede subirla (autoservicio, distinto de Firmas/Aceptar)
+
+## 2026-09-30 (cont.) — Evidencia: WebP + formatos de cámaras/celulares actuales
+
+David: "agrega a las subidas que se puedan subir webp, y los formatos de
+las camaras de celulares y camaras fotograficas actuales".
+
+**Antes:** `uploadMedia()` solo aceptaba `jpg,jpeg,png` — cualquier foto en
+otro formato se rechazaba de plano en la validación.
+
+**Ahora acepta:** `jpg, jpeg, png, webp, heic, heif, avif`. HEIC/HEIF es el
+formato por defecto de la app Cámara de iPhone desde iOS 11 (cualquier
+técnico con iPhone en configuración de fábrica lo produce); AVIF lo usan
+algunos Android/Chrome más recientes. Confirmado que Symfony MimeTypes (lo
+que usa el validador `mimes:` de Laravel por debajo) ya reconoce los 3
+formatos nuevos sin configuración extra.
+
+**Watermark real (no solo "se acepta subir"):** `FieldMediaService::
+applyWatermark()` usa GD (única librería de imágenes disponible en este
+servidor — no hay Imagick ni soporte de libheif instalado) para quemar el
+overlay con GPS + fecha/hora sobre la foto. Se agregó soporte real para
+**webp** (`imagecreatefromwebp`/`imagewebp`) — probado de punta a punta
+con un archivo webp real: sube, se le aplica el watermark, y el archivo
+final en disco es un webp válido y legible (400×300, `image/webp`).
+
+**HEIC/HEIF/AVIF — limitación honesta, no oculta:** GD no puede
+decodificarlos (verificado: sin Imagick, sin `heif-convert`, y aunque
+`ffmpeg` está instalado, no se compiló con soporte de libheif). Estos 3
+formatos se **guardan igual** (la subida no se rechaza), pero **sin** el
+overlay visible de marca de agua. Esto no debilita el control real contra
+fraude: el dato que de verdad importa (`captured_lat`/`captured_lng`/
+`captured_at`, usado para `location_flagged` — si la foto se tomó lejos
+del domicilio del cliente) se sigue registrando siempre, para cualquier
+formato, independientemente del watermark visual. No se intentó una
+conversión automática HEIC→JPEG porque no hay manera confiable de probarla
+en este servidor sin instalar paquetes nuevos (fuera de alcance sin pedir
+permiso) — queda anotado por si se retoma.
+
+**Verificado:** subida real (no simulada) de jpg/png/webp vía el
+controller — los 3 responden 201 con `watermark_applied:true`, y el
+archivo resultante en disco es una imagen válida en su formato
+correspondiente (confirmado con `getimagesize()`). HEIC/HEIF/AVIF quedaron
+verificados solo a nivel de configuración (Symfony MimeTypes reconoce las
+extensiones) — no se pudo probar con un archivo real porque no hay ninguno
+disponible en este entorno de prueba.
+
+### Commits
+
+- `336d95d7` — evidencia acepta webp/heic/heif/avif + watermark real para webp
