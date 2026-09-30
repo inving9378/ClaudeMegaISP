@@ -5,76 +5,27 @@
         <span data-key="t-talento">{{ $item->sidebar_label ?? 'Talento' }}</span>
     </a>
     {{--
-        David, 28-sep-2026: desde que existe la ficha por pestañas
-        (dashboard → colaborador → pestañas, como Vendedores), las pantallas
-        de abajo que YA tienen su equivalente dentro de esa ficha quedan
-        redundantes para quien NO tiene talento.employees.view (roster
-        completo — hoy admin/DESARROLLADOR/Mostrador): a ellos, /talento ya
-        los manda derecho a su propia ficha (o a la de su equipo si son
-        supervisores), con todo eso como pestaña. Mostrarles ADEMÁS el link
-        suelto al listado GLOBAL de cada cosa (que ni siquiera pueden usar
-        sin el permiso de roster) es duplicado puro.
-        Quien SÍ tiene talento.employees.view sigue viendo todo exactamente
-        igual que antes — para ellos el listado global no es redundante,
-        es la herramienta real para administrar a cualquiera.
+        David, 30-sep-2026: el recorte de links sueltos (28-sep) valía solo
+        para quien NO tiene talento.employees.view — a quien SÍ lo tiene
+        (roster completo, hoy admin/DESARROLLADOR/Mostrador) se le seguía
+        mostrando el listado suelto de cada pantalla de abajo, a propósito,
+        porque en ese momento se consideró que para ellos no era redundante
+        (podían ver TODOS los colaboradores de un jalón en una tabla plana,
+        cosa que la ficha —siempre de UN colaborador a la vez— no ofrece).
+        David pidió explícitamente recortarlo IGUAL para roster completo:
+        ahora /talento ya trae el dashboard + la tabla completa arriba, y
+        cada fila abre la ficha con las mismas pestañas — así que el link
+        suelto es duplicado también aquí. Las rutas de abajo SIGUEN
+        funcionando por URL directa (nada se borró del backend); solo se
+        quitó el atajo del menú. Si algún día hace falta un vistazo
+        TRANSVERSAL (todas las órdenes de todos los colaboradores en una
+        sola tabla, no una ficha a la vez), es una pantalla nueva a
+        construir aparte — no motivo para revivir este bloque.
     --}}
     @php($rosterCompleto = auth()->user()->can('talento.employees.view'))
     <ul class="sub-menu" aria-expanded="false">
         @if(auth()->user()->can('talento.view'))
             <li><a href="{{ url('/talento') }}"><span><small><i class="fa fa-fw fa-id-badge"></i></small> {{ $rosterCompleto ? 'Colaboradores' : 'Dashboard' }}</span></a></li>
-        @endif
-        @if($rosterCompleto)
-            @if(auth()->user()->can('talento.work_orders.view'))
-                <li><a href="{{ url('/talento/ordenes') }}"><span><small><i class="fa fa-fw fa-clipboard-list"></i></small> Órdenes de trabajo</span></a></li>
-            @endif
-            @if(auth()->user()->can('talento.compensation.view'))
-                <li><a href="{{ url('/talento/compensacion') }}"><span><small><i class="fa fa-fw fa-coins"></i></small> Compensación</span></a></li>
-            @endif
-            @if(auth()->user()->can('talento.liquidation.view'))
-                <li><a href="{{ url('/talento/liquidaciones') }}"><span><small><i class="fa fa-fw fa-file-invoice-dollar"></i></small> Liquidaciones</span></a></li>
-            @endif
-            @if(auth()->user()->can('talento.attendance.view'))
-                <li><a href="{{ url('/talento/asistencia') }}"><span><small><i class="fa fa-fw fa-calendar-check"></i></small> Asistencia</span></a></li>
-            @endif
-            @if(auth()->user()->can('talento.work_orders.view'))
-                <li><a href="{{ url('/talento/campo') }}"><span><small><i class="fa fa-fw fa-hard-hat"></i></small> Flujo de campo</span></a></li>
-            @endif
-            @if(auth()->user()->can('talento.caja.view'))
-                <li><a href="{{ url('/talento/cajas') }}"><span><small><i class="fa fa-fw fa-signal"></i></small> Cajas ODB</span></a></li>
-            @endif
-            @if(auth()->user()->can('talento.routes.view'))
-                <li><a href="{{ url('/talento/rutas') }}"><span><small><i class="fa fa-fw fa-route"></i></small> Rutas planta</span></a></li>
-            @endif
-            @if(auth()->user()->can('talento.projects.view'))
-                <li><a href="{{ url('/talento/proyectos') }}"><span><small><i class="fa fa-fw fa-project-diagram"></i></small> Proyectos</span></a></li>
-            @endif
-            @if(auth()->user()->can('talento.quality.view'))
-                <li><a href="{{ url('/talento/calidad') }}"><span><small><i class="fa fa-fw fa-clipboard-check"></i></small> Calidad de caja</span></a></li>
-            @endif
-            @if(auth()->user()->can('talento.penalties.view'))
-                <li><a href="{{ url('/talento/penalizaciones') }}"><span><small><i class="fa fa-fw fa-gavel"></i></small> Penalizaciones</span></a></li>
-            @endif
-            @if(auth()->user()->can('talento.credentials.view'))
-                <li><a href="{{ url('/talento/credenciales') }}"><span><small><i class="fa fa-fw fa-id-card"></i></small> Credenciales</span></a></li>
-            @endif
-            @if(auth()->user()->can('talento.expediente.paquetes.manage'))
-                <li><a href="{{ url('/talento/expediente/paquetes') }}"><span><small><i class="fa fa-fw fa-folder-open"></i></small> Paquetes de documentos</span></a></li>
-            @endif
-            @if(auth()->user()->can('talento.loans.view'))
-                <li><a href="{{ url('/talento/finiquito') }}"><span><small><i class="fa fa-fw fa-hand-holding-usd"></i></small> Préstamos y finiquito</span></a></li>
-            @endif
-            @if(auth()->user()->can('talento.academy.view'))
-                <li><a href="{{ url('/talento/academia') }}"><span><small><i class="fa fa-fw fa-graduation-cap"></i></small> Academia</span></a></li>
-            @endif
-            @if(auth()->user()->can('talento.embajadores.view'))
-                <li><a href="{{ url('/talento/embajadores-colabs') }}"><span><small><i class="fa fa-fw fa-link"></i></small> Roles múltiples</span></a></li>
-            @endif
-            @if(auth()->user()->can('talento.custody.view'))
-                <li><a href="{{ url('/talento/custodia') }}"><span><small><i class="fa fa-fw fa-boxes"></i></small> Custodia</span></a></li>
-            @endif
-            @if(auth()->user()->can('talento.devices.view'))
-                <li><a href="{{ url('/talento/dispositivos') }}"><span><small><i class="fa fa-fw fa-mobile-alt"></i></small> Dispositivos</span></a></li>
-            @endif
         @endif
         {{-- Catálogos/vistas globales — NUNCA son "de una persona", no tienen
              equivalente en ninguna pestaña, se quedan para quien tenga el
