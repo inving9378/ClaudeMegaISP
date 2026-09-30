@@ -1735,3 +1735,43 @@ la referencie) que no pude borrar sin sudo — inofensiva, pendiente de un
 ### Commits
 
 - `e784d759` — canvas de firma + IDOR cerrado en Flujo de campo + evidencia consciente del dispositivo
+
+## 2026-09-30 — Corrección: la evidencia la sube quien estuvo en el sitio, no el supervisor
+
+David: "en el flujo de campo hay un detalle, el tecnico no puede subir la
+evidencia de lo que hizo y un supervisor no debe tener que ir al lugar a
+comprobar que sea verdad".
+
+**Qué estaba mal:** ayer (`e784d759`) gateé la evidencia fotográfica con el
+mismo criterio que Firmas/Aceptar — staff o supervisor directo, **uno mismo
+excluido a propósito**, siguiendo el patrón de "gestión" que se aplicó todo
+el día anterior (asignar reglas, armar rutas, validar inspecciones: cosas
+que legítimamente NO debe hacer uno mismo). Ese criterio es correcto para
+acciones de revisión/aprobación, pero **equivocado para evidencia**: la
+foto la puede tomar/subir únicamente quien estuvo físicamente en el sitio
+— exigirle al supervisor que vaya a comprobarlo en persona para poder
+subirla él anula por completo el propósito de tener el botón en la web.
+
+**Fix:** nuevo flag server-side `campo_evidencia_manage`
+(`TalentoColaboradorController::ficha()`) con un criterio DISTINTO al de
+`ordenes_manage`: uno mismo, supervisor directo O staff — el mismo criterio
+que ya usa la propia visibilidad de la pestaña (`$tieneAccesoAmplio`), no
+el de "gestión de terceros". `ordenes_manage` sigue intacto, sin tocar
+Firmas/Aceptar (David no los señaló como rotos, y no se asumió que
+aplicara lo mismo sin que él lo diga). El anti-fraude real de la
+evidencia ya vivía en `FieldMediaService` (marca de agua + distancia GPS
+al domicilio del cliente, `location_flagged`/`distance_m`) — excluir al
+propio técnico no sumaba nada de seguridad ahí, solo le bloqueaba poder
+hacer su trabajo.
+
+**Verificado con pruebas de autorización directas (cuentas desechables,
+limpiadas después) + Playwright real:** self (técnico dueño) ahora sube su
+propia evidencia (antes 403, ahora 201, fila guardada con su `created_by`);
+técnico ajeno sigue 403 (IDOR intacto); supervisor sigue pudiendo igual que
+antes. En pantalla: el formulario de subida aparece para el propio técnico
+(antes mostraba "Solo el supervisor o staff puede subir evidencia aquí");
+la sección de Firmas sigue mostrando el candado sin cambios.
+
+### Commits
+
+- `e1bc72a7` — evidencia fotográfica: uno mismo puede subirla (autoservicio, distinto de Firmas/Aceptar)
