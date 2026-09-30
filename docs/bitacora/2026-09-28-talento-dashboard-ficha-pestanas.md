@@ -1885,3 +1885,26 @@ truena y la fila se guarda igual, tal como antes de este cambio.
 ### Commits
 
 - `e1b3fb05` — watermark real para AVIF + conversión heic/heif a jpg (best-effort, pendiente 1 paquete de sistema)
+
+## 2026-09-30 (cont.) — HEIC verificado con un archivo real (David instaló `libheif-examples`)
+
+David corrió el `sudo apt-get install -y libheif-examples` que se le pidió.
+`heif-convert`/`heif-enc`/`heif-info` ya están en `/usr/bin/` (paquete
+Debian estándar, sin tocar nada de la app).
+
+Con `heif-enc` se generó un `.heic` REAL (no simulado esta vez — 400×300,
+`image/heic`, confirmado con `heif-info`) y se subió por el flujo completo
+del controller: **convertido a jpg automáticamente, con el watermark
+GPS/timestamp aplicado y visible** — exactamente el mismo resultado que
+jpg/png/webp/avif. Sin ningún cambio de código adicional: el camino
+best-effort que ya estaba escrito (`336d95d7`/`e1b3fb05`) empezó a
+funcionar solo en cuanto el binario apareció en el servidor, tal como se
+documentó.
+
+Con esto los 7 formatos pedidos por David quedan con soporte real y
+verificado de punta a punta: jpg, jpeg, png, webp, avif (watermark nativo
+GD) y heic/heif (convertidos a jpg + watermark, vía `heif-convert`).
+
+### Commits
+
+- (sin cambios de código — solo verificación; ver `336d95d7`/`e1b3fb05` para la implementación)
