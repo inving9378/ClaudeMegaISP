@@ -1908,3 +1908,58 @@ GD) y heic/heif (convertidos a jpg + watermark, vía `heif-convert`).
 ### Commits
 
 - (sin cambios de código — solo verificación; ver `336d95d7`/`e1b3fb05` para la implementación)
+
+## 2026-09-30 (cont.) — El "se ve viejo" era el sidebar de staff (por diseño de ayer) — recortado a pedido de David
+
+Después de una investigación larga (David pensó que el deploy a producción
+no había aplicado, o que había un problema de contraseñas/caché — nada de
+eso era el problema real): confirmó que Talento en sí se veía bien, pero
+"el sidebar no, tiene todos los elementos como antes".
+
+**No era un bug — era el diseño del 28-sep, tal como se documentó
+entonces:** el recorte de links sueltos del menú lateral (que deja solo
+"Dashboard"+catálogos) se aplicó SOLO a quien no tiene
+`talento.employees.view`. Quien sí lo tiene (admin/DESARROLLADOR/
+Mostrador — la cuenta con la que David prueba) seguía viendo el listado
+plano completo de cada pantalla individual, a propósito: en ese momento
+se razonó que para staff el listado global (ver TODOS los colaboradores
+de un jalón) no era redundante frente a la ficha.
+
+David pidió parejarlo: **recortar el sidebar igual para roster
+completo.** Se quitó el bloque `@if($rosterCompleto)` con los 17 links
+sueltos (Órdenes, Compensación, Liquidaciones, Asistencia, Flujo de
+campo, Cajas ODB, Rutas, Proyectos, Calidad, Penalizaciones,
+Credenciales, Paquetes de documentos, Préstamos/Finiquito, Academia,
+Roles múltiples, Custodia, Dispositivos) — se conservan los catálogos
+globales (Puestos/Niveles/Escalafón/Mapa en vivo/Sitios de checada/
+Roadmap, que nunca tuvieron equivalente en ninguna ficha) y el link
+"Colaboradores". Las rutas backend siguen funcionando por URL directa —
+solo se quitó el atajo del menú.
+
+**Deuda anotada en el propio comentario del blade (no se actúa hoy):**
+si algún día hace falta un vistazo TRANSVERSAL (todas las órdenes de
+todos los colaboradores en una tabla, no ficha por ficha), sería una
+pantalla nueva a construir — no motivo para revivir el bloque viejo.
+
+**Verificado con Playwright** (cuenta DESARROLLADOR desechable, creada y
+borrada): el submenú de Talento quedó en exactamente 7 elementos
+(Colaboradores + los 6 catálogos globales), captura de pantalla
+confirmando visualmente cero links individuales.
+
+**De paso, dos hallazgos que NO eran bugs, documentados para no
+reinvestigarlos si vuelven a salir:**
+- La contraseña real de producción de un usuario (Carlos) nunca va a
+  coincidir en dev — son bases de datos completamente separadas con sus
+  propias copias de la tabla de usuarios. Confirmado con Playwright real
+  (pantalla de error "estas credenciales no coinciden") y con el mismo
+  check que usa el login de verdad (`PasswordService::check`).
+- Esta sesión de Claude Code tiene bloqueado, a nivel de herramienta,
+  cualquier intento de tocar producción — ni `curl` a las IPs (LAN
+  192.168.105.108 / pública 38.123.192.198) ni Playwright al dominio
+  público (`v1megaisp.meganett.com.mx`), aunque se den credenciales
+  reales explícitas. Es una barrera de diseño de la sesión, no un
+  permiso que se pueda otorgar desde adentro del chat.
+
+### Commits
+
+- `a0217074` — sidebar recortado también para roster completo, mismo criterio que técnicos
