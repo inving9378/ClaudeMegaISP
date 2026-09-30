@@ -139,9 +139,10 @@
                     </div>
                   </div>
                 </div>
-                <!-- Upload form (staff/supervisor directo — mismo criterio que Firmas/Aceptar) -->
-                <div v-if="!puedeFirmarYAceptar" class="mt-3 border-top pt-3 small text-muted">
-                  <i class="fa fa-lock me-1"></i>Solo el supervisor o staff puede subir evidencia aquí.
+                <!-- Upload form: uno mismo, supervisor directo o staff — quien estuvo
+                     en el sitio (David, 30-sep). Distinto de Firmas/Aceptar. -->
+                <div v-if="!puedeSubirEvidenciaAqui" class="mt-3 border-top pt-3 small text-muted">
+                  <i class="fa fa-lock me-1"></i>No tienes acceso para subir evidencia aquí.
                 </div>
                 <div v-else class="mt-3 border-top pt-3">
                   <div class="row g-2 align-items-end">
@@ -427,6 +428,11 @@ export default {
     // admin/DESARROLLADOR (permiso general) o supervisor directo de ESTE
     // colaborador — ver TalentoColaboradorController::ficha().
     puedeGestionar: { type: Boolean, default: false },
+    // David (30-sep): distinto de puedeGestionar — la evidencia la sube
+    // quien estuvo en el sitio, incluye a uno mismo (campo_evidencia_manage
+    // en la ficha). puedeGestionar sigue siendo solo staff/supervisor
+    // (firmas/aceptar), a propósito sin uno mismo.
+    puedeSubirEvidencia: { type: Boolean, default: false },
   },
   setup() {
     return { darkMode };
@@ -488,14 +494,20 @@ export default {
     puedeCrear() {
       return this.puedeGestionar || new Permission(this.permisosGlobales).canDo('talento.work_orders.manage');
     },
-    // Firmar/aceptar/subir evidencia es gestión, no autoservicio — mismo
-    // criterio que ordenes_manage en TalentoColaboradorController::ficha()
-    // (staff o supervisor directo, nunca uno mismo). puedeGestionar ya
-    // llega resuelto server-side cuando el componente vive dentro de una
-    // ficha; el fallback a permisosGlobales cubre la pantalla admin suelta
+    // Firmar/aceptar es gestión, no autoservicio — mismo criterio que
+    // ordenes_manage en TalentoColaboradorController::ficha() (staff o
+    // supervisor directo, nunca uno mismo). puedeGestionar ya llega
+    // resuelto server-side cuando el componente vive dentro de una ficha;
+    // el fallback a permisosGlobales cubre la pantalla admin suelta
     // (/talento/campo, sin colaboradorId fijo), igual que puedeCrear.
     puedeFirmarYAceptar() {
       return this.puedeGestionar || new Permission(this.permisosGlobales).canDo('talento.work_orders.manage');
+    },
+    // David (30-sep): subir evidencia NO es lo mismo que firmar/aceptar —
+    // quien estuvo en el sitio (uno mismo) puede subir su propia evidencia,
+    // sin depender de que su supervisor vaya a comprobarlo en persona.
+    puedeSubirEvidenciaAqui() {
+      return this.puedeSubirEvidencia || new Permission(this.permisosGlobales).canDo('talento.work_orders.manage');
     },
     // El atributo HTML `capture` no tiene efecto en navegadores de
     // escritorio (el selector de archivos normal sigue funcionando ahí);
