@@ -1823,3 +1823,65 @@ disponible en este entorno de prueba.
 ### Commits
 
 - `336d95d7` — evidencia acepta webp/heic/heif/avif + watermark real para webp
+
+## 2026-09-30 (cont.) — AVIF con watermark real + conversión HEIC/HEIF (pendiente 1 paquete de sistema) + fix del directorio bloqueado
+
+David: "si hazlo, pero ademas al intentar subir una foto webp que fue la
+que probe da esto, Unable to create a directory at
+/var/www/megaisp-cc/storage/app/talento/media/8" — respondiendo a mi
+pregunta sobre si instalar soporte completo de HEIC, y de paso reportando
+un error real que le salió probando en el navegador.
+
+**El error del directorio — mismo patrón de ayer, repetido:**
+`storage/app/talento/media` (el directorio PADRE, no una subcarpeta de una
+OT puntual) había quedado en `0700` (dueño `meganet`, sin acceso de
+grupo) porque MI PROPIA prueba de hoy por `tinker` (CLI, corre como
+`meganet`) lo recreó desde cero después de que borré su contenido de
+prueba — nunca volví a aplicarle el fix de permisos que sí hice ayer. Con
+el padre en `0700`, `www-data` (el servidor web, que es con quien David
+prueba de verdad en el navegador) no podía crear NINGUNA subcarpeta nueva
+adentro, para NINGUNA orden. Corregido: `chmod -R g+rwX` + `chmod g+s` en
+todo `storage/app/talento` otra vez (mismo comando que ayer). Es un
+artefacto exclusivo de este entorno de desarrollo (CLI como `meganet` +
+web como `www-data` mezclados) — en producción todo corre como
+`www-data` desde el principio, así que esta colisión no puede pasar ahí.
+Sigue pendiente (sin poder borrarla, ver nota de ayer) una carpeta huérfana
+`storage/app/talento/signatures/14` propiedad de `www-data`, inofensiva.
+
+**AVIF — completo, sin instalar nada:** este servidor ya tiene GD (PHP
+8.2) compilado con soporte nativo de AVIF
+(`imagecreatefromavif`/`imageavif` existen). Solo faltaba agregarlo a
+`applyWatermark()` — sin el caso explícito, caía al `default` (que asume
+jpeg) y fallaba en silencio (`watermark_applied=false`, sin marcar error).
+Corregido y **verificado con un archivo avif real**: sube, se le aplica
+el watermark (visible a ojo, confirmado con una captura), y el archivo
+resultante es un avif válido.
+
+**HEIC/HEIF — necesita un paquete de sistema que no puedo instalar yo:**
+sin Imagick, sin `heif-convert`, y con `ffmpeg` compilado sin soporte de
+libheif, GD no tiene NINGUNA forma de leer heic/heif directamente (se
+intentó verificar cada camino: `Imagick::queryFormats`, `ffmpeg -decoders`,
+incluso una venv de Python con `pillow-heif` — todos bloqueados por falta
+de un paquete raíz que solo se puede instalar con `sudo apt`, y este
+usuario no tiene sudo sin contraseña). Se dejó lista la conversión
+heic/heif→jpg **best-effort** vía el binario `/usr/bin/heif-convert`
+(paquete Debian `libheif-examples`, invocado con `Symfony\Process`, mismo
+patrón que `MysqldumpEngine`/`FFmpegService` de Marketing) — si el binario
+no existe (como ahora), el código sigue exactamente igual que antes: guarda
+el `.heic`/`.heif` original, sin watermark, sin fallar la subida.
+**Pendiente de alguien con sudo:**
+```
+sudo apt-get update && sudo apt-get install -y libheif-examples
+```
+En cuanto se instale, la conversión arranca sola — no hace falta tocar
+`php.ini` ni reiniciar PHP-FPM (es un binario externo, no una extensión
+de PHP).
+
+**Verificado:** avif real de punta a punta (subida→watermark→archivo
+válido, confirmado visualmente); heic con un archivo simulado (no real,
+no tengo ninguno a la mano) confirmando que el camino de degradación no
+truena y la fila se guarda igual, tal como antes de este cambio.
+
+### Commits
+
+- `e1b3fb05` — watermark real para AVIF + conversión heic/heif a jpg (best-effort, pendiente 1 paquete de sistema)
