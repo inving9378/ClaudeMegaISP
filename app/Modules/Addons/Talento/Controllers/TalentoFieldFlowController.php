@@ -123,7 +123,12 @@ class TalentoFieldFlowController extends Controller
         }
 
         $data = $request->validate([
-            'file'        => 'required|file|mimes:jpg,jpeg,png|max:10240',
+            // David (30-sep): "webp y los formatos de las cámaras de
+            // celulares y cámaras fotográficas actuales" — heic/heif es el
+            // formato por defecto de iPhone desde iOS 11, avif lo usan
+            // algunos Android/Chrome recientes. Watermarking real (GD) solo
+            // para jpg/jpeg/png/webp — ver FieldMediaService::applyWatermark().
+            'file'        => 'required|file|mimes:jpg,jpeg,png,webp,heic,heif,avif|max:10240',
             'type'        => 'required|in:presentation,completion,ine_front,ine_back,proof_address,modem_sn,other',
             'captured_lat'=> 'nullable|numeric|between:-90,90',
             'captured_lng'=> 'nullable|numeric|between:-180,180',

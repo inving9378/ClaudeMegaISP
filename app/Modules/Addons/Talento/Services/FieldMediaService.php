@@ -55,9 +55,15 @@ class FieldMediaService
         $name = Str::uuid() . '.' . $ext;
         $path = $file->storeAs($dir, $name, $disk);
 
-        // Apply watermark if image and not sensitive doc
+        // Apply watermark if image and not sensitive doc. heic/heif/avif
+        // quedan fuera a propósito: GD (la única librería de imágenes
+        // disponible aquí) no los puede decodificar sin Imagick+libheif,
+        // que no está instalado — la evidencia se guarda igual, solo sin
+        // el overlay visible. La marca real contra fraude (GPS/timestamp
+        // en captured_lat/captured_lng/captured_at, más abajo) no depende
+        // del watermark y se registra siempre, sin importar el formato.
         $watermarkApplied = false;
-        if (!$isSensitive && in_array(strtolower($ext), ['jpg', 'jpeg', 'png'])) {
+        if (!$isSensitive && in_array(strtolower($ext), ['jpg', 'jpeg', 'png', 'webp'])) {
             $watermarkApplied = $this->applyWatermark(
                 Storage::disk($disk)->path($path),
                 $capturedLat, $capturedLng, $capturedAt
@@ -126,6 +132,7 @@ class FieldMediaService
             $ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
             $img = match($ext) {
                 'png'  => @imagecreatefrompng($fullPath),
+                'webp' => @imagecreatefromwebp($fullPath),
                 default=> @imagecreatefromjpeg($fullPath),
             };
             if (!$img) return false;
@@ -149,6 +156,7 @@ class FieldMediaService
 
             match($ext) {
                 'png'  => imagepng($img, $fullPath),
+                'webp' => imagewebp($img, $fullPath, 88),
                 default=> imagejpeg($img, $fullPath, 88),
             };
             imagedestroy($img);
