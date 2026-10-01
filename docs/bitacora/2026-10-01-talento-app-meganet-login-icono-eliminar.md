@@ -89,3 +89,49 @@ persiste tras lo anterior, hace falta un dato que solo se puede obtener probando
 
 TalentoEquipo: `1ef2191` (botón "Cambiar servidor" en login). APK republicado en la misma URL:
 `http://192.168.105.11/downloads/meganet-v1.7-prueba.apk`.
+
+## 2026-10-01 16:00 — Causa raíz real: el bundle de JS llevaba desde junio sin regenerarse
+
+David volvió a reportar el mismo error, y señaló algo clave: la app mostraba **"v1.6"** abajo,
+cuando el código fuente ya decía `APP_VERSION = '1.7'` desde antes de esta sesión. Esa pista llevó
+a la causa real, distinta de todo lo investigado hasta ahora.
+
+### Qué estaba pasando en realidad
+
+`android/app/src/main/assets/index.android.bundle` — el JavaScript que de verdad corre dentro de
+un APK standalone (sin Metro conectado) — estaba commiteado **una sola vez**, el 5 de junio
+(commit `edcd78b`), y **nunca se había vuelto a regenerar**. `gradlew assembleDebug` **no
+regenera este archivo por sí solo**: el plugin de Gradle de React Native solo re-empaqueta JS
+automáticamente para builds de *release*; en *debug* asume que vas a conectar Metro en vivo desde
+una computadora de desarrollo. Como este proyecto distribuye APKs de prueba para instalar
+directamente en el teléfono (sin Metro), alguien tenía que correr `react-native bundle` **a mano**
+antes de cada build — y ese paso nunca se volvió a hacer desde junio.
+
+**Consecuencia real:** cada "APK de prueba" entregado hoy — incluidos los dos anteriores de esta
+misma sesión — empaquetaba fielmente los cambios **nativos** (ícono nuevo, nombre "Meganet", en
+`AndroidManifest`/`strings.xml`/recursos, que SÍ se compilan frescos cada vez), pero el
+**JavaScript seguía siendo el de junio**. De ahí que ninguno de los cambios de hoy (fix de login,
+botón "Cambiar servidor", y de hecho ninguna de las 15 secciones nuevas de Talento de la sesión
+anterior) apareciera nunca en los APK entregados — y de ahí el "v1.6" que David vio, que en
+realidad reflejaba con precisión el bundle congelado, no un error de los fixes en sí.
+
+### Fix
+
+1. **Inmediato:** se regeneró el bundle con el código actual
+   (`react-native bundle --platform android --dev false ...`, con los mismos stubs temporales de
+   `rn-fetch-blob`/`react-native-reanimated` ya usados antes en la sesión — borrados después de
+   generar el bundle, nunca commiteados). Verificado **sin confiar en que el proceso "debió"
+   funcionar**: se extrajo el `.bundle` de dentro del `.apk` ya compilado y se confirmó
+   textualmente que "Cambiar servidor" (2 veces) y "1.7" están presentes — y se comparó el MD5 del
+   archivo en `build/`, del archivo servido en `public/downloads/` y de una **descarga real por
+   HTTP** (los 3 coinciden exactamente: `cff2a3015586fe8e50b44b922e40790e`).
+2. **Estructural, para que no se repita:** nuevo script `bundle:android` en `package.json`:
+   `build:apk` y `build:apk-debug` ahora **siempre** regeneran el bundle antes de correr
+   `gradlew` — ya no depende de que alguien recuerde el paso manual.
+
+### Commit
+
+TalentoEquipo: `fd78293` (bundle regenerado + fix estructural de los scripts de build). APK
+reconstruido y republicado en la misma URL:
+`http://192.168.105.11/downloads/meganet-v1.7-prueba.apk` (verificado con descarga real, no solo
+con el resultado del build).
