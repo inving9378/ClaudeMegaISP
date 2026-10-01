@@ -53,17 +53,17 @@ class ClientBillingService
         if ($this->iSClientRecurrent($client) && $this->clientHasGracePeriodActive($client)) {
             if ($newBalance >= 0) {
                 // FIX (1-oct-2026): eliminaLosServiciosDelAddressList() corría en cuanto
-                // $newBalance >= 0, ANTES de saber si el pago cubrió algo — es decir, SIEMPRE,
-                // incluso con un pago parcial que no cubre ni un ciclo. Esa llamada encola
-                // ProcessCreateServiceJob (DeployService::deployService() — reconexión real a
-                // nivel red/MikroTik), así que un pago parcial le devolvía el servicio al
-                // cliente aunque el fix anterior (cobrarYActivarCliente) ya dejara su `estado`
-                // en Bloqueado: el campo decía una cosa, la red hacía otra. Ahora corre DESPUÉS
-                // de cobrarYActivarCliente() y SOLO si de verdad se cobró al menos un ciclo —
-                // mismo booleano que ya gatea activarCliente(), para que estado y conectividad
-                // queden consistentes.
-                $seCobroAlMenosUnCiclo = $this->cobrarYActivarCliente($client, true, $transaction);
-                if ($seCobroAlMenosUnCiclo) {
+                // $newBalance >= 0, ANTES de saber si el pago dejó al cliente sin deuda. Esa
+                // llamada encola ProcessCreateServiceJob (DeployService::deployService() —
+                // reconexión real a nivel red/MikroTik), así que un pago que NO alcanzaba a
+                // saldar la deuda le devolvía el servicio al cliente aunque su `estado` quedara
+                // Bloqueado: el campo decía una cosa, la red hacía otra. Ahora corre DESPUÉS de
+                // cobrarYActivarCliente() y SOLO si de verdad quedó sin deuda — mismo booleano
+                // que ya gatea activarCliente() (criterio: balance >= 0 tras el pago, no si se
+                // cobró un ciclo nuevo — ver el comentario detallado en cobrarYActivarCliente()),
+                // para que estado y conectividad queden consistentes.
+                $quedoSinDeuda = $this->cobrarYActivarCliente($client, true, $transaction);
+                if ($quedoSinDeuda) {
                     $this->eliminaLosServiciosDelAddressList($client);
                 }
                 // Este evento de pago ya fue atendido por esta rama (haya cobrado un ciclo
