@@ -88,23 +88,44 @@ class ClientBillingService
 
     private function cobrarYActivarCliente($client, $forceCobrar = false, $transaction = null): bool
     {
-        // FIX (1-oct-2026, a petición de David tras verificar el cobro de deudas): antes
-        // activarCliente() corría SIEMPRE, incluso cuando billingServicesByClient() no
-        // cobró ni un ciclo completo (pago parcial que no cubre la deuda — forceCobrar=true
-        // con N=0). Resultado real: un cliente Bloqueado con una deuda vieja se reactivaba
-        // con solo abonar algo, sin haber cubierto lo que debía. Ahora billingServicesByClient()
-        // devuelve si de verdad se cobró al menos un ciclo, y SOLO entonces se reactiva.
-        // No se tocó removePeriodoGracia() (sigue limpiando el periodo de gracia aun con pago
-        // parcial, igual que antes) — si el cliente vuelve a quedar en negativo, el observer
-        // ClientBalanceObserver le asigna un periodo de gracia nuevo automáticamente, así que
-        // no se queda en un estado muerto sin esa ventana.
-        // El valor de retorno (1-oct-2026, segunda vuelta) lo reusa el llamador para gatear
-        // también eliminaLosServiciosDelAddressList() — ver processPaymentForClientRecurrentWithGracePeriodActive.
-        $seCobroAlMenosUnCiclo = $this->billingServicesByClient($client, null, $forceCobrar, $transaction);
-        if ($seCobroAlMenosUnCiclo) {
+        $this->billingServicesByClient($client, null, $forceCobrar, $transaction);
+
+        // FIX (1-oct-2026, primera vuelta, a petición de David tras verificar el cobro de
+        // deudas): activarCliente() corría SIEMPRE, incluso con un pago que no cubría ni un
+        // ciclo completo — un cliente Bloqueado se reactivaba con solo abonar algo, sin haber
+        // cubierto su deuda. El primer intento de fix gateó la reactivación con "¿se cobró al
+        // menos un ciclo completo en ESTA llamada?" (el booleano de billingServicesByClient()).
+        //
+        // BUG REAL ENCONTRADO (1-oct-2026, segunda vuelta — reportado por otra terminal con el
+        // caso real del cliente #6722): ese criterio estaba mal. El cron ya había cargado el
+        // ciclo adeudado en una corrida ANTERIOR (dejando el balance en negativo y asignando el
+        // periodo de gracia vía ClientBalanceObserver). Cuando el cliente paga esa deuda ya
+        // cargada — balance pasa de negativo a 0 o un poco positivo (+19 en el caso real) — NO
+        // se cobra un ciclo NUEVO en esta llamada (el costo de un ciclo completo ya no cabe en
+        // ese saldo pequeño), así que $seCobroAlMenosUnCiclo daba false y el cliente se quedaba
+        // Bloqueado PARA SIEMPRE — pagó su deuda y el servicio nunca volvió solo. Verificado con
+        // reproducción real (cliente #17 y #7716, dos costos de ciclo distintos, transacción
+        // revertida): pagar exactamente la deuda, o un poco de más (como el #6722), dejaba al
+        // cliente Bloqueado y encima sin periodo de gracia (removePeriodoGracia() sí corrió).
+        //
+        // Fix correcto: el criterio de reactivación es el BALANCE tras el pago, no si hubo un
+        // cargo nuevo. Saldo >= 0 (deuda saldada o de más, haya o no ciclo nuevo cobrado) →
+        // reactiva. Saldo sigue negativo (pago parcial real, deuda sin cubrir) → se mantiene
+        // Bloqueado. Esto es consistente con que el sistema es prepago: balance negativo ES la
+        // deuda; balance >= 0 significa que no hay deuda pendiente.
+        $client->load('balance');
+        $sinDeuda = $client->balance->amount >= 0;
+
+        if ($sinDeuda) {
             $client->activarCliente();
         }
-        return $seCobroAlMenosUnCiclo;
+
+        // El valor de retorno lo reusa el llamador para gatear también
+        // eliminaLosServiciosDelAddressList() — ver processPaymentForClientRecurrentWithGracePeriodActive.
+        // Antes de hoy (código preexistente) esa reconexión corría siempre que $newBalance >= 0,
+        // sin gate — este criterio restaura exactamente ese comportamiento para el caso de deuda
+        // saldada, y sigue bloqueando la reconexión solo cuando el pago no alcanza a cubrir la deuda.
+        return $sinDeuda;
     }
 
     public function billingServicesByClient(mixed $client, $typeBillingExecute = null, $forceCobrar = false, $transaction = null): bool

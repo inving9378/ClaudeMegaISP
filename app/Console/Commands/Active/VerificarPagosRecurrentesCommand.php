@@ -70,6 +70,7 @@ class VerificarPagosRecurrentesCommand extends Command
             'recurrent_pago_parcial_no_regala_corte' => fn () => $this->checkRecurrentPagoParcialNoRegalaCorte(),
             'recurrent_fecha_pago_no_avanza_sin_cargo_creado' => fn () => $this->checkRecurrentFechaPagoNoAvanzaSinCargoCreado(),
             'recurrent_pago_parcial_no_reactiva' => fn () => $this->checkRecurrentPagoParcialNoReactiva(),
+            'recurrent_deuda_saldada_si_reactiva' => fn () => $this->checkRecurrentDeudaSaldadaSiReactiva(),
             'recurrent_no_duplica_factura_con_gracia' => fn () => $this->checkRecurrentNoDuplicaFacturaConGracia(),
             // 2026-09-18 (decisión de política de Irving, tras encontrar 93 clientes con hasta 26
             // meses de sobre-cobro automático): un RECURRENT sin saldo solo debe seguir acumulando
@@ -615,7 +616,15 @@ class VerificarPagosRecurrentesCommand extends Command
                 return ['ok' => true, 'detalle' => "Cliente #{$client->id}: sin costo de servicios activos — chequeo omitido."];
             }
 
-            $newBalance = 1; // menor al costo de un ciclo, pero >= 0
+            // FIX (1-oct-2026, segunda vuelta): este chequeo usaba $newBalance=1 (POSITIVO) para
+            // simular "pago parcial" — eso era correcto bajo el primer criterio de reactivación
+            // (¿se cobró un ciclo?), pero quedó MAL tras corregir el criterio a "¿el balance
+            // sigue negativo?" (ver ClientBillingService::cobrarYActivarCliente()): con balance
+            // positivo, AHORA se reactiva correctamente (no hay deuda), así que este chequeo
+            // habría empezado a fallar en falso. El pago parcial REAL que debe mantener
+            // Bloqueado es uno que deja el balance NEGATIVO tras el pago (sigue debiendo), no uno
+            // que simplemente no alcanza para un ciclo NUEVO completo.
+            $newBalance = -($costAllServices / 2); // abona la mitad, SIGUE en deuda (negativo)
             $client->balance->amount = $newBalance;
             $client->balance->save();
             $client->refresh();
@@ -638,16 +647,94 @@ class VerificarPagosRecurrentesCommand extends Command
             if ($estadoAntes === 'Bloqueado' && $estadoDespues !== 'Bloqueado') {
                 return [
                     'ok' => false,
-                    'detalle' => "Cliente #{$client->id}: un pago que NO cubre ni un ciclo completo reactivó al cliente "
-                        . "({$estadoAntes} → {$estadoDespues}) — se reactivó el servicio sin haber cubierto la deuda. "
-                        . 'Revisar ClientBillingService::cobrarYActivarCliente().',
+                    'detalle' => "Cliente #{$client->id}: un pago que deja el balance AÚN NEGATIVO (sigue en deuda) "
+                        . "reactivó al cliente ({$estadoAntes} → {$estadoDespues}) — se reactivó el servicio sin "
+                        . 'haber cubierto la deuda. Revisar ClientBillingService::cobrarYActivarCliente().',
                 ];
             }
 
             return [
                 'ok' => true,
-                'detalle' => "Cliente #{$client->id}: pago parcial (no cubre un ciclo) NO reactivó al cliente (estado "
-                    . "se mantuvo en {$estadoDespues}).",
+                'detalle' => "Cliente #{$client->id}: pago parcial que deja el balance aún negativo (sigue en deuda) "
+                    . "NO reactivó al cliente (estado se mantuvo en {$estadoDespues}).",
+            ];
+        } finally {
+            DB::rollBack();
+        }
+    }
+
+    /**
+     * Regresión del caso REAL del cliente #6722 (reportado por otra terminal, 1-oct-2026,
+     * segunda vuelta): el primer intento del fix "pago parcial no reactiva" gateaba
+     * activarCliente() con "¿se cobró un ciclo NUEVO en esta llamada?" — pero cuando un cliente
+     * Bloqueado paga exactamente su deuda (o un poco de más, como el #6722 real: balance pasó de
+     * negativo a +19), el cron YA había cargado ese ciclo en una corrida anterior, así que esta
+     * llamada no cobra nada NUEVO — con el criterio viejo, el cliente se quedaba Bloqueado PARA
+     * SIEMPRE aunque ya no debiera nada. El criterio correcto (ClientBillingService::
+     * cobrarYActivarCliente()) es el BALANCE tras el pago: >= 0 reactiva, sigue negativo no
+     * reactiva. Este chequeo reproduce el camino real (deuda saldada exacta, balance=0) y
+     * verifica que el cliente SÍ se reactive. Escritura real, SIEMPRE revertida.
+     */
+    private function checkRecurrentDeudaSaldadaSiReactiva(): array
+    {
+        $client = Client::whereHas('client_main_information', function ($q) {
+            $q->where('type_of_billing_id', TypeBilling::TYPE_OF_BILLING_PREPAID_RECURRENT);
+        })
+            ->whereHas('billing_configuration')
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$client) {
+            return ['ok' => true, 'detalle' => 'Sin cliente RECURRENT con billing_configuration — chequeo omitido.'];
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $client->load('balance', 'client_main_information');
+
+            $clientRepository = new ClientRepository();
+            $clientRepository->addPeriodoGracia($client);
+            $client->client_main_information->estado = 'Bloqueado';
+            $client->client_main_information->save();
+            $client->refresh();
+            $client->load('balance');
+
+            $costAllServices = $clientRepository->getCostAllService($client->id);
+            if ($costAllServices <= 0) {
+                return ['ok' => true, 'detalle' => "Cliente #{$client->id}: sin costo de servicios activos — chequeo omitido."];
+            }
+
+            // Balance queda en 0 tras el pago — deuda saldada exacta, SIN cobrar un ciclo nuevo
+            // (0 no alcanza para un ciclo completo de $costAllServices).
+            $newBalance = 0;
+            $client->balance->amount = $newBalance;
+            $client->balance->save();
+            $client->refresh();
+            $client->load('balance', 'client_main_information');
+
+            $estadoAntes = $client->client_main_information->estado;
+
+            $billingService = new ClientBillingService();
+            $billingService->billing($client, $newBalance, null);
+            $client->refresh();
+            $client->load('client_main_information');
+
+            $estadoDespues = $client->client_main_information->estado;
+
+            if ($estadoAntes === 'Bloqueado' && $estadoDespues !== 'Activo') {
+                return [
+                    'ok' => false,
+                    'detalle' => "Cliente #{$client->id}: pagó exactamente su deuda (balance quedó en 0) pero NO se "
+                        . "reactivó (estado se mantuvo en {$estadoDespues}) — el cliente pagó y el servicio nunca "
+                        . 'volvió solo. Revisar ClientBillingService::cobrarYActivarCliente() (caso real #6722).',
+                ];
+            }
+
+            return [
+                'ok' => true,
+                'detalle' => "Cliente #{$client->id}: pagó exactamente su deuda (balance quedó en 0, sin cobrar un "
+                    . "ciclo nuevo) y SÍ se reactivó ({$estadoAntes} → {$estadoDespues}).",
             ];
         } finally {
             DB::rollBack();
