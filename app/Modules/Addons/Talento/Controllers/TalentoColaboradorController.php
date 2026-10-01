@@ -495,7 +495,12 @@ class TalentoColaboradorController extends Controller
 
     public function destroy($id)
     {
-        $this->authorize('talento.manage');
+        // FIX (1-oct-2026, a petición de David): eliminar un colaborador es más
+        // sensible que crear/editar (talento.manage, que tienen más roles además
+        // de admin/DESARROLLADOR) — se gatea con un permiso propio, dado SOLO a
+        // super-administrator y DESARROLLADOR (migración
+        // grant_talento_colaboradores_delete_to_admin_y_desarrollador).
+        $this->authorize('talento.colaboradores.delete');
 
         $colaborador = TalentoColaborador::findOrFail($id);
         $colaborador->delete();

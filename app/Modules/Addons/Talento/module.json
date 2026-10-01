@@ -12,6 +12,7 @@
         { "name": "talento.bypass_bloqueo_firma",  "description": "Bypass de emergencia del middleware de bloqueo por documento firma pendiente (item #9990804)" },
         { "name": "talento.view",                  "description": "Ver el módulo de talento y listado de colaboradores" },
         { "name": "talento.manage",                "description": "Crear y editar perfiles de colaboradores" },
+        { "name": "talento.colaboradores.delete",  "description": "Eliminar perfiles de colaboradores (solo administradores)" },
         { "name": "talento.custody.view",          "description": "Ver material en custodia por colaborador (solo lectura)" },
         { "name": "talento.devices.view",          "description": "Ver dispositivos vinculados de un colaborador" },
         { "name": "talento.devices.manage",        "description": "Gestionar vinculación y revocación de dispositivos" },
