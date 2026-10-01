@@ -558,6 +558,16 @@ Route::middleware(['auth:sanctum'])
         Route::get('/portal/roles-multiples',   [TalentoMobileEquipoController::class, 'rolesMultiples']);
         Route::get('/portal/custodia',          [TalentoMobileEquipoController::class, 'custodia']);
         Route::get('/portal/dispositivos',      [TalentoMobileEquipoController::class, 'dispositivos']);
+
+        // David (1-oct): firmar documentos + tomar cursos/examenes desde la app.
+        Route::get('/portal/documentos/detalle',                 [TalentoMobileEquipoController::class, 'documentoDetalle']);
+        Route::post('/portal/documentos/{docId}/firma',          [TalentoMobileEquipoController::class, 'documentoFirmar']);
+        Route::get('/portal/documentos/{docId}/firma',           [TalentoMobileEquipoController::class, 'documentoFirmaImagen']);
+        Route::post('/portal/documentos/{docId}/completar',      [TalentoMobileEquipoController::class, 'documentoCompletar']);
+        Route::get('/portal/cursos/{cursoId}',                   [TalentoMobileEquipoController::class, 'cursoDetalle']);
+        Route::get('/portal/examenes/{examId}',                  [TalentoMobileEquipoController::class, 'examenTomar']);
+        Route::post('/portal/examenes/{examId}/enviar',          [TalentoMobileEquipoController::class, 'examenEnviar']);
+        Route::get('/portal/examenes/{examId}/intentos',         [TalentoMobileEquipoController::class, 'examenIntentos']);
     });
 
 // ══════════════════════════════════════════════════════════════════════════════

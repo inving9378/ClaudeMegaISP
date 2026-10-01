@@ -21,6 +21,8 @@ use App\Modules\Addons\Talento\Models\TalentoActivityReportParticipant;
 use App\Modules\Addons\Talento\Models\TalentoRoute;
 use App\Modules\Addons\Talento\Services\LiquidationService;
 use App\Modules\Addons\Talento\Support\Actor;
+use App\Modules\Addons\Talento\Controllers\TalentoEmployeeDocumentController;
+use App\Modules\Addons\Talento\Controllers\TalentoAcademyController;
 use App\Modules\Addons\Talento\Support\PayWeek;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -455,5 +457,68 @@ class TalentoMobileEquipoController extends Controller
             ->get(['id', 'platform', 'label', 'approved', 'last_seen_at', 'revoked_at']);
 
         return response()->json(['dispositivos' => $dispositivos]);
+    }
+    // ── 16. Documentos — detalle con huecos/slots + firmar/completar (David, 1-oct) ──────
+    // Delegación DIRECTA a TalentoEmployeeDocumentController (mismo servicio/lógica que la
+    // ficha web — "no duplicar servicios compartidos", CLAUDE.md). Ese controller YA valida
+    // uno-mismo/supervisor/staff por colaboradorId (esUnoMismoOSupervisorDe) — aquí solo se
+    // resuelve CUÁL colaborador (self por default, ?colaborador_id= para supervisor/staff,
+    // mismo patrón que el resto de este archivo) y se delega.
+
+    public function documentoDetalle(Request $request)
+    {
+        $col = $this->resolverObjetivo($request, 'talento.employees.view');
+        if (! $col) return $this->noPerfil();
+
+        return app(TalentoEmployeeDocumentController::class)->forColaborador($col->id);
+    }
+
+    public function documentoFirmar(Request $request, int $docId)
+    {
+        $col = $this->resolverObjetivo($request, 'talento.employees.view');
+        if (! $col) return $this->noPerfil();
+
+        return app(TalentoEmployeeDocumentController::class)->sign($request, $col->id, $docId);
+    }
+
+    public function documentoCompletar(Request $request, int $docId)
+    {
+        $col = $this->resolverObjetivo($request, 'talento.employees.view');
+        if (! $col) return $this->noPerfil();
+
+        return app(TalentoEmployeeDocumentController::class)->completar($request, $col->id, $docId);
+    }
+
+    public function documentoFirmaImagen(Request $request, int $docId)
+    {
+        $col = $this->resolverObjetivo($request, 'talento.employees.view');
+        if (! $col) return $this->noPerfil();
+
+        return app(TalentoEmployeeDocumentController::class)->firma($request, $col->id, $docId);
+    }
+
+    // ── 17. Academia — curso completo + tomar/enviar examen (David, 1-oct) ───────────────
+    // Misma delegación directa a TalentoAcademyController: examForStudent()/submitExam()/
+    // myAttempts()/showCourse() ya son self-scoped (auth()->id()) y sin authorize() propio
+    // (igual de abiertos en la web a cualquier colaborador autenticado) — se exponen tal cual.
+
+    public function cursoDetalle(int $cursoId)
+    {
+        return app(TalentoAcademyController::class)->showCourse($cursoId);
+    }
+
+    public function examenTomar(int $examId)
+    {
+        return app(TalentoAcademyController::class)->examForStudent($examId);
+    }
+
+    public function examenEnviar(Request $request, int $examId)
+    {
+        return app(TalentoAcademyController::class)->submitExam($request, $examId);
+    }
+
+    public function examenIntentos(int $examId)
+    {
+        return app(TalentoAcademyController::class)->myAttempts($examId);
     }
 }
