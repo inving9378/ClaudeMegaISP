@@ -68,6 +68,7 @@ class VerificarPagosRecurrentesCommand extends Command
             // removePeriodoGracia($client, true, N+1), que recalcula fecha_corte por su
             // cuenta aunque N=0. Ver ClientBillingService::billingForce().
             'recurrent_pago_parcial_no_regala_corte' => fn () => $this->checkRecurrentPagoParcialNoRegalaCorte(),
+            'recurrent_fecha_pago_no_avanza_sin_cargo_creado' => fn () => $this->checkRecurrentFechaPagoNoAvanzaSinCargoCreado(),
             // 2026-09-18 (decisión de política de Irving, tras encontrar 93 clientes con hasta 26
             // meses de sobre-cobro automático): un RECURRENT sin saldo solo debe seguir acumulando
             // adeudo mientras siga DENTRO de la duración de su contrato — no indefinidamente.
@@ -466,6 +467,106 @@ class VerificarPagosRecurrentesCommand extends Command
                 'ok' => true,
                 'detalle' => "Cliente #{$client->id}: pago parcial (no cubre un ciclo) dejó fecha_corte intacta ({$corteAntes}), estado "
                     . "{$estadoAntes} → {$client->client_main_information->estado}.",
+            ];
+        } finally {
+            DB::rollBack();
+        }
+    }
+
+    /**
+     * Regresión del hallazgo relacionado al #6722 (1-oct-2026): ClientBillingService::
+     * actionBilling() hacía RectifyBalanceAndCreateTransaction::dispatch() (solo encola, no
+     * espera) y de inmediato avanzaba fecha_pago/fecha_corte en el mismo request, sin esperar a
+     * que el worker procesara el cargo real — reproducido con QUEUE_CONNECTION=database real,
+     * sin correr queue:work: fecha_pago ya avanzaba mientras el job seguía pendiente en `jobs` y
+     * CERO filas nuevas en `transactions`. Fix: dispatchSync() en vez de dispatch() en
+     * actionBilling(). Este chequeo verifica la postcondición con un pago REAL que SÍ cubre un
+     * ciclo completo (N=1, el camino feliz normal — el mismo que corre cada noche para miles de
+     * clientes): si fecha_pago avanzó, DEBE existir un cargo de servicio nuevo creado en el mismo
+     * acto, y NINGÚN job de RectifyBalanceAndCreateTransaction debe quedar pendiente en `jobs`.
+     * Escritura real, SIEMPRE revertida.
+     */
+    private function checkRecurrentFechaPagoNoAvanzaSinCargoCreado(): array
+    {
+        $client = Client::whereHas('client_main_information', function ($q) {
+            $q->where('type_of_billing_id', TypeBilling::TYPE_OF_BILLING_PREPAID_RECURRENT);
+        })
+            ->whereNotNull('fecha_pago')
+            ->whereHas('billing_configuration')
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$client) {
+            return ['ok' => true, 'detalle' => 'Sin cliente RECURRENT con fecha_pago+billing_configuration — chequeo omitido.'];
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $client->load('balance', 'client_main_information');
+            $clientRepository = new ClientRepository();
+
+            // Cliente SIN periodo de gracia (camino normal, no forzado) con balance que cubre
+            // exactamente un ciclo — la rama "Cobro y agrego nueva fecha de pago" de
+            // billingServicesByClient() (actionBilling + setNewFechaCorteForClient).
+            $client->update(['fecha_fin_periodo_gracia' => null]);
+            $costAllServices = $clientRepository->getCostAllService($client->id);
+            if ($costAllServices <= 0) {
+                return ['ok' => true, 'detalle' => "Cliente #{$client->id}: sin costo de servicios activos — chequeo omitido."];
+            }
+            $client->balance->amount = $costAllServices;
+            $client->balance->save();
+            $client->refresh();
+            $client->load('balance', 'client_main_information');
+
+            $pagoAntes = $client->fecha_pago;
+            $cargosAntes = DB::table('transactions')
+                ->where('client_id', $client->id)
+                ->where('category', 'Servicio')
+                ->where('type', 'debit')
+                ->count();
+            $jobsAntes = DB::table('jobs')
+                ->where('payload', 'like', '%RectifyBalanceAndCreateTransaction%')
+                ->count();
+
+            $billingService = new ClientBillingService();
+            $billingService->billing($client, $client->balance->amount, null);
+            $client->refresh();
+
+            $cargosDespues = DB::table('transactions')
+                ->where('client_id', $client->id)
+                ->where('category', 'Servicio')
+                ->where('type', 'debit')
+                ->count();
+            $jobsDespues = DB::table('jobs')
+                ->where('payload', 'like', '%RectifyBalanceAndCreateTransaction%')
+                ->count();
+
+            $fechaPagoAvanzo = $client->fecha_pago !== $pagoAntes;
+            $cargoCreado = $cargosDespues > $cargosAntes;
+            $jobPendiente = $jobsDespues > $jobsAntes;
+
+            if ($fechaPagoAvanzo && !$cargoCreado) {
+                return [
+                    'ok' => false,
+                    'detalle' => "Cliente #{$client->id}: fecha_pago avanzó ({$pagoAntes} → {$client->fecha_pago}) SIN que se "
+                        . 'creara el cargo de servicio correspondiente — revisar ClientBillingService::actionBilling() '
+                        . '(¿volvió a usar dispatch() en vez de dispatchSync()?).',
+                ];
+            }
+
+            if ($jobPendiente) {
+                return [
+                    'ok' => false,
+                    'detalle' => "Cliente #{$client->id}: quedó un job RectifyBalanceAndCreateTransaction pendiente en la cola "
+                        . 'tras billing() — el cargo ya no se está esperando de forma síncrona. Revisar actionBilling().',
+                ];
+            }
+
+            return [
+                'ok' => true,
+                'detalle' => "Cliente #{$client->id}: fecha_pago avanzó ({$pagoAntes} → {$client->fecha_pago}) y el cargo de "
+                    . 'servicio se creó en el mismo acto, sin dejar ningún job pendiente en la cola.',
             ];
         } finally {
             DB::rollBack();
