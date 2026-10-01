@@ -55,11 +55,23 @@ class ClientBillingService
 
     private function cobrarYActivarCliente($client, $forceCobrar = false, $transaction = null)
     {
-        $this->billingServicesByClient($client, null, $forceCobrar, $transaction);
-        $client->activarCliente();
+        // FIX (1-oct-2026, a petición de David tras verificar el cobro de deudas): antes
+        // activarCliente() corría SIEMPRE, incluso cuando billingServicesByClient() no
+        // cobró ni un ciclo completo (pago parcial que no cubre la deuda — forceCobrar=true
+        // con N=0). Resultado real: un cliente Bloqueado con una deuda vieja se reactivaba
+        // con solo abonar algo, sin haber cubierto lo que debía. Ahora billingServicesByClient()
+        // devuelve si de verdad se cobró al menos un ciclo, y SOLO entonces se reactiva.
+        // No se tocó removePeriodoGracia() (sigue limpiando el periodo de gracia aun con pago
+        // parcial, igual que antes) — si el cliente vuelve a quedar en negativo, el observer
+        // ClientBalanceObserver le asigna un periodo de gracia nuevo automáticamente, así que
+        // no se queda en un estado muerto sin esa ventana.
+        $seCobroAlMenosUnCiclo = $this->billingServicesByClient($client, null, $forceCobrar, $transaction);
+        if ($seCobroAlMenosUnCiclo) {
+            $client->activarCliente();
+        }
     }
 
-    public function billingServicesByClient(mixed $client, $typeBillingExecute = null, $forceCobrar = false, $transaction = null)
+    public function billingServicesByClient(mixed $client, $typeBillingExecute = null, $forceCobrar = false, $transaction = null): bool
     {
         $clientRepository = new ClientRepository();
         $typeOfBilling = $clientRepository->getTypeOfBilling($client);
@@ -69,8 +81,7 @@ class ClientBillingService
 
         if ($forceCobrar) {
             $this->logService->log($client, 'Cliente #' . $client->id . ' se le va a cobrar de manera forzada ' . $cuantasVecesSeLePuedeCobrar . ' veces y se elimna el periodo de gracia.');
-            $this->billingForce($client, $cuantasVecesSeLePuedeCobrar, $transaction);
-            return;
+            return $this->billingForce($client, $cuantasVecesSeLePuedeCobrar, $transaction);
         }
 
         if ($cuantasVecesSeLePuedeCobrar) {
@@ -83,7 +94,7 @@ class ClientBillingService
             $service->setNewFechaCorteForClient(null, $cuantasVecesSeLePuedeCobrar);
 
             $this->logService->log($client, 'Cliente #' . $client->id . ' se le va a cobrar ' . $cuantasVecesSeLePuedeCobrar . ' veces y se elimna el periodo de gracia.');
-            return;
+            return true;
         }
 
         if ($typeOfBilling == TypeBilling::TYPE_OF_BILLING_PREPAID_RECURRENT && $typeBillingExecute == self::TYPE_BILLING_EXECUTED_PROCESS) {
@@ -99,7 +110,7 @@ class ClientBillingService
             // hechos vs. duración contratada, no cuántas veces el cron ya cobró de más.
             if ($this->clientHasReachedContractCap($client)) {
                 $this->logService->log($client, 'Cliente #' . $client->id . ' ya cubrió (con pagos reales) la duración completa de su contrato — no se le cobra más automáticamente sin saldo.');
-                return;
+                return false;
             }
 
             $this->actionBilling($clientRepository, $client, 1, $transaction);
@@ -121,13 +132,14 @@ class ClientBillingService
             $service->setNewFechaCorteForClient(null, 1);
 
             $this->logService->log($client, 'Cliente #' . $client->id . ' no tiene suficiente balance pero le cobro el servicio');
-            return;
+            return true;
         }
 
         $this->logService->log($client, 'Cliente #' . $client->id . ' no tiene suficiente balance para cobrar los servicios');
+        return false;
     }
 
-    private function billingForce($client, $cuantasVecesSeLePuedeCobrar, $transaction = null)
+    private function billingForce($client, $cuantasVecesSeLePuedeCobrar, $transaction = null): bool
     {
         $cuantasVecesSeLePuedeCobrar = $cuantasVecesSeLePuedeCobrar ?: 0;
         $clientRepository = new ClientRepository();
@@ -165,7 +177,13 @@ class ClientBillingService
             $service->setNewFechaCorteForClient(null, $cuantasVecesSeLePuedeCobrar);
 
             $this->logService->log($client, 'Cliente #' . $client->id . ' se establece nueva fecha de corte');
+
+            return true;
         }
+
+        // N=0: pago que no alcanzó a cubrir ni un ciclo completo — no se cobró nada,
+        // cobrarYActivarCliente() NO debe reactivar al cliente con esto.
+        return false;
     }
 
     public function getClientToBillingServices($date = null)

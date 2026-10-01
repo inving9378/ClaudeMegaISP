@@ -69,6 +69,7 @@ class VerificarPagosRecurrentesCommand extends Command
             // cuenta aunque N=0. Ver ClientBillingService::billingForce().
             'recurrent_pago_parcial_no_regala_corte' => fn () => $this->checkRecurrentPagoParcialNoRegalaCorte(),
             'recurrent_fecha_pago_no_avanza_sin_cargo_creado' => fn () => $this->checkRecurrentFechaPagoNoAvanzaSinCargoCreado(),
+            'recurrent_pago_parcial_no_reactiva' => fn () => $this->checkRecurrentPagoParcialNoReactiva(),
             // 2026-09-18 (decisión de política de Irving, tras encontrar 93 clientes con hasta 26
             // meses de sobre-cobro automático): un RECURRENT sin saldo solo debe seguir acumulando
             // adeudo mientras siga DENTRO de la duración de su contrato — no indefinidamente.
@@ -567,6 +568,85 @@ class VerificarPagosRecurrentesCommand extends Command
                 'ok' => true,
                 'detalle' => "Cliente #{$client->id}: fecha_pago avanzó ({$pagoAntes} → {$client->fecha_pago}) y el cargo de "
                     . 'servicio se creó en el mismo acto, sin dejar ningún job pendiente en la cola.',
+            ];
+        } finally {
+            DB::rollBack();
+        }
+    }
+
+    /**
+     * Regresión de la decisión de David (1-oct-2026, tras verificar el cobro de deudas): un
+     * cliente RECURRENT Bloqueado, en periodo de gracia, que paga SIN cubrir ni un ciclo
+     * completo de lo que debe NO debe reactivarse — antes ClientBillingService::
+     * cobrarYActivarCliente() llamaba activarCliente() de forma incondicional, así que un abono
+     * parcial reactivaba el servicio aunque la deuda siguiera sin cubrirse. Reproduce el mismo
+     * camino real que recurrent_pago_parcial_no_regala_corte (processPaymentForClientRecurrentWith
+     * GracePeriodActive → cobrarYActivarCliente(forceCobrar=true) → billingForce, N=0) y verifica
+     * además el estado del cliente antes/después. Escritura real, SIEMPRE revertida.
+     */
+    private function checkRecurrentPagoParcialNoReactiva(): array
+    {
+        $client = Client::whereHas('client_main_information', function ($q) {
+            $q->where('type_of_billing_id', TypeBilling::TYPE_OF_BILLING_PREPAID_RECURRENT);
+        })
+            ->whereHas('billing_configuration')
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$client) {
+            return ['ok' => true, 'detalle' => 'Sin cliente RECURRENT con billing_configuration — chequeo omitido.'];
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $client->load('balance', 'client_main_information');
+
+            $clientRepository = new ClientRepository();
+            $clientRepository->addPeriodoGracia($client);
+            $client->client_main_information->estado = 'Bloqueado';
+            $client->client_main_information->save();
+            $client->refresh();
+            $client->load('balance');
+
+            $costAllServices = $clientRepository->getCostAllService($client->id);
+            if ($costAllServices <= 1) {
+                return ['ok' => true, 'detalle' => "Cliente #{$client->id}: sin costo de servicios activos — chequeo omitido."];
+            }
+
+            $newBalance = 1; // menor al costo de un ciclo, pero >= 0
+            $client->balance->amount = $newBalance;
+            $client->balance->save();
+            $client->refresh();
+            $client->load('balance', 'client_main_information');
+
+            $veces = $clientRepository->getCuantasVecesSeLePuedenCobrarLosServiciosActivos($client);
+            if ($veces) {
+                return ['ok' => true, 'detalle' => "Cliente #{$client->id}: no se pudo forzar pago parcial en este entorno (costo muy bajo) — chequeo omitido."];
+            }
+
+            $estadoAntes = $client->client_main_information->estado;
+
+            $billingService = new ClientBillingService();
+            $billingService->billing($client, $newBalance, null);
+            $client->refresh();
+            $client->load('client_main_information');
+
+            $estadoDespues = $client->client_main_information->estado;
+
+            if ($estadoAntes === 'Bloqueado' && $estadoDespues !== 'Bloqueado') {
+                return [
+                    'ok' => false,
+                    'detalle' => "Cliente #{$client->id}: un pago que NO cubre ni un ciclo completo reactivó al cliente "
+                        . "({$estadoAntes} → {$estadoDespues}) — se reactivó el servicio sin haber cubierto la deuda. "
+                        . 'Revisar ClientBillingService::cobrarYActivarCliente().',
+                ];
+            }
+
+            return [
+                'ok' => true,
+                'detalle' => "Cliente #{$client->id}: pago parcial (no cubre un ciclo) NO reactivó al cliente (estado "
+                    . "se mantuvo en {$estadoDespues}).",
             ];
         } finally {
             DB::rollBack();
