@@ -111,6 +111,10 @@
                target="_blank">
               <i class="fa fa-key"></i>
             </a>
+            <button v-hasPermission="'talento.colaboradores.delete'"
+                    @click="confirmDelete(props.row)" class="tc-btn tc-btn-bad ms-1" title="Eliminar">
+              <i class="fa fa-trash-alt"></i>
+            </button>
           </q-td>
         </template>
       </q-table>
@@ -352,6 +356,29 @@
       </div>
     </div>
 
+    <!-- Modal confirmar eliminar colaborador (1-oct-2026, David: solo admin/DESARROLLADOR) -->
+    <div v-if="deleteModal.show" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5);z-index:9999">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Eliminar colaborador</h5>
+            <button @click="closeDeleteModal" type="button" class="btn-close"></button>
+          </div>
+          <div class="modal-body">
+            <p>¿Eliminar a <b>{{ deleteModal.colaboradorName }}</b>?</p>
+            <p class="small text-muted mb-0">Deja de aparecer en el listado y en el equipo de su supervisor. No se borran sus registros históricos (órdenes, liquidaciones, documentos) — se puede restaurar si hace falta.</p>
+            <div v-if="deleteModal.error" class="alert alert-danger mt-2 mb-0 py-2 small">{{ deleteModal.error }}</div>
+          </div>
+          <div class="modal-footer">
+            <button @click="closeDeleteModal" class="btn btn-secondary" :disabled="deleteModal.deleting">Cancelar</button>
+            <button @click="executeDelete" class="btn btn-danger" :disabled="deleteModal.deleting">
+              {{ deleteModal.deleting ? 'Eliminando…' : 'Sí, eliminar' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -413,6 +440,7 @@ export default {
       canManage: false,
       roleDepartments: {},
       documentosModal: { show: false, colaboradorId: null, colaboradorName: '' },
+      deleteModal: { show: false, colaboradorId: null, colaboradorName: '', deleting: false, error: '' },
       puestos: [],
     };
   },
@@ -645,6 +673,28 @@ export default {
       };
     },
     closeDocumentos() { this.documentosModal.show = false; },
+    confirmDelete(col) {
+      this.deleteModal = {
+        show: true, colaboradorId: col.id, colaboradorName: col.user?.name ?? '', deleting: false, error: '',
+      };
+    },
+    closeDeleteModal() {
+      if (this.deleteModal.deleting) return;
+      this.deleteModal.show = false;
+    },
+    async executeDelete() {
+      this.deleteModal.deleting = true;
+      this.deleteModal.error = '';
+      try {
+        await axios.delete(`/talento/api/colaboradores/${this.deleteModal.colaboradorId}`);
+        this.deleteModal.show = false;
+        this.load();
+      } catch (e) {
+        this.deleteModal.error = e.response?.data?.message ?? 'No se pudo eliminar al colaborador.';
+      } finally {
+        this.deleteModal.deleting = false;
+      }
+    },
   },
 };
 </script>
