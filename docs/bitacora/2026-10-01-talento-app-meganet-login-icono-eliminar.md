@@ -52,3 +52,40 @@ APK publicado: `http://192.168.105.11/downloads/meganet-v1.7-prueba.apk` (confir
 ### Pendiente
 
 Falta que David instale el APK nuevo y confirme que el login ya funciona — el fix se verificó a nivel de red/certificado y de lectura de código, pero no hay forma de confirmar el flujo completo sin que alguien lo pruebe en un teléfono real conectado a la red de MegaISP.
+
+## 2026-10-01 15:00 — Segunda vuelta: "sigue dando el mismo error" + salida de emergencia
+
+David instaló el APK con el fix de IP→http y reportó el mismo error, pero el texto exacto que compartió
+("No se puede conectar al servidor. Verifica tu red Wifi") corresponde al mensaje de la pantalla de
+**login**, no al de "Configuración del servidor" — es decir, ya pasó la pantalla que arreglé (el health
+check contra la URL guardada funcionó), y ahora el login específicamente falla por conexión.
+
+**Hallazgo real:** instalar/actualizar un APK sobre uno ya instalado **no borra el almacenamiento de la
+app** (AsyncStorage) — si el teléfono de David ya tenía guardada la URL vieja y mala
+(`https://192.168.105.11`, de antes del primer fix), esa URL sigue ahí después de instalar el APK nuevo,
+porque la pantalla de configuración del servidor se salta automáticamente cuando ya hay una URL
+guardada. Y "Cambiar servidor" (la función que limpia esa URL) **solo vivía dentro del menú de Mi día**,
+que exige haber iniciado sesión — círculo cerrado: para corregir la URL hace falta loguearse, pero no se
+puede loguear mientras la URL esté mal.
+
+**Fix:** mismo botón "Cambiar servidor" ahora también visible en la pantalla de login, debajo de
+"Iniciar sesión" — no depende de tener sesión activa. Verificado con bundle de producción de Metro, sin
+errores de sintaxis/imports. APK recompilado y republicado en la misma URL.
+
+**Instrucciones para David:** instalar este APK más reciente y, si sigue viendo el error de conexión al
+abrir la app, tocar **"Cambiar servidor"** (debajo del botón de Iniciar sesión) y volver a escribir
+`192.168.105.11` — con eso se vuelve a correr el fix de detección de IP/protocolo desde cero. Si eso no
+resuelve, lo más seguro es desinstalar la app por completo (no solo sobrescribir el APK) antes de
+reinstalar, para partir sin ningún dato viejo guardado.
+
+**Limitación de esta sesión, dicha explícitamente:** no hay forma de instalar ni ejecutar la app en un
+dispositivo real ni en un emulador desde este entorno — todo lo de arriba está verificado a nivel de
+código (lectura directa, bundle de Metro, compilación de Android) y de red (curl contra el servidor real
+por HTTP y HTTPS), pero no hay una prueba end-to-end real del flujo de login en un teléfono. Si el error
+persiste tras lo anterior, hace falta un dato que solo se puede obtener probando en el teléfono mismo
+(ej. un mensaje de error más específico, o confirmar en qué pantalla exacta se queda).
+
+### Commit adicional
+
+TalentoEquipo: `1ef2191` (botón "Cambiar servidor" en login). APK republicado en la misma URL:
+`http://192.168.105.11/downloads/meganet-v1.7-prueba.apk`.
