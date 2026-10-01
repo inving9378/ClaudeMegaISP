@@ -1,0 +1,54 @@
+## 2026-10-01 14:00 — App de Talento: fix de login, renombrada a Meganet, ícono nuevo, botón eliminar colaborador
+
+### 1. Fix del error de login (pendiente desde el 30-sep)
+
+David reportó el día anterior: "ya lo instalé y no está logueándose, da error al conectar a la BD". Sin respuesta sobre la URL exacta usada, se investigó directamente el flujo de conexión de la app.
+
+**Causa raíz encontrada:** `ServerConfigScreen.normalizeUrl()` (TalentoEquipo, repo de la app móvil) asumía **siempre `https://`** cuando el usuario escribía la URL del servidor sin protocolo. Pero el servidor de dev se usa por **IP literal** (`192.168.105.11`), y esa IP no tiene un certificado TLS válido — el certificado real instalado en el servidor es para el dominio `dev.meganett.com.mx`, así que conectar por HTTPS a la IP falla por *mismatch* de certificado. Esto bloqueaba la app **en la primera pantalla** (Configuración del servidor) — nunca llegaba siquiera al login — con el mensaje "No se pudo conectar. Verifica la URL y tu red."
+
+Confirmado con una prueba real de conexión: por HTTP, el health-check del backend responde 200 normalmente; por HTTPS a la misma IP, el handshake TLS se completa pero con un certificado que no corresponde a esa IP — un teléfono real (a diferencia de `curl -k`) rechaza esa conexión por defecto.
+
+**Fix:** si el texto no trae protocolo, se detecta si es una IP literal (con o sin puerto) — en ese caso se asume `http://`; si es un dominio (ej. `talento.miempresa.com`), se sigue asumiendo `https://` como antes (preserva el comportamiento correcto para un futuro servidor real con TLS).
+
+### 2. Nombre de la app → "Meganet"
+
+David: *"cambiale el nombre por meganet que eso de talento esta mal"*. El nombre dinámico que ya se mostraba en pantalla (desde `company_information.company_name`, configurado como "Meganet Telecomunicaciones") ya estaba bien — lo que decía mal era el **nombre estático** de la app: el que aparece bajo el ícono en la pantalla de inicio del teléfono.
+
+- `app.json` → `displayName`: "Talento Meganet" → **"Meganet"**.
+- `android/app/src/main/res/values/strings.xml` → `app_name`: "Talento Equipo" → **"Meganet"**.
+- Fallback de último recurso en `LoginScreen.js` y en el backend (`TalentoMobileApiController::appBranding()`), por si la llamada de branding falla: "Talento Equipo" → **"Meganet"**.
+
+### 3. Ícono de la app
+
+David: *"ponle un logo que se parezca o que tenga relación con el de la web"*. Se usó el logo oficial real de Meganet, ya configurado en el sistema (`company_information.url_logo` → `storage/logo_meganet/logo-meganet-oficial.png`) — el mismo que ya se muestra dinámicamente en la pantalla de login.
+
+Como es un logo horizontal (wordmark "MegaNet mx" + tagline), se recortó solo la **marca** — el diamante multicolor (rojo/verde/amarillo/azul) con la "M" blanca estilizada — que es cuadrada y reconocible a tamaño pequeño. Se generó con `ffmpeg` (sin herramientas de diseño) sobre el mismo fondo navy (`#0c1830`) que ya traía el ícono adaptativo de la app, en las 5 densidades (mdpi a xxxhdpi), cuadrado y redondo, más el foreground del ícono adaptativo. Verificado legible a 48×48 y sin recortes importantes bajo máscara circular (la forma que usan algunos lanzadores de Android).
+
+### 4. Botón de eliminar colaborador (web) — solo admin y DESARROLLADOR
+
+David: *"agregale un boton a la lista de colaboradores de tarento para eliminar que lo vea el admin y los desarrolladores"*.
+
+El endpoint ya existía (`DELETE /talento/api/colaboradores/{id}`, borrado reversible — el modelo usa soft delete), pero estaba gateado por `talento.manage`, el mismo permiso de crear/editar, que pueden tener más roles además de admin/DESARROLLADOR. Se creó un permiso propio **`talento.colaboradores.delete`**, asignado solo a `super-administrator` y `DESARROLLADOR` (migración, mismo patrón ya usado para otros permisos de alcance restringido), y se reapuntó el endpoint a ese permiso.
+
+En la lista de colaboradores: botón "Eliminar" (papelera) en la columna de acciones, visible solo con ese permiso (`v-hasPermission`, mecanismo estándar del sistema). Modal de confirmación propio (no un `confirm()` del navegador) mostrando el nombre del colaborador y aclarando que es reversible — no borra su historial (órdenes, liquidaciones, documentos).
+
+Verificado en base de datos: `super-administrator` y `DESARROLLADOR` tienen el permiso; un rol de prueba sin relación (`client`) no lo tiene.
+
+### Verificación del APK
+
+`./gradlew assembleDebug` → `BUILD SUCCESSFUL`. Confirmado con `aapt dump badging`:
+```
+package: name='com.meganet.talento' versionCode='107' versionName='1.7'
+application-label:'Meganet'
+```
+
+APK publicado: `http://192.168.105.11/downloads/meganet-v1.7-prueba.apk` (confirmado HTTP 200). Se usó un nombre de archivo distinto al `talento-v1.7.apk` anterior (del 5 de junio, una app completamente distinta — la original de flujo de campo) para no generar confusión, aunque ambas comparten el mismo paquete Android (`com.meganet.talento`) y número de versión por coincidencia.
+
+### Commits
+
+- MegaISP: `7e3060f0` (fallback de nombre) + `9ea63831` (botón eliminar) → mergeados a `main` vía `80226f14`. Migración `2026_10_01_131000_grant_talento_colaboradores_delete_to_admin_y_desarrollador` corrida en dev.
+- TalentoEquipo (repo local, sin remote): `81f90dd` (fix de login + nombre + ícono), un solo commit con los 15 archivos.
+
+### Pendiente
+
+Falta que David instale el APK nuevo y confirme que el login ya funciona — el fix se verificó a nivel de red/certificado y de lectura de código, pero no hay forma de confirmar el flujo completo sin que alguien lo pruebe en un teléfono real conectado a la red de MegaISP.
