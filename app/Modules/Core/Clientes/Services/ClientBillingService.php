@@ -131,7 +131,29 @@ class ClientBillingService
     {
         $cuantasVecesSeLePuedeCobrar = $cuantasVecesSeLePuedeCobrar ?: 0;
         $clientRepository = new ClientRepository();
-        $clientRepository->removePeriodoGracia($client, true, $cuantasVecesSeLePuedeCobrar + 1);
+
+        // BUG REAL DE PRODUCCIÓN (cliente #6722, reportado por David 30-sep-2026):
+        // esta línea llamaba a removePeriodoGracia($client, true, N+1) — el `true`
+        // hace que removePeriodoGracia() RECALCULE fecha_corte por su cuenta.
+        // Cuando $cuantasVecesSeLePuedeCobrar (N) es 0 — un pago que NO alcanza a
+        // cubrir ni un ciclo completo, como el del #6722 (traía la deuda a +19
+        // contra un costo de 420) — ESTA era la ÚNICA escritura de fecha_corte en
+        // todo el método (el bloque de abajo que la recalcula de verdad solo corre
+        // si N>0), así que el cliente se reactivaba Y su corte avanzaba un ciclo
+        // completo de regalo, sin haber cubierto nada. Eso es lo que se reportó
+        // como "lo trató como prepago de sep-oct en vez de cobrar la deuda de
+        // ago-sep". (Cuando N>0 esta escritura resultaba inofensiva en la práctica:
+        // el bloque de abajo recalcula fecha_corte desde fecha_pago+billing_expiration
+        // —ver BillingExpirationService::getFechaCorteForBillingPrepaidRecurrent(),
+        // rama $fechaCorteAnterior— y sobrescribe lo que haya, así que no hay
+        // "doble avance" real para ese caso; verificado con reproducción.)
+        // Fix: removePeriodoGracia() solo limpia el periodo de gracia aquí, sin
+        // tocar fecha_corte. El ÚNICO lugar que la mueve queda el bloque de abajo,
+        // y SOLO si $cuantasVecesSeLePuedeCobrar > 0 — un pago que no cubre ni un
+        // ciclo completo deja fecha_corte intacta, no se le regala plazo.
+        // Verificado con una reproducción real (cliente #17, transacción revertida):
+        // pago que no cubre un ciclo → fecha_corte ya NO se mueve (antes sí).
+        $clientRepository->removePeriodoGracia($client);
 
         $this->logService->log($client, 'Cliente #' . $client->id . ' se elimina el periodo de gracia desde billingForce');
 
