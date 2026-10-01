@@ -272,7 +272,7 @@ class TalentoMobileApiController extends Controller
         }
 
         return response()->json([
-            'company_name' => $info?->company_name ?? 'Talento Equipo',
+            'company_name' => $info?->company_name ?? 'Meganet',
             'logo_url'     => $logoUrl,
         ]);
     }
