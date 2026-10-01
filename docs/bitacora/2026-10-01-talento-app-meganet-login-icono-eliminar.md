@@ -135,3 +135,59 @@ TalentoEquipo: `fd78293` (bundle regenerado + fix estructural de los scripts de 
 reconstruido y republicado en la misma URL:
 `http://192.168.105.11/downloads/meganet-v1.7-prueba.apk` (verificado con descarga real, no solo
 con el resultado del build).
+
+## 2026-10-01 17:00 — Verificación de login por backend (cuenta Demo) + campo de contraseña sin guards
+
+David confirmó que la cuenta de prueba correcta es `manual_demo_tecnico` y compartió su
+contraseña. Antes de tocar nada se verificó el backend de `TalentoMobileApiController::login()`
+(el fix de password híbrido, item anterior) de forma directa y real:
+
+```
+POST http://192.168.105.11/talento/api/auth/login       -> 200, token válido
+POST https://dev.meganett.com.mx/talento/api/auth/login  -> 200, token válido
+```
+
+Ambas pruebas se hicieron con `curl` contra el servidor real, con las credenciales exactas, y la
+sesión de cada una se cerró (`/talento/api/auth/logout`) de inmediato tras confirmar — no quedó
+ningún token colgado.
+
+David reportó después "usuario o contraseña incorrecto" probando esos mismos hosts **desde la
+app**. Dado que el backend ya está confirmado correcto contra ambos, el problema está en el
+cliente: se encontró que el campo de **Usuario** del login tenía `autoCapitalize="none"` +
+`autoCorrect={false}` desde siempre, pero el campo de **Contraseña** nunca los tuvo — el teclado
+del celular podía autocapitalizar o autocorregir lo que se escribe ahí sin que la persona lo note
+(el campo está enmascarado con `secureTextEntry`, así que un cambio así pasa inadvertido).
+
+### Fix
+
+Mismos guards que ya tenía el campo de usuario, más protección extra contra gestores de
+contraseñas que pudieran sugerir/insertar un valor guardado de otra cuenta:
+
+```js
+autoCapitalize="none"
+autoCorrect={false}
+autoComplete="off"
+textContentType="password"
+importantForAutofill="no"
+```
+
+No se tocó el recorte (`trim`) de la contraseña a propósito — el backend tampoco lo hace, y
+recortarla solo en el cliente introduciría la misma clase de inconsistencia que se está
+corrigiendo, para cualquier contraseña que legítimamente tuviera espacios.
+
+### Verificación
+
+Bundle regenerado con `npm run bundle:android` (confirma que el fix estructural de package.json
+de hace un rato ya funciona sin intervención manual) y extraído de nuevo del `.apk` ya compilado
+y de una descarga real por HTTP — mismo MD5 en los tres puntos (build, archivo servido, descarga).
+
+### Commit
+
+TalentoEquipo: `87fe62b`. APK republicado en la misma URL.
+
+### Nota para David
+
+Antes de volver a intentar: toca el ícono de "ojo" en el campo de contraseña para verlo en texto
+plano y confirmar que diga exactamente lo que David espera, sin mayúsculas ni espacios de más —
+esto ya no debería hacer falta con el fix, pero sirve para descartar del todo cualquier duda
+mientras se confirma.
