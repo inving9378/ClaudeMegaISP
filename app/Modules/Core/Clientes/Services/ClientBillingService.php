@@ -35,8 +35,20 @@ class ClientBillingService
         // check if is a recurrent user and it has grade period active
         if ($this->iSClientRecurrent($client) && $this->clientHasGracePeriodActive($client)) {
             if ($newBalance >= 0) {
-                $this->eliminaLosServiciosDelAddressList($client);
-                $this->cobrarYActivarCliente($client, true, $transaction);
+                // FIX (1-oct-2026): eliminaLosServiciosDelAddressList() corría en cuanto
+                // $newBalance >= 0, ANTES de saber si el pago cubrió algo — es decir, SIEMPRE,
+                // incluso con un pago parcial que no cubre ni un ciclo. Esa llamada encola
+                // ProcessCreateServiceJob (DeployService::deployService() — reconexión real a
+                // nivel red/MikroTik), así que un pago parcial le devolvía el servicio al
+                // cliente aunque el fix anterior (cobrarYActivarCliente) ya dejara su `estado`
+                // en Bloqueado: el campo decía una cosa, la red hacía otra. Ahora corre DESPUÉS
+                // de cobrarYActivarCliente() y SOLO si de verdad se cobró al menos un ciclo —
+                // mismo booleano que ya gatea activarCliente(), para que estado y conectividad
+                // queden consistentes.
+                $seCobroAlMenosUnCiclo = $this->cobrarYActivarCliente($client, true, $transaction);
+                if ($seCobroAlMenosUnCiclo) {
+                    $this->eliminaLosServiciosDelAddressList($client);
+                }
             }
         }
     }
@@ -53,7 +65,7 @@ class ClientBillingService
         }
     }
 
-    private function cobrarYActivarCliente($client, $forceCobrar = false, $transaction = null)
+    private function cobrarYActivarCliente($client, $forceCobrar = false, $transaction = null): bool
     {
         // FIX (1-oct-2026, a petición de David tras verificar el cobro de deudas): antes
         // activarCliente() corría SIEMPRE, incluso cuando billingServicesByClient() no
@@ -65,10 +77,13 @@ class ClientBillingService
         // parcial, igual que antes) — si el cliente vuelve a quedar en negativo, el observer
         // ClientBalanceObserver le asigna un periodo de gracia nuevo automáticamente, así que
         // no se queda en un estado muerto sin esa ventana.
+        // El valor de retorno (1-oct-2026, segunda vuelta) lo reusa el llamador para gatear
+        // también eliminaLosServiciosDelAddressList() — ver processPaymentForClientRecurrentWithGracePeriodActive.
         $seCobroAlMenosUnCiclo = $this->billingServicesByClient($client, null, $forceCobrar, $transaction);
         if ($seCobroAlMenosUnCiclo) {
             $client->activarCliente();
         }
+        return $seCobroAlMenosUnCiclo;
     }
 
     public function billingServicesByClient(mixed $client, $typeBillingExecute = null, $forceCobrar = false, $transaction = null): bool
