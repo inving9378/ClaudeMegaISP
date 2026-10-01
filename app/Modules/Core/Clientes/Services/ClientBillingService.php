@@ -206,16 +206,36 @@ class ClientBillingService
 
     protected function actionBilling($clientRepository, $client, $cuantasVecesSeLePuedeCobrar = 1, $transaction = null)
     {
-        // Cobro todos los servicios
+        // BUG REAL (hallazgo relacionado al #6722, 1-oct-2026): esta línea hacía
+        // RectifyBalanceAndCreateTransaction::dispatch(...) — SOLO encola el job
+        // (QUEUE_CONNECTION=database), no espera a que corra. Justo abajo,
+        // setFechaPago() se ejecutaba de inmediato, en el mismo request, sin
+        // esperar al worker. Verificado con reproducción real (transacción
+        // revertida, cola real sin correr queue:work): fecha_pago YA avanzaba
+        // mientras el cargo seguía pendiente en la tabla `jobs`, sin crear
+        // ninguna fila nueva en `transactions`. Si el worker tarda, se cae o el
+        // job falla, fecha_pago queda adelantado para siempre sin el cargo
+        // correspondiente — el cliente "pagó" una fecha que nunca se le cobró.
+        // Fix: dispatchSync() en vez de dispatch() — corre el job EN ESTE MISMO
+        // proceso (mismo patrón oficial de Laravel para forzar un job en cola a
+        // ejecutarse inline), así setFechaPago() de abajo solo se alcanza
+        // después de que el cargo de CADA servicio ya se creó de verdad. Si
+        // algún servicio falla, la excepción interrumpe el método aquí mismo y
+        // fecha_pago NUNCA se mueve — correcto: mejor reintentar la cobranza
+        // completa que avanzar fechas con cargos a medias. El job en sí no hace
+        // nada pesado (2 escrituras a BD, sin llamadas externas) y ya corre
+        // dentro de contextos de background (PaymentClientJob / cron), nunca
+        // directo en un request HTTP — no hay riesgo de bloquear al usuario.
         $clientWithServices = $clientRepository->getServicesForClient($client->id);
         $services = ComunConstantsController::ALL_CLIENT_SERVICE;
         foreach ($services as $service) {
             foreach ($clientWithServices->$service as $clientService) {
-                RectifyBalanceAndCreateTransaction::dispatch($clientService, $cuantasVecesSeLePuedeCobrar, $transaction);
+                RectifyBalanceAndCreateTransaction::dispatchSync($clientService, $cuantasVecesSeLePuedeCobrar, $transaction);
             }
         }
 
-        // Actualizo fecha de pago nueva
+        // Actualizo fecha de pago nueva — solo se llega aquí si el bucle de
+        // arriba ya terminó de verdad (ver comentario arriba).
         $billingPaymentDateService = new BillingPaymentDateService();
         $newPaymentDate = $billingPaymentDateService->getNewFechaPagoByClient($client, $cuantasVecesSeLePuedeCobrar);
         $clientRepository->setFechaPago($client, $newPaymentDate);
