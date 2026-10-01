@@ -61,6 +61,13 @@ class VerificarPagosRecurrentesCommand extends Command
             // tiene suficiente balance pero le cobro el servicio" (cron billing_service_command:
             // process), avanzaba fecha_pago sin nunca llamar a setNewFechaCorteForClient().
             'recurrent_balance_insuficiente_corte_avanza' => fn () => $this->checkRecurrentBalanceInsuficienteCorteAvanza(),
+            // 2026-09-30 (cliente #6722, reportado por David): un RECURRENT suspendido
+            // (periodo de gracia activo) que paga sin alcanzar a cubrir ni un ciclo
+            // completo (ej. solo abona su deuda vieja) se reactivaba Y su fecha_corte
+            // avanzaba un ciclo de regalo — billingForce() llamaba a
+            // removePeriodoGracia($client, true, N+1), que recalcula fecha_corte por su
+            // cuenta aunque N=0. Ver ClientBillingService::billingForce().
+            'recurrent_pago_parcial_no_regala_corte' => fn () => $this->checkRecurrentPagoParcialNoRegalaCorte(),
             // 2026-09-18 (decisión de política de Irving, tras encontrar 93 clientes con hasta 26
             // meses de sobre-cobro automático): un RECURRENT sin saldo solo debe seguir acumulando
             // adeudo mientras siga DENTRO de la duración de su contrato — no indefinidamente.
@@ -379,6 +386,86 @@ class VerificarPagosRecurrentesCommand extends Command
             return [
                 'ok' => true,
                 'detalle' => "Cliente #{$client->id}: fecha_corte avanzó junto con fecha_pago ({$corteAntes} → {$client->fecha_corte}).",
+            ];
+        } finally {
+            DB::rollBack();
+        }
+    }
+
+    /**
+     * Regresión del bug real de producción del cliente #6722 (reportado por David, 30-sep-2026):
+     * un RECURRENT suspendido (periodo de gracia activo) que paga sin alcanzar a cubrir ni un
+     * ciclo completo (ej. solo abona parte de su deuda vieja) NO debe recibir un adelanto gratis
+     * de fecha_corte ni verse facturado por un ciclo que no pagó — ClientBillingService::
+     * billingForce() replica el camino real (processPaymentForClientRecurrentWithGracePeriodActive
+     * → cobrarYActivarCliente(forceCobrar=true) → billingForce). Escritura real, SIEMPRE revertida.
+     */
+    private function checkRecurrentPagoParcialNoRegalaCorte(): array
+    {
+        $client = Client::whereHas('client_main_information', function ($q) {
+            $q->where('type_of_billing_id', TypeBilling::TYPE_OF_BILLING_PREPAID_RECURRENT);
+        })
+            ->whereNotNull('fecha_corte')
+            ->whereHas('billing_configuration')
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$client) {
+            return ['ok' => true, 'detalle' => 'Sin cliente RECURRENT con fecha_corte+billing_configuration — chequeo omitido.'];
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $client->load('balance', 'client_main_information');
+            $corteAntes = $client->fecha_corte;
+            $estadoAntes = $client->client_main_information->estado;
+
+            // Simula suspensión real + periodo de gracia activo (mismo camino que
+            // checkRecurrentSuspendidoPagoTarde: SuspendService + addPeriodoGracia).
+            $clientRepository = new ClientRepository();
+            $clientRepository->addPeriodoGracia($client);
+            $client->client_main_information->estado = 'Bloqueado';
+            $client->client_main_information->save();
+            $client->refresh();
+            $client->load('balance');
+
+            // Pago que NO alcanza a cubrir ni un ciclo completo (deja balance en
+            // positivo pero por debajo del costo de un ciclo) — fuerza
+            // $cuantasVecesSeLePuedeCobrar = 0 en billingForce().
+            $costAllServices = (new ClientRepository())->getCostAllService($client->id);
+            if ($costAllServices <= 1) {
+                return ['ok' => true, 'detalle' => "Cliente #{$client->id}: sin costo de servicios activos — chequeo omitido."];
+            }
+            $newBalance = 1; // menor al costo de un ciclo, pero >= 0 (pasa el guard de newBalance>=0)
+            $client->balance->amount = $newBalance;
+            $client->balance->save();
+            $client->refresh();
+            $client->load('balance', 'client_main_information');
+
+            $veces = $clientRepository->getCuantasVecesSeLePuedenCobrarLosServiciosActivos($client);
+            if ($veces) {
+                return ['ok' => true, 'detalle' => "Cliente #{$client->id}: no se pudo forzar pago parcial en este entorno (costo muy bajo) — chequeo omitido."];
+            }
+
+            $billingService = new ClientBillingService();
+            $billingService->billing($client, $newBalance, null);
+            $client->refresh();
+            $client->load('client_main_information');
+
+            if ($client->fecha_corte !== $corteAntes) {
+                return [
+                    'ok' => false,
+                    'detalle' => "Cliente #{$client->id}: un pago que NO cubre ni un ciclo completo movió fecha_corte "
+                        . "({$corteAntes} → {$client->fecha_corte}) — se le regaló plazo sin haber cobrado un ciclo. "
+                        . 'Revisar ClientBillingService::billingForce() (llamada a removePeriodoGracia).',
+                ];
+            }
+
+            return [
+                'ok' => true,
+                'detalle' => "Cliente #{$client->id}: pago parcial (no cubre un ciclo) dejó fecha_corte intacta ({$corteAntes}), estado "
+                    . "{$estadoAntes} → {$client->client_main_information->estado}.",
             ];
         } finally {
             DB::rollBack();
