@@ -797,7 +797,21 @@ class VerificarPagosRecurrentesCommand extends Command
         DB::beginTransaction();
 
         try {
-            $jobsAntes = DB::table('jobs')->count();
+            // FIX (1-oct-2026): este chequeo medía "¿se cobró?" contando TODA la tabla `jobs`
+            // (compartida por el sistema entero: tickets, WhatsApp, cobranza, deploys...) antes
+            // y después de cada llamada — un proxy indirecto y frágil. Además, desde el fix de
+            // hoy de ClientBillingService::actionBilling() (dispatchSync en vez de dispatch),
+            // RectifyBalanceAndCreateTransaction YA NO pasa por la cola — corre en el mismo
+            // proceso — así que la señal que este chequeo esperaba ver en `jobs` se redujo
+            // (solo queda ClientServiceChargedJob, disparado dentro del handle() síncrono).
+            // Fix: medir directamente lo que importa — el cargo real en `transactions` para
+            // CADA cliente, igual patrón que los demás chequeos de este comando. Aislado a la
+            // transacción de prueba (se revierte), sin depender de ninguna tabla global
+            // compartida ni de que la cola esté en cierto estado.
+            $cargosDentroAntes = DB::table('transactions')
+                ->where('client_id', $dentro->id)->where('category', 'Servicio')->where('type', 'debit')->count();
+            $cargosFueraAntes = DB::table('transactions')
+                ->where('client_id', $fuera->id)->where('category', 'Servicio')->where('type', 'debit')->count();
 
             foreach ([$dentro, $fuera] as $c) {
                 $c->load('balance');
@@ -808,13 +822,15 @@ class VerificarPagosRecurrentesCommand extends Command
             $billingService = new ClientBillingService();
 
             $billingService->billingServicesByClient($dentro, ClientBillingService::TYPE_BILLING_EXECUTED_PROCESS);
-            $jobsTrasDentro = DB::table('jobs')->count();
-
             $billingService->billingServicesByClient($fuera, ClientBillingService::TYPE_BILLING_EXECUTED_PROCESS);
-            $jobsTrasFuera = DB::table('jobs')->count();
 
-            $seCobroDentro = $jobsTrasDentro > $jobsAntes;
-            $seCobroFuera = $jobsTrasFuera > $jobsTrasDentro;
+            $cargosDentroDespues = DB::table('transactions')
+                ->where('client_id', $dentro->id)->where('category', 'Servicio')->where('type', 'debit')->count();
+            $cargosFueraDespues = DB::table('transactions')
+                ->where('client_id', $fuera->id)->where('category', 'Servicio')->where('type', 'debit')->count();
+
+            $seCobroDentro = $cargosDentroDespues > $cargosDentroAntes;
+            $seCobroFuera = $cargosFueraDespues > $cargosFueraAntes;
 
             if (!$seCobroDentro) {
                 return [
