@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
 use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
+use App\Services\Security\PasswordService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -36,9 +37,25 @@ class TalentoMobileApiController extends Controller
             ->orWhere('email', $request->usuario)
             ->first();
 
-        // El sistema usa base64_encode como hash de contraseña (ver CLAUDE.md)
-        if (! $user || $user->password !== base64_encode($request->password)) {
+        // BUG REAL (1-oct-2026): comparaba directo contra base64_encode($password) —
+        // el esquema LEGACY. El login web (LoginController::attemptLogin) ya migró a
+        // PasswordService::check(), que acepta bcrypt Y base64 legacy, porque el
+        // panel admin re-hashea a bcrypt en cada login exitoso ("upgrade-on-login").
+        // Verificado en dev: TODAS las cuentas de staff de muestra (técnicos,
+        // vendedores, Diana, Tere, Irving...) ya están en bcrypt — con la comparación
+        // vieja, NINGUNA cuenta real podía entrar a la app aunque la contraseña fuera
+        // correcta. Se replica exactamente el mismo patrón del login web, incluido el
+        // upgrade-on-login (mismo rastro de auditoría: password_legacy +
+        // password_migrated_at, para poder revertir si algo sale mal).
+        if (! $user || ! PasswordService::check($request->password, $user->password)) {
             return response()->json(['message' => 'Credenciales incorrectas.'], 401);
+        }
+
+        if (PasswordService::needsRehash($user->password)) {
+            $user->password_legacy = $user->password;
+            $user->password = PasswordService::make($request->password);
+            $user->password_migrated_at = now();
+            $user->saveQuietly();
         }
 
         $colaborador = TalentoColaborador::where('user_id', $user->id)
