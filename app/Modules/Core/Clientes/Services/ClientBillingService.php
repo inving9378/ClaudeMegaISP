@@ -26,11 +26,28 @@ class ClientBillingService
 
     public function billing($client, $newBalance, $transaction = null)
     {
-        $this->processPaymentForClientRecurrentWithGracePeriodActive($client, $newBalance, $transaction);
-        $this->processPaymentForRestOfClient($client, $newBalance, $transaction);
+        // FIX (1-oct-2026, hallazgo al verificar a fondo los 4 fixes de pagos recurrentes de
+        // hoy — no causado por ninguno de ellos, ya pasaba antes): las dos ramas de abajo
+        // corrían SIEMPRE las dos, en secuencia, sin ser mutuamente excluyentes. Para un
+        // cliente recurrente con periodo de gracia activo que paga lo que debe,
+        // processPaymentForClientRecurrentWithGracePeriodActive() cobra y limpia el periodo
+        // de gracia; como processPaymentForRestOfClient() usa el MISMO $newBalance (el saldo
+        // de ANTES del pago, no el ya actualizado) y el periodo de gracia ya quedó limpio, su
+        // propio guard también se cumplía — y volvía a reconectar/facturar el MISMO pago una
+        // segunda vez. Verificado con reproducción real (cliente #17, transacción revertida,
+        // cola forzada a sync para ver el resultado final): UN pago generaba DOS facturas
+        // idénticas en client_invoices (mismo monto, mismo segundo) — el saldo del cliente NO
+        // se duplicaba (eso sí estaba bien), solo el documento de factura.
+        // Fix: las dos ramas pasan a ser mutuamente excluyentes para UN mismo pago — si el
+        // camino de periodo de gracia aplicó (el cliente calificaba para esa rama), no se
+        // intenta también el camino normal para el mismo evento de pago.
+        $procesadoPorGracia = $this->processPaymentForClientRecurrentWithGracePeriodActive($client, $newBalance, $transaction);
+        if (!$procesadoPorGracia) {
+            $this->processPaymentForRestOfClient($client, $newBalance, $transaction);
+        }
     }
 
-    public function processPaymentForClientRecurrentWithGracePeriodActive(Client $client, $newBalance, $transaction = null)
+    public function processPaymentForClientRecurrentWithGracePeriodActive(Client $client, $newBalance, $transaction = null): bool
     {
         // check if is a recurrent user and it has grade period active
         if ($this->iSClientRecurrent($client) && $this->clientHasGracePeriodActive($client)) {
@@ -49,8 +66,12 @@ class ClientBillingService
                 if ($seCobroAlMenosUnCiclo) {
                     $this->eliminaLosServiciosDelAddressList($client);
                 }
+                // Este evento de pago ya fue atendido por esta rama (haya cobrado un ciclo
+                // completo o no) — billing() no debe caer también a processPaymentForRestOfClient().
+                return true;
             }
         }
+        return false;
     }
 
     public function processPaymentForRestOfClient(Client $client, $newBalance, $transaction = null)

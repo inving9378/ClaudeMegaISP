@@ -70,6 +70,7 @@ class VerificarPagosRecurrentesCommand extends Command
             'recurrent_pago_parcial_no_regala_corte' => fn () => $this->checkRecurrentPagoParcialNoRegalaCorte(),
             'recurrent_fecha_pago_no_avanza_sin_cargo_creado' => fn () => $this->checkRecurrentFechaPagoNoAvanzaSinCargoCreado(),
             'recurrent_pago_parcial_no_reactiva' => fn () => $this->checkRecurrentPagoParcialNoReactiva(),
+            'recurrent_no_duplica_factura_con_gracia' => fn () => $this->checkRecurrentNoDuplicaFacturaConGracia(),
             // 2026-09-18 (decisión de política de Irving, tras encontrar 93 clientes con hasta 26
             // meses de sobre-cobro automático): un RECURRENT sin saldo solo debe seguir acumulando
             // adeudo mientras siga DENTRO de la duración de su contrato — no indefinidamente.
@@ -647,6 +648,95 @@ class VerificarPagosRecurrentesCommand extends Command
                 'ok' => true,
                 'detalle' => "Cliente #{$client->id}: pago parcial (no cubre un ciclo) NO reactivó al cliente (estado "
                     . "se mantuvo en {$estadoDespues}).",
+            ];
+        } finally {
+            DB::rollBack();
+        }
+    }
+
+    /**
+     * Regresión del hallazgo del 1-oct-2026 (verificación a fondo de los 4 fixes anteriores,
+     * NO causado por ninguno de ellos): ClientBillingService::billing() llamaba siempre a SUS
+     * DOS ramas en secuencia. Para un cliente RECURRENT con periodo de gracia activo que paga
+     * lo que debe, processPaymentForClientRecurrentWithGracePeriodActive() cobra y limpia el
+     * periodo de gracia; como processPaymentForRestOfClient() usaba el MISMO $newBalance (el
+     * saldo de ANTES del pago) y el periodo de gracia ya quedó limpio, su propio guard también
+     * se cumplía — volviendo a reconectar/facturar el MISMO pago una segunda vez (factura
+     * duplicada real en client_invoices, mismo monto, mismo segundo — el saldo del cliente NO
+     * se duplicaba, solo el documento). Fix: las dos ramas son mutuamente excluyentes para un
+     * mismo pago. Este chequeo reproduce el camino real (deuda cubierta exacta, gracia activa)
+     * y cuenta los jobs ProcessCreateServiceJob (reconexión/factura) encolados — deben ser
+     * exactamente los del cliente (uno por servicio activo), nunca el doble. Escritura real,
+     * SIEMPRE revertida.
+     */
+    private function checkRecurrentNoDuplicaFacturaConGracia(): array
+    {
+        $client = Client::whereHas('client_main_information', function ($q) {
+            $q->where('type_of_billing_id', TypeBilling::TYPE_OF_BILLING_PREPAID_RECURRENT);
+        })
+            ->whereHas('billing_configuration')
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$client) {
+            return ['ok' => true, 'detalle' => 'Sin cliente RECURRENT con billing_configuration — chequeo omitido.'];
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $client->load('balance', 'client_main_information');
+
+            $clientRepository = new ClientRepository();
+            $clientRepository->addPeriodoGracia($client);
+            $client->client_main_information->estado = 'Bloqueado';
+            $client->client_main_information->save();
+            $client->refresh();
+            $client->load('balance');
+
+            $costAllServices = $clientRepository->getCostAllService($client->id);
+            if ($costAllServices <= 0) {
+                return ['ok' => true, 'detalle' => "Cliente #{$client->id}: sin costo de servicios activos — chequeo omitido."];
+            }
+
+            // Paga EXACTAMENTE lo que debe (cubre la deuda completa, N=1).
+            $newBalance = $costAllServices;
+            $client->balance->amount = $newBalance;
+            $client->balance->save();
+            $client->refresh();
+            $client->load('balance', 'client_main_information');
+
+            $cantidadServiciosDelCliente = $clientRepository->getServicesForClient($client->id);
+            $totalServicios = 0;
+            foreach (\App\Http\Controllers\Utils\ComunConstantsController::ALL_CLIENT_SERVICE as $service) {
+                $totalServicios += $cantidadServiciosDelCliente->$service->count();
+            }
+            if ($totalServicios === 0) {
+                return ['ok' => true, 'detalle' => "Cliente #{$client->id}: sin servicios activos para contar — chequeo omitido."];
+            }
+
+            $jobsAntes = DB::table('jobs')->where('payload', 'like', '%ProcessCreateServiceJob%')->count();
+
+            $billingService = new ClientBillingService();
+            $billingService->billing($client, $newBalance, null);
+
+            $jobsDespues = DB::table('jobs')->where('payload', 'like', '%ProcessCreateServiceJob%')->count();
+            $jobsNuevos = $jobsDespues - $jobsAntes;
+
+            if ($jobsNuevos > $totalServicios) {
+                return [
+                    'ok' => false,
+                    'detalle' => "Cliente #{$client->id}: un solo pago que cubre su deuda encoló {$jobsNuevos} jobs de "
+                        . "reconexión/factura (ProcessCreateServiceJob), pero el cliente solo tiene {$totalServicios} "
+                        . 'servicio(s) activo(s) — se está disparando por partida doble. Revisar ClientBillingService::billing() '
+                        . '(¿las dos ramas volvieron a ser no-excluyentes?).',
+                ];
+            }
+
+            return [
+                'ok' => true,
+                'detalle' => "Cliente #{$client->id}: un pago que cubre su deuda encoló exactamente {$jobsNuevos} job(s) de "
+                    . "reconexión/factura para sus {$totalServicios} servicio(s) activo(s) — sin duplicar.",
             ];
         } finally {
             DB::rollBack();
