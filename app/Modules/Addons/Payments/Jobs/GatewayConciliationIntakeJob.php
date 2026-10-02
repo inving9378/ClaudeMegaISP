@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Payments\Jobs;
 use App\Models\Marketing\Setting;
 use App\Modules\Addons\Payments\Models\WhatsappIdentificationSession as Session;
 use App\Modules\Addons\Payments\Models\WhatsappPaymentExtraction;
+use App\Modules\Addons\Payments\Services\Extraction\ComprobanteNoLeidoNotifier;
 use App\Modules\Addons\Payments\Services\Extraction\PaymentReceiptExtractor;
 use App\Modules\Addons\Payments\Services\Extraction\Profiles\SpeiTransferProfile;
 use App\Modules\Addons\Payments\Services\Identification\IdentificationFsm;
@@ -109,10 +110,19 @@ class GatewayConciliationIntakeJob implements ShouldQueue
                 'fields'                 => $result['fields'] ?? [],
                 'unreadable'             => $result['unreadable'] ?? [],
                 'error'                  => $result['error'] ?? null,
-                'model'                  => config('services.anthropic.model', 'claude-sonnet-4-6'),
+                'model'                  => $result['model'] ?? null, // el modelo que de verdad leyó
                 'raw'                    => $result['raw'] ?? null,
                 'extracted_at'           => now(),
             ]);
+        }
+
+        // La IA NO pudo leerlo: se avisa con el motivo en vez de descartarlo como
+        // "no es comprobante" (decisión de Irving 2026-10-02). Sin sesión ni respuesta.
+        if (ComprobanteNoLeidoNotifier::noSePudoLeer($result)) {
+            app(ComprobanteNoLeidoNotifier::class)->notificar(
+                $result, $extraction->id, $message->conversation?->contact_number ?? 'número desconocido', 'WhatsApp gateway'
+            );
+            return;
         }
 
         // ¿Es comprobante? Umbral conservador (monto O clave). Si no, se descarta

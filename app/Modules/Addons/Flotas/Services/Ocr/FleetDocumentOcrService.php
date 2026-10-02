@@ -2,8 +2,8 @@
 
 namespace App\Modules\Addons\Flotas\Services\Ocr;
 
-use App\Modules\Addons\IA\Models\IAProveedor;
-use App\Modules\Addons\IA\Services\IAAdaptadorFactory;
+use App\Modules\Addons\IA\Services\IA;
+use App\Modules\Addons\IA\Services\IANoConfigurada;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -16,9 +16,10 @@ use Throwable;
  * una persona (ver FleetDocumentController::ocr + la pantalla de Documentos).
  *
  * ⚠️ CONVENCIÓN DE SERVICIOS COMPARTIDOS (CLAUDE.md): la IA vive SOLO en el módulo IA.
- * Este servicio NO tiene cliente HTTP ni API key propios: resuelve el proveedor de
- * `ia_proveedores` y habla por `IAAdaptadorFactory`. Cambiar proveedor/modelo se hace
- * en /ia/configuracion y este código no se toca.
+ * Este servicio NO tiene cliente HTTP ni API key propios: usa la IA asignada en
+ * Integraciones → Módulos IA (clave flotas.ocr, vía IA::enviar). Cambiar proveedor/modelo
+ * se hace ahí y este código no se toca. Que el proveedor lea imágenes y PDF lo valida
+ * IA (requisitos declarados en config ia_modulos).
  *
  * NUNCA inventa: campo ilegible → value=null + confidence='baja' y entra en `unreadable`.
  * Cualquier error (sin proveedor, API caída, JSON malformado) → ok=false + `error`,
@@ -61,41 +62,26 @@ class FleetDocumentOcrService
             return $this->fail('El archivo supera el tamaño máximo para lectura por IA.');
         }
 
-        $proveedor = $this->resolverProveedor();
-        if (! $proveedor) {
-            return $this->fail(
-                'No hay un proveedor de IA activo con soporte de imágenes. Configúralo en /ia/configuracion.'
-            );
-        }
-
-        // Solo el adaptador de Claude manda el PDF como bloque 'document'; los demás lo
-        // empujarían como imagen y el proveedor respondería un error críptico.
-        if ($mime === 'application/pdf' && $proveedor->driver !== 'claude') {
-            return $this->fail(
-                'El proveedor de IA configurado no lee PDF. Sube el documento como imagen (JPG/PNG) '
-                . 'o activa un proveedor Claude en /ia/configuracion.'
-            );
-        }
-
         try {
-            $adaptador = IAAdaptadorFactory::crear($proveedor);
-
-            $resultado = $adaptador->enviarMensaje(
-                [],                                                   // sin historial: es una lectura de una sola vez
+            $resultado = IA::enviar(
+                'flotas.ocr',
                 $this->profile->prompt(),
                 [['mime' => $mime, 'data' => base64_encode($bytes)]],
-                'Responde únicamente con el JSON solicitado, sin explicaciones.'
+                'Responde únicamente con el JSON solicitado, sin explicaciones.',
+                [],                                                   // sin historial: es una lectura de una sola vez
+                ['json' => true]
             );
 
-            return $this->parse((string) ($resultado['texto'] ?? ''), $proveedor);
+            return $this->parse((string) ($resultado['texto'] ?? ''), $resultado);
+        } catch (IANoConfigurada $e) {
+            return $this->fail($e->getMessage());
         } catch (Throwable $e) {
             Log::warning('FleetDocumentOcrService: falló la lectura del documento', [
-                'mime'      => $mime,
-                'proveedor' => $proveedor->nombre,
-                'error'     => $e->getMessage(),
+                'mime'  => $mime,
+                'error' => $e->getMessage(),
             ]);
 
-            return $this->fail('No se pudo leer el documento con la IA: ' . $e->getMessage(), $proveedor);
+            return $this->fail('No se pudo leer el documento con la IA: ' . $e->getMessage());
         }
     }
 
@@ -106,32 +92,17 @@ class FleetDocumentOcrService
     }
 
     /**
-     * Proveedor de IA a usar: activo y con soporte de imágenes. Se toma del catálogo del
-     * módulo IA — este servicio nunca define credenciales.
-     */
-    private function resolverProveedor(): ?IAProveedor
-    {
-        return IAProveedor::where('activo', true)
-            ->where('soporta_imagenes', true)
-            ->orderBy('id')
-            ->first();
-    }
-
-    /**
      * Parseo robusto: rescata el JSON aunque venga con texto o fences alrededor. Si no es
      * interpretable → ok=false (nunca se inventan datos).
      */
-    private function parse(string $raw, IAProveedor $proveedor): array
+    private function parse(string $raw, array $resultado): array
     {
-        $parsed = null;
-        if (preg_match('/\{.*\}/s', $raw, $m)) {
-            $parsed = json_decode($m[0], true);
-        }
+        $parsed = IA::json($raw);
 
         if (! is_array($parsed) || ! isset($parsed['fields']) || ! is_array($parsed['fields'])) {
             return $this->fail(
                 'La IA devolvió una respuesta que no se pudo interpretar (JSON inválido o incompleto).',
-                $proveedor,
+                $resultado,
                 $raw
             );
         }
@@ -164,8 +135,8 @@ class FleetDocumentOcrService
             'unreadable'   => $unreadable,
             'needs_review' => $this->requiereRevision($fields),
             'error'        => null,
-            'model'        => $proveedor->modelo_default,
-            'provider'     => $proveedor->nombre,
+            'model'        => $resultado['modelo'] ?? null,
+            'provider'     => $resultado['proveedor'] ?? null,
             'raw'          => $raw,
         ];
     }
@@ -242,7 +213,7 @@ class FleetDocumentOcrService
         return Carbon::createFromDate($fecha[2], $fecha[1], $fecha[0])->format('Y-m-d');
     }
 
-    private function fail(string $error, ?IAProveedor $proveedor = null, string $raw = ''): array
+    private function fail(string $error, ?array $resultado = null, string $raw = ''): array
     {
         return [
             'ok'           => false,
@@ -250,8 +221,8 @@ class FleetDocumentOcrService
             'unreadable'   => $this->profile->fields(),
             'needs_review' => true,   // si no se pudo leer, alguien tiene que capturarlo a mano
             'error'        => $error,
-            'model'        => $proveedor?->modelo_default,
-            'provider'     => $proveedor?->nombre,
+            'model'        => $resultado['modelo'] ?? null,
+            'provider'     => $resultado['proveedor'] ?? null,
             'raw'          => $raw,
         ];
     }
