@@ -2,10 +2,8 @@
 
 namespace App\Modules\Addons\Manual\Services;
 
-use App\Modules\Addons\IA\Models\IAProveedor;
 use App\Modules\Addons\IA\Models\IAUsoToken;
-use App\Modules\Addons\IA\Services\IAAdaptadorFactory;
-use App\Modules\Addons\IA\Services\IAAdaptadorInterface;
+use App\Modules\Addons\IA\Services\IA;
 use App\Modules\Addons\IA\Services\IAPricingService;
 use App\Modules\Addons\Manual\Models\ManualSection;
 use App\Modules\Core\ModuleManager\Services\ModuleManagerService;
@@ -23,6 +21,9 @@ class ManualGeneratorService
      * (ver item #263: ~122 filas por click, manual_sections crecía indefinido).
      */
     protected const RETENTION_VERSIONS = 3;
+
+    /** Clave en Integraciones → Módulos IA. */
+    protected const CLAVE_IA = 'manual.generador';
 
     /** @var (\Closure(string):void)|null */
     protected $progress = null;
@@ -50,12 +51,10 @@ class ManualGeneratorService
         @set_time_limit(0);
         @ignore_user_abort(true);
 
-        $proveedor = IAProveedor::where('activo', true)->orderByDesc('id')->first();
-        if (!$proveedor) {
-            throw new RuntimeException('No hay proveedor de IA activo. Configure uno en /ia/configuracion.');
-        }
-
-        $adaptador = IAAdaptadorFactory::crear($proveedor);
+        // La IA la decide Integraciones → Módulos IA (manual.generador). Sin asignación
+        // lanza IANoConfigurada (un RuntimeException con mensaje para el usuario) antes
+        // de tomar el candado o recorrer módulos.
+        IA::proveedorPara(self::CLAVE_IA);
 
         // Candado contra corridas concurrentes: dos clicks del botón (o botón +
         // comando) a la vez duplicarían las 122 llamadas a la IA sin control de costo.
@@ -79,7 +78,7 @@ class ManualGeneratorService
                 $title = $module->name ?? $slug;
                 try {
                     $prompt  = $this->buildPrompt($module, $routesIndex);
-                    $content = $this->callClaude($adaptador, $proveedor, $prompt);
+                    $content = $this->generarSeccion($prompt);
 
                     $latest = ManualSection::where('module_slug', $slug)->max('version');
                     $next   = $latest ? ((int) $latest) + 1 : 1;
@@ -337,39 +336,40 @@ Respuesta concisa.
 PROMPT;
     }
 
-    protected function callClaude(IAAdaptadorInterface $adaptador, IAProveedor $proveedor, string $prompt): string
+    protected function generarSeccion(string $prompt): string
     {
-        $respuesta = $adaptador->enviarMensaje([], $prompt, []);
+        $respuesta = IA::enviar(self::CLAVE_IA, $prompt);
 
         $text = trim($respuesta['texto'] ?? '');
         if ($text === '') {
             throw new RuntimeException('Respuesta vacía del proveedor IA.');
         }
 
-        $this->registrarUso($proveedor, $respuesta);
+        $this->registrarUso($respuesta);
 
         return $text;
     }
 
     /**
      * Registro best-effort en ia_uso_tokens (mismo criterio que IAPricingService::registrarUso):
-     * un fallo aquí nunca debe tumbar la generación del manual.
+     * un fallo aquí nunca debe tumbar la generación del manual. El uso también queda en el
+     * Integration Hub (IA::enviar lo registra en la integración usada).
      */
-    protected function registrarUso(IAProveedor $proveedor, array $respuesta): void
+    protected function registrarUso(array $respuesta): void
     {
         try {
             $tokensInput  = (int) ($respuesta['tokens_input'] ?? 0);
             $tokensOutput = (int) ($respuesta['tokens_output'] ?? 0);
-            $costo        = app(IAPricingService::class)->calcularCosto($proveedor->modelo_default, $tokensInput, $tokensOutput);
+            $costo        = app(IAPricingService::class)->calcularCosto((string) $respuesta['modelo'], $tokensInput, $tokensOutput);
 
             IAUsoToken::create([
                 // generate() corre desde el botón web (con sesión) o desde Command/Job
                 // en background (sin auth); id=1 sigue el mismo fallback de "usuario
                 // sistema" que ya usa PaymentApplicationService::resolveSystemUserId().
                 'user_id'         => auth()->id() ?? 1,
-                'ia_proveedor_id' => $proveedor->id,
-                'proveedor'       => $proveedor->driver,
-                'modelo'          => $proveedor->modelo_default,
+                'ia_proveedor_id' => null, // la IA viene de una integración del Hub, no de ia_proveedores
+                'proveedor'       => $respuesta['driver'],
+                'modelo'          => $respuesta['modelo'],
                 'tokens_input'    => $tokensInput,
                 'tokens_output'   => $tokensOutput,
                 'tokens_total'    => $tokensInput + $tokensOutput,

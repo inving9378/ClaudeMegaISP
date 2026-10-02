@@ -4,52 +4,35 @@ namespace App\Modules\Addons\Marketing\Services;
 
 use App\Models\Marketing\GeneratedContent;
 use App\Models\Marketing\Lead;
-use App\Models\Marketing\Setting;
-use Illuminate\Support\Facades\Http;
+use App\Modules\Addons\IA\Services\IA;
+use App\Modules\Addons\IA\Services\IANoConfigurada;
+use App\Modules\Addons\IA\Services\IAPricingService;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Puntaje de leads. La IA la decide Integraciones → Módulos IA (marketing.lead_scoring).
+ */
 class LeadScoringService
 {
-    private string $endpoint = 'https://api.anthropic.com/v1/messages';
-
-    public function scoreLead(Lead $lead): object
+    /**
+     * @return object|null {score, reason, tags}; null si el módulo no tiene IA asignada
+     *         (el lead se queda sin puntuar en vez de recibir un 0 falso).
+     */
+    public function scoreLead(Lead $lead): ?object
     {
-        $apiKey = config('services.anthropic.key') ?: (Setting::get('claude_api_key') ?? '');
-        $model  = Setting::get('claude_model') ?? config('services.anthropic.model', 'claude-opus-4-7');
-
         $prompt = $this->buildPrompt($lead);
 
-        $startTime = microtime(true);
-
         try {
-            $response = Http::withHeaders([
-                'x-api-key'         => $apiKey,
-                'anthropic-version' => '2023-06-01',
-                'content-type'      => 'application/json',
-            ])->timeout(30)->post($this->endpoint, [
-                'model'      => $model,
-                'max_tokens' => 300,
-                'temperature' => 0.2,
-                'messages'   => [['role' => 'user', 'content' => $prompt]],
+            $r = IA::enviar('marketing.lead_scoring', $prompt, [], null, [], [
+                'max_tokens' => 300, 'temperatura' => 0.2, 'timeout' => 30, 'json' => true,
             ]);
 
-            $inputTokens  = $response->json('usage.input_tokens', 0);
-            $outputTokens = $response->json('usage.output_tokens', 0);
-            $costUsd      = ($inputTokens * 0.000015) + ($outputTokens * 0.000075);
+            $this->trackCost($lead, $r);
 
-            $this->trackCost($lead, $model, $inputTokens, $outputTokens, $costUsd);
-
-            if (!$response->successful()) {
-                Log::error('[LeadScoring] API error', ['lead_id' => $lead->id, 'status' => $response->status()]);
-                return $this->failedResult();
-            }
-
-            $text  = (string) $response->json('content.0.text', '{}');
-            $clean = trim(preg_replace('/```json|```/', '', $text));
-            $data  = json_decode($clean, true);
+            $data = IA::json($r['texto']);
 
             if (!is_array($data) || !isset($data['score'])) {
-                Log::warning('[LeadScoring] JSON parse failed', ['lead_id' => $lead->id, 'raw' => $text]);
+                Log::warning('[LeadScoring] JSON parse failed', ['lead_id' => $lead->id, 'raw' => $r['texto']]);
                 return $this->failedResult();
             }
 
@@ -58,6 +41,9 @@ class LeadScoringService
                 'reason' => substr($data['reason'] ?? '', 0, 200),
                 'tags'   => $data['tags'] ?? [],
             ];
+        } catch (IANoConfigurada $e) {
+            Log::info('[LeadScoring] sin IA asignada', ['lead_id' => $lead->id, 'motivo' => $e->getMessage()]);
+            return null;
         } catch (\Throwable $e) {
             Log::error('[LeadScoring] Exception', ['lead_id' => $lead->id, 'error' => $e->getMessage()]);
             return $this->failedResult();
@@ -99,17 +85,20 @@ Tags posibles: "alta_intencion","urgente","datos_completos","datos_incompletos",
 PROMPT;
     }
 
-    private function trackCost(Lead $lead, string $model, int $inputTokens, int $outputTokens, float $cost): void
+    private function trackCost(Lead $lead, array $r): void
     {
         try {
+            $in  = (int) ($r['tokens_input'] ?? 0);
+            $out = (int) ($r['tokens_output'] ?? 0);
+
             GeneratedContent::create([
                 'company_id'         => $lead->company_id,
                 'type'               => 'copy',
                 'source_lead_id'     => $lead->id,
                 'status'             => 'used',
-                'generation_engine'  => 'claude',
-                'generation_cost_usd'=> $cost,
-                'generation_metadata'=> ['input_tokens' => $inputTokens, 'output_tokens' => $outputTokens, 'model' => $model, 'purpose' => 'lead_scoring'],
+                'generation_engine'  => $r['driver'],
+                'generation_cost_usd'=> app(IAPricingService::class)->calcularCosto((string) $r['modelo'], $in, $out),
+                'generation_metadata'=> ['input_tokens' => $in, 'output_tokens' => $out, 'model' => $r['modelo'], 'provider' => $r['proveedor'], 'purpose' => 'lead_scoring'],
                 'generated_at'       => now(),
                 'used_at'            => now(),
                 'output_text'        => 'lead_scoring',

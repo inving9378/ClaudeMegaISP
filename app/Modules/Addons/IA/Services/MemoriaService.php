@@ -5,14 +5,14 @@ namespace App\Modules\Addons\IA\Services;
 use App\Modules\Addons\IA\Models\IAConversacion;
 use App\Modules\Addons\IA\Models\IAMemoriaProyecto;
 use App\Modules\Addons\IA\Models\IAMensaje;
-use App\Modules\Addons\IA\Models\IAProveedor;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Memoria persistente del proyecto MegaISP.
  *
- * - extraerHechos(): pide al primer proveedor IA activo que parsee una
- *   conversación reciente y devuelva hechos clave en JSON.
+ * - extraerHechos(): pide a la IA asignada (Integraciones → Módulos IA, clave
+ *   ia.memoria) que parsee una conversación reciente y devuelva hechos clave en JSON.
+ *   Sin IA asignada simplemente no extrae (best-effort, nunca rompe el chat).
  * - construirContexto(): produce el bloque Markdown que se inyecta como
  *   system prompt al iniciar nuevas conversaciones.
  * - limpiarObsoletos(): identifica con IA contradicciones entre hechos
@@ -29,17 +29,8 @@ class MemoriaService
     /** Cantidad máxima de hechos a inyectar en el system prompt. */
     public const MAX_HECHOS_INYECTAR = 20;
 
-    /**
-     * Devuelve un proveedor IA activo con API key, o null si no hay ninguno.
-     */
-    protected function proveedorActivo(): ?IAProveedor
-    {
-        return IAProveedor::query()
-            ->where('activo', true)
-            ->whereNotNull('api_key')
-            ->orderBy('id')
-            ->first();
-    }
+    /** Clave en Integraciones → Módulos IA. */
+    protected const CLAVE_IA = 'ia.memoria';
 
     /**
      * Construye el bloque de memoria como Markdown listo para inyectar.
@@ -90,9 +81,8 @@ class MemoriaService
      */
     public function extraerHechos(IAConversacion $conv): \Illuminate\Support\Collection
     {
-        $proveedor = $this->proveedorActivo();
-        if (!$proveedor) {
-            Log::info('MemoriaService::extraerHechos saltado — no hay proveedor IA activo.');
+        if (!IA::configurada(self::CLAVE_IA)) {
+            Log::info('MemoriaService::extraerHechos saltado — la memoria del chat no tiene IA asignada.');
             return collect();
         }
 
@@ -125,13 +115,7 @@ class MemoriaService
                 . "Conversación:\n\n{$textoConv}";
 
         try {
-            $adaptador = IAAdaptadorFactory::crear($proveedor);
-            $resp = $adaptador->enviarMensaje(
-                historial: [],
-                mensaje: $prompt,
-                imagenes: [],
-                systemPrompt: $instr
-            );
+            $resp = IA::enviar(self::CLAVE_IA, $prompt, [], $instr);
             $texto = (string) ($resp['texto'] ?? '');
             $json = $this->extraerArrayJSON($texto);
             $hechos = json_decode($json, true);
@@ -174,8 +158,7 @@ class MemoriaService
      */
     public function limpiarObsoletos(): int
     {
-        $proveedor = $this->proveedorActivo();
-        if (!$proveedor) {
+        if (!IA::configurada(self::CLAVE_IA)) {
             return 0;
         }
 
@@ -195,13 +178,7 @@ class MemoriaService
                 . "Ejemplo: [3, 17, 22]. Si no hay contradicciones responde [].\n\nHechos:\n\n{$lista}";
 
         try {
-            $adaptador = IAAdaptadorFactory::crear($proveedor);
-            $resp = $adaptador->enviarMensaje(
-                historial: [],
-                mensaje: $prompt,
-                imagenes: [],
-                systemPrompt: 'Eres un detector de contradicciones. Responde solo JSON válido.'
-            );
+            $resp = IA::enviar(self::CLAVE_IA, $prompt, [], 'Eres un detector de contradicciones. Responde solo JSON válido.');
             $texto = (string) ($resp['texto'] ?? '');
             $json = $this->extraerArrayJSON($texto);
             $ids = json_decode($json, true);

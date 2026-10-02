@@ -4,24 +4,23 @@ namespace App\Modules\Addons\Marketing\Services;
 
 use App\Modules\Addons\Marketing\Models\Campaign;
 use App\Modules\Addons\Marketing\Models\MarketingTemplate;
-use Illuminate\Support\Facades\Http;
+use App\Modules\Addons\IA\Services\IA;
+use App\Modules\Addons\IA\Services\IANoConfigurada;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Copys e imagen de campañas. La IA la decide Integraciones → Módulos IA
+ * (clave marketing.contenido).
+ */
 class AIContentService
 {
-    private string $apiKey;
-    private string $model;
-    private string $endpoint = 'https://api.anthropic.com/v1/messages';
-
-    public function __construct()
-    {
-        $this->apiKey = config('services.anthropic.key', '');
-        $this->model  = config('services.anthropic.model');
-    }
 
     /**
      * Genera 3 variaciones de copy para una campaña usando una plantilla.
      * Devuelve array de ['index' => int, 'text' => string].
+     *
+     * @throws IANoConfigurada si el módulo no tiene IA asignada (el controlador avisa;
+     *         no se guardan copias falsas marcadas como generadas por IA).
      */
     public function generateCopy(Campaign $campaign, MarketingTemplate $template): array
     {
@@ -55,27 +54,21 @@ Cada variación debe ser diferente en estructura y palabras pero comunicar la mi
 Máximo 160 caracteres para WhatsApp. Español neutro latinoamericano, tono cercano y directo.
 PROMPT;
 
-        $response = Http::withHeaders([
-            'x-api-key'         => $this->apiKey,
-            'anthropic-version' => '2023-06-01',
-            'content-type'      => 'application/json',
-        ])->timeout(30)->post($this->endpoint, [
-            'model'      => $this->model,
-            'max_tokens' => 1024,
-            'messages'   => [['role' => 'user', 'content' => $prompt]],
-        ]);
-
-        if (!$response->successful()) {
+        try {
+            $r = IA::enviar('marketing.contenido', $prompt, [], null, [], [
+                'max_tokens' => 1024, 'timeout' => 30, 'json' => true,
+            ]);
+        } catch (IANoConfigurada $e) {
+            throw $e;
+        } catch (\Throwable $e) {
             Log::error('AIContentService::generateCopy error', [
-                'status'      => $response->status(),
+                'error'       => $e->getMessage(),
                 'campaign_id' => $campaign->id,
             ]);
             return $this->fallbackVariations($template->base_copy ?? '');
         }
 
-        $text  = (string) $response->json('content.0.text', '{}');
-        $clean = trim(preg_replace('/```json|```/', '', $text));
-        $data  = json_decode($clean, true);
+        $data = IA::json($r['texto']);
 
         return (is_array($data) && isset($data['variations']))
             ? $data['variations']
@@ -96,21 +89,17 @@ Style: photorealistic, professional marketing photography, warm and welcoming, m
 Output ONLY the image prompt text, nothing else, maximum 200 characters.
 PROMPT;
 
-        $response = Http::withHeaders([
-            'x-api-key'         => $this->apiKey,
-            'anthropic-version' => '2023-06-01',
-            'content-type'      => 'application/json',
-        ])->timeout(15)->post($this->endpoint, [
-            'model'      => $this->model,
-            'max_tokens' => 150,
-            'messages'   => [['role' => 'user', 'content' => $prompt]],
-        ]);
+        $porDefecto = "happy family using fast internet at home in {$zone} Mexico, modern living room, fiber optic cables, photorealistic, warm lighting";
 
-        if (!$response->successful()) {
-            return "happy family using fast internet at home in {$zone} Mexico, modern living room, fiber optic cables, photorealistic, warm lighting";
+        // Sin IA asignada o con error: prompt fijo (la imagen se sigue pudiendo generar).
+        try {
+            $r = IA::enviar('marketing.contenido', $prompt, [], null, [], [
+                'max_tokens' => 150, 'timeout' => 15,
+            ]);
+            return trim($r['texto']) ?: $porDefecto;
+        } catch (\Throwable $e) {
+            return $porDefecto;
         }
-
-        return trim((string) $response->json('content.0.text', ''));
     }
 
     private function fallbackVariations(string $baseCopy): array

@@ -2,9 +2,9 @@
 
 namespace App\Modules\Addons\WarRoom\Services;
 
+use App\Modules\Addons\IA\Services\IA;
 use App\Modules\Addons\WarRoom\Models\Meeting;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class ModeratorAi
@@ -43,13 +43,6 @@ class ModeratorAi
         }
 
         try {
-            $apiKey = config('services.anthropic.key');
-            $model  = config('services.anthropic.model', 'claude-sonnet-4-6');
-
-            if (! $apiKey) {
-                throw new \RuntimeException('Sin CLAUDE_API_KEY');
-            }
-
             $recentTasks = $meeting->actionItems()
                 ->where('section_key', $section->section_key)
                 ->latest()
@@ -63,18 +56,13 @@ class ModeratorAi
                     . "Sugiere UNA acción concreta para el moderador (máx 20 palabras, español neutral). "
                     . "Objetivo: que la junta avance sin atascarse.";
 
-            $response = Http::withHeaders([
-                'x-api-key'         => $apiKey,
-                'anthropic-version' => '2023-06-01',
-                'content-type'      => 'application/json',
-            ])->timeout(8)->post('https://api.anthropic.com/v1/messages', [
-                'model'      => $model,
-                'max_tokens' => 80,
-                'messages'   => [['role' => 'user', 'content' => $prompt]],
+            // IA asignada en Integraciones → Módulos IA. Sin asignación (o si falla) se usa
+            // la sugerencia fija: la junta nunca se queda esperando a la IA (timeout 8s, sin reintentos).
+            $r = IA::enviar('warroom.moderador', $prompt, [], null, [], [
+                'max_tokens' => 80, 'timeout' => 8, 'reintentos' => 0,
             ]);
 
-            $text = $response->json('content.0.text', '');
-            return trim($text) ?: $this->fallback($ratio);
+            return trim($r['texto']) ?: $this->fallback($ratio);
         } catch (\Throwable $e) {
             Log::debug('ModeratorAi fallback', ['err' => $e->getMessage()]);
             return $this->fallback($ratio);

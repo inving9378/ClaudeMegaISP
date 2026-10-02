@@ -3,6 +3,9 @@
 namespace App\Modules\Core\ModuleManager\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Addons\IA\Services\IA;
+use App\Modules\Addons\IA\Services\IANoConfigurada;
+use App\Modules\Addons\IA\Services\IAPricingService;
 use App\Modules\Core\ModuleManager\Models\MigrationLog;
 use App\Modules\Core\ModuleManager\Models\ModuleRegistry;
 use App\Modules\Core\ModuleManager\Services\ModuleLifecycleService;
@@ -14,13 +17,11 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Http;
 
 class ModuleManagerController extends Controller
 {
     /** Claude Sonnet — coincide con app/Http/Controllers/Module/IA/IAChatController.php */
-    private const CLAUDE_MODEL_DEFAULT = 'claude-sonnet-4-6';
-    private const CLAUDE_MAX_TOKENS = 4096;
+    private const IA_MAX_TOKENS = 4096;
 
     public function index()
     {
@@ -51,13 +52,15 @@ class ModuleManagerController extends Controller
         if (! file_exists($migrationDoc)) {
             return response()->json([
                 'success' => false,
-                'error' => "Este módulo no tiene MIGRATION.md — nada que pasarle a Claude.",
+                'error' => "Este módulo no tiene MIGRATION.md — nada que pasarle a la IA.",
             ], 422);
         }
 
-        $apiKey = config('services.anthropic.key', '');
-        if (empty($apiKey)) {
-            return response()->json(['success' => false, 'error' => 'CLAUDE_API_KEY no configurada en .env'], 500);
+        // La IA la decide Integraciones → Módulos IA (modulos.plan_migracion).
+        try {
+            IA::proveedorPara('modulos.plan_migracion');
+        } catch (IANoConfigurada $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 422);
         }
 
         $log = MigrationLog::create([
@@ -76,38 +79,15 @@ class ModuleManagerController extends Controller
                 . "verificar). Sé conciso y operativo: cada paso debe ser ejecutable. "
                 . "No inventes archivos que no existan según el documento.";
 
-            $response = Http::withHeaders([
-                'x-api-key' => $apiKey,
-                'anthropic-version' => '2023-06-01',
-                'content-type' => 'application/json',
-            ])->timeout(60)->post('https://api.anthropic.com/v1/messages', [
-                'model' => config('services.anthropic.model', self::CLAUDE_MODEL_DEFAULT),
-                'max_tokens' => self::CLAUDE_MAX_TOKENS,
-                'system' => $systemPrompt,
-                'messages' => [[
-                    'role' => 'user',
-                    'content' => "Manifiesto del módulo:\n\n```json\n{$manifestJson}\n```\n\n"
-                        . "Contenido de MIGRATION.md:\n\n```md\n{$migrationMd}\n```",
-                ]],
-            ]);
+            $r = IA::enviar('modulos.plan_migracion',
+                "Manifiesto del módulo:\n\n```json\n{$manifestJson}\n```\n\n"
+                    . "Contenido de MIGRATION.md:\n\n```md\n{$migrationMd}\n```",
+                [], $systemPrompt, [], ['max_tokens' => self::IA_MAX_TOKENS, 'timeout' => 60]);
 
-            if (! $response->successful()) {
-                $log->update([
-                    'status' => 'failed',
-                    'completed_at' => Carbon::now(),
-                    'notes' => 'Claude API error ' . $response->status() . ': ' . $response->body(),
-                ]);
-                return response()->json([
-                    'success' => false,
-                    'error' => 'Claude API respondió ' . $response->status(),
-                ], 502);
-            }
-
-            $payload = $response->json();
-            $inputTokens = (int) ($payload['usage']['input_tokens'] ?? 0);
-            $outputTokens = (int) ($payload['usage']['output_tokens'] ?? 0);
-            $cost = MigrationLog::computeCost($inputTokens, $outputTokens);
-            $text = $payload['content'][0]['text'] ?? '';
+            $inputTokens = (int) ($r['tokens_input'] ?? 0);
+            $outputTokens = (int) ($r['tokens_output'] ?? 0);
+            $cost = app(IAPricingService::class)->calcularCosto((string) $r['modelo'], $inputTokens, $outputTokens);
+            $text = $r['texto'];
 
             $log->update([
                 'status' => 'completed',

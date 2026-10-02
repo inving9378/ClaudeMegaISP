@@ -3,25 +3,19 @@
 namespace App\Modules\Addons\Marketing\Services;
 
 use App\Modules\Addons\Marketing\Models\Lead;
-use Illuminate\Support\Facades\Http;
+use App\Modules\Addons\IA\Services\IA;
+use App\Modules\Addons\IA\Services\IANoConfigurada;
 use Illuminate\Support\Facades\Log;
 
 class LeadQualifierService
 {
-    private string $apiKey;
-    private string $model;
-    private string $endpoint = 'https://api.anthropic.com/v1/messages';
-
-    public function __construct()
-    {
-        $this->apiKey = config('services.anthropic.key', '');
-        $this->model  = config('services.anthropic.model');
-    }
-
     /**
-     * Califica un lead analizando su historial de conversación con Claude.
+     * Califica un lead analizando su historial de conversación con la IA asignada
+     * en Integraciones → Módulos IA (marketing.lead_calificacion).
      * Actualiza qualification_score, qualification_notes y status en el modelo.
      * Devuelve el array de resultado completo.
+     *
+     * @throws IANoConfigurada si el módulo no tiene IA asignada (el controlador avisa).
      */
     public function qualify(Lead $lead): array
     {
@@ -64,27 +58,21 @@ interest_level válidos: "high", "medium", "low", "unknown"
 timeline válidos: "immediate", "this_week", "this_month", "future", "unknown"
 PROMPT;
 
-        $response = Http::withHeaders([
-            'x-api-key'         => $this->apiKey,
-            'anthropic-version' => '2023-06-01',
-            'content-type'      => 'application/json',
-        ])->timeout(20)->post($this->endpoint, [
-            'model'      => $this->model,
-            'max_tokens' => 512,
-            'messages'   => [['role' => 'user', 'content' => $prompt]],
-        ]);
-
-        if (!$response->successful()) {
+        try {
+            $r = IA::enviar('marketing.lead_calificacion', $prompt, [], null, [], [
+                'max_tokens' => 512, 'timeout' => 20, 'json' => true,
+            ]);
+        } catch (IANoConfigurada $e) {
+            throw $e;
+        } catch (\Throwable $e) {
             Log::error('LeadQualifierService::qualify error', [
                 'lead_id' => $lead->id,
-                'status'  => $response->status(),
+                'error'   => $e->getMessage(),
             ]);
             return $this->fallbackQualification();
         }
 
-        $text  = (string) $response->json('content.0.text', '{}');
-        $clean = trim(preg_replace('/```json|```/', '', $text));
-        $data  = json_decode($clean, true);
+        $data = IA::json($r['texto']);
 
         if (!is_array($data) || !isset($data['score'])) {
             return $this->fallbackQualification();

@@ -38,8 +38,12 @@ class LeadController extends Controller
 
     public function qualify(int $id): JsonResponse
     {
-        $lead   = Lead::findOrFail($id);
-        $result = $this->qualifier->qualify($lead);
+        $lead = Lead::findOrFail($id);
+        try {
+            $result = $this->qualifier->qualify($lead);
+        } catch (\App\Modules\Addons\IA\Services\IANoConfigurada $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         return response()->json([
             'message'        => 'Lead calificado correctamente.',

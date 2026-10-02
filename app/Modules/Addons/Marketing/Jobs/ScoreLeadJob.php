@@ -32,6 +32,9 @@ class ScoreLeadJob implements ShouldQueue
         }
 
         $result = $scorer->scoreLead($lead);
+        if ($result === null) {
+            return; // sin IA asignada en Integraciones → Módulos IA: el lead se queda sin puntuar
+        }
 
         $lead->update([
             'score'        => $result->score,
