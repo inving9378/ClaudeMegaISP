@@ -191,3 +191,86 @@ Antes de volver a intentar: toca el ícono de "ojo" en el campo de contraseña p
 plano y confirmar que diga exactamente lo que David espera, sin mayúsculas ni espacios de más —
 esto ya no debería hacer falta con el fix, pero sirve para descartar del todo cualquier duda
 mientras se confirma.
+
+## 2026-10-01 22:30 — Backend: firmar documentos + tomar exámenes desde la app
+
+### Origen
+
+Tras resolver el bundle congelado y el login (bcrypt), David probó la app real y reportó una
+lista larga de secciones "sin registros". Se confundió inicialmente con un problema de
+responsive de la ficha web — David corrigió directamente: *"a ver la app que tiene que ver con
+el responsive de la web, no muestra los datos como esta en la web, es lo que tienes que
+corregir"*. Al volver a los endpoints reales de la app con un token Sanctum real, los 11
+endpoints de solo-lectura ya devolvían datos correctos — el hueco real eran **Documentos**
+(se veían, pero sin poder firmar ni llenar campos) y **Academia** (no dejaba tomar ningún
+curso). Se preguntó a David qué construir; eligió ambas: "Firmar documentos en la app" +
+"Tomar cursos/exámenes en la app".
+
+### Hallazgo arquitectónico
+
+Las rutas web que ya hacen esto (`TalentoEmployeeDocumentController::sign/completar`,
+`TalentoAcademyController::examForStudent/submitExam/myAttempts`) viven dentro del grupo
+`Route::middleware(['web','auth','check_route_permission'])` — autenticación por **sesión**,
+no por Bearer token. La app no puede llamarlas directo.
+
+### Fix — sin duplicar lógica
+
+8 rutas nuevas bajo el grupo Sanctum ya existente (`talento/api/portal/*`), en
+`TalentoMobileEquipoController`, que **delegan directo** a los métodos públicos de los
+controllers de siempre (misma validación, mismo servicio, mismo criterio
+uno-mismo/supervisor/staff). Cero lógica de negocio nueva.
+
+### Verificación (cuenta demo real, token Sanctum real, servidor del worktree :8081)
+
+- `documentos/detalle`: 7 documentos reales con huecos y slots de firma — antes invisibles
+  para la app (solo tenía el listado plano sin esos campos).
+- Firmar un slot real vía la API → `pendiente_firma` siguió en `true` porque faltaba el otro
+  slot (correcto, sin carve-outs). Imagen de firma servida con `content-type: image/png`.
+- Completar huecos de un documento real → aceptado.
+- Examen sintético (creado y borrado solo para la prueba): respuesta correcta → score 100/
+  aprobado; incorrecta → score 0/reprobado; historial de intentos correcto.
+- Toda la data de prueba (firma, examen, datos_extra, tokens) se limpió al terminar — la
+  cuenta demo quedó exactamente como se encontró.
+
+### Commits
+
+`ff473605` (rama `feature/talento-app-firma-examenes`) + merge `1c2603df` a `main`.
+
+### Pendiente (mismo item, sigue en esta sesión)
+
+UI en React Native: pantalla de firma (con `react-native-signature-canvas`, ya instalado) y
+pantalla de toma de examen, consumiendo estos 8 endpoints nuevos. Luego: recompilar APK,
+verificar MD5, republicar.
+
+## 2026-10-01 23:10 — App móvil: pantallas de Firmar documento y Tomar examen (cierre)
+
+Construidas las 3 pantallas nuevas en React Native (`FirmarDocumentoScreen`, `CursoDetalleScreen`,
+`TomarExamenScreen`) consumiendo los 8 endpoints del backend documentados arriba. `Documentos`
+dejó de ser un listado mudo: cada fila ahora se abre y permite llenar campos + firmar con el dedo
+(pad real, `react-native-signature-canvas`, sin riesgo de build nativo — confirmado antes de
+instalarlo que solo depende de `react-native-webview`, ya usado en el proyecto). `Academia` dejó
+de ser un catálogo estático: cada curso abre su detalle con materiales + botón para tomar su
+examen, con preguntas de opción única/múltiple, envío y calificación al instante.
+
+Verificación completa antes de tocar nada en el dispositivo:
+- `bundle:android` corrió limpio (con los stubs temporales ya conocidos para
+  `rn-fetch-blob`/`react-native-reanimated`, borrados después de compilar).
+- Las cadenas nuevas (rutas de API, textos de las pantallas) confirmadas DENTRO del bundle
+  empaquetado en el APK (no solo en el build output).
+- `gradlew assembleDebug` exitoso; `react-native-signature-canvas` no agregó ningún módulo
+  nativo Android (confirmado en el log de Gradle).
+- MD5 idéntico en las 3 paradas: build de Gradle → copia en `public/downloads/` → descarga
+  fresca por HTTP.
+- Versión subida a **1.8 (versionCode 108)** para distinguirla de la anterior al revisar en el
+  teléfono; fila nueva insertada en `talento_app_releases` (activa, las previas desactivadas) con
+  el changelog real, así que el aviso de actualización dentro de la app también la va a ofrecer.
+
+**APK:** `http://192.168.105.11/downloads/talento-v1.8.apk`
+
+Commit `0fdd132` en el repo local `/home/meganet/TalentoEquipo` (rama `master`, sin remoto).
+
+### Pendiente de este item
+
+Validación visual de David en el teléfono real: abrir un documento pendiente, llenar un campo,
+firmar con el dedo, confirmar que el recuadro queda marcado como firmado; entrar a un curso,
+tomar un examen y ver la calificación.
