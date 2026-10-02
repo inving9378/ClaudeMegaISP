@@ -3,21 +3,21 @@
 namespace App\Modules\Addons\DevTools\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Addons\IA\Services\IA;
+use App\Modules\Addons\IA\Services\IANoConfigurada;
 use App\Modules\Core\ModuleManager\Models\ModuleRegistry;
 use App\Modules\Core\ModuleManager\Services\ModuleManagerService;
 use App\Services\TerminalIdentityTokenService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class DevToolsController extends Controller
 {
     /** Mismo default que el resto de la app — IAChatController y ModuleManager. */
-    private const CLAUDE_MODEL_DEFAULT = 'claude-sonnet-4-6';
-    private const CLAUDE_MAX_TOKENS = 2048;
+    private const IA_MAX_TOKENS = 2048;
 
     /** Cookie de identidad de terminal — Fase 1 ttyd-por-usuario (item #9991177). */
     private const TERMINAL_TOKEN_COOKIE = 'megaisp_term_token';
@@ -81,22 +81,14 @@ class DevToolsController extends Controller
      * el historial completo. Sólo DESARROLLADOR puede invocarlo.
      *
      * Inyecta el contexto del proyecto (CLAUDE.md + estado git + módulos
-     * activos) como segundo bloque del system prompt, marcado con
-     * cache_control=ephemeral para que las llamadas subsiguientes dentro
-     * de ~5 min sólo paguen ~10% del costo de input por ese bloque.
+     * activos) en el system prompt. La IA (integración + modelo) se decide en
+     * Integraciones → Módulos IA (devtools.chat). Formato neutro de proveedor:
+     * ya no usa el prompt caching propio de Anthropic.
      */
     public function chat(Request $request): JsonResponse
     {
         if (! $this->isAuthorized()) {
             return response()->json(['success' => false, 'error' => 'Forbidden'], 403);
-        }
-
-        $apiKey = config('services.anthropic.key', '');
-        if (empty($apiKey)) {
-            return response()->json([
-                'success' => false,
-                'error' => 'CLAUDE_API_KEY no configurada (config services.anthropic.key)',
-            ], 500);
         }
 
         $baseSystem = "Eres el asistente de desarrollo de MegaISP (Sistema Medussa).\n"
@@ -114,12 +106,11 @@ class DevToolsController extends Controller
             . "Tienes acceso al contexto actual del proyecto en el segundo bloque del system prompt — "
             . "úsalo para referencias precisas a paths, convenciones y estado del repo.";
 
-        $messages = [];
+        $historial = [];
         foreach ($request->input('history', []) as $msg) {
-            $role = $msg['role'] ?? 'user';
             $content = $msg['content'] ?? '';
-            if ($content !== '') {
-                $messages[] = ['role' => $role, 'content' => $content];
+            if (is_string($content) && $content !== '') {
+                $historial[] = ['rol' => ($msg['role'] ?? 'user') === 'assistant' ? 'assistant' : 'user', 'contenido' => $content];
             }
         }
         $userMsg = trim((string) $request->input('message', ''));
@@ -128,69 +119,30 @@ class DevToolsController extends Controller
             return response()->json(['success' => false, 'error' => 'Mensaje vacío'], 422);
         }
 
-        // Si hay attachments, transformar el último mensaje user a content blocks
-        // multimodales (imagen=base64 vision; archivos texto=text con cita).
-        if (! empty($attachments)) {
-            $contentBlocks = $this->buildAttachmentBlocks($attachments);
-            // Bloque de texto del usuario al final — Claude vision sugiere
-            // poner imágenes antes de la pregunta para mejor calidad.
-            if ($userMsg !== '') {
-                $contentBlocks[] = ['type' => 'text', 'text' => $userMsg];
-            } elseif (empty($contentBlocks)) {
-                // Sin texto ni bloques válidos → cae a mensaje plano vacío
-                $messages[] = ['role' => 'user', 'content' => '(adjunto sin contenido extraíble)'];
-            }
-            if (! empty($contentBlocks)) {
-                $messages[] = ['role' => 'user', 'content' => $contentBlocks];
-            }
-        } else {
-            $messages[] = ['role' => 'user', 'content' => $userMsg];
+        // Adjuntos: imágenes → visión; archivos de texto → se agregan al mensaje.
+        [$imagenes, $textos] = $this->buildAdjuntos(is_array($attachments) ? $attachments : []);
+        $mensaje = trim(implode("\n\n", array_filter([...$textos, $userMsg])));
+        if ($mensaje === '') {
+            $mensaje = '(adjunto sin contenido extraíble)';
         }
 
         try {
-            $context = $this->gatherContext();
-            $systemBlocks = [
-                ['type' => 'text', 'text' => $baseSystem],
-                [
-                    'type' => 'text',
-                    'text' => $this->formatContextForPrompt($context),
-                    'cache_control' => ['type' => 'ephemeral'],
-                ],
-            ];
+            $system = $baseSystem . "\n\n" . $this->formatContextForPrompt($this->gatherContext());
 
-            $endpoint = config('services.anthropic.endpoint', 'https://api.anthropic.com/v1/messages');
-
-            $response = Http::withHeaders([
-                'x-api-key' => $apiKey,
-                'anthropic-version' => '2023-06-01',
-                'content-type' => 'application/json',
-            ])->timeout(60)->post($endpoint, [
-                'model' => config('services.anthropic.model', self::CLAUDE_MODEL_DEFAULT),
-                'max_tokens' => self::CLAUDE_MAX_TOKENS,
-                'system' => $systemBlocks,
-                'messages' => $messages,
+            $r = IA::enviar('devtools.chat', $mensaje, $imagenes, $system, $historial, [
+                'max_tokens' => self::IA_MAX_TOKENS, 'timeout' => 60,
             ]);
-
-            if (! $response->successful()) {
-                return response()->json([
-                    'success' => false,
-                    'error' => 'Claude API respondió ' . $response->status(),
-                    'body' => mb_substr($response->body(), 0, 500),
-                ], 502);
-            }
-
-            $payload = $response->json();
-            $text = $payload['content'][0]['text'] ?? '';
-            $usage = $payload['usage'] ?? [];
 
             return response()->json([
                 'success' => true,
-                'reply' => $text,
-                'input_tokens' => (int) ($usage['input_tokens'] ?? 0),
-                'output_tokens' => (int) ($usage['output_tokens'] ?? 0),
-                'cache_creation_input_tokens' => (int) ($usage['cache_creation_input_tokens'] ?? 0),
-                'cache_read_input_tokens' => (int) ($usage['cache_read_input_tokens'] ?? 0),
+                'reply' => $r['texto'],
+                'input_tokens' => (int) ($r['tokens_input'] ?? 0),
+                'output_tokens' => (int) ($r['tokens_output'] ?? 0),
+                'cache_creation_input_tokens' => 0,
+                'cache_read_input_tokens' => 0,
             ]);
+        } catch (IANoConfigurada $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 422);
         } catch (\Throwable $e) {
             return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
@@ -440,17 +392,19 @@ class DevToolsController extends Controller
     }
 
     /**
-     * Convierte la lista de attachments del request a content blocks que la
-     * Claude API entiende. Imágenes → bloque "image" base64 (vision).
-     * Archivos de texto → bloque "text" con el contenido entre fences.
-     * Archivos binarios sin extracción → bloque "text" con placeholder.
+     * Separa los attachments del request en formato neutro de IA:
+     * imágenes → [['mime','data']] (visión); archivos de texto → texto con el
+     * contenido entre fences; binarios sin extracción → placeholder.
      *
      * El payload espera attachments con keys: type ('image'|'file'),
      * name, mimeType, base64.
+     *
+     * @return array{0: array<int, array{mime:string, data:string}>, 1: array<int, string>}
      */
-    private function buildAttachmentBlocks(array $attachments): array
+    private function buildAdjuntos(array $attachments): array
     {
-        $blocks = [];
+        $imagenes = [];
+        $textos = [];
         foreach ($attachments as $att) {
             $type = $att['type'] ?? '';
             $b64 = $att['base64'] ?? '';
@@ -460,14 +414,7 @@ class DevToolsController extends Controller
                 continue;
             }
             if ($type === 'image') {
-                $blocks[] = [
-                    'type' => 'image',
-                    'source' => [
-                        'type' => 'base64',
-                        'media_type' => $mime !== '' ? $mime : 'image/png',
-                        'data' => $b64,
-                    ],
-                ];
+                $imagenes[] = ['mime' => $mime !== '' ? $mime : 'image/png', 'data' => $b64];
                 continue;
             }
             // type === 'file' → intentar decodificar como texto.
@@ -482,23 +429,16 @@ class DevToolsController extends Controller
                 // archivos de código razonables, y evita exceder context window
                 // si el desarrollador adjunta logs gigantes.
                 $excerpt = mb_substr($raw, 0, 50000);
-                $blocks[] = [
-                    'type' => 'text',
-                    'text' => "[Archivo adjunto: {$name}]\n```\n{$excerpt}\n```",
-                ];
+                $textos[] = "[Archivo adjunto: {$name}]\n```\n{$excerpt}\n```";
             } else {
-                $blocks[] = [
-                    'type' => 'text',
-                    'text' => "[Archivo adjunto binario: {$name} ({$mime}) — contenido no extraído]",
-                ];
+                $textos[] = "[Archivo adjunto binario: {$name} ({$mime}) — contenido no extraído]";
             }
         }
-        return $blocks;
+        return [$imagenes, $textos];
     }
 
     /**
-     * Convierte el contexto en el bloque de texto que se cachea en el
-     * system prompt.
+     * Convierte el contexto en el bloque de texto que va en el system prompt.
      */
     private function formatContextForPrompt(array $ctx): string
     {

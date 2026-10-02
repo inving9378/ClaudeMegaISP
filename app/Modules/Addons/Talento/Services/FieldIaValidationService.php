@@ -2,7 +2,8 @@
 
 namespace App\Modules\Addons\Talento\Services;
 
-use App\Modules\Addons\Marketing\Services\ClaudeApiClient;
+use App\Modules\Addons\IA\Services\IA;
+use App\Modules\Addons\IA\Services\IANoConfigurada;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderIaValidation;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderMedia;
 use App\Modules\Addons\Talento\Support\FieldFlowEntity;
@@ -12,7 +13,11 @@ use Illuminate\Support\Facades\Storage;
 
 class FieldIaValidationService
 {
-    public function __construct(private ClaudeApiClient $claude) {}
+    /** Clave en Integraciones → Módulos IA (lee SN/MAC del módem y nombre de la INE). */
+    private const CLAVE_IA = 'talento.lectura_serie';
+
+    /** Se marca si alguna lectura no se hizo por falta de IA asignada. */
+    private bool $sinIa = false;
 
     /**
      * Run IA validation on captured media for a work order.
@@ -90,6 +95,16 @@ class FieldIaValidationService
             ];
         }
 
+        // Sin IA asignada las lecturas de SN/INE no se hicieron: que el supervisor lo sepa
+        // en vez de ver la orden "sin observaciones".
+        if ($this->sinIa) {
+            $flags[] = [
+                'field'    => 'ia',
+                'issue'    => 'Validación con IA no realizada (sin IA asignada en Integraciones → Módulos IA): verificar SN e INE manualmente',
+                'severity' => 'warning',
+            ];
+        }
+
         // 3. General media completeness check
         $mediaTypes = $mediaQuery()->pluck('type')->toArray();
         $required = ['presentation', 'completion'];
@@ -134,7 +149,7 @@ class FieldIaValidationService
     }
 
     /**
-     * Run OCR via Claude vision on a media file.
+     * Run OCR via the vision model assigned in Integraciones → Módulos IA.
      * Sensitive files are decrypted before reading and never logged.
      */
     private function ocrImage(TalentoWorkOrderMedia $media, string $instruction, bool $isSensitive = false): array
@@ -152,27 +167,14 @@ class FieldIaValidationService
             $base64   = base64_encode($contents);
             $mimeType = Storage::disk('local')->mimeType($path) ?: 'image/jpeg';
 
-            $response = $this->claude->messages([
-                'model'      => config('services.anthropic.model', 'claude-sonnet-4-6'),
+            $r = IA::enviar(self::CLAVE_IA, $instruction, [['mime' => $mimeType, 'data' => $base64]], null, [], [
                 'max_tokens' => 256,
-                'messages'   => [[
-                    'role'    => 'user',
-                    'content' => [
-                        [
-                            'type'  => 'image',
-                            'source' => [
-                                'type'       => 'base64',
-                                'media_type' => $mimeType,
-                                'data'       => $base64,
-                            ],
-                        ],
-                        ['type' => 'text', 'text' => $instruction],
-                    ],
-                ]],
             ]);
 
-            $text = $response['content'][0]['text'] ?? '';
-            return ['text' => $text];
+            return ['text' => $r['texto']];
+        } catch (IANoConfigurada $e) {
+            $this->sinIa = true;
+            return ['text' => '', 'error' => 'sin_ia'];
         } catch (\Throwable $e) {
             Log::warning('Talento IA validation OCR failed', [
                 'media_id' => $media->id,
