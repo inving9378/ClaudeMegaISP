@@ -2,8 +2,8 @@
 
 namespace App\Modules\Addons\Payments\Services\Extraction;
 
-use App\Modules\Addons\IA\Models\IAProveedor;
-use App\Modules\Addons\IA\Services\IAAdaptadorFactory;
+use App\Modules\Addons\IA\Services\IA;
+use App\Modules\Addons\IA\Services\IANoConfigurada;
 use App\Modules\Addons\Payments\Services\Extraction\Profiles\SpeiTransferProfile;
 use Illuminate\Support\Facades\Log;
 
@@ -13,14 +13,15 @@ use Illuminate\Support\Facades\Log;
  * ALCANCE: SOLO lee una imagen y devuelve los campos estructurados con su
  * confianza. NO aplica pagos, NO busca cliente, NO decide nada.
  *
- * Usa el Hub de IA compartido (IAAdaptadorFactory), mismo patrón ya probado en
- * FleetDocumentOcrService — NO un cliente propio de un solo proveedor. Antes
- * usaba ClaudeApiClient hardcodeado a Anthropic: si esa cuenta se quedaba sin
- * crédito, TODO el módulo de comprobantes quedaba ciego aunque hubiera otro
- * proveedor activo (encontrado 2026-09-28 probando en vivo). Con el Hub, cae
- * a cualquier proveedor activo que soporte imágenes — igual límite ya conocido
- * que Flotas: PDF solo lo lee un proveedor driver=claude (los demás no
- * soportan ese bloque), fotos/imágenes sí con cualquiera.
+ * La IA (integración + modelo) se decide en Integraciones → Módulos IA (clave
+ * pagos.comprobantes, vía IA::enviar) — NO un cliente propio de un solo
+ * proveedor. Que el proveedor lea imágenes y PDF lo valida IA (requisitos de
+ * la clave): OpenAI y Claude leen ambos.
+ *
+ * Si no se pudo leer, el resultado trae ok=false + 'error' y, si la causa es
+ * que no hay IA asignada, 'motivo' = 'sin_ia'. Los jobs de conciliación NO lo
+ * tratan como "no es comprobante": avisan a DEV/super-admin con el motivo
+ * (ComprobanteNoLeidoNotifier).
  *
  * Extensible por perfiles: para soportar Oxxo/CEP se agrega un
  * ReceiptProfileInterface y se registra en $profiles; el motor no cambia.
@@ -52,16 +53,13 @@ class PaymentReceiptExtractor
      * lista en 'unreadable'. Cualquier error (API caída, key inválida, JSON
      * malformado) → ok=false + 'error' con mensaje claro, jamás datos inventados.
      *
-     * Acepta imagen (JPEG/PNG/WebP) con cualquier proveedor activo que soporte
-     * imágenes. PDF SOLO lo lee un proveedor driver=claude (los demás
-     * adaptadores no soportan ese bloque) — Claude lo lee nativo y multipágina;
-     * sin un proveedor Claude activo, un PDF falla con mensaje claro (nunca
-     * se intenta como imagen).
+     * Acepta imagen (JPEG/PNG/WebP) y PDF con la IA asignada a la clave
+     * pagos.comprobantes.
      *
      * @param string $fileBytes     Contenido binario del comprobante (imagen o PDF).
      * @param string $mimeType      Ej. image/jpeg, image/png, application/pdf.
      * @param string $documentType  Perfil de extracción (default spei_transfer).
-     * @return array {document_type, ok, fields:{campo:{value,confidence}}, unreadable[], error, raw}
+     * @return array {document_type, ok, fields:{campo:{value,confidence}}, unreadable[], error, motivo, raw, model, provider}
      */
     public function extract(
         string $fileBytes,
@@ -77,38 +75,27 @@ class PaymentReceiptExtractor
             return $this->fail($documentType, 'El comprobante está vacío o no se pudo leer.');
         }
 
-        $proveedor = $this->resolverProveedor();
-        if (!$proveedor) {
-            return $this->fail(
-                $documentType,
-                'No hay un proveedor de IA activo con soporte de imágenes. Configúralo en /ia/configuracion.'
-            );
-        }
-
         $mime = strtolower(trim($mimeType));
-        if ($mime === 'application/pdf' && $proveedor->driver !== 'claude') {
-            return $this->fail(
-                $documentType,
-                'El proveedor de IA configurado no lee PDF. Sube el comprobante como imagen (JPG/PNG) '
-                . 'o activa un proveedor Claude en /ia/configuracion.'
-            );
-        }
 
         try {
-            $adaptador = IAAdaptadorFactory::crear($proveedor);
-
-            $resultado = $adaptador->enviarMensaje(
-                [],
+            $r = IA::enviar(
+                'pagos.comprobantes',
                 $profile->prompt(),
                 [['mime' => $mime ?: 'image/jpeg', 'data' => base64_encode($fileBytes)]],
-                'Responde únicamente con el JSON solicitado, sin explicaciones.'
+                'Responde únicamente con el JSON solicitado, sin explicaciones.',
+                [],
+                ['json' => true]
             );
 
-            return $this->parse($profile, (string) ($resultado['texto'] ?? ''));
+            return $this->parse($profile, (string) ($r['texto'] ?? '')) + [
+                'model'    => $r['modelo'] ?? null,
+                'provider' => $r['proveedor'] ?? null,
+            ];
+        } catch (IANoConfigurada $e) {
+            return $this->fail($documentType, $e->getMessage()) + ['motivo' => 'sin_ia'];
         } catch (\Throwable $e) {
-            Log::channel('claude')->warning('PaymentReceiptExtractor falló', [
+            Log::warning('PaymentReceiptExtractor falló', [
                 'document_type' => $documentType,
-                'proveedor'     => $proveedor->nombre ?? null,
                 'error'         => $e->getMessage(),
             ]);
             return $this->fail(
@@ -119,28 +106,12 @@ class PaymentReceiptExtractor
     }
 
     /**
-     * Proveedor de IA a usar: activo y con soporte de imágenes. Este servicio
-     * nunca define credenciales — las toma del catálogo (mismo patrón que
-     * FleetDocumentOcrService::resolverProveedor).
-     */
-    private function resolverProveedor(): ?IAProveedor
-    {
-        return IAProveedor::where('activo', true)
-            ->where('soporta_imagenes', true)
-            ->orderBy('id')
-            ->first();
-    }
-
-    /**
      * Parseo robusto: extrae el JSON aunque venga con texto alrededor y valida
      * la estructura. Si no es interpretable → ok=false (nunca inventa datos).
      */
     private function parse(ReceiptProfileInterface $profile, string $raw): array
     {
-        $parsed = null;
-        if (preg_match('/\{.*\}/s', $raw, $m)) {
-            $parsed = json_decode($m[0], true);
-        }
+        $parsed = IA::json($raw);
 
         if (!is_array($parsed) || !isset($parsed['fields']) || !is_array($parsed['fields'])) {
             return $this->fail(

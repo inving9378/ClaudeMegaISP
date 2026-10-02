@@ -8,6 +8,7 @@ use App\Models\Marketing\Setting;
 use App\Modules\Addons\Payments\Models\WhatsappIdentificationSession as Session;
 use App\Modules\Addons\Payments\Models\WhatsappPaymentExtraction;
 use App\Modules\Addons\Payments\Services\Conciliation\ConciliationResponder;
+use App\Modules\Addons\Payments\Services\Extraction\ComprobanteNoLeidoNotifier;
 use App\Modules\Addons\Payments\Services\Extraction\PaymentReceiptExtractor;
 use App\Modules\Addons\Payments\Services\Extraction\Profiles\SpeiTransferProfile;
 use App\Modules\Addons\Payments\Services\Identification\IdentificationFsm;
@@ -81,10 +82,20 @@ class ConciliationIntakeJob implements ShouldQueue
             'fields'          => $result['fields'] ?? [],
             'unreadable'      => $result['unreadable'] ?? [],
             'error'           => $result['error'] ?? null,
-            'model'           => config('services.anthropic.model', 'claude-sonnet-4-6'),
+            'model'           => $result['model'] ?? null, // el modelo que de verdad leyó (antes siempre decía Claude)
             'raw'             => $result['raw'] ?? null,
             'extracted_at'    => now(),
         ]);
+
+        // La IA NO pudo leerlo (sin IA asignada, sin crédito, caída, formato…):
+        // NO es "no es comprobante" — se avisa a DEV/super-admin con el motivo y
+        // qué hacer (decisión de Irving 2026-10-02). Sin sesión ni respuesta al cliente.
+        if (ComprobanteNoLeidoNotifier::noSePudoLeer($result)) {
+            app(ComprobanteNoLeidoNotifier::class)->notificar(
+                $result, $extraction->id, $this->phoneHint($message) ?? 'número desconocido', 'WhatsApp línea de Marketing'
+            );
+            return;
+        }
 
         // FILTRO: ¿es un comprobante? Umbral CONSERVADOR — solo se descarta si NO
         // hay ningún dato de pago (ni monto ni clave de rastreo). Ante duda (algún
