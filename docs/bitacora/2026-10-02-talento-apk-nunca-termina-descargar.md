@@ -48,3 +48,30 @@ App: `af97c40` en `/home/meganet/TalentoEquipo` (rama `master`).
 
 Memoria guardada: `https://dev.meganett.com.mx/downloads/...` es la URL correcta para publicar
 futuras versiones (no la IP LAN).
+
+## 2026-10-02 13:00 — Seguimiento: se queda en 100% eterno, posible caché del teléfono
+
+David aclaró: el tamaño (140→67MB) no era el problema real — dijo que lo podía dejar en 140MB
+igual. El síntoma concreto es otro: la descarga **llega al 100% y se queda ahí para siempre**, sin
+terminar nunca. Sospecha caché del teléfono y pidió renombrar el archivo a `meganetVxxx`.
+
+**Diagnóstico de servidor (sin encontrar nada anómalo):** `nginx.conf` tiene `sendfile on` +
+`tcp_nopush on` (configuración estándar correcta para archivos estáticos grandes), sin
+`limit_rate` ni timeouts raros. Una descarga completa de 67MB desde el propio servidor termina en
+menos de 1 segundo con MD5 correcto — el servidor entrega el archivo completo y bien formado. Esto
+apunta a que el problema vive del lado del teléfono/navegador (una entrada de caché/descarga
+vieja asociada al nombre de archivo anterior, `talento-vX.XX.apk`, usado en cada publicación
+previa), no en cómo se sirve el archivo.
+
+**Aplicado:** se adoptó `meganetV{versionCode}.apk` como nombre de archivo permanente para cada
+versión nueva (nunca repetido, imposible que choque con una caché vieja) — primera publicación
+con este nombre: `meganetV112.apk`. `apk_url` en `talento_app_releases` actualizado a
+`https://dev.meganett.com.mx/downloads/meganetV112.apk`; el archivo viejo con el nombre anterior
+(`talento-v1.12.apk`) se borró para no dejar copias duplicadas. QR y detección de actualización
+verificados con la nueva URL. La reducción de tamaño a 67MB se conservó (sin motivo para
+revertirla, aunque no fuera la causa raíz).
+
+Queda pendiente la validación real de David: si el nombre nuevo no resuelve el "se queda en 100%",
+el problema es genuinamente de red/dispositivo (no de caché de nombre de archivo) y habría que
+seguir investigando desde ese ángulo (por ejemplo, probar la descarga con datos móviles vs. wifi,
+o con otro navegador).
