@@ -2,56 +2,42 @@
 
 namespace App\Modules\Addons\IA\Services\Adaptadores;
 
-use App\Modules\Addons\IA\Models\IAProveedor;
-use App\Modules\Addons\IA\Services\IAAdaptadorInterface;
-use Illuminate\Support\Facades\Http;
-use RuntimeException;
-
-class GeminiAdaptador implements IAAdaptadorInterface
+class GeminiAdaptador extends AdaptadorHttpBase
 {
-    public function __construct(protected IAProveedor $proveedor)
+    protected function nombreApi(): string
     {
+        return 'Gemini';
     }
 
-    public function enviarMensaje(array $historial, string $mensaje, array $imagenes = [], ?string $systemPrompt = null): array
+    public function enviarMensaje(array $historial, string $mensaje, array $imagenes = [], ?string $systemPrompt = null, array $opciones = []): array
     {
-        $payload = $this->construirPayload($historial, $mensaje, $imagenes, $systemPrompt);
-        $endpoint = $this->resolverEndpoint();
+        $payload = $this->construirPayload($historial, $mensaje, $imagenes, $systemPrompt, $opciones);
 
+        // La llave va en header, no en la URL: en la URL terminaba en logs y excepciones.
         $headers = array_merge([
             'Content-Type' => 'application/json',
+            'x-goog-api-key' => (string) $this->clave(),
         ], $this->proveedor->headers_personalizados ?? []);
 
-        $response = Http::withHeaders($headers)
-            ->timeout(120)
-            ->post($endpoint . '?key=' . urlencode($this->proveedor->api_key), $payload);
-
-        if (!$response->successful()) {
-            throw new RuntimeException('Gemini API error: ' . $response->body());
-        }
-
-        $json = $response->json();
+        $json = $this->postJson($this->resolverEndpoint(), $headers, $payload, $opciones);
 
         return [
             'texto' => $this->parsearRespuesta($json),
             'tokens_input' => data_get($json, 'usageMetadata.promptTokenCount'),
             'tokens_output' => data_get($json, 'usageMetadata.candidatesTokenCount'),
+            'fin' => match (data_get($json, 'candidates.0.finishReason')) {
+                'STOP' => 'completo',
+                'MAX_TOKENS' => 'max_tokens',
+                default => 'otro',
+            },
             'raw' => $json,
         ];
     }
 
-    public function probarConexion(): bool
+    public function construirPayload(array $historial, string $mensaje, array $imagenes, ?string $systemPrompt = null, array $opciones = []): array
     {
-        try {
-            $this->enviarMensaje([], 'ping', []);
-            return true;
-        } catch (\Throwable $e) {
-            return false;
-        }
-    }
+        $this->exigirSoportePdf($imagenes);
 
-    public function construirPayload(array $historial, string $mensaje, array $imagenes, ?string $systemPrompt = null): array
-    {
         $contents = [];
 
         foreach ($historial as $h) {
@@ -80,6 +66,21 @@ class GeminiAdaptador implements IAAdaptadorInterface
             ];
         }
 
+        $config = [];
+        if ($max = $this->opcion($opciones, 'max_tokens', 'max_tokens')) {
+            $config['maxOutputTokens'] = (int) $max;
+        }
+        $temperature = $this->opcion($opciones, 'temperatura', 'temperature');
+        if ($temperature !== null) {
+            $config['temperature'] = (float) $temperature;
+        }
+        if (!empty($opciones['json'])) {
+            $config['responseMimeType'] = 'application/json';
+        }
+        if ($config) {
+            $payload['generationConfig'] = $config;
+        }
+
         return $payload;
     }
 
@@ -104,8 +105,9 @@ class GeminiAdaptador implements IAAdaptadorInterface
                 ],
             ];
         }
-        if ($texto !== '') {
-            $parts[] = ['text' => $texto];
+        // Gemini rechaza un turno sin parts.
+        if ($texto !== '' || empty($parts)) {
+            $parts[] = ['text' => $texto !== '' ? $texto : ' '];
         }
         return $parts;
     }
