@@ -57,3 +57,53 @@ su código solo acepta PDF con Claude.
 
 Commits: `013ac08b`, `08177971`, `b73b69af`, `5e8f790d`, `26474c8e`, `b492a58d`, `027f42ad`,
 `a2cacd22`, `53c8b6f5`.
+
+## 2026-10-02 13:09 — Fase 3: los 20 módulos usan la IA asignada (lotes 1–5 mergeados)
+
+**Decisiones de Irving en esta fase:** una rama por lote, mergeada tras probar; sin IA
+asignada cada módulo se degrada sin tronar (abajo); **el Circuito CC no se toca**
+(Revisor, Válvula, Jarvis, asesor de cobranza siguen con `ClaudeApiClient`, que queda
+solo para ellos).
+
+| Lote | Merge | Módulos (clave `config('ia_modulos')`) | Sin IA asignada |
+|---|---|---|---|
+| 1 texto | `43f5c210` | warroom.moderador/insights, marketing.contenido/lead_scoring/lead_calificacion/director_creativo, releases.changelog, modulos.plan_migracion, manual.generador, ia.memoria, asistente.chat_flotante | texto/reglas fijas, aviso al usuario, lead sin puntaje (no 0 falso), changelog falla sin reintentar |
+| 2 bots | `d41b4421` | whatsapp.soporte, whatsapp.ventas, voip.bot_voz | WhatsApp no contesta solo (confianza bajo umbral) y queda para humano; María transfiere a agente |
+| 3 fotos | `5ee0bd55` | talento.inspeccion_caja, talento.lectura_serie (SN/MAC **e INE**), devtools.chat | revisión manual; la OT recibe alerta "verificar SN e INE a mano" |
+| 4 PDF/dinero | `6b4369cd` | pagos.comprobantes, flotas.ocr | Flotas: captura manual. **Pagos: aviso** (abajo) |
+| 5 herramientas | `5181141a` | marketing.agente_whatsapp | pasa la conversación a humano |
+
+**Pagos (con confirmación de Irving):** había un bug que **perdía comprobantes**: si la IA no
+podía leer (Claude sin crédito, caída, sin asignar…) la extracción quedaba sin campos y el job
+la descartaba EN SILENCIO como "no es comprobante" (3 casos en 30 días, último 2026-09-28).
+Ahora `ComprobanteNoLeidoNotifier` manda **un aviso por comprobante** a la campana
+(`GeneralNotification` + `StandardNotification`, prioridad Alta) a los roles DESARROLLADOR,
+super-administrator y Super Administrador (activos), con motivo y qué hacer (sin IA, sin
+crédito/llave, caída, formato, respuesta inválida, archivo). Irving descartó escalarlo a la
+cola. Sin sesión ni respuesta al cliente; no cambia aplicación de pagos ni el freno auto-apply.
+
+**Herramientas neutras (lote 5):** `IAAdaptadorInterface::conversarConHerramientas()` +
+`IA::conversar()`; Claude/OpenAI/Gemini traducen tool_use/tool_calls/functionCall.
+`AiAgentConfig.model` ya no se usa (manda la asignación).
+
+**Verificación:** cada lote con transacción + rollback, sin envíos reales: ronda sin asignar
+(degradación) y ronda con OpenAI (llamadas reales). Payload de Claude/OpenAI idéntico al previo.
+
+### Pendiente
+- **`php artisan queue:restart`** (espera OK de Irving: reinicia también el worker `deploy`).
+  Hasta entonces los workers corren código viejo: bots WhatsApp, agente de Marketing,
+  comprobantes, puntaje de leads, changelog, Manual.
+- Asignar IA a los módulos faltantes en Integraciones → Módulos IA (7 asignados a OpenAI).
+- `gaistudio` (Gemini de Irving): **llave inválida** según Google y sin protocolo; Gemini con
+  herramientas implementado pero sin probar en vivo.
+- Bot de voz: el proceso `voip:bot-voz-escuchar` lo levantó alguien a mano el 2026-09-24
+  (probable David); toma el código nuevo hasta reiniciarlo → asignar voip.bot_voz antes.
+- Inspección de caja: con una foto que no es caja el modelo inventa observaciones (debilidad
+  del prompt, previa; resultado consultivo).
+- Lote 6 opcional: que el chat `/ia` tome sus llaves del Hub. Ojo: `ia_proveedores` también lo
+  usa Jarvis (Circuito) → solo de forma aditiva.
+- Claude: la llave (misma en Hub, `.env` e `ia_proveedores`) sigue sin crédito desde el 26-sep;
+  el Revisor del Circuito falla cada 2 min por eso (no se tocó).
+
+Trabajo hecho en el worktree `/home/meganet/megaisp-wt-integrations` (el checkout principal lo
+usaba otra sesión en `main`).
