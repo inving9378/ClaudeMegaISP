@@ -28,7 +28,11 @@ class ContentGeneratorController extends Controller
 
         $campaign   = Campaign::findOrFail($request->campaign_id);
         $template   = MarketingTemplate::findOrFail($request->template_id);
-        $variations = $this->aiService->generateCopy($campaign, $template);
+        try {
+            $variations = $this->aiService->generateCopy($campaign, $template);
+        } catch (\App\Modules\Addons\IA\Services\IANoConfigurada $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         $created = collect($variations)->map(fn ($v) => CampaignContent::create([
             'campaign_id'     => $campaign->id,

@@ -2,19 +2,19 @@
 
 namespace App\Modules\Addons\Marketing\Services\Personalization;
 
-use App\Models\Core\ApiIntegration;
 use App\Models\Marketing\MarketingNiche;
-use App\Modules\Addons\Marketing\Services\ClaudeApiClient;
-use App\Services\Core\ApiIntegrationService;
+use App\Modules\Addons\IA\Services\IA;
+use App\Modules\Addons\IA\Services\IANoConfigurada;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Briefs de video por nicho. La IA la decide Integraciones → Módulos IA
+ * (marketing.director_creativo). Uso y costo se registran en el Hub (IA::enviar).
+ */
 class CreativeDirectorService
 {
-    protected ClaudeApiClient $claude;
-
     public function __construct(int $companyId = 1)
     {
-        $this->claude = app(ClaudeApiClient::class);
     }
 
     public function generateMultivariantBriefs(array $campaignInput, int $companyId = 1): array
@@ -31,6 +31,10 @@ class CreativeDirectorService
                 $brief['niche_slug'] = $niche->slug;
                 $brief['niche_id']   = $niche->id;
                 $briefs[]            = $brief;
+            } catch (IANoConfigurada $e) {
+                // Sin IA asignada: no tiene caso intentar los demás nichos; el job
+                // usa sus briefs de respaldo.
+                throw $e;
             } catch (\Throwable $e) {
                 Log::channel('marketing')->error('CreativeDirector failed for niche', [
                     'niche' => $niche->slug,
@@ -46,19 +50,11 @@ class CreativeDirectorService
     {
         $prompt = $this->buildPromptForNiche($niche, $campaignInput);
 
-        $response = $this->claude->messages([
-            'model'      => 'claude-opus-4-7',
-            'max_tokens' => 1500,
-            'system'     => $this->getSystemPrompt(),
-            'messages'   => [
-                ['role' => 'user', 'content' => $prompt],
-            ],
+        $r = IA::enviar('marketing.director_creativo', $prompt, [], $this->getSystemPrompt(), [], [
+            'max_tokens' => 1500, 'json' => true,
         ]);
 
-        $this->trackApiUsage($response, $niche->slug, $companyId);
-
-        $rawText = $response['content'][0]['text'] ?? '';
-        return $this->parseBrief($rawText);
+        return $this->parseBrief($r['texto']);
     }
 
     protected function getSystemPrompt(): string
@@ -133,11 +129,10 @@ PROMPT;
 
     protected function parseBrief(string $rawJson): array
     {
-        $clean  = preg_replace('/^```json\s*|\s*```$/m', '', trim($rawJson));
-        $parsed = json_decode($clean, true);
+        $parsed = IA::json($rawJson);
 
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new \RuntimeException('Brief inválido de Claude: ' . json_last_error_msg() . ' — raw: ' . substr($clean, 0, 200));
+        if (!is_array($parsed)) {
+            throw new \RuntimeException('Brief inválido de la IA — raw: ' . substr(trim($rawJson), 0, 200));
         }
 
         // Limpiar teléfonos del CTA si Claude los incluyó (patrones de 8+ dígitos)
@@ -161,21 +156,5 @@ PROMPT;
         }
 
         return $parsed;
-    }
-
-    protected function trackApiUsage(array $response, string $nicheSlug, int $companyId): void
-    {
-        try {
-            $usage     = $response['usage'] ?? [];
-            $inputCost = ($usage['input_tokens'] ?? 0) * 15 / 1_000_000;
-            $outCost   = ($usage['output_tokens'] ?? 0) * 75 / 1_000_000;
-            $cost      = $inputCost + $outCost;
-
-            $svc = app(ApiIntegrationService::class);
-            $int = $svc->getIntegration('anthropic', $companyId);
-            if ($int) {
-                $svc->trackUsage($int, "creative_director_{$nicheSlug}", 1, $cost);
-            }
-        } catch (\Throwable) {}
     }
 }

@@ -3,7 +3,8 @@
 namespace App\Http\Controllers\IA;
 
 use App\Http\Controllers\Controller;
-use App\Modules\Addons\Marketing\Services\ClaudeApiClient;
+use App\Modules\Addons\IA\Services\IA;
+use App\Modules\Addons\IA\Services\IANoConfigurada;
 use App\Modules\Core\ModuleManager\Services\ModuleRegistry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,14 +20,13 @@ use Illuminate\Support\Facades\Log;
  * READ-ONLY: en esta fase el chat informa/orienta; NO ejecuta acciones ni
  * cambia datos (la ejecución vía tool-calling es la Fase 2).
  *
- * La API key y el modelo salen de config/Hub/.env (config/services.php +
- * Integration Hub vía ClaudeApiClient), nunca hardcodeados.
+ * La IA (integración + modelo) se decide en Integraciones → Módulos IA
+ * (clave asistente.chat_flotante), nunca hardcodeada.
  */
 class IAChatController extends Controller
 {
     public function __construct(
         private ModuleRegistry $registry,
-        private ClaudeApiClient $claude,
     ) {
     }
 
@@ -63,40 +63,35 @@ class IAChatController extends Controller
             'context'           => 'nullable|string|max:255',
         ]);
 
-        // Historial -> formato Claude (filtra vacíos, normaliza rol).
-        $messages = [];
+        // Historial -> formato neutro de IA (filtra vacíos, normaliza rol).
+        $historial = [];
         foreach ($data['history'] ?? [] as $turn) {
             $content = trim((string) ($turn['content'] ?? ''));
             if ($content === '') {
                 continue;
             }
-            $messages[] = [
-                'role'    => ($turn['role'] ?? 'user') === 'assistant' ? 'assistant' : 'user',
-                'content' => $content,
+            $historial[] = [
+                'rol'       => ($turn['role'] ?? 'user') === 'assistant' ? 'assistant' : 'user',
+                'contenido' => $content,
             ];
         }
-        $messages[] = ['role' => 'user', 'content' => $data['message']];
 
         try {
-            $response = $this->claude->messages([
-                // Modelo desde config (.env CLAUDE_MODEL); fallback a un modelo válido
-                // verificado en este entorno. `?:` para tolerar config vacía.
-                'model'      => config('services.claude.model') ?: 'claude-sonnet-4-6',
-                'max_tokens' => 1024,
-                'system'     => $this->buildSystemPrompt($data['context'] ?? null),
-                'messages'   => $messages,
-            ]);
+            $r = IA::enviar('asistente.chat_flotante', $data['message'], [],
+                $this->buildSystemPrompt($data['context'] ?? null), $historial, ['max_tokens' => 1024]);
 
             return response()->json([
                 'success'       => true,
-                'message'       => $this->extractText($response['content'] ?? []),
+                'message'       => trim($r['texto']) !== '' ? trim($r['texto']) : 'No tengo una respuesta para eso en este momento.',
                 'action_type'   => null,   // Fase 2: ejecución de acciones
                 'action_result' => null,
             ]);
+        } catch (IANoConfigurada $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()]);
         } catch (\Throwable $e) {
             // Error VISIBLE: se loguea en servidor y se devuelve un mensaje claro
             // (no se traga el fallo; el frontend lo muestra inline).
-            Log::channel('claude')->error('[IAChat] fallo al responder: ' . $e->getMessage());
+            Log::error('[IAChat] fallo al responder: ' . $e->getMessage());
 
             return response()->json([
                 'success' => false,
@@ -141,18 +136,5 @@ class IAChatController extends Controller
         }
 
         return implode("\n", $lines);
-    }
-
-    /** Extrae el texto de los bloques de respuesta de Claude. */
-    private function extractText(array $content): string
-    {
-        $text = '';
-        foreach ($content as $block) {
-            if (($block['type'] ?? '') === 'text') {
-                $text .= $block['text'] ?? '';
-            }
-        }
-
-        return trim($text) !== '' ? trim($text) : 'No tengo una respuesta para eso en este momento.';
     }
 }

@@ -49,7 +49,13 @@ class GenerateReleaseChangelogJob implements ShouldQueue
         // Sin try/catch amplio a propósito: si falla, debe propagar para que el queue
         // worker aplique los reintentos con backoff (contrario al patrón de
         // RegenerateManualJob, que no necesita reintentos).
-        $result = $service->generate($this->version, $this->branch);
+        try {
+            $result = $service->generate($this->version, $this->branch);
+        } catch (\App\Modules\Addons\IA\Services\IANoConfigurada $e) {
+            // Sin IA asignada no tiene caso reintentar: se reporta ya.
+            $this->fail($e);
+            return;
+        }
 
         Cache::put(self::cacheKey($this->requestId), [
             'status' => 'listo',

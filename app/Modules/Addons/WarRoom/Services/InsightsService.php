@@ -2,10 +2,10 @@
 
 namespace App\Modules\Addons\WarRoom\Services;
 
+use App\Modules\Addons\IA\Services\IA;
 use App\Modules\Addons\WarRoom\Models\InsightsCache;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
@@ -20,7 +20,7 @@ class InsightsService
             $insights = $this->generateWithAi($context);
             $source   = 'ai';
         } catch (\Throwable $e) {
-            Log::warning('InsightsService: Claude API falló, usando reglas', ['err' => $e->getMessage()]);
+            Log::warning('InsightsService: IA no disponible, usando reglas', ['err' => $e->getMessage()]);
             $insights = $this->generateWithRules($viewKey, $kpis);
             $source   = 'rules';
         }
@@ -95,38 +95,20 @@ class InsightsService
 
     private function generateWithAi(string $prompt): array
     {
-        $apiKey = config('services.anthropic.key');
-        $model  = config('services.anthropic.model', 'claude-sonnet-4-6');
-
-        if (! $apiKey) {
-            throw new \RuntimeException('Sin CLAUDE_API_KEY');
-        }
-
-        $response = Http::withHeaders([
-            'x-api-key'         => $apiKey,
-            'anthropic-version' => '2023-06-01',
-            'content-type'      => 'application/json',
-        ])->timeout(20)->post('https://api.anthropic.com/v1/messages', [
-            'model'      => $model,
-            'max_tokens' => 400,
-            'messages'   => [['role' => 'user', 'content' => $prompt]],
+        // IA asignada en Integraciones → Módulos IA. Sin asignación o con error,
+        // generate() cae a las reglas fijas (source = 'rules').
+        // Sin 'json' nativo a propósito: la respuesta es un ARREGLO y el modo JSON
+        // de OpenAI fuerza un objeto.
+        $r = IA::enviar('warroom.insights', $prompt, [], null, [], [
+            'max_tokens' => 400, 'timeout' => 20,
         ]);
 
-        if (! $response->successful()) {
-            throw new \RuntimeException('Claude API error: ' . $response->status());
+        $decoded = IA::json($r['texto']);
+        if (is_array($decoded) && array_is_list($decoded) && count($decoded) > 0) {
+            return $decoded;
         }
 
-        $text = trim($response->json('content.0.text', ''));
-
-        // Extraer el array JSON de la respuesta
-        if (preg_match('/\[.*\]/s', $text, $m)) {
-            $decoded = json_decode($m[0], true);
-            if (is_array($decoded) && count($decoded) > 0) {
-                return $decoded;
-            }
-        }
-
-        throw new \RuntimeException('Respuesta de Claude no es JSON válido: ' . substr($text, 0, 200));
+        throw new \RuntimeException('La respuesta de la IA no es un arreglo JSON válido: ' . substr($r['texto'], 0, 200));
     }
 
     private function generateWithRules(string $viewKey, array $kpis): array

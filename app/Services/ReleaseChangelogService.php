@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Modules\Addons\Marketing\Services\ClaudeApiClient;
+use App\Modules\Addons\IA\Services\IA;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\Process\Process;
 
@@ -30,7 +30,7 @@ class ReleaseChangelogService
     ];
 
     // Commits por lote del resumen jerárquico (map-reduce, item roadmap #892 Fase 2). Un rango
-    // que cabe en un solo lote usa el camino directo (callClaude), igual que antes — el
+    // que cabe en un solo lote usa el camino directo (resumirDirecto), igual que antes — el
     // map-reduce solo entra en juego cuando el rango es más grande que un lote.
     private const BATCH_SIZE = 80;
 
@@ -41,9 +41,9 @@ class ReleaseChangelogService
     // Líneas de diff --stat que se conservan por lote (tras filtrar las sensibles).
     private const MAX_STAT_LINES = 60;
 
-    public function __construct(private ClaudeApiClient $claude)
-    {
-    }
+    // La IA la decide Integraciones → Módulos IA (releases.changelog). Sin asignación,
+    // IA::enviar lanza IANoConfigurada y el job la reporta sin reintentar.
+    private const CLAVE_IA = 'releases.changelog';
 
     /**
      * Devuelve un arreglo estructurado: ['title','summary','improvements', + metadatos de cobertura].
@@ -90,7 +90,7 @@ class ReleaseChangelogService
             // llamada. Cubre el caso común (releases normales, pocas decenas de commits) sin el
             // costo extra de map-reduce.
             $stat    = $this->computeBatchStat($batches[0], $git['env'], $git['base'], $git['exclude_pathspec']);
-            $result  = $this->callClaude(implode("\n", $batches[0]), $stat, $newVersion);
+            $result  = $this->resumirDirecto(implode("\n", $batches[0]), $stat, $newVersion);
             $llamadas = 1;
         } else {
             // Resumen jerárquico (map-reduce): un lote no cubre todo el rango, así que se resume
@@ -106,12 +106,12 @@ class ReleaseChangelogService
             $llamadas++;
         }
 
-        Log::channel('claude')->info('ReleaseChangelogService: resumen generado', [
+        Log::info('ReleaseChangelogService: resumen generado', [
             'version'           => $newVersion,
             'total_commits'     => $total,
             'resumidos_commits' => $resumidos,
             'lotes'             => count($batches),
-            'llamadas_claude'   => $llamadas,
+            'llamadas_ia'       => $llamadas,
             'truncado'          => $truncado,
         ]);
 
@@ -128,12 +128,12 @@ class ReleaseChangelogService
 
     /**
      * Solo los metadatos de cobertura de generate() (total de commits, cuántos se resumirían,
-     * tag previo, si se truncaría), SIN llamar a Claude. Pensado para diagnóstico/preview
+     * tag previo, si se truncaría), SIN llamar a la IA. Pensado para diagnóstico/preview
      * (item roadmap #9990680, base para F2b) sin gastar una llamada real a la IA.
      *
      * Duplica a propósito el cálculo de truncado de generate() (líneas ~80-85) en vez de
      * refactorizar generate() para reusarlo — extraer un método compartido ahí tocaría el
-     * camino que ya llama a Claude en producción, y el ahorro (~8 líneas) no justifica ese
+     * camino que ya llama a la IA en producción, y el ahorro (~8 líneas) no justifica ese
      * riesgo sobre un flujo que ya funciona.
      */
     public function coverage(string $newVersion, ?string $branch = null): array
@@ -319,13 +319,9 @@ Archivos modificados en este lote:
 PROMPT;
 
         try {
-            $response = $this->claude->messages([
-                'model'      => 'claude-sonnet-4-6',
-                'max_tokens' => 500,
-                'messages'   => [['role' => 'user', 'content' => $prompt]],
-            ]);
+            $r = IA::enviar(self::CLAVE_IA, $prompt, [], null, [], ['max_tokens' => 500]);
 
-            return trim($response['content'][0]['text'] ?? '');
+            return trim($r['texto']);
         } catch (\Throwable $e) {
             Log::warning("ReleaseChangelogService lote error: {$e->getMessage()}");
             throw $e;
@@ -371,9 +367,8 @@ Resúmenes por lote:
 PROMPT;
 
         try {
-            $response = $this->claude->messages([
-                'model'      => 'claude-sonnet-4-6',
-                // 700 (igual que callClaude()) se quedaba corto aquí: con rangos grandes (10+
+            $r = IA::enviar(self::CLAVE_IA, $prompt, [], null, [], [
+                // 700 (igual que resumirDirecto()) se quedaba corto aquí: con rangos grandes (10+
                 // lotes) el texto a sintetizar es mucho mayor que el de una sola llamada directa,
                 // el modelo no siempre respeta el límite de 200 palabras del prompt, y el JSON se
                 // cortaba a medias → parseStructured() fallaba y todo el "improvements" quedaba
@@ -381,18 +376,17 @@ PROMPT;
                 // con el rango real V1.32..HEAD, 726 commits / 10 lotes). 2048 da margen holgado
                 // sin acercarse al límite de salida del modelo.
                 'max_tokens' => 2048,
-                'messages'   => [['role' => 'user', 'content' => $prompt]],
+                'json' => true,
             ]);
 
-            $raw = $response['content'][0]['text'] ?? '';
-            return $this->parseStructured($raw);
+            return $this->parseStructured($r['texto']);
         } catch (\Throwable $e) {
             Log::warning("ReleaseChangelogService reduce error: {$e->getMessage()}");
             throw $e;
         }
     }
 
-    private function callClaude(string $commits, string $stat, string $version): array
+    private function resumirDirecto(string $commits, string $stat, string $version): array
     {
         $prompt = <<<PROMPT
 Eres el redactor de release notes de MegaISP, sistema de gestión para un ISP (proveedor de internet).
@@ -422,16 +416,11 @@ Archivos modificados:
 PROMPT;
 
         try {
-            $response = $this->claude->messages([
-                'model'      => 'claude-sonnet-4-6',
-                'max_tokens' => 700,
-                'messages'   => [['role' => 'user', 'content' => $prompt]],
-            ]);
+            $r = IA::enviar(self::CLAVE_IA, $prompt, [], null, [], ['max_tokens' => 700, 'json' => true]);
 
-            $raw = $response['content'][0]['text'] ?? '';
-            return $this->parseStructured($raw);
+            return $this->parseStructured($r['texto']);
         } catch (\Throwable $e) {
-            Log::warning("ReleaseChangelogService Claude error: {$e->getMessage()}");
+            Log::warning("ReleaseChangelogService IA error: {$e->getMessage()}");
             throw $e;
         }
     }
