@@ -2,8 +2,8 @@
 
 namespace App\Modules\Addons\VoIP\Services\Voz;
 
-use App\Modules\Addons\IA\Models\IAProveedor;
-use App\Modules\Addons\IA\Services\IAAdaptadorFactory;
+use App\Modules\Addons\IA\Services\IA;
+use App\Modules\Addons\IA\Services\IANoConfigurada;
 use App\Modules\Addons\IA\Services\IAPricingService;
 use App\Modules\Addons\VoIP\Models\IaBotConfig;
 use App\Modules\Addons\VoIP\Models\IaBotConversation;
@@ -16,9 +16,10 @@ use Illuminate\Support\Facades\Log;
  * le importa de audio — eso lo resuelve AudioSocketServer con
  * VoiceSttService/VoiceTtsService alrededor de esta clase.
  *
- * Reusa el adaptador de IA que YA existe (App\Modules\Addons\IA — el mismo
- * que usa Jarvis) — nunca un cliente HTTP propio (regla de "servicios
- * compartidos únicos" del proyecto).
+ * La IA (integración + modelo) se decide en Integraciones → Módulos IA (clave
+ * voip.bot_voz, vía IA::enviar) — nunca un cliente HTTP propio (regla de
+ * "servicios compartidos únicos" del proyecto). Sin IA asignada o con error,
+ * María avisa y transfiere con un agente.
  */
 class ConversacionBotService
 {
@@ -34,25 +35,22 @@ class ConversacionBotService
      */
     public function turno(IaBotConversation $conversacion, string $textoUsuario): array
     {
-        $config    = IaBotConfig::current();
-        $proveedor = $this->resolverProveedor();
-
-        if (! $proveedor) {
-            Log::error('ConversacionBotService: no hay proveedor de IA activo (ia_proveedores).');
-            return [
-                'texto_hablado' => 'Disculpa, en este momento no puedo continuar. Te transfiero con un agente.',
-                'transferir'    => true,
-                'costo_usd'     => 0.0,
-            ];
-        }
+        $config = IaBotConfig::current();
 
         $historial = $this->historialDesdeTranscript($conversacion);
 
         $systemPrompt = $config->system_prompt . "\n\n" . $this->bloqueBaseConocimiento();
 
         try {
-            $adaptador = IAAdaptadorFactory::crear($proveedor);
-            $resultado = $adaptador->enviarMensaje($historial, $textoUsuario, [], $systemPrompt);
+            // Sin reintentos: en una llamada telefónica es mejor transferir que hacer esperar.
+            $resultado = IA::enviar('voip.bot_voz', $textoUsuario, [], $systemPrompt, $historial, ['reintentos' => 0]);
+        } catch (IANoConfigurada $e) {
+            Log::error('ConversacionBotService: el bot de voz no tiene IA asignada — ' . $e->getMessage());
+            return [
+                'texto_hablado' => 'Disculpa, en este momento no puedo continuar. Te transfiero con un agente.',
+                'transferir'    => true,
+                'costo_usd'     => 0.0,
+            ];
         } catch (\Throwable $e) {
             Log::warning('ConversacionBotService: falla del adaptador de IA — ' . $e->getMessage());
             return [
@@ -67,7 +65,7 @@ class ConversacionBotService
         $textoHablado = trim(str_replace(self::MARCADOR_TRANSFERIR, '', $textoCrudo));
 
         $costoUsd = $this->pricing->calcularCosto(
-            (string) $proveedor->modelo_default,
+            (string) $resultado['modelo'],
             (int) ($resultado['tokens_input'] ?? 0),
             (int) ($resultado['tokens_output'] ?? 0)
         );
@@ -85,17 +83,6 @@ class ConversacionBotService
             'transferir'    => $transferir,
             'costo_usd'     => $costoUsd,
         ];
-    }
-
-    /**
-     * Mismo criterio que JarvisChatService::resolverProveedor() — Claude
-     * primero, cualquier proveedor activo como respaldo. No se crea un
-     * proveedor nuevo para el bot de voz: usa el que YA está configurado.
-     */
-    private function resolverProveedor(): ?IAProveedor
-    {
-        return IAProveedor::query()->where('driver', 'claude')->where('activo', true)->orderBy('id')->first()
-            ?? IAProveedor::query()->where('activo', true)->orderBy('id')->first();
     }
 
     private function historialDesdeTranscript(IaBotConversation $conversacion): array

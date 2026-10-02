@@ -2,8 +2,8 @@
 
 namespace App\Modules\Addons\WhatsAppAgent\Services\AgenteVentas;
 
-use App\Modules\Addons\IA\Models\IAProveedor;
-use App\Modules\Addons\IA\Services\IAAdaptadorFactory;
+use App\Modules\Addons\IA\Services\IA;
+use App\Modules\Addons\IA\Services\IANoConfigurada;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -16,20 +16,17 @@ use Illuminate\Support\Facades\Log;
  * contrato JSON propio, sin código compartido — para que ajustar uno nunca
  * "cruce cables" con el otro (decisión explícita de Irving, 2026-09-28).
  *
- * El ÚNICO punto en común con el resto del sistema es el Hub de IA
- * (IAAdaptadorFactory + ia_proveedores): nunca guarda su propia API key ni le
- * pega a un proveedor por su cuenta (regla "servicios compartidos únicos" de
- * CLAUDE.md) — a diferencia de WhatsAppIAService, que sí le pega directo a
- * Anthropic con Http::post() (deuda técnica preexistente, fuera de alcance
- * aquí; este servicio nuevo no la repite).
+ * El ÚNICO punto en común con el resto del sistema es la IA asignada en
+ * Integraciones → Módulos IA (clave whatsapp.ventas, vía IA::enviar): nunca guarda
+ * su propia API key ni le pega a un proveedor por su cuenta (regla "servicios
+ * compartidos únicos" de CLAUDE.md).
+ *
+ * Sin IA asignada o con error devuelve fallback() (confianza 0): el listener NO
+ * lo envía al prospecto y el borrador queda para un humano.
  */
 class AgenteVentasIAService
 {
-    /** Proveedor de IA a usar: el activo de mayor prioridad del Hub. */
-    private function resolverProveedor(): ?IAProveedor
-    {
-        return IAProveedor::where('activo', true)->orderBy('id')->first();
-    }
+    private const CLAVE_IA = 'whatsapp.ventas';
 
     /**
      * Analiza el mensaje entrante del PROSPECTO y devuelve intención + borrador
@@ -48,12 +45,6 @@ class AgenteVentasIAService
         array   $collectedData = [],
         ?string $disponibilidadInfo = null
     ): array {
-        $proveedor = $this->resolverProveedor();
-        if (!$proveedor) {
-            Log::warning('AgenteVentas: sin proveedor de IA activo en ia_proveedores');
-            return $this->fallback();
-        }
-
         $historial     = $this->formatHistorial($conversationHistory);
         $collectedInfo = $this->formatCollectedData($collectedData);
         $planesInfo    = $this->formatPlanesDisponibles();
@@ -79,19 +70,16 @@ Responde ÚNICAMENTE con el JSON exacto indicado en las instrucciones de sistema
 MSG;
 
         try {
-            $adaptador = IAAdaptadorFactory::crear($proveedor);
-            $resultado = $adaptador->enviarMensaje($historial, $mensaje, [], $this->systemPrompt());
+            $resultado = IA::enviar(self::CLAVE_IA, $mensaje, [], $this->systemPrompt(), $historial, ['json' => true]);
 
-            $texto = (string) ($resultado['texto'] ?? '');
-            $clean = trim(preg_replace('/```json|```/', '', $texto));
-            $data  = json_decode($clean, true);
+            $data = IA::json((string) ($resultado['texto'] ?? ''));
 
             return is_array($data) ? $this->normalizar($data) : $this->fallback();
+        } catch (IANoConfigurada $e) {
+            Log::info('AgenteVentas: sin IA asignada, queda para un humano', ['motivo' => $e->getMessage()]);
+            return $this->fallback();
         } catch (\Throwable $e) {
-            Log::warning('AgenteVentas: fallo llamando a la IA', [
-                'proveedor' => $proveedor->nombre ?? null,
-                'error'     => $e->getMessage(),
-            ]);
+            Log::warning('AgenteVentas: fallo llamando a la IA', ['error' => $e->getMessage()]);
             return $this->fallback();
         }
     }

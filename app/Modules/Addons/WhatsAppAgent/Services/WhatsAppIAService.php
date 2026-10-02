@@ -2,25 +2,22 @@
 
 namespace App\Modules\Addons\WhatsAppAgent\Services;
 
-use App\Modules\Addons\IA\Models\IAProveedor;
-use App\Modules\Addons\IA\Services\IAAdaptadorFactory;
+use App\Modules\Addons\IA\Services\IA;
+use App\Modules\Addons\IA\Services\IANoConfigurada;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Bot de soporte/cobranza/atención de WhatsApp. La IA (integración + modelo) se
+ * decide en Integraciones → Módulos IA (clave whatsapp.soporte).
+ *
+ * Sin IA asignada o con error devuelve fallbackAssist() (confianza 0.5): el
+ * auto-reply NO lo envía (exige ≥ auto_reply_min_confidence) y el mensaje queda
+ * para un humano. Si la causa es que no hay IA asignada, el resultado trae
+ * 'aviso' con el mensaje para que el panel lo muestre.
+ */
 class WhatsAppIAService
 {
-    /**
-     * Proveedor de IA a usar: el activo de mayor prioridad del Hub. Antes
-     * exigía driver=claude específico (le pegaba directo a Anthropic con
-     * Http::post(), sin pasar por el Hub) — si esa cuenta se quedaba sin
-     * crédito, este bot quedaba ciego aunque hubiera otro proveedor activo
-     * (mismo bug ya encontrado y corregido en PaymentReceiptExtractor,
-     * 2026-09-28). Ahora usa cualquier proveedor activo, igual que el resto
-     * del sistema.
-     */
-    private function resolverProveedor(): ?IAProveedor
-    {
-        return IAProveedor::where('activo', true)->orderByDesc('id')->first();
-    }
+    private const CLAVE_IA = 'whatsapp.soporte';
 
     /**
      * Analiza el mensaje entrante y genera asistencia completa.
@@ -170,23 +167,17 @@ CRÍTICO — USO DE "DATOS YA RECOPILADOS":
   mensaje actual; el backend ya tiene los previos.
 PROMPT;
 
-        $proveedor = $this->resolverProveedor();
-        if (!$proveedor) {
-            Log::error('WhatsAppIA: sin proveedor de IA activo en ia_proveedores');
-            return $this->fallbackAssist($incomingMessage, $tone);
-        }
-
         try {
-            $adaptador = IAAdaptadorFactory::crear($proveedor);
-            $resultado = $adaptador->enviarMensaje([], $prompt, [], null);
+            $resultado = IA::enviar(self::CLAVE_IA, $prompt, [], null, [], ['json' => true]);
+        } catch (IANoConfigurada $e) {
+            Log::info('WhatsAppIA: sin IA asignada, queda para un humano', ['motivo' => $e->getMessage()]);
+            return $this->fallbackAssist($incomingMessage, $tone) + ['aviso' => $e->getMessage()];
         } catch (\Throwable $e) {
-            Log::error('WhatsAppIA error', ['proveedor' => $proveedor->nombre ?? null, 'error' => $e->getMessage()]);
+            Log::error('WhatsAppIA error', ['error' => $e->getMessage()]);
             return $this->fallbackAssist($incomingMessage, $tone);
         }
 
-        $text  = (string) ($resultado['texto'] ?? '');
-        $clean = trim(preg_replace('/```json|```/', '', $text));
-        $data  = json_decode($clean, true);
+        $data = IA::json((string) ($resultado['texto'] ?? ''));
 
         return is_array($data) ? $data : $this->fallbackAssist($incomingMessage, $tone);
     }
