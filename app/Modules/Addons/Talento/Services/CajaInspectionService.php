@@ -2,19 +2,20 @@
 
 namespace App\Modules\Addons\Talento\Services;
 
-use App\Modules\Addons\Marketing\Services\ClaudeApiClient;
+use App\Modules\Addons\IA\Services\IA;
+use App\Modules\Addons\IA\Services\IANoConfigurada;
 use App\Modules\Addons\Talento\Models\TalentoCajaInspection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class CajaInspectionService
 {
-    public function __construct(private ClaudeApiClient $claude) {}
-
     /**
      * Run IA aesthetic analysis on a caja inspection photo.
      * Returns advisory flags only — supervisor must validate.
      * Graceful degradation: empty flags if IA unavailable.
+     * La IA se decide en Integraciones → Módulos IA (talento.inspeccion_caja);
+     * sin asignación la foto queda para revisión manual del supervisor.
      */
     public function analyzePhoto(TalentoCajaInspection $inspection): array
     {
@@ -53,31 +54,11 @@ Aspectos a evaluar:
 Si la imagen no permite evaluar algún aspecto, indícalo como "no_visible" en severity.
 TXT;
 
-            $response = $this->claude->messages([
-                'model'      => config('services.anthropic.model', 'claude-sonnet-4-6'),
-                'max_tokens' => 512,
-                'messages'   => [[
-                    'role'    => 'user',
-                    'content' => [
-                        [
-                            'type'   => 'image',
-                            'source' => [
-                                'type'       => 'base64',
-                                'media_type' => $mimeType,
-                                'data'       => $base64,
-                            ],
-                        ],
-                        ['type' => 'text', 'text' => $prompt],
-                    ],
-                ]],
+            $r = IA::enviar('talento.inspeccion_caja', $prompt, [['mime' => $mimeType, 'data' => $base64]], null, [], [
+                'max_tokens' => 512, 'json' => true,
             ]);
 
-            $text = $response['content'][0]['text'] ?? '{}';
-
-            // Extract JSON even if IA prepends/appends text
-            if (preg_match('/\{.*\}/s', $text, $m)) {
-                $parsed = json_decode($m[0], true);
-            }
+            $parsed = IA::json($r['texto']);
 
             if (!isset($parsed['flags'])) {
                 return ['flags' => [], 'summary' => 'Análisis IA no disponible.'];
@@ -88,6 +69,8 @@ TXT;
                 'summary'         => $parsed['summary'] ?? '',
                 'aesthetic_score' => $parsed['aesthetic_score'] ?? null,
             ];
+        } catch (IANoConfigurada $e) {
+            return ['flags' => [], 'summary' => 'Sin IA asignada a la inspección de cajas: queda para revisión manual del supervisor.'];
         } catch (\Throwable $e) {
             Log::warning('CajaInspectionService IA analysis failed', [
                 'inspection_id' => $inspection->id,
