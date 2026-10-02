@@ -39,6 +39,21 @@ class IAProveedor extends BaseModel
         'api_key',
     ];
 
+    /**
+     * Proveedor armado en memoria por IA::proveedorPara() desde una integración
+     * del Hub: nunca debe persistirse (crearía filas fantasma en ia_proveedores).
+     */
+    protected static function booted(): void
+    {
+        parent::booted();
+
+        static::saving(function (self $p) {
+            if ($p->relationLoaded('integracionHub')) {
+                return false;
+            }
+        });
+    }
+
     public function conversaciones(): HasMany
     {
         return $this->hasMany(IAConversacion::class, 'ia_proveedor_id');

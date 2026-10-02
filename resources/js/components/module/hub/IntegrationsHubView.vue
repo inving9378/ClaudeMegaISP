@@ -49,6 +49,11 @@
           <i class="bi bi-diagram-3 me-1"></i>Proveedores
         </a>
       </li>
+      <li class="nav-item">
+        <a class="nav-link" :class="{ active: tab === 'ia' }" href="#" @click.prevent="openIaTab()">
+          <i class="bi bi-cpu me-1"></i>Módulos IA
+        </a>
+      </li>
     </ul>
 
     <!-- Loading -->
@@ -202,6 +207,12 @@
                 <span class="badge" :class="p.type === 'ia' ? 'bg-primary-subtle text-primary' : 'bg-info-subtle text-info'">
                   {{ p.type === 'ia' ? 'IA' : 'Servicios' }}
                 </span>
+                <div v-if="p.type === 'ia'" class="small mt-1">
+                  <span v-if="p.driver" class="text-muted">{{ drivers[p.driver] ?? p.driver }}
+                    <span v-if="p.soporta_imagenes"> · imágenes</span><span v-if="p.soporta_pdf"> · PDF</span>
+                  </span>
+                  <span v-else class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i>Falta el protocolo</span>
+                </div>
               </td>
               <td>{{ p.integrations_count }}</td>
               <td>
@@ -220,6 +231,64 @@
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Módulos IA tab -->
+    <div v-if="tab === 'ia'" class="hub-ia">
+      <p class="text-muted small mb-3">
+        Elige qué integración de IA (y qué modelo) usa cada módulo. Un módulo <strong>sin asignar no usa IA</strong>:
+        sus funciones de IA quedan apagadas hasta que lo configures.
+      </p>
+      <div v-if="iaLoading" class="hub-loading"><div class="spinner-border text-primary"></div></div>
+      <div v-else>
+        <div v-if="!iaIntegraciones.length" class="alert alert-warning small">
+          No hay integraciones de IA registradas. Crea una en la pestaña Integraciones (por ejemplo OpenAI o Claude).
+        </div>
+        <div v-for="(mods, grupo) in iaModulosPorGrupo" :key="grupo" class="mb-4">
+          <h6 class="fw-semibold mb-2">{{ grupo }}</h6>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle ia-table">
+              <thead>
+                <tr><th style="width:30%">Módulo</th><th style="width:28%">Integración de IA</th><th style="width:20%">Modelo</th><th>Estado</th><th></th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="m in mods" :key="m.clave">
+                  <td>
+                    <div class="fw-semibold">{{ m.nombre }}</div>
+                    <div v-if="m.requiere.length" class="small text-muted">Necesita: {{ m.requiere.join(', ') }}</div>
+                  </td>
+                  <td>
+                    <select class="form-select form-select-sm" v-model="m.api_integration_id"
+                            :disabled="!can('manage-integrations')" @change="onIaIntegracionChange(m)">
+                      <option :value="null">— Sin asignar —</option>
+                      <option v-for="i in iaIntegraciones" :key="i.id" :value="i.id" :disabled="!i.activa || !i.tiene_llave">
+                        {{ i.nombre }} ({{ i.proveedor }}){{ !i.activa ? ' — inactiva' : (!i.tiene_llave ? ' — sin llave' : '') }}
+                      </option>
+                    </select>
+                  </td>
+                  <td>
+                    <input class="form-control form-control-sm" v-model.trim="m.modelo" :list="'ia-modelos-' + m.clave"
+                           :disabled="!m.api_integration_id || !can('manage-integrations')" placeholder="modelo">
+                    <datalist :id="'ia-modelos-' + m.clave">
+                      <option v-for="mod in (iaIntegracion(m.api_integration_id)?.modelos ?? [])" :key="mod" :value="mod"></option>
+                    </datalist>
+                  </td>
+                  <td>
+                    <span class="badge" :class="iaEstado(m).cls">{{ iaEstado(m).txt }}</span>
+                  </td>
+                  <td class="text-end">
+                    <button v-if="can('manage-integrations')" class="btn btn-sm btn-primary"
+                            :disabled="!iaCambiado(m) || iaGuardando[m.clave]" @click="saveIaModulo(m)">
+                      <span v-if="iaGuardando[m.clave]" class="spinner-border spinner-border-sm"></span>
+                      <span v-else>Guardar</span>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -246,10 +315,24 @@ export default {
       tab: 'integraciones',
       providerCatalog: [],
       providersLoading: false,
+      drivers: {},
+      iaModulos: [],
+      iaIntegraciones: [],
+      iaLoading: false,
+      iaGuardando: {},
       providers: [],
       integrations: [],
       validating: {},
     };
+  },
+
+  computed: {
+    iaModulosPorGrupo() {
+      return this.iaModulos.reduce((acc, m) => {
+        (acc[m.grupo] = acc[m.grupo] || []).push(m);
+        return acc;
+      }, {});
+    },
   },
 
   mounted() {
@@ -629,6 +712,7 @@ export default {
       try {
         const res = await axios.get('/api/hub/provider-catalog');
         this.providerCatalog = res.data.data ?? [];
+        this.drivers = res.data.drivers ?? {};
       } catch (e) {
         this.toast('danger', e.response?.data?.error ?? 'Error al cargar proveedores');
       } finally {
@@ -636,9 +720,13 @@ export default {
       }
     },
 
-    openProviderForm(p = null) {
+    async openProviderForm(p = null) {
       const editing = !!p;
       const v = (x) => this.escHtml(x ?? '');
+      if (!Object.keys(this.drivers).length) await this.loadProviderCatalog();
+      const driverOptions = Object.entries(this.drivers)
+        .map(([k, label]) => `<option value="${k}" ${p?.driver === k ? 'selected' : ''}>${this.escHtml(label)}</option>`)
+        .join('');
       Swal.fire({
         title: editing ? 'Editar proveedor' : 'Nuevo proveedor',
         width: 480,
@@ -664,6 +752,22 @@ export default {
                 <option value="servicios" ${(p?.type ?? 'servicios') === 'servicios' ? 'selected' : ''}>Servicios</option>
               </select>
             </div>
+            <div id="pv-ia-wrap" class="mb-3 p-2 border rounded" style="display:none">
+              <label class="form-label fw-semibold">Protocolo de IA <span class="text-danger">*</span></label>
+              <select id="pv-driver" class="form-select">
+                <option value="">— Seleccionar —</option>
+                ${driverOptions}
+              </select>
+              <div class="form-text mb-2">Cómo se habla con este proveedor. Ollama, DeepSeek o Groq usan «Compatible con OpenAI».</div>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="pv-img" ${p?.soporta_imagenes ? 'checked' : ''}>
+                <label class="form-check-label" for="pv-img">Puede leer imágenes</label>
+              </div>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="pv-pdf" ${p?.soporta_pdf ? 'checked' : ''}>
+                <label class="form-check-label" for="pv-pdf">Puede leer PDF</label>
+              </div>
+            </div>
             <div class="mb-3">
               <label class="form-label fw-semibold">Descripción</label>
               <input id="pv-desc" type="text" class="form-control" value="${v(p?.description)}">
@@ -682,10 +786,20 @@ export default {
             </div>
           </div>
         `,
+        didOpen: () => {
+          const type = document.getElementById('pv-type');
+          const wrap = document.getElementById('pv-ia-wrap');
+          const toggle = () => { wrap.style.display = type.value === 'ia' ? 'block' : 'none'; };
+          type.addEventListener('change', toggle);
+          toggle();
+        },
         preConfirm: () => {
           const name = document.getElementById('pv-name').value.trim();
           const slug = document.getElementById('pv-slug').value.trim();
+          const type = document.getElementById('pv-type').value;
+          const driver = document.getElementById('pv-driver').value;
           if (!name) { Swal.showValidationMessage('El nombre es requerido'); return false; }
+          if (type === 'ia' && !driver) { Swal.showValidationMessage('Elige el protocolo de IA'); return false; }
           if (!editing && !/^[a-z0-9_]+$/.test(slug)) {
             Swal.showValidationMessage('Identificador inválido (minúsculas, números y guion bajo)');
             return false;
@@ -693,7 +807,10 @@ export default {
           return {
             name,
             ...(editing ? {} : { slug }),
-            type: document.getElementById('pv-type').value,
+            type,
+            driver: type === 'ia' ? driver : null,
+            soporta_imagenes: type === 'ia' && document.getElementById('pv-img').checked,
+            soporta_pdf: type === 'ia' && document.getElementById('pv-pdf').checked,
             description: document.getElementById('pv-desc').value.trim(),
             docs_url: document.getElementById('pv-docs').value.trim(),
             key_format: document.getElementById('pv-fmt').value.trim(),
@@ -729,6 +846,76 @@ export default {
         await Promise.all([this.loadProviderCatalog(), this.load()]);
       } catch (e) {
         this.toast('danger', e.response?.data?.error ?? 'Error al eliminar');
+      }
+    },
+
+    // ── Módulos IA ────────────────────────────────────────────────────────────
+
+    async openIaTab() {
+      this.tab = 'ia';
+      await this.loadIaModulos();
+    },
+
+    async loadIaModulos() {
+      this.iaLoading = true;
+      try {
+        const res = await axios.get('/api/hub/ia-modulos');
+        const d = res.data.data ?? {};
+        this.iaIntegraciones = d.integraciones ?? [];
+        this.iaModulos = (d.modulos ?? []).map(m => ({
+          ...m, _origInt: m.api_integration_id, _origModelo: m.modelo,
+        }));
+      } catch (e) {
+        this.toast('danger', e.response?.data?.error ?? 'Error al cargar los módulos de IA');
+      } finally {
+        this.iaLoading = false;
+      }
+    },
+
+    iaIntegracion(id) {
+      return this.iaIntegraciones.find(i => i.id === id) ?? null;
+    },
+
+    onIaIntegracionChange(m) {
+      const integ = this.iaIntegracion(m.api_integration_id);
+      if (!integ) { m.modelo = null; return; }
+      // Al cambiar de proveedor el modelo anterior ya no aplica: proponer el primero sugerido
+      if (!m.modelo || !integ.modelos.includes(m.modelo)) {
+        m.modelo = integ.modelos[0] ?? '';
+      }
+    },
+
+    iaCambiado(m) {
+      return m.api_integration_id !== m._origInt || (m.modelo ?? null) !== (m._origModelo ?? null);
+    },
+
+    iaEstado(m) {
+      if (!m._origInt) return { txt: 'Sin asignar · IA apagada', cls: 'bg-light text-muted' };
+      const integ = this.iaIntegracion(m._origInt);
+      if (!integ || !integ.activa || !integ.tiene_llave) return { txt: 'Integración inactiva o sin llave', cls: 'bg-danger-subtle text-danger' };
+      if (!m.listo) return { txt: 'Asignada · el módulo aún no la usa', cls: 'bg-warning-subtle text-warning' };
+      return { txt: 'Activa', cls: 'bg-success-subtle text-success' };
+    },
+
+    async saveIaModulo(m) {
+      if (m.api_integration_id && !m.modelo) {
+        this.toast('warning', 'Indica el modelo a usar');
+        return;
+      }
+      this.iaGuardando = { ...this.iaGuardando, [m.clave]: true };
+      try {
+        await axios.put(`/api/hub/ia-modulos/${m.clave}`, {
+          api_integration_id: m.api_integration_id,
+          modelo: m.api_integration_id ? m.modelo : null,
+        });
+        m._origInt = m.api_integration_id;
+        m._origModelo = m.api_integration_id ? m.modelo : null;
+        if (!m.api_integration_id) m.modelo = null;
+        this.toast('success', m.api_integration_id ? `${m.nombre}: IA asignada` : `${m.nombre}: IA quitada`);
+      } catch (e) {
+        this.toast('danger', e.response?.data?.error ?? 'Error al guardar');
+      } finally {
+        this.iaGuardando = { ...this.iaGuardando, [m.clave]: false };
       }
     },
 

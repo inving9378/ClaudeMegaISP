@@ -2,38 +2,68 @@
 
 namespace App\Modules\Addons\IA\Services;
 
+use App\Models\Core\ApiIntegration;
+use App\Models\Core\ApiIntegrationProvider;
 use App\Modules\Addons\IA\Models\IAAsignacion;
 use App\Modules\Addons\IA\Models\IAProveedor;
-use RuntimeException;
+use App\Services\Core\ApiIntegrationService;
 
 /**
- * Punto único para que cualquier módulo obtenga "su" IA.
+ * Punto único para que cualquier módulo use "su" IA.
  *
  *   $r = IA::enviar('whatsapp.ventas', $texto, [], $system, $historial, ['max_tokens' => 800]);
  *   $datos = IA::json($r['texto']);
  *
- * Resolución: asignación de la clave → asignación 'global' → error claro.
- * El módulo nunca sabe qué proveedor hay detrás; cambiarlo es solo configuración.
- * Lo que la clave necesita (config('ia_modulos.<clave>.requiere'): imagenes, pdf)
- * se valida: un proveedor que no lo soporta se salta en vez de fallar a medias.
+ * Qué IA usa cada módulo se decide en Integraciones → "Módulos IA": la clave
+ * apunta a una integración de IA del Hub (la llave) + modelo. El protocolo
+ * (claude/openai/openai_compatible/gemini) y las capacidades salen del catálogo
+ * de proveedores del Hub. SIN asignación no hay IA: se lanza IANoConfigurada
+ * con un mensaje claro (decisión de Irving 2026-10-02, sin respaldo implícito).
  */
 class IA
 {
-    public const GLOBAL = 'global';
-
+    /**
+     * Arma el proveedor (en memoria, no se guarda) para la clave del módulo.
+     */
     public static function proveedorPara(string $clave): IAProveedor
     {
-        $requiere = (array) config("ia_modulos.{$clave}.requiere", []);
+        $nombreModulo = config("ia_modulos.{$clave}.nombre", $clave);
+        $configurar = 'Configúralo en Integraciones → Módulos IA.';
 
-        foreach ([$clave, self::GLOBAL] as $k) {
-            $proveedor = self::proveedorDeClave($k);
-            if ($proveedor && self::cumple($proveedor, $requiere)) {
-                return $proveedor;
-            }
+        $asig = IAAsignacion::with('integracion')->where('clave', $clave)->first();
+        $integracion = $asig?->integracion;
+        if (!$asig || !$integracion) {
+            throw new IANoConfigurada("«{$nombreModulo}» no tiene una IA asignada. {$configurar}");
+        }
+        if (!$integracion->active || !$integracion->encrypted_value) {
+            throw new IANoConfigurada("La integración «{$integracion->name}» asignada a «{$nombreModulo}» está inactiva o sin llave. {$configurar}");
         }
 
-        $extra = $requiere ? ' que soporte ' . implode(' y ', $requiere) : '';
-        throw new RuntimeException("No hay proveedor de IA activo{$extra} para '{$clave}' ni respaldo global.");
+        $catalogo = ApiIntegrationProvider::where('slug', $integracion->provider)->first();
+        if (!$catalogo || $catalogo->type !== 'ia' || !$catalogo->driver) {
+            throw new IANoConfigurada("El proveedor «{$integracion->provider}» no tiene definido su protocolo de IA. Edítalo en Integraciones → Proveedores.");
+        }
+
+        $faltan = self::capacidadesFaltantes($catalogo, (array) config("ia_modulos.{$clave}.requiere", []));
+        if ($faltan) {
+            throw new IANoConfigurada("«{$catalogo->name}» no soporta " . implode(' ni ', $faltan) . ", que «{$nombreModulo}» necesita. {$configurar}");
+        }
+
+        $proveedor = new IAProveedor([
+            'nombre' => $integracion->name,
+            'driver' => $catalogo->driver,
+            'endpoint_url' => data_get($integracion->config, 'endpoint') ?: null,
+            'modelo_default' => $asig->modelo,
+            'soporta_imagenes' => $catalogo->soporta_imagenes,
+            'config_extra' => [
+                'hub_integracion' => $integracion->slug,
+                'soporta_pdf' => $catalogo->soporta_pdf,
+            ],
+            'activo' => true,
+        ]);
+        $proveedor->setRelation('integracionHub', $integracion);
+
+        return $proveedor;
     }
 
     public static function para(string $clave): IAAdaptadorInterface
@@ -41,29 +71,38 @@ class IA
         return IAAdaptadorFactory::crear(self::proveedorPara($clave));
     }
 
+    /** ¿El módulo tiene una IA asignada y utilizable? (sin lanzar) */
+    public static function configurada(string $clave): bool
+    {
+        try {
+            self::proveedorPara($clave);
+            return true;
+        } catch (IANoConfigurada) {
+            return false;
+        }
+    }
+
     /**
-     * Envía con conmutación: si el proveedor de la clave falla y existe un
-     * respaldo global distinto (que cumpla los requisitos), reintenta con ese.
-     * El resultado trae además 'proveedor', 'driver' y 'modelo' realmente usados
-     * (para auditoría/costos, en vez de suponer que siempre fue Claude).
+     * Envía el mensaje con la IA asignada al módulo. El resultado trae además
+     * 'proveedor', 'driver' y 'modelo' realmente usados (para auditoría/costos).
+     * El uso y costo se registran en la integración del Hub (feature = clave).
      */
     public static function enviar(string $clave, string $mensaje, array $imagenes = [], ?string $systemPrompt = null, array $historial = [], array $opciones = []): array
     {
-        $primario = self::proveedorPara($clave);
+        $p = self::proveedorPara($clave);
+
+        $r = IAAdaptadorFactory::crear($p)->enviarMensaje($historial, $mensaje, $imagenes, $systemPrompt, $opciones);
 
         try {
-            return self::enviarCon($primario, $historial, $mensaje, $imagenes, $systemPrompt, $opciones);
-        } catch (\Throwable $e) {
-            $respaldo = $clave !== self::GLOBAL ? self::proveedorDeClave(self::GLOBAL) : null;
-            $requiere = (array) config("ia_modulos.{$clave}.requiere", []);
-            if (!$respaldo || $respaldo->id === $primario->id || !self::cumple($respaldo, $requiere)) {
-                throw $e;
-            }
-            \Log::warning('IA: proveedor falló, usando respaldo global', [
-                'clave' => $clave, 'proveedor' => $primario->nombre, 'error' => $e->getMessage(),
-            ]);
-            return self::enviarCon($respaldo, $historial, $mensaje, $imagenes, $systemPrompt, $opciones);
+            $costo = app(IAPricingService::class)->calcularCosto(
+                (string) $p->modelo_default, (int) ($r['tokens_input'] ?? 0), (int) ($r['tokens_output'] ?? 0)
+            );
+            ApiIntegrationService::instance()->trackUsage($p->getRelation('integracionHub'), $clave, 1, $costo);
+        } catch (\Throwable) {
+            // el registro de uso es best-effort, nunca rompe la llamada
         }
+
+        return $r + ['proveedor' => $p->nombre, 'driver' => $p->driver, 'modelo' => $p->modelo_default];
     }
 
     /**
@@ -94,40 +133,25 @@ class IA
         return is_array($decodificado) ? $decodificado : null;
     }
 
-    public static function cumple(IAProveedor $p, array $requiere): bool
+    /**
+     * Capacidades que pide el módulo y el proveedor del catálogo NO tiene.
+     * Devuelve etiquetas legibles ("leer PDF", …); vacío = cumple todo.
+     */
+    public static function capacidadesFaltantes(ApiIntegrationProvider $catalogo, array $requiere): array
     {
+        $faltan = [];
         foreach ($requiere as $capacidad) {
-            $ok = match ($capacidad) {
-                'imagenes' => (bool) $p->soporta_imagenes,
-                'pdf' => $p->soportaPdf(),
-                default => true,
+            [$ok, $etiqueta] = match ($capacidad) {
+                'imagenes' => [$catalogo->soporta_imagenes, 'leer imágenes'],
+                'pdf' => [$catalogo->soporta_pdf, 'leer PDF'],
+                // Formato neutro de herramientas: claude/openai/gemini sí; compatibles no garantizado
+                'herramientas' => [in_array($catalogo->driver, ['claude', 'openai', 'gemini'], true), 'herramientas'],
+                default => [true, $capacidad],
             };
             if (!$ok) {
-                return false;
+                $faltan[] = $etiqueta;
             }
         }
-        return true;
-    }
-
-    protected static function enviarCon(IAProveedor $p, array $historial, string $mensaje, array $imagenes, ?string $systemPrompt, array $opciones): array
-    {
-        $r = IAAdaptadorFactory::crear($p)->enviarMensaje($historial, $mensaje, $imagenes, $systemPrompt, $opciones);
-        return $r + ['proveedor' => $p->nombre, 'driver' => $p->driver, 'modelo' => $p->modelo_default];
-    }
-
-    protected static function proveedorDeClave(string $clave): ?IAProveedor
-    {
-        $asig = IAAsignacion::with('proveedor')->where('clave', $clave)->first();
-        $p = $asig?->proveedor;
-        if (!$p || !$p->activo) {
-            return null;
-        }
-        if ($asig->modelo) {
-            // Override solo en memoria: se marca como "original" para que un
-            // save()/update() posterior del proveedor NO lo persista.
-            $p->modelo_default = $asig->modelo;
-            $p->syncOriginalAttribute('modelo_default');
-        }
-        return $p;
+        return $faltan;
     }
 }

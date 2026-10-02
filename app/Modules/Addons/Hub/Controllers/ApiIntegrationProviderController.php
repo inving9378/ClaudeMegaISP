@@ -28,7 +28,7 @@ class ApiIntegrationProviderController extends Controller
         $items = ApiIntegrationProvider::orderBy('type')->orderBy('name')->get()
             ->map(fn($p) => $this->format($p, (int) ($counts[$p->slug] ?? 0)));
 
-        return response()->json(['data' => $items]);
+        return response()->json(['data' => $items, 'drivers' => ApiIntegrationProvider::DRIVERS]);
     }
 
     public function store(Request $request): JsonResponse
@@ -38,6 +38,9 @@ class ApiIntegrationProviderController extends Controller
                               Rule::unique('api_integration_providers', 'slug')->whereNull('deleted_at')],
             'name'        => 'required|string|max:150',
             'type'        => 'required|in:ia,servicios',
+            'driver'      => ['nullable', Rule::in(array_keys(ApiIntegrationProvider::DRIVERS))],
+            'soporta_imagenes' => 'boolean',
+            'soporta_pdf' => 'boolean',
             'description' => 'nullable|string|max:255',
             'icon'        => 'nullable|string|max:60',
             'docs_url'    => 'nullable|string|max:255',
@@ -51,12 +54,20 @@ class ApiIntegrationProviderController extends Controller
         }
 
         $data = $request->only([
-            'slug', 'name', 'type', 'description', 'icon', 'docs_url', 'key_format',
+            'slug', 'name', 'type', 'driver', 'description', 'icon', 'docs_url', 'key_format',
         ]) + [
+            'soporta_imagenes' => $request->boolean('soporta_imagenes'),
+            'soporta_pdf' => $request->boolean('soporta_pdf'),
             'has_config' => $request->boolean('has_config'),
             'active'     => $request->boolean('active', true),
             'is_system'  => false,
         ];
+
+        if ($data['type'] !== 'ia') {
+            $data['driver'] = null;
+            $data['soporta_imagenes'] = false;
+            $data['soporta_pdf'] = false;
+        }
 
         // Un proveedor borrado conserva su slug (índice único): se revive en vez de chocar
         $trashed = ApiIntegrationProvider::onlyTrashed()->where('slug', $data['slug'])->first();
@@ -78,6 +89,9 @@ class ApiIntegrationProviderController extends Controller
         $v = Validator::make($request->all(), [
             'name'        => 'sometimes|string|max:150',
             'type'        => 'sometimes|in:ia,servicios',
+            'driver'      => ['nullable', Rule::in(array_keys(ApiIntegrationProvider::DRIVERS))],
+            'soporta_imagenes' => 'boolean',
+            'soporta_pdf' => 'boolean',
             'description' => 'nullable|string|max:255',
             'icon'        => 'nullable|string|max:60',
             'docs_url'    => 'nullable|string|max:255',
@@ -91,8 +105,15 @@ class ApiIntegrationProviderController extends Controller
         }
 
         $provider->fill($request->only([
-            'name', 'type', 'description', 'icon', 'docs_url', 'key_format', 'has_config', 'active',
+            'name', 'type', 'driver', 'soporta_imagenes', 'soporta_pdf',
+            'description', 'icon', 'docs_url', 'key_format', 'has_config', 'active',
         ]));
+        // El protocolo/capacidades de IA solo aplican a proveedores de IA
+        if ($provider->type !== 'ia') {
+            $provider->driver = null;
+            $provider->soporta_imagenes = false;
+            $provider->soporta_pdf = false;
+        }
         $provider->save();
 
         // El tipo del proveedor manda: se propaga a sus integraciones existentes
@@ -130,6 +151,9 @@ class ApiIntegrationProviderController extends Controller
             'name'               => $p->name,
             'description'        => $p->description,
             'type'               => $p->type,
+            'driver'             => $p->driver,
+            'soporta_imagenes'   => $p->soporta_imagenes,
+            'soporta_pdf'        => $p->soporta_pdf,
             'icon'               => $p->icon,
             'docs_url'           => $p->docs_url,
             'key_format'         => $p->key_format,
