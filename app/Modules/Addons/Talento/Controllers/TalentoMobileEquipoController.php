@@ -463,7 +463,7 @@ class TalentoMobileEquipoController extends Controller
 
         $dispositivos = TalentoDevice::where('user_id', $col->user_id)
             ->orderByDesc('last_seen_at')
-            ->get(['id', 'platform', 'label', 'approved', 'last_seen_at', 'revoked_at']);
+            ->get(['id', 'device_key', 'platform', 'label', 'approved', 'last_seen_at', 'revoked_at']);
 
         return response()->json(['dispositivos' => $dispositivos]);
     }
