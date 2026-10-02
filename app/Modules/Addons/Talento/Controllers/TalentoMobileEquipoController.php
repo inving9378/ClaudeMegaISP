@@ -140,6 +140,9 @@ class TalentoMobileEquipoController extends Controller
             'status' => $col->status,
             'ingreso' => optional($col->hire_date)->toDateString(),
             'supervisor' => $col->supervisor?->user->name ?? null,
+            // David (2-oct): para la credencial visual en "Mi credencial" --
+            // url_photography ya resuelve a un avatar por default si no hay foto.
+            'foto' => $col->user->url_photography ?? null,
         ]);
     }
 
@@ -640,6 +643,23 @@ class TalentoMobileEquipoController extends Controller
      * QR del link de descarga del APK (release activa en talento_app_releases)
      * -- para escanear desde otro telefono y vincular la app ahi.
      */
+    /**
+     * Imagenes de la plantilla de credencial (frente/reverso/logo) -- las
+     * MISMAS 3 filas compartidas que ya usa Vendedores (App\Models\
+     * Credential, subidas en /configuracion/credencial). Sin fila = usar
+     * los defaults estaticos (/images/gafete-front.png, etc.), igual que
+     * hace InformationSeller.vue -- la app resuelve el fallback, aqui solo
+     * se informa si hay o no fila personalizada.
+     */
+    public function credencialPlantilla()
+    {
+        return response()->json([
+            'front' => \App\Models\Credential::where('type', 'frontal')->value('name'),
+            'back' => \App\Models\Credential::where('type', 'reverso')->value('name'),
+            'logo' => \App\Models\Credential::where('type', 'logo')->value('name'),
+        ]);
+    }
+
     public function downloadQr()
     {
         $release = DB::table('talento_app_releases')->where('active', true)->orderByDesc('version_code')->first();

@@ -582,6 +582,7 @@ Route::middleware(['auth:sanctum'])
         Route::get('/portal/rutas/{id}',               [TalentoMobileEquipoController::class, 'rutaDetalle']);
         Route::post('/portal/dispositivos/vincular',   [TalentoMobileEquipoController::class, 'dispositivoVincular']);
         Route::get('/portal/credencial-pdf-url',       [TalentoMobileEquipoController::class, 'credencialPdfUrl']);
+        Route::get('/portal/credencial-plantilla',    [TalentoMobileEquipoController::class, 'credencialPlantilla']);
         Route::get('/app/download-qr',                 [TalentoMobileEquipoController::class, 'downloadQr']);
     });
 
