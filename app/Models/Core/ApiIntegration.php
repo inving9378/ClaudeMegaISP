@@ -28,6 +28,22 @@ class ApiIntegration extends BaseModel
         'last_validated_at'       => 'datetime',
     ];
 
+    // El tipo (ia | servicios) lo manda el catálogo de proveedores: se fija aquí
+    // para que TODA vía de alta (UI, seeders, tinker) quede consistente.
+    protected static function booted(): void
+    {
+        parent::booted();
+
+        static::saving(function (self $integration) {
+            if (!$integration->exists || $integration->isDirty('provider')) {
+                $type = ApiIntegrationProvider::where('slug', $integration->provider)->value('type');
+                if ($type) {
+                    $integration->type = $type;
+                }
+            }
+        });
+    }
+
     // ── Accessors / Mutators ────────────────────────────────────────────────────
 
     public function getValueAttribute(): ?string

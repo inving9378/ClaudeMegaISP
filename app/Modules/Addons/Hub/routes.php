@@ -15,8 +15,8 @@ Route::middleware(['web', 'auth'])->prefix('api/hub')->name('hub.api.')->group(f
     Route::get('providers',                     [ApiIntegrationController::class, 'providers'])->name('providers');
     Route::get('provider-catalog',              [ApiIntegrationProviderController::class, 'index'])->name('catalog.index');
     Route::post('provider-catalog',             [ApiIntegrationProviderController::class, 'store'])->name('catalog.store');
-    Route::put('provider-catalog/{id}',         [ApiIntegrationProviderController::class, 'update'])->name('catalog.update');
-    Route::delete('provider-catalog/{id}',      [ApiIntegrationProviderController::class, 'destroy'])->name('catalog.destroy');
+    Route::put('provider-catalog/{id}',         [ApiIntegrationProviderController::class, 'update'])->whereNumber('id')->name('catalog.update');
+    Route::delete('provider-catalog/{id}',      [ApiIntegrationProviderController::class, 'destroy'])->whereNumber('id')->name('catalog.destroy');
     Route::get('integrations',                  [ApiIntegrationController::class, 'index'])->name('index');
     Route::post('integrations',                 [ApiIntegrationController::class, 'store'])->name('store');
     Route::get('integrations/{id}',             [ApiIntegrationController::class, 'show'])->name('show');

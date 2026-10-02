@@ -5,7 +5,6 @@ namespace App\Modules\Addons\Hub\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\Core\ApiIntegration;
 use App\Models\Core\ApiIntegrationLog;
-use App\Models\Core\ApiIntegrationProvider;
 use App\Services\Core\ApiIntegrationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -55,7 +54,7 @@ class ApiIntegrationController extends Controller
     public function store(Request $request): JsonResponse
     {
         $v = Validator::make($request->all(), [
-            'provider' => 'required|string|max:50|exists:api_integration_providers,slug,deleted_at,NULL',
+            'provider' => 'required|string|max:50|exists:api_integration_providers,slug,deleted_at,NULL,active,1',
             'slug'     => 'required|string|max:100|unique:api_integrations,slug,NULL,id,company_id,1',
             'name'     => 'required|string|max:150',
             'key'      => 'nullable|string',
@@ -67,12 +66,9 @@ class ApiIntegrationController extends Controller
             return response()->json(['error' => $v->errors()->first()], 422);
         }
 
-        $providerType = ApiIntegrationProvider::where('slug', $request->provider)->value('type');
-
         $integration = ApiIntegration::create([
             'company_id'             => 1,
             'provider'               => $request->provider,
-            'type'                   => $providerType,
             'slug'                   => $request->slug,
             'name'                   => $request->name,
             'config'                 => $request->config ?? [],

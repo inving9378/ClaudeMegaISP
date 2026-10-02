@@ -87,15 +87,26 @@ class ApiIntegrationService
             return $this->validationResult($integration, false, 'No key configured');
         }
 
+        $validators = [
+            'anthropic'   => fn() => $this->validateAnthropic($key),
+            'openai'      => fn() => $this->validateOpenAi($key),
+            'evolution'   => fn() => $this->validateEvolution($key, $integration->config ?? []),
+            'pexels'      => fn() => $this->validatePexels($key),
+            'google_maps' => fn() => $this->validateGoogleMaps($key),
+        ];
+
+        // Sin validador para este proveedor: NO se marca como válida (sería mentir)
+        if (!isset($validators[$integration->provider])) {
+            $this->audit($integration, 'validation_skipped', ['message' => 'Proveedor sin validación automática']);
+            return [
+                'success' => false,
+                'message' => 'Este proveedor no tiene validación automática; la key no se verificó',
+                'status'  => $integration->last_validation_status,
+            ];
+        }
+
         try {
-            $ok = match ($integration->provider) {
-                'anthropic'  => $this->validateAnthropic($key),
-                'openai'     => $this->validateOpenAi($key),
-                'evolution'  => $this->validateEvolution($key, $integration->config ?? []),
-                'pexels'     => $this->validatePexels($key),
-                'google_maps'=> $this->validateGoogleMaps($key),
-                default      => true,
-            };
+            $ok = $validators[$integration->provider]();
         } catch (\Throwable $e) {
             return $this->validationResult($integration, false, $e->getMessage());
         }
@@ -168,7 +179,11 @@ class ApiIntegrationService
 
     public function getProviders(): array
     {
-        return \App\Models\Core\ApiIntegrationProvider::where('active', true)
+        // Activos + los inactivos que aún tienen integraciones (para no esconderlas de la UI)
+        $withIntegrations = ApiIntegration::query()->distinct()->pluck('provider');
+
+        return \App\Models\Core\ApiIntegrationProvider::query()
+            ->where(fn($q) => $q->where('active', true)->orWhereIn('slug', $withIntegrations))
             ->orderBy('type')->orderBy('name')->get()
             ->map(fn($p) => [
                 'id'          => $p->slug,
@@ -179,6 +194,7 @@ class ApiIntegrationService
                 'docs_url'    => $p->docs_url,
                 'key_format'  => $p->key_format,
                 'has_config'  => $p->has_config,
+                'active'      => $p->active,
             ])->all();
     }
 }

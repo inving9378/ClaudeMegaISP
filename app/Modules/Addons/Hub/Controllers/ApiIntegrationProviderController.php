@@ -8,6 +8,7 @@ use App\Models\Core\ApiIntegrationProvider;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class ApiIntegrationProviderController extends Controller
 {
@@ -33,7 +34,8 @@ class ApiIntegrationProviderController extends Controller
     public function store(Request $request): JsonResponse
     {
         $v = Validator::make($request->all(), [
-            'slug'        => ['required', 'string', 'max:50', 'regex:/^[a-z0-9_]+$/', 'unique:api_integration_providers,slug'],
+            'slug'        => ['required', 'string', 'max:50', 'regex:/^[a-z0-9_]+$/',
+                              Rule::unique('api_integration_providers', 'slug')->whereNull('deleted_at')],
             'name'        => 'required|string|max:150',
             'type'        => 'required|in:ia,servicios',
             'description' => 'nullable|string|max:255',
@@ -48,13 +50,23 @@ class ApiIntegrationProviderController extends Controller
             return response()->json(['error' => $v->errors()->first()], 422);
         }
 
-        $provider = ApiIntegrationProvider::create($request->only([
+        $data = $request->only([
             'slug', 'name', 'type', 'description', 'icon', 'docs_url', 'key_format',
         ]) + [
             'has_config' => $request->boolean('has_config'),
             'active'     => $request->boolean('active', true),
             'is_system'  => false,
-        ]);
+        ];
+
+        // Un proveedor borrado conserva su slug (índice único): se revive en vez de chocar
+        $trashed = ApiIntegrationProvider::onlyTrashed()->where('slug', $data['slug'])->first();
+        if ($trashed) {
+            $trashed->restore();
+            $trashed->fill($data)->save();
+            $provider = $trashed;
+        } else {
+            $provider = ApiIntegrationProvider::create($data);
+        }
 
         return response()->json(['data' => $this->format($provider, 0)], 201);
     }

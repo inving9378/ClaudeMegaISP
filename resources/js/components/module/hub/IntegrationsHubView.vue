@@ -71,7 +71,9 @@
             <i :class="providerIcon(provider.id)"></i>
           </div>
           <div class="provider-info">
-            <div class="provider-name">{{ provider.name }}</div>
+            <div class="provider-name">{{ provider.name }}
+              <span v-if="provider.active === false" class="badge bg-light text-muted ms-1">Proveedor inactivo</span>
+            </div>
             <div class="provider-desc">{{ provider.description }}</div>
           </div>
           <div class="provider-header-actions">
@@ -86,7 +88,7 @@
         <div v-if="integrationsFor(provider.id).length === 0" class="provider-empty">
           <i class="bi bi-key-fill text-muted"></i>
           <span class="ms-2 text-muted small">Sin configurar</span>
-          <button v-if="can('manage-integrations')" class="btn btn-link btn-sm p-0 ms-2" @click="openCreate(provider.id)">
+          <button v-if="can('manage-integrations') && provider.active !== false" class="btn btn-link btn-sm p-0 ms-2" @click="openCreate(provider.id)">
             Configurar ahora
           </button>
         </div>
@@ -164,7 +166,7 @@
         </div>
 
         <!-- Add another -->
-        <div v-if="integrationsFor(provider.id).length > 0 && can('manage-integrations')" class="provider-add-more">
+        <div v-if="integrationsFor(provider.id).length > 0 && can('manage-integrations') && provider.active !== false" class="provider-add-more">
           <button class="btn btn-link btn-sm text-muted p-0" @click="openCreate(provider.id)">
             <i class="bi bi-plus-circle me-1"></i>Agregar otra
           </button>
@@ -278,7 +280,7 @@ export default {
     openCreate(providerId = null) {
       const typeLabel = { ia: 'IA', servicios: 'Servicios' };
       const providerOptions = ['ia', 'servicios'].map(t => {
-        const opts = this.providers.filter(p => p.type === t)
+        const opts = this.providers.filter(p => p.type === t && p.active !== false)
           .map(p => `<option value="${p.id}" ${p.id === providerId ? 'selected' : ''}>${this.escHtml(p.name)}</option>`)
           .join('');
         return opts ? `<optgroup label="${typeLabel[t]}">${opts}</optgroup>` : '';
@@ -749,7 +751,7 @@ export default {
       const map = {
         anthropic: '#7c3aed', 'anthropic-legacy': '#9e6fd0',
         openai: '#10a37f', evolution: '#25d366',
-        pexels: '#05a081', 'google-maps': '#4285f4',
+        pexels: '#05a081', 'google-maps': '#4285f4', google_maps: '#4285f4',
         meta: '#0866ff',
       };
       return map[id] ?? '#6c757d';
@@ -759,7 +761,7 @@ export default {
       const map = {
         anthropic: 'bi bi-robot', 'anthropic-legacy': 'bi bi-robot',
         openai: 'bi bi-stars', evolution: 'bi bi-whatsapp',
-        pexels: 'bi bi-images', 'google-maps': 'bi bi-geo-alt-fill',
+        pexels: 'bi bi-images', 'google-maps': 'bi bi-geo-alt-fill', google_maps: 'bi bi-geo-alt-fill',
         meta: 'bi bi-facebook',
       };
       return map[id] ?? 'bi bi-plugin';
