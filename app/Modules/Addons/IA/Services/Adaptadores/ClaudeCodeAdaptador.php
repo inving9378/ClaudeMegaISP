@@ -121,6 +121,11 @@ class ClaudeCodeAdaptador implements IAAdaptadorInterface
         ];
     }
 
+    public function conversarConHerramientas(array $mensajes, ?string $systemPrompt, array $herramientas, array $opciones = []): array
+    {
+        throw new RuntimeException('ClaudeCodeAdaptador no soporta herramientas — usa un proveedor con api_key (claude/openai/gemini).');
+    }
+
     public function probarConexion(): bool
     {
         try {

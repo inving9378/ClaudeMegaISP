@@ -73,14 +73,100 @@ class OpenAIAdaptador extends AdaptadorHttpBase
             'content' => $this->formatearContenido($mensaje, $imagenes),
         ];
 
-        $modelo = (string) $this->proveedor->modelo_default;
         $payload = [
-            'model' => $modelo,
+            'model' => (string) $this->proveedor->modelo_default,
             'messages' => $messages,
         ];
+        $this->aplicarLimites($payload, $opciones);
 
-        // Modelos de razonamiento (o1/o3/o4…, gpt-5…) rechazan max_tokens y temperature.
-        $razonamiento = (bool) preg_match('/^(o\d|gpt-5)/i', $modelo);
+        // JSON nativo: OpenAI exige que la palabra "json" aparezca en los mensajes,
+        // si no responde 400. Solo se activa cuando el prompt ya lo pide.
+        if (!empty($opciones['json']) && stripos($systemPrompt . ' ' . $mensaje, 'json') !== false) {
+            $payload['response_format'] = ['type' => 'json_object'];
+        }
+
+        return $payload;
+    }
+
+    public function conversarConHerramientas(array $mensajes, ?string $systemPrompt, array $herramientas, array $opciones = []): array
+    {
+        $messages = [];
+        if ($systemPrompt) {
+            $messages[] = ['role' => 'system', 'content' => $systemPrompt];
+        }
+
+        foreach ($mensajes as $m) {
+            $rol = $m['rol'] ?? 'user';
+            if ($rol === 'herramienta') {
+                $messages[] = ['role' => 'tool', 'tool_call_id' => (string) $m['id'], 'content' => (string) ($m['resultado'] ?? '')];
+            } elseif ($rol === 'assistant') {
+                $turno = ['role' => 'assistant', 'content' => ($m['contenido'] ?? '') !== '' ? (string) $m['contenido'] : null];
+                if (!empty($m['llamadas'])) {
+                    $turno['tool_calls'] = array_map(fn($l) => [
+                        'id' => (string) $l['id'],
+                        'type' => 'function',
+                        'function' => ['name' => (string) $l['nombre'], 'arguments' => json_encode($this->comoObjeto((array) ($l['argumentos'] ?? [])), JSON_UNESCAPED_UNICODE)],
+                    ], $m['llamadas']);
+                }
+                $messages[] = $turno;
+            } elseif ($rol === 'system') {
+                $messages[] = ['role' => 'system', 'content' => (string) ($m['contenido'] ?? '')];
+            } else {
+                $messages[] = ['role' => 'user', 'content' => (string) ($m['contenido'] ?? '')];
+            }
+        }
+
+        $payload = [
+            'model' => (string) $this->proveedor->modelo_default,
+            'messages' => $messages,
+        ];
+        if ($herramientas) {
+            $payload['tools'] = array_map(fn($h) => [
+                'type' => 'function',
+                'function' => ['name' => $h['nombre'], 'description' => $h['descripcion'], 'parameters' => $h['parametros']],
+            ], $this->herramientasNeutras($herramientas));
+        }
+        $this->aplicarLimites($payload, $opciones);
+
+        $headers = ['Content-Type' => 'application/json'];
+        if ($clave = $this->clave()) {
+            $headers['Authorization'] = 'Bearer ' . $clave;
+        }
+        $headers = array_merge($headers, $this->proveedor->headers_personalizados ?? []);
+
+        $json = $this->postJson($this->proveedor->endpoint_url ?: 'https://api.openai.com/v1/chat/completions', $headers, $payload, $opciones);
+
+        $llamadas = [];
+        foreach (data_get($json, 'choices.0.message.tool_calls', []) ?? [] as $tc) {
+            $args = json_decode((string) data_get($tc, 'function.arguments', '{}'), true);
+            $llamadas[] = [
+                'id' => (string) ($tc['id'] ?? ''),
+                'nombre' => (string) data_get($tc, 'function.name', ''),
+                'argumentos' => is_array($args) ? $args : [],
+            ];
+        }
+
+        return [
+            'texto' => $this->parsearRespuesta($json),
+            'llamadas' => $llamadas,
+            'fin' => $llamadas ? 'herramientas' : match (data_get($json, 'choices.0.finish_reason')) {
+                'stop' => 'completo',
+                'length' => 'max_tokens',
+                default => 'otro',
+            },
+            'tokens_input' => data_get($json, 'usage.prompt_tokens'),
+            'tokens_output' => data_get($json, 'usage.completion_tokens'),
+            'raw' => $json,
+        ];
+    }
+
+    /**
+     * max_tokens y temperatura. Los modelos de razonamiento (o1/o3/o4…, gpt-5…)
+     * rechazan max_tokens y temperature: usan max_completion_tokens y sin temperatura.
+     */
+    private function aplicarLimites(array &$payload, array $opciones): void
+    {
+        $razonamiento = (bool) preg_match('/^(o\d|gpt-5)/i', (string) $payload['model']);
 
         $maxTokens = $this->opcion($opciones, 'max_tokens', 'max_tokens');
         if ($maxTokens) {
@@ -91,14 +177,6 @@ class OpenAIAdaptador extends AdaptadorHttpBase
         if ($temperature !== null && !$razonamiento) {
             $payload['temperature'] = (float) $temperature;
         }
-
-        // JSON nativo: OpenAI exige que la palabra "json" aparezca en los mensajes,
-        // si no responde 400. Solo se activa cuando el prompt ya lo pide.
-        if (!empty($opciones['json']) && stripos($systemPrompt . ' ' . $mensaje, 'json') !== false) {
-            $payload['response_format'] = ['type' => 'json_object'];
-        }
-
-        return $payload;
     }
 
     public function parsearRespuesta(array $respuesta): string

@@ -25,6 +25,23 @@ interface IAAdaptadorInterface
     public function enviarMensaje(array $historial, string $mensaje, array $imagenes = [], ?string $systemPrompt = null, array $opciones = []): array;
 
     /**
+     * Conversación con HERRAMIENTAS (function calling) en formato neutro de proveedor.
+     * El que llama ejecuta las herramientas y vuelve a llamar con los resultados.
+     *
+     * @param array $mensajes Turnos en orden:
+     *        ['rol' => 'user', 'contenido' => string]
+     *        ['rol' => 'assistant', 'contenido' => string, 'llamadas' => [['id','nombre','argumentos' => array]]]
+     *        ['rol' => 'herramienta', 'id' => string, 'nombre' => string, 'resultado' => string]
+     * @param array $herramientas [['nombre' => string, 'descripcion' => string, 'parametros' => JSON Schema (object)]]
+     * @param array $opciones Igual que enviarMensaje (max_tokens, temperatura, timeout, reintentos).
+     *
+     * @return array{texto:string, llamadas:array<int, array{id:string, nombre:string, argumentos:array}>,
+     *               fin:string, tokens_input:?int, tokens_output:?int, raw:array}
+     *         fin: 'herramientas' (pidió ejecutar llamadas) | 'completo' | 'max_tokens' | 'otro'.
+     */
+    public function conversarConHerramientas(array $mensajes, ?string $systemPrompt, array $herramientas, array $opciones = []): array;
+
+    /**
      * Hace una llamada mínima al proveedor para validar conectividad y credenciales.
      */
     public function probarConexion(): bool;
