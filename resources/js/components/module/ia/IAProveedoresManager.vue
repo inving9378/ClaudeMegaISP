@@ -35,7 +35,11 @@
                                     :title="p.ultimo_error || p.estado"></span>
                                 {{ etiquetaEstado(p.estado) }}
                             </td>
-                            <td>{{ p.nombre }}</td>
+                            <td>
+                                {{ p.nombre }}
+                                <span v-if="p.hub_integracion" class="badge bg-info-subtle text-info ms-1"
+                                    :title="`Llave del Integration Hub: ${p.hub_integracion}`">Hub</span>
+                            </td>
                             <td><code>{{ p.driver }}</code></td>
                             <td><small>{{ p.modelo_default }}</small></td>
                             <td>
@@ -86,6 +90,20 @@
                             </select>
                         </div>
                         <div class="col-md-12">
+                            <label class="form-label">Origen de la llave</label>
+                            <select class="form-select" v-model="form.hub_integracion" @change="alElegirHub">
+                                <option value="">Escribir la API key aquí</option>
+                                <option v-for="i in integracionesHub" :key="i.slug" :value="i.slug"
+                                    :disabled="!i.activa || !i.tiene_llave">
+                                    Integration Hub: {{ i.nombre }} ({{ i.proveedor }}){{ !i.activa ? " — inactiva" : (!i.tiene_llave ? " — sin llave" : "") }}
+                                </option>
+                            </select>
+                            <small v-if="form.hub_integracion" class="form-text text-info d-block">
+                                <i class="bi bi-info-circle"></i>
+                                La llave se toma del Integration Hub: si la rotas o la cambias allá, aquí se actualiza sola.
+                            </small>
+                        </div>
+                        <div class="col-md-12" v-if="!form.hub_integracion">
                             <label class="form-label">API Key</label>
                             <div class="input-group">
                                 <input
@@ -174,7 +192,7 @@
 </template>
 
 <script>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import axios from "axios";
 import Swal from "sweetalert2";
 
@@ -214,6 +232,28 @@ export default {
         const errorForm = ref("");
         const guardando = ref(false);
         const probando = ref(null);
+        const integracionesHub = ref([]);
+
+        // Integraciones de IA del Hub disponibles como origen de la llave.
+        onMounted(async () => {
+            try {
+                const { data } = await axios.get("/ia/proveedores");
+                integracionesHub.value = data.integraciones_hub || [];
+            } catch {
+                integracionesHub.value = [];
+            }
+        });
+
+        // Al elegir una integración del Hub, el driver se ajusta al protocolo de su proveedor.
+        const alElegirHub = () => {
+            const i = integracionesHub.value.find((x) => x.slug === form.value.hub_integracion);
+            if (i && i.driver && i.driver !== form.value.driver) {
+                form.value.driver = i.driver;
+                if (!form.value.endpoint_url || form.value.endpoint_url === DEFAULTS[form.value.driver]?.endpoint) {
+                    form.value.endpoint_url = DEFAULTS[i.driver]?.endpoint || "";
+                }
+            }
+        };
 
         const endpointPlaceholder = computed(
             () => DEFAULTS[form.value?.driver]?.endpoint || ""
@@ -229,6 +269,7 @@ export default {
             if (p) {
                 form.value = {
                     ...p,
+                    hub_integracion: p.hub_integracion || "",
                     api_key: "",
                     headers_personalizados_raw: p.headers_personalizados
                         ? JSON.stringify(p.headers_personalizados, null, 2)
@@ -247,6 +288,7 @@ export default {
                     activo: true,
                     headers_personalizados_raw: "",
                     tiene_api_key: false,
+                    hub_integracion: "",
                 };
             }
             formAbierto.value = true;
@@ -269,7 +311,8 @@ export default {
             const payload = {
                 nombre: form.value.nombre,
                 driver: form.value.driver,
-                api_key: form.value.api_key || "",
+                api_key: form.value.hub_integracion ? "" : (form.value.api_key || ""),
+                hub_integracion: form.value.hub_integracion || "",
                 endpoint_url: form.value.endpoint_url,
                 modelo_default: form.value.modelo_default,
                 soporta_imagenes: form.value.soporta_imagenes ? 1 : 0,
@@ -337,6 +380,8 @@ export default {
             errorForm,
             guardando,
             probando,
+            integracionesHub,
+            alElegirHub,
             endpointPlaceholder,
             etiquetaEstado,
             abrirFormulario,
