@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Hub\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\Core\ApiIntegration;
 use App\Models\Core\ApiIntegrationLog;
+use App\Models\Core\ApiIntegrationProvider;
 use App\Services\Core\ApiIntegrationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -54,8 +55,7 @@ class ApiIntegrationController extends Controller
     public function store(Request $request): JsonResponse
     {
         $v = Validator::make($request->all(), [
-            'provider' => 'required|string|max:50',
-            'type'     => 'required|in:ia,servicios',
+            'provider' => 'required|string|max:50|exists:api_integration_providers,slug,deleted_at,NULL',
             'slug'     => 'required|string|max:100|unique:api_integrations,slug,NULL,id,company_id,1',
             'name'     => 'required|string|max:150',
             'key'      => 'nullable|string',
@@ -67,10 +67,12 @@ class ApiIntegrationController extends Controller
             return response()->json(['error' => $v->errors()->first()], 422);
         }
 
+        $providerType = ApiIntegrationProvider::where('slug', $request->provider)->value('type');
+
         $integration = ApiIntegration::create([
             'company_id'             => 1,
             'provider'               => $request->provider,
-            'type'                   => $request->type,
+            'type'                   => $providerType,
             'slug'                   => $request->slug,
             'name'                   => $request->name,
             'config'                 => $request->config ?? [],
@@ -94,7 +96,6 @@ class ApiIntegrationController extends Controller
 
         $v = Validator::make($request->all(), [
             'name'   => 'sometimes|string|max:150',
-            'type'   => 'sometimes|in:ia,servicios',
             'key'    => 'nullable|string',
             'config' => 'nullable|array',
             'active' => 'boolean',
@@ -104,7 +105,7 @@ class ApiIntegrationController extends Controller
             return response()->json(['error' => $v->errors()->first()], 422);
         }
 
-        $integration->fill($request->only(['name', 'type', 'config', 'active']));
+        $integration->fill($request->only(['name', 'config', 'active']));
 
         if ($request->filled('key')) {
             $integration->value = $request->key;

@@ -168,63 +168,17 @@ class ApiIntegrationService
 
     public function getProviders(): array
     {
-        return [
-            [
-                'id'          => 'anthropic',
-                'type'        => 'ia',
-                'name'        => 'Anthropic / Claude',
-                'description' => 'IA conversacional — Claude API',
-                'icon'        => 'smart_toy',
-                'docs_url'    => 'https://console.anthropic.com/settings/keys',
-                'key_format'  => 'sk-ant-...',
-            ],
-            [
-                'id'          => 'openai',
-                'type'        => 'ia',
-                'name'        => 'OpenAI',
-                'description' => 'TTS, GPT — OpenAI API',
-                'icon'        => 'record_voice_over',
-                'docs_url'    => 'https://platform.openai.com/api-keys',
-                'key_format'  => 'sk-proj-...',
-            ],
-            [
-                'id'          => 'evolution',
-                'type'        => 'servicios',
-                'name'        => 'Evolution API / WhatsApp',
-                'description' => 'Mensajería WhatsApp',
-                'icon'        => 'chat',
-                'docs_url'    => '',
-                'key_format'  => 'token hex',
-                'has_config'  => true,
-            ],
-            [
-                'id'          => 'pexels',
-                'type'        => 'servicios',
-                'name'        => 'Pexels',
-                'description' => 'Banco de imágenes y videos',
-                'icon'        => 'image',
-                'docs_url'    => 'https://www.pexels.com/api/',
-                'key_format'  => 'alphanumeric',
-            ],
-            [
-                'id'          => 'google_maps',
-                'type'        => 'servicios',
-                'name'        => 'Google Maps',
-                'description' => 'Geocodificación y mapas',
-                'icon'        => 'map',
-                'docs_url'    => 'https://console.cloud.google.com/apis/credentials',
-                'key_format'  => 'AIza...',
-            ],
-            [
-                'id'          => 'meta',
-                'type'        => 'servicios',
-                'name'        => 'Meta (Facebook / Instagram)',
-                'description' => 'Publicador multicanal — App ID + App Secret de Facebook/Instagram',
-                'icon'        => 'share',
-                'docs_url'    => 'https://developers.facebook.com/apps',
-                'key_format'  => 'App ID + App Secret',
-                'has_config'  => true,
-            ],
-        ];
+        return \App\Models\Core\ApiIntegrationProvider::where('active', true)
+            ->orderBy('type')->orderBy('name')->get()
+            ->map(fn($p) => [
+                'id'          => $p->slug,
+                'name'        => $p->name,
+                'description' => $p->description,
+                'type'        => $p->type,
+                'icon'        => $p->icon,
+                'docs_url'    => $p->docs_url,
+                'key_format'  => $p->key_format,
+                'has_config'  => $p->has_config,
+            ])->all();
     }
 }

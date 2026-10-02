@@ -37,14 +37,28 @@
       </div>
     </div>
 
+    <!-- Tabs -->
+    <ul class="nav nav-tabs hub-tabs mb-3">
+      <li class="nav-item">
+        <a class="nav-link" :class="{ active: tab === 'integraciones' }" href="#" @click.prevent="tab = 'integraciones'">
+          <i class="bi bi-key me-1"></i>Integraciones
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" :class="{ active: tab === 'proveedores' }" href="#" @click.prevent="openProvidersTab()">
+          <i class="bi bi-diagram-3 me-1"></i>Proveedores
+        </a>
+      </li>
+    </ul>
+
     <!-- Loading -->
-    <div v-if="loading" class="hub-loading">
+    <div v-if="tab === 'integraciones' && loading" class="hub-loading">
       <div class="spinner-border text-primary" role="status"></div>
       <p class="mt-3 text-muted">Cargando integraciones…</p>
     </div>
 
     <!-- Provider grid -->
-    <div v-else class="provider-grid">
+    <div v-else-if="tab === 'integraciones'" class="provider-grid">
       <div
         v-for="provider in providers"
         :key="provider.id"
@@ -158,6 +172,55 @@
       </div>
     </div>
 
+    <!-- Proveedores tab -->
+    <div v-if="tab === 'proveedores'" class="hub-providers">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <p class="text-muted mb-0 small">Catálogo de proveedores. El tipo (IA / Servicios) se hereda a cada integración al elegir el proveedor.</p>
+        <button v-if="can('manage-integrations')" class="btn btn-primary btn-sm" @click="openProviderForm()">
+          <i class="bi bi-plus-lg me-1"></i>Nuevo proveedor
+        </button>
+      </div>
+      <div v-if="providersLoading" class="hub-loading"><div class="spinner-border text-primary"></div></div>
+      <div v-else class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr><th>Proveedor</th><th>Identificador</th><th>Tipo</th><th>Integraciones</th><th>Estado</th><th></th></tr>
+          </thead>
+          <tbody>
+            <tr v-if="!providerCatalog.length"><td colspan="6" class="text-center text-muted py-4">Sin proveedores</td></tr>
+            <tr v-for="p in providerCatalog" :key="p.id">
+              <td>
+                <div class="fw-semibold">{{ p.name }}
+                  <span v-if="p.is_system" class="badge bg-secondary-subtle text-secondary ms-1">sistema</span>
+                </div>
+                <div class="small text-muted">{{ p.description }}</div>
+              </td>
+              <td><code>{{ p.slug }}</code></td>
+              <td>
+                <span class="badge" :class="p.type === 'ia' ? 'bg-primary-subtle text-primary' : 'bg-info-subtle text-info'">
+                  {{ p.type === 'ia' ? 'IA' : 'Servicios' }}
+                </span>
+              </td>
+              <td>{{ p.integrations_count }}</td>
+              <td>
+                <span class="badge" :class="p.active ? 'bg-success-subtle text-success' : 'bg-light text-muted'">
+                  {{ p.active ? 'Activo' : 'Inactivo' }}
+                </span>
+              </td>
+              <td class="text-end text-nowrap">
+                <button v-if="can('manage-integrations')" class="btn btn-sm btn-outline-secondary" title="Editar" @click="openProviderForm(p)">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                <button v-if="can('manage-integrations') && !p.is_system" class="btn btn-sm btn-outline-danger ms-1" title="Eliminar" @click="deleteProvider(p)">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -178,6 +241,9 @@ export default {
   data() {
     return {
       loading: true,
+      tab: 'integraciones',
+      providerCatalog: [],
+      providersLoading: false,
       providers: [],
       integrations: [],
       validating: {},
@@ -210,13 +276,13 @@ export default {
     // ── Create / Edit ─────────────────────────────────────────────────────────
 
     openCreate(providerId = null) {
-      const providers = this.providers;
-      const initialType = providers.find(p => p.id === providerId)?.type ?? 'ia';
-      const optionsFor = (type, selected) => providers
-        .filter(p => p.type === type)
-        .map(p => `<option value="${p.id}" ${p.id === selected ? 'selected' : ''}>${p.name}</option>`)
-        .join('');
-      const providerOptions = optionsFor(initialType, providerId);
+      const typeLabel = { ia: 'IA', servicios: 'Servicios' };
+      const providerOptions = ['ia', 'servicios'].map(t => {
+        const opts = this.providers.filter(p => p.type === t)
+          .map(p => `<option value="${p.id}" ${p.id === providerId ? 'selected' : ''}>${this.escHtml(p.name)}</option>`)
+          .join('');
+        return opts ? `<optgroup label="${typeLabel[t]}">${opts}</optgroup>` : '';
+      }).join('');
 
       Swal.fire({
         title: 'Nueva integración',
@@ -228,18 +294,12 @@ export default {
         html: `
           <div class="text-start">
             <div class="mb-3">
-              <label class="form-label fw-semibold">Tipo <span class="text-danger">*</span></label>
-              <select id="sw-type" class="form-select">
-                <option value="ia" ${initialType === 'ia' ? 'selected' : ''}>IA</option>
-                <option value="servicios" ${initialType === 'servicios' ? 'selected' : ''}>Servicios</option>
-              </select>
-            </div>
-            <div class="mb-3">
               <label class="form-label fw-semibold">Proveedor <span class="text-danger">*</span></label>
               <select id="sw-provider" class="form-select">
                 <option value="">— Seleccionar —</option>
                 ${providerOptions}
               </select>
+              <div class="form-text">Tipo: <span id="sw-type-label" class="fw-semibold">—</span></div>
             </div>
             <div class="mb-3">
               <label class="form-label fw-semibold">Nombre <span class="text-danger">*</span></label>
@@ -277,14 +337,12 @@ export default {
         `,
         didOpen: () => {
           const sel = document.getElementById('sw-provider');
-          const typeSel = document.getElementById('sw-type');
-          typeSel.addEventListener('change', () => {
-            sel.innerHTML = '<option value="">— Seleccionar —</option>' + optionsFor(typeSel.value, null);
-            sel.dispatchEvent(new Event('change'));
-          });
           const evo = document.getElementById('sw-evolution-wrap');
           const meta = document.getElementById('sw-meta-wrap');
+          const typeLabelEl = document.getElementById('sw-type-label');
           const toggle = () => {
+            const prov = this.providers.find(p => p.id === sel.value);
+            typeLabelEl.textContent = prov ? typeLabel[prov.type] : '—';
             evo.style.display  = sel.value === 'evolution' ? 'block' : 'none';
             meta.style.display = sel.value === 'meta' ? 'block' : 'none';
           };
@@ -298,7 +356,6 @@ export default {
           if (!name)     { Swal.showValidationMessage('El nombre es requerido'); return false; }
           return {
             provider,
-            type:      document.getElementById('sw-type').value,
             name,
             key:       document.getElementById('sw-key').value,
             active:    document.getElementById('sw-active').checked,
@@ -310,11 +367,10 @@ export default {
         },
       }).then(async result => {
         if (!result.isConfirmed) return;
-        const { provider, type, name, key, active, endpoint, instance, appId, appSecret } = result.value;
+        const { provider, name, key, active, endpoint, instance, appId, appSecret } = result.value;
         try {
           const payload = {
             provider,
-            type,
             name,
             active,
             slug: provider + '-' + Date.now(),
@@ -556,6 +612,121 @@ export default {
         Swal.update({ html: `<div class="log-timeline text-start">${rows}</div>` });
       } catch {
         Swal.update({ html: `<div class="text-danger text-center py-3">Error al cargar el historial</div>` });
+      }
+    },
+
+    // ── Proveedores (catálogo) ────────────────────────────────────────────────
+
+    async openProvidersTab() {
+      this.tab = 'proveedores';
+      await this.loadProviderCatalog();
+    },
+
+    async loadProviderCatalog() {
+      this.providersLoading = true;
+      try {
+        const res = await axios.get('/api/hub/provider-catalog');
+        this.providerCatalog = res.data.data ?? [];
+      } catch (e) {
+        this.toast('danger', e.response?.data?.error ?? 'Error al cargar proveedores');
+      } finally {
+        this.providersLoading = false;
+      }
+    },
+
+    openProviderForm(p = null) {
+      const editing = !!p;
+      const v = (x) => this.escHtml(x ?? '');
+      Swal.fire({
+        title: editing ? 'Editar proveedor' : 'Nuevo proveedor',
+        width: 480,
+        showCancelButton: true,
+        confirmButtonText: editing ? 'Guardar' : 'Crear proveedor',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#0d6efd',
+        html: `
+          <div class="text-start">
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Nombre <span class="text-danger">*</span></label>
+              <input id="pv-name" type="text" class="form-control" value="${v(p?.name)}" placeholder="Ej: ElevenLabs">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Identificador <span class="text-danger">*</span></label>
+              <input id="pv-slug" type="text" class="form-control font-monospace" value="${v(p?.slug)}" ${editing ? 'disabled' : ''} placeholder="elevenlabs">
+              <div class="form-text">Minúsculas, números y guion bajo. No se puede cambiar después.</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Tipo <span class="text-danger">*</span></label>
+              <select id="pv-type" class="form-select">
+                <option value="ia" ${p?.type === 'ia' ? 'selected' : ''}>IA</option>
+                <option value="servicios" ${(p?.type ?? 'servicios') === 'servicios' ? 'selected' : ''}>Servicios</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Descripción</label>
+              <input id="pv-desc" type="text" class="form-control" value="${v(p?.description)}">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">URL de documentación / llaves</label>
+              <input id="pv-docs" type="text" class="form-control" value="${v(p?.docs_url)}" placeholder="https://…">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Formato de la llave</label>
+              <input id="pv-fmt" type="text" class="form-control" value="${v(p?.key_format)}" placeholder="sk-…">
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="pv-active" ${(p?.active ?? true) ? 'checked' : ''}>
+              <label class="form-check-label" for="pv-active">Proveedor activo</label>
+            </div>
+          </div>
+        `,
+        preConfirm: () => {
+          const name = document.getElementById('pv-name').value.trim();
+          const slug = document.getElementById('pv-slug').value.trim();
+          if (!name) { Swal.showValidationMessage('El nombre es requerido'); return false; }
+          if (!editing && !/^[a-z0-9_]+$/.test(slug)) {
+            Swal.showValidationMessage('Identificador inválido (minúsculas, números y guion bajo)');
+            return false;
+          }
+          return {
+            name,
+            ...(editing ? {} : { slug }),
+            type: document.getElementById('pv-type').value,
+            description: document.getElementById('pv-desc').value.trim(),
+            docs_url: document.getElementById('pv-docs').value.trim(),
+            key_format: document.getElementById('pv-fmt').value.trim(),
+            active: document.getElementById('pv-active').checked,
+          };
+        },
+      }).then(async result => {
+        if (!result.isConfirmed) return;
+        try {
+          if (editing) await axios.put(`/api/hub/provider-catalog/${p.id}`, result.value);
+          else await axios.post('/api/hub/provider-catalog', result.value);
+          this.toast('success', editing ? 'Proveedor actualizado' : 'Proveedor creado');
+          await Promise.all([this.loadProviderCatalog(), this.load()]);
+        } catch (e) {
+          this.toast('danger', e.response?.data?.error ?? 'Error al guardar');
+        }
+      });
+    },
+
+    async deleteProvider(p) {
+      const r = await Swal.fire({
+        title: `¿Eliminar "${p.name}"?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Eliminar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#dc3545',
+      });
+      if (!r.isConfirmed) return;
+      try {
+        await axios.delete(`/api/hub/provider-catalog/${p.id}`);
+        this.toast('success', 'Proveedor eliminado');
+        await Promise.all([this.loadProviderCatalog(), this.load()]);
+      } catch (e) {
+        this.toast('danger', e.response?.data?.error ?? 'Error al eliminar');
       }
     },
 
