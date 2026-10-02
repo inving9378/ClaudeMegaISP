@@ -23,6 +23,9 @@ use App\Modules\Addons\Talento\Services\LiquidationService;
 use App\Modules\Addons\Talento\Support\Actor;
 use App\Modules\Addons\Talento\Controllers\TalentoEmployeeDocumentController;
 use App\Modules\Addons\Talento\Controllers\TalentoAcademyController;
+use App\Modules\Addons\Talento\Controllers\TalentoCajaController;
+use App\Modules\Addons\Talento\Controllers\TalentoQualityController;
+use App\Modules\Addons\Talento\Controllers\TalentoProjectController;
 use App\Modules\Addons\Talento\Support\PayWeek;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -520,5 +523,46 @@ class TalentoMobileEquipoController extends Controller
     public function examenIntentos(int $examId)
     {
         return app(TalentoAcademyController::class)->myAttempts($examId);
+    }
+    // ── 18. Cajas ODB — registrar baseline (David, 2-oct) ─────────────────────────
+    // Delegacion directa a TalentoCajaController::store (misma regla: cualquier
+    // tecnico activo puede registrar su propia lectura, sin permiso especial).
+
+    public function cajaRegistrar(Request $request)
+    {
+        return app(TalentoCajaController::class)->store($request);
+    }
+
+    // ── 19. Calidad — registrar inspeccion de caja (con foto) (David, 2-oct) ─────
+    // Delegacion directa a TalentoQualityController::storeInspection/runIaAnalysis.
+
+    public function inspeccionRegistrar(Request $request)
+    {
+        return app(TalentoQualityController::class)->storeInspection($request);
+    }
+
+    public function inspeccionAnalizarIa(int $id)
+    {
+        return app(TalentoQualityController::class)->runIaAnalysis($id);
+    }
+
+    // ── 20. Proyectos — catalogo + detalle + reportar avance (David, 2-oct) ──────
+    // Delegacion directa a TalentoProjectController (data/show/submitReport ya son
+    // self-scoped: cualquier colaborador real puede verlos; submitReport ya limita
+    // a quien reporta a reportar solo avance propio o de su equipo directo).
+
+    public function proyectosCatalogo(Request $request)
+    {
+        return app(TalentoProjectController::class)->data($request);
+    }
+
+    public function proyectoDetalle(int $id)
+    {
+        return app(TalentoProjectController::class)->show($id);
+    }
+
+    public function proyectoReportar(Request $request, int $projectId, int $actId)
+    {
+        return app(TalentoProjectController::class)->submitReport($request, $projectId, $actId);
     }
 }

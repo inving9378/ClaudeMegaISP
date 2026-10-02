@@ -568,6 +568,14 @@ Route::middleware(['auth:sanctum'])
         Route::get('/portal/examenes/{examId}',                  [TalentoMobileEquipoController::class, 'examenTomar']);
         Route::post('/portal/examenes/{examId}/enviar',          [TalentoMobileEquipoController::class, 'examenEnviar']);
         Route::get('/portal/examenes/{examId}/intentos',         [TalentoMobileEquipoController::class, 'examenIntentos']);
+
+        // David (2-oct): mediciones de cajas + inspecciones de calidad + reportar avance de proyectos.
+        Route::post('/portal/cajas',                              [TalentoMobileEquipoController::class, 'cajaRegistrar']);
+        Route::post('/portal/inspecciones',                       [TalentoMobileEquipoController::class, 'inspeccionRegistrar']);
+        Route::post('/portal/inspecciones/{id}/ia',               [TalentoMobileEquipoController::class, 'inspeccionAnalizarIa']);
+        Route::get('/portal/proyectos-catalogo',                  [TalentoMobileEquipoController::class, 'proyectosCatalogo']);
+        Route::get('/portal/proyectos-catalogo/{id}',             [TalentoMobileEquipoController::class, 'proyectoDetalle']);
+        Route::post('/portal/proyectos-catalogo/{projectId}/actividades/{actId}/reportes', [TalentoMobileEquipoController::class, 'proyectoReportar']);
     });
 
 // ══════════════════════════════════════════════════════════════════════════════
