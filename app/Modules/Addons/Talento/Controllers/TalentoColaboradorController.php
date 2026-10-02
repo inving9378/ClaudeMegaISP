@@ -8,6 +8,8 @@ use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoRoleDepartment;
 use App\Modules\Addons\Talento\Support\Actor;
+use App\Models\Credential;
+use PDF;
 // TalentoEmployeeDocumentController y TalentoAcademyController están en este
 // MISMO namespace (Controllers) — sin use, se referencian por nombre corto.
 use Illuminate\Http\Request;
@@ -311,6 +313,64 @@ class TalentoColaboradorController extends Controller
         $this->hideExpedienteFields($colaborador);
 
         return response()->json($colaborador);
+    }
+
+    /**
+     * Credencial/gafete del colaborador — David (2-oct-2026): "en la pestaña
+     * de informacion faltan las credenciales como mismo esta en vendedores".
+     * Reusa TAL CUAL el mismo template compartido (App\Models\Credential,
+     * las 3 imagenes frontal/reverso/logo que ya configura Vendedores en
+     * /configuracion/credencial) y la MISMA vista pdf.blade.php de
+     * Vendedores (solo se le agrego $titulo, con default 'Vendedor' para no
+     * romper su comportamiento) — "servicios compartidos unicos", no se
+     * duplica ninguna plantilla ni se sube una imagen nueva.
+     */
+    public function pdf(string $id)
+    {
+        $colaborador = $this->resolverColaboradorAutoservicio($id);
+
+        return $this->renderCredencialPdf($colaborador);
+    }
+
+    /**
+     * Version para la app movil: la ruta publica (fuera del grupo
+     * web+auth+session) va protegida SOLO por el middleware `signed` de
+     * Laravel -- el telefono abre este link con su navegador normal
+     * (Linking.openURL), sin cookie de sesion, asi que la firma de la URL
+     * ES la autorizacion (se genera ya verificada desde el endpoint Sanctum
+     * TalentoMobileEquipoController::credencialPdfUrl). 10 minutos de vida.
+     */
+    public function pdfFirmado(string $id)
+    {
+        $colaborador = TalentoColaborador::findOrFail($id);
+
+        return $this->renderCredencialPdf($colaborador);
+    }
+
+    private function renderCredencialPdf(TalentoColaborador $colaborador)
+    {
+        $colaborador->loadMissing('user', 'puesto');
+
+        $seller = (object) [
+            'name' => $colaborador->user?->name,
+            'father_last_name' => $colaborador->user?->father_last_name,
+            'mother_last_name' => $colaborador->user?->mother_last_name,
+            'phone' => $colaborador->user?->phone,
+            'email' => $colaborador->user?->email,
+            'rfc' => $colaborador->user?->rfc,
+            'photography' => $colaborador->user?->photography,
+        ];
+
+        $front_image_name = Credential::where('type', 'frontal')->select('name')->first();
+        $back_image_name  = Credential::where('type', 'reverso')->select('name')->first();
+        $logo_image_name  = Credential::where('type', 'logo')->select('name')->first();
+        $titulo = $colaborador->puesto?->name ?? 'Colaborador';
+
+        $pdf = PDF::loadView('meganet.module.vendors.pdf', compact(
+            'seller', 'front_image_name', 'back_image_name', 'logo_image_name', 'titulo'
+        ));
+
+        return $pdf->stream();
     }
 
     /**

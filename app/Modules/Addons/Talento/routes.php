@@ -61,6 +61,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         // Vendedores", no una copia paralela. Ver TalentoEmployeeDocument
         // Controller::puedeVerDocumentosDe()/puedeGestionarDocumentosDe().
         Route::get('/mi-ficha/{id}/academia',   [TalentoColaboradorController::class, 'miFichaAcademia']);
+        Route::get('/mi-ficha/{id}/pdf',        [TalentoColaboradorController::class, 'pdf'])->name('talento.colaborador.pdf');
         Route::get('/custodia',       [TalentoCustodiaController::class,     'index']);
         Route::get('/dispositivos',   [TalentoDeviceController::class,       'index']);
         Route::get('/roadmap',        [TalentoRoadmapController::class,      'index']);
@@ -576,6 +577,12 @@ Route::middleware(['auth:sanctum'])
         Route::get('/portal/proyectos-catalogo',                  [TalentoMobileEquipoController::class, 'proyectosCatalogo']);
         Route::get('/portal/proyectos-catalogo/{id}',             [TalentoMobileEquipoController::class, 'proyectoDetalle']);
         Route::post('/portal/proyectos-catalogo/{projectId}/actividades/{actId}/reportes', [TalentoMobileEquipoController::class, 'proyectoReportar']);
+
+        // David (2-oct): detalle de ruta, vincular dispositivo propio, credencial y QR de descarga.
+        Route::get('/portal/rutas/{id}',               [TalentoMobileEquipoController::class, 'rutaDetalle']);
+        Route::post('/portal/dispositivos/vincular',   [TalentoMobileEquipoController::class, 'dispositivoVincular']);
+        Route::get('/portal/credencial-pdf-url',       [TalentoMobileEquipoController::class, 'credencialPdfUrl']);
+        Route::get('/app/download-qr',                 [TalentoMobileEquipoController::class, 'downloadQr']);
     });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -653,3 +660,14 @@ Route::middleware(['web', 'auth', 'can:portal.colaborador'])
         Route::post('/ot/{origen}/{id}/aceptar', [PortalTecnicoController::class, 'aceptarOt'])
             ->whereIn('origen', ['work_order', 'task'])->whereNumber('id');
     });
+
+// David (2-oct-2026): credencial/gafete del colaborador para la app movil.
+// Ruta PUBLICA fuera del grupo web+auth+sesion -- el telefono la abre con su
+// navegador normal (Linking.openURL), sin cookie de sesion ni Bearer token,
+// asi que se protege SOLO con el middleware `signed` de Laravel: el link se
+// genera ya autorizado desde el endpoint Sanctum (ver
+// TalentoMobileEquipoController::credencialPdfUrl) y expira en 10 minutos.
+Route::get('/talento/colaborador/{id}/credencial-firmada', [TalentoColaboradorController::class, 'pdfFirmado'])
+    ->middleware('signed')
+    ->whereNumber('id')
+    ->name('talento.colaborador.pdf.firmado');

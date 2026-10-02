@@ -26,6 +26,12 @@ use App\Modules\Addons\Talento\Controllers\TalentoAcademyController;
 use App\Modules\Addons\Talento\Controllers\TalentoCajaController;
 use App\Modules\Addons\Talento\Controllers\TalentoQualityController;
 use App\Modules\Addons\Talento\Controllers\TalentoProjectController;
+use App\Modules\Addons\Talento\Controllers\TalentoDeviceController;
+use App\Modules\Addons\Talento\Controllers\TalentoRouteController;
+use Illuminate\Support\Facades\URL;
+use chillerlan\QRCode\QRCode;
+use chillerlan\QRCode\QROptions;
+use chillerlan\QRCode\Output\QRGdImagePNG;
 use App\Modules\Addons\Talento\Support\PayWeek;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -564,5 +570,62 @@ class TalentoMobileEquipoController extends Controller
     public function proyectoReportar(Request $request, int $projectId, int $actId)
     {
         return app(TalentoProjectController::class)->submitReport($request, $projectId, $actId);
+    }
+    // ── 21. Rutas — detalle con paradas (David, 2-oct) ────────────────────────────
+    // Delegacion directa a TalentoRouteController::show (self/supervisor/staff ya
+    // resuelto ahi, con los pings del dia y las desviaciones detectadas).
+
+    public function rutaDetalle(int $id)
+    {
+        return app(TalentoRouteController::class)->show($id);
+    }
+
+    // ── 22. Dispositivos — vincular el propio + link de descarga (David, 2-oct) ──
+    // Delegacion a TalentoDeviceController::bind (self, ver fix de permiso ahi).
+
+    public function dispositivoVincular(Request $request)
+    {
+        $col = $this->resolverObjetivo($request, 'talento.employees.view');
+        if (! $col) return $this->noPerfil();
+
+        return app(TalentoDeviceController::class)->bind($request, $col->id);
+    }
+
+    /**
+     * Link FIRMADO (Laravel signed route, 10 min) a la credencial PDF -- el
+     * telefono lo abre con Linking.openURL (su navegador normal, sin Bearer
+     * token), por eso NO se sirve el PDF directo desde aqui.
+     */
+    public function credencialPdfUrl(Request $request)
+    {
+        $col = $this->resolverObjetivo($request, 'talento.employees.view');
+        if (! $col) return $this->noPerfil();
+
+        $url = URL::temporarySignedRoute(
+            'talento.colaborador.pdf.firmado',
+            now()->addMinutes(10),
+            ['id' => $col->id]
+        );
+
+        return response()->json(['url' => $url]);
+    }
+
+    /**
+     * QR del link de descarga del APK (release activa en talento_app_releases)
+     * -- para escanear desde otro telefono y vincular la app ahi.
+     */
+    public function downloadQr()
+    {
+        $release = DB::table('talento_app_releases')->where('active', true)->orderByDesc('version_code')->first();
+        abort_if(! $release, 404, 'No hay una version publicada.');
+
+        $opts = new QROptions(['outputInterface' => QRGdImagePNG::class, 'scale' => 8]);
+        $dataUri = (new QRCode($opts))->render($release->apk_url);
+
+        return response()->json([
+            'apk_url' => $release->apk_url,
+            'version_name' => $release->version_name,
+            'qr_data_uri' => $dataUri,
+        ]);
     }
 }
