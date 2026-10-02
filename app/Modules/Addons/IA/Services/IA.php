@@ -65,7 +65,10 @@ class IA
             return null;
         }
         if ($asig->modelo) {
-            $p->modelo_default = $asig->modelo; // override en memoria, no se persiste
+            // Override solo en memoria: se marca como "original" para que un
+            // save()/update() posterior del proveedor NO lo persista.
+            $p->modelo_default = $asig->modelo;
+            $p->syncOriginalAttribute('modelo_default');
         }
         return $p;
     }
