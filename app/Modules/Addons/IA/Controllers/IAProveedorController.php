@@ -3,6 +3,8 @@
 namespace App\Modules\Addons\IA\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\Core\ApiIntegration;
+use App\Models\Core\ApiIntegrationProvider;
 use App\Modules\Addons\IA\Models\IAProveedor;
 use App\Modules\Addons\IA\Services\IAAdaptadorFactory;
 use App\Modules\Addons\IA\Services\IAProveedorService;
@@ -25,6 +27,7 @@ class IAProveedorController extends Controller
             'success' => true,
             'data' => $proveedores,
             'drivers' => IAAdaptadorFactory::driversDisponibles(),
+            'integraciones_hub' => $this->integracionesHub(),
         ]);
     }
 
@@ -42,7 +45,8 @@ class IAProveedorController extends Controller
             $datos['api_key'] = preg_replace('/\s+/', '', $datos['api_key']);
         }
         $datos['headers_personalizados'] = $this->parseJson($request->input('headers_personalizados'));
-        $datos['config_extra'] = $this->parseJson($request->input('config_extra'));
+        $datos['config_extra'] = $this->configExtra($request, null);
+        unset($datos['hub_integracion']);
         $datos['created_by'] = auth()->id();
         $datos['estado'] = empty($datos['api_key']) ? 'sin_configurar' : 'sin_configurar';
 
@@ -66,7 +70,10 @@ class IAProveedorController extends Controller
             $datos['api_key'] = preg_replace('/\s+/', '', $datos['api_key']);
         }
         $datos['headers_personalizados'] = $this->parseJson($request->input('headers_personalizados'));
-        $datos['config_extra'] = $this->parseJson($request->input('config_extra'));
+        // Antes: config_extra = parseJson(null) cuando el formulario no lo mandaba (nunca lo
+        // manda) → se BORRABA al guardar. Ahora se conserva y solo cambia lo que llega.
+        $datos['config_extra'] = $this->configExtra($request, $proveedor->config_extra);
+        unset($datos['hub_integracion']);
         $datos['updated_by'] = auth()->id();
 
         // Si el frontend manda la api_key vacía, conservamos la actual.
@@ -117,6 +124,8 @@ class IAProveedorController extends Controller
             ],
             'driver' => ['required', Rule::in(IAAdaptadorFactory::driversDisponibles())],
             'api_key' => ['nullable', 'string'],
+            // Llave tomada del Integration Hub (slug de una integración de IA) en vez de escribirla aquí.
+            'hub_integracion' => ['nullable', 'string', Rule::exists('api_integrations', 'slug')->where('type', 'ia')->whereNull('deleted_at')],
             'endpoint_url' => ['nullable', 'string', 'max:500'],
             'modelo_default' => ['required', 'string', 'max:120'],
             'soporta_imagenes' => ['boolean'],
@@ -154,6 +163,43 @@ class IAProveedorController extends Controller
             'ultimo_error' => $p->ultimo_error,
             'probado_at' => $p->probado_at,
             'tiene_api_key' => !empty($p->getRawOriginal('api_key')),
+            'hub_integracion' => data_get($p->config_extra, 'hub_integracion'),
         ];
+    }
+
+    /**
+     * config_extra a guardar: parte del actual (o del JSON que mande el request) y solo
+     * pone/quita 'hub_integracion' si el request trae ese campo.
+     */
+    protected function configExtra(Request $request, ?array $actual): ?array
+    {
+        $extra = $request->has('config_extra') ? ($this->parseJson($request->input('config_extra')) ?? []) : ($actual ?? []);
+
+        if ($request->has('hub_integracion')) {
+            $slug = trim((string) $request->input('hub_integracion'));
+            if ($slug !== '') {
+                $extra['hub_integracion'] = $slug;
+            } else {
+                unset($extra['hub_integracion']);
+            }
+        }
+
+        return $extra ?: null;
+    }
+
+    /** Integraciones de IA del Hub que se pueden usar como origen de la llave. */
+    protected function integracionesHub(): array
+    {
+        $drivers = ApiIntegrationProvider::where('type', 'ia')->pluck('driver', 'slug');
+
+        return ApiIntegration::forCompany(1)->where('type', 'ia')->orderBy('name')->get()
+            ->map(fn (ApiIntegration $i) => [
+                'slug' => $i->slug,
+                'nombre' => $i->name,
+                'proveedor' => $i->provider,
+                'driver' => $drivers[$i->provider] ?? null,
+                'activa' => (bool) $i->active,
+                'tiene_llave' => (bool) $i->encrypted_value,
+            ])->values()->all();
     }
 }
