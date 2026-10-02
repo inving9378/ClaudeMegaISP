@@ -16,14 +16,14 @@
  * El Circuito CC NO aparece aquí a propósito: usa su propio CLI.
  */
 return [
-    'whatsapp.soporte' => ['nombre' => 'Bot de soporte, cobranza y atención', 'grupo' => 'WhatsApp', 'requiere' => [], 'listo' => false],
-    'whatsapp.ventas' => ['nombre' => 'Agente de ventas a prospectos', 'grupo' => 'WhatsApp', 'requiere' => [], 'listo' => false],
+    'whatsapp.soporte' => ['nombre' => 'Bot de soporte, cobranza y atención', 'grupo' => 'WhatsApp', 'requiere' => [], 'listo' => true],
+    'whatsapp.ventas' => ['nombre' => 'Agente de ventas a prospectos', 'grupo' => 'WhatsApp', 'requiere' => [], 'listo' => true],
     'marketing.agente_whatsapp' => ['nombre' => 'Agente de WhatsApp con herramientas (Evolution)', 'grupo' => 'Marketing', 'requiere' => ['herramientas'], 'listo' => false],
     'marketing.contenido' => ['nombre' => 'Copys de anuncios y prompts de imagen', 'grupo' => 'Marketing', 'requiere' => [], 'listo' => true],
     'marketing.lead_scoring' => ['nombre' => 'Puntuar leads', 'grupo' => 'Marketing', 'requiere' => [], 'listo' => true],
     'marketing.lead_calificacion' => ['nombre' => 'Calificar lead por conversación', 'grupo' => 'Marketing', 'requiere' => [], 'listo' => true],
     'marketing.director_creativo' => ['nombre' => 'Briefs de video por nicho', 'grupo' => 'Marketing', 'requiere' => [], 'listo' => true],
-    'voip.bot_voz' => ['nombre' => 'Bot de voz «María»', 'grupo' => 'VoIP', 'requiere' => [], 'listo' => false],
+    'voip.bot_voz' => ['nombre' => 'Bot de voz «María»', 'grupo' => 'VoIP', 'requiere' => [], 'listo' => true],
     'pagos.comprobantes' => ['nombre' => 'Leer comprobantes de pago (foto y PDF)', 'grupo' => 'Pagos', 'requiere' => ['imagenes', 'pdf'], 'listo' => false],
     'flotas.ocr' => ['nombre' => 'Leer documentos de vehículos (foto y PDF)', 'grupo' => 'Flotas', 'requiere' => ['imagenes', 'pdf'], 'listo' => false],
     'talento.inspeccion_caja' => ['nombre' => 'Inspección de caja por foto', 'grupo' => 'Talento', 'requiere' => ['imagenes'], 'listo' => false],

@@ -171,6 +171,10 @@ class WhatsAppPanelController extends Controller
                 $tone,
                 $collected
             );
+            if (!empty($result['aviso'])) {
+                // Sin IA asignada en Integraciones → Módulos IA: se dice, no se inventa un borrador.
+                return response()->json(['error' => 'IA no disponible', 'message' => $result['aviso']], 503);
+            }
             return response()->json($result);
         } catch (\Throwable $e) {
             Log::error('WhatsApp IA assist error', ['error' => $e->getMessage()]);
