@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Addons\Talento\Models\TalentoLocationPing;
 use App\Modules\Addons\Talento\Models\TalentoRoute;
 use App\Modules\Addons\Talento\Models\TalentoRouteStop;
+use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
 use App\Modules\Addons\Talento\Services\RouteDeviationService;
 use App\Modules\Addons\Talento\Support\Actor;
 use Illuminate\Http\Request;
@@ -127,7 +128,23 @@ class TalentoRouteController extends Controller
                 ->toArray();
         }
 
-        return response()->json(array_merge($route->toArray(), ['pings' => $pings]));
+        // David (2-oct-2026): "al entrar me muestra ot #8 y 9 pero no me
+        // deja hacer nada mas" -- cada parada traia solo el work_order CRUDO
+        // (status/type_id/client_id sin resolver), asi que no habia con que
+        // armar una tarjeta util ni un boton "Ver orden". Se enriquece cada
+        // parada con OrdenTrabajoUnifiedService::detail() -- MISMO shape
+        // (tipo/cliente/direccion/telefono/status/folio) que ya usa
+        // PortalTecnicoController::otDetalle, sin duplicar la resolucion
+        // de cliente.
+        $unified = app(OrdenTrabajoUnifiedService::class);
+        $routeArr = $route->toArray();
+        $routeArr['stops'] = collect($routeArr['stops'])->map(function ($stop) use ($unified, $route) {
+            $otId = $stop['work_order_id'] ?? $stop['tarea_id'] ?? null;
+            $stop['ot'] = $otId ? $unified->detail((int) $otId, (int) $route->colaborador_id) : null;
+            return $stop;
+        })->all();
+
+        return response()->json(array_merge($routeArr, ['pings' => $pings]));
     }
 
     public function activate($id)
