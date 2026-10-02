@@ -104,14 +104,25 @@ class IA
 
         $r = IAAdaptadorFactory::crear($p)->enviarMensaje($historial, $mensaje, $imagenes, $systemPrompt, $opciones);
 
-        try {
-            $costo = app(IAPricingService::class)->calcularCosto(
-                (string) $p->modelo_default, (int) ($r['tokens_input'] ?? 0), (int) ($r['tokens_output'] ?? 0)
-            );
-            ApiIntegrationService::instance()->trackUsage($p->getRelation('integracionHub'), $clave, 1, $costo);
-        } catch (\Throwable) {
-            // el registro de uso es best-effort, nunca rompe la llamada
-        }
+        self::registrarUso($p, $clave, $r);
+
+        return $r + ['proveedor' => $p->nombre, 'driver' => $p->driver, 'modelo' => $p->modelo_default];
+    }
+
+    /**
+     * Una vuelta de conversación con herramientas (function calling) usando la IA
+     * asignada a la clave. Formato neutro (ver IAAdaptadorInterface::conversarConHerramientas):
+     * si 'fin' = 'herramientas', el que llama ejecuta $r['llamadas'], agrega el turno
+     * del asistente + un turno 'herramienta' por resultado, y vuelve a llamar.
+     * Registra uso y costo en el Hub en cada vuelta.
+     */
+    public static function conversar(string $clave, array $mensajes, ?string $systemPrompt, array $herramientas, array $opciones = []): array
+    {
+        $p = self::proveedorPara($clave);
+
+        $r = IAAdaptadorFactory::crear($p)->conversarConHerramientas($mensajes, $systemPrompt, $herramientas, $opciones);
+
+        self::registrarUso($p, $clave, $r);
 
         return $r + ['proveedor' => $p->nombre, 'driver' => $p->driver, 'modelo' => $p->modelo_default];
     }
@@ -142,6 +153,18 @@ class IA
         }
         $decodificado = json_decode(substr($texto, $inicio, $fin - $inicio + 1), true);
         return is_array($decodificado) ? $decodificado : null;
+    }
+
+    /** Uso y costo en la integración del Hub (feature = clave). Best-effort: nunca rompe la llamada. */
+    protected static function registrarUso(IAProveedor $p, string $clave, array $r): void
+    {
+        try {
+            $costo = app(IAPricingService::class)->calcularCosto(
+                (string) $p->modelo_default, (int) ($r['tokens_input'] ?? 0), (int) ($r['tokens_output'] ?? 0)
+            );
+            ApiIntegrationService::instance()->trackUsage($p->getRelation('integracionHub'), $clave, 1, $costo);
+        } catch (\Throwable) {
+        }
     }
 
     /**

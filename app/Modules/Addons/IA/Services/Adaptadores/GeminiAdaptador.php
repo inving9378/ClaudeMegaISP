@@ -84,6 +84,121 @@ class GeminiAdaptador extends AdaptadorHttpBase
         return $payload;
     }
 
+    public function conversarConHerramientas(array $mensajes, ?string $systemPrompt, array $herramientas, array $opciones = []): array
+    {
+        $contents = [];
+        $respuestas = []; // functionResponse consecutivas van juntas en UN turno
+
+        foreach ($mensajes as $m) {
+            $rol = $m['rol'] ?? 'user';
+            if ($rol === 'herramienta') {
+                $resultado = json_decode((string) ($m['resultado'] ?? ''), true);
+                $respuestas[] = ['functionResponse' => [
+                    'name' => (string) ($m['nombre'] ?? ''),
+                    'response' => ['resultado' => $resultado ?? (string) ($m['resultado'] ?? '')],
+                ]];
+                continue;
+            }
+            if ($respuestas) {
+                $contents[] = ['role' => 'user', 'parts' => $respuestas];
+                $respuestas = [];
+            }
+            if ($rol === 'system') {
+                continue;
+            }
+            if ($rol === 'assistant') {
+                $parts = [];
+                if (($m['contenido'] ?? '') !== '') {
+                    $parts[] = ['text' => (string) $m['contenido']];
+                }
+                foreach ($m['llamadas'] ?? [] as $l) {
+                    $parts[] = ['functionCall' => ['name' => (string) $l['nombre'], 'args' => $this->comoObjeto((array) ($l['argumentos'] ?? []))]];
+                }
+                $contents[] = ['role' => 'model', 'parts' => $parts ?: [['text' => ' ']]];
+                continue;
+            }
+            $contents[] = ['role' => 'user', 'parts' => [['text' => ((string) ($m['contenido'] ?? '')) ?: ' ']]];
+        }
+        if ($respuestas) {
+            $contents[] = ['role' => 'user', 'parts' => $respuestas];
+        }
+
+        $payload = ['contents' => $contents];
+        if ($systemPrompt) {
+            $payload['systemInstruction'] = ['parts' => [['text' => $systemPrompt]]];
+        }
+        if ($herramientas) {
+            $payload['tools'] = [['functionDeclarations' => array_map(fn($h) => [
+                'name' => $h['nombre'],
+                'description' => $h['descripcion'],
+                'parameters' => $this->esquemaGemini($h['parametros']),
+            ], $this->herramientasNeutras($herramientas))]];
+        }
+        $config = [];
+        if ($max = $this->opcion($opciones, 'max_tokens', 'max_tokens')) {
+            $config['maxOutputTokens'] = (int) $max;
+        }
+        $temperature = $this->opcion($opciones, 'temperatura', 'temperature');
+        if ($temperature !== null) {
+            $config['temperature'] = (float) $temperature;
+        }
+        if ($config) {
+            $payload['generationConfig'] = $config;
+        }
+
+        $headers = array_merge([
+            'Content-Type' => 'application/json',
+            'x-goog-api-key' => (string) $this->clave(),
+        ], $this->proveedor->headers_personalizados ?? []);
+
+        $json = $this->postJson($this->resolverEndpoint(), $headers, $payload, $opciones);
+
+        $llamadas = [];
+        foreach (data_get($json, 'candidates.0.content.parts', []) ?? [] as $i => $part) {
+            if (isset($part['functionCall'])) {
+                $llamadas[] = [
+                    'id' => (string) ($part['functionCall']['id'] ?? ('llamada_' . $i)),
+                    'nombre' => (string) ($part['functionCall']['name'] ?? ''),
+                    'argumentos' => (array) ($part['functionCall']['args'] ?? []),
+                ];
+            }
+        }
+
+        return [
+            'texto' => $this->parsearRespuesta($json),
+            'llamadas' => $llamadas,
+            'fin' => $llamadas ? 'herramientas' : match (data_get($json, 'candidates.0.finishReason')) {
+                'STOP' => 'completo',
+                'MAX_TOKENS' => 'max_tokens',
+                default => 'otro',
+            },
+            'tokens_input' => data_get($json, 'usageMetadata.promptTokenCount'),
+            'tokens_output' => data_get($json, 'usageMetadata.candidatesTokenCount'),
+            'raw' => $json,
+        ];
+    }
+
+    /**
+     * Gemini acepta un subconjunto de JSON Schema: quita las claves que rechaza
+     * (additionalProperties, $schema…) en todos los niveles.
+     */
+    private function esquemaGemini(mixed $esquema): mixed
+    {
+        if ($esquema instanceof \stdClass) {
+            return $esquema;
+        }
+        if (!is_array($esquema)) {
+            return $esquema;
+        }
+        unset($esquema['additionalProperties'], $esquema['$schema'], $esquema['default']);
+        foreach ($esquema as $k => $v) {
+            if (is_array($v) || $v instanceof \stdClass) {
+                $esquema[$k] = $this->esquemaGemini($v);
+            }
+        }
+        return $esquema;
+    }
+
     public function parsearRespuesta(array $respuesta): string
     {
         $parts = data_get($respuesta, 'candidates.0.content.parts', []);

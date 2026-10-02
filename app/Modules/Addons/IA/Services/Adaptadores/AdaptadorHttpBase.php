@@ -96,6 +96,26 @@ abstract class AdaptadorHttpBase implements IAAdaptadorInterface
         return data_get($this->proveedor->config_extra, $claveConfig, $default);
     }
 
+    /**
+     * Herramientas en formato neutro, con parámetros siempre como objeto JSON Schema.
+     *
+     * @return array<int, array{nombre:string, descripcion:string, parametros:array}>
+     */
+    protected function herramientasNeutras(array $herramientas): array
+    {
+        return array_map(fn(array $h) => [
+            'nombre'      => (string) $h['nombre'],
+            'descripcion' => (string) ($h['descripcion'] ?? ''),
+            'parametros'  => !empty($h['parametros']) ? $h['parametros'] : ['type' => 'object', 'properties' => new \stdClass()],
+        ], $herramientas);
+    }
+
+    /** Argumentos de una llamada como objeto JSON ({} y no [] cuando vienen vacíos). */
+    protected function comoObjeto(array $argumentos): array|\stdClass
+    {
+        return $argumentos === [] ? new \stdClass() : $argumentos;
+    }
+
     protected function esPdf(array $adjunto): bool
     {
         return ($adjunto['mime'] ?? '') === 'application/pdf';
