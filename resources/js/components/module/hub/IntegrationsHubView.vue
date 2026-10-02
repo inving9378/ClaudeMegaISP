@@ -227,13 +227,13 @@
 <script>
 import Swal from 'sweetalert2';
 
-const Toast = Swal.mixin({
-  toast: true,
-  position: 'bottom-end',
-  showConfirmButton: false,
-  timer: 3000,
-  timerProgressBar: true,
-});
+// Toast nativo del sistema (toastr, global en bootstrap.js), arriba a la derecha
+const TOAST_OPTS = {
+  positionClass: 'toast-top-right',
+  closeButton: true,
+  progressBar: true,
+  timeOut: 3000,
+};
 
 export default {
   name: 'IntegrationsHubView',
@@ -737,8 +737,8 @@ export default {
     },
 
     toast(type, message) {
-      const iconMap = { success: 'success', danger: 'error', warning: 'warning', info: 'info' };
-      Toast.fire({ icon: iconMap[type] ?? 'info', title: message });
+      const fnMap = { success: 'success', danger: 'error', warning: 'warning', info: 'info' };
+      window.toastr[fnMap[type] ?? 'info'](message, '', TOAST_OPTS);
     },
 
     escHtml(str) {
