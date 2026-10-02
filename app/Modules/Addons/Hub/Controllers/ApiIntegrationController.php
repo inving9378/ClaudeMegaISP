@@ -34,6 +34,10 @@ class ApiIntegrationController extends Controller
             $query->where('provider', $request->provider);
         }
 
+        if ($request->filled('type')) {
+            $query->where('type', $request->type);
+        }
+
         $items = $query->orderBy('provider')->orderByDesc('is_default_for_provider')->get()
             ->makeHidden(['encrypted_value'])
             ->map(fn($i) => $this->formatItem($i));
@@ -50,7 +54,7 @@ class ApiIntegrationController extends Controller
     public function store(Request $request): JsonResponse
     {
         $v = Validator::make($request->all(), [
-            'provider' => 'required|string|max:50',
+            'provider' => 'required|string|max:50|exists:api_integration_providers,slug,deleted_at,NULL,active,1',
             'slug'     => 'required|string|max:100|unique:api_integrations,slug,NULL,id,company_id,1',
             'name'     => 'required|string|max:150',
             'key'      => 'nullable|string',
@@ -199,6 +203,7 @@ class ApiIntegrationController extends Controller
         return [
             'id'                      => $i->id,
             'provider'                => $i->provider,
+            'type'                    => $i->type,
             'slug'                    => $i->slug,
             'name'                    => $i->name,
             'key_preview'             => $i->key_preview,

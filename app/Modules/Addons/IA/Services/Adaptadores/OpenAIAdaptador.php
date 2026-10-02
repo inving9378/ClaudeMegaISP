@@ -2,62 +2,51 @@
 
 namespace App\Modules\Addons\IA\Services\Adaptadores;
 
-use App\Modules\Addons\IA\Models\IAProveedor;
-use App\Modules\Addons\IA\Services\IAAdaptadorInterface;
-use Illuminate\Support\Facades\Http;
-use RuntimeException;
-
 /**
  * Adaptador para OpenAI y APIs compatibles (Ollama, DeepSeek, Groq, etc.).
  * Cuando el driver del proveedor es "openai_compatible" se usa el mismo
  * adaptador pero con endpoint/headers/modelo configurables.
+ *
+ * Ollama: driver=openai_compatible, endpoint http://<host>:11434/v1/chat/completions,
+ * api_key vacía (no se manda Authorization).
  */
-class OpenAIAdaptador implements IAAdaptadorInterface
+class OpenAIAdaptador extends AdaptadorHttpBase
 {
-    public function __construct(protected IAProveedor $proveedor)
+    protected function nombreApi(): string
     {
+        return 'OpenAI';
     }
 
-    public function enviarMensaje(array $historial, string $mensaje, array $imagenes = [], ?string $systemPrompt = null): array
+    public function enviarMensaje(array $historial, string $mensaje, array $imagenes = [], ?string $systemPrompt = null, array $opciones = []): array
     {
-        $payload = $this->construirPayload($historial, $mensaje, $imagenes, $systemPrompt);
+        $payload = $this->construirPayload($historial, $mensaje, $imagenes, $systemPrompt, $opciones);
         $endpoint = $this->proveedor->endpoint_url ?: 'https://api.openai.com/v1/chat/completions';
 
-        $headers = array_merge([
-            'Authorization' => 'Bearer ' . $this->proveedor->api_key,
-            'Content-Type' => 'application/json',
-        ], $this->proveedor->headers_personalizados ?? []);
-
-        $response = Http::withHeaders($headers)
-            ->timeout(120)
-            ->post($endpoint, $payload);
-
-        if (!$response->successful()) {
-            throw new RuntimeException('OpenAI API error: ' . $response->body());
+        $headers = ['Content-Type' => 'application/json'];
+        if ($clave = $this->clave()) {
+            $headers['Authorization'] = 'Bearer ' . $clave;
         }
+        $headers = array_merge($headers, $this->proveedor->headers_personalizados ?? []);
 
-        $json = $response->json();
+        $json = $this->postJson($endpoint, $headers, $payload, $opciones);
 
         return [
             'texto' => $this->parsearRespuesta($json),
             'tokens_input' => data_get($json, 'usage.prompt_tokens'),
             'tokens_output' => data_get($json, 'usage.completion_tokens'),
+            'fin' => match (data_get($json, 'choices.0.finish_reason')) {
+                'stop' => 'completo',
+                'length' => 'max_tokens',
+                default => 'otro',
+            },
             'raw' => $json,
         ];
     }
 
-    public function probarConexion(): bool
+    public function construirPayload(array $historial, string $mensaje, array $imagenes, ?string $systemPrompt = null, array $opciones = []): array
     {
-        try {
-            $this->enviarMensaje([], 'ping', []);
-            return true;
-        } catch (\Throwable $e) {
-            return false;
-        }
-    }
+        $this->exigirSoportePdf($imagenes);
 
-    public function construirPayload(array $historial, string $mensaje, array $imagenes, ?string $systemPrompt = null): array
-    {
         $messages = [];
 
         if ($systemPrompt) {
@@ -84,19 +73,29 @@ class OpenAIAdaptador implements IAAdaptadorInterface
             'content' => $this->formatearContenido($mensaje, $imagenes),
         ];
 
+        $modelo = (string) $this->proveedor->modelo_default;
         $payload = [
-            'model' => $this->proveedor->modelo_default,
+            'model' => $modelo,
             'messages' => $messages,
         ];
 
-        $maxTokens = data_get($this->proveedor->config_extra, 'max_tokens');
+        // Modelos de razonamiento (o1/o3/o4…, gpt-5…) rechazan max_tokens y temperature.
+        $razonamiento = (bool) preg_match('/^(o\d|gpt-5)/i', $modelo);
+
+        $maxTokens = $this->opcion($opciones, 'max_tokens', 'max_tokens');
         if ($maxTokens) {
-            $payload['max_tokens'] = (int) $maxTokens;
+            $payload[$razonamiento ? 'max_completion_tokens' : 'max_tokens'] = (int) $maxTokens;
         }
 
-        $temperature = data_get($this->proveedor->config_extra, 'temperature');
-        if ($temperature !== null) {
+        $temperature = $this->opcion($opciones, 'temperatura', 'temperature');
+        if ($temperature !== null && !$razonamiento) {
             $payload['temperature'] = (float) $temperature;
+        }
+
+        // JSON nativo: OpenAI exige que la palabra "json" aparezca en los mensajes,
+        // si no responde 400. Solo se activa cuando el prompt ya lo pide.
+        if (!empty($opciones['json']) && stripos($systemPrompt . ' ' . $mensaje, 'json') !== false) {
+            $payload['response_format'] = ['type' => 'json_object'];
         }
 
         return $payload;
@@ -116,6 +115,16 @@ class OpenAIAdaptador implements IAAdaptadorInterface
         $partes = [['type' => 'text', 'text' => $texto]];
         foreach ($imagenes as $img) {
             $mime = $img['mime'] ?? 'image/jpeg';
+            if ($this->esPdf($img)) {
+                $partes[] = [
+                    'type' => 'file',
+                    'file' => [
+                        'filename' => 'documento.pdf',
+                        'file_data' => 'data:application/pdf;base64,' . $img['data'],
+                    ],
+                ];
+                continue;
+            }
             $partes[] = [
                 'type' => 'image_url',
                 'image_url' => [

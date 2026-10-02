@@ -37,14 +37,33 @@
       </div>
     </div>
 
+    <!-- Tabs -->
+    <ul class="nav nav-tabs hub-tabs mb-3">
+      <li class="nav-item">
+        <a class="nav-link" :class="{ active: tab === 'integraciones' }" href="#" @click.prevent="tab = 'integraciones'">
+          <i class="bi bi-key me-1"></i>Integraciones
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" :class="{ active: tab === 'proveedores' }" href="#" @click.prevent="openProvidersTab()">
+          <i class="bi bi-diagram-3 me-1"></i>Proveedores
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" :class="{ active: tab === 'ia' }" href="#" @click.prevent="openIaTab()">
+          <i class="bi bi-cpu me-1"></i>Módulos IA
+        </a>
+      </li>
+    </ul>
+
     <!-- Loading -->
-    <div v-if="loading" class="hub-loading">
+    <div v-if="tab === 'integraciones' && loading" class="hub-loading">
       <div class="spinner-border text-primary" role="status"></div>
       <p class="mt-3 text-muted">Cargando integraciones…</p>
     </div>
 
     <!-- Provider grid -->
-    <div v-else class="provider-grid">
+    <div v-else-if="tab === 'integraciones'" class="provider-grid">
       <div
         v-for="provider in providers"
         :key="provider.id"
@@ -57,7 +76,9 @@
             <i :class="providerIcon(provider.id)"></i>
           </div>
           <div class="provider-info">
-            <div class="provider-name">{{ provider.name }}</div>
+            <div class="provider-name">{{ provider.name }}
+              <span v-if="provider.active === false" class="badge bg-light text-muted ms-1">Proveedor inactivo</span>
+            </div>
             <div class="provider-desc">{{ provider.description }}</div>
           </div>
           <div class="provider-header-actions">
@@ -72,7 +93,7 @@
         <div v-if="integrationsFor(provider.id).length === 0" class="provider-empty">
           <i class="bi bi-key-fill text-muted"></i>
           <span class="ms-2 text-muted small">Sin configurar</span>
-          <button v-if="can('manage-integrations')" class="btn btn-link btn-sm p-0 ms-2" @click="openCreate(provider.id)">
+          <button v-if="can('manage-integrations') && provider.active !== false" class="btn btn-link btn-sm p-0 ms-2" @click="openCreate(provider.id)">
             Configurar ahora
           </button>
         </div>
@@ -150,10 +171,123 @@
         </div>
 
         <!-- Add another -->
-        <div v-if="integrationsFor(provider.id).length > 0 && can('manage-integrations')" class="provider-add-more">
+        <div v-if="integrationsFor(provider.id).length > 0 && can('manage-integrations') && provider.active !== false" class="provider-add-more">
           <button class="btn btn-link btn-sm text-muted p-0" @click="openCreate(provider.id)">
             <i class="bi bi-plus-circle me-1"></i>Agregar otra
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Proveedores tab -->
+    <div v-if="tab === 'proveedores'" class="hub-providers">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <p class="text-muted mb-0 small">Catálogo de proveedores. El tipo (IA / Servicios) se hereda a cada integración al elegir el proveedor.</p>
+        <button v-if="can('manage-integrations')" class="btn btn-primary btn-sm" @click="openProviderForm()">
+          <i class="bi bi-plus-lg me-1"></i>Nuevo proveedor
+        </button>
+      </div>
+      <div v-if="providersLoading" class="hub-loading"><div class="spinner-border text-primary"></div></div>
+      <div v-else class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr><th>Proveedor</th><th>Identificador</th><th>Tipo</th><th>Integraciones</th><th>Estado</th><th></th></tr>
+          </thead>
+          <tbody>
+            <tr v-if="!providerCatalog.length"><td colspan="6" class="text-center text-muted py-4">Sin proveedores</td></tr>
+            <tr v-for="p in providerCatalog" :key="p.id">
+              <td>
+                <div class="fw-semibold">{{ p.name }}
+                  <span v-if="p.is_system" class="badge bg-secondary-subtle text-secondary ms-1">sistema</span>
+                </div>
+                <div class="small text-muted">{{ p.description }}</div>
+              </td>
+              <td><code>{{ p.slug }}</code></td>
+              <td>
+                <span class="badge" :class="p.type === 'ia' ? 'bg-primary-subtle text-primary' : 'bg-info-subtle text-info'">
+                  {{ p.type === 'ia' ? 'IA' : 'Servicios' }}
+                </span>
+                <div v-if="p.type === 'ia'" class="small mt-1">
+                  <span v-if="p.driver" class="text-muted">{{ drivers[p.driver] ?? p.driver }}
+                    <span v-if="p.soporta_imagenes"> · imágenes</span><span v-if="p.soporta_pdf"> · PDF</span>
+                  </span>
+                  <span v-else class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i>Falta el protocolo</span>
+                </div>
+              </td>
+              <td>{{ p.integrations_count }}</td>
+              <td>
+                <span class="badge" :class="p.active ? 'bg-success-subtle text-success' : 'bg-light text-muted'">
+                  {{ p.active ? 'Activo' : 'Inactivo' }}
+                </span>
+              </td>
+              <td class="text-end text-nowrap">
+                <button v-if="can('manage-integrations')" class="btn btn-sm btn-outline-secondary" title="Editar" @click="openProviderForm(p)">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                <button v-if="can('manage-integrations') && !p.is_system" class="btn btn-sm btn-outline-danger ms-1" title="Eliminar" @click="deleteProvider(p)">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Módulos IA tab -->
+    <div v-if="tab === 'ia'" class="hub-ia">
+      <p class="text-muted small mb-3">
+        Elige qué integración de IA (y qué modelo) usa cada módulo. Un módulo <strong>sin asignar no usa IA</strong>:
+        sus funciones de IA quedan apagadas hasta que lo configures.
+      </p>
+      <div v-if="iaLoading" class="hub-loading"><div class="spinner-border text-primary"></div></div>
+      <div v-else>
+        <div v-if="!iaIntegraciones.length" class="alert alert-warning small">
+          No hay integraciones de IA registradas. Crea una en la pestaña Integraciones (por ejemplo OpenAI o Claude).
+        </div>
+        <div v-for="(mods, grupo) in iaModulosPorGrupo" :key="grupo" class="mb-4">
+          <h6 class="fw-semibold mb-2">{{ grupo }}</h6>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle ia-table">
+              <thead>
+                <tr><th style="width:30%">Módulo</th><th style="width:28%">Integración de IA</th><th style="width:20%">Modelo</th><th>Estado</th><th></th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="m in mods" :key="m.clave">
+                  <td>
+                    <div class="fw-semibold">{{ m.nombre }}</div>
+                    <div v-if="m.requiere.length" class="small text-muted">Necesita: {{ m.requiere.join(', ') }}</div>
+                  </td>
+                  <td>
+                    <select class="form-select form-select-sm" v-model="m.api_integration_id"
+                            :disabled="!can('manage-integrations')" @change="onIaIntegracionChange(m)">
+                      <option :value="null">— Sin asignar —</option>
+                      <option v-for="i in iaIntegraciones" :key="i.id" :value="i.id" :disabled="!i.activa || !i.tiene_llave">
+                        {{ i.nombre }} ({{ i.proveedor }}){{ !i.activa ? ' — inactiva' : (!i.tiene_llave ? ' — sin llave' : '') }}
+                      </option>
+                    </select>
+                  </td>
+                  <td>
+                    <input class="form-control form-control-sm" v-model.trim="m.modelo" :list="'ia-modelos-' + m.clave"
+                           :disabled="!m.api_integration_id || !can('manage-integrations')" placeholder="modelo">
+                    <datalist :id="'ia-modelos-' + m.clave">
+                      <option v-for="mod in (iaIntegracion(m.api_integration_id)?.modelos ?? [])" :key="mod" :value="mod"></option>
+                    </datalist>
+                  </td>
+                  <td>
+                    <span class="badge" :class="iaEstado(m).cls">{{ iaEstado(m).txt }}</span>
+                  </td>
+                  <td class="text-end">
+                    <button v-if="can('manage-integrations')" class="btn btn-sm btn-primary"
+                            :disabled="!iaCambiado(m) || iaGuardando[m.clave]" @click="saveIaModulo(m)">
+                      <span v-if="iaGuardando[m.clave]" class="spinner-border spinner-border-sm"></span>
+                      <span v-else>Guardar</span>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -164,13 +298,13 @@
 <script>
 import Swal from 'sweetalert2';
 
-const Toast = Swal.mixin({
-  toast: true,
-  position: 'bottom-end',
-  showConfirmButton: false,
-  timer: 3000,
-  timerProgressBar: true,
-});
+// Toast nativo del sistema (toastr, global en bootstrap.js), arriba a la derecha
+const TOAST_OPTS = {
+  positionClass: 'toast-top-right',
+  closeButton: true,
+  progressBar: true,
+  timeOut: 3000,
+};
 
 export default {
   name: 'IntegrationsHubView',
@@ -178,10 +312,27 @@ export default {
   data() {
     return {
       loading: true,
+      tab: 'integraciones',
+      providerCatalog: [],
+      providersLoading: false,
+      drivers: {},
+      iaModulos: [],
+      iaIntegraciones: [],
+      iaLoading: false,
+      iaGuardando: {},
       providers: [],
       integrations: [],
       validating: {},
     };
+  },
+
+  computed: {
+    iaModulosPorGrupo() {
+      return this.iaModulos.reduce((acc, m) => {
+        (acc[m.grupo] = acc[m.grupo] || []).push(m);
+        return acc;
+      }, {});
+    },
   },
 
   mounted() {
@@ -210,9 +361,13 @@ export default {
     // ── Create / Edit ─────────────────────────────────────────────────────────
 
     openCreate(providerId = null) {
-      const providerOptions = this.providers
-        .map(p => `<option value="${p.id}" ${p.id === providerId ? 'selected' : ''}>${p.name}</option>`)
-        .join('');
+      const typeLabel = { ia: 'IA', servicios: 'Servicios' };
+      const providerOptions = ['ia', 'servicios'].map(t => {
+        const opts = this.providers.filter(p => p.type === t && p.active !== false)
+          .map(p => `<option value="${p.id}" ${p.id === providerId ? 'selected' : ''}>${this.escHtml(p.name)}</option>`)
+          .join('');
+        return opts ? `<optgroup label="${typeLabel[t]}">${opts}</optgroup>` : '';
+      }).join('');
 
       Swal.fire({
         title: 'Nueva integración',
@@ -229,6 +384,7 @@ export default {
                 <option value="">— Seleccionar —</option>
                 ${providerOptions}
               </select>
+              <div class="form-text">Tipo: <span id="sw-type-label" class="fw-semibold">—</span></div>
             </div>
             <div class="mb-3">
               <label class="form-label fw-semibold">Nombre <span class="text-danger">*</span></label>
@@ -268,7 +424,10 @@ export default {
           const sel = document.getElementById('sw-provider');
           const evo = document.getElementById('sw-evolution-wrap');
           const meta = document.getElementById('sw-meta-wrap');
+          const typeLabelEl = document.getElementById('sw-type-label');
           const toggle = () => {
+            const prov = this.providers.find(p => p.id === sel.value);
+            typeLabelEl.textContent = prov ? typeLabel[prov.type] : '—';
             evo.style.display  = sel.value === 'evolution' ? 'block' : 'none';
             meta.style.display = sel.value === 'meta' ? 'block' : 'none';
           };
@@ -541,6 +700,225 @@ export default {
       }
     },
 
+    // ── Proveedores (catálogo) ────────────────────────────────────────────────
+
+    async openProvidersTab() {
+      this.tab = 'proveedores';
+      await this.loadProviderCatalog();
+    },
+
+    async loadProviderCatalog() {
+      this.providersLoading = true;
+      try {
+        const res = await axios.get('/api/hub/provider-catalog');
+        this.providerCatalog = res.data.data ?? [];
+        this.drivers = res.data.drivers ?? {};
+      } catch (e) {
+        this.toast('danger', e.response?.data?.error ?? 'Error al cargar proveedores');
+      } finally {
+        this.providersLoading = false;
+      }
+    },
+
+    async openProviderForm(p = null) {
+      const editing = !!p;
+      const v = (x) => this.escHtml(x ?? '');
+      if (!Object.keys(this.drivers).length) await this.loadProviderCatalog();
+      const driverOptions = Object.entries(this.drivers)
+        .map(([k, label]) => `<option value="${k}" ${p?.driver === k ? 'selected' : ''}>${this.escHtml(label)}</option>`)
+        .join('');
+      Swal.fire({
+        title: editing ? 'Editar proveedor' : 'Nuevo proveedor',
+        width: 480,
+        showCancelButton: true,
+        confirmButtonText: editing ? 'Guardar' : 'Crear proveedor',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#0d6efd',
+        html: `
+          <div class="text-start">
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Nombre <span class="text-danger">*</span></label>
+              <input id="pv-name" type="text" class="form-control" value="${v(p?.name)}" placeholder="Ej: ElevenLabs">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Identificador <span class="text-danger">*</span></label>
+              <input id="pv-slug" type="text" class="form-control font-monospace" value="${v(p?.slug)}" ${editing ? 'disabled' : ''} placeholder="elevenlabs">
+              <div class="form-text">Minúsculas, números y guion bajo. No se puede cambiar después.</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Tipo <span class="text-danger">*</span></label>
+              <select id="pv-type" class="form-select">
+                <option value="ia" ${p?.type === 'ia' ? 'selected' : ''}>IA</option>
+                <option value="servicios" ${(p?.type ?? 'servicios') === 'servicios' ? 'selected' : ''}>Servicios</option>
+              </select>
+            </div>
+            <div id="pv-ia-wrap" class="mb-3 p-2 border rounded" style="display:none">
+              <label class="form-label fw-semibold">Protocolo de IA <span class="text-danger">*</span></label>
+              <select id="pv-driver" class="form-select">
+                <option value="">— Seleccionar —</option>
+                ${driverOptions}
+              </select>
+              <div class="form-text mb-2">Cómo se habla con este proveedor. Ollama, DeepSeek o Groq usan «Compatible con OpenAI».</div>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="pv-img" ${p?.soporta_imagenes ? 'checked' : ''}>
+                <label class="form-check-label" for="pv-img">Puede leer imágenes</label>
+              </div>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="pv-pdf" ${p?.soporta_pdf ? 'checked' : ''}>
+                <label class="form-check-label" for="pv-pdf">Puede leer PDF</label>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Descripción</label>
+              <input id="pv-desc" type="text" class="form-control" value="${v(p?.description)}">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">URL de documentación / llaves</label>
+              <input id="pv-docs" type="text" class="form-control" value="${v(p?.docs_url)}" placeholder="https://…">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Formato de la llave</label>
+              <input id="pv-fmt" type="text" class="form-control" value="${v(p?.key_format)}" placeholder="sk-…">
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="pv-active" ${(p?.active ?? true) ? 'checked' : ''}>
+              <label class="form-check-label" for="pv-active">Proveedor activo</label>
+            </div>
+          </div>
+        `,
+        didOpen: () => {
+          const type = document.getElementById('pv-type');
+          const wrap = document.getElementById('pv-ia-wrap');
+          const toggle = () => { wrap.style.display = type.value === 'ia' ? 'block' : 'none'; };
+          type.addEventListener('change', toggle);
+          toggle();
+        },
+        preConfirm: () => {
+          const name = document.getElementById('pv-name').value.trim();
+          const slug = document.getElementById('pv-slug').value.trim();
+          const type = document.getElementById('pv-type').value;
+          const driver = document.getElementById('pv-driver').value;
+          if (!name) { Swal.showValidationMessage('El nombre es requerido'); return false; }
+          if (type === 'ia' && !driver) { Swal.showValidationMessage('Elige el protocolo de IA'); return false; }
+          if (!editing && !/^[a-z0-9_]+$/.test(slug)) {
+            Swal.showValidationMessage('Identificador inválido (minúsculas, números y guion bajo)');
+            return false;
+          }
+          return {
+            name,
+            ...(editing ? {} : { slug }),
+            type,
+            driver: type === 'ia' ? driver : null,
+            soporta_imagenes: type === 'ia' && document.getElementById('pv-img').checked,
+            soporta_pdf: type === 'ia' && document.getElementById('pv-pdf').checked,
+            description: document.getElementById('pv-desc').value.trim(),
+            docs_url: document.getElementById('pv-docs').value.trim(),
+            key_format: document.getElementById('pv-fmt').value.trim(),
+            active: document.getElementById('pv-active').checked,
+          };
+        },
+      }).then(async result => {
+        if (!result.isConfirmed) return;
+        try {
+          if (editing) await axios.put(`/api/hub/provider-catalog/${p.id}`, result.value);
+          else await axios.post('/api/hub/provider-catalog', result.value);
+          this.toast('success', editing ? 'Proveedor actualizado' : 'Proveedor creado');
+          await Promise.all([this.loadProviderCatalog(), this.load()]);
+        } catch (e) {
+          this.toast('danger', e.response?.data?.error ?? 'Error al guardar');
+        }
+      });
+    },
+
+    async deleteProvider(p) {
+      const r = await Swal.fire({
+        title: `¿Eliminar "${p.name}"?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Eliminar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#dc3545',
+      });
+      if (!r.isConfirmed) return;
+      try {
+        await axios.delete(`/api/hub/provider-catalog/${p.id}`);
+        this.toast('success', 'Proveedor eliminado');
+        await Promise.all([this.loadProviderCatalog(), this.load()]);
+      } catch (e) {
+        this.toast('danger', e.response?.data?.error ?? 'Error al eliminar');
+      }
+    },
+
+    // ── Módulos IA ────────────────────────────────────────────────────────────
+
+    async openIaTab() {
+      this.tab = 'ia';
+      await this.loadIaModulos();
+    },
+
+    async loadIaModulos() {
+      this.iaLoading = true;
+      try {
+        const res = await axios.get('/api/hub/ia-modulos');
+        const d = res.data.data ?? {};
+        this.iaIntegraciones = d.integraciones ?? [];
+        this.iaModulos = (d.modulos ?? []).map(m => ({
+          ...m, _origInt: m.api_integration_id, _origModelo: m.modelo,
+        }));
+      } catch (e) {
+        this.toast('danger', e.response?.data?.error ?? 'Error al cargar los módulos de IA');
+      } finally {
+        this.iaLoading = false;
+      }
+    },
+
+    iaIntegracion(id) {
+      return this.iaIntegraciones.find(i => i.id === id) ?? null;
+    },
+
+    onIaIntegracionChange(m) {
+      const integ = this.iaIntegracion(m.api_integration_id);
+      if (!integ) { m.modelo = null; return; }
+      // Al cambiar de proveedor el modelo anterior ya no aplica: proponer el primero sugerido
+      if (!m.modelo || !integ.modelos.includes(m.modelo)) {
+        m.modelo = integ.modelos[0] ?? '';
+      }
+    },
+
+    iaCambiado(m) {
+      return m.api_integration_id !== m._origInt || (m.modelo ?? null) !== (m._origModelo ?? null);
+    },
+
+    iaEstado(m) {
+      if (!m._origInt) return { txt: 'Sin asignar · IA apagada', cls: 'bg-light text-muted' };
+      const integ = this.iaIntegracion(m._origInt);
+      if (!integ || !integ.activa || !integ.tiene_llave) return { txt: 'Integración inactiva o sin llave', cls: 'bg-danger-subtle text-danger' };
+      if (!m.listo) return { txt: 'Asignada · el módulo aún no la usa', cls: 'bg-warning-subtle text-warning' };
+      return { txt: 'Activa', cls: 'bg-success-subtle text-success' };
+    },
+
+    async saveIaModulo(m) {
+      if (m.api_integration_id && !m.modelo) {
+        this.toast('warning', 'Indica el modelo a usar');
+        return;
+      }
+      this.iaGuardando = { ...this.iaGuardando, [m.clave]: true };
+      try {
+        await axios.put(`/api/hub/ia-modulos/${m.clave}`, {
+          api_integration_id: m.api_integration_id,
+          modelo: m.api_integration_id ? m.modelo : null,
+        });
+        m._origInt = m.api_integration_id;
+        m._origModelo = m.api_integration_id ? m.modelo : null;
+        if (!m.api_integration_id) m.modelo = null;
+        this.toast('success', m.api_integration_id ? `${m.nombre}: IA asignada` : `${m.nombre}: IA quitada`);
+      } catch (e) {
+        this.toast('danger', e.response?.data?.error ?? 'Error al guardar');
+      } finally {
+        this.iaGuardando = { ...this.iaGuardando, [m.clave]: false };
+      }
+    },
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     can(permission) {
@@ -548,8 +926,8 @@ export default {
     },
 
     toast(type, message) {
-      const iconMap = { success: 'success', danger: 'error', warning: 'warning', info: 'info' };
-      Toast.fire({ icon: iconMap[type] ?? 'info', title: message });
+      const fnMap = { success: 'success', danger: 'error', warning: 'warning', info: 'info' };
+      window.toastr[fnMap[type] ?? 'info'](message, '', TOAST_OPTS);
     },
 
     escHtml(str) {
@@ -560,7 +938,7 @@ export default {
       const map = {
         anthropic: '#7c3aed', 'anthropic-legacy': '#9e6fd0',
         openai: '#10a37f', evolution: '#25d366',
-        pexels: '#05a081', 'google-maps': '#4285f4',
+        pexels: '#05a081', 'google-maps': '#4285f4', google_maps: '#4285f4',
         meta: '#0866ff',
       };
       return map[id] ?? '#6c757d';
@@ -570,7 +948,7 @@ export default {
       const map = {
         anthropic: 'bi bi-robot', 'anthropic-legacy': 'bi bi-robot',
         openai: 'bi bi-stars', evolution: 'bi bi-whatsapp',
-        pexels: 'bi bi-images', 'google-maps': 'bi bi-geo-alt-fill',
+        pexels: 'bi bi-images', 'google-maps': 'bi bi-geo-alt-fill', google_maps: 'bi bi-geo-alt-fill',
         meta: 'bi bi-facebook',
       };
       return map[id] ?? 'bi bi-plugin';

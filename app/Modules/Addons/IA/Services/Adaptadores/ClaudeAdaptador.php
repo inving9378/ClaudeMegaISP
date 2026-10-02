@@ -2,58 +2,43 @@
 
 namespace App\Modules\Addons\IA\Services\Adaptadores;
 
-use App\Modules\Addons\IA\Models\IAProveedor;
-use App\Modules\Addons\IA\Services\IAAdaptadorInterface;
-use Illuminate\Support\Facades\Http;
-use RuntimeException;
-
-class ClaudeAdaptador implements IAAdaptadorInterface
+class ClaudeAdaptador extends AdaptadorHttpBase
 {
-    public function __construct(protected IAProveedor $proveedor)
+    protected function nombreApi(): string
     {
+        return 'Claude';
     }
 
-    public function enviarMensaje(array $historial, string $mensaje, array $imagenes = [], ?string $systemPrompt = null): array
+    public function enviarMensaje(array $historial, string $mensaje, array $imagenes = [], ?string $systemPrompt = null, array $opciones = []): array
     {
-        $payload = $this->construirPayload($historial, $mensaje, $imagenes, $systemPrompt);
+        $payload = $this->construirPayload($historial, $mensaje, $imagenes, $systemPrompt, $opciones);
         $endpoint = $this->proveedor->endpoint_url ?: 'https://api.anthropic.com/v1/messages';
 
         $headers = array_merge([
-            'x-api-key' => $this->proveedor->api_key,
+            'x-api-key' => (string) $this->clave(),
             'anthropic-version' => '2023-06-01',
             'content-type' => 'application/json',
         ], $this->proveedor->headers_personalizados ?? []);
 
-        $response = Http::withHeaders($headers)
-            ->timeout(120)
-            ->post($endpoint, $payload);
-
-        if (!$response->successful()) {
-            throw new RuntimeException('Claude API error: ' . $response->body());
-        }
-
-        $json = $response->json();
+        $json = $this->postJson($endpoint, $headers, $payload, $opciones);
 
         return [
             'texto' => $this->parsearRespuesta($json),
             'tokens_input' => data_get($json, 'usage.input_tokens'),
             'tokens_output' => data_get($json, 'usage.output_tokens'),
+            'fin' => match ($json['stop_reason'] ?? null) {
+                'end_turn', 'stop_sequence' => 'completo',
+                'max_tokens' => 'max_tokens',
+                default => 'otro',
+            },
             'raw' => $json,
         ];
     }
 
-    public function probarConexion(): bool
+    public function construirPayload(array $historial, string $mensaje, array $imagenes, ?string $systemPrompt = null, array $opciones = []): array
     {
-        try {
-            $this->enviarMensaje([], 'ping', []);
-            return true;
-        } catch (\Throwable $e) {
-            return false;
-        }
-    }
+        $this->exigirSoportePdf($imagenes);
 
-    public function construirPayload(array $historial, string $mensaje, array $imagenes, ?string $systemPrompt = null): array
-    {
         $messages = [];
 
         foreach ($historial as $h) {
@@ -76,9 +61,15 @@ class ClaudeAdaptador implements IAAdaptadorInterface
 
         $payload = [
             'model' => $this->proveedor->modelo_default,
-            'max_tokens' => data_get($this->proveedor->config_extra, 'max_tokens', 4096),
+            'max_tokens' => (int) $this->opcion($opciones, 'max_tokens', 'max_tokens', 4096),
             'messages' => $messages,
         ];
+
+        // Claude no tiene modo JSON nativo: 'json' se ignora (el prompt ya lo pide).
+        // Temperatura solo por llamada: este adaptador nunca leyó config_extra.temperature.
+        if (array_key_exists('temperatura', $opciones) && $opciones['temperatura'] !== null) {
+            $payload['temperature'] = (float) $opciones['temperatura'];
+        }
 
         if ($systemPrompt) {
             $payload['system'] = $systemPrompt;

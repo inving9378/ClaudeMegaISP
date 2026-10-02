@@ -13,7 +13,7 @@ class ApiIntegration extends BaseModel
     protected $table = 'api_integrations';
 
     protected $fillable = [
-        'company_id', 'provider', 'slug', 'name',
+        'company_id', 'provider', 'type', 'slug', 'name',
         'encrypted_value', 'key_preview', 'key_fingerprint',
         'config', 'active', 'is_default_for_provider',
         'last_validation_status', 'last_validated_at',
@@ -27,6 +27,22 @@ class ApiIntegration extends BaseModel
         'is_default_for_provider' => 'boolean',
         'last_validated_at'       => 'datetime',
     ];
+
+    // El tipo (ia | servicios) lo manda el catálogo de proveedores: se fija aquí
+    // para que TODA vía de alta (UI, seeders, tinker) quede consistente.
+    protected static function booted(): void
+    {
+        parent::booted();
+
+        static::saving(function (self $integration) {
+            if (!$integration->exists || $integration->isDirty('provider')) {
+                $type = ApiIntegrationProvider::where('slug', $integration->provider)->value('type');
+                if ($type) {
+                    $integration->type = $type;
+                }
+            }
+        });
+    }
 
     // ── Accessors / Mutators ────────────────────────────────────────────────────
 

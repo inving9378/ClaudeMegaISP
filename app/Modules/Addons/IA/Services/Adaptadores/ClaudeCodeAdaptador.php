@@ -76,7 +76,7 @@ class ClaudeCodeAdaptador implements IAAdaptadorInterface
     {
     }
 
-    public function enviarMensaje(array $historial, string $mensaje, array $imagenes = [], ?string $systemPrompt = null): array
+    public function enviarMensaje(array $historial, string $mensaje, array $imagenes = [], ?string $systemPrompt = null, array $opciones = []): array
     {
         if (!empty($imagenes)) {
             throw new RuntimeException(
@@ -93,7 +93,7 @@ class ClaudeCodeAdaptador implements IAAdaptadorInterface
         // fallar rápido) — confirmado en vivo el 2026-09-28. Mismo tratamiento
         // que ya hace deploy/circuito/vuelta.sh (unset CLAUDE_API_KEY) antes de
         // invocar `claude -p`.
-        $result = Process::timeout(self::TIMEOUT_SECONDS)
+        $result = Process::timeout((int) ($opciones['timeout'] ?? self::TIMEOUT_SECONDS))
             ->path($this->sandboxDir())
             ->env(['CLAUDE_API_KEY' => null, 'ANTHROPIC_API_KEY' => null])
             ->run($payload['argv']);
@@ -116,6 +116,7 @@ class ClaudeCodeAdaptador implements IAAdaptadorInterface
             'texto'         => $this->parsearRespuesta($json),
             'tokens_input'  => data_get($json, 'usage.input_tokens'),
             'tokens_output' => data_get($json, 'usage.output_tokens'),
+            'fin'           => 'otro',
             'raw'           => $json,
         ];
     }
@@ -155,7 +156,7 @@ class ClaudeCodeAdaptador implements IAAdaptadorInterface
      *         proceso (nunca un body HTTP) — se ejecuta como arreglo, nunca
      *         como cadena de shell interpolada.
      */
-    public function construirPayload(array $historial, string $mensaje, array $imagenes, ?string $systemPrompt = null): array
+    public function construirPayload(array $historial, string $mensaje, array $imagenes, ?string $systemPrompt = null, array $opciones = []): array
     {
         $texto = $this->aplanarHistorial($historial, $mensaje);
 
