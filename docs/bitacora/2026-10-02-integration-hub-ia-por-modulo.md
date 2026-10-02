@@ -107,3 +107,15 @@ cola. Sin sesión ni respuesta al cliente; no cambia aplicación de pagos ni el 
 
 Trabajo hecho en el worktree `/home/meganet/megaisp-wt-integrations` (el checkout principal lo
 usaba otra sesión en `main`).
+
+## 2026-10-02 13:25 — Lote 6 y activación
+
+- **Lote 6** (`a0c03d74`): en `/ia/configuracion` → Proveedores, "Origen de la llave" = escribirla
+  o tomarla de una integración de IA del Hub (`config_extra.hub_integracion`). Aditivo: nada
+  cambia para proveedores existentes (incluido el que usa Jarvis) salvo que se elija el Hub.
+  Bug corregido: guardar un proveedor borraba su `config_extra`.
+- **`queue:restart` hecho a las 13:11** con OK de Irving (los 3 deploys "en curso" eran
+  registros atorados de junio; ningún deploy corría). Los workers ya corren el código nuevo.
+- **Frontend prod** recompilado en `/var/www/megaisp` a las 13:20 (incluye Módulos IA y Lote 6).
+- Quedan sin asignar 13 de 20 módulos (asignar en Integraciones → Módulos IA); `gaistudio` sigue
+  sin protocolo y con llave inválida; el bot de voz sigue con el proceso manual del 24-sep.
