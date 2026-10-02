@@ -13,7 +13,7 @@ class ApiIntegration extends BaseModel
     protected $table = 'api_integrations';
 
     protected $fillable = [
-        'company_id', 'provider', 'slug', 'name',
+        'company_id', 'provider', 'type', 'slug', 'name',
         'encrypted_value', 'key_preview', 'key_fingerprint',
         'config', 'active', 'is_default_for_provider',
         'last_validation_status', 'last_validated_at',

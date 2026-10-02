@@ -210,9 +210,13 @@ export default {
     // ── Create / Edit ─────────────────────────────────────────────────────────
 
     openCreate(providerId = null) {
-      const providerOptions = this.providers
-        .map(p => `<option value="${p.id}" ${p.id === providerId ? 'selected' : ''}>${p.name}</option>`)
+      const providers = this.providers;
+      const initialType = providers.find(p => p.id === providerId)?.type ?? 'ia';
+      const optionsFor = (type, selected) => providers
+        .filter(p => p.type === type)
+        .map(p => `<option value="${p.id}" ${p.id === selected ? 'selected' : ''}>${p.name}</option>`)
         .join('');
+      const providerOptions = optionsFor(initialType, providerId);
 
       Swal.fire({
         title: 'Nueva integración',
@@ -223,6 +227,13 @@ export default {
         confirmButtonColor: '#0d6efd',
         html: `
           <div class="text-start">
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Tipo <span class="text-danger">*</span></label>
+              <select id="sw-type" class="form-select">
+                <option value="ia" ${initialType === 'ia' ? 'selected' : ''}>IA</option>
+                <option value="servicios" ${initialType === 'servicios' ? 'selected' : ''}>Servicios</option>
+              </select>
+            </div>
             <div class="mb-3">
               <label class="form-label fw-semibold">Proveedor <span class="text-danger">*</span></label>
               <select id="sw-provider" class="form-select">
@@ -266,6 +277,11 @@ export default {
         `,
         didOpen: () => {
           const sel = document.getElementById('sw-provider');
+          const typeSel = document.getElementById('sw-type');
+          typeSel.addEventListener('change', () => {
+            sel.innerHTML = '<option value="">— Seleccionar —</option>' + optionsFor(typeSel.value, null);
+            sel.dispatchEvent(new Event('change'));
+          });
           const evo = document.getElementById('sw-evolution-wrap');
           const meta = document.getElementById('sw-meta-wrap');
           const toggle = () => {
@@ -282,6 +298,7 @@ export default {
           if (!name)     { Swal.showValidationMessage('El nombre es requerido'); return false; }
           return {
             provider,
+            type:      document.getElementById('sw-type').value,
             name,
             key:       document.getElementById('sw-key').value,
             active:    document.getElementById('sw-active').checked,
@@ -293,10 +310,11 @@ export default {
         },
       }).then(async result => {
         if (!result.isConfirmed) return;
-        const { provider, name, key, active, endpoint, instance, appId, appSecret } = result.value;
+        const { provider, type, name, key, active, endpoint, instance, appId, appSecret } = result.value;
         try {
           const payload = {
             provider,
+            type,
             name,
             active,
             slug: provider + '-' + Date.now(),

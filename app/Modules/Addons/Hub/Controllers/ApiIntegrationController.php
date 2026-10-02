@@ -34,6 +34,10 @@ class ApiIntegrationController extends Controller
             $query->where('provider', $request->provider);
         }
 
+        if ($request->filled('type')) {
+            $query->where('type', $request->type);
+        }
+
         $items = $query->orderBy('provider')->orderByDesc('is_default_for_provider')->get()
             ->makeHidden(['encrypted_value'])
             ->map(fn($i) => $this->formatItem($i));
@@ -51,6 +55,7 @@ class ApiIntegrationController extends Controller
     {
         $v = Validator::make($request->all(), [
             'provider' => 'required|string|max:50',
+            'type'     => 'required|in:ia,servicios',
             'slug'     => 'required|string|max:100|unique:api_integrations,slug,NULL,id,company_id,1',
             'name'     => 'required|string|max:150',
             'key'      => 'nullable|string',
@@ -65,6 +70,7 @@ class ApiIntegrationController extends Controller
         $integration = ApiIntegration::create([
             'company_id'             => 1,
             'provider'               => $request->provider,
+            'type'                   => $request->type,
             'slug'                   => $request->slug,
             'name'                   => $request->name,
             'config'                 => $request->config ?? [],
@@ -88,6 +94,7 @@ class ApiIntegrationController extends Controller
 
         $v = Validator::make($request->all(), [
             'name'   => 'sometimes|string|max:150',
+            'type'   => 'sometimes|in:ia,servicios',
             'key'    => 'nullable|string',
             'config' => 'nullable|array',
             'active' => 'boolean',
@@ -97,7 +104,7 @@ class ApiIntegrationController extends Controller
             return response()->json(['error' => $v->errors()->first()], 422);
         }
 
-        $integration->fill($request->only(['name', 'config', 'active']));
+        $integration->fill($request->only(['name', 'type', 'config', 'active']));
 
         if ($request->filled('key')) {
             $integration->value = $request->key;
@@ -199,6 +206,7 @@ class ApiIntegrationController extends Controller
         return [
             'id'                      => $i->id,
             'provider'                => $i->provider,
+            'type'                    => $i->type,
             'slug'                    => $i->slug,
             'name'                    => $i->name,
             'key_preview'             => $i->key_preview,

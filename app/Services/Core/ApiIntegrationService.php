@@ -171,6 +171,7 @@ class ApiIntegrationService
         return [
             [
                 'id'          => 'anthropic',
+                'type'        => 'ia',
                 'name'        => 'Anthropic / Claude',
                 'description' => 'IA conversacional — Claude API',
                 'icon'        => 'smart_toy',
@@ -179,6 +180,7 @@ class ApiIntegrationService
             ],
             [
                 'id'          => 'openai',
+                'type'        => 'ia',
                 'name'        => 'OpenAI',
                 'description' => 'TTS, GPT — OpenAI API',
                 'icon'        => 'record_voice_over',
@@ -187,6 +189,7 @@ class ApiIntegrationService
             ],
             [
                 'id'          => 'evolution',
+                'type'        => 'servicios',
                 'name'        => 'Evolution API / WhatsApp',
                 'description' => 'Mensajería WhatsApp',
                 'icon'        => 'chat',
@@ -196,6 +199,7 @@ class ApiIntegrationService
             ],
             [
                 'id'          => 'pexels',
+                'type'        => 'servicios',
                 'name'        => 'Pexels',
                 'description' => 'Banco de imágenes y videos',
                 'icon'        => 'image',
@@ -204,6 +208,7 @@ class ApiIntegrationService
             ],
             [
                 'id'          => 'google_maps',
+                'type'        => 'servicios',
                 'name'        => 'Google Maps',
                 'description' => 'Geocodificación y mapas',
                 'icon'        => 'map',
@@ -212,6 +217,7 @@ class ApiIntegrationService
             ],
             [
                 'id'          => 'meta',
+                'type'        => 'servicios',
                 'name'        => 'Meta (Facebook / Instagram)',
                 'description' => 'Publicador multicanal — App ID + App Secret de Facebook/Instagram',
                 'icon'        => 'share',
