@@ -32,7 +32,7 @@
                     <h3 class="name-credential">
                         {{ $seller->name }} {{ $seller->father_last_name }} {{ $seller->mother_last_name }}
                     </h3>
-                    <h3 class="title-user">Vendedor</h3>
+                    <h3 class="title-user">{{ $titulo ?? 'Vendedor' }}</h3>
                     <p class="credential-text">
                         Teléfono: {{ $seller->phone}}
                     </p>

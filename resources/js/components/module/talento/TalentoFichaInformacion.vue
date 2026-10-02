@@ -38,10 +38,62 @@
         </div>
       </div>
     </div>
+
+    <!-- Credencial/gafete -- David (2-oct): "faltan las credenciales como
+         mismo esta en vendedores". Mismo template compartido que ya usa
+         Vendedores (App\Models\Credential + /configuracion/credencial/*),
+         nada nuevo que configurar; solo cambia el titulo (puesto real en vez
+         de "Vendedor") y los datos vienen de este colaborador. -->
+    <div class="row mt-4">
+      <div class="col-md-6">
+        <h6 class="text-muted small text-uppercase mb-3">Mi credencial</h6>
+        <div class="d-flex flex-wrap gap-3 align-items-start">
+          <div
+            class="card m-0 p-2 tc-credential"
+            :style="{
+              backgroundImage: imgFront?.name
+                ? `url(/credencial/${imgFront.name})`
+                : 'url(/images/gafete-front.png)',
+            }"
+          >
+            <div class="card-body">
+              <img
+                class="tc-credential-logo"
+                :src="imgLogo?.name ? `/credencial/${imgLogo.name}` : '/images/logo_meganet.jpg'"
+                alt="logo"
+              />
+              <div class="d-flex justify-content-center mt-3">
+                <img
+                  class="tc-credential-perfil"
+                  :src="colaborador.user?.photography ? `/perfiles/${colaborador.user.photography}` : '/images/perfil.png'"
+                />
+              </div>
+              <h3 class="tc-credential-name text-uppercase">
+                {{ colaborador.user?.name }} {{ colaborador.user?.father_last_name }} {{ colaborador.user?.mother_last_name }}
+              </h3>
+              <h3 class="tc-credential-title">{{ colaborador.puesto?.nombre ?? colaborador.job_title ?? 'Colaborador' }}</h3>
+              <p class="tc-credential-text">Teléfono: {{ colaborador.user?.phone }}</p>
+              <p class="tc-credential-text">Correo electrónico: {{ colaborador.user?.email }}</p>
+            </div>
+          </div>
+          <div class="align-self-center">
+            <a
+              class="tc-btn tc-btn-ok"
+              :href="`/talento/mi-ficha/${colaborador.id}/pdf`"
+              target="_blank"
+            >
+              <i class="fa fa-file-download me-1"></i> Descargar credencial
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
+import { getImageFront, getImageBack, getImageLogo } from "../vendors/helper/request.js";
+
 export default {
   name: "TalentoFichaInformacion",
   props: {
@@ -51,6 +103,15 @@ export default {
     // cualquiera, incluido un técnico viendo su propia ficha, que al
     // hacer clic caía en 403/redirect silencioso.
     puedeGestionarAcceso: { type: Boolean, default: false },
+  },
+  data() {
+    return { imgFront: null, imgBack: null, imgLogo: null };
+  },
+  async mounted() {
+    // Mismo template compartido que Vendedores -- NO se duplica config ni imagenes.
+    this.imgFront = await getImageFront();
+    this.imgBack = await getImageBack();
+    this.imgLogo = await getImageLogo();
   },
   methods: {
     statusBadge(s) {
@@ -66,3 +127,45 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.tc-credential {
+  width: 220px;
+  height: 380px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+.tc-credential-logo {
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  object-fit: contain;
+  height: 16%;
+  width: 100%;
+}
+.tc-credential-perfil {
+  border-radius: 50%;
+  width: 72px;
+  height: 72px;
+  border: 3px solid #004790;
+}
+.tc-credential-name {
+  margin-top: 8px;
+  font-size: 0.95rem;
+  font-weight: bold;
+  color: #fff;
+  text-align: center;
+}
+.tc-credential-title {
+  font-size: 0.65rem;
+  color: #fff;
+  text-align: center;
+  text-transform: uppercase;
+}
+.tc-credential-text {
+  font-size: 0.75rem;
+  color: #fff;
+  text-align: center;
+}
+</style>
