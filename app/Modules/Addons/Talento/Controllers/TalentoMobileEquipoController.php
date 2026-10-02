@@ -351,9 +351,35 @@ class TalentoMobileEquipoController extends Controller
         $col = $this->resolverObjetivo($request, 'talento.credentials.view', 'talento.funds.view', 'talento.employees.view');
         if (! $col) return $this->noPerfil();
 
+        // David (2-oct): "que lo que pone es driver_licence, valid..." -- la
+        // app traducira esos valores crudos, pero ademas faltaban
+        // days_until_expiry (ya calculado por el modelo) y el fondo de
+        // renovacion asociado (TalentoFund, si existe) -- la UNICA pieza
+        // extra que de verdad aplica a autoservicio de lectura, sin tocar
+        // el "no autoservicio" de gestion (editar/subir documento sigue
+        // siendo exclusivo de un supervisor/staff, sin cambio aqui).
         $credenciales = TalentoCredential::where('colaborador_id', $col->id)
+            ->with('fund')
             ->orderByDesc('issued_at')
-            ->get(['id', 'type', 'document_number', 'issued_at', 'expires_at', 'status']);
+            ->get(['id', 'type', 'document_number', 'issued_at', 'expires_at', 'status', 'file_path'])
+            ->map(fn (TalentoCredential $c) => [
+                'id' => $c->id,
+                'type' => $c->type,
+                'document_number' => $c->document_number,
+                'issued_at' => $c->issued_at,
+                'expires_at' => $c->expires_at,
+                'status' => $c->status,
+                'days_until_expiry' => $c->daysUntilExpiry(),
+                'has_document' => $c->getDecryptedPath() !== null,
+                'fund' => $c->fund ? [
+                    'purpose' => $c->fund->purpose,
+                    'target_amount' => (float) $c->fund->target_amount,
+                    'accumulated' => (float) $c->fund->accumulated,
+                    'weekly_deduction' => (float) $c->fund->weekly_deduction,
+                    'authorized' => (bool) $c->fund->authorized,
+                    'status' => $c->fund->status,
+                ] : null,
+            ]);
 
         return response()->json(['credenciales' => $credenciales]);
     }
