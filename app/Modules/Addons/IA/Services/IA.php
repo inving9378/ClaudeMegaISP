@@ -27,7 +27,8 @@ class IA
      */
     public static function proveedorPara(string $clave): IAProveedor
     {
-        $nombreModulo = config("ia_modulos.{$clave}.nombre", $clave);
+        $modulo = self::modulo($clave);
+        $nombreModulo = $modulo['nombre'] ?? $clave;
         $configurar = 'Configúralo en Integraciones → Módulos IA.';
 
         $asig = IAAsignacion::with('integracion')->where('clave', $clave)->first();
@@ -44,7 +45,7 @@ class IA
             throw new IANoConfigurada("El proveedor «{$integracion->provider}» no tiene definido su protocolo de IA. Edítalo en Integraciones → Proveedores.");
         }
 
-        $faltan = self::capacidadesFaltantes($catalogo, (array) config("ia_modulos.{$clave}.requiere", []));
+        $faltan = self::capacidadesFaltantes($catalogo, (array) ($modulo['requiere'] ?? []));
         if ($faltan) {
             throw new IANoConfigurada("«{$catalogo->name}» no soporta " . implode(' ni ', $faltan) . ", que «{$nombreModulo}» necesita. {$configurar}");
         }
@@ -64,6 +65,16 @@ class IA
         $proveedor->setRelation('integracionHub', $integracion);
 
         return $proveedor;
+    }
+
+    /**
+     * Entrada del catálogo config('ia_modulos') para la clave. Las claves llevan
+     * punto ("whatsapp.ventas"), así que NO se puede usar config("ia_modulos.$clave"):
+     * Laravel lo interpretaría como niveles anidados y nunca la encontraría.
+     */
+    public static function modulo(string $clave): ?array
+    {
+        return config('ia_modulos', [])[$clave] ?? null;
     }
 
     public static function para(string $clave): IAAdaptadorInterface

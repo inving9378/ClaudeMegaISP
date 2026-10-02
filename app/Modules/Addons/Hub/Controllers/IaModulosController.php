@@ -78,7 +78,8 @@ class IaModulosController extends Controller
 
     public function update(Request $request, string $clave): JsonResponse
     {
-        if (!config()->has("ia_modulos.{$clave}")) {
+        $modulo = IA::modulo($clave);
+        if (!$modulo) {
             return response()->json(['error' => 'Módulo desconocido'], 404);
         }
 
@@ -108,7 +109,7 @@ class IaModulosController extends Controller
             return response()->json(['error' => "El proveedor «{$integracion->provider}» no tiene definido su protocolo de IA. Edítalo en la pestaña Proveedores."], 422);
         }
 
-        $faltan = IA::capacidadesFaltantes($catalogo, (array) config("ia_modulos.{$clave}.requiere", []));
+        $faltan = IA::capacidadesFaltantes($catalogo, (array) ($modulo['requiere'] ?? []));
         if ($faltan) {
             return response()->json(['error' => "«{$catalogo->name}» no soporta " . implode(' ni ', $faltan) . ', que este módulo necesita'], 422);
         }
