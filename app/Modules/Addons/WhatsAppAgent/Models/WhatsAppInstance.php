@@ -13,6 +13,7 @@ class WhatsAppInstance extends BaseModel
     protected $fillable = [
         'name',
         'slug',
+        'provider',
         'instance_id',
         'api_url',
         'api_key',

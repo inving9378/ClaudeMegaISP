@@ -26,6 +26,7 @@ class CheckRoutePermission
         '/cliente/get-client-status/{id}',
         '/inventory/inventory_store/my-store/{id}',
         '/whatsapp/webhook/{slug}',
+        '/whatsapp/webhook/meta/{slug}',
         '/payments/spei/webhook',
         '/webhooks/marketing/meta-ads',
         '/webhooks/marketing/evolution',

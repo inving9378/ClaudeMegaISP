@@ -17,90 +17,151 @@ class WhatsAppRouterService
     ) {
     }
 
+    /**
+     * Entrada Evolution (sin cambios de comportamiento respecto a antes del
+     * refactor -- es el webhook LIVE, cero riesgo tolerado aquí). Extrae y
+     * delega a processInboundNormalized(), que es la pieza que ahora
+     * comparte con Meta.
+     */
     public function route(WhatsAppInstance $instance, array $payload): void
     {
         $event = $payload['event'] ?? $payload['type'] ?? null;
 
         match (true) {
-            $event && str_contains(strtolower($event), 'message')    => $this->handleMessage($instance, $payload),
+            $event && str_contains(strtolower($event), 'message')    => $this->handleEvolutionMessage($instance, $payload),
             $event && str_contains(strtolower($event), 'connection') => $this->handleConnection($instance, $payload),
             $event && str_contains(strtolower($event), 'qrcode')     => $this->handleQr($instance, $payload),
             default => Log::info('WhatsApp webhook event ignored', ['event' => $event, 'instance' => $instance->slug]),
         };
     }
 
-    private function handleMessage(WhatsAppInstance $instance, array $payload): void
+    /**
+     * Entrada Meta Cloud API: el payload ya lo normaliza
+     * MetaCloudApiService::extractMessages() a la MISMA forma que
+     * processInboundNormalized() espera -- esta función solo hace el loop +
+     * delega, igual que handleEvolutionMessage() hace con el formato Evolution.
+     */
+    public function routeMeta(WhatsAppInstance $instance, MetaCloudApiService $meta, array $payload): void
     {
-        $messages = $this->extractMessages($payload);
+        foreach ($meta->extractMessages($payload) as $msg) {
+            $this->processInboundNormalized(
+                $instance,
+                externalMessageId: $msg['messageId'] ?? null,
+                contactNumber: (string) ($msg['contactNumber'] ?? ''),
+                contactName: $msg['contactName'] ?? null,
+                type: $msg['type'] ?? 'text',
+                body: $msg['body'] ?? null,
+                rawMessage: $msg['rawMessage'] ?? [],
+            );
+        }
+    }
 
-        foreach ($messages as $msg) {
+    private function handleEvolutionMessage(WhatsAppInstance $instance, array $payload): void
+    {
+        foreach ($this->extractMessages($payload) as $msg) {
             $messageId = $msg['key']['id'] ?? null;
 
+            // Mismo orden EXACTO que antes del refactor: primero dedupe (si ya
+            // existe, se ignora por completo, incluso si es fromMe), y SOLO
+            // después se revisa fromMe. processInboundNormalized() vuelve a
+            // dedupear internamente (lo necesita Meta, que no tiene este
+            // branch de fromMe) -- redundante pero inofensivo para Evolution.
             if ($messageId && WhatsAppMessage::where('evolution_message_id', $messageId)->exists()) {
                 continue;
             }
 
-            // Mensajes salientes (fromMe): solo actualizar estado del existente
+            // Mensajes salientes (fromMe): solo actualizar estado del existente.
+            // Esto es específico de Evolution (confirmación de un envío propio
+            // que regresa por el mismo webhook) -- Meta no manda esto como
+            // "message", lo manda aparte en `statuses`, por eso vive solo aquí.
             if ($msg['key']['fromMe'] ?? false) {
                 if ($messageId) {
                     WhatsAppMessage::where('evolution_message_id', $messageId)
-                        ->update([
-                            'status'       => 'delivered',
-                            'delivered_at' => now(),
-                        ]);
+                        ->update(['status' => 'delivered', 'delivered_at' => now()]);
                 }
                 continue;
             }
 
-            $contactNumber = $msg['key']['remoteJid'] ?? '';
-            $contactNumber = str_replace(['@s.whatsapp.net', '@g.us'], '', $contactNumber);
-            $contactName   = $msg['pushName'] ?? null;
+            $contactNumber = str_replace(
+                ['@s.whatsapp.net', '@g.us'],
+                '',
+                $msg['key']['remoteJid'] ?? ''
+            );
 
             $body = $msg['message']['conversation']
                 ?? $msg['message']['extendedTextMessage']['text']
                 ?? null;
 
-            $messageType = $this->resolveMessageType($msg['message'] ?? []);
-
-            $match    = $this->matcher->match($contactNumber);
-            $client   = $match['client'];
-            $sellerId = $match['seller_id'];
-
-            $conversation = WhatsAppConversation::firstOrCreate(
-                [
-                    'instance_id'    => $instance->id,
-                    'contact_number' => $contactNumber,
-                ],
-                [
-                    'contact_name' => $contactName,
-                    'client_id'    => $client?->id,
-                    'seller_id'    => $sellerId,
-                    'status'       => 'open',
-                ]
+            $this->processInboundNormalized(
+                $instance,
+                externalMessageId: $messageId,
+                contactNumber: $contactNumber,
+                contactName: $msg['pushName'] ?? null,
+                type: $this->resolveMessageType($msg['message'] ?? []),
+                body: $body,
+                rawMessage: $msg,
             );
-
-            if ($contactName && $conversation->contact_name !== $contactName) {
-                $conversation->update(['contact_name' => $contactName]);
-            }
-
-            $stored = WhatsAppMessage::create([
-                'conversation_id'      => $conversation->id,
-                'instance_id'          => $instance->id,
-                'direction'            => 'in',
-                'message_type'         => $messageType,
-                'body'                 => $body,
-                'status'               => 'received',
-                'evolution_message_id' => $messageId,
-            ]);
-
-            $conversation->incrementUnread();
-            $conversation->update(['last_message_at' => now()]);
-
-            // Gateway → EVENTOS. El transporte sólo normaliza y publica; los
-            // consumidores reaccionan como listeners (IA para texto, conciliación
-            // para media, y a futuro cualquier módulo) SIN tocar el gateway.
-            $this->publish($instance, $conversation, $stored, $contactNumber, $messageType, $body, $msg);
         }
+    }
+
+    /**
+     * Pieza COMPARTIDA entre proveedores: dedupe por id externo, resolver/
+     * actualizar la conversación, persistir el mensaje y publicar los
+     * eventos del gateway. Evolution y Meta llegan aquí ya normalizados --
+     * de aquí para abajo no hay NADA específico de un proveedor en particular.
+     */
+    private function processInboundNormalized(
+        WhatsAppInstance $instance,
+        ?string $externalMessageId,
+        string $contactNumber,
+        ?string $contactName,
+        string $type,
+        ?string $body,
+        array $rawMessage,
+    ): void {
+        if ($externalMessageId && WhatsAppMessage::where('evolution_message_id', $externalMessageId)->exists()) {
+            return;
+        }
+
+        $match    = $this->matcher->match($contactNumber);
+        $client   = $match['client'];
+        $sellerId = $match['seller_id'];
+
+        $conversation = WhatsAppConversation::firstOrCreate(
+            [
+                'instance_id'    => $instance->id,
+                'contact_number' => $contactNumber,
+            ],
+            [
+                'contact_name' => $contactName,
+                'client_id'    => $client?->id,
+                'seller_id'    => $sellerId,
+                'status'       => 'open',
+            ]
+        );
+
+        if ($contactName && $conversation->contact_name !== $contactName) {
+            $conversation->update(['contact_name' => $contactName]);
+        }
+
+        $stored = WhatsAppMessage::create([
+            'conversation_id'      => $conversation->id,
+            'instance_id'          => $instance->id,
+            'direction'            => 'in',
+            'message_type'         => $type,
+            'body'                 => $body,
+            'status'               => 'received',
+            // Columna histórica (nombre heredado de cuando solo existía
+            // Evolution) -- se reusa tal cual para CUALQUIER proveedor como
+            // "id externo del mensaje", en vez de agregar una columna
+            // paralela redundante.
+            'evolution_message_id' => $externalMessageId,
+        ]);
+
+        $conversation->incrementUnread();
+        $conversation->update(['last_message_at' => now()]);
+
+        $this->publish($instance, $conversation, $stored, $contactNumber, $type, $body, $rawMessage);
     }
 
     /**
