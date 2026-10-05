@@ -20,6 +20,7 @@ Route::middleware(['web', 'auth'])->prefix('api/hub')->name('hub.api.')->group(f
     Route::delete('provider-catalog/{id}',      [ApiIntegrationProviderController::class, 'destroy'])->whereNumber('id')->name('catalog.destroy');
     Route::get('ia-modulos',                    [IaModulosController::class, 'index'])->name('iaModulos.index');
     Route::put('ia-modulos/{clave}',            [IaModulosController::class, 'update'])->where('clave', '[a-z0-9_.]+')->name('iaModulos.update');
+    Route::post('ia-modulos/{clave}/probar',    [IaModulosController::class, 'probar'])->where('clave', '[a-z0-9_.]+')->name('iaModulos.probar');
     Route::get('integrations',                  [ApiIntegrationController::class, 'index'])->name('index');
     Route::post('integrations',                 [ApiIntegrationController::class, 'store'])->name('store');
     Route::get('integrations/{id}',             [ApiIntegrationController::class, 'show'])->name('show');

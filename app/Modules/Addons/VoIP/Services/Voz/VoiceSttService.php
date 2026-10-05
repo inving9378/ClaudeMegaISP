@@ -2,22 +2,20 @@
 
 namespace App\Modules\Addons\VoIP\Services\Voz;
 
-use App\Services\Core\UsesApiIntegration;
+use App\Modules\Addons\IA\Services\IA;
+use App\Modules\Addons\IA\Services\IANoConfigurada;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * MegaVoz Fase 6 — transcripción de voz (Whisper, OpenAI). No existía NINGÚN
- * STT en el repo antes de esto; la resolución de la API key SÍ existe (mismo
- * trait/proveedor 'openai' que ya usa OpenAiTtsDriver para TTS) — sin
- * credencial nueva que pedir.
+ * MegaVoz Fase 6 — transcripción de voz (Whisper, OpenAI). La llave, la URL y
+ * el modelo salen de Integraciones → Módulos IA (clave "voip.transcripcion") y
+ * se leen en CADA transcripción: el bot de voz corre como proceso de días y así
+ * un cambio de llave aplica sin reiniciarlo.
  */
 class VoiceSttService
 {
-    use UsesApiIntegration;
-
-    private string $apiKey;
-    private string $endpoint = 'https://api.openai.com/v1/audio/transcriptions';
+    private const CLAVE_IA = 'voip.transcripcion';
 
     // Precio Whisper: $0.006 USD por minuto (tarifa pública de OpenAI).
     private const COSTO_POR_MINUTO_USD = 0.006;
@@ -41,18 +39,15 @@ class VoiceSttService
         'www.youtube.com',
     ];
 
-    public function __construct(int $companyId = 1)
-    {
-        $this->apiKey = $this->resolveApiKey('openai', 'OPENAI_API_KEY', 'openai_api_key', $companyId) ?? '';
-    }
-
     /**
      * @return array{success: bool, texto?: string, costo_usd?: float, error?: string}
      */
     public function transcribir(string $wavPath, string $idioma = 'es'): array
     {
-        if ($this->apiKey === '') {
-            return ['success' => false, 'error' => 'OpenAI API key no configurada (openai_api_key)'];
+        try {
+            $c = IA::credencialesPara(self::CLAVE_IA);
+        } catch (IANoConfigurada $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
         }
 
         if (! is_file($wavPath)) {
@@ -60,11 +55,11 @@ class VoiceSttService
         }
 
         try {
-            $response = Http::withToken($this->apiKey)
+            $response = Http::withToken((string) $c['llave'])
                 ->timeout(30)
                 ->attach('file', file_get_contents($wavPath), basename($wavPath))
-                ->post($this->endpoint, [
-                    'model'           => 'whisper-1',
+                ->post($c['base'] . '/audio/transcriptions', [
+                    'model'           => $c['modelo'],
                     'language'        => $idioma,
                     // verbose_json trae `segments[].no_speech_prob` — la
                     // señal OFICIAL de Whisper para "esto probablemente no
@@ -82,6 +77,7 @@ class VoiceSttService
 
             $texto = trim((string) $response->json('text', ''));
             $costo = round(self::COSTO_POR_MINUTO_USD * ($this->duracionSegundos($wavPath) / 60), 6);
+            IA::registrarUsoIntegracion($c['integracion'], self::CLAVE_IA, $costo);
 
             if ($texto === '') {
                 return ['success' => true, 'texto' => '', 'costo_usd' => $costo];

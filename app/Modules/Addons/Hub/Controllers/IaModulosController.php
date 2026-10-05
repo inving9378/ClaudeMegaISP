@@ -7,8 +7,11 @@ use App\Models\Core\ApiIntegration;
 use App\Models\Core\ApiIntegrationProvider;
 use App\Modules\Addons\IA\Models\IAAsignacion;
 use App\Modules\Addons\IA\Services\IA;
+use App\Modules\Addons\IA\Services\IANoConfigurada;
+use App\Services\Core\ApiIntegrationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -29,12 +32,14 @@ class IaModulosController extends Controller
         'imagenes'     => 'Imágenes',
         'pdf'          => 'PDF',
         'herramientas' => 'Herramientas',
+        'voz'          => 'Voz',
     ];
 
     public function __construct()
     {
         $this->middleware('permission:view-integrations')->only(['index']);
         $this->middleware('permission:manage-integrations')->only(['update']);
+        $this->middleware('permission:validate-integrations')->only(['probar']);
     }
 
     public function index(): JsonResponse
@@ -51,6 +56,7 @@ class IaModulosController extends Controller
                     fn($r) => self::ETIQUETAS_REQUIERE[$r] ?? $r, (array) ($m['requiere'] ?? [])
                 )),
                 'listo'              => (bool) ($m['listo'] ?? false),
+                'modelos'            => $m['modelos'] ?? null,
                 'api_integration_id' => $a?->api_integration_id,
                 'modelo'             => $a?->modelo,
             ];
@@ -58,8 +64,9 @@ class IaModulosController extends Controller
 
         $catalogo = ApiIntegrationProvider::where('type', 'ia')->get()->keyBy('slug');
 
+        $hub = ApiIntegrationService::instance();
         $integraciones = ApiIntegration::forCompany(1)->where('type', 'ia')->orderBy('name')->get()
-            ->map(function (ApiIntegration $i) use ($catalogo) {
+            ->map(function (ApiIntegration $i) use ($catalogo, $hub) {
                 $p = $catalogo->get($i->provider);
                 return [
                     'id'                => $i->id,
@@ -68,7 +75,9 @@ class IaModulosController extends Controller
                     'driver'            => $p?->driver,
                     'activa'            => (bool) $i->active,
                     'tiene_llave'       => (bool) $i->encrypted_value,
+                    'requiere_llave'    => $p?->driver !== 'openai_compatible',
                     'estado_validacion' => $i->last_validation_status,
+                    'mensaje_validacion'=> $i->last_validation_status ? $hub->ultimoMensajeValidacion($i) : null,
                     'modelos'           => self::MODELOS_SUGERIDOS[$p?->driver] ?? [],
                 ];
             })->values();
@@ -105,13 +114,8 @@ class IaModulosController extends Controller
         }
 
         $catalogo = ApiIntegrationProvider::where('slug', $integracion->provider)->first();
-        if (!$catalogo || !$catalogo->driver) {
-            return response()->json(['error' => "El proveedor «{$integracion->provider}» no tiene definido su protocolo de IA. Edítalo en la pestaña Proveedores."], 422);
-        }
-
-        $faltan = IA::capacidadesFaltantes($catalogo, (array) ($modulo['requiere'] ?? []));
-        if ($faltan) {
-            return response()->json(['error' => "«{$catalogo->name}» no soporta " . implode(' ni ', $faltan) . ', que este módulo necesita'], 422);
+        if ($problema = IA::problemaDeIntegracion($integracion, $catalogo, $modulo)) {
+            return response()->json(['error' => $problema], 422);
         }
 
         IAAsignacion::updateOrCreate(
@@ -120,5 +124,59 @@ class IaModulosController extends Controller
         );
 
         return response()->json(['message' => 'Guardado', 'data' => ['configurada' => IA::configurada($clave)]]);
+    }
+
+    /**
+     * Prueba en vivo del módulo con SU integración y SU modelo: un mensaje
+     * mínimo (o, en los de voz, que la llave vea el modelo de audio). Sirve
+     * justo después de cambiar una llave o de asignar otra IA.
+     */
+    public function probar(string $clave): JsonResponse
+    {
+        $modulo = IA::modulo($clave);
+        if (!$modulo) {
+            return response()->json(['error' => 'Módulo desconocido'], 404);
+        }
+
+        $inicio = microtime(true);
+        try {
+            $r = in_array('voz', (array) ($modulo['requiere'] ?? []), true)
+                ? $this->probarVoz($clave)
+                : IA::enviar($clave, 'Responde únicamente con la palabra OK.', [], null, [], ['max_tokens' => 20, 'reintentos' => 0, 'timeout' => 30]);
+
+            return response()->json(['data' => [
+                'ok'        => true,
+                'mensaje'   => "Funciona: respondió {$r['proveedor']} con {$r['modelo']}",
+                'segundos'  => round(microtime(true) - $inicio, 1),
+            ]]);
+        } catch (IANoConfigurada $e) {
+            return response()->json(['data' => ['ok' => false, 'mensaje' => $e->getMessage()]]);
+        } catch (\Throwable $e) {
+            $x = IA::explicarError($e->getMessage());
+            return response()->json(['data' => [
+                'ok'      => false,
+                'mensaje' => "{$x['etiqueta']}. {$x['que_hacer']}",
+                'detalle' => mb_substr($e->getMessage(), 0, 300),
+            ]]);
+        }
+    }
+
+    /**
+     * Voz: generar audio de prueba cuesta y no aporta más que esto — la llave
+     * autentica contra /models y el modelo de audio asignado aparece en la lista.
+     */
+    private function probarVoz(string $clave): array
+    {
+        $c = IA::credencialesPara($clave);
+
+        $res = Http::withToken((string) $c['llave'])->timeout(15)->get($c['base'] . '/models');
+        if (!$res->successful()) {
+            throw new \RuntimeException("Error {$res->status()}: " . $res->body());
+        }
+        if (!collect($res->json('data', []))->pluck('id')->contains($c['modelo'])) {
+            throw new \RuntimeException("model_not_found: {$c['modelo']}");
+        }
+
+        return ['proveedor' => $c['proveedor'], 'modelo' => $c['modelo']];
     }
 }

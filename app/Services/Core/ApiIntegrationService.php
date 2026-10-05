@@ -4,7 +4,11 @@ namespace App\Services\Core;
 
 use App\Models\Core\ApiIntegration;
 use App\Models\Core\ApiIntegrationLog;
+use App\Models\Core\ApiIntegrationProvider;
 use App\Models\Core\ApiIntegrationUsage;
+use App\Modules\Addons\IA\Models\IAProveedor;
+use App\Modules\Addons\IA\Services\IA;
+use App\Modules\Addons\IA\Services\IAAdaptadorFactory;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -81,19 +85,21 @@ class ApiIntegrationService
 
     public function validate(ApiIntegration $integration): array
     {
+        // Las integraciones de IA se prueban con el MISMO adaptador que usan los
+        // módulos (por protocolo, no por nombre del proveedor): si aquí dice
+        // "funciona", Módulos IA funciona con esa llave.
+        $catalogo = ApiIntegrationProvider::where('slug', $integration->provider)->first();
+        if ($catalogo?->type === 'ia') {
+            return $this->validarIA($integration, $catalogo);
+        }
+
         $key = $integration->value;
 
         if (!$key) {
             return $this->validationResult($integration, false, 'No key configured');
         }
 
-        $validators = [
-            'anthropic'   => fn() => $this->validateAnthropic($key),
-            'openai'      => fn() => $this->validateOpenAi($key),
-            'evolution'   => fn() => $this->validateEvolution($key, $integration->config ?? []),
-            'pexels'      => fn() => $this->validatePexels($key),
-            'google_maps' => fn() => $this->validateGoogleMaps($key),
-        ];
+        $validators = $this->serviceValidators($integration, $key);
 
         // Sin validador para este proveedor: NO se marca como válida (sería mentir)
         if (!isset($validators[$integration->provider])) {
@@ -114,6 +120,118 @@ class ApiIntegrationService
         return $this->validationResult($integration, $ok, $ok ? 'OK' : 'Validation failed');
     }
 
+    /** ¿Se puede verificar esta integración automáticamente? (IA siempre; servicios si hay validador) */
+    public function puedeValidar(ApiIntegration $integration): bool
+    {
+        $catalogo = ApiIntegrationProvider::where('slug', $integration->provider)->first();
+        return $catalogo?->type === 'ia' || isset($this->serviceValidators($integration, '')[$integration->provider]);
+    }
+
+    /** Texto de la última validación (está en el historial de la integración). */
+    public function ultimoMensajeValidacion(ApiIntegration $integration): ?string
+    {
+        $log = ApiIntegrationLog::where('integration_id', $integration->id)
+            ->whereIn('event_type', ['validated', 'validation_failed'])
+            ->latest('id')
+            ->first();
+
+        return $log ? data_get($log->metadata, 'message') : null;
+    }
+
+    /**
+     * Prueba real de una llave de IA: un mensaje mínimo con un modelo barato,
+     * por el adaptador del protocolo. Distingue llave inválida, sin saldo, etc.
+     */
+    private function validarIA(ApiIntegration $integration, ApiIntegrationProvider $catalogo): array
+    {
+        $driver = $catalogo->driver;
+        if (!$driver) {
+            return $this->validationResult($integration, false, 'El proveedor no tiene definido su protocolo de IA (pestaña Proveedores).');
+        }
+
+        $compatible = $driver === 'openai_compatible';
+        $llave = $integration->value;
+        $endpoint = data_get($integration->config, 'endpoint') ?: null;
+
+        if (!$llave && !$compatible) {
+            return $this->validationResult($integration, false, 'No tiene llave capturada.');
+        }
+        if ($compatible && !$endpoint) {
+            return $this->validationResult($integration, false, 'Falta la URL del servicio (edita la integración).');
+        }
+
+        $modelo = data_get($integration->config, 'modelo_prueba') ?: (IA::MODELO_PRUEBA[$driver] ?? null);
+        if (!$modelo) {
+            [$modelo, $error] = $this->primerModeloCompatible($endpoint, $llave);
+            if (!$modelo) {
+                return $this->validationResult($integration, false, $error);
+            }
+        }
+
+        // Proveedor en memoria con ESTA llave (no la del Hub por defecto): así se
+        // prueba la integración aunque esté inactiva o no sea la principal.
+        $proveedor = new IAProveedor([
+            'nombre'         => $integration->name,
+            'driver'         => $driver,
+            'endpoint_url'   => $endpoint,
+            'modelo_default' => $modelo,
+            'activo'         => true,
+        ]);
+        $proveedor->api_key = $llave;
+
+        try {
+            IAAdaptadorFactory::crear($proveedor)->enviarMensaje(
+                [], 'Responde únicamente con la palabra OK.', [], null,
+                ['max_tokens' => 20, 'reintentos' => 0, 'timeout' => 25]
+            );
+            return $this->validationResult($integration, true, "La llave funciona (probada con {$modelo}).");
+        } catch (\Throwable $e) {
+            $x = IA::explicarError($e->getMessage());
+            // Si el único problema es el modelo de prueba, la llave sí autenticó.
+            if ($x['motivo'] === 'modelo') {
+                return $this->validationResult($integration, true, "La llave es válida, pero el modelo de prueba {$modelo} no está disponible en esta cuenta.");
+            }
+            return $this->validationResult($integration, false, "{$x['etiqueta']}. {$x['que_hacer']}");
+        }
+    }
+
+    /**
+     * Servidor compatible con OpenAI sin "modelo_prueba": se toma el primer
+     * modelo que anuncie en /models (eso además prueba la llave y la URL).
+     *
+     * @return array{0:?string, 1:string} [modelo, error]
+     */
+    private function primerModeloCompatible(string $endpoint, ?string $llave): array
+    {
+        try {
+            $res = Http::timeout(10)
+                ->when($llave, fn($h) => $h->withToken($llave))
+                ->get(IA::baseOpenAI($endpoint) . '/models');
+        } catch (\Throwable $e) {
+            return [null, 'No se pudo conectar con la URL del servicio: ' . $e->getMessage()];
+        }
+
+        if (!$res->successful()) {
+            $x = IA::explicarError($res->status() . ' ' . $res->body());
+            return [null, "{$x['etiqueta']}. {$x['que_hacer']}"];
+        }
+
+        $modelo = data_get($res->json(), 'data.0.id') ?? data_get($res->json(), 'models.0.name');
+        return $modelo
+            ? [$modelo, '']
+            : [null, 'El servicio respondió pero no anuncia modelos; captura un "modelo de prueba" al editar la integración.'];
+    }
+
+    /** Validadores de las integraciones de servicios (no IA), por proveedor. */
+    private function serviceValidators(ApiIntegration $integration, string $key): array
+    {
+        return [
+            'evolution'   => fn() => $this->validateEvolution($key, $integration->config ?? []),
+            'pexels'      => fn() => $this->validatePexels($key),
+            'google_maps' => fn() => $this->validateGoogleMaps($key),
+        ];
+    }
+
     private function validationResult(ApiIntegration $integration, bool $ok, string $message): array
     {
         $status = $ok ? 'valid' : 'invalid';
@@ -123,26 +241,6 @@ class ApiIntegrationService
         ]);
         $this->audit($integration, $ok ? 'validated' : 'validation_failed', ['message' => $message]);
         return ['success' => $ok, 'message' => $message, 'status' => $status];
-    }
-
-    private function validateAnthropic(string $key): bool
-    {
-        $res = Http::timeout(10)
-            ->withHeaders(['x-api-key' => $key, 'anthropic-version' => '2023-06-01'])
-            ->post('https://api.anthropic.com/v1/messages', [
-                'model'      => 'claude-haiku-4-5-20251001',
-                'max_tokens' => 1,
-                'messages'   => [['role' => 'user', 'content' => 'hi']],
-            ]);
-        return in_array($res->status(), [200, 400]);
-    }
-
-    private function validateOpenAi(string $key): bool
-    {
-        $res = Http::timeout(10)
-            ->withToken($key)
-            ->get('https://api.openai.com/v1/models');
-        return $res->status() === 200;
     }
 
     private function validateEvolution(string $key, array $config): bool
@@ -195,6 +293,7 @@ class ApiIntegrationService
                 'key_format'  => $p->key_format,
                 'has_config'  => $p->has_config,
                 'active'      => $p->active,
+                'driver'      => $p->driver,
             ])->all();
     }
 }

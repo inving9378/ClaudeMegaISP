@@ -123,6 +123,12 @@
                 <i class="bi bi-clock me-1"></i>{{ timeAgo(item.last_validated_at) }}
               </span>
             </div>
+            <div v-if="item.last_validation_status === 'invalid' && item.last_validation_message" class="small text-danger mt-1">
+              <i class="bi bi-exclamation-circle me-1"></i>{{ item.last_validation_message }}
+            </div>
+            <div v-if="item.en_uso && item.en_uso.length" class="small text-muted mt-1" :title="item.en_uso.join('\n')">
+              <i class="bi bi-diagram-3 me-1"></i>La usan {{ item.en_uso.length }} módulo{{ item.en_uso.length === 1 ? '' : 's' }}
+            </div>
           </div>
 
           <!-- Validation badge -->
@@ -250,7 +256,7 @@
           <div class="table-responsive">
             <table class="table table-sm align-middle ia-table">
               <thead>
-                <tr><th style="width:30%">Módulo</th><th style="width:28%">Integración de IA</th><th style="width:20%">Modelo</th><th>Estado</th><th></th></tr>
+                <tr><th style="width:28%">Módulo</th><th style="width:26%">Integración de IA</th><th style="width:18%">Modelo</th><th>Estado</th><th></th></tr>
               </thead>
               <tbody>
                 <tr v-for="m in mods" :key="m.clave">
@@ -262,8 +268,8 @@
                     <select class="form-select form-select-sm" v-model="m.api_integration_id"
                             :disabled="!can('manage-integrations')" @change="onIaIntegracionChange(m)">
                       <option :value="null">— Sin asignar —</option>
-                      <option v-for="i in iaIntegraciones" :key="i.id" :value="i.id" :disabled="!i.activa || !i.tiene_llave">
-                        {{ i.nombre }} ({{ i.proveedor }}){{ !i.activa ? ' — inactiva' : (!i.tiene_llave ? ' — sin llave' : '') }}
+                      <option v-for="i in iaIntegraciones" :key="i.id" :value="i.id" :disabled="!i.activa || (i.requiere_llave && !i.tiene_llave)">
+                        {{ i.nombre }} ({{ i.proveedor }}){{ !i.activa ? ' — inactiva' : ((i.requiere_llave && !i.tiene_llave) ? ' — sin llave' : '') }}
                       </option>
                     </select>
                   </td>
@@ -271,13 +277,23 @@
                     <input class="form-control form-control-sm" v-model.trim="m.modelo" :list="'ia-modelos-' + m.clave"
                            :disabled="!m.api_integration_id || !can('manage-integrations')" placeholder="modelo">
                     <datalist :id="'ia-modelos-' + m.clave">
-                      <option v-for="mod in (iaIntegracion(m.api_integration_id)?.modelos ?? [])" :key="mod" :value="mod"></option>
+                      <option v-for="mod in iaModelosSugeridos(m)" :key="mod" :value="mod"></option>
                     </datalist>
                   </td>
                   <td>
-                    <span class="badge" :class="iaEstado(m).cls">{{ iaEstado(m).txt }}</span>
+                    <span class="badge" :class="iaEstado(m).cls" :title="iaEstado(m).tip">{{ iaEstado(m).txt }}</span>
+                    <div v-if="iaPrueba[m.clave]" class="small mt-1" :class="iaPrueba[m.clave].ok ? 'text-success' : 'text-danger'"
+                         :title="iaPrueba[m.clave].detalle || ''">
+                      <i class="bi me-1" :class="iaPrueba[m.clave].ok ? 'bi-check-circle' : 'bi-x-circle'"></i>{{ iaPrueba[m.clave].mensaje }}
+                    </div>
                   </td>
-                  <td class="text-end">
+                  <td class="text-end text-nowrap">
+                    <button v-if="can('validate-integrations') && m._origInt" class="btn btn-sm btn-outline-secondary me-1"
+                            :disabled="iaCambiado(m) || iaProbando[m.clave]" @click="probarIaModulo(m)"
+                            title="Hace una consulta mínima con la integración y el modelo guardados">
+                      <span v-if="iaProbando[m.clave]" class="spinner-border spinner-border-sm"></span>
+                      <span v-else>Probar</span>
+                    </button>
                     <button v-if="can('manage-integrations')" class="btn btn-sm btn-primary"
                             :disabled="!iaCambiado(m) || iaGuardando[m.clave]" @click="saveIaModulo(m)">
                       <span v-if="iaGuardando[m.clave]" class="spinner-border spinner-border-sm"></span>
@@ -320,6 +336,8 @@ export default {
       iaIntegraciones: [],
       iaLoading: false,
       iaGuardando: {},
+      iaProbando: {},
+      iaPrueba: {},
       providers: [],
       integrations: [],
       validating: {},
@@ -404,6 +422,9 @@ export default {
                 <input id="sw-instance" type="text" class="form-control" placeholder="meganet-ventas">
               </div>
             </div>
+            <div id="sw-ia-wrap" style="display:none">
+              ${this.camposIaHtml()}
+            </div>
             <div id="sw-meta-wrap" style="display:none">
               <div class="mb-3">
                 <label class="form-label fw-semibold">App ID</label>
@@ -424,12 +445,15 @@ export default {
           const sel = document.getElementById('sw-provider');
           const evo = document.getElementById('sw-evolution-wrap');
           const meta = document.getElementById('sw-meta-wrap');
+          const ia = document.getElementById('sw-ia-wrap');
           const typeLabelEl = document.getElementById('sw-type-label');
           const toggle = () => {
             const prov = this.providers.find(p => p.id === sel.value);
             typeLabelEl.textContent = prov ? typeLabel[prov.type] : '—';
             evo.style.display  = sel.value === 'evolution' ? 'block' : 'none';
             meta.style.display = sel.value === 'meta' ? 'block' : 'none';
+            ia.style.display   = prov?.type === 'ia' ? 'block' : 'none';
+            this.marcarCamposIa(prov?.driver);
           };
           sel.addEventListener('change', toggle);
           toggle();
@@ -439,7 +463,13 @@ export default {
           const name     = document.getElementById('sw-name').value.trim();
           if (!provider) { Swal.showValidationMessage('Selecciona un proveedor'); return false; }
           if (!name)     { Swal.showValidationMessage('El nombre es requerido'); return false; }
+          const prov = this.providers.find(p => p.id === provider);
+          const iaConfig = prov?.type === 'ia' ? this.leerCamposIa() : null;
+          if (prov?.driver === 'openai_compatible' && !iaConfig.endpoint) {
+            Swal.showValidationMessage('Este proveedor necesita la URL del servicio'); return false;
+          }
           return {
+            iaConfig,
             provider,
             name,
             key:       document.getElementById('sw-key').value,
@@ -452,7 +482,7 @@ export default {
         },
       }).then(async result => {
         if (!result.isConfirmed) return;
-        const { provider, name, key, active, endpoint, instance, appId, appSecret } = result.value;
+        const { provider, name, key, active, endpoint, instance, appId, appSecret, iaConfig } = result.value;
         try {
           const payload = {
             provider,
@@ -462,9 +492,11 @@ export default {
             ...(key ? { key } : {}),
             ...(provider === 'evolution' ? { config: { endpoint, instance } } : {}),
             ...(provider === 'meta' ? { config: { app_id: appId, app_secret: appSecret } } : {}),
+            ...(iaConfig ? { config: iaConfig } : {}),
           };
-          await axios.post('/api/hub/integrations', payload);
+          const res = await axios.post('/api/hub/integrations', payload);
           this.toast('success', 'Integración creada');
+          this.mostrarValidacion(name, res.data.validacion);
           await this.load();
         } catch (e) {
           this.toast('danger', e.response?.data?.error ?? 'Error al crear');
@@ -475,6 +507,8 @@ export default {
     openEdit(item) {
       const isEvo  = item.provider === 'evolution';
       const isMeta = item.provider === 'meta';
+      const isIa   = item.type === 'ia';
+      const driver = this.providers.find(p => p.id === item.provider)?.driver;
 
       Swal.fire({
         title: `Editar: ${item.name}`,
@@ -519,16 +553,23 @@ export default {
               <input id="sw-app-secret" type="password" class="form-control font-monospace" placeholder="App Secret de developers.facebook.com">
             </div>
             ` : ''}
+            ${isIa ? this.camposIaHtml(item.config) : ''}
             <div class="form-check form-switch mt-2">
               <input class="form-check-input" type="checkbox" id="sw-active" ${item.active ? 'checked' : ''}>
               <label class="form-check-label" for="sw-active">Integración activa</label>
             </div>
           </div>
         `,
+        didOpen: () => { if (isIa) this.marcarCamposIa(driver); },
         preConfirm: () => {
           const name = document.getElementById('sw-name').value.trim();
           if (!name) { Swal.showValidationMessage('El nombre es requerido'); return false; }
+          const iaConfig = isIa ? this.leerCamposIa() : null;
+          if (driver === 'openai_compatible' && !iaConfig.endpoint) {
+            Swal.showValidationMessage('Este proveedor necesita la URL del servicio'); return false;
+          }
           return {
+            iaConfig,
             name,
             key:       document.getElementById('sw-key').value,
             active:    document.getElementById('sw-active').checked,
@@ -540,7 +581,7 @@ export default {
         },
       }).then(async result => {
         if (!result.isConfirmed) return;
-        const { name, key, active, endpoint, instance, appId, appSecret } = result.value;
+        const { name, key, active, endpoint, instance, appId, appSecret, iaConfig } = result.value;
         try {
           const payload = {
             name,
@@ -548,9 +589,12 @@ export default {
             ...(key ? { key } : {}),
             ...(isEvo ? { config: { endpoint, instance } } : {}),
             ...(isMeta ? { config: { ...item.config, app_id: appId, ...(appSecret ? { app_secret: appSecret } : {}) } } : {}),
+            ...(iaConfig ? { config: { ...(item.config ?? {}), ...iaConfig } } : {}),
           };
-          await axios.put(`/api/hub/integrations/${item.id}`, payload);
+          const res = await axios.put(`/api/hub/integrations/${item.id}`, payload);
           this.toast('success', 'Integración actualizada');
+          this.mostrarValidacion(name, res.data.validacion);
+          if (res.data.aviso) this.toast('warning', res.data.aviso, 10000);
           await this.load();
         } catch (e) {
           this.toast('danger', e.response?.data?.error ?? 'Error al guardar');
@@ -589,6 +633,7 @@ export default {
         try {
           const res = await axios.post(`/api/hub/integrations/${item.id}/rotate`, { new_key: result.value });
           this.toast('success', res.data.message ?? 'Key rotada correctamente');
+          this.mostrarValidacion(item.name, res.data.validacion);
           await this.load();
         } catch (e) {
           this.toast('danger', e.response?.data?.error ?? 'Error al rotar');
@@ -602,13 +647,13 @@ export default {
       this.validating = { ...this.validating, [item.id]: true };
       try {
         const res = await axios.post(`/api/hub/integrations/${item.id}/validate`);
-        const ok  = res.data.success;
-        this.toast(ok ? 'success' : 'warning', ok ? `${item.name}: key válida` : `${item.name}: ${res.data.message}`);
+        this.mostrarValidacion(item.name, res.data);
         const idx = this.integrations.findIndex(i => i.id === item.id);
         if (idx !== -1) {
           this.integrations.splice(idx, 1, {
             ...this.integrations[idx],
             last_validation_status: res.data.status,
+            last_validation_message: res.data.message,
             last_validated_at: new Date().toISOString(),
           });
         }
@@ -632,6 +677,16 @@ export default {
     // ── Delete ────────────────────────────────────────────────────────────────
 
     confirmDelete(item) {
+      if (item.en_uso && item.en_uso.length) {
+        Swal.fire({
+          title: 'Esta integración está en uso',
+          icon: 'info',
+          html: `<div class="text-start">La usan:<ul class="mt-2">${item.en_uso.map(u => `<li>${this.escHtml(u)}</li>`).join('')}</ul>
+                 Asígnales otra integración en <strong>Módulos IA</strong> (y en /ia/configuracion para el chat) antes de eliminarla.</div>`,
+          confirmButtonText: 'Entendido',
+        });
+        return;
+      }
       Swal.fire({
         title: '¿Eliminar integración?',
         html: `¿Eliminar <strong>${this.escHtml(item.name)}</strong>?<br><small class="text-muted">Esta acción no se puede deshacer.</small>`,
@@ -880,8 +935,9 @@ export default {
       const integ = this.iaIntegracion(m.api_integration_id);
       if (!integ) { m.modelo = null; return; }
       // Al cambiar de proveedor el modelo anterior ya no aplica: proponer el primero sugerido
-      if (!m.modelo || !integ.modelos.includes(m.modelo)) {
-        m.modelo = integ.modelos[0] ?? '';
+      const sugeridos = this.iaModelosSugeridos(m);
+      if (!m.modelo || !sugeridos.includes(m.modelo)) {
+        m.modelo = sugeridos[0] ?? '';
       }
     },
 
@@ -889,12 +945,32 @@ export default {
       return m.api_integration_id !== m._origInt || (m.modelo ?? null) !== (m._origModelo ?? null);
     },
 
+    iaModelosSugeridos(m) {
+      return m.modelos ?? this.iaIntegracion(m.api_integration_id)?.modelos ?? [];
+    },
+
     iaEstado(m) {
       if (!m._origInt) return { txt: 'Sin asignar · IA apagada', cls: 'bg-light text-muted' };
       const integ = this.iaIntegracion(m._origInt);
-      if (!integ || !integ.activa || !integ.tiene_llave) return { txt: 'Integración inactiva o sin llave', cls: 'bg-danger-subtle text-danger' };
+      if (!integ) return { txt: 'La integración asignada se borró', cls: 'bg-danger-subtle text-danger' };
+      if (!integ.activa || (integ.requiere_llave && !integ.tiene_llave)) return { txt: 'Integración inactiva o sin llave', cls: 'bg-danger-subtle text-danger' };
+      if (integ.estado_validacion === 'invalid') {
+        return { txt: 'La llave tiene un problema', cls: 'bg-danger-subtle text-danger', tip: integ.mensaje_validacion ?? '' };
+      }
       if (!m.listo) return { txt: 'Asignada · el módulo aún no la usa', cls: 'bg-warning-subtle text-warning' };
       return { txt: 'Activa', cls: 'bg-success-subtle text-success' };
+    },
+
+    async probarIaModulo(m) {
+      this.iaProbando = { ...this.iaProbando, [m.clave]: true };
+      try {
+        const res = await axios.post(`/api/hub/ia-modulos/${m.clave}/probar`);
+        this.iaPrueba = { ...this.iaPrueba, [m.clave]: res.data.data };
+      } catch (e) {
+        this.iaPrueba = { ...this.iaPrueba, [m.clave]: { ok: false, mensaje: e.response?.data?.error ?? 'No se pudo probar' } };
+      } finally {
+        this.iaProbando = { ...this.iaProbando, [m.clave]: false };
+      }
     },
 
     async saveIaModulo(m) {
@@ -910,6 +986,7 @@ export default {
         });
         m._origInt = m.api_integration_id;
         m._origModelo = m.api_integration_id ? m.modelo : null;
+        this.iaPrueba = { ...this.iaPrueba, [m.clave]: null };
         if (!m.api_integration_id) m.modelo = null;
         this.toast('success', m.api_integration_id ? `${m.nombre}: IA asignada` : `${m.nombre}: IA quitada`);
       } catch (e) {
@@ -925,9 +1002,46 @@ export default {
       return window.__permissions?.includes(permission) ?? true;
     },
 
-    toast(type, message) {
+    toast(type, message, timeOut = null) {
       const fnMap = { success: 'success', danger: 'error', warning: 'warning', info: 'info' };
-      window.toastr[fnMap[type] ?? 'info'](message, '', TOAST_OPTS);
+      window.toastr[fnMap[type] ?? 'info'](message, '', timeOut ? { ...TOAST_OPTS, timeOut } : TOAST_OPTS);
+    },
+
+    // Resultado de probar la llave al guardarla / rotarla / validarla
+    mostrarValidacion(nombre, v) {
+      if (!v) return;
+      if (v.success) this.toast('success', `${nombre}: ${v.message === 'OK' ? 'llave válida' : v.message}`, 6000);
+      else this.toast('warning', `${nombre}: ${v.message}`, 12000);
+    },
+
+    // Campos de una integración de IA: URL del servicio y modelo de prueba
+    camposIaHtml(config = {}) {
+      return `
+        <div class="mb-3">
+          <label class="form-label fw-semibold">URL del servicio <span id="sw-ia-req" class="text-danger" style="display:none">*</span></label>
+          <input id="sw-ia-endpoint" type="text" class="form-control" value="${this.escHtml(config?.endpoint ?? '')}" placeholder="http://servidor:11434/v1/chat/completions">
+          <div id="sw-ia-help" class="form-text">Déjala vacía para usar la URL oficial del proveedor.</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Modelo para probar la llave <span class="fw-normal text-muted small">(opcional)</span></label>
+          <input id="sw-ia-modelo" type="text" class="form-control font-monospace" value="${this.escHtml(config?.modelo_prueba ?? '')}" placeholder="se elige uno automáticamente">
+        </div>`;
+    },
+
+    marcarCamposIa(driver) {
+      const compatible = driver === 'openai_compatible';
+      const req = document.getElementById('sw-ia-req');
+      const help = document.getElementById('sw-ia-help');
+      if (req) req.style.display = compatible ? 'inline' : 'none';
+      if (help) help.textContent = compatible
+        ? 'Obligatoria: la dirección del servidor compatible con OpenAI (Ollama, DeepSeek, Groq…). Si no pide llave, deja la llave vacía.'
+        : 'Déjala vacía para usar la URL oficial del proveedor.';
+    },
+
+    leerCamposIa() {
+      const endpoint = document.getElementById('sw-ia-endpoint')?.value.trim() ?? '';
+      const modelo = document.getElementById('sw-ia-modelo')?.value.trim() ?? '';
+      return { endpoint: endpoint || null, modelo_prueba: modelo || null };
     },
 
     escHtml(str) {

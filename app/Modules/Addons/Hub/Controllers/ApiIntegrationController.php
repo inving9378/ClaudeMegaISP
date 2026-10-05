@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Hub\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\Core\ApiIntegration;
 use App\Models\Core\ApiIntegrationLog;
+use App\Modules\Addons\IA\Services\IA;
 use App\Services\Core\ApiIntegrationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -83,7 +84,9 @@ class ApiIntegrationController extends Controller
 
         $this->svc->audit($integration, 'key_created', [], auth()->user()?->email ?? 'unknown');
 
-        return response()->json(['data' => $this->formatItem($integration)], 201);
+        $validacion = $this->validarSiAplica($integration);
+
+        return response()->json(['data' => $this->formatItem($integration->fresh()), 'validacion' => $validacion], 201);
     }
 
     public function update(Request $request, int $id): JsonResponse
@@ -101,16 +104,38 @@ class ApiIntegrationController extends Controller
             return response()->json(['error' => $v->errors()->first()], 422);
         }
 
+        $llaveCambio  = $request->filled('key');
+        $sinVacios    = fn($c) => array_filter((array) $c, fn($v) => $v !== null && $v !== '');
+        $configCambio = $request->has('config') && $sinVacios($request->input('config')) != $sinVacios($integration->config);
+        $seDesactiva  = $integration->active && $request->has('active') && !$request->boolean('active');
+
         $integration->fill($request->only(['name', 'config', 'active']));
 
-        if ($request->filled('key')) {
+        if ($llaveCambio) {
             $integration->value = $request->key;
             $this->svc->audit($integration, 'key_updated', [], auth()->user()?->email ?? 'unknown');
         }
 
+        // Llave o URL nuevas: el "Válida" anterior ya no dice nada de la configuración actual.
+        if ($llaveCambio || $configCambio) {
+            $integration->last_validation_status = null;
+            $integration->last_validated_at = null;
+        }
+
         $integration->save();
 
-        return response()->json(['data' => $this->formatItem($integration)]);
+        $validacion = ($llaveCambio || $configCambio) ? $this->validarSiAplica($integration) : null;
+
+        $aviso = null;
+        if ($seDesactiva && $usos = IA::usosDeIntegracion($integration)) {
+            $aviso = 'Integración desactivada. Estos módulos se quedan sin IA hasta que les asignes otra: ' . implode(', ', $usos) . '.';
+        }
+
+        return response()->json([
+            'data'       => $this->formatItem($integration->fresh()),
+            'validacion' => $validacion,
+            'aviso'      => $aviso,
+        ]);
     }
 
     public function destroy(int $id): JsonResponse
@@ -119,6 +144,13 @@ class ApiIntegrationController extends Controller
 
         if ($integration->is_default_for_provider) {
             return response()->json(['error' => 'No puedes eliminar la integración predeterminada'], 422);
+        }
+
+        // Borrarla dejaría sin IA a los módulos que la usan: primero hay que moverlos.
+        if ($usos = IA::usosDeIntegracion($integration)) {
+            return response()->json([
+                'error' => 'No se puede eliminar: la usan ' . implode(', ', $usos) . '. Asígnales otra integración en Módulos IA (o en /ia/configuracion) y vuelve a intentar.',
+            ], 422);
         }
 
         $this->svc->audit($integration, 'key_deleted', [], auth()->user()?->email ?? 'unknown');
@@ -169,7 +201,11 @@ class ApiIntegrationController extends Controller
 
         $this->svc->audit($integration, 'key_rotated', [], auth()->user()?->email ?? 'unknown');
 
-        return response()->json(['message' => 'Key rotada correctamente', 'key_preview' => $integration->key_preview]);
+        return response()->json([
+            'message'     => 'Key rotada correctamente',
+            'key_preview' => $integration->key_preview,
+            'validacion'  => $this->validarSiAplica($integration),
+        ]);
     }
 
     public function logs(int $id): JsonResponse
@@ -198,6 +234,18 @@ class ApiIntegrationController extends Controller
 
     // ── Helpers ─────────────────────────────────────────────────────────────────
 
+    /**
+     * Al guardar una llave nueva se prueba de inmediato, para que quien la cambia
+     * sepa en el momento si funciona (y por qué no). Null si no hay cómo probarla.
+     */
+    private function validarSiAplica(ApiIntegration $integration): ?array
+    {
+        if (!$integration->active || !$this->svc->puedeValidar($integration)) {
+            return null;
+        }
+        return $this->svc->validate($integration);
+    }
+
     private function formatItem(ApiIntegration $i): array
     {
         return [
@@ -213,6 +261,8 @@ class ApiIntegrationController extends Controller
             'is_default_for_provider' => $i->is_default_for_provider,
             'last_validation_status'  => $i->last_validation_status,
             'last_validated_at'       => $i->last_validated_at?->toISOString(),
+            'last_validation_message' => $i->last_validation_status ? $this->svc->ultimoMensajeValidacion($i) : null,
+            'en_uso'                  => $i->type === 'ia' ? IA::usosDeIntegracion($i) : [],
             'created_at'              => $i->created_at?->toISOString(),
         ];
     }

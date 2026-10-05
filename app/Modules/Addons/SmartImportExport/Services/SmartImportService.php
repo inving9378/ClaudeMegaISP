@@ -209,7 +209,8 @@ use App\Modules\Addons\IA\Models\IAProyecto;
 use App\Modules\Addons\IA\Models\IASesionTrabajo;
 use App\Modules\Addons\IA\Models\IATarea;
 use App\Modules\Addons\IA\Models\IAUsoToken;
-use App\Modules\Addons\IA\Services\IAAdaptadorFactory;
+use App\Modules\Addons\IA\Services\IA;
+use App\Modules\Addons\IA\Services\IANoConfigurada;
 use App\Modules\Addons\Manual\Models\ManualSection;
 use App\Modules\Addons\MegaFamilia\Models\AppVersion;
 use App\Modules\Addons\MegaFamilia\Models\ParentalAccount;
@@ -1016,15 +1017,11 @@ class SmartImportService
 
     public function resolveWithAI(array $conflicts): array
     {
-        $proveedor = IAProveedor::where('activo', true)->orderBy('id')->first();
-        if (!$proveedor) {
-            return ['error' => 'No hay proveedor de IA activo. Configure uno en /ia/configuracion.'];
-        }
-
+        // La IA la decide Integraciones → Módulos IA ("smartimport.conflictos").
         try {
-            $adaptador = IAAdaptadorFactory::crear($proveedor);
-        } catch (Throwable $e) {
-            return ['error' => 'No se pudo iniciar el adaptador IA: ' . $e->getMessage()];
+            IA::proveedorPara('smartimport.conflictos');
+        } catch (IANoConfigurada $e) {
+            return ['error' => $e->getMessage()];
         }
 
         $resultados = [];
@@ -1032,7 +1029,7 @@ class SmartImportService
             foreach ($items as $item) {
                 $prompt = $this->buildConflictPrompt($table, $item);
                 try {
-                    $respuesta = $adaptador->enviarMensaje([], $prompt, [], 'Eres un asistente experto en migración de datos.');
+                    $respuesta = IA::enviar('smartimport.conflictos', $prompt, [], 'Eres un asistente experto en migración de datos.');
                     $resultados[$table][$item['index']] = $this->parseAIRecommendation($respuesta['texto'] ?? '');
                 } catch (Throwable $e) {
                     Log::warning('SmartImport IA: ' . $e->getMessage());
