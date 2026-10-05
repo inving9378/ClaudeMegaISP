@@ -124,6 +124,8 @@ class WhatsAppInstanceController extends Controller
             'phone_number'     => 'nullable|string',
             'default_instance' => 'sometimes|boolean',
             'active'           => 'sometimes|boolean',
+            // Item: migración a la API oficial de Meta, configurable por línea.
+            'provider'         => 'sometimes|in:evolution,meta',
         ]);
 
         $instance->update($data);

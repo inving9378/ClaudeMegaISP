@@ -36,6 +36,20 @@
                     <div v-if="ins.default_instance" class="wim-default-badge">
                         <i class="bi bi-star-fill"></i> Default
                     </div>
+                    <div class="wim-provider-row">
+                        <span>Proveedor:</span>
+                        <select
+                            :value="ins.provider || 'evolution'"
+                            @change="changeProvider(ins, $event.target.value)"
+                            :disabled="providerBusy === ins.id"
+                        >
+                            <option value="evolution">Evolution API</option>
+                            <option value="meta">WhatsApp oficial (Meta)</option>
+                        </select>
+                        <small v-if="(ins.provider || 'evolution') === 'meta'" class="wim-provider-hint">
+                            Credenciales en <a href="/integraciones" target="_blank">Integraciones</a> (proveedor "whatsapp-oficial").
+                        </small>
+                    </div>
                 </div>
 
                 <div v-if="catalog.length" class="wim-functions">
@@ -262,6 +276,7 @@ export default {
             // Funciones por línea (Fase 3)
             catalog: [],        // funciones activas para los checks
             funcBusy: false,
+            providerBusy: null, // id de la instancia mientras se cambia su proveedor
             moveModal: null,    // { fn, to, fromName }
             orphanModal: null,  // { fn, from } — confirmar que la función quede sin línea
             reassignTarget: null,
@@ -349,6 +364,34 @@ export default {
         showFuncToast(msg, type) {
             this.funcToast = { msg, type };
             setTimeout(() => { this.funcToast = null; }, 3800);
+        },
+        // Item: migración a la API oficial de Meta, configurable por línea.
+        // Cambia SOLO el proveedor de esta línea -- no toca sus funciones
+        // asignadas ni ninguna otra configuración. Confirmación extra si es
+        // la línea de producción (mismo criterio que desconectar/eliminar).
+        async changeProvider(ins, newProvider) {
+            if (newProvider === (ins.provider || 'evolution')) return;
+
+            if (this.isProduction(ins)) {
+                const ok = confirm(
+                    `«${ins.name}» es la línea de PRODUCCIÓN (ventas/bot/conciliación). ` +
+                    `¿Confirmas cambiar su proveedor a "${newProvider === 'meta' ? 'WhatsApp oficial' : 'Evolution API'}"?`
+                );
+                if (!ok) {
+                    this.$forceUpdate(); // revierte el <select> a su valor real
+                    return;
+                }
+            }
+
+            this.providerBusy = ins.id;
+            try {
+                await axios.patch(`/whatsapp/api/instances/${ins.id}`, { provider: newProvider });
+                await this.load();
+            } catch (e) {
+                alert(e.response?.data?.message ?? 'No se pudo cambiar el proveedor.');
+            } finally {
+                this.providerBusy = null;
+            }
         },
         async toggleFunction(ins, fn) {
             if (this.funcBusy) return;
@@ -717,6 +760,26 @@ export default {
     color: var(--warning);
     margin-top: 4px;
     font-size: 12px;
+}
+.wim-provider-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+}
+.wim-provider-row select {
+    font-size: 12.5px;
+    padding: 3px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color, #ccc);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+.wim-provider-hint {
+    color: var(--text-secondary);
+    font-size: 11px;
+    width: 100%;
 }
 .wim-prod-badge {
     display: flex; align-items: center; gap: 8px;
