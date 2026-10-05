@@ -15,7 +15,7 @@ use Symfony\Component\Process\Process;
  */
 class VoiceTtsService
 {
-    public function __construct(private OpenAiTtsDriver $driver = new OpenAiTtsDriver())
+    public function __construct(private OpenAiTtsDriver $driver = new OpenAiTtsDriver(1, 'voip.voz'))
     {
     }
 

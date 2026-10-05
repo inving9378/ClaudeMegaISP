@@ -2,38 +2,41 @@
 
 namespace App\Modules\Addons\Marketing\Services\Tts;
 
-use App\Models\Marketing\Setting;
+use App\Modules\Addons\IA\Services\IA;
+use App\Modules\Addons\IA\Services\IANoConfigurada;
 use App\Modules\Addons\Marketing\Services\Video\FFmpegService;
-use App\Services\Core\UsesApiIntegration;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Texto a voz con la API de audio de OpenAI. Lo comparten los videos de
+ * Marketing ("marketing.voz_videos") y el bot de voz ("voip.voz"): cada uno
+ * con su propia asignación en Integraciones → Módulos IA. La llave se lee en
+ * CADA síntesis (el bot de voz es un proceso que corre días).
+ */
 class OpenAiTtsDriver implements TtsDriverInterface
 {
-    use UsesApiIntegration;
-    protected string $apiKey;
-    protected string $endpoint = 'https://api.openai.com/v1/audio/speech';
-
-    public function __construct(int $companyId = 1)
+    public function __construct(int $companyId = 1, protected string $claveIa = 'marketing.voz_videos')
     {
-        $this->apiKey = $this->resolveApiKey('openai', 'OPENAI_API_KEY', 'openai_api_key', $companyId) ?? '';
     }
 
     public function synthesize(string $text, string $outputPath, array $options = []): array
     {
-        if (empty($this->apiKey)) {
-            return ['success' => false, 'error' => 'OpenAI API key not configured (setting: openai_api_key)'];
+        try {
+            $c = IA::credencialesPara($this->claveIa);
+        } catch (IANoConfigurada $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
         }
 
-        $model   = $options['model']  ?? 'tts-1';
+        $model   = $options['model']  ?? $c['modelo'];
         $voice   = $options['voice']  ?? 'nova';
         $speed   = $options['speed']  ?? 1.0;
         $format  = 'mp3';
 
         try {
-            $response = Http::withToken($this->apiKey)
+            $response = Http::withToken((string) $c['llave'])
                 ->timeout(60)
-                ->post($this->endpoint, [
+                ->post($c['base'] . '/audio/speech', [
                     'model'            => $model,
                     'input'            => $text,
                     'voice'            => $voice,
@@ -63,6 +66,7 @@ class OpenAiTtsDriver implements TtsDriverInterface
             // Cost: tts-1 = $0.015 / 1000 chars; tts-1-hd = $0.030 / 1000 chars
             $costPer1k = ($model === 'tts-1-hd') ? 0.030 : 0.015;
             $cost      = (mb_strlen($text) / 1000) * $costPer1k;
+            IA::registrarUsoIntegracion($c['integracion'], $this->claveIa, round($cost, 6));
 
             return [
                 'success'      => true,

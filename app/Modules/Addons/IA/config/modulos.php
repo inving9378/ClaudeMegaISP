@@ -7,7 +7,9 @@
  * módulo no usa IA (decisión de Irving 2026-10-02: no hay respaldo implícito).
  *
  * grupo:    agrupa en la pantalla.
- * requiere: capacidades que el proveedor debe tener (imagenes, pdf, herramientas).
+ * requiere: capacidades que el proveedor debe tener (imagenes, pdf, herramientas, voz).
+ * modelos:  (opcional) sugerencias de modelo propias del módulo; si no, las del
+ *           protocolo. Los de voz usan modelos de audio, no de chat.
  * listo:    true cuando el código del módulo ya consulta esta asignación vía
  *           IA::enviar(). Mientras sea false la pantalla avisa que el módulo aún
  *           usa su conexión anterior.
@@ -36,4 +38,11 @@ return [
     'ia.memoria' => ['nombre' => 'Memoria del chat IA (extraer hechos)', 'grupo' => 'Sistema', 'requiere' => [], 'listo' => true],
     'devtools.chat' => ['nombre' => 'Chat de DevTools', 'grupo' => 'Sistema', 'requiere' => ['imagenes'], 'listo' => true],
     'modulos.plan_migracion' => ['nombre' => 'Plan de migración de módulos', 'grupo' => 'Sistema', 'requiere' => [], 'listo' => true],
+    'smartimport.conflictos' => ['nombre' => 'Sugerir cómo resolver conflictos al importar', 'grupo' => 'Sistema', 'requiere' => [], 'listo' => true],
+
+    // Voz (API de audio de OpenAI). La llave se lee en cada llamada vía IA::credencialesPara().
+    'voip.transcripcion' => ['nombre' => 'Oído del bot «María» (voz a texto)', 'grupo' => 'VoIP', 'requiere' => ['voz'], 'modelos' => ['whisper-1'], 'listo' => true],
+    'voip.voz' => ['nombre' => 'Voz del bot «María» (texto a voz)', 'grupo' => 'VoIP', 'requiere' => ['voz'], 'modelos' => ['tts-1', 'tts-1-hd', 'gpt-4o-mini-tts'], 'listo' => true],
+    'marketing.voz_videos' => ['nombre' => 'Voz de los videos (texto a voz)', 'grupo' => 'Marketing', 'requiere' => ['voz'], 'modelos' => ['tts-1', 'tts-1-hd', 'gpt-4o-mini-tts'], 'listo' => true],
+    'cobranza.voz' => ['nombre' => 'Voz de las llamadas de cobranza (texto a voz)', 'grupo' => 'Cobranza', 'requiere' => ['voz'], 'modelos' => ['tts-1', 'tts-1-hd', 'gpt-4o-mini-tts'], 'listo' => true],
 ];
