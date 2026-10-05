@@ -51,3 +51,14 @@ pasar a los módulos de servicios (Evolution → WhatsApp oficial, etc.). El Cir
 - **Voz:** sin asignación, el bot de voz queda mudo/sordo al reiniciarse, y cobranza y videos sin voz.
   Asignar `voip.voz`, `voip.transcripcion`, `cobranza.voz`, `marketing.voz_videos` antes de reiniciar el bot.
 - Producción: igual que el resto de Módulos IA, todo apagado hasta asignarlo allá.
+
+## 2026-10-05 07:00 — Lote 7 integrado y voz asignada
+
+- Merge a `main`: `f64f1594`. Migración del chat `/ia` aplicada: los 2 proveedores quedaron tomando la
+  llave del Hub (sin copia propia). `queue:restart` hecho. Frontend de producción recompilado en
+  `/var/www/megaisp`.
+- Voz asignada a la integración OpenAI con los modelos de siempre (OK de Irving): `voip.voz` tts-1,
+  `voip.transcripcion` whisper-1, `cobranza.voz` tts-1, `marketing.voz_videos` tts-1. Las cuatro pasan
+  "Probar". Módulos con IA asignada en dev: 11 de 25.
+- El proceso del bot de voz que sigue corriendo desde el 24-sep usa el código viejo; al reiniciarlo ya
+  toma la voz de Módulos IA (asignada, así que no queda mudo).
