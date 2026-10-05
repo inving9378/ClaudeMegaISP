@@ -10,6 +10,10 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
+// NOTA: WhatsAppProviderFactory vive en este MISMO namespace
+// (App\Modules\Addons\WhatsAppAgent\Services) -- se usa en sendTextViaApi()
+// por su nombre corto, sin `use`, tal como PHP resuelve clases hermanas.
+
 class EvolutionApiService
 {
     private string $baseUrl;
@@ -113,6 +117,15 @@ class EvolutionApiService
         $instance = $message->instance;
         $number   = $message->conversation->contact_number;
 
+        // Provider por línea (item: migración a la API oficial de Meta,
+        // configurable). `provider` es null/'evolution' para cualquier línea
+        // existente -- este branch es nuevo, solo se activa cuando alguien
+        // marca una línea como 'meta' explícitamente.
+        if ($instance->provider === 'meta') {
+            $this->sendTextViaMeta($message, $instance, $number);
+            return;
+        }
+
         // Autenticación INVISIBLE: siempre la apikey global del .env (== AUTHENTICATION_API_KEY
         // de Evolution). Nunca una key por-instancia provista por el usuario.
         $response = Http::withHeaders([
@@ -139,6 +152,28 @@ class EvolutionApiService
             'error_message' => $response->body(),
         ]);
         throw new RuntimeException('Evolution API error: ' . $response->body());
+    }
+
+    /**
+     * Envío real por la API oficial de Meta -- misma forma final
+     * (status/sent_at/evolution_message_id) que el camino Evolution de
+     * arriba, para que el resto del sistema (job, listeners, UI del panel)
+     * no tenga que saber cuál proveedor se usó.
+     */
+    private function sendTextViaMeta(WhatsAppMessage $message, WhatsAppInstance $instance, string $number): void
+    {
+        try {
+            $result = WhatsAppProviderFactory::forInstance($instance)->sendText($number, (string) $message->body);
+        } catch (\Throwable $e) {
+            $message->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
+            throw new RuntimeException('Meta Cloud API error: ' . $e->getMessage());
+        }
+
+        $message->update([
+            'status'               => 'sent',
+            'sent_at'              => now(),
+            'evolution_message_id' => $result['messages'][0]['id'] ?? null,
+        ]);
     }
 
     public function getQrCode(WhatsAppInstance $instance): array
@@ -277,6 +312,13 @@ class EvolutionApiService
     {
         if ($this->fakeMode) {
             return ['fake' => true];
+        }
+
+        // Provider por línea -- Meta nunca manda el binario directo, hay que
+        // resolver el media_id que el router dejó en $evolutionData al
+        // normalizar el webhook entrante (ver MetaCloudApiService::extractMessages()).
+        if ($instance->provider === 'meta') {
+            return WhatsAppProviderFactory::forInstance($instance)->downloadMedia($evolutionData);
         }
 
         $response = Http::withHeaders([
