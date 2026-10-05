@@ -226,9 +226,10 @@ class ApiIntegrationService
     private function serviceValidators(ApiIntegration $integration, string $key): array
     {
         return [
-            'evolution'   => fn() => $this->validateEvolution($key, $integration->config ?? []),
-            'pexels'      => fn() => $this->validatePexels($key),
-            'google_maps' => fn() => $this->validateGoogleMaps($key),
+            'evolution'        => fn() => $this->validateEvolution($key, $integration->config ?? []),
+            'whatsapp-oficial' => fn() => $this->validateWhatsappOficial($key, $integration->config ?? []),
+            'pexels'           => fn() => $this->validatePexels($key),
+            'google_maps'      => fn() => $this->validateGoogleMaps($key),
         ];
     }
 
@@ -252,6 +253,26 @@ class ApiIntegrationService
         $res = Http::timeout(10)
             ->withHeaders(['apikey' => $key])
             ->get("{$url}/instance/fetchInstances");
+        return $res->successful();
+    }
+
+    /**
+     * Valida credenciales de WhatsApp Business Platform (Meta Cloud API):
+     * pide el nombre verificado del numero -- si el token y el
+     * phone_number_id son correctos, Meta responde 200 con `verified_name`.
+     */
+    private function validateWhatsappOficial(string $key, array $config): bool
+    {
+        $phoneNumberId = $config['phone_number_id'] ?? null;
+        $apiVersion    = $config['api_version'] ?? 'v21.0';
+        if (!$phoneNumberId) {
+            return false;
+        }
+        $res = Http::timeout(10)
+            ->withToken($key)
+            ->get("https://graph.facebook.com/{$apiVersion}/{$phoneNumberId}", [
+                'fields' => 'verified_name',
+            ]);
         return $res->successful();
     }
 
