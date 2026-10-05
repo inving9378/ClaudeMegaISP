@@ -10,6 +10,7 @@ use App\Models\Referrals\ReferralProspect;
 use App\Models\Referrals\ReferralReward;
 use App\Models\Referrals\Referral;
 use App\Modules\Addons\Marketing\Services\EvolutionApiService;
+use App\Modules\Addons\WhatsAppAgent\Contracts\WhatsAppProviderInterface;
 use App\Modules\Core\Clientes\Models\Client;
 use Illuminate\Support\Facades\Log;
 
@@ -127,7 +128,7 @@ class ReferralWhatsAppNotifier
 
         try {
             $jid = EvolutionApiService::phoneToJid($phone);
-            app(EvolutionApiService::class)->sendText($jid, $body);
+            app(WhatsAppProviderInterface::class)->sendText($jid, $body);
             $success = true;
             Log::info('ReferralWhatsAppNotifier: notificación enviada', [
                 'client_id'  => $embajador->id,
@@ -174,7 +175,7 @@ class ReferralWhatsAppNotifier
 
         try {
             $jid = EvolutionApiService::phoneToJid($phone);
-            app(EvolutionApiService::class)->sendText($jid, $body);
+            app(WhatsAppProviderInterface::class)->sendText($jid, $body);
             $success = true;
             Log::info('ReferralWhatsAppNotifier: notificación enviada', [
                 'client_id'  => $embajador->id,

@@ -4,6 +4,7 @@ namespace App\Modules\Addons\PortalPago\Commands;
 
 use App\Models\ClientInvoice;
 use App\Modules\Addons\Marketing\Services\EvolutionApiService;
+use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppProviderFactory;
 use App\Modules\Addons\PortalPago\Models\PortalPagoAccount;
 use App\Modules\Addons\PortalPago\Models\PortalPagoRecurrence;
 use App\Modules\Addons\PortalPago\Services\PortalPagoLinkService;
@@ -148,7 +149,7 @@ class EnviarRecurrentesCommand extends Command
 
         if ($whatsapp) {
             try {
-                (new EvolutionApiService())->sendText(EvolutionApiService::phoneToJid($whatsapp), $texto);
+                WhatsAppProviderFactory::forDefault()->sendText(EvolutionApiService::phoneToJid($whatsapp), $texto);
             } catch (\Throwable $e) {
                 Log::channel('pagos_recurrentes')->warning('pagos:enviar-recurrentes — falló envío de resumen por WhatsApp', ['error' => $e->getMessage()]);
             }

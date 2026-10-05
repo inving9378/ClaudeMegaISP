@@ -4,7 +4,7 @@ namespace App\Modules\Addons\Flotas\Services\Notifications;
 
 use App\Models\User;
 use App\Modules\Addons\Flotas\Models\FleetSubscription;
-use App\Modules\Addons\Marketing\Services\EvolutionApiService;
+use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppProviderFactory;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Mail;
  * Notifica a los gestores de flota del cliente sobre recordatorios/vencimiento de
  * su trial de Flotas (item #288). Independiente de FleetNotificationDispatcher
  * (geocercas) y DocumentAlertDispatcher (documentos) — mismo patrón de transporte
- * (Mail + EvolutionApiService por company_id), sin dispatcher/log compartido.
+ * (Mail + WhatsAppProviderFactory por company_id), sin dispatcher/log compartido.
  */
 class SubscriptionAlertDispatcher
 {
@@ -79,7 +79,7 @@ class SubscriptionAlertDispatcher
         }
 
         try {
-            (new EvolutionApiService($companyId))->sendText($phone, $this->message($sub, $eventType, $daysLeft));
+            WhatsAppProviderFactory::forDefault($companyId)->sendText($phone, $this->message($sub, $eventType, $daysLeft));
             return ['channel' => 'whatsapp', 'user_id' => $user->id, 'status' => 'sent', 'recipient' => $phone, 'error' => null];
         } catch (\Throwable $e) {
             Log::warning("Flotas SubscriptionAlert: WhatsApp falló para user {$user->id}: {$e->getMessage()}");

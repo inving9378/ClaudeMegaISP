@@ -6,7 +6,7 @@ use App\Models\User;
 use App\Modules\Addons\Flotas\Models\FleetGeofenceEvent;
 use App\Modules\Addons\Flotas\Services\Notifications\GeofenceEventPresenter;
 use App\Modules\Addons\Flotas\Services\Notifications\NotificationChannelInterface;
-use App\Modules\Addons\Marketing\Services\EvolutionApiService;
+use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppProviderFactory;
 
 class WhatsappChannel implements NotificationChannelInterface
 {
@@ -30,11 +30,11 @@ class WhatsappChannel implements NotificationChannelInterface
             . mb_strtolower($d['action']) . " {$d['geofence_name']} a las {$d['time_human']}.\n"
             . "Ver detalle: {$d['url']}";
 
-        // Resuelve la empresa desde el vehículo del evento para usar la instancia Evolution
+        // Resuelve la empresa desde el vehículo del evento para usar la línea de WhatsApp
         // correcta por empresa (fix #91). client_id NULL = flota interna Meganet → company 1,
         // mismo patrón que DocumentAlertDispatcher. Lanza excepción si la API falla.
         $companyId = (int) ($event->vehicle?->client_id ?? 1);
-        (new EvolutionApiService($companyId))->sendText($phone, $text);
+        WhatsAppProviderFactory::forDefault($companyId)->sendText($phone, $text);
         return true;
     }
 }

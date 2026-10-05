@@ -5,7 +5,7 @@ namespace App\Modules\Addons\Marketing\Jobs;
 use App\Models\Marketing\Message;
 use App\Modules\Addons\Marketing\Services\AiAgentService;
 use App\Modules\Addons\Marketing\Services\ConversationResolverService;
-use App\Modules\Addons\Marketing\Services\EvolutionApiService;
+use App\Modules\Addons\WhatsAppAgent\Contracts\WhatsAppProviderInterface;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -26,7 +26,7 @@ class ProcessIncomingMessageJob implements ShouldQueue
     public function handle(
         ConversationResolverService $resolver,
         AiAgentService $agent,
-        EvolutionApiService $evolution,
+        WhatsAppProviderInterface $whatsapp,
     ): void {
         $payload = $this->evolutionPayload;
         $data    = $payload['data'] ?? [];
@@ -118,7 +118,7 @@ class ProcessIncomingMessageJob implements ShouldQueue
 
         // 8. Typing indicator (best effort)
         try {
-            $evolution->sendTyping($remoteJid, 2000);
+            $whatsapp->sendTyping($remoteJid, 2000);
         } catch (\Throwable $e) {
             Log::channel('evolution')->debug("sendTyping failed: " . $e->getMessage());
         }

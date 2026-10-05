@@ -18,6 +18,26 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
             base_path('config/whatsapp.php'),
             'whatsapp'
         );
+
+        $this->mergeConfigFrom(
+            base_path('config/whatsapp_templates.php'),
+            'whatsapp_templates'
+        );
+
+        // Item: migración a la API oficial de Meta, configurable. Los
+        // consumidores que reciben EvolutionApiService por inyección de
+        // dependencias (en vez de `new`) deben tipar contra esta interfaz en
+        // vez de la clase concreta -- así Laravel resuelve el proveedor
+        // ACTIVO (Evolution u oficial de Meta) automáticamente, sin que cada
+        // job tenga que llamar a la fábrica a mano. Sin companyId explícito
+        // aquí (el binding no lo conoce) -- cae a la línea default de la
+        // company 1; los consumidores con companyId propio (multi-tenant)
+        // siguen llamando WhatsAppProviderFactory::forDefault($companyId)
+        // directo, como ya hacían con `new EvolutionApiService($companyId)`.
+        $this->app->bind(
+            \App\Modules\Addons\WhatsAppAgent\Contracts\WhatsAppProviderInterface::class,
+            fn () => \App\Modules\Addons\WhatsAppAgent\Services\WhatsAppProviderFactory::forDefault()
+        );
     }
 
     public function boot(): void
