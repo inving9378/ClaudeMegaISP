@@ -98,3 +98,43 @@ por terminada.
 
 `feature/whatsapp-api-oficial-meta` en `/var/www/megaisp` — 2 commits (`ae3a38cb`, `e8895806`),
 pendiente de revisión y fusión a `main`.
+
+## 2026-10-05 (continuación) — Pasos 1 y 2 completados
+
+Siguiendo el plan en orden, se completaron los dos pasos que sí eran código:
+
+### Paso 1 — Migrar los 10 consumidores reales (commits `a2c562c2`, `8b095285`)
+
+Capa de gateway (`sendAndLog`/`PaymentApplicationService`, conciliación de pagos con dinero
+real) y los 10 archivos que mandaban WhatsApp directo (Flotas ×3, Marketing ×3, PortalPago,
+Roadmap, WarRoom ×2, Referrals) ahora pasan por el proveedor configurable. Dos patrones según
+cómo cada uno obtenía el servicio: instanciación directa → `WhatsAppProviderFactory`; inyección
+de dependencias → un binding nuevo del contenedor hacia la interfaz compartida. Dejados sin
+tocar, a propósito: 3 archivos que solo formatean un teléfono para mostrarlo en pantalla (no
+mandan nada).
+
+Hallazgo en el camino: `EnviarRecurrentesCommand` (el comando de pagos recurrentes) **no** es
+el envío masivo de ligas de pago a clientes como se pensaba — es solo el resumen diario interno
+a Irving. El envío real a clientes vive en otro canal, fuera de este archivo.
+
+### Paso 2 — UI para credenciales y elegir proveedor por línea (commit `d3d95344`)
+
+- Panel de Integraciones (`/integraciones`, el mismo que ya usan los proveedores de IA):
+  campos para capturar Phone Number ID, WABA ID, App Secret del webhook, Verify Token y versión
+  de la API — la "API Key" genérica que ya existía se reusa como el access token permanente.
+- Panel de líneas de WhatsApp: selector Evolution/oficial en cada línea, con confirmación extra
+  si es la línea de producción.
+
+### Paso 3 — Migraciones: pendiente de tu decisión
+
+Las 2 migraciones (columna `provider` + catálogo del Hub) siguen sin correr — el propio
+guardrail de migraciones del proyecto (item #534) lo bloquea desde esta rama a propósito, y
+fusionar 6 commits que tocan conciliación de pagos no es algo que deba decidir solo. Verificado
+con `migrate --pretend` que el SQL es correcto; falta que alguien revise la rama
+`feature/whatsapp-api-oficial-meta` y la fusione a `main` (yo puedo hacerlo si me lo confirmas
+explícitamente).
+
+### Paso 4 — Fuera de código, es tuyo
+
+Tramitar la cuenta de Meta Business, verificación de negocio, el WABA, y someter a aprobación
+las plantillas de `config/whatsapp_templates.php`.
