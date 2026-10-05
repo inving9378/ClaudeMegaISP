@@ -4,7 +4,7 @@ namespace App\Modules\Addons\Marketing\Jobs;
 
 use App\Models\Marketing\Conversation;
 use App\Models\Marketing\Message;
-use App\Modules\Addons\Marketing\Services\EvolutionApiService;
+use App\Modules\Addons\WhatsAppAgent\Contracts\WhatsAppProviderInterface;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -26,7 +26,7 @@ class SendOutboundMessageJob implements ShouldQueue
         public ?int $senderUserId = null,
     ) {}
 
-    public function handle(EvolutionApiService $evolution): void
+    public function handle(WhatsAppProviderInterface $whatsapp): void
     {
         $conv = Conversation::with('lead')->find($this->conversationId);
         if (!$conv) {
@@ -52,8 +52,10 @@ class SendOutboundMessageJob implements ShouldQueue
         ]);
 
         try {
-            $result = $evolution->sendText($toJid, $this->text);
-            $message->update(['external_message_id' => $result['key']['id'] ?? null]);
+            $result = $whatsapp->sendText($toJid, $this->text);
+            // {key.id} = forma Evolution; {messages.0.id} = forma Meta oficial.
+            $externalId = $result['key']['id'] ?? $result['messages'][0]['id'] ?? null;
+            $message->update(['external_message_id' => $externalId]);
         } catch (\Throwable $e) {
             Log::channel('evolution')->error("SendOutbound failed: " . $e->getMessage());
             throw $e;

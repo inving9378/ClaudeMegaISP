@@ -3,11 +3,18 @@
 namespace App\Modules\Addons\Marketing\Services;
 
 use App\Models\Marketing\Setting;
+use App\Modules\Addons\WhatsAppAgent\Contracts\WhatsAppProviderInterface;
 use App\Services\Core\UsesApiIntegration;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class EvolutionApiService
+/**
+ * Driver Evolution del WhatsAppProviderInterface (item: migrar a la API
+ * oficial de Meta, configurable). Todo el comportamiento de abajo es el
+ * MISMO de siempre -- `implements` + los 3 métodos nuevos al final son lo
+ * único agregado; cero cambios al resto de la clase.
+ */
+class EvolutionApiService implements WhatsAppProviderInterface
 {
     use UsesApiIntegration;
     protected string $baseUrl;
@@ -113,6 +120,35 @@ class EvolutionApiService
             'presence' => 'composing',
             'delay'    => $duration,
         ]);
+    }
+
+    /**
+     * Evolution no tiene sistema de plantillas real -- resuelve el `body` del
+     * catálogo local (config/whatsapp_templates.php) sustituyendo {0},{1}...
+     * por las variables, y lo manda como texto libre normal. En la API
+     * oficial, en cambio, `sendTemplate` SÍ es una plantilla real pre-aprobada
+     * por Meta (ver MetaCloudApiService).
+     */
+    public function sendTemplate(string $to, string $templateName, string $lang, array $variables = []): array
+    {
+        $tpl  = config("whatsapp_templates.{$templateName}");
+        $body = $tpl['body'] ?? $templateName;
+        foreach ($variables as $i => $v) {
+            $body = str_replace('{' . $i . '}', (string) $v, $body);
+        }
+        return $this->sendText($to, $body);
+    }
+
+    /** Alias de forma genérica de {@see getBase64FromMediaMessage()} para cumplir WhatsAppProviderInterface. */
+    public function downloadMedia(array $rawMessage): array
+    {
+        return $this->getBase64FromMediaMessage($rawMessage);
+    }
+
+    /** Alias de instancia de {@see phoneToJid()} para cumplir WhatsAppProviderInterface (que no usa estáticos). */
+    public function normalizeRecipient(string $phone): string
+    {
+        return self::phoneToJid($phone);
     }
 
     // ── Phone helpers ────────────────────────────────────────────────────────────

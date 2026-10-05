@@ -5,7 +5,7 @@ namespace App\Modules\Addons\Flotas\Services\Notifications;
 use App\Models\User;
 use App\Modules\Addons\Flotas\Mail\FleetDocumentAlertMail;
 use App\Modules\Addons\Flotas\Models\FleetDocument;
-use App\Modules\Addons\Marketing\Services\EvolutionApiService;
+use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppProviderFactory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -14,10 +14,12 @@ use Illuminate\Support\Facades\Mail;
  * Fase 4 — Despacha alertas de vencimiento de documentos de flota.
  *
  * Independiente del FleetNotificationDispatcher (geocercas). Reutiliza los
- * transportes (Mail, EvolutionApiService) pero no el dispatcher ni su log.
+ * transportes (Mail, WhatsApp vía WhatsAppProviderFactory) pero no el
+ * dispatcher ni su log.
  *
- * Multi-tenancy: usa el client_id del vehículo para instanciar EvolutionApiService
- * con el companyId correcto — no hereda el bug #91.
+ * Multi-tenancy: usa el client_id del vehículo para resolver el proveedor de
+ * WhatsApp (Evolution u oficial de Meta) con el companyId correcto — no
+ * hereda el bug #91.
  */
 class DocumentAlertDispatcher
 {
@@ -109,7 +111,7 @@ class DocumentAlertDispatcher
         $text = "⚠️ {$typeLabel} de {$plates} vence {$diasText} ({$fecha}).\nRevisa la ficha: {$url}";
 
         try {
-            (new EvolutionApiService($companyId))->sendText($phone, $text);
+            WhatsAppProviderFactory::forDefault($companyId)->sendText($phone, $text);
             return ['channel' => 'whatsapp', 'user_id' => $user->id, 'status' => 'sent',
                     'recipient' => $phone, 'error' => null];
         } catch (\Throwable $e) {

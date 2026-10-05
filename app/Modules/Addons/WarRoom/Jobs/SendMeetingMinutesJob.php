@@ -4,6 +4,7 @@ namespace App\Modules\Addons\WarRoom\Jobs;
 
 use App\Modules\Addons\Marketing\Services\EvolutionApiService;
 use App\Modules\Addons\WarRoom\Models\Meeting;
+use App\Modules\Addons\WhatsAppAgent\Contracts\WhatsAppProviderInterface;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -20,7 +21,7 @@ class SendMeetingMinutesJob implements ShouldQueue
 
     public function __construct(public readonly int $meetingId) {}
 
-    public function handle(EvolutionApiService $evolution): void
+    public function handle(WhatsAppProviderInterface $whatsapp): void
     {
         $meeting = Meeting::with(['attendees.user', 'actionItems.assignee', 'sections'])
             ->find($this->meetingId);
@@ -42,7 +43,7 @@ class SendMeetingMinutesJob implements ShouldQueue
 
                 $message = $this->buildMessage($meeting, $user, $myTasks);
                 $jid     = EvolutionApiService::phoneToJid($user->phone);
-                $evolution->sendText($jid, $message);
+                $whatsapp->sendText($jid, $message);
             } catch (\Throwable $e) {
                 Log::warning("WarRoom minutas: fallo envío a user {$user->id}", ['err' => $e->getMessage()]);
             }

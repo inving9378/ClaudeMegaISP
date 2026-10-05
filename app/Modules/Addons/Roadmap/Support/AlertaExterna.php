@@ -2,7 +2,7 @@
 
 namespace App\Modules\Addons\Roadmap\Support;
 
-use App\Modules\Addons\Marketing\Services\EvolutionApiService;
+use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppProviderFactory;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -16,6 +16,10 @@ use Illuminate\Support\Facades\Log;
  *
  * SOLO AVISA. No corrige, no aísla, no pausa nada — esa frontera la puso el propio item #707 a
  * propósito ("Fuera de alcance: el vigilante NO corrige nada, solo avisa").
+ *
+ * (5-oct-2026) El envío ahora pasa por WhatsAppProviderFactory en vez de
+ * instanciar EvolutionApiService directo -- mismo gateway único, ahora con
+ * el proveedor (Evolution u oficial de Meta) configurable por línea.
  *
  * Apagado por default: sin `jarvis.vigilia.alerta_externa.enabled=true` Y un `destino` no vacío
  * en `config/circuito.php`, este código nunca manda un mensaje (mismo patrón de kill-switch que
@@ -80,7 +84,7 @@ class AlertaExterna
             $texto = "🚨 JARVIS — " . gethostname() . "\n"
                 . (string) ($alerta['texto'] ?? ('Hallazgo: ' . ($alerta['clave'] ?? 'desconocido')));
 
-            (new EvolutionApiService($companyId))->sendText($destino, $texto);
+            WhatsAppProviderFactory::forDefault($companyId)->sendText($destino, $texto);
 
             return true;
         } catch (\Throwable $e) {

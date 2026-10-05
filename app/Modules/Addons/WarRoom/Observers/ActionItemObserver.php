@@ -5,6 +5,7 @@ namespace App\Modules\Addons\WarRoom\Observers;
 use App\Models\Task;
 use App\Modules\Addons\Marketing\Services\EvolutionApiService;
 use App\Modules\Addons\WarRoom\Models\ActionItem;
+use App\Modules\Addons\WhatsAppAgent\Contracts\WhatsAppProviderInterface;
 use Illuminate\Support\Facades\Log;
 
 class ActionItemObserver
@@ -49,7 +50,7 @@ class ActionItemObserver
                   . "Prioridad: {$item->priority}\n"
                   . "Deadline: " . ($item->deadline?->format('d/m/Y') ?? 'sin definir');
 
-            app(EvolutionApiService::class)->sendText($jid, $text);
+            app(WhatsAppProviderInterface::class)->sendText($jid, $text);
         } catch (\Throwable $e) {
             Log::warning('WarRoom: no se pudo enviar WhatsApp', ['error' => $e->getMessage(), 'action_item_id' => $item->id]);
         }

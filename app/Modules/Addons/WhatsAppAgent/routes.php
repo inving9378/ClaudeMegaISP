@@ -2,6 +2,7 @@
 
 use App\Modules\Addons\WhatsAppAgent\Controllers\WhatsAppFunctionController;
 use App\Modules\Addons\WhatsAppAgent\Controllers\WhatsAppInstanceController;
+use App\Modules\Addons\WhatsAppAgent\Controllers\WhatsAppMetaWebhookController;
 use App\Modules\Addons\WhatsAppAgent\Controllers\WhatsAppPanelController;
 use App\Modules\Addons\WhatsAppAgent\Controllers\WhatsAppSendController;
 use App\Modules\Addons\WhatsAppAgent\Controllers\WhatsAppWebhookController;
@@ -13,6 +14,10 @@ use Illuminate\Support\Facades\Route;
  * Webhook entrante (público) → /whatsapp/webhook/{slug}
  *   Listado en PUBLIC_ROUTES de CheckRoutePermission. Auth por X-Webhook-Secret.
  *
+ * Webhook Meta oficial (público) → /whatsapp/webhook/meta/{slug}
+ *   Dos verbos: GET (handshake hub.challenge) + POST (mensajes), firma
+ *   HMAC-SHA256 en vez de secreto compartido. Ver WhatsAppMetaWebhookController.
+ *
  * Panel staff (auth + check_route_permission) → /whatsapp/*
  *   Vista index + endpoints API JSON. Vendedores se filtran por seller_id
  *   en el controller (no a nivel de ruta).
@@ -22,6 +27,16 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['web'])->group(function () {
     Route::post('/whatsapp/webhook/{slug}', [WhatsAppWebhookController::class, 'handle'])
         ->name('whatsapp.webhook');
+
+    // Declaradas ANTES de la ruta genérica de arriba NO hace falta -- el
+    // segmento literal "meta" no choca con el parámetro {slug} de la de
+    // Evolution porque son paths distintos (/whatsapp/webhook/meta/{slug}
+    // vs /whatsapp/webhook/{slug}), pero se agrupan aquí para mantener
+    // juntas las dos rutas públicas de webhook.
+    Route::get('/whatsapp/webhook/meta/{slug}', [WhatsAppMetaWebhookController::class, 'verify'])
+        ->name('whatsapp.webhook.meta.verify');
+    Route::post('/whatsapp/webhook/meta/{slug}', [WhatsAppMetaWebhookController::class, 'handle'])
+        ->name('whatsapp.webhook.meta');
 });
 
 // ── STAFF: panel + API ───────────────────────────────────────────────────────

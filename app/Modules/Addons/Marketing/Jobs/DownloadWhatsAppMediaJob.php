@@ -3,7 +3,7 @@
 namespace App\Modules\Addons\Marketing\Jobs;
 
 use App\Models\Marketing\Message;
-use App\Modules\Addons\Marketing\Services\EvolutionApiService;
+use App\Modules\Addons\WhatsAppAgent\Contracts\WhatsAppProviderInterface;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -56,7 +56,7 @@ class DownloadWhatsAppMediaJob implements ShouldQueue
 
     public function __construct(public int $messageId) {}
 
-    public function handle(EvolutionApiService $evolution): void
+    public function handle(WhatsAppProviderInterface $whatsapp): void
     {
         $message = Message::find($this->messageId);
 
@@ -70,21 +70,23 @@ class DownloadWhatsAppMediaJob implements ShouldQueue
             return;
         }
 
-        // Idempotencia: ya descargado → salir sin re-pedir a Evolution.
+        // Idempotencia: ya descargado → salir sin re-pedir al proveedor.
         if ($message->media_downloaded_at !== null || !empty($message->media_path)) {
             return;
         }
 
         $data = is_array($message->metadata) ? $message->metadata : [];
-        if (empty($data['key']) || empty($data['message'])) {
-            Log::channel('evolution')->warning('DownloadWhatsAppMedia: metadata sin key/message', [
+        // {key,message} = forma Evolution; {media_id} = forma Meta oficial
+        // (ver MetaCloudApiService::extractMessages()) -- acepta cualquiera.
+        if (empty($data['key']) && empty($data['media_id'])) {
+            Log::channel('evolution')->warning('DownloadWhatsAppMedia: metadata sin key ni media_id', [
                 'message_id' => $message->id,
             ]);
             return;
         }
 
-        // 1) Pedir el binario descifrado a Evolution.
-        $res    = $evolution->getBase64FromMediaMessage($data);
+        // 1) Pedir el binario descifrado al proveedor activo.
+        $res    = $whatsapp->downloadMedia($data);
         $base64 = $res['base64'] ?? null;
         if (empty($base64)) {
             Log::channel('evolution')->warning('DownloadWhatsAppMedia: respuesta sin base64', [

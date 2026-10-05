@@ -435,6 +435,29 @@ export default {
                 <input id="sw-app-secret" type="password" class="form-control font-monospace" placeholder="App Secret de developers.facebook.com">
               </div>
             </div>
+            <div id="sw-wo-wrap" style="display:none">
+              <div class="form-text mb-2">La "API Key" de arriba es el <b>access token permanente</b> de tu WhatsApp Business Account.</div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Phone Number ID</label>
+                <input id="sw-wo-phone" type="text" class="form-control font-monospace" placeholder="123456789012345">
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold">WABA ID</label>
+                <input id="sw-wo-waba" type="text" class="form-control font-monospace" placeholder="123456789012345">
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold">App Secret <span class="fw-normal text-muted small">(firma del webhook)</span></label>
+                <input id="sw-wo-app-secret" type="password" class="form-control font-monospace">
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Verify Token <span class="fw-normal text-muted small">(el mismo que pongas en Meta)</span></label>
+                <input id="sw-wo-verify-token" type="text" class="form-control font-monospace">
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Versión de la API</label>
+                <input id="sw-wo-api-version" type="text" class="form-control font-monospace" value="v21.0">
+              </div>
+            </div>
             <div class="form-check form-switch mt-2">
               <input class="form-check-input" type="checkbox" id="sw-active" checked>
               <label class="form-check-label" for="sw-active">Integración activa</label>
@@ -445,6 +468,7 @@ export default {
           const sel = document.getElementById('sw-provider');
           const evo = document.getElementById('sw-evolution-wrap');
           const meta = document.getElementById('sw-meta-wrap');
+          const wo = document.getElementById('sw-wo-wrap');
           const ia = document.getElementById('sw-ia-wrap');
           const typeLabelEl = document.getElementById('sw-type-label');
           const toggle = () => {
@@ -452,6 +476,7 @@ export default {
             typeLabelEl.textContent = prov ? typeLabel[prov.type] : '—';
             evo.style.display  = sel.value === 'evolution' ? 'block' : 'none';
             meta.style.display = sel.value === 'meta' ? 'block' : 'none';
+            wo.style.display   = sel.value === 'whatsapp-oficial' ? 'block' : 'none';
             ia.style.display   = prov?.type === 'ia' ? 'block' : 'none';
             this.marcarCamposIa(prov?.driver);
           };
@@ -472,17 +497,23 @@ export default {
             iaConfig,
             provider,
             name,
-            key:       document.getElementById('sw-key').value,
-            active:    document.getElementById('sw-active').checked,
-            endpoint:  document.getElementById('sw-endpoint')?.value ?? '',
-            instance:  document.getElementById('sw-instance')?.value ?? '',
-            appId:     document.getElementById('sw-app-id')?.value ?? '',
-            appSecret: document.getElementById('sw-app-secret')?.value ?? '',
+            key:         document.getElementById('sw-key').value,
+            active:      document.getElementById('sw-active').checked,
+            endpoint:    document.getElementById('sw-endpoint')?.value ?? '',
+            instance:    document.getElementById('sw-instance')?.value ?? '',
+            appId:       document.getElementById('sw-app-id')?.value ?? '',
+            appSecret:   document.getElementById('sw-app-secret')?.value ?? '',
+            woPhone:      document.getElementById('sw-wo-phone')?.value ?? '',
+            woWaba:       document.getElementById('sw-wo-waba')?.value ?? '',
+            woAppSecret:  document.getElementById('sw-wo-app-secret')?.value ?? '',
+            woVerifyToken: document.getElementById('sw-wo-verify-token')?.value ?? '',
+            woApiVersion:  document.getElementById('sw-wo-api-version')?.value ?? 'v21.0',
           };
         },
       }).then(async result => {
         if (!result.isConfirmed) return;
-        const { provider, name, key, active, endpoint, instance, appId, appSecret, iaConfig } = result.value;
+        const { provider, name, key, active, endpoint, instance, appId, appSecret, iaConfig,
+                woPhone, woWaba, woAppSecret, woVerifyToken, woApiVersion } = result.value;
         try {
           const payload = {
             provider,
@@ -492,6 +523,10 @@ export default {
             ...(key ? { key } : {}),
             ...(provider === 'evolution' ? { config: { endpoint, instance } } : {}),
             ...(provider === 'meta' ? { config: { app_id: appId, app_secret: appSecret } } : {}),
+            ...(provider === 'whatsapp-oficial' ? { config: {
+              phone_number_id: woPhone, waba_id: woWaba, app_secret: woAppSecret,
+              verify_token: woVerifyToken, api_version: woApiVersion || 'v21.0',
+            } } : {}),
             ...(iaConfig ? { config: iaConfig } : {}),
           };
           const res = await axios.post('/api/hub/integrations', payload);
@@ -507,6 +542,7 @@ export default {
     openEdit(item) {
       const isEvo  = item.provider === 'evolution';
       const isMeta = item.provider === 'meta';
+      const isWo   = item.provider === 'whatsapp-oficial';
       const isIa   = item.type === 'ia';
       const driver = this.providers.find(p => p.id === item.provider)?.driver;
 
@@ -553,6 +589,31 @@ export default {
               <input id="sw-app-secret" type="password" class="form-control font-monospace" placeholder="App Secret de developers.facebook.com">
             </div>
             ` : ''}
+            ${isWo ? `
+            <div class="form-text mb-2">La "API Key" de arriba es el <b>access token permanente</b> de tu WhatsApp Business Account.</div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Phone Number ID</label>
+              <input id="sw-wo-phone" type="text" class="form-control font-monospace" value="${this.escHtml(item.config?.phone_number_id ?? '')}">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">WABA ID</label>
+              <input id="sw-wo-waba" type="text" class="form-control font-monospace" value="${this.escHtml(item.config?.waba_id ?? '')}">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">
+                App Secret <span class="fw-normal text-muted small">(firma del webhook — dejar vacío para no cambiar)</span>
+              </label>
+              <input id="sw-wo-app-secret" type="password" class="form-control font-monospace">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Verify Token</label>
+              <input id="sw-wo-verify-token" type="text" class="form-control font-monospace" value="${this.escHtml(item.config?.verify_token ?? '')}">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Versión de la API</label>
+              <input id="sw-wo-api-version" type="text" class="form-control font-monospace" value="${this.escHtml(item.config?.api_version ?? 'v21.0')}">
+            </div>
+            ` : ''}
             ${isIa ? this.camposIaHtml(item.config) : ''}
             <div class="form-check form-switch mt-2">
               <input class="form-check-input" type="checkbox" id="sw-active" ${item.active ? 'checked' : ''}>
@@ -571,17 +632,23 @@ export default {
           return {
             iaConfig,
             name,
-            key:       document.getElementById('sw-key').value,
-            active:    document.getElementById('sw-active').checked,
-            endpoint:  document.getElementById('sw-endpoint')?.value ?? '',
-            instance:  document.getElementById('sw-instance')?.value ?? '',
-            appId:     document.getElementById('sw-app-id')?.value ?? '',
-            appSecret: document.getElementById('sw-app-secret')?.value ?? '',
+            key:          document.getElementById('sw-key').value,
+            active:       document.getElementById('sw-active').checked,
+            endpoint:     document.getElementById('sw-endpoint')?.value ?? '',
+            instance:     document.getElementById('sw-instance')?.value ?? '',
+            appId:        document.getElementById('sw-app-id')?.value ?? '',
+            appSecret:    document.getElementById('sw-app-secret')?.value ?? '',
+            woPhone:       document.getElementById('sw-wo-phone')?.value ?? '',
+            woWaba:        document.getElementById('sw-wo-waba')?.value ?? '',
+            woAppSecret:   document.getElementById('sw-wo-app-secret')?.value ?? '',
+            woVerifyToken: document.getElementById('sw-wo-verify-token')?.value ?? '',
+            woApiVersion:  document.getElementById('sw-wo-api-version')?.value ?? '',
           };
         },
       }).then(async result => {
         if (!result.isConfirmed) return;
-        const { name, key, active, endpoint, instance, appId, appSecret, iaConfig } = result.value;
+        const { name, key, active, endpoint, instance, appId, appSecret, iaConfig,
+                woPhone, woWaba, woAppSecret, woVerifyToken, woApiVersion } = result.value;
         try {
           const payload = {
             name,
@@ -589,6 +656,14 @@ export default {
             ...(key ? { key } : {}),
             ...(isEvo ? { config: { endpoint, instance } } : {}),
             ...(isMeta ? { config: { ...item.config, app_id: appId, ...(appSecret ? { app_secret: appSecret } : {}) } } : {}),
+            ...(isWo ? { config: {
+              ...item.config,
+              phone_number_id: woPhone,
+              waba_id: woWaba,
+              verify_token: woVerifyToken,
+              api_version: woApiVersion || 'v21.0',
+              ...(woAppSecret ? { app_secret: woAppSecret } : {}),
+            } } : {}),
             ...(iaConfig ? { config: { ...(item.config ?? {}), ...iaConfig } } : {}),
           };
           const res = await axios.put(`/api/hub/integrations/${item.id}`, payload);
@@ -1053,7 +1128,7 @@ export default {
         anthropic: '#7c3aed', 'anthropic-legacy': '#9e6fd0',
         openai: '#10a37f', evolution: '#25d366',
         pexels: '#05a081', 'google-maps': '#4285f4', google_maps: '#4285f4',
-        meta: '#0866ff',
+        meta: '#0866ff', 'whatsapp-oficial': '#128c7e',
       };
       return map[id] ?? '#6c757d';
     },
@@ -1063,7 +1138,7 @@ export default {
         anthropic: 'bi bi-robot', 'anthropic-legacy': 'bi bi-robot',
         openai: 'bi bi-stars', evolution: 'bi bi-whatsapp',
         pexels: 'bi bi-images', 'google-maps': 'bi bi-geo-alt-fill', google_maps: 'bi bi-geo-alt-fill',
-        meta: 'bi bi-facebook',
+        meta: 'bi bi-facebook', 'whatsapp-oficial': 'bi bi-patch-check-fill',
       };
       return map[id] ?? 'bi bi-plugin';
     },
