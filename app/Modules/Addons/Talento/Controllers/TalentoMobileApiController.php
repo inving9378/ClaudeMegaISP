@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
+use App\Modules\Addons\Talento\Services\GeocodingService;
 use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
 use App\Services\Security\PasswordService;
 use Illuminate\Http\Request;
@@ -133,13 +134,29 @@ class TalentoMobileApiController extends Controller
         ]);
     }
 
+    /**
+     * Geocodifica una dirección de texto a lat/lng (fallback de check-in/out
+     * cuando el GPS del teléfono no responde). Devuelve hasta 5 candidatos.
+     */
+    public function geocodificar(Request $request)
+    {
+        $request->validate([
+            'q' => 'required|string|min:3|max:255',
+        ]);
+
+        $resultados = (new GeocodingService())->buscar($request->query('q'));
+
+        return response()->json(['resultados' => $resultados]);
+    }
+
     public function checkin(Request $request)
     {
         $request->validate([
-            'lat'         => 'required|numeric',
-            'lng'         => 'required|numeric',
-            'accuracy'    => 'nullable|numeric',
-            'client_uuid' => 'nullable|string|max:36',
+            'lat'             => 'required|numeric',
+            'lng'             => 'required|numeric',
+            'accuracy'        => 'nullable|numeric',
+            'client_uuid'     => 'nullable|string|max:36',
+            'location_source' => 'nullable|string|in:gps,manual_address,manual_pin',
         ]);
 
         $colaborador = $this->resolveColaborador($request);
@@ -185,6 +202,7 @@ class TalentoMobileApiController extends Controller
             'check_in_within_geofence' => $withinSite,
             'check_in_flagged'         => ! $withinSite,
             'check_in_flag_reason'     => $withinSite ? null : 'Fuera de geocerca (app móvil)',
+            'check_in_location_source' => $request->input('location_source', 'gps'),
             'day_type'                 => 'worked',
             'status'                   => 'open',
             'created_at'               => now(),
@@ -201,6 +219,12 @@ class TalentoMobileApiController extends Controller
 
     public function checkout(Request $request)
     {
+        $request->validate([
+            'lat'             => 'required|numeric',
+            'lng'             => 'required|numeric',
+            'location_source' => 'nullable|string|in:gps,manual_address,manual_pin',
+        ]);
+
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
 
@@ -208,7 +232,14 @@ class TalentoMobileApiController extends Controller
             ->where('colaborador_id', $colaborador->id)
             ->whereDate('check_in_at', now()->toDateString())
             ->whereNull('check_out_at')
-            ->update(['check_out_at' => now(), 'status' => 'closed', 'updated_at' => now()]);
+            ->update([
+                'check_out_at'              => now(),
+                'check_out_lat'             => $request->lat,
+                'check_out_lng'             => $request->lng,
+                'check_out_location_source' => $request->input('location_source', 'gps'),
+                'status'                    => 'closed',
+                'updated_at'                => now(),
+            ]);
 
         if (! $updated) {
             return response()->json(['message' => 'Sin check-in activo para cerrar.'], 422);
