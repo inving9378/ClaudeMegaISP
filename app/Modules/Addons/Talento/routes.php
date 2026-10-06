@@ -521,6 +521,7 @@ Route::middleware(['auth:sanctum'])
         Route::get('/asistencia/hoy',        [TalentoMobileApiController::class, 'asistenciaHoy']);
         Route::post('/asistencia/checkin',   [TalentoMobileApiController::class, 'checkin']);
         Route::post('/asistencia/checkout',  [TalentoMobileApiController::class, 'checkout']);
+        Route::get('/geocodificar',          [TalentoMobileApiController::class, 'geocodificar']);
 
         Route::get('/ots/historial',                   [TalentoMobileApiController::class, 'otHistorial']);
         Route::get('/ots/hoy',                        [TalentoMobileApiController::class, 'otsHoy']);

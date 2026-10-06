@@ -13,10 +13,11 @@ trait UsesApiIntegration
      * env() en runtime.
      */
     private const ENV_FALLBACK_CONFIG_MAP = [
-        'CLAUDE_API_KEY'    => 'services.anthropic.key',
-        'OPENAI_API_KEY'    => 'services.openai.key',
-        'WHATSAPP_API_KEY'  => 'marketing.whatsapp_status_api_key',
-        'WHATSAPP_API_BASE' => 'marketing.whatsapp_status_api_base',
+        'CLAUDE_API_KEY'      => 'services.anthropic.key',
+        'OPENAI_API_KEY'      => 'services.openai.key',
+        'WHATSAPP_API_KEY'    => 'marketing.whatsapp_status_api_key',
+        'WHATSAPP_API_BASE'   => 'marketing.whatsapp_status_api_base',
+        'GOOGLE_MAPS_API_KEY' => 'services.google_maps.key',
     ];
 
     /**

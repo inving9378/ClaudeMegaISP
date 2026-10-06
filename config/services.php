@@ -56,6 +56,12 @@ return [
         'key' => env('OPENAI_API_KEY'),
     ],
 
+    // Respaldo #2 (tras el Hub api_integrations) de UsesApiIntegration::resolveApiKey()
+    // para el provider 'google-maps' — ver el mapa ENV_FALLBACK_CONFIG_MAP en ese trait.
+    'google_maps' => [
+        'key' => env('GOOGLE_MAPS_API_KEY'),
+    ],
+
     // Firebase Cloud Messaging (item #101/#72) — sin valores hasta que #72 (greenfield)
     // provea el proyecto real. Con project_id vacío, PushChannel (Flotas) rechaza el
     // envío en vez de fingir éxito.
