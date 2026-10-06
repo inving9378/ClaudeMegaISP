@@ -135,7 +135,7 @@ míos) y no se usó `-D` a la fuerza. Queda ahí, inofensiva, hasta que Irving d
   de la app también la va a ofrecer, no solo la descarga directa).
 - Commit `e6ddfa8` ("release: v1.15") en `TalentoEquipo` (`master`, sin remoto).
 
-### Pendiente real
+### Pendiente real (al cerrar el merge/migración/v1.15)
 
 - Que Irving instale/actualice la app en su teléfono y pruebe de verdad el flujo (buscar
   dirección + mover el pin) — sigue siendo el único "no probado" de esta tarea, por la ausencia
@@ -144,3 +144,48 @@ míos) y no se usó `-D` a la fuerza. Queda ahí, inofensiva, hasta que Irving d
   o dejarla) y, aparte, si vale la pena blindar el MergeRunner del Circuito para que no vuelva a
   operar sobre un checkout con una rama ajena activa — fuera de alcance de esta tarea, señalado
   para que Irving decida si se convierte en un item del roadmap.
+
+### El riesgo que había avisado se cumplió — v1.15 crasheaba al hacer check-in
+
+Irving probó v1.15 en su teléfono real: **"cuando voy a hacer el check in se me cierra la app"**.
+La causa exacta, confirmada (no supuesta): al revisar el `AndroidManifest.xml` *dentro* del APK
+publicado, faltaba por completo la etiqueta de la llave de Google Maps para Android
+(`com.google.android.geo.API_KEY`) — justo el riesgo honesto que había dejado anotado arriba antes
+de publicar v1.15 ("el mapa podría salir en blanco... o algo peor"). Investigación externa
+(búsqueda web) confirmó el comportamiento documentado: **sin esa llave, el `MapView` nativo lanza
+una excepción apenas intenta montarse en pantalla, y se lleva a toda la app con él** — no es un
+"mapa en blanco", es un crash duro. Coincide exacto con el síntoma reportado: el check-in solo
+truena cuando el GPS no resuelve rápido y se abre el modal de ubicación manual (que es cuando el
+`MapView` intenta aparecer por primera vez) — con GPS funcionando normal, el modal nunca se monta
+y no hay crash.
+
+**Decisión de Irving:** reusar, por ahora, la misma llave de Google Maps que ya usa el backend
+para geocodificar (en vez de esperar a tramitar una llave dedicada y restringida al paquete de
+la app) — para poder probar la función hoy mismo. Esa llave queda ahora físicamente dentro del
+APK (en el manifiesto), visible para quien lo desarme — riesgo explícito que Irving aceptó
+conscientemente; pendiente, si se quiere más adelante, separarla en una llave propia restringida
+por paquete+huella digital en Google Cloud Console.
+
+**Fix (v1.16, versionCode 116):**
+- `android/maps.properties` nuevo (gitignored, mismo patrón ya establecido que
+  `android/keystore.properties` — que de paso también se agregó al `.gitignore`, no estaba
+  pese a no estar trackeado).
+- `build.gradle`: `manifestPlaceholders = [MAPS_API_KEY: ...]` leído de ese archivo.
+- `AndroidManifest.xml`: `<meta-data android:name="com.google.android.geo.API_KEY" .../>`.
+- Verificado con `aapt dump xmltree` sobre el APK YA COMPILADO que la llave real quedó inyectada
+  en el manifiesto (no un placeholder vacío).
+- ⚠️ **Nota propia de higiene:** al verificar esto con `aapt`, el valor real de la llave quedó
+  impreso en la salida de un comando (visible en esta sesión) — error de mi parte, debí redactarlo
+  antes de imprimir. Riesgo bajo en este caso puntual (es una llave pensada para ir embebida en un
+  APK distribuido — su protección real es la restricción por paquete+huella en Google Cloud, no
+  mantenerla en secreto — y de hecho esta misma llave ya iba a quedar visible dentro del APK
+  público de todas formas, que es justo lo que Irving ya había aceptado), pero queda anotado para
+  no repetir el hábito con una llave que si sea secreta de verdad.
+- Publicado como **v1.16** (reemplaza a v1.15, que quedó borrado del release de GitHub y del
+  servidor — v1.15 nunca debe instalarse, crashea). MD5 verificado en las 3 paradas de nuevo
+  (`46f24a701556379b4f46b4b9f2b0e39c`). Fila `talento_app_releases` id=13, marcada
+  `is_mandatory=true` (la versión previa activa, v1.15, está rota).
+- Commit `c85c994` ("release: v1.16") en `TalentoEquipo`.
+
+**Pendiente real:** que Irving confirme en su teléfono que el check-in ya no crashea — sigue
+siendo el único "no probado" posible desde este servidor sin dispositivo físico.
