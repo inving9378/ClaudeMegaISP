@@ -68,3 +68,28 @@ cliente; la seguridad se corrige después. La migración de WhatsApp a Meta por 
   "Meta + vista Evolution", bloqueo previo fuera de 24 h.
 - Seguridad (para después, decisión de Irving): `config` del Hub sin cifrar y visible en pantalla, token de
   COPOMEX, MikroTik.
+
+## 2026-10-06 07:40 — La pestaña no aparecía y casi ningún módulo tenía integración
+
+**Qué se veía:** Irving no veía ningún módulo de servicio con integración.
+
+**Causa 1 (error de esta sesión):** el merge `fc831699` se hizo en `/var/www/megaisp` sin revisar la rama
+actual: el checkout principal estaba en `feature/talento-checkin-ubicacion-manual` (otra sesión), así que la
+pestaña cayó en esa rama. Esa sesión la limpió (`talento-checkin-limpia`) y pasó a `main` solo su trabajo;
+el build de producción posterior salió de `main` sin la pestaña. Corregido: merge a `main` (`011e6dbc`)
+verificando `git branch --show-current` antes.
+
+**Causa 2:** la primera pre-asignación solo asignaba lo que ya vivía en el Hub; en dev solo Pexels. Nueva
+migración `2026_10_06_110000_preasigna_servicios_desde_configuracion_actual`: da de alta en el Hub la cuenta de
+correo del servidor (`no-reply@`, .env) y la de Configuración → Correo (`facturacion@`) con las mismas
+credenciales y las asigna (10 + 1 módulos); asigna a mapas la llave de Google que ya estaba en el Hub (es la
+misma de Configuración → Mapas); en producción asigna los avisos de WhatsApp directos a la línea de la
+instancia de Marketing si existe y no hay línea principal. Resultado en dev: 13 de 29 asignados; los 15 de
+WhatsApp siguen "como siempre" porque no hay línea utilizable; Meta está inactiva.
+
+**Además:** la prueba de la llave de Google la marcaba inválida porque el proyecto no tiene activado Geocoding;
+ahora explica que la llave es válida y que los mapas del navegador usan Maps JavaScript.
+
+Verificado (transacción + rollback): cuentas idénticas a .env y a email_settings; ambas conectan y se
+autentican con mail.meganett.com.mx; la llave que recibe el navegador es la misma de siempre; migración
+idempotente.
