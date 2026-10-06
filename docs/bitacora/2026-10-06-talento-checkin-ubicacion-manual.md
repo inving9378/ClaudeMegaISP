@@ -189,3 +189,29 @@ por paquete+huella digital en Google Cloud Console.
 
 **Pendiente real:** que Irving confirme en su teléfono que el check-in ya no crashea — sigue
 siendo el único "no probado" posible desde este servidor sin dispositivo físico.
+
+### Segundo bug real — el número de versión interno nunca se actualizó (v1.17)
+
+Irving instaló v1.16 limpio (desinstalando primero) y la app seguía avisando "hay una
+actualización disponible, la 1.16" — en bucle, ofreciendo actualizar a la versión que ya tenía
+instalada. Causa confirmada: `src/config.js` define `APP_VERSION` como un **string suelto, a
+mano, separado de `versionName` de `android/app/build.gradle`** — y se me olvidó actualizarlo al
+publicar tanto v1.15 como v1.16 (se quedó en `'1.14'` las dos veces). `MiDiaScreen.js::checkUpdate()`
+calcula su propio "versionCode" a partir de ESTE string (no lee nada real del APK instalado), lo
+manda al servidor, y el servidor siempre contestaba "sí hay algo más nuevo" porque comparaba
+contra 114 sin importar qué tan nueva fuera la build real instalada.
+
+**Fix (v1.17, versionCode 117):** `APP_VERSION` corregido a `'1.17'` + comentario explícito de
+advertencia (ya se olvidó 2 veces seguidas) + nota de que el candidato correcto a futuro es
+`react-native-device-info` (lee la versión real del APK instalado, elimina la duplicación de
+raíz) — no se instaló esa dependencia nueva en esta vuelta para no sumar más riesgo nativo
+después del susto de la llave de Maps; queda anotado como mejora futura si se repite el olvido
+una tercera vez.
+
+- v1.16 (roto por este bug, aunque el fix de la llave de Maps SÍ era correcto ahí) borrado del
+  release de GitHub y del servidor.
+- Publicado v1.17, MD5 verificado en las 3 paradas (`acd1b0bcef797a4c98d6ae3af7224ce0`). Fila
+  `talento_app_releases` id=14, `is_mandatory=true`. Commit `d95f40f`.
+
+**Pendiente real:** que Irving confirme en su teléfono, con esta versión, que (a) ya NO avisa
+actualización disponible al abrir la app recién instalada y (b) el check-in ya no crashea.
