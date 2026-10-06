@@ -15,7 +15,6 @@ use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppProviderFactory;
 use App\Services\Core\ApiIntegrationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 
 /**
  * Pestaña "Módulos de servicios" del Integration Hub: qué línea de WhatsApp o
@@ -244,11 +243,8 @@ class ServiciosModulosController extends Controller
         if (!$llave) {
             return [false, 'No hay llave en Configuración → Mapas.'];
         }
-        $res = Http::timeout(10)->get('https://maps.googleapis.com/maps/api/geocode/json', ['address' => 'Mexico', 'key' => $llave]);
-        $estado = $res->json('status');
-        return $estado && $estado !== 'REQUEST_DENIED'
-            ? [true, 'La llave de Configuración → Mapas responde.']
-            : [false, 'Google rechazó la llave de Configuración → Mapas: ' . ($res->json('error_message') ?? $estado ?? 'sin respuesta')];
+        [$ok, $mensaje] = $this->hub->validarGoogleMaps($llave);
+        return [$ok, "Llave de Configuración → Mapas: {$mensaje}"];
     }
 
     /** @return array{0:bool, 1:string} */

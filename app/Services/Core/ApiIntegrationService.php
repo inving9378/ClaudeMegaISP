@@ -107,6 +107,13 @@ class ApiIntegrationService
             return $this->validationResult($integration, false, 'No key configured');
         }
 
+        // Google Maps: explica el motivo (la llave puede servir para los mapas aunque
+        // la prueba por Geocoding no esté activada en el proyecto de Google)
+        if ($integration->provider === 'google_maps') {
+            [$ok, $mensaje] = $this->validarGoogleMaps($key);
+            return $this->validationResult($integration, $ok, $mensaje);
+        }
+
         $validators = $this->serviceValidators($integration, $key);
 
         // Sin validador para este proveedor: NO se marca como válida (sería mentir)
@@ -291,6 +298,39 @@ class ApiIntegrationService
             ->withHeaders(['Authorization' => $key])
             ->get('https://api.pexels.com/v1/search', ['query' => 'test', 'per_page' => 1]);
         return $res->status() === 200;
+    }
+
+    /**
+     * Prueba una llave de Google Maps con Geocoding y traduce la respuesta. Si Google
+     * contesta que Geocoding no está activado (o que la llave está restringida a páginas
+     * web), la llave SÍ es válida: los mapas del navegador usan Maps JavaScript.
+     *
+     * @return array{0:bool, 1:string}
+     */
+    public function validarGoogleMaps(string $key): array
+    {
+        try {
+            $res = Http::timeout(10)->get('https://maps.googleapis.com/maps/api/geocode/json', ['address' => 'Mexico', 'key' => $key]);
+        } catch (\Throwable $e) {
+            return [false, 'No se pudo conectar con Google: ' . mb_substr($e->getMessage(), 0, 150)];
+        }
+
+        $estado = (string) $res->json('status');
+        $error = (string) $res->json('error_message');
+
+        if (in_array($estado, ['OK', 'ZERO_RESULTS'], true)) {
+            return [true, 'La llave funciona.'];
+        }
+        if (stripos($error, 'not activated') !== false) {
+            return [true, 'La llave es válida. La prueba usa Geocoding, que no está activado en el proyecto de Google; los mapas del navegador funcionan si el proyecto tiene activado Maps JavaScript.'];
+        }
+        if (stripos($error, 'referer restriction') !== false) {
+            return [true, 'La llave es válida pero está restringida a páginas web; no se puede probar desde el servidor.'];
+        }
+        if (stripos($error, 'not valid') !== false || stripos($error, 'invalid') !== false) {
+            return [false, 'Google dice que la llave no es válida.'];
+        }
+        return [false, 'Google rechazó la llave: ' . ($error ?: $estado ?: 'sin respuesta')];
     }
 
     private function validateGoogleMaps(string $key): bool
