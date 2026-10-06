@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Talento\Controllers;
 
+use App\Modules\Addons\Hub\Services\Servicios;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Models\Task;
@@ -239,7 +240,7 @@ class TalentoWorkOrderController extends Controller
             if ($phone) {
                 try {
                     $this->whatsapp->sendText(
-                        null,
+                        Servicios::slugWhatsApp('talento.ot_asignada'),
                         $phone,
                         "Hola {$colaborador->user->name}, se te asignó una nueva orden de trabajo: "
                             . "{$type->name}{$cuando}. Consulta el detalle en tu Portal de Colaborador o en la app."

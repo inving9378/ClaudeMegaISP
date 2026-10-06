@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Mapas\Controllers\Mapas;
 
+use App\Modules\Addons\Hub\Services\Servicios;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\MapCredential;
@@ -57,8 +58,11 @@ class MapCredentialController extends Controller
         if (!$m) {
             return response()->json(null);
         }
+        // Llave elegida en Integraciones → Módulos de servicios; sin asignación,
+        // la de Configuración → Mapas, como siempre.
+        $hub = Servicios::integracion('mapas.google');
         return response()->json([
-            'api_key'   => $m->api_key,
+            'api_key'   => $hub?->value ?: $m->api_key,
             'latitude'  => $m->latitude,
             'longitude' => $m->longitude,
             'zoom'      => $m->zoom,

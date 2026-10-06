@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands\Active;
 
+use App\Modules\Addons\Hub\Services\Correo;
+use App\Modules\Addons\Hub\Services\Servicios;
 use App\Mail\BillingMail;
 use App\Models\BillingConfig;
 use App\Models\BillingNotification;
@@ -9,7 +11,6 @@ use App\Modules\Addons\Payments\Models\ClientPaymentReference;
 use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppGateway;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 /**
  * Barre billing_notifications en estado en_espera cuya ventana ya venció
@@ -108,7 +109,7 @@ class SendBillingNotificationsCommand extends Command
             }
 
             try {
-                Mail::to($notif->email)->send(new BillingMail($notif));
+                Correo::enviar('facturacion.correo_recibos', $notif->email, new BillingMail($notif));
                 $notif->markSent();
                 $sent++;
                 $this->info("  ✔ Enviado notif#{$notif->id} ({$notif->document_type}) → {$notif->email}");
@@ -164,7 +165,7 @@ class SendBillingNotificationsCommand extends Command
 
     private function sendWhatsAppFallback(BillingNotification $notif, string $phone): void
     {
-        app(WhatsAppGateway::class)->sendText(null, $phone, $this->buildWhatsAppFallbackMessage($notif), [
+        app(WhatsAppGateway::class)->sendText(Servicios::slugWhatsApp('facturacion.recordatorio'), $phone, $this->buildWhatsAppFallbackMessage($notif), [
             'source'                   => 'billing_notification_fallback',
             'billing_notification_id'  => $notif->id,
         ]);

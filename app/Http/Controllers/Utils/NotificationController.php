@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Utils;
 
+use App\Modules\Addons\Hub\Services\Correo;
 use App\Http\Controllers\Controller;
 use App\Mail\NotificateCrm;
 use App\Modules\Core\CRM\Models\Crm;
@@ -9,7 +10,6 @@ use App\Models\Receipt;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Mail;
 
 class NotificationController extends Controller
 {
@@ -27,7 +27,7 @@ class NotificationController extends Controller
                 'type' => 'send_email_notification',
                 'data' => json_encode($input)
             ]);
-            Mail::to($input['email-notificate-crm'])->send(new NotificateCrm($input, $id));
+            Correo::enviar('crm.correo', $input['email-notificate-crm'], new NotificateCrm($input, $id));
         })->afterResponse();
         return true;
     }

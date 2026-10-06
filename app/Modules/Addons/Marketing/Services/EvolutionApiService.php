@@ -29,6 +29,17 @@ class EvolutionApiService implements WhatsAppProviderInterface
         $this->instance = Setting::get('evolution_instance_name', $companyId) ?? '';
     }
 
+    /**
+     * Manda por otra instancia (línea) de Evolution en vez de la de
+     * marketing_settings. Lo usa "Módulos de servicios" cuando a un aviso se le
+     * asigna una línea concreta (Servicios::whatsapp).
+     */
+    public function usarInstancia(string $instancia): static
+    {
+        $this->instance = $instancia;
+        return $this;
+    }
+
     // ── Public API ──────────────────────────────────────────────────────────────
 
     public function sendText(string $toJid, string $text): array

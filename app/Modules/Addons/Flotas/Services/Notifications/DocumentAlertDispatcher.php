@@ -2,13 +2,13 @@
 
 namespace App\Modules\Addons\Flotas\Services\Notifications;
 
+use App\Modules\Addons\Hub\Services\Correo;
+use App\Modules\Addons\Hub\Services\Servicios;
 use App\Models\User;
 use App\Modules\Addons\Flotas\Mail\FleetDocumentAlertMail;
 use App\Modules\Addons\Flotas\Models\FleetDocument;
-use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppProviderFactory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 /**
  * Fase 4 — Despacha alertas de vencimiento de documentos de flota.
@@ -83,7 +83,7 @@ class DocumentAlertDispatcher
         }
 
         try {
-            Mail::to($email)->send(new FleetDocumentAlertMail($doc, $daysUntil));
+            Correo::enviar('flotas.correo', $email, new FleetDocumentAlertMail($doc, $daysUntil));
             return ['channel' => 'email', 'user_id' => $user->id, 'status' => 'sent',
                     'recipient' => $email, 'error' => null];
         } catch (\Throwable $e) {
@@ -111,7 +111,7 @@ class DocumentAlertDispatcher
         $text = "⚠️ {$typeLabel} de {$plates} vence {$diasText} ({$fecha}).\nRevisa la ficha: {$url}";
 
         try {
-            WhatsAppProviderFactory::forDefault($companyId)->sendText($phone, $text);
+            Servicios::whatsapp('flotas.documentos', $companyId)->sendText($phone, $text);
             return ['channel' => 'whatsapp', 'user_id' => $user->id, 'status' => 'sent',
                     'recipient' => $phone, 'error' => null];
         } catch (\Throwable $e) {

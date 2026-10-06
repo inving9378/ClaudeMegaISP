@@ -2,10 +2,10 @@
 
 namespace App\Modules\Addons\PortalCliente\Services;
 
+use App\Modules\Addons\Hub\Services\Correo;
 use App\Modules\Addons\PortalCliente\Mail\PortalPaymentReceiptMail;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 /**
  * Envía el recibo de pago al cliente tras un cargo OpenPay exitoso en el portal.
@@ -43,7 +43,7 @@ class PortalPaymentReceiptService
                 'charge_id'      => $chargeId,
             ];
 
-            Mail::to($email)->queue(new PortalPaymentReceiptMail($data));
+            Correo::encolar('portal.correo_recibo', $email, new PortalPaymentReceiptMail($data));
         } catch (\Throwable $e) {
             Log::channel('single')->warning('[Portal Recibo] No se pudo encolar el recibo de pago', [
                 'client_id'  => $clientId,

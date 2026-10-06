@@ -2,11 +2,11 @@
 
 namespace App\Modules\Addons\Marketing\Services\Pilot;
 
+use App\Modules\Addons\Hub\Services\Correo;
 use App\Models\Marketing\PilotCampaign;
 use App\Models\Marketing\PilotCampaignSend;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -167,7 +167,7 @@ class PilotCampaignService
         $subject = $campaign->variantSubject($send->variant);
         $html = $this->buildHtml($campaign, $send);
 
-        Mail::html($html, function ($msg) use ($send, $subject) {
+        Correo::mailer('marketing.correo_masivo')->html($html, function ($msg) use ($send, $subject) {
             $msg->to($send->email, $send->name)->subject($subject);
         });
     }

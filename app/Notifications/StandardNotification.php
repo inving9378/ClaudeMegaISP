@@ -1,6 +1,7 @@
 <?php
 namespace App\Notifications;
 
+use App\Modules\Addons\Hub\Services\Correo;
 use App\Mail\StandardMail;
 use Illuminate\Notifications\Notification;
 use Illuminate\Bus\Queueable;
@@ -28,10 +29,19 @@ class StandardNotification extends Notification implements ShouldQueue
 
     public function toMail($notifiable)
     {
-        // Cargar la configuración de correo desde la base de datos
-        \App\Modules\Core\Configuracion\Services\EmailConfigService::setMailConfig();
+        // Con una cuenta asignada en Integraciones → Módulos de servicios se usa
+        // esa; si no, la de Configuración → Correo, como siempre.
+        $mailer = Correo::nombreMailer('facturacion.correos_sistema');
+        if (!$mailer) {
+            \App\Modules\Core\Configuracion\Services\EmailConfigService::setMailConfig();
+            return (new StandardMail($this->emailProps))->build();
+        }
 
-        return (new StandardMail($this->emailProps))->build();
+        $mail = new StandardMail($this->emailProps);
+        if ($remitente = Correo::remitente('facturacion.correos_sistema')) {
+            $mail->from($remitente['address'], $remitente['name']);
+        }
+        return $mail->build()->mailer($mailer);
     }
 
     public function toDatabase($notifiable)

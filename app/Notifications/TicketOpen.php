@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Modules\Addons\Hub\Services\Correo;
 use App\Models\Ticket;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -47,8 +48,10 @@ class TicketOpen extends Notification
      */
     public function toMail($notifiable)
     {
+        // Cuenta de correo elegida en Integraciones → Módulos de servicios (o la de siempre)
         return (new MailMessage)
-            ->from(config('mail.from.address'))
+            ->mailer(Correo::nombreMailer('tickets.correo'))
+            ->from(Correo::remitenteDireccion('tickets.correo'))
             ->markdown('emails.notificate.ticket_open',
                 ['ticket' => $this->ticket, 'ticket_thread' => $this->ticket_thread
                 ]);

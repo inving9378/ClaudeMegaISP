@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Marketing\Services\Publishing;
 
+use App\Modules\Addons\Hub\Services\Servicios;
 use App\Models\Core\ApiIntegration;
 use App\Services\Core\ApiIntegrationService;
 use Illuminate\Support\Facades\Http;
@@ -19,7 +20,7 @@ class TokenRefresher
      */
     public function refreshMetaTokens(int $companyId = 1): array
     {
-        $integration = $this->hub->getIntegration('meta', $companyId);
+        $integration = Servicios::integracion('marketing.meta') ?? $this->hub->getIntegration('meta', $companyId);
         if (!$integration) {
             return ['skipped' => true, 'reason' => 'No hay integración meta configurada'];
         }

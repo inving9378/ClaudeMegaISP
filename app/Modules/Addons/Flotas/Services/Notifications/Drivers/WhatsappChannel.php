@@ -2,11 +2,11 @@
 
 namespace App\Modules\Addons\Flotas\Services\Notifications\Drivers;
 
+use App\Modules\Addons\Hub\Services\Servicios;
 use App\Models\User;
 use App\Modules\Addons\Flotas\Models\FleetGeofenceEvent;
 use App\Modules\Addons\Flotas\Services\Notifications\GeofenceEventPresenter;
 use App\Modules\Addons\Flotas\Services\Notifications\NotificationChannelInterface;
-use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppProviderFactory;
 
 class WhatsappChannel implements NotificationChannelInterface
 {
@@ -34,7 +34,7 @@ class WhatsappChannel implements NotificationChannelInterface
         // correcta por empresa (fix #91). client_id NULL = flota interna Meganet → company 1,
         // mismo patrón que DocumentAlertDispatcher. Lanza excepción si la API falla.
         $companyId = (int) ($event->vehicle?->client_id ?? 1);
-        WhatsAppProviderFactory::forDefault($companyId)->sendText($phone, $text);
+        Servicios::whatsapp('flotas.geocercas', $companyId)->sendText($phone, $text);
         return true;
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\WhatsAppAgent\Listeners;
 
+use App\Modules\Addons\Hub\Services\Servicios;
 use App\Modules\Addons\Embajadores\Events\ReferralShareRequested;
 use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppGateway;
 use Illuminate\Support\Facades\Log;
@@ -31,7 +32,7 @@ class SendReferralShareListener
         foreach ($event->contacts as $contact) {
             try {
                 $numero = $this->normalizeNumber((string) $contact['phone']);
-                $this->gateway->sendText(null, $numero, (string) $contact['body'], [
+                $this->gateway->sendText(Servicios::slugWhatsApp('embajadores.compartir'), $numero, (string) $contact['body'], [
                     'source'        => 'embajadores.share_masivo',
                     'embajador_id'  => $event->embajadorId,
                     'referral_code' => $event->referralCode,

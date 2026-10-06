@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Talento\Controllers;
 
+use App\Modules\Addons\Hub\Services\Servicios;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoDocumentReminder;
@@ -268,7 +269,7 @@ class TalentoEmployeeDocumentController extends Controller
         $error = null;
 
         try {
-            app(WhatsAppGateway::class)->sendText(null, $numero, $mensaje, [
+            app(WhatsAppGateway::class)->sendText(Servicios::slugWhatsApp('talento.recordatorio_documentos'), $numero, $mensaje, [
                 'source' => 'talento_document_reminder',
                 'employee_document_id' => $documento->id,
             ]);

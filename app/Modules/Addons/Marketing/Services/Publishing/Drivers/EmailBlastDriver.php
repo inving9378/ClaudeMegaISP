@@ -2,10 +2,10 @@
 
 namespace App\Modules\Addons\Marketing\Services\Publishing\Drivers;
 
+use App\Modules\Addons\Hub\Services\Correo;
 use App\Models\Marketing\Lead;
 use App\Models\Marketing\Publication;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 class EmailBlastDriver extends AbstractPublishDriver
 {
@@ -47,10 +47,11 @@ class EmailBlastDriver extends AbstractPublishDriver
 
         $sentCount = 0;
         $failed    = 0;
+        $correo    = Correo::mailer('marketing.correo_masivo');
 
         foreach ($recipients as $email) {
             try {
-                Mail::html(
+                $correo->html(
                     $this->buildHtml($subject, $caption, $videoUrl, $thumbUrl),
                     function ($msg) use ($email, $subject) {
                         $msg->to($email)->subject($subject);

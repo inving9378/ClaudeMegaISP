@@ -2,12 +2,12 @@
 
 namespace App\Modules\Addons\Flotas\Services\Notifications;
 
+use App\Modules\Addons\Hub\Services\Correo;
+use App\Modules\Addons\Hub\Services\Servicios;
 use App\Models\User;
 use App\Modules\Addons\Flotas\Models\FleetSubscription;
-use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppProviderFactory;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 /**
  * Notifica a los gestores de flota del cliente sobre recordatorios/vencimiento de
@@ -61,7 +61,7 @@ class SubscriptionAlertDispatcher
 
         try {
             $body = $this->message($sub, $eventType, $daysLeft);
-            Mail::raw($body, function ($message) use ($email) {
+            Correo::mailer('flotas.correo')->raw($body, function ($message) use ($email) {
                 $message->to($email)->subject('Meganet Flotas — tu prueba está por vencer');
             });
             return ['channel' => 'email', 'user_id' => $user->id, 'status' => 'sent', 'recipient' => $email, 'error' => null];
@@ -79,7 +79,7 @@ class SubscriptionAlertDispatcher
         }
 
         try {
-            WhatsAppProviderFactory::forDefault($companyId)->sendText($phone, $this->message($sub, $eventType, $daysLeft));
+            Servicios::whatsapp('flotas.suscripciones', $companyId)->sendText($phone, $this->message($sub, $eventType, $daysLeft));
             return ['channel' => 'whatsapp', 'user_id' => $user->id, 'status' => 'sent', 'recipient' => $phone, 'error' => null];
         } catch (\Throwable $e) {
             Log::warning("Flotas SubscriptionAlert: WhatsApp falló para user {$user->id}: {$e->getMessage()}");

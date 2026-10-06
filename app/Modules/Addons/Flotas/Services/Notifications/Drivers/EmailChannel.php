@@ -2,11 +2,11 @@
 
 namespace App\Modules\Addons\Flotas\Services\Notifications\Drivers;
 
+use App\Modules\Addons\Hub\Services\Correo;
 use App\Models\User;
 use App\Modules\Addons\Flotas\Mail\FleetGeofenceEventMail;
 use App\Modules\Addons\Flotas\Models\FleetGeofenceEvent;
 use App\Modules\Addons\Flotas\Services\Notifications\NotificationChannelInterface;
-use Illuminate\Support\Facades\Mail;
 
 class EmailChannel implements NotificationChannelInterface
 {
@@ -23,7 +23,7 @@ class EmailChannel implements NotificationChannelInterface
 
     public function send(User $user, FleetGeofenceEvent $event): bool
     {
-        Mail::to($this->destination($user))->send(new FleetGeofenceEventMail($event));
+        Correo::enviar('flotas.correo', $this->destination($user), new FleetGeofenceEventMail($event));
         return true;
     }
 }
