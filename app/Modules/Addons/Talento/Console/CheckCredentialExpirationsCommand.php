@@ -2,11 +2,11 @@
 
 namespace App\Modules\Addons\Talento\Console;
 
+use App\Modules\Addons\Hub\Services\Correo;
 use App\Modules\Addons\Talento\Models\TalentoCredential;
 use App\Modules\Addons\Talento\Models\TalentoFund;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 class CheckCredentialExpirationsCommand extends Command
 {
@@ -117,7 +117,7 @@ class CheckCredentialExpirationsCommand extends Command
         // Email si el servidor está configurado — graceful degradation
         try {
             if (config('mail.from.address') && filter_var($user->email ?? '', FILTER_VALIDATE_EMAIL)) {
-                Mail::raw($msg, fn($m) => $m
+                Correo::mailer('talento.correo_vencimientos')->raw($msg, fn($m) => $m
                     ->to($user->email)
                     ->subject("[Talento] Alerta de credencial — {$user->name}")
                 );

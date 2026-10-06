@@ -25,7 +25,7 @@ class ApiIntegrationProvider extends BaseModel
     protected $table = 'api_integration_providers';
 
     protected $fillable = [
-        'slug', 'name', 'description', 'type', 'driver', 'soporta_imagenes', 'soporta_pdf',
+        'slug', 'name', 'description', 'type', 'driver', 'servicio', 'soporta_imagenes', 'soporta_pdf',
         'icon', 'docs_url', 'key_format', 'has_config', 'is_system', 'active',
     ];
 

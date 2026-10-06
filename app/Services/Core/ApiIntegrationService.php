@@ -93,6 +93,14 @@ class ApiIntegrationService
             return $this->validarIA($integration, $catalogo);
         }
 
+        // Cuenta de correo: se conecta y autentica con el servidor (sin mandar nada)
+        if ($catalogo?->servicio === 'correo') {
+            [$ok, $mensaje] = \App\Modules\Addons\Hub\Services\Correo::probarConfig(
+                \App\Modules\Addons\Hub\Services\Correo::configDe($integration)
+            );
+            return $this->validationResult($integration, $ok, $mensaje);
+        }
+
         $key = $integration->value;
 
         if (!$key) {
@@ -124,7 +132,8 @@ class ApiIntegrationService
     public function puedeValidar(ApiIntegration $integration): bool
     {
         $catalogo = ApiIntegrationProvider::where('slug', $integration->provider)->first();
-        return $catalogo?->type === 'ia' || isset($this->serviceValidators($integration, '')[$integration->provider]);
+        return $catalogo?->type === 'ia' || $catalogo?->servicio === 'correo'
+            || isset($this->serviceValidators($integration, '')[$integration->provider]);
     }
 
     /** Texto de la última validación (está en el historial de la integración). */
@@ -315,6 +324,7 @@ class ApiIntegrationService
                 'has_config'  => $p->has_config,
                 'active'      => $p->active,
                 'driver'      => $p->driver,
+                'servicio'    => $p->servicio,
             ])->all();
     }
 }

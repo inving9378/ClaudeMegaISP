@@ -3,6 +3,7 @@
 use App\Modules\Addons\Hub\Controllers\ApiIntegrationController;
 use App\Modules\Addons\Hub\Controllers\ApiIntegrationProviderController;
 use App\Modules\Addons\Hub\Controllers\IaModulosController;
+use App\Modules\Addons\Hub\Controllers\ServiciosModulosController;
 use Illuminate\Support\Facades\Route;
 
 // ── Blade view ────────────────────────────────────────────────────────────────
@@ -21,6 +22,9 @@ Route::middleware(['web', 'auth'])->prefix('api/hub')->name('hub.api.')->group(f
     Route::get('ia-modulos',                    [IaModulosController::class, 'index'])->name('iaModulos.index');
     Route::put('ia-modulos/{clave}',            [IaModulosController::class, 'update'])->where('clave', '[a-z0-9_.]+')->name('iaModulos.update');
     Route::post('ia-modulos/{clave}/probar',    [IaModulosController::class, 'probar'])->where('clave', '[a-z0-9_.]+')->name('iaModulos.probar');
+    Route::get('servicios-modulos',             [ServiciosModulosController::class, 'index'])->name('serviciosModulos.index');
+    Route::put('servicios-modulos/{clave}',     [ServiciosModulosController::class, 'update'])->where('clave', '[a-z0-9_.]+')->name('serviciosModulos.update');
+    Route::post('servicios-modulos/{clave}/probar', [ServiciosModulosController::class, 'probar'])->where('clave', '[a-z0-9_.]+')->name('serviciosModulos.probar');
     Route::get('integrations',                  [ApiIntegrationController::class, 'index'])->name('index');
     Route::post('integrations',                 [ApiIntegrationController::class, 'store'])->name('store');
     Route::get('integrations/{id}',             [ApiIntegrationController::class, 'show'])->name('show');

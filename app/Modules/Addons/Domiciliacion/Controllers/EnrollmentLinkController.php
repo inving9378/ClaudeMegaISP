@@ -2,6 +2,8 @@
 
 namespace App\Modules\Addons\Domiciliacion\Controllers;
 
+use App\Modules\Addons\Hub\Services\Correo;
+use App\Modules\Addons\Hub\Services\Servicios;
 use App\Http\Controllers\Controller;
 use App\Mail\StandardMail;
 use App\Modules\Addons\Domiciliacion\Models\EnrollmentLink;
@@ -12,7 +14,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 class EnrollmentLinkController extends Controller
 {
@@ -143,7 +144,7 @@ class EnrollmentLinkController extends Controller
             try {
                 $numero = $this->normalizeWhatsAppNumber($cmi->phone ?? '');
                 if ($numero !== '') {
-                    app(WhatsAppGateway::class)->sendText(null, $numero, $mensaje);
+                    app(WhatsAppGateway::class)->sendText(Servicios::slugWhatsApp('domiciliacion.liga'), $numero, $mensaje);
                 }
             } catch (\Throwable $e) {
                 Log::warning('domiciliacion.liga: fallo WhatsApp', ['error' => $e->getMessage()]);
@@ -158,7 +159,7 @@ class EnrollmentLinkController extends Controller
                 return;
             }
             try {
-                Mail::send(new StandardMail([
+                Correo::enviar('domiciliacion.correo', null, new StandardMail([
                     'to'    => $email,
                     'title' => 'Activa tu pago automático mensual — Meganet',
                     'body'  => "<p>Hola {$nombre},</p>"

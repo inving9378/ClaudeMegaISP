@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Marketing\Controllers;
 
+use App\Modules\Addons\Hub\Services\Servicios;
 use App\Http\Controllers\Controller;
 use App\Models\Core\ApiIntegration;
 use App\Models\Marketing\PublicationChannel;
@@ -23,7 +24,7 @@ class MetaOAuthController extends Controller
      */
     public function start(Request $request)
     {
-        $integration = $this->hub->getIntegration('meta', 1);
+        $integration = Servicios::integracion('marketing.meta') ?? $this->hub->getIntegration('meta', 1);
         if (!$integration) {
             return redirect('/marketing/publishing/setup')
                 ->with('error', 'Primero configura la integración Meta en /integraciones con tu App ID y App Secret.');
@@ -83,7 +84,7 @@ class MetaOAuthController extends Controller
                 ->with('error', "Meta rechazó la autorización: {$errorMsg}");
         }
 
-        $integration = $this->hub->getIntegration('meta', 1);
+        $integration = Servicios::integracion('marketing.meta') ?? $this->hub->getIntegration('meta', 1);
         $config      = $integration->config ?? [];
         $appId       = $config['app_id'];
         $appSecret   = $config['app_secret'];

@@ -2,9 +2,9 @@
 
 namespace App\Modules\Addons\WarRoom\Jobs;
 
+use App\Modules\Addons\Hub\Services\Servicios;
 use App\Modules\Addons\Marketing\Services\EvolutionApiService;
 use App\Modules\Addons\WarRoom\Models\Meeting;
-use App\Modules\Addons\WhatsAppAgent\Contracts\WhatsAppProviderInterface;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -21,8 +21,11 @@ class SendMeetingMinutesJob implements ShouldQueue
 
     public function __construct(public readonly int $meetingId) {}
 
-    public function handle(WhatsAppProviderInterface $whatsapp): void
+    public function handle(): void
     {
+        // Línea elegida en Integraciones → Módulos de servicios (o la de siempre)
+        $whatsapp = Servicios::whatsapp('warroom.minutas');
+
         $meeting = Meeting::with(['attendees.user', 'actionItems.assignee', 'sections'])
             ->find($this->meetingId);
 

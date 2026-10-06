@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\EvaluadorEmpresarial\Controllers;
 
+use App\Modules\Addons\Hub\Services\Correo;
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\EvaluadorEmpresarial\Mail\EvaluacionEmpresarialMail;
 use App\Modules\Addons\EvaluadorEmpresarial\Models\EvaluacionEmpresarial;
@@ -9,7 +10,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class EvaluadorEmpresarialController extends Controller
@@ -85,8 +85,7 @@ class EvaluadorEmpresarialController extends Controller
                 return response()->json(['success' => false, 'mensaje' => 'La evaluación no tiene email de contacto'], 422);
             }
 
-            Mail::to($evaluacion->email_contacto)
-                ->send(new EvaluacionEmpresarialMail($evaluacion));
+            Correo::enviar('evaluador.correo', $evaluacion->email_contacto, new EvaluacionEmpresarialMail($evaluacion));
 
             return response()->json(['success' => true, 'mensaje' => 'Email enviado correctamente']);
 

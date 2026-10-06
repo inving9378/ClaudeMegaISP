@@ -2,9 +2,10 @@
 
 namespace App\Modules\Addons\PortalPago\Commands;
 
+use App\Modules\Addons\Hub\Services\Correo;
+use App\Modules\Addons\Hub\Services\Servicios;
 use App\Models\ClientInvoice;
 use App\Modules\Addons\Marketing\Services\EvolutionApiService;
-use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppProviderFactory;
 use App\Modules\Addons\PortalPago\Models\PortalPagoAccount;
 use App\Modules\Addons\PortalPago\Models\PortalPagoRecurrence;
 use App\Modules\Addons\PortalPago\Services\PortalPagoLinkService;
@@ -12,7 +13,6 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 /**
  * Recurrencia asistida del Portal de Pago.
@@ -141,7 +141,7 @@ class EnviarRecurrentesCommand extends Command
 
         if ($email) {
             try {
-                Mail::raw($texto, fn ($m) => $m->to($email)->subject('Resumen diario — pagos:enviar-recurrentes'));
+                Correo::mailer('portalpago.resumen_correo')->raw($texto, fn ($m) => $m->to($email)->subject('Resumen diario — pagos:enviar-recurrentes'));
             } catch (\Throwable $e) {
                 Log::channel('pagos_recurrentes')->warning('pagos:enviar-recurrentes — falló envío de resumen por correo', ['error' => $e->getMessage()]);
             }
@@ -149,7 +149,7 @@ class EnviarRecurrentesCommand extends Command
 
         if ($whatsapp) {
             try {
-                WhatsAppProviderFactory::forDefault()->sendText(EvolutionApiService::phoneToJid($whatsapp), $texto);
+                Servicios::whatsapp('portalpago.resumen_diario')->sendText(EvolutionApiService::phoneToJid($whatsapp), $texto);
             } catch (\Throwable $e) {
                 Log::channel('pagos_recurrentes')->warning('pagos:enviar-recurrentes — falló envío de resumen por WhatsApp', ['error' => $e->getMessage()]);
             }

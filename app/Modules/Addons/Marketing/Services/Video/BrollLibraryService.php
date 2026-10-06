@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Marketing\Services\Video;
 
+use App\Modules\Addons\Hub\Services\Servicios;
 use App\Models\Marketing\Asset;
 use App\Models\Marketing\MarketingNiche;
 use App\Services\Core\ApiIntegrationService;
@@ -286,7 +287,9 @@ class BrollLibraryService
     protected function resolveApiKey(): ?string
     {
         try {
-            return app(ApiIntegrationService::class)->getKey('pexels', $this->companyId);
+            // Integración elegida en Módulos de servicios, o la principal de Pexels como siempre
+            return Servicios::integracion('marketing.broll')?->value
+                ?? app(ApiIntegrationService::class)->getKey('pexels', $this->companyId);
         } catch (\Throwable) {
             return null;
         }

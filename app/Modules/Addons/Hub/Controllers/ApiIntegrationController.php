@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Hub\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\Core\ApiIntegration;
 use App\Models\Core\ApiIntegrationLog;
+use App\Modules\Addons\Hub\Services\Servicios;
 use App\Modules\Addons\IA\Services\IA;
 use App\Services\Core\ApiIntegrationService;
 use Illuminate\Http\JsonResponse;
@@ -129,6 +130,8 @@ class ApiIntegrationController extends Controller
         $aviso = null;
         if ($seDesactiva && $usos = IA::usosDeIntegracion($integration)) {
             $aviso = 'Integración desactivada. Estos módulos se quedan sin IA hasta que les asignes otra: ' . implode(', ', $usos) . '.';
+        } elseif ($seDesactiva && $usos = Servicios::usosDeIntegracion($integration)) {
+            $aviso = 'Integración desactivada. Estos módulos vuelven a usar lo de siempre hasta que les asignes otra: ' . implode(', ', $usos) . '.';
         }
 
         return response()->json([
@@ -147,9 +150,10 @@ class ApiIntegrationController extends Controller
         }
 
         // Borrarla dejaría sin IA a los módulos que la usan: primero hay que moverlos.
-        if ($usos = IA::usosDeIntegracion($integration)) {
+        if ($usos = $this->usos($integration)) {
             return response()->json([
-                'error' => 'No se puede eliminar: la usan ' . implode(', ', $usos) . '. Asígnales otra integración en Módulos IA (o en /ia/configuracion) y vuelve a intentar.',
+                'error' => 'No se puede eliminar: la usan ' . implode(', ', $usos) . '. Asígnales otra en '
+                    . ($integration->type === 'ia' ? 'Módulos IA (o en /ia/configuracion)' : 'Módulos de servicios') . ' y vuelve a intentar.',
             ], 422);
         }
 
@@ -234,6 +238,12 @@ class ApiIntegrationController extends Controller
 
     // ── Helpers ─────────────────────────────────────────────────────────────────
 
+    /** Módulos (de IA o de servicios) que dependen de esta integración. */
+    private function usos(ApiIntegration $i): array
+    {
+        return $i->type === 'ia' ? IA::usosDeIntegracion($i) : Servicios::usosDeIntegracion($i);
+    }
+
     /**
      * Al guardar una llave nueva se prueba de inmediato, para que quien la cambia
      * sepa en el momento si funciona (y por qué no). Null si no hay cómo probarla.
@@ -262,7 +272,7 @@ class ApiIntegrationController extends Controller
             'last_validation_status'  => $i->last_validation_status,
             'last_validated_at'       => $i->last_validated_at?->toISOString(),
             'last_validation_message' => $i->last_validation_status ? $this->svc->ultimoMensajeValidacion($i) : null,
-            'en_uso'                  => $i->type === 'ia' ? IA::usosDeIntegracion($i) : [],
+            'en_uso'                  => $this->usos($i),
             'created_at'              => $i->created_at?->toISOString(),
         ];
     }

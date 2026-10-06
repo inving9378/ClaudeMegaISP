@@ -2,6 +2,7 @@
 
 namespace App\Modules\Core\Clientes\Services;
 
+use App\Modules\Addons\Hub\Services\Servicios;
 use App\Http\Controllers\Utils\ComunConstantsController;
 use App\Jobs\SuspendServiceJob;
 use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppGateway;
@@ -367,7 +368,7 @@ class BillingPauseService
                 return;
             }
 
-            app(WhatsAppGateway::class)->sendText(null, $telefono, $mensajes[$evento]);
+            app(WhatsAppGateway::class)->sendText(Servicios::slugWhatsApp('facturacion.pausas'), $telefono, $mensajes[$evento]);
         } catch (\Throwable $e) {
             Log::warning("[BillingPauseService] No se pudo notificar por WhatsApp la pausa #{$pausa->id}: " . $e->getMessage());
         }

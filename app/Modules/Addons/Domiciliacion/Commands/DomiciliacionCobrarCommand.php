@@ -2,6 +2,8 @@
 
 namespace App\Modules\Addons\Domiciliacion\Commands;
 
+use App\Modules\Addons\Hub\Services\Correo;
+use App\Modules\Addons\Hub\Services\Servicios;
 use App\Mail\StandardMail;
 use App\Models\Marketing\Setting;
 use App\Models\Payment;
@@ -14,7 +16,6 @@ use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppGateway;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class DomiciliacionCobrarCommand extends Command
@@ -357,7 +358,7 @@ class DomiciliacionCobrarCommand extends Command
                 return;
             }
             $numero = $this->normalizeWhatsAppNumber($phone);
-            app(WhatsAppGateway::class)->sendText(null, $numero, $mensaje);
+            app(WhatsAppGateway::class)->sendText(Servicios::slugWhatsApp('domiciliacion.avisos_cobro'), $numero, $mensaje);
         } catch (\Throwable $e) {
             Log::warning('domiciliacion.cobrar: fallo WhatsApp notificación', ['error' => $e->getMessage()]);
         }
@@ -382,7 +383,7 @@ class DomiciliacionCobrarCommand extends Command
             if (! $email) {
                 return;
             }
-            Mail::send(new StandardMail(['to' => $email, 'title' => $asunto, 'body' => $html]));
+            Correo::enviar('domiciliacion.correo', null, new StandardMail(['to' => $email, 'title' => $asunto, 'body' => $html]));
         } catch (\Throwable $e) {
             Log::warning('domiciliacion.cobrar: fallo email notificación', ['error' => $e->getMessage()]);
         }

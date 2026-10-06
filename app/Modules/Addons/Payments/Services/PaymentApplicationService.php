@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Payments\Services;
 
+use App\Modules\Addons\Hub\Services\Servicios;
 use App\Modules\Core\Clientes\Models\Client;
 use App\Models\ClientInvoice;
 use App\Models\MethodOfPayment;
@@ -213,7 +214,7 @@ class PaymentApplicationService
         );
 
         try {
-            $this->whatsapp->sendAndLog($phone, $body, null, [
+            $this->whatsapp->sendAndLog($phone, $body, Servicios::slugWhatsApp('pagos.pago_recibido'), [
                 'source'     => 'payments.spei.webhook',
                 'payment_id' => $payment->id,
                 'client_id'  => $client->id,

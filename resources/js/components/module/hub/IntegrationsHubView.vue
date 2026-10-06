@@ -54,6 +54,11 @@
           <i class="bi bi-cpu me-1"></i>Módulos IA
         </a>
       </li>
+      <li class="nav-item">
+        <a class="nav-link" :class="{ active: tab === 'servicios' }" href="#" @click.prevent="openServiciosTab()">
+          <i class="bi bi-plug me-1"></i>Módulos de servicios
+        </a>
+      </li>
     </ul>
 
     <!-- Loading -->
@@ -219,6 +224,7 @@
                   </span>
                   <span v-else class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i>Falta el protocolo</span>
                 </div>
+                <div v-else-if="p.servicio" class="small mt-1 text-muted">{{ servicios[p.servicio] ?? p.servicio }}</div>
               </td>
               <td>{{ p.integrations_count }}</td>
               <td>
@@ -308,6 +314,75 @@
       </div>
     </div>
 
+    <!-- Módulos de servicios tab -->
+    <div v-if="tab === 'servicios'" class="hub-ia">
+      <p class="text-muted small mb-3">
+        Elige qué usa cada módulo para WhatsApp, correo, mapas y demás servicios. Un módulo <strong>sin asignar sigue como siempre</strong>
+        (lo que dice «Como siempre»). <strong>Probar</strong> revisa lo que el módulo usaría ahora, sin mandar mensajes ni correos.
+      </p>
+      <div v-if="servLoading" class="hub-loading"><div class="spinner-border text-primary"></div></div>
+      <div v-else>
+        <div v-for="(mods, grupo) in servModulosPorGrupo" :key="grupo" class="mb-4">
+          <h6 class="fw-semibold mb-2">{{ grupo }}</h6>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle ia-table">
+              <thead>
+                <tr><th style="width:30%">Módulo</th><th style="width:32%">Usa</th><th>Estado</th><th></th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="m in mods" :key="m.clave">
+                  <td>
+                    <div class="fw-semibold">{{ m.nombre }}</div>
+                    <div class="small text-muted">
+                      <i class="bi me-1" :class="servIcono(m.servicio)"></i>{{ m.servicio_nombre }}
+                    </div>
+                  </td>
+                  <td>
+                    <select class="form-select form-select-sm" v-model="m.destino_id" :disabled="!can('manage-integrations')">
+                      <option :value="null">Como siempre — {{ m.como_siempre }}</option>
+                      <template v-if="m.servicio === 'whatsapp'">
+                        <option v-for="l in servLineas" :key="l.id" :value="l.id" :disabled="!l.activa">
+                          Línea {{ l.nombre }} ({{ l.proveedor === 'meta' ? 'oficial Meta' : 'Evolution' }}){{ !l.activa ? ' — inactiva' : '' }}
+                        </option>
+                      </template>
+                      <template v-else>
+                        <option v-for="i in servIntegracionesDe(m.servicio)" :key="i.id" :value="i.id" :disabled="!i.activa">
+                          {{ i.nombre }}{{ !i.activa ? ' — inactiva' : '' }}
+                        </option>
+                      </template>
+                    </select>
+                    <div v-if="m.servicio !== 'whatsapp' && !servIntegracionesDe(m.servicio).length" class="small text-muted mt-1">
+                      Para elegir otra, crea una integración de {{ m.servicio_nombre.toLowerCase() }} en la pestaña Integraciones.
+                    </div>
+                  </td>
+                  <td>
+                    <span class="badge" :class="servEstado(m).cls" :title="servEstado(m).tip">{{ servEstado(m).txt }}</span>
+                    <div v-if="servEstado(m).aviso" class="small text-warning mt-1"><i class="bi bi-exclamation-triangle me-1"></i>{{ servEstado(m).aviso }}</div>
+                    <div v-if="servPrueba[m.clave]" class="small mt-1" :class="servPrueba[m.clave].ok ? 'text-success' : 'text-danger'">
+                      <i class="bi me-1" :class="servPrueba[m.clave].ok ? 'bi-check-circle' : 'bi-x-circle'"></i>{{ servPrueba[m.clave].mensaje }}
+                    </div>
+                  </td>
+                  <td class="text-end text-nowrap">
+                    <button v-if="can('validate-integrations')" class="btn btn-sm btn-outline-secondary me-1"
+                            :disabled="servCambiado(m) || servProbando[m.clave]" @click="probarServicio(m)"
+                            title="Revisa lo que el módulo usaría ahora, sin mandar nada">
+                      <span v-if="servProbando[m.clave]" class="spinner-border spinner-border-sm"></span>
+                      <span v-else>Probar</span>
+                    </button>
+                    <button v-if="can('manage-integrations')" class="btn btn-sm btn-primary"
+                            :disabled="!servCambiado(m) || servGuardando[m.clave]" @click="saveServicio(m)">
+                      <span v-if="servGuardando[m.clave]" class="spinner-border spinner-border-sm"></span>
+                      <span v-else>Guardar</span>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -338,6 +413,14 @@ export default {
       iaGuardando: {},
       iaProbando: {},
       iaPrueba: {},
+      servicios: {},
+      servModulos: [],
+      servLineas: [],
+      servIntegraciones: [],
+      servLoading: false,
+      servGuardando: {},
+      servProbando: {},
+      servPrueba: {},
       providers: [],
       integrations: [],
       validating: {},
@@ -345,6 +428,13 @@ export default {
   },
 
   computed: {
+    servModulosPorGrupo() {
+      return this.servModulos.reduce((acc, m) => {
+        (acc[m.grupo] = acc[m.grupo] || []).push(m);
+        return acc;
+      }, {});
+    },
+
     iaModulosPorGrupo() {
       return this.iaModulos.reduce((acc, m) => {
         (acc[m.grupo] = acc[m.grupo] || []).push(m);
@@ -435,6 +525,9 @@ export default {
                 <input id="sw-app-secret" type="password" class="form-control font-monospace" placeholder="App Secret de developers.facebook.com">
               </div>
             </div>
+            <div id="sw-correo-wrap" style="display:none">
+              ${this.camposCorreoHtml()}
+            </div>
             <div id="sw-wo-wrap" style="display:none">
               <div class="form-text mb-2">La "API Key" de arriba es el <b>access token permanente</b> de tu WhatsApp Business Account.</div>
               <div class="mb-3">
@@ -470,6 +563,7 @@ export default {
           const meta = document.getElementById('sw-meta-wrap');
           const wo = document.getElementById('sw-wo-wrap');
           const ia = document.getElementById('sw-ia-wrap');
+          const correo = document.getElementById('sw-correo-wrap');
           const typeLabelEl = document.getElementById('sw-type-label');
           const toggle = () => {
             const prov = this.providers.find(p => p.id === sel.value);
@@ -478,6 +572,7 @@ export default {
             meta.style.display = sel.value === 'meta' ? 'block' : 'none';
             wo.style.display   = sel.value === 'whatsapp-oficial' ? 'block' : 'none';
             ia.style.display   = prov?.type === 'ia' ? 'block' : 'none';
+            correo.style.display = prov?.servicio === 'correo' ? 'block' : 'none';
             this.marcarCamposIa(prov?.driver);
           };
           sel.addEventListener('change', toggle);
@@ -493,8 +588,13 @@ export default {
           if (prov?.driver === 'openai_compatible' && !iaConfig.endpoint) {
             Swal.showValidationMessage('Este proveedor necesita la URL del servicio'); return false;
           }
+          const correoConfig = prov?.servicio === 'correo' ? this.leerCamposCorreo() : null;
+          if (correoConfig && !correoConfig.host) {
+            Swal.showValidationMessage('Indica el servidor de correo (host)'); return false;
+          }
           return {
             iaConfig,
+            correoConfig,
             provider,
             name,
             key:         document.getElementById('sw-key').value,
@@ -512,7 +612,7 @@ export default {
         },
       }).then(async result => {
         if (!result.isConfirmed) return;
-        const { provider, name, key, active, endpoint, instance, appId, appSecret, iaConfig,
+        const { provider, name, key, active, endpoint, instance, appId, appSecret, iaConfig, correoConfig,
                 woPhone, woWaba, woAppSecret, woVerifyToken, woApiVersion } = result.value;
         try {
           const payload = {
@@ -528,6 +628,7 @@ export default {
               verify_token: woVerifyToken, api_version: woApiVersion || 'v21.0',
             } } : {}),
             ...(iaConfig ? { config: iaConfig } : {}),
+            ...(correoConfig ? { config: correoConfig } : {}),
           };
           const res = await axios.post('/api/hub/integrations', payload);
           this.toast('success', 'Integración creada');
@@ -543,6 +644,7 @@ export default {
       const isEvo  = item.provider === 'evolution';
       const isMeta = item.provider === 'meta';
       const isWo   = item.provider === 'whatsapp-oficial';
+      const isCorreo = this.providers.find(p => p.id === item.provider)?.servicio === 'correo';
       const isIa   = item.type === 'ia';
       const driver = this.providers.find(p => p.id === item.provider)?.driver;
 
@@ -615,6 +717,7 @@ export default {
             </div>
             ` : ''}
             ${isIa ? this.camposIaHtml(item.config) : ''}
+            ${isCorreo ? this.camposCorreoHtml(item.config) : ''}
             <div class="form-check form-switch mt-2">
               <input class="form-check-input" type="checkbox" id="sw-active" ${item.active ? 'checked' : ''}>
               <label class="form-check-label" for="sw-active">Integración activa</label>
@@ -629,8 +732,13 @@ export default {
           if (driver === 'openai_compatible' && !iaConfig.endpoint) {
             Swal.showValidationMessage('Este proveedor necesita la URL del servicio'); return false;
           }
+          const correoConfig = isCorreo ? this.leerCamposCorreo() : null;
+          if (correoConfig && !correoConfig.host) {
+            Swal.showValidationMessage('Indica el servidor de correo (host)'); return false;
+          }
           return {
             iaConfig,
+            correoConfig,
             name,
             key:          document.getElementById('sw-key').value,
             active:       document.getElementById('sw-active').checked,
@@ -647,7 +755,7 @@ export default {
         },
       }).then(async result => {
         if (!result.isConfirmed) return;
-        const { name, key, active, endpoint, instance, appId, appSecret, iaConfig,
+        const { name, key, active, endpoint, instance, appId, appSecret, iaConfig, correoConfig,
                 woPhone, woWaba, woAppSecret, woVerifyToken, woApiVersion } = result.value;
         try {
           const payload = {
@@ -665,6 +773,7 @@ export default {
               ...(woAppSecret ? { app_secret: woAppSecret } : {}),
             } } : {}),
             ...(iaConfig ? { config: { ...(item.config ?? {}), ...iaConfig } } : {}),
+            ...(correoConfig ? { config: { ...(item.config ?? {}), ...correoConfig } } : {}),
           };
           const res = await axios.put(`/api/hub/integrations/${item.id}`, payload);
           this.toast('success', 'Integración actualizada');
@@ -843,6 +952,7 @@ export default {
         const res = await axios.get('/api/hub/provider-catalog');
         this.providerCatalog = res.data.data ?? [];
         this.drivers = res.data.drivers ?? {};
+        this.servicios = res.data.servicios ?? this.servicios;
       } catch (e) {
         this.toast('danger', e.response?.data?.error ?? 'Error al cargar proveedores');
       } finally {
@@ -854,6 +964,9 @@ export default {
       const editing = !!p;
       const v = (x) => this.escHtml(x ?? '');
       if (!Object.keys(this.drivers).length) await this.loadProviderCatalog();
+      const servicioOptions = Object.entries(this.servicios)
+        .map(([k, label]) => `<option value="${k}" ${p?.servicio === k ? 'selected' : ''}>${this.escHtml(label)}</option>`)
+        .join('');
       const driverOptions = Object.entries(this.drivers)
         .map(([k, label]) => `<option value="${k}" ${p?.driver === k ? 'selected' : ''}>${this.escHtml(label)}</option>`)
         .join('');
@@ -898,6 +1011,14 @@ export default {
                 <label class="form-check-label" for="pv-pdf">Puede leer PDF</label>
               </div>
             </div>
+            <div id="pv-serv-wrap" class="mb-3 p-2 border rounded" style="display:none">
+              <label class="form-label fw-semibold">Servicio que da</label>
+              <select id="pv-servicio" class="form-select">
+                <option value="">— Otro —</option>
+                ${servicioOptions}
+              </select>
+              <div class="form-text">Sus integraciones aparecerán para elegir en «Módulos de servicios».</div>
+            </div>
             <div class="mb-3">
               <label class="form-label fw-semibold">Descripción</label>
               <input id="pv-desc" type="text" class="form-control" value="${v(p?.description)}">
@@ -919,7 +1040,11 @@ export default {
         didOpen: () => {
           const type = document.getElementById('pv-type');
           const wrap = document.getElementById('pv-ia-wrap');
-          const toggle = () => { wrap.style.display = type.value === 'ia' ? 'block' : 'none'; };
+          const serv = document.getElementById('pv-serv-wrap');
+          const toggle = () => {
+            wrap.style.display = type.value === 'ia' ? 'block' : 'none';
+            serv.style.display = type.value === 'servicios' ? 'block' : 'none';
+          };
           type.addEventListener('change', toggle);
           toggle();
         },
@@ -939,6 +1064,7 @@ export default {
             ...(editing ? {} : { slug }),
             type,
             driver: type === 'ia' ? driver : null,
+            servicio: type === 'servicios' ? (document.getElementById('pv-servicio').value || null) : null,
             soporta_imagenes: type === 'ia' && document.getElementById('pv-img').checked,
             soporta_pdf: type === 'ia' && document.getElementById('pv-pdf').checked,
             description: document.getElementById('pv-desc').value.trim(),
@@ -1071,6 +1197,139 @@ export default {
       }
     },
 
+    // ── Módulos de servicios ──────────────────────────────────────────────────
+
+    async openServiciosTab() {
+      this.tab = 'servicios';
+      await this.loadServicios();
+    },
+
+    async loadServicios() {
+      this.servLoading = true;
+      try {
+        const res = await axios.get('/api/hub/servicios-modulos');
+        const d = res.data.data ?? {};
+        this.servicios = d.servicios ?? {};
+        this.servLineas = d.lineas ?? [];
+        this.servIntegraciones = d.integraciones ?? [];
+        this.servModulos = (d.modulos ?? []).map(m => ({ ...m, _orig: m.destino_id }));
+      } catch (e) {
+        this.toast('danger', e.response?.data?.error ?? 'Error al cargar los módulos de servicios');
+      } finally {
+        this.servLoading = false;
+      }
+    },
+
+    servIntegracionesDe(servicio) {
+      return this.servIntegraciones.filter(i => i.servicio === servicio);
+    },
+
+    servIcono(servicio) {
+      return { whatsapp: 'bi-whatsapp', correo: 'bi-envelope', mapas: 'bi-geo-alt', imagenes_stock: 'bi-film', redes_sociales: 'bi-share' }[servicio] ?? 'bi-plug';
+    },
+
+    servCambiado(m) {
+      return (m.destino_id ?? null) !== (m._orig ?? null);
+    },
+
+    servEstado(m) {
+      if (!m._orig) return { txt: 'Como siempre', cls: 'bg-light text-muted', tip: m.como_siempre };
+      if (m.servicio === 'whatsapp') {
+        const l = this.servLineas.find(x => x.id === m._orig);
+        if (!l) return { txt: 'La línea asignada se borró: usa lo de siempre', cls: 'bg-danger-subtle text-danger' };
+        if (!l.activa) return { txt: 'Línea inactiva: usa lo de siempre', cls: 'bg-danger-subtle text-danger' };
+        const aviso = l.proveedor === 'meta'
+          ? 'Línea oficial: Meta no deja escribir primero; este aviso solo sale si el cliente escribió en las últimas 24 horas.'
+          : (l.estado && l.estado !== 'connected' ? `La línea no está conectada (${l.estado}).` : null);
+        return { txt: `Línea ${l.nombre}`, cls: 'bg-success-subtle text-success', aviso };
+      }
+      const i = this.servIntegraciones.find(x => x.id === m._orig);
+      if (!i) return { txt: 'La integración asignada se borró: usa lo de siempre', cls: 'bg-danger-subtle text-danger' };
+      if (!i.activa) return { txt: 'Integración inactiva: usa lo de siempre', cls: 'bg-danger-subtle text-danger' };
+      if (i.estado_validacion === 'invalid') {
+        return { txt: i.nombre, cls: 'bg-danger-subtle text-danger', aviso: i.mensaje_validacion || 'La última prueba de esta integración falló.' };
+      }
+      return { txt: i.nombre, cls: 'bg-success-subtle text-success' };
+    },
+
+    async saveServicio(m) {
+      this.servGuardando = { ...this.servGuardando, [m.clave]: true };
+      try {
+        await axios.put(`/api/hub/servicios-modulos/${m.clave}`, { destino_id: m.destino_id ?? null });
+        m._orig = m.destino_id ?? null;
+        this.servPrueba = { ...this.servPrueba, [m.clave]: null };
+        this.toast('success', m.destino_id ? `${m.nombre}: guardado` : `${m.nombre}: vuelve a lo de siempre`);
+      } catch (e) {
+        this.toast('danger', e.response?.data?.error ?? e.response?.data?.message ?? 'Error al guardar');
+      } finally {
+        this.servGuardando = { ...this.servGuardando, [m.clave]: false };
+      }
+    },
+
+    async probarServicio(m) {
+      this.servProbando = { ...this.servProbando, [m.clave]: true };
+      try {
+        const res = await axios.post(`/api/hub/servicios-modulos/${m.clave}/probar`);
+        this.servPrueba = { ...this.servPrueba, [m.clave]: res.data.data };
+      } catch (e) {
+        this.servPrueba = { ...this.servPrueba, [m.clave]: { ok: false, mensaje: e.response?.data?.error ?? 'No se pudo probar' } };
+      } finally {
+        this.servProbando = { ...this.servProbando, [m.clave]: false };
+      }
+    },
+
+    // Campos de una cuenta de correo (SMTP)
+    camposCorreoHtml(config = {}) {
+      const c = config ?? {};
+      const cifrado = c.encryption ?? 'tls';
+      return `
+        <div class="form-text mb-2">La «API Key» de arriba es la <b>contraseña</b> de la cuenta de correo.</div>
+        <div class="row g-2 mb-2">
+          <div class="col-8">
+            <label class="form-label fw-semibold">Servidor (host) <span class="text-danger">*</span></label>
+            <input id="sw-mail-host" type="text" class="form-control" value="${this.escHtml(c.host ?? '')}" placeholder="smtp.gmail.com">
+          </div>
+          <div class="col-4">
+            <label class="form-label fw-semibold">Puerto</label>
+            <input id="sw-mail-port" type="number" class="form-control" value="${this.escHtml(c.port ?? 587)}">
+          </div>
+        </div>
+        <div class="mb-2">
+          <label class="form-label fw-semibold">Cifrado</label>
+          <select id="sw-mail-enc" class="form-select">
+            <option value="tls" ${cifrado === 'tls' ? 'selected' : ''}>TLS (puerto 587)</option>
+            <option value="ssl" ${cifrado === 'ssl' ? 'selected' : ''}>SSL (puerto 465)</option>
+            <option value="ninguno" ${cifrado === 'ninguno' ? 'selected' : ''}>Ninguno</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label fw-semibold">Usuario</label>
+          <input id="sw-mail-user" type="text" class="form-control" value="${this.escHtml(c.username ?? '')}" placeholder="avisos@meganet.mx">
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <label class="form-label fw-semibold">Remitente (correo)</label>
+            <input id="sw-mail-from" type="email" class="form-control" value="${this.escHtml(c.from_address ?? '')}" placeholder="avisos@meganet.mx">
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-semibold">Remitente (nombre)</label>
+            <input id="sw-mail-from-name" type="text" class="form-control" value="${this.escHtml(c.from_name ?? '')}" placeholder="Meganet">
+          </div>
+        </div>`;
+    },
+
+    leerCamposCorreo() {
+      const val = id => document.getElementById(id)?.value.trim() ?? '';
+      return {
+        host: val('sw-mail-host'),
+        port: parseInt(val('sw-mail-port') || '587', 10),
+        encryption: val('sw-mail-enc') || 'tls',
+        username: val('sw-mail-user') || null,
+        from_address: val('sw-mail-from') || null,
+        from_name: val('sw-mail-from-name') || null,
+      };
+    },
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     can(permission) {
@@ -1128,7 +1387,7 @@ export default {
         anthropic: '#7c3aed', 'anthropic-legacy': '#9e6fd0',
         openai: '#10a37f', evolution: '#25d366',
         pexels: '#05a081', 'google-maps': '#4285f4', google_maps: '#4285f4',
-        meta: '#0866ff', 'whatsapp-oficial': '#128c7e',
+        meta: '#0866ff', 'whatsapp-oficial': '#128c7e', smtp: '#6f42c1',
       };
       return map[id] ?? '#6c757d';
     },
@@ -1138,7 +1397,7 @@ export default {
         anthropic: 'bi bi-robot', 'anthropic-legacy': 'bi bi-robot',
         openai: 'bi bi-stars', evolution: 'bi bi-whatsapp',
         pexels: 'bi bi-images', 'google-maps': 'bi bi-geo-alt-fill', google_maps: 'bi bi-geo-alt-fill',
-        meta: 'bi bi-facebook', 'whatsapp-oficial': 'bi bi-patch-check-fill',
+        meta: 'bi bi-facebook', 'whatsapp-oficial': 'bi bi-patch-check-fill', smtp: 'bi bi-envelope-at',
       };
       return map[id] ?? 'bi bi-plugin';
     },
