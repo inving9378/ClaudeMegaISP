@@ -38,6 +38,24 @@ El Circuito CC (vuelta.sh, Revisor, Válvula, Jarvis, API roadmap-externo, MCP) 
 
 ## 2. WhatsApp (detalle)
 
+> **⚠️ Actualización 2026-10-06:** este mapa se levantó la mañana del 2026-10-05. Ese mismo día otra
+> sesión mergeó `feature/whatsapp-api-oficial-meta` (`89b2c45b`; bitácora
+> `docs/bitacora/2026-10-05-whatsapp-api-oficial-meta.md`): columna `whatsapp_instances.provider`
+> (`evolution`|`meta`), `WhatsAppProviderInterface`, `MetaCloudApiService` (texto/media/plantilla, firma
+> HMAC, handshake, media en 2 pasos), webhook `GET/POST /whatsapp/webhook/meta/{slug}`,
+> `WhatsAppRouterService::processInboundNormalized()`, `WhatsAppProviderFactory`, proveedor del Hub
+> `whatsapp-oficial`, UI de credenciales y selector por línea, y 10 consumidores migrados al proveedor
+> configurable. Lo de abajo describe el estado ANTERIOR a eso; leerlo junto con esa bitácora.
+>
+> Huecos detectados frente al esquema pedido por Irving (2026-10-06: "Meta envía y recibe; Evolution
+> solo para ver; al cliente nunca se le escribe primero"):
+> 1. El webhook de Evolution (`WhatsAppWebhookController`, y el de Marketing) **no revisa el proveedor de
+>    la línea**: con el número en coexistencia el mismo mensaje entraría por Meta y por Evolution con IDs
+>    distintos (wamid vs key.id) → doble registro y el agente contestaría dos veces.
+> 2. Una línea `meta` no contempla seguir conectada a Evolution solo para ver (modo "Meta + vista Evolution").
+> 3. `MetaCloudApiService::sendText` no revisa la ventana de 24 h: un aviso proactivo hacia una línea Meta
+>    lo rechaza Meta en vez de bloquearlo y registrarlo el sistema.
+
 ### 2.1 Transporte
 
 **Pila gateway** — `WA/Services/EvolutionApiService.php`. Credenciales SOLO de `config/whatsapp.php`
