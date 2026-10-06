@@ -27,6 +27,16 @@ class WhatsAppRouterService
     {
         $event = $payload['event'] ?? $payload['type'] ?? null;
 
+        // Línea oficial de Meta con Evolution conectado SOLO PARA VER (mismo número
+        // en coexistencia): los mensajes entran por Meta; la copia que manda
+        // Evolution se ignora para no duplicarlos ni que el agente conteste dos
+        // veces. Conexión y QR sí se atienden (para poder ver la línea). Decisión
+        // de Irving 2026-10-06: el agente solo recibe por el canal oficial de Meta.
+        if (self::esSoloVista($instance) && $event && str_contains(strtolower($event), 'message')) {
+            Log::debug('WhatsApp: mensaje de Evolution ignorado en línea oficial (solo vista)', ['instance' => $instance->slug]);
+            return;
+        }
+
         match (true) {
             $event && str_contains(strtolower($event), 'message')    => $this->handleEvolutionMessage($instance, $payload),
             $event && str_contains(strtolower($event), 'connection') => $this->handleConnection($instance, $payload),
@@ -54,6 +64,12 @@ class WhatsAppRouterService
                 rawMessage: $msg['rawMessage'] ?? [],
             );
         }
+    }
+
+    /** ¿La línea es oficial de Meta? Entonces lo que llega por Evolution es solo para ver. */
+    public static function esSoloVista(?WhatsAppInstance $instance): bool
+    {
+        return $instance?->provider === 'meta';
     }
 
     private function handleEvolutionMessage(WhatsAppInstance $instance, array $payload): void
