@@ -77,3 +77,70 @@ Irving lo decida).
 - Mergear la rama de backend a `main` + correr la migración real (igual que WhatsApp hoy).
 - Cortar una versión nueva de la app (bump + bundle real + APK) para que alguien la pruebe en un
   teléfono de verdad — no se hizo todavía, a propósito, hasta tener luz verde.
+
+## 2026-10-06 06:55 — Fusionado a main, migración corrida, APK v1.15 publicado
+
+Irving dio luz verde a los dos pendientes de arriba: "Sí, fusiona y corre la migración, y arma
+el APK para probarlo".
+
+### ⚠️ Hallazgo real antes de fusionar — colisión del Circuito CC sobre este mismo checkout
+
+Al revisar la rama antes de fusionarla apareció un commit de merge que yo NUNCA hice
+(`fc831699`, mensaje "Integra servicios-por-modulo a main"), con dos padres: mi propio commit
+(`7d768205`) y la rama ajena `servicios-por-modulo` (de OTRA sesión, con su propio worktree en
+`/home/meganet/megaisp-wt-integrations`). El reflog de mi rama confirma el momento exacto:
+`feature/talento-checkin-ubicacion-manual@{1}: merge servicios-por-modulo: Merge made by the
+'ort' strategy` — a las 06:39:54, justo cuando yo estaba corriendo `./gradlew assembleDebug` en
+este mismo directorio (`/var/www/megaisp`). `main` seguía intacto (NO contenía ese merge) — la
+mutación quedó solo en mi rama, porque mi rama era lo que estaba checkeado aquí en ese instante.
+
+Esto es el mismo patrón ya documentado en memoria (`feedback_trabajar_en_worktree_cc.md`): el
+MergeRunner del Circuito hace sus `git checkout`/`git merge` **sobre este mismo checkout
+compartido** (`/var/www/megaisp`), y si alguien más (yo, en este caso) tiene una rama propia
+checkeada ahí mismo mientras el runner procesa OTRO item aprobado, el merge del runner puede
+aterrizar en la rama equivocada en vez de en `main`. No causó pérdida de datos (la rama
+`servicios-por-modulo` sigue intacta en su propio worktree, sin tocar), pero si yo hubiera
+fusionado mi rama tal cual a `main` sin revisar, habría metido ese trabajo ajeno sin que nadie lo
+aprobara por su propio camino.
+
+**Corrección aplicada:** se armó una rama limpia (`talento-checkin-limpia`) desde `main`,
+`cherry-pick` de mis 3 commits reales (sin el merge contaminado), verificado que el diff contra
+`main` solo trae mis archivos, y esa rama limpia es la que se fusionó. La rama contaminada
+(`feature/talento-checkin-ubicacion-manual`) quedó sin borrar — git se niega a borrarla con `-d`
+por tener commits "sin fusionar" (los de `servicios-por-modulo`, que son de otra persona, no
+míos) y no se usó `-D` a la fuerza. Queda ahí, inofensiva, hasta que Irving decida.
+
+### Backend — fusionado y migrado
+
+- Merge `8b1ae0ea` ("Integra talento-checkin-limpia a main") — limpio, sin la contaminación.
+- `php artisan migrate --force`: migración `2026_10_06_070000_add_location_source_to_talento_attendances`
+  corrió en **126ms**, columnas `check_in_location_source`/`check_out_location_source`
+  confirmadas en la tabla real.
+
+### App móvil — versión 1.15 publicada
+
+- `versionCode` 114→115, `versionName` "1.14"→"1.15".
+- Bundle regenerado (mismos stubs temporales de `react-native-reanimated`/`rn-fetch-blob`,
+  borrados después) + `gradlew assembleRelease` → **BUILD SUCCESSFUL en 5m33s**, APK de 62.9 MB
+  (más chico que el debug de verificación, 144 MB — normal, release minifica/usa Hermes).
+- Verificado el bytecode Hermes compilado DENTRO del APK (no el bundle plano — el release usa
+  Hermes, el debug de la verificación anterior no): `openstreetmap.org`, `geocodificar` y
+  `UbicacionManual` SÍ aparecen como literales en el bytecode — confirma que mi código quedó
+  realmente empaquetado (los textos con acentos no se pudieron grep-ear por cómo Hermes codifica
+  su tabla de strings — no es señal de un problema, los literales ASCII sin acentos sí matchean).
+- MD5 **idéntico en las 3 paradas**: build de Gradle → copia en `public/downloads/meganetV115.apk`
+  → descarga real por HTTPS (`a3f5aab6bd2cbedceee7ca79f326fe1b`).
+- Fila nueva en `talento_app_releases` (id=12, activa; la v1.14 desactivada) — confirmado también
+  que `GET /talento/api/app/latest` ya anuncia la 1.15 (así que el aviso de actualización dentro
+  de la app también la va a ofrecer, no solo la descarga directa).
+- Commit `e6ddfa8` ("release: v1.15") en `TalentoEquipo` (`master`, sin remoto).
+
+### Pendiente real
+
+- Que Irving instale/actualice la app en su teléfono y pruebe de verdad el flujo (buscar
+  dirección + mover el pin) — sigue siendo el único "no probado" de esta tarea, por la ausencia
+  de teléfono/emulador en este servidor.
+- Decidir qué hacer con la rama contaminada `feature/talento-checkin-ubicacion-manual` (borrarla
+  o dejarla) y, aparte, si vale la pena blindar el MergeRunner del Circuito para que no vuelva a
+  operar sobre un checkout con una rama ajena activa — fuera de alcance de esta tarea, señalado
+  para que Irving decida si se convierte en un item del roadmap.
