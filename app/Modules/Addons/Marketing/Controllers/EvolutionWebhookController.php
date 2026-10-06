@@ -5,6 +5,8 @@ namespace App\Modules\Addons\Marketing\Controllers;
 use App\Models\Marketing\Setting;
 use App\Modules\Addons\Marketing\Jobs\ProcessIncomingMessageJob;
 use App\Modules\Addons\Marketing\Jobs\UpdateMessageStatusJob;
+use App\Modules\Addons\WhatsAppAgent\Models\WhatsAppInstance;
+use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppRouterService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Cache;
@@ -32,6 +34,14 @@ class EvolutionWebhookController extends Controller
 
         Log::channel('evolution')->debug('Webhook received', ['event' => $event]);
 
+        // Si este número ya es una línea oficial de Meta (coexistencia), lo que manda
+        // Evolution es solo para ver: el mensaje entra por Meta y ahí lo atiende el
+        // agente. Sin esto, el agente de Marketing contestaría la copia de Evolution.
+        if (in_array($event, ['messages.upsert', 'messages.update'], true) && $this->esLineaOficial($payload)) {
+            Log::channel('evolution')->debug('Webhook ignorado: el número es una línea oficial de Meta (solo vista)', ['event' => $event]);
+            return response()->json(['ok' => true]);
+        }
+
         match ($event) {
             'messages.upsert'    => $this->handleMessageUpsert($payload),
             'messages.update'    => $this->handleMessageUpdate($payload),
@@ -41,6 +51,15 @@ class EvolutionWebhookController extends Controller
         };
 
         return response()->json(['ok' => true]);
+    }
+
+    private function esLineaOficial(array $payload): bool
+    {
+        $instancia = $payload['instance'] ?? Setting::get('evolution_instance_name', 1);
+        if (!$instancia) {
+            return false;
+        }
+        return WhatsAppRouterService::esSoloVista(WhatsAppInstance::where('slug', $instancia)->first());
     }
 
     private function handleMessageUpsert(array $payload): void

@@ -48,6 +48,8 @@
                         </select>
                         <small v-if="(ins.provider || 'evolution') === 'meta'" class="wim-provider-hint">
                             Credenciales en <a href="/integraciones" target="_blank">Integraciones</a> (proveedor "whatsapp-oficial").
+                            Los mensajes entran y salen por Meta; si conectas el QR de Evolution es <b>solo para ver</b>
+                            (lo que llega por ahí no lo atiende el agente).
                         </small>
                     </div>
                 </div>
