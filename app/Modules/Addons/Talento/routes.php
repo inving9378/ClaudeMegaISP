@@ -34,6 +34,7 @@ use App\Modules\Addons\Talento\Controllers\TalentoSellerItemsController;
 use App\Modules\Addons\Talento\Controllers\TalentoCajaVendedorController;
 use App\Modules\Addons\Talento\Controllers\TalentoComisionSellerController;
 use App\Modules\Addons\Talento\Controllers\PortalTecnicoController;
+use App\Modules\Addons\Talento\Controllers\TalentoReglaDesempenoController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -77,6 +78,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/proyectos',      [TalentoProjectController::class,     'index']);
         Route::get('/calidad',        fn() => view('addon-talento::talento.calidad'));
         Route::get('/penalizaciones', [TalentoPenaltyController::class, 'index']);
+        Route::get('/reglas-desempeno', [TalentoReglaDesempenoController::class, 'index']);
         Route::get('/credenciales',   [TalentoCredentialController::class, 'index']);
         Route::get('/finiquito',      [TalentoLoanSettlementController::class, 'index']);
         Route::get('/academia',       [TalentoAcademyController::class, 'index']);
@@ -321,6 +323,13 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/penalty-appeals',              [TalentoPenaltyController::class, 'appealsIndex']);
             Route::post('/penalties/{id}/appeal',       [TalentoPenaltyController::class, 'submitAppeal']);
             Route::post('/penalty-appeals/{id}/resolve',[TalentoPenaltyController::class, 'resolveAppeal']);
+
+            // ── Reglas de desempeño semanal (piso/techo por combinación de roles) ──
+            Route::get('/reglas-desempeno',                  [TalentoReglaDesempenoController::class, 'rulesIndex']);
+            Route::post('/reglas-desempeno',                 [TalentoReglaDesempenoController::class, 'storeRule']);
+            Route::put('/reglas-desempeno/{id}',             [TalentoReglaDesempenoController::class, 'updateRule']);
+            Route::get('/reglas-desempeno/evaluaciones',     [TalentoReglaDesempenoController::class, 'evaluationsIndex']);
+            Route::post('/reglas-desempeno/evaluaciones/{id}/confirmar-penalizacion', [TalentoReglaDesempenoController::class, 'confirmarPenalizacion']);
 
             // ── Credenciales ──────────────────────────────────────────────
             Route::get('/credentials/expiring',              [TalentoCredentialController::class, 'allExpiring']);
