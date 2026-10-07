@@ -185,6 +185,7 @@ import TalentoRutas from "./components/module/talento/TalentoRutas.vue";
 import TalentoProyectos from "./components/module/talento/TalentoProyectos.vue";
 import TalentoCalidad from "./components/module/talento/TalentoCalidad.vue";
 import TalentoPenalizaciones from "./components/module/talento/TalentoPenalizaciones.vue";
+import TalentoReglasDesempeno from "./components/module/talento/TalentoReglasDesempeno.vue";
 import TalentoCredenciales from "./components/module/talento/TalentoCredenciales.vue";
 import TalentoFiniquito from "./components/module/talento/TalentoFiniquito.vue";
 import TalentoAcademia from "./components/module/talento/TalentoAcademia.vue";
@@ -653,6 +654,7 @@ const app = createApp({
         'talento-proyectos': TalentoProyectos,
         'talento-calidad': TalentoCalidad,
         'talento-penalizaciones': TalentoPenalizaciones,
+        'talento-reglas-desempeno': TalentoReglasDesempeno,
         'talento-credenciales': TalentoCredenciales,
         'talento-finiquito': TalentoFiniquito,
         'talento-academia': TalentoAcademia,

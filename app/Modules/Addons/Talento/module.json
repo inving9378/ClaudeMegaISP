@@ -56,7 +56,9 @@
         { "name": "talento.caja-vendedor.view",   "description": "Ver caja diaria de efectivo del colaborador (Fase C, mismas tablas que Vendedores/sellers/cuts)" },
         { "name": "talento.caja-vendedor.manage", "description": "Cerrar caja, registrar extras/proveedores/observaciones/instalaciones" },
         { "name": "talento.comisiones.view",      "description": "Ver reglas, estado de cuenta, pagos y deudas de comisiones del colaborador (Fase D, mismo motor que Vendedores)" },
-        { "name": "talento.comisiones.manage",    "description": "Registrar pagos de comisión y cobros de deuda" }
+        { "name": "talento.comisiones.manage",    "description": "Registrar pagos de comisión y cobros de deuda" },
+        { "name": "talento.reglas_desempeno.view",   "description": "Ver reglas de desempeño semanal por combinación de roles y sus evaluaciones" },
+        { "name": "talento.reglas_desempeno.manage", "description": "Crear/editar reglas de desempeño semanal y confirmar penalizaciones sugeridas" }
     ],
 
     "menu": [
@@ -89,6 +91,7 @@
                 { "label": "Artículos de vendedor", "url": "/talento/articulos-vendedor", "permission": "talento.selleritems.view" },
                 { "label": "Caja de vendedor", "url": "/talento/caja-vendedor",    "permission": "talento.caja-vendedor.view" },
                 { "label": "Comisiones",       "url": "/talento/comisiones",       "permission": "talento.comisiones.view" },
+                { "label": "Reglas de desempeño semanal", "url": "/talento/reglas-desempeno", "permission": "talento.reglas_desempeno.view" },
                 { "label": "Documentos pendientes", "url": "/talento/documentos-pendientes", "permission": "talento.documentos.ver-todos" }
             ]
         }
@@ -178,7 +181,12 @@
         { "method": "GET",  "path": "/talento/api/colaboradores/{id}/caja",             "description": "Lista de cajas (cortes) diarias del colaborador",         "permission": "talento.caja-vendedor.view" },
         { "method": "POST", "path": "/talento/api/caja/box/{id}/cerrar",                "description": "Cierra la caja y calcula los totales del corte",          "permission": "talento.caja-vendedor.manage" },
         { "method": "GET",  "path": "/talento/api/colaboradores/{id}/comisiones/estado-cuenta", "description": "Resumen de balance de comisiones del colaborador",  "permission": "talento.comisiones.view" },
-        { "method": "POST", "path": "/talento/api/colaboradores/{id}/comisiones/pagos",  "description": "Registra un pago de comisión (mismo motor que Vendedores)", "permission": "talento.comisiones.manage" }
+        { "method": "POST", "path": "/talento/api/colaboradores/{id}/comisiones/pagos",  "description": "Registra un pago de comisión (mismo motor que Vendedores)", "permission": "talento.comisiones.manage" },
+        { "method": "GET",  "path": "/talento/api/reglas-desempeno",                    "description": "Lista reglas de desempeño semanal por combinación de roles", "permission": "talento.reglas_desempeno.view" },
+        { "method": "POST", "path": "/talento/api/reglas-desempeno",                    "description": "Crea una regla de desempeño semanal",                      "permission": "talento.reglas_desempeno.manage" },
+        { "method": "PUT",  "path": "/talento/api/reglas-desempeno/{id}",               "description": "Edita una regla de desempeño semanal",                     "permission": "talento.reglas_desempeno.manage" },
+        { "method": "GET",  "path": "/talento/api/reglas-desempeno/evaluaciones",       "description": "Lista evaluaciones semanales (filtrable por outcome)",     "permission": "talento.reglas_desempeno.view" },
+        { "method": "POST", "path": "/talento/api/reglas-desempeno/evaluaciones/{id}/confirmar-penalizacion", "description": "Confirma de verdad una penalización pendiente — reusa PenaltyService::apply(), nunca aplica sola", "permission": "talento.penalties.manage" }
     ],
 
     "ai": {
