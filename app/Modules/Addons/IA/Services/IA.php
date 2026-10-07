@@ -7,6 +7,7 @@ use App\Models\Core\ApiIntegrationProvider;
 use App\Modules\Addons\IA\Models\IAAsignacion;
 use App\Modules\Addons\IA\Models\IAProveedor;
 use App\Services\Core\ApiIntegrationService;
+use Illuminate\Support\Str;
 
 /**
  * Punto único para que cualquier módulo use "su" IA.
@@ -17,8 +18,14 @@ use App\Services\Core\ApiIntegrationService;
  * Qué IA usa cada módulo se decide en Integraciones → "Módulos IA": la clave
  * apunta a una integración de IA del Hub (la llave) + modelo. El protocolo
  * (claude/openai/openai_compatible/gemini) y las capacidades salen del catálogo
- * de proveedores del Hub. SIN asignación no hay IA: se lanza IANoConfigurada
- * con un mensaje claro (decisión de Irving 2026-10-02, sin respaldo implícito).
+ * de proveedores del Hub.
+ *
+ * Cada módulo (grupo del catálogo) puede tener una IA GENERAL (clave
+ * "grupo:<slug>"): la usan todas sus funciones que no tengan una propia. Una
+ * función puede tener propia la integración y el modelo, o solo el modelo (y la
+ * integración la toma de la general). Sin propia ni general no hay IA: se lanza
+ * IANoConfigurada con un mensaje claro (decisión de Irving 2026-10-02, sin
+ * respaldo implícito).
  */
 class IA
 {
@@ -34,13 +41,19 @@ class IA
      */
     public static function proveedorPara(string $clave): IAProveedor
     {
-        [$asig, $integracion, $catalogo] = self::resolver($clave);
+        [$modelo, $integracion, $catalogo] = self::resolver($clave);
 
+        return self::armarProveedor($integracion, $catalogo, $modelo);
+    }
+
+    /** Proveedor en memoria a partir de una integración del Hub + modelo. */
+    protected static function armarProveedor(ApiIntegration $integracion, ApiIntegrationProvider $catalogo, string $modelo): IAProveedor
+    {
         $proveedor = new IAProveedor([
             'nombre' => $integracion->name,
             'driver' => $catalogo->driver,
             'endpoint_url' => data_get($integracion->config, 'endpoint') ?: null,
-            'modelo_default' => $asig->modelo,
+            'modelo_default' => $modelo,
             'soporta_imagenes' => $catalogo->soporta_imagenes,
             'config_extra' => [
                 'hub_integracion' => $integracion->slug,
@@ -63,12 +76,12 @@ class IA
      */
     public static function credencialesPara(string $clave): array
     {
-        [$asig, $integracion] = self::resolver($clave);
+        [$modelo, $integracion] = self::resolver($clave);
 
         return [
             'llave'       => $integracion->value,
             'base'        => self::baseOpenAI(data_get($integracion->config, 'endpoint')),
-            'modelo'      => $asig->modelo,
+            'modelo'      => $modelo,
             'integracion' => $integracion,
             'proveedor'   => $integracion->name,
         ];
@@ -87,30 +100,115 @@ class IA
     }
 
     /**
-     * Asignación + integración + catálogo del módulo, o IANoConfigurada con el
-     * motivo exacto. Lo comparten proveedorPara() y credencialesPara().
+     * Modelo + integración + catálogo que usa la función, o IANoConfigurada con
+     * el motivo exacto. Lo comparten proveedorPara(), credencialesPara() y la
+     * pantalla. Orden: lo propio de la función y, lo que no tenga propio, de la
+     * IA general de su módulo. Las funciones con modelos propios (voz) no toman
+     * el modelo de chat de la general: usan el suyo o el primero de su lista.
      *
-     * @return array{0:IAAsignacion, 1:ApiIntegration, 2:ApiIntegrationProvider}
+     * @return array{0:string, 1:ApiIntegration, 2:ApiIntegrationProvider, 3:string} el 4º es el origen: 'propia' | 'general'
      */
     protected static function resolver(string $clave): array
     {
         $modulo = self::modulo($clave) ?? [];
         $nombreModulo = $modulo['nombre'] ?? $clave;
+        $grupo = $modulo['grupo'] ?? null;
+        $configurar = 'Configúralo en Integraciones → Módulos IA.';
 
-        $asig = IAAsignacion::with('integracion')->where('clave', $clave)->first();
-        $integracion = $asig?->integracion;
-        if (!$asig || !$integracion) {
-            $motivo = $asig ? 'tenía una IA asignada pero esa integración se borró' : 'no tiene una IA asignada';
-            throw new IANoConfigurada("«{$nombreModulo}» {$motivo}. Configúralo en Integraciones → Módulos IA.");
+        $propia = IAAsignacion::with('integracion')->where('clave', $clave)->first();
+
+        if ($propia?->api_integration_id) {
+            $integracion = $propia->integracion;
+            if (!$integracion) {
+                throw new IANoConfigurada("«{$nombreModulo}» tenía una IA asignada pero esa integración se borró. {$configurar}");
+            }
+            $modelo = $propia->modelo;
+            $origen = 'propia';
+        } else {
+            $general = $grupo ? IAAsignacion::with('integracion')->where('clave', self::claveGeneral($grupo))->first() : null;
+            if (!$general) {
+                $niGeneral = $grupo ? " ni el módulo «{$grupo}» tiene IA general" : '';
+                throw new IANoConfigurada("«{$nombreModulo}» no tiene una IA asignada{$niGeneral}. {$configurar}");
+            }
+            $integracion = $general->integracion;
+            if (!$integracion) {
+                throw new IANoConfigurada("La integración de la IA general de «{$grupo}» se borró. {$configurar}");
+            }
+            $modelo = $propia?->modelo ?: (!empty($modulo['modelos']) ? $modulo['modelos'][0] : $general->modelo);
+            $origen = 'general';
         }
 
         $catalogo = ApiIntegrationProvider::where('slug', $integracion->provider)->first();
         $problema = self::problemaDeIntegracion($integracion, $catalogo, $modulo, $nombreModulo);
         if ($problema) {
+            throw new IANoConfigurada($origen === 'general'
+                ? "{$problema} (Viene de la IA general de «{$grupo}»: ponle una propia o cambia la general.)"
+                : $problema);
+        }
+
+        return [(string) $modelo, $integracion, $catalogo, $origen];
+    }
+
+    /**
+     * Qué usa hoy la función, sin lanzar (para la pantalla).
+     *
+     * @return array{origen:?string, api_integration_id:?int, modelo:?string, problema:?string}
+     */
+    public static function efectivo(string $clave): array
+    {
+        try {
+            [$modelo, $integracion, , $origen] = self::resolver($clave);
+            return ['origen' => $origen, 'api_integration_id' => $integracion->id, 'modelo' => $modelo, 'problema' => null];
+        } catch (IANoConfigurada $e) {
+            return ['origen' => null, 'api_integration_id' => null, 'modelo' => null, 'problema' => $e->getMessage()];
+        }
+    }
+
+    /** Clave en ia_asignaciones de la IA general de un módulo (grupo del catálogo). */
+    public static function claveGeneral(string $grupo): string
+    {
+        return 'grupo:' . Str::slug($grupo);
+    }
+
+    /**
+     * Módulos (grupos) del catálogo que pueden tener IA general.
+     *
+     * @return array<string, string> slug => nombre
+     */
+    public static function grupos(): array
+    {
+        return collect(config('ia_modulos', []))->pluck('grupo')->filter()->unique()
+            ->mapWithKeys(fn($g) => [Str::slug($g) => $g])->all();
+    }
+
+    /** Claves del catálogo que pertenecen al módulo (grupo). */
+    public static function funcionesDe(string $grupo): array
+    {
+        return collect(config('ia_modulos', []))->filter(fn($m) => ($m['grupo'] ?? null) === $grupo)->keys()->all();
+    }
+
+    /**
+     * Consulta mínima con la IA general del módulo (botón Probar de la fila
+     * general). Lanza IANoConfigurada si no hay general o no sirve.
+     *
+     * @return array{proveedor:string, modelo:string}
+     */
+    public static function probarGeneral(string $grupo): array
+    {
+        $general = IAAsignacion::with('integracion')->where('clave', self::claveGeneral($grupo))->first();
+        if (!$general?->integracion) {
+            throw new IANoConfigurada("«{$grupo}» no tiene IA general.");
+        }
+        $catalogo = ApiIntegrationProvider::where('slug', $general->integracion->provider)->first();
+        if ($problema = self::problemaDeIntegracion($general->integracion, $catalogo, [], "IA general de «{$grupo}»")) {
             throw new IANoConfigurada($problema);
         }
 
-        return [$asig, $integracion, $catalogo];
+        $p = self::armarProveedor($general->integracion, $catalogo, (string) $general->modelo);
+        $r = IAAdaptadorFactory::crear($p)->enviarMensaje([], 'Responde únicamente con la palabra OK.', [], null, ['max_tokens' => 20, 'reintentos' => 0, 'timeout' => 30]);
+        self::registrarUso($p, self::claveGeneral($grupo), $r);
+
+        return ['proveedor' => $p->nombre, 'modelo' => $p->modelo_default];
     }
 
     /**
@@ -153,8 +251,11 @@ class IA
      */
     public static function usosDeIntegracion(ApiIntegration $integracion): array
     {
+        $grupos = self::grupos();
         $modulos = IAAsignacion::where('api_integration_id', $integracion->id)->pluck('clave')
-            ->map(fn($clave) => self::modulo($clave)['nombre'] ?? $clave);
+            ->map(fn($clave) => str_starts_with($clave, 'grupo:')
+                ? 'IA general de «' . ($grupos[substr($clave, 6)] ?? substr($clave, 6)) . '»'
+                : (self::modulo($clave)['nombre'] ?? $clave));
 
         $chat = IAProveedor::query()->get(['id', 'nombre', 'config_extra'])
             ->filter(fn($p) => data_get($p->config_extra, 'hub_integracion') === $integracion->slug)

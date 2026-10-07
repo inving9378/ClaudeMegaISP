@@ -20,6 +20,8 @@ Route::middleware(['web', 'auth'])->prefix('api/hub')->name('hub.api.')->group(f
     Route::put('provider-catalog/{id}',         [ApiIntegrationProviderController::class, 'update'])->whereNumber('id')->name('catalog.update');
     Route::delete('provider-catalog/{id}',      [ApiIntegrationProviderController::class, 'destroy'])->whereNumber('id')->name('catalog.destroy');
     Route::get('ia-modulos',                    [IaModulosController::class, 'index'])->name('iaModulos.index');
+    Route::put('ia-modulos/general/{grupo}',    [IaModulosController::class, 'updateGeneral'])->where('grupo', '[a-z0-9-]+')->name('iaModulos.general.update');
+    Route::post('ia-modulos/general/{grupo}/probar', [IaModulosController::class, 'probarGeneral'])->where('grupo', '[a-z0-9-]+')->name('iaModulos.general.probar');
     Route::put('ia-modulos/{clave}',            [IaModulosController::class, 'update'])->where('clave', '[a-z0-9_.]+')->name('iaModulos.update');
     Route::post('ia-modulos/{clave}/probar',    [IaModulosController::class, 'probar'])->where('clave', '[a-z0-9_.]+')->name('iaModulos.probar');
     Route::get('servicios-modulos',             [ServiciosModulosController::class, 'index'])->name('serviciosModulos.index');
