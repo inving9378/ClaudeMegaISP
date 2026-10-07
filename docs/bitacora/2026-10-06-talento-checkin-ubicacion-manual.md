@@ -215,3 +215,78 @@ una tercera vez.
 
 **Pendiente real:** que Irving confirme en su teléfono, con esta versión, que (a) ya NO avisa
 actualización disponible al abrir la app recién instalada y (b) el check-in ya no crashea.
+
+## 2026-10-07 — Tercer intento: v1.17 seguía crasheando. Causa real: faltaba habilitar la API, no la llave. Decisión: quitar el mapa por completo (v1.18)
+
+Irving instaló v1.17 y reportó: **"volvio a cerrarse la app al intentar hacer check in"**. El
+fix de v1.16 (agregar la llave al manifiesto) era necesario pero no suficiente.
+
+### Causa real confirmada — con la llave contra los servidores de Google, no por lectura de código
+
+Se probó la llave real (la misma que usa el backend para geocodificar) contra la Maps Static API
+de Google — misma familia de producto que "Maps SDK for Android". Respuesta textual de Google:
+
+> *"This API is not activated on your API project. You may need to enable this API in the
+> Google Cloud Console."*
+
+Confirma que el proyecto de Google Cloud de esa llave **solo tiene habilitada la API de
+Geocoding** (la que ya usaba el backend desde antes) — nunca tuvo habilitado "Maps SDK for
+Android", la pieza que de verdad necesita el componente nativo del mapa para poder dibujarse.
+Apagarla/encenderla es un interruptor en la cuenta de Google Cloud de Irving — **fuera del
+alcance de esta sesión, no se puede arreglar con código ni con una nueva versión del APK**. Se le
+explicó la ruta exacta (Biblioteca de APIs → habilitar "Maps SDK for Android" + restricciones de
+la llave con el paquete `com.meganet.talento` + huella SHA-1 de la firma de release) por si
+decidía resolverlo por ese lado.
+
+### Decisión de Irving: quitar el mapa de la app por completo
+
+En vez de depender de una configuración externa a la que esta sesión no tiene acceso, Irving
+pidió explícitamente: **"quita la parte esa del mapa de la app, ponlo como antes pero que si no
+reconoce la ubicacion que muestre un input para poner la ubicacion"**.
+
+### Fix (v1.18, versionCode 118) — sin librería de mapas, sin llave, sin riesgo de crash nativo
+
+- `npm uninstall react-native-maps` — la dependencia sale por completo del proyecto.
+- `UbicacionManualModal.js` reescrito de cero: ya no usa `MapView`/`Marker`/`UrlTile`. Ahora es
+  solo lo que pidió Irving — un campo de texto para buscar la dirección + una lista de resultados
+  tocable (mismo endpoint `/talento/api/geocodificar` de antes, sin cambios en el backend). Se
+  quitó también la posibilidad de arrastrar un pin (dependía del mapa) — al tocar un resultado de
+  la lista, esa es la ubicación confirmada, sin paso intermedio.
+- `AsistenciaPanel.js` **no necesitó ningún cambio** — la interfaz del modal (`onConfirm({lat,
+  lng, source})` / `onClose()`) se mantuvo idéntica a propósito.
+- Revertido todo el wiring de la llave que se había agregado en v1.16:
+  `manifestPlaceholders` de `build.gradle`, la etiqueta `com.google.android.geo.API_KEY` del
+  `AndroidManifest.xml`, el archivo `android/maps.properties` y su entrada en `.gitignore`.
+- Verificado sobre el APK YA COMPILADO (no solo leyendo el código fuente): cero apariciones de
+  `rnmaps` en el paquete, cero apariciones de la llave de Maps en el manifiesto, no es build de
+  depuración, `versionCode`/`versionName` correctos (118/1.18), y 5 cadenas de texto distintas de
+  mi componente nuevo (incluida la versión) confirmadas dentro del bytecode compilado. Tamaño del
+  APK bajó de 62.9 MB a 62.5 MB — consistente con haber quitado una librería nativa de verdad, no
+  solo código JS.
+
+### ⚠️ Hallazgo aparte — GitHub rechazó publicar el release (HTTP 500 persistente)
+
+Al intentar subir el APK como "Release" de GitHub (mismo mecanismo usado para v1.15/16/17), la
+API de GitHub devolvió error interno de su propio servidor (`HTTP 500`) en **6 intentos
+seguidos** — tanto creando un release nuevo como editando uno existente, con payloads distintos.
+Descartada una causa local: `curl` mostró el token autenticando bien (headers de rate-limit
+normales, 4989/5000 disponibles) y `githubstatus.com` reportaba "todos los sistemas operativos" —
+así que es un problema puntual de GitHub con esta cuenta/repo en ese momento, no algo que una
+automatización deba seguir reintentando a ciegas. Se publicó temporalmente desde el servidor
+propio (`https://dev.meganett.com.mx/downloads/meganetV118.apk`, ya confirmado que responde bien
+por HTTPS con soporte de descarga reanudable) en vez de insistir contra GitHub. **Pendiente:
+reintentar subir a GitHub Releases más tarde** si se quiere volver a esa vía (más rápida en redes
+restrictivas) — no es bloqueante, la v1.18 ya es descargable igual.
+
+### Estado final
+
+- Fila `talento_app_releases` id=15, `version_name=1.18`, `is_mandatory=true`, apunta al
+  servidor propio por ahora.
+- Commit `c51c297` ("release: v1.18") en `TalentoEquipo`.
+- Tags huérfanos en GitHub (`talento-apk-v1.15`, `talento-apk-v1.16`, `talento-apk-v1.17`) que
+  quedaron sin su Release asociado (los releases se borraron, los tags de git no) — cosmético,
+  limpieza pendiente si se retoma la publicación por GitHub.
+
+**Pendiente real:** que Irving confirme en su teléfono, con v1.18, que el check-in/check-out ya
+no se cierra — con el mapa fuera de la ecuación, no debería quedar ningún camino de crash nativo
+relacionado con Maps.
