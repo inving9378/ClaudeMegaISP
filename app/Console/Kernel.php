@@ -143,6 +143,12 @@ class Kernel extends ConsoleKernel
         // (03:15) y expirar recompensas (03:30) — captura cualquier drift residual.
         $schedule->command('embajadores:rebuild-kpis')->dailyAt('04:00')->withoutOverlapping()->onOneServer();
 
+        // Talento — reglas de desempeño semanal por combinación de roles. Corre
+        // domingo temprano, después del corte de PayWeek del sábado 18:00. Solo
+        // DEJA las penalizaciones pendientes de confirmar por un supervisor —
+        // nunca aplica un descuento real por sí solo (ver PenaltyService::apply()).
+        $schedule->command('talento:evaluar-reglas-semanales')->weekly()->sundays()->at('04:00')->withoutOverlapping()->onOneServer();
+
         // Portal de Pago — recurrencia asistida (genera ligas del mes, NO auto-débito).
         // Gateado por config('pagos.recurrentes_cron_enabled') (env PAGOS_RECURRENTES_CRON_ENABLED,
         // false por default — mismo patrón que domiciliacion.cobro_live_enabled). El schedule ya
