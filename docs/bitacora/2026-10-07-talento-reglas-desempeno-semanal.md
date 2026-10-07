@@ -68,20 +68,51 @@ de dinero paralelos.
 ### Verificado
 
 - `php -l` en todos los archivos nuevos.
-- `php artisan migrate --pretend` confirma el SQL correcto de las 2 migraciones (tablas +
-  permisos).
 - `npm run dev` compila limpio; componente confirmado dentro del bundle generado (32 referencias).
-- **Pendiente**: la migración NO se ha corrido de verdad (guardrail de migraciones — rama sin
-  ruta a main todavía) — la verificación por transacción+rollback contra datos reales (regla
-  sintética para `['Mostrador','Vendedor']`, confirmar resolución de regla, conteos reales de
-  CRM/ventas, los 3 outcomes) queda para después de fusionar, igual que se hizo con el ítem de
-  ubicación manual de Talento el 6 de octubre.
+
+## 2026-10-07 — Fusionado a main, migrado, y probado de punta a punta contra datos reales
+
+Merge limpio a `main` (`85dc2670`, solo los 15 archivos de este cambio). Las 2 migraciones
+corrieron sin error.
+
+### Verificación — transacción + rollback, usando ACTIVIDAD REAL de un vendedor real
+
+En vez de fabricar datos sintéticos de CRM (frágil: `getSales()` depende de un accessor pesado,
+`ClientMainInformation::getServiceAttribute()`, que calcula el costo del servicio contratado vía
+`ClientRepository` — no es un campo simple de poner a mano), se ubicó un vendedor real con
+actividad real documentada (GUADALUPE, user 9, colaborador 7, rol `Vendedor`) y una semana
+calendario real con conteos reales confirmados por los propios métodos de
+`CalculateBalanceSellerService` (2026-09-14 a 2026-09-20: 1 prospecto, 5 ventas) — así la prueba
+ejercita el camino real de conteo, no un doble ficticio.
+
+8 casos, todos dentro de la misma transacción (rollback al final, nada persistió):
+
+1. Piso de ventas=10 (por encima del real=5) → `penalty_pending`, con `penalty_type_id`/monto
+   correctamente resueltos de la regla.
+2. Piso=1 (cumplido) + techo=3 (superado por el real=5) → `bonus`, con `bonus_amount_applied`
+   correcto.
+3. Piso=1 (cumplido) + techo=999 (no alcanzado) → `meets_quota`.
+4. Sin ninguna regla cargada → `no_rule`.
+5. Usuario con Vendedor+Mostrador, existiendo una regla para "Vendedor" solo Y otra para el combo
+   exacto "Mostrador+Vendedor" → gana la del combo exacto (confirmado por id).
+6. Mismo usuario, borrada la regla del combo exacto, solo queda la de "Vendedor" solo → cae al
+   subconjunto más específico que sí existe (confirmado por id) — la regla de Irving verificada
+   tal cual.
+7. Llamar `evaluateColaborador()` dos veces para la misma semana → misma fila, no duplica
+   (`UNIQUE(colaborador_id, week_start)` funcionando).
+8. Confirmar una penalización pendiente → reusa `PenaltyService::apply()` real: penalización queda
+   `status=applied`, monto correcto, y la evaluación pasa a `penalty_applied` con `penalty_id`
+   enlazado — el mismo camino de dinero que ya usa el flujo humano existente, sin atajos.
+
+Tras el rollback, confirmado por consulta directa: 0 filas en `talento_weekly_rules`/
+`talento_weekly_rule_evaluations`, el rol `Mostrador` temporal del caso 5/6 ya no está en el
+usuario 9, y 0 penalizaciones reales creadas en el colaborador 7 — nada tocó datos reales.
 
 ### Pendiente
 
-- Fusionar a `main` + correr las 2 migraciones + la batería de pruebas transaccionales descrita
-  en el plan.
-- Prueba visual en navegador: crear una regla, marcar "tiene más roles", confirmar que el rol
-  base no aparece en el multiselect.
+- Prueba visual en navegador: crear una regla desde la UI, marcar "tiene más roles", confirmar
+  que el rol base no aparece en el multiselect — lo verificado hasta ahora es el motor completo
+  por tinker, no un clic real en pantalla.
 - Que Irving cree las reglas reales (sus umbrales de piso/techo) y asigne el permiso
-  `talento.reglas_desempeno.manage` a quien corresponda — nada de esto trae datos de ejemplo.
+  `talento.reglas_desempeno.manage` a quien corresponda — nada de esto trae datos de ejemplo,
+  hoy la tabla de reglas está vacía a propósito.
