@@ -3,10 +3,12 @@
 /**
  * Catálogo de módulos que usan IA → config('ia_modulos').
  * Se configura en Integraciones → pestaña "Módulos IA": cada clave apunta a una
- * integración de IA del Hub + modelo (tabla ia_asignaciones). SIN asignación el
- * módulo no usa IA (decisión de Irving 2026-10-02: no hay respaldo implícito).
+ * integración de IA del Hub + modelo (tabla ia_asignaciones). Cada grupo puede
+ * tener una IA GENERAL (clave "grupo:<slug>") que usan las funciones sin IA
+ * propia. Sin propia ni general la función no usa IA (decisión de Irving
+ * 2026-10-02: no hay respaldo implícito).
  *
- * grupo:    agrupa en la pantalla.
+ * grupo:    el módulo: agrupa en la pantalla y comparte la IA general.
  * requiere: capacidades que el proveedor debe tener (imagenes, pdf, herramientas, voz).
  * modelos:  (opcional) sugerencias de modelo propias del módulo; si no, las del
  *           protocolo. Los de voz usan modelos de audio, no de chat.

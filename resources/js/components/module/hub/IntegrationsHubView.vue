@@ -249,8 +249,9 @@
     <!-- Módulos IA tab -->
     <div v-if="tab === 'ia'" class="hub-ia">
       <p class="text-muted small mb-3">
-        Elige qué integración de IA (y qué modelo) usa cada módulo. Un módulo <strong>sin asignar no usa IA</strong>:
-        sus funciones de IA quedan apagadas hasta que lo configures.
+        Cada módulo puede tener una <strong>IA general</strong> (integración y modelo) que usan todas sus funciones.
+        Si una función necesita otra, ponle la suya —o solo otro modelo— y las demás siguen con la general.
+        Una función <strong>sin IA propia ni general no usa IA</strong>: queda apagada hasta que la configures.
       </p>
       <div v-if="iaLoading" class="hub-loading"><div class="spinner-border text-primary"></div></div>
       <div v-else>
@@ -262,9 +263,51 @@
           <div class="table-responsive">
             <table class="table table-sm align-middle ia-table">
               <thead>
-                <tr><th style="width:28%">Módulo</th><th style="width:26%">Integración de IA</th><th style="width:18%">Modelo</th><th>Estado</th><th></th></tr>
+                <tr><th style="width:28%">Función</th><th style="width:26%">Integración de IA</th><th style="width:18%">Modelo</th><th>Estado</th><th></th></tr>
               </thead>
               <tbody>
+                <tr v-for="g in iaGeneralDe(grupo)" :key="'general-' + g.slug" class="ia-general">
+                  <td>
+                    <div class="fw-semibold"><i class="bi bi-diagram-3 me-1"></i>General del módulo</div>
+                    <div class="small text-muted">La usan las funciones de {{ grupo }} que no tengan una propia</div>
+                  </td>
+                  <td>
+                    <select class="form-select form-select-sm" v-model="g.api_integration_id"
+                            :disabled="!can('manage-integrations')" @change="onIaIntegracionChange(g)">
+                      <option :value="null">— Sin IA general —</option>
+                      <option v-for="i in iaIntegraciones" :key="i.id" :value="i.id" :disabled="!i.activa || (i.requiere_llave && !i.tiene_llave)">
+                        {{ i.nombre }} ({{ i.proveedor }}){{ !i.activa ? ' — inactiva' : ((i.requiere_llave && !i.tiene_llave) ? ' — sin llave' : '') }}
+                      </option>
+                    </select>
+                  </td>
+                  <td>
+                    <input class="form-control form-control-sm" v-model.trim="g.modelo" :list="'ia-modelos-general-' + g.slug"
+                           :disabled="!g.api_integration_id || !can('manage-integrations')" placeholder="modelo">
+                    <datalist :id="'ia-modelos-general-' + g.slug">
+                      <option v-for="mod in iaModelosSugeridos(g)" :key="mod" :value="mod"></option>
+                    </datalist>
+                  </td>
+                  <td>
+                    <span class="badge" :class="iaEstadoGeneral(g).cls" :title="iaEstadoGeneral(g).tip">{{ iaEstadoGeneral(g).txt }}</span>
+                    <div v-if="iaPrueba['general:' + g.slug]" class="small mt-1" :class="iaPrueba['general:' + g.slug].ok ? 'text-success' : 'text-danger'"
+                         :title="iaPrueba['general:' + g.slug].detalle || ''">
+                      <i class="bi me-1" :class="iaPrueba['general:' + g.slug].ok ? 'bi-check-circle' : 'bi-x-circle'"></i>{{ iaPrueba['general:' + g.slug].mensaje }}
+                    </div>
+                  </td>
+                  <td class="text-end text-nowrap">
+                    <button v-if="can('validate-integrations') && g._origInt" class="btn btn-sm btn-outline-secondary me-1"
+                            :disabled="iaCambiado(g) || iaProbando['general:' + g.slug]" @click="probarIaGeneral(g)"
+                            title="Hace una consulta mínima con la integración y el modelo generales guardados">
+                      <span v-if="iaProbando['general:' + g.slug]" class="spinner-border spinner-border-sm"></span>
+                      <span v-else>Probar</span>
+                    </button>
+                    <button v-if="can('manage-integrations')" class="btn btn-sm btn-primary"
+                            :disabled="!iaCambiado(g) || iaGuardando['general:' + g.slug]" @click="saveIaGeneral(g)">
+                      <span v-if="iaGuardando['general:' + g.slug]" class="spinner-border spinner-border-sm"></span>
+                      <span v-else>Guardar</span>
+                    </button>
+                  </td>
+                </tr>
                 <tr v-for="m in mods" :key="m.clave">
                   <td>
                     <div class="fw-semibold">{{ m.nombre }}</div>
@@ -273,7 +316,7 @@
                   <td>
                     <select class="form-select form-select-sm" v-model="m.api_integration_id"
                             :disabled="!can('manage-integrations')" @change="onIaIntegracionChange(m)">
-                      <option :value="null">— Sin asignar —</option>
+                      <option :value="null">{{ iaOpcionGeneral(m) }}</option>
                       <option v-for="i in iaIntegraciones" :key="i.id" :value="i.id" :disabled="!i.activa || (i.requiere_llave && !i.tiene_llave)">
                         {{ i.nombre }} ({{ i.proveedor }}){{ !i.activa ? ' — inactiva' : ((i.requiere_llave && !i.tiene_llave) ? ' — sin llave' : '') }}
                       </option>
@@ -281,22 +324,24 @@
                   </td>
                   <td>
                     <input class="form-control form-control-sm" v-model.trim="m.modelo" :list="'ia-modelos-' + m.clave"
-                           :disabled="!m.api_integration_id || !can('manage-integrations')" placeholder="modelo">
+                           :disabled="!can('manage-integrations') || (!m.api_integration_id && !iaGeneralGuardada(m.grupo))"
+                           :placeholder="iaPlaceholderModelo(m)">
                     <datalist :id="'ia-modelos-' + m.clave">
                       <option v-for="mod in iaModelosSugeridos(m)" :key="mod" :value="mod"></option>
                     </datalist>
                   </td>
                   <td>
                     <span class="badge" :class="iaEstado(m).cls" :title="iaEstado(m).tip">{{ iaEstado(m).txt }}</span>
+                    <div v-if="iaEstado(m).detalle" class="small mt-1" :class="iaEstado(m).detalleCls || 'text-muted'">{{ iaEstado(m).detalle }}</div>
                     <div v-if="iaPrueba[m.clave]" class="small mt-1" :class="iaPrueba[m.clave].ok ? 'text-success' : 'text-danger'"
                          :title="iaPrueba[m.clave].detalle || ''">
                       <i class="bi me-1" :class="iaPrueba[m.clave].ok ? 'bi-check-circle' : 'bi-x-circle'"></i>{{ iaPrueba[m.clave].mensaje }}
                     </div>
                   </td>
                   <td class="text-end text-nowrap">
-                    <button v-if="can('validate-integrations') && m._origInt" class="btn btn-sm btn-outline-secondary me-1"
+                    <button v-if="can('validate-integrations') && iaTieneAlgo(m)" class="btn btn-sm btn-outline-secondary me-1"
                             :disabled="iaCambiado(m) || iaProbando[m.clave]" @click="probarIaModulo(m)"
-                            title="Hace una consulta mínima con la integración y el modelo guardados">
+                            title="Hace una consulta mínima con la integración y el modelo que usa la función">
                       <span v-if="iaProbando[m.clave]" class="spinner-border spinner-border-sm"></span>
                       <span v-else>Probar</span>
                     </button>
@@ -408,6 +453,7 @@ export default {
       providersLoading: false,
       drivers: {},
       iaModulos: [],
+      iaGenerales: {},
       iaIntegraciones: [],
       iaLoading: false,
       iaGuardando: {},
@@ -1121,6 +1167,9 @@ export default {
         this.iaModulos = (d.modulos ?? []).map(m => ({
           ...m, _origInt: m.api_integration_id, _origModelo: m.modelo,
         }));
+        this.iaGenerales = Object.fromEntries((d.generales ?? []).map(g => [g.grupo, {
+          ...g, _origInt: g.api_integration_id, _origModelo: g.modelo,
+        }]));
       } catch (e) {
         this.toast('danger', e.response?.data?.error ?? 'Error al cargar los módulos de IA');
       } finally {
@@ -1128,8 +1177,52 @@ export default {
       }
     },
 
+    // Tras guardar una IA general: refresca lo que usa cada función sin pisar lo que se esté editando en otras filas
+    async refrescarIaEfectivos() {
+      try {
+        const res = await axios.get('/api/hub/ia-modulos');
+        const porClave = Object.fromEntries((res.data.data?.modulos ?? []).map(m => [m.clave, m]));
+        this.iaModulos.forEach(m => {
+          const s = porClave[m.clave];
+          if (!s) return;
+          // El servidor pudo quitar un modelo propio (cambió el proveedor de la general)
+          if (!this.iaCambiado(m)) { m.api_integration_id = s.api_integration_id; m.modelo = s.modelo; }
+          m._origInt = s.api_integration_id;
+          m._origModelo = s.modelo;
+          m.efectivo = s.efectivo;
+        });
+      } catch (e) {
+        // La pantalla sigue usable; el estado se corrige al recargar la pestaña
+      }
+    },
+
     iaIntegracion(id) {
       return this.iaIntegraciones.find(i => i.id === id) ?? null;
+    },
+
+    // Lista de 0 o 1 elemento para pintar la fila general con v-for
+    iaGeneralDe(grupo) {
+      return this.iaGenerales[grupo] ? [this.iaGenerales[grupo]] : [];
+    },
+
+    iaGeneralGuardada(grupo) {
+      return !!this.iaGenerales[grupo]?._origInt;
+    },
+
+    iaOpcionGeneral(m) {
+      const g = this.iaGenerales[m.grupo];
+      const integ = g?._origInt ? this.iaIntegracion(g._origInt) : null;
+      return integ ? `Usar la general (${integ.nombre})` : '— Usar la general (no hay: sin IA) —';
+    },
+
+    iaPlaceholderModelo(m) {
+      if (m.api_integration_id) return 'modelo';
+      if (!this.iaGeneralGuardada(m.grupo)) return '';
+      return m.modelos ? `Por defecto: ${m.modelos[0]}` : `De la general: ${this.iaGenerales[m.grupo]._origModelo}`;
+    },
+
+    iaTieneAlgo(m) {
+      return !!(m._origInt || m._origModelo || this.iaGeneralGuardada(m.grupo));
     },
 
     onIaIntegracionChange(m) {
@@ -1147,19 +1240,80 @@ export default {
     },
 
     iaModelosSugeridos(m) {
-      return m.modelos ?? this.iaIntegracion(m.api_integration_id)?.modelos ?? [];
+      // Una función que usa la general sugiere los modelos de la integración general
+      return m.modelos ?? this.iaIntegracion(m.api_integration_id ?? this.iaGenerales[m.grupo]?._origInt)?.modelos ?? [];
     },
 
+    // Estado de lo GUARDADO: lo que el servidor resolvió que usa la función (propia o general)
     iaEstado(m) {
-      if (!m._origInt) return { txt: 'Sin asignar · IA apagada', cls: 'bg-light text-muted' };
-      const integ = this.iaIntegracion(m._origInt);
-      if (!integ) return { txt: 'La integración asignada se borró', cls: 'bg-danger-subtle text-danger' };
+      const e = m.efectivo ?? {};
+      if (e.problema) {
+        if (!m._origInt && !m._origModelo && !this.iaGeneralGuardada(m.grupo)) {
+          return { txt: 'Sin asignar · IA apagada', cls: 'bg-light text-muted' };
+        }
+        return { txt: 'No puede usar la IA', cls: 'bg-danger-subtle text-danger', detalle: e.problema, detalleCls: 'text-danger' };
+      }
+      const integ = this.iaIntegracion(e.api_integration_id);
+      const detalle = `${integ?.nombre ?? 'Integración'} · ${e.modelo}`;
+      if (integ?.estado_validacion === 'invalid') {
+        return { txt: 'La llave tiene un problema', cls: 'bg-danger-subtle text-danger', tip: integ.mensaje_validacion ?? '', detalle };
+      }
+      if (!m.listo) return { txt: 'Asignada · el módulo aún no la usa', cls: 'bg-warning-subtle text-warning', detalle };
+      if (e.origen === 'general') {
+        return { txt: m._origModelo ? 'Activa · general con modelo propio' : 'Activa · usa la general', cls: 'bg-success-subtle text-success', detalle };
+      }
+      return { txt: 'Activa · propia', cls: 'bg-success-subtle text-success', detalle };
+    },
+
+    iaEstadoGeneral(g) {
+      if (!g._origInt) return { txt: 'Sin IA general', cls: 'bg-light text-muted' };
+      const integ = this.iaIntegracion(g._origInt);
+      if (!integ) return { txt: 'La integración se borró', cls: 'bg-danger-subtle text-danger' };
       if (!integ.activa || (integ.requiere_llave && !integ.tiene_llave)) return { txt: 'Integración inactiva o sin llave', cls: 'bg-danger-subtle text-danger' };
       if (integ.estado_validacion === 'invalid') {
         return { txt: 'La llave tiene un problema', cls: 'bg-danger-subtle text-danger', tip: integ.mensaje_validacion ?? '' };
       }
-      if (!m.listo) return { txt: 'Asignada · el módulo aún no la usa', cls: 'bg-warning-subtle text-warning' };
-      return { txt: 'Activa', cls: 'bg-success-subtle text-success' };
+      const usan = (this.iaModulosPorGrupo[g.grupo] ?? []).filter(m => m.efectivo?.origen === 'general').length;
+      return { txt: usan === 1 ? 'Activa · la usa 1 función' : `Activa · la usan ${usan} funciones`, cls: 'bg-success-subtle text-success' };
+    },
+
+    async probarIaGeneral(g) {
+      const k = 'general:' + g.slug;
+      this.iaProbando = { ...this.iaProbando, [k]: true };
+      try {
+        const res = await axios.post(`/api/hub/ia-modulos/general/${g.slug}/probar`);
+        this.iaPrueba = { ...this.iaPrueba, [k]: res.data.data };
+      } catch (e) {
+        this.iaPrueba = { ...this.iaPrueba, [k]: { ok: false, mensaje: e.response?.data?.error ?? 'No se pudo probar' } };
+      } finally {
+        this.iaProbando = { ...this.iaProbando, [k]: false };
+      }
+    },
+
+    async saveIaGeneral(g) {
+      if (g.api_integration_id && !g.modelo) {
+        this.toast('warning', 'Indica el modelo a usar');
+        return;
+      }
+      const k = 'general:' + g.slug;
+      this.iaGuardando = { ...this.iaGuardando, [k]: true };
+      try {
+        const res = await axios.put(`/api/hub/ia-modulos/general/${g.slug}`, {
+          api_integration_id: g.api_integration_id,
+          modelo: g.api_integration_id ? g.modelo : null,
+        });
+        g._origInt = g.api_integration_id;
+        g._origModelo = g.api_integration_id ? g.modelo : null;
+        if (!g.api_integration_id) g.modelo = null;
+        this.iaPrueba = { ...this.iaPrueba, [k]: null };
+        this.toast('success', res.data.message ?? 'Guardado');
+        (res.data.avisos ?? []).forEach(a => this.toast('warning', a, 12000));
+        await this.refrescarIaEfectivos();
+      } catch (e) {
+        this.toast('danger', e.response?.data?.error ?? 'Error al guardar');
+      } finally {
+        this.iaGuardando = { ...this.iaGuardando, [k]: false };
+      }
     },
 
     async probarIaModulo(m) {
@@ -1179,17 +1333,22 @@ export default {
         this.toast('warning', 'Indica el modelo a usar');
         return;
       }
+      if (!m.api_integration_id && m.modelo && !this.iaGeneralGuardada(m.grupo)) {
+        this.toast('warning', `Para dejar solo el modelo propio, primero elige la IA general de «${m.grupo}»`);
+        return;
+      }
       this.iaGuardando = { ...this.iaGuardando, [m.clave]: true };
       try {
-        await axios.put(`/api/hub/ia-modulos/${m.clave}`, {
+        const res = await axios.put(`/api/hub/ia-modulos/${m.clave}`, {
           api_integration_id: m.api_integration_id,
-          modelo: m.api_integration_id ? m.modelo : null,
+          modelo: m.modelo || null,
         });
         m._origInt = m.api_integration_id;
-        m._origModelo = m.api_integration_id ? m.modelo : null;
+        m._origModelo = m.modelo || null;
+        if (!m.modelo) m.modelo = null;
+        m.efectivo = res.data.data?.efectivo ?? m.efectivo;
         this.iaPrueba = { ...this.iaPrueba, [m.clave]: null };
-        if (!m.api_integration_id) m.modelo = null;
-        this.toast('success', m.api_integration_id ? `${m.nombre}: IA asignada` : `${m.nombre}: IA quitada`);
+        this.toast('success', `${m.nombre}: ${res.data.message ?? 'Guardado'}`);
       } catch (e) {
         this.toast('danger', e.response?.data?.error ?? 'Error al guardar');
       } finally {
@@ -1491,6 +1650,8 @@ export default {
 </script>
 
 <style scoped>
+/* Fila de la IA general de cada módulo en "Módulos IA" */
+.ia-general > td { background: rgba(13, 110, 253, .06); }
 /* ── Layout ──────────────────────────────────────────────────────────────── */
 .integrations-hub {
   max-width: 1100px;
