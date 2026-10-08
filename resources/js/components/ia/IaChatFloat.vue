@@ -184,8 +184,9 @@ export default {
 };
 </script>
 <style scoped>
-/* right:154px — a la izquierda de la Ayuda (right:90) y de la burbuja de la Torre (right:24), para no encimarse. */
-.ia-float-btn{position:fixed;bottom:24px;right:154px;z-index:9999;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);box-shadow:0 4px 20px rgba(99,102,241,.5);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .2s}
+/* right:24px — la esquina de siempre del robotsito. NO moverlo: en ese mismo lugar (debajo, z-index 1040)
+   está montada la burbuja de la Torre, y el robot la tapa; si se mueve, la burbuja aparece flotando. */
+.ia-float-btn{position:fixed;bottom:24px;right:24px;z-index:9999;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);box-shadow:0 4px 20px rgba(99,102,241,.5);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .2s}
 .ia-float-btn:hover{transform:scale(1.1)}
 .ia-float-btn.has-pulse::after{content:'';position:absolute;width:100%;height:100%;border-radius:50%;background:rgba(99,102,241,.3);animation:ia-pulse 2s infinite}
 @keyframes ia-pulse{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.6);opacity:0}}

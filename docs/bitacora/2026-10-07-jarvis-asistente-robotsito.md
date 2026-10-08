@@ -11,8 +11,8 @@ Hoja de Ruta, por decisión del equipo (rama aparte normal).
   bitácora `activity_log` con `log_name='jarvis'`.
 - Memoria en BD (4 tablas `asistente_*`), autocompactado por tokens reales y recuerdos por usuario.
 - Robotsito: carga la plática al abrir, tarjeta de confirmación, enlaces directos, HTML escapado,
-  movido a `right:154px` para no tapar la burbuja de la Torre. Ficha del cliente acepta `?tab=` de
-  cualquier pestaña.
+  movido a `right:154px` para no tapar la burbuja de la Torre (error, corregido abajo). Ficha del
+  cliente acepta `?tab=` de cualquier pestaña.
 
 **Migración:** `2026_10_07_120000_create_asistente_jarvis_tables` ya corrida en la BD de dev con
 `--path` + `--force-uncommitted` (la rama no está ligada a un item, el candado lo exige). Al mergear a
@@ -35,3 +35,12 @@ main ya aparece como `Ran`.
 - Datos de prueba que quedaron: conversaciones/acciones del usuario 4875 en `asistente_*` (inofensivas).
 - Siguientes capacidades: más acciones (prospectos CRM, agendar tareas, notas), pantalla "Lo que
   recuerdo de ti" y gasto por usuario.
+
+## 2026-10-07 20:35 — Corrección: el robotsito vuelve a su esquina
+
+Rama: `fix/jarvis-robotsito-esquina`. Al mover el robotsito a `right:154px` apareció flotando en la
+esquina la burbuja de JARVIS de la Torre (`JarvisBurbuja.vue`, `right:24px`, z-index 1040, montada en
+`master.blade.php` para `torre.config.view`). Siempre estuvo ahí, pero el robot (z-index 9999) ocupaba
+exactamente el mismo lugar y la tapaba, así que lo único que se veía flotando era el robot. El equipo lo
+notó como "el JARVIS de la Torre ahora sale flotando". Se regresa el botón a `right:24px` (como estaba
+antes del merge `74b6f07f`) y se deja el aviso en el CSS para no volver a moverlo.
