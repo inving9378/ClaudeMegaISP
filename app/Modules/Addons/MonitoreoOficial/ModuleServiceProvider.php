@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\MonitoreoOficial;
 
 use App\Modules\Addons\MonitoreoOficial\Console\ImportDemoImpiCommand;
+use App\Modules\Addons\MonitoreoOficial\Console\ReviewScheduledCasesCommand;
 use App\Modules\BaseModuleServiceProvider;
 
 class ModuleServiceProvider extends BaseModuleServiceProvider
@@ -29,6 +30,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 ImportDemoImpiCommand::class,
+                ReviewScheduledCasesCommand::class,
             ]);
         }
     }
