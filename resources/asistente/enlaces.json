@@ -10,5 +10,9 @@
     "pagos": "/finanzas/pagos",
     "facturas": "/finanzas/facturas",
     "lista_clientes": "/cliente/listar",
-    "manual": "/manual"
+    "manual": "/manual",
+    "prospecto": "/crm/editar/{id}",
+    "lista_prospectos": "/crm/listar",
+    "crear_prospecto": "/crm/crear",
+    "crear_cliente": "/cliente/crear"
 }

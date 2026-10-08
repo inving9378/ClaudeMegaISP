@@ -17,15 +17,23 @@ class RegistroHerramientas
         Herramientas\ConsultarGuia::class,
         Herramientas\BuscarEnManual::class,
         Herramientas\BuscarCliente::class,
+        Herramientas\ListarClientes::class,
+        Herramientas\ListarProspectos::class,
+        Herramientas\BuscarColonia::class,
         Herramientas\FichaCliente::class,
         Herramientas\PagosCliente::class,
         Herramientas\FacturasCliente::class,
         Herramientas\TicketsCliente::class,
         Herramientas\ResumenTickets::class,
+        Herramientas\ListarTickets::class,
         Herramientas\ResumenPagosDelDia::class,
+        Herramientas\ListarPagos::class,
         Herramientas\Recordar::class,
         Herramientas\ActualizarContactoCliente::class,
         Herramientas\CrearTicket::class,
+        Herramientas\CrearProspecto::class,
+        Herramientas\CrearCliente::class,
+        Herramientas\AnotarPendiente::class,
     ];
 
     /** @var array<string, Herramienta>|null */

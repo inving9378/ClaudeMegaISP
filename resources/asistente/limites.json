@@ -7,14 +7,22 @@
         "consultar_guia": "permitida",
         "buscar_en_manual": "permitida",
         "buscar_cliente": "permitida",
+        "listar_clientes": "permitida",
+        "listar_prospectos": "permitida",
+        "buscar_colonia": "permitida",
         "ficha_cliente": "permitida",
         "pagos_cliente": "permitida",
         "facturas_cliente": "permitida",
         "tickets_cliente": "permitida",
         "resumen_tickets": "permitida",
+        "listar_tickets": "permitida",
         "resumen_pagos_del_dia": "permitida",
+        "listar_pagos": "permitida",
         "recordar": "permitida",
+        "anotar_pendiente": "permitida",
         "actualizar_contacto_cliente": "confirmar",
-        "crear_ticket": "confirmar"
+        "crear_ticket": "confirmar",
+        "crear_prospecto": "confirmar",
+        "crear_cliente": "confirmar"
     }
 }
