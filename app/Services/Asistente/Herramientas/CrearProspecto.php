@@ -24,7 +24,8 @@ class CrearProspecto extends Herramienta
     {
         return 'Registra un prospecto (posible cliente) en el CRM. Pide nombre con apellido paterno y materno, '
             . 'teléfono y colonia (usa buscar_colonia); el correo y el domicilio son opcionales. '
-            . 'Es la opción cuando solo se tienen datos de contacto. Prepara el registro y el usuario lo confirma.';
+            . 'Es la opción cuando solo se tienen datos de contacto. Llámala con lo que ya tengas aunque falten datos: te '
+            . 'responde la lista exacta de lo que falta. Prepara el registro y el usuario lo confirma.';
     }
 
     public function permiso(): string|array|null
@@ -39,7 +40,7 @@ class CrearProspecto extends Herramienta
 
     public function parametros(): array
     {
-        return ['type' => 'object', 'properties' => $this->propiedadesAlta(), 'required' => ['nombre', 'telefono']];
+        return ['type' => 'object', 'properties' => $this->propiedadesAlta(), 'required' => ['nombre']];
     }
 
     public function preparar(User $user, array $args): array
@@ -54,7 +55,7 @@ class CrearProspecto extends Herramienta
 
         $datos += $this->fijos($user, $datos);
         if ($error = Formulario::errores(Formulario::peticion(CrmCreateRequest::class, '/crm/add', $datos, $user))) {
-            return ['error' => "La pantalla de prospectos no lo acepta: {$error}"];
+            return self::rechazo('prospectos', $error, $datos);
         }
 
         return [

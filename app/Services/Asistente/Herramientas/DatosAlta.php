@@ -84,10 +84,51 @@ trait DatosAlta
             }
         }
         if (!$colonia) {
-            $faltan[] = 'colonia (búscala con buscar_colonia)';
+            $faltan[] = 'colonia (el nombre o el código postal)';
         }
 
         return ['datos' => $datos, 'faltan' => $faltan, 'colonia' => $colonia];
+    }
+
+    /**
+     * Clientes y prospectos que ya existen con el mismo nombre completo o el mismo correo, con sus
+     * datos reales: así JARVIS le dice al usuario quién es (y no se lo inventa).
+     */
+    protected static function existentes(array $d): array
+    {
+        $out = [];
+        $porNombre = fn ($q, $a) => $q->where("{$a}.name", $d['name'])->where("{$a}.father_last_name", $d['father_last_name'])
+            ->where("{$a}.mother_last_name", $d['mother_last_name']);
+        $clientes = DB::table('client_main_information as c')->join('clients as cl', 'cl.id', '=', 'c.client_id')
+            ->leftJoin('colonies as col', 'col.id', '=', 'c.colony_id')->whereNull('cl.deleted_at')
+            ->where(fn ($w) => $w->where(fn ($q) => $porNombre($q, 'c'))->when($d['email'] !== '', fn ($q) => $q->orWhere('c.email', $d['email'])))
+            ->limit(3)->get(['cl.id', 'c.name', 'c.father_last_name', 'c.mother_last_name', 'c.estado', 'c.email', 'col.name as colonia']);
+        foreach ($clientes as $c) {
+            $out[] = ['es' => 'cliente', 'numero' => $c->id, 'nombre' => trim("{$c->name} {$c->father_last_name} {$c->mother_last_name}"),
+                'estado' => $c->estado, 'correo' => $c->email, 'colonia' => $c->colonia, 'enlace' => "/cliente/editar/{$c->id}"];
+        }
+        $prospectos = DB::table('crm_main_information as m')->leftJoin('crm_lead_information as l', 'l.crm_id', '=', 'm.crm_id')
+            ->leftJoin('colonies as col', 'col.id', '=', 'm.colony_id')
+            ->where(fn ($w) => $w->where(fn ($q) => $porNombre($q, 'm'))->when($d['email'] !== '', fn ($q) => $q->orWhere('m.email', $d['email'])))
+            ->limit(3)->get(['m.crm_id', 'm.name', 'm.father_last_name', 'm.mother_last_name', 'l.crm_status', 'm.email', 'col.name as colonia']);
+        foreach ($prospectos as $p) {
+            $out[] = ['es' => 'prospecto', 'numero' => $p->crm_id, 'nombre' => trim("{$p->name} {$p->father_last_name} {$p->mother_last_name}"),
+                'estado' => $p->crm_status, 'correo' => $p->email, 'colonia' => $p->colonia, 'enlace' => "/crm/editar/{$p->crm_id}"];
+        }
+
+        return $out;
+    }
+
+    /** Respuesta de "la pantalla no lo acepta", con los registros que ya existen si es por repetido. */
+    protected static function rechazo(string $pantalla, string $error, array $datos): array
+    {
+        $ya = self::existentes($datos);
+
+        return ['error' => "La pantalla de {$pantalla} no lo acepta: {$error}"]
+            + ($ya ? [
+                'ya_existe'  => $ya,
+                'como_seguir' => 'Dile quién es con su enlace (usa solo estos datos) y pregúntale si de todos modos lo registras; si dice que sí, vuelve a prepararlo con aunque_exista.',
+            ] : []);
     }
 
     /** Las líneas del resumen que ve el usuario antes de decir "sí". */

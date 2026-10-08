@@ -38,6 +38,7 @@ return [
     'manual.generador' => ['nombre' => 'Generador del manual', 'grupo' => 'Sistema', 'requiere' => [], 'listo' => true],
     'asistente.chat_flotante' => ['nombre' => 'JARVIS — asistente flotante', 'grupo' => 'Sistema', 'requiere' => ['herramientas'], 'listo' => true],
     'asistente.memoria' => ['nombre' => 'JARVIS — resumir y recordar las conversaciones', 'grupo' => 'Sistema', 'requiere' => [], 'listo' => true],
+    'asistente.entrenamiento' => ['nombre' => 'JARVIS — escribir su guía del sistema (asistente:aprender)', 'grupo' => 'Sistema', 'requiere' => [], 'listo' => true],
     'ia.memoria' => ['nombre' => 'Memoria del chat IA (extraer hechos)', 'grupo' => 'Sistema', 'requiere' => [], 'listo' => true],
     'devtools.chat' => ['nombre' => 'Chat de DevTools', 'grupo' => 'Sistema', 'requiere' => ['imagenes'], 'listo' => true],
     'modulos.plan_migracion' => ['nombre' => 'Plan de migración de módulos', 'grupo' => 'Sistema', 'requiere' => [], 'listo' => true],

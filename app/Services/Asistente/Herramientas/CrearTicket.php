@@ -27,7 +27,9 @@ class CrearTicket extends Herramienta
 
     public function descripcion(): string
     {
-        return 'Crea un ticket de soporte para un cliente (por ejemplo una falla de internet). Prepara el ticket y el usuario lo confirma.';
+        return 'Crea un ticket de soporte para un cliente (por ejemplo una falla de internet). Solo se necesita el '
+            . 'cliente y el tema; lo demás ya tiene valor (prioridad Normal, tipo Incidente, grupo Cualquier) y solo se '
+            . 'cambia si el usuario lo dice. Prepara el ticket y el usuario lo confirma.';
     }
 
     public function permiso(): string|array|null

@@ -1,0 +1,62 @@
+{
+    "_descripcion": "Cómo se arman las guías por módulo de JARVIS (php artisan asistente:aprender). Las guías se generan con IA a partir de docs/modulos/*.md, el menú lateral real, las pantallas de alta y el manual. Para corregir una guía: arreglar su documentación o agregar una nota aquí, y volver a correr el comando.",
+    "usuario_menu": "circuito_test_126",
+    "excluir": [
+        "auth",
+        "devtools",
+        "layout",
+        "modulemanager",
+        "release",
+        "roadmap",
+        "security"
+    ],
+    "segmentos": {},
+    "notas": {
+        "clientes": "JARVIS ya puede dar de alta clientes, buscarlos, listarlos y consultar su ficha, pagos, facturas y tickets.",
+        "crm": "JARVIS ya puede registrar prospectos y listarlos. En el menú esta sección se llama 'Clientes potenciales'."
+    },
+    "guias_del_equipo": {
+        "_": "Guías escritas y revisadas a mano (resources/asistente/guia/<nombre>.md): se le dan a la IA como verdad al escribir la guía de ese módulo.",
+        "clientes": "clientes",
+        "finanzas": "pagos-y-facturacion",
+        "payments": "pagos-y-facturacion",
+        "tickets": "tickets",
+        "gestionred": "red-y-equipos"
+    },
+    "palabras_tecnicas": [
+        "controller",
+        "controlador",
+        "endpoint",
+        "api",
+        "json",
+        "tabla",
+        "base de datos",
+        "migración",
+        "modelo eloquent",
+        "eloquent",
+        "repositorio",
+        "middleware",
+        "blade",
+        "vue",
+        "componente",
+        "backend",
+        "frontend",
+        "query",
+        "sql",
+        "id_",
+        "_id",
+        "permiso spatie",
+        "spatie",
+        "laravel",
+        "php",
+        "artisan",
+        "webhook",
+        "observer",
+        "job",
+        "cola de trabajos"
+    ],
+    "max_caracteres_documentacion": 18000,
+    "max_caracteres_manual": 5000,
+    "max_caracteres_altas": 12000,
+    "max_caracteres_guia": 5000
+}
