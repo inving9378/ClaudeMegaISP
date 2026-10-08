@@ -85,6 +85,49 @@ final class Actor
     }
 
     /**
+     * "Vista principal" del colaborador cuando tiene varios roles a la vez —
+     * decisión de Irving (llamada 2026-10-08): un técnico que TAMBIÉN carga
+     * el rol Vendedor (caso real hoy en producción, no hipotético) sigue
+     * siendo técnico para efectos de qué pantalla/métricas le corresponden,
+     * no vendedor. Misma prioridad que ya usa
+     * TalentoColaboradorSyncService::PRIORITY para resolver el department —
+     * aquí solo se traduce a una etiqueta de "track" en vez de un department.
+     *
+     * Puramente informativa: no reemplaza ni oculta seller()/talento()/
+     * embajador() — un frontend futuro la usa para decidir qué métricas
+     * mostrar como protagonistas, sin tener que rederivar roles.
+     */
+    public function trackPrincipal(): string
+    {
+        $roles = $this->user->getRoleNames();
+
+        if ($roles->contains('TECNICO_PLANTA')) {
+            return 'tecnico_planta_interna';
+        }
+        if ($roles->contains('TECNICO_INSTALADOR') || $roles->contains('TECNICO')) {
+            return 'tecnico_planta_externa';
+        }
+        if ($roles->contains('Mostrador')) {
+            return 'mostrador';
+        }
+        if ($roles->contains('Vendedor')) {
+            return 'vendedor';
+        }
+
+        return 'generico';
+    }
+
+    /**
+     * Es técnico (interna o externa) para efectos del sidebar/dashboard del
+     * Portal — deriva de trackPrincipal() en vez de repetir la lista de
+     * roles, para que ambas nunca puedan desincronizarse entre sí.
+     */
+    public function esTecnico(): bool
+    {
+        return str_starts_with($this->trackPrincipal(), 'tecnico_');
+    }
+
+    /**
      * Secciones del sidebar del portal para ESTE colaborador. Cada entrada se incluye solo si
      * (a) está CONSTRUIDA (flag 'built') y (b) APLICA según la faceta. Faceta null → oculta.
      * Crece por fase: al construir una sección se pone built=true y se cablea su tab en app.js.
@@ -99,6 +142,7 @@ final class Actor
             ['mi_dia',     'Mi Talento',  'Mi día',         'today',        'inicio',      $esColaborador,                                       true],   // Bloques 1-2
             ['mi_dinero',  'Mi Talento',  'Mi dinero',      'payments',     'dinero',      $esColaborador,                                       true],   // Bloque 2
             ['material',   'Mi trabajo',  'Mi material',    'inventory_2',  'material',    fn () => (bool) $this->custodia(),                     true],   // Fase A (A2 activada)
+            ['calidad',    'Mi trabajo',  'Mi progreso',    'verified',     'calidad',     fn () => $this->esTecnico(),                           true],   // Fase 1 del dashboard por rol (2026-10-08) — label "Mi progreso" a pedido de Irving (se descartó "Mi trabajo": duplicaría el grupo que ya se llama así)
             ['prospectos', 'Mi trabajo',  'Mis prospectos', 'groups',       'prospectos',  fn () => (bool) $this->seller(),                       true],   // Fase C
             ['panel',      'Mi trabajo',  'Mi panel',       'insights',     'panel',       fn () => (bool) ($this->seller() || $this->embajador()), false], // Fases D/E
             ['documentos', 'Cuenta',      'Mis documentos', 'description',  'documentos',  fn () => $this->user->can('talento.documentos.ver-propios'), true], // Item #9990814

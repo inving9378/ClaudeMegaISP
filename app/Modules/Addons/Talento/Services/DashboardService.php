@@ -120,6 +120,61 @@ class DashboardService
         ];
     }
 
+    // ── Calidad/garantías del propio técnico (Portal de Colaborador) ──────
+
+    /**
+     * Groundwork "vista por rol" (llamada Irving, 2026-10-08) — lo mismo que
+     * ya grafica TalentoDashboard.vue (admin) con dailyProduction(), pero
+     * resumido para la tarjeta "Mi calidad" del propio técnico. Reusa
+     * dailyProduction() tal cual para la serie diaria -- cero lógica de
+     * conteo nueva, solo se agregan los totales/porcentaje que la serie no
+     * trae ya armados.
+     */
+    public function calidadTecnico(int $colaboradorId, int $dias = 180): array
+    {
+        $serie = $this->dailyProduction($dias, $colaboradorId);
+
+        $garantiasBillable    = array_sum($serie['garantias_billable']);
+        $garantiasNonBillable = array_sum($serie['garantias_non_billable']);
+
+        $from = now()->subDays($dias - 1)->startOfDay();
+        $to   = now()->endOfDay();
+
+        $trabajosAsignados = (int) TalentoWorkOrder::where('colaborador_id', $colaboradorId)
+            ->where('status', '!=', 'cancelled')
+            ->whereBetween('created_at', [$from, $to])
+            ->count();
+
+        $completados = (int) TalentoWorkOrder::where('colaborador_id', $colaboradorId)
+            ->whereIn('status', ['completed', 'validated'])
+            ->whereBetween('created_at', [$from, $to])
+            ->count();
+
+        // "Sin incidencias" = trabajos completados que NO terminaron en una
+        // garantía no pagable (responsabilidad del técnico) dentro del período.
+        $sinIncidenciaDen = $completados + $garantiasNonBillable;
+        $calidadPct = $sinIncidenciaDen > 0
+            ? round(($completados / $sinIncidenciaDen) * 100, 1)
+            : null;
+
+        $recentOrders = TalentoWorkOrder::with('type')
+            ->where('colaborador_id', $colaboradorId)
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get(['id', 'type_id', 'status', 'created_at']);
+
+        return [
+            'period_days'            => $dias,
+            'trabajos_asignados'     => $trabajosAsignados,
+            'completados'            => $completados,
+            'garantias_billable'     => $garantiasBillable,
+            'garantias_non_billable' => $garantiasNonBillable,
+            'calidad_pct'            => $calidadPct,
+            'serie'                  => $serie,
+            'recent_orders'          => $recentOrders,
+        ];
+    }
+
     // ── Métricas del técnico (preview sin escribir) ───────────────────────
 
     public function tecnicoPreview(int $colaboradorId, ?string $periodStart = null, ?string $periodEnd = null): array

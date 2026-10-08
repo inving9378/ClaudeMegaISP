@@ -36,4 +36,6 @@ mix.js("resources/js/app.js", jsOut)
     .sass("resources/sass/app.scss", "public/css")
     .version();
 
-mix.copy("node_modules/chart.js/dist/chart.js", "public/chart.js/chart.js");
+// UMD (no ESM) — este archivo se sirve como <script src> plano (Portal de Colaborador, sin build
+// propio); el build "chart.js" a secas es ESM puro (import/export) y revienta como script clásico.
+mix.copy("node_modules/chart.js/dist/chart.umd.min.js", "public/chart.js/chart.js");

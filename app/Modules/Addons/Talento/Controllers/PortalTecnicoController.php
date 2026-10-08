@@ -39,7 +39,7 @@ use Illuminate\Support\Facades\Storage;
 class PortalTecnicoController extends Controller
 {
     /** Cache-busting de los assets estáticos del portal (subir al cambiar app.js/portal.css). */
-    private const ASSET_VER = '18';
+    private const ASSET_VER = '19';
 
     /** Shell del portal (SPA Quasar de una sola página con nav inferior). */
     public function index(Request $request)
@@ -52,6 +52,10 @@ class PortalTecnicoController extends Controller
             'assetVer'    => self::ASSET_VER,
             'theme'       => $theme,
             'sections'    => $actor->sections(),
+            // Groundwork para la vista por rol/combinación (llamada de Irving,
+            // 2026-10-08) — puramente informativo hoy, sin pantalla que lo
+            // consuma todavía (se cablea cuando llegue el mockup visual).
+            'track'       => $actor->trackPrincipal(),
             'colaborador' => $colaborador ? [
                 'id'     => $colaborador->id,
                 // El nombre vive en el user vinculado; talento_colaboradores no tiene
@@ -673,6 +677,25 @@ JS;
         return $ps
             ? PayWeek::boundsFor(Carbon::parse($ps)->copy()->addDay())
             : PayWeek::current();
+    }
+
+    /**
+     * "Mi calidad" (Fase 1 del dashboard por rol, llamada Irving 2026-10-08)
+     * — garantías/calidad del PROPIO técnico. Wrapper self-scoped sobre
+     * DashboardService::calidadTecnico(), que a su vez reusa
+     * dailyProduction() (el mismo origen de datos que ya grafica el admin en
+     * TalentoDashboard.vue) — cero cálculo nuevo, solo resumido para una
+     * tarjeta. El colaborador SIEMPRE se resuelve por el Actor de la
+     * sesión — nadie puede pedir los datos de otro por esta ruta.
+     */
+    public function miCalidad(Request $request, \App\Modules\Addons\Talento\Services\DashboardService $service)
+    {
+        $this->authorize('talento.warranty.view');
+        $col = $this->resolveColaborador($request);
+        if (! $col) return response()->json(['error' => 'Sin perfil de colaborador activo.'], 403);
+
+        $dias = (int) ($request->query('dias', 180));
+        return response()->json($service->calidadTecnico($col->id, $dias));
     }
 
     /** 1. Cuenta corriente: ledger del período AGRUPADO POR CONCEPTO + neto (server-side). */
