@@ -30,7 +30,7 @@
                 Seguimiento de expedientes y publicaciones oficiales, detección de cambios y alertas.
                 Módulo instalado desde <b>Gestión de Add-ons</b>. Opera con el núcleo del sistema y
                 enciende los canales opcionales (WhatsApp, IA) solo si están disponibles en esta instancia.
-                <span class="text-muted">(En construcción por fases — Fase 1: estructura e integraciones.)</span>
+                <span class="text-muted">(En construcción por fases — Fase 2: alta/edición de expedientes y fuentes.)</span>
             </p>
         </div>
     </div>
@@ -69,7 +69,19 @@
 
     <div class="card">
         <div class="card-body">
-            <h4 class="card-title">Expedientes monitoreados</h4>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h4 class="card-title mb-0">Expedientes monitoreados</h4>
+                @if(auth()->user()->can('monitoring.manage_cases'))
+                    <a href="{{ route('monitoreo-oficial.expedientes.crear') }}" class="btn btn-sm btn-primary">
+                        <i class="fa fa-plus"></i> Nuevo expediente
+                    </a>
+                @endif
+            </div>
+
+            @if (session('success'))
+                <div class="alert alert-success">{{ session('success') }}</div>
+            @endif
+
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0">
                     <thead>
@@ -78,8 +90,12 @@
                             <th>Denominación</th>
                             <th>Expediente</th>
                             <th>Registro</th>
+                            <th>Fuente</th>
                             <th>Estado legal</th>
                             <th>Monitoreo</th>
+                            @if(auth()->user()->can('monitoring.manage_cases'))
+                                <th class="text-end">Acciones</th>
+                            @endif
                         </tr>
                     </thead>
                     <tbody>
@@ -89,11 +105,24 @@
                                 <td>{{ $case->name }} @if($case->is_demo)<span class="badge bg-info ms-1">Ejemplo</span>@endif</td>
                                 <td>{{ $case->case_number ?? '—' }}</td>
                                 <td>{{ $case->registration_number ?? '—' }}</td>
+                                <td class="text-muted">{{ $case->source?->name ?? '—' }}</td>
                                 <td class="text-muted">{{ $case->current_legal_status ?? '—' }}</td>
                                 <td><span class="badge {{ $case->monitoring_status === 'activo' ? 'bg-success' : 'bg-secondary' }}">{{ ucfirst($case->monitoring_status) }}</span></td>
+                                @if(auth()->user()->can('monitoring.manage_cases'))
+                                    <td class="text-end">
+                                        <a href="{{ route('monitoreo-oficial.expedientes.editar', $case->id) }}" class="btn btn-sm btn-outline-secondary">Editar</a>
+                                        @unless($case->is_demo)
+                                            <form method="POST" action="{{ route('monitoreo-oficial.expedientes.eliminar', $case->id) }}" class="d-inline" onsubmit="return confirm('¿Eliminar este expediente?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+                                            </form>
+                                        @endunless
+                                    </td>
+                                @endif
                             </tr>
                         @empty
-                            <tr><td colspan="6" class="text-muted text-center">No hay expedientes registrados en esta instancia.</td></tr>
+                            <tr><td colspan="8" class="text-muted text-center">No hay expedientes registrados en esta instancia.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
