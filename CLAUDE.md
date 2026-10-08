@@ -203,6 +203,10 @@ Incidente de origen: se cambió un icono a `fa-file-text-o` (nombre FA4) → bot
 - **Herramientas** en `app/Services/Asistente/Herramientas/`, cada una con el permiso de su pantalla;
   se registran en `RegistroHerramientas::CLASES`. Los cambios solo se aplican con el "sí" del usuario
   (validado por el servidor) y quedan en `activity_log` con `log_name='jarvis'`.
+- **Altas** (`crear_cliente`, `crear_prospecto`) van por el MISMO FormRequest + `store()` de la
+  pantalla (`Herramientas\Formulario`), no copian reglas. Lo que JARVIS no pudo hacer queda anotado
+  como `activity_log` `log_name='jarvis'` + `description LIKE 'Pendiente:%'`: es la lista de qué
+  capacidad agregarle después.
 - **Memoria** en BD: `asistente_conversaciones/mensajes/recuerdos/acciones`. IA: Integraciones →
   Módulos IA, claves `asistente.chat_flotante` (requiere herramientas) y `asistente.memoria`.
 - Acceso: permiso `usar-ia-chat`.
