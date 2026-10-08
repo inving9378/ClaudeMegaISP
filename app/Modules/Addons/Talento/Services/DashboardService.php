@@ -258,6 +258,70 @@ class DashboardService
         ];
     }
 
+    // ── "Mi equipo" (Portal de Colaborador, Fase 5) — vista agregada para supervisores ────
+
+    /**
+     * Fila resumen de cada colaborador del equipo (un número por persona, según su track —
+     * técnico/vendedor/mostrador), NO el dashboard completo de cada uno (sería carísimo y
+     * ruidoso de listar). $verTodo=true ignora supervisor_id y trae a todos los colaboradores
+     * activos (candado de permiso/rol en el controller, no aquí). En dev hoy ningún colaborador
+     * tiene supervisor_id poblado — el nivel "mi equipo" saldrá vacío hasta que se asignen
+     * supervisores en el organigrama real; es honesto reflejar eso, no inventar datos.
+     */
+    public function equipoProgreso(int $supervisorColaboradorId, bool $verTodo, int $dias = 30): array
+    {
+        $query = TalentoColaborador::with('user')->where('status', 'active');
+        if ($verTodo) {
+            $query->where('id', '!=', $supervisorColaboradorId);
+        } else {
+            $query->where('supervisor_id', $supervisorColaboradorId);
+        }
+
+        $from = now()->subDays($dias - 1)->startOfDay();
+
+        $filas = [];
+        foreach ($query->get() as $col) {
+            if (! $col->user) {
+                continue;
+            }
+
+            $track  = \App\Modules\Addons\Talento\Support\Actor::for($col->user)->trackPrincipal();
+            $userId = $col->user->id;
+
+            $fila = [
+                'colaborador_id' => $col->id,
+                'nombre'         => $col->user->name,
+                'track'          => $track,
+                'metric_label'   => null,
+                'metric_value'   => null,
+            ];
+
+            if (str_starts_with($track, 'tecnico_')) {
+                $fila['metric_label'] = "Completados ({$dias}d)";
+                $fila['metric_value'] = (int) TalentoWorkOrder::where('colaborador_id', $col->id)
+                    ->whereIn('status', ['completed', 'validated'])
+                    ->where('created_at', '>=', $from)
+                    ->count();
+            } elseif ($track === 'vendedor') {
+                // Mismo criterio/columna (varchar, comparación por string Y-m-d) que ya usa
+                // StaticsController::salesAndProspects() para su rango por defecto.
+                $fila['metric_label'] = "Ventas ({$dias}d)";
+                $fila['metric_value'] = (int) \App\Models\ClientMainInformation::where('seller_id', $userId)
+                    ->where('activation_date', '>=', $from->format('Y-m-d'))
+                    ->count();
+            } elseif ($track === 'mostrador') {
+                $fila['metric_label'] = "Pagos capturados ({$dias}d)";
+                $fila['metric_value'] = (int) \App\Models\Payment::where('add_by', $userId)
+                    ->where('created_at', '>=', $from)
+                    ->count();
+            }
+
+            $filas[] = $fila;
+        }
+
+        return ['period_days' => $dias, 'ver_todo' => $verTodo, 'equipo' => $filas];
+    }
+
     // ── Métricas del técnico (preview sin escribir) ───────────────────────
 
     public function tecnicoPreview(int $colaboradorId, ?string $periodStart = null, ?string $periodEnd = null): array

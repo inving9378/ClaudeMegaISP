@@ -720,6 +720,30 @@
                 return MAP[Number(p)] || { label: '—', color: 'grey-7' };
             }
 
+            // ── "Mi equipo" (Fase 5 del dashboard por rol) — vista agregada SOLO LECTURA para
+            // supervisores (sus subordinados directos) o super admin (todos) ──
+            const equipoProgresoCargado = ref(false);
+            const cargandoEquipoProgreso = ref(false);
+            const equipoProgreso = ref(null);
+            async function cargarEquipoProgreso() {
+                if (!colaborador.value) { cargandoEquipoProgreso.value = false; return; }
+                cargandoEquipoProgreso.value = true;
+                const r = await apiFetch('/talento/portal/mi-equipo-progreso');
+                if (r && r.ok && r.data) {
+                    equipoProgreso.value = r.data;
+                }
+                cargandoEquipoProgreso.value = false;
+                equipoProgresoCargado.value = true;
+            }
+            const TRACK_INFO = {
+                tecnico_planta_interna: { label: 'Técnico', icon: 'verified', color: 'teal-6' },
+                tecnico_planta_externa: { label: 'Técnico', icon: 'verified', color: 'teal-6' },
+                vendedor: { label: 'Vendedor', icon: 'trending_up', color: 'orange-8' },
+                mostrador: { label: 'Mostrador', icon: 'support_agent', color: 'blue-7' },
+                generico: { label: 'Sin dashboard propio', icon: 'person', color: 'grey-6' },
+            };
+            function trackInfo(t) { return TRACK_INFO[t] || TRACK_INFO.generico; }
+
             // ── "Mis prospectos" (Fase C) — prospectos CRM del vendedor (SOLO LECTURA, self-scoped por el backend) ──
             const prospectosCargado = ref(false);
             const cargandoProspectos = ref(false);
@@ -795,6 +819,7 @@
                 if (val === 'calidad' && !calidadCargado.value) cargarCalidad();
                 if (val === 'mis_ventas' && !misVentasCargado.value) cargarMisVentas();
                 if (val === 'mi_mostrador' && !progresoMostradorCargado.value) cargarProgresoMostrador();
+                if (val === 'mi_equipo' && !equipoProgresoCargado.value) cargarEquipoProgreso();
                 if (val === 'prospectos' && !prospectosCargado.value) cargarProspectos();
                 if (val === 'documentos' && !documentosCargado.value) cargarDocumentos();
             }
@@ -825,6 +850,7 @@
                 calidad, cargandoCalidad, cargarCalidad,
                 misVentas, cargandoMisVentas, cargarMisVentas, totalVentasPeriodo, totalProspectosPeriodo, pct1,
                 progresoMostrador, cargandoProgresoMostrador, cargarProgresoMostrador, prioridadLabel,
+                equipoProgreso, cargandoEquipoProgreso, cargarEquipoProgreso, trackInfo,
                 prospectos, cargandoProspectos, cargarProspectos, nombreProspecto, statusColor,
                 documentos, cargandoDocumentos, documentosTab, documentosListaActiva, documentosKpi,
                 documentosPendientes, documentosFirmados, documentoEstadoInfo, documentoPdfUrl,
@@ -1649,6 +1675,37 @@
                                     </q-item-section>
                                 </q-item>
                             </q-list>
+                        </template>
+                    </div>
+
+                    <!-- Mi equipo (Fase 5 del dashboard por rol) — vista agregada SOLO LECTURA para supervisores/super admin -->
+                    <div v-show="tab==='mi_equipo'" class="q-pa-md">
+                        <div v-if="cargandoEquipoProgreso" class="tp-empty">
+                            <q-spinner color="teal-6" size="2em" /><div class="text-caption q-mt-sm">Cargando…</div>
+                        </div>
+                        <template v-else-if="equipoProgreso">
+                            <div class="text-caption text-grey-6 q-mb-sm">
+                                {{ equipoProgreso.ver_todo ? 'Todos los colaboradores activos' : 'Tu equipo directo' }} · últimos {{ equipoProgreso.period_days }} días
+                            </div>
+                            <q-list v-if="equipoProgreso.equipo && equipoProgreso.equipo.length" bordered separator class="tp-card">
+                                <q-item v-for="m in equipoProgreso.equipo" :key="'eq'+m.colaborador_id">
+                                    <q-item-section avatar>
+                                        <q-icon :name="trackInfo(m.track).icon" :color="trackInfo(m.track).color" />
+                                    </q-item-section>
+                                    <q-item-section>
+                                        <q-item-label>{{ m.nombre }}</q-item-label>
+                                        <q-item-label caption>{{ trackInfo(m.track).label }}</q-item-label>
+                                    </q-item-section>
+                                    <q-item-section side v-if="m.metric_label">
+                                        <q-item-label>{{ m.metric_value }}</q-item-label>
+                                        <q-item-label caption>{{ m.metric_label }}</q-item-label>
+                                    </q-item-section>
+                                </q-item>
+                            </q-list>
+                            <div v-else class="tp-empty">
+                                <q-icon name="groups" class="tp-empty-icon" />
+                                <div class="text-subtitle1">{{ equipoProgreso.ver_todo ? 'No hay colaboradores activos' : 'Todavía no tienes colaboradores a tu cargo' }}</div>
+                            </div>
                         </template>
                     </div>
 
