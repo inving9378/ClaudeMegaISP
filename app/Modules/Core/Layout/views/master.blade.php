@@ -79,11 +79,10 @@
     </div>
     @if(auth()->user() && auth()->user()->can('usar-ia-chat'))
         <div id="ia-chat-float-root">
-            {{-- Chat IA flotante (#9 / #636): gateado por permiso, costo real de API por mensaje.
-                 ⚠️ APAGADO desde el 2026-08-27 (#649): contestaba desde `ModuleRegistry::getAiContext()`
-                 —lo REGISTRADO— y declaraba no poder medir, mientras JARVIS mide de verdad. Dos
-                 asistentes con el mismo nombre se contradicen. Se apaga revocando `usar-ia-chat`;
-                 el montaje se deja porque partes de este panel se reusan en la Capa 1 del chat. --}}
+            {{-- JARVIS, el asistente del sistema (robotsito). Gateado por `usar-ia-chat` (costo real de
+                 API por mensaje). Memoria persistente por usuario, consulta datos con los permisos del
+                 usuario y prepara cambios que el usuario confirma — ver App\Services\Asistente y
+                 resources/asistente/. Sin relación con la burbuja de la Torre (#jarvis-burbuja-root). --}}
             <ia-chat-float url="{{ url('/') }}"></ia-chat-float>
         </div>
     @endif

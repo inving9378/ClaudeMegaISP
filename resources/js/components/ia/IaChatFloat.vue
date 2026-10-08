@@ -1,5 +1,5 @@
 <template>
-    <div class="ia-float-btn" @click="toggleChat" :class="{ 'has-pulse': !isOpen }">
+    <div class="ia-float-btn" @click="toggleChat" :class="{ 'has-pulse': !isOpen }" title="JARVIS — tu asistente">
         <div class="ia-btn-inner"><i v-if="!isOpen" class="fas fa-robot"></i><i v-else class="fas fa-times"></i></div>
         <span v-if="!isOpen" class="ia-badge">IA</span>
     </div>
@@ -10,17 +10,17 @@
                     <div class="ia-avatar"><i class="fas fa-robot"></i></div>
                     <div>
                         <div class="ia-title">JARVIS</div>
-                        <div class="ia-subtitle"><span class="ia-dot"></span>{{ isTyping ? 'Procesando...' : 'En línea' }}</div>
+                        <div class="ia-subtitle"><span class="ia-dot"></span>{{ isTyping ? 'Pensando...' : 'En línea' }}</div>
                     </div>
                 </div>
                 <div class="ia-header-actions">
-                    <button class="ia-btn-icon" @click="isExpanded=!isExpanded"><i :class="isExpanded?'fas fa-compress-alt':'fas fa-expand-alt'"></i></button>
-                    <button class="ia-btn-icon" @click="messages=[]"><i class="fas fa-plus"></i></button>
-                    <button class="ia-btn-icon" @click="isOpen=false"><i class="fas fa-times"></i></button>
+                    <button class="ia-btn-icon" @click="isExpanded = !isExpanded" :title="isExpanded ? 'Reducir' : 'Agrandar'"><i :class="isExpanded ? 'fas fa-compress-alt' : 'fas fa-expand-alt'"></i></button>
+                    <button class="ia-btn-icon" @click="newConversation" :disabled="isTyping" title="Empezar tema nuevo"><i class="fas fa-plus"></i></button>
+                    <button class="ia-btn-icon" @click="isOpen = false" title="Cerrar"><i class="fas fa-times"></i></button>
                 </div>
             </div>
-            <div v-if="messages.length===0" class="ia-suggestions">
-                <div class="ia-welcome"><i class="fas fa-robot ia-welcome-icon"></i><p>¡Hola! Soy JARVIS. ¿En qué puedo ayudarte?</p></div>
+            <div v-if="loaded && messages.length === 0" class="ia-suggestions">
+                <div class="ia-welcome"><i class="fas fa-robot ia-welcome-icon"></i><p>¡Hola! Soy JARVIS. Pregúntame por un cliente, sus pagos, tickets o cómo hacer algo en el sistema.</p></div>
                 <div class="ia-chips" v-if="suggestions.length">
                     <button class="ia-chip" v-for="s in suggestions" :key="s.text" @click="sendSuggestion(s.text)">
                         <i class="fas fa-comment-dots"></i> {{ s.label }}
@@ -28,34 +28,20 @@
                 </div>
             </div>
             <div class="ia-messages" ref="messagesContainer">
-                <div v-for="(msg,i) in messages" :key="i" :class="['ia-msg', msg.role==='user'?'ia-msg-user':'ia-msg-ai']">
-                    <div v-if="msg.role==='assistant'" class="ia-msg-avatar"><i class="fas fa-robot"></i></div>
+                <div v-for="(msg, i) in messages" :key="i" :class="['ia-msg', msg.role === 'user' ? 'ia-msg-user' : 'ia-msg-ai']">
+                    <div v-if="msg.role === 'assistant'" class="ia-msg-avatar"><i class="fas fa-robot"></i></div>
                     <div class="ia-msg-body">
                         <div class="ia-msg-text" v-html="fmt(msg.content)"></div>
-                        <!-- Renderer genérico (#9 Fase 3): la forma de action_data decide cómo se pinta
-                             (tabla/cards/lista), no una lista de action_type hardcodeados. -->
-                        <div v-if="msg.render && msg.render.kind" class="ia-action-render">
-                            <div v-if="msg.render.siblings && msg.render.siblings.length" class="ia-result-summary">
-                                <div class="ia-summary-row" v-for="it in msg.render.siblings" :key="it.label"><span>{{it.label}}:</span><strong>{{fmtValue(it.value)}}</strong></div>
-                            </div>
-                            <div v-if="msg.render.kind==='table'" class="ia-result-table">
-                                <table class="table table-sm mb-0">
-                                    <thead><tr><th v-for="col in msg.render.columns" :key="col">{{humanizeKey(col)}}</th></tr></thead>
-                                    <tbody>
-                                        <tr v-for="(row,ri) in msg.render.rows" :key="ri">
-                                            <td v-for="col in msg.render.columns" :key="col">{{fmtValue(row[col])}}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div v-else-if="msg.render.kind==='cards'" class="ia-stats-grid">
-                                <div class="ia-stat-card" v-for="it in msg.render.items" :key="it.label"><div class="ia-stat-num">{{fmtValue(it.value)}}</div><div class="ia-stat-label">{{it.label}}</div></div>
-                            </div>
-                            <div v-else-if="msg.render.kind==='list'" class="ia-result-summary">
-                                <div class="ia-summary-row" v-for="it in msg.render.items" :key="it.label"><span>{{it.label}}:</span><strong>{{fmtValue(it.value)}}</strong></div>
-                            </div>
-                        </div>
-                        <div class="ia-msg-time">{{ft(msg.timestamp)}}</div>
+                        <div class="ia-msg-time">{{ ft(msg.timestamp) }}</div>
+                    </div>
+                </div>
+                <!-- Cambio que JARVIS preparó: solo se aplica con este botón (o respondiendo "sí"). -->
+                <div v-if="pendingAction" class="ia-confirm">
+                    <div class="ia-confirm-title"><i class="fas fa-hand-paper"></i> ¿Lo hago?</div>
+                    <div class="ia-confirm-text" v-html="fmt(pendingAction.resumen)"></div>
+                    <div class="ia-confirm-actions">
+                        <button class="ia-confirm-yes" @click="resolveAction('confirmar')" :disabled="isTyping"><i class="fas fa-check"></i> Sí, hazlo</button>
+                        <button class="ia-confirm-no" @click="resolveAction('cancelar')" :disabled="isTyping">Cancelar</button>
                     </div>
                 </div>
                 <div v-if="isTyping" class="ia-msg ia-msg-ai">
@@ -65,10 +51,10 @@
             </div>
             <div class="ia-input-area">
                 <div class="ia-input-row">
-                    <textarea ref="inputRef" v-model="inputText" @keydown.enter.exact.prevent="send" @keydown.enter.shift.exact="inputText+='\n'" placeholder="Escribe... (Enter para enviar)" :disabled="isTyping" rows="1" class="ia-input"></textarea>
-                    <button class="ia-send-btn" @click="send" :disabled="isTyping||!inputText.trim()"><i class="fas fa-paper-plane"></i></button>
+                    <textarea ref="inputRef" v-model="inputText" @keydown.enter.exact.prevent="send" placeholder="Escribe... (Enter para enviar)" :disabled="isTyping" rows="1" class="ia-input"></textarea>
+                    <button class="ia-send-btn" @click="send" :disabled="isTyping || !inputText.trim()"><i class="fas fa-paper-plane"></i></button>
                 </div>
-                <div class="ia-input-hint">Shift+Enter = nueva línea</div>
+                <div class="ia-input-hint">Shift+Enter = nueva línea · JARVIS recuerda la plática; <i class="fas fa-plus"></i> empieza un tema nuevo</div>
             </div>
         </div>
     </transition>
@@ -77,58 +63,22 @@
 import { ref, onMounted, nextTick } from 'vue';
 import axios from 'axios';
 
-/** ¿v es un objeto plano (no array, no null)? */
-const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
-
-/** Primera llave de `data` cuyo valor es un array de objetos (candidata a tabla). */
-const findArrayKey = (data) => isPlainObject(data)
-    ? Object.keys(data).find((k) => Array.isArray(data[k]) && data[k].length && isPlainObject(data[k][0]))
-    : null;
-
-const humanizeKey = (k) => {
-    const s = String(k).replace(/_/g, ' ');
-    return s.charAt(0).toUpperCase() + s.slice(1);
-};
-
-const fmtValue = (v) => {
-    if (typeof v === 'number') return v.toLocaleString('es-MX');
-    if (v === null || v === undefined) return '—';
-    return v;
-};
+const escapeHtml = (t) => String(t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 /**
- * Clasifica `data` (el `action_result` que devuelva el backend) en uno de tres
- * renderers genéricos — tabla / cards / lista — según su FORMA, no según el nombre
- * del action_type. Así cualquier acción futura (Fase 2 de tool-calling, #171) se
- * pinta sola sin tocar este componente.
+ * Texto de JARVIS → HTML seguro: primero se escapa TODO (ningún HTML de la IA o del usuario se
+ * ejecuta) y luego se aplican solo negritas, `código` y enlaces internos [texto](/ruta).
+ * Un enlace que no empiece con "/" se queda como texto.
  */
-const describeAction = (data) => {
-    if (data === null || data === undefined) return { kind: null };
-
-    if (Array.isArray(data)) {
-        if (!data.length) return { kind: null };
-        return isPlainObject(data[0])
-            ? { kind: 'table', rows: data, columns: Object.keys(data[0]).filter((k) => k !== 'id').slice(0, 6), siblings: [] }
-            : { kind: 'list', items: data.map((v, i) => ({ label: String(i + 1), value: v })), siblings: [] };
-    }
-
-    if (!isPlainObject(data)) return { kind: null };
-
-    const arrKey = findArrayKey(data);
-    if (arrKey) {
-        const rows = data[arrKey];
-        const siblings = Object.entries(data)
-            .filter(([k, v]) => k !== arrKey && !isPlainObject(v) && !Array.isArray(v))
-            .map(([k, v]) => ({ label: humanizeKey(k), value: v }));
-        return { kind: 'table', rows, columns: Object.keys(rows[0]).filter((k) => k !== 'id').slice(0, 6), siblings };
-    }
-
-    const entries = Object.entries(data);
-    if (!entries.length) return { kind: null };
-    if (entries.every(([, v]) => typeof v === 'number')) {
-        return { kind: 'cards', items: entries.map(([k, v]) => ({ label: humanizeKey(k), value: v })), siblings: [] };
-    }
-    return { kind: 'list', items: entries.map(([k, v]) => ({ label: humanizeKey(k), value: v })), siblings: [] };
+const fmt = (t) => {
+    if (!t) return '';
+    return escapeHtml(t)
+        .replace(/\[([^\]]+)\]\((\/[^)\s]*)\)/g, (m, texto, ruta) => `<a class="ia-link" href="${ruta}">${texto}</a>`)
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/`(.*?)`/g, '<code>$1</code>')
+        .replace(/\n/g, '<br>');
 };
 
 export default {
@@ -138,6 +88,11 @@ export default {
         const isOpen = ref(false), isExpanded = ref(false), isTyping = ref(false), inputText = ref(''), messages = ref([]);
         const messagesContainer = ref(null), inputRef = ref(null);
         const suggestions = ref([]);
+        const pendingAction = ref(null);
+        const loaded = ref(false);
+
+        const scroll = () => nextTick(() => { const e = messagesContainer.value; if (e) e.scrollTop = e.scrollHeight; });
+        const say = (content) => { messages.value.push({ role: 'assistant', content, timestamp: new Date() }); scroll(); };
 
         const loadSuggestions = async () => {
             try {
@@ -152,50 +107,91 @@ export default {
             }
         };
 
-        const scroll = () => nextTick(() => { const e = messagesContainer.value; if (e) e.scrollTop = e.scrollHeight; });
-        const toggleChat = () => { isOpen.value = !isOpen.value; if (isOpen.value) nextTick(() => inputRef.value?.focus()); };
+        // La memoria vive en el servidor: al abrir se trae la plática de este usuario.
+        const loadConversation = async () => {
+            try {
+                const res = await axios.get(`${props.url}/ia/asistente/conversacion`);
+                if (res.data && res.data.success) {
+                    messages.value = res.data.messages || [];
+                    pendingAction.value = res.data.accion_pendiente || null;
+                }
+            } catch (e) {
+                // Sin historial no se bloquea el chat: se puede seguir escribiendo.
+            } finally {
+                loaded.value = true;
+                scroll();
+            }
+        };
+
+        const toggleChat = () => {
+            isOpen.value = !isOpen.value;
+            if (isOpen.value) {
+                if (!loaded.value) loadConversation();
+                nextTick(() => inputRef.value?.focus());
+                scroll();
+            }
+        };
         const sendSuggestion = (t) => { inputText.value = t; send(); };
-        const fmt = (t) => t ? t.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/`(.*?)`/g, '<code>$1</code>').replace(/\n/g, '<br>') : '';
         const ft = (d) => d ? new Date(d).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '';
 
         const send = async () => {
             const text = inputText.value.trim();
             if (!text || isTyping.value) return;
             messages.value.push({ role: 'user', content: text, timestamp: new Date() });
-            inputText.value = ''; isTyping.value = true; scroll();
-            const history = messages.value.slice(-10).map((m) => ({ role: m.role, content: m.content }));
+            inputText.value = ''; isTyping.value = true; pendingAction.value = null; scroll();
             try {
-                const res = await axios.post(`${props.url}/ia/chat`, { message: text, history: history.slice(0, -1), context: window.location.pathname });
+                const res = await axios.post(`${props.url}/ia/chat`, { message: text, context: window.location.pathname + window.location.search });
                 if (res.data.success) {
-                    messages.value.push({
-                        role: 'assistant',
-                        content: res.data.message,
-                        action_type: res.data.action_type,
-                        render: describeAction(res.data.action_result),
-                        timestamp: new Date(),
-                    });
+                    say(res.data.message);
+                    pendingAction.value = res.data.accion_pendiente || null;
                 } else {
-                    messages.value.push({ role: 'assistant', content: '❌ ' + (res.data.error || 'Error'), timestamp: new Date() });
+                    say('❌ ' + (res.data.error || 'No pude responder.'));
                 }
             } catch (e) {
-                messages.value.push({ role: 'assistant', content: '❌ Error de conexión. Verifica CLAUDE_API_KEY en .env', timestamp: new Date() });
+                say('❌ No pude conectarme. Revisa tu conexión e inténtalo de nuevo.');
             } finally { isTyping.value = false; scroll(); nextTick(() => inputRef.value?.focus()); }
+        };
+
+        const resolveAction = async (que) => {
+            const accion = pendingAction.value;
+            if (!accion || isTyping.value) return;
+            isTyping.value = true;
+            messages.value.push({ role: 'user', content: que === 'confirmar' ? 'Sí, hazlo' : 'Cancelar', timestamp: new Date() });
+            pendingAction.value = null;
+            try {
+                const res = await axios.post(`${props.url}/ia/asistente/acciones/${accion.id}/${que}`);
+                say(res.data.message || 'Listo.');
+            } catch (e) {
+                say('❌ No pude completar el cambio. Inténtalo de nuevo.');
+            } finally { isTyping.value = false; scroll(); }
+        };
+
+        const newConversation = async () => {
+            if (isTyping.value) return;
+            try {
+                await axios.post(`${props.url}/ia/asistente/nueva`);
+                messages.value = [];
+                pendingAction.value = null;
+            } catch (e) {
+                say('❌ No pude empezar un tema nuevo.');
+            }
         };
 
         onMounted(loadSuggestions);
 
-        return { isOpen, isExpanded, isTyping, inputText, messages, messagesContainer, inputRef, suggestions, toggleChat, sendSuggestion, send, fmt, ft, fmtValue, humanizeKey };
+        return { isOpen, isExpanded, isTyping, inputText, messages, messagesContainer, inputRef, suggestions, pendingAction, loaded, toggleChat, sendSuggestion, send, resolveAction, newConversation, fmt, ft };
     },
 };
 </script>
 <style scoped>
-.ia-float-btn{position:fixed;bottom:24px;right:24px;z-index:9999;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);box-shadow:0 4px 20px rgba(99,102,241,.5);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .2s}
+/* right:154px — a la izquierda de la Ayuda (right:90) y de la burbuja de la Torre (right:24), para no encimarse. */
+.ia-float-btn{position:fixed;bottom:24px;right:154px;z-index:9999;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);box-shadow:0 4px 20px rgba(99,102,241,.5);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .2s}
 .ia-float-btn:hover{transform:scale(1.1)}
 .ia-float-btn.has-pulse::after{content:'';position:absolute;width:100%;height:100%;border-radius:50%;background:rgba(99,102,241,.3);animation:ia-pulse 2s infinite}
 @keyframes ia-pulse{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.6);opacity:0}}
 .ia-btn-inner{color:white;font-size:22px;z-index:1}.ia-badge{position:absolute;top:-4px;right:-4px;background:#ef4444;color:white;font-size:9px;font-weight:700;border-radius:10px;padding:2px 5px;z-index:2}
-.ia-chat-panel{position:fixed;bottom:90px;right:24px;z-index:9998;width:380px;height:560px;background:white;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.15);display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(99,102,241,.15)}
-.ia-chat-panel.ia-expanded{width:680px;height:80vh}
+.ia-chat-panel{position:fixed;bottom:90px;right:24px;z-index:9998;width:400px;max-width:calc(100vw - 32px);height:580px;max-height:calc(100vh - 110px);background:white;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.15);display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(99,102,241,.15)}
+.ia-chat-panel.ia-expanded{width:720px;height:82vh}
 .ia-header{background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .ia-header-left{display:flex;align-items:center;gap:10px}
 .ia-avatar{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:white;font-size:18px}
@@ -205,6 +201,7 @@ export default {
 .ia-header-actions{display:flex;gap:4px}
 .ia-btn-icon{background:rgba(255,255,255,.15);border:none;color:white;width:28px;height:28px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px}
 .ia-btn-icon:hover{background:rgba(255,255,255,.3)}
+.ia-btn-icon:disabled{opacity:.5;cursor:not-allowed}
 .ia-suggestions{padding:16px;flex-shrink:0}
 .ia-welcome{text-align:center;padding:8px 0 12px}
 .ia-welcome-icon{font-size:32px;color:#6366f1;margin-bottom:8px;display:block}
@@ -216,22 +213,25 @@ export default {
 .ia-messages::-webkit-scrollbar{width:4px}.ia-messages::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:4px}
 .ia-msg{display:flex;gap:8px;align-items:flex-start}.ia-msg-user{flex-direction:row-reverse}
 .ia-msg-avatar{width:30px;height:30px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;color:white;font-size:13px}
-.ia-msg-body{max-width:80%;display:flex;flex-direction:column;gap:4px}.ia-msg-user .ia-msg-body{align-items:flex-end}
+.ia-msg-body{max-width:82%;display:flex;flex-direction:column;gap:4px}.ia-msg-user .ia-msg-body{align-items:flex-end}
 .ia-msg-text{padding:10px 13px;border-radius:14px;font-size:13px;line-height:1.5;word-break:break-word}
 .ia-msg-ai .ia-msg-text{background:#f8fafc;border:1px solid #e2e8f0;color:#1e293b;border-radius:4px 14px 14px 14px}
 .ia-msg-user .ia-msg-text{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border-radius:14px 4px 14px 14px}
+.ia-msg-text :deep(.ia-link){display:inline-block;margin-top:4px;color:#4f46e5;font-weight:600;text-decoration:none;border-bottom:1px dashed #a5b4fc}
+.ia-msg-text :deep(.ia-link):hover{color:#3730a3;border-bottom-style:solid}
+.ia-msg-user .ia-msg-text :deep(.ia-link){color:white;border-bottom-color:rgba(255,255,255,.6)}
 .ia-msg-time{font-size:10px;color:#94a3b8;padding:0 4px}
+.ia-confirm{margin-left:38px;border:1px solid #fcd34d;background:#fffbeb;border-radius:12px;padding:10px 12px;font-size:13px;color:#78350f}
+.ia-confirm-title{font-weight:700;margin-bottom:4px}
+.ia-confirm-text{line-height:1.5}
+.ia-confirm-actions{display:flex;gap:8px;margin-top:8px}
+.ia-confirm-yes{background:#16a34a;color:white;border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer}
+.ia-confirm-no{background:white;color:#78350f;border:1px solid #fcd34d;border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer}
+.ia-confirm-yes:disabled,.ia-confirm-no:disabled{opacity:.5;cursor:not-allowed}
 .ia-typing{display:flex;gap:4px;padding:8px 12px}
 .ia-typing span{width:7px;height:7px;border-radius:50%;background:#94a3b8;animation:ia-bounce .8s infinite}
 .ia-typing span:nth-child(2){animation-delay:.15s}.ia-typing span:nth-child(3){animation-delay:.3s}
 @keyframes ia-bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}
-.ia-result-table{background:white;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;margin-top:6px;font-size:12px}
-.ia-result-table .table{margin:0}
-.ia-stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
-.ia-stat-card{border-radius:8px;padding:8px 10px;text-align:center;background:#e0e7ff}
-.ia-stat-num{font-size:20px;font-weight:700;color:#1e293b}.ia-stat-label{font-size:10px;color:#64748b}
-.ia-result-summary{background:#f8fafc;border-radius:8px;padding:8px 12px;margin-top:6px;border:1px solid #e2e8f0}
-.ia-summary-row{display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:#475569}
 .ia-input-area{border-top:1px solid #e2e8f0;padding:10px 12px;flex-shrink:0;background:#fafafa}
 .ia-input-row{display:flex;gap:8px;align-items:flex-end}
 .ia-input{flex:1;border:1px solid #e2e8f0;border-radius:10px;padding:8px 12px;font-size:13px;resize:none;max-height:80px;background:white;color:#1e293b;line-height:1.4}
