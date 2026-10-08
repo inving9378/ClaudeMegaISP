@@ -619,6 +619,61 @@
                 }
             }
 
+            // ── "Mi progreso" del vendedor (Fase 2 del dashboard por rol) — reusa /talento/api/mis-ventas,
+            // el mismo motor self-scoped que ya usa /talento/mis-ventas en el admin (StaticsController) ──
+            const misVentasCargado = ref(false);
+            const cargandoMisVentas = ref(false);
+            const misVentas = ref(null);
+            let ventasBarChart = null;
+            function dibujarVentasChart() {
+                const d = misVentas.value;
+                if (!d || typeof Chart === 'undefined') return;
+                const el = document.getElementById('tp-ventas-bar');
+                if (!el) return;
+                if (ventasBarChart) { ventasBarChart.destroy(); ventasBarChart = null; }
+
+                const sp = d.sales_and_prospects || {};
+                const salesMap = new Map((sp.sales || []).map((s) => [s.date, s.sales]));
+                const prospectsMap = new Map((sp.prospects || []).map((p) => [p.date, p.prospects]));
+                const labels = Array.from(new Set([...salesMap.keys(), ...prospectsMap.keys()])).sort();
+                if (!labels.length) return;
+
+                ventasBarChart = new Chart(el, {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [
+                            { label: 'Ventas', data: labels.map((l) => salesMap.get(l) || 0), backgroundColor: tpColor('--tp-primary', '#0d9488') },
+                            { label: 'Prospectos', data: labels.map((l) => prospectsMap.get(l) || 0), backgroundColor: tpColor('--tp-warning', '#d97706') },
+                        ],
+                    },
+                    options: { responsive: true, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+                });
+            }
+            async function cargarMisVentas() {
+                if (!colaborador.value) { cargandoMisVentas.value = false; return; }
+                cargandoMisVentas.value = true;
+                const r = await apiFetch('/talento/api/mis-ventas');
+                if (r && r.ok && r.data) {
+                    misVentas.value = r.data;
+                }
+                cargandoMisVentas.value = false;
+                misVentasCargado.value = true;
+                if (misVentas.value && misVentas.value.es_vendedor) {
+                    await Vue.nextTick();
+                    dibujarVentasChart();
+                }
+            }
+            const totalVentasPeriodo = computed(() => {
+                const s = (misVentas.value && misVentas.value.sales_and_prospects && misVentas.value.sales_and_prospects.sales) || [];
+                return s.reduce((sum, x) => sum + (Number(x.sales) || 0), 0);
+            });
+            const totalProspectosPeriodo = computed(() => {
+                const p = (misVentas.value && misVentas.value.sales_and_prospects && misVentas.value.sales_and_prospects.prospects) || [];
+                return p.reduce((sum, x) => sum + (Number(x.prospects) || 0), 0);
+            });
+            function pct1(n) { return n != null ? (Math.round(Number(n) * 10) / 10) : 0; }
+
             // ── "Mis prospectos" (Fase C) — prospectos CRM del vendedor (SOLO LECTURA, self-scoped por el backend) ──
             const prospectosCargado = ref(false);
             const cargandoProspectos = ref(false);
@@ -692,6 +747,7 @@
                 if (val === 'dinero' && !dineroCargado.value) cargarDinero();
                 if (val === 'material' && !materialCargado.value) cargarMaterial();
                 if (val === 'calidad' && !calidadCargado.value) cargarCalidad();
+                if (val === 'mis_ventas' && !misVentasCargado.value) cargarMisVentas();
                 if (val === 'prospectos' && !prospectosCargado.value) cargarProspectos();
                 if (val === 'documentos' && !documentosCargado.value) cargarDocumentos();
             }
@@ -720,6 +776,7 @@
                 enCustodia, pendientes, historial, cargandoMaterial, cargarMaterial,
                 resumenCustodia, enCustodiaPorCategoria, materialTab, materialEstadoTab, estadosMaterial,
                 calidad, cargandoCalidad, cargarCalidad,
+                misVentas, cargandoMisVentas, cargarMisVentas, totalVentasPeriodo, totalProspectosPeriodo, pct1,
                 prospectos, cargandoProspectos, cargarProspectos, nombreProspecto, statusColor,
                 documentos, cargandoDocumentos, documentosTab, documentosListaActiva, documentosKpi,
                 documentosPendientes, documentosFirmados, documentoEstadoInfo, documentoPdfUrl,
@@ -1343,6 +1400,102 @@
                                 <q-icon name="verified" class="tp-empty-icon" />
                                 <div class="text-subtitle1">Sin trabajos recientes en este período</div>
                             </div>
+                        </template>
+                    </div>
+
+                    <!-- Mi progreso del vendedor (Fase 2 del dashboard por rol) — reusa /talento/api/mis-ventas, SOLO LECTURA -->
+                    <div v-show="tab==='mis_ventas'" class="q-pa-md">
+                        <div v-if="cargandoMisVentas" class="tp-empty">
+                            <q-spinner color="teal-6" size="2em" /><div class="text-caption q-mt-sm">Cargando…</div>
+                        </div>
+                        <div v-else-if="!misVentas || !misVentas.es_vendedor" class="tp-empty">
+                            <q-icon name="trending_up" class="tp-empty-icon" />
+                            <div class="text-subtitle1">{{ (misVentas && misVentas.message) || 'Sin datos de ventas disponibles.' }}</div>
+                        </div>
+                        <template v-else>
+                            <div class="row q-col-gutter-sm q-mb-md">
+                                <div class="col-4">
+                                    <q-card flat bordered class="tp-card">
+                                        <q-card-section class="q-pa-sm text-center">
+                                            <div class="text-h6 text-teal-8">{{ totalVentasPeriodo }}</div>
+                                            <div class="text-caption text-grey-7">Ventas</div>
+                                        </q-card-section>
+                                    </q-card>
+                                </div>
+                                <div class="col-4">
+                                    <q-card flat bordered class="tp-card">
+                                        <q-card-section class="q-pa-sm text-center">
+                                            <div class="text-h6 text-teal-8">{{ totalProspectosPeriodo }}</div>
+                                            <div class="text-caption text-grey-7">Prospectos</div>
+                                        </q-card-section>
+                                    </q-card>
+                                </div>
+                                <div class="col-4">
+                                    <q-card flat bordered class="tp-card">
+                                        <q-card-section class="q-pa-sm text-center">
+                                            <div class="text-h6 text-negative">{{ misVentas.lost_sales || 0 }}</div>
+                                            <div class="text-caption text-grey-7">Perdidas</div>
+                                        </q-card-section>
+                                    </q-card>
+                                </div>
+                            </div>
+
+                            <q-card flat bordered class="tp-card q-mb-md">
+                                <q-card-section class="q-pa-sm">
+                                    <div class="text-subtitle2 text-grey-8 q-mb-sm">Ventas y prospectos por fecha</div>
+                                    <div style="position:relative;height:220px">
+                                        <canvas id="tp-ventas-bar"></canvas>
+                                    </div>
+                                </q-card-section>
+                            </q-card>
+
+                            <div class="text-subtitle2 text-grey-8 q-mb-xs">Ventas por medio</div>
+                            <q-list v-if="misVentas.sales_by_medium && misVentas.sales_by_medium.length" bordered separator class="tp-card q-mb-md">
+                                <q-item v-for="m in misVentas.sales_by_medium" :key="'med'+m.name">
+                                    <q-item-section>
+                                        <q-item-label>{{ m.name }}</q-item-label>
+                                    </q-item-section>
+                                    <q-item-section side>
+                                        <q-item-label>{{ m.total }}</q-item-label>
+                                        <q-item-label caption>{{ pct1(m.percentage) }}%</q-item-label>
+                                    </q-item-section>
+                                </q-item>
+                            </q-list>
+                            <div v-else class="tp-empty q-mb-md">
+                                <div class="text-caption text-grey-6">Sin ventas registradas todavía</div>
+                            </div>
+
+                            <div class="text-subtitle2 text-grey-8 q-mb-xs">Prospectos por estado</div>
+                            <q-list v-if="misVentas.prospects_by_status && misVentas.prospects_by_status.length" bordered separator class="tp-card q-mb-md">
+                                <q-item v-for="p in misVentas.prospects_by_status" :key="'est'+p.crm_status">
+                                    <q-item-section>
+                                        <q-item-label>{{ p.crm_status }}</q-item-label>
+                                    </q-item-section>
+                                    <q-item-section side>
+                                        <q-item-label>{{ p.total }}</q-item-label>
+                                        <q-item-label caption>{{ pct1(p.percentage) }}%</q-item-label>
+                                    </q-item-section>
+                                </q-item>
+                            </q-list>
+                            <div v-else class="tp-empty q-mb-md">
+                                <div class="text-caption text-grey-6">Sin prospectos registrados todavía</div>
+                            </div>
+
+                            <q-card flat bordered class="tp-card">
+                                <q-card-section class="q-pa-sm">
+                                    <div class="text-subtitle2 text-grey-8 q-mb-sm">Ventas: mes actual vs. mes anterior</div>
+                                    <div class="row text-center">
+                                        <div class="col-6">
+                                            <div class="text-h6 text-teal-8">{{ (misVentas.compare_sales && misVentas.compare_sales.current_month || []).reduce((s,x)=>s+(Number(x.sales)||0),0) }}</div>
+                                            <div class="text-caption text-grey-7">Mes actual</div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="text-h6 text-grey-7">{{ (misVentas.compare_sales && misVentas.compare_sales.previous_month || []).reduce((s,x)=>s+(Number(x.sales)||0),0) }}</div>
+                                            <div class="text-caption text-grey-7">Mes anterior</div>
+                                        </div>
+                                    </div>
+                                </q-card-section>
+                            </q-card>
                         </template>
                     </div>
 
