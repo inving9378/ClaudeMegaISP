@@ -93,9 +93,7 @@
                             <th>Fuente</th>
                             <th>Estado legal</th>
                             <th>Monitoreo</th>
-                            @if(auth()->user()->can('monitoring.manage_cases'))
-                                <th class="text-end">Acciones</th>
-                            @endif
+                            <th class="text-end">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -108,8 +106,9 @@
                                 <td class="text-muted">{{ $case->source?->name ?? '—' }}</td>
                                 <td class="text-muted">{{ $case->current_legal_status ?? '—' }}</td>
                                 <td><span class="badge {{ $case->monitoring_status === 'activo' ? 'bg-success' : 'bg-secondary' }}">{{ ucfirst($case->monitoring_status) }}</span></td>
-                                @if(auth()->user()->can('monitoring.manage_cases'))
-                                    <td class="text-end">
+                                <td class="text-end">
+                                    <a href="{{ route('monitoreo-oficial.expedientes.ver', $case->id) }}" class="btn btn-sm btn-outline-primary">Ver</a>
+                                    @if(auth()->user()->can('monitoring.manage_cases'))
                                         <a href="{{ route('monitoreo-oficial.expedientes.editar', $case->id) }}" class="btn btn-sm btn-outline-secondary">Editar</a>
                                         @unless($case->is_demo)
                                             <form method="POST" action="{{ route('monitoreo-oficial.expedientes.eliminar', $case->id) }}" class="d-inline" onsubmit="return confirm('¿Eliminar este expediente?');">
@@ -118,8 +117,8 @@
                                                 <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
                                             </form>
                                         @endunless
-                                    </td>
-                                @endif
+                                    @endif
+                                </td>
                             </tr>
                         @empty
                             <tr><td colspan="8" class="text-muted text-center">No hay expedientes registrados en esta instancia.</td></tr>

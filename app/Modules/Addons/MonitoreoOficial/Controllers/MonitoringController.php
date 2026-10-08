@@ -4,10 +4,13 @@ namespace App\Modules\Addons\MonitoreoOficial\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\MonitoreoOficial\Models\MonitoringCase;
+use App\Modules\Addons\MonitoreoOficial\Models\MonitoringCaseDocument;
 use App\Modules\Addons\MonitoreoOficial\Models\MonitoringModuleConnection;
 use App\Modules\Addons\MonitoreoOficial\Models\MonitoringSource;
 use App\Modules\Addons\MonitoreoOficial\Services\CapabilityDetector;
+use App\Modules\Addons\MonitoreoOficial\Services\CaseDocumentService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class MonitoringController extends Controller
@@ -120,6 +123,60 @@ class MonitoringController extends Controller
             'current_legal_status' => ['nullable', 'string', 'max:1000'],
             'monitoring_status' => ['required', Rule::in(['activo', 'pausado'])],
         ]);
+    }
+
+    // ── Ficha del expediente + documentos (monitoring_case_documents) — Fase 3 ─
+
+    public function verExpediente(int $id)
+    {
+        abort_unless(auth()->user()?->can('monitoring.view'), 403);
+
+        $case = MonitoringCase::with(['source', 'documents.uploader'])->findOrFail($id);
+
+        return view('addon-monitoreo-oficial::expediente_show', compact('case'));
+    }
+
+    public function subirDocumento(Request $request, int $id, CaseDocumentService $service)
+    {
+        abort_unless(auth()->user()?->can('monitoring.manage_cases'), 403);
+
+        $case = MonitoringCase::findOrFail($id);
+
+        $data = $request->validate([
+            'documento' => ['required', 'file', 'mimes:pdf', 'max:15360'], // 15 MB
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $resultado = $service->subir($case, $data['documento'], auth()->id(), $data['notes'] ?? null);
+
+        $mensaje = $resultado['es_identico_al_anterior']
+            ? 'Documento subido. Es idéntico al último que ya tenías — no se marcó como cambio.'
+            : 'Documento subido y registrado como nueva versión del expediente.';
+
+        return redirect()->route('monitoreo-oficial.expedientes.ver', $case->id)->with('success', $mensaje);
+    }
+
+    public function descargarDocumento(int $documentId)
+    {
+        abort_unless(auth()->user()?->can('monitoring.view'), 403);
+
+        $document = MonitoringCaseDocument::findOrFail($documentId);
+        abort_unless(Storage::disk('local')->exists($document->stored_path), 404);
+
+        return Storage::disk('local')->download($document->stored_path, $document->original_filename);
+    }
+
+    public function eliminarDocumento(int $documentId)
+    {
+        abort_unless(auth()->user()?->can('monitoring.manage_cases'), 403);
+
+        $document = MonitoringCaseDocument::findOrFail($documentId);
+        $caseId = $document->case_id;
+
+        Storage::disk('local')->delete($document->stored_path);
+        $document->delete();
+
+        return redirect()->route('monitoreo-oficial.expedientes.ver', $caseId)->with('success', 'Documento eliminado.');
     }
 
     // ── Fuentes oficiales (monitoring_sources) — Fase 2 ────────────────────
