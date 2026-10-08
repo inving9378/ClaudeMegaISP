@@ -26,4 +26,9 @@ class MonitoringCase extends Model
     {
         return $this->belongsTo(MonitoringSource::class, 'source_id');
     }
+
+    public function documents()
+    {
+        return $this->hasMany(MonitoringCaseDocument::class, 'case_id')->orderByDesc('id');
+    }
 }
