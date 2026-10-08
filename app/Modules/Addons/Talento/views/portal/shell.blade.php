@@ -32,6 +32,7 @@
             'theme'       => $theme,
             'colaborador' => $colaborador,
             'sections'    => $sections ?? [],
+            'track'       => $track ?? 'generico',
             'assetVer'    => $assetVer,
             'endpoints'   => [
                 'saveTheme' => '/talento/portal/preferencias/tema',
@@ -46,6 +47,7 @@
 
     <script src="/plugins/quasar/js/vue.global.prod.js"></script>
     <script src="/plugins/quasar/js/quasar.umd.prod.js"></script>
+    <script src="/chart.js/chart.js"></script>
     <script src="/talento-portal/app.js?v={{ $assetVer }}"></script>
 </body>
 </html>

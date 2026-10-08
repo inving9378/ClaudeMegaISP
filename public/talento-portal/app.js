@@ -546,6 +546,79 @@
                 return out;
             });
 
+            // ── "Mi calidad" (Fase 1 del dashboard por rol, técnico) — garantías/calidad (SOLO LECTURA, self-scoped) ──
+            const calidadCargado = ref(false);
+            const cargandoCalidad = ref(false);
+            const calidad = ref(null);
+            let calidadDonutChart = null, calidadLineChart = null;
+            function tpColor(varName, fallback) {
+                const v = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+                return v || fallback;
+            }
+            function dibujarCalidadCharts() {
+                const c = calidad.value;
+                if (!c || typeof Chart === 'undefined') return;
+
+                const donutEl = document.getElementById('tp-calidad-donut');
+                if (donutEl) {
+                    if (calidadDonutChart) { calidadDonutChart.destroy(); calidadDonutChart = null; }
+                    const sinFallas = c.completados || 0;
+                    const conFallas = c.garantias_non_billable || 0;
+                    if (sinFallas + conFallas > 0) {
+                        calidadDonutChart = new Chart(donutEl, {
+                            type: 'doughnut',
+                            data: {
+                                labels: ['Sin incidencias', 'Con incidencias (garantía)'],
+                                datasets: [{
+                                    data: [sinFallas, conFallas],
+                                    backgroundColor: [tpColor('--tp-success', '#16a34a'), tpColor('--tp-danger', '#dc2626')],
+                                    borderWidth: 0,
+                                }],
+                            },
+                            options: { responsive: true, plugins: { legend: { position: 'bottom' } }, cutout: '65%' },
+                        });
+                    }
+                }
+
+                const lineEl = document.getElementById('tp-calidad-line');
+                if (lineEl) {
+                    if (calidadLineChart) { calidadLineChart.destroy(); calidadLineChart = null; }
+                    const serie = c.serie || {};
+                    const labels = Array.isArray(serie.categories) ? serie.categories : [];
+                    if (labels.length) {
+                        calidadLineChart = new Chart(lineEl, {
+                            type: 'line',
+                            data: {
+                                labels,
+                                datasets: [
+                                    { label: 'Garantías <6m (no pagables)', data: serie.garantias_non_billable || [], borderColor: tpColor('--tp-danger', '#dc2626'), backgroundColor: 'rgba(220,53,69,.12)', fill: true, tension: 0.3 },
+                                    { label: 'Garantías >6m (pagables)', data: serie.garantias_billable || [], borderColor: tpColor('--tp-warning', '#d97706'), backgroundColor: 'rgba(217,119,6,.10)', fill: true, tension: 0.3 },
+                                ],
+                            },
+                            options: { responsive: true, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+                        });
+                    }
+                }
+            }
+            async function cargarCalidad() {
+                if (!colaborador.value) { cargandoCalidad.value = false; return; }
+                cargandoCalidad.value = true;
+                const r = await apiFetch('/talento/portal/mi-calidad');
+                if (r && r.ok && r.data) {
+                    calidad.value = r.data;
+                }
+                // El spinner (v-if) y el contenido con los <canvas> (v-else-if) son ramas
+                // DOM distintas: hay que bajar la bandera de carga PRIMERO (para que Vue monte
+                // los canvas) y recién después dibujar — si no, dibujarCalidadCharts() busca
+                // los canvas mientras el spinner sigue montado y nunca los encuentra.
+                cargandoCalidad.value = false;
+                calidadCargado.value = true;
+                if (calidad.value) {
+                    await Vue.nextTick();
+                    dibujarCalidadCharts();
+                }
+            }
+
             // ── "Mis prospectos" (Fase C) — prospectos CRM del vendedor (SOLO LECTURA, self-scoped por el backend) ──
             const prospectosCargado = ref(false);
             const cargandoProspectos = ref(false);
@@ -618,6 +691,7 @@
                 cerrarDetalle();
                 if (val === 'dinero' && !dineroCargado.value) cargarDinero();
                 if (val === 'material' && !materialCargado.value) cargarMaterial();
+                if (val === 'calidad' && !calidadCargado.value) cargarCalidad();
                 if (val === 'prospectos' && !prospectosCargado.value) cargarProspectos();
                 if (val === 'documentos' && !documentosCargado.value) cargarDocumentos();
             }
@@ -645,6 +719,7 @@
                 dineroTab, cuenta, desglose, fondo, prestamos, cargandoDinero, cargarDinero, money, conceptoLabel, pctCuota, onTabChange,
                 enCustodia, pendientes, historial, cargandoMaterial, cargarMaterial,
                 resumenCustodia, enCustodiaPorCategoria, materialTab, materialEstadoTab, estadosMaterial,
+                calidad, cargandoCalidad, cargarCalidad,
                 prospectos, cargandoProspectos, cargarProspectos, nombreProspecto, statusColor,
                 documentos, cargandoDocumentos, documentosTab, documentosListaActiva, documentosKpi,
                 documentosPendientes, documentosFirmados, documentoEstadoInfo, documentoPdfUrl,
@@ -1206,6 +1281,68 @@
                                     </q-tab-panel>
                                 </q-tab-panels>
                             </template>
+                        </template>
+                    </div>
+
+                    <!-- Mi calidad (Fase 1 del dashboard por rol, técnico) — garantías/calidad, SOLO LECTURA -->
+                    <div v-show="tab==='calidad'" class="q-pa-md">
+                        <div v-if="cargandoCalidad" class="tp-empty">
+                            <q-spinner color="teal-6" size="2em" /><div class="text-caption q-mt-sm">Cargando…</div>
+                        </div>
+                        <template v-else-if="calidad">
+                            <div class="row q-col-gutter-md q-mb-md">
+                                <div class="col-6">
+                                    <q-card flat bordered class="tp-card">
+                                        <q-card-section class="q-pa-sm text-center">
+                                            <div class="text-h5 text-teal-8">{{ calidad.trabajos_asignados }}</div>
+                                            <div class="text-caption text-grey-7">Trabajos asignados</div>
+                                        </q-card-section>
+                                    </q-card>
+                                </div>
+                                <div class="col-6">
+                                    <q-card flat bordered class="tp-card">
+                                        <q-card-section class="q-pa-sm text-center">
+                                            <div class="text-h5 text-teal-8">{{ calidad.completados }}</div>
+                                            <div class="text-caption text-grey-7">Completados</div>
+                                        </q-card-section>
+                                    </q-card>
+                                </div>
+                            </div>
+
+                            <q-card flat bordered class="tp-card q-mb-md">
+                                <q-card-section class="q-pa-sm">
+                                    <div class="text-subtitle2 text-grey-8 q-mb-xs">Calidad de servicio</div>
+                                    <div v-if="calidad.calidad_pct !== null" class="text-h6 text-teal-8 q-mb-sm">{{ calidad.calidad_pct }}% sin incidencias</div>
+                                    <div v-else class="text-caption text-grey-6 q-mb-sm">Aún sin datos suficientes para calcular el % de calidad.</div>
+                                    <div style="position:relative;height:220px">
+                                        <canvas id="tp-calidad-donut"></canvas>
+                                    </div>
+                                </q-card-section>
+                            </q-card>
+
+                            <q-card flat bordered class="tp-card q-mb-md">
+                                <q-card-section class="q-pa-sm">
+                                    <div class="text-subtitle2 text-grey-8 q-mb-sm">Garantías — últimos {{ calidad.period_days }} días</div>
+                                    <div style="position:relative;height:240px">
+                                        <canvas id="tp-calidad-line"></canvas>
+                                    </div>
+                                </q-card-section>
+                            </q-card>
+
+                            <div class="text-subtitle2 text-grey-8 q-mb-xs">Trabajos recientes</div>
+                            <q-list v-if="calidad.recent_orders && calidad.recent_orders.length" bordered separator class="tp-card">
+                                <q-item v-for="o in calidad.recent_orders" :key="'co'+o.id">
+                                    <q-item-section avatar><q-icon name="build" color="teal-6" /></q-item-section>
+                                    <q-item-section>
+                                        <q-item-label>{{ (o.type && o.type.name) || 'OT #' + o.id }}</q-item-label>
+                                        <q-item-label caption>{{ statusInfo(o.status).label }}<span v-if="o.created_at"> · {{ o.created_at.slice(0,10) }}</span></q-item-label>
+                                    </q-item-section>
+                                </q-item>
+                            </q-list>
+                            <div v-else class="tp-empty">
+                                <q-icon name="verified" class="tp-empty-icon" />
+                                <div class="text-subtitle1">Sin trabajos recientes en este período</div>
+                            </div>
                         </template>
                     </div>
 

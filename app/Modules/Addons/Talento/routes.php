@@ -652,6 +652,11 @@ Route::middleware(['web', 'auth', 'can:portal.colaborador'])
         // Mis prospectos — prospectos CRM del vendedor (SOLO LECTURA, self-scoped por Actor). Reusa CRM/Vendedores.
         Route::get('/prospectos',       [PortalTecnicoController::class, 'prospectos']);
 
+        // Mi calidad — garantías/producción del propio técnico (SOLO LECTURA, self-scoped
+        // por Actor). Groundwork "vista por rol" (llamada Irving, 2026-10-08); reusa
+        // DashboardService::tecnicoPreview(), sin cálculo nuevo.
+        Route::get('/mi-calidad',       [PortalTecnicoController::class, 'miCalidad']);
+
         // Mis documentos (expediente) — self-scoped por Actor. Item #9990813.
         Route::middleware('can:talento.documentos.ver-propios')->group(function () {
             Route::get('/documentos',             [PortalTecnicoController::class, 'documentos']);
