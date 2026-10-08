@@ -150,6 +150,34 @@ final class Actor
     }
 
     /**
+     * Super admin "de verdad" para efectos de "Mi equipo" (Fase 5, pedido
+     * directo de Irving: "el super admin [ve] todo") — chequeo de ROL
+     * directo, nunca de un permiso ancho que algún otro rol cargue de
+     * arrastre (ej. Mostrador hoy tiene talento.employees.view por una
+     * razón ajena a esto). Incluye el duplicado ES/EN ya documentado en
+     * CLAUDE.md (super-administrator / Super Administrador).
+     */
+    public function esSuperAdminTalento(): bool
+    {
+        return $this->user->hasAnyRole(['super-administrator', 'Super Administrador', 'DESARROLLADOR']);
+    }
+
+    /**
+     * Tiene gente a su cargo (talento_colaboradores.supervisor_id apunta a
+     * él) — mismo candado ya usado por TalentoColaboradorController::
+     * miEquipo() (David, 28-sep): "el supervisor debe poder controlar lo
+     * que hacen los trabajadores a su cargo". Rol-agnóstico a propósito:
+     * no depende de qué rol tenga el supervisor, solo de si de verdad
+     * tiene subordinados directos asignados.
+     */
+    public function tieneEquipo(): bool
+    {
+        $col = $this->talento();
+
+        return $col ? $col->subordinados()->exists() : false;
+    }
+
+    /**
      * Secciones del sidebar del portal para ESTE colaborador. Cada entrada se incluye solo si
      * (a) está CONSTRUIDA (flag 'built') y (b) APLICA según la faceta. Faceta null → oculta.
      * Crece por fase: al construir una sección se pone built=true y se cablea su tab en app.js.
@@ -169,6 +197,7 @@ final class Actor
             ['mostrador',  'Mi trabajo',  'Mi progreso',    'support_agent','mi_mostrador', fn () => $this->esMostradorTrack(),                   true],   // Fase 3 del dashboard por rol (2026-10-08) — mismo label, mutuamente excluyente con calidad/ventas por track
             ['prospectos', 'Mi trabajo',  'Mis prospectos', 'groups',       'prospectos',  fn () => (bool) $this->seller(),                       true],   // Fase C
             ['panel',      'Mi trabajo',  'Mi panel',       'insights',     'panel',       fn () => (bool) ($this->seller() || $this->embajador()), false], // Fases D/E
+            ['equipo',     'Supervisión', 'Mi equipo',      'groups',       'mi_equipo',   fn () => $this->esSuperAdminTalento() || $this->tieneEquipo(), true], // Fase 5 del dashboard por rol (2026-10-08) — pedido directo de Irving: admin ve a su equipo, super admin ve todo
             ['documentos', 'Cuenta',      'Mis documentos', 'description',  'documentos',  fn () => $this->user->can('talento.documentos.ver-propios'), true], // Item #9990814
             ['perfil',     'Cuenta',      'Perfil',         'person',       'perfil',      fn (): bool => true,                                  true],
         ];
