@@ -520,6 +520,19 @@ Route::get('/talento/api/health',       [TalentoMobileApiController::class, 'hea
 Route::get('/talento/api/app/latest',   [TalentoMobileApiController::class, 'latestRelease'])  ->middleware([]);
 Route::get('/talento/api/app/branding', [TalentoMobileApiController::class, 'appBranding'])    ->middleware([]);
 
+// Aviso de privacidad público — exigido por Google Play antes de aprobar
+// cualquier app que pida permisos de cámara/ubicación, aunque sea de
+// distribución privada (item: publicación de "Talento Equipo" en Play).
+Route::get('/legal/privacidad-talento', function () {
+    $ci = \Illuminate\Support\Facades\DB::table('company_information')->first();
+    return view('addon-talento::legal.privacidad', [
+        'rfc'      => $ci->rfc ?? null,
+        'cp'       => $ci->company_postal_code ?? null,
+        'email'    => $ci->email ?? null,
+        'telefono' => $ci->atention_client_phone ?? null,
+    ]);
+})->middleware([]);
+
 // Rutas protegidas con Sanctum
 Route::middleware(['auth:sanctum'])
     ->prefix('talento/api')
