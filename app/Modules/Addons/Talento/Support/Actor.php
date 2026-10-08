@@ -140,6 +140,16 @@ final class Actor
     }
 
     /**
+     * Mostrador — Fase 3 del dashboard por rol (2026-10-08). Mismo criterio
+     * que esTecnico()/esVendedorTrack(): deriva de trackPrincipal(), nunca
+     * se repite la lista de roles.
+     */
+    public function esMostradorTrack(): bool
+    {
+        return $this->trackPrincipal() === 'mostrador';
+    }
+
+    /**
      * Secciones del sidebar del portal para ESTE colaborador. Cada entrada se incluye solo si
      * (a) está CONSTRUIDA (flag 'built') y (b) APLICA según la faceta. Faceta null → oculta.
      * Crece por fase: al construir una sección se pone built=true y se cablea su tab en app.js.
@@ -156,6 +166,7 @@ final class Actor
             ['material',   'Mi trabajo',  'Mi material',    'inventory_2',  'material',    fn () => (bool) $this->custodia(),                     true],   // Fase A (A2 activada)
             ['calidad',    'Mi trabajo',  'Mi progreso',    'verified',     'calidad',     fn () => $this->esTecnico(),                           true],   // Fase 1 del dashboard por rol (2026-10-08) — label "Mi progreso" a pedido de Irving (se descartó "Mi trabajo": duplicaría el grupo que ya se llama así)
             ['ventas',     'Mi trabajo',  'Mi progreso',    'trending_up',  'mis_ventas',  fn () => $this->esVendedorTrack(),                     true],   // Fase 2 del dashboard por rol (2026-10-08) — mismo label que 'calidad', mutuamente excluyentes por track
+            ['mostrador',  'Mi trabajo',  'Mi progreso',    'support_agent','mi_mostrador', fn () => $this->esMostradorTrack(),                   true],   // Fase 3 del dashboard por rol (2026-10-08) — mismo label, mutuamente excluyente con calidad/ventas por track
             ['prospectos', 'Mi trabajo',  'Mis prospectos', 'groups',       'prospectos',  fn () => (bool) $this->seller(),                       true],   // Fase C
             ['panel',      'Mi trabajo',  'Mi panel',       'insights',     'panel',       fn () => (bool) ($this->seller() || $this->embajador()), false], // Fases D/E
             ['documentos', 'Cuenta',      'Mis documentos', 'description',  'documentos',  fn () => $this->user->can('talento.documentos.ver-propios'), true], // Item #9990814
