@@ -196,10 +196,16 @@ Incidente de origen: se cambió un icono a `fa-file-text-o` (nombre FA4) → bot
 - 16 tablas `parental_*` creadas
 - Rutas cargadas via `ModuleServiceProvider`
 
-### IaChatFloat (`resources/js/components/IaChatFloat.vue`)
-- **Fix aplicado:** CSRF token en `bootstrap.js` (header `X-CSRF-TOKEN` en axios)
-- Backend: `app/Http/Controllers/Module/IA/IAChatController.php`
-- Env: `CLAUDE_API_KEY`, `CLAUDE_MODEL`
+### JARVIS, el asistente del sistema — robotsito (`resources/js/components/ia/IaChatFloat.vue`)
+- Backend: `app/Http/Controllers/IA/IAChatController.php` → toda la lógica en `app/Services/Asistente/`.
+- **Conocimiento en archivos** (`resources/asistente/`): `system-prompt.md`, `guia/*.md`, `enlaces.json`,
+  `limites.json` (por herramienta: permitida / confirmar / bloqueada), `memoria.json` (autocompactado).
+- **Herramientas** en `app/Services/Asistente/Herramientas/`, cada una con el permiso de su pantalla;
+  se registran en `RegistroHerramientas::CLASES`. Los cambios solo se aplican con el "sí" del usuario
+  (validado por el servidor) y quedan en `activity_log` con `log_name='jarvis'`.
+- **Memoria** en BD: `asistente_conversaciones/mensajes/recuerdos/acciones`. IA: Integraciones →
+  Módulos IA, claves `asistente.chat_flotante` (requiere herramientas) y `asistente.memoria`.
+- Acceso: permiso `usar-ia-chat`.
 
 ---
 
@@ -626,13 +632,13 @@ Regla práctica:
   desde ahora hacia adelante; `thomas` solo sobrevive en filas históricas ya escritas.**
 - Al leer código, `JarvisService` **es** JARVIS. No son dos cosas.
 
-⚠️ **No hay un segundo asistente.** El widget «Agente IA MegaISP» (`IaChatFloat.vue` +
-`app/Http/Controllers/IA/IAChatController.php`) contestaba desde `ModuleRegistry::getAiContext()`
-—lo *registrado*— y declaraba no poder medir, mientras JARVIS mide de verdad. Dos asistentes con el
-mismo nombre se contradicen, así que el widget quedó **APAGADO** revocando su permiso
-`usar-ia-chat` (creado en #636) de `super-administrator` y `DESARROLLADOR`. El montaje sigue en el
-layout: volver a encenderlo es devolver el permiso. Se reactivará cuando sea la **cara de JARVIS**,
-consumiendo el mismo motor que mide (Capa 1 del chat).
+⚠️ **ACTUALIZACIÓN 2026-10-07 — el robotsito es JARVIS, el asistente del sistema, y NO tiene relación
+con la Torre.** Decisión del equipo: el widget flotante (`IaChatFloat.vue`, el robot morado) se llama
+JARVIS y es el ayudante del personal dentro del sistema (consulta clientes, pagos, tickets; prepara
+cambios que el usuario confirma). Es independiente de `JarvisService`/la burbuja de la Torre (lo
+de arriba). Antes estaba apagado (#649) porque contestaba solo desde lo registrado; ya no aplica.
+En código vive como `Asistente` (`app/Services/Asistente/`) justamente para no confundirse con el
+`JarvisService` de la Torre. Ver la sección "JARVIS, el asistente del sistema — robotsito".
 
 ### 🧩 SERVICIOS COMPARTIDOS ÚNICOS — PROHIBIDO DUPLICAR
 Antes de construir **cualquier capacidad** en **cualquier módulo** (existente o futuro), verificar si ya existe en el sistema. Si existe, el módulo se **CONECTA** al servicio existente; **nunca** construye su propia versión. Servicios únicos designados:

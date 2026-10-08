@@ -235,12 +235,14 @@ const setTab = async () => {
 };
 
 const setInitialTab = async () => {
-    // Override por URL (?tab=pagos): permite abrir la ficha directo en una
-    // pestaña concreta sin pisar la preferencia guardada del usuario en DB.
-    // "pagos" = pestaña externa Facturación (el sub-tab Pagos lo resuelve ClientBilling).
+    // Override por URL (?tab=pagos, ?tab=services...): permite abrir la ficha directo en una
+    // pestaña concreta sin pisar la preferencia guardada del usuario en DB (lo usan los
+    // enlaces de JARVIS). "pagos" = pestaña externa Facturación (el sub-tab Pagos lo
+    // resuelve ClientBilling); cualquier otro valor debe ser el nombre de una pestaña visible.
     const urlTab = new URLSearchParams(window.location.search).get("tab");
-    if (urlTab === "pagos" && tabs.value.includes("facture")) {
-        currentTab.value = "facture";
+    const urlTabName = urlTab === "pagos" ? "facture" : urlTab;
+    if (urlTabName && tabs.value.includes(urlTabName)) {
+        currentTab.value = urlTabName;
         return;
     }
     try {

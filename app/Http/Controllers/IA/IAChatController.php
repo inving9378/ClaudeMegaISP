@@ -3,39 +3,33 @@
 namespace App\Http\Controllers\IA;
 
 use App\Http\Controllers\Controller;
-use App\Modules\Addons\IA\Services\IA;
+use App\Models\Asistente\Accion;
 use App\Modules\Addons\IA\Services\IANoConfigurada;
 use App\Modules\Core\ModuleManager\Services\ModuleRegistry;
+use App\Services\Asistente\AsistenteService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Chat IA flotante — Fase 1 de #9.
+ * JARVIS — el asistente flotante (robotsito, IaChatFloat.vue).
  *
- * Inyecta el contexto dinámico de módulos (ModuleRegistry::getAiContext():
- * knowledge + actions declaradas en cada module.json) al system prompt, para
- * que el asistente conozca qué módulos/acciones existen REALMENTE.
- *
- * READ-ONLY: en esta fase el chat informa/orienta; NO ejecuta acciones ni
- * cambia datos (la ejecución vía tool-calling es la Fase 2).
- *
- * La IA (integración + modelo) se decide en Integraciones → Módulos IA
- * (clave asistente.chat_flotante), nunca hardcodeada.
+ * Memoria persistente por usuario, instrucciones y guía del sistema en resources/asistente/,
+ * herramientas con los permisos del usuario y cambios que solo se aplican cuando el usuario los
+ * confirma. Toda la lógica vive en App\Services\Asistente; aquí solo entra y sale HTTP.
+ * La IA (integración + modelo) se elige en Integraciones → Módulos IA (clave asistente.chat_flotante).
  */
 class IAChatController extends Controller
 {
     public function __construct(
         private ModuleRegistry $registry,
+        private AsistenteService $asistente,
     ) {
     }
 
     /**
-     * Sugerencias dinámicas para los chips de bienvenida del chat flotante — Fase 3 de #9.
-     *
-     * Derivadas de `example_intents` que cada módulo declara en su module.json (vía
-     * ModuleRegistry::getAiContext()), NO hardcodeadas. Una sugerencia por módulo (en el
-     * orden en que el registro los compila) hasta un máximo, para no saturar la UI.
+     * Sugerencias para los chips de bienvenida, derivadas de `example_intents` de los módulos
+     * activos (una por módulo, máximo 6).
      */
     public function suggestions(): JsonResponse
     {
@@ -53,88 +47,56 @@ class IAChatController extends Controller
         return response()->json(['success' => true, 'suggestions' => $picked]);
     }
 
+    /** Historial del hilo actual del usuario (se pinta al abrir el chat). */
+    public function conversacion(Request $request): JsonResponse
+    {
+        return response()->json(['success' => true] + $this->asistente->paraPantalla($request->user()));
+    }
+
+    public function nueva(Request $request): JsonResponse
+    {
+        $this->asistente->nuevaConversacion($request->user());
+
+        return response()->json(['success' => true]);
+    }
+
     public function chat(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'message'           => 'required|string|max:4000',
-            'history'           => 'sometimes|array',
-            'history.*.role'    => 'sometimes|in:user,assistant',
-            'history.*.content' => 'sometimes|string',
-            'context'           => 'nullable|string|max:255',
+            'message' => 'required|string|max:4000',
+            'context' => 'nullable|string|max:500',
         ]);
 
-        // Historial -> formato neutro de IA (filtra vacíos, normaliza rol).
-        $historial = [];
-        foreach ($data['history'] ?? [] as $turn) {
-            $content = trim((string) ($turn['content'] ?? ''));
-            if ($content === '') {
-                continue;
-            }
-            $historial[] = [
-                'rol'       => ($turn['role'] ?? 'user') === 'assistant' ? 'assistant' : 'user',
-                'contenido' => $content,
-            ];
-        }
-
         try {
-            $r = IA::enviar('asistente.chat_flotante', $data['message'], [],
-                $this->buildSystemPrompt($data['context'] ?? null), $historial, ['max_tokens' => 1024]);
+            $r = $this->asistente->responder($request->user(), $data['message'], mb_substr((string) ($data['context'] ?? ''), 0, 255) ?: null);
 
             return response()->json([
-                'success'       => true,
-                'message'       => trim($r['texto']) !== '' ? trim($r['texto']) : 'No tengo una respuesta para eso en este momento.',
-                'action_type'   => null,   // Fase 2: ejecución de acciones
-                'action_result' => null,
+                'success'          => true,
+                'message'          => $r['mensaje'],
+                'accion_pendiente' => $r['accion_pendiente'] ?? null,
             ]);
         } catch (IANoConfigurada $e) {
-            return response()->json(['success' => false, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'error' => 'JARVIS no tiene una IA asignada todavía. Un administrador debe elegirla en Integraciones → Módulos IA.']);
         } catch (\Throwable $e) {
-            // Error VISIBLE: se loguea en servidor y se devuelve un mensaje claro
-            // (no se traga el fallo; el frontend lo muestra inline).
-            Log::error('[IAChat] fallo al responder: ' . $e->getMessage());
+            Log::error('[JARVIS] fallo al responder: ' . $e->getMessage(), ['user' => $request->user()?->id]);
 
-            return response()->json([
-                'success' => false,
-                'error'   => 'No se pudo obtener respuesta del asistente. Inténtalo de nuevo en un momento.',
-            ]);
+            return response()->json(['success' => false, 'error' => 'No pude responder en este momento. Inténtalo de nuevo en un momento.']);
         }
     }
 
-    /**
-     * Construye el system prompt con el contexto dinámico de los módulos activos.
-     */
-    private function buildSystemPrompt(?string $context): string
+    public function confirmar(Request $request, int $id): JsonResponse
     {
-        $lines = [];
-        $lines[] = 'Eres el asistente de IA de MegaISP, un sistema de gestión para proveedores de internet (ISP). Respondes SIEMPRE en español, de forma breve y concreta.';
-        $lines[] = 'Conoces los módulos que están ACTUALMENTE registrados en el sistema y las acciones que cada uno declara. Basa tus respuestas en ese contexto real; si algo no está en la lista, dilo en vez de inventarlo.';
-        $lines[] = 'IMPORTANTE (esta versión): solo INFORMAS y ORIENTAS. NO ejecutas acciones ni modificas datos. Si te piden ejecutar algo, explica dónde y cómo hacerlo en la interfaz, y aclara que la ejecución automática todavía no está disponible.';
+        $accion = Accion::where('id', $id)->where('user_id', $request->user()->id)->firstOrFail();
+        $r = $this->asistente->confirmarAccion($request->user(), $accion);
 
-        if (!empty($context)) {
-            $lines[] = "Contexto: el usuario está navegando en la ruta \"{$context}\".";
-        }
+        return response()->json(['success' => true, 'message' => $r['mensaje'], 'ok' => $r['ok'] ?? false]);
+    }
 
-        $lines[] = '';
-        $lines[] = '=== MÓDULOS Y ACCIONES REGISTRADOS ===';
+    public function cancelar(Request $request, int $id): JsonResponse
+    {
+        $accion = Accion::where('id', $id)->where('user_id', $request->user()->id)->firstOrFail();
+        $r = $this->asistente->cancelarAccion($request->user(), $accion);
 
-        $aiContext = $this->registry->getAiContext();
-        foreach ($aiContext as $mod) {
-            $slug = $mod['_module'] ?? 'desconocido';
-            $lines[] = "## Módulo: {$slug}";
-
-            if (!empty($mod['knowledge'])) {
-                $lines[] = trim((string) $mod['knowledge']);
-            }
-            foreach (($mod['actions'] ?? []) as $action) {
-                $desc = $action['description'] ?? '';
-                $ep   = $action['endpoint'] ?? '';
-                if ($desc !== '' || $ep !== '') {
-                    $lines[] = "- {$desc}" . ($ep !== '' ? " ({$ep})" : '');
-                }
-            }
-            $lines[] = '';
-        }
-
-        return implode("\n", $lines);
+        return response()->json(['success' => true, 'message' => $r['mensaje']]);
     }
 }

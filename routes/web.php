@@ -226,8 +226,8 @@ Route::get('/notification-email', function () {
         ->toMail($n->user);
 });
 
-// Chat IA flotante (#9 Fase 1): el asistente conoce los módulos/acciones registrados
-// dinámicamente vía ModuleRegistry::getAiContext(). READ-ONLY (no ejecuta acciones).
+// JARVIS — chat IA flotante (robotsito). Consulta datos con los permisos del usuario y prepara
+// cambios que el usuario confirma (App\Services\Asistente).
 // Antes esta ruta estaba atrapada como código muerto dentro del closure de /notification-email.
 // #636: segunda capa además del @can('usar-ia-chat') del layout — evita que un
 // usuario sin el permiso llame el endpoint directo aunque el widget no se le renderice.
@@ -240,6 +240,14 @@ Route::post('/ia/chat', [\App\Http\Controllers\IA\IAChatController::class, 'chat
 Route::get('/ia/suggestions', [\App\Http\Controllers\IA\IAChatController::class, 'suggestions'])
     ->middleware(['auth', 'can:usar-ia-chat'])
     ->name('ia.suggestions');
+
+// JARVIS (robotsito): memoria persistente por usuario + cambios que solo aplica el "sí" del usuario.
+Route::middleware(['auth', 'can:usar-ia-chat'])->prefix('/ia/asistente')->group(function () {
+    Route::get('/conversacion', [\App\Http\Controllers\IA\IAChatController::class, 'conversacion'])->name('ia.asistente.conversacion');
+    Route::post('/nueva', [\App\Http\Controllers\IA\IAChatController::class, 'nueva'])->name('ia.asistente.nueva');
+    Route::post('/acciones/{id}/confirmar', [\App\Http\Controllers\IA\IAChatController::class, 'confirmar'])->whereNumber('id')->name('ia.asistente.confirmar');
+    Route::post('/acciones/{id}/cancelar', [\App\Http\Controllers\IA\IAChatController::class, 'cancelar'])->whereNumber('id')->name('ia.asistente.cancelar');
+});
 
 // ── IPv6 1.7a (item #999, épica #811 → #951/#950) — pantalla standalone de
 // configuración IPv6 (routers registrados, detección de versión, mapeo de

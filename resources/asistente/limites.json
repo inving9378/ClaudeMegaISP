@@ -1,0 +1,20 @@
+{
+    "_descripcion": "Límites de JARVIS. Por herramienta: 'permitida' (se ejecuta sola), 'confirmar' (prepara el cambio y espera el sí del usuario) o 'bloqueada' (JARVIS no la tiene). Una herramienta que no aparece aquí usa: lectura = permitida, cambio = confirmar. Además de esto, cada herramienta exige el mismo permiso que la pantalla equivalente.",
+    "max_vueltas_herramientas": 6,
+    "minutos_para_confirmar": 15,
+    "max_tokens_respuesta": 1200,
+    "herramientas": {
+        "consultar_guia": "permitida",
+        "buscar_en_manual": "permitida",
+        "buscar_cliente": "permitida",
+        "ficha_cliente": "permitida",
+        "pagos_cliente": "permitida",
+        "facturas_cliente": "permitida",
+        "tickets_cliente": "permitida",
+        "resumen_tickets": "permitida",
+        "resumen_pagos_del_dia": "permitida",
+        "recordar": "permitida",
+        "actualizar_contacto_cliente": "confirmar",
+        "crear_ticket": "confirmar"
+    }
+}
