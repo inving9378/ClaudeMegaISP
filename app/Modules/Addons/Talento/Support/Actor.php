@@ -128,6 +128,18 @@ final class Actor
     }
 
     /**
+     * Es vendedor "de verdad" (track principal = vendedor), no solo tiene
+     * una fila sellers() de arrastre — hoy TODO colaborador nace vendedor
+     * (ver nota del docblock de la clase), así que seller() por sí solo NO
+     * sirve para distinguir el dashboard: un técnico con Vendedor como rol
+     * secundario pasaría. Fase 2 del dashboard por rol (2026-10-08).
+     */
+    public function esVendedorTrack(): bool
+    {
+        return $this->trackPrincipal() === 'vendedor';
+    }
+
+    /**
      * Secciones del sidebar del portal para ESTE colaborador. Cada entrada se incluye solo si
      * (a) está CONSTRUIDA (flag 'built') y (b) APLICA según la faceta. Faceta null → oculta.
      * Crece por fase: al construir una sección se pone built=true y se cablea su tab en app.js.
@@ -143,6 +155,7 @@ final class Actor
             ['mi_dinero',  'Mi Talento',  'Mi dinero',      'payments',     'dinero',      $esColaborador,                                       true],   // Bloque 2
             ['material',   'Mi trabajo',  'Mi material',    'inventory_2',  'material',    fn () => (bool) $this->custodia(),                     true],   // Fase A (A2 activada)
             ['calidad',    'Mi trabajo',  'Mi progreso',    'verified',     'calidad',     fn () => $this->esTecnico(),                           true],   // Fase 1 del dashboard por rol (2026-10-08) — label "Mi progreso" a pedido de Irving (se descartó "Mi trabajo": duplicaría el grupo que ya se llama así)
+            ['ventas',     'Mi trabajo',  'Mi progreso',    'trending_up',  'mis_ventas',  fn () => $this->esVendedorTrack(),                     true],   // Fase 2 del dashboard por rol (2026-10-08) — mismo label que 'calidad', mutuamente excluyentes por track
             ['prospectos', 'Mi trabajo',  'Mis prospectos', 'groups',       'prospectos',  fn () => (bool) $this->seller(),                       true],   // Fase C
             ['panel',      'Mi trabajo',  'Mi panel',       'insights',     'panel',       fn () => (bool) ($this->seller() || $this->embajador()), false], // Fases D/E
             ['documentos', 'Cuenta',      'Mis documentos', 'description',  'documentos',  fn () => $this->user->can('talento.documentos.ver-propios'), true], // Item #9990814
