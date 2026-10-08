@@ -76,7 +76,13 @@ class TalentoReglaDesempenoController extends Controller
             ->get()
             ->first(fn($r) => TalentoWeeklyRule::normalizeRoles($r->roles ?? []) === $data['roles']);
 
-        abort_if($dup, 422, 'Ya existe una regla activa para esa combinación exacta de roles: "' . $dup->name . '".');
+        // abort_if() evalúa su mensaje SIEMPRE (PHP evalúa argumentos antes de
+        // llamar a la función), aunque la condición sea falsa — con $dup=null
+        // (el caso normal, sin duplicado) ". $dup->name" tronaba con "Attempt
+        // to read property name on null" incluso cuando SÍ se podía guardar.
+        if ($dup) {
+            abort(422, 'Ya existe una regla activa para esa combinación exacta de roles: "' . $dup->name . '".');
+        }
 
         return $data;
     }
