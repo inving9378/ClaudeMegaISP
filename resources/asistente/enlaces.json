@@ -1,0 +1,14 @@
+{
+    "_descripcion": "Lugares del sistema a los que JARVIS puede mandar al usuario. {id} se reemplaza por el número correspondiente. Solo se aceptan rutas internas (empiezan con /).",
+    "ficha_cliente": "/cliente/editar/{id}",
+    "ficha_cliente_pagos": "/cliente/editar/{id}?tab=pagos",
+    "ficha_cliente_servicios": "/cliente/editar/{id}?tab=services",
+    "ficha_cliente_estadisticas": "/cliente/editar/{id}?tab=statistics",
+    "ficha_cliente_documentos": "/cliente/editar/{id}?tab=documents",
+    "ticket": "/tickets/ver/{id}",
+    "tickets_abiertos": "/tickets/abiertos",
+    "pagos": "/finanzas/pagos",
+    "facturas": "/finanzas/facturas",
+    "lista_clientes": "/cliente/listar",
+    "manual": "/manual"
+}
