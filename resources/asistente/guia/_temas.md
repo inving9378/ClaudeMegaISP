@@ -2,7 +2,8 @@
 
 Para dudas de un módulo, pide su guía con `consultar_guia` (tema `modulos/<nombre>`). Cada guía trae
 sus pantallas con enlace, cómo se hacen las tareas y qué datos pide cada alta. Si existe una guía revisada
-por el equipo del mismo tema (clientes, pagos-y-facturacion, tickets, red-y-equipos), esa manda.
+por el equipo del mismo tema (clientes, pagos-y-facturacion, tickets, red-y-equipos), esa manda en cómo se
+hacen las cosas; pero para **qué datos pide** una pantalla usa siempre la guía `modulos/<módulo>`.
 
 - `modulos/auditoria` — **Auditoría**: Es el historial que registra cambios en el sistema.
 - `modulos/clientes` — **Clientes**: Gestiona la información integral de los clientes activos del ISP.

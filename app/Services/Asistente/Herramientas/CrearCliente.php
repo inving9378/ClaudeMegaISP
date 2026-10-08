@@ -31,7 +31,8 @@ class CrearCliente extends Herramienta
     {
         return 'Da de alta un cliente nuevo (sin servicios; esos se agregan después en su ficha). La pantalla pide: '
             . 'nombre con apellido paterno y materno, CURP (o identificación), correo, colonia (usa buscar_colonia) y plazo '
-            . 'del contrato (6, 12, 18, 24 o 36 meses); teléfono y domicilio son opcionales. Si falta algo, pregúntalo. '
+            . 'del contrato (6, 12, 18, 24 o 36 meses); teléfono y domicilio son opcionales. Llámala con lo que ya tengas '
+            . 'aunque falten datos: te responde la lista exacta de lo que falta. '
             . 'Si solo hay datos de contacto, ofrece registrarlo como prospecto. Prepara el alta y el usuario la confirma.';
     }
 
@@ -85,7 +86,7 @@ class CrearCliente extends Herramienta
 
         $prueba = $datos + $this->fijos($user);
         if ($error = Formulario::errores(Formulario::peticion(ClientCreateRequest::class, '/cliente/add', $prueba, $user))) {
-            return ['error' => "La pantalla de clientes no lo acepta: {$error}"];
+            return self::rechazo('clientes', $error, $prueba);
         }
 
         return [
