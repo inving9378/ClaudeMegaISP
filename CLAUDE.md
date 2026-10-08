@@ -207,6 +207,15 @@ Incidente de origen: se cambió un icono a `fa-file-text-o` (nombre FA4) → bot
   pantalla (`Herramientas\Formulario`), no copian reglas. Lo que JARVIS no pudo hacer queda anotado
   como `activity_log` `log_name='jarvis'` + `description LIKE 'Pendiente:%'`: es la lista de qué
   capacidad agregarle después.
+- **Entrenamiento:** `php artisan asistente:aprender [módulo...]` escribe `resources/asistente/guia/
+  modulos/<módulo>.md` (+ índice `_temas.md`) con la IA del sistema (clave `asistente.entrenamiento`)
+  desde `docs/modulos/*.md`, el menú real, lo que pide cada alta (calculado de las reglas, no
+  adivinado) y el manual; solo regenera lo que cambió. **Al cambiar la documentación de un módulo,
+  correrlo y commitear las guías.** Para corregir una guía: su doc o `resources/asistente/
+  entrenamiento.json` (notas / guías del equipo), nunca editar el `.md` generado.
+- **Pruebas:** `php artisan asistente:evaluar [id...] [--tema=]` corre `resources/asistente/pruebas.json`
+  con la IA real dentro de una transacción que se deshace. Correrlo antes de mergear cambios a sus
+  instrucciones, guías o herramientas.
 - **Memoria** en BD: `asistente_conversaciones/mensajes/recuerdos/acciones`. IA: Integraciones →
   Módulos IA, claves `asistente.chat_flotante` (requiere herramientas) y `asistente.memoria`.
 - Acceso: permiso `usar-ia-chat`.
