@@ -1,0 +1,41 @@
+{
+    "id": 260,
+    "slug": "addon-monitoreo-oficial",
+    "name": "Monitoreo Oficial y Alertas Inteligentes",
+    "version": "1.0.0",
+    "description": "Seguimiento de expedientes y publicaciones oficiales (IMPI y otras autoridades): detección de cambios, análisis con IA y alertas por correo, WhatsApp y campana interna. Add-on portable: opera con el núcleo y enciende canales opcionales SOLO si están disponibles en la instancia.",
+    "type": "addon",
+    "dependencies": [],
+    "active": false,
+
+    "permissions": [
+        { "name": "monitoring.view", "description": "Ver el módulo de Monitoreo Oficial" },
+        { "name": "monitoring.manage_cases", "description": "Crear y editar expedientes monitoreados" },
+        { "name": "monitoring.manage_sources", "description": "Gestionar fuentes oficiales" },
+        { "name": "monitoring.manage_integrations", "description": "Ver y gestionar conexiones con servicios (correo, WhatsApp, IA)" },
+        { "name": "monitoring.run_manual", "description": "Ejecutar revisiones e importaciones manuales" }
+    ],
+
+    "menu": [
+        { "label": "Monitoreo Oficial", "icon": "bell", "permission": "monitoring.view", "url": "/monitoreo-oficial" }
+    ],
+
+    "admin_cards": [
+        { "title": "Monitoreo Oficial", "description": "Expedientes oficiales, detección de cambios y alertas inteligentes.", "icon": "bell", "url": "/monitoreo-oficial", "permission": "monitoring.view" }
+    ],
+
+    "config_sections": [
+        {
+            "key": "monitoreo_oficial",
+            "label": "Monitoreo Oficial — Configuración",
+            "type": "general",
+            "category": "Sistema",
+            "icon": "bell",
+            "url": "/monitoreo-oficial/configuracion",
+            "permission": "monitoring.manage_integrations",
+            "description": "Fuentes oficiales, destinatarios, canales de alerta y conexiones del módulo con los servicios disponibles en esta instancia."
+        }
+    ],
+
+    "sidebar": { "location": "main" }
+}
