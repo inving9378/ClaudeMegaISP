@@ -108,7 +108,12 @@
     </div>
 
     <!-- ── MODAL REGLA (crear / editar) ── -->
-    <div v-if="ruleModal.show" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5);z-index:9999">
+    <!-- z-index 2000, NO 9999: este modal contiene un q-select de Quasar, cuyo
+         menú desplegable porta a <body> con z-index 6000 fijo. Con 9999 el
+         propio modal queda PINTADO ENCIMA de su propio desplegable (visible
+         pero no clickeable, confirmado con Playwright) -- 2000 se mantiene
+         por encima del contenido normal de la página y por debajo del menú. -->
+    <div v-if="ruleModal.show" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5);z-index:2000">
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
           <div class="modal-header">
@@ -220,9 +225,11 @@ import axios from 'axios';
 import { darkMode } from '../../../hook/appConfig.js';
 
 // Mismo criterio de "rol de sistema" que ya usa el backend
-// (TalentoColaboradorSyncService / SyncColaboradoresCommand) — se excluyen
-// del selector porque nunca aplica una regla de desempeño de campo a ellos.
-const SYSTEM_ROLES = ['super-administrator', 'ADMINISTRADOR_COMPLETO', 'DESARROLLADOR'];
+// (TalentoWeeklyRuleEvaluationService) — se excluyen del selector porque
+// nunca aplica una regla de desempeño de campo a ellos. Incluye el
+// duplicado ES 'Super Administrador' del mismo rol 'super-administrator'
+// (ver CLAUDE.md — pendiente de consolidar en Fase 4).
+const SYSTEM_ROLES = ['super-administrator', 'Super Administrador', 'ADMINISTRADOR_COMPLETO', 'DESARROLLADOR'];
 
 export default {
   name: 'TalentoReglasDesempeno',

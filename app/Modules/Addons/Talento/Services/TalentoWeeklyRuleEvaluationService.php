@@ -24,7 +24,12 @@ use App\Services\CalculateBalanceSellerService;
  */
 class TalentoWeeklyRuleEvaluationService
 {
-    private const SYSTEM_ROLES = ['super-administrator', 'ADMINISTRADOR_COMPLETO', 'DESARROLLADOR'];
+    // 'Super Administrador' es el duplicado ES del mismo rol 'super-administrator'
+    // (ver CLAUDE.md — "Duplicado super-admin ES/EN", pendiente de consolidar en
+    // Fase 4) -- se excluye aquí también para no ofrecerlo como combinación de
+    // negocio seleccionable, aunque TalentoColaboradorSyncService (otro alcance,
+    // sin UI de selección) no lo tenga en su propia constante homónima.
+    private const SYSTEM_ROLES = ['super-administrator', 'Super Administrador', 'ADMINISTRADOR_COMPLETO', 'DESARROLLADOR'];
 
     public function __construct(private CalculateBalanceSellerService $balanceService) {}
 
