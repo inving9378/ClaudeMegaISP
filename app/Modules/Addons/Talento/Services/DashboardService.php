@@ -175,6 +175,89 @@ class DashboardService
         ];
     }
 
+    // ── Progreso del propio Mostrador (Portal de Colaborador, Fase 3) ─────
+
+    /**
+     * "Mi progreso" del Mostrador — a diferencia de calidadTecnico()/mis-ventas
+     * (que reusan un motor existente), esto SÍ es agregación nueva: pagos que
+     * capturó (payments.add_by = user_id, mismo criterio de autoría que ya usa
+     * el resto del sistema — ver Payment::user()) y tickets que tiene
+     * asignados (tickets.assigned_to = user_id, confirmado contra
+     * Ticket::assign() y TicketController::opened()/closed() admin, que usan
+     * estado='Nuevo'/'Cerrado'). Self-scoped por $userId — SIEMPRE
+     * auth()->id() del colaborador en sesión, nunca un id que llegue del
+     * cliente.
+     */
+    public function progresoMostrador(int $userId, int $dias = 30): array
+    {
+        $from = now()->subDays($dias - 1)->startOfDay();
+        $to   = now()->endOfDay();
+
+        $pagosPeriodo = \App\Models\Payment::where('add_by', $userId)
+            ->whereBetween('created_at', [$from, $to]);
+
+        $pagosHoy = (int) \App\Models\Payment::where('add_by', $userId)
+            ->whereDate('created_at', now()->toDateString())
+            ->count();
+
+        $totalPagosPeriodo = (int) (clone $pagosPeriodo)->count();
+        $montoPeriodo      = (float) (clone $pagosPeriodo)->sum('amount');
+
+        $serieRows = (clone $pagosPeriodo)
+            ->selectRaw('DATE(created_at) as day, COUNT(*) as total')
+            ->groupBy('day')
+            ->pluck('total', 'day');
+
+        $dates = [];
+        for ($d = 0; $d < $dias; $d++) {
+            $dates[] = now()->subDays($dias - 1 - $d)->format('Y-m-d');
+        }
+        $conteoSerie = array_map(fn ($date) => (int) ($serieRows[$date] ?? 0), $dates);
+
+        // Whitelist explícito de campos: client_main_information (cargada solo para resolver el
+        // nombre vía el accessor paymentable_name) trae columnas sensibles (password en claro,
+        // email, teléfono, dirección) — NUNCA se serializa la relación completa al frontend.
+        $pagosRecientes = \App\Models\Payment::with(['payment_method', 'client_main_information'])
+            ->where('add_by', $userId)
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get(['id', 'paymentable_id', 'payment_method_id', 'amount', 'created_at'])
+            ->map(fn ($p) => [
+                'id'               => $p->id,
+                'amount'           => $p->amount,
+                'created_at'       => $p->created_at,
+                'paymentable_name' => $p->paymentable_name,
+                'payment_method'   => $p->payment_method?->type,
+            ]);
+
+        $ticketsAbiertosCount = (int) \App\Models\Ticket::where('assigned_to', $userId)
+            ->where('estado', 'Nuevo')
+            ->count();
+
+        $ticketsCerradosPeriodo = (int) \App\Models\Ticket::where('assigned_to', $userId)
+            ->where('estado', 'Cerrado')
+            ->whereBetween('updated_at', [$from, $to])
+            ->count();
+
+        $ticketsAbiertos = \App\Models\Ticket::where('assigned_to', $userId)
+            ->where('estado', 'Nuevo')
+            ->orderByDesc('date_time')
+            ->limit(10)
+            ->get(['id', 'topic', 'priority', 'date_time']);
+
+        return [
+            'period_days'              => $dias,
+            'pagos_hoy'                => $pagosHoy,
+            'pagos_periodo'            => $totalPagosPeriodo,
+            'monto_periodo'            => $montoPeriodo,
+            'tickets_abiertos'         => $ticketsAbiertosCount,
+            'tickets_cerrados_periodo' => $ticketsCerradosPeriodo,
+            'serie'                    => ['categories' => $dates, 'pagos' => $conteoSerie],
+            'pagos_recientes'          => $pagosRecientes,
+            'tickets_abiertos_lista'   => $ticketsAbiertos,
+        ];
+    }
+
     // ── Métricas del técnico (preview sin escribir) ───────────────────────
 
     public function tecnicoPreview(int $colaboradorId, ?string $periodStart = null, ?string $periodEnd = null): array

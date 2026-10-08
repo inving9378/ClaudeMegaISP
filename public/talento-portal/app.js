@@ -674,6 +674,52 @@
             });
             function pct1(n) { return n != null ? (Math.round(Number(n) * 10) / 10) : 0; }
 
+            // ── "Mi progreso" del Mostrador (Fase 3 del dashboard por rol) — reusa pagos/tickets
+            // propios vía /talento/portal/mi-progreso-mostrador, SOLO LECTURA ──
+            const progresoMostradorCargado = ref(false);
+            const cargandoProgresoMostrador = ref(false);
+            const progresoMostrador = ref(null);
+            let pagosMostradorChart = null;
+            function dibujarPagosMostradorChart() {
+                const d = progresoMostrador.value;
+                if (!d || typeof Chart === 'undefined') return;
+                const el = document.getElementById('tp-mostrador-pagos');
+                if (!el) return;
+                if (pagosMostradorChart) { pagosMostradorChart.destroy(); pagosMostradorChart = null; }
+
+                const serie = d.serie || {};
+                const labels = Array.isArray(serie.categories) ? serie.categories : [];
+                if (!labels.length) return;
+
+                pagosMostradorChart = new Chart(el, {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{ label: 'Pagos capturados', data: serie.pagos || [], backgroundColor: tpColor('--tp-primary', '#0d9488') }],
+                    },
+                    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+                });
+            }
+            async function cargarProgresoMostrador() {
+                if (!colaborador.value) { cargandoProgresoMostrador.value = false; return; }
+                cargandoProgresoMostrador.value = true;
+                const r = await apiFetch('/talento/portal/mi-progreso-mostrador');
+                if (r && r.ok && r.data) {
+                    progresoMostrador.value = r.data;
+                }
+                cargandoProgresoMostrador.value = false;
+                progresoMostradorCargado.value = true;
+                if (progresoMostrador.value) {
+                    await Vue.nextTick();
+                    dibujarPagosMostradorChart();
+                }
+            }
+            // Mismo mapeo que AssignedTicket.vue (admin, tickets.priority INT) — no inventar otro.
+            function prioridadLabel(p) {
+                const MAP = { 1: { label: 'Urgente', color: 'negative' }, 2: { label: 'Alta', color: 'orange-8' }, 3: { label: 'Normal', color: 'grey-7' }, 4: { label: 'Baja', color: 'grey-6' } };
+                return MAP[Number(p)] || { label: '—', color: 'grey-7' };
+            }
+
             // ── "Mis prospectos" (Fase C) — prospectos CRM del vendedor (SOLO LECTURA, self-scoped por el backend) ──
             const prospectosCargado = ref(false);
             const cargandoProspectos = ref(false);
@@ -748,6 +794,7 @@
                 if (val === 'material' && !materialCargado.value) cargarMaterial();
                 if (val === 'calidad' && !calidadCargado.value) cargarCalidad();
                 if (val === 'mis_ventas' && !misVentasCargado.value) cargarMisVentas();
+                if (val === 'mi_mostrador' && !progresoMostradorCargado.value) cargarProgresoMostrador();
                 if (val === 'prospectos' && !prospectosCargado.value) cargarProspectos();
                 if (val === 'documentos' && !documentosCargado.value) cargarDocumentos();
             }
@@ -777,6 +824,7 @@
                 resumenCustodia, enCustodiaPorCategoria, materialTab, materialEstadoTab, estadosMaterial,
                 calidad, cargandoCalidad, cargarCalidad,
                 misVentas, cargandoMisVentas, cargarMisVentas, totalVentasPeriodo, totalProspectosPeriodo, pct1,
+                progresoMostrador, cargandoProgresoMostrador, cargarProgresoMostrador, prioridadLabel,
                 prospectos, cargandoProspectos, cargarProspectos, nombreProspecto, statusColor,
                 documentos, cargandoDocumentos, documentosTab, documentosListaActiva, documentosKpi,
                 documentosPendientes, documentosFirmados, documentoEstadoInfo, documentoPdfUrl,
@@ -1496,6 +1544,83 @@
                                     </div>
                                 </q-card-section>
                             </q-card>
+                        </template>
+                    </div>
+
+                    <!-- Mi progreso del Mostrador (Fase 3 del dashboard por rol) — pagos capturados + tickets, SOLO LECTURA -->
+                    <div v-show="tab==='mi_mostrador'" class="q-pa-md">
+                        <div v-if="cargandoProgresoMostrador" class="tp-empty">
+                            <q-spinner color="teal-6" size="2em" /><div class="text-caption q-mt-sm">Cargando…</div>
+                        </div>
+                        <template v-else-if="progresoMostrador">
+                            <div class="row q-col-gutter-sm q-mb-md">
+                                <div class="col-4">
+                                    <q-card flat bordered class="tp-card">
+                                        <q-card-section class="q-pa-sm text-center">
+                                            <div class="text-h6 text-teal-8">{{ progresoMostrador.pagos_hoy }}</div>
+                                            <div class="text-caption text-grey-7">Pagos hoy</div>
+                                        </q-card-section>
+                                    </q-card>
+                                </div>
+                                <div class="col-4">
+                                    <q-card flat bordered class="tp-card">
+                                        <q-card-section class="q-pa-sm text-center">
+                                            <div class="text-h6 text-teal-8">{{ progresoMostrador.tickets_abiertos }}</div>
+                                            <div class="text-caption text-grey-7">Tickets abiertos</div>
+                                        </q-card-section>
+                                    </q-card>
+                                </div>
+                                <div class="col-4">
+                                    <q-card flat bordered class="tp-card">
+                                        <q-card-section class="q-pa-sm text-center">
+                                            <div class="text-h6 text-teal-8">{{ money(progresoMostrador.monto_periodo) }}</div>
+                                            <div class="text-caption text-grey-7">Capturado ({{ progresoMostrador.period_days }}d)</div>
+                                        </q-card-section>
+                                    </q-card>
+                                </div>
+                            </div>
+
+                            <q-card flat bordered class="tp-card q-mb-md">
+                                <q-card-section class="q-pa-sm">
+                                    <div class="text-subtitle2 text-grey-8 q-mb-sm">Pagos capturados por día</div>
+                                    <div style="position:relative;height:200px">
+                                        <canvas id="tp-mostrador-pagos"></canvas>
+                                    </div>
+                                </q-card-section>
+                            </q-card>
+
+                            <div class="text-subtitle2 text-grey-8 q-mb-xs">Pagos recientes</div>
+                            <q-list v-if="progresoMostrador.pagos_recientes && progresoMostrador.pagos_recientes.length" bordered separator class="tp-card q-mb-md">
+                                <q-item v-for="p in progresoMostrador.pagos_recientes" :key="'pg'+p.id">
+                                    <q-item-section>
+                                        <q-item-label>{{ p.paymentable_name || 'Cliente' }}</q-item-label>
+                                        <q-item-label caption>{{ p.payment_method }}<span v-if="p.created_at"> · {{ p.created_at.slice(0,10) }}</span></q-item-label>
+                                    </q-item-section>
+                                    <q-item-section side>
+                                        <q-item-label>{{ money(p.amount) }}</q-item-label>
+                                    </q-item-section>
+                                </q-item>
+                            </q-list>
+                            <div v-else class="tp-empty q-mb-md">
+                                <div class="text-caption text-grey-6">Sin pagos capturados todavía</div>
+                            </div>
+
+                            <div class="text-subtitle2 text-grey-8 q-mb-xs">Tickets abiertos asignados a mí</div>
+                            <q-list v-if="progresoMostrador.tickets_abiertos_lista && progresoMostrador.tickets_abiertos_lista.length" bordered separator class="tp-card">
+                                <q-item v-for="t in progresoMostrador.tickets_abiertos_lista" :key="'tk'+t.id">
+                                    <q-item-section>
+                                        <q-item-label>{{ t.topic }}</q-item-label>
+                                        <q-item-label caption>{{ t.date_time }}</q-item-label>
+                                    </q-item-section>
+                                    <q-item-section side>
+                                        <q-badge :color="prioridadLabel(t.priority).color">{{ prioridadLabel(t.priority).label }}</q-badge>
+                                    </q-item-section>
+                                </q-item>
+                            </q-list>
+                            <div v-else class="tp-empty">
+                                <q-icon name="support_agent" class="tp-empty-icon" />
+                                <div class="text-subtitle1">Sin tickets abiertos asignados</div>
+                            </div>
                         </template>
                     </div>
 

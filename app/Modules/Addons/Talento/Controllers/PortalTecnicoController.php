@@ -39,7 +39,7 @@ use Illuminate\Support\Facades\Storage;
 class PortalTecnicoController extends Controller
 {
     /** Cache-busting de los assets estáticos del portal (subir al cambiar app.js/portal.css). */
-    private const ASSET_VER = '20';
+    private const ASSET_VER = '21';
 
     /** Shell del portal (SPA Quasar de una sola página con nav inferior). */
     public function index(Request $request)
@@ -696,6 +696,22 @@ JS;
 
         $dias = (int) ($request->query('dias', 180));
         return response()->json($service->calidadTecnico($col->id, $dias));
+    }
+
+    /**
+     * "Mi progreso" del Mostrador (Fase 3 del dashboard por rol). Self-scoped
+     * por auth()->id() — DashboardService::progresoMostrador() filtra por
+     * payments.add_by/tickets.assigned_to, no por colaborador_id, pero igual
+     * se exige tener ficha activa (mismo candado que miCalidad()).
+     */
+    public function miProgresoMostrador(Request $request, \App\Modules\Addons\Talento\Services\DashboardService $service)
+    {
+        $this->authorize('payments_capture_manage');
+        $col = $this->resolveColaborador($request);
+        if (! $col) return response()->json(['error' => 'Sin perfil de colaborador activo.'], 403);
+
+        $dias = (int) ($request->query('dias', 30));
+        return response()->json($service->progresoMostrador(auth()->id(), $dias));
     }
 
     /** 1. Cuenta corriente: ledger del período AGRUPADO POR CONCEPTO + neto (server-side). */

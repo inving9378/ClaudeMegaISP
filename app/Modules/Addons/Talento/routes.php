@@ -656,6 +656,7 @@ Route::middleware(['web', 'auth', 'can:portal.colaborador'])
         // por Actor). Groundwork "vista por rol" (llamada Irving, 2026-10-08); reusa
         // DashboardService::tecnicoPreview(), sin cálculo nuevo.
         Route::get('/mi-calidad',       [PortalTecnicoController::class, 'miCalidad']);
+        Route::get('/mi-progreso-mostrador', [PortalTecnicoController::class, 'miProgresoMostrador']);
 
         // Mis documentos (expediente) — self-scoped por Actor. Item #9990813.
         Route::middleware('can:talento.documentos.ver-propios')->group(function () {
