@@ -43,13 +43,16 @@ Preparado, solo la parte técnica (lo que requiere cuenta/pago de Google queda p
 
 ⚠️ **Hallazgo al revisar esto al día siguiente (2026-10-08): esa rama nunca se fusionó a `main`.**
 Se probó y confirmó funcionando en el momento (contra el checkout que tenía la rama activa), pero
-como no se fusionó, la ruta **no existe en `main`** — cualquier checkout posterior a otra rama la
-pierde. Confirmado con `curl`: `/legal/privacidad-talento` responde 404 en el servidor real hoy.
-Sin conflictos al revisar un merge de prueba — es seguro fusionar en cuanto Irving lo apruebe.
-**Pendiente: fusionar `feature/talento-privacidad-playstore` a `main`.**
+como no se fusionó, la ruta **no existía en `main`** — cualquier checkout posterior a otra rama la
+perdía. Confirmado con `curl`: `/legal/privacidad-talento` respondía 404 en el servidor real.
+
+**Corregido el mismo 2026-10-08**, a petición de Irving: `git merge --no-ff
+feature/talento-privacidad-playstore` (commit `9053d5ad`), auto-resuelto sin conflictos reales
+(un solo bloque añadido en `routes.php`, limpio). Reverificado en el servidor real tras el merge:
+`GET /legal/privacidad-talento` → HTTP 200, con los datos reales de la empresa (RFC, correo)
+presentes en el HTML. La página ya está en vivo.
 
 ### Pendiente real
 
-- Fusionar `feature/talento-privacidad-playstore` (ver hallazgo de arriba).
 - Que Irving abra la cuenta de Google Play Console y continúe el resto del trámite (cuestionario de
   clasificación de contenido, formulario de seguridad de datos, alta de testers internos).
