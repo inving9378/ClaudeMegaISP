@@ -142,7 +142,7 @@ final class Actor
             ['mi_dia',     'Mi Talento',  'Mi día',         'today',        'inicio',      $esColaborador,                                       true],   // Bloques 1-2
             ['mi_dinero',  'Mi Talento',  'Mi dinero',      'payments',     'dinero',      $esColaborador,                                       true],   // Bloque 2
             ['material',   'Mi trabajo',  'Mi material',    'inventory_2',  'material',    fn () => (bool) $this->custodia(),                     true],   // Fase A (A2 activada)
-            ['calidad',    'Mi trabajo',  'Mi calidad',     'verified',     'calidad',     fn () => $this->esTecnico(),                           true],   // Fase 1 del dashboard por rol (2026-10-08)
+            ['calidad',    'Mi trabajo',  'Dashboard',      'verified',     'calidad',     fn () => $this->esTecnico(),                           true],   // Fase 1 del dashboard por rol (2026-10-08) — label "Dashboard" a pedido de Irving (el de "Mi calidad" no le gustó)
             ['prospectos', 'Mi trabajo',  'Mis prospectos', 'groups',       'prospectos',  fn () => (bool) $this->seller(),                       true],   // Fase C
             ['panel',      'Mi trabajo',  'Mi panel',       'insights',     'panel',       fn () => (bool) ($this->seller() || $this->embajador()), false], // Fases D/E
             ['documentos', 'Cuenta',      'Mis documentos', 'description',  'documentos',  fn () => $this->user->can('talento.documentos.ver-propios'), true], // Item #9990814
