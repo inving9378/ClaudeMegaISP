@@ -25,7 +25,9 @@ class ConocimientoAsistente
     /** Instrucciones fijas + mapa del sistema. Es la parte estable del arranque de cada mensaje. */
     public function arranqueFijo(): string
     {
-        return trim($this->leer('system-prompt.md')) . "\n\n" . trim($this->leer('guia/_indice.md'));
+        $temas = is_file($this->ruta('guia/_temas.md')) ? "\n\n" . trim($this->leer('guia/_temas.md')) : '';
+
+        return trim($this->leer('system-prompt.md')) . "\n\n" . trim($this->leer('guia/_indice.md')) . $temas;
     }
 
     /** Temas de la guía que se pueden pedir con consultar_guia. */
@@ -34,9 +36,13 @@ class ConocimientoAsistente
         $temas = [];
         foreach (glob($this->ruta('guia/*.md')) ?: [] as $archivo) {
             $nombre = basename($archivo, '.md');
-            if ($nombre !== '_indice') {
+            if (!str_starts_with($nombre, '_')) {
                 $temas[] = $nombre;
             }
+        }
+        // Guías por módulo que escribe `php artisan asistente:aprender`.
+        foreach (glob($this->ruta('guia/modulos/*.md')) ?: [] as $archivo) {
+            $temas[] = 'modulos/' . basename($archivo, '.md');
         }
         $temas[] = 'modulos';
         sort($temas);
@@ -50,11 +56,12 @@ class ConocimientoAsistente
         if ($tema === 'modulos') {
             return $this->guiaModulos();
         }
-        if (!preg_match('/^[a-z0-9-]+$/', $tema) || !is_file($this->ruta("guia/{$tema}.md"))) {
+        if (!preg_match('#^(modulos/)?[a-z0-9-]+$#', $tema) || !is_file($this->ruta("guia/{$tema}.md"))) {
             return null;
         }
 
-        return $this->leer("guia/{$tema}.md");
+        // Sin la cabecera <!-- ... --> de las guías generadas: no le sirve a la IA.
+        return trim(preg_replace('/^<!--.*?-->\s*/s', '', $this->leer("guia/{$tema}.md")));
     }
 
     /** Qué hace cada módulo, según lo que el propio módulo declara (sección "ai" de su module.json). */

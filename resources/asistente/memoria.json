@@ -1,11 +1,11 @@
 {
     "_descripcion": "Memoria persistente de JARVIS. Cuando la conversación ocupa más del porcentaje del presupuesto (medido con el conteo real que devuelve la IA), lo viejo se resume y se conservan completos los últimos mensajes. Nada se borra: solo deja de mandarse a la IA.",
-    "presupuesto_tokens": 16000,
+    "presupuesto_tokens": 32000,
     "compactar_al_porcentaje": 70,
     "mensajes_recientes": 12,
     "max_mensajes_sin_compactar": 60,
     "max_recuerdos": 40,
-    "max_caracteres_resultado_herramienta": 4000,
+    "max_caracteres_resultado_herramienta": 8000,
     "max_caracteres_mensaje": 6000,
     "mensajes_en_pantalla": 80
 }
