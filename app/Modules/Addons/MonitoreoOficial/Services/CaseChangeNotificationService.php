@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Modules\Addons\Hub\Services\Correo;
 use App\Modules\Addons\Hub\Services\Servicios;
 use App\Modules\Addons\MonitoreoOficial\Models\MonitoringCaseDocument;
+use App\Modules\Addons\MonitoreoOficial\Notifications\CaseChangeNoticeData;
 use App\Notifications\StandardNotification;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -48,15 +49,10 @@ class CaseChangeNotificationService
             ->filter()
             ->unique('id');
 
+        $payload = new CaseChangeNoticeData($titulo, $cuerpo, $case->id);
+
         foreach ($destinatarios as $user) {
             try {
-                $payload = new class($titulo, $cuerpo, $case->id) {
-                    public function __construct(public string $topic, public string $resumen, public int $case_id) {}
-                    public function toArray(): array
-                    {
-                        return ['topic' => $this->topic, 'reporter' => 'Monitoreo Oficial', 'resumen' => $this->resumen, 'case_id' => $this->case_id, 'created_at' => now()->toDateTimeString()];
-                    }
-                };
                 $user->notify(new StandardNotification($payload, ['database']));
             } catch (Throwable $e) {
                 Log::warning('[MonitoreoOficial] Aviso de campana falló', ['user_id' => $user->id, 'error' => $e->getMessage()]);
