@@ -4,7 +4,9 @@ namespace App\Modules\Addons\MapaRed\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\MapaRed\Models\MapaRedCable;
+use App\Modules\Addons\MapaRed\Models\MapaRedSplitter;
 use App\Modules\Addons\MapaRed\Models\MapaRedTipoCable;
+use App\Modules\Addons\MapaRed\Models\MapaRedTipoCaja;
 use App\Modules\Addons\MapaRed\Models\MapaRedTipoConector;
 use App\Modules\Addons\MapaRed\Models\MapaRedTipoSplitter;
 use Illuminate\Http\Request;
@@ -15,9 +17,9 @@ use Illuminate\Http\Request;
  * controller/ruta propia (ver comentario de clase). tipoSplitter()/tipoCable() siguen siendo
  * deliberadamente mínimos: solo el listado de opciones para un <q-select>, NO el CRUD.
  *
- * MR-08 Fase 2a (item roadmap #9990536) — sumó el CRUD de cables/conectores (index/store/update/
- * destroy) sobre el mismo archivo, para la administración de catálogos. Cajas/splitters van en
- * el sub-item hermano Fase 2b (#9990538).
+ * MR-08 Fase 2 (items roadmap #9990536/#9990538) — sumó el CRUD de los 4 catálogos
+ * (cables/conectores/cajas/splitters: index/store/update/destroy) sobre el mismo archivo, para
+ * la administración de catálogos.
  */
 class CatalogosController extends Controller
 {
@@ -159,6 +161,135 @@ class CatalogosController extends Controller
         }
 
         $conector->delete();
+
+        return response()->json(['deleted' => true]);
+    }
+
+    public function cajas()
+    {
+        $this->authorize('mapa_red_catalogo_view');
+
+        return response()->json(
+            MapaRedTipoCaja::orderBy('nombre')->get()
+        );
+    }
+
+    public function storeCaja(Request $request)
+    {
+        $this->authorize('mapa_red_catalogo_manage');
+
+        $data = $request->validate([
+            'nombre' => 'required|string|max:255',
+            'capacidad_puertos' => 'nullable|integer|min:1',
+            'capacidad_fusiones' => 'nullable|integer|min:1',
+            'ip_rating' => 'nullable|string|max:20',
+            'ik_rating' => 'nullable|string|max:20',
+        ]);
+
+        $caja = MapaRedTipoCaja::create($data);
+
+        return response()->json($caja, 201);
+    }
+
+    public function updateCaja(Request $request, $id)
+    {
+        $this->authorize('mapa_red_catalogo_manage');
+
+        $caja = MapaRedTipoCaja::findOrFail($id);
+
+        $data = $request->validate([
+            'nombre' => 'required|string|max:255',
+            'capacidad_puertos' => 'nullable|integer|min:1',
+            'capacidad_fusiones' => 'nullable|integer|min:1',
+            'ip_rating' => 'nullable|string|max:20',
+            'ik_rating' => 'nullable|string|max:20',
+        ]);
+
+        $caja->update($data);
+
+        return response()->json($caja);
+    }
+
+    public function destroyCaja($id)
+    {
+        $this->authorize('mapa_red_catalogo_manage');
+
+        $caja = MapaRedTipoCaja::findOrFail($id);
+
+        // Sin consumidores hoy (grep confirmado) — destroy directo, sin guard de referencias.
+        $caja->delete();
+
+        return response()->json(['deleted' => true]);
+    }
+
+    public function splitters()
+    {
+        $this->authorize('mapa_red_catalogo_view');
+
+        return response()->json(
+            MapaRedTipoSplitter::orderBy('nombre')->get()
+        );
+    }
+
+    public function storeSplitter(Request $request)
+    {
+        $this->authorize('mapa_red_catalogo_manage');
+
+        $data = $request->validate([
+            'nombre' => 'required|string|max:255',
+            'fabricante' => 'nullable|string|max:255',
+            'balanceado' => 'required|boolean',
+            'ratio' => 'nullable|string|max:20',
+            'numero_puertos' => 'required|integer|min:1',
+            'perdida_db' => 'nullable|numeric|min:0',
+            'precio' => 'nullable|numeric|min:0',
+            'tipo_conector_id' => 'nullable|integer|exists:mapared_tipo_conector,id',
+            'perdida_paso_db' => 'nullable|numeric|min:0',
+            'perdida_derivacion_db' => 'nullable|numeric|min:0',
+        ]);
+
+        $splitter = MapaRedTipoSplitter::create($data);
+
+        return response()->json($splitter, 201);
+    }
+
+    public function updateSplitter(Request $request, $id)
+    {
+        $this->authorize('mapa_red_catalogo_manage');
+
+        $splitter = MapaRedTipoSplitter::findOrFail($id);
+
+        $data = $request->validate([
+            'nombre' => 'required|string|max:255',
+            'fabricante' => 'nullable|string|max:255',
+            'balanceado' => 'required|boolean',
+            'ratio' => 'nullable|string|max:20',
+            'numero_puertos' => 'required|integer|min:1',
+            'perdida_db' => 'nullable|numeric|min:0',
+            'precio' => 'nullable|numeric|min:0',
+            'tipo_conector_id' => 'nullable|integer|exists:mapared_tipo_conector,id',
+            'perdida_paso_db' => 'nullable|numeric|min:0',
+            'perdida_derivacion_db' => 'nullable|numeric|min:0',
+        ]);
+
+        $splitter->update($data);
+
+        return response()->json($splitter);
+    }
+
+    public function destroySplitter($id)
+    {
+        $this->authorize('mapa_red_catalogo_manage');
+
+        $splitter = MapaRedTipoSplitter::findOrFail($id);
+
+        if (MapaRedSplitter::where('tipo_splitter_id', $id)->exists()) {
+            return response()->json([
+                'message' => 'No se puede eliminar: hay splitters físicos usando este tipo.',
+            ], 422);
+        }
+
+        $splitter->delete();
 
         return response()->json(['deleted' => true]);
     }
