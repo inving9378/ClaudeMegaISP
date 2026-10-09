@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\MonitoreoOficial\Jobs;
 
 use App\Modules\Addons\MonitoreoOficial\Models\MonitoringCaseDocument;
+use App\Modules\Addons\MonitoreoOficial\Services\CaseChangeNotificationService;
 use App\Modules\Addons\MonitoreoOficial\Services\DocumentAnalysisService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -27,7 +28,7 @@ class AnalyzeCaseDocumentJob implements ShouldQueue
     {
     }
 
-    public function handle(DocumentAnalysisService $service): void
+    public function handle(DocumentAnalysisService $service, CaseChangeNotificationService $notifier): void
     {
         $documento = MonitoringCaseDocument::find($this->documentId);
         if (! $documento) {
@@ -50,5 +51,11 @@ class AnalyzeCaseDocumentJob implements ShouldQueue
             'ai_analyzed_at' => now(),
             'ai_error' => $resultado['error'],
         ]);
+
+        // Fase 6: solo avisa cuando la IA marcó un cambio de fondo — no por cada
+        // documento (reanalizar o subir el primero de un expediente no es "noticia").
+        if ($resultado['ok'] && $resultado['cambio_relevante']) {
+            $notifier->notificar($documento->fresh());
+        }
     }
 }

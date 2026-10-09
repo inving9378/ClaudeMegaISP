@@ -122,6 +122,8 @@ class MonitoringController extends Controller
             'class_code' => ['nullable', 'string', 'max:255'],
             'current_legal_status' => ['nullable', 'string', 'max:1000'],
             'monitoring_status' => ['required', Rule::in(['activo', 'pausado'])],
+            'notify_email' => ['nullable', 'email', 'max:255'],
+            'notify_whatsapp' => ['nullable', 'string', 'max:32'],
         ]);
     }
 

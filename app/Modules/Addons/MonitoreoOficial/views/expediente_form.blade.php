@@ -78,6 +78,23 @@
                     </div>
                 </div>
 
+                <hr>
+                <p class="text-muted small mb-2">
+                    Avisos cuando la IA detecte un cambio de fondo en un documento de este expediente
+                    (opcional — la campana interna del sistema ya avisa, sin configurar nada, a quien
+                    subió el documento y a quien dio de alta el expediente).
+                </p>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Correo adicional para avisos</label>
+                        <input type="email" name="notify_email" class="form-control" value="{{ old('notify_email', $case->notify_email) }}" placeholder="ej. legal@meganet.mx">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">WhatsApp adicional para avisos</label>
+                        <input type="text" name="notify_whatsapp" class="form-control" value="{{ old('notify_whatsapp', $case->notify_whatsapp) }}" placeholder="ej. 5512345678">
+                    </div>
+                </div>
+
                 <div class="mt-3 d-flex gap-2">
                     <button type="submit" class="btn btn-primary">{{ $case->exists ? 'Guardar cambios' : 'Registrar expediente' }}</button>
                     <a href="{{ route('monitoreo-oficial.dashboard') }}" class="btn btn-outline-secondary">Cancelar</a>
