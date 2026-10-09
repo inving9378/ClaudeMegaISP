@@ -176,6 +176,16 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     // MR-24e Fase 3b (item #9990582) — catálogo mínimo de tipos de cable para el <q-select>.
     Route::get('/catalogos/tipo-cable', [CatalogosController::class, 'tipoCable'])->name('mapa-red.api.catalogos.tipo-cable');
 
+    // MR-08 Fase 2a (item #9990536) — CRUD de catálogos: cables y conectores.
+    Route::get('/catalogos/cables', [CatalogosController::class, 'cables'])->name('mapa-red.api.catalogos.cables');
+    Route::post('/catalogos/cables', [CatalogosController::class, 'storeCable'])->name('mapa-red.api.catalogos.cables.store');
+    Route::put('/catalogos/cables/{id}', [CatalogosController::class, 'updateCable'])->name('mapa-red.api.catalogos.cables.update');
+    Route::delete('/catalogos/cables/{id}', [CatalogosController::class, 'destroyCable'])->name('mapa-red.api.catalogos.cables.destroy');
+    Route::get('/catalogos/conectores', [CatalogosController::class, 'conectores'])->name('mapa-red.api.catalogos.conectores');
+    Route::post('/catalogos/conectores', [CatalogosController::class, 'storeConector'])->name('mapa-red.api.catalogos.conectores.store');
+    Route::put('/catalogos/conectores/{id}', [CatalogosController::class, 'updateConector'])->name('mapa-red.api.catalogos.conectores.update');
+    Route::delete('/catalogos/conectores/{id}', [CatalogosController::class, 'destroyConector'])->name('mapa-red.api.catalogos.conectores.destroy');
+
     // MR-24e Fase 2 (item #9990548) — alta rápida de cable/troncal (zona+nombre+snap automáticos).
     Route::post('/elementos/cable', [CableAltaRapidaController::class, 'store'])->name('mapa-red.api.elementos.cable');
 

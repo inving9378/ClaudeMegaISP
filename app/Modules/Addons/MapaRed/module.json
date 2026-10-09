@@ -14,7 +14,9 @@
         { "name": "mapa_red_trazar", "description": "Trazar enlaces en el Mapa de Red" },
         { "name": "mapa_red_fotos_ver", "description": "Ver fotos de nodos/enlaces del Mapa de Red" },
         { "name": "mapa_red_fotos_subir", "description": "Subir fotos a nodos/enlaces del Mapa de Red" },
-        { "name": "mapa_red_fotos_eliminar", "description": "Eliminar fotos de nodos/enlaces del Mapa de Red" }
+        { "name": "mapa_red_fotos_eliminar", "description": "Eliminar fotos de nodos/enlaces del Mapa de Red" },
+        { "name": "mapa_red_catalogo_view", "description": "Ver catálogos del Mapa de Red" },
+        { "name": "mapa_red_catalogo_manage", "description": "Gestionar catálogos del Mapa de Red (crear/editar/eliminar)" }
     ],
 
     "menu": [
