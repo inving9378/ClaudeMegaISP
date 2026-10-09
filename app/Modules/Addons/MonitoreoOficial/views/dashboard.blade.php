@@ -30,8 +30,35 @@
                 Seguimiento de expedientes y publicaciones oficiales, detección de cambios y alertas.
                 Módulo instalado desde <b>Gestión de Add-ons</b>. Opera con el núcleo del sistema y
                 enciende los canales opcionales (WhatsApp, IA) solo si están disponibles en esta instancia.
-                <span class="text-muted">(En construcción por fases — Fase 6: avisos por correo, WhatsApp y campana interna.)</span>
+                <span class="text-muted">(En construcción por fases — Fase 7: pulido de interfaz.)</span>
             </p>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="h3 mb-0">{{ $resumen['total'] }}</div>
+                    <div class="text-muted small">Expedientes totales</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="h3 mb-0 text-success">{{ $resumen['activos'] }}</div>
+                    <div class="text-muted small">Activos</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="h3 mb-0 {{ $resumen['con_cambio_reciente'] > 0 ? 'text-warning' : '' }}">{{ $resumen['con_cambio_reciente'] }}</div>
+                    <div class="text-muted small">Con cambio reciente detectado</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -93,6 +120,7 @@
                             <th>Fuente</th>
                             <th>Estado legal</th>
                             <th>Monitoreo</th>
+                            <th>Cambios</th>
                             <th class="text-end">Acciones</th>
                         </tr>
                     </thead>
@@ -106,6 +134,18 @@
                                 <td class="text-muted">{{ $case->source?->name ?? '—' }}</td>
                                 <td class="text-muted">{{ $case->current_legal_status ?? '—' }}</td>
                                 <td><span class="badge {{ $case->monitoring_status === 'activo' ? 'bg-success' : 'bg-secondary' }}">{{ ucfirst($case->monitoring_status) }}</span></td>
+                                <td>
+                                    @php $ultimoDoc = $case->documents->first(); @endphp
+                                    @if($ultimoDoc?->ai_has_relevant_change)
+                                        <span class="badge bg-warning text-dark"><i class="fa fa-exclamation-triangle"></i> Cambio reciente</span>
+                                    @elseif($ultimoDoc?->ai_analyzed_at)
+                                        <span class="badge bg-success">Sin novedad</span>
+                                    @elseif($ultimoDoc)
+                                        <span class="badge bg-secondary">Sin analizar</span>
+                                    @else
+                                        <span class="text-muted small">Sin documentos</span>
+                                    @endif
+                                </td>
                                 <td class="text-end">
                                     <a href="{{ route('monitoreo-oficial.expedientes.ver', $case->id) }}" class="btn btn-sm btn-outline-primary">Ver</a>
                                     @if(auth()->user()->can('monitoring.manage_cases'))
@@ -121,7 +161,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="8" class="text-muted text-center">No hay expedientes registrados en esta instancia.</td></tr>
+                            <tr><td colspan="9" class="text-muted text-center">No hay expedientes registrados en esta instancia.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

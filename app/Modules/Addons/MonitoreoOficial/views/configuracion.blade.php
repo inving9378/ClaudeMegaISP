@@ -11,10 +11,11 @@
         <div class="card-body">
             <h4 class="card-title">Configuración del módulo</h4>
             <p class="text-muted mb-0">
-                Fuentes oficiales (Fase 2: alta/edición/baja ya disponible). Destinatarios y canales de
-                alerta por expediente, y la descarga automática por fuente (scraping/PDF), se habilitan
-                en la Fase 3. El estado de las conexiones con los servicios de esta instancia es de
-                solo lectura (se detecta automático).
+                Fuentes oficiales: alta/edición/baja aquí abajo. Los destinatarios de avisos (correo/
+                WhatsApp) se configuran por expediente, en su propia ficha — no aquí, porque cada
+                expediente puede necesitar avisar a alguien distinto. La descarga automática por
+                fuente (scraping) sigue pendiente de construirse. El estado de las conexiones con los
+                servicios de esta instancia es de solo lectura (se detecta automático).
             </p>
         </div>
     </div>
