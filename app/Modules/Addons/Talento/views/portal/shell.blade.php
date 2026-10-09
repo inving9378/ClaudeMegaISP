@@ -18,6 +18,7 @@
     {{-- Quasar UMD + Vue 3 (mismos assets que el resto del sistema) --}}
     <link rel="stylesheet" href="/plugins/quasar/css/material-icons.css">
     <link rel="stylesheet" href="/plugins/quasar/css/quasar.prod.css">
+    <link rel="stylesheet" href="/assets/libs/leaflet/leaflet.css">
     <link rel="stylesheet" href="/talento-portal/portal.css?v={{ $assetVer }}">
 </head>
 {{-- data-spa-skip: este shell es independiente del interceptor spa-nav del admin --}}
@@ -48,6 +49,7 @@
     <script src="/plugins/quasar/js/vue.global.prod.js"></script>
     <script src="/plugins/quasar/js/quasar.umd.prod.js"></script>
     <script src="/chart.js/chart.js"></script>
+    <script src="/assets/libs/leaflet/leaflet.js"></script>
     <script src="/talento-portal/app.js?v={{ $assetVer }}"></script>
 </body>
 </html>

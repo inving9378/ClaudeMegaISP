@@ -128,6 +128,18 @@ final class Actor
     }
 
     /**
+     * Técnico de track EXTERNA (visita clientes, rol TECNICO/TECNICO_INSTALADOR) —
+     * Fase 4 del dashboard por rol (2026-10-08/09, pendiente desde la Fase 1 por
+     * requerir más investigación). Gatilla el mapa "a dónde debo ir hoy" dentro de
+     * "Mi progreso"; el técnico de planta (TECNICO_PLANTA) no viaja a clientes, así
+     * que nunca lo ve. Deriva de trackPrincipal(), igual que esTecnico().
+     */
+    public function esTecnicoExterno(): bool
+    {
+        return $this->trackPrincipal() === 'tecnico_planta_externa';
+    }
+
+    /**
      * Es vendedor "de verdad" (track principal = vendedor), no solo tiene
      * una fila sellers() de arrastre — hoy TODO colaborador nace vendedor
      * (ver nota del docblock de la clase), así que seller() por sí solo NO
