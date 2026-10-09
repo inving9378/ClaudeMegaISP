@@ -172,6 +172,10 @@
         <div v-if="activeTab === 'informacion'">
           <talento-ficha-informacion :colaborador="colaborador"
             :puede-gestionar-acceso="permisos.informacion_gestion_acceso" />
+          <!-- "Mi progreso" nativo (2026-10-09, pedido de Irving): sin iframe, sin ir al
+               Portal — se muestra directo si el colaborador de ESTA ficha es técnico
+               (el propio componente no pinta nada si no lo es). -->
+          <talento-ficha-calidad v-if="esTecnico" :colaborador-id="id" />
         </div>
         <div v-if="activeTab === 'mi_trabajo'" class="tc-portal-embed">
           <iframe src="/talento/portal" title="Portal de Colaborador — Mi trabajo" loading="lazy"></iframe>
@@ -287,6 +291,7 @@ import TalentoCustodia from "./TalentoCustodia.vue";
 import TalentoDispositivos from "./TalentoDispositivos.vue";
 import TalentoEmbajadores from "./TalentoEmbajadores.vue";
 import TalentoFichaAcademia from "./TalentoFichaAcademia.vue";
+import TalentoFichaCalidad from "./TalentoFichaCalidad.vue";
 // David (29-sep): a diferencia de talento-expediente-documentos (registrado
 // globalmente vía app.component(), visible en cualquier SFC hijo),
 // TalentoAcademia vive en el objeto components:{} gigante de createApp() en
@@ -325,6 +330,7 @@ export default {
     TalentoEmbajadores,
     TalentoFichaAcademia,
     TalentoAcademia,
+    TalentoFichaCalidad,
   },
   props: {
     id: { type: [Number, String], required: true },

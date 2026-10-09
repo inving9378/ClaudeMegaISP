@@ -2087,6 +2087,10 @@ return [
         '/talento/api/dashboard/tecnico/{id}',
         '/talento/api/dashboard/simulate-pay',
         '/talento/api/dashboard/equipo/{id}',
+        // "Mi progreso" nativo dentro de la ficha (Información) — mismo gate que
+        // ficha()/miFicha(): talento.view a nivel de ruta, esPropia/supervisor/
+        // talento.employees.view a nivel de controller (ver progreso()).
+        '/talento/api/colaboradores/{id}/progreso',
         // "Gestión de acceso" (29-sep, pedido explícito de David): el
         // supervisor directo de un colaborador puede editar SU cuenta de
         // sistema (contraseña/contacto/rol) desde /administracion/user —

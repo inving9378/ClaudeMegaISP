@@ -291,6 +291,54 @@ class TalentoColaboradorController extends Controller
     }
 
     /**
+     * "Mi progreso" nativo dentro de la pestaña Información de la ficha —
+     * pedido de Irving (2026-10-09): que no haga falta ir al Portal/"Mi
+     * progreso" para verlo, debe salir directo en el dashboard de Talento.
+     * Mismo motor que PortalTecnicoController::miCalidad() (DashboardService
+     * ::calidadTecnico()/mapaTecnico()), pero parametrizado por el
+     * colaborador DE LA FICHA — no por auth()->user() — así que no se reusa
+     * ese endpoint tal cual (ahí es siempre self-scoped). Mismo candado que
+     * ficha(): uno mismo, su supervisor directo, o quien tiene
+     * talento.employees.view. Solo aplica a colaboradores con rol técnico
+     * (igual que la pestaña "Mi progreso" del Portal) — para los demás
+     * devuelve es_tecnico:false y el frontend no pinta nada.
+     */
+    public function progreso($id)
+    {
+        $this->authorize('talento.view');
+
+        $colaboradorDeLaFicha = TalentoColaborador::with('user')->find($id);
+        abort_if(!$colaboradorDeLaFicha, 404);
+
+        $miPropioColaborador = Actor::for(auth()->user())->talento();
+        $esPropia = $miPropioColaborador && (string) $miPropioColaborador->id === (string) $id;
+        $esSuSupervisor = $miPropioColaborador
+            && (int) $colaboradorDeLaFicha->supervisor_id === (int) $miPropioColaborador->id;
+        $tieneAccesoAmplio = $esPropia || $esSuSupervisor || auth()->user()->can('talento.employees.view');
+
+        abort_unless($tieneAccesoAmplio, 403);
+
+        $esTecnico = $colaboradorDeLaFicha->user
+            && collect($colaboradorDeLaFicha->user->getRoleNames())
+                ->intersect(['TECNICO', 'TECNICO_INSTALADOR', 'TECNICO_PLANTA'])
+                ->isNotEmpty();
+
+        if (!$esTecnico) {
+            return response()->json(['es_tecnico' => false]);
+        }
+
+        $service = app(\App\Modules\Addons\Talento\Services\DashboardService::class);
+        $data = $service->calidadTecnico((int) $id);
+        $data['es_tecnico'] = true;
+        $data['es_externo'] = Actor::for($colaboradorDeLaFicha->user)->esTecnicoExterno();
+        if ($data['es_externo']) {
+            $data['mapa'] = $service->mapaTecnico((int) $id);
+        }
+
+        return response()->json($data);
+    }
+
+    /**
      * Ficha propia, de un subordinado directo, o de CUALQUIERA si quien pide
      * gestiona órdenes en general (talento.work_orders.manage — admin/
      * DESARROLLADOR/Mostrador) — ninguno de los tres exige

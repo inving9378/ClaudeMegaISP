@@ -63,6 +63,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         // Controller::puedeVerDocumentosDe()/puedeGestionarDocumentosDe().
         Route::get('/mi-ficha/{id}/academia',   [TalentoColaboradorController::class, 'miFichaAcademia']);
         Route::get('/mi-ficha/{id}/pdf',        [TalentoColaboradorController::class, 'pdf'])->name('talento.colaborador.pdf');
+        // "Mi progreso" nativo dentro de la pestaña Información (2026-10-09, pedido de
+        // Irving: que no haya que ir al Portal para verlo). Mismo gate que ficha().
+        Route::get('/api/colaboradores/{id}/progreso', [TalentoColaboradorController::class, 'progreso']);
         Route::get('/custodia',       [TalentoCustodiaController::class,     'index']);
         Route::get('/dispositivos',   [TalentoDeviceController::class,       'index']);
         Route::get('/roadmap',        [TalentoRoadmapController::class,      'index']);
