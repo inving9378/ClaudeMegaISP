@@ -1818,6 +1818,18 @@ return [
         '/finanzas/payments/{id}/receipt',
         '/finanzas/payments/{payment}/receipt/{receipt}/download',
     ],
+    // Captura de pago reportado por mostrador (Paso 2, ManualPaymentController) — el permiso
+    // ya estaba creado y asignado a Mostrador, pero nunca se registró aquí: el middleware
+    // check_route_permission bloqueaba la pantalla en silencio (redirige a "/") para cualquiera
+    // sin bypass de admin. Afectaba a las dos usuarias reales del puesto (Diana/Ariana), que
+    // solo cargan el rol Mostrador. Hallazgo item roadmap (verificación permisos Mostrador,
+    // 2026-10-08) — commiteado ayer en una rama (fix/payments-captura-pago-route-permission)
+    // que nunca se mergeó a main, así que el bug seguía vivo hoy. Reaplicado 2026-10-09.
+    'payments_capture_manage' => [
+        '/finanzas/captura-pago',
+        '/finanzas/captura-pago/buscar-cliente',
+        '/finanzas/captura-pago/{id}/comprobante',
+    ],
 
     // Cola de conciliación (motor de cobro nativo)
     'reconciliation_view' => [
