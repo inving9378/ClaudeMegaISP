@@ -348,13 +348,23 @@
     </q-dialog>
 
     <!-- MR-24e Fase 3b/4 (items roadmap #9990582/#9990583): formulario mínimo del modo dibujo
-         cable/troncal — persiste contra CableAltaRapidaController::store. -->
+         cable/troncal — persiste contra CableAltaRapidaController::store. Drop (MR-22,
+         2026-10-08) reusa el mismo dialog con un formulario más simple (sin hilos/tipo de
+         cable — persiste contra DropAltaRapidaController::store). -->
     <q-dialog v-model="showCableDialog" persistent>
         <q-card style="width: 380px; max-width: 90vw">
             <q-card-section>
-                <div class="text-h6">Cable / Troncal</div>
+                <div class="text-h6">
+                    {{ tipoCableDibujo === "drop" ? "Drop / Acometida" : "Cable / Troncal" }}
+                </div>
             </q-card-section>
-            <q-card-section class="q-pt-none">
+            <q-card-section v-if="tipoCableDibujo === 'drop'" class="q-pt-none">
+                <div class="text-caption text-grey">
+                    Se guardará como la acometida del NAP hacia el cliente, con nombre
+                    generado automáticamente.
+                </div>
+            </q-card-section>
+            <q-card-section v-else class="q-pt-none">
                 <q-input
                     v-model.number="numeroHilosCable"
                     type="number"
@@ -488,6 +498,7 @@ import { getCoberturaCapa, consultarCobertura } from "./helper/cobertura-request
 import { getSectoresCapa } from "./helper/sectores-request";
 import { getTiposSplitter, crearNapRapida } from "./helper/nap-alta-request";
 import { getTiposCable, crearCableRapido } from "./helper/cable-alta-request";
+import { crearDropRapido } from "./helper/drop-alta-request";
 
 import Swal from "sweetalert2";
 import {
@@ -665,15 +676,14 @@ const loadingExport = ref({
 // Decisiones ya tomadas por Irving: estado inicial por capa (q3), umbrales de zoom drops>=16 /
 // clientes>=17 (q2), reusar el clustering ya existente (q1, sin reconstruirlo).
 // Mapeo capa lógica → `dialog` real del layer (único dato disponible hoy para distinguir tipos).
-// "drops" (acometida NAP→cliente) no es todavía una entidad propia en mapared_layers — verificado
-// contra la BD piloto real (0 filas con un dialog dedicado a drop): queda como capa reservada,
-// cableada en el panel y en el umbral de zoom, sin marcadores hasta que esa entidad exista.
+// "drops" (acometida NAP→cliente): entidad real desde el alta rápida de Drop (sesión
+// 2026-10-08, DropAltaRapidaController, dialog='drop') — ya no es capa reservada vacía.
 const CAPAS_MAPA_RED = [
     { key: "olt", label: "OLT", icon: "mdi-warehouse", dialogs: ["site"] },
     { key: "troncales", label: "Troncales", icon: "mdi-chart-timeline-variant", dialogs: ["route"] },
     { key: "mufas", label: "Mufas", icon: "mdi-package-variant-closed", dialogs: ["junction_box"] },
     { key: "naps", label: "NAPs", icon: "mdi-package", dialogs: ["service_box"] },
-    { key: "drops", label: "Drops", icon: "mdi-vector-line", dialogs: [] },
+    { key: "drops", label: "Drops", icon: "mdi-vector-line", dialogs: ["drop"] },
     { key: "clientes", label: "Clientes", icon: "mdi-account", dialogs: ["client"] },
     { key: "postes", label: "Postes", icon: "mdi-currency-mnt", dialogs: ["pole"] },
     // MR-26 Fase 4 (#9990525): ya NO reusa dialog='region' (ese dialog es de zonas/polígonos
@@ -1812,7 +1822,8 @@ const initMap = async () => {
     }).addTo(map);
 
     // MR-24e Fase 3a (item roadmap #9990581): selector del tipo a dibujar ANTES de trazar
-    // (cable estándar o troncal) — solo cambia tipoCableDibujo, no dibuja nada por sí mismo.
+    // (cable estándar, troncal o drop) — solo cambia tipoCableDibujo, no dibuja nada por sí
+    // mismo. Drop sumado 2026-10-08 (MR-22): ciclo de 3 estados cable -> troncal -> drop -> cable.
     L.easyButton({
         states: [
             {
@@ -1827,7 +1838,16 @@ const initMap = async () => {
             {
                 stateName: "tipo-troncal",
                 icon: "fa-network-wired",
-                title: "Tipo a dibujar: Troncal (clic para cambiar a Cable)",
+                title: "Tipo a dibujar: Troncal (clic para cambiar a Drop)",
+                onClick: function (btn) {
+                    tipoCableDibujo.value = "drop";
+                    btn.state("tipo-drop");
+                },
+            },
+            {
+                stateName: "tipo-drop",
+                icon: "fa-home",
+                title: "Tipo a dibujar: Drop / acometida (clic para cambiar a Cable)",
                 onClick: function (btn) {
                     tipoCableDibujo.value = "cable";
                     btn.state("tipo-cable");
@@ -2010,12 +2030,15 @@ const agregarVerticeCable = (latlng) => {
     L.circleMarker(punto, { radius: 5, color: "#333", fillOpacity: 1 }).addTo(
         cableVerticesLayer
     );
-    // Mismo color que CableAltaRapidaController::store usa para el layer final (#6666ff); el
-    // dashArray solo aplica mientras se dibuja, para diferenciarlo de un cable ya guardado.
-    const estilo =
-        tipoCableDibujo.value === "troncal"
-            ? { color: "#cc3300", weight: 6, dashArray: "6,4" }
-            : { color: "#6666ff", weight: 3, dashArray: "6,4" };
+    // Mismo color que Cable/DropAltaRapidaController::store usan para el layer final
+    // (#6666ff / #2e7d32); el dashArray solo aplica mientras se dibuja, para diferenciarlo
+    // de un elemento ya guardado.
+    const estiloPorTipo = {
+        troncal: { color: "#cc3300", weight: 6, dashArray: "6,4" },
+        drop: { color: "#2e7d32", weight: 2, dashArray: "6,4" },
+        cable: { color: "#6666ff", weight: 3, dashArray: "6,4" },
+    };
+    const estilo = estiloPorTipo[tipoCableDibujo.value] ?? estiloPorTipo.cable;
     if (cableDibujoLayer) {
         cableDibujoLayer.setLatLngs(verticesCable.value);
         cableDibujoLayer.setStyle(estilo);
@@ -2077,13 +2100,13 @@ const handleDblclickFinalizarCable = () => {
 // ver Fase 4 #9990583) con el trazo ya terminado. Exige al menos 2 vértices.
 const finalizarDibujoCable = async () => {
     if (verticesCable.value.length < 2) {
-        message("Traza al menos 2 puntos para el cable/troncal", "warning");
+        message("Traza al menos 2 puntos para el trazo", "warning");
         return;
     }
     limpiarSnapCablePreview();
     numeroHilosCable.value = null;
     tipoCableId.value = null;
-    if (tiposCableCatalogo.value.length === 0) {
+    if (tipoCableDibujo.value !== "drop" && tiposCableCatalogo.value.length === 0) {
         tiposCableCatalogo.value = await getTiposCable();
     }
     showCableDialog.value = true;
@@ -2105,19 +2128,25 @@ const cancelarCableDialog = () => {
 // de la vista previa local anterior, ahora el objeto trae id real. En 422 el dialog se queda
 // abierto (mismo criterio que guardarNap) para reintentar con el mensaje real del backend.
 const confirmarCableDialog = async () => {
-    if (!numeroHilosCable.value || numeroHilosCable.value <= 0) {
+    const esDrop = tipoCableDibujo.value === "drop";
+
+    if (!esDrop && (!numeroHilosCable.value || numeroHilosCable.value <= 0)) {
         message("Número de hilos requerido, mayor a 0", "warning");
         return;
     }
+
     guardandoCable.value = true;
-    const resultado = await crearCableRapido({
-        puntos: verticesCable.value.map((v) => ({ lat: v.lat, lng: v.lng })),
-        numero_hilos: numeroHilosCable.value,
-    });
+    const puntos = verticesCable.value.map((v) => ({ lat: v.lat, lng: v.lng }));
+    const resultado = esDrop
+        ? await crearDropRapido({ puntos })
+        : await crearCableRapido({ puntos, numero_hilos: numeroHilosCable.value });
     guardandoCable.value = false;
+
     if (resultado.ok) {
         drawnItems.addLayer(createLayerFromObject(resultado.data.layer));
-        message(`Cable "${resultado.data.nombre_generado}" creado correctamente`);
+        message(
+            `${esDrop ? "Drop" : "Cable"} "${resultado.data.nombre_generado}" creado correctamente`
+        );
         showCableDialog.value = false;
         cancelarTrazoCableActual();
     } else {

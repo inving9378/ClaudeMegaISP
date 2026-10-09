@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\MapaRed\Services;
 
 use App\Modules\Addons\MapaRed\Models\MapaRedCable;
+use App\Modules\Addons\MapaRed\Models\MapaRedLayer;
 
 /**
  * MR-24b (item roadmap #9990433, sub-item de #960) — D23: "zona, proyecto y nomenclatura se
@@ -29,8 +30,9 @@ class ZonaResolverService
     public const RADIO_METROS_DEFAULT = 300;
 
     /**
-     * @return array{zona: ?string, proyecto_id: ?int, cable_id: int, distancia_metros: float}|null
-     *         null si no hay ningún cable con lat/lng dentro del radio.
+     * @return array{zona: ?string, proyecto_id: ?int, cable_id: ?int, distancia_metros: float}|null
+     *         null si no hay ningún cable NI layer con lat/lng dentro del radio. `cable_id` es
+     *         null cuando el resultado vino del fallback por layer (ver resolverPorLayerMasCercano).
      */
     public function resolverPorPunto(float $lat, float $lng, int $radioMetros = self::RADIO_METROS_DEFAULT): ?array
     {
@@ -59,14 +61,67 @@ class ZonaResolverService
             }
         }
 
-        if (!$masCercano) {
+        if ($masCercano) {
+            return [
+                'zona' => $masCercano->zona,
+                'proyecto_id' => $masCercano->proyecto_id,
+                'cable_id' => $masCercano->id,
+                'distancia_metros' => round($distanciaMin, 2),
+            ];
+        }
+
+        return $this->resolverPorLayerMasCercano($lat, $lng, $bbox, $radioMetros);
+    }
+
+    /**
+     * Fallback (hallazgo 2026-10-08, al construir el alta rápida de Drop): `mapared_cables`
+     * tiene 0 de 250 filas reales con lat/lng/zona pobladas — `mapared:backfill` no las copia
+     * ahí, así que el camino de arriba SIEMPRE devuelve null contra los datos reales de hoy, y
+     * NAP/Cable/Drop alta rápida quedan silenciosamente inutilizables (422 en cualquier clic).
+     * `mapared_layers` SÍ tiene project_id/coords reales (7001 de 7003 filas) — se usa como
+     * segunda fuente, nunca reemplaza la primera: si `mapared_cables` llega a poblarse bien,
+     * esa sigue ganando. "Zona" aquí es el NOMBRE del proyecto (NomenclaturaService solo
+     * normaliza el string, no exige que venga de una lista de zonas conocidas).
+     */
+    private function resolverPorLayerMasCercano(float $lat, float $lng, array $bbox, int $radioMetros): ?array
+    {
+        $candidatos = MapaRedLayer::query()
+            ->whereNotNull('project_id')
+            ->whereIn('type', ['marker', 'polyline'])
+            ->with('project:id,name')
+            ->get(['id', 'project_id', 'type', 'coords']);
+
+        $masCercano = null;
+        $distanciaMin = null;
+
+        foreach ($candidatos as $layer) {
+            $punto = $layer->type === 'marker' ? $layer->coords : ($layer->coords[0] ?? null);
+            if (!isset($punto['lat'], $punto['lng'])) {
+                continue;
+            }
+            if ($punto['lat'] < $bbox['min_lat'] || $punto['lat'] > $bbox['max_lat']
+                || $punto['lng'] < $bbox['min_lng'] || $punto['lng'] > $bbox['max_lng']) {
+                continue;
+            }
+
+            $distancia = $this->haversineMetros($lat, $lng, (float) $punto['lat'], (float) $punto['lng']);
+            if ($distancia > $radioMetros) {
+                continue;
+            }
+            if ($distanciaMin === null || $distancia < $distanciaMin) {
+                $distanciaMin = $distancia;
+                $masCercano = $layer;
+            }
+        }
+
+        if (!$masCercano || !$masCercano->project) {
             return null;
         }
 
         return [
-            'zona' => $masCercano->zona,
-            'proyecto_id' => $masCercano->proyecto_id,
-            'cable_id' => $masCercano->id,
+            'zona' => $masCercano->project->name,
+            'proyecto_id' => $masCercano->project_id,
+            'cable_id' => null,
             'distancia_metros' => round($distanciaMin, 2),
         ];
     }
