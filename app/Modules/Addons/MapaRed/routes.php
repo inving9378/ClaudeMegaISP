@@ -20,6 +20,7 @@ use App\Modules\Addons\MapaRed\Controllers\MapaRedController;
 use App\Modules\Addons\MapaRed\Controllers\NapAltaRapidaController;
 use App\Modules\Addons\MapaRed\Controllers\NapOcupacionController;
 use App\Modules\Addons\MapaRed\Controllers\NapSaludController;
+use App\Modules\Addons\MapaRed\Controllers\ProyectExportController;
 use App\Modules\Addons\MapaRed\Controllers\ProyectsController;
 use App\Modules\Addons\MapaRed\Controllers\SectoresController;
 use App\Modules\Addons\MapaRed\Controllers\ServiceBoxController;
@@ -112,6 +113,13 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     Route::delete('/projects/{project}', [ProyectsController::class, 'destroy'])->name('mapa-red.api.projects.destroy');
     Route::post('/projects/move-folder/{node}/{to}', [ProyectsController::class, 'moveFolder'])->name('mapa-red.api.projects.move-folder-to');
     Route::post('/projects/move-folder/{node}', [ProyectsController::class, 'moveFolder'])->name('mapa-red.api.projects.move-folder');
+
+    // MR-25 Fase 4 (item #9990445) — exportadores de un proyecto (D21): KML, GeoJSON, BOM XLSX.
+    // La carta de empalme PDF del mismo DoD ya existe aparte (MR-19, #9990565, scoped por
+    // elemento contenedor): GET /mapa-red/empalmes/carta-pdf.
+    Route::get('/projects/{id}/export/kml', [ProyectExportController::class, 'kml'])->name('mapa-red.api.projects.export.kml');
+    Route::get('/projects/{id}/export/geojson', [ProyectExportController::class, 'geojson'])->name('mapa-red.api.projects.export.geojson');
+    Route::get('/projects/{id}/export/bom', [ProyectExportController::class, 'bom'])->name('mapa-red.api.projects.export.bom');
 
     Route::post('/service-box/selected-clients/{id}', [ServiceBoxController::class, 'getSelectedClients'])->name('mapa-red.api.service-box.selected-clients');
     Route::post('/service-box/avaiables-clients', [ServiceBoxController::class, 'getAvaiablesClients'])->name('mapa-red.api.service-box.avaiables-clients');
