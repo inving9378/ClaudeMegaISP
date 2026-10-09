@@ -161,12 +161,13 @@ class OpenAIAdaptador extends AdaptadorHttpBase
     }
 
     /**
-     * max_tokens y temperatura. Los modelos de razonamiento (o1/o3/o4…, gpt-5…)
-     * rechazan max_tokens y temperature: usan max_completion_tokens y sin temperatura.
+     * max_tokens y temperatura. Los modelos de razonamiento (o1/o3/o4…) y de gpt-5
+     * en adelante (gpt-5, gpt-6-luna, gpt-6.1-sol…) rechazan max_tokens y temperature:
+     * usan max_completion_tokens y sin temperatura.
      */
     private function aplicarLimites(array &$payload, array $opciones): void
     {
-        $razonamiento = (bool) preg_match('/^(o\d|gpt-5)/i', (string) $payload['model']);
+        $razonamiento = (bool) preg_match('/^(o\d|gpt-([5-9]|\d{2,}))/i', (string) $payload['model']);
 
         $maxTokens = $this->opcion($opciones, 'max_tokens', 'max_tokens');
         if ($maxTokens) {

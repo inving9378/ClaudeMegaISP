@@ -399,6 +399,10 @@ class IA
             ['caida', '/no respondió a tiempo|timed? ?out|overloaded|server error|service unavailable|bad gateway|could not resolve|connection refused|\b50[0-9]\b/i',
                 'El proveedor no respondió (caído, saturado o sin conexión)',
                 'Vuelve a intentar en unos minutos; si se repite, revisa el estado del proveedor o la URL del servicio.'],
+            // Antes que "formato": el mensaje de OpenAI también dice "unsupported"
+            ['parametro', '/unsupported (parameter|value)/i',
+                'El modelo no acepta uno de los parámetros que manda el sistema',
+                'Usa otro modelo por ahora y avisa a sistemas para ajustar el adaptador a este modelo.'],
             ['formato', '/no soporta leer PDF|not supported|unsupported/i',
                 'El proveedor no acepta ese tipo de archivo o de petición',
                 'Asigna un proveedor que soporte lo que el módulo necesita.'],
