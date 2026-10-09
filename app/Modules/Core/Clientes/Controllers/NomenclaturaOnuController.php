@@ -64,12 +64,82 @@ class NomenclaturaOnuController extends Controller
 
         $data = $request->validate([
             'box_nomenclator' => 'required|string|max:255',
+            'tipo_nomenclatura' => 'nullable|in:wifi,fibra',
         ]);
 
         $info = ClientAdditionalInformation::where('client_id', $clientId)->firstOrFail();
         $info->box_nomenclator = $data['box_nomenclator'];
+        if (array_key_exists('tipo_nomenclatura', $data)) {
+            $info->tipo_nomenclatura = $data['tipo_nomenclatura'];
+        }
         $info->save();
 
-        return response()->json(['ok' => true, 'box_nomenclator' => $info->box_nomenclator]);
+        return response()->json([
+            'ok' => true,
+            'box_nomenclator' => $info->box_nomenclator,
+            'tipo_nomenclatura' => $info->tipo_nomenclatura,
+        ]);
+    }
+
+    /**
+     * Regla de bulk (sesión 2026-10-09, decisión de Irving): "si la nomenclatura vieja
+     * contiene X, es wifi/fibra" — previsualiza cuántos/cuáles clientes coinciden ANTES de
+     * tocar nada. Mismo scope que pendientes(): solo los que aún no tienen box_nomenclator.
+     */
+    public function reglaPrevisualizar(Request $request)
+    {
+        abort_unless(auth()->user()?->can('client_edit_client'), 403);
+
+        $data = $request->validate([
+            'patron' => 'required|string|min:1|max:255',
+            'tipo' => 'required|in:wifi,fibra',
+        ]);
+
+        $query = $this->queryPendientesPorPatron($data['patron']);
+
+        return response()->json([
+            'total' => $query->count(),
+            'muestra' => $query->orderBy('cmi.name')->limit(10)->get([
+                'cai.client_id', 'cai.box_nomenclator_old', 'cmi.name', 'cmi.father_last_name',
+            ]),
+        ]);
+    }
+
+    /**
+     * Aplica la regla a TODOS los que coinciden: copia box_nomenclator_old tal cual a
+     * box_nomenclator (decisión de Irving — nunca inventa un valor nuevo) y marca el tipo.
+     * Transacción única, todo o nada.
+     */
+    public function reglaAplicar(Request $request)
+    {
+        abort_unless(auth()->user()?->can('client_edit_client'), 403);
+
+        $data = $request->validate([
+            'patron' => 'required|string|min:1|max:255',
+            'tipo' => 'required|in:wifi,fibra',
+        ]);
+
+        $afectados = DB::transaction(function () use ($data) {
+            return $this->queryPendientesPorPatron($data['patron'])
+                ->update([
+                    'cai.box_nomenclator' => DB::raw('cai.box_nomenclator_old'),
+                    'cai.tipo_nomenclatura' => $data['tipo'],
+                    'cai.updated_at' => now(),
+                ]);
+        });
+
+        return response()->json(['ok' => true, 'afectados' => $afectados]);
+    }
+
+    private function queryPendientesPorPatron(string $patron)
+    {
+        return DB::table('client_additional_information as cai')
+            ->join('client_main_information as cmi', 'cmi.client_id', '=', 'cai.client_id')
+            ->whereNotNull('cai.box_nomenclator_old')
+            ->where('cai.box_nomenclator_old', '!=', '')
+            ->where(function ($q) {
+                $q->whereNull('cai.box_nomenclator')->orWhere('cai.box_nomenclator', '');
+            })
+            ->where('cai.box_nomenclator_old', 'like', '%' . $patron . '%');
     }
 }

@@ -259,6 +259,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
     ->group(function () {
         Route::get('/', [\App\Modules\Core\Clientes\Controllers\NomenclaturaOnuController::class, 'vista'])->name('index');
         Route::get('/pendientes', [\App\Modules\Core\Clientes\Controllers\NomenclaturaOnuController::class, 'pendientes'])->name('pendientes');
+        Route::post('/regla/previsualizar', [\App\Modules\Core\Clientes\Controllers\NomenclaturaOnuController::class, 'reglaPrevisualizar'])->name('regla.previsualizar');
+        Route::post('/regla/aplicar', [\App\Modules\Core\Clientes\Controllers\NomenclaturaOnuController::class, 'reglaAplicar'])->name('regla.aplicar');
         Route::put('/{clientId}', [\App\Modules\Core\Clientes\Controllers\NomenclaturaOnuController::class, 'actualizar'])
             ->whereNumber('clientId')
             ->name('actualizar');
