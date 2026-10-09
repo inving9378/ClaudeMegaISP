@@ -179,6 +179,17 @@ class MonitoringController extends Controller
         return redirect()->route('monitoreo-oficial.expedientes.ver', $caseId)->with('success', 'Documento eliminado.');
     }
 
+    public function reanalizarDocumento(int $documentId)
+    {
+        abort_unless(auth()->user()?->can('monitoring.run_manual'), 403);
+
+        $document = MonitoringCaseDocument::findOrFail($documentId);
+        \App\Modules\Addons\MonitoreoOficial\Jobs\AnalyzeCaseDocumentJob::dispatch($document->id);
+
+        return redirect()->route('monitoreo-oficial.expedientes.ver', $document->case_id)
+            ->with('success', 'Análisis solicitado — puede tardar unos segundos en aparecer.');
+    }
+
     // ── Fuentes oficiales (monitoring_sources) — Fase 2 ────────────────────
 
     public function crearFuente()

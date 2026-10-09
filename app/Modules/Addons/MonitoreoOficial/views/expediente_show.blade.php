@@ -139,6 +139,38 @@
                                     @endif
                                 </td>
                             </tr>
+                            <tr>
+                                <td colspan="6" class="pt-0 pb-3">
+                                    <div class="border rounded p-2 small" style="background:#fafafa;">
+                                        <div class="fw-semibold text-muted mb-1"><i class="fa fa-robot"></i> Análisis con IA</div>
+                                        @if($doc->ai_analyzed_at)
+                                            @if($doc->ai_error)
+                                                <div class="text-muted">
+                                                    <span class="badge bg-secondary">No disponible</span>
+                                                    {{ $doc->ai_error }}
+                                                </div>
+                                            @else
+                                                <div>{{ $doc->ai_summary }}</div>
+                                                @if($doc->ai_has_relevant_change)
+                                                    <div class="mt-1"><span class="badge bg-warning text-dark">Cambio relevante</span> {{ $doc->ai_change_summary }}</div>
+                                                @elseif($doc->ai_change_summary !== null)
+                                                    <div class="mt-1"><span class="badge bg-success">Sin cambios de fondo</span></div>
+                                                @endif
+                                            @endif
+                                        @else
+                                            <div class="text-muted">Pendiente de analizar.</div>
+                                        @endif
+                                        @if(auth()->user()->can('monitoring.run_manual'))
+                                            <form method="POST" action="{{ route('monitoreo-oficial.documentos.reanalizar', $doc->id) }}" class="mt-1">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-outline-secondary">
+                                                    {{ $doc->ai_analyzed_at ? 'Re-analizar' : 'Analizar ahora' }}
+                                                </button>
+                                            </form>
+                                        @endif
+                                    </div>
+                                </td>
+                            </tr>
                         @empty
                             <tr><td colspan="6" class="text-muted text-center">No se ha subido ningún documento todavía.</td></tr>
                         @endforelse

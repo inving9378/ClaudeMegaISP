@@ -21,6 +21,7 @@ Route::middleware(['web', 'auth'])->prefix('monitoreo-oficial')->group(function 
     Route::post('/expedientes/{id}/documentos', [MonitoringController::class, 'subirDocumento'])->whereNumber('id')->name('monitoreo-oficial.documentos.subir');
     Route::get('/documentos/{documentId}/descargar', [MonitoringController::class, 'descargarDocumento'])->whereNumber('documentId')->name('monitoreo-oficial.documentos.descargar');
     Route::delete('/documentos/{documentId}', [MonitoringController::class, 'eliminarDocumento'])->whereNumber('documentId')->name('monitoreo-oficial.documentos.eliminar');
+    Route::post('/documentos/{documentId}/reanalizar', [MonitoringController::class, 'reanalizarDocumento'])->whereNumber('documentId')->name('monitoreo-oficial.documentos.reanalizar');
 
     // Fuentes oficiales (monitoring_sources) — Fase 2
     Route::get('/fuentes/crear', [MonitoringController::class, 'crearFuente'])->name('monitoreo-oficial.fuentes.crear');

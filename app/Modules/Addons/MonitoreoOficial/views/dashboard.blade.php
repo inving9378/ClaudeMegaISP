@@ -30,7 +30,7 @@
                 Seguimiento de expedientes y publicaciones oficiales, detección de cambios y alertas.
                 Módulo instalado desde <b>Gestión de Add-ons</b>. Opera con el núcleo del sistema y
                 enciende los canales opcionales (WhatsApp, IA) solo si están disponibles en esta instancia.
-                <span class="text-muted">(En construcción por fases — Fase 2: alta/edición de expedientes y fuentes.)</span>
+                <span class="text-muted">(En construcción por fases — Fase 5: análisis de documentos con IA.)</span>
             </p>
         </div>
     </div>

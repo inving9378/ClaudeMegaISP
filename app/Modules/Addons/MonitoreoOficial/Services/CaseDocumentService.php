@@ -2,15 +2,18 @@
 
 namespace App\Modules\Addons\MonitoreoOficial\Services;
 
+use App\Modules\Addons\MonitoreoOficial\Jobs\AnalyzeCaseDocumentJob;
 use App\Modules\Addons\MonitoreoOficial\Models\MonitoringCase;
 use App\Modules\Addons\MonitoreoOficial\Models\MonitoringCaseDocument;
 use Illuminate\Http\UploadedFile;
 
 /**
  * Fase 3 ("fuentes + PDF manual"): alta manual de documentos oficiales contra un
- * expediente — el primer ladrillo de "detección de cambios". No hace scraping ni
- * análisis con IA (eso es F4/F5); solo guarda el PDF y compara su huella (sha256)
- * contra el último documento subido para el mismo expediente.
+ * expediente — el primer ladrillo de "detección de cambios". Guarda el PDF y
+ * compara su huella (sha256) contra el último documento subido para el mismo
+ * expediente. Desde la Fase 5, además encola el análisis por IA del documento
+ * (solo si es genuinamente nuevo — releer un PDF idéntico sería gastar IA sin
+ * ganar nada nuevo).
  */
 class CaseDocumentService
 {
@@ -43,6 +46,7 @@ class CaseDocumentService
         // historial (auditoría) pero no dispara una falsa señal de cambio.
         if (! $esIdenticoAlAnterior) {
             $case->update(['last_change_at' => now()]);
+            AnalyzeCaseDocumentJob::dispatch($document->id);
         }
 
         return ['document' => $document, 'es_identico_al_anterior' => $esIdenticoAlAnterior];
