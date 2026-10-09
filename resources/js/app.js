@@ -208,6 +208,7 @@ import TalentoDocumentosPendientes from "./components/module/talento/TalentoDocu
 import GoogleMap from "./components/base/googlemap/GoogleMap";
 import LeafletMap from "./components/module/maps/LeafletMap.vue";
 import LeafletMapRed from "./components/module/mapared/LeafletMapRed.vue";
+import MapaRedCatalogos from "./components/module/mapared/MapaRedCatalogos.vue";
 
 //Ticket
 import DashboardTicket from "./components/module/tickets/DashboardTicket";
@@ -532,6 +533,7 @@ const app = createApp({
         GoogleMap,
         LeafletMap,
         LeafletMapRed,
+        MapaRedCatalogos,
 
         CatalogoApiPanel,
         'contratable-catalog-list': ContratableCatalogList,

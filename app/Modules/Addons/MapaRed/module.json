@@ -25,7 +25,11 @@
             "icon": "map",
             "permission": "mapa_red_view",
             "url": "/mapa-red",
-            "badge": "beta"
+            "badge": "beta",
+            "children": [
+                { "label": "Mapa", "url": "/mapa-red", "permission": "mapa_red_view" },
+                { "label": "Catálogos", "url": "/mapa-red/catalogos", "permission": "mapa_red_catalogo_view" }
+            ]
         }
     ],
 
