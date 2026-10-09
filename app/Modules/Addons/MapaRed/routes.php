@@ -29,6 +29,12 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
     ->get('/mapa-red', [MapaRedController::class, 'index'])
     ->name('mapa-red.index');
 
+// MR-08 Fase 3 (item #9990534) — página dedicada de administración de catálogos,
+// separada del mapa (decisión ya tomada por Irving en el item padre #9990505, q1).
+Route::middleware(['web', 'auth', 'check_route_permission'])
+    ->get('/mapa-red/catalogos', [MapaRedController::class, 'catalogos'])
+    ->name('mapa-red.catalogos');
+
 // MR-19 Fase 1 (item #9990565) — export PDF de la carta de empalme, fuera del prefix api
 // porque sirve el binario directo (download), no JSON.
 Route::middleware(['web', 'auth', 'check_route_permission'])
