@@ -29,9 +29,17 @@ class MonitoringController extends Controller
         $connections = MonitoringModuleConnection::where('consumer_module', 'addon-monitoreo-oficial')
             ->orderBy('provider_module')->get();
 
-        $cases = MonitoringCase::with('source')->orderByDesc('id')->get();
+        $cases = MonitoringCase::with(['source', 'documents'])->orderByDesc('id')->get();
 
-        return view('addon-monitoreo-oficial::dashboard', compact('connections', 'cases'));
+        // Resumen (Fase 7): a simple vista, sin tener que abrir cada expediente.
+        // "último documento" ya viene ordenado por documents() (orderByDesc('id')).
+        $resumen = [
+            'total' => $cases->count(),
+            'activos' => $cases->where('monitoring_status', 'activo')->count(),
+            'con_cambio_reciente' => $cases->filter(fn ($c) => (bool) $c->documents->first()?->ai_has_relevant_change)->count(),
+        ];
+
+        return view('addon-monitoreo-oficial::dashboard', compact('connections', 'cases', 'resumen'));
     }
 
     public function configuracion()
