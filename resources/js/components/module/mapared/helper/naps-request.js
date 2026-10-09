@@ -46,3 +46,19 @@ export const getSalud = async (puertableType, puertableId) => {
         });
     return data;
 };
+
+// MR-21 (sesión 2026-10-09) — corrige a mano la potencia de instalación de un NAP (se
+// autocaptura sola con la primera lectura real; esto es solo para corregirla).
+export const actualizarPotenciaInstalacion = async (layerId, potenciaDbm) => {
+    try {
+        const response = await axios.put(`/mapa-red/api/naps/${layerId}/potencia-instalacion`, {
+            potencia_instalacion_dbm: potenciaDbm,
+        });
+        return { ok: true, data: response.data };
+    } catch (e) {
+        return {
+            ok: false,
+            message: e?.response?.data?.message || "No se pudo guardar la potencia de instalación.",
+        };
+    }
+};

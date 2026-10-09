@@ -41,4 +41,27 @@ class NapSaludController extends Controller
             $this->service->calcularParaVarias($data['puertable_type'], $data['ids'])
         );
     }
+
+    /**
+     * Corrige a mano la "potencia de instalación" de un NAP (sesión 2026-10-09) — se
+     * autocaptura sola con la primera lectura real (ver MapaRedNapHealthService), este
+     * endpoint es solo para cuando esa primera lectura estuvo mala o hay que actualizarla.
+     */
+    public function actualizarPotenciaInstalacion(Request $request, int $layerId)
+    {
+        $data = $request->validate([
+            'potencia_instalacion_dbm' => 'nullable|numeric|between:-50,0',
+        ]);
+
+        $layer = $this->service->actualizarPotenciaInstalacion(
+            $layerId,
+            $data['potencia_instalacion_dbm'] ?? null
+        );
+
+        return response()->json([
+            'potencia_instalacion_dbm' => $layer->potencia_instalacion_dbm !== null
+                ? (float) $layer->potencia_instalacion_dbm
+                : null,
+        ]);
+    }
 }

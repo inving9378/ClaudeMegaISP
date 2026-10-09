@@ -2569,9 +2569,13 @@ const aplicarColorMarcador = (layer) => {
         return;
     }
     const paleta = vistaSemaforoNap.value === "salud" ? saludSemaforoColor : ocupacionSemaforoColor;
+    // MR-21 (sesión 2026-10-09): caída de potencia vs. instalación es una bandera APARTE del
+    // semáforo de color (puede caer sin llegar a rojo) — se marca cambiando el glifo del
+    // marcador a una alerta, sin pelear con el color que ya indica online/offline.
+    const esCaida = vistaSemaforoNap.value === "salud" && dato.caida_detectada;
     layer.setIcon(
         L.AwesomeMarkers.icon({
-            icon: layer.properties.icon,
+            icon: esCaida ? "mdi-alert" : layer.properties.icon,
             markerColor: paleta[dato.semaforo] ?? "gray",
             iconColor: layer.properties.icon_color ?? "#FFFFFF",
             prefix: "mdi",
@@ -2596,6 +2600,9 @@ const actualizarTooltip = (layer) => {
     const salud = layer.properties.salud;
     if (salud) {
         texto += ` · salud: ${salud.semaforo} (${salud.total_onus} ONUs)`;
+        if (salud.caida_detectada) {
+            texto += " · ⚠ caída de potencia detectada";
+        }
     }
     layer.properties.text_node = texto;
     layer.bindTooltip(layer.properties.text_node);
