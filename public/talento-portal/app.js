@@ -600,6 +600,51 @@
                     }
                 }
             }
+            // Fase 4 (2026-10-08/09) — mapa "a dónde debo ir hoy", solo técnico de track externa.
+            let mapaTecnicoInstance = null;
+            function dibujarMapaTecnico() {
+                const c = calidad.value;
+                if (!c || !c.es_externo || !c.mapa || typeof L === 'undefined') return;
+
+                const el = document.getElementById('tp-calidad-mapa');
+                // Mismo bug que los <canvas> de Chart.js (ver docblock de cargarCalidad): si el
+                // div del mapa todavía no está montado, L.map() tronaría — y Leaflet NUNCA debe
+                // inicializarse dos veces sobre el mismo contenedor, así que además se guarda
+                // la instancia para no reintentar en una recarga de la misma sesión de tab.
+                if (!el || mapaTecnicoInstance) return;
+
+                mapaTecnicoInstance = L.map(el, { zoomControl: true });
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap',
+                    maxZoom: 19,
+                }).addTo(mapaTecnicoInstance);
+
+                const puntos = c.mapa.puntos || [];
+                if (puntos.length) {
+                    const color = tpColor('--tp-primary', '#0d9488');
+                    const colorEnCurso = tpColor('--tp-warning', '#d97706');
+                    const marcadores = puntos.map((p) => {
+                        const m = L.circleMarker([p.lat, p.lng], {
+                            radius: 9,
+                            color: p.status === 'in_progress' ? colorEnCurso : color,
+                            fillColor: p.status === 'in_progress' ? colorEnCurso : color,
+                            fillOpacity: 0.85,
+                            weight: 2,
+                        }).addTo(mapaTecnicoInstance);
+                        const tipo = p.tipo ? `<br>${p.tipo}` : '';
+                        m.bindPopup(`<strong>${p.cliente}</strong><br>${p.address || 'Sin dirección'}${tipo}`);
+                        return m;
+                    });
+                    mapaTecnicoInstance.fitBounds(L.featureGroup(marcadores).getBounds(), { padding: [30, 30], maxZoom: 16 });
+                } else {
+                    // Sin trabajos pendientes con coordenada: vista genérica, no hay a dónde centrar.
+                    mapaTecnicoInstance.setView([19.4326, -99.1332], 10);
+                }
+
+                // El contenedor nace oculto detrás del spinner; Leaflet mide mal su tamaño si
+                // el layout todavía se está asentando — invalidateSize() lo corrige una vez.
+                setTimeout(() => { if (mapaTecnicoInstance) mapaTecnicoInstance.invalidateSize(); }, 150);
+            }
             async function cargarCalidad() {
                 if (!colaborador.value) { cargandoCalidad.value = false; return; }
                 cargandoCalidad.value = true;
@@ -616,6 +661,7 @@
                 if (calidad.value) {
                     await Vue.nextTick();
                     dibujarCalidadCharts();
+                    dibujarMapaTecnico();
                 }
             }
 
@@ -1474,6 +1520,20 @@
                                 <q-icon name="verified" class="tp-empty-icon" />
                                 <div class="text-subtitle1">Sin trabajos recientes en este período</div>
                             </div>
+
+                            <!-- Fase 4 (2026-10-08/09) — "a dónde debo ir hoy", solo técnico de track externa -->
+                            <q-card v-if="calidad.es_externo" flat bordered class="tp-card q-mt-md">
+                                <q-card-section class="q-pa-sm">
+                                    <div class="text-subtitle2 text-grey-8 q-mb-sm">Dónde debo ir hoy</div>
+                                    <div id="tp-calidad-mapa" style="height:320px;border-radius:8px;overflow:hidden"></div>
+                                    <div v-if="calidad.mapa && !calidad.mapa.puntos.length" class="text-caption text-grey-6 q-mt-sm">
+                                        No tienes trabajos pendientes con dirección registrada en este momento.
+                                    </div>
+                                    <div v-if="calidad.mapa && calidad.mapa.sin_coordenadas" class="text-caption text-grey-6 q-mt-xs">
+                                        {{ calidad.mapa.sin_coordenadas }} trabajo(s) pendiente(s) sin ubicación registrada del cliente.
+                                    </div>
+                                </q-card-section>
+                            </q-card>
                         </template>
                     </div>
 

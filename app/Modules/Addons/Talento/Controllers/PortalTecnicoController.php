@@ -39,7 +39,7 @@ use Illuminate\Support\Facades\Storage;
 class PortalTecnicoController extends Controller
 {
     /** Cache-busting de los assets estáticos del portal (subir al cambiar app.js/portal.css). */
-    private const ASSET_VER = '22';
+    private const ASSET_VER = '23';
 
     /** Shell del portal (SPA Quasar de una sola página con nav inferior). */
     public function index(Request $request)
@@ -695,7 +695,16 @@ JS;
         if (! $col) return response()->json(['error' => 'Sin perfil de colaborador activo.'], 403);
 
         $dias = (int) ($request->query('dias', 180));
-        return response()->json($service->calidadTecnico($col->id, $dias));
+        $data = $service->calidadTecnico($col->id, $dias);
+
+        // Fase 4 (2026-10-08/09) — "a dónde debo ir hoy" solo para técnico de
+        // track externa; de planta no viaja a clientes, no paga el query extra.
+        $data['es_externo'] = $this->currentActor($request)->esTecnicoExterno();
+        if ($data['es_externo']) {
+            $data['mapa'] = $service->mapaTecnico($col->id);
+        }
+
+        return response()->json($data);
     }
 
     /**

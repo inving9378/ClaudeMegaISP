@@ -175,6 +175,78 @@ class DashboardService
         ];
     }
 
+    /**
+     * "¿A dónde debo ir hoy?" — Fase 4 del dashboard por rol (técnico de track
+     * externa, Actor::esTecnicoExterno()), pendiente desde la Fase 1 por requerir
+     * más investigación (2026-10-08/09). Solo trabajos AÚN no resueltos
+     * (pending/in_progress) — uno ya cerrado no sirve para planear la ruta de hoy.
+     *
+     * La coordenada sale de `client_main_information.geodata` ("lat,lng", poblada
+     * por geocodificación al alta del cliente), NO de `talento_work_orders.
+     * latitude/longitude` — esa columna solo se llena por evidencia DESPUÉS de
+     * hecho el trabajo (GPS de la foto), cuando ya no sirve para planear a dónde
+     * ir. Un cliente sin geodata se cuenta aparte en `sin_coordenadas`; nunca se
+     * inventa una coordenada.
+     */
+    public function mapaTecnico(int $colaboradorId): array
+    {
+        $ordenes = TalentoWorkOrder::with('type')
+            ->where('colaborador_id', $colaboradorId)
+            ->whereIn('status', ['pending', 'in_progress'])
+            ->whereNotNull('client_id')
+            ->orderBy('scheduled_at')
+            ->get(['id', 'type_id', 'status', 'client_id', 'scheduled_at']);
+
+        if ($ordenes->isEmpty()) {
+            return ['puntos' => [], 'sin_coordenadas' => 0];
+        }
+
+        $clientes = DB::table('client_main_information')
+            ->whereIn('client_id', $ordenes->pluck('client_id')->unique())
+            ->get(['client_id', 'name', 'father_last_name', 'address', 'geodata'])
+            ->keyBy('client_id');
+
+        $puntos = [];
+        $sinCoordenadas = 0;
+
+        foreach ($ordenes as $ot) {
+            $cliente = $clientes->get($ot->client_id);
+            $coords = $cliente ? $this->parsearGeodata($cliente->geodata) : null;
+
+            if (!$cliente || !$coords) {
+                $sinCoordenadas++;
+                continue;
+            }
+
+            $puntos[] = [
+                'ot_id'         => $ot->id,
+                'cliente'       => trim($cliente->name . ' ' . $cliente->father_last_name),
+                'address'       => $cliente->address,
+                'lat'           => $coords[0],
+                'lng'           => $coords[1],
+                'tipo'          => $ot->type?->name,
+                'status'        => $ot->status,
+                'scheduled_at'  => $ot->scheduled_at,
+            ];
+        }
+
+        return ['puntos' => $puntos, 'sin_coordenadas' => $sinCoordenadas];
+    }
+
+    private function parsearGeodata(?string $geodata): ?array
+    {
+        if (!$geodata || !str_contains($geodata, ',')) {
+            return null;
+        }
+
+        [$lat, $lng] = array_map('trim', explode(',', $geodata, 2));
+        if (!is_numeric($lat) || !is_numeric($lng)) {
+            return null;
+        }
+
+        return [(float) $lat, (float) $lng];
+    }
+
     // ── Progreso del propio Mostrador (Portal de Colaborador, Fase 3) ─────
 
     /**
