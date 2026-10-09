@@ -63,6 +63,10 @@
                     <div class="text-muted small">Último cambio detectado</div>
                     <div>{{ optional($case->last_change_at)->diffForHumans() ?? 'Sin cambios registrados' }}</div>
                 </div>
+                <div class="col-md-4">
+                    <div class="text-muted small">Próxima revisión programada</div>
+                    <div>{{ optional($case->next_check_at)->diffForHumans() ?? 'Sin programar — corre con monitoring:revisar-expedientes' }}</div>
+                </div>
                 <div class="col-12">
                     <div class="text-muted small">Estado legal actual</div>
                     <div>{{ $case->current_legal_status ?? '—' }}</div>
