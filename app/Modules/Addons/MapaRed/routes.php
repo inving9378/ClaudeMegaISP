@@ -7,6 +7,7 @@ use App\Modules\Addons\MapaRed\Controllers\CoberturaController;
 use App\Modules\Addons\MapaRed\Controllers\CoberturaDeclaradaController;
 use App\Modules\Addons\MapaRed\Controllers\ConnectionsController;
 use App\Modules\Addons\MapaRed\Controllers\DevicesController;
+use App\Modules\Addons\MapaRed\Controllers\DropAltaRapidaController;
 use App\Modules\Addons\MapaRed\Controllers\EmpalmesController;
 use App\Modules\Addons\MapaRed\Controllers\EnlacesController;
 use App\Modules\Addons\MapaRed\Controllers\EnlacesServicioController;
@@ -212,6 +213,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
 
     // MR-24e Fase 2 (item #9990548) — alta rápida de cable/troncal (zona+nombre+snap automáticos).
     Route::post('/elementos/cable', [CableAltaRapidaController::class, 'store'])->name('mapa-red.api.elementos.cable');
+
+    // MR-22 — Drop (acometida NAP->cliente): alta rápida, mismo patrón que cable/nap.
+    Route::post('/elementos/drop', [DropAltaRapidaController::class, 'store'])->name('mapa-red.api.elementos.drop');
 
     // MR-22 Fase 1a-ii (item #9990533) — buscador global: nodos por nombre + clientes/ONTs por enlace.
     Route::get('/buscar', [BusquedaController::class, 'buscar'])->name('mapa-red.api.buscar');

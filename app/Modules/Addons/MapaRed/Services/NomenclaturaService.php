@@ -43,6 +43,15 @@ class NomenclaturaService
         return "T-{$zonaNormalizada}-FO{$numeroHilos}-{$n}";
     }
 
+    /** Drop: acometida NAP -> cliente. Correlativo propio por zona (tipo='drop'). */
+    public function siguienteDrop(string $zona): string
+    {
+        $zonaNormalizada = $this->normalizarZona($zona);
+        $n = $this->siguienteCorrelativo($zonaNormalizada, 'drop');
+
+        return "D-{$zonaNormalizada}-{$n}";
+    }
+
     /**
      * Incrementa y devuelve el correlativo zona+tipo. `lockForUpdate()` serializa los
      * incrementos concurrentes sobre la MISMA fila; `firstOrCreate` fuera del lock inicial
