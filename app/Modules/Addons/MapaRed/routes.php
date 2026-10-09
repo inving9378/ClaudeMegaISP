@@ -141,6 +141,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     // MR-21 (item #957) — semáforo de salud por NAP alimentado por MultiOLT (D18).
     Route::get('/naps/salud', [NapSaludController::class, 'dashboard'])->name('mapa-red.api.naps.salud');
     Route::get('/naps/salud-lote', [NapSaludController::class, 'lote'])->name('mapa-red.api.naps.salud-lote');
+    Route::put('/naps/{layerId}/potencia-instalacion', [NapSaludController::class, 'actualizarPotenciaInstalacion'])->name('mapa-red.api.naps.potencia-instalacion');
 
     // MR-20 (item #956) — semáforo de ocupación de puertos por NAP (D16).
     Route::get('/naps/ocupacion-lote', [NapOcupacionController::class, 'lote'])->name('mapa-red.api.naps.ocupacion-lote');

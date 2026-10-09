@@ -235,6 +235,55 @@
                                 {{ salud.onus_sin_lectura }} sin lectura
                             </div>
 
+                            <!-- MR-21 (sesión 2026-10-09) — potencia de instalación (referencia)
+                                 vs. potencia mínima actual, con alerta si cayó demasiado. -->
+                            <q-banner
+                                v-if="salud.caida_detectada"
+                                dense
+                                class="bg-orange-2 text-orange-10 q-mt-sm"
+                            >
+                                <template v-slot:avatar>
+                                    <q-icon name="mdi-alert" color="orange-9" />
+                                </template>
+                                Caída de potencia detectada respecto a la instalación.
+                            </q-banner>
+
+                            <div class="row items-center q-gutter-xs q-mt-sm">
+                                <div class="text-caption text-grey">
+                                    Instalación:
+                                    {{ salud.potencia_instalacion_dbm ?? "sin capturar" }}
+                                    <span v-if="salud.potencia_instalacion_dbm != null">dBm</span>
+                                </div>
+                                <div
+                                    v-if="salud.potencia_minima_dbm != null"
+                                    class="text-caption"
+                                    :class="salud.caida_detectada ? 'text-orange-9' : 'text-grey'"
+                                >
+                                    · Mínima actual: {{ salud.potencia_minima_dbm }} dBm
+                                </div>
+                            </div>
+
+                            <div class="row items-center q-gutter-xs q-mt-xs">
+                                <q-input
+                                    v-model.number="potenciaInstalacionEdit"
+                                    type="number"
+                                    step="0.01"
+                                    dense
+                                    outlined
+                                    label="Corregir potencia de instalación (dBm)"
+                                    style="max-width: 220px"
+                                />
+                                <q-btn
+                                    flat
+                                    dense
+                                    no-caps
+                                    icon="mdi-content-save"
+                                    label="Guardar"
+                                    :loading="guardandoPotenciaInstalacion"
+                                    @click="guardarPotenciaInstalacion"
+                                />
+                            </div>
+
                             <div
                                 v-if="salud.onus && salud.onus.length"
                                 class="element-side-panel__salud-table"
@@ -360,7 +409,8 @@ import {
 import { darkMode } from "../../../../../hook/appConfig";
 import { getLayerResumen } from "../../helper/layers-request";
 import { getEnlacesPorNap } from "../../helper/enlaces-request";
-import { getSalud } from "../../helper/naps-request";
+import { getSalud, actualizarPotenciaInstalacion } from "../../helper/naps-request";
+import { message } from "../../../../../helpers/toastMsg";
 import OpticalBudgetPanel from "./OpticalBudgetPanel.vue";
 import EmpalmesPanel from "./EmpalmesPanel.vue";
 import ImpactoPanel from "./ImpactoPanel.vue";
@@ -432,6 +482,37 @@ const cargarSalud = async (id) => {
 const refrescarSalud = () => {
     const id = sidePanelNode.value?.id;
     if (id) cargarSalud(id);
+};
+
+// MR-21 (sesión 2026-10-09) — corrección manual de la potencia de instalación, sincronizada
+// con lo que devuelve el dashboard de salud cada vez que se (re)carga.
+const potenciaInstalacionEdit = ref(null);
+const guardandoPotenciaInstalacion = ref(false);
+
+watch(salud, (nuevo) => {
+    potenciaInstalacionEdit.value = nuevo?.potencia_instalacion_dbm ?? null;
+});
+
+const guardarPotenciaInstalacion = async () => {
+    const id = sidePanelNode.value?.id;
+    if (!id) return;
+
+    guardandoPotenciaInstalacion.value = true;
+    const resultado = await actualizarPotenciaInstalacion(id, potenciaInstalacionEdit.value);
+    guardandoPotenciaInstalacion.value = false;
+
+    if (!resultado.ok) {
+        message(resultado.message, "error");
+        return;
+    }
+
+    message("Potencia de instalación guardada.");
+    if (salud.value) {
+        salud.value = {
+            ...salud.value,
+            potencia_instalacion_dbm: resultado.data.potencia_instalacion_dbm,
+        };
+    }
 };
 
 watch(

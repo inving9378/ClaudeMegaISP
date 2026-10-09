@@ -4,8 +4,10 @@ namespace App\Modules\Addons\MapaRed\Services;
 
 use App\Modules\Addons\GestionRed\Models\OltOnu;
 use App\Modules\Addons\MapaRed\Models\MapaRedEnlaceServicio;
+use App\Modules\Addons\MapaRed\Models\MapaRedLayer;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * MR-21 (item roadmap #957) — semáforo de salud por NAP (caja de servicio) alimentado por
@@ -26,6 +28,15 @@ class MapaRedNapHealthService
 
     /** Estados de OltOnu que cuentan como "desconectado" para el semáforo D17. */
     private const ESTADOS_OFFLINE = ['Offline', 'Power fail', 'LOS'];
+
+    /**
+     * Umbral de caída (sesión 2026-10-09, decisión de Irving): cuánto puede empeorar la
+     * potencia más baja de las ONUs de un NAP respecto a su "potencia de instalación" antes de
+     * marcarse como caída detectada. 3 dB es un valor estándar de la industria para fibra —
+     * suficiente para no disparar por el ruido normal de medición, pero sí por un conector
+     * sucio/dañado o una fusión nueva de mala calidad. Configurable si hace falta ajustarlo.
+     */
+    private const UMBRAL_CAIDA_DB = 3.0;
 
     /**
      * Dashboard completo de una NAP (DoD #957): potencia promedio, conteos y la lista de ONUs.
@@ -55,7 +66,68 @@ class MapaRedNapHealthService
             ];
         })->values();
 
-        return array_merge($this->resumen($onus), ['onus' => $onus]);
+        $resumen = $this->resumen($onus);
+        $resumen = $this->aplicarPotenciaInstalacion($puertableType, $puertableId, $resumen);
+
+        return array_merge($resumen, ['onus' => $onus]);
+    }
+
+    /**
+     * "Potencia de instalación" del NAP (sesión 2026-10-09, decisión de Irving): se autocaptura
+     * con la primera lectura real disponible (nunca se sobreescribe sola después — solo un
+     * PUT manual la corrige, ver actualizarPotenciaInstalacion()), y se compara contra la
+     * potencia MÁS BAJA de las ONUs conectadas hoy para marcar "caída detectada" si empeoró
+     * más de UMBRAL_CAIDA_DB. Solo aplica a NAPs (puertableType = MapaRedLayer) — un splitter
+     * u otro contenedor no tiene este campo.
+     */
+    private function aplicarPotenciaInstalacion(string $puertableType, int $puertableId, array $resumen): array
+    {
+        $resumen['potencia_instalacion_dbm'] = null;
+        $resumen['caida_detectada'] = false;
+
+        if ($puertableType !== MapaRedLayer::class) {
+            return $resumen;
+        }
+
+        $layer = MapaRedLayer::find($puertableId);
+        if (!$layer) {
+            return $resumen;
+        }
+
+        if ($layer->potencia_instalacion_dbm === null && $resumen['potencia_minima_dbm'] !== null) {
+            try {
+                $layer->potencia_instalacion_dbm = $resumen['potencia_minima_dbm'];
+                $layer->saveQuietly();
+            } catch (\Throwable $e) {
+                // Best-effort: nunca romper el dashboard de salud por no poder guardar la
+                // captura automática (mismo criterio que MapaRedHistorial::registrar()).
+                Log::warning('[MapaRedNapHealthService] No se pudo autocapturar potencia de instalación', [
+                    'layer_id' => $puertableId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $resumen['potencia_instalacion_dbm'] = $layer->potencia_instalacion_dbm !== null
+            ? (float) $layer->potencia_instalacion_dbm
+            : null;
+
+        if ($resumen['potencia_instalacion_dbm'] !== null && $resumen['potencia_minima_dbm'] !== null) {
+            $caida = $resumen['potencia_instalacion_dbm'] - $resumen['potencia_minima_dbm'];
+            $resumen['caida_detectada'] = $caida >= self::UMBRAL_CAIDA_DB;
+        }
+
+        return $resumen;
+    }
+
+    /** Guarda (o corrige) a mano la potencia de instalación de un NAP. */
+    public function actualizarPotenciaInstalacion(int $layerId, ?float $potenciaDbm): MapaRedLayer
+    {
+        $layer = MapaRedLayer::findOrFail($layerId);
+        $layer->potencia_instalacion_dbm = $potenciaDbm;
+        $layer->save();
+
+        return $layer;
     }
 
     /**
@@ -73,6 +145,7 @@ class MapaRedNapHealthService
             $resultado[(int) $id] = [
                 'semaforo' => $resumen['semaforo'],
                 'total_onus' => $resumen['total_onus'],
+                'caida_detectada' => $resumen['caida_detectada'],
             ];
         }
 
@@ -91,10 +164,13 @@ class MapaRedNapHealthService
 
         $lecturasRx = $conDatos->pluck('rx_dbm')->filter(fn ($v) => $v !== null);
         $potenciaPromedioDbm = $lecturasRx->isNotEmpty() ? round($lecturasRx->avg(), 2) : null;
+        // dBm: más negativo = más débil. La "más baja" es el mínimo matemático (ej. -27 < -19).
+        $potenciaMinimaDbm = $lecturasRx->isNotEmpty() ? round($lecturasRx->min(), 2) : null;
 
         return [
             'semaforo' => $this->semaforo($conDatos),
             'potencia_promedio_dbm' => $potenciaPromedioDbm,
+            'potencia_minima_dbm' => $potenciaMinimaDbm,
             'total_onus' => $totalOnus,
             'onus_activas' => $onusActivas,
             'onus_offline' => $onusOffline,

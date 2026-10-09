@@ -38,6 +38,7 @@ class MapaRedLayer extends Model
         'data',
         'inputs',
         'level',
+        'potencia_instalacion_dbm',
     ];
 
     protected $appends = [
