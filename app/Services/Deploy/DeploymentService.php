@@ -457,6 +457,36 @@ class DeploymentService
         return $process->getExitCode() === 0;
     }
 
+    /**
+     * Pre-chequeo reusable (2026-10-09, hallazgo "versionado no funciona bien"):
+     * MISMAS dos validaciones de árbol de trabajo que ya corren DENTRO del pipeline
+     * (git_check_secrets / git_staging_gate), pero callable ANTES de crear el
+     * Release/DeploymentLog. Causa raíz real encontrada: en el checkout compartido
+     * (varias terminales a la vez), si el árbol estaba sucio con cambios de OTRA
+     * sesión en el instante exacto de emitir una versión, el pipeline fallaba en
+     * git_staging_gate — pero el Release y el DeploymentLog YA se habían creado en
+     * store() antes de correr el pipeline, dejando una fila "fantasma" (versión
+     * registrada en BD, nunca publicada). Confirmado contra deployment_logs reales:
+     * V1.51-03.10.2026, V1.44-28.09.2026 y V1.40-22.09.2026 fallaron exactamente así.
+     * Llamar esto primero evita crear la fila en el caso común; el paso del pipeline
+     * se conserva intacto como red de seguridad para la ventana (normalmente
+     * segundos) entre este chequeo y que el job realmente corra.
+     */
+    public function arbolListoParaRelease(): ?string
+    {
+        [$exitSecrets, $outSecrets] = $this->executeSecretCheck();
+        if ($exitSecrets !== 0) {
+            return $outSecrets;
+        }
+
+        [$exitGate, $outGate] = $this->executeStagingGate();
+        if ($exitGate !== 0) {
+            return $outGate;
+        }
+
+        return null;
+    }
+
     private function executeSecretCheck(): array
     {
         $startedAt = microtime(true);
