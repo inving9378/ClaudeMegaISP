@@ -71,6 +71,14 @@
                     <div class="text-muted small">Estado legal actual</div>
                     <div>{{ $case->current_legal_status ?? '—' }}</div>
                 </div>
+                <div class="col-12">
+                    <div class="text-muted small">Avisos de cambios</div>
+                    <div class="text-muted small">
+                        Campana interna: a quien subió el documento y a quien dio de alta el expediente (siempre).
+                        @if($case->notify_email) · Correo: {{ $case->notify_email }} @endif
+                        @if($case->notify_whatsapp) · WhatsApp: {{ $case->notify_whatsapp }} @endif
+                    </div>
+                </div>
             </div>
         </div>
     </div>

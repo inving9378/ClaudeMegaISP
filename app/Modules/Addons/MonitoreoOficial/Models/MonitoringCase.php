@@ -13,6 +13,7 @@ class MonitoringCase extends Model
         'source_id', 'name', 'authority', 'case_number', 'registration_number',
         'reference_number', 'class_code', 'current_legal_status', 'monitoring_status',
         'metadata', 'is_demo', 'last_checked_at', 'next_check_at', 'last_change_at', 'created_by',
+        'notify_email', 'notify_whatsapp',
     ];
 
     protected $casts = [
