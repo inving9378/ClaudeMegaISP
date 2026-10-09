@@ -291,17 +291,19 @@
                 </template>
 
                 <div
+                    v-if="sidePanelNode.coords && canVerHistorial"
+                    class="element-side-panel__section"
+                >
+                    <div class="element-side-panel__label">Historial de cambios</div>
+                    <HistorialPanel :key="sidePanelNode.id" :id="sidePanelNode.id" />
+                </div>
+                <div
+                    v-else-if="!sidePanelNode.coords"
                     class="element-side-panel__section text-caption text-grey"
                 >
-                    <template v-if="sidePanelNode.coords">
-                        Historial de cambios se incorpora en una fase
-                        siguiente de esta ficha.
-                    </template>
-                    <template v-else>
-                        Puertos, empalmes, clientes colgados, fotos e
-                        historial de cambios aplican solo a elementos
-                        ubicados en el mapa.
-                    </template>
+                    Puertos, empalmes, clientes colgados, fotos e
+                    historial de cambios aplican solo a elementos
+                    ubicados en el mapa.
                 </div>
             </div>
 
@@ -363,6 +365,7 @@ import OpticalBudgetPanel from "./OpticalBudgetPanel.vue";
 import EmpalmesPanel from "./EmpalmesPanel.vue";
 import ImpactoPanel from "./ImpactoPanel.vue";
 import FotosPanel from "./FotosPanel.vue";
+import HistorialPanel from "./HistorialPanel.vue";
 
 defineOptions({
     name: "ElementSidePanel",
@@ -534,6 +537,13 @@ const canSubirFotos = computed(() => {
 const canEliminarFotos = computed(() => {
     const check = props.permissons?.data?.canView;
     return typeof check === "function" ? check("mapa_red_fotos_eliminar") : true;
+});
+
+// MR-23 fase 4d-C (item #9990561) — igual patrón que fotos: permiso fijo del módulo,
+// mismo para cualquier nodo.
+const canVerHistorial = computed(() => {
+    const check = props.permissons?.data?.canView;
+    return typeof check === "function" ? check("mapa_red_historial_ver") : true;
 });
 
 const close = () => closeElementSidePanel();
