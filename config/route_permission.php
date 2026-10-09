@@ -81,6 +81,8 @@ return [
     ],
     'client_add_client' => ['/cliente/crear', '/cliente/add', '/cliente/success/{id}'],
     'client_edit_client' => [
+        '/cliente/nomenclatura-onu',
+        '/cliente/nomenclatura-onu/**',
         '/cliente/editar/{id}',
         '/cliente/update/{id}',
         '/cliente/success/',

@@ -32,6 +32,7 @@ import ClientCrud from "./components/module/client/ClientCrud";
 import AddClientCrud from "./components/module/client/AddClientCrud";
 import DatatableClient from "./components/module/client/DatatableClient.vue";
 import DashboardClient from "./components/module/client/DashboardClient.vue";
+import NomenclaturaOnuReview from "./components/module/client/NomenclaturaOnuReview.vue";
 
 import Datatable from "./components/base/shared/Datatable";
 
@@ -519,6 +520,7 @@ const app = createApp({
         AddClientCrud,
         DatatableClient,
         DashboardClient,
+        NomenclaturaOnuReview,
 
         //Router
         AddRouterCrud,
