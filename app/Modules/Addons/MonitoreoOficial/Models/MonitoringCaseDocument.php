@@ -11,6 +11,12 @@ class MonitoringCaseDocument extends Model
     protected $fillable = [
         'case_id', 'original_filename', 'stored_path', 'file_hash',
         'file_size', 'mime_type', 'notes', 'uploaded_by',
+        'ai_summary', 'ai_change_summary', 'ai_has_relevant_change', 'ai_analyzed_at', 'ai_error',
+    ];
+
+    protected $casts = [
+        'ai_has_relevant_change' => 'boolean',
+        'ai_analyzed_at' => 'datetime',
     ];
 
     public function case()
