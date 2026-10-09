@@ -40,6 +40,8 @@ class LoginController extends Controller
         'Vendedor',
         'Mostrador',
         'TECNICO',
+        'TECNICO_PLANTA',
+        'TECNICO_INSTALADOR',
         'Almacen',
     ];
 
