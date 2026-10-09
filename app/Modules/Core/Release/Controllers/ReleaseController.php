@@ -134,6 +134,18 @@ class ReleaseController extends Controller
                 ], 503);
             }
 
+            // Pre-chequeo del árbol de trabajo (2026-10-09, hallazgo "versionado no
+            // funciona bien"): mismas validaciones que el paso git_staging_gate del
+            // pipeline, pero ANTES de crear ninguna fila — un árbol sucio por otra
+            // terminal compartida ya NO deja una versión fantasma registrada en BD.
+            $motivoSucio = app(\App\Services\Deploy\DeploymentService::class)->arbolListoParaRelease();
+            if ($motivoSucio !== null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $motivoSucio,
+                ], 422);
+            }
+
             $data['created_by'] = auth()->user()?->id;
 
             // El respaldo de la BD ya NO corre aquí (síncrono): se movió al pipeline
