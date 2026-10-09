@@ -249,3 +249,17 @@ Route::middleware(['web', 'auth', 'role:super-administrator|DESARROLLADOR'])
             ->whereNumber('clientInvoiceId')
             ->name('cfdi.adjuntar');
     });
+
+// ── Reconciliación de nomenclatura ONU (sesión 2026-10-09, decisión de Irving) ──
+// Lista los clientes con box_nomenclator_old poblado pero box_nomenclator (la real)
+// vacío, para captura manual una por una — mismo permiso que editar la ficha.
+Route::middleware(['web', 'auth', 'check_route_permission'])
+    ->prefix('cliente/nomenclatura-onu')
+    ->name('cliente.nomenclatura-onu.')
+    ->group(function () {
+        Route::get('/', [\App\Modules\Core\Clientes\Controllers\NomenclaturaOnuController::class, 'vista'])->name('index');
+        Route::get('/pendientes', [\App\Modules\Core\Clientes\Controllers\NomenclaturaOnuController::class, 'pendientes'])->name('pendientes');
+        Route::put('/{clientId}', [\App\Modules\Core\Clientes\Controllers\NomenclaturaOnuController::class, 'actualizar'])
+            ->whereNumber('clientId')
+            ->name('actualizar');
+    });
