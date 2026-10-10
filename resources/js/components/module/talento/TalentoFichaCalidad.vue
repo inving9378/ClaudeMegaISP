@@ -38,8 +38,8 @@
         <div class="card border-0 shadow-sm h-100">
           <div class="card-header bg-white fw-semibold small">Calidad de servicio</div>
           <div class="card-body">
-            <div v-if="!hasCalidadData" class="alert alert-light text-center mb-0 small">Sin datos suficientes todavía.</div>
-            <canvas v-else ref="donutChart" height="160"></canvas>
+            <canvas ref="donutChart" height="160"></canvas>
+            <div v-if="!hasCalidadData" class="text-center text-muted small mt-2">Sin tareas completadas todavía.</div>
           </div>
         </div>
       </div>
@@ -47,8 +47,7 @@
         <div class="card border-0 shadow-sm h-100">
           <div class="card-header bg-white fw-semibold small">Garantías — últimos {{ data.period_days }} días</div>
           <div class="card-body">
-            <div v-if="!hasSerieData" class="alert alert-light text-center mb-0 small">Sin garantías en el período.</div>
-            <canvas v-else ref="lineChart" height="140"></canvas>
+            <canvas ref="lineChart" height="140"></canvas>
           </div>
         </div>
       </div>
@@ -145,7 +144,17 @@ export default {
       }
     },
     buildDonut() {
-      if (!this.hasCalidadData || !this.$refs.donutChart) return;
+      if (!this.$refs.donutChart) return;
+      // Sin tareas todavía: la dona se dibuja igual (gris, neutra) en vez de
+      // desaparecer — nunca se inventa un dato, solo se evita el hueco en blanco.
+      if (!this.hasCalidadData) {
+        this.donutInstance = new Chart(this.$refs.donutChart, {
+          type: "doughnut",
+          data: { labels: ["Sin datos"], datasets: [{ data: [1], backgroundColor: ["#e5e7eb"], borderWidth: 0 }] },
+          options: { responsive: true, plugins: { legend: { display: false }, tooltip: { enabled: false } }, cutout: "65%" },
+        });
+        return;
+      }
       const sinFallas = this.data.completados || 0;
       const conFallas = this.data.garantias_non_billable || 0;
       this.donutInstance = new Chart(this.$refs.donutChart, {
@@ -162,7 +171,7 @@ export default {
       });
     },
     buildLine() {
-      if (!this.hasSerieData || !this.$refs.lineChart) return;
+      if (!this.$refs.lineChart) return;
       const serie = this.data.serie || {};
       this.lineInstance = new Chart(this.$refs.lineChart, {
         type: "line",

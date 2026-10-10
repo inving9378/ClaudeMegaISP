@@ -577,6 +577,14 @@
                             },
                             options: { responsive: true, plugins: { legend: { position: 'bottom' } }, cutout: '65%' },
                         });
+                    } else {
+                        // Sin tareas todavía: la dona se dibuja igual (gris, neutra) en vez de
+                        // quedar en blanco — nunca se inventa un dato.
+                        calidadDonutChart = new Chart(donutEl, {
+                            type: 'doughnut',
+                            data: { labels: ['Sin datos'], datasets: [{ data: [1], backgroundColor: ['#e5e7eb'], borderWidth: 0 }] },
+                            options: { responsive: true, plugins: { legend: { display: false }, tooltip: { enabled: false } }, cutout: '65%' },
+                        });
                     }
                 }
 
@@ -1490,10 +1498,10 @@
                                 <q-card-section class="q-pa-sm">
                                     <div class="text-subtitle2 text-grey-8 q-mb-xs">Calidad de servicio</div>
                                     <div v-if="calidad.calidad_pct !== null" class="text-h6 text-teal-8 q-mb-sm">{{ calidad.calidad_pct }}% sin incidencias</div>
-                                    <div v-else class="text-caption text-grey-6 q-mb-sm">Aún sin datos suficientes para calcular el % de calidad.</div>
                                     <div style="position:relative;height:220px">
                                         <canvas id="tp-calidad-donut"></canvas>
                                     </div>
+                                    <div v-if="calidad.calidad_pct === null" class="text-caption text-grey-6 text-center q-mt-sm">Sin tareas completadas todavía.</div>
                                 </q-card-section>
                             </q-card>
 
