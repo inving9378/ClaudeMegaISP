@@ -68,7 +68,7 @@
     </div>
 
     <!-- Trabajos recientes -->
-    <div class="card border-0 shadow-sm">
+    <div class="card border-0 shadow-sm mb-4">
       <div class="card-header bg-white fw-semibold small">Trabajos recientes</div>
       <div class="list-group list-group-flush" v-if="data.recent_orders && data.recent_orders.length">
         <div class="list-group-item d-flex justify-content-between align-items-center small" v-for="o in data.recent_orders" :key="'co' + o.id">
@@ -77,6 +77,30 @@
         </div>
       </div>
       <div v-else class="card-body text-center text-muted small">Sin trabajos recientes en este período.</div>
+    </div>
+
+    <!-- Regla de desempeño semanal (comisiones + penalizaciones, 2026-10-10) -->
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-semibold small">Regla de desempeño semanal</div>
+      <div class="card-body">
+        <template v-if="data.regla_desempeno && data.regla_desempeno.tiene_evaluacion">
+          <div class="small text-muted mb-2">
+            {{ data.regla_desempeno.regla_nombre || 'Regla sin nombre' }}
+            · semana {{ data.regla_desempeno.week_start }} – {{ data.regla_desempeno.week_end }}
+          </div>
+          <span class="badge" :class="reglaBadgeClass">{{ reglaOutcomeLabel }}</span>
+          <div class="small text-muted mt-2">
+            Prospectos: {{ data.regla_desempeno.prospects_count }} · Ventas: {{ data.regla_desempeno.sales_count }}
+          </div>
+          <div v-if="data.regla_desempeno.bonus_amount_applied" class="small text-success mt-1">
+            Bono aplicado: ${{ data.regla_desempeno.bonus_amount_applied }}
+          </div>
+          <div v-if="data.regla_desempeno.penalty_amount" class="small text-danger mt-1">
+            Penalización: ${{ data.regla_desempeno.penalty_amount }}
+          </div>
+        </template>
+        <div v-else class="text-center text-muted small">Sin reglas definidas todavía.</div>
+      </div>
     </div>
   </div>
 </template>
@@ -106,6 +130,24 @@ export default {
     },
     hasSerieData() {
       return Array.isArray(this.data?.serie?.categories) && this.data.serie.categories.length > 0;
+    },
+    reglaOutcomeLabel() {
+      const labels = {
+        no_rule: "Sin regla asignada",
+        penalty_pending: "Penalización pendiente",
+        bonus: "Bono ganado",
+        meets_quota: "Cumple la cuota",
+      };
+      return labels[this.data?.regla_desempeno?.outcome] || this.data?.regla_desempeno?.outcome || "—";
+    },
+    reglaBadgeClass() {
+      const classes = {
+        no_rule: "bg-secondary",
+        penalty_pending: "bg-danger",
+        bonus: "bg-success",
+        meets_quota: "bg-primary",
+      };
+      return classes[this.data?.regla_desempeno?.outcome] || "bg-secondary";
     },
   },
   mounted() {

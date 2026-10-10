@@ -47,6 +47,24 @@ class TalentoVentasController extends Controller
 
         $id = $seller->user_id;
 
+        // Comisión real (2026-10-10, pedido de Irving): mismo campo que ya usa el
+        // admin de Vendedores (Commission.account_balance, PaymentSellerController
+        // línea 246: Commission::where('seller_id', ...)->sum('account_balance')).
+        // commissions.seller_id guarda sellers.id (NO users.id) — confirmado contra
+        // CalculateClientCommission::handle(), que es el único INSERT real del
+        // modelo. Hoy la tabla está vacía en dev (ver item #9990471) → esto
+        // devuelve 0 honestamente; el día que se repueble, funciona solo.
+        $comisionTotal = (float) \App\Models\Commission::where('seller_id', $seller->id)->sum('account_balance');
+
+        // "Regla de desempeño semanal" — misma fuente que el técnico, self-scoped
+        // por el colaborador (no por el seller). Puede no existir un
+        // talento_colaborador para este user (vendedor "externo" sin ficha de
+        // Talento) — en ese caso simplemente no se incluye.
+        $colaborador = Actor::for(auth()->user())->talento();
+        $reglaDesempeno = $colaborador
+            ? app(\App\Modules\Addons\Talento\Services\DashboardService::class)->reglaDesempeno($colaborador->id)
+            : ['tiene_evaluacion' => false];
+
         return response()->json([
             'es_vendedor'         => true,
             'seller_id'           => $seller->id,
@@ -55,6 +73,8 @@ class TalentoVentasController extends Controller
             'compare_sales'       => $statics->compareSales($id)->getData(true),
             'prospects_by_status' => $statics->prospectsByStatus($request, $id)->getData(true),
             'lost_sales'          => $statics->getLostSales($id)->getData(true),
+            'comision_total'      => $comisionTotal,
+            'regla_desempeno'     => $reglaDesempeno,
         ]);
     }
 
