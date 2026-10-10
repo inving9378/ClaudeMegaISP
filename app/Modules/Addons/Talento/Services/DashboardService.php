@@ -8,6 +8,7 @@ use App\Modules\Addons\Talento\Models\TalentoCompensationRuleHistory;
 use App\Modules\Addons\Talento\Models\TalentoCredential;
 use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
 use App\Modules\Addons\Talento\Models\TalentoRouteDeviation;
+use App\Modules\Addons\Talento\Models\TalentoWeeklyRuleEvaluation;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -231,6 +232,40 @@ class DashboardService
         }
 
         return ['puntos' => $puntos, 'sin_coordenadas' => $sinCoordenadas];
+    }
+
+    /**
+     * "Regla de desempeño semanal" (comisiones + penalizaciones combinadas,
+     * TalentoWeeklyRule/TalentoWeeklyRuleEvaluation) — pedido de Irving
+     * 2026-10-10: "las métricas que se definan para ese trabajador en las
+     * reglas tanto de comisiones como de penalizaciones" deben verse en su
+     * progreso. Muestra la ÚLTIMA evaluación real ya corrida (nunca calcula
+     * una hipotética aquí) — si nunca se ha evaluado a este colaborador
+     * (hoy: nadie, 0 reglas activas en el sistema), `tiene_evaluacion:false`
+     * y el frontend pinta el estado vacío honesto, nunca un dato inventado.
+     */
+    public function reglaDesempeno(int $colaboradorId): array
+    {
+        $evaluacion = TalentoWeeklyRuleEvaluation::with('rule')
+            ->where('colaborador_id', $colaboradorId)
+            ->orderByDesc('week_start')
+            ->first();
+
+        if (!$evaluacion) {
+            return ['tiene_evaluacion' => false];
+        }
+
+        return [
+            'tiene_evaluacion'     => true,
+            'regla_nombre'         => $evaluacion->rule?->name,
+            'week_start'           => $evaluacion->week_start,
+            'week_end'             => $evaluacion->week_end,
+            'outcome'              => $evaluacion->outcome,
+            'prospects_count'      => $evaluacion->prospects_count,
+            'sales_count'          => $evaluacion->sales_count,
+            'bonus_amount_applied' => $evaluacion->bonus_amount_applied,
+            'penalty_amount'       => $evaluacion->penalty_amount,
+        ];
     }
 
     private function parsearGeodata(?string $geodata): ?array

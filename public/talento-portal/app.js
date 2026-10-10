@@ -727,6 +727,17 @@
                 return p.reduce((sum, x) => sum + (Number(x.prospects) || 0), 0);
             });
             function pct1(n) { return n != null ? (Math.round(Number(n) * 10) / 10) : 0; }
+            function reglaDesempenoLabel(outcome) {
+                return {
+                    no_rule: 'Sin regla asignada',
+                    penalty_pending: 'Penalización pendiente',
+                    bonus: 'Bono ganado',
+                    meets_quota: 'Cumple la cuota',
+                }[outcome] || outcome || '—';
+            }
+            function reglaDesempenoColor(outcome) {
+                return { no_rule: 'grey-7', penalty_pending: 'negative', bonus: 'positive', meets_quota: 'primary' }[outcome] || 'grey-7';
+            }
 
             // ── "Mi progreso" del Mostrador (Fase 3 del dashboard por rol) — reusa pagos/tickets
             // propios vía /talento/portal/mi-progreso-mostrador, SOLO LECTURA ──
@@ -903,6 +914,7 @@
                 resumenCustodia, enCustodiaPorCategoria, materialTab, materialEstadoTab, estadosMaterial,
                 calidad, cargandoCalidad, cargarCalidad,
                 misVentas, cargandoMisVentas, cargarMisVentas, totalVentasPeriodo, totalProspectosPeriodo, pct1,
+                reglaDesempenoLabel, reglaDesempenoColor,
                 progresoMostrador, cargandoProgresoMostrador, cargarProgresoMostrador, prioridadLabel,
                 equipoProgreso, cargandoEquipoProgreso, cargarEquipoProgreso, trackInfo,
                 prospectos, cargandoProspectos, cargarProspectos, nombreProspecto, statusColor,
@@ -1581,6 +1593,32 @@
                                     </q-card>
                                 </div>
                             </div>
+
+                            <q-card flat bordered class="tp-card q-mb-md">
+                                <q-card-section class="q-pa-sm text-center">
+                                    <div class="text-h6 text-teal-8">$ {{ (misVentas.comision_total || 0).toLocaleString('es-MX', {minimumFractionDigits: 2}) }}</div>
+                                    <div class="text-caption text-grey-7">Comisión acumulada</div>
+                                </q-card-section>
+                            </q-card>
+
+                            <q-card flat bordered class="tp-card q-mb-md">
+                                <q-card-section class="q-pa-sm">
+                                    <div class="text-subtitle2 text-grey-8 q-mb-sm">Regla de desempeño semanal</div>
+                                    <template v-if="misVentas.regla_desempeno && misVentas.regla_desempeno.tiene_evaluacion">
+                                        <div class="text-caption text-grey-7 q-mb-xs">
+                                            {{ misVentas.regla_desempeno.regla_nombre || 'Regla sin nombre' }}
+                                            · semana {{ misVentas.regla_desempeno.week_start }} – {{ misVentas.regla_desempeno.week_end }}
+                                        </div>
+                                        <q-badge :color="reglaDesempenoColor(misVentas.regla_desempeno.outcome)">
+                                            {{ reglaDesempenoLabel(misVentas.regla_desempeno.outcome) }}
+                                        </q-badge>
+                                        <div class="text-caption text-grey-7 q-mt-sm">
+                                            Prospectos: {{ misVentas.regla_desempeno.prospects_count }} · Ventas: {{ misVentas.regla_desempeno.sales_count }}
+                                        </div>
+                                    </template>
+                                    <div v-else class="text-caption text-grey-6 text-center">Sin reglas definidas todavía.</div>
+                                </q-card-section>
+                            </q-card>
 
                             <q-card flat bordered class="tp-card q-mb-md">
                                 <q-card-section class="q-pa-sm">

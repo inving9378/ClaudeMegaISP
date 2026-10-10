@@ -334,6 +334,7 @@ class TalentoColaboradorController extends Controller
         if ($data['es_externo']) {
             $data['mapa'] = $service->mapaTecnico((int) $id);
         }
+        $data['regla_desempeno'] = $service->reglaDesempeno((int) $id);
 
         return response()->json($data);
     }
