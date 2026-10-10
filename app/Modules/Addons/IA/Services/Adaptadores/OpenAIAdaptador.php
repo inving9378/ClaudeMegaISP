@@ -90,6 +90,10 @@ class OpenAIAdaptador extends AdaptadorHttpBase
 
     public function conversarConHerramientas(array $mensajes, ?string $systemPrompt, array $herramientas, array $opciones = []): array
     {
+        if ($herramientas && $this->usaResponses()) {
+            return $this->conversarPorResponses($mensajes, $systemPrompt, $herramientas, $opciones);
+        }
+
         $messages = [];
         if ($systemPrompt) {
             $messages[] = ['role' => 'system', 'content' => $systemPrompt];
@@ -167,7 +171,7 @@ class OpenAIAdaptador extends AdaptadorHttpBase
      */
     private function aplicarLimites(array &$payload, array $opciones): void
     {
-        $razonamiento = (bool) preg_match('/^(o\d|gpt-([5-9]|\d{2,}))/i', (string) $payload['model']);
+        $razonamiento = $this->esRazonamiento((string) $payload['model']);
 
         $maxTokens = $this->opcion($opciones, 'max_tokens', 'max_tokens');
         if ($maxTokens) {
@@ -178,6 +182,114 @@ class OpenAIAdaptador extends AdaptadorHttpBase
         if ($temperature !== null && !$razonamiento) {
             $payload['temperature'] = (float) $temperature;
         }
+    }
+
+    private function esRazonamiento(string $modelo): bool
+    {
+        return (bool) preg_match('/^(o\d|gpt-([5-9]|\d{2,}))/i', $modelo);
+    }
+
+    /**
+     * Herramientas + modelo de razonamiento de OpenAI → /v1/responses. En /chat/completions
+     * los gpt-6 rechazan las herramientas ("Function tools with reasoning_effort are not
+     * supported"): luna/sol solo pasan con reasoning_effort=none y astra/6.1-sol ni así.
+     * Solo OpenAI real: los compatibles (Ollama, DeepSeek, Groq…) no tienen /responses.
+     */
+    private function usaResponses(): bool
+    {
+        $endpoint = (string) $this->proveedor->endpoint_url;
+
+        return $this->proveedor->driver === 'openai'
+            && $this->esRazonamiento((string) $this->proveedor->modelo_default)
+            && ($endpoint === '' || preg_match('#/chat/completions/?$#', $endpoint));
+    }
+
+    /** Misma vuelta que conversarConHerramientas, en el formato de /v1/responses. */
+    private function conversarPorResponses(array $mensajes, ?string $systemPrompt, array $herramientas, array $opciones): array
+    {
+        $input = [];
+        foreach ($mensajes as $m) {
+            $rol = $m['rol'] ?? 'user';
+            if ($rol === 'herramienta') {
+                $input[] = ['type' => 'function_call_output', 'call_id' => (string) $m['id'], 'output' => (string) ($m['resultado'] ?? '')];
+            } elseif ($rol === 'assistant') {
+                if (($m['contenido'] ?? '') !== '') {
+                    $input[] = ['role' => 'assistant', 'content' => (string) $m['contenido']];
+                }
+                foreach ($m['llamadas'] ?? [] as $l) {
+                    $input[] = [
+                        'type' => 'function_call',
+                        'call_id' => (string) $l['id'],
+                        'name' => (string) $l['nombre'],
+                        'arguments' => json_encode($this->comoObjeto((array) ($l['argumentos'] ?? [])), JSON_UNESCAPED_UNICODE),
+                    ];
+                }
+            } else {
+                $input[] = ['role' => $rol === 'system' ? 'system' : 'user', 'content' => (string) ($m['contenido'] ?? '')];
+            }
+        }
+
+        $payload = [
+            'model' => (string) $this->proveedor->modelo_default,
+            'input' => $input,
+            // strict=false: en /responses el default es estricto y exige otro estilo de esquema.
+            'tools' => array_map(fn($h) => [
+                'type' => 'function',
+                'name' => $h['nombre'],
+                'description' => $h['descripcion'],
+                'parameters' => $h['parametros'],
+                'strict' => false,
+            ], $this->herramientasNeutras($herramientas)),
+            'reasoning' => ['effort' => (string) $this->opcion($opciones, 'razonamiento', 'reasoning_effort', 'low')],
+        ];
+        if ($systemPrompt) {
+            $payload['instructions'] = $systemPrompt;
+        }
+        if ($maxTokens = $this->opcion($opciones, 'max_tokens', 'max_tokens')) {
+            $payload['max_output_tokens'] = (int) $maxTokens;
+        }
+
+        $headers = ['Content-Type' => 'application/json'];
+        if ($clave = $this->clave()) {
+            $headers['Authorization'] = 'Bearer ' . $clave;
+        }
+        $headers = array_merge($headers, $this->proveedor->headers_personalizados ?? []);
+
+        $endpoint = preg_replace('#/chat/completions/?$#', '/responses', $this->proveedor->endpoint_url ?: 'https://api.openai.com/v1/chat/completions');
+        $json = $this->postJson($endpoint, $headers, $payload, $opciones);
+
+        $texto = '';
+        $llamadas = [];
+        foreach ($json['output'] ?? [] as $item) {
+            if (($item['type'] ?? '') === 'message') {
+                foreach ($item['content'] ?? [] as $c) {
+                    if (($c['type'] ?? '') === 'output_text') {
+                        $texto .= (string) ($c['text'] ?? '');
+                    }
+                }
+            } elseif (($item['type'] ?? '') === 'function_call') {
+                $args = json_decode((string) ($item['arguments'] ?? '{}'), true);
+                $llamadas[] = [
+                    'id' => (string) ($item['call_id'] ?? ''),
+                    'nombre' => (string) ($item['name'] ?? ''),
+                    'argumentos' => is_array($args) ? $args : [],
+                ];
+            }
+        }
+
+        return [
+            'texto' => $texto,
+            'llamadas' => $llamadas,
+            'fin' => match (true) {
+                (bool) $llamadas => 'herramientas',
+                ($json['status'] ?? null) === 'completed' => 'completo',
+                data_get($json, 'incomplete_details.reason') === 'max_output_tokens' => 'max_tokens',
+                default => 'otro',
+            },
+            'tokens_input' => data_get($json, 'usage.input_tokens'),
+            'tokens_output' => data_get($json, 'usage.output_tokens'),
+            'raw' => $json,
+        ];
     }
 
     public function parsearRespuesta(array $respuesta): string

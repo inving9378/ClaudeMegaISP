@@ -245,9 +245,25 @@ class IaModulosController extends Controller
             return response()->json(['error' => 'Módulo desconocido'], 404);
         }
 
-        return $this->respuestaPrueba(fn() => in_array('voz', (array) ($modulo['requiere'] ?? []), true)
-            ? $this->probarVoz($clave)
-            : IA::enviar($clave, 'Responde únicamente con la palabra OK.', [], null, [], ['max_tokens' => 20, 'reintentos' => 0, 'timeout' => 30]));
+        $requiere = (array) ($modulo['requiere'] ?? []);
+
+        return $this->respuestaPrueba(fn() => match (true) {
+            in_array('voz', $requiere, true)          => $this->probarVoz($clave),
+            in_array('herramientas', $requiere, true) => $this->probarHerramientas($clave),
+            default => IA::enviar($clave, 'Responde únicamente con la palabra OK.', [], null, [], ['max_tokens' => 20, 'reintentos' => 0, 'timeout' => 30]),
+        });
+    }
+
+    /**
+     * Los módulos con herramientas (JARVIS, agente de WhatsApp) se prueban con una
+     * herramienta: un modelo puede contestar un mensaje simple y rechazar las
+     * herramientas (pasó con gpt-6-luna), y la prueba simple decía "Funciona".
+     */
+    private function probarHerramientas(string $clave): array
+    {
+        $herramienta = ['nombre' => 'confirmar', 'descripcion' => 'Confirma que recibiste el mensaje.', 'parametros' => []];
+
+        return IA::conversar($clave, [['rol' => 'user', 'contenido' => 'Responde únicamente con la palabra OK.']], null, [$herramienta], ['max_tokens' => 20, 'reintentos' => 0, 'timeout' => 30]);
     }
 
     /** Prueba en vivo de la IA general del módulo. */
