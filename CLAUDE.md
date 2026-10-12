@@ -47,8 +47,10 @@ respaldo se tomó antes, y quién lo corre.
 ninguna bitácora, commit ni registro de quién lo hizo. El dato en sí resultó de bajo riesgo (no
 tocó dinero ni autenticación, y `mapared_layers` —la fuente— quedó intacta), pero durante horas
 no hubo forma de distinguir "trabajo legítimo sin documentar" de "intrusión" — tuvo que
-reconstruirse todo a posteriori por evidencia de archivos y timestamps, y al final se confirmó
-que sí era trabajo legítimo de Irving. Ver `docs/bitacora/2026-10-11-mapared-backfill-prod.md`.
+reconstruirse todo a posteriori por evidencia de archivos y timestamps. Irving confirmó **de
+palabra** que fue trabajo suyo; la verificación técnica de intrusión (logs de root: `auth.log`,
+nginx, binlog) nunca llegó a correrse — se aceptó el riesgo en vez de comprobarlo. Detalle en
+`docs/bitacora/2026-10-11-mapared-backfill-prod.md`.
 
 ---
 

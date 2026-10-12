@@ -43,8 +43,11 @@ tablas (con confirmación de Irving, nivel B) o restaurar desde ese respaldo.
 
 ### Pendiente
 
-- [ ] Irving/equipo confirman quién y por qué (llenar aquí).
-- [ ] Correr verificación de intrusión (auth.log, nginx, binlog) y anotar resultado.
+- [x] Irving/equipo confirman quién y por qué — ver "Actualización" abajo. **De palabra, no
+      verificado técnicamente** (ver esa misma sección).
+- [ ] Correr verificación de intrusión (auth.log, nginx, binlog de MySQL — requieren root). Sigue
+      sin correrse. No se consideró necesaria dado lo de abajo, pero la pista técnica real
+      para descartar intrusión de verdad sigue sin existir.
 - [ ] Decidir si se conservan los datos del backfill.
 
 ### Lección
@@ -52,9 +55,15 @@ tablas (con confirmación de Irving, nivel B) o restaurar desde ese respaldo.
 Toda escritura manual en producción (backfill, import, `UPDATE` masivo) requiere una entrada en
 `docs/bitacora/` **antes** de ejecutarse: qué comando, contra qué BD, qué respaldo previo y quién.
 
-### Actualización — identidad confirmada (2026-10-12, misma sesión)
+### Actualización — identidad según Irving, SIN verificación técnica (2026-10-12, misma sesión)
 
-Confirmado con Irving (equipo, sesión de dev): el backfill fue trabajo legítimo suyo, corrido en
-otra terminal/sesión el 2026-10-11, sin documentar en el momento. No hay indicio de intrusión —
-se cierra esa hipótesis. Queda como lección de proceso (ver regla permanente agregada a
-`CLAUDE.md` el mismo día), no como incidente de seguridad.
+Irving confirmó de palabra (en la sesión de dev, no en esta) que el backfill fue trabajo suyo,
+corrido en otra terminal/sesión el 2026-10-11, sin documentar en el momento. **Esto es un dicho,
+no una verificación** — nadie corrió los logs de root (`auth.log`/journal SSH, `access.log` de
+nginx, binlog de MySQL) que probarían o descartarían intrusión de forma independiente. Lo único
+verificado técnicamente (sección "Qué pasó" arriba) es que la escritura *encaja* con trabajo
+legítimo — horario de oficina, respaldos tomados con criterio antes de escribir, IP de SSH
+habitual — no que se haya *descartado* otra explicación. Se decidió, con ese nivel de certeza,
+no perseguir la verificación de root por ahora y tratar el caso como cerrado en la práctica — pero
+la casilla de intrusión arriba se deja sin marcar a propósito, para que quede claro que el cierre
+es una decisión de riesgo aceptado, no una comprobación.
