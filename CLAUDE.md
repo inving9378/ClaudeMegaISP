@@ -34,6 +34,24 @@ Si el trabajo no tiene item del roadmap, usar un slug descriptivo en su lugar:
 
 ---
 
+## ⭐ REGLA PERMANENTE — Ninguna escritura manual en producción sin bitácora PREVIA
+
+Toda escritura manual en producción (backfill, import, `UPDATE`/`DELETE` masivo, cualquier
+comando que modifique datos fuera del flujo normal de la app) **exige una entrada en
+`docs/bitacora/` ANTES de ejecutarse** — no después: qué comando, contra qué base de datos, qué
+respaldo se tomó antes, y quién lo corre.
+
+**Por qué:** incidente real del 2026-10-11 — un `mapared:backfill` se corrió contra
+`meganet_prod_claude` (producción) creando ~23,500 filas reales (`mapared_cables`/`hilos`/
+`puertos`), con buen criterio técnico (dos respaldos tomados antes de escribir), pero sin
+ninguna bitácora, commit ni registro de quién lo hizo. El dato en sí resultó de bajo riesgo (no
+tocó dinero ni autenticación, y `mapared_layers` —la fuente— quedó intacta), pero durante horas
+no hubo forma de distinguir "trabajo legítimo sin documentar" de "intrusión" — tuvo que
+reconstruirse todo a posteriori por evidencia de archivos y timestamps, y al final se confirmó
+que sí era trabajo legítimo de Irving. Ver `docs/bitacora/2026-10-11-mapared-backfill-prod.md`.
+
+---
+
 ## 🔁 CIRCUITO DE MEJORA CONTINUA
 
 Ciclo de mejora entre **Claude Code (local, esta red)** y **Claude Cowork (nube de Anthropic, externo)**:
