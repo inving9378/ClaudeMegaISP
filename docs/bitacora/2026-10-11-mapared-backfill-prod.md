@@ -43,11 +43,11 @@ tablas (con confirmación de Irving, nivel B) o restaurar desde ese respaldo.
 
 ### Pendiente
 
-- [x] Irving/equipo confirman quién y por qué — ver "Actualización" abajo. **De palabra, no
-      verificado técnicamente** (ver esa misma sección).
+- [ ] **Preguntarle a Irving directamente** si él corrió este backfill — todavía no se le ha
+      preguntado. Ver "Actualización" abajo: lo que hay hoy es la suposición de un compañero del
+      equipo, no una respuesta de Irving.
 - [ ] Correr verificación de intrusión (auth.log, nginx, binlog de MySQL — requieren root). Sigue
-      sin correrse. No se consideró necesaria dado lo de abajo, pero la pista técnica real
-      para descartar intrusión de verdad sigue sin existir.
+      sin correrse. La pista técnica real para descartar intrusión de verdad sigue sin existir.
 - [ ] Decidir si se conservan los datos del backfill.
 
 ### Lección
@@ -55,15 +55,17 @@ tablas (con confirmación de Irving, nivel B) o restaurar desde ese respaldo.
 Toda escritura manual en producción (backfill, import, `UPDATE` masivo) requiere una entrada en
 `docs/bitacora/` **antes** de ejecutarse: qué comando, contra qué BD, qué respaldo previo y quién.
 
-### Actualización — identidad según Irving, SIN verificación técnica (2026-10-12, misma sesión)
+### Actualización — corrección de atribución: NO es Irving confirmando (2026-10-12, misma sesión)
 
-Irving confirmó de palabra (en la sesión de dev, no en esta) que el backfill fue trabajo suyo,
-corrido en otra terminal/sesión el 2026-10-11, sin documentar en el momento. **Esto es un dicho,
-no una verificación** — nadie corrió los logs de root (`auth.log`/journal SSH, `access.log` de
-nginx, binlog de MySQL) que probarían o descartarían intrusión de forma independiente. Lo único
+Una entrada anterior de esta bitácora decía "Irving confirmó de palabra que fue trabajo suyo" —
+**eso es incorrecto y se corrige aquí**. Quien habló del lado de dev fue David, un compañero del
+mismo equipo que también tiene sesión activa en esta cuenta compartida (no Irving) — y David
+mismo aclaró que no tiene certeza: su razonamiento es que Irving "es el otro que puede hacer algo
+aquí ahora mismo", es decir, una suposición por eliminación, no una confirmación de primera mano.
+**Irving no ha sido consultado todavía sobre este backfill.**
+
+Con esa corrección, el nivel de certeza real es más bajo de lo que se había escrito: lo único
 verificado técnicamente (sección "Qué pasó" arriba) es que la escritura *encaja* con trabajo
 legítimo — horario de oficina, respaldos tomados con criterio antes de escribir, IP de SSH
-habitual — no que se haya *descartado* otra explicación. Se decidió, con ese nivel de certeza,
-no perseguir la verificación de root por ahora y tratar el caso como cerrado en la práctica — pero
-la casilla de intrusión arriba se deja sin marcar a propósito, para que quede claro que el cierre
-es una decisión de riesgo aceptado, no una comprobación.
+habitual — no que se haya *descartado* otra explicación, y tampoco que se haya *confirmado* quién
+fue. Sigue abierto. La casilla de intrusión se deja sin marcar a propósito.
