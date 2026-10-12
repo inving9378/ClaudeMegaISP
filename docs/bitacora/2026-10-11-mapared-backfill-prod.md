@@ -43,12 +43,18 @@ tablas (con confirmación de Irving, nivel B) o restaurar desde ese respaldo.
 
 ### Pendiente
 
-- [ ] **Preguntarle a Irving directamente** si él corrió este backfill — todavía no se le ha
-      preguntado. Ver "Actualización" abajo: lo que hay hoy es la suposición de un compañero del
-      equipo, no una respuesta de Irving.
-- [ ] Correr verificación de intrusión (auth.log, nginx, binlog de MySQL — requieren root). Sigue
-      sin correrse. La pista técnica real para descartar intrusión de verdad sigue sin existir.
-- [ ] Decidir si se conservan los datos del backfill.
+- [x] ~~Preguntarle a Irving directamente si él corrió este backfill~~ — se le preguntó
+      (2026-10-12). Según se reporta, lo dio por trabajo suyo — pero sigue siendo **su palabra
+      relayada, sin comprobación escrita/firmada de primera mano**. Ver "Cierre final" abajo.
+- [x] ~~Correr verificación de intrusión~~ — hecho con evidencia real (binlog de MySQL + log
+      completo de Apache del puerto 8090). Ver "Cierre final": intrusión descartada con evidencia,
+      no solo por criterio.
+- [x] Decidir si se conservan los datos del backfill — sí, se conservan (coherentes, fuente
+      `mapared_layers` intacta, respaldo de rescate disponible).
+- [ ] Decidir si se activan los valores de `mysqld.cnf` (nunca se leyeron — `my.cnf` no incluye
+      `mysql.conf.d/`). Ver "Cierre final".
+- [ ] El servidor sigue sin firewall real (`ufw` inactivo, `iptables INPUT` en ACCEPT) — ya no hay
+      puertos de datos expuestos, pero 80/443/22 y los de VoIP siguen sin esa capa de defensa.
 
 ### Lección
 
@@ -69,3 +75,47 @@ verificado técnicamente (sección "Qué pasó" arriba) es que la escritura *enc
 legítimo — horario de oficina, respaldos tomados con criterio antes de escribir, IP de SSH
 habitual — no que se haya *descartado* otra explicación, y tampoco que se haya *confirmado* quién
 fue. Sigue abierto. La casilla de intrusión se deja sin marcar a propósito.
+
+### Cierre final — 2026-10-12
+
+- **Intrusión descartada con evidencia** (ya no solo por criterio — esta vez con datos reales):
+  - Binlog 12:40–12:42 del 11-oct (`binlog.005218`): solo `INSERT` en `mapared_cables` (250),
+    `mapared_hilos` (12,320) y `mapared_puertos` (10,987), más tráfico normal de la app; 0 `DELETE`.
+  - Logins exitosos: solo `meganet` (LAN `192.168.104.251` y `216.147.125.x`). La fuerza bruta SSH
+    externa (`2.57.122.53` y otras) falló toda; `PasswordAuthentication no`, root solo con llave.
+  - Log completo del puerto 8090 (197 líneas, 11-oct 12:22 a 12-oct 09:28): los 9 `POST` son de
+    `192.168.104.251` (dashboard); 0 `POST`/`PUT`/`DELETE` y 0 intentos de login desde IPs
+    externas — solo escáneres de internet (ModatScanner, Infrawatch, InternetMeasurement y
+    similares), todos de solo lectura, sin pasar de la pantalla de login y archivos estáticos.
+
+- **Hueco 1 (corregido) — puerto 8090 expuesto a internet.** El 11-oct 12:22 se creó el vhost
+  `megaisp-8090` (MEGANET legacy, base `meganet_prod` — distinta de `meganet_prod_claude`) y
+  quedó abierto a internet ~21 h, sin que nadie externo pasara de la pantalla de login. Desactivado
+  con `a2dissite` y verificado: sin listener, sin respuesta por localhost, LAN ni IP pública.
+  Rollback: `a2ensite megaisp-8090 && systemctl reload apache2`.
+
+- **Hueco 2 (corregido) — MySQL abierto en todas las interfaces.** Escuchaba en `*:3306`/`*:33060`
+  con el usuario `meganet@'%'` (acepta conexión desde cualquier host, con acceso a producción) y
+  sin firewall real encima. Se renombró a `meganet@localhost` y se agregó
+  `/etc/mysql/conf.d/zz-bind-local.cnf` (`bind-address`/`mysqlx-bind-address` = `127.0.0.1`).
+  Verificado: escucha solo en `127.0.0.1`; la app principal sigue funcionando (los dos `/login`
+  responden 200, consulta la BD como `meganet@localhost`, 5,849 clientes, 0 errores de conexión,
+  0 jobs fallidos). Rollback: `rm /etc/mysql/conf.d/zz-bind-local.cnf && systemctl restart mysql`.
+
+- **Gotcha encontrado en el camino:** `/etc/mysql/my.cnf` NO incluye `mysql.conf.d/`, así que
+  `mysqld.cnf` (`innodb_redo_log_capacity`, timeouts de locks, etc.) nunca se ha leído en este
+  servidor — cualquier ajuste pensado para ese archivo necesita ir en `conf.d/` en su lugar.
+
+- **Limpieza:** borrados `acc8090.log` y los 4 scripts de verificación/cierre con sus salidas. En
+  `/home/meganet/backups-mapared/` solo quedan `pre-backfill`, `pre-importar` (permisos
+  restringidos) y la copia `mapas-y-mapared-…1328` con su `.sha256` — el volcado completo de 151 MB
+  ya se había borrado antes.
+
+- **Quién corrió el backfill:** preguntado directamente el 2026-10-12 (corrigiendo la suposición
+  de un compañero de equipo documentada arriba) — se reporta que Irving lo dio por trabajo suyo.
+  **Sigue sin existir comprobación escrita de primera mano** (es su respuesta relayada, no un
+  mensaje/commit suyo directo) — queda anotado así a propósito, sin inflar la certeza.
+
+- **Pendiente real que queda:** decidir si se activan los valores de `mysqld.cnf` ahora que se
+  sabe que nunca se leyeron; el servidor sigue sin firewall (`ufw` inactivo, `iptables INPUT` en
+  ACCEPT) — ya sin puertos de datos expuestos, pero 80/443/22 y VoIP siguen sin esa capa.

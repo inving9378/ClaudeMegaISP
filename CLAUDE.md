@@ -48,9 +48,16 @@ ninguna bitácora, commit ni registro de quién lo hizo. El dato en sí resultó
 tocó dinero ni autenticación, y `mapared_layers` —la fuente— quedó intacta), pero durante horas
 no hubo forma de distinguir "trabajo legítimo sin documentar" de "intrusión" — tuvo que
 reconstruirse todo a posteriori por evidencia de archivos y timestamps. **A Irving nunca se le
-preguntó directamente** — un compañero de equipo supuso que fue él, por eliminación, sin
-confirmación de primera mano; y la verificación técnica de intrusión (logs de root: `auth.log`,
-nginx, binlog) tampoco llegó a correrse. Sigue sin cerrarse de verdad. Detalle en
+había preguntado directamente** (un compañero de equipo había supuesto que fue él, por
+eliminación, sin confirmación de primera mano) — ya se le preguntó y se reporta que lo dio por
+suyo, aunque sigue sin existir un mensaje/commit directo de él que lo pruebe.
+
+En el camino de la investigación (auth.log/nginx/binlog con acceso root) se encontraron además
+**dos huecos reales de seguridad sin relación con el backfill**, ya corregidos: un vhost legacy
+(`megaisp-8090`, apuntando a OTRA base de producción, `meganet_prod`) quedó expuesto a internet
+~21 h, y MySQL escuchaba en todas las interfaces con un usuario que aceptaba conexión desde
+cualquier host. Ninguno de los dos tuvo explotación real (confirmado con los logs completos), pero
+ambos se cerraron el mismo día. Detalle completo en
 `docs/bitacora/2026-10-11-mapared-backfill-prod.md`.
 
 ---
