@@ -51,13 +51,62 @@ class WhatsAppInstanceController extends Controller
 
         $instance = WhatsAppInstance::create($data);
 
+        // #9991240 — la línea se guarda aunque Evolution falle (una línea que va a usar Meta no
+        // necesita Evolution, y «Conectar / Ver QR» la vuelve a crear on-demand), pero la UI se
+        // entera: antes respondía 201 sin más y el problema aparecía después, al pedir el QR.
+        $evolution = $this->crearEnEvolution($instance);
+
+        return response()->json(array_merge($instance->toArray(), ['evolution' => $evolution]), 201);
+    }
+
+    /** GET /whatsapp/api/evolution/salud — #9991240: ¿Evolution está instalada y acepta la llave? */
+    public function evolutionHealth(Request $request): JsonResponse
+    {
+        return response()->json(app(EvolutionApiService::class)->salud($request->boolean('fresco')));
+    }
+
+    /**
+     * Crea la instancia en Evolution y traduce el resultado a {ok, mensaje} para la UI.
+     * createInstance() solo lanza si no logra conectar; si Evolution contesta con error lo
+     * devuelve en el cuerpo (`error`), mismo criterio que ensureInstanceExists().
+     */
+    private function crearEnEvolution(WhatsAppInstance $instance): array
+    {
+        $service = app(EvolutionApiService::class);
+
         try {
-            app(EvolutionApiService::class)->createInstance($instance);
+            $respuesta = $service->createInstance($instance);
         } catch (\Throwable $e) {
             Log::warning('No se pudo crear instancia en Evolution API', ['error' => $e->getMessage()]);
+            $service->salud(true); // refresca el banner de salud con el dato nuevo
+
+            return [
+                'ok'      => false,
+                'mensaje' => 'La línea se guardó, pero Evolution API no está instalada o no responde en este '
+                    . 'servidor, así que todavía no se puede conectar por QR. Cuando Evolution esté '
+                    . 'funcionando, «Conectar / Ver QR» la crea sola.',
+                'detalle' => $e->getMessage(),
+            ];
         }
 
-        return response()->json($instance, 201);
+        if (empty($respuesta['error'])) {
+            return ['ok' => true];
+        }
+
+        // "already in use": ya existía en Evolution con ese nombre — para nosotros está bien.
+        $texto = json_encode($respuesta['response']['message'] ?? $respuesta['error'], JSON_UNESCAPED_UNICODE);
+        if (str_contains((string) $texto, 'already in use')) {
+            return ['ok' => true];
+        }
+
+        Log::warning('Evolution API rechazó crear la instancia', ['instance' => $instance->slug, 'respuesta' => $respuesta]);
+
+        return [
+            'ok'      => false,
+            'mensaje' => 'La línea se guardó, pero Evolution API rechazó crearla. Revisa que la llave de '
+                . 'Evolution del servidor sea la correcta; «Conectar / Ver QR» lo vuelve a intentar.',
+            'detalle' => mb_substr((string) $texto, 0, 300),
+        ];
     }
 
     /** GET /whatsapp/api/instances/{id}/qr */

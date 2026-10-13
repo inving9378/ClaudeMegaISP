@@ -64,6 +64,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/technicians', [WhatsAppPanelController::class, 'technicians']);
 
             // Instancias
+            Route::get('/evolution/salud',           [WhatsAppInstanceController::class, 'evolutionHealth']); // #9991240
             Route::get('/instances/functions-catalog', [WhatsAppInstanceController::class, 'functionsCatalog']); // Fase 3 (antes de {id})
             Route::get('/instances',                [WhatsAppInstanceController::class, 'index']);
             Route::post('/instances',               [WhatsAppInstanceController::class, 'store']);
