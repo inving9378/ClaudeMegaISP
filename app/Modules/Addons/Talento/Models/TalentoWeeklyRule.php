@@ -9,13 +9,14 @@ class TalentoWeeklyRule extends BaseModel
     protected $table = 'talento_weekly_rules';
 
     protected $fillable = [
-        'name', 'roles', 'metric_type', 'min_prospects', 'min_sales',
+        'name', 'roles', 'metric_type', 'max_loss_db', 'min_prospects', 'min_sales',
         'penalty_type_id', 'bonus_prospects_threshold', 'bonus_sales_threshold',
         'bonus_amount', 'active',
     ];
 
     protected $casts = [
         'roles'        => 'array',
+        'max_loss_db'  => 'decimal:2',
         'bonus_amount' => 'decimal:2',
         'active'       => 'boolean',
     ];

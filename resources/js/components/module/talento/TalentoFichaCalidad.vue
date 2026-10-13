@@ -79,28 +79,31 @@
       <div v-else class="card-body text-center text-muted small">Sin trabajos recientes en este período.</div>
     </div>
 
-    <!-- Regla de desempeño semanal (comisiones + penalizaciones, 2026-10-10) -->
-    <div class="card border-0 shadow-sm">
-      <div class="card-header bg-white fw-semibold small">Regla de desempeño semanal</div>
-      <div class="card-body">
-        <template v-if="data.regla_desempeno && data.regla_desempeno.tiene_evaluacion">
+    <!-- Regla(s) de desempeño semanal (comisiones + penalizaciones, 2026-10-10;
+         desde 2026-10-13 puede haber una de cantidad Y una de calidad de señal
+         a la vez — ejes independientes, cada una con su propia tarjeta). -->
+    <template v-if="data.regla_desempeno && data.regla_desempeno.tiene_evaluacion">
+      <div class="card border-0 shadow-sm mb-3" v-for="(r, ri) in data.regla_desempeno.reglas" :key="'rd-' + ri">
+        <div class="card-header bg-white fw-semibold small">{{ reglaMetricLabel(r.metric_type) }}</div>
+        <div class="card-body">
           <div class="small text-muted mb-2">
-            {{ data.regla_desempeno.regla_nombre || 'Regla sin nombre' }}
-            · semana {{ data.regla_desempeno.week_start }} – {{ data.regla_desempeno.week_end }}
+            {{ r.regla_nombre || 'Regla sin nombre' }}
+            · semana {{ r.week_start }} – {{ r.week_end }}
           </div>
-          <span class="badge" :class="reglaBadgeClass">{{ reglaOutcomeLabel }}</span>
-          <div class="small text-muted mt-2">
-            Completados: {{ data.regla_desempeno.sales_count }}
+          <span class="badge" :class="reglaBadgeClass(r.outcome)">{{ reglaOutcomeLabel(r.outcome) }}</span>
+          <div class="small text-muted mt-2">{{ reglaUnidadesLabel(r) }}</div>
+          <div v-if="r.bonus_amount_applied" class="small text-success mt-1">
+            Bono aplicado: ${{ r.bonus_amount_applied }}
           </div>
-          <div v-if="data.regla_desempeno.bonus_amount_applied" class="small text-success mt-1">
-            Bono aplicado: ${{ data.regla_desempeno.bonus_amount_applied }}
+          <div v-if="r.penalty_amount" class="small text-danger mt-1">
+            Penalización: ${{ r.penalty_amount }}
           </div>
-          <div v-if="data.regla_desempeno.penalty_amount" class="small text-danger mt-1">
-            Penalización: ${{ data.regla_desempeno.penalty_amount }}
-          </div>
-        </template>
-        <div v-else class="text-center text-muted small">Sin reglas definidas todavía.</div>
+        </div>
       </div>
+    </template>
+    <div v-else class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-semibold small">Regla de desempeño semanal</div>
+      <div class="card-body text-center text-muted small">Sin reglas definidas todavía.</div>
     </div>
   </div>
 </template>
@@ -131,24 +134,6 @@ export default {
     hasSerieData() {
       return Array.isArray(this.data?.serie?.categories) && this.data.serie.categories.length > 0;
     },
-    reglaOutcomeLabel() {
-      const labels = {
-        no_rule: "Sin regla asignada",
-        penalty_pending: "Penalización pendiente",
-        bonus: "Bono ganado",
-        meets_quota: "Cumple la cuota",
-      };
-      return labels[this.data?.regla_desempeno?.outcome] || this.data?.regla_desempeno?.outcome || "—";
-    },
-    reglaBadgeClass() {
-      const classes = {
-        no_rule: "bg-secondary",
-        penalty_pending: "bg-danger",
-        bonus: "bg-success",
-        meets_quota: "bg-primary",
-      };
-      return classes[this.data?.regla_desempeno?.outcome] || "bg-secondary";
-    },
   },
   mounted() {
     this.load();
@@ -164,6 +149,36 @@ export default {
     },
   },
   methods: {
+    reglaOutcomeLabel(outcome) {
+      const labels = {
+        no_rule: "Sin regla asignada",
+        penalty_pending: "Penalización pendiente",
+        bonus: "Bono ganado",
+        meets_quota: "Cumple la cuota",
+        sin_datos: "Sin datos esta semana",
+      };
+      return labels[outcome] || outcome || "—";
+    },
+    reglaBadgeClass(outcome) {
+      const classes = {
+        no_rule: "bg-secondary",
+        penalty_pending: "bg-danger",
+        bonus: "bg-success",
+        meets_quota: "bg-primary",
+        sin_datos: "bg-secondary",
+      };
+      return classes[outcome] || "bg-secondary";
+    },
+    reglaMetricLabel(metricType) {
+      return {
+        tecnico: "Regla de desempeño — cantidad",
+        calidad_senal: "Regla de desempeño — calidad de señal",
+      }[metricType] || "Regla de desempeño semanal";
+    },
+    reglaUnidadesLabel(r) {
+      if (r.metric_type === "calidad_senal") return `Instalaciones fuera de rango: ${r.sales_count}`;
+      return `Completados: ${r.sales_count}`;
+    },
     cssVar(name, fallback) {
       const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
       return v || fallback;

@@ -22,44 +22,50 @@ class EvaluarReglasSemanalesCommand extends Command
         $week = PayWeek::lastCompleted();
         $this->info("Evaluando semana {$week['period_start']} a {$week['period_end']}…");
 
-        $headers = ['colaborador_id', 'Nombre', 'Prospectos', 'Ventas', 'Resultado'];
+        $headers = ['colaborador_id', 'Nombre', 'Métrica', 'Prospectos', 'Unidades', 'Resultado'];
         $rows = [];
-        $counts = ['penalty_pending' => 0, 'bonus' => 0, 'meets_quota' => 0, 'no_rule' => 0, 'ya_evaluado' => 0];
+        $counts = ['penalty_pending' => 0, 'bonus' => 0, 'meets_quota' => 0, 'no_rule' => 0, 'sin_datos' => 0, 'ya_evaluado' => 0];
 
         $colaboradores = TalentoColaborador::where('status', 'active')->with('user')->get();
 
         foreach ($colaboradores as $colaborador) {
-            $yaExistia = \App\Modules\Addons\Talento\Models\TalentoWeeklyRuleEvaluation::where('colaborador_id', $colaborador->id)
+            // Un colaborador puede ahora tener VARIAS evaluaciones la misma
+            // semana (una por metric_type con regla activa) — "ya existía"
+            // se checa por fila individual, no por colaborador completo.
+            $idsAntes = \App\Modules\Addons\Talento\Models\TalentoWeeklyRuleEvaluation::where('colaborador_id', $colaborador->id)
                 ->where('week_start', $week['period_start'])
-                ->exists();
+                ->pluck('id');
 
-            $eval = $this->service->evaluateColaborador($colaborador, $week);
-            if (!$eval) {
-                continue;
+            $evals = $this->service->evaluateColaborador($colaborador, $week);
+
+            foreach ($evals as $eval) {
+                $yaExistia = $idsAntes->contains($eval->id);
+
+                if ($yaExistia) {
+                    $counts['ya_evaluado']++;
+                } else {
+                    $counts[$eval->outcome] = ($counts[$eval->outcome] ?? 0) + 1;
+                }
+
+                $rows[] = [
+                    $colaborador->id,
+                    $colaborador->user->name ?? '—',
+                    $eval->rule?->metric_type ?? '—',
+                    $eval->prospects_count,
+                    $eval->sales_count,
+                    $yaExistia ? 'ya evaluado antes' : $eval->outcome,
+                ];
             }
-
-            if ($yaExistia) {
-                $counts['ya_evaluado']++;
-            } else {
-                $counts[$eval->outcome] = ($counts[$eval->outcome] ?? 0) + 1;
-            }
-
-            $rows[] = [
-                $colaborador->id,
-                $colaborador->user->name ?? '—',
-                $eval->prospects_count,
-                $eval->sales_count,
-                $yaExistia ? 'ya evaluado antes' : $eval->outcome,
-            ];
         }
 
         $this->table($headers, $rows);
         $this->info(sprintf(
-            'Pendientes de confirmar: %d | Bonos: %d | Cumplen cuota: %d | Sin regla: %d | Ya evaluados antes: %d',
+            'Pendientes de confirmar: %d | Bonos: %d | Cumplen cuota: %d | Sin regla: %d | Sin datos: %d | Ya evaluados antes: %d',
             $counts['penalty_pending'],
             $counts['bonus'],
             $counts['meets_quota'],
             $counts['no_rule'],
+            $counts['sin_datos'],
             $counts['ya_evaluado']
         ));
 

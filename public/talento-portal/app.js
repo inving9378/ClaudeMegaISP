@@ -733,10 +733,29 @@
                     penalty_pending: 'Penalización pendiente',
                     bonus: 'Bono ganado',
                     meets_quota: 'Cumple la cuota',
+                    sin_datos: 'Sin datos esta semana',
                 }[outcome] || outcome || '—';
             }
             function reglaDesempenoColor(outcome) {
-                return { no_rule: 'grey-7', penalty_pending: 'negative', bonus: 'positive', meets_quota: 'primary' }[outcome] || 'grey-7';
+                return { no_rule: 'grey-7', penalty_pending: 'negative', bonus: 'positive', meets_quota: 'primary', sin_datos: 'grey-6' }[outcome] || 'grey-7';
+            }
+            // Fase de calidad (2026-10-13) — ahora puede haber más de una regla
+            // (una de cantidad y una de calidad) mostrándose a la vez; cada
+            // tarjeta necesita su propio título y su propia unidad.
+            function reglaMetricLabel(metricType) {
+                return {
+                    tecnico: 'Regla de desempeño — cantidad',
+                    calidad_senal: 'Regla de desempeño — calidad de señal',
+                    mostrador: 'Regla de desempeño semanal',
+                    ventas: 'Regla de desempeño semanal',
+                }[metricType] || 'Regla de desempeño semanal';
+            }
+            function reglaUnidadesLabel(r) {
+                if (r.metric_type === 'ventas') return `Prospectos: ${r.prospects_count} · Ventas: ${r.sales_count}`;
+                if (r.metric_type === 'tecnico') return `Completados: ${r.sales_count}`;
+                if (r.metric_type === 'mostrador') return `Pagos capturados: ${r.sales_count}`;
+                if (r.metric_type === 'calidad_senal') return `Instalaciones fuera de rango: ${r.sales_count}`;
+                return `Unidades: ${r.sales_count}`;
             }
 
             // ── "Mi progreso" del Mostrador (Fase 3 del dashboard por rol) — reusa pagos/tickets
@@ -914,7 +933,7 @@
                 resumenCustodia, enCustodiaPorCategoria, materialTab, materialEstadoTab, estadosMaterial,
                 calidad, cargandoCalidad, cargarCalidad,
                 misVentas, cargandoMisVentas, cargarMisVentas, totalVentasPeriodo, totalProspectosPeriodo, pct1,
-                reglaDesempenoLabel, reglaDesempenoColor,
+                reglaDesempenoLabel, reglaDesempenoColor, reglaMetricLabel, reglaUnidadesLabel,
                 progresoMostrador, cargandoProgresoMostrador, cargarProgresoMostrador, prioridadLabel,
                 equipoProgreso, cargandoEquipoProgreso, cargarEquipoProgreso, trackInfo,
                 prospectos, cargandoProspectos, cargarProspectos, nombreProspecto, statusColor,
@@ -1506,22 +1525,26 @@
                                 </div>
                             </div>
 
-                            <q-card flat bordered class="tp-card q-mb-md">
+                            <q-card flat bordered class="tp-card q-mb-md" v-if="calidad.regla_desempeno && calidad.regla_desempeno.tiene_evaluacion"
+                                    v-for="(r, ri) in calidad.regla_desempeno.reglas" :key="'rd-cal-'+ri">
+                                <q-card-section class="q-pa-sm">
+                                    <div class="text-subtitle2 text-grey-8 q-mb-sm">{{ reglaMetricLabel(r.metric_type) }}</div>
+                                    <div class="text-caption text-grey-7 q-mb-xs">
+                                        {{ r.regla_nombre || 'Regla sin nombre' }}
+                                        · semana {{ r.week_start }} – {{ r.week_end }}
+                                    </div>
+                                    <q-badge :color="reglaDesempenoColor(r.outcome)">
+                                        {{ reglaDesempenoLabel(r.outcome) }}
+                                    </q-badge>
+                                    <div class="text-caption text-grey-7 q-mt-sm">
+                                        {{ reglaUnidadesLabel(r) }}
+                                    </div>
+                                </q-card-section>
+                            </q-card>
+                            <q-card flat bordered class="tp-card q-mb-md" v-if="!calidad.regla_desempeno || !calidad.regla_desempeno.tiene_evaluacion">
                                 <q-card-section class="q-pa-sm">
                                     <div class="text-subtitle2 text-grey-8 q-mb-sm">Regla de desempeño semanal</div>
-                                    <template v-if="calidad.regla_desempeno && calidad.regla_desempeno.tiene_evaluacion">
-                                        <div class="text-caption text-grey-7 q-mb-xs">
-                                            {{ calidad.regla_desempeno.regla_nombre || 'Regla sin nombre' }}
-                                            · semana {{ calidad.regla_desempeno.week_start }} – {{ calidad.regla_desempeno.week_end }}
-                                        </div>
-                                        <q-badge :color="reglaDesempenoColor(calidad.regla_desempeno.outcome)">
-                                            {{ reglaDesempenoLabel(calidad.regla_desempeno.outcome) }}
-                                        </q-badge>
-                                        <div class="text-caption text-grey-7 q-mt-sm">
-                                            Completados: {{ calidad.regla_desempeno.sales_count }}
-                                        </div>
-                                    </template>
-                                    <div v-else class="text-caption text-grey-6 text-center">Sin reglas definidas todavía.</div>
+                                    <div class="text-caption text-grey-6 text-center">Sin reglas definidas todavía.</div>
                                 </q-card-section>
                             </q-card>
 
@@ -1620,25 +1643,28 @@
                                 </q-card-section>
                             </q-card>
 
-                            <q-card flat bordered class="tp-card q-mb-md">
+                            <q-card flat bordered class="tp-card q-mb-md" v-if="misVentas.regla_desempeno && misVentas.regla_desempeno.tiene_evaluacion"
+                                    v-for="(r, ri) in misVentas.regla_desempeno.reglas" :key="'rd-vta-'+ri">
                                 <q-card-section class="q-pa-sm">
-                                    <div class="text-subtitle2 text-grey-8 q-mb-sm">Regla de desempeño semanal</div>
-                                    <template v-if="misVentas.regla_desempeno && misVentas.regla_desempeno.tiene_evaluacion">
-                                        <div class="text-caption text-grey-7 q-mb-xs">
-                                            {{ misVentas.regla_desempeno.regla_nombre || 'Regla sin nombre' }}
-                                            · semana {{ misVentas.regla_desempeno.week_start }} – {{ misVentas.regla_desempeno.week_end }}
-                                        </div>
-                                        <q-badge :color="reglaDesempenoColor(misVentas.regla_desempeno.outcome)">
-                                            {{ reglaDesempenoLabel(misVentas.regla_desempeno.outcome) }}
-                                        </q-badge>
-                                        <div class="text-caption text-grey-7 q-mt-sm">
-                                            Prospectos: {{ misVentas.regla_desempeno.prospects_count }} · Ventas: {{ misVentas.regla_desempeno.sales_count }}
-                                        </div>
-                                    </template>
-                                    <div v-else class="text-caption text-grey-6 text-center">Sin reglas definidas todavía.</div>
+                                    <div class="text-subtitle2 text-grey-8 q-mb-sm">{{ reglaMetricLabel(r.metric_type) }}</div>
+                                    <div class="text-caption text-grey-7 q-mb-xs">
+                                        {{ r.regla_nombre || 'Regla sin nombre' }}
+                                        · semana {{ r.week_start }} – {{ r.week_end }}
+                                    </div>
+                                    <q-badge :color="reglaDesempenoColor(r.outcome)">
+                                        {{ reglaDesempenoLabel(r.outcome) }}
+                                    </q-badge>
+                                    <div class="text-caption text-grey-7 q-mt-sm">
+                                        {{ reglaUnidadesLabel(r) }}
+                                    </div>
                                 </q-card-section>
                             </q-card>
-
+                            <q-card flat bordered class="tp-card q-mb-md" v-if="!misVentas.regla_desempeno || !misVentas.regla_desempeno.tiene_evaluacion">
+                                <q-card-section class="q-pa-sm">
+                                    <div class="text-subtitle2 text-grey-8 q-mb-sm">Regla de desempeño semanal</div>
+                                    <div class="text-caption text-grey-6 text-center">Sin reglas definidas todavía.</div>
+                                </q-card-section>
+                            </q-card>
                             <q-card flat bordered class="tp-card q-mb-md">
                                 <q-card-section class="q-pa-sm">
                                     <div class="text-subtitle2 text-grey-8 q-mb-sm">Ventas y prospectos por fecha</div>
@@ -1731,22 +1757,26 @@
                                 </div>
                             </div>
 
-                            <q-card flat bordered class="tp-card q-mb-md">
+                            <q-card flat bordered class="tp-card q-mb-md" v-if="progresoMostrador.regla_desempeno && progresoMostrador.regla_desempeno.tiene_evaluacion"
+                                    v-for="(r, ri) in progresoMostrador.regla_desempeno.reglas" :key="'rd-most-'+ri">
+                                <q-card-section class="q-pa-sm">
+                                    <div class="text-subtitle2 text-grey-8 q-mb-sm">{{ reglaMetricLabel(r.metric_type) }}</div>
+                                    <div class="text-caption text-grey-7 q-mb-xs">
+                                        {{ r.regla_nombre || 'Regla sin nombre' }}
+                                        · semana {{ r.week_start }} – {{ r.week_end }}
+                                    </div>
+                                    <q-badge :color="reglaDesempenoColor(r.outcome)">
+                                        {{ reglaDesempenoLabel(r.outcome) }}
+                                    </q-badge>
+                                    <div class="text-caption text-grey-7 q-mt-sm">
+                                        {{ reglaUnidadesLabel(r) }}
+                                    </div>
+                                </q-card-section>
+                            </q-card>
+                            <q-card flat bordered class="tp-card q-mb-md" v-if="!progresoMostrador.regla_desempeno || !progresoMostrador.regla_desempeno.tiene_evaluacion">
                                 <q-card-section class="q-pa-sm">
                                     <div class="text-subtitle2 text-grey-8 q-mb-sm">Regla de desempeño semanal</div>
-                                    <template v-if="progresoMostrador.regla_desempeno && progresoMostrador.regla_desempeno.tiene_evaluacion">
-                                        <div class="text-caption text-grey-7 q-mb-xs">
-                                            {{ progresoMostrador.regla_desempeno.regla_nombre || 'Regla sin nombre' }}
-                                            · semana {{ progresoMostrador.regla_desempeno.week_start }} – {{ progresoMostrador.regla_desempeno.week_end }}
-                                        </div>
-                                        <q-badge :color="reglaDesempenoColor(progresoMostrador.regla_desempeno.outcome)">
-                                            {{ reglaDesempenoLabel(progresoMostrador.regla_desempeno.outcome) }}
-                                        </q-badge>
-                                        <div class="text-caption text-grey-7 q-mt-sm">
-                                            Pagos capturados: {{ progresoMostrador.regla_desempeno.sales_count }}
-                                        </div>
-                                    </template>
-                                    <div v-else class="text-caption text-grey-6 text-center">Sin reglas definidas todavía.</div>
+                                    <div class="text-caption text-grey-6 text-center">Sin reglas definidas todavía.</div>
                                 </q-card-section>
                             </q-card>
 
