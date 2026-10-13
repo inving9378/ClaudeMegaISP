@@ -6,15 +6,15 @@
         </div>
 
         <div class="wim-header">
-            <h3><i class="bi bi-whatsapp"></i> Instancias WhatsApp</h3>
+            <h3><i class="bi bi-whatsapp"></i> Líneas WhatsApp</h3>
             <button class="wim-btn primary" @click="openCreate">
-                <i class="bi bi-plus-lg"></i> Nueva instancia
+                <i class="bi bi-plus-lg"></i> Nueva línea
             </button>
         </div>
 
         <div v-if="loading" class="wim-empty">Cargando…</div>
         <div v-else-if="!instances.length" class="wim-empty">
-            No hay instancias configuradas. Crea la primera para parear un número WhatsApp.
+            No hay líneas configuradas. Crea la primera para parear un número de WhatsApp.
         </div>
 
         <div v-else class="wim-grid">
@@ -30,28 +30,36 @@
                     En uso — producción · ventas · bot · conciliación
                 </div>
                 <div class="wim-card-body">
-                    <div><span>Slug:</span> <code>{{ ins.slug }}</code></div>
-                    <div><span>Instance ID:</span> <code>{{ ins.instance_id }}</code></div>
-                    <div><span>Número:</span> {{ ins.phone_number || '—' }}</div>
+                    <dl class="wim-kv">
+                        <dt>Slug</dt>
+                        <dd><code>{{ ins.slug }}</code></dd>
+                        <dt>Instance ID</dt>
+                        <dd><code>{{ ins.instance_id }}</code></dd>
+                        <dt>Número</dt>
+                        <dd>{{ ins.phone_number || '—' }}</dd>
+                        <dt>Proveedor</dt>
+                        <dd>
+                            <select
+                                class="wim-provider-select"
+                                :value="ins.provider || 'evolution'"
+                                @change="changeProvider(ins, $event.target.value)"
+                                :disabled="providerBusy === ins.id"
+                            >
+                                <option value="evolution">Evolution API</option>
+                                <option value="meta">WhatsApp oficial (Meta)</option>
+                            </select>
+                        </dd>
+                    </dl>
                     <div v-if="ins.default_instance" class="wim-default-badge">
-                        <i class="bi bi-star-fill"></i> Default
+                        <i class="bi bi-star-fill"></i> Línea por defecto
                     </div>
-                    <div class="wim-provider-row">
-                        <span>Proveedor:</span>
-                        <select
-                            :value="ins.provider || 'evolution'"
-                            @change="changeProvider(ins, $event.target.value)"
-                            :disabled="providerBusy === ins.id"
-                        >
-                            <option value="evolution">Evolution API</option>
-                            <option value="meta">WhatsApp oficial (Meta)</option>
-                        </select>
-                        <small v-if="(ins.provider || 'evolution') === 'meta'" class="wim-provider-hint">
-                            Credenciales en <a href="/integraciones" target="_blank">Integraciones</a> (proveedor "whatsapp-oficial").
-                            Los mensajes entran y salen por Meta; si conectas el QR de Evolution es <b>solo para ver</b>
-                            (lo que llega por ahí no lo atiende el agente).
-                        </small>
-                    </div>
+                    <p v-if="(ins.provider || 'evolution') === 'meta'" class="wim-provider-hint">
+                        <i class="bi bi-info-circle"></i>
+                        <span>
+                            Entra y sale por Meta; credenciales en <a href="/integraciones" target="_blank">Integraciones</a>.
+                            El QR de Evolution aquí es <b>solo de consulta</b>.
+                        </span>
+                    </p>
                 </div>
 
                 <div v-if="catalog.length" class="wim-functions">
@@ -95,10 +103,11 @@
                         <i class="bi bi-power"></i> Desconectar
                     </button>
                     <button
-                        class="wim-btn"
+                        class="wim-btn wim-btn-icon"
                         :class="isProduction(ins) ? 'muted' : 'danger'"
                         @click="remove(ins)"
-                        :title="isProduction(ins) ? 'Instancia de producción — eliminar con precaución' : 'Eliminar instancia'"
+                        :title="isProduction(ins) ? 'Línea de producción — eliminar con precaución' : 'Eliminar línea'"
+                        :aria-label="isProduction(ins) ? 'Eliminar línea de producción' : 'Eliminar línea'"
                     >
                         <i class="bi bi-trash"></i>
                     </button>
@@ -106,10 +115,10 @@
             </div>
         </div>
 
-        <!-- Modal crear instancia -->
+        <!-- Modal crear línea -->
         <div v-if="showCreate" class="wim-modal-backdrop" @click.self="showCreate = false">
             <div class="wim-modal">
-                <h4>Nueva instancia WhatsApp</h4>
+                <h4>Nueva línea WhatsApp</h4>
                 <div class="wim-form">
                     <label>Nombre <input v-model="form.name" @input="autoSlug" placeholder="Ventas, Soporte..." /></label>
                     <label>Slug (URL) <input v-model="form.slug" placeholder="ventas-mx" /></label>
@@ -117,7 +126,7 @@
                     <label>Número WhatsApp (display) <input v-model="form.phone_number" placeholder="+52 55 1234 5678" /></label>
                     <label class="wim-checkbox">
                         <input type="checkbox" v-model="form.default_instance" />
-                        Marcar como instancia por defecto
+                        Marcar como línea por defecto
                     </label>
                 </div>
                 <div v-if="formError" class="wim-error">{{ formError }}</div>
@@ -548,7 +557,7 @@ export default {
             } catch (e) {
                 this.formError = e.response?.data?.message
                     || Object.values(e.response?.data?.errors || {}).flat().join(', ')
-                    || 'Error al crear la instancia';
+                    || 'Error al crear la línea';
             } finally {
                 this.saving = false;
             }
@@ -583,7 +592,7 @@ export default {
             }
             const msg = this.isProduction(ins)
                 ? `⚠️ Esto afecta el WhatsApp que usan conciliación y el bot.\n\n"${ins.name}" es el número de PRODUCCIÓN. Eliminarlo del panel quita su registro (no toca Evolution, pero perderías su seguimiento aquí).\n\n¿Seguro que quieres continuar?`
-                : `¿Eliminar la instancia "${ins.name}"?`;
+                : `¿Eliminar la línea "${ins.name}"?`;
             if (!confirm(msg)) return;
             await this.proceedDelete(ins);
         },
@@ -705,24 +714,36 @@ export default {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 10px;
 }
 .wim-header h3 { margin: 0; color: var(--wim-brand); }
+/* min(100%, …): en pantallas angostas la columna nunca pide más ancho que el contenedor. */
 .wim-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
     gap: 14px;
+    align-items: stretch;
 }
+/* min-width:0 deja que la tarjeta se encoja a su columna en vez de estirarla con su contenido;
+   el flex en columna manda las acciones al pie aunque las tarjetas tengan alturas distintas. */
 .wim-card {
     background: var(--bg-surface);
     border: 1px solid var(--border-default);
     border-radius: 8px;
     padding: 14px;
     box-shadow: var(--shadow-card);
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
 }
 .wim-card-head {
     display: flex; justify-content: space-between; align-items: center;
+    gap: 10px;
     margin-bottom: 10px;
 }
+.wim-card-head strong { min-width: 0; overflow-wrap: anywhere; }
+.wim-card-head .wim-status { flex-shrink: 0; }
 .wim-status {
     padding: 3px 10px;
     border-radius: 12px;
@@ -749,40 +770,52 @@ export default {
     font-size: 13px;
     color: var(--text-secondary);
 }
-.wim-card-body div { margin-bottom: 4px; }
-.wim-card-body span { color: var(--text-secondary); margin-right: 6px; }
+.wim-kv {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 6px 12px;
+    align-items: center;
+    margin: 0;
+}
+.wim-kv dt { font-weight: 500; color: var(--text-secondary); }
+.wim-kv dd { margin: 0; min-width: 0; color: var(--text-primary); }
+/* Los ids largos se parten en vez de ensanchar la tarjeta. */
 .wim-card-body code {
     background: var(--bg-primary);
     padding: 1px 5px;
     border-radius: 3px;
     font-size: 12px;
     color: var(--success);
+    overflow-wrap: anywhere;
 }
 .wim-default-badge {
     color: var(--warning);
-    margin-top: 4px;
+    margin-top: 8px;
     font-size: 12px;
 }
-.wim-provider-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-    margin-top: 6px;
-}
-.wim-provider-row select {
+.wim-provider-select {
+    max-width: 100%;
     font-size: 12.5px;
     padding: 3px 6px;
     border-radius: 4px;
-    border: 1px solid var(--border-color, #ccc);
+    border: 1px solid var(--border-default);
     background: var(--bg-primary);
     color: var(--text-primary);
 }
 .wim-provider-hint {
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+    margin: 10px 0 0;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: var(--bg-hover);
     color: var(--text-secondary);
-    font-size: 11px;
-    width: 100%;
+    font-size: 11.5px;
+    line-height: 1.4;
 }
+.wim-provider-hint .bi { flex-shrink: 0; margin-top: 1px; }
+.wim-provider-hint a { color: var(--info); }
 .wim-prod-badge {
     display: flex; align-items: center; gap: 8px;
     background: var(--warning); color: #1f2937;
@@ -791,9 +824,18 @@ export default {
     margin-bottom: 10px;
     border: 1px solid rgba(0, 0, 0, 0.18);
 }
+/* margin-top:auto la empuja al pie de la tarjeta; el margin-bottom del contenido de arriba
+   garantiza aire aunque esta sea la tarjeta más alta de la fila. */
+.wim-card-body,
+.wim-functions { margin-bottom: 12px; }
 .wim-card-actions {
-    display: flex; gap: 6px; margin-top: 12px;
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-default);
 }
+/* Eliminar va solo al extremo derecho para no quedar pegado a las acciones de uso diario. */
+.wim-card-actions .wim-btn-icon { margin-left: auto; }
 .wim-btn {
     background: var(--bg-hover);
     color: var(--text-primary);
@@ -803,7 +845,9 @@ export default {
     font-size: 13px;
     cursor: pointer;
     display: inline-flex; align-items: center; gap: 6px;
+    white-space: nowrap;
 }
+.wim-btn-icon { padding: 7px 10px; }
 .wim-btn.primary { background: var(--wim-brand); color: #06251a; border-color: var(--wim-brand); font-weight: 600; }
 .wim-btn.danger { background: var(--bg-hover); color: var(--danger); border-color: var(--danger); }
 .wim-btn.muted { background: var(--bg-secondary); color: var(--text-secondary); border-color: var(--border-default); opacity: .6; }
@@ -812,7 +856,7 @@ export default {
 
 /* Funciones por línea (Fase 3) */
 .wim-functions {
-    margin-top: 10px; padding-top: 10px;
+    padding-top: 10px;
     border-top: 1px dashed var(--border-default);
 }
 .wim-functions-title {

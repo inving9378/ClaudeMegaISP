@@ -24,7 +24,7 @@
             "url": "/whatsapp",
             "children": [
                 { "label": "Conversaciones", "url": "/whatsapp",           "permission": "whatsapp_view_conversations" },
-                { "label": "Instancias",     "url": "/whatsapp/instances", "permission": "whatsapp_manage_instances" }
+                { "label": "Líneas",         "url": "/whatsapp/instances", "permission": "whatsapp_manage_instances" }
             ]
         }
     ],
