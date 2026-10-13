@@ -2,10 +2,12 @@
 
 namespace App\Modules\Addons\Talento\Services;
 
+use App\Models\Payment;
 use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoWeeklyRule;
 use App\Modules\Addons\Talento\Models\TalentoWeeklyRuleEvaluation;
+use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
 use App\Services\CalculateBalanceSellerService;
 
 /**
@@ -51,8 +53,7 @@ class TalentoWeeklyRuleEvaluationService
         $roleNames = $user->getRoleNames()->diff(self::SYSTEM_ROLES)->values()->all();
         $rule = $this->resolveRule($roleNames);
 
-        $prospects = $this->balanceService->getProspects($user, $week['period_start'], $week['period_end']);
-        $sales = $this->balanceService->getSales($user, $week['period_start'], $week['period_end'])->count();
+        [$prospects, $sales] = $this->medirUnidades($rule?->metric_type ?? 'ventas', $user, $colaborador, $week);
 
         $base = [
             'colaborador_id'   => $colaborador->id,
@@ -93,6 +94,44 @@ class TalentoWeeklyRuleEvaluationService
         }
 
         return TalentoWeeklyRuleEvaluation::create($base + ['outcome' => 'meets_quota']);
+    }
+
+    /**
+     * "Unidades" de la semana según el metric_type de la regla que le
+     * corresponda al colaborador. Devuelve siempre [prospects, sales] para
+     * no tocar el resto de evaluateColaborador() (floor/ceiling/bono ya
+     * comparan solo esos dos números) — 'tecnico'/'mostrador' solo llenan
+     * el segundo (reusando la columna sales_count), dejando prospects en 0
+     * porque no aplica.
+     *
+     * 'tecnico' reusa EXACTO el mismo criterio que ya le muestra el propio
+     * colaborador en "Mi progreso" (DashboardService::calidadTecnico():
+     * status completed/validated, por created_at) — la regla de la fase 2
+     * nunca puede medir un número distinto al que la fase 1 ya le enseña,
+     * o el colaborador vería dos cifras divergentes del mismo trabajo.
+     * 'mostrador' reusa igual el criterio de DashboardService::
+     * progresoMostrador() (pagos con add_by = este usuario, por created_at).
+     */
+    private function medirUnidades(string $metricType, User $user, TalentoColaborador $colaborador, array $week): array
+    {
+        if ($metricType === 'tecnico') {
+            $completados = (int) TalentoWorkOrder::where('colaborador_id', $colaborador->id)
+                ->whereIn('status', ['completed', 'validated'])
+                ->whereBetween('created_at', [$week['period_start'], $week['period_end']])
+                ->count();
+            return [0, $completados];
+        }
+
+        if ($metricType === 'mostrador') {
+            $pagos = (int) Payment::where('add_by', $user->id)
+                ->whereBetween('created_at', [$week['period_start'], $week['period_end']])
+                ->count();
+            return [0, $pagos];
+        }
+
+        $prospects = $this->balanceService->getProspects($user, $week['period_start'], $week['period_end']);
+        $sales = $this->balanceService->getSales($user, $week['period_start'], $week['period_end'])->count();
+        return [$prospects, $sales];
     }
 
     /**

@@ -12,7 +12,10 @@ use Illuminate\Http\Request;
 
 /**
  * Reglas de desempeño semanal por combinación de roles (piso/techo de
- * prospectos+ventas por semana -> penalización sugerida / bono). Ver
+ * unidades por semana -> penalización sugerida / bono). `metric_type`
+ * decide qué cuenta como "unidades" (ventas/prospectos, completados de
+ * técnico, o pagos capturados de mostrador) — ver
+ * TalentoWeeklyRuleEvaluationService::medirUnidades(). Ver
  * TalentoWeeklyRuleEvaluationService para el motor de evaluación real
  * (corrido por el comando talento:evaluar-reglas-semanales, domingos).
  */
@@ -58,6 +61,7 @@ class TalentoReglaDesempenoController extends Controller
             'name'                      => 'required|string|max:150',
             'roles'                     => 'required|array|min:1',
             'roles.*'                   => 'string',
+            'metric_type'               => 'required|in:ventas,tecnico,mostrador',
             'min_prospects'             => 'nullable|integer|min:0',
             'min_sales'                 => 'nullable|integer|min:0',
             'penalty_type_id'           => 'nullable|integer|exists:talento_penalty_types,id',
