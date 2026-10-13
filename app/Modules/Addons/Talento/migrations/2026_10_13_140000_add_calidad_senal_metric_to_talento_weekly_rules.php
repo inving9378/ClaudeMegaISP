@@ -52,15 +52,19 @@ return new class extends Migration
         // con rule_id=NULL) -- aceptado a propósito, el propio servicio sigue
         // comprobando existencia en código antes de insertar (ver
         // TalentoWeeklyRuleEvaluationService::evaluateColaborador()).
+        // Orden importa: `colaborador_id` sostiene un FOREIGN KEY -> InnoDB
+        // exige SIEMPRE un índice que lo cubra; crear primero el nuevo (cubre
+        // colaborador_id igual que el viejo) antes de soltar el viejo, o el
+        // DROP INDEX truena con "needed in a foreign key constraint" (1553).
         $indexes = collect(DB::select('SHOW INDEX FROM talento_weekly_rule_evaluations'))->pluck('Key_name')->unique();
-        if ($indexes->contains('talento_weekly_rule_evaluations_colaborador_id_week_start_unique')) {
-            Schema::table('talento_weekly_rule_evaluations', function (Blueprint $table) {
-                $table->dropUnique('talento_weekly_rule_evaluations_colaborador_id_week_start_unique');
-            });
-        }
         if (! $indexes->contains('talento_weekly_rule_evaluations_colab_week_rule_unique')) {
             Schema::table('talento_weekly_rule_evaluations', function (Blueprint $table) {
                 $table->unique(['colaborador_id', 'week_start', 'rule_id'], 'talento_weekly_rule_evaluations_colab_week_rule_unique');
+            });
+        }
+        if ($indexes->contains('talento_weekly_rule_evaluations_colaborador_id_week_start_unique')) {
+            Schema::table('talento_weekly_rule_evaluations', function (Blueprint $table) {
+                $table->dropUnique('talento_weekly_rule_evaluations_colaborador_id_week_start_unique');
             });
         }
 
@@ -72,11 +76,13 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('talento_weekly_rule_evaluations', function (Blueprint $table) {
-            $table->dropUnique('talento_weekly_rule_evaluations_colab_week_rule_unique');
-        });
+        // Mismo orden invertido: crear primero el índice viejo (también cubre
+        // colaborador_id) antes de soltar el nuevo.
         Schema::table('talento_weekly_rule_evaluations', function (Blueprint $table) {
             $table->unique(['colaborador_id', 'week_start'], 'talento_weekly_rule_evaluations_colaborador_id_week_start_unique');
+        });
+        Schema::table('talento_weekly_rule_evaluations', function (Blueprint $table) {
+            $table->dropUnique('talento_weekly_rule_evaluations_colab_week_rule_unique');
         });
         DB::statement("ALTER TABLE talento_weekly_rule_evaluations MODIFY COLUMN outcome ENUM('penalty_pending','penalty_applied','bonus','meets_quota','no_rule') NOT NULL");
 
