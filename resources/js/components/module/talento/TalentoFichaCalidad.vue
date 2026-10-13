@@ -90,7 +90,7 @@
           </div>
           <span class="badge" :class="reglaBadgeClass">{{ reglaOutcomeLabel }}</span>
           <div class="small text-muted mt-2">
-            Prospectos: {{ data.regla_desempeno.prospects_count }} · Ventas: {{ data.regla_desempeno.sales_count }}
+            Completados: {{ data.regla_desempeno.sales_count }}
           </div>
           <div v-if="data.regla_desempeno.bonus_amount_applied" class="small text-success mt-1">
             Bono aplicado: ${{ data.regla_desempeno.bonus_amount_applied }}

@@ -39,7 +39,7 @@ use Illuminate\Support\Facades\Storage;
 class PortalTecnicoController extends Controller
 {
     /** Cache-busting de los assets estáticos del portal (subir al cambiar app.js/portal.css). */
-    private const ASSET_VER = '25';
+    private const ASSET_VER = '26';
 
     /** Shell del portal (SPA Quasar de una sola página con nav inferior). */
     public function index(Request $request)
@@ -704,6 +704,12 @@ JS;
             $data['mapa'] = $service->mapaTecnico($col->id);
         }
 
+        // Fase 3 (2026-10-13) — faltaba en técnico: el motor de reglas ya
+        // mide 'tecnico' (TalentoWeeklyRuleEvaluationService), pero nadie lo
+        // exponía aquí (solo misVentas() lo tenía). Mismo método genérico
+        // que ya usa vendedor, sin duplicar lógica.
+        $data['regla_desempeno'] = $service->reglaDesempeno($col->id);
+
         return response()->json($data);
     }
 
@@ -720,7 +726,13 @@ JS;
         if (! $col) return response()->json(['error' => 'Sin perfil de colaborador activo.'], 403);
 
         $dias = (int) ($request->query('dias', 30));
-        return response()->json($service->progresoMostrador(auth()->id(), $dias));
+        $data = $service->progresoMostrador(auth()->id(), $dias);
+
+        // Fase 3 (2026-10-13) — mismo hueco que técnico: el motor ya mide
+        // 'mostrador', faltaba exponerlo aquí.
+        $data['regla_desempeno'] = $service->reglaDesempeno($col->id);
+
+        return response()->json($data);
     }
 
     /**
