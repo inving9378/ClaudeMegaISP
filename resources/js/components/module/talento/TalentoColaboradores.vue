@@ -100,21 +100,27 @@
         </template>
         <template v-slot:body-cell-acciones="props">
           <q-td :props="props" class="text-end">
-            <button v-if="canManage" @click="openModal(props.row)" class="tc-btn tc-btn-info me-1" title="Editar">
-              <i class="fa fa-pen"></i>
-            </button>
-            <button @click="openDocumentos(props.row)" class="tc-btn tc-btn-seg me-1" title="Documentos">
-              <i class="fa fa-file-alt"></i>
-            </button>
-            <a :href="`/administracion/user/${props.row.user_id}/editar`"
-               class="tc-btn tc-btn-info" title="Gestión de acceso (Administradores)"
-               target="_blank">
-              <i class="fa fa-key"></i>
-            </a>
-            <button v-hasPermission="'talento.colaboradores.delete'"
-                    @click="confirmDelete(props.row)" class="tc-btn tc-btn-bad ms-1" title="Eliminar">
-              <i class="fa fa-trash-alt"></i>
-            </button>
+            <div class="tc-row-actions">
+              <button v-if="canManage" @click="openModal(props.row)" class="tc-rowbtn tc-rowbtn-info">
+                <i class="fa fa-pen"></i>
+                <q-tooltip anchor="top middle" self="bottom middle" :offset="[0, 6]">Editar</q-tooltip>
+              </button>
+              <button @click="openDocumentos(props.row)" class="tc-rowbtn tc-rowbtn-ghost">
+                <i class="fa fa-file-alt"></i>
+                <q-tooltip anchor="top middle" self="bottom middle" :offset="[0, 6]">Documentos</q-tooltip>
+              </button>
+              <a :href="`/administracion/user/${props.row.user_id}/editar`"
+                 class="tc-rowbtn tc-rowbtn-ghost" target="_blank">
+                <i class="fa fa-key"></i>
+                <q-tooltip anchor="top middle" self="bottom middle" :offset="[0, 6]">Gestión de acceso (Administradores)</q-tooltip>
+              </a>
+              <span v-hasPermission="'talento.colaboradores.delete'" class="tc-rowbtn-sep"></span>
+              <button v-hasPermission="'talento.colaboradores.delete'"
+                      @click="confirmDelete(props.row)" class="tc-rowbtn tc-rowbtn-bad">
+                <i class="fa fa-trash-alt"></i>
+                <q-tooltip anchor="top middle" self="bottom middle" :offset="[0, 6]">Eliminar</q-tooltip>
+              </button>
+            </div>
           </q-td>
         </template>
       </q-table>
@@ -698,3 +704,86 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* Acciones de la fila (lista de Colaboradores) — antes 4 botones idénticos en
+   azul sólido (Editar/Documentos/Gestión de acceso), sin jerarquía visual ni
+   separación de la acción destructiva. Reusa las variables del tema
+   compartido (--tc-info/--tc-bad/--tc-line/--tc-bg2, _torre-theme.scss) para
+   que el claro/oscuro se herede solo, sin tocar el archivo compartido. */
+.tc-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tc-rowbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform .12s ease, box-shadow .12s ease, background-color .12s ease, border-color .12s ease, color .12s ease;
+}
+.tc-rowbtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, .16);
+}
+.tc-rowbtn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* Editar — única acción sólida: es la principal de la fila. */
+.tc-rowbtn-info {
+  background: var(--tc-info);
+  border-color: var(--tc-info);
+  color: #fff;
+}
+.tc-rowbtn-info:hover {
+  filter: brightness(1.08);
+  color: #fff;
+}
+
+/* Documentos / Gestión de acceso — navegación secundaria: contorno, no
+   compiten visualmente con Editar ni entre sí. */
+.tc-rowbtn-ghost {
+  background: transparent;
+  border-color: var(--tc-line);
+  color: var(--tc-info);
+}
+.tc-rowbtn-ghost:hover {
+  background: var(--tc-bg2, #eef1f4);
+  border-color: var(--tc-info);
+}
+
+/* Separador antes de Eliminar — distancia deliberada de un clic accidental. */
+.tc-rowbtn-sep {
+  display: inline-block;
+  width: 1px;
+  height: 18px;
+  background: var(--tc-line);
+  margin: 0 2px;
+}
+
+/* Eliminar — contorno rojo en reposo, tinte rojo claro al pasar el mouse.
+   El ícono NO cambia de color aquí a propósito: `td .fa-trash-alt { color:
+   var(--tc-bad) !important; }` en _torre-theme.scss (convención global de
+   TODAS las tablas del sistema, "editar=ámbar/eliminar=rojo" por icono) ya
+   lo fija en rojo sin importar el color del botón — invertirlo a blanco de
+   fondo sólido lo dejaba invisible (rojo sobre rojo). Tinte de fondo en vez
+   de relleno sólido da la misma señal de "cuidado" sin pelearse con esa regla. */
+.tc-rowbtn-bad {
+  background: transparent;
+  border-color: var(--tc-bad);
+}
+.tc-rowbtn-bad:hover {
+  background: rgba(220, 38, 38, .14);
+  border-color: var(--tc-bad);
+}
+</style>
