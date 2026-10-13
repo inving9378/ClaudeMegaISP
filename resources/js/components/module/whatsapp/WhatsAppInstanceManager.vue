@@ -5,6 +5,22 @@
             Modo desarrollo — Evolution API simulada. El QR mostrado es un placeholder.
         </div>
 
+        <!-- #9991240: sin esto, que Evolution no exista en el servidor solo se notaba al pedir el QR. -->
+        <div v-if="mostrarAvisoSalud" class="wim-health" role="alert">
+            <i class="bi bi-exclamation-octagon-fill wim-health-icon"></i>
+            <div class="wim-health-text">
+                <strong>{{ saludTexto.titulo }}</strong>
+                <div>{{ saludTexto.explicacion }}</div>
+                <details class="wim-health-detail">
+                    <summary>Detalle técnico</summary>
+                    <code>{{ salud.url || 'sin URL' }}</code> — {{ salud.detalle }}
+                </details>
+            </div>
+            <button class="wim-btn" @click="loadSalud(true)" :disabled="saludCargando">
+                <i class="bi bi-arrow-clockwise" :class="{ 'wim-spin': saludCargando }"></i> Revisar de nuevo
+            </button>
+        </div>
+
         <div class="wim-header">
             <h3><i class="bi bi-whatsapp"></i> Líneas WhatsApp</h3>
             <button class="wim-btn primary" @click="openCreate">
@@ -296,6 +312,8 @@ export default {
             disconnectModal: null, // { ins, typed } — logout real (producción exige teclear nombre)
             disconnectError: '',
             funcToast: null,
+            salud: null,          // #9991240 — {ok, estado, url, detalle} de /whatsapp/api/evolution/salud
+            saludCargando: false,
             form: {
                 name: '',
                 slug: '',
@@ -317,6 +335,31 @@ export default {
     },
 
     computed: {
+        // Solo importa si alguna línea usa Evolution (o aún no hay líneas: la nueva nace en Evolution).
+        mostrarAvisoSalud() {
+            if (!this.salud || this.salud.ok) return false;
+            return !this.instances.length
+                || this.instances.some(i => (i.provider || 'evolution') === 'evolution');
+        },
+        saludTexto() {
+            return {
+                no_responde: {
+                    titulo: 'Evolution API no está instalada o no responde en este servidor',
+                    explicacion: 'Las líneas que usan Evolution no podrán mostrar el QR ni enviar o recibir mensajes hasta que se instale o se levante en el servidor.',
+                },
+                llave_rechazada: {
+                    titulo: 'Evolution API responde, pero rechaza la llave de acceso',
+                    explicacion: 'La llave de Evolution configurada en el servidor (WHATSAPP_API_KEY) no coincide con la de Evolution.',
+                },
+                sin_configurar: {
+                    titulo: 'Evolution API no está configurada en este servidor',
+                    explicacion: 'Falta la dirección de Evolution (WHATSAPP_API_URL) en la configuración del servidor.',
+                },
+            }[this.salud?.estado] || {
+                titulo: 'Evolution API respondió con un error',
+                explicacion: 'Las líneas que usan Evolution pueden fallar al conectar o al enviar mensajes.',
+            };
+        },
         // Mapa function_id -> [instance ids que la tienen], desde las funciones cargadas.
         ownership() {
             const map = {};
@@ -372,9 +415,20 @@ export default {
                 || Object.values(e.response?.data?.errors || {}).flat().join(', ')
                 || 'No se pudo completar la operación.';
         },
-        showFuncToast(msg, type) {
+        showFuncToast(msg, type, ms = 3800) {
             this.funcToast = { msg, type };
-            setTimeout(() => { this.funcToast = null; }, 3800);
+            setTimeout(() => { this.funcToast = null; }, ms);
+        },
+        async loadSalud(fresco = false) {
+            this.saludCargando = true;
+            try {
+                const { data } = await axios.get('/whatsapp/api/evolution/salud', { params: fresco ? { fresco: 1 } : {} });
+                this.salud = data;
+            } catch (e) {
+                this.salud = null; // si el chequeo mismo falla, no se inventa un diagnóstico
+            } finally {
+                this.saludCargando = false;
+            }
         },
         // Item: migración a la API oficial de Meta, configurable por línea.
         // Cambia SOLO el proveedor de esta línea -- no toca sus funciones
@@ -551,9 +605,13 @@ export default {
             this.formError = '';
             this.saving = true;
             try {
-                await axios.post('/whatsapp/api/instances', this.form);
+                const { data } = await axios.post('/whatsapp/api/instances', this.form);
                 this.showCreate = false;
                 await this.load();
+                if (data?.evolution && !data.evolution.ok) {
+                    this.showFuncToast(data.evolution.mensaje, 'warn', 10000);
+                    this.loadSalud(true);
+                }
             } catch (e) {
                 this.formError = e.response?.data?.message
                     || Object.values(e.response?.data?.errors || {}).flat().join(', ')
@@ -563,14 +621,14 @@ export default {
             }
         },
 
-        async syncStatus(ins) {
+        async syncStatus(ins, silencioso = false) {
             this.syncing = { ...this.syncing, [ins.id]: true };
             try {
                 const { data } = await axios.get(`/whatsapp/api/instances/${ins.id}/status`);
                 // Actualizar inline sin recargar la lista entera
                 ins.status = data.status;
             } catch (e) {
-                alert('No se pudo sincronizar: ' + (e.response?.data?.message || e.message));
+                if (!silencioso) alert('No se pudo sincronizar: ' + (e.response?.data?.message || e.message));
             } finally {
                 this.syncing = { ...this.syncing, [ins.id]: false };
             }
@@ -613,7 +671,7 @@ export default {
         // Refleja el estado real (open/close) de cada instancia consultando Evolution,
         // sin esperar el clic manual en "Sincronizar".
         autoSyncAll() {
-            this.instances.forEach(ins => this.syncStatus(ins));
+            this.instances.forEach(ins => this.syncStatus(ins, true));
         },
 
         async showQr(ins) {
@@ -682,7 +740,9 @@ export default {
     async mounted() {
         await this.load();
         this.loadCatalog();
-        this.autoSyncAll();
+        await this.loadSalud();
+        // Con Evolution caída cada sync automático fallaría (antes: una ventana de error por línea).
+        if (!this.salud || this.salud.ok) this.autoSyncAll();
     },
 
     beforeUnmount() {
@@ -909,6 +969,7 @@ export default {
 }
 .wim-toast.ok { background: var(--success); color: #fff; }
 .wim-toast.error { background: var(--danger); color: #fff; }
+.wim-toast.warn { background: var(--warning); color: #1f2937; }
 
 .wim-empty {
     color: var(--text-secondary);
@@ -997,6 +1058,26 @@ export default {
 .wim-spin {
     display: inline-block;
     animation: wim-spin 1s linear infinite;
+}
+.wim-health {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px 14px; margin-bottom: 16px;
+    border-radius: 8px;
+    border: 1px solid var(--danger);
+    border-left-width: 4px;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font-size: 13px;
+    flex-wrap: wrap;
+}
+.wim-health-icon { color: var(--danger); font-size: 18px; flex-shrink: 0; }
+.wim-health-text { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.wim-health-text > div { color: var(--text-secondary); }
+.wim-health-detail { font-size: 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.wim-health-detail summary { cursor: pointer; }
+.wim-health-detail code {
+    background: var(--bg-primary); color: var(--text-primary);
+    padding: 1px 5px; border-radius: 3px;
 }
 @keyframes wim-spin {
     from { transform: rotate(0deg); }
