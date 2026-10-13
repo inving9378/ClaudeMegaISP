@@ -111,20 +111,33 @@ class TalentoWeeklyRuleEvaluationService
      * o el colaborador vería dos cifras divergentes del mismo trabajo.
      * 'mostrador' reusa igual el criterio de DashboardService::
      * progresoMostrador() (pagos con add_by = este usuario, por created_at).
+     *
+     * ⚠️ $week['period_start']/['period_end'] son strings de FECHA sola
+     * ('Y-m-d', para las columnas week_start/week_end), NO los instantes
+     * precisos del corte de PayWeek (start_instant/end_instant, Sáb 18:00).
+     * whereBetween() con esas fechas desnudas interpretaría el límite
+     * superior como medianoche, recortando todo lo hecho entre 00:00 y
+     * 18:00 del sábado de cierre. Se usa whereDate() (día calendario
+     * completo) en su lugar — EXACTO el mismo criterio que ya usa
+     * CalculateBalanceSellerService::getProspects()/getSales() para
+     * 'ventas' (ver más abajo): ninguna métrica de esta función respeta
+     * todavía el corte fino de las 18:00, consistente entre las tres.
      */
     private function medirUnidades(string $metricType, User $user, TalentoColaborador $colaborador, array $week): array
     {
         if ($metricType === 'tecnico') {
             $completados = (int) TalentoWorkOrder::where('colaborador_id', $colaborador->id)
                 ->whereIn('status', ['completed', 'validated'])
-                ->whereBetween('created_at', [$week['period_start'], $week['period_end']])
+                ->whereDate('created_at', '>=', $week['period_start'])
+                ->whereDate('created_at', '<=', $week['period_end'])
                 ->count();
             return [0, $completados];
         }
 
         if ($metricType === 'mostrador') {
             $pagos = (int) Payment::where('add_by', $user->id)
-                ->whereBetween('created_at', [$week['period_start'], $week['period_end']])
+                ->whereDate('created_at', '>=', $week['period_start'])
+                ->whereDate('created_at', '<=', $week['period_end'])
                 ->count();
             return [0, $pagos];
         }
