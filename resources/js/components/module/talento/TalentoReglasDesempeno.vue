@@ -43,20 +43,33 @@
             <tr v-for="r in rules" :key="r.id">
               <td>{{ r.name }}</td>
               <td>
+                <span class="badge tc-badge-metric me-1">{{ metricLabel(r.metric_type) }}</span>
                 <span v-for="role in r.roles" :key="role" class="badge tc-badge me-1">{{ role }}</span>
               </td>
               <td>
-                <span v-if="r.min_prospects !== null">{{ r.min_prospects }} prospectos</span>
-                <span v-if="r.min_prospects !== null && r.min_sales !== null"> / </span>
-                <span v-if="r.min_sales !== null">{{ r.min_sales }} ventas</span>
-                <span v-if="r.min_prospects === null && r.min_sales === null" class="text-muted">—</span>
+                <span v-if="r.metric_type === 'ventas'">
+                  <span v-if="r.min_prospects !== null">{{ r.min_prospects }} prospectos</span>
+                  <span v-if="r.min_prospects !== null && r.min_sales !== null"> / </span>
+                  <span v-if="r.min_sales !== null">{{ r.min_sales }} ventas</span>
+                  <span v-if="r.min_prospects === null && r.min_sales === null" class="text-muted">—</span>
+                </span>
+                <span v-else>
+                  <span v-if="r.min_sales !== null">{{ r.min_sales }} {{ unitLabel(r.metric_type) }}</span>
+                  <span v-else class="text-muted">—</span>
+                </span>
               </td>
               <td>
-                <span v-if="r.bonus_prospects_threshold !== null">{{ r.bonus_prospects_threshold }} prospectos</span>
-                <span v-if="r.bonus_prospects_threshold !== null && r.bonus_sales_threshold !== null"> / </span>
-                <span v-if="r.bonus_sales_threshold !== null">{{ r.bonus_sales_threshold }} ventas</span>
+                <span v-if="r.metric_type === 'ventas'">
+                  <span v-if="r.bonus_prospects_threshold !== null">{{ r.bonus_prospects_threshold }} prospectos</span>
+                  <span v-if="r.bonus_prospects_threshold !== null && r.bonus_sales_threshold !== null"> / </span>
+                  <span v-if="r.bonus_sales_threshold !== null">{{ r.bonus_sales_threshold }} ventas</span>
+                  <span v-if="!r.bonus_prospects_threshold && !r.bonus_sales_threshold" class="text-muted">—</span>
+                </span>
+                <span v-else>
+                  <span v-if="r.bonus_sales_threshold !== null">{{ r.bonus_sales_threshold }} {{ unitLabel(r.metric_type) }}</span>
+                  <span v-else class="text-muted">—</span>
+                </span>
                 <span v-if="r.bonus_amount" class="text-muted ms-1">(${{ r.bonus_amount }})</span>
-                <span v-if="!r.bonus_prospects_threshold && !r.bonus_sales_threshold" class="text-muted">—</span>
               </td>
               <td>{{ r.penalty_type?.name ?? '—' }}</td>
               <td>
@@ -83,8 +96,9 @@
             <tr>
               <th>Colaborador</th>
               <th>Semana</th>
+              <th>Métrica</th>
               <th>Prospectos</th>
-              <th>Ventas</th>
+              <th>Unidades</th>
               <th>Penalización sugerida</th>
               <th></th>
             </tr>
@@ -93,8 +107,11 @@
             <tr v-for="ev in pendingEvaluations" :key="ev.id">
               <td>{{ ev.colaborador?.user?.name ?? '—' }}</td>
               <td>{{ formatDate(ev.week_start) }} – {{ formatDate(ev.week_end) }}</td>
-              <td>{{ ev.prospects_count }}</td>
-              <td>{{ ev.sales_count }}</td>
+              <td>
+                <span class="badge tc-badge-metric">{{ metricLabel(ev.rule?.metric_type) }}</span>
+              </td>
+              <td>{{ ev.rule?.metric_type === 'ventas' ? ev.prospects_count : '—' }}</td>
+              <td>{{ ev.sales_count }} {{ unitLabel(ev.rule?.metric_type) }}</td>
               <td>{{ ev.penalty_type?.name ?? '—' }} (${{ ev.penalty_amount }})</td>
               <td class="text-end">
                 <button class="tc-btn tc-btn-bad" :disabled="confirmingId === ev.id" @click="confirmPenalty(ev)">
@@ -166,12 +183,28 @@
 
               <div class="col-12"><hr></div>
 
-              <div class="col-md-6">
+              <div class="col-12">
+                <label class="form-label">Qué mide esta regla <span class="text-danger">*</span></label>
+                <select v-model="ruleModal.metric_type" class="form-select tc-select">
+                  <option value="ventas">Ventas — prospectos y ventas activadas (vendedor)</option>
+                  <option value="tecnico">Técnico — órdenes de trabajo completadas/validadas</option>
+                  <option value="mostrador">Mostrador — pagos capturados</option>
+                </select>
+                <div class="form-text">
+                  Decide qué cuenta el motor como "unidades" de esta regla. "Ventas" es el único modo
+                  que usa prospectos aparte de ventas; en "Técnico"/"Mostrador" el piso y el techo de
+                  abajo se leen como unidades de esa métrica.
+                </div>
+              </div>
+
+              <div class="col-12"><hr></div>
+
+              <div v-if="ruleModal.metric_type === 'ventas'" class="col-md-6">
                 <label class="form-label">Mínimo de prospectos / semana</label>
                 <input v-model.number="ruleModal.min_prospects" type="number" min="0" class="form-control">
               </div>
-              <div class="col-md-6">
-                <label class="form-label">Mínimo de ventas / semana</label>
+              <div :class="ruleModal.metric_type === 'ventas' ? 'col-md-6' : 'col-md-12'">
+                <label class="form-label">Mínimo de {{ unitLabel(ruleModal.metric_type) }} / semana</label>
                 <input v-model.number="ruleModal.min_sales" type="number" min="0" class="form-control">
               </div>
               <div class="col-12">
@@ -184,15 +217,15 @@
 
               <div class="col-12"><hr></div>
 
-              <div class="col-md-4">
+              <div v-if="ruleModal.metric_type === 'ventas'" class="col-md-4">
                 <label class="form-label">Techo de prospectos (bono)</label>
                 <input v-model.number="ruleModal.bonus_prospects_threshold" type="number" min="0" class="form-control">
               </div>
-              <div class="col-md-4">
-                <label class="form-label">Techo de ventas (bono)</label>
+              <div :class="ruleModal.metric_type === 'ventas' ? 'col-md-4' : 'col-md-6'">
+                <label class="form-label">Techo de {{ unitLabel(ruleModal.metric_type) }} (bono)</label>
                 <input v-model.number="ruleModal.bonus_sales_threshold" type="number" min="0" class="form-control">
               </div>
-              <div class="col-md-4">
+              <div :class="ruleModal.metric_type === 'ventas' ? 'col-md-4' : 'col-md-6'">
                 <label class="form-label">Monto del bono ($)</label>
                 <input v-model.number="ruleModal.bonus_amount" type="number" min="0" step="50" class="form-control">
               </div>
@@ -273,6 +306,7 @@ export default {
       return {
         show: false, id: null, name: '',
         baseRole: '', tieneMasRoles: false, otrosRoles: [],
+        metric_type: 'ventas',
         min_prospects: null, min_sales: null, penalty_type_id: null,
         bonus_prospects_threshold: null, bonus_sales_threshold: null, bonus_amount: null,
         active: true, saving: false, error: '',
@@ -281,6 +315,12 @@ export default {
     formatDate(d) {
       if (!d) return '—';
       return new Date(d).toLocaleDateString('es-MX');
+    },
+    metricLabel(metricType) {
+      return { ventas: 'Ventas', tecnico: 'Técnico', mostrador: 'Mostrador' }[metricType] ?? 'Ventas';
+    },
+    unitLabel(metricType) {
+      return { tecnico: 'completados', mostrador: 'pagos capturados', ventas: 'ventas' }[metricType] ?? 'unidades';
     },
 
     async loadRoles() {
@@ -324,6 +364,7 @@ export default {
       this.ruleModal = {
         show: true, id: r.id, name: r.name,
         baseRole, tieneMasRoles: otros.length > 0, otrosRoles: otros,
+        metric_type: r.metric_type ?? 'ventas',
         min_prospects: r.min_prospects, min_sales: r.min_sales,
         penalty_type_id: r.penalty_type_id,
         bonus_prospects_threshold: r.bonus_prospects_threshold,
@@ -346,10 +387,11 @@ export default {
         const payload = {
           name: this.ruleModal.name,
           roles,
-          min_prospects: this.ruleModal.min_prospects,
+          metric_type: this.ruleModal.metric_type,
+          min_prospects: this.ruleModal.metric_type === 'ventas' ? this.ruleModal.min_prospects : null,
           min_sales: this.ruleModal.min_sales,
           penalty_type_id: this.ruleModal.penalty_type_id,
-          bonus_prospects_threshold: this.ruleModal.bonus_prospects_threshold,
+          bonus_prospects_threshold: this.ruleModal.metric_type === 'ventas' ? this.ruleModal.bonus_prospects_threshold : null,
           bonus_sales_threshold: this.ruleModal.bonus_sales_threshold,
           bonus_amount: this.ruleModal.bonus_amount,
           active: this.ruleModal.active,
@@ -385,5 +427,10 @@ export default {
   background: var(--tc-bg2, #eef1f4);
   color: inherit;
   font-weight: 500;
+}
+.tc-badge-metric {
+  background: var(--tc-primary, #0d6efd);
+  color: #fff;
+  font-weight: 600;
 }
 </style>
