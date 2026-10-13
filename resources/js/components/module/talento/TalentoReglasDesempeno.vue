@@ -189,11 +189,26 @@
                   <option value="ventas">Ventas — prospectos y ventas activadas (vendedor)</option>
                   <option value="tecnico">Técnico — órdenes de trabajo completadas/validadas</option>
                   <option value="mostrador">Mostrador — pagos capturados</option>
+                  <option value="calidad_senal">Calidad de señal — instalaciones fuera de rango (dBm)</option>
                 </select>
                 <div class="form-text">
                   Decide qué cuenta el motor como "unidades" de esta regla. "Ventas" es el único modo
                   que usa prospectos aparte de ventas; en "Técnico"/"Mostrador" el piso y el techo de
-                  abajo se leen como unidades de esa métrica.
+                  abajo se leen como unidades de esa métrica. "Calidad de señal" es un eje
+                  INDEPENDIENTE de cantidad — un técnico puede tener a la vez una regla de "Técnico" y
+                  una de "Calidad de señal" activas, cada una con su propio bono/penalización.
+                </div>
+              </div>
+
+              <div v-if="ruleModal.metric_type === 'calidad_senal'" class="col-12">
+                <label class="form-label">Pérdida de señal máxima aceptable (dB)</label>
+                <input v-model.number="ruleModal.max_loss_db" type="number" min="0" step="0.1" class="form-control" placeholder="Ej. 1.0">
+                <div class="form-text">
+                  Una instalación de la semana cuenta como "fuera de rango" si su pérdida de señal
+                  (dBm del cliente vs. el punto de referencia de su caja) supera este número.
+                  Reusa la misma medición que ya calcula el bono de salud de red por instalación
+                  individual (HealthBonusService) — este umbral es propio de esta regla, no tiene
+                  que coincidir con el de Configuración → Cajas ODB.
                 </div>
               </div>
 
@@ -203,12 +218,16 @@
                 <label class="form-label">Mínimo de prospectos / semana</label>
                 <input v-model.number="ruleModal.min_prospects" type="number" min="0" class="form-control">
               </div>
-              <div :class="ruleModal.metric_type === 'ventas' ? 'col-md-6' : 'col-md-12'">
+              <div v-if="ruleModal.metric_type !== 'calidad_senal'" :class="ruleModal.metric_type === 'ventas' ? 'col-md-6' : 'col-md-12'">
                 <label class="form-label">Mínimo de {{ unitLabel(ruleModal.metric_type) }} / semana</label>
                 <input v-model.number="ruleModal.min_sales" type="number" min="0" class="form-control">
               </div>
+              <div v-if="ruleModal.metric_type === 'calidad_senal'" class="col-md-12">
+                <label class="form-label">Violaciones mínimas en la semana que YA penalizan</label>
+                <input v-model.number="ruleModal.min_sales" type="number" min="0" class="form-control" placeholder="Ej. 1 (cualquier instalación fuera de rango penaliza)">
+              </div>
               <div class="col-12">
-                <label class="form-label">Penalización si no se cumple el mínimo</label>
+                <label class="form-label">Penalización si se incumple</label>
                 <select v-model="ruleModal.penalty_type_id" class="form-select tc-select">
                   <option :value="null">Sin penalización</option>
                   <option v-for="t in penaltyTypes" :key="t.id" :value="t.id">{{ t.name }} (${{ t.amount }})</option>
@@ -221,9 +240,13 @@
                 <label class="form-label">Techo de prospectos (bono)</label>
                 <input v-model.number="ruleModal.bonus_prospects_threshold" type="number" min="0" class="form-control">
               </div>
-              <div :class="ruleModal.metric_type === 'ventas' ? 'col-md-4' : 'col-md-6'">
+              <div v-if="ruleModal.metric_type !== 'calidad_senal'" :class="ruleModal.metric_type === 'ventas' ? 'col-md-4' : 'col-md-6'">
                 <label class="form-label">Techo de {{ unitLabel(ruleModal.metric_type) }} (bono)</label>
                 <input v-model.number="ruleModal.bonus_sales_threshold" type="number" min="0" class="form-control">
+              </div>
+              <div v-if="ruleModal.metric_type === 'calidad_senal'" class="col-md-6">
+                <label class="form-label">Violaciones máximas toleradas para ganar el bono</label>
+                <input v-model.number="ruleModal.bonus_sales_threshold" type="number" min="0" class="form-control" placeholder="Ej. 0 (ninguna instalación fuera de rango)">
               </div>
               <div :class="ruleModal.metric_type === 'ventas' ? 'col-md-4' : 'col-md-6'">
                 <label class="form-label">Monto del bono ($)</label>
@@ -306,7 +329,7 @@ export default {
       return {
         show: false, id: null, name: '',
         baseRole: '', tieneMasRoles: false, otrosRoles: [],
-        metric_type: 'ventas',
+        metric_type: 'ventas', max_loss_db: null,
         min_prospects: null, min_sales: null, penalty_type_id: null,
         bonus_prospects_threshold: null, bonus_sales_threshold: null, bonus_amount: null,
         active: true, saving: false, error: '',
@@ -317,10 +340,10 @@ export default {
       return new Date(d).toLocaleDateString('es-MX');
     },
     metricLabel(metricType) {
-      return { ventas: 'Ventas', tecnico: 'Técnico', mostrador: 'Mostrador' }[metricType] ?? 'Ventas';
+      return { ventas: 'Ventas', tecnico: 'Técnico', mostrador: 'Mostrador', calidad_senal: 'Calidad de señal' }[metricType] ?? 'Ventas';
     },
     unitLabel(metricType) {
-      return { tecnico: 'completados', mostrador: 'pagos capturados', ventas: 'ventas' }[metricType] ?? 'unidades';
+      return { tecnico: 'completados', mostrador: 'pagos capturados', ventas: 'ventas', calidad_senal: 'instalaciones fuera de rango' }[metricType] ?? 'unidades';
     },
 
     async loadRoles() {
@@ -364,7 +387,7 @@ export default {
       this.ruleModal = {
         show: true, id: r.id, name: r.name,
         baseRole, tieneMasRoles: otros.length > 0, otrosRoles: otros,
-        metric_type: r.metric_type ?? 'ventas',
+        metric_type: r.metric_type ?? 'ventas', max_loss_db: r.max_loss_db,
         min_prospects: r.min_prospects, min_sales: r.min_sales,
         penalty_type_id: r.penalty_type_id,
         bonus_prospects_threshold: r.bonus_prospects_threshold,
@@ -388,6 +411,7 @@ export default {
           name: this.ruleModal.name,
           roles,
           metric_type: this.ruleModal.metric_type,
+          max_loss_db: this.ruleModal.metric_type === 'calidad_senal' ? this.ruleModal.max_loss_db : null,
           min_prospects: this.ruleModal.metric_type === 'ventas' ? this.ruleModal.min_prospects : null,
           min_sales: this.ruleModal.min_sales,
           penalty_type_id: this.ruleModal.penalty_type_id,

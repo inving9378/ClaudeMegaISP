@@ -244,28 +244,39 @@ class DashboardService
      * (hoy: nadie, 0 reglas activas en el sistema), `tiene_evaluacion:false`
      * y el frontend pinta el estado vacío honesto, nunca un dato inventado.
      */
+    /**
+     * Desde el 2026-10-13, un colaborador puede tener evaluaciones de MÁS DE
+     * UN metric_type (ej. técnico: cantidad Y calidad de señal a la vez,
+     * ejes independientes) — devuelve la MÁS RECIENTE evaluación POR
+     * metric_type (no solo la última fila insertada en general, que podría
+     * pisar la de otro eje si se evaluaron en momentos distintos).
+     */
     public function reglaDesempeno(int $colaboradorId): array
     {
-        $evaluacion = TalentoWeeklyRuleEvaluation::with('rule')
+        $evaluaciones = TalentoWeeklyRuleEvaluation::with('rule')
             ->where('colaborador_id', $colaboradorId)
             ->orderByDesc('week_start')
-            ->first();
+            ->get()
+            ->unique(fn ($e) => $e->rule?->metric_type ?? 'sin_regla')
+            ->values();
 
-        if (!$evaluacion) {
-            return ['tiene_evaluacion' => false];
+        if ($evaluaciones->isEmpty()) {
+            return ['tiene_evaluacion' => false, 'reglas' => []];
         }
 
-        return [
-            'tiene_evaluacion'     => true,
-            'regla_nombre'         => $evaluacion->rule?->name,
-            'week_start'           => $evaluacion->week_start,
-            'week_end'             => $evaluacion->week_end,
-            'outcome'              => $evaluacion->outcome,
-            'prospects_count'      => $evaluacion->prospects_count,
-            'sales_count'          => $evaluacion->sales_count,
-            'bonus_amount_applied' => $evaluacion->bonus_amount_applied,
-            'penalty_amount'       => $evaluacion->penalty_amount,
-        ];
+        $reglas = $evaluaciones->map(fn ($e) => [
+            'metric_type'          => $e->rule?->metric_type,
+            'regla_nombre'         => $e->rule?->name,
+            'week_start'           => $e->week_start,
+            'week_end'             => $e->week_end,
+            'outcome'              => $e->outcome,
+            'prospects_count'      => $e->prospects_count,
+            'sales_count'          => $e->sales_count,
+            'bonus_amount_applied' => $e->bonus_amount_applied,
+            'penalty_amount'       => $e->penalty_amount,
+        ])->values()->all();
+
+        return ['tiene_evaluacion' => true, 'reglas' => $reglas];
     }
 
     private function parsearGeodata(?string $geodata): ?array

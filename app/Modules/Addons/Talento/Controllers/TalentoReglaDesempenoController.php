@@ -61,7 +61,8 @@ class TalentoReglaDesempenoController extends Controller
             'name'                      => 'required|string|max:150',
             'roles'                     => 'required|array|min:1',
             'roles.*'                   => 'string',
-            'metric_type'               => 'required|in:ventas,tecnico,mostrador',
+            'metric_type'               => 'required|in:ventas,tecnico,mostrador,calidad_senal',
+            'max_loss_db'               => 'nullable|numeric|min:0|max:50',
             'min_prospects'             => 'nullable|integer|min:0',
             'min_sales'                 => 'nullable|integer|min:0',
             'penalty_type_id'           => 'nullable|integer|exists:talento_penalty_types,id',
@@ -73,9 +74,14 @@ class TalentoReglaDesempenoController extends Controller
 
         $data['roles'] = TalentoWeeklyRule::normalizeRoles($data['roles']);
 
-        // Una sola regla activa por combinación exacta de roles — evita
-        // ambigüedad silenciosa en resolveRule() del servicio.
+        // Una sola regla activa por combinación exacta de roles POR
+        // metric_type — evita ambigüedad silenciosa en resolveRule() del
+        // servicio (que ahora también filtra por metric_type). Desde que
+        // existe calidad_senal como eje independiente, un mismo rol SÍ puede
+        // tener una regla de cantidad Y otra de calidad a la vez — el
+        // duplicado solo aplica dentro del mismo metric_type.
         $dup = TalentoWeeklyRule::active()
+            ->where('metric_type', $data['metric_type'])
             ->when($ignoreId, fn($q) => $q->where('id', '!=', $ignoreId))
             ->get()
             ->first(fn($r) => TalentoWeeklyRule::normalizeRoles($r->roles ?? []) === $data['roles']);
@@ -85,7 +91,7 @@ class TalentoReglaDesempenoController extends Controller
         // (el caso normal, sin duplicado) ". $dup->name" tronaba con "Attempt
         // to read property name on null" incluso cuando SÍ se podía guardar.
         if ($dup) {
-            abort(422, 'Ya existe una regla activa para esa combinación exacta de roles: "' . $dup->name . '".');
+            abort(422, 'Ya existe una regla activa de "' . $data['metric_type'] . '" para esa combinación exacta de roles: "' . $dup->name . '".');
         }
 
         return $data;
