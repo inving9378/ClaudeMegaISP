@@ -4,19 +4,25 @@
 # =============================================================================
 # Replica la Evolution de dev en un server nuevo o en producción:
 #   Node 20 + PM2 · Evolution v2.3.7 (commit fa09d378) · MySQL 8.4 + Prisma ·
-#   nginx `location /evolution/` · arranque en boot.
+#   proxy /evolution/ en el vhost de MegaISP (nginx o Apache) · arranque en boot.
 #
 # NO instala MySQL (se asume presente). NO gestiona Asterisk (ver TODO abajo).
 #
 # Uso (correr como root o con sudo, en un server que NO sea el de dev):
 #   sudo bash deploy/provision/install.sh
+# Con overrides, pásalos a través de `sudo env` (sudo con env_reset descarta las
+# variables puestas ANTES de `sudo`):
+#   sudo env ALLOW_PROVISION=1 MEGAISP_ROOT=/var/www/ClaudeMegaISP bash deploy/provision/install.sh
 #
 # Overrides por variable de entorno (opcionales):
 #   MEGAISP_ROOT=/var/www/megaisp   # raíz del sistema MegaISP
 #   MEGAISP_USER=www-data           # usuario que corre artisan (dueño de caché)
 #   EVOLUTION_USER=<usuario>        # dueño/ejecutor de Evolution (default: 'evolution', usuario de sistema dedicado)
-#   NGINX_VHOST=/ruta/al/vhost      # forzar el vhost si la autodetección falla
-#   ALLOW_PROVISION=1               # override consciente: salta SOLO el check de
+#   NGINX_VHOST=/ruta/al/vhost      # forzar el vhost nginx si la autodetección falla
+#   APACHE_VHOST=/ruta/al/vhost     # forzar el vhost Apache si la autodetección falla
+#   WEB_SERVER=nginx|apache         # forzar el servidor web (se autodetecta)
+#   SKIP_WEB_PROXY=1                # plan B: omitir el proxy /evolution/ (ver lib/30-proxy.sh)
+#   ALLOW_PROVISION=1               # override consciente (vía `sudo env`): salta SOLO el check de
 #                                   #   hostname de la guarda anti-dev (prod comparte
 #                                   #   'meganet' con dev). Las demás guardas siguen
 #                                   #   activas (APP_URL sigue abortando en dev).
@@ -43,6 +49,10 @@ source "${SCRIPT_DIR}/lib/10-node-pm2.sh"
 source "${SCRIPT_DIR}/lib/20-evolution.sh"
 # shellcheck source=lib/30-nginx.sh
 source "${SCRIPT_DIR}/lib/30-nginx.sh"
+# shellcheck source=lib/30-apache.sh
+source "${SCRIPT_DIR}/lib/30-apache.sh"
+# shellcheck source=lib/30-proxy.sh
+source "${SCRIPT_DIR}/lib/30-proxy.sh"
 # shellcheck source=lib/40-pm2-boot.sh
 source "${SCRIPT_DIR}/lib/40-pm2-boot.sh"
 # TODO(futuro): source "${SCRIPT_DIR}/lib/50-asterisk.sh"  # Asterisk se maneja
@@ -127,7 +137,7 @@ main() {
     provision_evolution_user # 05 — usuario de sistema dedicado 'evolution'
     provision_node_pm2      # 10 — Node 20 + PM2
     provision_evolution     # 20 — código + .env + DB + Prisma
-    provision_nginx         # 30 — location /evolution/ en el vhost
+    provision_web_proxy     # 30 — proxy /evolution/ en el vhost (nginx o Apache)
     provision_pm2_boot      # 40 — PM2 start + save + startup
     finalize                # cierre — config MegaISP + health check
     summary
