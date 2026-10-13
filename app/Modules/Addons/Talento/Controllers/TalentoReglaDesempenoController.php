@@ -93,12 +93,34 @@ class TalentoReglaDesempenoController extends Controller
 
     // ── Evaluaciones ─────────────────────────────────────────────────────
 
+    /**
+     * Antes exigía talento.reglas_desempeno.view (admin-only) sin excepción —
+     * un supervisor real nunca tenía forma de ver las evaluaciones de SU
+     * equipo, pese a que confirmarPenalizacion() sí le permite confirmarlas
+     * (bug real encontrado 2026-10-13: un supervisor podía en teoría
+     * confirmar, pero no tenía cómo enterarse de qué confirmar). Mismo
+     * criterio "staff ve todo, el resto solo uno mismo + su equipo directo"
+     * que ya usa TalentoWorkOrderController::data().
+     */
     public function evaluationsIndex(Request $request)
     {
-        $this->authorize('talento.reglas_desempeno.view');
+        $esStaff = auth()->user()->can('talento.reglas_desempeno.view')
+            || auth()->user()->can('talento.penalties.manage');
 
         $q = TalentoWeeklyRuleEvaluation::with(['colaborador.user', 'rule', 'penaltyType'])
             ->orderByDesc('week_start');
+
+        if (! $esStaff) {
+            $miPropioColaborador = Actor::for(auth()->user())->talento();
+            abort_if(! $miPropioColaborador, 403);
+
+            $idsVisibles = $miPropioColaborador->subordinados()->pluck('id')
+                ->push($miPropioColaborador->id)
+                ->unique()
+                ->values()
+                ->all();
+            $q->whereIn('colaborador_id', $idsVisibles);
+        }
 
         if ($request->filled('outcome')) {
             $q->where('outcome', $request->outcome);
@@ -127,7 +149,23 @@ class TalentoReglaDesempenoController extends Controller
             abort_unless($esSuSupervisor, 403, 'No tienes permiso para confirmar esta penalización.');
         }
 
+        // Un admin/DESARROLLADOR real a menudo NO tiene su propia ficha de
+        // colaborador (no es insólito — es exactamente el caso real
+        // encontrado 2026-10-13: ni "Mi equipo" ni esto funcionaban para una
+        // cuenta de sistema sin ficha propia). Atribuir a MEGAISP (mismo bot
+        // de sistema que ya usa PaymentApplicationService::resolveSystemUserId()
+        // para pagos automáticos) en vez de bloquear la acción — crea su
+        // ficha "ligera" la primera vez si todavía no existe, idempotente.
         $applierColaborador = TalentoColaborador::where('user_id', auth()->id())->first();
+        if (! $applierColaborador) {
+            $bot = \App\Models\User::systemBot();
+            if ($bot) {
+                $applierColaborador = TalentoColaborador::firstOrCreate(
+                    ['user_id' => $bot->id],
+                    ['type' => 'interno', 'status' => 'active', 'department' => 'Sistema']
+                );
+            }
+        }
         abort_unless($applierColaborador, 422, 'No tienes perfil de colaborador.');
 
         $notes = trim((string) $request->input('notes', ''));

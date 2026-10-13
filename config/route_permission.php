@@ -2224,6 +2224,22 @@ return [
         '/talento/api/inspecciones',
         '/talento/api/inspecciones/**',
         '/talento/inspection-photo/{id}',
+        // Reglas de desempeño semanal — ver/confirmar evaluaciones: uno
+        // mismo, su supervisor directo (talento_colaboradores.supervisor_id),
+        // o el permiso de STAFF (talento.reglas_desempeno.view/
+        // talento.penalties.manage) — el controller
+        // (evaluationsIndex()/confirmarPenalizacion()) hace la distinción
+        // real, mismo criterio que compensación/cajas/rutas/proyectos/
+        // penalties arriba. Sin esto, un supervisor real nunca llegaba ni
+        // a VER la lista ni a confirmar la de su propio subordinado — se
+        // quedaba en 403 de middleware antes de que el controller pudiera
+        // aplicar su propia excepción de supervisor (bug real encontrado
+        // 2026-10-13, verificado en vivo). El catálogo de reglas en sí
+        // (rulesIndex/storeRule/updateRule, "/talento/api/reglas-desempeno"
+        // sin "/evaluaciones") sigue 100% admin-only a propósito — definir
+        // una regla es una decisión de staff, no de autoservicio.
+        '/talento/api/reglas-desempeno/evaluaciones',
+        '/talento/api/reglas-desempeno/evaluaciones/**',
     ],
     'talento.dashboard.view' => [
         '/talento',
