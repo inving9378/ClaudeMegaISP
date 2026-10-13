@@ -155,7 +155,7 @@ abort_if_dev_server() {
         if [[ "${ALLOW_PROVISION:-}" == "1" ]]; then
             log_warn "hostname='$host' coincide con el marcador de dev, pero ALLOW_PROVISION=1 → se OMITE solo el check de hostname (las demás verificaciones siguen activas)."
         else
-            die "Este parece ser el server de DESARROLLO (hostname='$host'). ABORTADO: este install.sh NO debe reconfigurar la Evolution de dev. Si de verdad es producción (comparte hostname con dev), corre con override consciente: ALLOW_PROVISION=1 sudo bash deploy/provision/install.sh"
+            die "Este parece ser el server de DESARROLLO (hostname='$host'). ABORTADO: este install.sh NO debe reconfigurar la Evolution de dev. Si de verdad es producción (comparte hostname con dev), corre con override consciente: sudo env ALLOW_PROVISION=1 bash deploy/provision/install.sh (el ALLOW_PROVISION=1 va DESPUÉS de sudo: sudo descarta las variables puestas antes)"
         fi
     fi
     if [[ "$app_url" == *"$DEV_APP_URL_MATCH"* ]]; then
