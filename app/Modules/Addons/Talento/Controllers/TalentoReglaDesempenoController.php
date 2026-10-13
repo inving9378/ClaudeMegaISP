@@ -175,6 +175,11 @@ class TalentoReglaDesempenoController extends Controller
             'amount'          => $eval->penalty_amount,
             'applied_by'      => $applierColaborador->id,
             'created_by'      => auth()->id(),
+            // La cuota se incumplió en LA SEMANA EVALUADA, no necesariamente en la
+            // que un supervisor se tarde en confirmarla — el débito debe caer en
+            // esa liquidación, no en la de "hoy" (ver PenaltyService::apply()).
+            'period_start'    => $eval->week_start->toDateString(),
+            'period_end'      => $eval->week_end->toDateString(),
             'notes'           => $notes !== ''
                 ? $notes
                 : "Confirmado desde regla de desempeño semanal (semana {$eval->week_start->toDateString()}).",

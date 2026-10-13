@@ -6,6 +6,7 @@ use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
 use App\Modules\Addons\Talento\Models\TalentoPenalty;
 use App\Modules\Addons\Talento\Models\TalentoPenaltyAppeal;
 use App\Modules\Addons\Talento\Models\TalentoPenaltyType;
+use App\Modules\Addons\Talento\Support\PayWeek;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -35,8 +36,28 @@ class PenaltyService
                 'created_at'        => now(),
             ]);
 
-            // Ledger DEBIT — immutable
-            $today = now()->toDateString();
+            // Ledger DEBIT — immutable. period_start/period_end deben caer en una
+            // semana de PayWeek completa (el mismo rango que usa LiquidationService::
+            // calculate() para sumar "other_debits") — nunca un solo día. Antes esto
+            // escribía $today/$today (un solo día): como ninguna liquidación real
+            // pide exactamente ese rango de un día, la penalización SIEMPRE quedaba
+            // invisible para el pago semanal real, sin importar quién la aplicara ni
+            // por qué camino (bug real encontrado 2026-10-13, verificado contra
+            // LiquidationService::calculate() con rollback — "other_debits" salía en
+            // $0.00 pese al débito ya creado). Por default cae en la semana de AHORA
+            // (mismo criterio que ya usa HealthBonusService para el bono de calidad);
+            // un llamador puede pasar 'period_start'/'period_end' explícitos cuando
+            // el evento penalizado ocurrió en una semana distinta a la de hoy (ver
+            // TalentoReglaDesempenoController::confirmarPenalizacion()).
+            if (! empty($data['period_start']) && ! empty($data['period_end'])) {
+                $periodStart = $data['period_start'];
+                $periodEnd   = $data['period_end'];
+            } else {
+                $w = PayWeek::boundsFor(now());
+                $periodStart = $w['period_start'];
+                $periodEnd   = $w['period_end'];
+            }
+
             TalentoLedgerEntry::create([
                 'colaborador_id' => $penalty->colaborador_id,
                 'type'           => 'debit',
@@ -44,8 +65,8 @@ class PenaltyService
                 'amount'         => $penalty->amount,
                 'reference_type' => TalentoPenalty::class,
                 'reference_id'   => $penalty->id,
-                'period_start'   => $today,
-                'period_end'     => $today,
+                'period_start'   => $periodStart,
+                'period_end'     => $periodEnd,
                 'notes'          => "Penalización: {$type->name}",
                 'created_by'     => $data['created_by'] ?? null,
             ]);
@@ -82,8 +103,25 @@ class PenaltyService
             $penalty->update(['status' => $newStatus]);
 
             if ($decision === 'overturned') {
-                // Ledger CREDIT reversal — the original debit stays untouched
-                $today = now()->toDateString();
+                // Ledger CREDIT reversal — the original debit stays untouched.
+                // Reusa el MISMO period_start/period_end del débito original (no
+                // "hoy") para que la reversión cancele el cargo en la liquidación
+                // exacta donde cayó — una apelación puede resolverse semanas
+                // después del cargo; fecharla a "hoy" la dejaría en una semana
+                // distinta (mismo bug ya corregido arriba en apply()).
+                $originalEntry = TalentoLedgerEntry::where('reference_type', TalentoPenalty::class)
+                    ->where('reference_id', $penalty->id)
+                    ->where('type', 'debit')
+                    ->first();
+                if ($originalEntry) {
+                    $periodStart = $originalEntry->period_start;
+                    $periodEnd   = $originalEntry->period_end;
+                } else {
+                    $w = PayWeek::boundsFor(now());
+                    $periodStart = $w['period_start'];
+                    $periodEnd   = $w['period_end'];
+                }
+
                 TalentoLedgerEntry::create([
                     'colaborador_id' => $penalty->colaborador_id,
                     'type'           => 'credit',
@@ -91,8 +129,8 @@ class PenaltyService
                     'amount'         => $penalty->amount,
                     'reference_type' => TalentoPenalty::class,
                     'reference_id'   => $penalty->id,
-                    'period_start'   => $today,
-                    'period_end'     => $today,
+                    'period_start'   => $periodStart,
+                    'period_end'     => $periodEnd,
                     'notes'          => "Reversión de penalización #{$penalty->id} por apelación aprobada",
                     'created_by'     => $reviewerColaboradorId,
                 ]);
