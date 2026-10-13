@@ -6,6 +6,7 @@ use App\Modules\Addons\WhatsAppAgent\Jobs\SendWhatsAppMessageJob;
 use App\Modules\Addons\WhatsAppAgent\Models\WhatsAppConversation;
 use App\Modules\Addons\WhatsAppAgent\Models\WhatsAppInstance;
 use App\Modules\Addons\WhatsAppAgent\Models\WhatsAppMessage;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -336,6 +337,63 @@ class EvolutionApiService
         );
 
         return $response->json() ?? [];
+    }
+
+    /**
+     * #9991240 — ¿Evolution está instalada en este servidor y acepta nuestra llave?
+     *
+     * Chequeo ligero (una sola petición a fetchInstances, timeout corto) y cacheado 30 s, para que la
+     * pantalla de Líneas avise en claro en vez de fallar en silencio cuando Evolution no existe
+     * (pasó en producción). No crea, borra ni modifica instancias, y nunca devuelve la llave.
+     *
+     * estado: ok | simulado | sin_configurar | no_responde | llave_rechazada | error
+     */
+    public function salud(bool $fresco = false): array
+    {
+        if ($this->fakeMode) {
+            return ['ok' => true, 'estado' => 'simulado', 'url' => $this->baseUrl,
+                    'detalle' => 'WHATSAPP_FAKE activo: Evolution está simulada en este servidor.'];
+        }
+
+        if ($this->baseUrl === '') {
+            return ['ok' => false, 'estado' => 'sin_configurar', 'url' => '',
+                    'detalle' => 'WHATSAPP_API_URL está vacía.'];
+        }
+
+        $clave = 'whatsapp:evolution:salud:' . md5($this->baseUrl . '|' . $this->apiKey);
+        if ($fresco) {
+            Cache::forget($clave);
+        }
+
+        return Cache::remember($clave, 30, fn () => $this->medirSalud());
+    }
+
+    private function medirSalud(): array
+    {
+        $base = ['url' => $this->baseUrl, 'medido_at' => now()->toIso8601String()];
+
+        try {
+            $response = Http::withHeaders(['apikey' => $this->apiKey])
+                ->connectTimeout(2)
+                ->timeout(4)
+                ->acceptJson()
+                ->get("{$this->baseUrl}/instance/fetchInstances");
+        } catch (\Throwable $e) {
+            return $base + ['ok' => false, 'estado' => 'no_responde', 'detalle' => $e->getMessage()];
+        }
+
+        if ($response->successful()) {
+            return $base + ['ok' => true, 'estado' => 'ok', 'detalle' => 'Evolution responde y acepta la llave.'];
+        }
+
+        if (in_array($response->status(), [401, 403], true)) {
+            return $base + ['ok' => false, 'estado' => 'llave_rechazada',
+                            'detalle' => "HTTP {$response->status()} en /instance/fetchInstances."];
+        }
+
+        return $base + ['ok' => false, 'estado' => 'error',
+                        'detalle' => "HTTP {$response->status()} en /instance/fetchInstances: "
+                            . mb_substr((string) $response->body(), 0, 300)];
     }
 
     public function createInstance(WhatsAppInstance $instance): array
