@@ -2338,6 +2338,16 @@ return [
         '/talento/sitios',
     ],
     'talento.work_orders.manage' => [
+        // Fase 5 (2026-10-13): Mostrador tiene este permiso pero NO
+        // talento.employees.view (ese sigue siendo admin-only a propósito —
+        // destaparía compensación/penalizaciones/préstamos de cualquiera).
+        // Sin esta línea, el selector de técnico de "Nueva orden"
+        // (TalentoOrdenes.vue, búsqueda en /talento/api/colaboradores)
+        // quedaría inalcanzable para Mostrador aunque sí pudiera crear la
+        // orden — data() en sí ya está gateado por talento.view (que
+        // Mostrador también recibe en esta misma fase) + hideExpedienteFields(),
+        // esto solo deja pasar el path a nivel de middleware.
+        '/talento/api/colaboradores',
         '/talento/api/ots/**',
         '/talento/api/campo/{workOrderId}/aceptar',
         '/talento/api/campo/{workOrderId}/activar',
