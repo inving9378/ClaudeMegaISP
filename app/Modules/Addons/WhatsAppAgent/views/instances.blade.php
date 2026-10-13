@@ -1,7 +1,7 @@
 @extends('core-layout::master')
 
 @section('title')
-    Instancias WhatsApp
+    Líneas WhatsApp
 @endsection
 
 @section('content')
