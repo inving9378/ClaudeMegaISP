@@ -132,8 +132,10 @@ deploy/provision/
 │   ├── 30-apache.sh        # Apache: inyecta ProxyPass /evolution/ (+ módulos)
 │   ├── 30-proxy.sh         # elige nginx/Apache (o SKIP_WEB_PROXY) y despacha
 │   └── 40-pm2-boot.sh      # pm2 start + save + startup
-└── templates/
-    └── evolution.env.tpl   # plantilla del .env con {{PLACEHOLDERS}}
+├── templates/
+│   └── evolution.env.tpl   # plantilla del .env con {{PLACEHOLDERS}}
+└── tests/
+    └── test-30-apache.sh   # Apache simulado (sin root): bash deploy/provision/tests/test-30-apache.sh
 ```
 
 ## Runbook — PRODUCCIÓN (Apache, `/var/www/ClaudeMegaISP`) — item #9991239
