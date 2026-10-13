@@ -40,3 +40,12 @@ El "Probar" mentía porque mandaba un mensaje simple, sin herramientas.
 - **Asignación:** intacta tras el rollback (`gpt-6-luna`).
 - **Código en vivo:** el sitio toma el cambio solo, porque opcache revalida con los valores por defecto. Los workers de cola necesitan `queue:restart` solo si el agente de WhatsApp pasa a un gpt-5/6.
 - **Versión:** la V1.55 salió ayer sin este arreglo; entra en la siguiente.
+
+## 2026-10-13 08:29 — Publicada en la V1.56-13.10.2026
+
+- Se creó por el mismo camino que el botón "+ Nueva versión" (`ReleaseController::store`), a nombre del usuario 3841, igual que la V1.53–V1.55.
+- Preflight en VERDE. El deploy #82 terminó en `success`:
+  - El tag quedó en origin.
+  - El GitHub Release es el 411769921.
+  - `remote_deploy` se omitió, igual que en la V1.55: producción se actualiza con "Buscar actualizaciones".
+- Incluye los 19 commits desde la V1.55: este arreglo, el de filas fantasma en releases y los de Talento ("Mi progreso" con comisión real + permiso de Vendedor, y gráfica de calidad vacía en gris).
