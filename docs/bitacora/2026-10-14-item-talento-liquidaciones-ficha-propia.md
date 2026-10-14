@@ -71,3 +71,52 @@ silencioso impidiendo que el frontend los leyera.
   roles que sí gestionan, ej. Mostrador/admin).
 
 Rama `fix/talento-liquidaciones-propia-ficha`, commit `7fea90fa`.
+
+## 2026-10-14 15:10 — Segunda vuelta: buscador seguía ahí + regla de Compensación de prueba
+
+### Hallazgo 2 (reportado por Irving probando en vivo)
+
+Tras el fix anterior, `demo_tecnico_bajo` ya no veía el botón "Calcular", pero
+el cuadro "Buscar colaborador…" de la fila de **filtros** (independiente del
+modal "Calcular", arriba de la tabla) seguía visible — "está por gusto si no
+puede buscar a nadie". Correcto: ese input es una pieza aparte del botón que
+ya se ocultó.
+
+**Fix:** mismo guard (`!colaboradorId || puedeGestionar`) aplicado también a
+ese input. De paso se encontró que `TalentoLiquidacionController::data()`
+nunca leía ese parámetro — ni siquiera en la pantalla admin (dead param desde
+siempre) — se conectó con el mismo patrón `whereHas` que ya usa
+`TalentoColaboradorController`. Rama `fix/talento-liquidaciones-buscador-propio`,
+commit `24ed7a28`, mergeada a `main`.
+
+Verificado en vivo: ya no aparece ningún buscador en la pestaña propia; solo
+los filtros de estado/fecha (que sí hacen algo sobre su propio historial).
+
+### Compensación — regla asignada + recálculo de la semana (dato demo, sin código)
+
+Irving pidió, tras preguntarle qué es la pestaña Compensación, asignarle una
+regla real a `demo_tecnico_bajo` (colaborador #181, sin regla hasta ahora —
+por eso su liquidación mostraba Base $0.00) y recalcular su semana.
+
+- Reusada la ÚNICA regla activa que ya existía en el sistema (sin duplicar):
+  **"Técnicos — cuota diaria (4 instalaciones o 12 garantías)"** (id=5,
+  `target_type=technician`, `base_salary=$2000.00`, `weekly_quota_units=36`
+  — el mismo 36 que ya usaba la regla semanal de penalización de este mismo
+  técnico, "Incumplimiento de cuota semanal — Técnico (36 completados/semana)").
+- Asignada vía `TalentoCompensationRuleHistory` (mismo flujo inmutable que usa
+  `TalentoCompensacionController::assignRule()`), `assigned_at=2026-09-20`
+  (antes del período a recalcular, para que `calculate()` la tome como vigente
+  esa semana).
+- Recalculada la semana 2026-10-03→2026-10-10 vía
+  `LiquidationService::calculate()` (el mismo servicio real que usa el botón
+  "Calcular" — sobrescribe el borrador existente id=8, no duplica).
+
+**Resultado verificado en vivo** (modal de detalle, cliente):
+Sueldo base $2000.00 · Sobreproducción $0.00 (0 unidades, por debajo de la
+cuota de 36) · Ledger: 2 penalizaciones de $200.00 (las mismas confirmadas
+antes) · **Gross final $1,600.00** ($2000 − $200 − $200). Cuenta exacta,
+pipeline completo (regla de compensación → cálculo real → ledger →
+liquidación) verificado de punta a punta con datos demo.
+
+Sin cambio de código en esta parte — solo datos de prueba vía los mismos
+servicios reales que usa la UI.
