@@ -378,18 +378,21 @@ class VerificarPagosRecurrentesCommand extends Command
             $billingService->billingServicesByClient($client, ClientBillingService::TYPE_BILLING_EXECUTED_PROCESS);
             $client->refresh();
 
-            if ($client->fecha_corte === $corteAntes) {
+            // REGLA 2026-10-14 (corte de recurrentes): el cobro automático SIN saldo acumula deuda y
+            // mueve fecha_pago, pero NO debe mover fecha_corte — el corte avanza solo cuando el
+            // cliente paga (ver CorteRecurrenteCalculator). Antes este chequeo exigía lo contrario.
+            if ($client->fecha_corte !== $corteAntes) {
                 return [
                     'ok' => false,
-                    'detalle' => "Cliente #{$client->id}: la rama 'sin saldo pero se cobra' avanzó fecha_pago ({$client->fecha_pago}) sin mover "
-                        . "fecha_corte (sigue en {$corteAntes}) — el cliente quedaría con fecha_corte congelada mientras fecha_pago avanza, "
-                        . 'expuesto a suspensión injusta. Revisar ClientBillingService::billingServicesByClient() (rama TYPE_BILLING_EXECUTED_PROCESS).',
+                    'detalle' => "Cliente #{$client->id}: la rama 'sin saldo pero se cobra' movió fecha_corte ({$corteAntes} → {$client->fecha_corte}) "
+                        . 'por un cobro que el cliente no ha pagado. El corte solo debe avanzar cuando paga. '
+                        . 'Revisar ClientBillingService::billingServicesByClient() (rama TYPE_BILLING_EXECUTED_PROCESS).',
                 ];
             }
 
             return [
                 'ok' => true,
-                'detalle' => "Cliente #{$client->id}: fecha_corte avanzó junto con fecha_pago ({$corteAntes} → {$client->fecha_corte}).",
+                'detalle' => "Cliente #{$client->id}: el cobro sin saldo dejó fecha_corte intacta ({$corteAntes}) y acumuló deuda.",
             ];
         } finally {
             DB::rollBack();
@@ -831,12 +834,10 @@ class VerificarPagosRecurrentesCommand extends Command
     }
 
     /**
-     * Regresión de la decisión de política de Irving (2026-09-18): un cliente RECURRENT sin
-     * saldo suficiente solo debe seguir acumulando adeudo automático mientras siga DENTRO de la
-     * duración de su contrato (ClientBillingService::clientHasReachedContractCap(), que reusa
-     * ClientService::getDataPendingPayments()). Verifica los DOS lados con clientes reales:
-     * uno que aún debe meses de su contrato (debe seguir cobrando) y uno que ya cubrió toda su
-     * duración con pagos reales (NO debe cobrar más). Escritura real de saldo, siempre revertida.
+     * Tope de cobro sin saldo de recurrentes (política 2026-09-18, reglas nuevas 2026-10-14): dentro
+     * del contrato se acumula deuda hasta los meses que faltan; con el contrato cumplido se cobra solo
+     * durante la gracia de 90 días. Verifica los dos lados con clientes reales (uno dentro y uno que ya
+     * cubrió su contrato con pagos reales). Escritura real de saldo, siempre revertida.
      */
     private function checkRecurrentTopeDuracionContrato(): array
     {
@@ -895,47 +896,52 @@ class VerificarPagosRecurrentesCommand extends Command
             // CADA cliente, igual patrón que los demás chequeos de este comando. Aislado a la
             // transacción de prueba (se revierte), sin depender de ninguna tabla global
             // compartida ni de que la cola esté en cierto estado.
-            $cargosDentroAntes = DB::table('transactions')
-                ->where('client_id', $dentro->id)->where('category', 'Servicio')->where('type', 'debit')->count();
-            $cargosFueraAntes = DB::table('transactions')
-                ->where('client_id', $fuera->id)->where('category', 'Servicio')->where('type', 'debit')->count();
-
-            foreach ([$dentro, $fuera] as $c) {
-                $c->load('balance');
-                $c->balance->amount = -99999;
-                $c->balance->save();
-            }
-
+            // REGLAS 2026-10-14 (GraciaRecurrenteCalculator), cuatro situaciones del cobro sin saldo:
+            //  dentro de contrato: sin deuda -> cobra; deuda >= meses restantes -> NO cobra.
+            //  contrato cumplido : gracia vigente -> cobra; gracia vencida -> NO cobra.
             $billingService = new ClientBillingService();
+            $contar = fn ($c) => DB::table('transactions')
+                ->where('client_id', $c->id)->where('category', 'Servicio')->where('type', 'debit')->count();
+            $cobra = function ($c, $saldo, $finGracia) use ($billingService, $contar) {
+                $c->load('balance');
+                $c->balance->amount = $saldo;
+                $c->balance->save();
+                DB::table('clients')->where('id', $c->id)->update(['fecha_fin_periodo_gracia' => $finGracia]);
+                $c->refresh();
+                $c->load('balance');
+                $antes = $contar($c);
+                $billingService->billingServicesByClient($c, ClientBillingService::TYPE_BILLING_EXECUTED_PROCESS);
 
-            $billingService->billingServicesByClient($dentro, ClientBillingService::TYPE_BILLING_EXECUTED_PROCESS);
-            $billingService->billingServicesByClient($fuera, ClientBillingService::TYPE_BILLING_EXECUTED_PROCESS);
+                return $contar($c) > $antes;
+            };
 
-            $cargosDentroDespues = DB::table('transactions')
-                ->where('client_id', $dentro->id)->where('category', 'Servicio')->where('type', 'debit')->count();
-            $cargosFueraDespues = DB::table('transactions')
-                ->where('client_id', $fuera->id)->where('category', 'Servicio')->where('type', 'debit')->count();
+            $r1 = $cobra($dentro, 0, null);
+            $r2 = $cobra($dentro, -99999, null);
+            $r3 = $cobra($fuera, 0, now()->addDays(30)->toDateTimeString());
+            $r4 = $cobra($fuera, 0, now()->subDay()->toDateTimeString());
 
-            $seCobroDentro = $cargosDentroDespues > $cargosDentroAntes;
-            $seCobroFuera = $cargosFueraDespues > $cargosFueraAntes;
-
-            if (!$seCobroDentro) {
-                return [
-                    'ok' => false,
-                    'detalle' => "Cliente #{$dentro->id} (aún dentro de su contrato) NO se cobró sin saldo — el tope de contrato está bloqueando cobros legítimos.",
-                ];
+            $fallas = [];
+            if (!$r1) {
+                $fallas[] = "#{$dentro->id} (dentro de contrato, sin deuda) NO se cobró";
+            }
+            if ($r2) {
+                $fallas[] = "#{$dentro->id} (dentro de contrato, deuda >= meses restantes) SÍ se cobró — falta el tope";
+            }
+            if (!$r3) {
+                $fallas[] = "#{$fuera->id} (contrato cumplido, gracia vigente) NO se cobró";
+            }
+            if ($r4) {
+                $fallas[] = "#{$fuera->id} (contrato cumplido, gracia vencida) SÍ se cobró";
             }
 
-            if ($seCobroFuera) {
-                return [
-                    'ok' => false,
-                    'detalle' => "Cliente #{$fuera->id} (ya cubrió con pagos reales la duración completa de su contrato) SÍ se cobró sin saldo — el tope de contrato dejó de aplicarse (regresión del fix de política de Irving, 2026-09-18).",
-                ];
+            if ($fallas) {
+                return ['ok' => false, 'detalle' => 'Cobro sin saldo de recurrentes fuera de la regla del 2026-10-14: ' . implode('; ', $fallas) . '.'];
             }
 
             return [
                 'ok' => true,
-                'detalle' => "Cliente #{$dentro->id} (dentro de contrato) sí se cobra; cliente #{$fuera->id} (ya cubrió su contrato) no se cobra más.",
+                'detalle' => "Cobro sin saldo OK: #{$dentro->id} (dentro de contrato) cobra sin deuda y se detiene con la deuda al tope; "
+                    . "#{$fuera->id} (contrato cumplido) cobra con gracia vigente y se detiene con la gracia vencida.",
             ];
         } finally {
             DB::rollBack();
