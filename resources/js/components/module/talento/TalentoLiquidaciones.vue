@@ -12,7 +12,7 @@
       <div class="p-3">
         <!-- Filtros -->
         <div class="row g-2 mb-3">
-          <div class="col-md-3">
+          <div class="col-md-3" v-if="!colaboradorId || puedeGestionar">
             <input v-model="filters.search" @input="debounceLoad" type="text"
                    class="form-control form-control-sm" placeholder="Buscar colaborador…">
           </div>
