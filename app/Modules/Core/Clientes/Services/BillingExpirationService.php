@@ -42,6 +42,36 @@ class BillingExpirationService
         return $fecha;
     }
 
+    /**
+     * Recurrentes (regla del 2026-10-14): el corte avanza $meses mensualidades desde el corte
+     * ANTERIOR, manteniendo el día fijo de facturación — no se deriva de fecha_pago ni del día
+     * real del pago. Si el cliente estaba suspendido (fecha_corte null) parte del último corte
+     * conocido en activity_log; solo sin ese dato cae al cálculo viejo (fecha_pago + gracia).
+     */
+    public function avanzarCorteRecurrente(int $meses)
+    {
+        if ($meses <= 0) {
+            return null;
+        }
+        $clientRepository = new ClientRepository();
+        $config = $this->client->billing_configuration;
+        $base = $this->client->fecha_corte ?: $clientRepository->obtenerUltimaFechaCorteDelClienteByActivityLog($this->client);
+
+        if ($base) {
+            $fecha = CorteRecurrenteCalculator::nuevoCorte(
+                Carbon::parse($base),
+                $meses,
+                (int) $config->billing_date,
+                (int) $config->billing_expiration
+            )->toDateTimeString();
+        } else {
+            $fecha = Carbon::parse($this->client->fecha_pago)->addDays((int) $config->billing_expiration)->endOfDay()->toDateTimeString();
+        }
+
+        $clientRepository->setFechaCorte($this->client, $fecha);
+        return $fecha;
+    }
+
     private function getBillingExpirationByTypeOfBillingByFechaCorte($fechaCorteAnterior, $cantidadDeDiasOmesesAMultiplicarLaFechaSegunEltipoDeBilling)
     {
         $clientRepository = new ClientRepository();

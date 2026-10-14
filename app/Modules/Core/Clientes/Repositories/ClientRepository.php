@@ -830,7 +830,13 @@ class ClientRepository
 
     public function addPeriodoGracia(mixed $client)
     {
-        $daysToGracePeriod = $client->billing_configuration->grace_period;
+        // Regla 2026-10-14: la gracia dura 90 días para todos (antes salía de
+        // billing_configurations.grace_period: 90, 99 o 185 según el cliente) y no se renueva
+        // mientras siga vigente. Solo debe pedirse a clientes con contrato cumplido.
+        if ($client->fecha_fin_periodo_gracia && Carbon::parse($client->fecha_fin_periodo_gracia)->isFuture()) {
+            return;
+        }
+        $daysToGracePeriod = \App\Modules\Core\Clientes\Services\GraciaRecurrenteCalculator::DIAS_GRACIA;
         $client->fecha_fin_periodo_gracia = Carbon::now()->addDays($daysToGracePeriod);
         $client->save();
 
@@ -880,7 +886,7 @@ class ClientRepository
     }
 
     /* END INFORMATION */
-    private function obtenerUltimaFechaCorteDelClienteByActivityLog($client)
+    public function obtenerUltimaFechaCorteDelClienteByActivityLog($client)
     {
         //TODO Cuando Se ARREGLEN Bien La Fecha en que fue Suspendido el cliente Habilitar esto
         /*  if ($client->fecha_suspension) {

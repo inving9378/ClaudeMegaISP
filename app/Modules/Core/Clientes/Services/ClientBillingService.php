@@ -10,6 +10,7 @@ use App\Modules\Core\Clientes\Models\Client;
 use App\Models\TypeBilling;
 use App\Repositories\BalanceRepository;
 use App\Services\LogService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Spatie\Activitylog\Models\Activity;
@@ -19,6 +20,10 @@ class ClientBillingService
     const TYPE_BILLING_EXECUTED_PROCESS = 'process_command';
 
     protected $logService;
+
+    /** Mensualidades de deuda que el pago en curso saldó (solo recurrentes; ver CorteRecurrenteCalculator). */
+    private int $ciclosSaldadosPorPago = 0;
+    private bool $corteAvanzadoPorPago = false;
     public function __construct()
     {
         $this->logService = new LogService();
@@ -41,16 +46,69 @@ class ClientBillingService
         // Fix: las dos ramas pasan a ser mutuamente excluyentes para UN mismo pago — si el
         // camino de periodo de gracia aplicó (el cliente calificaba para esa rama), no se
         // intenta también el camino normal para el mismo evento de pago.
-        $procesadoPorGracia = $this->processPaymentForClientRecurrentWithGracePeriodActive($client, $newBalance, $transaction);
-        if (!$procesadoPorGracia) {
-            $this->processPaymentForRestOfClient($client, $newBalance, $transaction);
+        // REGLA DE CORTE DE RECURRENTES (2026-10-14): el corte avanza un mes por cada mensualidad
+        // PAGADA, desde el corte anterior. Se calcula aquí, con el saldo de antes y de después del
+        // pago, cuántas mensualidades de deuda saldó este pago (puede ser 0, parcial o varias).
+        $this->ciclosSaldadosPorPago = 0;
+        $this->corteAvanzadoPorPago = false;
+        if ($this->iSClientRecurrent($client) && $transaction && $transaction->credit > 0) {
+            $costo = (new ClientRepository())->getCostAllService($client->id);
+            $this->ciclosSaldadosPorPago = CorteRecurrenteCalculator::ciclosSaldados(
+                $newBalance - $transaction->credit,
+                $newBalance,
+                $costo
+            );
+        }
+
+        try {
+            $procesadoPorGracia = $this->processPaymentForClientRecurrentWithGracePeriodActive($client, $newBalance, $transaction);
+            if (!$procesadoPorGracia) {
+                $this->processPaymentForRestOfClient($client, $newBalance, $transaction);
+            }
+
+            // Pago que saldó mensualidades pero dejó deuda (ej. debía 3, pagó 2): ninguna de las
+            // ramas de arriba cobra un ciclo nuevo, pero el corte SÍ debe subir por lo saldado.
+            if ($this->ciclosSaldadosPorPago > 0 && !$this->corteAvanzadoPorPago) {
+                $this->moverCorteTrasCobro($client, 0);
+            }
+        } finally {
+            $this->ciclosSaldadosPorPago = 0;
+            $this->corteAvanzadoPorPago = false;
+        }
+    }
+
+    /**
+     * Mueve fecha_corte tras un pago/cobro. Recurrentes: corte anterior + (ciclos cobrados ahora +
+     * ciclos de deuda saldados por el pago). Otros tipos: comportamiento de siempre.
+     */
+    private function moverCorteTrasCobro(Client $client, int $ciclosCobrados): void
+    {
+        if ($this->iSClientRecurrent($client)) {
+            $total = $ciclosCobrados + $this->ciclosSaldadosPorPago;
+            if ($total > 0) {
+                $client->refresh();
+                (new BillingExpirationService($client))->avanzarCorteRecurrente($total);
+                $this->corteAvanzadoPorPago = true;
+                $this->logService->log($client, 'Cliente #' . $client->id . ' recurrente: fecha de corte avanza ' . $total . ' mes(es) (cobrados ' . $ciclosCobrados . ' + saldados ' . $this->ciclosSaldadosPorPago . ') desde el corte anterior');
+            }
+            return;
+        }
+
+        if ($ciclosCobrados > 0) {
+            $client->refresh();
+            (new BillingExpirationService($client))->setNewFechaCorteForClient(null, $ciclosCobrados);
         }
     }
 
     public function processPaymentForClientRecurrentWithGracePeriodActive(Client $client, $newBalance, $transaction = null): bool
     {
         // check if is a recurrent user and it has grade period active
-        if ($this->iSClientRecurrent($client) && $this->clientHasGracePeriodActive($client)) {
+        // Regla 2026-10-14: la gracia ya no existe para quien no cumplió su contrato, pero ese
+        // cliente también puede estar en deuda; su pago debe pasar por la misma rama (cobrar,
+        // quitar gracia, avanzar el corte por lo saldado y reactivar). Por eso la rama aplica si
+        // tiene gracia O si antes de este pago su saldo era negativo.
+        $teniaDeuda = $transaction && $transaction->credit > 0 && ($newBalance - $transaction->credit) < 0;
+        if ($this->iSClientRecurrent($client) && ($this->clientHasGracePeriodActive($client) || $teniaDeuda)) {
             if ($newBalance >= 0) {
                 // FIX (1-oct-2026): eliminaLosServiciosDelAddressList() corría en cuanto
                 // $newBalance >= 0, ANTES de saber si el pago dejó al cliente sin deuda. Esa
@@ -146,9 +204,7 @@ class ClientBillingService
             $this->actionBilling($clientRepository, $client, $cuantasVecesSeLePuedeCobrar, $transaction);
 
             // Actualizo fecha de corte
-            $service = new BillingExpirationService($client);
-            $client->refresh();
-            $service->setNewFechaCorteForClient(null, $cuantasVecesSeLePuedeCobrar);
+            $this->moverCorteTrasCobro($client, $cuantasVecesSeLePuedeCobrar);
 
             $this->logService->log($client, 'Cliente #' . $client->id . ' se le va a cobrar ' . $cuantasVecesSeLePuedeCobrar . ' veces y se elimna el periodo de gracia.');
             return true;
@@ -165,9 +221,28 @@ class ClientBillingService
             // que a su vez reusa el cálculo YA EXISTENTE y usado en el documento de
             // contrato (ClientService::getDataPendingPayments()) — cuenta PAGOS REALES
             // hechos vs. duración contratada, no cuántas veces el cron ya cobró de más.
-            if ($this->clientHasReachedContractCap($client)) {
-                $this->logService->log($client, 'Cliente #' . $client->id . ' ya cubrió (con pagos reales) la duración completa de su contrato — no se le cobra más automáticamente sin saldo.');
+            //
+            // CAMBIO (2026-10-14, reglas de gracia de recurrentes — ver GraciaRecurrenteCalculator):
+            //  - DENTRO del contrato: se cobra mientras la deuda acumulada sea menor a los meses
+            //    que le faltan del contrato (antes no había tope mientras no pagara).
+            //  - CONTRATO CUMPLIDO: se cobra durante la gracia de 90 días (este primer cobro la
+            //    inicia) y se deja de cobrar cuando vence; de ahí pasa a inactivo (comando aparte).
+            $mesesRestantes = (int) ((new ClientService($client))->getDataPendingPayments()['mesesRestantes'] ?? 0);
+            $costoCiclo = (float) $clientRepository->getCostAllService($client->id);
+            $client->load('balance');
+            $ciclosDeuda = CorteRecurrenteCalculator::ciclosPendientes((float) $client->balance->amount, $costoCiclo);
+            $finGracia = $client->fecha_fin_periodo_gracia ? Carbon::parse($client->fecha_fin_periodo_gracia) : null;
+
+            if (!GraciaRecurrenteCalculator::puedeCobrarSinSaldo($mesesRestantes, $ciclosDeuda, $finGracia, Carbon::now())) {
+                $this->logService->log($client, 'Cliente #' . $client->id . ' no se le cobra automáticamente sin saldo: '
+                    . ($mesesRestantes > 0
+                        ? 'su deuda (' . $ciclosDeuda . ' mensualidades) ya alcanzó los ' . $mesesRestantes . ' meses que le faltan de contrato'
+                        : 'su periodo de gracia venció'));
                 return false;
+            }
+
+            if (GraciaRecurrenteCalculator::aplicaGracia($mesesRestantes) && !$finGracia) {
+                $clientRepository->addPeriodoGracia($client);
             }
 
             $this->actionBilling($clientRepository, $client, 1, $transaction);
@@ -184,11 +259,15 @@ class ClientBillingService
             // y fecha_pago muy adelantada, el cron de suspensión lo bloqueaba
             // injustamente pese a estar "al día" según su fecha_pago real (casos
             // reales en prod: #7408, #6861).
-            $service = new BillingExpirationService($client);
-            $client->refresh();
-            $service->setNewFechaCorteForClient(null, 1);
+            // CAMBIO (2026-10-14, regla de corte de recurrentes): aquí se llamaba a
+            // setNewFechaCorteForClient(null, 1), que adelantaba fecha_corte junto con fecha_pago
+            // por un cobro que el cliente NO ha pagado (así los clientes 7656/7663/7664 pasaron de
+            // octubre a noviembre sin pagar). El corte es la fecha en que se corta el servicio si
+            // no paga: este cobro solo acumula deuda y mueve fecha_pago; el corte avanza cuando el
+            // cliente PAGA (moverCorteTrasCobro / CorteRecurrenteCalculator). Revierte el efecto
+            // del fix del 2026-09-18 (#7408/#6861), que asumía "cobrado = al día".
 
-            $this->logService->log($client, 'Cliente #' . $client->id . ' no tiene suficiente balance pero le cobro el servicio');
+            $this->logService->log($client, 'Cliente #' . $client->id . ' no tiene suficiente balance pero le cobro el servicio (acumula deuda; fecha_corte no se mueve)');
             return true;
         }
 
@@ -230,13 +309,16 @@ class ClientBillingService
             $this->actionBilling($clientRepository, $client, $cuantasVecesSeLePuedeCobrar, $transaction);
 
             // Actualizo fecha de corte
-            $service = new BillingExpirationService($client);
-            $service->setNewFechaCorteForClient(null, $cuantasVecesSeLePuedeCobrar);
+            $this->moverCorteTrasCobro($client, $cuantasVecesSeLePuedeCobrar);
 
             $this->logService->log($client, 'Cliente #' . $client->id . ' se establece nueva fecha de corte');
 
             return true;
         }
+
+        // Pago que no alcanzó a cobrar un ciclo nuevo pero SÍ saldó mensualidades de deuda
+        // (recurrentes): el corte sube por esas mensualidades. Sin deuda saldada no mueve nada.
+        $this->moverCorteTrasCobro($client, 0);
 
         // N=0: pago que no alcanzó a cubrir ni un ciclo completo — no se cobró nada,
         // cobrarYActivarCliente() NO debe reactivar al cliente con esto.
@@ -337,7 +419,7 @@ class ClientBillingService
      * que contrató. Sin `duration_contract` asignado (0 meses) → conservador: se trata
      * como ya cubierto (no se le acumula nada más sin ese dato).
      */
-    private function clientHasReachedContractCap(Client $client): bool
+    public function clientHasReachedContractCap(Client $client): bool
     {
         $clientService = new ClientService($client);
         $data = $clientService->getDataPendingPayments();
