@@ -2412,6 +2412,12 @@ export const fieldsJson = {
         { field: "ia_manage_sesiones", label: "Gestionar sesiones", value: false, depend: "ia_view_chat" },
         { field: "ia_manage_tareas", label: "Gestionar tareas IA", value: false, depend: "ia_view_chat" },
     ],
+    // Robot JARVIS (IaChatFloat.vue): se gatea con `usar-ia-chat` en el layout, NO con los ia_* de
+    // arriba (esos son del módulo "Asistente IA", menú /ia). Antes solo salía perdido en "Otros"
+    // → al dar los ia_* a otro usuario el robot no le aparecía.
+    asistente_flotante: [
+        { field: "usar-ia-chat", label: "Usar asistente flotante (JARVIS)", value: false },
+    ],
     warroom: [
         { field: "warroom.view", label: "Ver War Room", value: false },
         { field: "warroom.meeting.create", label: "Crear reunión", value: false, depend: "warroom.view" },
@@ -2790,6 +2796,7 @@ export const accordions = ref({
     cobranza: [{ title: "Cobranza Blaster", filter: "cobranza.view" }],
     whatsapp: [{ title: "WhatsApp", filter: "whatsapp_view_conversations" }],
     ia: [{ title: "Asistente IA", filter: "ia_view_chat" }],
+    asistente_flotante: [{ title: "Asistente flotante", filter: "usar-ia-chat" }],
     warroom: [{ title: "War Room", filter: "warroom.view" }],
     evaluador: [{ title: "Evaluador empresarial", filter: "evaluador_view_evaluacion" }],
     payments: [{ title: "Pagos", filter: "payments_view_providers" }],
@@ -2811,6 +2818,7 @@ export const extraModuleTabs = [
     { ref: "cobranza", title: "Cobranza" },
     { ref: "whatsapp", title: "WhatsApp" },
     { ref: "ia", title: "IA" },
+    { ref: "asistente_flotante", title: "Asistente flotante" },
     { ref: "warroom", title: "War Room" },
     { ref: "evaluador", title: "Evaluador" },
     { ref: "payments", title: "Pagos" },
