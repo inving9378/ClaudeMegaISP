@@ -262,3 +262,21 @@ regla de sueldo base sería una decisión de negocio real (no demo) que
 nadie pidió — se limitó la acción exactamente a lo autorizado ("aplícaselo"
 = el crédito del bono), dejando el crédito ya escrito y disponible por si
 en el futuro se decide correr su liquidación.
+
+## 2026-10-14 16:30 — Revisión de demo_mostrador: todo correcto, un detalle de copy corregido
+
+A pedido de Irving, se revisó también `demo_mostrador` (colaborador #184):
+- Sin regla de Compensación, sin liquidación, sin ledger — su única
+  evaluación semanal es "Cumple la cuota" (18 pagos capturados), sin
+  bono/penalización pendiente que aplicar.
+- Ya entra a su propia ficha (Mostrador ya tenía `talento.view` desde la
+  Fase 5), ve Liquidaciones sin Calcular/Cerrar/buscador — igual que
+  técnico y vendedor.
+
+**Detalle encontrado:** el estado vacío de la tabla decía `Usa "Calcular"
+para generar la primera` aunque el botón ya no se muestra en la ficha
+propia (fix de hace un rato). Corregido: mensaje condicional al mismo
+criterio (`!colaboradorId || puedeGestionar`) — ahora dice "Todavía no se
+ha calculado ninguna liquidación." cuando no puede gestionar. Rama
+`fix/talento-liquidaciones-mensaje-vacio-propio`, commit `0760725f`,
+mergeada a `main`.
