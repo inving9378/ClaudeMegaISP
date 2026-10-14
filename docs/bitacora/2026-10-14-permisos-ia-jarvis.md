@@ -26,3 +26,15 @@ Verificado con una simulación de `constants.js` en node: el acordeón JARVIS ag
 
 **Pendiente para que se vea:** integrar la rama `fix/permisos-ia-jarvis` a main y `npm run prod`
 en `/var/www/megaisp`. Luego, a quien deba ver el robot, marcarle la casilla nueva.
+
+## 2026-10-14 — Cambio de enfoque: pestaña propia "Asistente flotante"
+
+A pedido del usuario, en vez de meter `usar-ia-chat` dentro de la pestaña IA, va en una **pestaña
+propia "Asistente flotante"**, justo debajo de "IA" en la lista de pestañas, para distinguir uno de
+otro. Casilla: "Usar asistente flotante (JARVIS)". La pestaña IA queda exactamente como estaba
+(acordeón "Asistente IA" con sus 12 `ia_*`, sin renombrar).
+
+Verificado con la simulación en node: orden de pestañas `… WhatsApp | IA | Asistente flotante |
+War Room …`, la pestaña nueva agrupa solo `usar-ia-chat`, IA conserva sus 12 y "Otros" ya no lo
+lista. El modal (`PermissionAssignmentModal.vue`) recorre `extraModuleTabs`/`fieldsJson` de forma
+genérica, así que no requirió cambios.
