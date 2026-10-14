@@ -731,13 +731,14 @@
                 return {
                     no_rule: 'Sin regla asignada',
                     penalty_pending: 'Penalización pendiente',
+                    penalty_applied: 'Penalización aplicada',
                     bonus: 'Bono ganado',
                     meets_quota: 'Cumple la cuota',
                     sin_datos: 'Sin datos esta semana',
                 }[outcome] || outcome || '—';
             }
             function reglaDesempenoColor(outcome) {
-                return { no_rule: 'grey-7', penalty_pending: 'negative', bonus: 'positive', meets_quota: 'primary', sin_datos: 'grey-6' }[outcome] || 'grey-7';
+                return { no_rule: 'grey-7', penalty_pending: 'negative', penalty_applied: 'negative', bonus: 'positive', meets_quota: 'primary', sin_datos: 'grey-6' }[outcome] || 'grey-7';
             }
             // Fase de calidad (2026-10-13) — ahora puede haber más de una regla
             // (una de cantidad y una de calidad) mostrándose a la vez; cada
