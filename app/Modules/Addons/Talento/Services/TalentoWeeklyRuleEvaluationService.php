@@ -6,10 +6,12 @@ use App\Models\Payment;
 use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoHealthBonusLog;
+use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
 use App\Modules\Addons\Talento\Models\TalentoWeeklyRule;
 use App\Modules\Addons\Talento\Models\TalentoWeeklyRuleEvaluation;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
 use App\Services\CalculateBalanceSellerService;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -138,10 +140,12 @@ class TalentoWeeklyRuleEvaluationService
             && ($rule->bonus_sales_threshold === null || $sales >= $rule->bonus_sales_threshold);
 
         if ($overCeiling) {
-            return TalentoWeeklyRuleEvaluation::create($base + [
+            $eval = TalentoWeeklyRuleEvaluation::create($base + [
                 'outcome'               => 'bonus',
                 'bonus_amount_applied'  => $rule->bonus_amount,
             ]);
+            $this->aplicarBonoAlLedger($eval);
+            return $eval;
         }
 
         return TalentoWeeklyRuleEvaluation::create($base + ['outcome' => 'meets_quota']);
@@ -202,13 +206,57 @@ class TalentoWeeklyRuleEvaluationService
 
         $bonoHasta = $rule->bonus_sales_threshold; // violaciones máximas toleradas para el bono
         if ($bonoHasta !== null && $violaciones <= $bonoHasta) {
-            return TalentoWeeklyRuleEvaluation::create($base + [
+            $eval = TalentoWeeklyRuleEvaluation::create($base + [
                 'outcome'              => 'bonus',
                 'bonus_amount_applied' => $rule->bonus_amount,
             ]);
+            $this->aplicarBonoAlLedger($eval);
+            return $eval;
         }
 
         return TalentoWeeklyRuleEvaluation::create($base + ['outcome' => 'meets_quota']);
+    }
+
+    /**
+     * Un bono de regla semanal YA NO es informativo (decisión de Irving,
+     * 2026-10-14: "los bonos no son informativos, suman a lo que gana en
+     * la semana") — se escribe de inmediato como CRÉDITO real del ledger,
+     * mismo patrón (concept='bonus', reference_type/reference_id para
+     * idempotencia) que ya usa ProjectBonusService::award() para el bono
+     * de proyecto. A diferencia de una penalización (PenaltyService::
+     * apply(), que exige confirmación humana de un supervisor —
+     * "nadie se auto-penaliza/auto-confirma"), un bono se AUTO-aplica al
+     * momento de evaluarse: mismo criterio que ya usa HealthBonusService
+     * para su bono de calidad por OT (dar de más no exige el mismo candado
+     * de confianza que descontar). Idempotente por reference_id: si esta
+     * evaluación ya tiene su crédito escrito (ej. un reintento del comando
+     * semanal), no duplica nada.
+     */
+    private function aplicarBonoAlLedger(TalentoWeeklyRuleEvaluation $eval): void
+    {
+        if ($eval->outcome !== 'bonus' || ! $eval->bonus_amount_applied) {
+            return;
+        }
+
+        $yaAplicado = TalentoLedgerEntry::where('reference_type', TalentoWeeklyRuleEvaluation::class)
+            ->where('reference_id', $eval->id)
+            ->exists();
+        if ($yaAplicado) {
+            return;
+        }
+
+        TalentoLedgerEntry::create([
+            'colaborador_id' => $eval->colaborador_id,
+            'type'           => 'credit',
+            'concept'        => 'bonus',
+            'amount'         => $eval->bonus_amount_applied,
+            'reference_type' => TalentoWeeklyRuleEvaluation::class,
+            'reference_id'   => $eval->id,
+            'period_start'   => Carbon::parse($eval->week_start)->toDateString(),
+            'period_end'     => Carbon::parse($eval->week_end)->toDateString(),
+            'notes'          => 'Bono por regla de desempeño: ' . ($eval->rule?->name ?? 'regla semanal'),
+            'created_by'     => User::systemBot()?->id,
+        ]);
     }
 
     /**

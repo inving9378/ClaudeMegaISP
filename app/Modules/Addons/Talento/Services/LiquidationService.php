@@ -140,12 +140,24 @@ class LiquidationService
             );
 
             // Write/refresh ledger entries for this liquidation (idempotent: delete draft entries first)
-            // Only delete entries created BY a liquidation calc (concept salary_base / overproduction)
+            // Only delete entries created BY un cálculo de liquidación (concept
+            // salary_base / overproduction, SIEMPRE exclusivos de este método).
+            // ⚠️ Bug real encontrado 2026-10-14 (verificado: 2 filas duplicadas de
+            // salary_base para un mismo colaborador+período, mismo monto, mismo
+            // reference_id): el filtro traía ->whereNull('reference_type'), pero
+            // las filas que ESTE MISMO bloque escribe (abajo) llevan
+            // reference_type=TalentoLiquidation::class — nunca null. Cada
+            // recálculo de una liquidación YA EXISTENTE (botón "Calcular" dos
+            // veces, o cualquier corrección) dejaba viva la fila anterior y
+            // sumaba una nueva, acumulando duplicados silenciosos en el ledger
+            // (no afectaba el monto de gross_pay, que se recalcula fresco cada
+            // vez, pero sí ensuciaba el detalle "Ledger del período" que ve el
+            // colaborador). El match concept+colaborador+período ya es lo
+            // bastante preciso sin necesitar whereNull('reference_type').
             TalentoLedgerEntry::where('colaborador_id', $colaboradorId)
                 ->where('period_start', $periodStart->toDateString())
                 ->where('period_end',   $periodEnd->toDateString())
                 ->whereIn('concept', ['salary_base', 'overproduction'])
-                ->whereNull('reference_type')
                 ->delete();
 
             if ($basePaid > 0) {
