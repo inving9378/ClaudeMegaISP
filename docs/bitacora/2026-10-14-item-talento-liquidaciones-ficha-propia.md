@@ -160,3 +160,85 @@ No se tocó ningún permiso para "arreglar" esto (es un cambio de alcance,
 no lo que se pidió) — queda anotado para que Irving decida si quiere que
 Vendedor también vea su propia ficha/Liquidaciones (como ya ve el técnico)
 o si el Portal debería tener una pestaña de historial.
+
+## 2026-10-14 16:00 — Vendedor con acceso igual que técnico + los bonos ya pagan de verdad + bug de duplicado encontrado y corregido
+
+Irving, siguiendo la prueba con `demo_vendedor`, pidió dos cosas:
+
+### 1. Vendedor ve su propia ficha (igual que técnico)
+
+El rol **Vendedor no tenía `talento.view`** → `/talento/colaborador/{su-propio-id}`
+le redirigía al dashboard, sin poder ver ni su propia pestaña Liquidaciones
+(hallazgo de la vuelta anterior). Migración aditiva
+`2026_10_14_160000_grant_talento_view_to_vendedor.php`, mismo patrón EXACTO
+que la hermana `grant_talento_admin_lite_to_mostrador`: **solo**
+`talento.view` (gate amplio de middleware) — el controller sigue exigiendo
+uno-mismo/supervisor/staff para todo lo demás, no destapa ver a otros
+colaboradores ni gestionar nada. Verificado en vivo: `demo_vendedor` ya
+entra a su ficha, ve "Liquidaciones" con su propia fila, sin Calcular/Cerrar
+ni buscador (mismo fix de la vuelta anterior, reusado automáticamente).
+
+### 2. Los bonos de regla semanal ahora pagan de verdad
+
+Decisión explícita de Irving: "los bonos no son informativos, suman a lo
+que gana en la semana" — corrige el supuesto con el que se había
+construido el motor de reglas (documentado como deuda pendiente en
+sesiones anteriores). `TalentoWeeklyRuleEvaluationService::
+aplicarBonoAlLedger()` (nuevo, privado) escribe un **crédito real** en el
+ledger (`concept=bonus`) en el instante mismo en que se crea una evaluación
+con `outcome=bonus` — en los DOS ejes (cantidad y calidad_senal). Mismo
+patrón ya usado por `ProjectBonusService::award()` para el bono de
+proyecto; a diferencia de una penalización (que exige confirmación humana
+de un supervisor), el bono se AUTO-aplica, igual que ya hace
+`HealthBonusService` con su bono de calidad por OT. Idempotente por
+`reference_type`/`reference_id` (un reintento del comando semanal no
+duplica el crédito). Atribuido a MEGAISP (`User::systemBot()`).
+
+**Backfill de las evaluaciones de bono que ya existían antes del fix**
+(no se recrean automáticamente solas, porque el guard de "ya evaluado" de
+`evaluateUnaRegla()` corta antes de llegar a la rama de bono en una
+evaluación repetida): se aplicó manualmente para los 3 casos de **demo**
+(`demo_tecnico_alto` ×2 — cantidad $300 + calidad $250 —, `demo_vendedor`
+×1 — $400) y se recalcularon sus semanas:
+- `demo_tecnico_alto` (col. 183): sin regla de Compensación asignada (base
+  $0) → Gross **$550.00** (puro crédito de bonos).
+- `demo_vendedor` (col. 185): base $1,500 + bono $400 → Gross **$1,900.00**.
+
+⚠️ **Hallazgo NO aplicado a propósito — DIANA (colaborador real #6, no
+demo):** existe una evaluación real `outcome=bonus` de $250
+(regla "Mostrador + Vendedor — cuota semanal", semana 2026-10-03→10-10),
+generada por el cron real de evaluación semanal — nunca se le aplicó el
+crédito (el motor es nuevo). Es un colaborador REAL, así que **no se tocó
+sin que Irving lo decida primero**, aunque sea en dev. Queda pendiente:
+confirmar con Irving si se aplica también retroactivamente.
+
+### 3. Bug encontrado al verificar visualmente: "Sueldo base" duplicado en el ledger
+
+Al abrir el detalle de `demo_vendedor` tras el recálculo, "Sueldo base"
+aparecía **dos veces**. Causa real en `LiquidationService::calculate()`:
+el borrado previo a reescribir el ledger de cada recálculo filtraba
+`->whereNull('reference_type')`, pero las filas que el MISMO bloque escribe
+llevan `reference_type=TalentoLiquidation::class` (nunca null) — el borrado
+nunca encontraba sus propias filas anteriores, y cada recálculo de una
+liquidación YA existente sumaba una fila nueva sin borrar la vieja. No
+afectaba el monto (`gross_pay` se recalcula fresco cada vez, nunca sumando
+el ledger existente), pero ensuciaba permanentemente el detalle que sí ve
+el colaborador.
+
+**Fix:** se quita el `whereNull('reference_type')` del borrado — el match
+`concept` (salary_base/overproduction, exclusivos de este método) +
+colaborador + período ya es preciso de sobra. Verificado: recalculado 2
+veces seguidas tras el fix, sigue en exactamente 1 fila cada vez.
+
+**Limpieza de los duplicados ya existentes** (barrido de todo el sistema,
+no solo demo): se encontraron 2 grupos duplicados reales —
+`demo_vendedor` (creado hoy mismo, limpiado) y **BRANDON** (colaborador
+real #21, duplicado desde el **2026-09-17**, casi un mes — mismo monto
+$2,000, mismo `reference_id`, literalmente la misma fila dos veces). Se
+borró la copia más vieja en ambos casos (dedupe mecánico, sin tocar ningún
+monto ni liquidación — las dos filas eran idénticas). Barrido final:
+**0 grupos duplicados en todo el sistema.**
+
+Rama `feature/talento-bonos-ledger-y-vendedor-acceso`, commits `a3f134b0`
+(Vendedor + bonos al ledger) + `1a6ee088` (fix de duplicado), mergeados a
+`main`.
