@@ -2073,6 +2073,20 @@ return [
         '/talento/mi-ficha/{id}',
         '/talento/mi-ficha/{id}/academia',
         '/talento/api/mi-equipo',
+        // Pestaña "Liquidaciones" de la ficha propia (2026-10-14): estos 2
+        // endpoints de LECTURA nunca estuvieron en NINGÚN bloque de este
+        // archivo -> 403 para cualquiera sin el bypass admin/DESARROLLADOR,
+        // incluido un técnico viendo su PROPIA ficha (el componente ya
+        // manda colaborador_id=el-suyo, pero el middleware ni lo dejaba
+        // llegar al controller). Registrados bajo talento.view (lo tiene
+        // casi cualquier rol de Talento) porque el scoping real
+        // self/subordinados/staff vive DENTRO de
+        // TalentoLiquidacionController::data()/show() — mismo criterio que
+        // /talento/api/colaboradores/{id}/progreso, arriba. calcular/cerrar
+        // (escritura) se quedan aparte, bajo talento.liquidation.manage,
+        // sin excepción de "es mía": ver su propia nota en ese bloque.
+        '/talento/api/liquidaciones',
+        '/talento/api/liquidaciones/{id}',
         // Dashboard viejo consolidado dentro de /talento (29-sep, pedido
         // de David: "ponlo en el dashboard nuevo... elimina ese del
         // sidebar") — la ruta /talento/dashboard se retiró, pero estos 5
@@ -2411,6 +2425,13 @@ return [
         '/talento/api/settlements/{id}/close',
         '/talento/api/colaboradores/{id}/settlement/draft',
         '/talento/api/settlement-items/{id}',
+        // Mismo hallazgo que arriba (talento.view): tampoco estaban
+        // registrados. A propósito SIN excepción de "uno mismo" (como
+        // ordenes_manage/compensacion_manage ya hacen a propósito en
+        // TalentoColaboradorController) — calcular/cerrar la liquidación
+        // propia de dinero real, nadie se auto-calcula su propio pago.
+        '/talento/api/liquidaciones/calcular',
+        '/talento/api/liquidaciones/{id}/cerrar',
     ],
     'talento.settlement.view' => [
         '/talento/finiquito',

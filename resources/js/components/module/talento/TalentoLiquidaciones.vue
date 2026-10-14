@@ -4,7 +4,7 @@
     <div class="tc-card">
       <div class="tc-cardhead d-flex flex-wrap align-items-center justify-content-between gap-2 p-3">
         <h5 class="tc-h1"><i class="fa fa-file-invoice-dollar me-2"></i>Liquidaciones Semanales</h5>
-        <button @click="openCalc" class="tc-btn tc-btn-ok">
+        <button v-if="!colaboradorId || puedeGestionar" @click="openCalc" class="tc-btn tc-btn-ok">
           <i class="fa fa-calculator me-1"></i> Calcular
         </button>
       </div>
@@ -58,7 +58,7 @@
                 <td><span class="tc-status" :class="liq.status === 'closed' ? 'is-ok' : 'is-warn'">{{ liq.status === 'closed' ? 'Cerrada' : 'Borrador' }}</span></td>
                 <td class="text-end">
                   <button @click="viewLiq(liq)" class="tc-btn tc-btn-info me-1">Ver</button>
-                  <button v-if="liq.status === 'draft'" @click="openCerrar(liq)" class="tc-btn tc-btn-bad-solid">Cerrar</button>
+                  <button v-if="liq.status === 'draft' && (!colaboradorId || puedeGestionar)" @click="openCerrar(liq)" class="tc-btn tc-btn-bad-solid">Cerrar</button>
                 </td>
               </tr>
               <tr v-if="!liquidaciones.length">
@@ -217,7 +217,7 @@
           </div>
           <div class="modal-footer">
             <button @click="detail.show=false" class="btn btn-secondary">Cerrar</button>
-            <button v-if="detail.liq?.status === 'draft'" @click="openCerrar(detail.liq)" class="tc-btn tc-btn-bad-solid">
+            <button v-if="detail.liq?.status === 'draft' && (!colaboradorId || puedeGestionar)" @click="openCerrar(detail.liq)" class="tc-btn tc-btn-bad-solid">
               <i class="fa fa-lock me-1"></i>Cerrar liquidación
             </button>
           </div>
@@ -257,6 +257,12 @@ export default {
   name: 'TalentoLiquidaciones',
   props: {
     colaboradorId: { type: [Number, String], default: null },
+    // Mismo criterio que TalentoCompensacion.vue: en la pantalla admin
+    // standalone (sin colaboradorId) siempre se gestiona; embebido en la
+    // ficha propia de alguien, solo si puedeGestionar (staff con
+    // talento.liquidation.manage o su supervisor directo) — un técnico
+    // viendo su propia liquidación NUNCA se auto-calcula/auto-cierra su pago.
+    puedeGestionar: { type: Boolean, default: false },
   },
   setup() {
     return { darkMode };

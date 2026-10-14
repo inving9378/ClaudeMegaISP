@@ -8,6 +8,7 @@ use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
 use App\Modules\Addons\Talento\Models\TalentoLiquidation;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
 use App\Modules\Addons\Talento\Services\LiquidationService;
+use App\Modules\Addons\Talento\Support\Actor;
 use App\Modules\Addons\Talento\Support\PayWeek;
 use App\Modules\Core\Security\Traits\ChecksActionPermission;
 use Carbon\Carbon;
@@ -27,17 +28,40 @@ class TalentoLiquidacionController extends Controller
 
     public function data(Request $request)
     {
-        $this->authorize('talento.liquidation.view');
+        // Mismo criterio que TalentoReglaDesempenoController::evaluationsIndex()
+        // (hoy mismo, reglas de desempeño): quien gestiona liquidaciones en
+        // general ve lo que pida por filtro; un colaborador SIN ese permiso
+        // (ej. un técnico viendo su propia ficha) solo puede ver su propia
+        // fila y la de sus subordinados directos — nunca la de un extraño,
+        // aunque manipule el parámetro colaborador_id a mano.
+        $esStaff = auth()->user()->can('talento.liquidation.view');
 
         $q = TalentoLiquidation::with('colaborador.user')
-            ->when($request->colaborador_id, fn($q, $v) => $q->where('colaborador_id', $v))
-            ->when($request->status,         fn($q, $v) => $q->where('status', $v))
-            ->when($request->from,           fn($q, $v) => $q->where('period_start', '>=', $v))
-            ->when($request->to,             fn($q, $v) => $q->where('period_end', '<=', $v))
-            ->orderBy('period_start', 'desc')
-            ->paginate($request->per_page ?? 25);
+            ->when($request->status, fn($q, $v) => $q->where('status', $v))
+            ->when($request->from,   fn($q, $v) => $q->where('period_start', '>=', $v))
+            ->when($request->to,     fn($q, $v) => $q->where('period_end', '<=', $v))
+            ->orderBy('period_start', 'desc');
 
-        return response()->json($q);
+        if ($esStaff) {
+            $q->when($request->colaborador_id, fn($q, $v) => $q->where('colaborador_id', $v));
+        } else {
+            $miPropioColaborador = Actor::for(auth()->user())->talento();
+            abort_if(! $miPropioColaborador, 403);
+
+            $idsVisibles = $miPropioColaborador->subordinados()->pluck('id')
+                ->push($miPropioColaborador->id)
+                ->unique()
+                ->values()
+                ->all();
+            $q->whereIn('colaborador_id', $idsVisibles);
+
+            if ($request->filled('colaborador_id')) {
+                abort_unless(in_array((int) $request->colaborador_id, $idsVisibles, true), 403);
+                $q->where('colaborador_id', $request->colaborador_id);
+            }
+        }
+
+        return response()->json($q->paginate($request->per_page ?? 25));
     }
 
     public function calcular(Request $request)
@@ -76,9 +100,15 @@ class TalentoLiquidacionController extends Controller
 
     public function show($id)
     {
-        $this->authorize('talento.liquidation.view');
-
         $liq = TalentoLiquidation::with('colaborador.user')->findOrFail($id);
+
+        if (! auth()->user()->can('talento.liquidation.view')) {
+            $miPropioColaborador = Actor::for(auth()->user())->talento();
+            $idsVisibles = $miPropioColaborador
+                ? $miPropioColaborador->subordinados()->pluck('id')->push($miPropioColaborador->id)->unique()->all()
+                : [];
+            abort_unless(in_array((int) $liq->colaborador_id, $idsVisibles, true), 403);
+        }
 
         // Attach ledger entries and validated orders for the period
         $liq->ledger = TalentoLedgerEntry::where('colaborador_id', $liq->colaborador_id)

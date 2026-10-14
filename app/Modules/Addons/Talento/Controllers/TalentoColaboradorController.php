@@ -114,6 +114,11 @@ class TalentoColaboradorController extends Controller
             // uno mismo no da de gratis la capacidad de asignarse una regla).
             'compensacion_manage' => auth()->user()->can('talento.compensation.manage') || $esSuSupervisor,
             'liquidaciones'   => auth()->user()->can('talento.liquidation.view') || $tieneAccesoAmplio,
+            // Mismo criterio que ordenes_manage/compensacion_manage: ver la
+            // liquidación PROPIA es autoservicio (ya cubierto arriba), pero
+            // calcularla/cerrarla es una acción de nómina — a propósito SIN
+            // $tieneAccesoAmplio, nadie se auto-calcula/auto-cierra su pago.
+            'liquidaciones_manage' => auth()->user()->can('talento.liquidation.manage') || $esSuSupervisor,
             'asistencia'      => auth()->user()->can('talento.attendance.view') || $tieneAccesoAmplio,
             // Las 4 "técnicas" también llevan $tieneAccesoAmplio — el filtro
             // real de "solo técnicos" ya lo impone esTecnico() en el
