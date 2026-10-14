@@ -37,6 +37,14 @@ class TalentoLiquidacionController extends Controller
         $esStaff = auth()->user()->can('talento.liquidation.view');
 
         $q = TalentoLiquidation::with('colaborador.user')
+            // El input "Buscar colaborador…" de la UI nunca se leía aquí — en
+            // la pantalla admin se escribía y no hacía nada (dead param desde
+            // siempre). Se conecta de paso (item #hoy: ocultarlo en la ficha
+            // propia hizo evidente que tampoco servía donde SÍ se muestra).
+            ->when($request->search, fn($q, $s) => $q->whereHas(
+                'colaborador.user',
+                fn($u) => $u->where('name', 'like', "%$s%")->orWhere('email', 'like', "%$s%")
+            ))
             ->when($request->status, fn($q, $v) => $q->where('status', $v))
             ->when($request->from,   fn($q, $v) => $q->where('period_start', '>=', $v))
             ->when($request->to,     fn($q, $v) => $q->where('period_end', '<=', $v))
