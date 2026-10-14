@@ -153,6 +153,7 @@ export default {
       const labels = {
         no_rule: "Sin regla asignada",
         penalty_pending: "Penalización pendiente",
+        penalty_applied: "Penalización aplicada",
         bonus: "Bono ganado",
         meets_quota: "Cumple la cuota",
         sin_datos: "Sin datos esta semana",
@@ -163,6 +164,7 @@ export default {
       const classes = {
         no_rule: "bg-secondary",
         penalty_pending: "bg-danger",
+        penalty_applied: "bg-danger",
         bonus: "bg-success",
         meets_quota: "bg-primary",
         sin_datos: "bg-secondary",
