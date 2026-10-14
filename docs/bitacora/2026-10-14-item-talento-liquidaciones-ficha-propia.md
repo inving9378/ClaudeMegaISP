@@ -242,3 +242,23 @@ monto ni liquidación — las dos filas eran idénticas). Barrido final:
 Rama `feature/talento-bonos-ledger-y-vendedor-acceso`, commits `a3f134b0`
 (Vendedor + bonos al ledger) + `1a6ee088` (fix de duplicado), mergeados a
 `main`.
+
+## 2026-10-14 16:15 — Bono de Diana (colaborador real) aplicado, con autorización explícita
+
+Irving confirmó: "sí, aplícaselo a Diana también". Se aplicó el mismo
+mecanismo (`aplicarBonoAlLedger()`) a la evaluación real #107 (Diana,
+colaborador #6, regla "Mostrador + Vendedor — cuota semanal", semana
+2026-10-03→2026-10-10) → crédito real escrito en el ledger: **$250.00**,
+`concept=bonus`, referenciado a la evaluación (idempotente), atribuido a
+MEGAISP.
+
+**A propósito NO se calculó/creó una liquidación para ella** (a diferencia
+de los demo, donde sí se recalculó la semana completa): Diana no tiene
+ninguna regla de Compensación asignada ni ninguna liquidación previa en
+todo el sistema — es staff administrativo (Mostrador), el motor de
+Liquidaciones/Compensación de Talento parece construido pensando en
+trabajo de campo (técnico) y no se le ha corrido nunca. Inventarle una
+regla de sueldo base sería una decisión de negocio real (no demo) que
+nadie pidió — se limitó la acción exactamente a lo autorizado ("aplícaselo"
+= el crédito del bono), dejando el crédito ya escrito y disponible por si
+en el futuro se decide correr su liquidación.
