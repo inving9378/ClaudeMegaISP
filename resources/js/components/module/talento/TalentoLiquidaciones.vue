@@ -62,7 +62,10 @@
                 </td>
               </tr>
               <tr v-if="!liquidaciones.length">
-                <td colspan="8" class="text-center text-muted py-4">No hay liquidaciones. Usa "Calcular" para generar la primera.</td>
+                <td colspan="8" class="text-center text-muted py-4">
+                  <template v-if="!colaboradorId || puedeGestionar">No hay liquidaciones. Usa "Calcular" para generar la primera.</template>
+                  <template v-else>Todavía no se ha calculado ninguna liquidación.</template>
+                </td>
               </tr>
             </tbody>
           </table>
