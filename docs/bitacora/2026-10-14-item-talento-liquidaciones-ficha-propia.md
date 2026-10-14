@@ -120,3 +120,43 @@ liquidación) verificado de punta a punta con datos demo.
 
 Sin cambio de código en esta parte — solo datos de prueba vía los mismos
 servicios reales que usa la UI.
+
+## 2026-10-14 15:30 — demo_vendedor: regla + recálculo, y un hallazgo nuevo (sin UI para verlo)
+
+Mismo patrón que con el técnico: `demo_vendedor` (colaborador #185) tampoco
+tenía ninguna regla de Compensación asignada ni liquidación calculada.
+
+- Creada una regla nueva **de demo** ("Vendedores — sueldo base semanal
+  (demo)", id=6, `target_type=seller`, `base_salary=$1500.00`,
+  `weekly_quota_units=0`) — no existía ninguna regla para `seller` que
+  reusar (la única regla real del sistema es la de Técnicos). `cuota=0` a
+  propósito: `countBillableUnits()` solo cuenta OTs/tasks de campo/puntos de
+  proyecto — nada de eso aplica a un vendedor, así que un piso/techo de
+  "unidades" no tendría sentido real para este rol; su desempeño real se
+  mide aparte, por la regla semanal de ventas/prospectos (ya evaluada esta
+  semana con el motor de reglas, `outcome=bonus`, +$400).
+- Asignada (`assigned_at=2026-09-20`) y recalculada la semana 2026-10-03→
+  2026-10-10 con `LiquidationService::calculate()`: **Base $1,500.00 ·
+  Sobreproducción $0.00 · Otros créditos/débitos $0.00 · Gross $1,500.00**
+  (liquidación nueva, id=9, estado borrador).
+
+### Hallazgo — Vendedor no tiene NINGUNA forma de ver esto (ni admin ni Portal)
+
+A diferencia del técnico, el rol **Vendedor no tiene el permiso
+`talento.view`** (solo `talento.ventas.view` + documentos propios) →
+`/talento/colaborador/185` (la ficha admin, de donde sale la pestaña
+Liquidaciones que se arregló hoy) le redirige al dashboard — no puede
+entrar ni para ver lo suyo. Y el Portal (`/talento/portal` → "Mi dinero")
+**solo muestra la semana EN CURSO** (`dinero/desglose` devuelve
+`period_start=2026-10-10` — la semana que sigue, no la que se acaba de
+calcular) — no hay ninguna pantalla de "liquidaciones pasadas" para
+colaboradores sin `talento.view`. Confirmado que `base_salary=1500` ya se
+refleja correctamente en el desglose de la semana en curso (la regla sí
+quedó bien asignada), pero la liquidación id=9 en sí (la semana pasada, ya
+calculada) es hoy invisible para `demo_vendedor` por cualquier camino de UI
+— solo se verificó por BD directamente.
+
+No se tocó ningún permiso para "arreglar" esto (es un cambio de alcance,
+no lo que se pidió) — queda anotado para que Irving decida si quiere que
+Vendedor también vea su propia ficha/Liquidaciones (como ya ve el técnico)
+o si el Portal debería tener una pestaña de historial.
