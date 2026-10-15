@@ -1,5 +1,12 @@
 # Terminal ttyd por usuario logueado — Fase 1 (item #9991177) — runbook
 
+> ⚠️ **SUPERADO el 2026-10-15 — NO aplicar los pasos (a) y (b) de abajo.** Dejan ttyd en
+> `--interface 0.0.0.0` y `/ttyd/` sin autenticación: es justo la configuración del incidente del
+> 2026-10-14. Además el token HMAC (~90 caracteres) **no cabe** en el header: ttyd 1.7.7 corta el
+> WebSocket si mide ≥30. El procedimiento vigente es `deploy/ttyd/README.md`
+> (`deploy/ttyd/aplicar-ttyd-seguro.sh`), que pasa el `login_user` simple tras verificar la sesión
+> en nginx. Se conserva este archivo como historia.
+
 Código y diseño ya mergeados a `main` (`TerminalIdentityTokenService`, endpoint
 `GET /devtools/terminal-token`, comando `terminal:validar-token`). Este runbook
 cubre los **3 pasos que requieren root** y que ninguna terminal del circuito
