@@ -42,3 +42,17 @@ solo quedaría con la etiqueta V1.60 en su tabla `releases`.
 - Causa del salto original: la V1.60 se publicó a mano por CLI (`deployment_logs #85`,
   `source=releases:publish-github`), no con el botón "+ Nueva versión"; el número no salió del
   cálculo automático.
+
+## 2026-10-14 20:45 — Mover el tag V1.59 para que incluya esta bitácora (bitácora PREVIA)
+
+Pedido del usuario: que la bitácora viaje dentro de la V1.59. Solo agrega commits de `docs/` sobre
+`ede875dc` (cero código), así que lo que instala PROD es idéntico salvo este archivo.
+
+1. `git push origin main` (fast-forward `ede875dc` → commit que contiene esta entrada).
+2. Borrar el Release `413360813` en GitHub y el tag `V1.59-14.10.2026` (origin + local).
+3. `git tag -a V1.59-14.10.2026 -m "Release V1.59-14.10.2026" <HEAD de main>` + push del tag.
+4. `releases.id=132` → `commit_sha` = ese HEAD.
+5. `php artisan releases:publish-github V1.59-14.10.2026` (sin `--force`: el commit ya está en origin/main).
+
+PROD sigue en V1.58 → no hay instalación a medias de la V1.59 que se rompa al mover el tag
+(además PROD hace `git fetch origin --tags --force`).
