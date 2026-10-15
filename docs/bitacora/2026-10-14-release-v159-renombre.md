@@ -27,3 +27,18 @@ solo quedaría con la etiqueta V1.60 en su tabla `releases`.
 
 **Revertir:** repetir los pasos con los nombres al revés (tag V1.60 sobre `ede875dc`,
 `releases.version` a V1.60, `releases:publish-github V1.60-14.10.2026`).
+
+## 2026-10-14 20:33 — Resultado: V1.59-14.10.2026 publicada
+
+- Release `413272250` (V1.60) borrado en GitHub (HTTP 204); tag `V1.60-14.10.2026` borrado en
+  origin y local. `releases/tags/V1.60-14.10.2026` → 404.
+- Tag anotado `V1.59-14.10.2026` (objeto `2eda73ed`) → `ede875dc`, empujado a origin.
+- `releases.id=132` → `version=V1.59-14.10.2026`, `github_release_id=413360813`,
+  `estado_publicacion=publicada` (sellado por `releases:publish-github`, `deployment_logs #86`).
+- `releases/latest` en GitHub devuelve `V1.59-14.10.2026`.
+- PROD está en V1.58 (confirmado por el usuario) → `VersionComparator::isNewer(V1.59, V1.58)=true`:
+  la verá en "Buscar actualizaciones". El riesgo de "PROD ya instaló V1.60" no aplica.
+- `NextVersionResolver` ahora propone `V1.60` para la siguiente versión (sin salto).
+- Causa del salto original: la V1.60 se publicó a mano por CLI (`deployment_logs #85`,
+  `source=releases:publish-github`), no con el botón "+ Nueva versión"; el número no salió del
+  cálculo automático.
