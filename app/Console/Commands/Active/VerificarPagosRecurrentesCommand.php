@@ -45,29 +45,13 @@ class VerificarPagosRecurrentesCommand extends Command
     public function handle(): int
     {
         $dryRun = (bool) $this->option('dry-run');
+        // REVERTIDO (2026-10-15, decisión del equipo): el cálculo de fecha_pago/fecha_corte/gracia volvió
+        // a como estaba en V1.34 (9-sep). Se quitaron los chequeos que exigían las reglas de fechas de
+        // septiembre (pago tardío anclado al día real, corte CUSTOM desde fecha_pago, corte que avanza
+        // en el cobro sin saldo, pago parcial que no mueve el corte) — con V1.34 fallarían cada noche y
+        // abrirían tickets falsos en la Torre. Se conservan los que vigilan correcciones que siguen vivas.
         $checks = [
-            'recurrent_pago_tarde' => fn () => $this->checkFechaPagoTardeInvariante(TypeBilling::TYPE_OF_BILLING_PREPAID_RECURRENT, 'RECURRENT'),
-            'custom_pago_tarde'    => fn () => $this->checkFechaPagoTardeInvariante(TypeBilling::TYPE_OF_BILLING_PREPAID_CUSTOM, 'CUSTOM'),
             'daily_now_independiente' => fn () => $this->checkDailyIndependienteDeNow(),
-            // 2026-09-18 — los dos de abajo replican el FLUJO REAL (suspensión/removePeriodoGracia),
-            // no solo la fórmula aislada. Necesario: el invariante de arriba pasaba en aislado pese a
-            // que el fix de RECURRENT no se disparaba en el camino real de un cliente ya suspendido
-            // (fecha_corte se reescribe ANTES de que este método la lea) — un bug real que llegó a
-            // producción (V1.35) sin que este comando lo cachara. Ver bitácora 2026-09-18.
-            'recurrent_suspendido_pago_tarde' => fn () => $this->checkRecurrentSuspendidoPagoTarde(),
-            'custom_corte_sincronizado_con_pago' => fn () => $this->checkCustomCorteSincronizadoConPago(),
-            // 2026-09-18 (bug distinto, encontrado en prod reparando los 30 clientes de la
-            // regresión anterior): ClientBillingService::billingServicesByClient(), rama "no
-            // tiene suficiente balance pero le cobro el servicio" (cron billing_service_command:
-            // process), avanzaba fecha_pago sin nunca llamar a setNewFechaCorteForClient().
-            'recurrent_balance_insuficiente_corte_avanza' => fn () => $this->checkRecurrentBalanceInsuficienteCorteAvanza(),
-            // 2026-09-30 (cliente #6722, reportado por David): un RECURRENT suspendido
-            // (periodo de gracia activo) que paga sin alcanzar a cubrir ni un ciclo
-            // completo (ej. solo abona su deuda vieja) se reactivaba Y su fecha_corte
-            // avanzaba un ciclo de regalo — billingForce() llamaba a
-            // removePeriodoGracia($client, true, N+1), que recalcula fecha_corte por su
-            // cuenta aunque N=0. Ver ClientBillingService::billingForce().
-            'recurrent_pago_parcial_no_regala_corte' => fn () => $this->checkRecurrentPagoParcialNoRegalaCorte(),
             'recurrent_fecha_pago_no_avanza_sin_cargo_creado' => fn () => $this->checkRecurrentFechaPagoNoAvanzaSinCargoCreado(),
             'recurrent_pago_parcial_no_reactiva' => fn () => $this->checkRecurrentPagoParcialNoReactiva(),
             'recurrent_deuda_saldada_si_reactiva' => fn () => $this->checkRecurrentDeudaSaldadaSiReactiva(),
@@ -114,369 +98,6 @@ class VerificarPagosRecurrentesCommand extends Command
         }
 
         return self::SUCCESS;
-    }
-
-    /**
-     * Invariante de regresión para RECURRENT/CUSTOM (bug real corregido 2026-09-17, commits
-     * 4f8806fb + f7d7f969): un pago que llega DESPUÉS de fecha_corte debe anclar el nuevo ciclo
-     * a una fecha POSTERIOR (o igual) a la que hubiera dado un pago a tiempo. Antes del fix,
-     * ambos escenarios daban exactamente la misma fecha — el atraso no se reflejaba.
-     *
-     * Se muta en memoria un cliente real ya cargado (nunca se guarda) y se restaura
-     * Carbon::setTestNow() en el finally pase lo que pase.
-     */
-    private function checkFechaPagoTardeInvariante(int $typeOfBillingId, string $etiqueta): array
-    {
-        $client = Client::whereHas('client_main_information', function ($q) use ($typeOfBillingId) {
-            $q->where('type_of_billing_id', $typeOfBillingId);
-        })
-            ->whereNotNull('fecha_corte')
-            ->whereNotNull('fecha_pago')
-            ->whereHas('billing_configuration')
-            ->first();
-
-        if (!$client) {
-            return ['ok' => true, 'detalle' => "Sin cliente {$etiqueta} con fecha_corte+fecha_pago+billing_configuration en esta BD — chequeo omitido (nada que verificar)."];
-        }
-
-        $fechaCorteOriginal = $client->fecha_corte;
-        $fechaPagoOriginal = $client->fecha_pago;
-
-        try {
-            $corte = Carbon::parse($fechaCorteOriginal);
-            $service = new BillingPaymentDateService();
-
-            Carbon::setTestNow($corte->copy());
-            $client->fecha_corte = $fechaCorteOriginal;
-            $client->fecha_pago = $fechaPagoOriginal;
-            $aTiempo = Carbon::parse($service->getNewFechaPagoByClient($client, 1, false));
-
-            Carbon::setTestNow($corte->copy()->addDays(5));
-            $client->fecha_corte = $fechaCorteOriginal;
-            $client->fecha_pago = $fechaPagoOriginal;
-            $tarde = Carbon::parse($service->getNewFechaPagoByClient($client, 1, false));
-
-            if ($tarde->lt($aTiempo)) {
-                return [
-                    'ok' => false,
-                    'detalle' => "Cliente #{$client->id} ({$etiqueta}): pagar 5 días tarde dio una fecha de corte MENOR ({$tarde->toDateString()}) que pagar a tiempo ({$aTiempo->toDateString()}). "
-                        . 'Esto es el bug de fecha_pago/fecha_corte ya corregido en BillingPaymentDateService (commits 4f8806fb/f7d7f969) — parece haber regresado.',
-                ];
-            }
-
-            if ($tarde->eq($aTiempo)) {
-                return [
-                    'ok' => false,
-                    'detalle' => "Cliente #{$client->id} ({$etiqueta}): pagar 5 días tarde dio EXACTAMENTE la misma fecha de corte ({$aTiempo->toDateString()}) que pagar a tiempo — el atraso no se está reflejando. Mismo bug de BillingPaymentDateService, posible regresión.",
-                ];
-            }
-
-            return [
-                'ok' => true,
-                'detalle' => "Cliente #{$client->id} ({$etiqueta}): a tiempo={$aTiempo->toDateString()}, tarde(+5d)={$tarde->toDateString()} — el atraso sí se refleja (tarde > a tiempo).",
-            ];
-        } finally {
-            Carbon::setTestNow();
-            $client->fecha_corte = $fechaCorteOriginal;
-            $client->fecha_pago = $fechaPagoOriginal;
-        }
-    }
-
-    /**
-     * Regresión del bug real de producción (2026-09-18, V1.35): el chequeo de arriba
-     * (`checkFechaPagoTardeInvariante`) muta fecha_corte/fecha_pago EN MEMORIA sobre un cliente
-     * intacto — pasa aunque el fix esté roto en el camino real, porque un cliente RECURRENT
-     * realmente suspendido llega a BillingPaymentDateService con fecha_corte ya reescrita por
-     * SuspendService (null) y luego por ClientRepository::removePeriodoGracia() (un valor nuevo
-     * sin relación con el corte original) ANTES de que el guard la lea. Este chequeo SÍ replica
-     * ese flujo completo con escrituras reales — por eso corre dentro de una transacción que
-     * SIEMPRE se revierte en el finally, pase lo que pase (incluida una excepción a medio camino).
-     */
-    private function checkRecurrentSuspendidoPagoTarde(): array
-    {
-        $client = Client::whereHas('client_main_information', function ($q) {
-            $q->where('type_of_billing_id', TypeBilling::TYPE_OF_BILLING_PREPAID_RECURRENT);
-        })
-            ->whereNotNull('fecha_corte')
-            ->whereNotNull('fecha_pago')
-            ->whereHas('billing_configuration')
-            ->first();
-
-        if (!$client) {
-            return ['ok' => true, 'detalle' => 'Sin cliente RECURRENT con fecha_corte+fecha_pago+billing_configuration — chequeo omitido.'];
-        }
-
-        DB::beginTransaction();
-
-        try {
-            $corteOriginal = $client->fecha_corte;
-            $estadoOriginal = $client->client_main_information->estado;
-
-            // 1) Suspensión real: fecha_corte -> null (SuspendService::ifClientChangeToBlockedRemoveDateCorte)
-            //    + período de gracia (solo RECURRENT).
-            $clientRepository = new ClientRepository();
-            $clientRepository->removeFechaCorteById($client->id);
-            $clientRepository->addPeriodoGracia($client);
-            $client->client_main_information->estado = 'Bloqueado';
-            $client->client_main_information->save();
-            $client->refresh();
-
-            // 2) Paga 5 días después del corte que aplicaba, DENTRO del período de gracia.
-            $fechaPagoReal = Carbon::parse($corteOriginal)->addDays(5);
-            Carbon::setTestNow($fechaPagoReal);
-
-            // 3) billingForce(): removePeriodoGracia() SIEMPRE corre antes que el guard de fecha_pago.
-            $clientRepository->removePeriodoGracia($client, true, 1);
-            $client->refresh();
-
-            $service = new BillingPaymentDateService();
-            $resultado = $service->getNewFechaPagoByClient($client, 1, false);
-
-            $esperado = $fechaPagoReal->copy()->addMonthsWithoutOverflow(1)->endOfDay()->toDateTimeString();
-
-            if ($resultado !== $esperado) {
-                return [
-                    'ok' => false,
-                    'detalle' => "Cliente #{$client->id}: un cliente RECURRENT suspendido (corte {$corteOriginal}) que paga el "
-                        . "{$fechaPagoReal->toDateString()} dentro del período de gracia debería anclar su nueva fecha_pago a "
-                        . "{$esperado}, pero dio {$resultado}. El guard de pago tardío no está detectando la suspensión real "
-                        . '(revisar la señal estado=Bloqueado en BillingPaymentDateService, rama RECURRENT).',
-                ];
-            }
-
-            return [
-                'ok' => true,
-                'detalle' => "Cliente #{$client->id}: flujo real de suspensión + pago tardío dentro del período de gracia ancla correctamente a {$resultado}.",
-            ];
-        } finally {
-            Carbon::setTestNow();
-            DB::rollBack();
-        }
-    }
-
-    /**
-     * Regresión del bug real de producción (2026-09-18, commit del fix de BillingExpirationService):
-     * en CUSTOM, fecha_corte se calculaba desde fecha_corte_anterior + N meses, TOTALMENTE
-     * desconectado de fecha_pago — un pago tardío podía dejar fecha_corte ANTES de la nueva
-     * fecha_pago (suspensión prematura). Ahora fecha_corte deriva de fecha_pago + billing_expiration,
-     * igual que RECURRENT. Este chequeo replica actionBilling()+setNewFechaCorteForClient() en
-     * orden real, con escrituras reales revertidas siempre en el finally.
-     */
-    private function checkCustomCorteSincronizadoConPago(): array
-    {
-        $client = Client::whereHas('client_main_information', function ($q) {
-            $q->where('type_of_billing_id', TypeBilling::TYPE_OF_BILLING_PREPAID_CUSTOM);
-        })
-            ->whereNotNull('fecha_corte')
-            ->whereNotNull('fecha_pago')
-            ->whereHas('billing_configuration')
-            ->first();
-
-        if (!$client) {
-            return ['ok' => true, 'detalle' => 'Sin cliente CUSTOM con fecha_corte+fecha_pago+billing_configuration — chequeo omitido.'];
-        }
-
-        DB::beginTransaction();
-
-        try {
-            $corte = Carbon::parse($client->fecha_corte);
-            Carbon::setTestNow($corte->copy()->addDays(5)); // paga 5 días tarde
-
-            $paymentService = new BillingPaymentDateService();
-            $newFechaPago = $paymentService->getNewFechaPagoByClient($client, 1, false);
-            $client->fecha_pago = $newFechaPago;
-            $client->save();
-            $client->refresh();
-
-            $expirationService = new BillingExpirationService($client);
-            $newFechaCorte = $expirationService->setNewFechaCorteForClient(null, 1);
-
-            if (Carbon::parse($newFechaCorte)->lte(Carbon::parse($newFechaPago))) {
-                return [
-                    'ok' => false,
-                    'detalle' => "Cliente #{$client->id}: tras un pago CUSTOM tardío, fecha_corte ({$newFechaCorte}) quedó ANTES O IGUAL "
-                        . "que la nueva fecha_pago ({$newFechaPago}) — el cliente se suspendería antes de que le toque volver a pagar. "
-                        . 'Revisar BillingExpirationService::getFechaCorteForBillingPrepaidCustom() (debe derivar de fecha_pago).',
-                ];
-            }
-
-            return [
-                'ok' => true,
-                'detalle' => "Cliente #{$client->id}: fecha_corte ({$newFechaCorte}) queda después de la nueva fecha_pago ({$newFechaPago}).",
-            ];
-        } finally {
-            Carbon::setTestNow();
-            DB::rollBack();
-        }
-    }
-
-    /**
-     * Regresión del bug real de producción (2026-09-18, encontrado por Irving al reparar los
-     * clientes de la regresión anterior): en `ClientBillingService::billingServicesByClient()`,
-     * la rama "cliente RECURRENT sin saldo suficiente pero el cron lo cobra de todos modos"
-     * (`billing_service_command:process`) llamaba a `actionBilling()` (avanza fecha_pago) pero
-     * NUNCA a `setNewFechaCorteForClient()` — fecha_corte quedaba congelada mientras fecha_pago
-     * seguía avanzando mes a mes, y el cron de suspensión terminaba bloqueando injustamente a un
-     * cliente "al día" según su fecha_pago real (casos reales: #7408, #6861). Este chequeo fuerza
-     * saldo insuficiente en memoria+BD (dentro de una transacción SIEMPRE revertida) y replica el
-     * mismo `billingServicesByClient()` que corre el cron.
-     */
-    private function checkRecurrentBalanceInsuficienteCorteAvanza(): array
-    {
-        // Excluye clientes que ya taparon la duración de su contrato (checkRecurrentTopeDuracionContrato,
-        // 2026-09-18) — para esos, NO cobrar es el comportamiento correcto, así que fecha_corte/fecha_pago
-        // se quedan quietos a propósito y este chequeo (que verifica que SÍ se cobre) daría un falso
-        // positivo si tomara uno de esos clientes.
-        // Orden descendente por id: los clientes más recientes tienen más probabilidad de seguir
-        // DENTRO de su contrato original (los más viejos ya lo cubrieron tras años de pagos) —
-        // encuentra un candidato válido explorando muchos menos registros.
-        $candidatos = Client::whereHas('client_main_information', function ($q) {
-            $q->where('type_of_billing_id', TypeBilling::TYPE_OF_BILLING_PREPAID_RECURRENT);
-        })
-            ->whereNotNull('fecha_corte')
-            ->whereNotNull('fecha_pago')
-            ->whereHas('billing_configuration')
-            ->orderByDesc('id')
-            ->limit(300)
-            ->get();
-
-        $client = null;
-        foreach ($candidatos as $c) {
-            try {
-                $data = (new \App\Modules\Core\Clientes\Services\ClientService($c))->getDataPendingPayments();
-            } catch (\Throwable $e) {
-                continue;
-            }
-            if (($data['mesesRestantes'] ?? 1) > 0) {
-                $client = $c;
-                break;
-            }
-        }
-
-        if (!$client) {
-            return ['ok' => true, 'detalle' => 'Sin cliente RECURRENT con fecha_corte+fecha_pago+billing_configuration dentro de su contrato — chequeo omitido.'];
-        }
-
-        DB::beginTransaction();
-
-        try {
-            $corteAntes = $client->fecha_corte;
-
-            // Fuerza saldo insuficiente: getCuantasVecesSeLePuedenCobrarLosServiciosActivos()
-            // debe devolver null/0 para caer en la rama del bug.
-            $client->load('balance');
-            $client->balance->amount = -99999;
-            $client->balance->save();
-
-            $clientRepository = new ClientRepository();
-            $veces = $clientRepository->getCuantasVecesSeLePuedenCobrarLosServiciosActivos($client);
-            if ($veces) {
-                return ['ok' => true, 'detalle' => "Cliente #{$client->id}: no se pudo forzar saldo insuficiente en este entorno — chequeo omitido."];
-            }
-
-            $billingService = new ClientBillingService();
-            $billingService->billingServicesByClient($client, ClientBillingService::TYPE_BILLING_EXECUTED_PROCESS);
-            $client->refresh();
-
-            // REGLA 2026-10-14 (corte de recurrentes): el cobro automático SIN saldo acumula deuda y
-            // mueve fecha_pago, pero NO debe mover fecha_corte — el corte avanza solo cuando el
-            // cliente paga (ver CorteRecurrenteCalculator). Antes este chequeo exigía lo contrario.
-            if ($client->fecha_corte !== $corteAntes) {
-                return [
-                    'ok' => false,
-                    'detalle' => "Cliente #{$client->id}: la rama 'sin saldo pero se cobra' movió fecha_corte ({$corteAntes} → {$client->fecha_corte}) "
-                        . 'por un cobro que el cliente no ha pagado. El corte solo debe avanzar cuando paga. '
-                        . 'Revisar ClientBillingService::billingServicesByClient() (rama TYPE_BILLING_EXECUTED_PROCESS).',
-                ];
-            }
-
-            return [
-                'ok' => true,
-                'detalle' => "Cliente #{$client->id}: el cobro sin saldo dejó fecha_corte intacta ({$corteAntes}) y acumuló deuda.",
-            ];
-        } finally {
-            DB::rollBack();
-        }
-    }
-
-    /**
-     * Regresión del bug real de producción del cliente #6722 (reportado por David, 30-sep-2026):
-     * un RECURRENT suspendido (periodo de gracia activo) que paga sin alcanzar a cubrir ni un
-     * ciclo completo (ej. solo abona parte de su deuda vieja) NO debe recibir un adelanto gratis
-     * de fecha_corte ni verse facturado por un ciclo que no pagó — ClientBillingService::
-     * billingForce() replica el camino real (processPaymentForClientRecurrentWithGracePeriodActive
-     * → cobrarYActivarCliente(forceCobrar=true) → billingForce). Escritura real, SIEMPRE revertida.
-     */
-    private function checkRecurrentPagoParcialNoRegalaCorte(): array
-    {
-        $client = Client::whereHas('client_main_information', function ($q) {
-            $q->where('type_of_billing_id', TypeBilling::TYPE_OF_BILLING_PREPAID_RECURRENT);
-        })
-            ->whereNotNull('fecha_corte')
-            ->whereHas('billing_configuration')
-            ->orderByDesc('id')
-            ->first();
-
-        if (!$client) {
-            return ['ok' => true, 'detalle' => 'Sin cliente RECURRENT con fecha_corte+billing_configuration — chequeo omitido.'];
-        }
-
-        DB::beginTransaction();
-
-        try {
-            $client->load('balance', 'client_main_information');
-            $corteAntes = $client->fecha_corte;
-            $estadoAntes = $client->client_main_information->estado;
-
-            // Simula suspensión real + periodo de gracia activo (mismo camino que
-            // checkRecurrentSuspendidoPagoTarde: SuspendService + addPeriodoGracia).
-            $clientRepository = new ClientRepository();
-            $clientRepository->addPeriodoGracia($client);
-            $client->client_main_information->estado = 'Bloqueado';
-            $client->client_main_information->save();
-            $client->refresh();
-            $client->load('balance');
-
-            // Pago que NO alcanza a cubrir ni un ciclo completo (deja balance en
-            // positivo pero por debajo del costo de un ciclo) — fuerza
-            // $cuantasVecesSeLePuedeCobrar = 0 en billingForce().
-            $costAllServices = (new ClientRepository())->getCostAllService($client->id);
-            if ($costAllServices <= 1) {
-                return ['ok' => true, 'detalle' => "Cliente #{$client->id}: sin costo de servicios activos — chequeo omitido."];
-            }
-            $newBalance = 1; // menor al costo de un ciclo, pero >= 0 (pasa el guard de newBalance>=0)
-            $client->balance->amount = $newBalance;
-            $client->balance->save();
-            $client->refresh();
-            $client->load('balance', 'client_main_information');
-
-            $veces = $clientRepository->getCuantasVecesSeLePuedenCobrarLosServiciosActivos($client);
-            if ($veces) {
-                return ['ok' => true, 'detalle' => "Cliente #{$client->id}: no se pudo forzar pago parcial en este entorno (costo muy bajo) — chequeo omitido."];
-            }
-
-            $billingService = new ClientBillingService();
-            $billingService->billing($client, $newBalance, null);
-            $client->refresh();
-            $client->load('client_main_information');
-
-            if ($client->fecha_corte !== $corteAntes) {
-                return [
-                    'ok' => false,
-                    'detalle' => "Cliente #{$client->id}: un pago que NO cubre ni un ciclo completo movió fecha_corte "
-                        . "({$corteAntes} → {$client->fecha_corte}) — se le regaló plazo sin haber cobrado un ciclo. "
-                        . 'Revisar ClientBillingService::billingForce() (llamada a removePeriodoGracia).',
-                ];
-            }
-
-            return [
-                'ok' => true,
-                'detalle' => "Cliente #{$client->id}: pago parcial (no cubre un ciclo) dejó fecha_corte intacta ({$corteAntes}), estado "
-                    . "{$estadoAntes} → {$client->client_main_information->estado}.",
-            ];
-        } finally {
-            DB::rollBack();
-        }
     }
 
     /**
@@ -834,10 +455,12 @@ class VerificarPagosRecurrentesCommand extends Command
     }
 
     /**
-     * Tope de cobro sin saldo de recurrentes (política 2026-09-18, reglas nuevas 2026-10-14): dentro
-     * del contrato se acumula deuda hasta los meses que faltan; con el contrato cumplido se cobra solo
-     * durante la gracia de 90 días. Verifica los dos lados con clientes reales (uno dentro y uno que ya
-     * cubrió su contrato con pagos reales). Escritura real de saldo, siempre revertida.
+     * Regresión de la decisión de política de Irving (2026-09-18): un cliente RECURRENT sin
+     * saldo suficiente solo debe seguir acumulando adeudo automático mientras siga DENTRO de la
+     * duración de su contrato (ClientBillingService::clientHasReachedContractCap(), que reusa
+     * ClientService::getDataPendingPayments()). Verifica los DOS lados con clientes reales:
+     * uno que aún debe meses de su contrato (debe seguir cobrando) y uno que ya cubrió toda su
+     * duración con pagos reales (NO debe cobrar más). Escritura real de saldo, siempre revertida.
      */
     private function checkRecurrentTopeDuracionContrato(): array
     {
@@ -896,52 +519,47 @@ class VerificarPagosRecurrentesCommand extends Command
             // CADA cliente, igual patrón que los demás chequeos de este comando. Aislado a la
             // transacción de prueba (se revierte), sin depender de ninguna tabla global
             // compartida ni de que la cola esté en cierto estado.
-            // REGLAS 2026-10-14 (GraciaRecurrenteCalculator), cuatro situaciones del cobro sin saldo:
-            //  dentro de contrato: sin deuda -> cobra; deuda >= meses restantes -> NO cobra.
-            //  contrato cumplido : gracia vigente -> cobra; gracia vencida -> NO cobra.
-            $billingService = new ClientBillingService();
-            $contar = fn ($c) => DB::table('transactions')
-                ->where('client_id', $c->id)->where('category', 'Servicio')->where('type', 'debit')->count();
-            $cobra = function ($c, $saldo, $finGracia) use ($billingService, $contar) {
+            $cargosDentroAntes = DB::table('transactions')
+                ->where('client_id', $dentro->id)->where('category', 'Servicio')->where('type', 'debit')->count();
+            $cargosFueraAntes = DB::table('transactions')
+                ->where('client_id', $fuera->id)->where('category', 'Servicio')->where('type', 'debit')->count();
+
+            foreach ([$dentro, $fuera] as $c) {
                 $c->load('balance');
-                $c->balance->amount = $saldo;
+                $c->balance->amount = -99999;
                 $c->balance->save();
-                DB::table('clients')->where('id', $c->id)->update(['fecha_fin_periodo_gracia' => $finGracia]);
-                $c->refresh();
-                $c->load('balance');
-                $antes = $contar($c);
-                $billingService->billingServicesByClient($c, ClientBillingService::TYPE_BILLING_EXECUTED_PROCESS);
-
-                return $contar($c) > $antes;
-            };
-
-            $r1 = $cobra($dentro, 0, null);
-            $r2 = $cobra($dentro, -99999, null);
-            $r3 = $cobra($fuera, 0, now()->addDays(30)->toDateTimeString());
-            $r4 = $cobra($fuera, 0, now()->subDay()->toDateTimeString());
-
-            $fallas = [];
-            if (!$r1) {
-                $fallas[] = "#{$dentro->id} (dentro de contrato, sin deuda) NO se cobró";
-            }
-            if ($r2) {
-                $fallas[] = "#{$dentro->id} (dentro de contrato, deuda >= meses restantes) SÍ se cobró — falta el tope";
-            }
-            if (!$r3) {
-                $fallas[] = "#{$fuera->id} (contrato cumplido, gracia vigente) NO se cobró";
-            }
-            if ($r4) {
-                $fallas[] = "#{$fuera->id} (contrato cumplido, gracia vencida) SÍ se cobró";
             }
 
-            if ($fallas) {
-                return ['ok' => false, 'detalle' => 'Cobro sin saldo de recurrentes fuera de la regla del 2026-10-14: ' . implode('; ', $fallas) . '.'];
+            $billingService = new ClientBillingService();
+
+            $billingService->billingServicesByClient($dentro, ClientBillingService::TYPE_BILLING_EXECUTED_PROCESS);
+            $billingService->billingServicesByClient($fuera, ClientBillingService::TYPE_BILLING_EXECUTED_PROCESS);
+
+            $cargosDentroDespues = DB::table('transactions')
+                ->where('client_id', $dentro->id)->where('category', 'Servicio')->where('type', 'debit')->count();
+            $cargosFueraDespues = DB::table('transactions')
+                ->where('client_id', $fuera->id)->where('category', 'Servicio')->where('type', 'debit')->count();
+
+            $seCobroDentro = $cargosDentroDespues > $cargosDentroAntes;
+            $seCobroFuera = $cargosFueraDespues > $cargosFueraAntes;
+
+            if (!$seCobroDentro) {
+                return [
+                    'ok' => false,
+                    'detalle' => "Cliente #{$dentro->id} (aún dentro de su contrato) NO se cobró sin saldo — el tope de contrato está bloqueando cobros legítimos.",
+                ];
+            }
+
+            if ($seCobroFuera) {
+                return [
+                    'ok' => false,
+                    'detalle' => "Cliente #{$fuera->id} (ya cubrió con pagos reales la duración completa de su contrato) SÍ se cobró sin saldo — el tope de contrato dejó de aplicarse (regresión del fix de política de Irving, 2026-09-18).",
+                ];
             }
 
             return [
                 'ok' => true,
-                'detalle' => "Cobro sin saldo OK: #{$dentro->id} (dentro de contrato) cobra sin deuda y se detiene con la deuda al tope; "
-                    . "#{$fuera->id} (contrato cumplido) cobra con gracia vigente y se detiene con la gracia vencida.",
+                'detalle' => "Cliente #{$dentro->id} (dentro de contrato) sí se cobra; cliente #{$fuera->id} (ya cubrió su contrato) no se cobra más.",
             ];
         } finally {
             DB::rollBack();
@@ -1080,11 +698,6 @@ class VerificarPagosRecurrentesCommand extends Command
     private function tituloLegible(string $checkKey): string
     {
         return match ($checkKey) {
-            'recurrent_pago_tarde' => 'fecha de corte no se mueve con pago tardío (RECURRENT)',
-            'custom_pago_tarde' => 'fecha de corte no se mueve con pago tardío (CUSTOM)',
-            'recurrent_suspendido_pago_tarde' => 'un RECURRENT ya suspendido que paga tarde no ancla bien la fecha_pago',
-            'custom_corte_sincronizado_con_pago' => 'fecha_corte quedó antes que la nueva fecha_pago en CUSTOM',
-            'recurrent_balance_insuficiente_corte_avanza' => 'fecha_corte no avanzó cuando el cron cobra sin saldo suficiente (RECURRENT)',
             'recurrent_tope_duracion_contrato' => 'el tope de duración de contrato para cobro automático dejó de funcionar (RECURRENT)',
             'daily_now_independiente' => 'DAILY dejó de ser independiente de la hora actual',
             'webhooks_sin_duplicado' => 'webhook de pago aplicado más de una vez',

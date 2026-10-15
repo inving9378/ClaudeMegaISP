@@ -16,11 +16,7 @@ class ClientBalanceObserver
         $client = $balance->client;
         $originalAmount = $balance->getOriginal('amount');
 
-        if (
-            $this->ifChangeAmountAndClientIsRecurrentAndActualAmountIsLessThanZero($balance, $client, $originalAmount)
-            // Regla 2026-10-14: la gracia es solo para quien ya cumplió su contrato.
-            && app(\App\Modules\Core\Clientes\Services\ClientBillingService::class)->clientHasReachedContractCap($balance->client)
-        ) {
+        if ($this->ifChangeAmountAndClientIsRecurrentAndActualAmountIsLessThanZero($balance, $client, $originalAmount)) {
             $repository = new ClientRepository();
             $repository->addPeriodoGracia($balance->client);
         }

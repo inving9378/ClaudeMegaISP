@@ -33,12 +33,7 @@ class SuspendService
 
         $clientRepository = new ClientRepository();
         $typeOfBilling = $clientRepository->getTypeOfBilling($client);
-        if (
-            $typeOfBilling == TypeBilling::TYPE_OF_BILLING_PREPAID_RECURRENT
-            && $client->fecha_fin_periodo_gracia == null
-            // Regla 2026-10-14: sin contrato cumplido no hay gracia (solo se suspende y se sigue cobrando hasta el tope).
-            && app(ClientBillingService::class)->clientHasReachedContractCap($client)
-        ) {
+        if ($typeOfBilling == TypeBilling::TYPE_OF_BILLING_PREPAID_RECURRENT && $client->fecha_fin_periodo_gracia == null) {
             $clientRepository->addPeriodoGracia($client);
             activity()->tap(function (Activity $activity) use ($client) {
                 $activity->client_id = $client->id;
