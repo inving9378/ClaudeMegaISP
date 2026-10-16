@@ -181,7 +181,15 @@ class Invoice extends Model
      */
     public function markAsSent(): bool
     {
-        return $this->update(['is_sent' => true, 'status' => self::STATUS_ISSUED]);
+        // Solo una emitida (draft) pasa a «Enviada». Antes pasaba TODO a issued: enviar una factura
+        // pagada (o parcial/vencida) la dejaba como «Enviada» y se veía sin pagar, aunque el pago y
+        // el saldo 0 siguieran ahí (item #498: 10 casos en la copia de prod del 2026-10-15).
+        $cambios = ['is_sent' => true];
+        if ($this->status === self::STATUS_DRAFT) {
+            $cambios['status'] = self::STATUS_ISSUED;
+        }
+
+        return $this->update($cambios);
     }
 
 
