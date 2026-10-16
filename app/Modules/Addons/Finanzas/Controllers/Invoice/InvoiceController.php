@@ -181,8 +181,12 @@ class InvoiceController extends CrudModalController
      * HOY de esta factura (pendiente o pagada). Se genera en memoria: no reemplaza ni borra el
      * PDF original, no toca billing_notifications ni la pausa de envíos. Documento informativo
      * sin valor fiscal. Permiso de ruta: finanzas_prefactura_generar.
+     *
+     * Con ?validar=1 solo comprueba que la plantilla se pueda llenar (JSON, sin PDF ni bitácora):
+     * la pantalla lo usa antes de abrir la pestaña, para mostrar las variables faltantes en un
+     * aviso en vez de una pestaña con JSON.
      */
-    public function prefactura($id)
+    public function prefactura(Request $request, $id)
     {
         $invoice = Invoice::find($id);
         if (!$invoice) {
@@ -193,7 +197,8 @@ class InvoiceController extends CrudModalController
         }
 
         try {
-            $r = app(PrefacturaPdfService::class)->generar($invoice);
+            $servicio = app(PrefacturaPdfService::class);
+            $r = $request->boolean('validar') ? $servicio->html($invoice) : $servicio->generar($invoice);
         } catch (\Throwable $e) {
             Log::error("[Prefactura] Error generando la prefactura de la factura #{$invoice->id}: " . $e->getMessage());
 
@@ -206,6 +211,10 @@ class InvoiceController extends CrudModalController
                 'message' => 'La plantilla «Prefactura.» pide variables que no se pudieron llenar:',
                 'keys'    => $r['keys'],
             ], 422);
+        }
+
+        if ($request->boolean('validar')) {
+            return response()->json(['status' => 'ok', 'estado' => $r['estado']]);
         }
 
         activity('prefactura')
