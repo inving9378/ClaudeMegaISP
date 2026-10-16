@@ -108,16 +108,34 @@ class InvoiceController extends CrudModalController
                 ], 500);
             }
             $model->load('client');
+            $pagada = $model->status === Invoice::STATUS_PAID;
 
-            // Item #480: se manda la Prefactura (plantilla + provider) en PDF adjunto. Si la
-            // plantilla no se puede llenar, se cae al Blade FacturaProforma de antes (queda en log).
+            // Item #480: se manda la Prefactura (plantilla + provider) en PDF adjunto. Pendiente:
+            // si la plantilla no se puede llenar, se cae al Blade FacturaProforma de antes (log).
+            // Item #498 (decisión de Irving): PAGADA → «comprobante de pago»; si la plantilla falla
+            // NO hay fallback (el Blade viejo diría «Monto a pagar: 0.00»): se aborta sin enviar.
             $prefactura = $this->prefacturaParaCorreo($model);
             $adjuntos = [];
-            if ($prefactura) {
+            if ($prefactura['status'] === 'ok') {
                 $html = $prefactura['body'];
                 $adjuntos[] = $prefactura['adjunto'];
-                $asunto = $this->asuntoCorreoFactura('Tu prefactura', $model);
+                $asunto = $this->asuntoCorreoFactura($pagada ? 'Tu comprobante de pago' : 'Tu prefactura', $model);
+            } elseif ($pagada) {
+                Log::warning("[Prefactura] Enviar factura PAGADA #{$model->id}: no se pudo generar el comprobante; NO se envía.", [
+                    'faltan' => $prefactura['keys'],
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se envió: la factura está pagada y su comprobante no se pudo generar'
+                        . ($prefactura['keys'] ? ' (faltan: ' . implode(', ', $prefactura['keys']) . ')' : '')
+                        . '. No se usa el formato anterior porque mostraría «Monto a pagar: 0.00».',
+                    'keys'    => $prefactura['keys'],
+                ], 422);
             } else {
+                Log::warning("[Prefactura] Enviar factura #{$model->id}: la Prefactura no se pudo generar, se usa FacturaProforma.", [
+                    'faltan' => $prefactura['keys'],
+                ]);
                 $items = $model->items;
                 $dataClient = (new ContractClientService())->getDataClient($model->client);
                 $companYInformationRepository = new CompanyInformationRepository();
@@ -153,7 +171,8 @@ class InvoiceController extends CrudModalController
             $model->markAsSent();
             $model->save();
             $logService = new LogService();
-            $logService->log($model->client, 'Cliente #' . $model->client_id . ' Se ha enviado la factura proforma ' . $model->id . ($prefactura ? ' (con la Prefactura en PDF)' : '') . ' por el usuario ' . auth()->user()->id . ' el dia ' . now()->format('Y-m-d'));
+            $documento = $prefactura['status'] !== 'ok' ? '' : ($pagada ? ' (con el comprobante de pago en PDF)' : ' (con la Prefactura en PDF)');
+            $logService->log($model->client, 'Cliente #' . $model->client_id . ' Se ha enviado la factura proforma ' . $model->id . $documento . ' por el usuario ' . auth()->user()->id . ' el dia ' . now()->format('Y-m-d'));
 
             return response()->json([
                 'success' => true,
@@ -204,44 +223,51 @@ class InvoiceController extends CrudModalController
     }
 
     /**
-     * Cuerpo corto + la Prefactura en PDF para el correo de «Enviar» (item #480, 2.5). Devuelve
-     * null si la plantilla no se pudo llenar o algo falló: el llamador cae al Blade viejo.
+     * Cuerpo corto + la Prefactura en PDF para el correo de «Enviar» (item #480, 2.5). En una
+     * factura pagada, el texto es de comprobante de pago (item #498). Si la plantilla no se pudo
+     * llenar o algo falló devuelve status fail con las variables faltantes: el llamador decide
+     * (pendiente → Blade viejo; pagada → no se envía).
      *
-     * @return array{body: string, adjunto: array{data: string, name: string, mime: string}}|null
+     * @return array{status: 'ok', body: string, adjunto: array{data: string, name: string, mime: string}}|array{status: 'fail', keys: string[]}
      */
-    private function prefacturaParaCorreo(Invoice $invoice): ?array
+    private function prefacturaParaCorreo(Invoice $invoice): array
     {
         try {
             $r = app(PrefacturaPdfService::class)->generar($invoice);
         } catch (\Throwable $e) {
-            Log::warning("[Prefactura] Enviar factura #{$invoice->id}: error al generar el PDF, se usa FacturaProforma: " . $e->getMessage());
+            Log::warning("[Prefactura] Enviar factura #{$invoice->id}: error al generar el PDF: " . $e->getMessage());
 
-            return null;
+            return ['status' => 'fail', 'keys' => []];
         }
         if ($r['status'] !== 'ok') {
-            Log::warning("[Prefactura] Enviar factura #{$invoice->id}: la plantilla no se pudo llenar, se usa FacturaProforma.", [
-                'faltan' => $r['keys'],
-            ]);
-
-            return null;
+            return ['status' => 'fail', 'keys' => $r['keys']];
         }
 
         $cmi = $invoice->client?->client_main_information;
         $nombre = trim(($cmi->name ?? '') . ' ' . ($cmi->father_last_name ?? ''));
         $periodo = PrefacturaDataProvider::periodoLegible($invoice->period);
-        $vence = PrefacturaDataProvider::fecha($invoice->due_date);
-        $pagada = $r['estado'] === PrefacturaDataProvider::ESTADO_PAGADO;
+        $total = e(PrefacturaDataProvider::dinero((float) $invoice->total));
+        $saludo = '<p>Hola' . ($nombre !== '' ? ' ' . e($nombre) : '') . ',</p>';
+        $delPeriodo = $periodo !== '' ? ' del periodo ' . e($periodo) : '';
 
-        $body = '<p>Hola' . ($nombre !== '' ? ' ' . e($nombre) : '') . ',</p>'
-            . '<p>Te compartimos la prefactura <b>' . e($invoice->number) . '</b>'
-            . ($periodo !== '' ? ' del periodo ' . e($periodo) : '')
-            . ' por <b>' . e(PrefacturaDataProvider::dinero((float) $invoice->total)) . ' MXN</b>'
-            . ($pagada ? ', que ya se encuentra <b>pagada</b>.' : ($vence ? ', con fecha límite de pago el <b>' . e($vence->format('d/m/Y')) . '</b>.' : '.'))
-            . '</p><p>La encontrarás adjunta en PDF, con los datos para pagar y tu referencia.</p>'
-            . '<p style="color:#6E7C8C;font-size:12px">Documento informativo sin valor fiscal.</p>';
+        if ($r['estado'] === PrefacturaDataProvider::ESTADO_PAGADO) {
+            $pagadoEl = PrefacturaDataProvider::fecha($invoice->payment_date);
+            $body = $saludo
+                . '<p>Te compartimos el comprobante de pago de tu factura <b>' . e($invoice->number) . '</b>' . $delPeriodo
+                . ' por <b>' . $total . ' MXN</b>' . ($pagadoEl ? ', pagada el <b>' . e($pagadoEl->format('d/m/Y')) . '</b>' : '') . '.</p>'
+                . '<p>Lo encontrarás adjunto en PDF. ¡Gracias por tu pago!</p>';
+        } else {
+            $vence = PrefacturaDataProvider::fecha($invoice->due_date);
+            $body = $saludo
+                . '<p>Te compartimos la prefactura <b>' . e($invoice->number) . '</b>' . $delPeriodo
+                . ' por <b>' . $total . ' MXN</b>'
+                . ($vence ? ', con fecha límite de pago el <b>' . e($vence->format('d/m/Y')) . '</b>.' : '.')
+                . '</p><p>La encontrarás adjunta en PDF, con los datos para pagar y tu referencia.</p>';
+        }
 
         return [
-            'body'    => $body,
+            'status'  => 'ok',
+            'body'    => $body . '<p style="color:#6E7C8C;font-size:12px">Documento informativo sin valor fiscal.</p>',
             'adjunto' => ['data' => base64_encode($r['pdf']), 'name' => $r['filename'], 'mime' => 'application/pdf'],
         ];
     }

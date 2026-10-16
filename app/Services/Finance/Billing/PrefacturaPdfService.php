@@ -82,7 +82,9 @@ class PrefacturaPdfService
         return [
             'status'   => 'ok',
             'pdf'      => $bytes,
-            'filename' => 'Prefactura-' . $folio . '-' . now()->format('Ymd') . '.pdf',
+            // Pagada: se manda/descarga como comprobante de pago (item #498).
+            'filename' => ($r['estado'] === PrefacturaDataProvider::ESTADO_PAGADO ? 'Comprobante-de-pago-' : 'Prefactura-')
+                . $folio . '-' . now()->format('Ymd') . '.pdf',
             'estado'   => $r['estado'],
         ];
     }
