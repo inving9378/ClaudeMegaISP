@@ -37,7 +37,7 @@ class PrefacturaDataProviderTest extends TestCase
                  'subtotal' => 387.07, 'iva' => 61.93, 'total' => 449.0],
             ],
             'fiscal'          => null,
-            'correo_empresa'  => 'soporte@meganett.com.mx',
+            'correo_facturacion' => 'facturacion@meganett.com.mx',
             'banco'           => 'SANTANDER',
             'cuenta'          => '014180655063756953',
             'portal'          => '',
@@ -125,6 +125,7 @@ class PrefacturaDataProviderTest extends TestCase
         $this->assertStringContainsString('Sin datos fiscales registrados', $d['receptor_nota']);
         $this->assertSame('—', $d['receptor_rfc']);
         $this->assertStringContainsString('fisc-pend', $d['bloque_fiscal']);
+        $this->assertStringContainsString('facturacion@meganett.com.mx', $d['bloque_fiscal']);
         $this->assertStringContainsString('Emitido el 16/10/2026 15:42', $d['leyenda_legal']);
         $this->assertStringContainsString('Folio PROF-202610-1', $d['leyenda_legal']);
     }

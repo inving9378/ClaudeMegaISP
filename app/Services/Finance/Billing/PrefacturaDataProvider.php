@@ -96,7 +96,7 @@ class PrefacturaDataProvider
                 'total'       => (float) $i->total,
             ])->values()->all(),
             'fiscal'          => self::fiscalCompleto($fiscal),
-            'correo_empresa'  => (string) ($empresa->email ?? ''),
+            'correo_facturacion' => (string) (config('billing.correo_facturacion') ?: ($empresa->email ?? '')),
             'banco'           => (string) ($empresa->bank_name ?? ''),
             'cuenta'          => (string) ($empresa->bank_account ?? ''),
             'portal'          => (string) ($empresa->url_portal ?? ''),
@@ -163,7 +163,7 @@ class PrefacturaDataProvider
             'total'                   => e(self::dinero($total)),
             'total_letra'             => e(MontoEnLetras::pesosMxn($total)),
             'bloque_pago'             => $pagado ? self::bloquePagado($pago) : self::bloquePendiente($c),
-            'bloque_fiscal'           => self::bloqueFiscal($fiscal, (string) ($c['correo_empresa'] ?? '')),
+            'bloque_fiscal'           => self::bloqueFiscal($fiscal, (string) ($c['correo_facturacion'] ?? '')),
             'leyenda_legal'           => '<span class="strong">Documento informativo sin valor fiscal.</span> Emitido el '
                 . e($ahora->format('d/m/Y H:i')) . ' &middot; Folio ' . e($numero) . '.',
             'logo_pdf'                => (string) (($c['logo'] ?? '') ?: self::PIXEL_TRANSPARENTE),
