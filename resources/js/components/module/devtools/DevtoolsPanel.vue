@@ -924,8 +924,19 @@ export default {
         const probeTtyd = async () => {
             ttydReachable.value = null;
             try {
-                await fetch(effectiveTtydUrl.value, { method: "GET", mode: "no-cors" });
-                ttydReachable.value = true;
+                const url = new URL(effectiveTtydUrl.value, window.location.href);
+                if (url.origin === window.location.origin) {
+                    // Mismo origen (el nginx de la app sirve /ttyd/): se lee el status. Con
+                    // no-cors solo fallaba sin red, y un 404 (nginx sin location /ttyd/) o un 502
+                    // (ttyd apagado) contaban como «disponible»: se veía la página de error en el
+                    // panel y la barra de pestañas quedaba visible (item #504).
+                    const r = await fetch(url.href, { method: "GET", credentials: "same-origin", cache: "no-store" });
+                    ttydReachable.value = r.ok;
+                } else {
+                    // ttyd en otro origen: el status no es legible sin CORS; solo detecta la falta de red.
+                    await fetch(url.href, { method: "GET", mode: "no-cors" });
+                    ttydReachable.value = true;
+                }
             } catch (e) {
                 ttydReachable.value = false;
             }
