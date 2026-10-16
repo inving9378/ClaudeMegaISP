@@ -125,6 +125,32 @@ class DocumentTemplateService
                 'data.image_src' => 'Imagen Base',
                 'data.now' => 'Fecha de Hoy'
             ],
+            // Plantilla «Prefactura.» (item #480). Las llena PrefacturaDataProvider por factura de
+            // `invoices`; solo existen al generar desde Facturación (botón «Prefactura actualizada»
+            // y «Enviar»). Mismas claves que PrefacturaDataProvider::CLAVES.
+            'Prefactura' => [
+                'data.documento_titulo' => 'Título del documento (PREFACTURA)',
+                'data.chip_clase' => 'Clase CSS del estado (chip-pend / chip-ok)',
+                'data.chip_texto' => 'Estado (PENDIENTE DE PAGO / PAGADO)',
+                'data.banda_label' => 'Leyenda del monto (TOTAL A PAGAR / TOTAL PAGADO)',
+                'data.banda_nota' => 'Nota del monto (fecha límite o fecha de pago)',
+                'data.receptor_rfc' => 'RFC del cliente',
+                'data.receptor_nombre_fiscal' => 'Razón social del cliente',
+                'data.receptor_regimen_fiscal' => 'Régimen fiscal del cliente',
+                'data.receptor_cp_fiscal' => 'C.P. fiscal del cliente',
+                'data.receptor_uso_cfdi' => 'Uso del CFDI del cliente',
+                'data.receptor_nota' => 'Nota de datos fiscales',
+                'data.conceptos_filas' => 'Filas de conceptos de la factura',
+                'data.subtotal' => 'Subtotal de la factura',
+                'data.descuentos' => 'Descuentos de la factura',
+                'data.iva_monto' => 'IVA de la factura (monto en pesos)',
+                'data.total' => 'Total de la factura',
+                'data.total_letra' => 'Total con letra',
+                'data.bloque_pago' => 'Bloque de pago (cómo pagar / pago recibido)',
+                'data.bloque_fiscal' => 'Bloque de facturación fiscal',
+                'data.leyenda_legal' => 'Leyenda legal y folio',
+                'data.logo_pdf' => 'Logo reducido para PDF',
+            ],
             'Hidden' => [],
         ],
         'Crm' => [
@@ -270,12 +296,17 @@ class DocumentTemplateService
 
                 if ($keyData == 'image_src') {
                     $html = str_replace('${' . $key . '}', public_path(), $html);
+                } elseif (!array_key_exists($keyData, $data)) {
+                    // Registrada pero no viene en $data (p. ej. una variable de la Prefactura al
+                    // previsualizarla desde Documentos del cliente): se reporta como faltante en
+                    // vez de reventar con «Undefined array key».
+                    $keys[] = $key;
                 } elseif ($keyData == 'table_client_services') {
                     $html = str_replace('${' . $key . '}', $this->getHtmlTableClientWithServices($data[$keyData]), $html);
                 } elseif ($keyData == 'table_client_pending_payments') {
                     $html = str_replace('${' . $key . '}', $this->getHtmlTableClientPendingPayments($data[$keyData]), $html);
                 } else {
-                    $html = str_replace('${' . $key . '}', $data[$keyData], $html);
+                    $html = str_replace('${' . $key . '}', (string) ($data[$keyData] ?? ''), $html);
                 }
             } elseif (in_array($key, $flatKeysNotValidate)) {
                 if (strpos($key, 'data_dinamic.') !== false) {
