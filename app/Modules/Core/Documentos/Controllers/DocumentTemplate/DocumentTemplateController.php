@@ -128,6 +128,20 @@ class DocumentTemplateController extends Controller
 
         $documentTemplateService = new DocumentTemplateService();
         $template = $this->data['model']::find($request->template);
+        if (!$template) {
+            return response()->json([
+                'status' => 'fail',
+                'keys' => ['Selecciona la plantilla que vas a editar.'],
+            ]);
+        }
+
+        // Guardar sin "Cargar" dejaba la plantilla vacía (o con un "<p><br></p>" del editor).
+        if ($this->htmlSinContenido($request->html)) {
+            return response()->json([
+                'status' => 'fail',
+                'keys' => ['La plantilla está vacía: presiona "Cargar" antes de Guardar.'],
+            ]);
+        }
 
         $validation = $documentTemplateService->validateAndReplaceTemplate($request->html);
         if ($validation['status'] == 'fail') {
@@ -149,7 +163,13 @@ class DocumentTemplateController extends Controller
 
         $filePath = 'document_template/document/' . $nameTemplate . '.pdf';
         $template->name = $nameTemplate;
-        $template->html = $validation['html'];
+        // Se guarda el HTML TAL CUAL lo escribió el usuario, con sus ${variables}, igual que
+        // store(). $validation['html'] ya trae las variables de empresa resueltas (nombre, RFC,
+        // logo como ruta del disco de ESTE servidor…) y guardarlo las dejaba "horneadas" para
+        // siempre: así quedó /var/www/ClaudeMegaISP/... fijo en la Prefactura. Todas las
+        // generaciones (contratos, correos, recordatorios, prefactura) vuelven a pasar por
+        // validateAndReplaceTemplate(), que resuelve esas variables en ese momento.
+        $template->html = $request->html;
         $template->type = $request->type;
         if ($request->filled('status')) {
             $template->status = $request->status;
@@ -160,6 +180,17 @@ class DocumentTemplateController extends Controller
         return response()->json([
             'status' => 'ok',
         ]);
+    }
+
+    private function htmlSinContenido($html): bool
+    {
+        $html = (string) $html;
+        if (stripos($html, '<img') !== false) {
+            return false;
+        }
+        $texto = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        return trim(str_replace("\u{00A0}", ' ', $texto)) === '';
     }
 
     /**

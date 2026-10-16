@@ -9,6 +9,12 @@
            title="Imprimir"><i class="fas fa-file-pdf invoice-print"></i></a>
     @endif
 
+    {{-- Item #480: PDF informativo con la plantilla «Prefactura.» y los datos de hoy. --}}
+    @if(auth()->user() && auth()->user()->can('finanzas_prefactura_generar') && $statusClass != 'Cancelada')
+        <a class="me-2" href="javascript:void(0);" id-item="{{ $id }}" data-toggle="tooltip" data-placement="top"
+           title="Prefactura actualizada"><i class="fas fa-file-invoice-dollar invoice-prefactura"></i></a>
+    @endif
+
     @if(auth()->user() && auth()->user()->can('invoice_mark_invoice'))
         @if ($statusClass != 'Pagada')
             <a id-item="{{ $id }}" class="mr-2" href="javascript:void(0);" data-toggle="tooltip"

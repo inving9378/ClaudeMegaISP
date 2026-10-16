@@ -50,6 +50,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('finanzas')
 
         Route::post('/send/{id}', [InvoiceController::class, 'sendInvoice']);
         Route::get('/print/{id}', [InvoiceController::class, 'printInvoice']);
+        Route::get('/prefactura/{id}', [InvoiceController::class, 'prefactura']);
         Route::post('/mark-as-paid/{id}', [InvoiceController::class, 'markAsPaid']);
         Route::post('/edit-period/{id}', [InvoiceController::class, 'editPeriod']);
 

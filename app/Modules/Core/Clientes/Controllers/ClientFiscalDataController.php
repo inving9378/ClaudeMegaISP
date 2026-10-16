@@ -4,6 +4,7 @@ namespace App\Modules\Core\Clientes\Controllers;
 
 use App\Models\ClientFiscalData;
 use App\Services\Finance\Timbrado\TimbradoServiceInterface;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -12,6 +13,10 @@ use Illuminate\Support\Facades\Validator;
 
 class ClientFiscalDataController extends Controller
 {
+    // Sin este trait $this->authorize() no existe en Illuminate\Routing\Controller y cada
+    // llamada respondía 500 (la API no tenía pantalla hasta el item #480).
+    use AuthorizesRequests;
+
     private TimbradoServiceInterface $timbradoService;
 
     public function __construct(TimbradoServiceInterface $timbradoService)

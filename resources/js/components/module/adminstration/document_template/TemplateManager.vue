@@ -159,6 +159,11 @@ export default {
 
         const getfieldsEdited = async (model, id) => {
             fieldsJson.value = await requestEditedFieldsById(model, id);
+            // "Selecciona Plantilla" no es columna de document_templates, así que llega vacío:
+            // sin esto "Cargar" no trae el código y update() no sabe qué plantilla guardar.
+            if (fieldsJson.value?.template) {
+                fieldsJson.value.template.value = id;
+            }
             dataForm.data = new Form(fieldsJson.value);
         };
 
@@ -196,7 +201,10 @@ export default {
                 }
 
                 if (response.status == "fail") {
-                    toastr.error("Ha ocurrido un error", "Error");
+                    toastr.error(
+                        (response.keys || []).join(" ") || "Ha ocurrido un error",
+                        "Error"
+                    );
                     errorTextKeys.value = response.keys;
                 }
             });

@@ -101,6 +101,7 @@ import Modal from "../../../../../helpers/modal";
 import ClientCrudPayment from "../../../finance/invoice/components/ClientCrudPayment.vue";
 import { clientId } from "../../../finance/invoice/components/comun_variables";
 import SelectComponentWithCheckbox from "../../../../../shared/SelectComponentWithCheckbox.vue";
+import { abrirPrefactura } from "../../../finance/invoice/components/prefactura";
 
 export default {
     name: "ClientInvoice",
@@ -149,6 +150,9 @@ export default {
             $(document).on("click" + ns, ".invoice-send", function () {
                 let idItem = $(this).parent().attr("id-item");
                 sendEmail(idItem);
+            });
+            $(document).on("click" + ns, ".invoice-prefactura", function () {
+                abrirPrefactura($(this).parent().attr("id-item"));
             });
             $(document).on("click" + ns, ".invoice-print", function () {
                 let idItem = $(this).parent().attr("id-item");

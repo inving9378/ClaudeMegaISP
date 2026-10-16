@@ -420,6 +420,7 @@ return [
     'invoice_send_invoice' => ['/finanzas/invoices/send/{id}'],
     'invoice_mark_as_paid_invoice' => ['/finanzas/invoices/mark-as-paid/{id}'],
     'invoice_print_invoice' => ['/finanzas/invoices/print/{id}'],
+    'finanzas_prefactura_generar' => ['/finanzas/invoices/prefactura/{id}'],
     'invoice_delete_invoice' => ['/finanzas/invoices/destroy/{id}'],
 
     'finance_view_general_accounting' => [
