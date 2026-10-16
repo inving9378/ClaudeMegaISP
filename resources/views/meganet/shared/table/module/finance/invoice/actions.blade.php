@@ -1,21 +1,27 @@
 <td class="text-nowrap">
-    {{-- Orden (item #497): Prefactura, Imprimir, Enviar, Marcar pagada y, separado al final, Borrar. --}}
-    {{-- Item #480: PDF informativo con la plantilla «Prefactura.» y los datos de hoy. --}}
-    @if(auth()->user() && auth()->user()->can('finanzas_prefactura_generar') && $statusClass != 'Cancelada')
+    {{-- Orden (items #497/#505): Documento, Enviar, Marcar pagada y, separado al final, Borrar.
+         UN solo ícono de documento según Invoice::documentoVigente() (lo calcula el helper de la
+         tabla): Prefactura (pendiente), Factura sin valor fiscal (pagada) o CFDI (Fase 4). Cancelada:
+         sin documento ni Enviar. «Imprimir» y «Prefactura actualizada» se fusionaron en este ícono. --}}
+    @php
+        $documento = $documento ?? null;
+        $iconoDocumento = [
+            'prefactura' => ['icono' => 'fa-file-invoice-dollar', 'titulo' => 'Prefactura', 'enviar' => 'Enviar prefactura'],
+            'factura'    => ['icono' => 'fa-file-invoice', 'titulo' => 'Factura (sin valor fiscal)', 'enviar' => 'Enviar factura pagada'],
+            'cfdi'       => ['icono' => 'fa-file-code', 'titulo' => 'CFDI', 'enviar' => 'Enviar CFDI'],
+        ][$documento] ?? null;
+    @endphp
+
+    @if($iconoDocumento && auth()->user() && auth()->user()->can('invoice_print_invoice'))
         <a class="me-2" href="javascript:void(0);" id-item="{{ $id }}" data-toggle="tooltip" data-placement="top"
-           title="Prefactura actualizada"><i class="fas fa-file-invoice-dollar invoice-prefactura"></i></a>
+           title="{{ $iconoDocumento['titulo'] }}"><i class="fas {{ $iconoDocumento['icono'] }} invoice-documento"></i></a>
     @endif
 
-    @if(auth()->user() && auth()->user()->can('invoice_print_invoice'))
-        <a class="me-2" href="javascript:void(0);" id-item="{{ $id }}" data-toggle="tooltip" data-placement="top"
-           title="Imprimir"><i class="fas fa-file-pdf invoice-print"></i></a>
-    @endif
-
-    @if(auth()->user() && auth()->user()->can('invoice_send_invoice'))
-        {{-- data-pagada (items #498/#505): la confirmación avisa que se enviará como factura PAGADA. --}}
-        <a class="me-2" href="javascript:void(0);" id-item="{{ $id }}" data-pagada="{{ $statusClass == 'Pagada' ? 1 : 0 }}"
+    @if($iconoDocumento && auth()->user() && auth()->user()->can('invoice_send_invoice'))
+        {{-- data-documento: la confirmación dice qué documento se enviará (Enviar manda lo mismo que el ícono). --}}
+        <a class="me-2" href="javascript:void(0);" id-item="{{ $id }}" data-documento="{{ $documento }}"
            data-toggle="tooltip" data-placement="top"
-           title="{{ $statusClass == 'Pagada' ? 'Enviar factura pagada' : 'Enviar' }}"><i class="fas fa-paper-plane invoice-send"></i></a>
+           title="{{ $iconoDocumento['enviar'] }}"><i class="fas fa-paper-plane invoice-send"></i></a>
     @endif
 
     @if(auth()->user() && auth()->user()->can('invoice_mark_invoice'))

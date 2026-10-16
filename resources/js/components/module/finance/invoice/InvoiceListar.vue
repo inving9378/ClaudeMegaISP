@@ -123,7 +123,7 @@ import Modal from "../../../../helpers/modal";
 import ClientCrudPayment from "./components/ClientCrudPayment.vue";
 import { clientId } from "./components/comun_variables";
 import SelectComponentWithCheckbox from "../../../../shared/SelectComponentWithCheckbox.vue";
-import { abrirPrefactura, imprimirFactura } from "./components/prefactura";
+import { abrirDocumentoFactura } from "./components/prefactura";
 
 export default {
     name: "InvoiceListar",
@@ -156,15 +156,12 @@ export default {
         onMounted(() => {
             $(document).on("click" + ns, ".invoice-send", function () {
                 let idItem = $(this).parent().attr("id-item");
-                // Items #498/#505: una pagada se envía como factura PAGADA; la confirmación lo dice.
-                sendEmail(idItem, $(this).parent().attr("data-pagada") === "1");
+                // Item #505: Enviar manda el mismo documento que el ícono; la confirmación lo dice.
+                sendEmail(idItem, $(this).parent().attr("data-documento"));
             });
-            $(document).on("click" + ns, ".invoice-prefactura", function () {
-                abrirPrefactura($(this).parent().attr("id-item"));
-            });
-            $(document).on("click" + ns, ".invoice-print", function () {
-                let idItem = $(this).parent().attr("id-item");
-                printInvoice(idItem);
+            $(document).on("click" + ns, ".invoice-documento", function () {
+                // Item #505: ícono único (Prefactura / Factura s/v fiscal), validado antes de abrir.
+                abrirDocumentoFactura($(this).parent().attr("id-item"));
             });
             $(document).on("click" + ns, ".invoice-paid", function () {
                 clientId.value = $(this).attr("client-id");
@@ -172,14 +169,13 @@ export default {
             });
         });
 
-        const sendEmail = async (id, pagada = false) => {
+        const sendEmail = async (id, documento = "prefactura") => {
+            const pagada = documento === "factura";
             Swal.fire({
-                title: pagada
-                    ? "¿Enviar la factura pagada?"
-                    : "¿Estás seguro de enviar esta Factura?",
+                title: pagada ? "¿Enviar la factura pagada?" : "¿Enviar la prefactura?",
                 text: pagada
                     ? "Esta factura ya está pagada; se enviará como factura PAGADA."
-                    : "No podrás deshacer esta acción.",
+                    : "Se enviará la prefactura con el saldo pendiente y los datos para pagar.",
                 icon: "warning",
                 showCancelButton: true,
                 confirmButtonColor: "#3085d6",
@@ -213,8 +209,6 @@ export default {
             });
         };
 
-        // Item #505: mismo documento que «Prefactura actualizada», validado antes de abrir.
-        const printInvoice = (id) => imprimirFactura(id);
 
         const modal = ref();
         const paidInvoice = async () => {

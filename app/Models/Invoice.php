@@ -69,6 +69,27 @@ class Invoice extends Model
     const TYPE_PAYMENT = 'payment';
     const TYPE_PROFORMA = 'proforma';
 
+    /**
+     * Documento vigente de la factura (item #505): UN solo documento por factura según su estado.
+     * Lo decide documentoVigente() y lo replica en SQL filtrarPorDocumento(); los dos viven aquí y
+     * nada más decide qué documento corresponde (ícono único, Enviar, columna «Documento»).
+     * NO depende de `type` (proforma/payment): ese campo lo usan InvoiceService y
+     * ContratableTrialService para no duplicar proformas y no se toca al pagar.
+     */
+    const DOC_PREFACTURA = 'prefactura'; // emitida / enviada / parcial / vencida
+    const DOC_FACTURA = 'factura';       // pagada sin CFDI (sin valor fiscal)
+    const DOC_CFDI = 'cfdi';             // pagada con CFDI timbrado
+
+    /** Etiqueta y color del badge de la columna «Documento». */
+    const DOCUMENTOS = [
+        self::DOC_PREFACTURA => ['etiqueta' => 'Proforma', 'clase' => 'ambar'],
+        self::DOC_FACTURA    => ['etiqueta' => 'Factura s/v fiscal', 'clase' => 'verde'],
+        self::DOC_CFDI       => ['etiqueta' => 'Factura CFDI', 'clase' => 'azul'],
+    ];
+
+    /** Columnas de la tabla que no existen en la BD (no se buscan, filtran ni ordenan por SQL). */
+    const COLUMNAS_CALCULADAS = ['action', 'documento'];
+
     protected $appends = ['status_name'];
 
     /**
@@ -179,6 +200,61 @@ class Invoice extends Model
     /**
      * Marcar factura como enviada
      */
+    /** null = cancelada (no tiene documento que mostrar ni enviar). */
+    public function documentoVigente(): ?string
+    {
+        if ($this->status === self::STATUS_CANCELLED) {
+            return null;
+        }
+        if ($this->status === self::STATUS_PAID) {
+            return $this->hasCfdi() ? self::DOC_CFDI : self::DOC_FACTURA;
+        }
+
+        return self::DOC_PREFACTURA;
+    }
+
+    /**
+     * ¿Tiene CFDI timbrado vigente? Preparado para la Fase 4 (#483): hoy los CFDI que se adjuntan a
+     * mano (client_invoice_cfdi) se ligan a client_invoices y `invoices.client_invoice_id` está vacío
+     * en todas las facturas, así que siempre es false. Debe coincidir con filtrarPorDocumento().
+     */
+    public function hasCfdi(): bool
+    {
+        if (empty($this->client_invoice_id)) {
+            return false;
+        }
+
+        return ClientInvoiceCfdi::where('client_invoice_id', $this->client_invoice_id)
+            ->whereNull('cancelado_at')
+            ->exists();
+    }
+
+    /** SQL equivalente a documentoVigente() para filtrar la tabla por documento. */
+    public static function filtrarPorDocumento($query, array $documentos)
+    {
+        $conCfdi = function ($q) {
+            $q->select(\DB::raw(1))->from('client_invoice_cfdi')
+                ->whereColumn('client_invoice_cfdi.client_invoice_id', 'invoices.client_invoice_id')
+                ->whereNull('client_invoice_cfdi.cancelado_at')
+                ->whereNull('client_invoice_cfdi.deleted_at');
+        };
+
+        return $query->where(function ($q) use ($documentos, $conCfdi) {
+            foreach (array_intersect($documentos, array_keys(self::DOCUMENTOS)) as $documento) {
+                $q->orWhere(function ($q) use ($documento, $conCfdi) {
+                    if ($documento === self::DOC_PREFACTURA) {
+                        $q->where(fn ($w) => $w->whereNull('status')
+                            ->orWhereNotIn('status', [self::STATUS_PAID, self::STATUS_CANCELLED]));
+                    } elseif ($documento === self::DOC_FACTURA) {
+                        $q->where('status', self::STATUS_PAID)->whereNotExists($conCfdi);
+                    } else {
+                        $q->where('status', self::STATUS_PAID)->whereExists($conCfdi);
+                    }
+                });
+            }
+        });
+    }
+
     public function markAsSent(): bool
     {
         // Solo una emitida (draft) pasa a «Enviada». Antes pasaba TODO a issued: enviar una factura
@@ -233,7 +309,7 @@ class Invoice extends Model
             return $query->where(function ($query) use ($search, $columns) {
                 foreach (
                     collect($columns)->filter(function ($value) {
-                        return $value != 'action';
+                        return ! in_array($value, self::COLUMNAS_CALCULADAS, true);
                     })->toArray() as $value
                 ) {
                     $query->orWhere($value, 'like', '%' . $search . '%');
@@ -284,12 +360,16 @@ class Invoice extends Model
                     if ($field == "client_id" && !empty($values)) {
                         $query->where('client_id', $values);
                     }
+
+                    if ($field == "documento" && !empty($values)) {
+                        self::filtrarPorDocumento($query, (array) $values);
+                    }
                 }
             })->where(function ($query) use ($search, $columns) {
                 // Aplica la búsqueda solo después de haber aplicado los filtros
                 foreach (
                     collect($columns)->filter(function ($value) {
-                        return $value != 'action';
+                        return ! in_array($value, self::COLUMNAS_CALCULADAS, true);
                     })->toArray() as $value
                 ) {
                     $query->orWhere($value, 'like', '%' . $search . '%');

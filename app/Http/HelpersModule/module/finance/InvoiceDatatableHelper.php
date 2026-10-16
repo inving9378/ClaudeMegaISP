@@ -27,6 +27,8 @@ class InvoiceDatatableHelper extends HelperModuleDatatable
         if (!empty($request['array'])) {
             foreach ($request['array'] as $key => $value) {
                 $id = $value->id;
+                // Antes del bucle: más abajo `status` se sobrescribe con su etiqueta («Pagada»).
+                $documento = $value->documentoVigente();
                 foreach ($this->columns as $val) {
                     if ($val == 'status') {
                         $value->status = $value->status_name;
@@ -51,7 +53,8 @@ class InvoiceDatatableHelper extends HelperModuleDatatable
                     'statusClass' => str_replace(' ', '_', $value->status),
                     'status' => $value->status,
                     'clientId' => $value->client_id,
-                    'period' => $value->period
+                    'period' => $value->period,
+                    'documento' => $documento,
                 ];
 
                 if ($type_modal_edit) $info = Arr::add($info, 'modal', $request['request']->modal['modal']);
