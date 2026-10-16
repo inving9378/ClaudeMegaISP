@@ -19,8 +19,12 @@ class StandardMail extends Mailable
 
     public function build()
     {
+        // EmailConfigService::getEmailProps() arma 'subject' y Domiciliación/MonitoreoOficial pasan
+        // 'title'. Antes solo se leía 'title': todo lo que venía por getEmailProps() (Enviar factura,
+        // app:send-all-emails-command, Mensajes) salía con «Notificación» (item #486).
+        $asunto = trim((string) ($this->emailProps['title'] ?? $this->emailProps['subject'] ?? ''));
         $mail = $this->from(config('mail.from.address'), config('mail.from.name'))
-            ->subject($this->emailProps['title'] ?? 'Notificación')
+            ->subject($asunto !== '' ? $asunto : 'Notificación')
             ->view('emails.custom', ['htmlContent' => $this->emailProps['body']]);
 
         if (!empty($this->emailProps['to'])) {
