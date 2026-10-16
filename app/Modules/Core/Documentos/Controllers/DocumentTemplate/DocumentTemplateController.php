@@ -163,7 +163,13 @@ class DocumentTemplateController extends Controller
 
         $filePath = 'document_template/document/' . $nameTemplate . '.pdf';
         $template->name = $nameTemplate;
-        $template->html = $validation['html'];
+        // Se guarda el HTML TAL CUAL lo escribió el usuario, con sus ${variables}, igual que
+        // store(). $validation['html'] ya trae las variables de empresa resueltas (nombre, RFC,
+        // logo como ruta del disco de ESTE servidor…) y guardarlo las dejaba "horneadas" para
+        // siempre: así quedó /var/www/ClaudeMegaISP/... fijo en la Prefactura. Todas las
+        // generaciones (contratos, correos, recordatorios, prefactura) vuelven a pasar por
+        // validateAndReplaceTemplate(), que resuelve esas variables en ese momento.
+        $template->html = $request->html;
         $template->type = $request->type;
         if ($request->filled('status')) {
             $template->status = $request->status;

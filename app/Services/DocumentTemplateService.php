@@ -295,7 +295,8 @@ class DocumentTemplateService
                             }
                             $html = str_replace('${' . $key . '}', $localPath, $html);
                         } else {
-                            $html = str_replace('${' . $key . '}', $dataComun[$keyDataComun], $html);
+                            // Campos de empresa vacíos (p. ej. url_portal) llegan null.
+                            $html = str_replace('${' . $key . '}', (string) ($dataComun[$keyDataComun] ?? ''), $html);
                         }
                     }
                 }
