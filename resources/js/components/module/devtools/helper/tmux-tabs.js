@@ -216,14 +216,16 @@ export function createTmuxTabs(term, { onChange, initialTitle = "", debounceMs =
         maybeSetup();
     };
 
+    // Throttle (a lo más una vez cada debounceMs, con el último valor) y no debounce:
+    // con Claude escupiendo salida sin pausa, un debounce no se dispararía nunca.
+    let lastTitle = "";
     try {
         disposables.push(term.onTitleChange((t) => {
-            clearTimeout(titleTimer);
-            titleTimer = setTimeout(() => applyTitle(t), debounceMs);
+            lastTitle = t;
+            if (!titleTimer) titleTimer = setTimeout(() => { titleTimer = null; applyTitle(lastTitle); }, debounceMs);
         }));
         disposables.push(term.onWriteParsed(() => {
-            clearTimeout(statusTimer);
-            statusTimer = setTimeout(checkStatus, debounceMs);
+            if (!statusTimer) statusTimer = setTimeout(() => { statusTimer = null; checkStatus(); }, debounceMs);
         }));
     } catch (_) {}
 
