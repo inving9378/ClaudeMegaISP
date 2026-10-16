@@ -1,7 +1,9 @@
-<td>
-    @if(auth()->user() && auth()->user()->can('invoice_send_invoice'))
+<td class="text-nowrap">
+    {{-- Orden (item #497): Prefactura, Imprimir, Enviar, Marcar pagada y, separado al final, Borrar. --}}
+    {{-- Item #480: PDF informativo con la plantilla «Prefactura.» y los datos de hoy. --}}
+    @if(auth()->user() && auth()->user()->can('finanzas_prefactura_generar') && $statusClass != 'Cancelada')
         <a class="me-2" href="javascript:void(0);" id-item="{{ $id }}" data-toggle="tooltip" data-placement="top"
-           title="Enviar"><i class="fas fa-paper-plane invoice-send"></i></a>
+           title="Prefactura actualizada"><i class="fas fa-file-invoice-dollar invoice-prefactura"></i></a>
     @endif
 
     @if(auth()->user() && auth()->user()->can('invoice_print_invoice'))
@@ -9,20 +11,23 @@
            title="Imprimir"><i class="fas fa-file-pdf invoice-print"></i></a>
     @endif
 
-    {{-- Item #480: PDF informativo con la plantilla «Prefactura.» y los datos de hoy. --}}
-    @if(auth()->user() && auth()->user()->can('finanzas_prefactura_generar') && $statusClass != 'Cancelada')
+    @if(auth()->user() && auth()->user()->can('invoice_send_invoice'))
         <a class="me-2" href="javascript:void(0);" id-item="{{ $id }}" data-toggle="tooltip" data-placement="top"
-           title="Prefactura actualizada"><i class="fas fa-file-invoice-dollar invoice-prefactura"></i></a>
+           title="Enviar"><i class="fas fa-paper-plane invoice-send"></i></a>
     @endif
 
     @if(auth()->user() && auth()->user()->can('invoice_mark_invoice'))
         @if ($statusClass != 'Pagada')
-            <a id-item="{{ $id }}" class="mr-2" href="javascript:void(0);" data-toggle="tooltip"
+            <a id-item="{{ $id }}" class="me-2" href="javascript:void(0);" data-toggle="tooltip"
                data-placement="top" title="marcar como pagada"><i class="fas fa-check mark-as-paid"></i></a>
         @endif
     @endif
+
     @if(auth()->user() && auth()->user()->can('invoice_delete_invoice'))
-        <a class="" href="javascript:void(0);" id-item="{{ $id }}" data-toggle="tooltip" data-placement="top"
+        {{-- Separado del resto para no borrar por error. La confirmación («¿Está seguro que desea
+             eliminar?») la pone Datatable.vue sobre `.fa-trash`: conservar <a id-item><i class="fa-trash">. --}}
+        <span class="d-inline-block align-middle ms-1 me-3" style="width:1px;height:14px;background:#cbd5e1;"></span>
+        <a class="text-danger" href="javascript:void(0);" id-item="{{ $id }}" data-toggle="tooltip" data-placement="top"
            title="Borrar"><i class="fas fa-trash"></i></a>
     @endif
 </td>

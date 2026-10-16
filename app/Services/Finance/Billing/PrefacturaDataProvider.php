@@ -6,11 +6,10 @@ use App\Models\ClientFiscalData;
 use App\Models\Invoice;
 use App\Modules\Addons\Payments\Services\PaymentReferenceService;
 use App\Modules\Core\Configuracion\Models\CompanyInformation;
+use App\Support\LogoPdf;
 use App\Support\MontoEnLetras;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Variables de la plantilla «Prefactura.» (document_templates) para UNA factura de `invoices`
@@ -41,12 +40,6 @@ class PrefacturaDataProvider
         'data_dinamic.invoice_id', 'data_dinamic.invoice_date', 'data_dinamic.invoice_pay_up',
         'data_dinamic.invoice_period', 'data_dinamic.debit',
     ];
-
-    /** Alto en px del logo embebido: la plantilla lo pinta a 36px; esto da ~300 dpi. */
-    private const LOGO_ALTO_PX = 120;
-
-    /** 1×1 transparente: mejor un hueco que el "imagen no encontrada" de dompdf. */
-    private const PIXEL_TRANSPARENTE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
     /**
      * @return array{data: array<string,string>, dinamicas: array<string,string>}
@@ -96,7 +89,7 @@ class PrefacturaDataProvider
                 'total'       => (float) $i->total,
             ])->values()->all(),
             'fiscal'          => self::fiscalCompleto($fiscal),
-            'correo_empresa'  => (string) ($empresa->email ?? ''),
+            'correo_facturacion' => (string) (config('billing.correo_facturacion') ?: ($empresa->email ?? '')),
             'banco'           => (string) ($empresa->bank_name ?? ''),
             'cuenta'          => (string) ($empresa->bank_account ?? ''),
             'portal'          => (string) ($empresa->url_portal ?? ''),
@@ -163,10 +156,10 @@ class PrefacturaDataProvider
             'total'                   => e(self::dinero($total)),
             'total_letra'             => e(MontoEnLetras::pesosMxn($total)),
             'bloque_pago'             => $pagado ? self::bloquePagado($pago) : self::bloquePendiente($c),
-            'bloque_fiscal'           => self::bloqueFiscal($fiscal, (string) ($c['correo_empresa'] ?? '')),
+            'bloque_fiscal'           => self::bloqueFiscal($fiscal, (string) ($c['correo_facturacion'] ?? '')),
             'leyenda_legal'           => '<span class="strong">Documento informativo sin valor fiscal.</span> Emitido el '
                 . e($ahora->format('d/m/Y H:i')) . ' &middot; Folio ' . e($numero) . '.',
-            'logo_pdf'                => (string) (($c['logo'] ?? '') ?: self::PIXEL_TRANSPARENTE),
+            'logo_pdf'                => (string) (($c['logo'] ?? '') ?: LogoPdf::PIXEL_TRANSPARENTE),
         ];
 
         $dinamicas = [
@@ -313,73 +306,10 @@ class PrefacturaDataProvider
         ];
     }
 
-    /**
-     * Logo de la empresa reducido y embebido como data URI: dompdf no tiene que leer del disco
-     * (sin líos de chroot/permisos en prod) y el PDF no carga el PNG original de ~280 KB.
-     */
+    /** Logo reducido como data URI (ver App\Support\LogoPdf). */
     public function logoDataUri(): string
     {
-        $ruta = self::rutaLogo();
-        if ($ruta === null) {
-            return self::PIXEL_TRANSPARENTE;
-        }
-
-        $clave = 'prefactura:logo_pdf:' . md5($ruta . '|' . filesize($ruta) . '|' . filemtime($ruta) . '|' . self::LOGO_ALTO_PX);
-
-        return Cache::rememberForever($clave, function () use ($ruta) {
-            try {
-                return self::reducirLogo($ruta);
-            } catch (\Throwable $e) {
-                Log::warning('[Prefactura] No se pudo reducir el logo: ' . $e->getMessage());
-
-                return self::PIXEL_TRANSPARENTE;
-            }
-        });
-    }
-
-    private static function rutaLogo(): ?string
-    {
-        $empresa = CompanyInformation::first();
-        $candidatas = [];
-        if ($empresa && $empresa->url_logo) {
-            $candidatas[] = public_path(ltrim(str_replace('\\', '/', $empresa->url_logo), '/'));
-        }
-        $candidatas[] = public_path('images/logo_meganet_oficial.png');
-
-        foreach ($candidatas as $ruta) {
-            if (is_file($ruta) && is_readable($ruta)) {
-                return $ruta;
-            }
-        }
-
-        return null;
-    }
-
-    private static function reducirLogo(string $ruta): string
-    {
-        $origen = @imagecreatefromstring((string) file_get_contents($ruta));
-        if (! $origen) {
-            return self::PIXEL_TRANSPARENTE;
-        }
-
-        $ancho = imagesx($origen);
-        $alto = imagesy($origen);
-        $nuevoAlto = min(self::LOGO_ALTO_PX, $alto);
-        $nuevoAncho = max(1, (int) round($ancho * $nuevoAlto / max(1, $alto)));
-
-        $destino = imagecreatetruecolor($nuevoAncho, $nuevoAlto);
-        imagealphablending($destino, false);
-        imagesavealpha($destino, true);
-        imagefill($destino, 0, 0, imagecolorallocatealpha($destino, 0, 0, 0, 127));
-        imagecopyresampled($destino, $origen, 0, 0, 0, 0, $nuevoAncho, $nuevoAlto, $ancho, $alto);
-
-        ob_start();
-        imagepng($destino, null, 9);
-        $png = (string) ob_get_clean();
-        imagedestroy($origen);
-        imagedestroy($destino);
-
-        return 'data:image/png;base64,' . base64_encode($png);
+        return LogoPdf::dataUri();
     }
 
     // ─── Formatos ─────────────────────────────────────────────────────────────────

@@ -22,6 +22,16 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Correo de facturación (Prefactura, item #497)
+    |--------------------------------------------------------------------------
+    | Al que la Prefactura remite para pedir la factura fiscal. No hay campo de
+    | empresa para él (company_information.email es el de soporte); si se deja
+    | vacío, se usa ese. Sin env() a propósito: config:auditar-env.
+    */
+    'correo_facturacion' => 'facturacion@meganett.com.mx',
+
+    /*
+    |--------------------------------------------------------------------------
     | Dual-write invoices (roadmap #632/#721)
     |--------------------------------------------------------------------------
     | Cuando está ON, los puntos de cobro que marcan client_invoices.estado=

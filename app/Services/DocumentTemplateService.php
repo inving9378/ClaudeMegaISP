@@ -291,6 +291,14 @@ class DocumentTemplateService
         $flatKeysNotValidate = array_merge(...$keysNotValidateNecesary);
 
         foreach ($keyFound as $key) {
+            // ${data.logo_pdf} (items #480/#497): el logo reducido se resuelve siempre, aunque no
+            // venga en $data — p. ej. la previsualización genérica del editor, que no tiene cliente
+            // y dejaba el <img> en «Image not found».
+            if ($key === 'data.logo_pdf' && !(is_array($data) && array_key_exists('logo_pdf', $data))) {
+                $html = str_replace('${data.logo_pdf}', \App\Support\LogoPdf::dataUri(), $html);
+                continue;
+            }
+
             if (in_array($key, $dataArrayKeys) && $data) {
                 $keyData = str_replace('data.', '', $key);
 
