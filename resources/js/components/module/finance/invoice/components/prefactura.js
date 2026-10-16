@@ -2,10 +2,10 @@ import Swal from "sweetalert2";
 import { showLoading, hideLoading } from "../../../../../helpers/loading";
 
 /**
- * Botón «Prefactura actualizada» (item #480) de las tablas de facturas (ficha del cliente y
- * Finanzas › Facturas). Primero valida con ?validar=1 y solo entonces abre el PDF en la pestaña,
- * así una plantilla incompleta se reporta con sus variables faltantes en vez de abrir una
- * pestaña en blanco o con JSON.
+ * Botones «Prefactura actualizada» (item #480) e «Imprimir» (item #505) de las tablas de facturas
+ * (ficha del cliente y Finanzas › Facturas). Primero valida con ?validar=1 y solo entonces abre el
+ * PDF en la pestaña, así una plantilla incompleta se reporta con sus variables faltantes en vez de
+ * abrir una pestaña en blanco o con JSON.
  *
  * La pestaña se abre ANTES de esperar la respuesta: si se abriera después del await, el
  * navegador la bloquearía como ventana emergente.
@@ -13,8 +13,13 @@ import { showLoading, hideLoading } from "../../../../../helpers/loading";
 const escapar = (texto) =>
     String(texto ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
-export const abrirPrefactura = async (id) => {
-    const url = `/finanzas/invoices/prefactura/${id}`;
+export const abrirPrefactura = (id) =>
+    abrirPdfValidado(`/finanzas/invoices/prefactura/${id}`, "No se pudo generar la prefactura");
+
+export const imprimirFactura = (id) =>
+    abrirPdfValidado(`/finanzas/invoices/print/${id}`, "No se pudo generar la factura");
+
+export const abrirPdfValidado = async (url, tituloError) => {
     const pestana = window.open("about:blank", "_blank");
     showLoading("showTextDef");
 
@@ -38,7 +43,7 @@ export const abrirPrefactura = async (id) => {
             : "";
         Swal.fire({
             icon: "error",
-            title: "No se pudo generar la prefactura",
+            title: tituloError,
             html: `${escapar(data.message || "Ocurrió un error inesperado.")}${lista}`,
         });
     } finally {
