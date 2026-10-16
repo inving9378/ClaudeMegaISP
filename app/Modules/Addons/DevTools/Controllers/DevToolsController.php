@@ -62,6 +62,65 @@ class DevToolsController extends Controller
     }
 
     /**
+     * GET /devtools/terminal-auth — puerta de la terminal web ttyd.
+     *
+     * NO lo llama el navegador: lo llama nginx (`auth_request`) antes de cada
+     * petición a /ttyd/ (HTML, /token y el handshake del WebSocket), reenviando
+     * la cookie de sesión del usuario. Contrato con nginx (ver
+     * deploy/ttyd/aplicar-ttyd-seguro.sh):
+     *   204 + header X-MegaISP-Term-User → pasa; nginx reenvía ese header a ttyd
+     *        (que corre con `-H`, así que sin él rechaza la conexión) y ttyd lo
+     *        expone al bash como TTYD_USER → ~/.bashrc abre la sesión tmux de
+     *        ESE usuario (web-<login_user>).
+     *   401 → sin sesión.   403 → con sesión pero sin rol de DevTools.
+     *
+     * El header lleva el login_user tal cual, NO el token HMAC de
+     * TerminalIdentityTokenService: ttyd 1.7.7 guarda ese valor en un buffer de
+     * 30 bytes y corta el WebSocket si mide 30 caracteres o más (medido
+     * 2026-10-15; el token mide ~90). Es confiable sin firma porque a ttyd solo
+     * se llega por nginx (escucha en 127.0.0.1) y nginx pisa cualquier valor que
+     * mande el cliente.
+     *
+     * Responde siempre con código explícito: auth_request trata un 302 (el
+     * redirect a /login del middleware `auth`) como error 500, por eso esta
+     * ruta no lleva `auth` y verifica aquí.
+     *
+     * Existe por el incidente del 2026-10-14: ttyd escuchaba en 0.0.0.0 sin
+     * contraseña y hubo shells abiertos desde IPs externas.
+     */
+    public function terminalAuth(Request $request): SymfonyResponse
+    {
+        if (! Auth::check()) {
+            return response('', 401);
+        }
+
+        $user = Auth::user();
+        $loginUser = (string) ($user->login_user ?? $user->getAuthIdentifier());
+
+        if (! $this->isAuthorized()) {
+            $this->auditarTerminal('Terminal web denegada (sin rol de DevTools)', $request, $loginUser);
+
+            return response('', 403);
+        }
+
+        // Una apertura = un handshake del WebSocket; el HTML y /token no se
+        // registran para no triplicar cada apertura en la bitácora.
+        if (str_ends_with((string) $request->header('X-Original-URI'), '/ws')) {
+            $this->auditarTerminal('Terminal web abierta', $request, $loginUser);
+        }
+
+        // Debe caber en el buffer de ttyd (≤29) y servir de nombre de sesión
+        // tmux; si el login_user no cumple, se identifica por id.
+        $identidad = preg_match('/^[A-Za-z0-9_-]{1,29}$/', $loginUser)
+            ? $loginUser
+            : 'id' . $user->getAuthIdentifier();
+
+        return response('', 204)
+            ->header('X-MegaISP-Term-User', $identidad)
+            ->header('Cache-Control', 'no-store');
+    }
+
+    /**
      * GET /devtools/context — devuelve el contexto que se inyecta en cada
      * llamada al chat: CLAUDE.md, rama actual, últimos 5 commits y módulos
      * activos. Útil para que el frontend muestre un resumen de lo que
@@ -283,6 +342,29 @@ class DevToolsController extends Controller
     private function isAuthorized(): bool
     {
         return Auth::check() && Auth::user()->hasAnyRole(['DESARROLLADOR', 'super-administrator']);
+    }
+
+    /**
+     * Rastro de quién abrió (o intentó abrir) la terminal web, en activity_log
+     * con log_name='devtools-terminal'. Un fallo al registrar nunca bloquea la
+     * terminal: es auditoría, no la puerta.
+     */
+    private function auditarTerminal(string $descripcion, Request $request, string $loginUser): void
+    {
+        try {
+            activity('devtools-terminal')
+                ->causedBy(Auth::user())
+                ->withProperties([
+                    'login_user' => $loginUser,
+                    // nginx pone X-Real-IP con la IP real del cliente; $request->ip()
+                    // sería 127.0.0.1 (la subpetición viene del propio nginx).
+                    'ip' => $request->header('X-Real-IP', $request->ip()),
+                    'uri' => $request->header('X-Original-URI'),
+                ])
+                ->log($descripcion);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('[devtools-terminal] no se pudo registrar en activity_log: ' . $e->getMessage());
+        }
     }
 
     /**

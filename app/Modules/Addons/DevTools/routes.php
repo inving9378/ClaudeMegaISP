@@ -40,6 +40,17 @@ Route::middleware(['web', 'auth'])
         Route::get('/terminal-token', [DevToolsController::class, 'terminalToken'])->name('devtools.terminal-token');
     });
 
+// Puerta de la terminal web ttyd: la consulta nginx (`auth_request`) antes de
+// cada petición a /ttyd/. Solo cookies + sesión, a propósito: sin `auth` (su
+// redirect 302 a /login lo toma nginx como error 500) y sin el resto del grupo
+// `web` (CSRF, rastreo de última ruta, bloqueo por firma pendiente…), que no
+// aplican a una subpetición interna. El rol se verifica en el controller.
+Route::middleware([\App\Http\Middleware\EncryptCookies::class, \Illuminate\Session\Middleware\StartSession::class])
+    ->prefix('devtools')
+    ->group(function () {
+        Route::get('/terminal-auth', [DevToolsController::class, 'terminalAuth'])->name('devtools.terminal-auth');
+    });
+
 // Git tooling — sub-namespace dentro de DevTools, pero gating con
 // `check_route_permission` (NO role:DESARROLLADOR) para preservar la
 // política legacy: la pestaña de Releases consume /git/get-tags y no

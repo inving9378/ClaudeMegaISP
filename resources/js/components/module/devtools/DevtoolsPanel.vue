@@ -344,10 +344,8 @@
                 <div v-else class="dt-ttyd-setup">
                     <h5>Terminal no disponible</h5>
                     <p>No se pudo conectar a <code>{{ effectiveTtydUrl }}</code>.</p>
-                    <p>Ejecuta en el servidor:</p>
-                    <pre>ttyd -p 7681 -W --interface 0.0.0.0 bash</pre>
-                    <p>O activa el servicio systemd:</p>
-                    <pre>sudo systemctl enable --now ttyd</pre>
+                    <p>Para encenderla (solo en 127.0.0.1 y con sesión, nunca a internet):</p>
+                    <pre>sudo bash /var/www/megaisp/deploy/ttyd/aplicar-ttyd-seguro.sh</pre>
                     <button class="btn btn-outline-primary" @click="probeTtyd">
                         <i class="fas fa-sync"></i> Reintentar
                     </button>
