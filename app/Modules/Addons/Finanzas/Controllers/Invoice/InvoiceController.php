@@ -18,6 +18,7 @@ use App\Services\ClientService\ContractClientService;
 use App\Modules\Core\Configuracion\Services\EmailConfigService;
 use App\Services\Finance\Invoice\AvailablePeriodsService;
 use App\Services\Finance\Invoice\InvoiceService;
+use App\Services\Finance\Billing\PrefacturaDataProvider;
 use App\Services\Finance\Billing\PrefacturaPdfService;
 use App\Services\LogService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -107,21 +108,33 @@ class InvoiceController extends CrudModalController
                 ], 500);
             }
             $model->load('client');
-            $items = $model->items;
-            $dataClient = (new ContractClientService())->getDataClient($model->client);
-            $companYInformationRepository = new CompanyInformationRepository();
-            $companyInformation = $companYInformationRepository->getDataCompany();
-            $html = view('meganet.module.client.template.FacturaProforma', [
-                'invoice' => $model,
-                'dataClient' => $dataClient,
-                'companyInformation' => $companyInformation,
-                'items' => $items
-            ])->toHtml();
+
+            // Item #480: se manda la Prefactura (plantilla + provider) en PDF adjunto. Si la
+            // plantilla no se puede llenar, se cae al Blade FacturaProforma de antes (queda en log).
+            $prefactura = $this->prefacturaParaCorreo($model);
+            $adjuntos = [];
+            if ($prefactura) {
+                $html = $prefactura['body'];
+                $adjuntos[] = $prefactura['adjunto'];
+                $asunto = 'Prefactura ' . $model->number;
+            } else {
+                $items = $model->items;
+                $dataClient = (new ContractClientService())->getDataClient($model->client);
+                $companYInformationRepository = new CompanyInformationRepository();
+                $companyInformation = $companYInformationRepository->getDataCompany();
+                $html = view('meganet.module.client.template.FacturaProforma', [
+                    'invoice' => $model,
+                    'dataClient' => $dataClient,
+                    'companyInformation' => $companyInformation,
+                    'items' => $items
+                ])->toHtml();
+                $asunto = 'Factura Proforma';
+            }
 
             $config = (new ConfigFinanceNotificationRepository())->getNotificationType('proforma_invoice');
 
             $email = new EmailDto();
-            $email->subject = 'Factura Proforma';
+            $email->subject = $asunto;
             $email->html = $html;
             $email->recipient_email =  $model->client->client_main_information->email;
             $email->client_id = $model->client_id;
@@ -131,13 +144,16 @@ class InvoiceController extends CrudModalController
 
             $emailService = new EmailConfigService();
             $emailProps = $emailService->getEmailProps($email);
+            if ($adjuntos) {
+                $emailProps['attachments'] = $adjuntos;
+            }
             Notification::route('mail', $emailProps['to'])
                 ->notify(new StandardNotification($model, ['mail'], $emailProps));
             //marcar como enviada la factura proforma
             $model->markAsSent();
             $model->save();
             $logService = new LogService();
-            $logService->log($model->client, 'Cliente #' . $model->client_id . ' Se ha enviado la factura proforma ' . $model->id . ' por el usuario ' . auth()->user()->id . ' el dia ' . now()->format('Y-m-d'));
+            $logService->log($model->client, 'Cliente #' . $model->client_id . ' Se ha enviado la factura proforma ' . $model->id . ($prefactura ? ' (con la Prefactura en PDF)' : '') . ' por el usuario ' . auth()->user()->id . ' el dia ' . now()->format('Y-m-d'));
 
             return response()->json([
                 'success' => true,
@@ -174,6 +190,49 @@ class InvoiceController extends CrudModalController
             Log::error('Error al enviar factura: ' . $e->getMessage());
             return redirect()->back()->with('message', 'No se encontro la factura');
         }
+    }
+
+    /**
+     * Cuerpo corto + la Prefactura en PDF para el correo de «Enviar» (item #480, 2.5). Devuelve
+     * null si la plantilla no se pudo llenar o algo falló: el llamador cae al Blade viejo.
+     *
+     * @return array{body: string, adjunto: array{data: string, name: string, mime: string}}|null
+     */
+    private function prefacturaParaCorreo(Invoice $invoice): ?array
+    {
+        try {
+            $r = app(PrefacturaPdfService::class)->generar($invoice);
+        } catch (\Throwable $e) {
+            Log::warning("[Prefactura] Enviar factura #{$invoice->id}: error al generar el PDF, se usa FacturaProforma: " . $e->getMessage());
+
+            return null;
+        }
+        if ($r['status'] !== 'ok') {
+            Log::warning("[Prefactura] Enviar factura #{$invoice->id}: la plantilla no se pudo llenar, se usa FacturaProforma.", [
+                'faltan' => $r['keys'],
+            ]);
+
+            return null;
+        }
+
+        $cmi = $invoice->client?->client_main_information;
+        $nombre = trim(($cmi->name ?? '') . ' ' . ($cmi->father_last_name ?? ''));
+        $periodo = PrefacturaDataProvider::periodoLegible($invoice->period);
+        $vence = PrefacturaDataProvider::fecha($invoice->due_date);
+        $pagada = $r['estado'] === PrefacturaDataProvider::ESTADO_PAGADO;
+
+        $body = '<p>Hola' . ($nombre !== '' ? ' ' . e($nombre) : '') . ',</p>'
+            . '<p>Te compartimos la prefactura <b>' . e($invoice->number) . '</b>'
+            . ($periodo !== '' ? ' del periodo ' . e($periodo) : '')
+            . ' por <b>' . e(PrefacturaDataProvider::dinero((float) $invoice->total)) . ' MXN</b>'
+            . ($pagada ? ', que ya se encuentra <b>pagada</b>.' : ($vence ? ', con fecha límite de pago el <b>' . e($vence->format('d/m/Y')) . '</b>.' : '.'))
+            . '</p><p>La encontrarás adjunta en PDF, con los datos para pagar y tu referencia.</p>'
+            . '<p style="color:#6E7C8C;font-size:12px">Documento informativo sin valor fiscal.</p>';
+
+        return [
+            'body'    => $body,
+            'adjunto' => ['data' => base64_encode($r['pdf']), 'name' => $r['filename'], 'mime' => 'application/pdf'],
+        ];
     }
 
     /**

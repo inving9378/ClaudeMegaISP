@@ -35,6 +35,17 @@ class StandardMail extends Mailable
             $mail->cc($ccRecipients);
         }
 
+        // Adjuntos opcionales (item #480: la Prefactura en PDF del botón «Enviar»). Viajan en
+        // base64 porque StandardNotification va por cola y el payload del job es JSON.
+        foreach ($this->emailProps['attachments'] ?? [] as $adjunto) {
+            if (empty($adjunto['data']) || empty($adjunto['name'])) {
+                continue;
+            }
+            $mail->attachData(base64_decode($adjunto['data']), $adjunto['name'], [
+                'mime' => $adjunto['mime'] ?? 'application/octet-stream',
+            ]);
+        }
+
         return $mail;
     }
 }
