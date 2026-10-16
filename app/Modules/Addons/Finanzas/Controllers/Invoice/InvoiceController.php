@@ -116,7 +116,7 @@ class InvoiceController extends CrudModalController
             if ($prefactura) {
                 $html = $prefactura['body'];
                 $adjuntos[] = $prefactura['adjunto'];
-                $asunto = 'Prefactura ' . $model->number;
+                $asunto = $this->asuntoCorreoFactura('Tu prefactura', $model);
             } else {
                 $items = $model->items;
                 $dataClient = (new ContractClientService())->getDataClient($model->client);
@@ -128,7 +128,7 @@ class InvoiceController extends CrudModalController
                     'companyInformation' => $companyInformation,
                     'items' => $items
                 ])->toHtml();
-                $asunto = 'Factura Proforma';
+                $asunto = $this->asuntoCorreoFactura('Tu factura proforma', $model);
             }
 
             $config = (new ConfigFinanceNotificationRepository())->getNotificationType('proforma_invoice');
@@ -190,6 +190,17 @@ class InvoiceController extends CrudModalController
             Log::error('Error al enviar factura: ' . $e->getMessage());
             return redirect()->back()->with('message', 'No se encontro la factura');
         }
+    }
+
+    /**
+     * «Tu prefactura noviembre-diciembre 2026 — Meganet» (item #486). Con el periodo en el asunto,
+     * Gmail no junta en un solo hilo los correos de meses distintos.
+     */
+    private function asuntoCorreoFactura(string $prefijo, Invoice $invoice): string
+    {
+        $periodo = PrefacturaDataProvider::periodoLegible($invoice->period);
+
+        return $prefijo . ($periodo !== '' ? ' ' . $periodo : '') . ' — Meganet';
     }
 
     /**
