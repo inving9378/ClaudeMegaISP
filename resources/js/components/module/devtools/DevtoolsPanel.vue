@@ -298,6 +298,12 @@
                     <i class="fas fa-terminal"></i> Terminal
                     <small class="dt-terminal-url">{{ effectiveTtydUrl }}</small>
                 </span>
+                <!-- Pestañas = ventanas tmux de la sesión (helper/tmux-tabs.js). -->
+                <devtools-terminal-tabs
+                    v-if="ttydReachable !== false"
+                    ref="terminalTabs"
+                    :dark="currentTheme === 'dark'"
+                />
                 <div class="dt-terminal-header-btns">
                     <button
                         class="dt-icon-btn dt-terminal-copy-btn"
@@ -358,9 +364,11 @@
 <script>
 import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, watch } from "vue";
 import { renderMarkdown, bindCodeCopyButtons } from "../../../composables/useMarkdown.js";
+import DevtoolsTerminalTabs from "./DevtoolsTerminalTabs.vue";
 
 export default {
     name: "DevtoolsPanel",
+    components: { DevtoolsTerminalTabs },
     props: {
         ttydUrl: { type: String, default: "/ttyd/" },
         csrfToken: { type: String, required: true },
@@ -752,6 +760,7 @@ export default {
         // =============================================================
         const rootRef = ref(null);
         const terminalIframe = ref(null);
+        const terminalTabs = ref(null);
         const terminalPct = ref(38);
         const dragging = ref(false);
         const startDrag = (e) => {
@@ -926,6 +935,7 @@ export default {
             selectionHookRetries = 0;
             // Pequeño delay: la terminal puede tardar ~1s en montar después de load
             setTimeout(hookCopyOnSelect, 800);
+            terminalTabs.value?.attach(terminalIframe.value?.contentWindow);
         };
         const onIframeError = () => { ttydReachable.value = false; };
 
@@ -1044,6 +1054,7 @@ export default {
             // terminal + drag
             rootRef,
             terminalIframe,
+            terminalTabs,
             terminalPct,
             dragging,
             startDrag,
