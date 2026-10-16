@@ -88,6 +88,11 @@ class SendAllEmailsCommand extends Command
 
             // Construir consulta según tipo de email
             $query = $this->buildQueryForType($modelClass);
+            $viejos = $modelClass::where('via', 'email')->where('status', 'pending')
+                ->where('created_at', '<', now()->subDays($this->antiguedadMaximaDias()))->count();
+            if ($viejos > 0) {
+                $this->warn("Se ignoran {$viejos} {$type} pendientes con más de {$this->antiguedadMaximaDias()} días.");
+            }
 
             if (!$unlimitedMode) {
                 $query->limit($remainingSlots);
@@ -123,9 +128,19 @@ class SendAllEmailsCommand extends Command
 
     protected function buildQueryForType(string $modelClass)
     {
+        // Candado (decisión de Irving, item #482): nunca mandar pendientes de más de N días. La cola
+        // trae ~32,500 invoice_emails viejos (no sale nada desde 2025-05) que, si alguien reactivara
+        // este comando, saldrían de golpe a clientes reales con datos vencidos. Se IGNORAN (siguen
+        // pending); marcarlos cancelados es parte de la Fase 3 (#482).
         return $modelClass::where('via', 'email')
             ->where('status', 'pending')
+            ->where('created_at', '>=', now()->subDays($this->antiguedadMaximaDias()))
             ->orderBy('created_at', 'asc');
+    }
+
+    protected function antiguedadMaximaDias(): int
+    {
+        return max(1, (int) config('billing.correos_pendientes_max_dias', 7));
     }
 
     protected function getClientForEmail($email)

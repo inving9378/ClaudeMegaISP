@@ -12,8 +12,10 @@
     @endif
 
     @if(auth()->user() && auth()->user()->can('invoice_send_invoice'))
-        <a class="me-2" href="javascript:void(0);" id-item="{{ $id }}" data-toggle="tooltip" data-placement="top"
-           title="Enviar"><i class="fas fa-paper-plane invoice-send"></i></a>
+        {{-- data-pagada (item #498): la confirmación avisa que se enviará como comprobante PAGADO. --}}
+        <a class="me-2" href="javascript:void(0);" id-item="{{ $id }}" data-pagada="{{ $statusClass == 'Pagada' ? 1 : 0 }}"
+           data-toggle="tooltip" data-placement="top"
+           title="{{ $statusClass == 'Pagada' ? 'Enviar comprobante de pago' : 'Enviar' }}"><i class="fas fa-paper-plane invoice-send"></i></a>
     @endif
 
     @if(auth()->user() && auth()->user()->can('invoice_mark_invoice'))

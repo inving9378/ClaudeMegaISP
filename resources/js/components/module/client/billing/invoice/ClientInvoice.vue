@@ -149,7 +149,8 @@ export default {
             clientId.value = getClientIdByUrl();
             $(document).on("click" + ns, ".invoice-send", function () {
                 let idItem = $(this).parent().attr("id-item");
-                sendEmail(idItem);
+                // Item #498: una pagada se envía como comprobante de pago; la confirmación lo dice.
+                sendEmail(idItem, $(this).parent().attr("data-pagada") === "1");
             });
             $(document).on("click" + ns, ".invoice-prefactura", function () {
                 abrirPrefactura($(this).parent().attr("id-item"));
@@ -233,10 +234,14 @@ export default {
             });
         };
 
-        const sendEmail = async (id) => {
+        const sendEmail = async (id, pagada = false) => {
             Swal.fire({
-                title: "¿Estás seguro de enviar esta Factura?",
-                text: "No podrás deshacer esta acción.",
+                title: pagada
+                    ? "¿Enviar el comprobante de pago?"
+                    : "¿Estás seguro de enviar esta Factura?",
+                text: pagada
+                    ? "Esta factura ya está pagada; se enviará como comprobante PAGADO."
+                    : "No podrás deshacer esta acción.",
                 icon: "warning",
                 showCancelButton: true,
                 confirmButtonColor: "#3085d6",
