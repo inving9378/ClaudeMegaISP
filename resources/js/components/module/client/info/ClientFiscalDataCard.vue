@@ -2,8 +2,14 @@
     <section v-if="puedeVer && cargado" class="fdc-card" :class="{ 'fdc-dark': darkMode }">
         <div class="fdc-head">
             <span><i class="mdi mdi-file-document-outline"></i> Datos fiscales</span>
-            <span class="fdc-badge" :class="form.facturacion_fiscal ? 'fdc-badge--on' : 'fdc-badge--off'">
-                {{ form.facturacion_fiscal ? "Requiere factura fiscal" : "Sin factura fiscal" }}
+            <!-- Guardar va arriba a la derecha: abajo lo tapaban los botones flotantes (item #497). -->
+            <span class="fdc-head-acciones">
+                <span class="fdc-badge" :class="form.facturacion_fiscal ? 'fdc-badge--on' : 'fdc-badge--off'">
+                    {{ form.facturacion_fiscal ? "Requiere factura fiscal" : "Sin factura fiscal" }}
+                </span>
+                <button v-if="puedeEditar" type="button" class="btn btn-primary btn-sm" :disabled="guardando" @click="guardar">
+                    {{ guardando ? "Guardando…" : "Guardar datos fiscales" }}
+                </button>
             </span>
         </div>
 
@@ -76,9 +82,6 @@
                 <span class="fdc-nota">
                     Se muestran en la Prefactura. Guardarlos no emite ninguna factura fiscal.
                 </span>
-                <button v-if="puedeEditar" type="button" class="btn btn-primary btn-sm" :disabled="guardando" @click="guardar">
-                    {{ guardando ? "Guardando…" : "Guardar datos fiscales" }}
-                </button>
             </div>
         </div>
     </section>
@@ -208,9 +211,10 @@ watch(() => [props.clientId, props.puedeVer], cargar, { immediate: true });
 
 <style scoped>
 .fdc-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; margin: 0 0 14px; }
-.fdc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px;
+.fdc-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 10px 16px;
     border-bottom: 1px solid #f1f3f5; font-weight: 700; font-size: 0.92rem; background: #EEF2FF; color: #3730A3;
     border-radius: 12px 12px 0 0; }
+.fdc-head-acciones { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .fdc-badge { font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 10px; }
 .fdc-badge--on { background: #E9F5EF; color: #14724A; }
 .fdc-badge--off { background: #F1F5F9; color: #64748B; }
@@ -219,7 +223,7 @@ watch(() => [props.clientId, props.puedeVer], cargar, { immediate: true });
 @media (max-width: 991px) { .fdc-grid { grid-template-columns: 1fr; } }
 .fdc-label { display: block; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase;
     letter-spacing: 0.3px; margin-bottom: 3px; }
-.fdc-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
+.fdc-foot { margin-top: 12px; }
 .fdc-nota { font-size: 12px; color: #6b7280; }
 
 .fdc-dark.fdc-card { background: #1d1d21; border-color: #2c2c34; }
