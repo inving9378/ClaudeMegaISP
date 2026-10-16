@@ -245,6 +245,13 @@
             </div>
         </form>
 
+        <!-- Datos fiscales (item #480): tarjeta aparte, con su propio Guardar -->
+        <ClientFiscalDataCard
+            :client-id="id"
+            :puede-ver="hasPermission.data.canView('facturacion.ver')"
+            :puede-editar="hasPermission.data.canView('facturacion.fiscal.editar')"
+        />
+
         <!-- Bitácora -->
         <div class="mt-2">
             <ClientRecentActivity :id="id" @show-information="showInformation"></ClientRecentActivity>
@@ -339,6 +346,7 @@ import ClientMapInline from "./ClientMapInline.vue";
 import ComponentFormDefault from "../../ComponentFormDefault";
 import ViewTopNameWithBalance from "./ViewTopNameWithBalance";
 import ClientInfoAccountBalance from "./info/ClientInfoAccountBalance";
+import ClientFiscalDataCard from "./info/ClientFiscalDataCard.vue";
 
 import DialogUnconfiguredOnus from "../olts/components/dialogs/DialogUnconfiguredOnus.vue";
 import PanelOnu from "../olts/components/onus/PanelOnu.vue";

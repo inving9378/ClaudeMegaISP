@@ -4,7 +4,11 @@
     "version": "0.1.0",
     "description": "Gestión integral de clientes activos.",
     "type": "core",
-    "dependencies": [],
+    "permissions": [
+        { "name": "facturacion.ver",           "description": "Ver los datos fiscales del cliente" },
+        { "name": "facturacion.fiscal.editar", "description": "Editar los datos fiscales del cliente (no timbra)" }
+    ],
+    "dependencies":[],
     "active": true,
     "menu": [],
     "admin_cards": [],
