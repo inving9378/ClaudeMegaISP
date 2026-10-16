@@ -22,7 +22,7 @@ class PrefacturaActualizarPlantillaCommand extends Command
         {--dry-run : Muestra el diff sin escribir}
         {--force : Aplica aunque el HTML no sea el original esperado}';
 
-    protected $description = 'Item #480 — ajusta la plantilla «Prefactura.» para el PrefacturaDataProvider (logo, IVA en pesos, comentarios).';
+    protected $description = 'Items #480/#505 — ajusta la plantilla «Prefactura.» para el PrefacturaDataProvider (logo, IVA en pesos, comentarios, «Sin valor fiscal»).';
 
     public function handle(PrefacturaPlantillaUpdater $updater): int
     {
@@ -33,6 +33,9 @@ class PrefacturaActualizarPlantillaCommand extends Command
         $this->line('Plantilla: «' . PrefacturaPlantillaUpdater::NOMBRE . '»' . ($previa['id'] ? " (id {$previa['id']} en esta BD)" : ''));
         $this->line('Situación: ' . $previa['situacion']);
 
+        foreach ($previa['ya_estaban'] ?? [] as $cambio) {
+            $this->line("  = {$cambio} (ya estaba)");
+        }
         foreach ($previa['aplicados'] as $cambio) {
             $this->line("  ✓ {$cambio}");
         }
@@ -55,8 +58,11 @@ class PrefacturaActualizarPlantillaCommand extends Command
             }
         }
 
-        $aplicable = $previa['despues'] !== null && ! $previa['faltan']
-            && ($previa['situacion'] === PrefacturaPlantillaUpdater::SITUACION_ORIGINAL || $force);
+        $conocida = in_array($previa['situacion'], [
+            PrefacturaPlantillaUpdater::SITUACION_ORIGINAL,
+            PrefacturaPlantillaUpdater::SITUACION_VERSION_ANTERIOR,
+        ], true);
+        $aplicable = $previa['despues'] !== null && $previa['aplicados'] && ! $previa['faltan'] && ($conocida || $force);
 
         if ($dryRun || ! $aplicable) {
             $this->info($previa['motivo']);

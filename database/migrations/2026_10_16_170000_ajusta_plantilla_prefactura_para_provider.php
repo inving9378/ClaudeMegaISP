@@ -8,9 +8,12 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Item #480 — ajusta la plantilla «Prefactura.» (document_templates, POR NOMBRE) para el
- * PrefacturaDataProvider: logo → ${data.logo_pdf}, celda de IVA → ${data.iva_monto} y sin
- * «${…}» dentro de comentarios. Detalle de los cambios en PrefacturaPlantillaUpdater.
+ * Items #480/#505 — ajusta la plantilla «Prefactura.» (document_templates, POR NOMBRE) para el
+ * PrefacturaDataProvider: logo → ${data.logo_pdf}, celda de IVA → ${data.iva_monto}, sin «${…}»
+ * dentro de comentarios y «Sin valor fiscal» (${data.documento_nota}) bajo el título. Detalle de los
+ * cambios en PrefacturaPlantillaUpdater. Aplica desde el original (prod) o desde la versión con
+ * los cambios 1-4 (dev, donde esta migración ya corrió con #480: allá se completa con
+ * `php artisan prefactura:actualizar-plantilla`).
  *
  * NUNCA falla, a propósito: una migración que truena en prod frena toda la release. Si el HTML
  * en BD no es exactamente el esperado (alguien la editó), no toca nada, deja Log::warning y
@@ -98,7 +101,8 @@ return new class extends Migration
         try {
             $updater = new PrefacturaPlantillaUpdater();
             $plantilla = $updater->plantilla();
-            if (! $plantilla || sha1((string) $plantilla->html) !== PrefacturaPlantillaUpdater::HASH_APLICADA) {
+            $conocidas = [PrefacturaPlantillaUpdater::HASH_APLICADA, PrefacturaPlantillaUpdater::HASH_APLICADA_V1];
+            if (! $plantilla || ! in_array(sha1((string) $plantilla->html), $conocidas, true)) {
                 Log::warning('[Prefactura] down(): la plantilla no está como la dejó up(); no se restaura.');
 
                 return;

@@ -28,7 +28,7 @@ class PrefacturaDataProvider
 
     /** Variables `${data.*}` propias de la Prefactura (grupo «Prefactura» del validador). */
     public const CLAVES = [
-        'documento_titulo', 'chip_clase', 'chip_texto', 'banda_label', 'banda_nota',
+        'documento_titulo', 'documento_nota', 'chip_clase', 'chip_texto', 'banda_label', 'banda_nota',
         'receptor_rfc', 'receptor_nombre_fiscal', 'receptor_regimen_fiscal', 'receptor_cp_fiscal',
         'receptor_uso_cfdi', 'receptor_nota', 'conceptos_filas', 'subtotal', 'descuentos',
         'iva_monto', 'total', 'total_letra', 'bloque_pago', 'bloque_fiscal', 'leyenda_legal',
@@ -138,9 +138,11 @@ class PrefacturaDataProvider
         }
 
         $data = [
-            'documento_titulo'        => 'PREFACTURA',
+            // Pagada = FACTURA; pendiente o parcial = PREFACTURA (item #505). Informativo en ambos.
+            'documento_titulo'        => $pagado ? 'FACTURA' : 'PREFACTURA',
+            'documento_nota'          => 'Sin valor fiscal',
             'chip_clase'              => $pagado ? 'chip-ok' : 'chip-pend',
-            'chip_texto'              => $pagado ? 'PAGADO' : 'PENDIENTE DE PAGO',
+            'chip_texto'              => $pagado ? 'PAGADA' : 'PENDIENTE DE PAGO',
             'banda_label'             => $pagado ? 'TOTAL PAGADO' : 'TOTAL A PAGAR',
             'banda_nota'              => $notaBanda,
             'receptor_rfc'            => e($fiscal['rfc'] ?? '—'),

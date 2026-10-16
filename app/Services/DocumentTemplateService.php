@@ -129,9 +129,10 @@ class DocumentTemplateService
             // `invoices`; solo existen al generar desde Facturación (botón «Prefactura actualizada»
             // y «Enviar»). Mismas claves que PrefacturaDataProvider::CLAVES.
             'Prefactura' => [
-                'data.documento_titulo' => 'Título del documento (PREFACTURA)',
+                'data.documento_titulo' => 'Título del documento (PREFACTURA / FACTURA)',
+                'data.documento_nota' => 'Nota bajo el título (Sin valor fiscal)',
                 'data.chip_clase' => 'Clase CSS del estado (chip-pend / chip-ok)',
-                'data.chip_texto' => 'Estado (PENDIENTE DE PAGO / PAGADO)',
+                'data.chip_texto' => 'Estado (PENDIENTE DE PAGO / PAGADA)',
                 'data.banda_label' => 'Leyenda del monto (TOTAL A PAGAR / TOTAL PAGADO)',
                 'data.banda_nota' => 'Nota del monto (fecha límite o fecha de pago)',
                 'data.receptor_rfc' => 'RFC del cliente',
