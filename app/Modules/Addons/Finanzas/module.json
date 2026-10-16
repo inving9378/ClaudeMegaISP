@@ -29,7 +29,8 @@
         { "name": "finance_view_general_accounting_expense", "description": "Ver gastos contables" },
         { "name": "finance_add_general_accounting_expense",  "description": "Registrar gasto contable" },
         { "name": "finance_edit_general_accounting_expense", "description": "Editar gasto contable" },
-        { "name": "finance_delete_general_accounting_expense","description": "Eliminar gasto contable" }
+        { "name": "finance_delete_general_accounting_expense","description": "Eliminar gasto contable" },
+        { "name": "finanzas_prefactura_generar",              "description": "Generar la prefactura actualizada (PDF informativo) de una factura" }
     ],
 
     "menu": [

@@ -18,6 +18,7 @@ use App\Services\ClientService\ContractClientService;
 use App\Modules\Core\Configuracion\Services\EmailConfigService;
 use App\Services\Finance\Invoice\AvailablePeriodsService;
 use App\Services\Finance\Invoice\InvoiceService;
+use App\Services\Finance\Billing\PrefacturaPdfService;
 use App\Services\LogService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -173,6 +174,60 @@ class InvoiceController extends CrudModalController
             Log::error('Error al enviar factura: ' . $e->getMessage());
             return redirect()->back()->with('message', 'No se encontro la factura');
         }
+    }
+
+    /**
+     * «Prefactura actualizada» (item #480): PDF de la plantilla «Prefactura.» con los datos de
+     * HOY de esta factura (pendiente o pagada). Se genera en memoria: no reemplaza ni borra el
+     * PDF original, no toca billing_notifications ni la pausa de envíos. Documento informativo
+     * sin valor fiscal. Permiso de ruta: finanzas_prefactura_generar.
+     */
+    public function prefactura($id)
+    {
+        $invoice = Invoice::find($id);
+        if (!$invoice) {
+            return response()->json(['status' => 'fail', 'message' => 'No se encontró la factura.', 'keys' => []], 404);
+        }
+        if ($invoice->status === Invoice::STATUS_CANCELLED) {
+            return response()->json(['status' => 'fail', 'message' => 'La factura está cancelada: no se genera prefactura.', 'keys' => []], 422);
+        }
+
+        try {
+            $r = app(PrefacturaPdfService::class)->generar($invoice);
+        } catch (\Throwable $e) {
+            Log::error("[Prefactura] Error generando la prefactura de la factura #{$invoice->id}: " . $e->getMessage());
+
+            return response()->json(['status' => 'fail', 'message' => 'Ocurrió un error al generar la prefactura.', 'keys' => []], 500);
+        }
+
+        if ($r['status'] !== 'ok') {
+            return response()->json([
+                'status'  => 'fail',
+                'message' => 'La plantilla «Prefactura.» pide variables que no se pudieron llenar:',
+                'keys'    => $r['keys'],
+            ], 422);
+        }
+
+        activity('prefactura')
+            ->causedBy(auth()->user())
+            ->performedOn($invoice)
+            ->event('prefactura_generada')
+            ->withProperties([
+                'invoice_id'     => $invoice->id,
+                'invoice_number' => $invoice->number,
+                'client_id'      => $invoice->client_id,
+                'estado'         => $r['estado'],
+                'kb'             => round(strlen($r['pdf']) / 1024, 1),
+            ])
+            ->tap(function ($activity) use ($invoice) {
+                $activity->client_id = $invoice->client_id;
+            })
+            ->log("Prefactura actualizada de la factura {$invoice->number} ({$r['estado']})");
+
+        return response($r['pdf'], 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $r['filename'] . '"',
+        ]);
     }
 
     public function markAsPaid(Request $request, $id)
