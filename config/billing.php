@@ -32,6 +32,14 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Antigüedad máxima de correos pendientes (app:send-all-emails-command, #482)
+    |--------------------------------------------------------------------------
+    | Los pendientes más viejos que esto se ignoran (no se envían ni se borran).
+    */
+    'correos_pendientes_max_dias' => 7,
+
+    /*
+    |--------------------------------------------------------------------------
     | Dual-write invoices (roadmap #632/#721)
     |--------------------------------------------------------------------------
     | Cuando está ON, los puntos de cobro que marcan client_invoices.estado=
