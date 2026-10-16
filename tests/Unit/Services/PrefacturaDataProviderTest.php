@@ -73,7 +73,7 @@ class PrefacturaDataProviderTest extends TestCase
         $this->assertNotSame('', $r['data']['logo_pdf'], 'logo_pdf vacío rompería el <img>');
     }
 
-    public function test_las_19_claves_del_spec_mas_iva_monto_y_logo_pdf(): void
+    public function test_las_19_claves_del_spec_mas_iva_monto_logo_pdf_y_documento_nota(): void
     {
         $delSpec = ['documento_titulo', 'banda_label', 'chip_clase', 'chip_texto', 'banda_nota',
             'receptor_rfc', 'receptor_nombre_fiscal', 'receptor_regimen_fiscal', 'receptor_cp_fiscal',
@@ -82,7 +82,7 @@ class PrefacturaDataProviderTest extends TestCase
 
         $this->assertCount(19, $delSpec);
         $this->assertEqualsCanonicalizing(
-            array_merge($delSpec, ['iva_monto', 'logo_pdf']),
+            array_merge($delSpec, ['iva_monto', 'logo_pdf', 'documento_nota']),
             PrefacturaDataProvider::CLAVES
         );
     }
@@ -108,6 +108,8 @@ class PrefacturaDataProviderTest extends TestCase
         $this->assertTodasLasClavesComoString($r);
         $d = $r['data'];
 
+        $this->assertSame('PREFACTURA', $d['documento_titulo']);
+        $this->assertSame('Sin valor fiscal', $d['documento_nota']);
         $this->assertSame('chip-pend', $d['chip_clase']);
         $this->assertSame('PENDIENTE DE PAGO', $d['chip_texto']);
         $this->assertSame('TOTAL A PAGAR', $d['banda_label']);
@@ -138,8 +140,10 @@ class PrefacturaDataProviderTest extends TestCase
         ]));
         $d = $r['data'];
 
+        $this->assertSame('FACTURA', $d['documento_titulo']);
+        $this->assertSame('Sin valor fiscal', $d['documento_nota']);
         $this->assertSame('chip-ok', $d['chip_clase']);
-        $this->assertSame('PAGADO', $d['chip_texto']);
+        $this->assertSame('PAGADA', $d['chip_texto']);
         $this->assertSame('TOTAL PAGADO', $d['banda_label']);
         $this->assertSame('Pagado el <b>14/10/2026</b>', $d['banda_nota']);
         $this->assertStringContainsString('Pago recibido', $d['bloque_pago']);
@@ -152,6 +156,7 @@ class PrefacturaDataProviderTest extends TestCase
         $r = $this->provider()->armar($this->contextoPendiente(['parcial' => true, 'saldo' => 448.0]));
 
         $this->assertSame('448.00', $r['dinamicas']['data_dinamic.debit']);
+        $this->assertSame('PREFACTURA', $r['data']['documento_titulo'], 'parcial sigue siendo prefactura');
         $this->assertStringContainsString('Abonado <b>$1.00</b> de $449.00', $r['data']['banda_nota']);
         $this->assertSame('$449.00', $r['data']['total'], 'el total de la factura no cambia');
     }

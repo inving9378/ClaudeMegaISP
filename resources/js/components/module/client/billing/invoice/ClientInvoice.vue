@@ -101,7 +101,7 @@ import Modal from "../../../../../helpers/modal";
 import ClientCrudPayment from "../../../finance/invoice/components/ClientCrudPayment.vue";
 import { clientId } from "../../../finance/invoice/components/comun_variables";
 import SelectComponentWithCheckbox from "../../../../../shared/SelectComponentWithCheckbox.vue";
-import { abrirPrefactura } from "../../../finance/invoice/components/prefactura";
+import { abrirPrefactura, imprimirFactura } from "../../../finance/invoice/components/prefactura";
 
 export default {
     name: "ClientInvoice",
@@ -149,7 +149,7 @@ export default {
             clientId.value = getClientIdByUrl();
             $(document).on("click" + ns, ".invoice-send", function () {
                 let idItem = $(this).parent().attr("id-item");
-                // Item #498: una pagada se envía como comprobante de pago; la confirmación lo dice.
+                // Items #498/#505: una pagada se envía como factura PAGADA; la confirmación lo dice.
                 sendEmail(idItem, $(this).parent().attr("data-pagada") === "1");
             });
             $(document).on("click" + ns, ".invoice-prefactura", function () {
@@ -237,10 +237,10 @@ export default {
         const sendEmail = async (id, pagada = false) => {
             Swal.fire({
                 title: pagada
-                    ? "¿Enviar el comprobante de pago?"
+                    ? "¿Enviar la factura pagada?"
                     : "¿Estás seguro de enviar esta Factura?",
                 text: pagada
-                    ? "Esta factura ya está pagada; se enviará como comprobante PAGADO."
+                    ? "Esta factura ya está pagada; se enviará como factura PAGADA."
                     : "No podrás deshacer esta acción.",
                 icon: "warning",
                 showCancelButton: true,
@@ -275,9 +275,8 @@ export default {
             });
         };
 
-        const printInvoice = async (id) => {
-            window.open(`/finanzas/invoices/print/${id}`, "_blank");
-        };
+        // Item #505: mismo documento que «Prefactura actualizada», validado antes de abrir.
+        const printInvoice = (id) => imprimirFactura(id);
 
         const modal = ref();
         const paidInvoice = async () => {

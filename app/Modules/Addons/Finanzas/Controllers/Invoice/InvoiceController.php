@@ -119,15 +119,17 @@ class InvoiceController extends CrudModalController
             if ($prefactura['status'] === 'ok') {
                 $html = $prefactura['body'];
                 $adjuntos[] = $prefactura['adjunto'];
-                $asunto = $this->asuntoCorreoFactura($pagada ? 'Tu comprobante de pago' : 'Tu prefactura', $model);
+                $asunto = $pagada
+                    ? $this->asuntoCorreoFactura('Tu factura', $model, ' (pagada)')
+                    : $this->asuntoCorreoFactura('Tu prefactura', $model);
             } elseif ($pagada) {
-                Log::warning("[Prefactura] Enviar factura PAGADA #{$model->id}: no se pudo generar el comprobante; NO se envía.", [
+                Log::warning("[Prefactura] Enviar factura PAGADA #{$model->id}: no se pudo generar el PDF; NO se envía.", [
                     'faltan' => $prefactura['keys'],
                 ]);
 
                 return response()->json([
                     'success' => false,
-                    'message' => 'No se envió: la factura está pagada y su comprobante no se pudo generar'
+                    'message' => 'No se envió: la factura está pagada y su PDF no se pudo generar'
                         . ($prefactura['keys'] ? ' (faltan: ' . implode(', ', $prefactura['keys']) . ')' : '')
                         . '. No se usa el formato anterior porque mostraría «Monto a pagar: 0.00».',
                     'keys'    => $prefactura['keys'],
@@ -171,7 +173,7 @@ class InvoiceController extends CrudModalController
             $model->markAsSent();
             $model->save();
             $logService = new LogService();
-            $documento = $prefactura['status'] !== 'ok' ? '' : ($pagada ? ' (con el comprobante de pago en PDF)' : ' (con la Prefactura en PDF)');
+            $documento = $prefactura['status'] !== 'ok' ? '' : ($pagada ? ' (con la factura pagada en PDF)' : ' (con la Prefactura en PDF)');
             $logService->log($model->client, 'Cliente #' . $model->client_id . ' Se ha enviado la factura proforma ' . $model->id . $documento . ' por el usuario ' . auth()->user()->id . ' el dia ' . now()->format('Y-m-d'));
 
             return response()->json([
@@ -189,14 +191,64 @@ class InvoiceController extends CrudModalController
     }
 
 
-    public function printInvoice($id)
+    /**
+     * Botón «Imprimir» (item #505): el MISMO documento que «Prefactura actualizada» (plantilla
+     * «Prefactura.» + PrefacturaDataProvider): PREFACTURA si está pendiente, FACTURA si está pagada.
+     * Si la plantilla no se puede llenar: pendiente → Blade FacturaProformaPdf de antes (log);
+     * pagada → error con las variables faltantes (el Blade viejo diría «Monto a pagar: 0.00»).
+     *
+     * Con ?validar=1 responde JSON sin generar el PDF: la pantalla lo usa antes de abrir la pestaña.
+     */
+    public function printInvoice(Request $request, $id)
+    {
+        $model = $this->data['model']::find($id);
+        if (!$model) {
+            return $request->boolean('validar')
+                ? response()->json(['status' => 'fail', 'message' => 'No se encontró la factura.', 'keys' => []], 404)
+                : redirect()->back()->with('message', 'No se encontro la factura');
+        }
+        $model->load('client');
+        $pagada = $model->status === Invoice::STATUS_PAID;
+
+        try {
+            $servicio = app(PrefacturaPdfService::class);
+            $r = $request->boolean('validar') ? $servicio->html($model) : $servicio->generar($model);
+        } catch (\Throwable $e) {
+            Log::error("[Prefactura] Imprimir factura #{$model->id}: " . $e->getMessage());
+            $r = ['status' => 'fail', 'keys' => []];
+        }
+
+        if ($r['status'] !== 'ok') {
+            if ($pagada) {
+                $mensaje = 'No se pudo generar la factura pagada: la plantilla «Prefactura.» pide variables que no se pudieron llenar.';
+                Log::warning("[Prefactura] Imprimir factura PAGADA #{$model->id}: no se pudo generar.", ['faltan' => $r['keys']]);
+
+                return $request->boolean('validar')
+                    ? response()->json(['status' => 'fail', 'message' => $mensaje, 'keys' => $r['keys']], 422)
+                    : response($this->paginaError($mensaje, $r['keys']), 422)->header('Content-Type', 'text/html; charset=UTF-8');
+            }
+            Log::warning("[Prefactura] Imprimir factura #{$model->id}: la plantilla no se pudo llenar, se usa FacturaProformaPdf.", ['faltan' => $r['keys']]);
+            if ($request->boolean('validar')) {
+                return response()->json(['status' => 'ok', 'respaldo' => true]);
+            }
+
+            return $this->imprimirBladeAnterior($model);
+        }
+
+        if ($request->boolean('validar')) {
+            return response()->json(['status' => 'ok', 'estado' => $r['estado']]);
+        }
+
+        return response($r['pdf'], 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $r['filename'] . '"',
+        ]);
+    }
+
+    /** El PDF de antes (FacturaProformaPdf): solo como respaldo de facturas pendientes. */
+    private function imprimirBladeAnterior(Invoice $model)
     {
         try {
-            $model = $this->data['model']::find($id);
-            if (!$model) {
-                return redirect()->back()->with('message', 'No se encontro la factura');
-            }
-            $model->load('client');
             $dataClient = (new ContractClientService())->getDataClient($model->client);
             $companYInformationRepository = new CompanyInformationRepository();
             $companyInformation = $companYInformationRepository->getDataCompany();
@@ -206,25 +258,34 @@ class InvoiceController extends CrudModalController
             $pdf = Pdf::loadView('meganet.module.client.template.FacturaProformaPdf', compact('invoice', 'dataClient', 'companyInformation', 'items'));
             return $pdf->stream();
         } catch (\Exception $e) {
-            Log::error('Error al enviar factura: ' . $e->getMessage());
+            Log::error('Error al imprimir factura: ' . $e->getMessage());
             return redirect()->back()->with('message', 'No se encontro la factura');
         }
+    }
+
+    private function paginaError(string $mensaje, array $keys): string
+    {
+        $lista = $keys ? '<ul>' . implode('', array_map(fn ($k) => '<li><code>' . e($k) . '</code></li>', $keys)) . '</ul>' : '';
+
+        return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>No se pudo generar</title></head>'
+            . '<body style="font-family:Arial,sans-serif;max-width:640px;margin:40px auto;color:#1A2430">'
+            . '<h2 style="color:#B45309">No se pudo generar el documento</h2><p>' . e($mensaje) . '</p>' . $lista . '</body></html>';
     }
 
     /**
      * «Tu prefactura noviembre-diciembre 2026 — Meganet» (item #486). Con el periodo en el asunto,
      * Gmail no junta en un solo hilo los correos de meses distintos.
      */
-    private function asuntoCorreoFactura(string $prefijo, Invoice $invoice): string
+    private function asuntoCorreoFactura(string $prefijo, Invoice $invoice, string $sufijo = ''): string
     {
         $periodo = PrefacturaDataProvider::periodoLegible($invoice->period);
 
-        return $prefijo . ($periodo !== '' ? ' ' . $periodo : '') . ' — Meganet';
+        return $prefijo . ($periodo !== '' ? ' ' . $periodo : '') . $sufijo . ' — Meganet';
     }
 
     /**
      * Cuerpo corto + la Prefactura en PDF para el correo de «Enviar» (item #480, 2.5). En una
-     * factura pagada, el texto es de comprobante de pago (item #498). Si la plantilla no se pudo
+     * factura pagada, el texto es de factura pagada (items #498/#505). Si la plantilla no se pudo
      * llenar o algo falló devuelve status fail con las variables faltantes: el llamador decide
      * (pendiente → Blade viejo; pagada → no se envía).
      *
@@ -253,9 +314,9 @@ class InvoiceController extends CrudModalController
         if ($r['estado'] === PrefacturaDataProvider::ESTADO_PAGADO) {
             $pagadoEl = PrefacturaDataProvider::fecha($invoice->payment_date);
             $body = $saludo
-                . '<p>Te compartimos el comprobante de pago de tu factura <b>' . e($invoice->number) . '</b>' . $delPeriodo
+                . '<p>Te compartimos tu factura <b>' . e($invoice->number) . '</b>' . $delPeriodo
                 . ' por <b>' . $total . ' MXN</b>' . ($pagadoEl ? ', pagada el <b>' . e($pagadoEl->format('d/m/Y')) . '</b>' : '') . '.</p>'
-                . '<p>Lo encontrarás adjunto en PDF. ¡Gracias por tu pago!</p>';
+                . '<p>La encontrarás adjunta en PDF. ¡Gracias por tu pago!</p>';
         } else {
             $vence = PrefacturaDataProvider::fecha($invoice->due_date);
             $body = $saludo

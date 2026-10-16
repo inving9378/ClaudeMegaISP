@@ -15,6 +15,11 @@ use Illuminate\Support\Facades\DB;
  *  3-4. Las menciones de ${data.table_client_services} / ${data.conceptos_filas} DENTRO de
  *     comentarios se reescriben sin «${…}»: el validador reemplaza también dentro de comentarios
  *     y metía la tabla de servicios en un comentario CSS.
+ *  5. (item #505) Debajo del título, en pequeño, ${data.documento_nota} («Sin valor fiscal»).
+ *
+ * Cada cambio es idempotente: si su resultado ya está en el HTML se cuenta como «ya estaba» y no
+ * se vuelve a aplicar. Así la misma migración sirve desde el original (prod) o desde la versión
+ * con solo los cambios 1-4 (dev tras #480).
  *
  * Se busca SIEMPRE por nombre, nunca por id (los ids de dev y prod no coinciden).
  */
@@ -25,10 +30,14 @@ class PrefacturaPlantillaUpdater
     /** sha1 del HTML de prod (2026-09-21, copia en dev del 2026-10-15) antes del ajuste. */
     public const HASH_ORIGINAL = '24ee6f557e0dd5c1df7425f93e93426ca89ab252';
 
-    /** sha1 de transformar(original): la plantilla ya ajustada. */
-    public const HASH_APLICADA = 'c7ac7c38a4f9ca446f7490a5a490d50896f803b8';
+    /** sha1 de transformar(original): la plantilla ya ajustada (cambios 1-5). */
+    public const HASH_APLICADA = 'bf9c30bb28b53a2960192e61ea2d9632b1acd9e3';
+
+    /** sha1 con solo los cambios 1-4 (lo que quedó en dev con #480, antes de #505). */
+    public const HASH_APLICADA_V1 = 'c7ac7c38a4f9ca446f7490a5a490d50896f803b8';
 
     public const SITUACION_ORIGINAL = 'original';
+    public const SITUACION_VERSION_ANTERIOR = 'version_anterior';
     public const SITUACION_APLICADA = 'ya_aplicada';
     public const SITUACION_DISTINTA = 'distinta';
     public const SITUACION_NO_EXISTE = 'no_existe';
@@ -59,6 +68,21 @@ class PrefacturaPlantillaUpdater
             'y dejar en su lugar un <div class="svc"> con la variable data.table_client_services',
             false,
         ],
+        [
+            'nota «Sin valor fiscal» bajo el título',
+            '<div class="doctype">${data.documento_titulo}</div>',
+            '<div class="doctype">${data.documento_titulo}</div><div style="font-size:6.8pt;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#6E7C8C;margin:1px 0 2px 0;">${data.documento_nota}</div>',
+            false,
+        ],
+    ];
+
+    /** Lo que deja cada cambio de CAMBIOS (para reconocer «ya estaba»), en el mismo orden. */
+    private const RESULTADOS = [
+        '<img class="logo" src="${data.logo_pdf}"',
+        '<td class="v">${data.iva_monto}</td>',
+        '   data.table_client_services mientras no exista data.conceptos_filas */',
+        'y dejar en su lugar un <div class="svc"> con la variable data.table_client_services',
+        '<div style="font-size:6.8pt;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#6E7C8C;margin:1px 0 2px 0;">${data.documento_nota}</div>',
     ];
 
     /** @return object{id:int,html:string}|null */
@@ -79,23 +103,30 @@ class PrefacturaPlantillaUpdater
         }
 
         return match (sha1((string) $plantilla->html)) {
-            self::HASH_ORIGINAL => self::SITUACION_ORIGINAL,
-            self::HASH_APLICADA => self::SITUACION_APLICADA,
-            default             => self::SITUACION_DISTINTA,
+            self::HASH_ORIGINAL    => self::SITUACION_ORIGINAL,
+            self::HASH_APLICADA_V1 => self::SITUACION_VERSION_ANTERIOR,
+            self::HASH_APLICADA    => self::SITUACION_APLICADA,
+            default                => self::SITUACION_DISTINTA,
         };
     }
 
     /**
      * Aplica los cambios anclados. No escribe nada.
      *
-     * @return array{html: string, aplicados: string[], faltan: string[]}
+     * @return array{html: string, aplicados: string[], ya_estaban: string[], faltan: string[]}
      */
     public function transformar(string $html): array
     {
         $aplicados = [];
+        $yaEstaban = [];
         $faltan = [];
 
-        foreach (self::CAMBIOS as [$descripcion, $buscar, $reemplazar, $esRegex]) {
+        foreach (self::CAMBIOS as $i => [$descripcion, $buscar, $reemplazar, $esRegex]) {
+            // Primero «ya estaba»: el cambio 5 contiene su propia ancla y se duplicaría.
+            if (substr_count($html, self::RESULTADOS[$i]) === 1) {
+                $yaEstaban[] = $descripcion;
+                continue;
+            }
             $veces = $esRegex ? preg_match_all($buscar, $html) : substr_count($html, $buscar);
             if ($veces !== 1) {
                 $faltan[] = "{$descripcion} (ancla encontrada {$veces} veces, se esperaba 1)";
@@ -107,21 +138,21 @@ class PrefacturaPlantillaUpdater
             $aplicados[] = $descripcion;
         }
 
-        return ['html' => $html, 'aplicados' => $aplicados, 'faltan' => $faltan];
+        return ['html' => $html, 'aplicados' => $aplicados, 'ya_estaban' => $yaEstaban, 'faltan' => $faltan];
     }
 
     /**
-     * @param bool $force aplicar aunque el HTML no sea el original esperado (solo si TODAS las
-     *                    anclas aparecen); sin $force, solo se toca el original exacto.
+     * @param bool $force aplicar aunque el HTML no sea uno conocido (solo si TODAS las anclas
+     *                    aparecen); sin $force, solo se toca el original o la versión 1-4 exactos.
      * @return array{situacion: string, escrito: bool, motivo: string, antes: ?string,
-     *               despues: ?string, aplicados: string[], faltan: string[], id: ?int}
+     *               despues: ?string, aplicados: string[], ya_estaban: string[], faltan: string[], id: ?int}
      */
     public function aplicar(bool $force = false, bool $dryRun = false): array
     {
         $plantilla = $this->plantilla();
         $situacion = $this->situacion($plantilla);
         $base = ['situacion' => $situacion, 'escrito' => false, 'antes' => $plantilla?->html,
-                 'despues' => null, 'aplicados' => [], 'faltan' => [], 'id' => $plantilla?->id];
+                 'despues' => null, 'aplicados' => [], 'ya_estaban' => [], 'faltan' => [], 'id' => $plantilla?->id];
 
         if ($situacion === self::SITUACION_NO_EXISTE) {
             return $base + ['motivo' => 'No existe la plantilla «' . self::NOMBRE . '».'];
@@ -131,8 +162,12 @@ class PrefacturaPlantillaUpdater
         }
 
         $t = $this->transformar((string) $plantilla->html);
-        $base = array_merge($base, ['despues' => $t['html'], 'aplicados' => $t['aplicados'], 'faltan' => $t['faltan']]);
+        $base = array_merge($base, ['despues' => $t['html'], 'aplicados' => $t['aplicados'],
+            'ya_estaban' => $t['ya_estaban'], 'faltan' => $t['faltan']]);
 
+        if (! $t['aplicados'] && ! $t['faltan']) {
+            return $base + ['motivo' => 'Todos los cambios ya estaban; no hay nada que hacer.'];
+        }
         if ($situacion === self::SITUACION_DISTINTA && ! $force) {
             return $base + ['motivo' => 'El HTML no es el original esperado (alguien la editó); no se toca. '
                 . 'Revisa con --dry-run y aplica con --force si el diff es correcto.'];
