@@ -8,10 +8,10 @@
 - **Entorno:** DEV `192.168.105.11`, BD `megaisp`. Producción **no** se toca ni se consulta.
 - **Worktree propio:** `/var/www/megaisp-pf` (ramas `circuito/item-<id>-…`). Merges locales a `main`
   desde `/var/www/megaisp` comprobando `git branch --show-current` = `main`.
-- **Coordinación:** comentario en #502 (2026-10-16 19:15). La interceptación de correo no se aplica
+- **Coordinación:** comentario en #502 (2026-10-16 ~19:05). La interceptación de correo no se aplica
   al `.env` compartido hasta coordinar; se valida en proceso aislado.
 
-## Mapa FAC → items (FASE 1, registrada 2026-10-16 19:10)
+## Mapa FAC → items (FASE 1, registrada 2026-10-16 ~19:00)
 
 Todos con `excluir_pool_automatico=1`; los de desarrollo con `en_desarrollo_humano=1` (fuera del
 pool y del reaper). Duplicados: no había ningún `FAC-`; #482 es el padre de FAC-04..08; #483 el de
@@ -39,7 +39,7 @@ FAC-15; #117 (PAC CFDI, implementación) se relaciona con FAC-15 sin ser equival
 | 14 | FAC-14 | #523 | nuevo | C | requiere_irving | — | — | Contratar revisión legal |
 | 15 | FAC-15 | #524 | nuevo | C | requiere_irving | #483 | — | Decisiones fiscales con el contador |
 
-## V1.61 — verificación inicial (solo lectura, 2026-10-16 19:00)
+## V1.61 — verificación inicial (solo lectura, 2026-10-16 ~18:55)
 
 | Entregable | Código | En `main` | Tag | Dev | Prod |
 |---|---|---|---|---|---|
@@ -52,12 +52,12 @@ FAC-15; #117 (PAC CFDI, implementación) se relaciona con FAC-15 sin ser equival
 
 Sin tag ni release **a propósito** (la instrucción vigente no autoriza publicar).
 
-**Pendientes de aplicación V1.61 (cerrados 2026-10-16 19:25):**
+**Pendientes de aplicación V1.61 (cerrados 2026-10-16 ~19:10):**
 - [x] Exportación con filtro fijo (`0c81c3d7`, merge `ddb253fc`): bundle del principal recompilado
   (19:11) y validado: Excel de la ficha 7689 = 2 filas (BD: 2), con «Tipo de factura», Documento y
   Método por nombre. El navegador de prueba abortaba cualquier exportación sin `persistentFilter`.
 - [x] #504 y #505 → `completado` con su merge (`28fc5729`, `ddb253fc`).
-- [x] `docs/bitacora/2026-10-16-release-v161-preparacion.md`: sección de actualización 19:30
+- [x] `docs/bitacora/2026-10-16-release-v161-preparacion.md`: sección de actualización ~19:12
   (notas vigentes, migraciones, checklist con Imprimir en pendiente y pagada).
 - Pendiente fuera de mi alcance: publicar (no autorizado) y el preflight `arbol_limpio` (4
   bitácoras sin commitear de otras sesiones en el principal).
@@ -68,8 +68,13 @@ Sin tag ni release **a propósito** (la instrucción vigente no autoriza publica
 - FASE 1: registro FAC-01..15 + 4 subitems de activación (#506–#524).
 - V1.61: pendientes de aplicación (ver arriba).
 
-**En curso:** interceptación de correo de dev (código aditivo, apagado por defecto; prueba en
-proceso aislado).
+**Interceptación de correo** (rama `circuito/item-506-interceptar-correo-dev`, `3ea55c32` + pruebas
+`198cbc9a`, 7/7): listener de `MessageSending`, apagado por defecto (`MAIL_INTERCEPTAR`), destino único
+(`MAIL_INTERCEPTAR_DESTINO`), fallo cerrado sin destino válido. Inventario: todo sale por el Mailer de
+Laravel (Mail::to/send/raw, notificaciones `mail`, mailers del Hub vía `Correo::nombreMailer`, colas);
+`Correo::probar` solo abre/cierra conexión SMTP (no manda mensaje); no hay APIs HTTP de correo. WhatsApp
+no es correo (se simula en FAC-09). **Aplicación al `.env` compartido: pendiente** (#502); hoy dev
+sigue SIN interceptar, como antes.
 
 **Siguiente trabajo elegible:** FAC-01, FAC-02, FAC-03, FAC-04, …
 
@@ -84,6 +89,12 @@ proceso aislado).
   oscuro; «marcar como pagada» visible en canceladas → **#525** (menú), **#526** (exportación sin
   límite), **#527** (marcar pagada en canceladas), **#528** (Estado en oscuro). Todos
   `requiere_irving`, fuera del pool.
+
+## Muestras de correo (máx. 5 intentos por lote, acumulados)
+
+| Clave | Lote | Intento | Registrada | Qué | Resultado |
+|---|---|---|---|---|---|
+| `FAC-MUESTRA-L1-01` | 1 | 1 | 2026-10-16 19:17 (antes de enviar) | Prefactura **sintética** (cliente ficticio, folio PRUEBA-0001), To/Cc/Bcc ficticios `@example.test`, interceptación activa SOLO en el proceso (env), destino = correo autorizado de Irving | 19:18 **aceptado por el SMTP de dev**; ensayo previo con transporte array: sobre con 1 solo destinatario, sin `example.test`, asunto `[DEV — PRUEBA] Tu prefactura noviembre 2026 — Meganet`, PDF 29 KB. Entrega en buzón: pendiente de que Irving confirme |
 
 ## Lotes de versión (borradores, sin número oficial)
 

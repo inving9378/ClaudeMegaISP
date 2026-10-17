@@ -90,7 +90,7 @@ bitácora previa + respaldo + OK), **#482** Fase 3 (cancelar 32,500 `invoice_ema
 pipeline). La plantilla anterior está embebida en su migración y en el respaldo; con la plantilla
 ajustada, `php artisan migrate:rollback --path=database/migrations/2026_10_16_170000_ajusta_plantilla_prefactura_para_provider.php` la restaura.
 
-## 2026-10-16 19:30 — Actualización tras #504 y #505 (sigue SIN publicar)
+## 2026-10-16 19:12 — Actualización tras #504 y #505 (sigue SIN publicar)
 
 **Reemplaza** a las notas y al checklist de arriba donde se contradigan. Publicar **no** está
 autorizado por la instrucción vigente («Facturación completa MegaISP», 2026-10-16): sin tag, sin

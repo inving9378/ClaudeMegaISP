@@ -101,6 +101,30 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Interceptación de correo (entornos de prueba)
+    |--------------------------------------------------------------------------
+    |
+    | Con `activo`, todo correo que sale por Laravel (Mail, notificaciones, las
+    | cuentas del Hub y las colas) se reescribe a UN solo destinatario, sin
+    | To/Cc/Bcc/Reply-To originales, con `prefijo` en el asunto y un aviso visible
+    | en el cuerpo. Si falta `destino` o no es un correo válido, el correo NO sale
+    | (fallo cerrado). Lo aplica App\Listeners\Correo\InterceptarCorreoDev.
+    |
+    | Apagado por defecto: integrar este código no cambia ningún envío. No se usa
+    | APP_ENV para decidir porque dev y prod declaran ambos `local`. Producción
+    | lleva su propia configuración (sin MAIL_INTERCEPTAR o en false); nunca se
+    | copia el .env de dev.
+    |
+    */
+
+    'interceptar' => [
+        'activo' => filter_var(env('MAIL_INTERCEPTAR', false), FILTER_VALIDATE_BOOLEAN),
+        'destino' => env('MAIL_INTERCEPTAR_DESTINO'),
+        'prefijo' => '[DEV — PRUEBA]',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Markdown Mail Settings
     |--------------------------------------------------------------------------
     |
