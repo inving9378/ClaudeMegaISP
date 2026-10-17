@@ -86,7 +86,7 @@ body[data-layout-mode="dark"] {
 /* :not() de los 6 badges de Vendedores (Torre pill, ver AJUSTE 2 más abajo):
    son <span> — este reset genérico de texto les pisaba el color semántico
    (--tc-info/--tc-accent/etc.) aunque AJUSTE 2 ya los excluyera a ellos. */
-[data-layout-mode="dark"] span:not(.badge-Interno):not(.badge-Externo):not(.badge-Distribuidor):not(.badge-Activo):not(.badge-Inactivo):not(.badge-Bloqueado):not(.doc-factura) {
+[data-layout-mode="dark"] span:not(.badge-Interno):not(.badge-Externo):not(.badge-Distribuidor):not(.badge-Activo):not(.badge-Inactivo):not(.badge-Bloqueado):not(.doc-factura):not([class*="badge-invoice-"]) {
     color: #FFFFFF !important;
 }
 
@@ -178,8 +178,7 @@ table.dataTable.table-striped>tbody>tr.even>* {
  * radius, solo línea inferior) pisando ese pill — "el pill no aparece en modo
  * oscuro" era justo este choque de especificidad entre dos hojas globales.
  * ========================================================================== */
-[data-layout-mode="dark"] .badge:not(.hdr-badge):not(.badge-Interno):not(.badge-Externo):not(.badge-Distribuidor):not(.badge-Activo):not(.badge-Inactivo):not(.badge-Bloqueado),
-[data-layout-mode="dark"] [class*="badge-invoice-"] {
+[data-layout-mode="dark"] .badge:not(.hdr-badge):not(.badge-Interno):not(.badge-Externo):not(.badge-Distribuidor):not(.badge-Activo):not(.badge-Inactivo):not(.badge-Bloqueado) {
     background-color: transparent !important;
     background-image: none !important;
     color: #FFFFFF !important;
@@ -189,14 +188,31 @@ table.dataTable.table-striped>tbody>tr.even>* {
 }
 
 /* Color de estado en la línea inferior (por variante) */
-[data-layout-mode="dark"] .badge.bg-success,
-[data-layout-mode="dark"] .badge-invoice-Pagada     { border-bottom-color: #34d399 !important; }
-[data-layout-mode="dark"] .badge.bg-warning,
-[data-layout-mode="dark"] .badge-invoice-Parcialmente_Pagada { border-bottom-color: #fbbf24 !important; }
-[data-layout-mode="dark"] .badge.bg-danger,
+[data-layout-mode="dark"] .badge.bg-success        { border-bottom-color: #34d399 !important; }
+[data-layout-mode="dark"] .badge.bg-warning        { border-bottom-color: #fbbf24 !important; }
+[data-layout-mode="dark"] .badge.bg-danger         { border-bottom-color: #f87171 !important; }
+
+/* #528 (decisión de Irving): el «Estado» de factura conserva su color en oscuro — pastilla
+   con fondo tenue y texto claro del mismo tono, como la columna «Documento». */
+[data-layout-mode="dark"] [class*="badge-invoice-"] {
+    border-radius: 5px !important;
+    border: 1px solid transparent !important;
+}
+[data-layout-mode="dark"] .badge-invoice-Pagada {
+    background-color: rgba(34, 197, 94, .18) !important; color: #86EFAC !important; border-color: rgba(34, 197, 94, .40) !important;
+}
+[data-layout-mode="dark"] .badge-invoice-Parcialmente_Pagada {
+    background-color: rgba(245, 158, 11, .18) !important; color: #FCD34D !important; border-color: rgba(245, 158, 11, .40) !important;
+}
 [data-layout-mode="dark"] .badge-invoice-Borrador,
 [data-layout-mode="dark"] .badge-invoice-Emitida,
-[data-layout-mode="dark"] .badge-invoice-Vencida    { border-bottom-color: #f87171 !important; }
+[data-layout-mode="dark"] .badge-invoice-Enviada,
+[data-layout-mode="dark"] .badge-invoice-Vencida {
+    background-color: rgba(239, 68, 68, .18) !important; color: #FCA5A5 !important; border-color: rgba(239, 68, 68, .40) !important;
+}
+[data-layout-mode="dark"] .badge-invoice-Cancelada {
+    background-color: rgba(148, 163, 184, .18) !important; color: #CBD5E1 !important; border-color: rgba(148, 163, 184, .40) !important;
+}
 [data-layout-mode="dark"] .badge.bg-primary         { border-bottom-color: #6c84f7 !important; }
 [data-layout-mode="dark"] .badge.bg-info            { border-bottom-color: #60a5fa !important; }
 [data-layout-mode="dark"] .badge.bg-secondary       { border-bottom-color: #9aa7b5 !important; }
