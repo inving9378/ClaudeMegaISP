@@ -51,6 +51,10 @@ class EventServiceProvider extends ServiceProvider
      * @var array
      */
     protected $listen = [
+        // Interceptación de correo de prueba (config mail.interceptar; apagada por defecto).
+        \Illuminate\Mail\Events\MessageSending::class => [
+            \App\Listeners\Correo\InterceptarCorreoDev::class,
+        ],
         Registered::class => [
             SendEmailVerificationNotification::class,
         ],
