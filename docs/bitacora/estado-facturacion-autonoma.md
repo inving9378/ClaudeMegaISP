@@ -62,15 +62,17 @@ Sin tag ni release **a propósito** (la instrucción vigente no autoriza publica
 - Pendiente fuera de mi alcance: publicar (no autorizado) y el preflight `arbol_limpio` (4
   bitácoras sin commitear de otras sesiones en el principal).
 
-## Avance (cierre 2026-10-16 20:35)
+## Avance (actualizado tras las respuestas sí/no de Irving)
 
-**Programa terminado:** todos los entregables autorizados están hechos; lo restante depende de
-decisiones o acciones de Irving. Tabla completa, decisiones y acciones productivas en
-`docs/bitacora/2026-10-16-reporte-final-facturacion.md`.
+Ver `docs/bitacora/2026-10-16-decisiones-si-no-facturacion.md` y el borrador del lote 5. Hechos y
+en `main` (`5d295b7e`): #525, #526, #527, #528, #529, #530, #511, #520, #517 (código), #513 (valor 21
+en dev), #502 (interceptación activa en dev). **No publicar** todavía (decisión de Irving).
 
-**Si se retoma:** comprobar Git (`main` ≥ el merge del reporte final), Roadmap (#506–#530) y que
-`megaisp_test` siga sin reconstruir (#529) antes de correr `CancelarColasCobroTest` y
-`PortalDocumentoVigenteTest`. No hay trabajo elegible pendiente sin decisión.
+**Pendiente de validación visual:** pantallas de facturas (menú, folio, Estado en oscuro, aviso de
+exportación) tras el build del principal.
+
+**Queda en Irving:** desplegar y los pasos productivos (lotes 1–5); #514 fecha y ejecución; #515
+etapas; #517/#522 activaciones; #513 encender en prod; #523/#524 legal y CFDI; #531.
 
 ## Bloqueos y decisiones
 
