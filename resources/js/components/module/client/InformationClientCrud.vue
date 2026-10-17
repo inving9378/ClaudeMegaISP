@@ -252,6 +252,9 @@
             :puede-editar="hasPermission.data.canView('facturacion.fiscal.editar')"
         />
 
+        <!-- Contrato y autorrenovación (FR-07 #541) -->
+        <ClientContratoCard :client-id="id" :puede-editar="hasPermission.data.canView('client_edit_client')" />
+
         <!-- Historial de estado y contrato (FR-04 #538) -->
         <ClientHistorialCambios :client-id="id" />
 
@@ -351,6 +354,7 @@ import ViewTopNameWithBalance from "./ViewTopNameWithBalance";
 import ClientInfoAccountBalance from "./info/ClientInfoAccountBalance";
 import ClientDatosFacturacionResumen from "./info/ClientDatosFacturacionResumen.vue";
 import ClientHistorialCambios from "./info/ClientHistorialCambios.vue";
+import ClientContratoCard from "./info/ClientContratoCard.vue";
 import { campoVisible } from "../../../helpers/camposCondicionales";
 
 import DialogUnconfiguredOnus from "../olts/components/dialogs/DialogUnconfiguredOnus.vue";

@@ -82,6 +82,8 @@ return [
         '/cliente/statistics/get-ping-daily/{id}',
         // FR-04 (#538): historial de cambios de estado y de contrato, misma lectura que la ficha
         '/cliente/historial-cambios/{id}',
+        // FR-07 (#541): contrato del cliente (solo lectura)
+        '/cliente/contrato/{id}',
     ],
     'client_add_client' => ['/cliente/crear', '/cliente/add', '/cliente/success/{id}'],
     'client_edit_client' => [
@@ -89,6 +91,7 @@ return [
         '/cliente/nomenclatura-onu/**',
         '/cliente/editar/{id}',
         '/cliente/update/{id}',
+        '/cliente/contrato/{id}/autorrenovacion', // FR-07 (#541)
         '/cliente/success/',
         '/cliente/{id}/get-client-main-information-id-and-client-additional-information-id',
         '/cliente/can-add-service/{id}',

@@ -58,6 +58,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::post('/add', [ClientController::class, 'store']);
         Route::get('/editar/{id}', [ClientController::class, 'edit']);
         Route::post('/update/{id}', [ClientInformationController::class, 'update']);
+        // FR-07 (#541): contrato del cliente y su autorrenovación
+        Route::get('/contrato/{id}', [\App\Modules\Core\Clientes\Controllers\ClientContratoController::class, 'show']);
+        Route::post('/contrato/{id}/autorrenovacion', [\App\Modules\Core\Clientes\Controllers\ClientContratoController::class, 'autorrenovacion']);
         // FR-04 (#538): historial de cambios de estado y de contrato (solo lectura)
         Route::get('/historial-cambios/{id}', [\App\Modules\Core\Clientes\Controllers\ClientHistorialCambiosController::class, 'index']);
         Route::post('/edit_id', [ClientInformationController::class, 'editId']);
