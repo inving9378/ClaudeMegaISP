@@ -36,6 +36,8 @@ export const exportTable = async (columns, rows, tableName, visibleColumns) => {
             dir: dataToFind.dir,
             color_active: dataToFind.color_active,
             is_update_color: dataToFind.is_update_color,
+            persistentFilter: dataToFind.persistentFilter,
+            module: dataToFind.module,
             export: true
         });
 

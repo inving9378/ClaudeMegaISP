@@ -838,6 +838,10 @@ const getRowsByModule = async (
             start: startPagination.value,
             dir: dir,
             url: url,
+            // Sin esto la exportación ignoraba el filtro fijo de la pantalla (p. ej. client_id en la
+            // ficha del cliente) y con limits=0 pedía TODOS los registros del sistema (item #505).
+            persistentFilter: props.persistentFilters,
+            module: props.model,
         };
         allRows = response.data.data;
         if (Array.isArray(allHeaders.value)) {
