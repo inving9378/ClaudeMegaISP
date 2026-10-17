@@ -86,7 +86,7 @@ body[data-layout-mode="dark"] {
 /* :not() de los 6 badges de Vendedores (Torre pill, ver AJUSTE 2 más abajo):
    son <span> — este reset genérico de texto les pisaba el color semántico
    (--tc-info/--tc-accent/etc.) aunque AJUSTE 2 ya los excluyera a ellos. */
-[data-layout-mode="dark"] span:not(.badge-Interno):not(.badge-Externo):not(.badge-Distribuidor):not(.badge-Activo):not(.badge-Inactivo):not(.badge-Bloqueado) {
+[data-layout-mode="dark"] span:not(.badge-Interno):not(.badge-Externo):not(.badge-Distribuidor):not(.badge-Activo):not(.badge-Inactivo):not(.badge-Bloqueado):not(.doc-factura) {
     color: #FFFFFF !important;
 }
 
