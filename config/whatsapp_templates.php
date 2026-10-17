@@ -27,6 +27,27 @@ return [
                     . 'Evita la suspensión de tu servicio realizando tu pago a tiempo.',
     ],
 
+    // FAC-09 (#516) — PROPUESTAS, no sometidas a Meta. Categoría utilidad (transaccional, sin
+    // promoción), encabezado DOCUMENTO (el PDF se adjunta al enviar con su media_id).
+    // {0} nombre, {1} periodo, {2} monto.
+    'prefactura_documento' => [
+        'name'     => 'prefactura_documento',
+        'category' => 'utility',
+        'lang'     => 'es_MX',
+        'header'   => 'document',
+        'body'     => 'Hola {0}, te compartimos tu prefactura del periodo {1} por {2}. '
+                    . 'En el documento adjunto encuentras la fecha límite y los datos para pagar.',
+    ],
+
+    'factura_pagada_documento' => [
+        'name'     => 'factura_pagada_documento',
+        'category' => 'utility',
+        'lang'     => 'es_MX',
+        'header'   => 'document',
+        'body'     => 'Hola {0}, registramos tu pago. Te compartimos tu factura del periodo {1} por {2}, '
+                    . 'sin valor fiscal. ¡Gracias!',
+    ],
+
     'geofence_alert' => [
         'name'     => 'geofence_alert',
         'category' => 'utility',

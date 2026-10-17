@@ -21,7 +21,7 @@ class BillingDocumentoEvidencia extends Model
     public const ORIGEN_MANUAL = 'enviar_manual';
 
     protected $fillable = [
-        'origen', 'billing_notification_id', 'client_id', 'invoice_id', 'payment_id', 'documento', 'canal',
+        'origen', 'clave', 'billing_notification_id', 'client_id', 'invoice_id', 'payment_id', 'documento', 'canal',
         'destinatario', 'asunto', 'archivo', 'nombre_adjunto', 'sha256', 'bytes', 'estado', 'interceptado',
         'message_id', 'error', 'generado_at', 'encolado_at', 'aceptado_at',
     ];

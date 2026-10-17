@@ -48,7 +48,7 @@ class EvidenciaDocumentoService
                 'generado_at'    => now(),
                 'encolado_at'    => $estado === Evidencia::ESTADO_ENCOLADO ? now() : null,
             ], array_intersect_key($meta, array_flip([
-                'origen', 'documento', 'billing_notification_id', 'client_id', 'invoice_id', 'payment_id', 'destinatario', 'asunto',
+                'origen', 'documento', 'canal', 'clave', 'billing_notification_id', 'client_id', 'invoice_id', 'payment_id', 'destinatario', 'asunto',
             ]))));
         } catch (\Throwable $e) {
             Log::warning('[Evidencia] No se pudo guardar la evidencia del PDF (el envío sigue): ' . $e->getMessage());
