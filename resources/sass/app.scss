@@ -24,6 +24,7 @@
 @use "module/vendors/torre-theme";
 @use "module/scheduling/task";
 @use "module/finance/invoice/status";
+@use "module/finance/invoice/documento";
 @use "./task_table_grid";
 @use "./mutation_drop";
 @use "module/releases/timeline";

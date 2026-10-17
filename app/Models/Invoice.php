@@ -80,11 +80,11 @@ class Invoice extends Model
     const DOC_FACTURA = 'factura';       // pagada sin CFDI (sin valor fiscal)
     const DOC_CFDI = 'cfdi';             // pagada con CFDI timbrado
 
-    /** Etiqueta y color del badge de la columna «Documento». */
+    /** Etiqueta del badge de la columna «Documento» (colores: clases .doc-factura--{documento}). */
     const DOCUMENTOS = [
-        self::DOC_PREFACTURA => ['etiqueta' => 'Proforma', 'clase' => 'ambar'],
-        self::DOC_FACTURA    => ['etiqueta' => 'Factura s/v fiscal', 'clase' => 'verde'],
-        self::DOC_CFDI       => ['etiqueta' => 'Factura CFDI', 'clase' => 'azul'],
+        self::DOC_PREFACTURA => ['etiqueta' => 'Proforma'],
+        self::DOC_FACTURA    => ['etiqueta' => 'Factura s/v fiscal'],
+        self::DOC_CFDI       => ['etiqueta' => 'Factura CFDI'],
     ];
 
     /** Columnas de la tabla que no existen en la BD (no se buscan, filtran ni ordenan por SQL). */
