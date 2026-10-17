@@ -109,6 +109,11 @@ export default {
                 currentTab.value = "payment";
                 return;
             }
+            // ?tab=facturacion: Vista de facturación, donde viven los Datos de facturación (FR-01).
+            if (urlTab === "facturacion") {
+                currentTab.value = "view";
+                return;
+            }
             let tab = await configTabsHook.data.getFromDB("facture");
             const cleanSavedTab = tab.trim();
             currentTab.value = cleanSavedTab ? cleanSavedTab : "view";

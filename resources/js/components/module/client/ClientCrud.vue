@@ -240,7 +240,8 @@ const setInitialTab = async () => {
     // enlaces de JARVIS). "pagos" = pestaña externa Facturación (el sub-tab Pagos lo
     // resuelve ClientBilling); cualquier otro valor debe ser el nombre de una pestaña visible.
     const urlTab = new URLSearchParams(window.location.search).get("tab");
-    const urlTabName = urlTab === "pagos" ? "facture" : urlTab;
+    // "facturacion" = Facturación › Vista de facturación (enlace del resumen de Datos de facturación, FR-01).
+    const urlTabName = urlTab === "pagos" || urlTab === "facturacion" ? "facture" : urlTab;
     if (urlTabName && tabs.value.includes(urlTabName)) {
         currentTab.value = urlTabName;
         return;

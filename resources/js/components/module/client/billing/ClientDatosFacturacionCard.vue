@@ -1,14 +1,14 @@
 <template>
     <section v-if="puedeVer && cargado" class="fdc-card" :class="{ 'fdc-dark': darkMode }">
         <div class="fdc-head">
-            <span><i class="mdi mdi-file-document-outline"></i> Datos fiscales</span>
+            <span><i class="mdi mdi-file-document-outline"></i> Datos de facturación</span>
             <!-- Guardar va arriba a la derecha: abajo lo tapaban los botones flotantes (item #497). -->
             <span class="fdc-head-acciones">
                 <span class="fdc-badge" :class="form.facturacion_fiscal ? 'fdc-badge--on' : 'fdc-badge--off'">
-                    {{ form.facturacion_fiscal ? "Requiere factura fiscal" : "Sin factura fiscal" }}
+                    {{ form.facturacion_fiscal ? "Requiere factura fiscal" : "Público en general" }}
                 </span>
                 <button v-if="puedeEditar" type="button" class="btn btn-primary btn-sm" :disabled="guardando" @click="guardar">
-                    {{ guardando ? "Guardando…" : "Guardar datos fiscales" }}
+                    {{ guardando ? "Guardando…" : "Guardar datos de facturación" }}
                 </button>
             </span>
         </div>
@@ -26,6 +26,9 @@
                     El cliente requiere factura fiscal
                 </label>
             </div>
+            <p v-if="!form.facturacion_fiscal" class="fdc-publico">
+                Sin factura fiscal se le factura como <b>público en general</b> (factura de mostrador).
+            </p>
 
             <div class="fdc-grid">
                 <div>
@@ -76,11 +79,23 @@
                            maxlength="200" :disabled="!puedeEditar" @input="limpiar('correo_fiscal')" />
                     <div v-if="errores.correo_fiscal" class="invalid-feedback d-block">{{ errores.correo_fiscal }}</div>
                 </div>
+                <div>
+                    <label class="fdc-label">Calle <span class="fdc-opc">(opcional)</span></label>
+                    <input v-model.trim="form.calle" class="form-control form-control-sm" :class="{ 'is-invalid': errores.calle }"
+                           maxlength="255" :disabled="!puedeEditar" @input="limpiar('calle')" />
+                    <div v-if="errores.calle" class="invalid-feedback d-block">{{ errores.calle }}</div>
+                </div>
+                <div>
+                    <label class="fdc-label">Ciudad <span class="fdc-opc">(opcional)</span></label>
+                    <input v-model.trim="form.ciudad" class="form-control form-control-sm" :class="{ 'is-invalid': errores.ciudad }"
+                           maxlength="150" :disabled="!puedeEditar" @input="limpiar('ciudad')" />
+                    <div v-if="errores.ciudad" class="invalid-feedback d-block">{{ errores.ciudad }}</div>
+                </div>
             </div>
 
             <div class="fdc-foot">
                 <span class="fdc-nota">
-                    Se muestran en la Prefactura. Guardarlos no emite ninguna factura fiscal.
+                    La prefactura, la factura y el portal toman estos datos. Guardarlos no emite ninguna factura fiscal.
                 </span>
             </div>
         </div>
@@ -89,9 +104,12 @@
 
 <script setup>
 /**
- * Datos fiscales del cliente (item #480, 2.4) sobre la API existente ClientFiscalDataController
- * (GET/POST /cliente/billing/datos-fiscales/{id}). Solo captura: no timbra nada. Permisos:
- * facturacion.ver para verla y facturacion.fiscal.editar para guardar (el backend los exige igual).
+ * «Datos de facturación» del cliente (FR-01 #535; antes «Datos fiscales», item #480): la ÚNICA
+ * tarjeta para facturar, en Facturación › Vista de facturación. Reemplaza a «Dirección de
+ * facturación». API: ClientFiscalDataController (GET/POST /cliente/billing/datos-fiscales/{id}),
+ * tabla client_fiscal_data. Solo captura: no timbra nada. Permisos: facturacion.ver para verla y
+ * facturacion.fiscal.editar para guardar (el backend los exige igual). El RFC/CURP de Datos
+ * personales es otro dato: aquí no se lee ni se precarga.
  */
 import { reactive, ref, watch } from "vue";
 import { darkMode } from "../../../../hook/appConfig";
@@ -103,7 +121,7 @@ const props = defineProps({
 });
 
 const RFC = /^([A-ZÑ&]{3,4})(\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01]))([A-Z\d]{2}[A\d])$/;
-const CAMPOS = ["rfc", "razon_social", "regimen_fiscal", "codigo_postal_fiscal", "uso_cfdi", "correo_fiscal"];
+const CAMPOS = ["rfc", "razon_social", "regimen_fiscal", "codigo_postal_fiscal", "uso_cfdi", "correo_fiscal", "calle", "ciudad"];
 
 const vacio = () => ({
     facturacion_fiscal: false,
@@ -113,6 +131,8 @@ const vacio = () => ({
     codigo_postal_fiscal: "",
     uso_cfdi: null,
     correo_fiscal: "",
+    calle: "",
+    ciudad: "",
 });
 
 const form = reactive(vacio());
@@ -149,6 +169,8 @@ const cargar = async () => {
             codigo_postal_fiscal: f.codigo_postal_fiscal || "",
             uso_cfdi: f.uso_cfdi || null,
             correo_fiscal: f.correo_fiscal || "",
+            calle: f.calle || "",
+            ciudad: f.ciudad || "",
         });
         cargado.value = true;
     } catch (e) {
@@ -178,7 +200,7 @@ const validar = () => {
 
 const guardar = async () => {
     if (!validar()) {
-        toastr.error("Revisa los campos marcados.", "Datos fiscales");
+        toastr.error("Revisa los campos marcados.", "Datos de facturación");
         return;
     }
     guardando.value = true;
@@ -188,18 +210,18 @@ const guardar = async () => {
             if (payload[c] === "") payload[c] = null;
         });
         await axios.post(`/cliente/billing/datos-fiscales/${props.clientId}`, payload);
-        toastr.success("Datos fiscales guardados.", "Datos fiscales");
+        toastr.success("Datos de facturación guardados.", "Datos de facturación");
     } catch (error) {
         const errs = error.response?.data?.errors;
         if (error.response?.status === 422 && errs) {
             Object.entries(errs).forEach(([campo, msgs]) => {
                 errores[campo] = Array.isArray(msgs) ? msgs[0] : String(msgs);
             });
-            toastr.error("Revisa los campos marcados.", "Datos fiscales");
+            toastr.error("Revisa los campos marcados.", "Datos de facturación");
         } else if (error.response?.status === 403) {
-            toastr.error("No tienes permiso para editar los datos fiscales.", "Datos fiscales");
+            toastr.error("No tienes permiso para editar los datos de facturación.", "Datos de facturación");
         } else {
-            toastr.error("No se pudieron guardar los datos fiscales.", "Datos fiscales");
+            toastr.error("No se pudieron guardar los datos de facturación.", "Datos de facturación");
         }
     } finally {
         guardando.value = false;
@@ -225,9 +247,13 @@ watch(() => [props.clientId, props.puedeVer], cargar, { immediate: true });
     letter-spacing: 0.3px; margin-bottom: 3px; }
 .fdc-foot { margin-top: 12px; }
 .fdc-nota { font-size: 12px; color: #6b7280; }
+.fdc-opc { text-transform: none; font-weight: 400; letter-spacing: 0; }
+.fdc-publico { font-size: 12.5px; color: #475569; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
+    padding: 6px 10px; margin: -4px 0 12px; }
 
 .fdc-dark.fdc-card { background: #1d1d21; border-color: #2c2c34; }
 .fdc-dark .fdc-head { background: #26262c; color: #e5e7eb; border-color: #2c2c34; }
 .fdc-dark .fdc-label, .fdc-dark .fdc-nota { color: #9ca3af; }
 .fdc-dark .fdc-badge--off { background: #2c2c34; color: #9ca3af; }
+.fdc-dark .fdc-publico { background: #26262c; border-color: #3a3a44; color: #cbd5e1; }
 </style>

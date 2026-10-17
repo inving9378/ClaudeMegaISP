@@ -245,8 +245,8 @@
             </div>
         </form>
 
-        <!-- Datos fiscales (item #480): tarjeta aparte, con su propio Guardar -->
-        <ClientFiscalDataCard
+        <!-- Datos de facturación (FR-01 #535): solo lectura aquí; se capturan en Facturación -->
+        <ClientDatosFacturacionResumen
             :client-id="id"
             :puede-ver="hasPermission.data.canView('facturacion.ver')"
             :puede-editar="hasPermission.data.canView('facturacion.fiscal.editar')"
@@ -346,7 +346,7 @@ import ClientMapInline from "./ClientMapInline.vue";
 import ComponentFormDefault from "../../ComponentFormDefault";
 import ViewTopNameWithBalance from "./ViewTopNameWithBalance";
 import ClientInfoAccountBalance from "./info/ClientInfoAccountBalance";
-import ClientFiscalDataCard from "./info/ClientFiscalDataCard.vue";
+import ClientDatosFacturacionResumen from "./info/ClientDatosFacturacionResumen.vue";
 
 import DialogUnconfiguredOnus from "../olts/components/dialogs/DialogUnconfiguredOnus.vue";
 import PanelOnu from "../olts/components/onus/PanelOnu.vue";
