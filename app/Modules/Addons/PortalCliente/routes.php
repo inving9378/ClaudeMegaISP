@@ -71,6 +71,11 @@ $portalRoutes = function () {
         Route::get('/facturas/{id}',         [FacturasController::class, 'show'])->name('facturas.show');
         Route::post('/facturas/{id}/pagar',  [PortalPagoController::class, 'cobrar'])->name('facturas.pagar');
 
+        // Documento vigente de una factura (FAC-10, #518): Prefactura o Factura (PAGADA) en PDF.
+        // Propiedad verificada en el controlador; limitado para no generar PDFs sin control.
+        Route::get('/documentos/{id}', [FacturasController::class, 'documento'])
+            ->whereNumber('id')->middleware('throttle:20,1')->name('documentos.ver');
+
         // CFDI ya timbrado (item roadmap #148) — solo consulta/descarga
         Route::get('/facturas/{id}/cfdi/xml', [FacturasController::class, 'downloadCfdiXml'])->name('facturas.cfdi.xml');
         Route::get('/facturas/{id}/cfdi/pdf', [FacturasController::class, 'downloadCfdiPdf'])->name('facturas.cfdi.pdf');
