@@ -160,6 +160,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/datos-fiscales/{clientId}/constancia', [ClientFiscalDataController::class, 'downloadConstancia']);
             Route::post('/datos-fiscales/{clientId}/timbrar', [ClientFiscalDataController::class, 'timbrar']);
 
+            // Estados de cuenta generados (FR-02 #536): solo lectura
+            Route::get('/estados-cuenta/{clientId}', [\App\Modules\Core\Clientes\Controllers\ClientEstadoCuentaController::class, 'index']);
+            Route::get('/estados-cuenta/{clientId}/{id}/pdf', [\App\Modules\Core\Clientes\Controllers\ClientEstadoCuentaController::class, 'pdf']);
+
             // Pausa de facturación programada
             Route::prefix('pause')->group(function () {
                 Route::get('/estado/{id}', [ClientBillingPauseController::class, 'estado']);

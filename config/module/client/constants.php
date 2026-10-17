@@ -693,7 +693,9 @@ return [
                     'Nuevo' => "Nuevo(Todavía no conectado)",
                     'Activo' => "Activado",
                     'Inactivo' => "Inactivo(No puede utilizar los servicios)",
-                    'Bloqueado' => "Bloqueado"
+                    'Bloqueado' => "Bloqueado",
+                    // FR-02 (#536): baja definitiva; no se le factura ni se reactiva con un pago.
+                    'Cancelado' => "Cancelado (baja definitiva, no se le factura)"
                 ],
                 'position' => 3
             ],

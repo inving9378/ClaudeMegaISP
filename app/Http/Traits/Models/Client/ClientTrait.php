@@ -453,6 +453,11 @@ trait ClientTrait
 
     public function activarCliente(): void
     {
+        // FR-02 (#536): un pago no reactiva a un cliente Cancelado (baja definitiva). Este update va
+        // por query builder (sin eventos), así que la regla se cuida aquí y no en el observer.
+        if (! \App\Services\Finance\Billing\ReglasFacturacion::reactivaConPago($this)) {
+            return;
+        }
         if ($this->client_main_information()->first()->estado !== ComunConstantsController::STATE_ACTIVE) {
             $this->client_main_information()->update(['estado' => ComunConstantsController::STATE_ACTIVE]);
         }

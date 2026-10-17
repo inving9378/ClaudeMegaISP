@@ -106,7 +106,11 @@ class ClientInformationController extends Controller
                 unset($input['password']);
             }
 
-            $this->saveSingleRelationIfExist('App\Models\Client', $client, collect($input));
+            // FR-02 (#536): el guardado manual de la ficha es lo ÚNICO que puede sacar a un cliente
+            // de Cancelado; los procesos automáticos lo dejan como está (EstadoClienteObserver).
+            \App\Services\Finance\Billing\ReglasFacturacion::cambioManual(
+                fn () => $this->saveSingleRelationIfExist('App\Models\Client', $client, collect($input))
+            );
 
             // Sincronizar users.password al cambiar la password del cliente
             if (! empty($newPassword)) {
@@ -157,7 +161,8 @@ class ClientInformationController extends Controller
     public function ifEstadoChangeToLocked($request)
     {
         $input = $request->all();
-        return ($input['estado'] == 'Bloqueado');
+        // FR-02 (#536): Cancelado (baja definitiva) también deja el servicio cortado.
+        return in_array($input['estado'] ?? null, ['Bloqueado', 'Cancelado'], true);
     }
 
     public function ifEstadoChangeToActive($request)

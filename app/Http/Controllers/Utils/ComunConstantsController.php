@@ -102,7 +102,7 @@ class ComunConstantsController
         ],
         'Client' => [
             'name' => 'required',
-            'estado' => 'required|in:Nuevo,Activo,Inactivo,Bloqueado',
+            'estado' => 'required|in:Nuevo,Activo,Inactivo,Bloqueado,Cancelado',
             'user' => 'unique:client_main_information,user',
         ],
         'Payment' => [

@@ -231,6 +231,11 @@
                         :puede-ver="hasPermission.data.canView('facturacion.ver')"
                         :puede-editar="hasPermission.data.canView('facturacion.fiscal.editar')"
                     />
+                    <!-- Estados de cuenta generados (FR-02 #536); no aparece si no hay -->
+                    <ClientEstadosCuentaCard
+                        :client-id="id"
+                        :puede-ver="hasPermission.data.canView('facturacion.ver')"
+                    />
                 </div>
                 <br />
                 <ClientRemindersConfiguration
@@ -352,6 +357,7 @@
 import ClientBillingConfiguration from "./ClientBillingConfiguration";
 import ClientPaymentAccount from "./ClientPaymentAccount";
 import ClientDatosFacturacionCard from "./ClientDatosFacturacionCard.vue";
+import ClientEstadosCuentaCard from "./ClientEstadosCuentaCard.vue";
 import ClientRemindersConfiguration from "./ClientRemindersConfiguration";
 import ClientBillingPauseButton from "./ClientBillingPauseButton.vue";
 import ClientBillingPausePanel from "./ClientBillingPausePanel.vue";
@@ -383,6 +389,7 @@ export default {
     components: {
         ClientRemindersConfiguration,
         ClientDatosFacturacionCard,
+        ClientEstadosCuentaCard,
         ClientPaymentAccount,
         ClientBillingConfiguration,
         ClientBillingPauseButton,

@@ -337,30 +337,31 @@ class ClientController extends Controller
      *
      * @param \App\Models\Client $id
      */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $client = Client::find($id);
         if (! $client) {
-            return redirect()->back()->with('message', 'Cliente no encontrado.');
+            return response()->json(['error' => 'Cliente no encontrado.'], 404);
         }
 
-        // Borrado en dos pasos:
-        //  - 1er click (estado != Cancelado): se marca 'Cancelado' (red de seguridad).
-        //  - 2º click (ya 'Cancelado') o cliente sin información principal:
-        //    borrado FÍSICO definitivo de TODAS sus referencias vía ClientDeletionService.
-        $yaCancelado = $client->client_main_information
-            && $client->client_main_information->estado == 'Cancelado';
-
-        if ($yaCancelado || ! $client->client_main_information) {
-            app(ClientDeletionService::class)->forceDeleteClient($client);
-
-            return redirect()->back()->with('message', 'Cliente eliminado definitivamente.');
+        // FR-02 (#536, decisión de Irving 2026-10-17): cancelar y eliminar son cosas distintas.
+        // Antes el 1er clic de «borrar» marcaba 'Cancelado' y el 2º borraba. Ahora «Cancelado» es un
+        // estado real (baja definitiva, se elige en la ficha) y eliminar es solo eliminar: borra el
+        // registro y todas sus referencias (ClientDeletionService), sin pasar por ningún estado, y
+        // exige escribir ELIMINAR en la confirmación.
+        if (trim((string) $request->input('confirmacion')) !== self::CONFIRMACION_ELIMINAR) {
+            return response()->json([
+                'error' => 'Para eliminar al cliente escribe ' . self::CONFIRMACION_ELIMINAR . ' en la confirmación. '
+                    . 'Para darlo de baja sin borrar su historial, cambia su estado a «Cancelado» en la ficha.',
+            ], 422);
         }
 
-        $client->client_main_information()->update(['estado' => 'Cancelado']);
+        app(ClientDeletionService::class)->forceDeleteClient($client);
 
-        return redirect()->back()->with('message', 'Cliente cancelado. Vuelve a eliminar para borrarlo definitivamente.');
+        return response()->json(['success' => true, 'message' => 'Cliente eliminado definitivamente.']);
     }
+
+    public const CONFIRMACION_ELIMINAR = 'ELIMINAR';
 
 
     public function forceDelete(Request $request)

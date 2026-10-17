@@ -9,6 +9,7 @@ use App\Jobs\ProcessCreateServiceJob;
 use App\Modules\Core\Clientes\Models\Client;
 use App\Models\TypeBilling;
 use App\Repositories\BalanceRepository;
+use App\Services\Finance\Billing\ReglasFacturacion;
 use App\Services\LogService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -26,6 +27,13 @@ class ClientBillingService
 
     public function billing($client, $newBalance, $transaction = null)
     {
+        // FR-02 (#536), capa previa: un cliente Cancelado (baja definitiva) no se cobra ni se
+        // reactiva con un pago; el pago ya abonó al saldo antes de llegar aquí (PaymentClientJob).
+        if (! ReglasFacturacion::generaCargos($client)) {
+            $this->logService->log($client, 'Cliente #' . $client->id . ' está Cancelado: el pago abonó al saldo, no se cobra ni se reactiva');
+            return;
+        }
+
         // FIX (1-oct-2026, hallazgo al verificar a fondo los 4 fixes de pagos recurrentes de
         // hoy — no causado por ninguno de ellos, ya pasaba antes): las dos ramas de abajo
         // corrían SIEMPRE las dos, en secuencia, sin ser mutuamente excluyentes. Para un
@@ -130,6 +138,11 @@ class ClientBillingService
 
     public function billingServicesByClient(mixed $client, $typeBillingExecute = null, $forceCobrar = false, $transaction = null): bool
     {
+        // FR-02 (#536), capa previa: Cancelado no genera cargos (cron, pagos ni recurrentes).
+        if (! ReglasFacturacion::generaCargos($client)) {
+            return false;
+        }
+
         $clientRepository = new ClientRepository();
         $typeOfBilling = $clientRepository->getTypeOfBilling($client);
 
