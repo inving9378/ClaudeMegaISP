@@ -157,12 +157,18 @@ class CrmDatatableHelper extends HelperDatatable
     public function transform($request)
     {
         $data = array();
+        $plazos = in_array('plazo_contrato', (array) $this->columns, true) && ! empty($request['array'])
+            ? $this->plazosDeContrato(collect($request['array'])->pluck('id')->all())
+            : [];
         if (!empty($request['array'])) {
             foreach ($request['array'] as $key => $value) {
                 $id = $value->id;
                 foreach ($this->columns as $val) {
                     if ($val == 'owner_id') {
                         $value->owner_id = $value->seller_name;
+                    }
+                    if ($val == 'plazo_contrato') {
+                        $value->plazo_contrato = $plazos[$value->id] ?? '';
                     }
 
                     $nestedData[$val] = view('meganet.shared.table.column', [
@@ -188,6 +194,29 @@ class CrmDatatableHelper extends HelperDatatable
             "recordsFiltered" => intval($request['totalFiltered']),
             "data" => $data
         ];
+    }
+
+    /**
+     * FR-03 (#537): «18 Meses» o «Especial (10 meses)» por prospecto, en una sola consulta.
+     * @return array<int,string> crm_id → texto
+     */
+    private function plazosDeContrato(array $crmIds): array
+    {
+        $nombres = \Illuminate\Support\Facades\DB::table('duration_contracts')->pluck('name', 'id')->all();
+        $especial = \App\Support\PlazoContrato::idEspecial();
+        $r = [];
+        foreach (\Illuminate\Support\Facades\DB::table('crm_main_information')->whereIn('crm_id', $crmIds)
+            ->get(['crm_id', 'duration_contract_id', 'plazo_especial_meses']) as $m) {
+            if (! $m->duration_contract_id) {
+                continue;
+            }
+            $nombre = $nombres[$m->duration_contract_id] ?? '';
+            $r[$m->crm_id] = ($especial && (int) $m->duration_contract_id === $especial && $m->plazo_especial_meses)
+                ? "{$nombre} ({$m->plazo_especial_meses} meses)"
+                : $nombre;
+        }
+
+        return $r;
     }
 
     protected function fieldsDatatable()
@@ -260,7 +289,9 @@ class CrmDatatableHelper extends HelperDatatable
                 'street' => ['searchable' => true],
                 'external_number' => ['searchable' => true],
                 'internal_number' => ['searchable' => true],
-                'zip' => ['searchable' => true]
+                'zip' => ['searchable' => true],
+                // FR-03 (#537): plazo de contrato (solo lectura); transform() lo vuelve texto.
+                'plazo_contrato' => ['column' => 'duration_contract_id', 'searchable' => false],
             ],
             'states' => [
                 'state_str' => [

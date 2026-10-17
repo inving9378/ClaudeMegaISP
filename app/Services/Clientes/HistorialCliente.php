@@ -43,6 +43,11 @@ final class HistorialCliente
         }
     }
 
+    public static function motivoActual(): ?string
+    {
+        return self::$motivo;
+    }
+
     public static function origenActual(): string
     {
         if (self::$origen !== null) {

@@ -351,6 +351,7 @@ import ViewTopNameWithBalance from "./ViewTopNameWithBalance";
 import ClientInfoAccountBalance from "./info/ClientInfoAccountBalance";
 import ClientDatosFacturacionResumen from "./info/ClientDatosFacturacionResumen.vue";
 import ClientHistorialCambios from "./info/ClientHistorialCambios.vue";
+import { campoVisible } from "../../../helpers/camposCondicionales";
 
 import DialogUnconfiguredOnus from "../olts/components/dialogs/DialogUnconfiguredOnus.vue";
 import PanelOnu from "../olts/components/onus/PanelOnu.vue";
@@ -405,7 +406,8 @@ const SPECIAL_WIDGET_FIELDS = ["geodata", "gpon_ont", "power_dbm", "olt_power_db
 function sectionFields(names) {
     const m = fieldsJson.value?.["client_main_information"] ?? {};
     const a = fieldsJson.value?.["client_additional_information"] ?? {};
-    return (names || []).map((n) => m[n] ?? a[n]).filter(Boolean);
+    // FR-03 (#537): los meses del plazo «Especial» solo se ven con esa duración elegida.
+    return (names || []).map((n) => m[n] ?? a[n]).filter(Boolean).filter((v) => campoVisible(v, dataForm.data));
 }
 
 function hasField(name) {

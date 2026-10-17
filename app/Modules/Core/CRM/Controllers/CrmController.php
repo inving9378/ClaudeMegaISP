@@ -166,7 +166,12 @@ class CrmController extends Controller
             $modules = $mainInfoModule->fields->pluck('name')->toArray();
             $input = $request->only($modules);
             $input['client_id'] = $client->id;
-            $new_client = ClientMainInformation::create($input);
+            // FR-03/FR-04 (#537/#538): el plazo (y el estado) con que nace queda en el historial del cliente.
+            $new_client = \App\Services\Clientes\HistorialCliente::conOrigen(
+                \App\Models\ClientHistorialCambio::ORIGEN_USUARIO,
+                fn () => ClientMainInformation::create($input),
+                'Convertido del prospecto CRM #' . $crmId
+            );
 
             // 2. Crear ClientAdditionalInformation
             $additionalInfoModule = Module::where('name', 'ClientAdditionalInformation')->first();

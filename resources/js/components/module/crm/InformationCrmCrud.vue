@@ -71,7 +71,7 @@
                                                 ]"
                                             >
                                                 <ComponentFormDefault
-                                                    v-if="val.include"
+                                                    v-if="val.include && campoVisible(val, dataForm.data)"
                                                     :id="id"
                                                     :json="val"
                                                     :errors="
@@ -128,7 +128,7 @@
                                                 ]"
                                             >
                                                 <ComponentFormDefault
-                                                    v-if="val.include"
+                                                    v-if="val.include && campoVisible(val, dataForm.data)"
                                                     :id="id"
                                                     :json="val"
                                                     :errors="
@@ -222,6 +222,7 @@ import {
     getfieldsEditedWithMultipleModel,
 } from "../../../hook/crudHook";
 import ComponentFormDefault from "../../ComponentFormDefault";
+import { campoVisible } from "../../../helpers/camposCondicionales";
 import InputModalWithGoogleMap from "../../../shared/InputModalWithGoogleMap";
 import Permission from "../../../helpers/Permission";
 import NotificationCrm from "./components/NotificationCrm";

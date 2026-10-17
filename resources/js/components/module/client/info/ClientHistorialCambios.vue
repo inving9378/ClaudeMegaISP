@@ -15,9 +15,12 @@
                     <tr><th>Fecha</th><th>Qué cambió</th><th>Antes → Ahora</th><th>Origen</th><th>Quién</th></tr>
                 </thead>
                 <tbody>
-                    <tr v-for="c in visibles" :key="c.id" :title="c.motivo || ''">
+                    <tr v-for="c in visibles" :key="c.id">
                         <td class="hcc-nowrap">{{ c.fecha }}</td>
-                        <td>{{ CAMPOS[c.campo] || c.campo }}</td>
+                        <td>
+                            {{ CAMPOS[c.campo] || c.campo }}
+                            <div v-if="c.motivo" class="hcc-motivo">{{ c.motivo }}</div>
+                        </td>
                         <td>{{ c.antes || "—" }} → <b>{{ c.despues || "—" }}</b></td>
                         <td><span class="hcc-origen" :class="`hcc-origen--${c.origen}`">{{ ORIGENES[c.origen] || c.origen }}</span></td>
                         <td>{{ c.quien || (c.origen === "usuario" ? "—" : "Sistema") }}</td>
@@ -89,12 +92,13 @@ watch(() => props.clientId, cargar, { immediate: true });
 .hcc-tabla th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; color: #6b7280; text-align: left; padding: 8px 16px; }
 .hcc-tabla td { padding: 7px 16px; border-top: 1px solid #f1f3f5; }
 .hcc-nowrap { white-space: nowrap; }
+.hcc-motivo { font-size: 11.5px; color: #6b7280; }
 .hcc-origen { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: #F1F5F9; color: #475569; }
 .hcc-origen--usuario { background: #EEF2FF; color: #3730A3; }
 .hcc-origen--pago { background: #E9F5EF; color: #14724A; }
 .hcc-dark.hcc-card { background: #1d1d21; border-color: #2c2c34; }
 .hcc-dark .hcc-head { background: #26262c; color: #e5e7eb; border-color: #2c2c34; }
-.hcc-dark .hcc-tabla th, .hcc-dark .hcc-vacio { color: #9ca3af; }
+.hcc-dark .hcc-tabla th, .hcc-dark .hcc-vacio, .hcc-dark .hcc-motivo { color: #9ca3af; }
 .hcc-dark .hcc-tabla td { border-color: #2c2c34; color: #e5e7eb; }
 .hcc-dark .hcc-origen { background: #2c2c34; color: #cbd5e1; }
 .hcc-dark .hcc-origen--usuario { background: #2a2f55; color: #c7d2fe; }
