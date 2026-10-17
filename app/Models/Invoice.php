@@ -90,6 +90,14 @@ class Invoice extends Model
     /** Columnas de la tabla que no existen en la BD (no se buscan, filtran ni ordenan por SQL). */
     const COLUMNAS_CALCULADAS = ['action', 'documento'];
 
+    /**
+     * `payment_method` guarda el id de method_of_payments como texto… o la marca 'retroactive' que
+     * puso CreateProformaInvoiceOverdueClientActiveCommand (71,337 facturas del 2025-09-07, sin pago
+     * ligado). Se muestra el nombre del catálogo; 'retroactive' → «Retroactiva»; vacío o id que no
+     * existe → «—» (item #505).
+     */
+    const METODO_RETROACTIVO = 'retroactive';
+
     protected $appends = ['status_name'];
 
     /**
@@ -200,6 +208,48 @@ class Invoice extends Model
     /**
      * Marcar factura como enviada
      */
+    /** id → nombre de method_of_payments (una consulta por proceso). */
+    public static function catalogoMetodosPago(): array
+    {
+        static $catalogo = null;
+
+        return $catalogo ??= \DB::table('method_of_payments')->pluck('type', 'id')
+            ->map(fn ($tipo) => (string) $tipo)->all();
+    }
+
+    public static function etiquetaMetodoPago($valor): string
+    {
+        if ($valor === self::METODO_RETROACTIVO) {
+            return 'Retroactiva';
+        }
+        $catalogo = self::catalogoMetodosPago();
+
+        return is_numeric($valor) && isset($catalogo[(int) $valor]) ? $catalogo[(int) $valor] : '—';
+    }
+
+    /** Ordenar la tabla por el NOMBRE del método (no por el id guardado). */
+    public static function ordenMetodoPagoSql()
+    {
+        return \DB::raw("(CASE WHEN invoices.payment_method = '" . self::METODO_RETROACTIVO . "' THEN 'Retroactiva' "
+            . 'ELSE (SELECT mp.type FROM method_of_payments mp WHERE mp.id = invoices.payment_method) END)');
+    }
+
+    /** Valores guardados cuyo NOMBRE coincide con la búsqueda (para el buscador de la tabla). */
+    public static function metodosPagoQueCoinciden(string $busqueda): array
+    {
+        $valores = [];
+        foreach (self::catalogoMetodosPago() as $id => $tipo) {
+            if ($busqueda === '' || mb_stripos($tipo, $busqueda) !== false || (string) $id === $busqueda) {
+                $valores[] = (string) $id;
+            }
+        }
+        if ($busqueda === '' || mb_stripos('Retroactiva', $busqueda) !== false) {
+            $valores[] = self::METODO_RETROACTIVO;
+        }
+
+        return $valores;
+    }
+
     /** null = cancelada (no tiene documento que mostrar ni enviar). */
     public function documentoVigente(): ?string
     {
@@ -312,6 +362,11 @@ class Invoice extends Model
                         return ! in_array($value, self::COLUMNAS_CALCULADAS, true);
                     })->toArray() as $value
                 ) {
+                    if ($value === 'payment_method') {
+                        // Se busca por el nombre del método, no por el id guardado.
+                        $query->orWhereIn('payment_method', self::metodosPagoQueCoinciden((string) $search));
+                        continue;
+                    }
                     $query->orWhere($value, 'like', '%' . $search . '%');
                 }
             });
@@ -372,6 +427,11 @@ class Invoice extends Model
                         return ! in_array($value, self::COLUMNAS_CALCULADAS, true);
                     })->toArray() as $value
                 ) {
+                    if ($value === 'payment_method') {
+                        // Se busca por el nombre del método, no por el id guardado.
+                        $query->orWhereIn('payment_method', self::metodosPagoQueCoinciden((string) $search));
+                        continue;
+                    }
                     $query->orWhere($value, 'like', '%' . $search . '%');
                 }
             });
