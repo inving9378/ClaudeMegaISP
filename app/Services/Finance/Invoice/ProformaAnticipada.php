@@ -78,13 +78,14 @@ final class ProformaAnticipada
 
     /**
      * Compara cuándo se generaría con cada regla (ambas acotadas a «no antes de hoy», porque el
-     * cron no recupera días pasados). @return array{0: string, 1: int} [clase, días de diferencia]
+     * cron no recupera días pasados). FR-05 (#539): la nueva cuenta los N días desde el día de
+     * facturación ($facturacion); sin él, desde el corte. @return array{0: string, 1: int} [clase, días de diferencia]
      */
-    public static function comparar(Carbon $corte, int $n, Carbon $hoy): array
+    public static function comparar(Carbon $corte, int $n, Carbon $hoy, ?Carbon $facturacion = null): array
     {
         $hoy = $hoy->copy()->startOfDay();
         $actual = self::fechaActual($corte)->max($hoy);
-        $nueva = self::fechaNueva($corte, $n)->max($hoy);
+        $nueva = self::fechaNueva($facturacion ?? $corte, $n)->max($hoy);
         $dif = (int) $actual->diffInDays($nueva, false);
 
         return [$dif === 0 ? self::IGUAL : ($dif < 0 ? self::ADELANTADA : self::ATRASADA), $dif];
