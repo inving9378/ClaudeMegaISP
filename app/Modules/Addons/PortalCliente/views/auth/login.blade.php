@@ -28,6 +28,14 @@
             text-align: center;
             margin-bottom: 2rem;
         }
+        .auth-logo img {
+            display: block;
+            margin: 0 auto;
+            max-width: 220px;
+            max-height: 90px;
+            width: auto;
+            height: auto;
+        }
         .auth-logo h1 {
             font-size: 1.5rem;
             font-weight: 700;
@@ -69,7 +77,12 @@
 <body>
 <div class="auth-card">
     <div class="auth-logo">
-        <div style="font-size:3rem">🌐</div>
+        @php $logoEmpresa = \App\Modules\Addons\PortalCliente\Support\LogoEmpresa::url(); @endphp
+        @if($logoEmpresa)
+            <img src="{{ $logoEmpresa }}" alt="Meganet">
+        @else
+            <div style="font-size:3rem">🌐</div>
+        @endif
         <h1>Portal Cliente</h1>
         <p>Meganet Telecomunicaciones</p>
     </div>
