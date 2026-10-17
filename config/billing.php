@@ -50,6 +50,9 @@ return [
     */
     'proforma_anticipada' => (bool) env('BILLING_PROFORMA_ANTICIPADA', false),
 
+    // #520: folio corto «MN-AAAA-NNNNNN» para cada factura nueva (decisión de Irving 2026-10-16).
+    'folio_corto' => (bool) env('BILLING_FOLIO_CORTO', true),
+
     /*
     |--------------------------------------------------------------------------
     | CLABE virtual del cliente en la Prefactura (FAC-13, item #521)

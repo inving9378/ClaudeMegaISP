@@ -305,6 +305,23 @@ class Invoice extends Model
         });
     }
 
+    /** #520: ¿ya existe la columna folio? (se consulta una vez por proceso). */
+    private static ?bool $tieneFolio = null;
+
+    /**
+     * #520: toda factura NUEVA recibe su folio corto «MN-AAAA-NNNNNN» al crearse, venga de donde venga
+     * (cajero, proformas, conciliación, espejo). Sin la columna (antes de migrar) no hace nada.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (Invoice $invoice) {
+            self::$tieneFolio ??= \Illuminate\Support\Facades\Schema::hasColumn('invoices', 'folio');
+            if (self::$tieneFolio && empty($invoice->folio)) {
+                $invoice->folio = \App\Services\Finance\Invoice\FolioFactura::siguiente();
+            }
+        });
+    }
+
     public function markAsSent(): bool
     {
         // Solo una emitida (draft) pasa a «Enviada». Antes pasaba TODO a issued: enviar una factura
