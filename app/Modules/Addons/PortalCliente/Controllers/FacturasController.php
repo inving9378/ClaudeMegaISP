@@ -4,6 +4,10 @@ namespace App\Modules\Addons\PortalCliente\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\ClientInvoiceCfdi;
+use App\Models\Invoice;
+use App\Modules\Addons\PortalCliente\Services\PortalClientScope;
+use App\Services\Finance\Billing\PrefacturaPdfService;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -28,7 +32,49 @@ class FacturasController extends Controller
                 'payment_date', 'document_date', 'is_proforma',
             ]);
 
-        return view('addon-portal-cliente::facturas', compact('cmi', 'facturas'));
+        // FAC-10 (#518): documentos de la facturación nueva (tabla invoices) con su ícono único.
+        $documentos = Invoice::where('client_id', $clientId)
+            ->where('status', '!=', Invoice::STATUS_CANCELLED)
+            ->orderByDesc('period')->orderByDesc('id')
+            ->limit(24)
+            ->get(['id', 'number', 'period', 'total', 'pending_balance', 'status', 'client_invoice_id'])
+            ->map(function (Invoice $i) {
+                $i->documento = $i->documentoVigente();
+
+                return $i;
+            })
+            ->filter(fn (Invoice $i) => in_array($i->documento, [Invoice::DOC_PREFACTURA, Invoice::DOC_FACTURA], true))
+            ->values();
+
+        return view('addon-portal-cliente::facturas', compact('cmi', 'facturas', 'documentos'));
+    }
+
+    /**
+     * FAC-10 (#518): el MISMO documento que el ícono del admin (Invoice::documentoVigente +
+     * PrefacturaPdfService), solo si la factura es del cliente autenticado (si no, 404: no se
+     * revela que existe). Cancelada → 404. CFDI → 404 mientras no exista la integración (Fase 4;
+     * los CFDI cargados a mano siguen en facturas/{id}/cfdi/*). Sin respaldo al formato viejo.
+     */
+    public function documento(int $id)
+    {
+        $invoice = Invoice::where('id', $id)->where('client_id', PortalClientScope::clientId())->first();
+        $documento = $invoice?->documentoVigente();
+        if (! $invoice || ! in_array($documento, [Invoice::DOC_PREFACTURA, Invoice::DOC_FACTURA], true)) {
+            abort(404);
+        }
+
+        $r = app(PrefacturaPdfService::class)->generar($invoice);
+        if (($r['status'] ?? null) !== 'ok') {
+            Log::warning("[Portal] documento de la factura #{$invoice->id}: no se pudo generar.", ['faltan' => $r['keys'] ?? []]);
+            abort(503, 'No pudimos generar tu documento en este momento. Intenta más tarde.');
+        }
+
+        return response($r['pdf'], 200, [
+            'Content-Type'           => 'application/pdf',
+            'Content-Disposition'    => 'inline; filename="' . $r['filename'] . '"',
+            'Cache-Control'          => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     /**

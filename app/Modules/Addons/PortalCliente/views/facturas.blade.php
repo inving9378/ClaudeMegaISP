@@ -64,4 +64,41 @@ function estadoFacturaBadge($estado) {
         </div>
     @endif
 </div>
+
+{{-- FAC-10 (#518): documento vigente de cada factura, igual que en el sistema (un solo ícono). --}}
+@if(isset($documentos) && $documentos->isNotEmpty())
+<div class="page-header" style="margin-top:1.5rem">
+    <h2 style="font-size:1.1rem">Prefacturas y facturas en PDF</h2>
+    <span style="color:var(--text-muted); font-size:.82rem">Sin valor fiscal</span>
+</div>
+<div class="card" style="padding:0; overflow:hidden">
+    <div style="overflow-x:auto">
+    <table class="portal-table">
+        <thead>
+            <tr>
+                <th>Periodo</th>
+                <th>Total</th>
+                <th>Saldo</th>
+                <th>Documento</th>
+                <th>PDF</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($documentos as $d)
+                <tr>
+                    <td>{{ \App\Services\Finance\Billing\PrefacturaDataProvider::periodoLegible($d->period) ?: $d->number }}</td>
+                    <td style="font-weight:600">${{ number_format($d->total, 2) }}</td>
+                    <td>${{ number_format($d->pending_balance, 2) }}</td>
+                    <td><span class="doc-badge doc-badge--{{ $d->documento }}">{{ \App\Models\Invoice::DOCUMENTOS[$d->documento]['etiqueta'] ?? $d->documento }}</span></td>
+                    <td>
+                        <a href="{{ route('portal.documentos.ver', $d->id) }}" target="_blank" rel="noopener" class="btn btn-outline btn-sm"
+                           title="{{ $d->documento === 'factura' ? 'Factura (pagada)' : 'Prefactura' }}">📄 {{ $d->documento === 'factura' ? 'Factura' : 'Prefactura' }}</a>
+                    </td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+    </div>
+</div>
+@endif
 @endsection

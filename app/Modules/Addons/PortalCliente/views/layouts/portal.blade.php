@@ -333,6 +333,15 @@
         html.dark .alert-info     { background: #0a2a30; color: #67cfe0; border-left-color: #17a2b8; }
         html.dark .alert-warning  { background: #3a2e00; color: #ffd966; border-left-color: #ffc107; }
 
+        /* ── Documento vigente (FAC-10): mismos colores que la columna «Documento» del admin ── */
+        .doc-badge { display:inline-block; white-space:nowrap; font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; border:1px solid transparent; }
+        .doc-badge--prefactura { background:#FEF3C7; color:#92400E; }
+        .doc-badge--factura    { background:#DCFCE7; color:#166534; }
+        .doc-badge--cfdi       { background:#DBEAFE; color:#1E40AF; }
+        html.dark .doc-badge--prefactura { background:rgba(245,158,11,.18); color:#FCD34D; border-color:rgba(245,158,11,.40); }
+        html.dark .doc-badge--factura    { background:rgba(34,197,94,.18);  color:#86EFAC; border-color:rgba(34,197,94,.40); }
+        html.dark .doc-badge--cfdi       { background:rgba(59,130,246,.20); color:#93C5FD; border-color:rgba(59,130,246,.40); }
+
         /* ── Mobile ── */
         @media (max-width: 768px) {
             .portal-layout { flex-direction: column; }
