@@ -196,5 +196,8 @@ Para evitarlo: `--hasta=2026-10-18` fijo (punto 2 de arriba). Solo se cancela lo
 recibos y tickets del 17-oct.
 
 Queda por decidir antes de las etapas 3 y 4 qué hacer con lo que se junte desde el 18-oct fuera del
-piloto: enviarlo o cancelarlo con un segundo manifiesto (`--desde=2026-10-18 --hasta=<fecha>`). El
-envío no tiene una antigüedad máxima.
+piloto: enviarlo o cancelarlo con un segundo manifiesto (`--desde=2026-10-18 --hasta=<fecha>`). Ese
+envío (`billing:send-pending-notifications`) no tiene antigüedad máxima: manda todo lo que ya pasó su
+`notificar_despues_de`. El de `invoice_emails` sí ignora lo de más de 7 días. En la copia del 15-oct, los
+tickets en espera tienen `send_by_email=0` (ese envío no los manda); los recibos y las prefacturas,
+`send_by_email=1`.
