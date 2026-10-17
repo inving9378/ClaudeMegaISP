@@ -74,14 +74,15 @@ Sin tag ni release **a propósito** (la instrucción vigente no autoriza publica
 | FAC-02 | #507 | `a3997f0a` | `ac9e462e` | completado |
 | FAC-03 | #508 | `53b9825c` `cdbbdeb7` `4d775b27` | `34054ffd` | completado; migrado en dev |
 | FAC-04 | #509 | `b9d3a5c5` `7c50b96a` `a40f4946` | `3917580d` | completado (activación = FAC-08) |
+| FAC-05 | #510 | `9316cec9` `82520cff` `cb770c56` `0957425d` | `d63c6f31` | desarrollo hecho; padre aparcado (`aprobado_irving`) hasta FAC-05b #511 |
+| FAC-06 | #512 | `831051f5` `fd4bb50f` `758f0d56` | `dbeff1da` | desarrollo hecho; padre aparcado hasta FAC-06b #513 |
 
-**Siguiente trabajo elegible:** FAC-05 (#510) → FAC-06 (#512) → FAC-07 (#514, script) → FAC-08
-(#515, controles) → FAC-09 … FAC-15.
+**Siguiente trabajo elegible:** FAC-07 (#514, script de cancelación) → FAC-08 (#515, controles de
+piloto) → FAC-09 … FAC-15.
 
-**Punto de reanudación:** worktree `/var/www/megaisp-pf`; crear rama
-`circuito/item-510-…` desde `main` y empezar FAC-05 por su Paso 0 (subsetting ya activo en
-`PrefacturaPdfService`; revisar `config/dompdf.php`, los PDFs Blade de `BillingDocumentService` y
-dónde guardar la evidencia del PDF enviado).
+**Punto de reanudación:** worktree `/var/www/megaisp-pf`; rama nueva `circuito/item-514-…` desde
+`main`; FAC-07 Paso 0 (`app:send-all-emails-command` + tablas `invoice_emails`/`billing_notifications`,
+candado de 7 días `a6d97387`). Las pruebas con BD esperan a que se reconstruya `megaisp_test` (#529).
 
 ## Bloqueos y decisiones
 
@@ -89,6 +90,9 @@ dónde guardar la evidencia del PDF enviado).
   pedido expreso de Irving (Prefactura normal y fallback, 2026-10-16). En este programa: **0**.
 - **IA del circuito sin saldo** (Claude API 400 «credit balance is too low», 2026-10-16 17:12):
   `ClasificarRiesgoJob` y el des-trabador fallan cerrado; los FAC se clasificaron a mano.
+- ⚠️ **Incidente #529:** una corrida de pruebas incluyó por error una prueba ajena con RefreshDatabase
+  y el timeout dejó `megaisp_test` a medio migrar (207 tablas). No se reparó (sería migrate:fresh en BD
+  compartida); pruebas con BD bloqueadas hasta que Irving la reconstruya. Lección en memoria.
 - **5,879 de 7,314 prefacturas en espera en dev son de facturas ya pagadas** (FAC-04): consulta
   para prod en `docs/bitacora/2026-10-16-item-509.md`. Pesa en FAC-07/FAC-08.
 - **Hallazgos registrados aparte** (no se ejecutan): menú «Finanzas › Facturas» apunta a
@@ -108,8 +112,8 @@ dónde guardar la evidencia del PDF enviado).
 | Lote | Archivo | Contenido |
 |---|---|---|
 | 1 | `docs/bitacora/2026-10-16-borrador-version-facturacion-lote1.md` | interceptación, FAC-01, FAC-02, FAC-03 |
-| 2 | (en curso) | FAC-04, FAC-05, FAC-06 (unidad #482) |
+| 2 | `docs/bitacora/2026-10-16-borrador-version-facturacion-lote2.md` | FAC-04, FAC-05, FAC-06 (unidad #482) |
 
 ## Últimos commits de esta sesión
 
-- `3917580d` Integra FAC-04 a main (último merge de código).
+- `dbeff1da` Integra FAC-06 a main (último merge de código).
