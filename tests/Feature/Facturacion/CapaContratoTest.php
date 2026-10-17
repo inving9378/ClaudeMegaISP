@@ -163,6 +163,19 @@ class CapaContratoTest extends TestCase
         $this->assertSame(1, DB::table('client_contrato_cargos')->where('client_id', $c->id)->count());
     }
 
+    public function test_especial_cuenta_sus_meses_y_al_cumplirse_aplica_el_tope(): void
+    {
+        // Especial 10 meses desde 2025-12-15 → vigente hasta 2026-10-15; el ciclo 2026-11-11 ya es cumplido.
+        $c = $this->cliente('2025-12-15', ['duration_contract_id' => $this->especial, 'plazo_especial_meses' => 10]);
+        $this->assertSame(PlazoContrato::CUMPLIDO, $this->decidir($c)['estado_contrato']);
+        $this->cargos($c, 3);
+        $this->assertFalse($this->decidir($c)['cobrar']);
+
+        $v = $this->cliente('2026-03-15', ['duration_contract_id' => $this->especial, 'plazo_especial_meses' => 10]);
+        $d = $this->decidir($v);
+        $this->assertSame([true, PlazoContrato::VIGENTE, '2027-01-15'], [$d['cobrar'], $d['estado_contrato'], $d['fin']->toDateString()]);
+    }
+
     public function test_nuevo_e_inactivo_no_generan_cargos_por_contrato(): void
     {
         $this->assertFalse($this->decidir($this->cliente('2026-09-11', ['estado' => 'Nuevo']))['cobrar']);
