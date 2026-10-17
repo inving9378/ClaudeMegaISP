@@ -16,6 +16,13 @@ use Illuminate\Support\Facades\DB;
  *     comentarios se reescriben sin «${…}»: el validador reemplaza también dentro de comentarios
  *     y metía la tabla de servicios en un comentario CSS.
  *  5. (item #505) Debajo del título, en pequeño, ${data.documento_nota} («Sin valor fiscal»).
+ *  6. (FAC-03, item #508) En el pie legal, ${data.aviso_privacidad}: enlace al aviso de
+ *     privacidad de la empresa; vacío (sin línea) si no hay URL configurada.
+ *
+ * Transiciones verificadas: desde un HTML conocido (original, versión 1-4 o versión 1-5) el
+ * resultado DEBE dar exactamente HASH_APLICADA; si no, no se escribe. La escritura es un solo
+ * UPDATE condicionado al hash leído (si alguien la editó en medio, no se pisa). Un HTML
+ * desconocido nunca se toca solo: solo con --force y todas las anclas presentes.
  *
  * Cada cambio es idempotente: si su resultado ya está en el HTML se cuenta como «ya estaba» y no
  * se vuelve a aplicar. Así la misma migración sirve desde el original (prod) o desde la versión
@@ -30,11 +37,17 @@ class PrefacturaPlantillaUpdater
     /** sha1 del HTML de prod (2026-09-21, copia en dev del 2026-10-15) antes del ajuste. */
     public const HASH_ORIGINAL = '24ee6f557e0dd5c1df7425f93e93426ca89ab252';
 
-    /** sha1 de transformar(original): la plantilla ya ajustada (cambios 1-5). */
-    public const HASH_APLICADA = 'bf9c30bb28b53a2960192e61ea2d9632b1acd9e3';
+    /** sha1 de transformar(original): la plantilla ya ajustada (cambios 1-6). */
+    public const HASH_APLICADA = '6fc0c53cd9011ac67397639ebe0f391031600633';
 
     /** sha1 con solo los cambios 1-4 (lo que quedó en dev con #480, antes de #505). */
     public const HASH_APLICADA_V1 = 'c7ac7c38a4f9ca446f7490a5a490d50896f803b8';
+
+    /** sha1 con los cambios 1-5 (dev tras #505, antes de FAC-03). */
+    public const HASH_APLICADA_V2 = 'bf9c30bb28b53a2960192e61ea2d9632b1acd9e3';
+
+    /** HTML que dejó alguna versión de este ajuste (los restaura el down() de la migración). */
+    public const HASHES_AJUSTADAS = [self::HASH_APLICADA, self::HASH_APLICADA_V2, self::HASH_APLICADA_V1];
 
     public const SITUACION_ORIGINAL = 'original';
     public const SITUACION_VERSION_ANTERIOR = 'version_anterior';
@@ -74,6 +87,12 @@ class PrefacturaPlantillaUpdater
             '<div class="doctype">${data.documento_titulo}</div><div style="font-size:6.8pt;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#6E7C8C;margin:1px 0 2px 0;">${data.documento_nota}</div>',
             false,
         ],
+        [
+            'aviso de privacidad en el pie legal',
+            '${data.leyenda_legal}',
+            '${data.leyenda_legal}${data.aviso_privacidad}',
+            false,
+        ],
     ];
 
     /** Lo que deja cada cambio de CAMBIOS (para reconocer «ya estaba»), en el mismo orden. */
@@ -83,6 +102,7 @@ class PrefacturaPlantillaUpdater
         '   data.table_client_services mientras no exista data.conceptos_filas */',
         'y dejar en su lugar un <div class="svc"> con la variable data.table_client_services',
         '<div style="font-size:6.8pt;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#6E7C8C;margin:1px 0 2px 0;">${data.documento_nota}</div>',
+        '${data.leyenda_legal}${data.aviso_privacidad}',
     ];
 
     /** @return object{id:int,html:string}|null */
@@ -104,7 +124,7 @@ class PrefacturaPlantillaUpdater
 
         return match (sha1((string) $plantilla->html)) {
             self::HASH_ORIGINAL    => self::SITUACION_ORIGINAL,
-            self::HASH_APLICADA_V1 => self::SITUACION_VERSION_ANTERIOR,
+            self::HASH_APLICADA_V1, self::HASH_APLICADA_V2 => self::SITUACION_VERSION_ANTERIOR,
             self::HASH_APLICADA    => self::SITUACION_APLICADA,
             default                => self::SITUACION_DISTINTA,
         };
@@ -175,14 +195,25 @@ class PrefacturaPlantillaUpdater
         if ($t['faltan']) {
             return $base + ['motivo' => 'Faltan anclas; no se toca: ' . implode('; ', $t['faltan'])];
         }
+        // Desde un HTML conocido el destino también es conocido: si no coincide, la transición
+        // no está verificada y no se escribe (p. ej. un cambio nuevo sin su hash actualizado).
+        if ($situacion !== self::SITUACION_DISTINTA && sha1($t['html']) !== self::HASH_APLICADA) {
+            return $base + ['motivo' => 'La transición no da el HTML esperado (sha1 ' . sha1($t['html'])
+                . ' ≠ ' . self::HASH_APLICADA . '); no se toca.'];
+        }
         if ($dryRun) {
             return $base + ['motivo' => 'Dry-run: no se escribió nada.'];
         }
 
-        DB::table('document_templates')->where('id', $plantilla->id)->update([
-            'html'       => $t['html'],
-            'updated_at' => now(),
-        ]);
+        // Un solo UPDATE, condicionado a que el HTML siga siendo el que se leyó.
+        $filas = DB::table('document_templates')
+            ->where('id', $plantilla->id)
+            ->whereRaw('SHA1(html) = ?', [sha1((string) $plantilla->html)])
+            ->update(['html' => $t['html'], 'updated_at' => now()]);
+
+        if ($filas !== 1) {
+            return $base + ['motivo' => 'La plantilla cambió mientras se aplicaba; no se escribió. Vuelve a correr --dry-run.'];
+        }
 
         return array_merge($base, ['escrito' => true]) + ['motivo' => 'Plantilla actualizada.'];
     }

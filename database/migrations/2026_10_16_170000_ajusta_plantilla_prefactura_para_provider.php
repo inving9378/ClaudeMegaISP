@@ -101,8 +101,7 @@ return new class extends Migration
         try {
             $updater = new PrefacturaPlantillaUpdater();
             $plantilla = $updater->plantilla();
-            $conocidas = [PrefacturaPlantillaUpdater::HASH_APLICADA, PrefacturaPlantillaUpdater::HASH_APLICADA_V1];
-            if (! $plantilla || ! in_array(sha1((string) $plantilla->html), $conocidas, true)) {
+            if (! $plantilla || ! in_array(sha1((string) $plantilla->html), PrefacturaPlantillaUpdater::HASHES_AJUSTADAS, true)) {
                 Log::warning('[Prefactura] down(): la plantilla no está como la dejó up(); no se restaura.');
 
                 return;
