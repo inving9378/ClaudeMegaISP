@@ -329,9 +329,7 @@ class InvoiceController extends CrudModalController
      */
     private function asuntoCorreoFactura(string $prefijo, Invoice $invoice, string $sufijo = ''): string
     {
-        $periodo = PrefacturaDataProvider::periodoLegible($invoice->period);
-
-        return $prefijo . ($periodo !== '' ? ' ' . $periodo : '') . $sufijo . ' — Meganet';
+        return PrefacturaPdfService::asuntoCorreo($prefijo, [$invoice], $sufijo);
     }
 
     /**

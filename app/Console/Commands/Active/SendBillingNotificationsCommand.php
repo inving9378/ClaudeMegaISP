@@ -8,14 +8,19 @@ use App\Mail\BillingMail;
 use App\Models\BillingConfig;
 use App\Models\BillingNotification;
 use App\Modules\Addons\Payments\Models\ClientPaymentReference;
+use App\Services\Finance\Billing\DocumentoNotificacionResolver;
 use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppGateway;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Barre billing_notifications en estado en_espera cuya ventana ya venció
- * y las envía por correo (PDF adjunto). Idempotente: usa lockForUpdate para
- * evitar doble envío en crons solapados. Reintento de SMTP: al fallar marca
+ * y las envía por correo (PDF adjunto). Idempotente: cada una se procesa en su
+ * transacción con lockForUpdate para evitar doble envío en crons solapados.
+ * Antes de enviar revalida el documento (DocumentoNotificacionResolver, FAC-04):
+ * prefactura de una factura ya pagada o cancelada → se cancela; recibo de un pago
+ * que dejó facturas pagadas → va la Factura (PAGADA) en su lugar. Reintento de SMTP: al fallar marca
  * 'error' con log; el siguiente barrido la ignorará (status != en_espera).
  *
  * Schedule: cada 15 minutos.
@@ -54,79 +59,117 @@ class SendBillingNotificationsCommand extends Command
         $sent   = 0;
         $errors = 0;
 
-        // Procesar una a una con lockForUpdate para evitar doble envío en crons solapados
+        // Una a una, cada una en su propia transacción con lockForUpdate: el candado dura hasta
+        // terminar de enviar, así dos barridos solapados no mandan dos veces la misma (antes el
+        // lockForUpdate iba sin transacción y no bloqueaba nada — FAC-04, item #509).
         $ids = (clone $query)->pluck('id');
+        $resolver = app(DocumentoNotificacionResolver::class);
+        $cancelled = 0;
 
         foreach ($ids as $id) {
-            $notif = BillingNotification::where('id', $id)
-                ->where('status', BillingNotification::STATUS_WAITING)
-                ->where('send_by_email', true)
-                ->where('notificar_despues_de', '<=', now())
-                ->lockForUpdate()
-                ->first();
+            $resultado = DB::transaction(function () use ($id, $dryRun, $resolver) {
+                $notif = BillingNotification::where('id', $id)
+                    ->where('status', BillingNotification::STATUS_WAITING)
+                    ->where('send_by_email', true)
+                    ->where('notificar_despues_de', '<=', now())
+                    ->lockForUpdate()
+                    ->first();
 
-            if (! $notif) {
-                // Ya fue procesada por otro worker o cambió de estado
-                continue;
-            }
-
-            if ($dryRun) {
-                $this->line("  [DRY-RUN] id={$notif->id} type={$notif->document_type} email={$notif->email}");
-                continue;
-            }
-
-            if (empty($notif->email)) {
-                if (config('billing.whatsapp_fallback_enabled')) {
-                    $phone = $this->resolveWhatsAppFallbackPhone($notif);
-
-                    if ($phone) {
-                        try {
-                            $this->sendWhatsAppFallback($notif, $phone);
-                            $notif->markSent();
-                            $sent++;
-                            $this->info("  ✔ Enviado (WhatsApp) notif#{$notif->id} ({$notif->document_type}) → {$phone}");
-                            Log::info("[billing:send] notif#{$notif->id} sin email, enviado por respaldo WhatsApp a {$phone}.");
-                        } catch (\Throwable $e) {
-                            $msg = 'Respaldo WhatsApp falló: ' . substr($e->getMessage(), 0, 450);
-                            $notif->markError($msg);
-                            $errors++;
-                            $this->error("  ✗ Error notif#{$notif->id}: {$msg}");
-                            Log::error("[billing:send] notif#{$notif->id}: {$msg}");
-                        }
-                        continue;
-                    }
-
-                    $notif->markError('Sin correo ni teléfono registrado (sin canal de notificación)');
-                    $errors++;
-                    Log::warning("[billing:send] notif#{$notif->id} sin email ni teléfono (respaldo WhatsApp activo, sin canal).");
-                    continue;
+                if (! $notif) {
+                    return null; // ya la procesó otro barrido o cambió de estado
                 }
 
-                $notif->markError('Sin dirección de correo');
-                $errors++;
-                Log::warning("[billing:send] notif#{$notif->id} sin email.");
-                continue;
-            }
+                // Revalidar JUSTO antes de enviar: la factura pudo pagarse o cancelarse durante
+                // la ventana; el documento se resuelve con el mismo criterio que «Enviar».
+                $decision = $resolver->resolver($notif, ! $dryRun);
 
-            try {
-                Correo::enviar('facturacion.correo_recibos', $notif->email, new BillingMail($notif));
-                $notif->markSent();
-                $sent++;
-                $this->info("  ✔ Enviado notif#{$notif->id} ({$notif->document_type}) → {$notif->email}");
-            } catch (\Throwable $e) {
-                $msg = substr($e->getMessage(), 0, 500);
-                $notif->markError($msg);
-                $errors++;
-                $this->error("  ✗ Error notif#{$notif->id}: {$msg}");
-                Log::error("[billing:send] notif#{$notif->id}: {$msg}");
-            }
+                if ($dryRun) {
+                    $this->line("  [DRY-RUN] id={$notif->id} type={$notif->document_type} email={$notif->email} → {$decision['accion']}: {$decision['motivo']}");
+
+                    return null;
+                }
+
+                if ($decision['accion'] === DocumentoNotificacionResolver::CANCELAR) {
+                    $notif->update(['status' => BillingNotification::STATUS_CANCELLED, 'error_log' => $decision['motivo']]);
+
+                    return 'cancelada';
+                }
+                if ($decision['accion'] === DocumentoNotificacionResolver::ERROR) {
+                    $notif->markError($decision['motivo']);
+                    Log::error("[billing:send] notif#{$notif->id}: {$decision['motivo']}");
+
+                    return 'error';
+                }
+
+                return $this->enviar($notif, $decision['documento']);
+            });
+
+            match ($resultado) {
+                'enviada'   => $sent++,
+                'error'     => $errors++,
+                'cancelada' => $cancelled++,
+                default     => null,
+            };
         }
 
         if (! $dryRun) {
-            $this->info("Resultado: {$sent} enviados, {$errors} errores.");
+            $this->info("Resultado: {$sent} enviados, {$errors} errores, {$cancelled} cancelados al revalidar.");
         }
 
         return self::SUCCESS;
+    }
+
+    /** Envía UNA notificación ya revalidada; devuelve 'enviada' o 'error'. */
+    private function enviar(BillingNotification $notif, ?array $documento): string
+    {
+        if (empty($notif->email)) {
+            if (config('billing.whatsapp_fallback_enabled')) {
+                $phone = $this->resolveWhatsAppFallbackPhone($notif);
+
+                if ($phone) {
+                    try {
+                        $this->sendWhatsAppFallback($notif, $phone);
+                        $notif->markSent();
+                        $this->info("  ✔ Enviado (WhatsApp) notif#{$notif->id} ({$notif->document_type}) → {$phone}");
+                        Log::info("[billing:send] notif#{$notif->id} sin email, enviado por respaldo WhatsApp a {$phone}.");
+
+                        return 'enviada';
+                    } catch (\Throwable $e) {
+                        $msg = 'Respaldo WhatsApp falló: ' . substr($e->getMessage(), 0, 450);
+                        $notif->markError($msg);
+                        $this->error("  ✗ Error notif#{$notif->id}: {$msg}");
+                        Log::error("[billing:send] notif#{$notif->id}: {$msg}");
+
+                        return 'error';
+                    }
+                }
+
+                $notif->markError('Sin correo ni teléfono registrado (sin canal de notificación)');
+                Log::warning("[billing:send] notif#{$notif->id} sin email ni teléfono (respaldo WhatsApp activo, sin canal).");
+
+                return 'error';
+            }
+
+            $notif->markError('Sin dirección de correo');
+            Log::warning("[billing:send] notif#{$notif->id} sin email.");
+
+            return 'error';
+        }
+
+        try {
+            Correo::enviar('facturacion.correo_recibos', $notif->email, new BillingMail($notif, $documento));
+            $notif->markSent();
+            $this->info("  ✔ Enviado notif#{$notif->id} ({$notif->document_type}) → {$notif->email}");
+
+            return 'enviada';
+        } catch (\Throwable $e) {
+            $msg = substr($e->getMessage(), 0, 500);
+            $notif->markError($msg);
+            $this->error("  ✗ Error notif#{$notif->id}: {$msg}");
+            Log::error("[billing:send] notif#{$notif->id}: {$msg}");
+
+            return 'error';
+        }
     }
 
     /**

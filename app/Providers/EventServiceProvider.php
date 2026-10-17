@@ -114,6 +114,8 @@ class EventServiceProvider extends ServiceProvider
         \App\Modules\Core\Clientes\Models\ClientMainInformation::observe(\App\Observers\Identidad\ColaboradorIdBridgeObserver::class);
         Payment::observe(PaymentObserver::class);
         Payment::observe(PaymentBillingObserver::class);
+        // FAC-04 (#509): al pagarse una factura se cancelan sus prefacturas en espera.
+        \App\Models\Invoice::observe(\App\Observers\InvoiceBillingObserver::class);
         Mikrotik::observe(MikrotikObserver::class);
         // Embajadores: recompute-on-write de contadores denormalizados del perfil.
         \App\Models\Referrals\Referral::observe(\App\Observers\Referrals\ReferralObserver::class);

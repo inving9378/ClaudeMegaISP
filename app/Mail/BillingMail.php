@@ -12,18 +12,33 @@ class BillingMail extends Mailable
 {
     use Queueable, SerializesModels;
 
+    /**
+     * @param array|null $documento lo que decidió DocumentoNotificacionResolver al enviar
+     *        (asunto, titulo, mensaje, etiqueta, folios, adjuntos[data,name,mime]); null = como
+     *        siempre: el asunto guardado y el PDF de pdf_path (FAC-04, item #509).
+     */
     public function __construct(
-        private readonly BillingNotification $notification
+        private readonly BillingNotification $notification,
+        private readonly ?array $documento = null,
     ) {}
 
     public function build(): static
     {
-        $subject = $this->notification->subject
+        $subject = $this->documento['asunto']
+            ?? $this->notification->subject
             ?? $this->defaultSubject();
 
         $mail = $this->from(config('mail.from.address'), config('mail.from.name'))
             ->subject($subject)
-            ->view('emails.billing', ['notification' => $this->notification]);
+            ->view('emails.billing', ['notification' => $this->notification, 'documento' => $this->documento]);
+
+        if (! empty($this->documento['adjuntos'])) {
+            foreach ($this->documento['adjuntos'] as $adjunto) {
+                $mail->attachData($adjunto['data'], $adjunto['name'], ['mime' => $adjunto['mime'] ?? 'application/pdf']);
+            }
+
+            return $mail;
+        }
 
         $disk = config('billing.pdf_disk', 'local');
         $path = $this->notification->pdf_path;

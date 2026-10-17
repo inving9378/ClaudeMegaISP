@@ -15,8 +15,12 @@ class PaymentBillingObserver
 {
     public function created(Payment $payment): void
     {
-        // Aplica SOLO a pagos de clientes (no a otros paymentable_type futuros)
-        if ($payment->paymentable_type !== 'App\Models\Client') {
+        // Aplica SOLO a pagos de clientes. Hay dos FQCN reales de Client: el legacy
+        // App\Models\Client (cajero, OpenPay, Portal de Pago) y el modular
+        // App\Modules\Core\Clientes\Models\Client (SPEI/conciliación vía
+        // PaymentApplicationService). Antes solo se aceptaba el primero y esos pagos se
+        // quedaban sin ticket ni recibo (FAC-04, item #509).
+        if (! $payment->isModelClient()) {
             return;
         }
 
