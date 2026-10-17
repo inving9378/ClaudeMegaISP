@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\BillingNotification;
+use App\Services\Finance\Billing\EvidenciaDocumentoService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
@@ -20,6 +21,7 @@ class BillingMail extends Mailable
     public function __construct(
         private readonly BillingNotification $notification,
         private readonly ?array $documento = null,
+        private readonly array $evidencias = [],
     ) {}
 
     public function build(): static
@@ -31,6 +33,12 @@ class BillingMail extends Mailable
         $mail = $this->from(config('mail.from.address'), config('mail.from.name'))
             ->subject($subject)
             ->view('emails.billing', ['notification' => $this->notification, 'documento' => $this->documento]);
+
+        // FAC-05: liga el correo con la evidencia de sus PDFs (el listener de MessageSent la marca aceptada).
+        if ($this->evidencias) {
+            $valor = EvidenciaDocumentoService::valorCabecera($this->evidencias);
+            $mail->withSymfonyMessage(fn ($m) => $m->getHeaders()->addTextHeader(EvidenciaDocumentoService::CABECERA, $valor));
+        }
 
         if (! empty($this->documento['adjuntos'])) {
             foreach ($this->documento['adjuntos'] as $adjunto) {

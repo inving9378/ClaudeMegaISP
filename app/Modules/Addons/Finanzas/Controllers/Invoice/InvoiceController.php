@@ -175,6 +175,9 @@ class InvoiceController extends CrudModalController
             $emailProps = $emailService->getEmailProps($email);
             if ($adjuntos) {
                 $emailProps['attachments'] = $adjuntos;
+                // FAC-05: evidencia de los bytes exactos que van en el correo (va por cola → «encolado»;
+                // el listener de MessageSent la marca «aceptado» cuando el worker lo manda).
+                $emailProps['evidencias'] = $this->registrarEvidencias($model, $adjuntos, $pagada, $emailProps['to'] ?? null, $asunto);
             }
             Notification::route('mail', $emailProps['to'])
                 ->notify(new StandardNotification($model, ['mail'], $emailProps));
@@ -321,6 +324,29 @@ class InvoiceController extends CrudModalController
         return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>No se pudo generar</title></head>'
             . '<body style="font-family:Arial,sans-serif;max-width:640px;margin:40px auto;color:#1A2430">'
             . '<h2 style="color:#B45309">No se pudo generar el documento</h2><p>' . e($mensaje) . '</p>' . $lista . '</body></html>';
+    }
+
+    /** FAC-05: guarda cada PDF adjunto de «Enviar» como evidencia. @return int[] */
+    private function registrarEvidencias(Invoice $invoice, array $adjuntos, bool $pagada, $destinatario, string $asunto): array
+    {
+        $servicio = app(\App\Services\Finance\Billing\EvidenciaDocumentoService::class);
+        $ids = [];
+        foreach ($adjuntos as $adjunto) {
+            $e = $servicio->registrar(['data' => base64_decode($adjunto['data']), 'name' => $adjunto['name']], [
+                'origen'       => \App\Models\BillingDocumentoEvidencia::ORIGEN_MANUAL,
+                'documento'    => $pagada ? 'factura' : 'prefactura',
+                'client_id'    => $invoice->client_id,
+                'invoice_id'   => $invoice->id,
+                'payment_id'   => $invoice->payment_id,
+                'destinatario' => is_array($destinatario) ? implode(',', $destinatario) : $destinatario,
+                'asunto'       => $asunto,
+            ], \App\Models\BillingDocumentoEvidencia::ESTADO_ENCOLADO);
+            if ($e) {
+                $ids[] = $e->id;
+            }
+        }
+
+        return $ids;
     }
 
     /**

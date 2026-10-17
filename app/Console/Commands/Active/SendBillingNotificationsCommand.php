@@ -8,11 +8,14 @@ use App\Mail\BillingMail;
 use App\Models\BillingConfig;
 use App\Models\BillingNotification;
 use App\Modules\Addons\Payments\Models\ClientPaymentReference;
+use App\Models\BillingDocumentoEvidencia;
 use App\Services\Finance\Billing\DocumentoNotificacionResolver;
+use App\Services\Finance\Billing\EvidenciaDocumentoService;
 use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppGateway;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Barre billing_notifications en estado en_espera cuya ventana ya venció
@@ -156,8 +159,10 @@ class SendBillingNotificationsCommand extends Command
             return 'error';
         }
 
+        $evidencias = $this->registrarEvidencias($notif, $documento);
+
         try {
-            Correo::enviar('facturacion.correo_recibos', $notif->email, new BillingMail($notif, $documento));
+            Correo::enviar('facturacion.correo_recibos', $notif->email, new BillingMail($notif, $documento, $evidencias));
             $notif->markSent();
             $this->info("  ✔ Enviado notif#{$notif->id} ({$notif->document_type}) → {$notif->email}");
 
@@ -165,11 +170,47 @@ class SendBillingNotificationsCommand extends Command
         } catch (\Throwable $e) {
             $msg = substr($e->getMessage(), 0, 500);
             $notif->markError($msg);
+            app(EvidenciaDocumentoService::class)->marcarFallido($evidencias, $msg);
             $this->error("  ✗ Error notif#{$notif->id}: {$msg}");
             Log::error("[billing:send] notif#{$notif->id}: {$msg}");
 
             return 'error';
         }
+    }
+
+    /**
+     * FAC-05: guarda los bytes exactos de cada PDF que va en el correo (resuelto al enviar o, si
+     * no, el PDF guardado de la notificación). @return int[] ids de evidencia
+     */
+    private function registrarEvidencias(BillingNotification $notif, ?array $documento): array
+    {
+        $adjuntos = $documento['adjuntos'] ?? [];
+        if (! $adjuntos && $notif->pdf_path) {
+            $disco = Storage::disk(config('billing.pdf_disk', 'local'));
+            if ($disco->exists($notif->pdf_path)) {
+                $adjuntos = [['data' => $disco->get($notif->pdf_path), 'name' => basename($notif->pdf_path)]];
+            }
+        }
+
+        $servicio = app(EvidenciaDocumentoService::class);
+        $ids = [];
+        foreach ($adjuntos as $adjunto) {
+            $e = $servicio->registrar($adjunto, [
+                'origen'                  => BillingDocumentoEvidencia::ORIGEN_AUTOMATICO,
+                'documento'               => $documento['tipo'] ?? $notif->document_type,
+                'billing_notification_id' => $notif->id,
+                'client_id'               => $notif->client_id,
+                'invoice_id'              => $adjunto['invoice_id'] ?? $notif->invoice_id,
+                'payment_id'              => $notif->payment_id,
+                'destinatario'            => $notif->email,
+                'asunto'                  => $documento['asunto'] ?? $notif->subject,
+            ]);
+            if ($e) {
+                $ids[] = $e->id;
+            }
+        }
+
+        return $ids;
     }
 
     /**

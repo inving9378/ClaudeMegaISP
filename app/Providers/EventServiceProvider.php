@@ -55,6 +55,10 @@ class EventServiceProvider extends ServiceProvider
         \Illuminate\Mail\Events\MessageSending::class => [
             \App\Listeners\Correo\InterceptarCorreoDev::class,
         ],
+        // FAC-05 (#510): evidencia del PDF enviado → «aceptado» con su Message-ID.
+        \Illuminate\Mail\Events\MessageSent::class => [
+            \App\Listeners\Correo\MarcarEvidenciaAceptada::class,
+        ],
         Registered::class => [
             SendEmailVerificationNotification::class,
         ],

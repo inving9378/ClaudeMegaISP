@@ -50,6 +50,14 @@ class StandardMail extends Mailable
             ]);
         }
 
+        // FAC-05: liga el correo con la evidencia de sus PDFs (MarcarEvidenciaAceptada).
+        if (!empty($this->emailProps['evidencias'])) {
+            $valor = \App\Services\Finance\Billing\EvidenciaDocumentoService::valorCabecera((array) $this->emailProps['evidencias']);
+            $mail->withSymfonyMessage(fn ($m) => $m->getHeaders()->addTextHeader(
+                \App\Services\Finance\Billing\EvidenciaDocumentoService::CABECERA, $valor
+            ));
+        }
+
         return $mail;
     }
 }
