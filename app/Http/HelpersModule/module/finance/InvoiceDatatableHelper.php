@@ -17,7 +17,10 @@ class InvoiceDatatableHelper extends HelperModuleDatatable
     }
 
 
-    /** «Documento» no es columna de la BD: ordenarla es ordenar por estado. */
+    /**
+     * «Documento» no es columna de la BD: ordenarla es ordenar por estado. «Método de pago» se ordena
+     * por el nombre del catálogo, no por el id guardado.
+     */
     public function ordering_query($start, $limit, $order, $dir, $filters = null)
     {
         return parent::ordering_query($start, $limit, $this->columnaOrden($order), $dir, $filters);
@@ -30,7 +33,11 @@ class InvoiceDatatableHelper extends HelperModuleDatatable
 
     private function columnaOrden($order)
     {
-        return $order === 'documento' ? 'status' : $order;
+        return match ($order) {
+            'documento'      => 'status',
+            'payment_method' => Invoice::ordenMetodoPagoSql(),
+            default          => $order,
+        };
     }
 
     public function transform($request)
@@ -78,6 +85,8 @@ class InvoiceDatatableHelper extends HelperModuleDatatable
                 $nestedData['status'] = view('meganet.shared.table.module.finance.invoice.status', $info)->toHtml();
                 $nestedData['client_id'] = view('meganet.shared.table.module.finance.invoice.client', $info)->toHtml();
                 $nestedData['period'] = view('meganet.shared.table.module.finance.invoice.period', $info)->toHtml();
+                // Nombre del método (catálogo), no el id guardado (item #505).
+                $nestedData['payment_method'] = e(Invoice::etiquetaMetodoPago($value->getAttribute('payment_method')));
                 // Columna calculada (item #505): el mismo Invoice::documentoVigente() que decide el ícono.
                 $nestedData['documento'] = view('meganet.shared.table.module.finance.invoice.documento', $info)->toHtml();
                 $data[] = $nestedData;

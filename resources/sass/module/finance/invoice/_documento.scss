@@ -1,0 +1,36 @@
+// Columna «Documento» de las facturas (item #505): Proforma / Factura s/v fiscal / Factura CFDI.
+// Definidas UNA vez; las usan la ficha del cliente y /finanzas/invoices (vista
+// meganet/shared/table/module/finance/invoice/documento.blade.php). Modo oscuro con el selector
+// del proyecto (el toggle de arriba a la derecha pone body[data-layout-mode=dark]).
+.doc-factura {
+    display: inline-block;
+    white-space: nowrap;
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.45;
+}
+
+.doc-factura--prefactura { background-color: #FEF3C7; color: #92400E; }
+.doc-factura--factura    { background-color: #DCFCE7; color: #166534; }
+.doc-factura--cfdi       { background-color: #DBEAFE; color: #1E40AF; }
+
+[data-layout-mode=dark] {
+    .doc-factura--prefactura { background-color: rgba(245, 158, 11, .18); color: #FCD34D; border-color: rgba(245, 158, 11, .4); }
+    .doc-factura--factura    { background-color: rgba(34, 197, 94, .18);  color: #86EFAC; border-color: rgba(34, 197, 94, .4); }
+    .doc-factura--cfdi       { background-color: rgba(59, 130, 246, .20); color: #93C5FD; border-color: rgba(59, 130, 246, .4); }
+}
+
+// La celda del Datatable pinta el contenido en <q-item-label lines="1"> (una línea con elipsis):
+// sin esto «Factura s/v fiscal» se cortaba. Ancho mínimo de la columna y sin recorte del badge.
+.q-td:has(.doc-factura) {
+    min-width: 150px;
+}
+
+.q-item__label:has(> span > .doc-factura),
+.q-item__label:has(> .doc-factura) {
+    overflow: visible;
+    text-overflow: clip;
+}
