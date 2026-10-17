@@ -124,7 +124,7 @@ class PrefacturaDataProviderTest extends TestCase
         $this->assertStringContainsString('CLABE', $d['bloque_pago']);
         $this->assertStringContainsString('MEG-00005607-37', $d['bloque_pago']);
         $this->assertStringContainsString('Internet &lt;Gamer&gt; 100+', $d['conceptos_filas'], 'se escapa el nombre');
-        $this->assertStringContainsString('Sin datos fiscales registrados', $d['receptor_nota']);
+        $this->assertStringContainsString('Público en general', $d['receptor_nota']);
         $this->assertSame('—', $d['receptor_rfc']);
         $this->assertStringContainsString('fisc-pend', $d['bloque_fiscal']);
         $this->assertStringContainsString('facturacion@meganett.com.mx', $d['bloque_fiscal']);

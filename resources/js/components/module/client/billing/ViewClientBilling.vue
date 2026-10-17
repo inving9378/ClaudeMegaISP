@@ -224,7 +224,14 @@
 
                 <ClientPaymentAccount :id="id" />
                 <br />
-                <ClientBillingAddress :id="id" />
+                <!-- Datos de facturación (FR-01 #535): única tarjeta; reemplaza a «Dirección de facturación» -->
+                <div class="ml-xl-3">
+                    <ClientDatosFacturacionCard
+                        :client-id="id"
+                        :puede-ver="hasPermission.data.canView('facturacion.ver')"
+                        :puede-editar="hasPermission.data.canView('facturacion.fiscal.editar')"
+                    />
+                </div>
                 <br />
                 <ClientRemindersConfiguration
                     v-if="isRecurrentTypeOfBilling"
@@ -344,7 +351,7 @@
 <script>
 import ClientBillingConfiguration from "./ClientBillingConfiguration";
 import ClientPaymentAccount from "./ClientPaymentAccount";
-import ClientBillingAddress from "./ClientBillingAddress";
+import ClientDatosFacturacionCard from "./ClientDatosFacturacionCard.vue";
 import ClientRemindersConfiguration from "./ClientRemindersConfiguration";
 import ClientBillingPauseButton from "./ClientBillingPauseButton.vue";
 import ClientBillingPausePanel from "./ClientBillingPausePanel.vue";
@@ -375,7 +382,7 @@ export default {
     name: "ViewClientBilling",
     components: {
         ClientRemindersConfiguration,
-        ClientBillingAddress,
+        ClientDatosFacturacionCard,
         ClientPaymentAccount,
         ClientBillingConfiguration,
         ClientBillingPauseButton,

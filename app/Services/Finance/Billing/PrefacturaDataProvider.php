@@ -156,7 +156,8 @@ class PrefacturaDataProvider
             'receptor_regimen_fiscal' => e($fiscal['regimen'] ?? '—'),
             'receptor_cp_fiscal'      => e($fiscal['cp'] ?? '—'),
             'receptor_uso_cfdi'       => e($fiscal['uso'] ?? '—'),
-            'receptor_nota'           => $fiscal ? '' : 'Sin datos fiscales registrados',
+            // FR-01 (#535): sin factura fiscal (o sin datos completos) = público en general.
+            'receptor_nota'           => $fiscal ? '' : 'Público en general (sin factura fiscal)',
             'conceptos_filas'         => self::filasConceptos($c['conceptos'] ?? [], (string) ($c['periodo'] ?? '')),
             'subtotal'                => e(self::dinero($subtotal)),
             'descuentos'              => e($descuento > 0 ? '-' . self::dinero($descuento) : self::dinero(0)),
@@ -300,8 +301,8 @@ class PrefacturaDataProvider
                 . 'solicitar la factura fiscal de este periodo' . $contacto . '.</div></td></tr></table>';
         }
 
-        return '<table class="fisc-pend"><tr><td class="hd2">Sin datos fiscales</td></tr>'
-            . '<tr><td class="bd2"><div class="note">No tenemos datos fiscales registrados para este cliente. '
+        return '<table class="fisc-pend"><tr><td class="hd2">P&uacute;blico en general</td></tr>'
+            . '<tr><td class="bd2"><div class="note">Este documento se emite a p&uacute;blico en general. '
             . 'Si necesitas factura fiscal, comp&aacute;rtenos tu RFC, raz&oacute;n social, r&eacute;gimen fiscal y '
             . 'c&oacute;digo postal (constancia de situaci&oacute;n fiscal)' . $contacto . '.</div></td></tr></table>';
     }

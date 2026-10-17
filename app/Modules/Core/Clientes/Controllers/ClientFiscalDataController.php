@@ -63,6 +63,8 @@ class ClientFiscalDataController extends Controller
             'uso_cfdi'              => ['required_if:facturacion_fiscal,true', 'nullable',
                                         'in:' . implode(',', array_keys(ClientFiscalData::catalogoUsoCFDI()))],
             'correo_fiscal'         => 'nullable|email|max:200',
+            'calle'                 => 'nullable|string|max:255',
+            'ciudad'                => 'nullable|string|max:150',
             'constancia'            => 'nullable|file|mimes:pdf|max:5120',
         ]);
 
@@ -93,6 +95,8 @@ class ClientFiscalDataController extends Controller
             'regimen_fiscal'        => $request->input('regimen_fiscal'),
             'uso_cfdi'              => $request->input('uso_cfdi'),
             'correo_fiscal'         => $request->input('correo_fiscal'),
+            'calle'                 => $this->opcional($request->input('calle')),
+            'ciudad'                => $this->opcional($request->input('ciudad')),
             'updated_by'            => $userId,
         ]);
 
@@ -112,6 +116,13 @@ class ClientFiscalDataController extends Controller
         $fiscal->save();
 
         return response()->json(['data' => $fiscal, 'message' => 'Datos fiscales guardados.']);
+    }
+
+    private function opcional($valor): ?string
+    {
+        $valor = trim((string) $valor);
+
+        return $valor === '' ? null : $valor;
     }
 
     /**

@@ -20,6 +20,8 @@ class ClientFiscalData extends Model
         'regimen_fiscal',
         'uso_cfdi',
         'correo_fiscal',
+        'calle',
+        'ciudad',
         'constancia_path',
         'created_by',
         'updated_by',
@@ -28,6 +30,28 @@ class ClientFiscalData extends Model
     protected $casts = [
         'facturacion_fiscal' => 'boolean',
     ];
+
+    /**
+     * FR-01 (#535): esta tabla es la ÚNICA fuente de los datos de facturación del cliente (tarjeta
+     * «Datos de facturación» de Facturación › Vista de facturación). Prefactura, CFDI y portal leen
+     * de aquí; billing_addresses («Dirección de facturación») quedó solo como histórico. El RFC/CURP
+     * de Datos personales es otro dato y no se mezcla con este.
+     */
+    public const PUBLICO_EN_GENERAL = 'Público en general';
+
+    /** RFC genérico del SAT para público en general (factura de mostrador / global). */
+    public const RFC_PUBLICO_EN_GENERAL = 'XAXX010101000';
+
+    public static function deCliente(int $clientId): ?self
+    {
+        return static::where('client_id', $clientId)->first();
+    }
+
+    /** Sin factura fiscal → se le factura como público en general. */
+    public function requiereFacturaFiscal(): bool
+    {
+        return (bool) $this->facturacion_fiscal;
+    }
 
     // ─── Catálogos SAT (subconjunto para ISP persona física y moral) ──────────
 

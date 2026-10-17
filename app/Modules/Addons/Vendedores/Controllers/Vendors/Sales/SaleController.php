@@ -292,11 +292,12 @@ class SaleController extends Controller
                 'reminder_payment_amount',
                 'reminder_payment_comment',
             ],
-            'billing_addresses' => [
-                'billing_name',
-                'billing_street',
-                'billing_zip_code',
-                'billing_city',
+            // Datos de facturación (FR-01 #535): fuente única client_fiscal_data, mismos alias.
+            'client_fiscal_data' => [
+                'billing_name' => ['column' => 'razon_social'],
+                'billing_street' => ['column' => 'calle'],
+                'billing_zip_code' => ['column' => 'codigo_postal_fiscal'],
+                'billing_city' => ['column' => 'ciudad'],
             ],
             'balances' => [
                 'amount'
@@ -416,9 +417,9 @@ class SaleController extends Controller
                 'type' => 'leftJoin',
                 'on' => ['clients.id', '=', 'reminders_configurations.client_id']
             ],
-            'billing_addresses' => [
+            'client_fiscal_data' => [
                 'type' => 'leftJoin',
-                'on' => ['clients.id', '=', 'billing_addresses.client_id']
+                'on' => ['clients.id', '=', 'client_fiscal_data.client_id']
             ],
             'balances' => [
                 'type' => 'leftJoin',
