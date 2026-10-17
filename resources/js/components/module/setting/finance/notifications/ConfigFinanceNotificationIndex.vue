@@ -15,6 +15,9 @@
             @tab-change="setActiveSubTab"
         />
 
+        <!-- FR-05 (#539): valor general de «Envío prefactura» en Facturas proforma -->
+        <EnvioPrefacturaGeneral v-if="activeSubTab === 'proforma_invoice'" />
+
         <!-- Contenido dinámico -->
         <div class="accordion" :id="`accordionPanelsStayOpen${activeTab}`">
             <ContentConfig
@@ -35,12 +38,14 @@ import Permission from "../../../../../helpers/Permission";
 import { allViewHasPermission } from "../../../../../helpers/Request";
 import ContentConfig from "./components/ContentConfig.vue";
 import TabNavigation from "./components/TabNavigation.vue";
+import EnvioPrefacturaGeneral from "./components/EnvioPrefacturaGeneral.vue";
 
 export default {
     name: "ConfigFinanceNotificationIndex",
     components: {
         ContentConfig,
         TabNavigation,
+        EnvioPrefacturaGeneral,
     },
     setup() {
         // Estado reactivo

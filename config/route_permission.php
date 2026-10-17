@@ -1552,6 +1552,7 @@ return [
         '/configuracion/finance-notification',
         '/configuracion/finance-notification/get-data-tabs',
         '/configuracion/finance-notification/update/{id}',
+        '/configuracion/finance-notification/envio-prefactura', // FR-05 (#539)
 
     ],
 

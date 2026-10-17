@@ -309,6 +309,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/', [ConfigFinanceNotificationController::class, 'index']);
             Route::post('/get-data-tabs', [ConfigFinanceNotificationController::class, 'getDataTabs']);
             Route::post('/update/{id}', [ConfigFinanceNotificationController::class, 'update']);
+            // FR-05 (#539): valor general de «Envío prefactura»
+            Route::get('/envio-prefactura', [\App\Modules\Core\Configuracion\Controllers\Finance\EnvioPrefacturaGeneralController::class, 'show']);
+            Route::post('/envio-prefactura', [\App\Modules\Core\Configuracion\Controllers\Finance\EnvioPrefacturaGeneralController::class, 'update']);
         });
 
         // Vista web del catálogo de API
