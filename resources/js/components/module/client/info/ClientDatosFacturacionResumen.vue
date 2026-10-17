@@ -6,7 +6,8 @@
                 <span class="dfr-badge" :class="datos.facturacion_fiscal ? 'dfr-badge--on' : 'dfr-badge--off'">
                     {{ datos.facturacion_fiscal ? "Requiere factura fiscal" : "Público en general" }}
                 </span>
-                <a class="btn btn-outline-primary btn-sm" :href="`/cliente/editar/${clientId}?tab=facturacion`">
+                <!-- data-spa-skip: recarga completa; la navegación interna no vuelve a elegir la pestaña -->
+                <a class="btn btn-outline-primary btn-sm" :href="`/cliente/editar/${clientId}?tab=facturacion`" data-spa-skip>
                     {{ puedeEditar ? "Editar en Facturación" : "Ver en Facturación" }}
                 </a>
             </span>
