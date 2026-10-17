@@ -11,6 +11,7 @@ use App\Modules\Addons\Payments\Models\ClientPaymentReference;
 use App\Models\BillingDocumentoEvidencia;
 use App\Services\Finance\Billing\DocumentoNotificacionResolver;
 use App\Services\Finance\Billing\EvidenciaDocumentoService;
+use App\Services\Finance\Billing\ReactivacionEnvios;
 use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppGateway;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -68,8 +69,31 @@ class SendBillingNotificationsCommand extends Command
         $ids = (clone $query)->pluck('id');
         $resolver = app(DocumentoNotificacionResolver::class);
         $cancelled = 0;
+        $fueraDeEtapa = 0;
+        $etapa = app(ReactivacionEnvios::class);
+        $enviadosHoy = BillingNotification::where('status', BillingNotification::STATUS_SENT)->whereDate('enviado_at', today())->count();
+        $this->info('Reactivación (FAC-08): etapa ' . $etapa->etapa() . ', cupo de esta corrida ' . $etapa->cupo(0, $enviadosHoy) . '.');
 
         foreach ($ids as $id) {
+            // FAC-08: segunda compuerta detrás de la pausa. Fuera de etapa = se queda en espera.
+            if (! $dryRun && $etapa->cupo($sent, $enviadosHoy + $sent) <= 0) {
+                $this->warn('  Parada: se alcanzó el límite de la etapa (por corrida o por día).');
+                break;
+            }
+            if (! $dryRun && $etapa->pararPorErrores($errors)) {
+                $this->warn("  Parada: {$errors} errores en esta corrida (límite de la etapa).");
+                Log::warning("[billing:send] corrida detenida por errores ({$errors}).");
+                break;
+            }
+            [$permitido, $motivoEtapa] = $etapa->permiteCliente(BillingNotification::whereKey($id)->value('client_id'));
+            if (! $permitido) {
+                $fueraDeEtapa++;
+                if ($dryRun) {
+                    $this->line("  [DRY-RUN] id={$id} queda en espera: {$motivoEtapa}");
+                }
+                continue;
+            }
+
             $resultado = DB::transaction(function () use ($id, $dryRun, $resolver) {
                 $notif = BillingNotification::where('id', $id)
                     ->where('status', BillingNotification::STATUS_WAITING)
@@ -116,7 +140,7 @@ class SendBillingNotificationsCommand extends Command
         }
 
         if (! $dryRun) {
-            $this->info("Resultado: {$sent} enviados, {$errors} errores, {$cancelled} cancelados al revalidar.");
+            $this->info("Resultado: {$sent} enviados, {$errors} errores, {$cancelled} cancelados al revalidar, {$fueraDeEtapa} fuera de etapa (siguen en espera).");
         }
 
         return self::SUCCESS;
@@ -126,7 +150,7 @@ class SendBillingNotificationsCommand extends Command
     private function enviar(BillingNotification $notif, ?array $documento): string
     {
         if (empty($notif->email)) {
-            if (config('billing.whatsapp_fallback_enabled')) {
+            if (app(ReactivacionEnvios::class)->permiteWhatsApp()) {
                 $phone = $this->resolveWhatsAppFallbackPhone($notif);
 
                 if ($phone) {

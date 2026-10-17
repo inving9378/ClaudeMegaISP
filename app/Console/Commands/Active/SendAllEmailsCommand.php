@@ -9,6 +9,7 @@ use App\Models\Reminder;
 use App\Modules\Core\Configuracion\Services\EmailConfigService;
 use Illuminate\Console\Command;
 use Carbon\Carbon;
+use App\Services\Finance\Billing\ReactivacionEnvios;
 
 class SendAllEmailsCommand extends Command
 {
@@ -41,6 +42,16 @@ class SendAllEmailsCommand extends Command
 
     public function handle()
     {
+        // FAC-08 (#515): la misma compuerta de reactivación gradual que billing:send-pending-notifications.
+        // En «cerrado» (default) este canal no manda nada a clientes.
+        $etapa = app(ReactivacionEnvios::class);
+        if ($etapa->etapa() === ReactivacionEnvios::CERRADO) {
+            $this->info('Reactivación de envíos cerrada (billing.reactivacion.etapa): no se envía nada por este canal.');
+            return;
+        }
+        $enviadosCorrida = 0;
+        $erroresCorrida = 0;
+
         $emailSetting = EmailSetting::first();
         $limitPerHour = $emailSetting->limit_per_hour;
         $unlimitedMode = $limitPerHour === 0;
@@ -102,6 +113,13 @@ class SendAllEmailsCommand extends Command
             $typeSentCount = 0;
 
             foreach ($emailsToSend as $email) {
+                if ($etapa->cupo($enviadosCorrida, $enviadosCorrida) <= 0 || $etapa->pararPorErrores($erroresCorrida)) {
+                    $this->warn('Parada por límite o errores de la etapa de reactivación.');
+                    break 2;
+                }
+                if (! $etapa->permiteCliente((int) $email->client_id)[0]) {
+                    continue; // fuera de la etapa: se queda pendiente
+                }
                 try {
                     $emailConfigService = new EmailConfigService();
                     $emailConfigService->sendEmail($type, $email);
@@ -109,11 +127,13 @@ class SendAllEmailsCommand extends Command
 
                     $typeSentCount++;
                     $totalSent++;
+                    $enviadosCorrida++;
 
                     $message = "Email {$type} enviado a {$email->recipient_email}";
                     $message .= $unlimitedMode ? "" : " ({$typeSentCount}/{$remainingSlots})";
                     $this->info($message);
                 } catch (\Exception $e) {
+                    $erroresCorrida++;
                     $this->handleEmailError($type, $email, $e);
                 }
             }
