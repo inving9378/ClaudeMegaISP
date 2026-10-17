@@ -124,14 +124,45 @@ class ProformaAnticipadaComandoTest extends TestCase
         $this->assertSame([], $this->proformas());
     }
 
-    public function test_encendido_con_delay_days_invalido_no_crea_nada(): void
+    public function test_encendido_ya_no_usa_delay_days(): void
     {
+        // FR-05 (#539): los días salen de «Envío prefactura» (general 5), no de delay_days.
         config(['billing.proforma_anticipada' => true]);
         DB::table('config_finance_notifications')->where('type_config', 'proforma_invoice')->update(['delay_days' => 'abc']);
 
-        $this->artisan('invoice:create-proformas')->expectsOutputToContain('No se creó nada')->assertExitCode(0);
+        $this->artisan('invoice:create-proformas')->expectsOutputToContain('Envío prefactura: 5 días')->assertExitCode(0);
 
-        $this->assertSame([], $this->proformas());
+        $this->assertSame(['A' => '2026-10'], $this->proformas());
+    }
+
+    public function test_envio_prefactura_por_cliente_y_desde_el_dia_de_facturacion(): void
+    {
+        // FR-05 (#539). billing_configurations TEMPORAL con la columna nueva (tapa a la real solo aquí).
+        Schema::create('billing_configurations', function (Blueprint $t) {
+            $t->temporary();
+            $t->id();
+            $t->unsignedBigInteger('client_id');
+            $t->unsignedBigInteger('type_billing_id')->nullable();
+            $t->unsignedTinyInteger('envio_prefactura_dias')->nullable();
+            $t->timestamps();
+        });
+        config(['billing.proforma_anticipada' => true]);
+        // A: corte en 2 días pero su Envío prefactura es 1 → hoy no.
+        DB::table('billing_configurations')->insert(['client_id' => $this->clientes['A'], 'type_billing_id' => 3, 'envio_prefactura_dias' => 1]);
+        // F: recurrente, día de facturación (fecha_pago) en 5 días y corte en 6 → sí, se cuenta desde el día de facturación.
+        $f = $this->cliente('2026-10-22 23:59:59');
+        DB::table('clients')->where('id', $f)->update(['fecha_pago' => '2026-10-21 00:00:00']);
+        DB::table('billing_configurations')->insert(['client_id' => $f, 'type_billing_id' => 1, 'envio_prefactura_dias' => null]);
+        $this->clientes['F'] = $f;
+
+        $this->artisan('invoice:create-proformas')->assertExitCode(0);
+
+        $this->assertSame(['F' => '2026-10'], $this->proformas(), 'periodo = mes del corte, como siempre');
+        $this->assertSame('2026-10-22', substr((string) Invoice::where('client_id', $f)->value('due_date'), 0, 10), 'fecha límite = corte');
+
+        Carbon::setTestNow('2026-10-17 03:00:00');
+        $this->artisan('invoice:create-proformas')->assertExitCode(0);
+        $this->assertSame(['A' => '2026-10', 'F' => '2026-10'], $this->proformas(), 'A entra a 1 día de su corte');
     }
 
     public function test_cancelado_no_recibe_prefactura_en_ninguna_regla(): void
@@ -154,6 +185,9 @@ class ProformaAnticipadaComandoTest extends TestCase
     {
         $this->artisan('invoice:proformas-simular', ['--dias' => 3, '--horizonte' => 30])
             ->expectsOutputToContain('Nada se creó ni se modificó')
+            ->assertExitCode(0);
+        $this->artisan('invoice:proformas-simular', ['--horizonte' => 30])
+            ->expectsOutputToContain('Envío prefactura de cada cliente (general: 5)')
             ->assertExitCode(0);
 
         $this->assertSame([], $this->proformas());

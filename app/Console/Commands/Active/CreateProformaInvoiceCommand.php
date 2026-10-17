@@ -9,12 +9,14 @@ use App\Modules\Core\Clientes\Models\ClientBillingPause;
 use App\Models\Invoice;
 use App\Services\Finance\Invoice\InvoiceService;
 use App\Services\Finance\Billing\BillingDocumentService;
+use App\Services\Finance\Invoice\EnvioPrefactura;
 use App\Services\Finance\Invoice\ProformaAnticipada;
 use App\Services\Finance\Billing\ReglasFacturacion;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class CreateProformaInvoiceCommand extends Command
 {
@@ -48,7 +50,7 @@ class CreateProformaInvoiceCommand extends Command
             }
 
             if (config('billing.proforma_anticipada')) {
-                $this->crearAnticipadas($config);
+                $this->crearAnticipadas();
                 return;
             }
 
@@ -102,26 +104,28 @@ class CreateProformaInvoiceCommand extends Command
     }
 
     /**
-     * FAC-06 (#512): cada cliente cuyo corte cae entre hoy y hoy + N días (N = delay_days de
-     * proforma_invoice), con el periodo del mes de SU corte. Sin retroactivo: cortes pasados no se
-     * recuperan. Mismas exclusiones (sin ficha, factura del periodo ya creada, pausa en curso) y la
-     * misma creación idempotente (createProformaForClient) que la regla de siempre.
+     * FAC-06 (#512) + FR-05 (#539, decisión de Irving 2026-10-17): cada cliente recibe su proforma
+     * N días antes de SU día de facturación, con N = su «Envío prefactura» o, si no tiene, el valor
+     * general (5). Día de facturación: fecha_pago en pago recurrente, fecha_corte en los demás
+     * (EnvioPrefactura). El periodo y la fecha límite siguen siendo su fecha de corte, como la regla
+     * de siempre. Sin retroactivo: un corte ya pasado no se recupera. Mismas exclusiones (sin ficha,
+     * Cancelado, factura del periodo ya creada, pausa en curso) y misma creación idempotente.
      */
-    private function crearAnticipadas($config): void
+    private function crearAnticipadas(): void
     {
-        $dias = ProformaAnticipada::dias($config->delay_days ?? null);
-        if ($dias === null) {
-            Log::warning('[invoice:create-proformas] proforma anticipada encendida pero delay_days no es válido ('
-                . var_export($config->delay_days ?? null, true) . '): no se crea nada.');
-            $this->error('Proforma anticipada: delay_days de «proforma_invoice» no es un número de días válido (0-'
-                . ProformaAnticipada::MAX_DIAS . '). No se creó nada.');
-            return;
-        }
-
+        $general = EnvioPrefactura::diasPorDefecto();
+        $maxPropio = Schema::hasColumn('billing_configurations', 'envio_prefactura_dias')
+            ? (int) DB::table('billing_configurations')->where('envio_prefactura_dias', '<=', ProformaAnticipada::MAX_DIAS)->max('envio_prefactura_dias')
+            : 0;
         $hoy = Carbon::today();
+        $desde = $hoy->toDateString();
+        $hasta = $hoy->copy()->addDays(max($general, $maxPropio))->toDateString();
+
         $clientes = Client::whereHas('client_main_information', $this->sinCancelados())
-            ->whereDate('fecha_corte', '>=', $hoy->toDateString())
-            ->whereDate('fecha_corte', '<=', $hoy->copy()->addDays($dias)->toDateString())
+            ->where(function ($q) use ($desde, $hasta) {
+                $q->where(fn ($w) => $w->whereDate('fecha_pago', '>=', $desde)->whereDate('fecha_pago', '<=', $hasta))
+                    ->orWhere(fn ($w) => $w->whereDate('fecha_corte', '>=', $desde)->whereDate('fecha_corte', '<=', $hasta));
+            })
             ->whereDoesntHave('billingPauses', function ($query) {
                 $query->where('estado', ClientBillingPause::ESTADO_EN_CURSO);
             })
@@ -129,8 +133,13 @@ class CreateProformaInvoiceCommand extends Command
 
         $contador = 0;
         foreach ($clientes as $cliente) {
+            $config = $cliente->billing_configuration;
+            $facturacion = EnvioPrefactura::fechaDeFacturacion($cliente, $config);
             $corte = ProformaAnticipada::corte($cliente->fecha_corte);
-            if (! $corte || ! ProformaAnticipada::tocaHoy($corte, $dias, $hoy)) {
+            if (! $facturacion || ! $corte || $corte->lt($hoy)) {
+                continue;
+            }
+            if (! ProformaAnticipada::tocaHoy($facturacion, EnvioPrefactura::diasDe($config, $general), $hoy)) {
                 continue;
             }
             try {
@@ -143,7 +152,7 @@ class CreateProformaInvoiceCommand extends Command
             }
         }
 
-        $this->info("Proforma anticipada ({$dias} días antes del corte): se crearon {$contador} proformas.");
+        $this->info("Proforma anticipada (Envío prefactura: {$general} días antes del día de facturación, o los del cliente): se crearon {$contador} proformas.");
     }
 
     /** FR-02 (#536): un cliente Cancelado (baja definitiva) ya no recibe prefacturas. */

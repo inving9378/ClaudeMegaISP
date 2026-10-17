@@ -19,6 +19,16 @@ class ClientBillingConfigurationController extends Controller
 
     public function update(Request $request, $id)
     {
+        // FR-05 (#539): «Envío prefactura» del cliente: vacío = usa el valor general; si no, 0-60 días.
+        if ($request->has('envio_prefactura_dias')) {
+            $dias = trim((string) $request->input('envio_prefactura_dias'));
+            $request->merge(['envio_prefactura_dias' => $dias === '' ? null : $dias]);
+            $request->validate(
+                ['envio_prefactura_dias' => 'nullable|integer|min:0|max:' . \App\Services\Finance\Invoice\ProformaAnticipada::MAX_DIAS],
+                [],
+                ['envio_prefactura_dias' => 'Envío prefactura']
+            );
+        }
         $client = Client::find($id);
         return $this->saveSingleRelationWithoutModel('App\Modules\Core\Configuracion\Models\BillingConfiguration', 'billing_configuration','client_id','id', $client, $request);
     }
