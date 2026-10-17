@@ -428,22 +428,23 @@ class ClientDatatableHelper
                 'join' => "'reminders_configurations', 'clients.id', '=', 'reminders_configurations.client_id'"
             ],
 
-            // Campos de billing_addresses
+            // Datos de facturación (FR-01 #535): la fuente única es client_fiscal_data; las columnas
+            // conservan su nombre para no romper las listas guardadas de cada usuario.
             'billing_name' => [
-                'column' => 'billing_addresses.billing_name',
-                'join' => "'billing_addresses', 'clients.id', '=', 'billing_addresses.client_id'"
+                'column' => 'client_fiscal_data.razon_social as billing_name',
+                'join' => "'client_fiscal_data', 'clients.id', '=', 'client_fiscal_data.client_id'"
             ],
             'billing_street' => [
-                'column' => 'billing_addresses.billing_street',
-                'join' => "'billing_addresses', 'clients.id', '=', 'billing_addresses.client_id'"
+                'column' => 'client_fiscal_data.calle as billing_street',
+                'join' => "'client_fiscal_data', 'clients.id', '=', 'client_fiscal_data.client_id'"
             ],
             'billing_zip_code' => [
-                'column' => 'billing_addresses.billing_zip_code',
-                'join' => "'billing_addresses', 'clients.id', '=', 'billing_addresses.client_id'"
+                'column' => 'client_fiscal_data.codigo_postal_fiscal as billing_zip_code',
+                'join' => "'client_fiscal_data', 'clients.id', '=', 'client_fiscal_data.client_id'"
             ],
             'billing_city' => [
-                'column' => 'billing_addresses.billing_city',
-                'join' => "'billing_addresses', 'clients.id', '=', 'billing_addresses.client_id'"
+                'column' => 'client_fiscal_data.ciudad as billing_city',
+                'join' => "'client_fiscal_data', 'clients.id', '=', 'client_fiscal_data.client_id'"
             ],
 
             // Campos de balances
@@ -889,10 +890,10 @@ class ClientDatatableHelper
             'reminders_configurations.reminder_payment_amount',
             'reminders_configurations.reminder_payment_comment',
 
-            'billing_addresses.billing_name',
-            'billing_addresses.billing_street',
-            'billing_addresses.billing_zip_code',
-            'billing_addresses.billing_city',
+            'client_fiscal_data.razon_social as billing_name',
+            'client_fiscal_data.calle as billing_street',
+            'client_fiscal_data.codigo_postal_fiscal as billing_zip_code',
+            'client_fiscal_data.ciudad as billing_city',
 
             'balances.amount',
 

@@ -1,6 +1,5 @@
 <?php
 
-use App\Modules\Core\Clientes\Controllers\ClientBillingAddressController;
 use App\Modules\Core\Clientes\Controllers\ClientBillingPauseController;
 use App\Modules\Core\Clientes\Controllers\ClientFiscalDataController;
 use App\Modules\Core\Clientes\Controllers\ClientBillingConfigurationController;
@@ -148,14 +147,14 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/update-billing-configuration/{id}', [ClientBillingConfigurationController::class, 'update']);
             Route::post('/client-debit-rectification-agreement/{id}', [ClientBillingConfigurationController::class, 'getClientDebitRectificationAgreement']);
 
-            Route::post('/update-billing-address/{id}', [ClientBillingAddressController::class, 'update']);
+            // FR-01 (#535): «Dirección de facturación» se unificó en «Datos de facturación» (datos-fiscales).
             Route::post('/update-reminders-configuration/{id}', [ClientBillingRemindersConfigurationController::class, 'update']);
             Route::post('/get-reminder-payment-amount/{id}', [ClientBillingRemindersConfigurationController::class, 'getReminderPaymentAmount']);
             Route::post('/get-billing-information-block/{id}', [ClientBillingConfigurationController::class, 'getBillingInformationBlock']);
             Route::post('/get-payment-method/{id}', [ClientBillingConfigurationController::class, 'getPaymentMethod']);
             Route::post('/get-type-of-billing-by-client-id/{id}', [ClientBillingConfigurationController::class, 'getTypeOfBillingByClientId']);
 
-            // Datos fiscales CFDI 4.0
+            // Datos de facturación (fuente única, CFDI 4.0)
             Route::get('/datos-fiscales/{clientId}', [ClientFiscalDataController::class, 'show']);
             Route::post('/datos-fiscales/{clientId}', [ClientFiscalDataController::class, 'upsert']);
             Route::get('/datos-fiscales/{clientId}/constancia', [ClientFiscalDataController::class, 'downloadConstancia']);
