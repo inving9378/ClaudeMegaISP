@@ -37,7 +37,10 @@ class CrmUpdateRequest extends FormRequest
             'phone' => 'required',
             'crm_status' => 'required',
             'owner_id' => 'required',
-            'instalation_date' => 'unique:crm_lead_information,instalation_date,' . $this->id,
+            // La fecha de instalación solo se compara si viene capturada, y contra los DEMÁS prospectos.
+            // Antes un valor vacío (la pantalla siempre lo manda) chocaba con los miles de prospectos sin
+            // fecha y ninguno de ellos se podía guardar; además ignoraba por el id equivocado.
+            'instalation_date' => ['nullable', \Illuminate\Validation\Rule::unique('crm_lead_information', 'instalation_date')->ignore($request->route('id'), 'crm_id')],
             'colony_id' => 'required',
             'nif_pasaport' => 'required',
             // FR-03 (#537): plazo de contrato del prospecto; meses solo si es «Especial».
