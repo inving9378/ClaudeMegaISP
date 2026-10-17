@@ -243,4 +243,25 @@ class PrefacturaDataProviderTest extends TestCase
         $this->assertSame('http://meganett.com.mx/aviso', PrefacturaDataProvider::urlAvisoPrivacidad(' http://meganett.com.mx/aviso '));
         $this->assertSame('https://meganett.com.mx/aviso', PrefacturaDataProvider::urlAvisoPrivacidad('https://meganett.com.mx/aviso'));
     }
+
+    // ─── FAC-13: CLABE virtual ───────────────────────────────────────────────────
+
+    public function test_con_clabe_virtual_valida_se_muestra_esa_en_lugar_de_la_cuenta_de_la_empresa(): void
+    {
+        $bloque = $this->provider()->armar($this->contextoPendiente(['clabe_virtual' => '002010077777777771']))['data']['bloque_pago'];
+
+        $this->assertStringContainsString('CLABE personal', $bloque);
+        $this->assertStringContainsString('002010077777777771', $bloque);
+        $this->assertStringContainsString('solo tuya', $bloque);
+        $this->assertStringNotContainsString('>Banco<', $bloque);
+    }
+
+    public function test_clabe_virtual_invalida_o_vacia_deja_el_bloque_de_siempre(): void
+    {
+        $siempre = $this->provider()->armar($this->contextoPendiente())['data']['bloque_pago'];
+        $invalida = $this->provider()->armar($this->contextoPendiente(['clabe_virtual' => '002010077777777770']))['data']['bloque_pago'];
+
+        $this->assertSame($siempre, $invalida);
+        $this->assertStringNotContainsString('CLABE personal', $siempre);
+    }
 }

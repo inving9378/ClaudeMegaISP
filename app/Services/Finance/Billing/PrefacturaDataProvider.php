@@ -6,6 +6,7 @@ use App\Models\ClientFiscalData;
 use App\Models\Invoice;
 use App\Modules\Addons\Payments\Services\PaymentReferenceService;
 use App\Modules\Core\Configuracion\Models\CompanyInformation;
+use App\Support\Clabe;
 use App\Support\LogoPdf;
 use App\Support\MontoEnLetras;
 use Carbon\Carbon;
@@ -93,6 +94,8 @@ class PrefacturaDataProvider
             'banco'           => (string) ($empresa->bank_name ?? ''),
             'cuenta'          => (string) ($empresa->bank_account ?? ''),
             'portal'          => (string) ($empresa->url_portal ?? ''),
+            // FAC-13: CLABE virtual del cliente (solo con el interruptor y si es válida).
+            'clabe_virtual'   => $estado === self::ESTADO_PENDIENTE ? self::clabeVirtual((int) $invoice->client_id) : '',
             // FAC-03: si la columna aún no existe (antes de migrar) llega null → sin línea.
             'aviso_privacidad_url' => (string) ($empresa->url_aviso_privacidad ?? ''),
             // Persistir (no solo construir) la referencia: la conciliación solo reconoce las
@@ -241,10 +244,17 @@ class PrefacturaDataProvider
 
     private static function bloquePendiente(array $c): string
     {
+        // FAC-13: con CLABE virtual válida del cliente, esa en lugar de la cuenta de la empresa (no
+        // se conoce el banco receptor de la CLABE del proveedor, así que no se inventa).
+        $clabeVirtual = preg_replace('/\s+/', '', (string) ($c['clabe_virtual'] ?? ''));
+        $virtual = Clabe::valida($clabeVirtual);
+
         $cuenta = preg_replace('/\s+/', '', (string) ($c['cuenta'] ?? ''));
-        $filas = self::filaKv('Banco', (string) ($c['banco'] ?? ''))
-            // La etiqueta «CLABE» solo si de verdad tiene la forma de una (18 dígitos).
-            . self::filaKv(preg_match('/^\d{18}$/', $cuenta) ? 'CLABE' : 'Cuenta', $cuenta);
+        $filas = $virtual
+            ? self::filaKv('CLABE personal', $clabeVirtual)
+            : self::filaKv('Banco', (string) ($c['banco'] ?? ''))
+                // La etiqueta «CLABE» solo si de verdad tiene la forma de una (18 dígitos).
+                . self::filaKv(preg_match('/^\d{18}$/', $cuenta) ? 'CLABE' : 'Cuenta', $cuenta);
 
         $referencia = (string) ($c['referencia_pago'] ?? '');
         if ($referencia !== '') {
@@ -255,9 +265,11 @@ class PrefacturaDataProvider
             $filas .= self::filaKv('Pago en línea', $portal);
         }
 
-        $nota = $referencia !== ''
-            ? 'Escribe la referencia en el concepto de tu transferencia para identificar tu pago más rápido.'
-            : 'Indica tu número de cliente en el concepto de tu transferencia.';
+        $nota = $virtual
+            ? 'Esta CLABE es solo tuya: tu transferencia se identifica sola.'
+            : ($referencia !== ''
+                ? 'Escribe la referencia en el concepto de tu transferencia para identificar tu pago más rápido.'
+                : 'Indica tu número de cliente en el concepto de tu transferencia.');
 
         return '<table class="box pay"><tr><td class="hd">C&oacute;mo pagar</td></tr><tr><td class="bd">'
             . '<table class="mt">' . $filas . '</table>'
@@ -343,6 +355,18 @@ class PrefacturaDataProvider
     }
 
     /** Logo reducido como data URI (ver App\Support\LogoPdf). */
+    /** FAC-13: CLABE virtual activa y válida del cliente, solo si el interruptor está encendido. */
+    public static function clabeVirtual(int $clientId): string
+    {
+        if (! config('billing.clabe_virtual_proforma') || $clientId <= 0) {
+            return '';
+        }
+        $clabe = (string) \App\Modules\Addons\Payments\Models\PaymentClabe::where('client_id', $clientId)
+            ->where('is_active', true)->latest('id')->value('clabe');
+
+        return Clabe::valida($clabe) ? preg_replace('/\s+/', '', $clabe) : '';
+    }
+
     public function logoDataUri(): string
     {
         return LogoPdf::dataUri();
