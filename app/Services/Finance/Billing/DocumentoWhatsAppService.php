@@ -50,6 +50,10 @@ class DocumentoWhatsAppService
             return ['status' => 'sin_documento', 'motivo' => 'CFDI: su envío llega con la Fase 4'];
         }
         $pagada = $documento === Invoice::DOC_FACTURA;
+        $habilitados = (array) ($cfg['documentos'] ?? ['factura']);
+        if (! in_array($pagada ? 'factura' : 'prefactura', $habilitados, true)) {
+            return ['status' => 'no_habilitado', 'motivo' => 'por WhatsApp solo se envía: ' . implode(', ', $habilitados)];
+        }
 
         $telefono = $telefono ? self::normalizar($telefono) : self::telefonoDeLaFicha($invoice);
         if (! $telefono) {
