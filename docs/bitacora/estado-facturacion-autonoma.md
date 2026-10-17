@@ -62,30 +62,15 @@ Sin tag ni release **a propósito** (la instrucción vigente no autoriza publica
 - Pendiente fuera de mi alcance: publicar (no autorizado) y el preflight `arbol_limpio` (4
   bitácoras sin commitear de otras sesiones en el principal).
 
-## Avance
+## Avance (cierre 2026-10-16 20:35)
 
-**Completado (dev, en `main`, sin publicar):**
+**Programa terminado:** todos los entregables autorizados están hechos; lo restante depende de
+decisiones o acciones de Irving. Tabla completa, decisiones y acciones productivas en
+`docs/bitacora/2026-10-16-reporte-final-facturacion.md`.
 
-| FAC | ID | Commits | Merge | Estado |
-|---|---|---|---|---|
-| — | V1.61 pendientes | `0c81c3d7` (export), docs `852d0938` | `ddb253fc`, `7795cc56` | #504/#505 completados |
-| — | Interceptación correo | `3ea55c32` `198cbc9a` | `e972a27e` | apagada; aplicación compartida pendiente (#502) |
-| FAC-01 | #506 | `4a706d7c` | `052ad6d0` | completado |
-| FAC-02 | #507 | `a3997f0a` | `ac9e462e` | completado |
-| FAC-03 | #508 | `53b9825c` `cdbbdeb7` `4d775b27` | `34054ffd` | completado; migrado en dev |
-| FAC-04 | #509 | `b9d3a5c5` `7c50b96a` `a40f4946` | `3917580d` | completado (activación = FAC-08) |
-| FAC-05 | #510 | `9316cec9` `82520cff` `cb770c56` `0957425d` | `d63c6f31` | desarrollo hecho; padre aparcado (`aprobado_irving`) hasta FAC-05b #511 |
-| FAC-06 | #512 | `831051f5` `fd4bb50f` `758f0d56` | `dbeff1da` | desarrollo hecho; padre aparcado hasta FAC-06b #513 |
-| FAC-07 | #514 | `d9f07554` `97a5dc92` `9fc251e2` | `deb88456` | script listo; `requiere_irving` (fecha y ejecución en prod) |
-| FAC-08 | #515 | `af8a3c36` `c6a623ab` | `b8691d3f` | compuerta lista (cerrada); `requiere_irving` (etapas) |
-| FAC-09 | #516 | `4b3705b5` `fb3b7171` | `d99d6060` | desarrollo hecho (apagado); padre aparcado hasta FAC-09b #517 |
-
-**Siguiente trabajo elegible:** FAC-10 (#518, Portal Cliente) → FAC-11 (#519) → FAC-12 (#520, doc)
-→ FAC-13 (#521) → FAC-14 (#523, doc) → FAC-15 (#524, doc).
-
-**Punto de reanudación:** worktree `/var/www/megaisp-pf`; rama nueva `circuito/item-518-…` desde
-`main`; FAC-10 Paso 0 (Portal Cliente: `app/Modules/Addons/PortalCliente/Controllers/FacturasController.php`,
-guard `cliente`, `PortalClientScope`). Pruebas con BD bloqueadas por #529.
+**Si se retoma:** comprobar Git (`main` ≥ el merge del reporte final), Roadmap (#506–#530) y que
+`megaisp_test` siga sin reconstruir (#529) antes de correr `CancelarColasCobroTest` y
+`PortalDocumentoVigenteTest`. No hay trabajo elegible pendiente sin decisión.
 
 ## Bloqueos y decisiones
 
@@ -98,6 +83,8 @@ guard `cliente`, `PortalClientScope`). Pruebas con BD bloqueadas por #529.
   compartida); pruebas con BD bloqueadas hasta que Irving la reconstruya. Lección en memoria.
 - **5,879 de 7,314 prefacturas en espera en dev son de facturas ya pagadas** (FAC-04): consulta
   para prod en `docs/bitacora/2026-10-16-item-509.md`. Pesa en FAC-07/FAC-08.
+- **#530** permisos de las estadísticas del Dashboard (hallazgo de FAC-11).
+- **Usuario temporal 5032** desactivado y sin rol; sesión eliminada.
 - **Hallazgos registrados aparte** (no se ejecutan): menú «Finanzas › Facturas» apunta a
   `client_invoices`; exportación sin límite en `/finanzas/invoices`; «Estado» pierde color en
   oscuro; «marcar como pagada» visible en canceladas → **#525** (menú), **#526** (exportación sin
@@ -117,7 +104,8 @@ guard `cliente`, `PortalClientScope`). Pruebas con BD bloqueadas por #529.
 | 1 | `docs/bitacora/2026-10-16-borrador-version-facturacion-lote1.md` | interceptación, FAC-01, FAC-02, FAC-03 |
 | 2 | `docs/bitacora/2026-10-16-borrador-version-facturacion-lote2.md` | FAC-04, FAC-05, FAC-06 (unidad #482) |
 | 3 | `docs/bitacora/2026-10-16-borrador-version-facturacion-lote3.md` | FAC-07, FAC-08, FAC-09 |
+| 4 | `docs/bitacora/2026-10-16-borrador-version-facturacion-lote4.md` | FAC-10, FAC-11, FAC-13 (+ docs FAC-12, 14, 15) |
 
 ## Últimos commits de esta sesión
 
-- `d99d6060` Integra FAC-09 a main (último merge de código).
+- `9ac0e024` Integra FAC-14/15 a main (último merge antes del reporte final).
