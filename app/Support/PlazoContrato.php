@@ -31,6 +31,9 @@ final class PlazoContrato
 
     private static bool $idEspecialLeido = false;
 
+    /** duration de cada plazo del catálogo (id → meses), leída una vez por proceso. */
+    private static array $duraciones = [];
+
     /** id de «Especial» en duration_contracts de ESTE entorno (se resuelve por nombre). */
     public static function idEspecial(): ?int
     {
@@ -48,6 +51,7 @@ final class PlazoContrato
     {
         self::$idEspecial = null;
         self::$idEspecialLeido = false;
+        self::$duraciones = [];
     }
 
     public static function esEspecial($durationContractId): bool
@@ -72,7 +76,10 @@ final class PlazoContrato
 
             return $m > 0 ? $m : self::MESES_POR_DEFECTO;
         }
-        $m = (int) DB::table('duration_contracts')->where('id', $id)->value('duration');
+        if (! array_key_exists($id, self::$duraciones)) {
+            self::$duraciones[$id] = (int) DB::table('duration_contracts')->where('id', $id)->value('duration');
+        }
+        $m = self::$duraciones[$id];
 
         return $m > 0 ? $m : self::MESES_POR_DEFECTO;
     }
