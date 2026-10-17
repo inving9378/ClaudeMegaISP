@@ -25,7 +25,9 @@
     @endif
 
     @if(auth()->user() && auth()->user()->can('invoice_mark_invoice'))
-        @if ($statusClass != 'Pagada')
+        {{-- #527: solo una factura por cobrar (documento Prefactura) se puede marcar pagada;
+             ni pagada ni cancelada (cancelada = sin documento). El servidor también lo valida. --}}
+        @if ($statusClass != 'Pagada' && $documento === 'prefactura')
             <a id-item="{{ $id }}" class="me-2" href="javascript:void(0);" data-toggle="tooltip"
                data-placement="top" title="marcar como pagada"><i class="fas fa-check mark-as-paid"></i></a>
         @endif

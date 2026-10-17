@@ -420,6 +420,14 @@ class InvoiceController extends CrudModalController
                     'message' => 'No se encontro la factura',
                 ], 500);
             }
+            // #527: una factura cancelada no se puede marcar como pagada (el botón ya no aparece;
+            // esto cubre llamadas directas a la ruta).
+            if ($model->status === Invoice::STATUS_CANCELLED) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'La factura está cancelada: no se puede marcar como pagada.',
+                ], 422);
+            }
             $payment = Payment::find($request->payment_id);
             if (!$payment){
                 return response()->json([
