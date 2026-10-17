@@ -700,7 +700,11 @@ TXT;
         // (0 filas) cuando ya pasaron por aquí — no se tocan, siguen siendo la vía "buena" cuando
         // este hook no alcanza a tener atribución específica.
         static::saving(function (self $item) {
-            if (! $item->isDirty('estado_aprobacion')
+            // #531: un item que se está creando no tiene respuestas todavía. Sin esta guarda, la
+            // migración vieja que reconstruye items cerrados (2026_08_26_220000) consultaba
+            // roadmap_item_respuestas antes de que existiera y `migrate:fresh` tronaba.
+            if (! $item->exists
+                || ! $item->isDirty('estado_aprobacion')
                 || ! in_array($item->estado_aprobacion, ['completado', 'rechazado', 'cancelado'], true)) {
                 return;
             }

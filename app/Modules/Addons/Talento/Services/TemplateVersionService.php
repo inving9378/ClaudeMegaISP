@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Talento\Services;
 use App\Modules\Addons\Talento\Models\TalentoDocumentTemplate;
 use App\Modules\Addons\Talento\Models\TalentoDocumentTemplateVersion;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Versionado inmutable de plantillas (item #200 — Hijo B). Editar el contenido de una
@@ -17,6 +18,8 @@ use Illuminate\Support\Facades\DB;
  */
 class TemplateVersionService
 {
+    private static ?bool $conTipoCambio = null;
+
     public function __construct(private ?AcuseReopeningService $acuseReopeningService = null)
     {
         $this->acuseReopeningService ??= app(AcuseReopeningService::class);
@@ -47,15 +50,21 @@ class TemplateVersionService
         $version = DB::transaction(function () use ($template, $content, $userId, $changeNote, $tipoCambio) {
             $nextVersionNumber = (int) $template->versions()->max('version_number') + 1;
 
-            $version = TalentoDocumentTemplateVersion::create([
+            $datos = [
                 'template_id' => $template->id,
                 'version_number' => $nextVersionNumber,
                 'content' => $content,
                 'change_note' => $changeNote,
-                'tipo_cambio' => $tipoCambio,
                 'created_by' => $userId,
                 'created_at' => now(),
-            ]);
+            ];
+            // #531: la migración que siembra las plantillas (2026_09_02_150000) corre antes de la que
+            // agrega `tipo_cambio` (2026_09_11_210000); en una BD nueva la columna aún no existe.
+            if (self::$conTipoCambio ??= Schema::hasColumn('talento_document_template_versions', 'tipo_cambio')) {
+                $datos['tipo_cambio'] = $tipoCambio;
+            }
+
+            $version = TalentoDocumentTemplateVersion::create($datos);
 
             $template->current_version_id = $version->id;
             $template->save();

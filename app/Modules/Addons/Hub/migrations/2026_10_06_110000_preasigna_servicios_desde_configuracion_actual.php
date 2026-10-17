@@ -36,7 +36,9 @@ return new class extends Migration
 
     public function up(): void
     {
-        if (!DB::getSchemaBuilder()->hasTable('servicio_asignaciones')) {
+        // #531: en la BD de pruebas no se copia ninguna cuenta real (correo, mapas, WhatsApp): con
+        // ella asignada, una prueba que manda correo por el Hub salía por el SMTP de verdad.
+        if (!DB::getSchemaBuilder()->hasTable('servicio_asignaciones') || app()->environment('testing')) {
             return;
         }
 
