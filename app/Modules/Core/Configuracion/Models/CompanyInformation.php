@@ -50,6 +50,8 @@ class CompanyInformation extends Model
         // Expediente RH (item #199 — Hijo A), config global de la empresa
         'legal_representative',
         'data_privacy_address',
+        // FAC-03 (item #508): enlace al aviso de privacidad que sale en la Prefactura/Factura.
+        'url_aviso_privacidad',
     ];
 
     protected $appends = ['state_name','colony_name','municipality_name'];

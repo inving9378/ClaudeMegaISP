@@ -32,7 +32,7 @@ class PrefacturaDataProvider
         'receptor_rfc', 'receptor_nombre_fiscal', 'receptor_regimen_fiscal', 'receptor_cp_fiscal',
         'receptor_uso_cfdi', 'receptor_nota', 'conceptos_filas', 'subtotal', 'descuentos',
         'iva_monto', 'total', 'total_letra', 'bloque_pago', 'bloque_fiscal', 'leyenda_legal',
-        'logo_pdf',
+        'logo_pdf', 'aviso_privacidad',
     ];
 
     /** Variables `${data_dinamic.*}`: el validador no las toca, se reemplazan después. */
@@ -93,6 +93,8 @@ class PrefacturaDataProvider
             'banco'           => (string) ($empresa->bank_name ?? ''),
             'cuenta'          => (string) ($empresa->bank_account ?? ''),
             'portal'          => (string) ($empresa->url_portal ?? ''),
+            // FAC-03: si la columna aún no existe (antes de migrar) llega null → sin línea.
+            'aviso_privacidad_url' => (string) ($empresa->url_aviso_privacidad ?? ''),
             // Persistir (no solo construir) la referencia: la conciliación solo reconoce las
             // que existen en client_payment_references (MegReferenceResolver). ensureFor() es
             // idempotente y la referencia es determinista por client_id.
@@ -162,6 +164,7 @@ class PrefacturaDataProvider
             'leyenda_legal'           => '<span class="strong">Documento informativo sin valor fiscal.</span> Emitido el '
                 . e($ahora->format('d/m/Y H:i')) . ' &middot; Folio ' . e($numero) . '.',
             'logo_pdf'                => (string) (($c['logo'] ?? '') ?: LogoPdf::PIXEL_TRANSPARENTE),
+            'aviso_privacidad'        => self::lineaAvisoPrivacidad((string) ($c['aviso_privacidad_url'] ?? '')),
         ];
 
         $dinamicas = [
@@ -176,6 +179,37 @@ class PrefacturaDataProvider
     }
 
     // ─── Bloques HTML ─────────────────────────────────────────────────────────────
+
+    /**
+     * FAC-03: URL del aviso de privacidad válida (http/https, sin espacios ni comillas, ≤500) o
+     * null. La valida también el formulario de la empresa; aquí se repite porque el PDF no debe
+     * confiar en lo que haya en la BD.
+     */
+    public static function urlAvisoPrivacidad(?string $url): ?string
+    {
+        $url = trim((string) $url);
+        if ($url === '' || strlen($url) > 500 || preg_match('/[\s"\'<>]/', $url)) {
+            return null;
+        }
+        $esquema = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+        if (! in_array($esquema, ['http', 'https'], true) || filter_var($url, FILTER_VALIDATE_URL) === false) {
+            return null;
+        }
+
+        return $url;
+    }
+
+    /** Línea del pie con el enlace al aviso; vacía si no hay URL válida (la línea no aparece). */
+    private static function lineaAvisoPrivacidad(string $url): string
+    {
+        $url = self::urlAvisoPrivacidad($url);
+        if ($url === null) {
+            return '';
+        }
+
+        return '<div style="margin-top:2px;">Aviso de privacidad: <a href="' . e($url) . '" style="color:inherit;">'
+            . e($url) . '</a></div>';
+    }
 
     private static function filasConceptos(array $conceptos, string $periodo): string
     {

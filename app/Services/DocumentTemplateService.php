@@ -151,6 +151,7 @@ class DocumentTemplateService
                 'data.bloque_fiscal' => 'Bloque de facturación fiscal',
                 'data.leyenda_legal' => 'Leyenda legal y folio',
                 'data.logo_pdf' => 'Logo reducido para PDF',
+                'data.aviso_privacidad' => 'Enlace al aviso de privacidad (vacío si no está configurado)',
             ],
             'Hidden' => [],
         ],

@@ -73,7 +73,7 @@ class PrefacturaDataProviderTest extends TestCase
         $this->assertNotSame('', $r['data']['logo_pdf'], 'logo_pdf vacío rompería el <img>');
     }
 
-    public function test_las_19_claves_del_spec_mas_iva_monto_logo_pdf_y_documento_nota(): void
+    public function test_las_19_claves_del_spec_mas_iva_monto_logo_pdf_documento_nota_y_aviso_privacidad(): void
     {
         $delSpec = ['documento_titulo', 'banda_label', 'chip_clase', 'chip_texto', 'banda_nota',
             'receptor_rfc', 'receptor_nombre_fiscal', 'receptor_regimen_fiscal', 'receptor_cp_fiscal',
@@ -82,7 +82,7 @@ class PrefacturaDataProviderTest extends TestCase
 
         $this->assertCount(19, $delSpec);
         $this->assertEqualsCanonicalizing(
-            array_merge($delSpec, ['iva_monto', 'logo_pdf', 'documento_nota']),
+            array_merge($delSpec, ['iva_monto', 'logo_pdf', 'documento_nota', 'aviso_privacidad']),
             PrefacturaDataProvider::CLAVES
         );
     }
@@ -199,5 +199,48 @@ class PrefacturaDataProviderTest extends TestCase
         $this->assertSame('14/10/2026', PrefacturaDataProvider::fecha('14/10/2026')?->format('d/m/Y'));
         $this->assertNull(PrefacturaDataProvider::fecha(''));
         $this->assertNull(PrefacturaDataProvider::fecha('no es fecha'));
+    }
+
+    // ─── FAC-03: aviso de privacidad ─────────────────────────────────────────────
+
+    public function test_sin_url_de_aviso_no_hay_linea(): void
+    {
+        $this->assertSame('', $this->provider()->armar($this->contextoPendiente())['data']['aviso_privacidad']);
+        $this->assertSame('', $this->provider()->armar($this->contextoPendiente(['aviso_privacidad_url' => '  ']))['data']['aviso_privacidad']);
+    }
+
+    public function test_con_url_valida_sale_el_enlace_escapado(): void
+    {
+        $url = 'https://meganett.com.mx/aviso-de-privacidad?v=1&x=2';
+        $linea = $this->provider()->armar($this->contextoPendiente(['aviso_privacidad_url' => $url]))['data']['aviso_privacidad'];
+
+        $this->assertStringContainsString('Aviso de privacidad:', $linea);
+        $this->assertStringContainsString('href="https://meganett.com.mx/aviso-de-privacidad?v=1&amp;x=2"', $linea);
+    }
+
+    public static function urlsInvalidas(): array
+    {
+        return [
+            'javascript' => ['javascript:alert(1)'],
+            'ftp'        => ['ftp://meganett.com.mx/aviso'],
+            'sin esquema' => ['meganett.com.mx/aviso'],
+            'espacios'   => ['https://meganett.com.mx/aviso de privacidad'],
+            'comillas'   => ['https://meganett.com.mx/"onmouseover="x'],
+            'etiqueta'   => ['https://meganett.com.mx/<script>'],
+            'muy larga'  => ['https://meganett.com.mx/' . str_repeat('a', 500)],
+        ];
+    }
+
+    /** @dataProvider urlsInvalidas */
+    public function test_url_invalida_no_sale(string $url): void
+    {
+        $this->assertNull(PrefacturaDataProvider::urlAvisoPrivacidad($url));
+        $this->assertSame('', $this->provider()->armar($this->contextoPendiente(['aviso_privacidad_url' => $url]))['data']['aviso_privacidad']);
+    }
+
+    public function test_url_http_y_https_son_validas(): void
+    {
+        $this->assertSame('http://meganett.com.mx/aviso', PrefacturaDataProvider::urlAvisoPrivacidad(' http://meganett.com.mx/aviso '));
+        $this->assertSame('https://meganett.com.mx/aviso', PrefacturaDataProvider::urlAvisoPrivacidad('https://meganett.com.mx/aviso'));
     }
 }
