@@ -3,10 +3,9 @@
 namespace App\Console\Commands\Active;
 
 use App\Models\BillingDocumentoEvidencia;
-use App\Models\BillingNotification;
+use App\Services\Finance\Billing\ClasificadorPdfsFacturacion;
 use App\Services\Finance\Billing\EvidenciaDocumentoService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * FAC-05 (item #510): inventario de los PDFs de facturación para decidir una política de retención
@@ -32,63 +31,21 @@ class BillingPdfsInventarioCommand extends Command
 
     public function handle(EvidenciaDocumentoService $evidencias): int
     {
-        $disco = Storage::disk(config('billing.pdf_disk', 'local'));
         $prefijo = rtrim((string) config('billing.pdf_path_prefix', 'billing/pdf'), '/');
-        $limite = now()->subDays(max(0, (int) $this->option('dias')))->getTimestamp();
         $ejemplos = max(0, (int) $this->option('detalle'));
 
         $this->info("Inventario de {$prefijo} (disco " . config('billing.pdf_disk', 'local') . ', candidatos con más de '
             . (int) $this->option('dias') . ' días). Solo lectura: no se borra nada.');
 
-        // pdf_path → notificaciones que lo usan.
-        $usos = [];
-        BillingNotification::query()->whereNotNull('pdf_path')
-            ->select(['id', 'pdf_path', 'status', 'document_type', 'send_by_email'])
-            ->orderBy('id')
-            ->chunk(5000, function ($filas) use (&$usos) {
-                foreach ($filas as $n) {
-                    $usos[$n->pdf_path][] = $n;
-                }
-            });
-        $conEvidencia = array_flip(BillingDocumentoEvidencia::query()->whereNotNull('billing_notification_id')
-            ->distinct()->pluck('billing_notification_id')->all());
-
         $categorias = [];
-        $anotar = function (string $categoria, string $archivo, int $bytes) use (&$categorias, $ejemplos) {
+        app(ClasificadorPdfsFacturacion::class)->recorrer((int) $this->option('dias'), function (string $archivo, int $bytes, string $categoria) use (&$categorias, $ejemplos) {
             $c = &$categorias[$categoria];
             $c['archivos'] = ($c['archivos'] ?? 0) + 1;
             $c['bytes'] = ($c['bytes'] ?? 0) + $bytes;
             if (count($c['ejemplos'] ?? []) < $ejemplos) {
                 $c['ejemplos'][] = $archivo;
             }
-        };
-
-        foreach ($disco->allFiles($prefijo) as $archivo) {
-            $bytes = (int) $disco->size($archivo);
-            $viejo = $disco->lastModified($archivo) < $limite;
-            $notifs = $usos[$archivo] ?? [];
-            $tipos = array_unique(array_map(fn ($n) => $n->document_type, $notifs));
-            $estados = array_unique(array_map(fn ($n) => $n->status, $notifs));
-
-            if (str_starts_with($archivo, $prefijo . '/enviados/')) {
-                $anotar('EXCLUIDO · evidencia de un envío (FAC-05)', $archivo, $bytes);
-            } elseif (in_array(BillingNotification::TYPE_RECIBO, $tipos, true)) {
-                $anotar('EXCLUIDO · recibo (lo descarga la app de MegaFamilia)', $archivo, $bytes);
-            } elseif (in_array(BillingNotification::STATUS_WAITING, $estados, true)
-                && ! (in_array(BillingNotification::TYPE_TICKET, $tipos, true) && ! collect($notifs)->contains('send_by_email', true))) {
-                $anotar('EXCLUIDO · notificación en espera', $archivo, $bytes);
-            } elseif (in_array(BillingNotification::TYPE_TICKET, $tipos, true) && ! collect($notifs)->contains('send_by_email', true)) {
-                $anotar('CANDIDATO · ticket que no se envía', $archivo, $bytes);
-            } elseif (! $notifs) {
-                $anotar($viejo ? 'CANDIDATO · huérfano (ninguna notificación lo usa)' : 'EXCLUIDO · huérfano reciente', $archivo, $bytes);
-            } elseif ($estados && ! array_diff($estados, [BillingNotification::STATUS_CANCELLED, BillingNotification::STATUS_ERROR])) {
-                $anotar($viejo ? 'CANDIDATO · notificación cancelada o con error' : 'EXCLUIDO · cancelada/error reciente', $archivo, $bytes);
-            } elseif (collect($notifs)->every(fn ($n) => isset($conEvidencia[$n->id]))) {
-                $anotar('CANDIDATO · ya enviado y con copia en evidencias', $archivo, $bytes);
-            } else {
-                $anotar('EXCLUIDO · enviado sin copia en evidencias (envíos previos a FAC-05)', $archivo, $bytes);
-            }
-        }
+        });
 
         ksort($categorias);
         $filas = [];
