@@ -40,6 +40,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Proforma N días antes del corte (FAC-06, item #512)
+    |--------------------------------------------------------------------------
+    | Apagado = invoice:create-proformas exactamente como siempre (todas el día 25
+    | del mes anterior). Encendido = cada cliente el día (corte − N), con N =
+    | config_finance_notifications.delay_days de «proforma_invoice», días
+    | naturales y sin recuperar cortes ya pasados. Encenderlo y fijar N es
+    | decisión de Irving (FAC-06b, #513). Simulación: invoice:proformas-simular.
+    */
+    'proforma_anticipada' => (bool) env('BILLING_PROFORMA_ANTICIPADA', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Dual-write invoices (roadmap #632/#721)
     |--------------------------------------------------------------------------
     | Cuando está ON, los puntos de cobro que marcan client_invoices.estado=

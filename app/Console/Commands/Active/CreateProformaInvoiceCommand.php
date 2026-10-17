@@ -9,6 +9,7 @@ use App\Modules\Core\Clientes\Models\ClientBillingPause;
 use App\Models\Invoice;
 use App\Services\Finance\Invoice\InvoiceService;
 use App\Services\Finance\Billing\BillingDocumentService;
+use App\Services\Finance\Invoice\ProformaAnticipada;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -42,6 +43,11 @@ class CreateProformaInvoiceCommand extends Command
 
             if (!$config || !$config->auto_send_notifications) {
                 $this->info('La creación automática de proformas está desactivada.');
+                return;
+            }
+
+            if (config('billing.proforma_anticipada')) {
+                $this->crearAnticipadas($config);
                 return;
             }
 
@@ -92,6 +98,51 @@ class CreateProformaInvoiceCommand extends Command
             Log::error('Error en comando de proformas: ' . $e->getMessage());
             $this->error('Error: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * FAC-06 (#512): cada cliente cuyo corte cae entre hoy y hoy + N días (N = delay_days de
+     * proforma_invoice), con el periodo del mes de SU corte. Sin retroactivo: cortes pasados no se
+     * recuperan. Mismas exclusiones (sin ficha, factura del periodo ya creada, pausa en curso) y la
+     * misma creación idempotente (createProformaForClient) que la regla de siempre.
+     */
+    private function crearAnticipadas($config): void
+    {
+        $dias = ProformaAnticipada::dias($config->delay_days ?? null);
+        if ($dias === null) {
+            Log::warning('[invoice:create-proformas] proforma anticipada encendida pero delay_days no es válido ('
+                . var_export($config->delay_days ?? null, true) . '): no se crea nada.');
+            $this->error('Proforma anticipada: delay_days de «proforma_invoice» no es un número de días válido (0-'
+                . ProformaAnticipada::MAX_DIAS . '). No se creó nada.');
+            return;
+        }
+
+        $hoy = Carbon::today();
+        $clientes = Client::whereHas('client_main_information')
+            ->whereDate('fecha_corte', '>=', $hoy->toDateString())
+            ->whereDate('fecha_corte', '<=', $hoy->copy()->addDays($dias)->toDateString())
+            ->whereDoesntHave('billingPauses', function ($query) {
+                $query->where('estado', ClientBillingPause::ESTADO_EN_CURSO);
+            })
+            ->get();
+
+        $contador = 0;
+        foreach ($clientes as $cliente) {
+            $corte = ProformaAnticipada::corte($cliente->fecha_corte);
+            if (! $corte || ! ProformaAnticipada::tocaHoy($corte, $dias, $hoy)) {
+                continue;
+            }
+            try {
+                if ($this->createProformaForClient($cliente, $cliente->fecha_corte, ProformaAnticipada::periodo($corte))) {
+                    $contador++;
+                }
+            } catch (\Exception $e) {
+                Log::error("Error creando proforma anticipada para cliente {$cliente->id}: " . $e->getMessage());
+                $this->error("Error con cliente {$cliente->id}: " . $e->getMessage());
+            }
+        }
+
+        $this->info("Proforma anticipada ({$dias} días antes del corte): se crearon {$contador} proformas.");
     }
 
     private function createProformaForClient(Client $cliente, $fechaCorte, string $periodo)
