@@ -64,6 +64,28 @@ class PrefacturaPdfService
     /**
      * @return array{status: 'ok', pdf: string, filename: string, estado: string}|array{status: 'fail', keys: string[]}
      */
+    /**
+     * Asunto de los correos de documentos de cobro: «{prefijo} {periodo(s)}{sufijo} — Meganet».
+     * Una sola regla para «Enviar» (InvoiceController) y el envío automático (FAC-04).
+     *
+     * @param iterable<Invoice> $invoices
+     */
+    public static function asuntoCorreo(string $prefijo, iterable $invoices, string $sufijo = ''): string
+    {
+        $periodos = [];
+        foreach ($invoices as $invoice) {
+            $periodo = PrefacturaDataProvider::periodoLegible($invoice->period);
+            if ($periodo !== '' && ! in_array($periodo, $periodos, true)) {
+                $periodos[] = $periodo;
+            }
+        }
+        $texto = count($periodos) > 1
+            ? implode(', ', array_slice($periodos, 0, -1)) . ' y ' . end($periodos)
+            : ($periodos[0] ?? '');
+
+        return $prefijo . ($texto !== '' ? ' ' . $texto : '') . $sufijo . ' — Meganet';
+    }
+
     public function generar(Invoice $invoice, ?string $estado = null): array
     {
         $r = $this->html($invoice, $estado);
