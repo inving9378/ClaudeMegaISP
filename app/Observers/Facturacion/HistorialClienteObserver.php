@@ -11,6 +11,15 @@ use App\Services\Clientes\HistorialCliente;
  */
 class HistorialClienteObserver
 {
+    /** Alta del cliente (ficha o conversión de un prospecto): valores con los que nace. */
+    public function created($info): void
+    {
+        $motivo = HistorialCliente::motivoActual() ?? 'Alta del cliente';
+        foreach (HistorialCliente::CAMPOS as $columna => $campo) {
+            HistorialCliente::registrar((int) $info->client_id, $campo, null, $info->{$columna}, null, $motivo);
+        }
+    }
+
     public function updated($info): void
     {
         foreach (HistorialCliente::CAMPOS as $columna => $campo) {
