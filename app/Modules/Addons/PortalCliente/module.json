@@ -6,7 +6,11 @@
     "type": "addon",
     "dependencies": [],
     "active": true,
-    "permissions": [],
+    "permissions": [
+        { "name": "portal-cliente.apariencia.ver",      "description": "Ver Configuración → Portal Cliente: borrador, versión publicada, historial y vista previa" },
+        { "name": "portal-cliente.apariencia.editar",   "description": "Editar la presentación del Portal Cliente: subir imágenes, guardar o descartar el borrador y restaurar versiones" },
+        { "name": "portal-cliente.apariencia.publicar", "description": "Publicar la presentación del Portal Cliente (los clientes ven los cambios)" }
+    ],
     "api_endpoints": [
         { "method": "POST", "path": "/portal/login",                              "description": "Login del cliente (guard cliente, contra client_main_information.password)", "scope": "auth",        "permission": null },
         { "method": "POST", "path": "/portal/registro",                           "description": "Autoregistro de cuenta verificando teléfono en la ficha",                       "scope": "auth",        "permission": null },
@@ -32,6 +36,30 @@
         { "method": "GET",  "path": "/portal/embajadores",                        "description": "Panel de referidos y comisiones del cliente (solo lectura)",                    "scope": "embajadores", "permission": null },
         { "method": "GET",  "path": "/portal/flotas",                            "description": "Panel de flota vehicular del cliente (solo lectura, gateado)",                    "scope": "flotas",      "permission": null },
         { "method": "GET",  "path": "/portal/megafamilia",                        "description": "Panel MegaFamilia: perfiles de hijos y resumen",                                "scope": "megafamilia", "permission": null },
-        { "method": "GET",  "path": "/portal/megafamilia/solicitudes",           "description": "Solicitudes de permiso pendientes de aprobar/rechazar",                         "scope": "megafamilia", "permission": null }
+        { "method": "GET",  "path": "/portal/megafamilia/solicitudes",           "description": "Solicitudes de permiso pendientes de aprobar/rechazar",                         "scope": "megafamilia", "permission": null },
+        { "method": "GET",  "path": "/portal/apariencia/imagen/{uuid}",          "description": "Imagen de la versión publicada para las pantallas de acceso (404 si no está publicada)", "scope": "publico", "permission": null },
+        { "method": "GET",  "path": "/configuracion/portal-cliente",              "description": "Panel Configuración → Portal Cliente", "scope": "configuracion", "permission": "portal-cliente.apariencia.ver" },
+        { "method": "GET",  "path": "/configuracion/portal-cliente/estado",       "description": "Estado del panel: publicada, borrador, cambios pendientes y catálogos", "scope": "configuracion", "permission": "portal-cliente.apariencia.ver" },
+        { "method": "GET",  "path": "/configuracion/portal-cliente/versiones",    "description": "Historial de publicaciones", "scope": "configuracion", "permission": "portal-cliente.apariencia.ver" },
+        { "method": "GET",  "path": "/configuracion/portal-cliente/imagenes/{uuid}", "description": "Imagen subida (cualquier versión) para el panel", "scope": "configuracion", "permission": "portal-cliente.apariencia.ver" },
+        { "method": "GET",  "path": "/configuracion/portal-cliente/vista-previa/{pantalla}", "description": "Vista previa de login/registro/recuperar con el borrador, lo publicado o una versión", "scope": "configuracion", "permission": "portal-cliente.apariencia.ver" },
+        { "method": "POST", "path": "/configuracion/portal-cliente/borrador",     "description": "Guardar el borrador (candado optimista por revisión)", "scope": "configuracion", "permission": "portal-cliente.apariencia.editar" },
+        { "method": "DELETE", "path": "/configuracion/portal-cliente/borrador",   "description": "Descartar el borrador", "scope": "configuracion", "permission": "portal-cliente.apariencia.editar" },
+        { "method": "POST", "path": "/configuracion/portal-cliente/imagenes",     "description": "Subir imagen JPG/PNG/WebP (se re-codifica a WebP)", "scope": "configuracion", "permission": "portal-cliente.apariencia.editar" },
+        { "method": "POST", "path": "/configuracion/portal-cliente/versiones/{version}/restaurar", "description": "Copiar una versión publicada al borrador", "scope": "configuracion", "permission": "portal-cliente.apariencia.editar" },
+        { "method": "POST", "path": "/configuracion/portal-cliente/publicar",     "description": "Publicar el borrador (visible para los clientes)", "scope": "configuracion", "permission": "portal-cliente.apariencia.publicar" }
+    ],
+    "config_sections": [
+        {
+            "key": "portal_cliente_apariencia",
+            "label": "Portal Cliente",
+            "type": "general",
+            "category": "Sistema",
+            "icon": "user-circle",
+            "url": "/configuracion/portal-cliente",
+            "permission": "portal-cliente.apariencia.ver",
+            "strict_permission": true,
+            "description": "Imágenes, textos, colores y tarjetas de las pantallas de acceso del Portal Cliente, con vista previa, publicación e historial."
+        }
     ]
 }

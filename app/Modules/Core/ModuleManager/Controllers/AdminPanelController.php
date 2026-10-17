@@ -115,7 +115,16 @@ class AdminPanelController extends Controller
         $roleOk = fn (array $section): bool =>
             empty($section['role']) || ($user && $user->hasRole($section['role']));
 
-        $flat = array_values(array_filter($registry->getConfigSectionsFlat(), $roleOk));
+        // `strict_permission: true` (opt-in) oculta la sección a quien no tenga su `permission`.
+        // Sin la bandera se comporta como siempre: el permiso solo se exige al abrir la ruta.
+        $permisoOk = fn (array $section): bool =>
+            empty($section['strict_permission']) || empty($section['permission'])
+            || ($user && $user->can($section['permission']));
+
+        $flat = array_values(array_filter(
+            $registry->getConfigSectionsFlat(),
+            fn (array $section): bool => $roleOk($section) && $permisoOk($section)
+        ));
 
         // Re-agrupar por type respetando el filtro (mismo shape que el registry).
         $grouped = [];
