@@ -63,7 +63,8 @@ class ProformaAnticipadaComandoTest extends TestCase
     {
         $u = (int) DB::table('users')->value('id');
         $id = DB::table('clients')->insertGetId(['created_by' => $u, 'updated_by' => $u, 'fecha_corte' => $corte, 'created_at' => now(), 'updated_at' => now()]);
-        DB::table('client_main_information')->insert(['client_id' => $id, 'name' => 'CLIENTE SINTÉTICO FAC-06', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('client_main_information')->insert(['client_id' => $id, 'name' => 'CLIENTE SINTÉTICO FAC-06', 'estado' => 'Activo',
+            'created_at' => now(), 'updated_at' => now()]);
 
         return $id;
     }
@@ -179,6 +180,24 @@ class ProformaAnticipadaComandoTest extends TestCase
         Carbon::setTestNow('2026-10-22 03:00:00');
         $this->artisan('invoice:create-proformas')->assertExitCode(0);
         $this->assertSame(['C' => '2026-10'], $this->proformas());
+    }
+
+    public function test_anticipada_solo_para_clientes_activos(): void
+    {
+        // FR-06 (#540): bloqueado e inactivo reciben estado de cuenta; Nuevo, nada.
+        config(['billing.proforma_anticipada' => true]);
+        DB::table('client_main_information')->where('client_id', $this->clientes['A'])->update(['estado' => 'Bloqueado']);
+
+        $this->artisan('invoice:create-proformas')->assertExitCode(0);
+        $this->assertSame([], $this->proformas());
+
+        DB::table('client_main_information')->where('client_id', $this->clientes['A'])->update(['estado' => 'Nuevo']);
+        $this->artisan('invoice:create-proformas')->assertExitCode(0);
+        $this->assertSame([], $this->proformas());
+
+        DB::table('client_main_information')->where('client_id', $this->clientes['A'])->update(['estado' => 'Activo']);
+        $this->artisan('invoice:create-proformas')->assertExitCode(0);
+        $this->assertSame(['A' => '2026-10'], $this->proformas());
     }
 
     public function test_la_simulacion_no_crea_nada(): void

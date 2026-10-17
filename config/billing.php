@@ -50,6 +50,17 @@ return [
     */
     'proforma_anticipada' => (bool) env('BILLING_PROFORMA_ANTICIPADA', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Estado de cuenta mensual por estado del cliente (FR-06, item #540)
+    |--------------------------------------------------------------------------
+    | Apagado (default): no se genera ninguno. Encendido: facturacion:estados-cuenta-mensuales
+    | genera una vez al mes el estado de cuenta (PDF sin valor fiscal) de los Bloqueados y de los
+    | Inactivos que deben algo y llevan máximo 12 meses inactivos. Generarlo NO lo envía. Solo
+    | desde billing_config.reglas_facturacion_desde. Encenderlo es decisión de Irving.
+    */
+    'estado_cuenta_mensual' => (bool) env('BILLING_ESTADO_CUENTA_MENSUAL', false),
+
     // #520: folio corto «MN-AAAA-NNNNNN» para cada factura nueva (decisión de Irving 2026-10-16).
     'folio_corto' => (bool) env('BILLING_FOLIO_CORTO', true),
 

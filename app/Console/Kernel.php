@@ -38,6 +38,11 @@ class Kernel extends ConsoleKernel
         // para que esa corrida ya la retome normal en el mismo día.
         $schedule->command('billing:procesar-pausas')->dailyAt('02:00')->withoutOverlapping();
         $schedule->command('invoice:create-proformas')->dailyAt('03:00')->withoutOverlapping();
+        // FR-06 (#540): estado de cuenta mensual de bloqueados e inactivos con adeudo. Solo con el
+        // interruptor (BILLING_ESTADO_CUENTA_MENSUAL, apagado por default); genera, no envía.
+        if (config('billing.estado_cuenta_mensual')) {
+            $schedule->command('facturacion:estados-cuenta-mensuales')->dailyAt('04:00')->withoutOverlapping();
+        }
         $schedule->command('billing:send-pending-notifications')->everyFifteenMinutes()->withoutOverlapping();
         $schedule->command('auditoria:minar-bitacora')->everyFifteenMinutes()->withoutOverlapping();
         $schedule->command('app:mikrotik-sync-command')->everyFiveMinutes()->withoutOverlapping();
