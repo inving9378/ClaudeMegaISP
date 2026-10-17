@@ -116,6 +116,9 @@ class EventServiceProvider extends ServiceProvider
         // entre ellas pese a la herencia.
         ClientMainInformation::observe(\App\Observers\Identidad\ColaboradorIdBridgeObserver::class);
         \App\Modules\Core\Clientes\Models\ClientMainInformation::observe(\App\Observers\Identidad\ColaboradorIdBridgeObserver::class);
+        // FR-02 (#536): «Cancelado» = baja definitiva (no se sale solo; estado de cuenta final). Las DOS clases.
+        ClientMainInformation::observe(\App\Observers\Facturacion\EstadoClienteObserver::class);
+        \App\Modules\Core\Clientes\Models\ClientMainInformation::observe(\App\Observers\Facturacion\EstadoClienteObserver::class);
         Payment::observe(PaymentObserver::class);
         Payment::observe(PaymentBillingObserver::class);
         // FAC-04 (#509): al pagarse una factura se cancelan sus prefacturas en espera.
