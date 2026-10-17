@@ -21,6 +21,8 @@
                             <span v-if="colonyLabel || municipalityName"><i class="mdi mdi-map-marker-outline me-1"></i>{{ [colonyLabel, municipalityName].filter(Boolean).join(", ") }}</span>
                             <span v-if="sellerLabel"><i class="mdi mdi-account-tie me-1"></i>Vendedor {{ sellerLabel }}</span>
                             <span v-if="dischargeDateFmt"><i class="mdi mdi-calendar me-1"></i>Alta {{ dischargeDateFmt }}</span>
+                            <a class="cic-portal-link" href="/portal/login" target="_blank" rel="noopener" data-spa-skip
+                               title="Abrir el portal del cliente en otra pestaña"><i class="mdi mdi-open-in-new me-1"></i>Portal del cliente</a>
                         </div>
                     </div>
                     <div class="cic-header-actions">
@@ -835,6 +837,9 @@ const onUpdateCurrentOnu = (onu) => {
 .cic-title { margin: 0; font-size: 1.15rem; font-weight: 700; }
 .cic-estado { /* color driven by Bootstrap bg-* class from clientStatusMeta */ }
 .cic-subline { display: flex; flex-wrap: wrap; gap: 14px; color: #6b7280; font-size: 0.82rem; margin-top: 3px; }
+.cic-portal-link { color: #4f46e5; text-decoration: none; white-space: nowrap; }
+/* !important: bootstrap.min.css trae a{text-decoration:none!important} global */
+.cic-portal-link:hover { color: #4338ca; text-decoration: underline !important; }
 .cic-header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .cic-balance { margin-right: 6px; }
 
@@ -916,6 +921,8 @@ const onUpdateCurrentOnu = (onu) => {
 .cic-dark .cic-wlabel,
 .cic-dark .cic-stat-label,
 .cic-dark .cic-subline { color: #9ca3af; }
+.cic-dark .cic-portal-link { color: #a5b4fc; }
+.cic-dark .cic-portal-link:hover { color: #c7d2fe; }
 .cic-dark .cic-grid :deep(label) { color: #9ca3af; }
 
 /* MODO OSCURO: línea inferior coloreada + ícono del encabezado */
