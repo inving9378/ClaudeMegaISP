@@ -102,7 +102,7 @@ activaciones; #513 encender en prod; #523/#524 legal y CFDI.
 
 | Clave | Lote | Intento | Registrada | Qué | Resultado |
 |---|---|---|---|---|---|
-| `FAC-MUESTRA-L1-01` | 1 | 1 | 2026-10-16 19:17 (antes de enviar) | Prefactura **sintética** (cliente ficticio, folio PRUEBA-0001), To/Cc/Bcc ficticios `@example.test`, interceptación activa SOLO en el proceso (env), destino = correo autorizado de Irving | 19:18 **aceptado por el SMTP de dev**; ensayo previo con transporte array: sobre con 1 solo destinatario, sin `example.test`, asunto `[DEV — PRUEBA] Tu prefactura noviembre 2026 — Meganet`, PDF 29 KB. Entrega en buzón: pendiente de que Irving confirme |
+| `FAC-MUESTRA-L1-01` | 1 | 1 | 2026-10-16 19:17 (antes de enviar) | Prefactura **sintética** (cliente ficticio, folio PRUEBA-0001), To/Cc/Bcc ficticios `@example.test`, interceptación activa SOLO en el proceso (env), destino = correo autorizado de Irving | 19:18 **aceptado por el SMTP de dev**; ensayo previo con transporte array: sobre con 1 solo destinatario, sin `example.test`, asunto `[DEV — PRUEBA] Tu prefactura noviembre 2026 — Meganet`, PDF 29 KB. **Entrega en buzón confirmada por Irving (2026-10-17).** |
 
 ## Lotes de versión (borradores, sin número oficial)
 
