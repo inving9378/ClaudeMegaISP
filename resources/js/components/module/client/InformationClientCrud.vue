@@ -252,6 +252,9 @@
             :puede-editar="hasPermission.data.canView('facturacion.fiscal.editar')"
         />
 
+        <!-- Historial de estado y contrato (FR-04 #538) -->
+        <ClientHistorialCambios :client-id="id" />
+
         <!-- Bitácora -->
         <div class="mt-2">
             <ClientRecentActivity :id="id" @show-information="showInformation"></ClientRecentActivity>
@@ -347,6 +350,7 @@ import ComponentFormDefault from "../../ComponentFormDefault";
 import ViewTopNameWithBalance from "./ViewTopNameWithBalance";
 import ClientInfoAccountBalance from "./info/ClientInfoAccountBalance";
 import ClientDatosFacturacionResumen from "./info/ClientDatosFacturacionResumen.vue";
+import ClientHistorialCambios from "./info/ClientHistorialCambios.vue";
 
 import DialogUnconfiguredOnus from "../olts/components/dialogs/DialogUnconfiguredOnus.vue";
 import PanelOnu from "../olts/components/onus/PanelOnu.vue";

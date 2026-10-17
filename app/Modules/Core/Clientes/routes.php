@@ -58,6 +58,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::post('/add', [ClientController::class, 'store']);
         Route::get('/editar/{id}', [ClientController::class, 'edit']);
         Route::post('/update/{id}', [ClientInformationController::class, 'update']);
+        // FR-04 (#538): historial de cambios de estado y de contrato (solo lectura)
+        Route::get('/historial-cambios/{id}', [\App\Modules\Core\Clientes\Controllers\ClientHistorialCambiosController::class, 'index']);
         Route::post('/edit_id', [ClientInformationController::class, 'editId']);
         Route::get('/payment_today', [ClientController::class, 'getClientToPaymentToDay']);
         Route::get('/suspend_today', [ClientController::class, 'getClientToSuspendToDay']);
