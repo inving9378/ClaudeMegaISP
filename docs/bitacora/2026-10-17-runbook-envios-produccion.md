@@ -133,3 +133,68 @@ ejecutó nada en producción.
    quedarían sin prefactura del mes, porque la proforma ya existe para ese periodo y no se vuelve a
    generar. Con `--hasta=2026-10-18` se va todo lo de la V1.60 (incluido lo del 17-oct a las 03:00) y
    se conserva lo nuevo. La validación 1.5 queda: en espera, solo lo creado desde el 18-oct.
+
+**Complemento (Cowork, mismo día)**
+
+*Programador en el crontab de root.* `* * * * * cd /var/www/ClaudeMegaISP && php artisan schedule:run`;
+no hay crontab de `www-data` ni de `meganet`. Todo lo programado corre como root y puede dejar archivos
+con dueño root que `www-data` (la web y los workers) no pueda escribir:
+- Logs diarios. Ningún canal de `config/logging.php` fija `permission`. Si root crea primero el
+  archivo del día (`laravel-AAAA-MM-DD.log` u otro canal), queda `root:root 0644` y `www-data` ya no
+  puede escribir en él. Los errores de la web se pierden, y un fallo al escribir el log puede
+  convertirse en un 500.
+- Carpetas nuevas en `storage/app`. El disco `local` no define `permissions`, así que Laravel las crea
+  `0700`. Una carpeta creada por root queda inaccesible para la web; es lo mismo que pasó en dev con la
+  carpeta de estados de cuenta (404). Los archivos (PDF de prefactura, evidencias de FAC-05, estados de
+  cuenta mensuales, todos en `billing/pdf`) quedan `0644`: la web los lee, pero no los puede
+  sobrescribir. Si `billing/pdf` misma fuera de root, el estado de cuenta final que genera la web al
+  cancelar fallaría y quedaría anotado en su columna `error`.
+- Caché en archivos y vistas compiladas. Si `CACHE_DRIVER=file`, root crea subcarpetas de
+  `storage/framework/cache` en las que `www-data` no puede escribir; eso incluye la caché de permisos.
+  Los PDF se arman con Blade, así que root también deja vistas compiladas en `storage/framework/views`
+  que la web no puede recompilar después de un deploy.
+
+Revisión de solo lectura (hoy se puede):
+`sudo find storage bootstrap/cache -user root | wc -l` y
+`sudo find storage bootstrap/cache -user root -printf '%u:%g %m %p\n' | head -40`.
+
+Recomendación: mover el programador al crontab de `www-data`. **No hoy**: en un día hábil tranquilo,
+con el piloto ya estable y antes de la etapa «zona». Evitar la madrugada (00:00–05:00), el día 1 y del
+25 al 28. Pasos:
+1. `$A schedule:list` completo: identificar tareas que de verdad necesiten root. Por ejemplo,
+   `backup_db:process` escribe en `/var/backups/mysql` (debe quedar `www-data:www-data 750`), y las de
+   VoIP llaman a `asterisk`, que necesitaría sudoers.
+2. `sudo find storage bootstrap/cache -user root -exec chown www-data:www-data {} +`.
+3. En la misma ventana, quitar la línea del crontab de root y agregarla al de `www-data`
+   (`sudo crontab -u www-data -e`).
+   **Nunca las dos a la vez**: correría cada tarea dos veces, con cobros, proformas y envíos duplicados.
+4. Revisar al minuto siguiente: `sudo -u www-data php artisan schedule:list` y el log del día.
+   Revertir: regresar la línea a root.
+
+*Foto de la cola (0.3) en producción.*
+
+| Tipo | Estado | Filas | Creadas |
+|---|---|---|---|
+| ticket | en espera | 8,411 | 2026-06-05 → 2026-10-17 15:29 |
+| recibo | en espera | 8,411 | 2026-06-05 → 2026-10-17 15:29 |
+| prefactura | en espera | 7,309 | 2026-06-13 → 2026-10-17 03:00 |
+| prefactura | cancelado | 6 | — |
+
+Total en espera: 24,131.
+
+La Etapa 1 lo cubre:
+- El manifiesto 1.1 de `billing_notifications` (`--tipos=prefactura,recibo,ticket --estados=en_espera`)
+  toma los 24,131 y lo que se agregue durante el 17-oct.
+- Las 6 ya canceladas no se tocan.
+- `invoice_emails` va en su propio manifiesto.
+
+¿Se cancelan los recibos y tickets de pagos del propio día D con `--hasta=D`? **No.** `--hasta` es
+estricto (`created_at < D 00:00`), así que lo creado el mismo día D se conserva: recibos, tickets y las
+prefacturas de las 03:00. Con `--hasta=D` se cancela todo lo de los días anteriores a D. Si D es
+posterior al 18-oct, eso incluye recibos, tickets y prefacturas válidas de la V1.61 del 18-oct a D−1.
+Para evitarlo: `--hasta=2026-10-18` fijo (punto 2 de arriba). Solo se cancela lo de la V1.60 y los
+recibos y tickets del 17-oct.
+
+Queda por decidir antes de las etapas 3 y 4 qué hacer con lo que se junte desde el 18-oct fuera del
+piloto: enviarlo o cancelarlo con un segundo manifiesto (`--desde=2026-10-18 --hasta=<fecha>`). El
+envío no tiene una antigüedad máxima.
