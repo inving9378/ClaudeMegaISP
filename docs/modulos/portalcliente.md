@@ -44,6 +44,13 @@ Le resuelve a los clientes finales de Meganet el poder autoatenderse sin depende
 ### 3.5 Paneles de solo lectura de otros módulos
 - `EmbajadoresController` y `FlotasController` — paneles read-only dentro del portal que reusan `CurrentClientResolver::resolve()` (rama guard `cliente`) y escopan **toda** consulta con `->forClient($clientId)` sobre los modelos de Referrals/Flotas ya existentes. No duplican lógica de negocio, solo consumen.
 
+### 3.6 Presentación administrable de las pantallas de acceso (Configuración → Portal Cliente)
+- Pantalla `/configuracion/portal-cliente` (tarjeta «Portal Cliente» en Configuración, solo visible con permiso). Pestañas: Apariencia (fotografía de escritorio, imagen móvil, respaldo, posición, degradado, oscurecimiento, transparencia), Identidad corporativa (logotipo del portal, título, subtítulo, eslogan, colores, estilo de tarjetas y formulario), Mensajes, Tarjetas de servicios (4, informativas: título, descripción, ícono del catálogo, color, visible, orden), Pantallas de acceso (login / crear cuenta / recuperar) y Vista previa y publicación.
+- Flujo **Editar → Guardar borrador → Vista previa → Publicar**. El borrador no lo ve ningún cliente; publicar crea una versión numerada y la anterior pasa al historial, desde donde se puede restaurar al borrador. Candado optimista (`revision`): si otro administrador guardó antes, se responde 409 en vez de sobrescribir.
+- Permisos: `portal-cliente.apariencia.ver`, `.editar`, `.publicar` (solo super-administrator y DESARROLLADOR de inicio).
+- Datos: `portal_cliente_apariencia_versiones` (borrador/publicada/historial, config JSON) y `portal_cliente_apariencia_imagenes` (metadatos). Las imágenes se validan (extensión, MIME real, medidas) y se **re-codifican a WebP** en el disco privado; el público solo puede descargar las de la versión publicada (`/portal/apariencia/imagen/{uuid}`).
+- Las tres pantallas usan la plantilla `auth/layout.blade.php`; la vista previa del panel usa esa misma plantilla. Sin configuración publicada se muestra el diseño de fábrica (`AparienciaCatalogo::defaults()`). No toca autenticación, validaciones ni redirecciones.
+
 ## 4. Qué EXPONE / qué CONSUME
 
 **Expone**

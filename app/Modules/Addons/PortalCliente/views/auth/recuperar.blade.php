@@ -1,74 +1,55 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recuperar Contraseña — Portal Meganet</title>
-    <style>
-        :root { --pcolor: #0057a8; --pcolor-dark: #003d78; }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Inter', system-ui, sans-serif; background: linear-gradient(135deg, #0057a8 0%, #003d78 60%, #001f4d 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem; }
-        .auth-card { background: #fff; border-radius: 16px; padding: 2.5rem; width: 100%; max-width: 420px; box-shadow: 0 24px 64px rgba(0,0,0,.25); }
-        .auth-logo { text-align: center; margin-bottom: 1.75rem; }
-        .auth-logo img { display: block; margin: 0 auto; max-width: 220px; max-height: 90px; width: auto; height: auto; }
-        .auth-logo h1 { font-size: 1.4rem; font-weight: 700; color: var(--pcolor); margin-top: .5rem; }
-        .auth-logo p { font-size: .85rem; color: #6c757d; }
-        .form-group { margin-bottom: 1.25rem; }
-        label { display: block; font-size: .85rem; font-weight: 500; color: #333; margin-bottom: .4rem; }
-        input { width: 100%; padding: .65rem .9rem; border: 1.5px solid #dee2e6; border-radius: 8px; font-size: .9rem; transition: border .15s; }
-        input:focus { outline: none; border-color: var(--pcolor); box-shadow: 0 0 0 3px rgba(0,87,168,.12); }
-        .btn-submit { width: 100%; padding: .75rem; background: var(--pcolor); color: #fff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; margin-top: .5rem; }
-        .btn-submit:hover { background: var(--pcolor-dark); }
-        .alert-danger { background: #f8d7da; color: #721c24; border-radius: 8px; padding: .75rem 1rem; margin-bottom: 1rem; font-size: .85rem; border-left: 4px solid #dc3545; }
-        hr { border: none; border-top: 1px solid #dee2e6; margin: 1.25rem 0; }
-        .auth-links { text-align: center; font-size: .85rem; color: #6c757d; }
-        .auth-links a { color: var(--pcolor); }
-    </style>
-</head>
-<body>
-<div class="auth-card">
-    <div class="auth-logo">
-        @php $logoEmpresa = \App\Modules\Addons\PortalCliente\Support\LogoEmpresa::url(); @endphp
-        @if($logoEmpresa)
-            <img src="{{ $logoEmpresa }}" alt="Meganet">
-        @else
-            <div style="font-size:2.5rem">🔑</div>
-        @endif
-        <h1>Recuperar Contraseña</h1>
-        <p>Portal Cliente Meganet</p>
-    </div>
+{{-- Recuperar contraseña. Misma ruta, mismos campos y mismas reglas que siempre: solo cambia la presentación (auth/layout). --}}
+@php
+    $ap = $apariencia ?? app(\App\Modules\Addons\PortalCliente\Services\AparienciaService::class)->vistaPublica('recuperar');
+@endphp
+@extends('addon-portal-cliente::auth.layout')
 
-    @if($errors->any())
-        <div class="alert-danger">
-            @foreach($errors->all() as $e) <div>{{ $e }}</div> @endforeach
-        </div>
-    @endif
+@section('titulo_pagina', 'Recuperar Contraseña')
 
-    <form method="POST" action="{{ route('portal.recuperar.post') }}">
+@section('formulario')
+    <form class="pl-form" data-pl-form data-texto-enviando="Guardando…" method="POST" action="{{ route('portal.recuperar.post') }}">
         @csrf
-        <div class="form-group">
-            <label>Número de cliente</label>
-            <input type="number" name="numero_cliente" value="{{ old('numero_cliente') }}" placeholder="Ej: 1234" min="1" required autofocus>
+        <div class="pl-campo">
+            <label for="pl-numero">Número de cliente</label>
+            <div class="pl-control">
+                <svg class="pl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <input type="number" id="pl-numero" name="numero_cliente" value="{{ old('numero_cliente') }}"
+                    placeholder="Ej: 1234" min="1" required @unless($ap['previa']) autofocus @endunless
+                    @if($errors->has('numero_cliente')) aria-invalid="true" aria-describedby="pl-errores" @endif>
+            </div>
         </div>
-        <div class="form-group">
-            <label>Teléfono registrado</label>
-            <input type="text" name="telefono" value="{{ old('telefono') }}" placeholder="Ej: 5512345678">
+        <div class="pl-campo">
+            <label for="pl-telefono">Teléfono registrado</label>
+            <div class="pl-control">
+                <svg class="pl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                <input type="text" id="pl-telefono" name="telefono" value="{{ old('telefono') }}"
+                    placeholder="Ej: 5512345678" autocomplete="tel"
+                    @if($errors->has('telefono')) aria-invalid="true" aria-describedby="pl-errores" @endif>
+            </div>
         </div>
-        <div class="form-group">
-            <label>Nueva contraseña</label>
-            <input type="password" name="contrasena" placeholder="Mínimo 8 caracteres" required>
+        <div class="pl-campo">
+            <label for="pl-contrasena">Nueva contraseña</label>
+            <div class="pl-control pl-control--pass">
+                <svg class="pl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <input type="password" id="pl-contrasena" name="contrasena" placeholder="Mínimo 8 caracteres"
+                    autocomplete="new-password" required data-pl-pass
+                    @if($errors->has('contrasena')) aria-invalid="true" aria-describedby="pl-errores" @endif>
+                @include('addon-portal-cliente::auth.partials.ojo', ['campo' => 'pl-contrasena'])
+            </div>
         </div>
-        <div class="form-group">
-            <label>Confirmar contraseña</label>
-            <input type="password" name="contrasena_confirmation" required>
+        <div class="pl-campo">
+            <label for="pl-confirmacion">Confirmar contraseña</label>
+            <div class="pl-control pl-control--pass">
+                <svg class="pl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <input type="password" id="pl-confirmacion" name="contrasena_confirmation"
+                    autocomplete="new-password" required data-pl-pass>
+                @include('addon-portal-cliente::auth.partials.ojo', ['campo' => 'pl-confirmacion'])
+            </div>
         </div>
-        <button type="submit" class="btn-submit">Establecer nueva contraseña</button>
+        @include('addon-portal-cliente::auth.partials.boton', ['texto' => 'Establecer nueva contraseña'])
     </form>
 
-    <hr>
-    <div class="auth-links">
-        <a href="{{ route('portal.login') }}">← Volver al inicio de sesión</a>
-    </div>
-</div>
-</body>
-</html>
+    <nav class="pl-enlaces" aria-label="Otras opciones de acceso">
+        <a href="{{ $ap['enlaces']['login'] }}">← Volver al inicio de sesión</a>
+    </nav>
+@endsection

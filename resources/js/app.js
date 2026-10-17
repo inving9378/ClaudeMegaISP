@@ -105,6 +105,8 @@ import PagosDashboard from "./components/module/portalpago/PagosDashboard.vue";
 import PagosConciliacion from "./components/module/portalpago/PagosConciliacion.vue";
 import PagosCuentas from "./components/module/portalpago/PagosCuentas.vue";
 import PagosLinks from "./components/module/portalpago/PagosLinks.vue";
+// Portal Cliente — Configuración → Portal Cliente (addon-portal-cliente)
+import PortalClienteApariencia from "./components/module/portal-cliente/PortalClienteApariencia.vue";
 // Documentación Corporativa (addon-documentacion-corporativa)
 import DcExpediente from "./components/module/documentacion-corporativa/DcExpediente.vue";
 import DcConcesiones from "./components/module/documentacion-corporativa/DcConcesiones.vue";
@@ -834,6 +836,7 @@ const app = createApp({
         'pagos-conciliacion': PagosConciliacion,
         'pagos-cuentas': PagosCuentas,
         'pagos-links': PagosLinks,
+        'portal-cliente-apariencia': PortalClienteApariencia,
         // Documentación Corporativa (addon-documentacion-corporativa)
         'dc-expediente': DcExpediente,
         'dc-concesiones': DcConcesiones,

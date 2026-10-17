@@ -1,5 +1,7 @@
 <?php
 
+use App\Modules\Addons\PortalCliente\Controllers\Admin\AparienciaController;
+use App\Modules\Addons\PortalCliente\Controllers\AparienciaImagenController;
 use App\Modules\Addons\PortalCliente\Controllers\AuthController;
 use App\Modules\Addons\PortalCliente\Controllers\OpenpayWebhookController;
 use App\Modules\Addons\PortalCliente\Controllers\DashboardController;
@@ -53,6 +55,10 @@ $portalRoutes = function () {
     Route::post('/registro',  [AuthController::class, 'registro'])->name('registro.post');
     Route::get('/recuperar',  [AuthController::class, 'showRecuperar'])->name('recuperar');
     Route::post('/recuperar', [AuthController::class, 'recuperar'])->name('recuperar.post');
+
+    // Imágenes de las pantallas de acceso: solo las de la versión publicada (Configuración → Portal Cliente).
+    Route::get('/apariencia/imagen/{uuid}', [AparienciaImagenController::class, 'mostrar'])
+        ->name('apariencia.imagen');
 
     // ── Rutas protegidas (guard cliente) ──────────────────────────────────
     Route::middleware(['auth.portal'])->group(function () {
@@ -169,3 +175,36 @@ Route::prefix('portal')->name('portal.')->middleware(['web'])->group($portalRout
 
 // (2) Mount por dominio dedicado — item #144, DEV primero (ver deploy/README-portal-dev.md)
 Route::domain(config('portalcliente.domain'))->name('portal_domain.')->middleware(['web'])->group($portalRoutes);
+
+// ── Configuración → Portal Cliente (panel administrativo, guard web) ─────────
+// Presentación administrable de las pantallas de acceso: borrador, vista previa, publicación e
+// historial. Cada grupo exige su permiso Spatie (que honra roles); el controlador lo repite.
+Route::middleware(['web', 'auth'])
+    ->prefix('configuracion/portal-cliente')
+    ->name('admin.portal-cliente.apariencia.')
+    ->group(function () {
+        Route::middleware('can:portal-cliente.apariencia.ver')->group(function () {
+            Route::get('/', [AparienciaController::class, 'index'])->name('index');
+            Route::get('/estado', [AparienciaController::class, 'estado'])->name('estado');
+            Route::get('/versiones', [AparienciaController::class, 'versiones'])->name('versiones');
+            Route::get('/imagenes/{uuid}', [AparienciaController::class, 'imagen'])->name('imagen');
+            Route::get('/vista-previa/{pantalla}', [AparienciaController::class, 'vistaPrevia'])
+                ->whereIn('pantalla', ['login', 'registro', 'recuperar'])
+                ->name('vista-previa');
+        });
+
+        Route::middleware('can:portal-cliente.apariencia.editar')->group(function () {
+            Route::post('/borrador', [AparienciaController::class, 'guardarBorrador'])->name('borrador.guardar');
+            Route::delete('/borrador', [AparienciaController::class, 'descartarBorrador'])->name('borrador.descartar');
+            Route::post('/imagenes', [AparienciaController::class, 'subirImagen'])
+                ->middleware('throttle:30,1')
+                ->name('imagen.subir');
+            Route::post('/versiones/{version}/restaurar', [AparienciaController::class, 'restaurar'])
+                ->whereNumber('version')
+                ->name('restaurar');
+        });
+
+        Route::post('/publicar', [AparienciaController::class, 'publicar'])
+            ->middleware('can:portal-cliente.apariencia.publicar')
+            ->name('publicar');
+    });
