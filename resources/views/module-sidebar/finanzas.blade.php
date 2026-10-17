@@ -15,9 +15,11 @@
                 </a>
             </li>
         @endif
-        @if(auth()->user()->can('finance_view_billing'))
+        {{-- #525 (decisión de Irving 2026-10-16): «Facturas» abre la lista nueva (invoices: ícono único,
+             columna Documento); la lista anterior (client_invoices) queda como histórico. --}}
+        @if(auth()->user()->can('finance_view_invoices'))
             <li>
-                <a href="{{ url('/finanzas/facturas') }}">
+                <a href="{{ url('/finanzas/invoices') }}">
                     <span data-key="t-finanzas-fact"><small><i class="fas fa-file-invoice-dollar"></i></small> Facturas</span>
                 </a>
             </li>
@@ -29,10 +31,10 @@
                 </a>
             </li>
         @endif
-        @if(auth()->user()->can('finance_view_invoices'))
+        @if(auth()->user()->can('finance_view_billing'))
             <li>
-                <a href="{{ url('/finanzas/invoices') }}">
-                    <span data-key="t-finanzas-proforma"><small><i class="fas fa-file-invoice-dollar"></i></small> Facturas Proforma</span>
+                <a href="{{ url('/finanzas/facturas') }}">
+                    <span data-key="t-finanzas-hist"><small><i class="fas fa-history"></i></small> Facturas (histórico)</span>
                 </a>
             </li>
         @endif

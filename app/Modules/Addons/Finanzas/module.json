@@ -40,7 +40,8 @@
             "permission": "finance_view_billing",
             "url": "/finanzas/facturas",
             "children": [
-                { "label": "Facturas",       "url": "/finanzas/facturas",           "permission": "finance_view_invoices" },
+                { "label": "Facturas",       "url": "/finanzas/invoices",           "permission": "finance_view_invoices" },
+                { "label": "Facturas (histórico)", "url": "/finanzas/facturas",     "permission": "finance_view_billing" },
                 { "label": "Pagos",          "url": "/finanzas/pagos",              "permission": "finance_view_payments" },
                 { "label": "Transacciones",  "url": "/finanzas/transacciones",      "permission": "finance_view_transactions" },
                 { "label": "Contabilidad",   "url": "/finanzas/general-accounting", "permission": "finance_view_general_accounting" }
