@@ -6,6 +6,7 @@ import { showLoading, hideLoading } from "./loading";
 export const dataToFindExport = ref();
 
 import * as XLSX from "xlsx";
+import Swal from "sweetalert2";
 function cleanHtml(htmlString) {
     if (typeof htmlString === "string") {
         return htmlString.replace(/<[^>]*>/g, "").trim();
@@ -60,5 +61,10 @@ export const exportTable = async (columns, rows, tableName, visibleColumns) => {
     } catch (error) {
         console.error("Error al exportar la tabla:", error);
         hideLoading();
+        // #526: el servidor puede pedir filtrar antes de exportar (demasiadas filas).
+        const mensaje = error?.response?.data?.message;
+        if (mensaje) {
+            Swal.fire("No se exportó", mensaje, "warning");
+        }
     }
 };
