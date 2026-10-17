@@ -152,6 +152,16 @@ class ClientFiscalDataController extends Controller
     {
         $this->authorize('facturacion.fiscal.timbrar');
 
+        // FR-10 (decisión de Irving 2026-10-17): nunca se timbra un CFDI de un periodo no pagado.
+        // La factura debe ser de este cliente y estar pagada por completo.
+        $invoice = \App\Models\Invoice::where('client_id', $clientId)->find($request->input('invoice_id'));
+        if (! \App\Services\Finance\Billing\ReglasFacturacion::puedeTimbrar($invoice)) {
+            return response()->json([
+                'error' => 'No se timbra un periodo no pagado.',
+                'message' => 'Solo se puede timbrar una factura pagada de este cliente. La prefactura y el estado de cuenta no tienen valor fiscal.',
+            ], 422);
+        }
+
         if (! $this->timbradoService->isDisponible()) {
             return response()->json([
                 'error'   => 'PAC no configurado.',
