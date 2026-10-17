@@ -17,7 +17,7 @@
 
                         <template v-for="val in fieldsJson">
                             <ComponentFormDefault
-                                v-if="val.include"
+                                v-if="val.include && campoVisible(val, dataForm.data)"
                                 :id="id"
                                 :json="val"
                                 :errors="dataForm.data.errors"
@@ -88,6 +88,7 @@ import {
 } from "../../../hook/loadingHook";
 
 import ComponentFormDefault from "../../ComponentFormDefault";
+import { campoVisible } from "../../../helpers/camposCondicionales";
 import Search from "./Search";
 import {getCrmClientIfExistInDb} from "./helpers/helper";
 import LoadingComponent from "../../../shared/LoadingComponent";
@@ -160,7 +161,8 @@ export default {
             isCreate,
             found,
             wantedCustomer,
-            loadingToogle
+            loadingToogle,
+            campoVisible,
         };
     },
 };

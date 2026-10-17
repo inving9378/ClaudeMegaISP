@@ -20,7 +20,7 @@
             <div class="card-body" v-for="f in ['client_main_information']">
                 <template v-for="val in fieldsJson[f]">
                     <ComponentFormDefault
-                        v-if="val.include"
+                        v-if="val.include && campoVisible(val, dataFormClient.data)"
                         :id="id"
                         :json="val"
                         :errors="dataFormClient.data.errors"
@@ -43,7 +43,7 @@
             >
                 <template v-for="val in fieldsJson[f]">
                     <ComponentFormDefault
-                        v-if="val.include"
+                        v-if="val.include && campoVisible(val, dataFormClient.data)"
                         :id="id"
                         :json="val"
                         :errors="dataFormClient.data.errors"
@@ -70,6 +70,7 @@
 
 <script>
 import ComponentFormDefault from "../../../ComponentFormDefault.vue";
+import { campoVisible } from "../../../../helpers/camposCondicionales";
 import ModalCentrado from "../../../../shared/ModalCentrado.vue";
 import axios from "axios";
 import { onMounted, reactive, ref } from "vue";
@@ -217,6 +218,7 @@ export default {
         };
 
         return {
+            campoVisible,
             fieldsJson,
             dataForm,
             fields,
