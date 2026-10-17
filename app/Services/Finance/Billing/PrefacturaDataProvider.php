@@ -72,7 +72,8 @@ class PrefacturaDataProvider
         $fiscal = ClientFiscalData::where('client_id', $invoice->client_id)->first();
 
         return [
-            'numero'          => (string) ($invoice->number ?: $invoice->id),
+            // #520: el folio corto si la factura lo tiene; si no (anteriores), el número interno.
+            'numero'          => (string) ($invoice->folio ?: $invoice->number ?: $invoice->id),
             'estado'          => $estado,
             'parcial'         => $parcial,
             'saldo'           => $saldo,

@@ -99,7 +99,7 @@ class PrefacturaPdfService
         $pdf->setOption('isFontSubsettingEnabled', true);
         $bytes = $pdf->loadHTML(ContractPdfTemplate::wrap($r['html']))->setPaper('letter', 'portrait')->output();
 
-        $folio = preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) ($invoice->number ?: $invoice->id));
+        $folio = preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) ($invoice->folio ?: $invoice->number ?: $invoice->id));
 
         return [
             'status'   => 'ok',
