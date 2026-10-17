@@ -169,6 +169,15 @@ class AppServiceProvider extends ServiceProvider
         if ($this->app->make(\App\Services\MigrationGuardService::class)->shouldEnforce()) {
             config(['ignition.enable_runnable_solutions' => false]);
         }
+
+        // Debugbar solo para el rol DESARROLLADOR (ver DebugbarSoloDesarrolladores).
+        // Tiene que quedar al final de la pila global, dentro de InjectDebugbar, que
+        // Debugbar agrega en su propio boot: booted() asegura que este va después.
+        // Debugbar es dependencia de desarrollo: sin el paquete no se registra nada.
+        if (! $this->app->runningInConsole() && $this->app->bound(\Barryvdh\Debugbar\LaravelDebugbar::class)) {
+            $this->app->booted(fn () => $this->app->make(\Illuminate\Contracts\Http\Kernel::class)
+                ->pushMiddleware(\App\Http\Middleware\DebugbarSoloDesarrolladores::class));
+        }
     }
 
     /**
