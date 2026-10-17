@@ -122,6 +122,8 @@ class BillingDocumentService
             sendEmail: (bool) $config->send_ticket_email,
             subject: null,
             window: BillingNotification::makeWindow($config->windowHours()),
+            // FAC-04/05: un ticket que no se va a enviar no necesita PDF (nadie lo descarga).
+            generarPdf: (bool) $config->send_ticket_email,
         );
 
         // ── Recibo ──
@@ -181,6 +183,7 @@ class BillingDocumentService
         bool $sendEmail,
         ?string $subject,
         int $window,
+        bool $generarPdf = true,
     ): void {
         $existing = BillingNotification::where('payment_id', $payment->id)
             ->where('document_type', $type)
@@ -191,7 +194,7 @@ class BillingDocumentService
             return;
         }
 
-        $pdfPath = $this->renderPdf($pdfView, $viewData, $fileName);
+        $pdfPath = $generarPdf ? $this->renderPdf($pdfView, $viewData, $fileName) : null;
 
         BillingNotification::create([
             'client_id'            => $client->id,
