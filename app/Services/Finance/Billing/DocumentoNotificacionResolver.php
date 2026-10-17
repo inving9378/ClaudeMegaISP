@@ -82,12 +82,16 @@ class DocumentoNotificacionResolver
         }
 
         $r = $this->generar($invoice, PrefacturaDataProvider::ESTADO_PENDIENTE);
+        if ($r !== null) {
+            $r['invoice_id'] = $invoice->id;
+        }
         if ($r === null) {
             // Respaldo solo para pendientes: el PDF que se guardó al crear la notificación.
             return $this->comoSiempre('La plantilla no se pudo generar; va el PDF guardado.');
         }
 
         return $this->decision(self::ENVIAR, 'Prefactura vigente.', [
+            'tipo'     => 'prefactura',
             'asunto'   => PrefacturaPdfService::asuntoCorreo('Tu prefactura', [$invoice]),
             'titulo'   => 'Prefactura',
             'mensaje'  => 'Te compartimos tu prefactura con el saldo a pagar, la fecha límite y los datos para pagar.',
@@ -120,10 +124,11 @@ class DocumentoNotificacionResolver
             if ($r === null) {
                 return $this->decision(self::ERROR, "No se envió: la factura pagada {$invoice->id} no se pudo generar (sin respaldo, #498).");
             }
-            $adjuntos[] = $r;
+            $adjuntos[] = $r + ['invoice_id' => $invoice->id];
         }
 
         return $this->decision(self::ENVIAR, 'Factura pagada en lugar del recibo.', [
+            'tipo'     => 'factura',
             'asunto'   => PrefacturaPdfService::asuntoCorreo('Tu factura', $pagadas, ' (pagada)'),
             'titulo'   => $pagadas->count() > 1 ? 'Facturas pagadas' : 'Factura pagada',
             'mensaje'  => 'Hemos registrado tu pago. Te compartimos tu factura PAGADA (sin valor fiscal). ¡Gracias por tu pago!',

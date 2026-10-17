@@ -85,7 +85,8 @@
         <tr>
             <td class="logo" style="width:50%">
                 @if($company->url_logo)
-                    <img src="{{ public_path(ltrim($company->url_logo, '/')) }}" alt="{{ $company->company_name }}">
+                    {{-- FAC-05: logo reducido embebido (antes el PNG completo inflaba el PDF). --}}
+                    <img src="{{ \App\Support\LogoPdf::dataUri() }}" alt="{{ $company->company_name }}">
                 @else
                     <span style="font-size:18px;font-weight:bold;color:#1a7a4a">{{ $company->company_name }}</span>
                 @endif

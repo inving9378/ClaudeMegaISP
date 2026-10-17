@@ -261,7 +261,9 @@ class BillingDocumentService
 
     private function renderPdf(string $view, array $data, string $fileName): string
     {
-        $pdf  = Pdf::loadView($view, $data)->setPaper('letter', 'portrait');
+        // FAC-05: incrustar solo los glifos usados (DejaVu completa pesaba ~1 MB por PDF).
+        $pdf  = Pdf::loadView($view, $data)->setPaper('letter', 'portrait')
+            ->setOption('isFontSubsettingEnabled', true);
         $dir  = config('billing.pdf_path_prefix', 'billing/pdf');
         $path = "{$dir}/{$fileName}";
 
