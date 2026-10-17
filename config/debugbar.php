@@ -37,7 +37,9 @@ return [
      */
     'storage' => [
         'enabled'    => true,
-        'open'       => env('DEBUGBAR_OPEN_STORAGE', true), // bool/callback.
+        // false por omisión: abierto, /_debugbar/open lista las peticiones de todos
+        // a cualquiera que entre a la URL, sin sesión.
+        'open'       => env('DEBUGBAR_OPEN_STORAGE', false), // bool/callback.
         'driver'     => 'file', // redis, file, pdo, socket, custom
         'path'       => storage_path('debugbar'), // For file driver
         'connection' => null,   // Leave null for default connection (Redis/PDO)
@@ -239,11 +241,28 @@ return [
         'route' => [
             'label' => true,  // show complete route on bar
         ],
+        // Lo que nunca se guarda en storage/debugbar aunque la barra esté encendida
+        // (Debugbar ya tapa request_request.password por su cuenta). Solo acepta
+        // rutas exactas, sin comodines: una clave que no esté aquí sí se guarda.
         'session' => [
-            'hiddens' => [], // hides sensitive values using array paths
+            'hiddens' => ['_token', 'password_hash_web'],
         ],
         'symfony_request' => [
-            'hiddens' => [], // hides sensitive values using array paths, example: request_request.password
+            'hiddens' => [
+                'request_request._token',
+                'request_request.password_confirmation',
+                'request_request.current_password',
+                'request_request.new_password',
+                'request_cookies',
+                'request_headers.cookie',
+                'request_headers.authorization',
+                'request_headers.x-csrf-token',
+                'request_headers.x-xsrf-token',
+                'response_headers.set-cookie',
+                'response_headers.Set-Cookie',
+                'session_attributes._token',
+                'session_attributes.password_hash_web',
+            ],
         ],
         'events' => [
             'data' => false, // collect events data, listeners
