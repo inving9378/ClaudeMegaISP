@@ -97,3 +97,39 @@ Antes: `$A facturacion:reglas-simular --detalle`. `.env` `BILLING_CAPA_CONTRATO=
 siguiente (después del cobro de las 00:03):
 `$A tinker --execute="dump(DB::table('client_contrato_cargos')->whereDate('created_at', today())->selectRaw('estado_contrato, COUNT(*) n')->groupBy('estado_contrato')->get()->toArray()); dump(DB::table('client_historial_cambios')->where('origen','sistema')->whereDate('created_at', today())->count());"`
 Revertir: `false` + limpiar cachés. **Los cargos ya hechos no se deshacen solos.**
+
+## 2026-10-17 16:20 — Etapa 0 ejecutada en producción (parcial)
+
+Lo corrió Irving en producción (`/var/www/ClaudeMegaISP`); lo reportó Cowork. Claude Code no
+ejecutó nada en producción.
+
+**Hecho**
+- 0.1 Respaldo `backup_db:process` OK: `megaisp-202610171620.sql.gz` (152.22 MB).
+- 0.2 `schedule:list`: aparecen `invoice:create-proformas` 03:00 y `billing:send-pending-notifications`
+  cada 15 min. `facturacion:estados-cuenta-mensuales` no aparece (correcto: su interruptor está apagado).
+- 0.2 `sudo crontab -l -u www-data` → «no crontab for www-data»: el `schedule:run` no está en el
+  crontab de `www-data`. Se está verificando con qué usuario corre.
+- 0.5 `BILLING_PROFORMA_ANTICIPADA=true` en el `.env`. Dueño y permisos sin cambio
+  (`meganet:www-data`, `rw-r-----`). `config:clear`, `route:clear` y `queue:restart` OK.
+- La pausa de envíos sigue puesta y la etapa sigue en `cerrado`: no sale nada.
+
+**Falta**
+- 0.3 Foto de la cola.
+- 0.4 DKIM.
+- Validar 0.5 el 18-oct, después de las 03:00: las proformas creadas ese día deben ser solo de `Activo`.
+- 0.6 (opcional) no se hizo.
+
+**Puntos que salen de lo ejecutado**
+1. *Usuario del programador.* La cola de la copia del 15-oct tiene prefacturas generadas a las
+   03:00, así que el programador sí corre; falta saber con qué usuario. Para ubicarlo (solo lectura):
+   `sudo crontab -l | grep schedule:run`, `sudo crontab -l -u meganet | grep schedule:run`,
+   `sudo grep -rn "schedule:run" /etc/crontab /etc/cron.d/`. Si no es `www-data`, los archivos que
+   cree el programador quedan a nombre de ese usuario. No es nuevo (producción ya corre así), pero
+   conviene revisar el 18-oct que la web los pueda leer: `sudo ls -la storage/app/billing/pdf | tail -5`.
+2. *Ajuste a la Etapa 1: usar `--hasta=2026-10-18` fijo, no el día del piloto.* `billing:cancelar-colas`
+   cancela lo creado antes de `--hasta` (`created_at < --hasta`). Con la anticipada encendida hoy, desde
+   el 18-oct a las 03:00 se generan prefacturas válidas (solo `Activo`). Si el piloto arranca después
+   del 18-oct y se usa `--hasta=<día del piloto>`, se cancelarían también esas. Esos clientes se
+   quedarían sin prefactura del mes, porque la proforma ya existe para ese periodo y no se vuelve a
+   generar. Con `--hasta=2026-10-18` se va todo lo de la V1.60 (incluido lo del 17-oct a las 03:00) y
+   se conserva lo nuevo. La validación 1.5 queda: en espera, solo lo creado desde el 18-oct.
