@@ -28,3 +28,12 @@ entregable) con contenido sintético. Corregido en las pruebas (commit `028fa57e
 asignaciones dentro de la transacción y verifican que no quede ninguna).
 
 **Hallazgos nuevos:** #531 (migraciones fuera de orden + SMTP real en el seed de pruebas).
+
+### Validación en navegador (después del build del principal)
+- Menú Finanzas: «Facturas → /finanzas/invoices» y «Facturas (histórico) → /finanzas/facturas».
+- Tabla: columna «Folio» al inicio (vacía en las facturas existentes: sin backfill, por decisión).
+- Modo oscuro, «Estado»: Emitida 7.53:1, Pagada 9.01:1 (antes texto blanco con línea). Pagada no clicable.
+- Exportar sin filtro: «No se exportó — Son 98,246 facturas. Filtra la lista…».
+- Capturas: `/reportes/facturacion/r2_facturas_light.png` y `r2_facturas_dark.png`.
+- Hallazgo: en modo **claro** el «Pagada» preexistente tiene 2.06:1 y «Emitida» 4.47:1 → **#532**.
+- Usuario temporal 5032 desactivado otra vez y sin rol; su sesión borrada.
