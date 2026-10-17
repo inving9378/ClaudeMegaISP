@@ -42,3 +42,45 @@ del roadmap: prompt directo de Irving. Nivel A (visual y aditivo).
 ### Al mergear
 Es frontend: tras el merge hay que correr `npm run prod` en `/var/www/megaisp` o el sitio real
 seguirá sirviendo el bundle viejo.
+
+## 2026-10-17 14:10 — Ajustes de Irving: cada cliente a su portal + pestañas tipo carpeta
+
+Observaciones de Irving tras la primera entrega: (1) no veía el enlace — lo revisaba en el sitio
+real (puerto 80) y la rama aún no estaba mergeada; (2) cada cliente debe ir a SU portal;
+(3) debe abrir en pestaña aparte (ya lo hacía, `target="_blank"`); (4) las pestañas de la ficha se
+ven como «banner» y deben verse como carpetas.
+
+Decisiones (Irving): enlace = login del portal con el número de ese cliente ya escrito (no
+impersonación, esa sigue en #553); pestañas = «carpeta con color» (activa índigo, texto blanco);
+yo mergeo a `main` y compilo.
+
+### Cambios
+- `InformationClientCrud.vue`: `href` → `/portal/login?cliente={id}` (id de la ficha =
+  `client_main_information.client_id`, que el login ya acepta como identificador).
+- `PortalCliente/Controllers/AuthController.php::showLogin()`: lee `?cliente=` (solo dígitos, 1-10)
+  y lo deja en `_old_input` con `session()->now()` (no sobrevive a la siguiente petición) → el campo
+  «Número de cliente o Email» sale prellenado porque la vista ya usa `old('identificador')`.
+  **No toca la vista** a propósito: otra sesión está rediseñando `auth/login.blade.php`
+  (rama `fix/portal-cliente-configuracion`, 677 líneas) y su versión conserva el mismo
+  `old('identificador')`, así que no chocan. Si el navegador ya tiene abierta la sesión de portal de
+  OTRO cliente, muestra el login del cliente pedido en vez de mandar al portal equivocado; si es el
+  mismo cliente, va directo a su panel como antes. La verificación de contraseña no cambia.
+- `ClientCrud.vue`: pestañas tipo carpeta (borde, esquinas redondeadas arriba, gris las inactivas,
+  índigo + blanco la activa, línea índigo de 3 px debajo; variante oscura). `align="left"` +
+  `indicator-color="transparent"` (se quitó `active-color`).
+
+### Hallazgo
+Bootstrap `.row > * { width: 100%; flex-shrink: 0 }` alcanza a cada `q-tab` porque
+`q-tabs__content` lleva la clase `row` → con `align="left"` cada pestaña medía 1043 px. Por eso la
+ficha usaba `align="justify"` (y antes un `:style width: percentage` por pestaña). Fix: `width: auto`
+en el `:deep(.q-tab)` scoped. Cualquier otro `q-tabs` que se quiera alinear a la izquierda tendrá
+el mismo problema.
+
+### Verificación (vista previa :8081, usuario temporal 5036 ya borrado)
+- Pestañas en claro y oscuro (activa Información y activa Servicios) y a 390 px (se desplazan con
+  flecha, sin romper el encabezado).
+- Clic en «Portal del cliente» de 7737 → pestaña nueva `/portal/login?cliente=7737` con el campo
+  identificador = `7737`; la ficha se queda en `/cliente/editar/7737`.
+- `?cliente="><script>…` → campo vacío (se descarta todo lo que no sean dígitos).
+- No probado: el caso «sesión de portal de otro cliente abierta» (requeriría la Contraseña WEB de un
+  cliente real); queda cubierto por la comparación de `client_id` en `showLogin()`.

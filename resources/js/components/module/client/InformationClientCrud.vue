@@ -21,8 +21,8 @@
                             <span v-if="colonyLabel || municipalityName"><i class="mdi mdi-map-marker-outline me-1"></i>{{ [colonyLabel, municipalityName].filter(Boolean).join(", ") }}</span>
                             <span v-if="sellerLabel"><i class="mdi mdi-account-tie me-1"></i>Vendedor {{ sellerLabel }}</span>
                             <span v-if="dischargeDateFmt"><i class="mdi mdi-calendar me-1"></i>Alta {{ dischargeDateFmt }}</span>
-                            <a class="cic-portal-link" href="/portal/login" target="_blank" rel="noopener" data-spa-skip
-                               title="Abrir el portal del cliente en otra pestaña"><i class="mdi mdi-open-in-new me-1"></i>Portal del cliente</a>
+                            <a class="cic-portal-link" :href="`/portal/login?cliente=${id}`" target="_blank" rel="noopener" data-spa-skip
+                               title="Abrir el portal de este cliente en otra pestaña"><i class="mdi mdi-open-in-new me-1"></i>Portal del cliente</a>
                         </div>
                     </div>
                     <div class="cic-header-actions">
