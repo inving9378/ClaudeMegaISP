@@ -17,6 +17,22 @@ class InvoiceDatatableHelper extends HelperModuleDatatable
     }
 
 
+    /** «Documento» no es columna de la BD: ordenarla es ordenar por estado. */
+    public function ordering_query($start, $limit, $order, $dir, $filters = null)
+    {
+        return parent::ordering_query($start, $limit, $this->columnaOrden($order), $dir, $filters);
+    }
+
+    public function searching_query($start, $limit, $order, $dir, $search, $filters = null)
+    {
+        return parent::searching_query($start, $limit, $this->columnaOrden($order), $dir, $search, $filters);
+    }
+
+    private function columnaOrden($order)
+    {
+        return $order === 'documento' ? 'status' : $order;
+    }
+
     public function transform($request)
     {
         $data = array();
@@ -62,6 +78,8 @@ class InvoiceDatatableHelper extends HelperModuleDatatable
                 $nestedData['status'] = view('meganet.shared.table.module.finance.invoice.status', $info)->toHtml();
                 $nestedData['client_id'] = view('meganet.shared.table.module.finance.invoice.client', $info)->toHtml();
                 $nestedData['period'] = view('meganet.shared.table.module.finance.invoice.period', $info)->toHtml();
+                // Columna calculada (item #505): el mismo Invoice::documentoVigente() que decide el ícono.
+                $nestedData['documento'] = view('meganet.shared.table.module.finance.invoice.documento', $info)->toHtml();
                 $data[] = $nestedData;
             }
         }

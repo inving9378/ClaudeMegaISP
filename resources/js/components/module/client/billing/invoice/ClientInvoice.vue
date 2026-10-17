@@ -40,6 +40,23 @@
             />
         </div>
         <div class="col-12 col-md-6 col-lg-3">
+            <SelectComponentWithCheckbox
+                :property="{
+                    field: 'documento',
+                    label: 'Documento',
+                    class_col: 'full',
+                    options: {
+                        prefactura: 'Proforma',
+                        factura: 'Factura s/v fiscal',
+                        cfdi: 'Factura CFDI',
+                    },
+                }"
+                :modelValue="[]"
+                :errors="dataForm.data.errors"
+                @update-field="setFilter"
+            />
+        </div>
+        <div class="col-12 col-md-6 col-lg-3">
             <InputVuePickerMultiple
                 :property="{
                     field: 'due_date',
@@ -76,6 +93,8 @@
     <Datatable
         module="finanzas/invoices"
         model="Invoice"
+        :excludeDefaultColumns="['type/datatabletable']"
+        :exportExtraColumns="['type']"
         list="Listado"
         :persistentFilters="persistentFilters"
         :buttons="getButtonDatatable()"

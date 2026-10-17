@@ -163,7 +163,7 @@
                                             </q-item-section>
                                         </q-item>
                                         <q-item clickable v-close-popup
-                                            @click="exportTable(columns, rows, list, visibleColumns)">
+                                            @click="exportTable(columns, rows, list, [...visibleColumns, ...exportExtraColumns])">
                                             <q-item-section avatar>
                                                 <q-icon name="mdi-download" style="color: #EF9F27" />
                                             </q-item-section>
@@ -399,6 +399,12 @@ const props = defineProps({
     excludeDefaultColumns: {
         type: Array,
         default: [],
+    },
+    // Columnas ocultas en la tabla que SÍ deben salir en la exportación a Excel (item #505:
+    // «Tipo de factura» se oculta de la lista pero se conserva en las exportaciones).
+    exportExtraColumns: {
+        type: Array,
+        default: () => [],
     },
     order: {
         type: String,
