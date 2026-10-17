@@ -53,7 +53,9 @@ class EstadoCuentaService
         try {
             $pdf = Pdf::loadView('billing.estado_cuenta', $datos)->setPaper('letter', 'portrait')
                 ->setOption('isFontSubsettingEnabled', true)->output();
-            $ruta = config('billing.pdf_path_prefix', 'billing/pdf') . "/estados_cuenta/estado_cuenta_{$clientId}_{$tipo}_{$clave}.pdf";
+            // En la MISMA carpeta que las prefacturas: una subcarpeta nueva la crea con permisos 0700 quien
+            // la crea primero (p. ej. un comando corrido con otro usuario) y la web ya no podría leerla.
+            $ruta = config('billing.pdf_path_prefix', 'billing/pdf') . "/estado_cuenta_{$clientId}_{$tipo}_{$clave}.pdf";
             Storage::disk(config('billing.pdf_disk', 'local'))->put($ruta, $pdf);
             $registro->pdf_path = $ruta;
             $registro->pdf_sha256 = hash('sha256', $pdf);
