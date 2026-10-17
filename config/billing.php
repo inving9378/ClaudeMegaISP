@@ -83,6 +83,8 @@ return [
     'whatsapp_documento' => [
         'activo'               => (bool) env('BILLING_WHATSAPP_DOCUMENTO', false),
         'linea'                => env('BILLING_WHATSAPP_DOCUMENTO_LINEA'),   // slug de la línea Meta
+        // #517 (decisión de Irving 2026-10-16): por WhatsApp se empieza SOLO con la factura pagada.
+        'documentos'           => ['factura'],
         'plantilla_prefactura' => 'prefactura_documento',
         'plantilla_factura'    => 'factura_pagada_documento',
         'idioma'               => 'es_MX',
