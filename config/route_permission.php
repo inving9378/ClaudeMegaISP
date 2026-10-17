@@ -258,6 +258,9 @@ return [
     // vive en ambas claves); la autorización fina por acción la sigue haciendo el controller.
     'facturacion.ver' => [
         '/cliente/billing/datos-fiscales/{clientId}',
+        // FR-02 (#536): estados de cuenta generados (solo lectura).
+        '/cliente/billing/estados-cuenta/{clientId}',
+        '/cliente/billing/estados-cuenta/{clientId}/{id}/pdf',
     ],
     'facturacion.fiscal.editar' => [
         '/cliente/billing/datos-fiscales/{clientId}',
