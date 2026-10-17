@@ -95,6 +95,58 @@ class MetaCloudApiService implements WhatsAppProviderInterface
         ]);
     }
 
+    /**
+     * FAC-09 (#516): sube un archivo a Meta (POST /{phone}/media) y devuelve su media_id. Así el
+     * PDF viaja sin publicar ninguna URL. Meta: los ids subidos vencen a los 30 días; documentos
+     * de hasta 100 MB.
+     */
+    public function uploadMedia(string $contenido, string $nombre, string $mime = 'application/pdf'): string
+    {
+        $res = Http::withToken($this->accessToken)
+            ->timeout(30)
+            ->attach('file', $contenido, $nombre, ['Content-Type' => $mime])
+            ->post("https://graph.facebook.com/{$this->apiVersion}/{$this->phoneNumberId}/media", [
+                'messaging_product' => 'whatsapp',
+                'type'              => $mime,
+            ]);
+
+        if ($res->status() >= 400 || ! $res->json('id')) {
+            Log::channel('evolution')->error('Meta Cloud API media error', ['status' => $res->status(), 'body' => $res->json()]);
+            throw new RuntimeException('Meta Cloud API media error ' . $res->status() . ': ' . ($res->json('error.message') ?? ''));
+        }
+
+        return (string) $res->json('id');
+    }
+
+    /**
+     * FAC-09 (#516): plantilla aprobada con encabezado DOCUMENTO (el PDF ya subido con uploadMedia)
+     * y variables posicionales del cuerpo.
+     */
+    public function sendDocumentTemplate(string $to, string $templateName, string $lang, string $mediaId, string $filename, array $variables = []): array
+    {
+        $components = [[
+            'type'       => 'header',
+            'parameters' => [['type' => 'document', 'document' => ['id' => $mediaId, 'filename' => $filename]]],
+        ]];
+        if (! empty($variables)) {
+            $components[] = [
+                'type'       => 'body',
+                'parameters' => array_map(fn ($v) => ['type' => 'text', 'text' => (string) $v], array_values($variables)),
+            ];
+        }
+
+        return $this->post([
+            'messaging_product' => 'whatsapp',
+            'to'                => $this->normalizeRecipient($to),
+            'type'              => 'template',
+            'template'          => [
+                'name'       => $templateName,
+                'language'   => ['code' => $lang],
+                'components' => $components,
+            ],
+        ]);
+    }
+
     public function markAsRead(string $to, string $messageId): array
     {
         return $this->post([

@@ -61,6 +61,22 @@ return [
     | Cada avance de etapa lo decide y aplica Irving. Estado y verificación DNS:
     | php artisan billing:reactivacion-estado
     */
+    /*
+    |--------------------------------------------------------------------------
+    | Documento por WhatsApp (FAC-09, item #516)
+    |--------------------------------------------------------------------------
+    | API oficial de Meta, plantilla de utilidad con el PDF como encabezado
+    | (propuestas en config/whatsapp_templates.php; NO sometidas a Meta). Apagado.
+    | Además necesita la aprobación de WhatsApp en la reactivación (FAC-08).
+    */
+    'whatsapp_documento' => [
+        'activo'               => (bool) env('BILLING_WHATSAPP_DOCUMENTO', false),
+        'linea'                => env('BILLING_WHATSAPP_DOCUMENTO_LINEA'),   // slug de la línea Meta
+        'plantilla_prefactura' => 'prefactura_documento',
+        'plantilla_factura'    => 'factura_pagada_documento',
+        'idioma'               => 'es_MX',
+    ],
+
     'reactivacion' => [
         'etapa'                   => env('BILLING_REACTIVACION_ETAPA', 'cerrado'),
         'clientes_piloto'         => env('BILLING_REACTIVACION_CLIENTES', ''),

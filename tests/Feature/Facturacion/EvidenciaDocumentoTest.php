@@ -22,7 +22,7 @@ use Tests\CreatesApplication;
  * FAC-05 (item #510): evidencia de los PDFs enviados. Contra la BD de pruebas en transacción
  * revertida; la tabla de evidencias va como TEMPORARY TABLE de la sesión (en MySQL no hace commit
  * implícito y desaparece al cerrar la conexión): no se migra ni se altera `megaisp_test`.
- * Columnas iguales a la migración 2026_10_16_210000.
+ * Columnas iguales a las migraciones 2026_10_16_210000 y 220000.
  */
 class EvidenciaDocumentoTest extends TestCase
 {
@@ -47,6 +47,7 @@ class EvidenciaDocumentoTest extends TestCase
                 $t->unsignedBigInteger('payment_id')->nullable();
                 $t->string('documento', 20);
                 $t->string('canal', 20)->default('correo');
+                $t->string('clave', 64)->nullable();
                 $t->string('destinatario')->nullable();
                 $t->string('asunto')->nullable();
                 $t->string('archivo');

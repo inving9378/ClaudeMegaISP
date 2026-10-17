@@ -38,6 +38,26 @@ class WhatsAppGateway
     }
 
     /**
+     * FAC-09 (#516): documento PDF con plantilla aprobada (encabezado DOCUMENTO). Solo la API
+     * oficial de Meta tiene plantillas: con una línea Evolution se rechaza. Sube el PDF (media_id,
+     * sin URL pública) y manda la plantilla. Devuelve [media_id, message_id].
+     *
+     * @return array{media_id: string, message_id: ?string}
+     */
+    public function sendDocumentTemplate(?string $instanceSlug, string $to, string $templateName, string $lang, string $pdf, string $filename, array $variables = []): array
+    {
+        $proveedor = WhatsAppProviderFactory::forSlug($instanceSlug);
+        if (! $proveedor instanceof MetaCloudApiService) {
+            throw new \RuntimeException('La línea de WhatsApp no es de la API oficial de Meta: no admite plantillas con documento.');
+        }
+
+        $mediaId = $proveedor->uploadMedia($pdf, $filename, 'application/pdf');
+        $respuesta = $proveedor->sendDocumentTemplate($to, $templateName, $lang, $mediaId, $filename, $variables);
+
+        return ['media_id' => $mediaId, 'message_id' => $respuesta['messages'][0]['id'] ?? null];
+    }
+
+    /**
      * Descarga el binario de un mensaje con media, lo guarda en disco privado y
      * puebla whatsapp_messages.media_*. Idempotente. Devuelve {path, mime, size}
      * o null si no aplica / falla.
