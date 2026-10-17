@@ -14,6 +14,7 @@
         }
         .auth-card { background: #fff; border-radius: 16px; padding: 2.5rem; width: 100%; max-width: 440px; box-shadow: 0 24px 64px rgba(0,0,0,.25); }
         .auth-logo { text-align: center; margin-bottom: 1.75rem; }
+        .auth-logo img { display: block; margin: 0 auto; max-width: 220px; max-height: 90px; width: auto; height: auto; }
         .auth-logo h1 { font-size: 1.4rem; font-weight: 700; color: var(--pcolor); margin-top: .5rem; }
         .auth-logo p { font-size: .85rem; color: #6c757d; }
         .form-group { margin-bottom: 1.25rem; }
@@ -33,7 +34,12 @@
 <body>
 <div class="auth-card">
     <div class="auth-logo">
-        <div style="font-size:2.5rem">🔐</div>
+        @php $logoEmpresa = \App\Modules\Addons\PortalCliente\Support\LogoEmpresa::url(); @endphp
+        @if($logoEmpresa)
+            <img src="{{ $logoEmpresa }}" alt="Meganet">
+        @else
+            <div style="font-size:2.5rem">🔐</div>
+        @endif
         <h1>Crear Cuenta</h1>
         <p>Portal Cliente Meganet</p>
     </div>

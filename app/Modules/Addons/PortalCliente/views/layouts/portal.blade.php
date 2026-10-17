@@ -63,7 +63,16 @@
             align-items: center;
             gap: .5rem;
         }
+        /* El logo trae letras blancas y fondo transparente: sobre el azul se perdería, va en una ficha blanca. */
+        .portal-topbar .logo-chip {
+            background: #fff;
+            border-radius: 6px;
+            padding: 3px 8px;
+            display: flex;
+            align-items: center;
+        }
         .portal-topbar .logo img { height: 32px; }
+        .portal-topbar .logo-chip img { height: 30px; width: auto; display: block; }
         .portal-topbar .spacer { flex: 1; }
         .portal-topbar .client-name {
             font-size: .875rem;
@@ -368,6 +377,24 @@
             /* Grid de dirección en perfil: de 3 columnas a 1 */
             .addr-grid { grid-template-columns: 1fr !important; }
         }
+        /* Celular: logo + "Portal Cliente" + nombre + botones no caben a tamaño completo; el nombre se recorta. */
+        @media (max-width: 480px) {
+            .portal-topbar { padding: 0 .75rem; }
+            .portal-topbar .logo { font-size: 1rem; white-space: nowrap; flex-shrink: 0; }
+            .portal-topbar form { flex-shrink: 0; }
+            .portal-topbar .logo-chip { padding: 2px 6px; }
+            .portal-topbar .logo-chip img { height: 24px; }
+            .portal-topbar .spacer { min-width: .5rem; }
+            .portal-topbar .client-name {
+                margin-right: .5rem;
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .dark-toggle { flex-shrink: 0; }
+            .logout-btn { white-space: nowrap; }
+        }
     </style>
 </head>
 <body>
@@ -375,14 +402,9 @@
 {{-- Top bar --}}
 <div class="portal-topbar" x-data="{ dark: window.localStorage.getItem('portalDark')==='1' }">
     <a href="{{ route('portal.dashboard') }}" class="logo">
-        @php
-            $logo = public_path('img/logo.png');
-            $logoAlt = public_path('images/logo.png');
-        @endphp
-        @if(file_exists($logo))
-            <img src="/img/logo.png" alt="Meganet">
-        @elseif(file_exists($logoAlt))
-            <img src="/images/logo.png" alt="Meganet">
+        @php $logoEmpresa = \App\Modules\Addons\PortalCliente\Support\LogoEmpresa::url(); @endphp
+        @if($logoEmpresa)
+            <span class="logo-chip"><img src="{{ $logoEmpresa }}" alt="Meganet"></span>
         @else
             🌐
         @endif
