@@ -64,19 +64,24 @@ Sin tag ni release **a propósito** (la instrucción vigente no autoriza publica
 
 ## Avance
 
-**Completado**
-- FASE 1: registro FAC-01..15 + 4 subitems de activación (#506–#524).
-- V1.61: pendientes de aplicación (ver arriba).
+**Completado (dev, en `main`, sin publicar):**
 
-**Interceptación de correo** (rama `circuito/item-506-interceptar-correo-dev`, `3ea55c32` + pruebas
-`198cbc9a`, 7/7): listener de `MessageSending`, apagado por defecto (`MAIL_INTERCEPTAR`), destino único
-(`MAIL_INTERCEPTAR_DESTINO`), fallo cerrado sin destino válido. Inventario: todo sale por el Mailer de
-Laravel (Mail::to/send/raw, notificaciones `mail`, mailers del Hub vía `Correo::nombreMailer`, colas);
-`Correo::probar` solo abre/cierra conexión SMTP (no manda mensaje); no hay APIs HTTP de correo. WhatsApp
-no es correo (se simula en FAC-09). **Aplicación al `.env` compartido: pendiente** (#502); hoy dev
-sigue SIN interceptar, como antes.
+| FAC | ID | Commits | Merge | Estado |
+|---|---|---|---|---|
+| — | V1.61 pendientes | `0c81c3d7` (export), docs `852d0938` | `ddb253fc`, `7795cc56` | #504/#505 completados |
+| — | Interceptación correo | `3ea55c32` `198cbc9a` | `e972a27e` | apagada; aplicación compartida pendiente (#502) |
+| FAC-01 | #506 | `4a706d7c` | `052ad6d0` | completado |
+| FAC-02 | #507 | `a3997f0a` | `ac9e462e` | completado |
+| FAC-03 | #508 | `53b9825c` `cdbbdeb7` `4d775b27` | `34054ffd` | completado; migrado en dev |
+| FAC-04 | #509 | `b9d3a5c5` `7c50b96a` `a40f4946` | `3917580d` | completado (activación = FAC-08) |
 
-**Siguiente trabajo elegible:** FAC-01, FAC-02, FAC-03, FAC-04, …
+**Siguiente trabajo elegible:** FAC-05 (#510) → FAC-06 (#512) → FAC-07 (#514, script) → FAC-08
+(#515, controles) → FAC-09 … FAC-15.
+
+**Punto de reanudación:** worktree `/var/www/megaisp-pf`; crear rama
+`circuito/item-510-…` desde `main` y empezar FAC-05 por su Paso 0 (subsetting ya activo en
+`PrefacturaPdfService`; revisar `config/dompdf.php`, los PDFs Blade de `BillingDocumentService` y
+dónde guardar la evidencia del PDF enviado).
 
 ## Bloqueos y decisiones
 
@@ -84,6 +89,8 @@ sigue SIN interceptar, como antes.
   pedido expreso de Irving (Prefactura normal y fallback, 2026-10-16). En este programa: **0**.
 - **IA del circuito sin saldo** (Claude API 400 «credit balance is too low», 2026-10-16 17:12):
   `ClasificarRiesgoJob` y el des-trabador fallan cerrado; los FAC se clasificaron a mano.
+- **5,879 de 7,314 prefacturas en espera en dev son de facturas ya pagadas** (FAC-04): consulta
+  para prod en `docs/bitacora/2026-10-16-item-509.md`. Pesa en FAC-07/FAC-08.
 - **Hallazgos registrados aparte** (no se ejecutan): menú «Finanzas › Facturas» apunta a
   `client_invoices`; exportación sin límite en `/finanzas/invoices`; «Estado» pierde color en
   oscuro; «marcar como pagada» visible en canceladas → **#525** (menú), **#526** (exportación sin
@@ -98,8 +105,11 @@ sigue SIN interceptar, como antes.
 
 ## Lotes de versión (borradores, sin número oficial)
 
-_Ninguno todavía._
+| Lote | Archivo | Contenido |
+|---|---|---|
+| 1 | `docs/bitacora/2026-10-16-borrador-version-facturacion-lote1.md` | interceptación, FAC-01, FAC-02, FAC-03 |
+| 2 | (en curso) | FAC-04, FAC-05, FAC-06 (unidad #482) |
 
 ## Últimos commits de esta sesión
 
-- `ddb253fc` Integra circuito/item-505-export-filtro a main.
+- `3917580d` Integra FAC-04 a main (último merge de código).
