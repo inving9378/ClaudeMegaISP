@@ -1,16 +1,18 @@
 <?php
 return [
     //Dashboard
-    'dashboard_view_dashboard' => ['/', '/home', '/index', '/dashboard'],
+    // #530 (decisión de Irving 2026-10-16): cada bloque del Dashboard responde a su permiso, igual
+    // que lo declara app/Modules/Core/Dashboard/module.json (antes solo lo veían administradores).
+    'dashboard_view_dashboard' => ['/', '/home', '/index', '/dashboard', '/get-home-statistics-for-tarjets-by-status-c'],
     'dashboard_view_card_client_inline' => ['/', '/home', '/index', '/dashboard'],
     'dashboard_view_card_client_new' => ['/', '/home', '/index', '/dashboard'],
     'dashboard_view_card_tickets_open_new' => ['/', '/home', '/index', '/dashboard'],
     'dashboard_view_card_device_not_responding' => ['/', '/home', '/index', '/dashboard'],
-    'dashboard_view_block_client' => ['/', '/home', '/index', '/dashboard'],
-    'dashboard_view_block_ticket' => ['/', '/home', '/index', '/dashboard'],
-    'dashboard_view_block_finance' => ['/', '/home', '/index', '/dashboard', '/get-stats-facturacion-card-in-dashboard-c'], // FAC-11 (#519)
-    'dashboard_view_info_invoice_transaction' => ['/', '/home', '/index', '/dashboard'],
-    'dashboard_view_block_server_status' => ['/', '/home', '/index', '/dashboard'],
+    'dashboard_view_block_client' => ['/', '/home', '/index', '/dashboard', '/get-stats-client-card-in-dashboard-c'],
+    'dashboard_view_block_ticket' => ['/', '/home', '/index', '/dashboard', '/get-stats-ticket-card-in-dashboard-c'],
+    'dashboard_view_block_finance' => ['/', '/home', '/index', '/dashboard', '/get-stats-finance-card-in-dashboard-c', '/get-stats-facturacion-card-in-dashboard-c'], // FAC-11 (#519)
+    'dashboard_view_info_invoice_transaction' => ['/', '/home', '/index', '/dashboard', '/get-home-statistics-for-text-card-in-dashboard-c'],
+    'dashboard_view_block_server_status' => ['/', '/home', '/index', '/dashboard', '/get-stats-server-card-in-dashboard-c'],
     'dashboard_view_card_identidad_cobertura' => ['/', '/home', '/index', '/dashboard'],
 
     'release_view_release' => ['/releases', '/releases/{version}'],
