@@ -29,6 +29,12 @@ class ClientBillingConfigurationController extends Controller
                 ['envio_prefactura_dias' => 'Envío prefactura']
             );
         }
+        // FR-07 (#541): «Facturas máximas sin pago» de 1 a 12 (vacío = 3).
+        if ($request->has('facturas_max_sin_pago')) {
+            $n = trim((string) $request->input('facturas_max_sin_pago'));
+            $request->merge(['facturas_max_sin_pago' => $n === '' ? \App\Services\Finance\Billing\CapaContrato::FACTURAS_MAX_POR_DEFECTO : $n]);
+            $request->validate(['facturas_max_sin_pago' => 'integer|min:1|max:12'], [], ['facturas_max_sin_pago' => 'Facturas máximas sin pago']);
+        }
         $client = Client::find($id);
         return $this->saveSingleRelationWithoutModel('App\Modules\Core\Configuracion\Models\BillingConfiguration', 'billing_configuration','client_id','id', $client, $request);
     }

@@ -49,6 +49,8 @@ const CAMPOS = {
     plazo: "Plazo de contrato",
     plazo_especial_meses: "Meses del plazo Especial",
     activation_date: "Fecha de activación",
+    autorrenovacion: "Autorrenovación",
+    renovacion: "Renovación del contrato",
 };
 const ORIGENES = { usuario: "Usuario", sistema: "Sistema", pago: "Pago" };
 

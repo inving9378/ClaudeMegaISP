@@ -61,6 +61,18 @@ return [
     */
     'estado_cuenta_mensual' => (bool) env('BILLING_ESTADO_CUENTA_MENSUAL', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Capa de contrato (FR-07, item #541)
+    |--------------------------------------------------------------------------
+    | Apagado (default): el cobro sin saldo de pago recurrente sigue con su regla de siempre (tope
+    | por pagos reales). Encendido: decide CapaContrato — vigente se factura aunque no pague;
+    | cumplido sin autorrenovación hasta «Facturas máximas sin pago» y luego Inactivo; con
+    | autorrenovación abre otro plazo. Solo ciclos desde reglas_facturacion_desde. Encenderlo es
+    | decisión de Irving (revisión legal pendiente, #523).
+    */
+    'capa_contrato' => (bool) env('BILLING_CAPA_CONTRATO', false),
+
     // #520: folio corto «MN-AAAA-NNNNNN» para cada factura nueva (decisión de Irving 2026-10-16).
     'folio_corto' => (bool) env('BILLING_FOLIO_CORTO', true),
 

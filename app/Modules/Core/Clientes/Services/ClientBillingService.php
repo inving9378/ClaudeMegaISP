@@ -9,7 +9,10 @@ use App\Jobs\ProcessCreateServiceJob;
 use App\Modules\Core\Clientes\Models\Client;
 use App\Models\TypeBilling;
 use App\Repositories\BalanceRepository;
+use App\Services\Finance\Billing\CapaContrato;
 use App\Services\Finance\Billing\ReglasFacturacion;
+use App\Services\Finance\Invoice\ProformaAnticipada;
+use Carbon\Carbon;
 use App\Services\LogService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -178,12 +181,29 @@ class ClientBillingService
             // que a su vez reusa el cálculo YA EXISTENTE y usado en el documento de
             // contrato (ClientService::getDataPendingPayments()) — cuenta PAGOS REALES
             // hechos vs. duración contratada, no cuántas veces el cron ya cobró de más.
-            if ($this->clientHasReachedContractCap($client)) {
-                $this->logService->log($client, 'Cliente #' . $client->id . ' ya cubrió (con pagos reales) la duración completa de su contrato — no se le cobra más automáticamente sin saldo.');
+            //
+            // FR-07 (#541, decisión de Irving 2026-10-17): con BILLING_CAPA_CONTRATO encendido y para
+            // ciclos desde la fecha de las reglas, la capa de contrato decide (vigente / cumplido con
+            // tope de facturas sin pago / renovado). Apagada o ciclo anterior → la regla de siempre.
+            $ciclo = ProformaAnticipada::corte($client->fecha_pago) ?? Carbon::today();
+            $decision = CapaContrato::decidirCargoSinSaldo($client, $ciclo);
+            if ($decision === null) {
+                if ($this->clientHasReachedContractCap($client)) {
+                    $this->logService->log($client, 'Cliente #' . $client->id . ' ya cubrió (con pagos reales) la duración completa de su contrato — no se le cobra más automáticamente sin saldo.');
+                    return false;
+                }
+            } elseif (! $decision['cobrar']) {
+                $this->logService->log($client, 'Cliente #' . $client->id . ': ' . $decision['motivo']);
+                if (! empty($decision['inactivar'])) {
+                    CapaContrato::inactivarPorImpagos((int) $client->id, (int) $decision['impagos']);
+                }
                 return false;
             }
 
             $this->actionBilling($clientRepository, $client, 1, $transaction);
+            if ($decision !== null) {
+                CapaContrato::registrarCargo((int) $client->id, $ciclo, $decision);
+            }
 
             // REVERTIDO (2026-10-15, decisión del equipo): el cálculo de fechas vuelve a como estaba en
             // V1.34 (9-sep) — este cobro sin saldo mueve fecha_pago pero NO fecha_corte. Se quitó el

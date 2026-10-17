@@ -23,6 +23,10 @@ final class PlazoContrato
 
     public const MAX_MESES_ESPECIAL = 120;
 
+    public const VIGENTE = 'vigente';
+    public const RENOVADO = 'renovado';
+    public const CUMPLIDO = 'cumplido';
+
     private static ?int $idEspecial = null;
 
     private static bool $idEspecialLeido = false;
@@ -91,6 +95,39 @@ final class PlazoContrato
         $inicio = self::inicio($info);
 
         return $inicio ? $inicio->copy()->addMonthsNoOverflow(self::meses($info)) : null;
+    }
+
+    /**
+     * FR-07 (#541): estado del contrato en una fecha. Vigente mientras no se cumpla el plazo; cumplido
+     * después, salvo que tenga autorrenovación: entonces se abren plazos de la misma duración
+     * (renovado, plazo 2, 3…). Los plazos se cuentan siempre desde el inicio original, en meses
+     * naturales, así no se recorren en los fines de mes. null si no hay fecha de inicio.
+     *
+     * @return array{estado: string, plazo: int, inicio: Carbon, fin: Carbon, meses: int}|null
+     */
+    public static function estadoEn($info, Carbon $fecha, bool $autorrenovacion): ?array
+    {
+        $inicio = self::inicio($info);
+        if (! $inicio) {
+            return null;
+        }
+        $meses = self::meses($info);
+        $fecha = $fecha->copy()->startOfDay();
+        $fin = $inicio->copy()->addMonthsNoOverflow($meses);
+        if ($fecha->lt($fin)) {
+            return ['estado' => self::VIGENTE, 'plazo' => 1, 'inicio' => $inicio, 'fin' => $fin, 'meses' => $meses];
+        }
+        if (! $autorrenovacion) {
+            return ['estado' => self::CUMPLIDO, 'plazo' => 1, 'inicio' => $inicio, 'fin' => $fin, 'meses' => $meses];
+        }
+        $k = 1;
+        while ($fecha->gte($fin) && $k < 1000) {
+            $k++;
+            $fin = $inicio->copy()->addMonthsNoOverflow($meses * $k);
+        }
+
+        return ['estado' => self::RENOVADO, 'plazo' => $k, 'inicio' => $inicio->copy()->addMonthsNoOverflow($meses * ($k - 1)),
+            'fin' => $fin, 'meses' => $meses];
     }
 
     /** AAAA-MM-DD (con o sin hora) que sea una fecha real; todo lo demás no cuenta. */
