@@ -142,10 +142,12 @@ EOF
 modo_hook() {
     local entrada sesion herramienta cwd ruta raiz r=0 vistos=" "
     entrada=$(cat) || return 0
-    sesion=$(jq -r '.session_id // empty' <<<"$entrada" 2>/dev/null) || return 0
-    [ -n "$sesion" ] || return 0
-    herramienta=$(jq -r '.tool_name // empty' <<<"$entrada" 2>/dev/null)
-    cwd=$(jq -r '.cwd // empty' <<<"$entrada" 2>/dev/null)
+    # Salida rápida (corre antes de CADA comando): un Bash sin «git» no puede mover un HEAD.
+    case "$entrada" in
+        *'"tool_name":"Bash"'* | *'"tool_name": "Bash"'*) [[ $entrada == *git* ]] || return 0 ;;
+    esac
+    IFS=$'\t' read -r sesion herramienta cwd < <(jq -r '[.session_id // "", .tool_name // "", .cwd // ""] | @tsv' <<<"$entrada" 2>/dev/null) || return 0
+    [ -n "${sesion:-}" ] || return 0
 
     local dirs=""
     case "$herramienta" in
