@@ -52,6 +52,28 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Reactivación gradual de envíos automáticos (FAC-08, item #515)
+    |--------------------------------------------------------------------------
+    | Segunda compuerta DETRÁS de billing_config.envio_pausado (que no cambia):
+    | cerrado (default, no sale nada) → piloto (clientes_piloto) → zona (piloto +
+    | colonias/municipios) → todos. Límites por corrida y por día; la corrida se
+    | detiene al llegar a max_errores_por_corrida. WhatsApp se aprueba aparte.
+    | Cada avance de etapa lo decide y aplica Irving. Estado y verificación DNS:
+    | php artisan billing:reactivacion-estado
+    */
+    'reactivacion' => [
+        'etapa'                   => env('BILLING_REACTIVACION_ETAPA', 'cerrado'),
+        'clientes_piloto'         => env('BILLING_REACTIVACION_CLIENTES', ''),
+        'colonias'                => env('BILLING_REACTIVACION_COLONIAS', ''),
+        'municipios'              => env('BILLING_REACTIVACION_MUNICIPIOS', ''),
+        'limite_por_corrida'      => (int) env('BILLING_REACTIVACION_LIMITE_CORRIDA', 20),
+        'limite_diario'           => (int) env('BILLING_REACTIVACION_LIMITE_DIARIO', 100),
+        'max_errores_por_corrida' => (int) env('BILLING_REACTIVACION_MAX_ERRORES', 3),
+        'whatsapp'                => (bool) env('BILLING_REACTIVACION_WHATSAPP', false),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Dual-write invoices (roadmap #632/#721)
     |--------------------------------------------------------------------------
     | Cuando está ON, los puntos de cobro que marcan client_invoices.estado=
