@@ -345,7 +345,6 @@ import {
   requestAllColumnsDatatableByModule,
   requestColumnsDatatableByModuleExceptColumns,
 } from "../../../helpers/Request";
-import { deleteRowDatatable } from "../../../hook/datatableHook";
 import ComponentFormDefault from "../../../components/ComponentFormDefault";
 import Form from "../../../helpers/Form";
 import { clientStatusMeta } from "../../../helpers/clientStatus";
@@ -518,21 +517,33 @@ export default {
     const columnsToExpand = ref([]);
 
     onMounted(async () => {
-      $(document).on("click" + ns, `#${props.idTable} .fa-trash`, function (e) {
-        if (confirm("Esta seguro que desea eliminar")) {
-          let deleteItem = deleteRowDatatable(
-            props.module,
-            $(e.target).parent().attr("id-item"),
-            data.value
+      // FR-02 (#536): eliminar ya no pasa por «Cancelado» (que ahora es un estado de baja que se
+      // elige en la ficha): borra definitivamente y exige escribir ELIMINAR.
+      $(document).on("click" + ns, `#${props.idTable} .fa-trash`, async function (e) {
+        const id = $(e.target).parent().attr("id-item");
+        const escrito = window.prompt(
+          `Eliminar al cliente #${id} borra su registro y todo su historial de forma definitiva. No se puede deshacer.\n\n` +
+            "Para darlo de baja sin borrar nada, cambia su estado a «Cancelado» en su ficha.\n\n" +
+            "Escribe ELIMINAR para confirmar:"
+        );
+        if (escrito === null) {
+          return;
+        }
+        if (escrito.trim() !== "ELIMINAR") {
+          toastr.warning("No se eliminó: hay que escribir ELIMINAR.", "Clientes");
+          return;
+        }
+        try {
+          await axios.post(`/${props.module}/destroy/${id}`, { confirmacion: "ELIMINAR" });
+          toastr.success("Cliente eliminado definitivamente.", "Clientes");
+          emit("item-delete");
+          getRowsByModule(
+            _.map(headers.value, (v) => v.name),
+            showHeaders.value,
+            props.filters
           );
-          if (deleteItem) {
-            emit("item-delete");
-            getRowsByModule(
-              _.map(headers.value, (v) => v.name),
-              showHeaders.value,
-              props.filters
-            );
-          }
+        } catch (error) {
+          toastr.error(error.response?.data?.error || "No se pudo eliminar al cliente.", "Clientes");
         }
       });
 
