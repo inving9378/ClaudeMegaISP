@@ -458,8 +458,12 @@ trait ClientTrait
         if (! \App\Services\Finance\Billing\ReglasFacturacion::reactivaConPago($this)) {
             return;
         }
-        if ($this->client_main_information()->first()->estado !== ComunConstantsController::STATE_ACTIVE) {
+        $antes = $this->client_main_information()->first()->estado;
+        if ($antes !== ComunConstantsController::STATE_ACTIVE) {
             $this->client_main_information()->update(['estado' => ComunConstantsController::STATE_ACTIVE]);
+            // FR-04 (#538): este update no dispara eventos; se registra aquí. Lo llaman los caminos de pago.
+            \App\Services\Clientes\HistorialCliente::registrar((int) $this->id, 'estado', $antes, ComunConstantsController::STATE_ACTIVE,
+                \App\Models\ClientHistorialCambio::ORIGEN_PAGO, 'Reactivado: el pago dejó el saldo sin deuda');
         }
     }
 }

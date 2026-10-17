@@ -79,8 +79,10 @@ class PaymentClientJob implements ShouldQueue
                 $client->client_main_information->save();
             }
 
+            // FR-04 (#538): lo que cambie de estado por este pago queda en el historial con origen «pago».
             $billingService = app(ClientBillingService::class);
-            $billingService->billing($client, $newBalance, $transaction);
+            \App\Services\Clientes\HistorialCliente::conOrigen(\App\Models\ClientHistorialCambio::ORIGEN_PAGO,
+                fn () => $billingService->billing($client, $newBalance, $transaction), 'Pago #' . $this->payment->id);
 
             $generalAccountingService = new GeneralAccountingService();
             $generalAccountingService->setNewGeneralAccountingIncomeBeforePayment($this->payment, $client, $transaction);

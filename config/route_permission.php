@@ -80,6 +80,8 @@ return [
         '/cliente/statistics/get-ping-status/{id}',
         '/cliente/statistics/get-ping-history/{id}',
         '/cliente/statistics/get-ping-daily/{id}',
+        // FR-04 (#538): historial de cambios de estado y de contrato, misma lectura que la ficha
+        '/cliente/historial-cambios/{id}',
     ],
     'client_add_client' => ['/cliente/crear', '/cliente/add', '/cliente/success/{id}'],
     'client_edit_client' => [
