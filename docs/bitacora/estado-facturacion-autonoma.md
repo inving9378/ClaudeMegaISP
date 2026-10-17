@@ -76,13 +76,16 @@ Sin tag ni release **a propósito** (la instrucción vigente no autoriza publica
 | FAC-04 | #509 | `b9d3a5c5` `7c50b96a` `a40f4946` | `3917580d` | completado (activación = FAC-08) |
 | FAC-05 | #510 | `9316cec9` `82520cff` `cb770c56` `0957425d` | `d63c6f31` | desarrollo hecho; padre aparcado (`aprobado_irving`) hasta FAC-05b #511 |
 | FAC-06 | #512 | `831051f5` `fd4bb50f` `758f0d56` | `dbeff1da` | desarrollo hecho; padre aparcado hasta FAC-06b #513 |
+| FAC-07 | #514 | `d9f07554` `97a5dc92` `9fc251e2` | `deb88456` | script listo; `requiere_irving` (fecha y ejecución en prod) |
+| FAC-08 | #515 | `af8a3c36` `c6a623ab` | `b8691d3f` | compuerta lista (cerrada); `requiere_irving` (etapas) |
+| FAC-09 | #516 | `4b3705b5` `fb3b7171` | `d99d6060` | desarrollo hecho (apagado); padre aparcado hasta FAC-09b #517 |
 
-**Siguiente trabajo elegible:** FAC-07 (#514, script de cancelación) → FAC-08 (#515, controles de
-piloto) → FAC-09 … FAC-15.
+**Siguiente trabajo elegible:** FAC-10 (#518, Portal Cliente) → FAC-11 (#519) → FAC-12 (#520, doc)
+→ FAC-13 (#521) → FAC-14 (#523, doc) → FAC-15 (#524, doc).
 
-**Punto de reanudación:** worktree `/var/www/megaisp-pf`; rama nueva `circuito/item-514-…` desde
-`main`; FAC-07 Paso 0 (`app:send-all-emails-command` + tablas `invoice_emails`/`billing_notifications`,
-candado de 7 días `a6d97387`). Las pruebas con BD esperan a que se reconstruya `megaisp_test` (#529).
+**Punto de reanudación:** worktree `/var/www/megaisp-pf`; rama nueva `circuito/item-518-…` desde
+`main`; FAC-10 Paso 0 (Portal Cliente: `app/Modules/Addons/PortalCliente/Controllers/FacturasController.php`,
+guard `cliente`, `PortalClientScope`). Pruebas con BD bloqueadas por #529.
 
 ## Bloqueos y decisiones
 
@@ -113,7 +116,8 @@ candado de 7 días `a6d97387`). Las pruebas con BD esperan a que se reconstruya 
 |---|---|---|
 | 1 | `docs/bitacora/2026-10-16-borrador-version-facturacion-lote1.md` | interceptación, FAC-01, FAC-02, FAC-03 |
 | 2 | `docs/bitacora/2026-10-16-borrador-version-facturacion-lote2.md` | FAC-04, FAC-05, FAC-06 (unidad #482) |
+| 3 | `docs/bitacora/2026-10-16-borrador-version-facturacion-lote3.md` | FAC-07, FAC-08, FAC-09 |
 
 ## Últimos commits de esta sesión
 
-- `dbeff1da` Integra FAC-06 a main (último merge de código).
+- `d99d6060` Integra FAC-09 a main (último merge de código).
