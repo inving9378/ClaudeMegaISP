@@ -45,7 +45,8 @@ class ProformasSimularCommand extends Command
 
         $limite = $hoy->copy()->addDays($horizonte);
         $clientes = DB::table('clients as c')
-            ->whereExists(fn ($q) => $q->from('client_main_information as m')->whereColumn('m.client_id', 'c.id'))
+            ->whereExists(fn ($q) => $q->from('client_main_information as m')->whereColumn('m.client_id', 'c.id')
+                ->where('m.estado', '!=', 'Cancelado')) // FR-02 (#536): Cancelado no recibe prefactura
             ->whereNotNull('c.fecha_corte')->where('c.fecha_corte', '!=', '')
             ->get(['c.id', 'c.fecha_corte']);
 

@@ -10,6 +10,7 @@ use App\Models\Invoice;
 use App\Services\Finance\Invoice\InvoiceService;
 use App\Services\Finance\Billing\BillingDocumentService;
 use App\Services\Finance\Invoice\ProformaAnticipada;
+use App\Services\Finance\Billing\ReglasFacturacion;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -64,7 +65,7 @@ class CreateProformaInvoiceCommand extends Command
                 $ultimoDiaPeriodo = $today->copy()->endOfMonth();
             }
 
-            $clientes = Client::whereHas('client_main_information')
+            $clientes = Client::whereHas('client_main_information', $this->sinCancelados())
                 ->whereDate('fecha_corte', '>=', $primerDiaPeriodo->format('Y-m-d'))
                 ->whereDate('fecha_corte', '<=', $ultimoDiaPeriodo->format('Y-m-d'))
                 ->whereDoesntHave('invoices', function ($query) use ($periodo) {
@@ -118,7 +119,7 @@ class CreateProformaInvoiceCommand extends Command
         }
 
         $hoy = Carbon::today();
-        $clientes = Client::whereHas('client_main_information')
+        $clientes = Client::whereHas('client_main_information', $this->sinCancelados())
             ->whereDate('fecha_corte', '>=', $hoy->toDateString())
             ->whereDate('fecha_corte', '<=', $hoy->copy()->addDays($dias)->toDateString())
             ->whereDoesntHave('billingPauses', function ($query) {
@@ -143,6 +144,12 @@ class CreateProformaInvoiceCommand extends Command
         }
 
         $this->info("Proforma anticipada ({$dias} días antes del corte): se crearon {$contador} proformas.");
+    }
+
+    /** FR-02 (#536): un cliente Cancelado (baja definitiva) ya no recibe prefacturas. */
+    private function sinCancelados(): \Closure
+    {
+        return fn ($q) => $q->where('estado', '!=', ReglasFacturacion::CANCELADO);
     }
 
     private function createProformaForClient(Client $cliente, $fechaCorte, string $periodo)

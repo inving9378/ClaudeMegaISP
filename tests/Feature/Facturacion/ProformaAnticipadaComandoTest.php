@@ -134,6 +134,22 @@ class ProformaAnticipadaComandoTest extends TestCase
         $this->assertSame([], $this->proformas());
     }
 
+    public function test_cancelado_no_recibe_prefactura_en_ninguna_regla(): void
+    {
+        // FR-02 (#536): Cancelado (baja definitiva) queda fuera de las dos reglas.
+        DB::table('client_main_information')->where('client_id', $this->clientes['A'])->update(['estado' => 'Cancelado']);
+        DB::table('client_main_information')->where('client_id', $this->clientes['B'])->update(['estado' => 'Cancelado']);
+
+        config(['billing.proforma_anticipada' => false]);
+        $this->artisan('invoice:create-proformas')->assertExitCode(0);
+        $this->assertSame(['C' => '2026-10'], $this->proformas());
+
+        config(['billing.proforma_anticipada' => true]);
+        Carbon::setTestNow('2026-10-22 03:00:00');
+        $this->artisan('invoice:create-proformas')->assertExitCode(0);
+        $this->assertSame(['C' => '2026-10'], $this->proformas());
+    }
+
     public function test_la_simulacion_no_crea_nada(): void
     {
         $this->artisan('invoice:proformas-simular', ['--dias' => 3, '--horizonte' => 30])
