@@ -89,3 +89,71 @@ bitácora previa + respaldo + OK), **#482** Fase 3 (cancelar 32,500 `invoice_ema
 **Si algo falla:** un fallo en `migrate` deja el deploy `failed` sin rollback de código (diseño del
 pipeline). La plantilla anterior está embebida en su migración y en el respaldo; con la plantilla
 ajustada, `php artisan migrate:rollback --path=database/migrations/2026_10_16_170000_ajusta_plantilla_prefactura_para_provider.php` la restaura.
+
+## 2026-10-16 19:30 — Actualización tras #504 y #505 (sigue SIN publicar)
+
+**Reemplaza** a las notas y al checklist de arriba donde se contradigan. Publicar **no** está
+autorizado por la instrucción vigente («Facturación completa MegaISP», 2026-10-16): sin tag, sin
+push, sin release. `main` = `ddb253fc`: **40 commits** (sin merges) y 53 archivos sobre
+`V1.60-15.10.2026`.
+
+### Notas de la versión (para usuarios) — versión vigente
+
+**Facturación**
+- **Un solo ícono de documento por factura**, según su estado: **Prefactura** (pendiente),
+  **Factura (sin valor fiscal)** (pagada) y, a futuro, **CFDI**. Sustituye a «Imprimir» y
+  «Prefactura actualizada». Una factura cancelada no muestra documento ni «Enviar».
+- El PDF dice **PREFACTURA** si no está pagada y **FACTURA** con chip **PAGADA** y «Sin valor
+  fiscal» bajo el título si ya se pagó. Pesa unos 29 KB (antes ~1.1 MB).
+- **Enviar** manda exactamente lo que muestra el ícono: «Tu prefactura {periodo} — Meganet», o en
+  una pagada (con confirmación) «Tu factura {periodo} (pagada) — Meganet» con
+  `Factura-{folio}-{fecha}.pdf`. Ya no sale «Monto a pagar: 0.00» ni regresa la factura a «Enviada».
+- Columna nueva **Documento** (Proforma / Factura s/v fiscal / Factura CFDI) con filtro, legible en
+  claro y oscuro. «Tipo de factura» sale de la lista pero **sigue en la exportación a Excel**.
+- **Método de pago** muestra el nombre del catálogo (no el número); las facturas retroactivas dicen
+  «Retroactiva» y lo que no tiene método, «—».
+- **Exportar** desde la ficha del cliente baja solo las facturas de ese cliente (antes intentaba
+  bajar todas).
+
+**Clientes, correos y plantillas:** sin cambios respecto de las notas de arriba.
+
+**Desarrollador**
+- Panel Terminal con pestañas (otra sesión) y la prueba de conexión ya marca «Terminal no
+  disponible» cuando `/ttyd/` responde 404 o 502 (#504).
+
+### Cambios técnicos agregados
+
+| Item | Commits | Qué |
+|---|---|---|
+| #504 | `b9743fb3` (merge `28fc5729`) | `probeTtyd` lee `r.ok` en mismo origen |
+| #505 | `bd1c51e7` `1061132b` `2618d606` `6a2a1a29` `09820fa1` `5f7a3764` `1403cc3c` `0c81c3d7` | documento vigente (`Invoice::documentoVigente()`), Imprimir con plantilla, ícono único, columna Documento, badges, método de pago, exportación con filtro fijo |
+
+**Migraciones (3, aditivas):** las 2 de arriba +
+`2026_10_16_190000_agrega_columna_documento_a_facturas` (registra la columna calculada «Documento»
+en el catálogo del datatable del módulo Invoice; `down()` la quita).
+
+**Sin cambios de `.env`.**
+
+### Checklist de verificación en PROD — agregados
+- [ ] Ícono de documento en una factura **pendiente** → PDF «PREFACTURA».
+- [ ] Ícono de documento en una factura **pagada** → PDF «FACTURA», chip «PAGADA», «Sin valor fiscal».
+- [ ] Factura cancelada: sin ícono de documento ni «Enviar».
+- [ ] «Enviar» en una pagada: el diálogo dice «se enviará como factura PAGADA» → **Cancelar** (no
+      enviar a clientes reales).
+- [ ] Columna «Documento» y su filtro en la ficha del cliente y en `/finanzas/invoices`, en claro y
+      en oscuro.
+- [ ] Exportar desde la ficha del cliente: el Excel trae solo sus facturas y la columna «Tipo de
+      factura».
+- [ ] DevTools → Terminal: sin ttyd en prod debe decir «Terminal no disponible».
+- ⚠️ **No exportar** desde `/finanzas/invoices` sin filtro (#526: sin límite, puede trabar el servidor).
+
+### Verificado en dev (2026-10-16)
+PDFs 7195 (pendiente) y 5607/7737 (pagadas); diálogos de Enviar cancelados (0 envíos); contraste
+claro 6.37/6.49/7.15 y oscuro 8.60/9.01/7.47; exportación de la ficha 7689 = 2 filas (BD: 2); ttyd
+4 escenarios. Bundle del principal recompilado a las 19:11.
+
+### Bloqueo para el preflight
+`arbol_limpio` falla en el principal por 4 bitácoras sin commitear de **otras sesiones**
+(`2026-10-15-auditoria-resync-mapared-dev.md`, `2026-10-15-restauracion-prod-en-dev.md`,
+`2026-10-16-revision-incidente-ttyd.md`, `2026-10-16-ttyd-reencendido-seguro.md`). No se tocan;
+sus dueños deben commitearlas o moverlas antes de publicar.
