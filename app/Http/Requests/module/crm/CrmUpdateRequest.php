@@ -40,6 +40,8 @@ class CrmUpdateRequest extends FormRequest
             'instalation_date' => 'unique:crm_lead_information,instalation_date,' . $this->id,
             'colony_id' => 'required',
             'nif_pasaport' => 'required',
+            // FR-03 (#537): plazo de contrato del prospecto; meses solo si es «Especial».
+            'plazo_especial_meses' => \App\Support\PlazoContrato::reglaMeses($request->input('duration_contract_id')),
         ];
     }
 
@@ -47,6 +49,7 @@ class CrmUpdateRequest extends FormRequest
     {
         return [
             'nif_pasaport' => 'RFC/CURP',
+            'plazo_especial_meses' => 'meses del plazo Especial',
         ];
     }
 }

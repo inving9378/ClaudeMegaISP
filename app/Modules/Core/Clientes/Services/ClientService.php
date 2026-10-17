@@ -154,7 +154,8 @@ class ClientService
         $activationCost = $this->model->client_main_information->activation_cost ?? 0;
         $isPaymentActivationCost = $this->model->client_main_information->is_payment_activation_cost;
         $contractMonths = $this->model->client_main_information->contract_months ?? 0;
-        $contractMonthsDuration = $this->model->client_main_information->duration_contract ? $this->model->client_main_information->duration_contract->duration : 0;
+        // FR-03 (#537): mismos meses de siempre; con plazo «Especial», los capturados a mano.
+        $contractMonthsDuration = $this->model->client_main_information ? (int) $this->model->client_main_information->contract_months_number : 0;
         $costAllServices = $clientRepository->getCostAllService($this->model->id);
 
         // Validar que el costo de los servicios no sea 0

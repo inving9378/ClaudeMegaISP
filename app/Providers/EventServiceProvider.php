@@ -119,6 +119,11 @@ class EventServiceProvider extends ServiceProvider
         // FR-02 (#536): «Cancelado» = baja definitiva (no se sale solo; estado de cuenta final). Las DOS clases.
         ClientMainInformation::observe(\App\Observers\Facturacion\EstadoClienteObserver::class);
         \App\Modules\Core\Clientes\Models\ClientMainInformation::observe(\App\Observers\Facturacion\EstadoClienteObserver::class);
+        // FR-03 (#537): meses del plazo Especial solo con duración «Especial» (cliente y prospecto).
+        ClientMainInformation::observe(\App\Observers\Facturacion\PlazoContratoObserver::class);
+        \App\Modules\Core\Clientes\Models\ClientMainInformation::observe(\App\Observers\Facturacion\PlazoContratoObserver::class);
+        CrmMainInformation::observe(\App\Observers\Facturacion\PlazoContratoObserver::class);
+        \App\Models\CrmMainInformation::observe(\App\Observers\Facturacion\PlazoContratoObserver::class);
         Payment::observe(PaymentObserver::class);
         Payment::observe(PaymentBillingObserver::class);
         // FAC-04 (#509): al pagarse una factura se cancelan sus prefacturas en espera.

@@ -226,11 +226,24 @@ class ClientMainInformation extends BaseModel
     }
     public function getContractMonthsAttribute()
     {
-        return $this->duration_contract()->first()->name ?? '';
+        $nombre = $this->duration_contract()->first()->name ?? '';
+        // FR-03 (#537): «Especial» muestra los meses capturados.
+        if ($nombre === \App\Support\PlazoContrato::ESPECIAL && $this->plazo_especial_meses) {
+            return $nombre . ' (' . $this->plazo_especial_meses . ' meses)';
+        }
+
+        return $nombre;
     }
     public function getContractMonthsNumberAttribute()
     {
-        return $this->duration_contract()->first()->duration ?? 0;
+        // FR-03 (#537): con plazo «Especial» los meses son los capturados a mano. Sin plazo sigue en 0
+        // (como siempre): el 18 por defecto lo aplica la capa de contrato (PlazoContrato::meses()).
+        $contrato = $this->duration_contract()->first();
+        if ($contrato && $contrato->name === \App\Support\PlazoContrato::ESPECIAL) {
+            return (int) ($this->plazo_especial_meses ?? 0);
+        }
+
+        return $contrato->duration ?? 0;
     }
 
 

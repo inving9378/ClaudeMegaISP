@@ -391,7 +391,7 @@ const SECTIONS = {
     direccion: ["street", "external_number", "internal_number", "colony_id", "zip", "municipality_id", "state_id", "location_id", "address", "geo_data"],
     servicio: ["estado", "connection_type", "ift", "category", "is_dedicated", "modem_sn", "vendor", "box_nomenclator", "last_time_online", "reinstatement"],
     credenciales: ["user", "password", "original_password", "password_wifi", "user_film", "password_film"],
-    contrato: ["type_of_billing_id", "duration_contract_id", "activation_date", "discharge_date", "activation_cost", "is_payment_activation_cost", "distribute_commission", "partner_id", "seller_id", "medium_id"],
+    contrato: ["type_of_billing_id", "duration_contract_id", "plazo_especial_meses", "activation_date", "discharge_date", "activation_cost", "is_payment_activation_cost", "distribute_commission", "partner_id", "seller_id", "medium_id"],
     encuesta: ["installation_on_time", "technician_attencion", "amount_technician_and_why", "doubt_signed_contract", "comment"],
 };
 // Campos renderizados a mano (mapa/widgets/banner) → no van en los loops de sección.
