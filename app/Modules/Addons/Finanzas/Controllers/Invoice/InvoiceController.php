@@ -108,12 +108,21 @@ class InvoiceController extends CrudModalController
                 ], 500);
             }
             $model->load('client');
-            $pagada = $model->status === Invoice::STATUS_PAID;
+
+            // Item #505: Enviar manda EXACTAMENTE el documento del ícono (Invoice::documentoVigente()).
+            $documento = $model->documentoVigente();
+            if ($documento === null) {
+                return response()->json(['success' => false, 'message' => 'La factura está cancelada: no hay documento que enviar.'], 422);
+            }
+            if ($documento === Invoice::DOC_CFDI) {
+                return response()->json(['success' => false, 'message' => 'Esta factura tiene CFDI timbrado; su envío («Tu CFDI {periodo} — Meganet») llega con la Fase 4.'], 409);
+            }
+            $pagada = $documento === Invoice::DOC_FACTURA;
 
             // Item #480: se manda la Prefactura (plantilla + provider) en PDF adjunto. Pendiente:
             // si la plantilla no se puede llenar, se cae al Blade FacturaProforma de antes (log).
-            // Item #498 (decisión de Irving): PAGADA → «comprobante de pago»; si la plantilla falla
-            // NO hay fallback (el Blade viejo diría «Monto a pagar: 0.00»): se aborta sin enviar.
+            // Items #498/#505 (decisión de Irving): PAGADA → FACTURA; si la plantilla falla NO hay
+            // fallback (el Blade viejo diría «Monto a pagar: 0.00»): se aborta sin enviar.
             $prefactura = $this->prefacturaParaCorreo($model);
             $adjuntos = [];
             if ($prefactura['status'] === 'ok') {
@@ -192,57 +201,99 @@ class InvoiceController extends CrudModalController
 
 
     /**
-     * Botón «Imprimir» (item #505): el MISMO documento que «Prefactura actualizada» (plantilla
-     * «Prefactura.» + PrefacturaDataProvider): PREFACTURA si está pendiente, FACTURA si está pagada.
-     * Si la plantilla no se puede llenar: pendiente → Blade FacturaProformaPdf de antes (log);
-     * pagada → error con las variables faltantes (el Blade viejo diría «Monto a pagar: 0.00»).
-     *
-     * Con ?validar=1 responde JSON sin generar el PDF: la pantalla lo usa antes de abrir la pestaña.
+     * Ícono único de documento (item #505). /print/{id} se conserva por compatibilidad (Finanzas y
+     * enlaces existentes) y devuelve el MISMO documento que /prefactura/{id}: el vigente según
+     * Invoice::documentoVigente() — PREFACTURA (pendiente) o FACTURA sin valor fiscal (pagada).
+     * Con ?validar=1 responde JSON sin generar el PDF (la pantalla valida antes de abrir la pestaña).
      */
     public function printInvoice(Request $request, $id)
     {
-        $model = $this->data['model']::find($id);
+        return $this->servirDocumento($request, $id, false);
+    }
+
+    /**
+     * Mismo documento que el ícono, por la ruta de «Prefactura actualizada» (#480, permiso
+     * finanzas_prefactura_generar); además deja rastro en activity_log (log_name=prefactura).
+     */
+    public function prefactura(Request $request, $id)
+    {
+        return $this->servirDocumento($request, $id, true);
+    }
+
+    /**
+     * Si la plantilla no se puede llenar: prefactura → Blade FacturaProformaPdf de antes (log);
+     * factura pagada → error con las variables faltantes (el Blade viejo diría «Monto a pagar: 0.00»).
+     * Cancelada → sin documento. CFDI → Fase 4 (#483; hoy hasCfdi() siempre es false).
+     */
+    private function servirDocumento(Request $request, $id, bool $registrar)
+    {
+        $validar = $request->boolean('validar');
+        $model = Invoice::find($id);
         if (!$model) {
-            return $request->boolean('validar')
-                ? response()->json(['status' => 'fail', 'message' => 'No se encontró la factura.', 'keys' => []], 404)
-                : redirect()->back()->with('message', 'No se encontro la factura');
+            return $this->fallaDocumento($validar, 'No se encontró la factura.', [], 404);
         }
         $model->load('client');
-        $pagada = $model->status === Invoice::STATUS_PAID;
+
+        $documento = $model->documentoVigente();
+        if ($documento === null) {
+            return $this->fallaDocumento($validar, 'La factura está cancelada: no tiene documento.', [], 422);
+        }
+        if ($documento === Invoice::DOC_CFDI) {
+            return $this->fallaDocumento($validar, 'Esta factura tiene CFDI timbrado; su descarga (PDF y XML) llega con la Fase 4.', [], 409);
+        }
 
         try {
             $servicio = app(PrefacturaPdfService::class);
-            $r = $request->boolean('validar') ? $servicio->html($model) : $servicio->generar($model);
+            $r = $validar ? $servicio->html($model) : $servicio->generar($model);
         } catch (\Throwable $e) {
-            Log::error("[Prefactura] Imprimir factura #{$model->id}: " . $e->getMessage());
+            Log::error("[Prefactura] Documento de la factura #{$model->id}: " . $e->getMessage());
             $r = ['status' => 'fail', 'keys' => []];
         }
 
         if ($r['status'] !== 'ok') {
-            if ($pagada) {
-                $mensaje = 'No se pudo generar la factura pagada: la plantilla «Prefactura.» pide variables que no se pudieron llenar.';
-                Log::warning("[Prefactura] Imprimir factura PAGADA #{$model->id}: no se pudo generar.", ['faltan' => $r['keys']]);
+            if ($documento === Invoice::DOC_FACTURA) {
+                Log::warning("[Prefactura] Factura PAGADA #{$model->id}: no se pudo generar.", ['faltan' => $r['keys']]);
 
-                return $request->boolean('validar')
-                    ? response()->json(['status' => 'fail', 'message' => $mensaje, 'keys' => $r['keys']], 422)
-                    : response($this->paginaError($mensaje, $r['keys']), 422)->header('Content-Type', 'text/html; charset=UTF-8');
+                return $this->fallaDocumento($validar, 'No se pudo generar la factura pagada: la plantilla «Prefactura.» pide variables que no se pudieron llenar.', $r['keys'], 422);
             }
-            Log::warning("[Prefactura] Imprimir factura #{$model->id}: la plantilla no se pudo llenar, se usa FacturaProformaPdf.", ['faltan' => $r['keys']]);
-            if ($request->boolean('validar')) {
-                return response()->json(['status' => 'ok', 'respaldo' => true]);
-            }
+            Log::warning("[Prefactura] Factura #{$model->id}: la plantilla no se pudo llenar, se usa FacturaProformaPdf.", ['faltan' => $r['keys']]);
 
-            return $this->imprimirBladeAnterior($model);
+            return $validar ? response()->json(['status' => 'ok', 'respaldo' => true]) : $this->imprimirBladeAnterior($model);
         }
 
-        if ($request->boolean('validar')) {
+        if ($validar) {
             return response()->json(['status' => 'ok', 'estado' => $r['estado']]);
+        }
+
+        if ($registrar) {
+            activity('prefactura')
+                ->causedBy(auth()->user())
+                ->performedOn($model)
+                ->event('prefactura_generada')
+                ->withProperties([
+                    'invoice_id'     => $model->id,
+                    'invoice_number' => $model->number,
+                    'client_id'      => $model->client_id,
+                    'estado'         => $r['estado'],
+                    'kb'             => round(strlen($r['pdf']) / 1024, 1),
+                ])
+                ->tap(function ($activity) use ($model) {
+                    $activity->client_id = $model->client_id;
+                })
+                ->log("Prefactura actualizada de la factura {$model->number} ({$r['estado']})");
         }
 
         return response($r['pdf'], 200, [
             'Content-Type'        => 'application/pdf',
             'Content-Disposition' => 'inline; filename="' . $r['filename'] . '"',
         ]);
+    }
+
+    private function fallaDocumento(bool $validar, string $mensaje, array $keys, int $codigo)
+    {
+        return $validar
+            ? response()->json(['status' => 'fail', 'message' => $mensaje, 'keys' => $keys], $codigo)
+            : response($this->paginaError($mensaje, $keys), $codigo)->header('Content-Type', 'text/html; charset=UTF-8');
     }
 
     /** El PDF de antes (FacturaProformaPdf): solo como respaldo de facturas pendientes. */
@@ -331,69 +382,6 @@ class InvoiceController extends CrudModalController
             'body'    => $body . '<p style="color:#6E7C8C;font-size:12px">Documento informativo sin valor fiscal.</p>',
             'adjunto' => ['data' => base64_encode($r['pdf']), 'name' => $r['filename'], 'mime' => 'application/pdf'],
         ];
-    }
-
-    /**
-     * «Prefactura actualizada» (item #480): PDF de la plantilla «Prefactura.» con los datos de
-     * HOY de esta factura (pendiente o pagada). Se genera en memoria: no reemplaza ni borra el
-     * PDF original, no toca billing_notifications ni la pausa de envíos. Documento informativo
-     * sin valor fiscal. Permiso de ruta: finanzas_prefactura_generar.
-     *
-     * Con ?validar=1 solo comprueba que la plantilla se pueda llenar (JSON, sin PDF ni bitácora):
-     * la pantalla lo usa antes de abrir la pestaña, para mostrar las variables faltantes en un
-     * aviso en vez de una pestaña con JSON.
-     */
-    public function prefactura(Request $request, $id)
-    {
-        $invoice = Invoice::find($id);
-        if (!$invoice) {
-            return response()->json(['status' => 'fail', 'message' => 'No se encontró la factura.', 'keys' => []], 404);
-        }
-        if ($invoice->status === Invoice::STATUS_CANCELLED) {
-            return response()->json(['status' => 'fail', 'message' => 'La factura está cancelada: no se genera prefactura.', 'keys' => []], 422);
-        }
-
-        try {
-            $servicio = app(PrefacturaPdfService::class);
-            $r = $request->boolean('validar') ? $servicio->html($invoice) : $servicio->generar($invoice);
-        } catch (\Throwable $e) {
-            Log::error("[Prefactura] Error generando la prefactura de la factura #{$invoice->id}: " . $e->getMessage());
-
-            return response()->json(['status' => 'fail', 'message' => 'Ocurrió un error al generar la prefactura.', 'keys' => []], 500);
-        }
-
-        if ($r['status'] !== 'ok') {
-            return response()->json([
-                'status'  => 'fail',
-                'message' => 'La plantilla «Prefactura.» pide variables que no se pudieron llenar:',
-                'keys'    => $r['keys'],
-            ], 422);
-        }
-
-        if ($request->boolean('validar')) {
-            return response()->json(['status' => 'ok', 'estado' => $r['estado']]);
-        }
-
-        activity('prefactura')
-            ->causedBy(auth()->user())
-            ->performedOn($invoice)
-            ->event('prefactura_generada')
-            ->withProperties([
-                'invoice_id'     => $invoice->id,
-                'invoice_number' => $invoice->number,
-                'client_id'      => $invoice->client_id,
-                'estado'         => $r['estado'],
-                'kb'             => round(strlen($r['pdf']) / 1024, 1),
-            ])
-            ->tap(function ($activity) use ($invoice) {
-                $activity->client_id = $invoice->client_id;
-            })
-            ->log("Prefactura actualizada de la factura {$invoice->number} ({$r['estado']})");
-
-        return response($r['pdf'], 200, [
-            'Content-Type'        => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="' . $r['filename'] . '"',
-        ]);
     }
 
     public function markAsPaid(Request $request, $id)
