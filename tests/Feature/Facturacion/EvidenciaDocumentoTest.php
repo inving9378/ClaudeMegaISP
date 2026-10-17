@@ -35,6 +35,13 @@ class EvidenciaDocumentoTest extends TestCase
         Storage::fake(config('billing.pdf_disk', 'local'));
         config(['mail.default' => 'array', 'mail.mailers.array' => ['transport' => 'array'], 'mail.interceptar.activo' => false]);
         Mail::purge('array');
+        // Sin salida externa: las cuentas de correo del Hub (servicio_asignaciones) mandarían por SMTP
+        // real aunque el transporte por defecto sea `array`. Se quitan dentro de la transacción
+        // (se revierte al terminar) y se comprueba que no quede ninguna.
+        if (\Illuminate\Support\Facades\Schema::hasTable('servicio_asignaciones')) {
+            DB::table('servicio_asignaciones')->delete();
+        }
+        $this->assertNull(\App\Modules\Addons\Hub\Services\Servicios::integracion('facturacion.correo_recibos'));
 
         if (! Schema::hasTable('billing_documento_evidencias')) {
             Schema::create('billing_documento_evidencias', function (Blueprint $t) {
@@ -132,6 +139,7 @@ class EvidenciaDocumentoTest extends TestCase
     public function test_el_envio_automatico_deja_evidencia_aceptada_del_pdf_que_salio(): void
     {
         DB::table('billing_config')->update(['envio_pausado' => 0, 'send_ticket_email' => 0]);
+        config(['billing.reactivacion' => ['etapa' => 'todos', 'limite_por_corrida' => 100, 'limite_diario' => 1000, 'max_errores_por_corrida' => 10]]);
         $this->app->instance(PrefacturaPdfService::class, new PrefacturaPdfServiceFalso());
 
         $usuario = (int) DB::table('users')->value('id');
@@ -144,7 +152,7 @@ class EvidenciaDocumentoTest extends TestCase
 
         $this->artisan('billing:send-pending-notifications')->assertExitCode(0);
 
-        $this->assertSame(BillingNotification::STATUS_SENT, $n->fresh()->status);
+        $this->assertSame(BillingNotification::STATUS_SENT, $n->fresh()->status, (string) $n->fresh()->error_log);
         $e = Evidencia::where('billing_notification_id', $n->id)->sole();
         $this->assertSame('prefactura', $e->documento);
         $this->assertSame(Evidencia::ESTADO_ACEPTADO, $e->estado);

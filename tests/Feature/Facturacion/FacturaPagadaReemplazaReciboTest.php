@@ -39,6 +39,13 @@ class FacturaPagadaReemplazaReciboTest extends TestCase
         Storage::fake(config('billing.pdf_disk', 'local'));
         config(['mail.default' => 'array', 'mail.mailers.array' => ['transport' => 'array'], 'mail.interceptar.activo' => false]);
         Mail::purge('array');
+        // Sin salida externa: las cuentas de correo del Hub (servicio_asignaciones) mandarían por SMTP
+        // real aunque el transporte por defecto sea `array`. Se quitan dentro de la transacción
+        // (se revierte al terminar) y se comprueba que no quede ninguna.
+        if (\Illuminate\Support\Facades\Schema::hasTable('servicio_asignaciones')) {
+            DB::table('servicio_asignaciones')->delete();
+        }
+        $this->assertNull(\App\Modules\Addons\Hub\Services\Servicios::integracion('facturacion.correo_recibos'));
 
         DB::table('billing_config')->update(['send_ticket_email' => 0, 'envio_pausado' => 1, 'notification_window_hours' => 12]);
 
@@ -99,6 +106,13 @@ class FacturaPagadaReemplazaReciboTest extends TestCase
         $invoice->payment_id = $payment->id;
         $invoice->payment_method = $payment->payment_method_id;
         $invoice->save();
+    }
+
+    /** Quita la pausa y abre la etapa de reactivación (FAC-08), que por defecto está cerrada. */
+    private function abrirEnvios(): void
+    {
+        DB::table('billing_config')->update(['envio_pausado' => 0]);
+        config(['billing.reactivacion' => ['etapa' => 'todos', 'limite_por_corrida' => 100, 'limite_diario' => 1000, 'max_errores_por_corrida' => 10]]);
     }
 
     private function recibo(Payment $payment): BillingNotification
@@ -228,7 +242,7 @@ class FacturaPagadaReemplazaReciboTest extends TestCase
 
     public function test_al_enviar_revalida_cancela_la_prefactura_pagada_y_manda_la_factura(): void
     {
-        DB::table('billing_config')->update(['envio_pausado' => 0]);
+        $this->abrirEnvios();
         $cliente = $this->cliente();
         $invoice = $this->factura($cliente);
         $prefactura = $this->notificacionPrefactura($invoice);
@@ -259,7 +273,7 @@ class FacturaPagadaReemplazaReciboTest extends TestCase
 
     public function test_factura_pagada_que_no_se_puede_generar_no_se_manda_ni_cae_al_recibo(): void
     {
-        DB::table('billing_config')->update(['envio_pausado' => 0]);
+        $this->abrirEnvios();
         $cliente = $this->cliente();
         $invoice = $this->factura($cliente);
         $payment = $this->pago($cliente, self::CLIENTE_LEGACY);
@@ -297,5 +311,17 @@ class FacturaPagadaReemplazaReciboTest extends TestCase
 
         $this->assertSame([], $this->pdf->llamadas);
         $this->assertSame(BillingNotification::STATUS_WAITING, $prefactura->fresh()->status);
+    }
+
+    public function test_con_la_etapa_de_reactivacion_cerrada_no_sale_nada_aunque_se_quite_la_pausa(): void
+    {
+        DB::table('billing_config')->update(['envio_pausado' => 0]);   // etapa por defecto: cerrado
+        $cliente = $this->cliente();
+        $prefactura = $this->notificacionPrefactura($this->factura($cliente));
+
+        $this->artisan('billing:send-pending-notifications')->assertExitCode(0);
+
+        $this->assertSame(BillingNotification::STATUS_WAITING, $prefactura->fresh()->status);
+        $this->assertCount(0, Mail::mailer('array')->getSymfonyTransport()->messages());
     }
 }

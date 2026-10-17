@@ -97,6 +97,35 @@ class InvoiceController extends CrudModalController
     }
 
 
+    /** #526: tope de filas al exportar la lista de facturas a Excel. */
+    public const EXPORTAR_MAX_FILAS = 10000;
+
+    /**
+     * #526 (decisión de Irving): exportar sin filtrar intentaba armar ~100 mil facturas en memoria y
+     * trababa el servidor. Si la exportación pide más de EXPORTAR_MAX_FILAS, responde 422 pidiendo
+     * filtrar. La ficha del cliente siempre exporta solo lo suyo (filtro fijo) y no se ve afectada.
+     */
+    public function table(Request $request)
+    {
+        if ($request->boolean('export') && (int) $request->input('limits') === 0) {
+            $total = $this->helper->countTotalData(
+                $this->helper->getIdModuleFromRequest($request),
+                $this->helper->getFiltersFromRequest($request),
+                $request,
+                $this->helper->getColumns($request->data['columns'] ?? [])
+            );
+            if ($total > self::EXPORTAR_MAX_FILAS) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Son ' . number_format($total) . ' facturas. Filtra la lista (por estado, fecha o cliente) para exportar como máximo '
+                        . number_format(self::EXPORTAR_MAX_FILAS) . '.',
+                ], 422);
+            }
+        }
+
+        return parent::table($request);
+    }
+
     public function sendInvoice($id)
     {
         try {

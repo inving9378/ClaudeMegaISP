@@ -113,7 +113,11 @@ class ProformaAnticipadaComandoTest extends TestCase
     public function test_encendido_respeta_la_pausa_de_facturacion(): void
     {
         config(['billing.proforma_anticipada' => true]);
-        DB::table('client_billing_pauses')->insert(['client_id' => $this->clientes['A'], 'estado' => 'en_curso', 'created_at' => now(), 'updated_at' => now()]);
+        $pausa = ['client_id' => $this->clientes['A'], 'estado' => 'en_curso', 'created_at' => now(), 'updated_at' => now()];
+        if (Schema::hasColumn('client_billing_pauses', 'meses')) {   // tabla real (no la temporal mínima)
+            $pausa += ['tipo' => 'sin_cuota', 'meses' => 1, 'fecha_inicio' => now()->subDay(), 'fecha_fin' => now()->addMonth()];
+        }
+        DB::table('client_billing_pauses')->insert($pausa);
 
         $this->artisan('invoice:create-proformas')->assertExitCode(0);
 

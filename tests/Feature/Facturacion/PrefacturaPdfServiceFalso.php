@@ -18,6 +18,8 @@ class PrefacturaPdfServiceFalso extends PrefacturaPdfService
 
     public function generar(Invoice $invoice, ?string $estado = null): array
     {
+        // Como el servicio real: sin estado explícito, se calcula de la factura.
+        $estado ??= \App\Services\Finance\Billing\PrefacturaDataProvider::estadoDe($invoice);
         $this->llamadas[] = [$invoice->id, $estado];
         if (in_array($invoice->id, $this->fallaPara, true)) {
             return ['status' => 'fail', 'keys' => ['data.simulada']];
