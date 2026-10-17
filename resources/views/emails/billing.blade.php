@@ -26,7 +26,9 @@
 
     <div class="header">
         <h1>
-            @if($notification->document_type === 'prefactura')
+            @if(!empty($documento['titulo']))
+                {{ $documento['titulo'] }}
+            @elseif($notification->document_type === 'prefactura')
                 Aviso de cobro
             @elseif($notification->document_type === 'recibo')
                 Recibo de pago
@@ -45,7 +47,9 @@
 
         <h2>Hola, {{ $nombre }}.</h2>
 
-        @if($notification->document_type === 'prefactura')
+        @if(!empty($documento['mensaje']))
+            <p>{{ $documento['mensaje'] }}</p>
+        @elseif($notification->document_type === 'prefactura')
             <p>Te enviamos tu aviso de cobro correspondiente al período de servicio próximo.
             Por favor, revisa el documento adjunto para ver el desglose de tu servicio y la fecha límite de pago.</p>
         @elseif($notification->document_type === 'recibo')
@@ -61,9 +65,14 @@
                 </tr>
                 <tr>
                     <td class="lbl">Documento:</td>
-                    <td>{{ strtoupper($notification->document_type) }}</td>
+                    <td>{{ $documento['etiqueta'] ?? strtoupper($notification->document_type) }}</td>
                 </tr>
-                @if($notification->invoice_id)
+                @if(!empty($documento['folios']))
+                <tr>
+                    <td class="lbl">Folio:</td>
+                    <td>{{ implode(', ', $documento['folios']) }}</td>
+                </tr>
+                @elseif($notification->invoice_id)
                 <tr>
                     <td class="lbl">Prefactura N°:</td>
                     <td>{{ $notification->invoice?->number ?? $notification->invoice_id }}</td>
