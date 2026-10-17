@@ -55,9 +55,13 @@ class FolioFacturaTest extends TestCase
     {
         $u = (int) DB::table('users')->value('id');
         $c = DB::table('clients')->insertGetId(['created_by' => $u, 'updated_by' => $u, 'created_at' => now(), 'updated_at' => now()]);
-        $i = Invoice::create(['number' => 'FOLIO-X', 'folio' => 'MN-2020-000999', 'client_id' => $c, 'type' => 'proforma', 'period' => '2026-11',
+        // `folio` no es asignable en masa (un formulario no puede inyectarlo): se fija explícito.
+        $i = new Invoice(['number' => 'FOLIO-X', 'folio' => 'MN-2020-000111', 'client_id' => $c, 'type' => 'proforma', 'period' => '2026-11',
             'subtotal' => 1, 'tax' => 0, 'total' => 1, 'pending_balance' => 1, 'status' => Invoice::STATUS_DRAFT]);
+        $this->assertNull($i->folio, 'no se asigna en masa');
+        $i->folio = 'MN-2020-000999';
+        $i->save();
 
-        $this->assertSame('MN-2020-000999', $i->folio);
+        $this->assertSame('MN-2020-000999', $i->fresh()->folio);
     }
 }
