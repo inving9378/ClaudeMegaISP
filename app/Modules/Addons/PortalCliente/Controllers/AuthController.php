@@ -14,11 +14,25 @@ class AuthController extends Controller
 {
     // ── LOGIN ─────────────────────────────────────────────────────────────
 
-    public function showLogin()
+    public function showLogin(Request $request)
     {
+        // ?cliente=N viene del enlace «Portal del cliente» de la ficha del admin: solo prellena el
+        // identificador (vía old(), que la vista ya usa). No autentica nada.
+        $cliente = (string) $request->query('cliente', '');
+        $cliente = preg_match('/^\d{1,10}$/', $cliente) ? (int) $cliente : null;
+
         if (Auth::guard('cliente')->check()) {
-            return redirect()->route('portal.dashboard');
+            // Con sesión de OTRO cliente abierta en el navegador, mostrar el login del pedido
+            // en vez de mandar al portal del cliente equivocado.
+            if ($cliente === null || (int) Auth::guard('cliente')->user()->client_id === $cliente) {
+                return redirect()->route('portal.dashboard');
+            }
         }
+
+        if ($cliente !== null && !$request->session()->hasOldInput('identificador')) {
+            $request->session()->now('_old_input', ['identificador' => (string) $cliente]);
+        }
+
         return view('addon-portal-cliente::auth.login');
     }
 

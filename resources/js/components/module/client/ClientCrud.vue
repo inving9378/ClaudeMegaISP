@@ -3,9 +3,11 @@
         v-model="currentTab"
         no-caps
         dense
-        active-color="indigo-6"
+        indicator-color="transparent"
+        class="cc-folder-tabs"
+        :class="{ 'cc-folder-dark': darkMode }"
         style="margin-right: 35px"
-        align="justify"
+        align="left"
         :breakpoint="0"
         @update:model-value="onChangeTab"
     >
@@ -264,3 +266,26 @@ const setInitialTab = async () => {
     }
 };
 </script>
+
+<style scoped>
+/* Pestañas tipo carpeta: la activa en índigo y unida a la línea de abajo. */
+.cc-folder-tabs { border-bottom: 3px solid #4f46e5; }
+.cc-folder-tabs :deep(.q-tabs__content) { align-items: flex-end; gap: 4px; }
+.cc-folder-tabs :deep(.q-tab) {
+    /* bootstrap .row > * { width: 100% } alcanza a las pestañas (q-tabs__content es .row) */
+    width: auto;
+    padding: 0 16px;
+    background: #f3f4f6;
+    color: #4b5563;
+    border: 1px solid #e5e7eb;
+    border-bottom: 0;
+    border-radius: 8px 8px 0 0;
+}
+.cc-folder-tabs :deep(.q-tab:hover) { background: #e0e7ff; color: #4338ca; }
+.cc-folder-tabs :deep(.q-tab--active),
+.cc-folder-tabs :deep(.q-tab--active:hover) { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+.cc-folder-dark :deep(.q-tab) { background: #26262c; color: #9ca3af; border-color: #2c2c34; }
+.cc-folder-dark :deep(.q-tab:hover) { background: #312e81; color: #c7d2fe; }
+.cc-folder-dark :deep(.q-tab--active),
+.cc-folder-dark :deep(.q-tab--active:hover) { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+</style>
