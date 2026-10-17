@@ -251,6 +251,20 @@ class HomeController extends Controller
     }
 
 
+    /** FAC-11 (#519): indicadores de facturación del mes en curso (fórmulas en docs/manual/indicadores-facturacion.md). */
+    public function getStatsCardFacturacionInDashBoard()
+    {
+        $filas = (new \App\Services\Finance\Billing\IndicadoresFacturacionService())
+            ->calcular(now()->startOfMonth(), now()->addDay()->startOfDay());
+
+        $salida = ['Mes actual' => ['estado' => '', 'total' => '']];
+        foreach ($filas as $f) {
+            $salida[$f['nombre']] = ['estado' => $f['nombre'], 'total' => $f['valor'], 'detalle' => $f['detalle']];
+        }
+
+        return $salida;
+    }
+
     public function getStatsCardFinanceInDashBoard()
     {
 

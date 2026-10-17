@@ -38,6 +38,15 @@ export const requestStatsFinanceCardInDashBoard = async () => {
     return data;
 }
 
+// FAC-11 (#519): indicadores de facturación (mismo permiso que el bloque de Finanzas).
+export const requestStatsFacturacionCardInDashBoard = async () => {
+    let data = {}
+    await axios["post"](`/get-stats-facturacion-card-in-dashboard-c`, {}).then((response) => {
+        data = response.data;
+    });
+    return data;
+}
+
 export const requestStatsServerCardInDashBoard = async () => {
     let data = {}
     await axios["post"](`/get-stats-server-card-in-dashboard-c`, {}).then((response) => {

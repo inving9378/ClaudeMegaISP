@@ -8,7 +8,7 @@ return [
     'dashboard_view_card_device_not_responding' => ['/', '/home', '/index', '/dashboard'],
     'dashboard_view_block_client' => ['/', '/home', '/index', '/dashboard'],
     'dashboard_view_block_ticket' => ['/', '/home', '/index', '/dashboard'],
-    'dashboard_view_block_finance' => ['/', '/home', '/index', '/dashboard'],
+    'dashboard_view_block_finance' => ['/', '/home', '/index', '/dashboard', '/get-stats-facturacion-card-in-dashboard-c'], // FAC-11 (#519)
     'dashboard_view_info_invoice_transaction' => ['/', '/home', '/index', '/dashboard'],
     'dashboard_view_block_server_status' => ['/', '/home', '/index', '/dashboard'],
     'dashboard_view_card_identidad_cobertura' => ['/', '/home', '/index', '/dashboard'],
