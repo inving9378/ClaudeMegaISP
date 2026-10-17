@@ -2718,3 +2718,16 @@ fila del árbol muestra `📎 N`. Para versionar un adjunto duradero:
 ⚠️ Gotcha (item #9991170): con `CACHE_DRIVER=file` la caché de permisos Spatie es **por checkout**.
 Tras una migración que crea permisos (corre desde el worktree), el principal responde **403** hasta
 `php artisan permission:cache-reset` en `/var/www/megaisp`; el post-merge del runner no lo hace.
+
+## Candado por worktree (#502, 2026-10-16) — una sesión por worktree
+
+Dos sesiones de la cuenta compartida usaron el mismo worktree (`/var/www/megaisp-cc`) y una le
+cambió la rama a la otra. Ahora un hook PreToolUse (`/var/www/megaisp/.claude/settings.json` →
+`deploy/circuito/candado-worktree.sh`) le da a la primera sesión que edita o mueve el HEAD de un
+worktree el candado de ese worktree; una segunda sesión viva recibe un bloqueo con instrucciones.
+- **Trabaja en tu propio worktree:** `php artisan circuito:provision-worktree --sesion=<nombre>`
+  (crea `/var/www/megaisp-<nombre>`). Fuera del candado: el checkout principal (ahí se mergea;
+  verificar `git branch --show-current` = main) y los slots del circuito (`/home/meganet/circuito/*`).
+- El candado vence solo si la sesión dueña terminó o lleva 3 h sin usar el worktree.
+  Ver: `bash deploy/circuito/candado-worktree.sh estado`; soltar a mano: `… soltar <ruta>`.
+  Bitácora de tomas/bloqueos: `storage/logs/candado-worktree.log` del principal.
