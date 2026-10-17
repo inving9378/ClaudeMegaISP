@@ -84,7 +84,9 @@ class PlazoContratoFlujoCrmTest extends TestCase
         $this->assertSame([$this->especial, 10], [(int) $m->duration_contract_id, (int) $m->plazo_especial_meses]);
 
         // 2. Editarlo (otro dato) conserva el plazo guardado.
-        $this->postJson("/crm/update/{$crmId}", ['phone' => '5511111111', 'nif_pasaport' => 'XAXX010101000'] + $datos)->assertSuccessful();
+        // Igual que la pantalla: manda instalation_date vacío (null), con otro prospecto también sin fecha.
+        $this->crearProspecto($this->prospecto());
+        $this->postJson("/crm/update/{$crmId}", ['phone' => '5511111111', 'nif_pasaport' => 'XAXX010101000', 'instalation_date' => null] + $datos)->assertSuccessful();
         $m = DB::table('crm_main_information')->where('crm_id', $crmId)->first();
         $this->assertSame(['5511111111', $this->especial, 10], [$m->phone, (int) $m->duration_contract_id, (int) $m->plazo_especial_meses]);
 
@@ -113,12 +115,28 @@ class PlazoContratoFlujoCrmTest extends TestCase
         $this->assertSame($this->user->id, (int) $h['plazo']->user_id);
     }
 
+    public function test_editar_no_choca_por_la_fecha_de_instalacion_vacia_pero_si_por_una_repetida(): void
+    {
+        $this->crearProspecto($this->prospecto());   // otro prospecto SIN fecha (en dev hay miles)
+        $otro = $this->crearProspecto($this->prospecto());
+        DB::table('crm_lead_information')->where('crm_id', $otro)->update(['instalation_date' => '2026-10-20T10:00']);
+        $datos = $this->prospecto();
+        $crmId = $this->crearProspecto($datos);
+        $base = ['nif_pasaport' => 'XAXX010101000'] + $datos;
+
+        $this->postJson("/crm/update/{$crmId}", ['instalation_date' => null] + $base)->assertSuccessful();
+        $this->postJson("/crm/update/{$crmId}", ['instalation_date' => '2026-10-20T10:00'] + $base)
+            ->assertStatus(422)->assertJsonValidationErrors('instalation_date');
+        $this->postJson("/crm/update/{$otro}", ['instalation_date' => '2026-10-20T10:00', 'nif_pasaport' => 'XAXX010101000'] + $this->prospecto())
+            ->assertSuccessful(); // su propia fecha no cuenta como repetida
+    }
+
     public function test_al_cambiar_a_un_plazo_del_catalogo_los_meses_se_borran(): void
     {
         $datos = $this->prospecto();
         $crmId = $this->crearProspecto($datos);
 
-        $this->postJson("/crm/update/{$crmId}", ['nif_pasaport' => 'XAXX010101000', 'duration_contract_id' => $this->doce] + $datos)->assertSuccessful();
+        $this->postJson("/crm/update/{$crmId}", ['nif_pasaport' => 'XAXX010101000', 'instalation_date' => null, 'duration_contract_id' => $this->doce] + $datos)->assertSuccessful();
 
         $m = DB::table('crm_main_information')->where('crm_id', $crmId)->first();
         $this->assertSame($this->doce, (int) $m->duration_contract_id);
