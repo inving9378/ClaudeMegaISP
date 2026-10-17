@@ -1,42 +1,49 @@
 
+// «Estado» de factura (meganet/shared/table/module/finance/invoice/status.blade.php).
+// #532: en claro, misma paleta que la columna «Documento» (fondo tenue + texto oscuro del mismo
+// tono). Antes era texto blanco sobre color fuerte: Pagada 2.06:1, Parcialmente 2.57:1, Emitida
+// 4.47:1; ahora todas pasan de 6.3:1. El oscuro vive en base/dark_mode/dark_mode.scss (#528).
+.badge-invoice-Borrador,
+.badge-invoice-Emitida,
+.badge-invoice-Enviada,
+.badge-invoice-Vencida,
+.badge-invoice-Pagada,
+.badge-invoice-Parcialmente_Pagada,
+.badge-invoice-Cancelada {
+    padding: 0 15px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    border-radius: 5px;
+    border: 1px solid transparent;
+    font-weight: 600;
+}
+
 .badge-invoice-Borrador,
 .badge-invoice-Emitida,
 .badge-invoice-Enviada,
 .badge-invoice-Vencida {
-    background-color: #ec1717;
-    padding: 0 15px;
-    padding-top: 5px;
-    padding-bottom: 5px;
-    border-radius: 5px;
-    color: #ffffff;
+    background-color: #FEE2E2;
+    color: #991B1B;
+    border-color: #FECACA;
     cursor: pointer;
 }
 
 .badge-invoice-Pagada {
-    background-color: #29cc97;
-    padding: 0 15px;
-    padding-top: 5px;
-    padding-bottom: 5px;
-    border-radius: 5px;
-    color: #ffffff;
+    background-color: #DCFCE7;
+    color: #166534;
+    border-color: #BBF7D0;
 }
 
 .badge-invoice-Parcialmente_Pagada {
-    background-color: #fd7e14;
-    padding: 0 15px;
-    padding-top: 5px;
-    padding-bottom: 5px;
-    border-radius: 5px;
-    color: #ffffff;
+    background-color: #FFEDD5;
+    color: #9A3412;
+    border-color: #FED7AA;
     cursor: pointer;
 }
 
 /* #528: «Cancelada» no tenía estilo (salía como texto suelto). Gris, sin acción de pago. */
 .badge-invoice-Cancelada {
-    background-color: #64748b;
-    padding: 0 15px;
-    padding-top: 5px;
-    padding-bottom: 5px;
-    border-radius: 5px;
-    color: #ffffff;
+    background-color: #F1F5F9;
+    color: #475569;
+    border-color: #E2E8F0;
 }
