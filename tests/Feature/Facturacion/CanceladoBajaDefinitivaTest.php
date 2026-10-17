@@ -125,6 +125,7 @@ class CanceladoBajaDefinitivaTest extends TestCase
         $this->assertEquals(349.5, $e[0]->adeudo);
         $this->assertNull($e[0]->error);
         Storage::disk(config('billing.pdf_disk', 'local'))->assertExists($e[0]->pdf_path);
+        $this->assertSame(config('billing.pdf_path_prefix', 'billing/pdf'), dirname($e[0]->pdf_path), 'misma carpeta que las prefacturas');
         $this->assertSame(0, DB::table('billing_notifications')->where('client_id', $id)->count(), 'generarlo no lo encola para envío');
 
         // Reactivado a mano y cancelado otra vez el mismo día: no se duplica.
