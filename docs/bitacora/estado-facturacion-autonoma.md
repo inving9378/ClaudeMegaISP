@@ -68,11 +68,16 @@ Ver `docs/bitacora/2026-10-16-decisiones-si-no-facturacion.md` y el borrador del
 en `main` (`5d295b7e`): #525, #526, #527, #528, #529, #530, #511, #520, #517 (código), #513 (valor 21
 en dev), #502 (interceptación activa en dev). **No publicar** todavía (decisión de Irving).
 
-**Pendiente de validación visual:** pantallas de facturas (menú, folio, Estado en oscuro, aviso de
-exportación) tras el build del principal.
+**Validado en navegador:** menú, folio, Estado en oscuro, aviso de exportación (ronda 2) y Estado en
+claro (#532, ronda 3).
 
-**Queda en Irving:** desplegar y los pasos productivos (lotes 1–5); #514 fecha y ejecución; #515
-etapas; #517/#522 activaciones; #513 encender en prod; #523/#524 legal y CFDI; #531.
+**Ronda 3 («hazlas en orden»), hechas y en `main`:** #532 Estado legible en claro (`cb42d198`); #531 la
+BD de pruebas se arma sola y sin correo real (`f8aa3a28`, `migrate:fresh --seed` verificado, 123
+pruebas OK); #502 candado por worktree (`f8738eee`, `164accc1`, hook instalado en el principal).
+
+**Queda en Irving:** revisar en dev y decidir cuándo publicar; desplegar y los pasos productivos
+(lotes 1–5); #503 facturas pagadas en prod; #514 fecha y ejecución; #515 etapas; #517/#522
+activaciones; #513 encender en prod; #523/#524 legal y CFDI.
 
 ## Bloqueos y decisiones
 
