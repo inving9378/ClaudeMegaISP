@@ -108,8 +108,8 @@ class CreateProformaInvoiceCommand extends Command
      * N días antes de SU día de facturación, con N = su «Envío prefactura» o, si no tiene, el valor
      * general (5). Día de facturación: fecha_pago en pago recurrente, fecha_corte en los demás
      * (EnvioPrefactura). El periodo y la fecha límite siguen siendo su fecha de corte, como la regla
-     * de siempre. Sin retroactivo: un corte ya pasado no se recupera. Mismas exclusiones (sin ficha,
-     * Cancelado, factura del periodo ya creada, pausa en curso) y misma creación idempotente.
+     * de siempre. Sin retroactivo: un corte ya pasado no se recupera. Solo clientes Activos (FR-06);
+     * mismas exclusiones (factura del periodo ya creada, pausa en curso) y misma creación idempotente.
      */
     private function crearAnticipadas(): void
     {
@@ -121,7 +121,9 @@ class CreateProformaInvoiceCommand extends Command
         $desde = $hoy->toDateString();
         $hasta = $hoy->copy()->addDays(max($general, $maxPropio))->toDateString();
 
-        $clientes = Client::whereHas('client_main_information', $this->sinCancelados())
+        // FR-06 (#540): en esta regla la prefactura solo es para clientes Activos; bloqueados e
+        // inactivos reciben estado de cuenta (facturacion:estados-cuenta-mensuales) y Nuevo, nada.
+        $clientes = Client::whereHas('client_main_information', fn ($q) => $q->where('estado', ReglasFacturacion::ACTIVO))
             ->where(function ($q) use ($desde, $hasta) {
                 $q->where(fn ($w) => $w->whereDate('fecha_pago', '>=', $desde)->whereDate('fecha_pago', '<=', $hasta))
                     ->orWhere(fn ($w) => $w->whereDate('fecha_corte', '>=', $desde)->whereDate('fecha_corte', '<=', $hasta));

@@ -55,8 +55,9 @@ class ProformasSimularCommand extends Command
         $propios = Schema::hasColumn('billing_configurations', 'envio_prefactura_dias') ? 'bc.envio_prefactura_dias' : DB::raw('NULL as envio_prefactura_dias');
         $clientes = DB::table('clients as c')
             ->leftJoin('billing_configurations as bc', 'bc.client_id', '=', 'c.id')
+            // FR-02/FR-06 (#536/#540): la prefactura anticipada es solo para clientes Activos.
             ->whereExists(fn ($q) => $q->from('client_main_information as m')->whereColumn('m.client_id', 'c.id')
-                ->where('m.estado', '!=', 'Cancelado')) // FR-02 (#536): Cancelado no recibe prefactura
+                ->where('m.estado', 'Activo'))
             ->whereNotNull('c.fecha_corte')->where('c.fecha_corte', '!=', '')
             ->get(['c.id', 'c.fecha_corte', 'c.fecha_pago', 'bc.type_billing_id', $propios]);
 
