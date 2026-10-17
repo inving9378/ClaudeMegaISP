@@ -126,7 +126,9 @@ class Correo
         $cifrado = $c['encryption'] ?? 'tls';
 
         return [
-            'transport'  => 'smtp',
+            // #531: dentro de las pruebas (phpunit) una cuenta del Hub nunca manda de verdad: el
+            // correo se queda en memoria, igual que con MAIL_MAILER=array.
+            'transport'  => app()->runningUnitTests() ? 'array' : 'smtp',
             'host'       => $c['host'] ?? null,
             'port'       => (int) ($c['port'] ?? 587),
             'encryption' => in_array($cifrado, ['tls', 'ssl'], true) ? $cifrado : null,
