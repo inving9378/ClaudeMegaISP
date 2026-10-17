@@ -31,6 +31,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->group(function () 
     Route::post('/get-stats-client-card-in-dashboard-c', [HomeController::class, 'getStatsCardClientInDashBoard']);
     Route::post('/get-stats-ticket-card-in-dashboard-c', [HomeController::class, 'getStatsCardTicketsInDashBoard']);
     Route::post('/get-stats-finance-card-in-dashboard-c', [HomeController::class, 'getStatsCardFinanceInDashBoard']);
+    // FAC-11 (#519): indicadores de facturación, mismo permiso que el bloque de Finanzas.
+    Route::post('/get-stats-facturacion-card-in-dashboard-c', [HomeController::class, 'getStatsCardFacturacionInDashBoard']);
     Route::post('/get-stats-server-card-in-dashboard-c', [HomeController::class, 'getStatsCardServerInDashBoard']);
 
     Route::group(['prefix' => '/statics'], function () {

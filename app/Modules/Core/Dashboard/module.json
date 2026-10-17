@@ -68,6 +68,13 @@
         },
         {
             "method": "POST",
+            "path": "/get-stats-facturacion-card-in-dashboard-c",
+            "description": "Indicadores de facturación (FAC-11)",
+            "scope": "dashboard_view_block_finance",
+            "permission": "dashboard_view_block_finance"
+        },
+        {
+            "method": "POST",
             "path": "/get-stats-server-card-in-dashboard-c",
             "description": "Bloque de estado del servidor",
             "scope": "dashboard_view_block_server_status",

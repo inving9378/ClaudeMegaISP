@@ -43,6 +43,11 @@
             ></card-stats>
             <card-stats
                 v-if="hasPermission.data.canView(`dashboard_view_block_finance`)"
+                tableName="Facturación (mes en curso)"
+                :dataStat="dataStatFacturacion"
+            ></card-stats>
+            <card-stats
+                v-if="hasPermission.data.canView(`dashboard_view_block_finance`)"
                 tableName="Servidores"
                 :dataStat="dataStatServer"
             ></card-stats>
@@ -60,6 +65,7 @@ import {
     requestHomeStatisticsForTarjetsByStatus,
     requestStatsClientCardInDashBoard,
     requestStatsFinanceCardInDashBoard,
+    requestStatsFacturacionCardInDashBoard,
     requestStatsServerCardInDashBoard,
     requestStatsTicketCardInDashBoard,
 } from "./helper/request";
@@ -80,6 +86,7 @@ export default {
         const dataStatClient = ref({});
         const dataStatTicket = ref({});
         const dataStatFinance = ref({});
+        const dataStatFacturacion = ref({});
         const dataStatServer = ref({});
         const hasPermission = reactive({
             data: new Permission({}),
@@ -95,6 +102,7 @@ export default {
             if (hasPermission.data.canView(`dashboard_view_block_finance`)) {
                 getStatsServerCardInDashBoard();
                 getStatsFinanceCardInDashBoard();
+                getStatsFacturacionCardInDashBoard();
             }
         });
 
@@ -112,6 +120,10 @@ export default {
 
         const getStatsFinanceCardInDashBoard = async () => {
             dataStatFinance.value = await requestStatsFinanceCardInDashBoard();
+        };
+
+        const getStatsFacturacionCardInDashBoard = async () => {
+            dataStatFacturacion.value = await requestStatsFacturacionCardInDashBoard();
         };
 
         const getStatsServerCardInDashBoard = async () => {
@@ -134,6 +146,7 @@ export default {
             dataStatClient,
             dataStatTicket,
             dataStatFinance,
+            dataStatFacturacion,
             hasPermission,
             dataStatServer,
             darkMode,
