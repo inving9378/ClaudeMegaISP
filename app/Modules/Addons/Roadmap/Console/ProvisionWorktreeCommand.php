@@ -31,6 +31,7 @@ class ProvisionWorktreeCommand extends Command
 {
     protected $signature = 'circuito:provision-worktree
         {--path= : ruta del worktree (default /home/meganet/circuito/wt-exec)}
+        {--sesion= : nombre corto de una sesión interactiva: crea /var/www/megaisp-<nombre> (#502)}
         {--base=main : rama/commit base del worktree}
         {--resync-vendor : re-copiar vendor aunque ya exista (tras un composer install en main)}';
 
@@ -38,6 +39,9 @@ class ProvisionWorktreeCommand extends Command
 
     /** Runtime dir del circuito (alineado con deploy/circuito/vuelta.sh). */
     private const DEFAULT_PATH = '/home/meganet/circuito/wt-exec';
+
+    /** Worktrees de sesiones interactivas (#502): /var/www/megaisp-<nombre>, como megaisp-cc. */
+    private const SESION_PREFIX = '/var/www/megaisp-';
 
     /** Symlinks al runtime compartido (gitignored → ausentes en un worktree recién creado). */
     private const SHARED_LINKS = ['.env', 'node_modules'];
@@ -54,7 +58,22 @@ class ProvisionWorktreeCommand extends Command
 
     public function handle(): int
     {
-        $path = rtrim((string) ($this->option('path') ?: self::DEFAULT_PATH), '/');
+        // #502: cada sesión interactiva trabaja en SU worktree (el candado de
+        // deploy/circuito/candado-worktree.sh frena a una segunda sesión en uno ocupado).
+        $sesion = (string) $this->option('sesion');
+        if ($sesion !== '') {
+            if ($this->option('path')) {
+                $this->error('Usa --sesion o --path, no los dos.');
+
+                return self::FAILURE;
+            }
+            if (! preg_match('/^[a-z0-9][a-z0-9-]{1,23}$/', $sesion)) {
+                $this->error('--sesion: de 2 a 24 caracteres, minúsculas, números o guiones (ej. --sesion=facturas).');
+
+                return self::FAILURE;
+            }
+        }
+        $path = rtrim((string) ($sesion !== '' ? self::SESION_PREFIX . $sesion : ($this->option('path') ?: self::DEFAULT_PATH)), '/');
         $base = (string) $this->option('base') ?: 'main';
 
         // Checkout PRINCIPAL = primer worktree de `git worktree list` (la fuente de los symlinks).
@@ -137,6 +156,9 @@ class ProvisionWorktreeCommand extends Command
         }
 
         $this->info("Provisioning OK: {$path}");
+        if ($sesion !== '') {
+            $this->line("  Trabaja ahí: cd {$path} && git switch -c circuito/item-<N>-<slug>");
+        }
 
         return self::SUCCESS;
     }
