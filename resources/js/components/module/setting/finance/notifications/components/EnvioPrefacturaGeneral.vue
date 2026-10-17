@@ -12,8 +12,8 @@
             </div>
             <div v-if="error" class="invalid-feedback d-block">{{ error }}</div>
             <p class="epg-nota">
-                Aplica a todos los clientes que no tienen su propio valor en su Configuración de facturación
-                <span v-if="propios">({{ propios }} {{ propios === 1 ? "cliente tiene" : "clientes tienen" }} uno propio)</span>.
+                Aplica a todos los clientes que no tienen su propio valor en su Configuración de facturación<span
+                    v-if="propios"> ({{ propios }} {{ propios === 1 ? "cliente tiene" : "clientes tienen" }} uno propio)</span>.
                 <b v-if="!encendido">La proforma anticipada sigue apagada: hoy no cambia cuándo se generan.</b>
             </p>
         </div>
