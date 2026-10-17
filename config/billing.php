@@ -52,6 +52,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | CLABE virtual del cliente en la Prefactura (FAC-13, item #521)
+    |--------------------------------------------------------------------------
+    | Apagado: «Cómo pagar» muestra la cuenta de la empresa + la referencia MEG,
+    | como siempre. Encendido: si el cliente tiene una CLABE virtual ACTIVA y con
+    | dígito de control válido (payment_clabes), se muestra esa; si no, la de
+    | siempre. Encender solo con la certificación de OpenPay (decisión de Irving).
+    */
+    'clabe_virtual_proforma' => (bool) env('BILLING_CLABE_VIRTUAL_PROFORMA', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Reactivación gradual de envíos automáticos (FAC-08, item #515)
     |--------------------------------------------------------------------------
     | Segunda compuerta DETRÁS de billing_config.envio_pausado (que no cambia):
