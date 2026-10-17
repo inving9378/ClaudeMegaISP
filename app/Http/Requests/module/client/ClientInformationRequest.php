@@ -35,6 +35,13 @@ class ClientInformationRequest extends FormRequest
             'colony_id' => 'required',
             'password' => 'required',
             'duration_contract_id' => 'required',
+            // FR-03 (#537): meses obligatorios (1-120) solo si el plazo es «Especial».
+            'plazo_especial_meses' => \App\Support\PlazoContrato::reglaMeses($request->input('duration_contract_id')),
         ];
+    }
+
+    public function attributes()
+    {
+        return ['plazo_especial_meses' => 'meses del plazo Especial'];
     }
 }

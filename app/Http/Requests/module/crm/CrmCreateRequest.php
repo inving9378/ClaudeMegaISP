@@ -39,7 +39,14 @@ class CrmCreateRequest extends FormRequest
             'phone'=>'required',
             'crm_status'=>'required',
             'owner_id' => 'required',
-            'colony_id'=>'required'
+            'colony_id'=>'required',
+            // FR-03 (#537): plazo de contrato del prospecto; meses solo si es «Especial».
+            'plazo_especial_meses' => \App\Support\PlazoContrato::reglaMeses($request->input('duration_contract_id')),
         ];
+    }
+
+    public function attributes()
+    {
+        return ['plazo_especial_meses' => 'meses del plazo Especial'];
     }
 }

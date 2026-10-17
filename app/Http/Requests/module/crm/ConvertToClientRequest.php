@@ -32,6 +32,8 @@ class ConvertToClientRequest extends FormRequest
             'seller_id'=>'required',
             'email' => 'required|unique:client_main_information,email,' . $request->route('id'),
             'medium_id'=>'required',
+            // FR-03 (#537): plazo copiado del prospecto; meses solo si es «Especial».
+            'plazo_especial_meses' => \App\Support\PlazoContrato::reglaMeses($request->input('duration_contract_id')),
         //    'user' => 'required|unique:client_main_information,user,' . $request->route('id'),
         ];
     }
@@ -40,6 +42,7 @@ class ConvertToClientRequest extends FormRequest
     {
         return [
             'user'=>'usuario',
+            'plazo_especial_meses'=>'meses del plazo Especial',
             'colony_id'=>'colonia',
             'connection_type'=>'tipo de conexión',
             'estado'=>'estado',
