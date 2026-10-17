@@ -1,6 +1,7 @@
 
 .badge-invoice-Borrador,
 .badge-invoice-Emitida,
+.badge-invoice-Enviada,
 .badge-invoice-Vencida {
     background-color: #ec1717;
     padding: 0 15px;
@@ -28,4 +29,14 @@
     border-radius: 5px;
     color: #ffffff;
     cursor: pointer;
+}
+
+/* #528: «Cancelada» no tenía estilo (salía como texto suelto). Gris, sin acción de pago. */
+.badge-invoice-Cancelada {
+    background-color: #64748b;
+    padding: 0 15px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    border-radius: 5px;
+    color: #ffffff;
 }
