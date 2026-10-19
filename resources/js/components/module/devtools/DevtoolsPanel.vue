@@ -986,6 +986,32 @@ export default {
         };
         const onIframeError = () => { ttydReachable.value = false; };
 
+        // Latido de sesión. La sesión vence a las 2 h (SESSION_LIFETIME) sin peticiones a
+        // la app, y trabajar solo en la terminal no hace ninguna: el WebSocket no pasa por
+        // Laravel. Si después se corta la conexión, ttyd ya no puede reconectar (nginx da
+        // 401). Se usa la misma puerta que consulta nginx: no escribe en la bitácora (solo
+        // registra el handshake /ws) y su respuesta renueva la cookie de sesión.
+        // El intervalo debe quedar muy por debajo de SESSION_LIFETIME.
+        const SESSION_KEEPALIVE_MS = 10 * 60 * 1000;
+        let sessionKeepAlive = null;
+        const keepSessionAlive = async () => {
+            try {
+                const r = await fetch("/devtools/terminal-auth", { credentials: "same-origin", cache: "no-store" });
+                if (r.status === 401) {
+                    // Ya venció (compu dormida más de 2 h, o se cerró sesión en otra pestaña):
+                    // mostrar «Tu sesión expiró» en vez de dejar una terminal que no reconecta.
+                    ttydStatus.value = 401;
+                    ttydReachable.value = false;
+                }
+            } catch (_) {
+                // Sin red: lo reintenta el siguiente latido.
+            }
+        };
+        // Al volver a la pestaña (o al despertar la compu) se revisa enseguida.
+        const onVisibilityChange = () => {
+            if (document.visibilityState === "visible") keepSessionAlive();
+        };
+
         const close = () => {
             window.location.href = "/home";
         };
@@ -1021,6 +1047,8 @@ export default {
 
             // ttyd probe
             probeTtyd();
+            sessionKeepAlive = setInterval(keepSessionAlive, SESSION_KEEPALIVE_MS);
+            document.addEventListener("visibilitychange", onVisibilityChange);
 
             // Listeners globales
             document.addEventListener("mousemove", onDrag);
@@ -1044,6 +1072,8 @@ export default {
             document.removeEventListener("mousemove", onDrag);
             document.removeEventListener("mouseup", endDrag);
             document.removeEventListener("keydown", onKeyDown);
+            document.removeEventListener("visibilitychange", onVisibilityChange);
+            if (sessionKeepAlive) clearInterval(sessionKeepAlive);
             if (pasteHandler) {
                 document.removeEventListener("paste", pasteHandler);
                 pasteHandler = null;
