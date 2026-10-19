@@ -50,6 +50,15 @@
         return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
     }
 
+    // "2026-10-10" → "10 oct". Toma solo la parte AAAA-MM-DD y arma la fecha en hora local:
+    // new Date('2026-10-10') la lee como medianoche UTC y en México saldría el día anterior.
+    function fmtDiaCorto(d) {
+        const m = String(d || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!m) return d || '';
+        return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+            .toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
+    }
+
     // Estado de OT → etiqueta + color (cubre WO y tasks ya mapeadas por el servicio).
     function statusInfo(status) {
         const map = {
@@ -456,7 +465,9 @@
             };
             // Formato de presentación (el backend ya calculó/redondeó el monto; el front NO recalcula).
             function money(n) {
-                return '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                const v = Number(n || 0);
+                // "-$200.00", no "$-200.00" (el neto queda negativo cuando los descuentos superan lo ganado).
+                return (v < 0 ? '-$' : '$') + Math.abs(v).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             }
             function conceptoLabel(c) { return CONCEPTO_LABEL[c] || c; }
             function pctCuota(d) { return (d && d.quota) ? Math.min(1, (d.units || 0) / d.quota) : 0; }
@@ -751,6 +762,14 @@
                     ventas: 'Regla de desempeño semanal',
                 }[metricType] || 'Regla de desempeño semanal';
             }
+            function reglaSemanaLabel(r) { return fmtDiaCorto(r.week_start) + ' al ' + fmtDiaCorto(r.week_end); }
+            // Mismo texto que la tarjeta de la ficha admin (TalentoFichaCalidad.vue): la del portal
+            // decía "Penalización aplicada" / "Bono ganado" sin decir de cuánto.
+            function reglaMontoLabel(r) {
+                if (Number(r.bonus_amount_applied) > 0) return 'Bono aplicado: ' + money(r.bonus_amount_applied);
+                if (Number(r.penalty_amount) > 0) return 'Penalización: ' + money(r.penalty_amount);
+                return '';
+            }
             function reglaUnidadesLabel(r) {
                 if (r.metric_type === 'ventas') return `Prospectos: ${r.prospects_count} · Ventas: ${r.sales_count}`;
                 if (r.metric_type === 'tecnico') return `Completados: ${r.sales_count}`;
@@ -810,12 +829,18 @@
             const equipoProgresoCargado = ref(false);
             const cargandoEquipoProgreso = ref(false);
             const equipoProgreso = ref(null);
+            const equipoProgresoError = ref('');
+            // Sin el guard de colaborador.value que llevan las demás secciones: el super admin
+            // ve a todo el equipo aunque no tenga ficha propia (antes la sección quedaba en
+            // blanco). El servidor decide quién puede.
             async function cargarEquipoProgreso() {
-                if (!colaborador.value) { cargandoEquipoProgreso.value = false; return; }
                 cargandoEquipoProgreso.value = true;
+                equipoProgresoError.value = '';
                 const r = await apiFetch('/talento/portal/mi-equipo-progreso');
                 if (r && r.ok && r.data) {
                     equipoProgreso.value = r.data;
+                } else {
+                    equipoProgresoError.value = (r && r.data && (r.data.error || r.data.message)) || 'No se pudo cargar tu equipo.';
                 }
                 cargandoEquipoProgreso.value = false;
                 equipoProgresoCargado.value = true;
@@ -934,9 +959,9 @@
                 resumenCustodia, enCustodiaPorCategoria, materialTab, materialEstadoTab, estadosMaterial,
                 calidad, cargandoCalidad, cargarCalidad,
                 misVentas, cargandoMisVentas, cargarMisVentas, totalVentasPeriodo, totalProspectosPeriodo, pct1,
-                reglaDesempenoLabel, reglaDesempenoColor, reglaMetricLabel, reglaUnidadesLabel,
+                reglaDesempenoLabel, reglaDesempenoColor, reglaMetricLabel, reglaUnidadesLabel, reglaSemanaLabel, reglaMontoLabel,
                 progresoMostrador, cargandoProgresoMostrador, cargarProgresoMostrador, prioridadLabel,
-                equipoProgreso, cargandoEquipoProgreso, cargarEquipoProgreso, trackInfo,
+                equipoProgreso, equipoProgresoError, cargandoEquipoProgreso, cargarEquipoProgreso, trackInfo,
                 prospectos, cargandoProspectos, cargarProspectos, nombreProspecto, statusColor,
                 documentos, cargandoDocumentos, documentosTab, documentosListaActiva, documentosKpi,
                 documentosPendientes, documentosFirmados, documentoEstadoInfo, documentoPdfUrl,
@@ -1314,7 +1339,7 @@
                                     <div v-else class="tp-empty">
                                         <q-icon name="receipt_long" class="tp-empty-icon" />
                                         <div class="text-subtitle1">Sin movimientos todavía</div>
-                                        <div class="text-caption">Tu cuenta se llena cuando se cierra la semana de pago (el sábado). Mientras tanto, mirá el <b>Desglose</b> para ver tu producción.</div>
+                                        <div class="text-caption">Tu cuenta se llena cuando se cierra la semana de pago (el sábado). Mientras tanto, mira el <b>Desglose</b> para ver tu producción.</div>
                                     </div>
                                 </template>
                             </q-tab-panel>
@@ -1532,13 +1557,17 @@
                                     <div class="text-subtitle2 text-grey-8 q-mb-sm">{{ reglaMetricLabel(r.metric_type) }}</div>
                                     <div class="text-caption text-grey-7 q-mb-xs">
                                         {{ r.regla_nombre || 'Regla sin nombre' }}
-                                        · semana {{ r.week_start }} – {{ r.week_end }}
+                                        · semana del {{ reglaSemanaLabel(r) }}
                                     </div>
                                     <q-badge :color="reglaDesempenoColor(r.outcome)">
                                         {{ reglaDesempenoLabel(r.outcome) }}
                                     </q-badge>
                                     <div class="text-caption text-grey-7 q-mt-sm">
                                         {{ reglaUnidadesLabel(r) }}
+                                    </div>
+                                    <div v-if="reglaMontoLabel(r)" class="text-caption text-weight-medium q-mt-xs"
+                                         :class="Number(r.bonus_amount_applied) > 0 ? 'text-positive' : 'text-negative'">
+                                        {{ reglaMontoLabel(r) }}
                                     </div>
                                 </q-card-section>
                             </q-card>
@@ -1650,13 +1679,17 @@
                                     <div class="text-subtitle2 text-grey-8 q-mb-sm">{{ reglaMetricLabel(r.metric_type) }}</div>
                                     <div class="text-caption text-grey-7 q-mb-xs">
                                         {{ r.regla_nombre || 'Regla sin nombre' }}
-                                        · semana {{ r.week_start }} – {{ r.week_end }}
+                                        · semana del {{ reglaSemanaLabel(r) }}
                                     </div>
                                     <q-badge :color="reglaDesempenoColor(r.outcome)">
                                         {{ reglaDesempenoLabel(r.outcome) }}
                                     </q-badge>
                                     <div class="text-caption text-grey-7 q-mt-sm">
                                         {{ reglaUnidadesLabel(r) }}
+                                    </div>
+                                    <div v-if="reglaMontoLabel(r)" class="text-caption text-weight-medium q-mt-xs"
+                                         :class="Number(r.bonus_amount_applied) > 0 ? 'text-positive' : 'text-negative'">
+                                        {{ reglaMontoLabel(r) }}
                                     </div>
                                 </q-card-section>
                             </q-card>
@@ -1764,13 +1797,17 @@
                                     <div class="text-subtitle2 text-grey-8 q-mb-sm">{{ reglaMetricLabel(r.metric_type) }}</div>
                                     <div class="text-caption text-grey-7 q-mb-xs">
                                         {{ r.regla_nombre || 'Regla sin nombre' }}
-                                        · semana {{ r.week_start }} – {{ r.week_end }}
+                                        · semana del {{ reglaSemanaLabel(r) }}
                                     </div>
                                     <q-badge :color="reglaDesempenoColor(r.outcome)">
                                         {{ reglaDesempenoLabel(r.outcome) }}
                                     </q-badge>
                                     <div class="text-caption text-grey-7 q-mt-sm">
                                         {{ reglaUnidadesLabel(r) }}
+                                    </div>
+                                    <div v-if="reglaMontoLabel(r)" class="text-caption text-weight-medium q-mt-xs"
+                                         :class="Number(r.bonus_amount_applied) > 0 ? 'text-positive' : 'text-negative'">
+                                        {{ reglaMontoLabel(r) }}
                                     </div>
                                 </q-card-section>
                             </q-card>
@@ -1882,6 +1919,10 @@
                                 <div class="text-subtitle1">{{ equipoProgreso.ver_todo ? 'No hay colaboradores activos' : 'Todavía no tienes colaboradores a tu cargo' }}</div>
                             </div>
                         </template>
+                        <div v-else-if="equipoProgresoError" class="tp-empty">
+                            <q-icon name="groups" class="tp-empty-icon" />
+                            <div class="text-subtitle1">{{ equipoProgresoError }}</div>
+                        </div>
                     </div>
 
                     <!-- Mis documentos (item #9990814) — expediente del colaborador, SOLO LECTURA -->
