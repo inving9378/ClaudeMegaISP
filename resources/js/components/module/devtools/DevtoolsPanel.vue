@@ -347,14 +347,43 @@
                     @load="onIframeLoad"
                     @error="onIframeError"
                 ></iframe>
+                <!-- Cada causa con su mensaje: antes todo decía «enciéndela con sudo», también
+                     con la sesión vencida (401), y se corría el script sin que hiciera falta. -->
                 <div v-else class="dt-ttyd-setup">
-                    <h5>Terminal no disponible</h5>
-                    <p>No se pudo conectar a <code>{{ effectiveTtydUrl }}</code>.</p>
-                    <p>Para encenderla (solo en 127.0.0.1 y con sesión, nunca a internet):</p>
-                    <pre>sudo bash /var/www/megaisp/deploy/ttyd/aplicar-ttyd-seguro.sh</pre>
-                    <button class="btn btn-outline-primary" @click="probeTtyd">
-                        <i class="fas fa-sync"></i> Reintentar
-                    </button>
+                    <template v-if="ttydStatus === 401">
+                        <h5>Tu sesión expiró</h5>
+                        <p>La terminal pide una sesión vigente del sistema. Recarga la página (o vuelve a entrar) y se abre sola.</p>
+                        <button class="btn btn-primary" @click="reloadPage">
+                            <i class="fas fa-redo"></i> Recargar página
+                        </button>
+                    </template>
+                    <template v-else-if="ttydStatus === 403">
+                        <h5>Sin permiso para la terminal</h5>
+                        <p>Solo entran los usuarios con rol DESARROLLADOR o super-administrator.</p>
+                    </template>
+                    <template v-else-if="ttydStatus === 0">
+                        <h5>Sin conexión con el servidor</h5>
+                        <p>No hubo respuesta de <code>{{ effectiveTtydUrl }}</code>. Revisa tu red y reintenta.</p>
+                        <button class="btn btn-outline-primary" @click="probeTtyd">
+                            <i class="fas fa-sync"></i> Reintentar
+                        </button>
+                    </template>
+                    <template v-else>
+                        <h5>La terminal no responde en el servidor</h5>
+                        <p>
+                            <code>{{ effectiveTtydUrl }}</code> respondió
+                            <template v-if="ttydStatus">HTTP {{ ttydStatus }}</template><template v-else>con error</template>.
+                            Se enciende en el servidor con:
+                        </p>
+                        <pre>sudo bash /var/www/megaisp/deploy/ttyd/aplicar-ttyd-seguro.sh</pre>
+                        <p class="dt-ttyd-nota">
+                            Esto no limita desde dónde entras: ttyd escucha solo dentro del servidor y nginx
+                            lo publica detrás de tu sesión, así que funciona desde cualquier red, también desde internet.
+                        </p>
+                        <button class="btn btn-outline-primary" @click="probeTtyd">
+                            <i class="fas fa-sync"></i> Reintentar
+                        </button>
+                    </template>
                 </div>
             </div>
         </div>
@@ -921,8 +950,13 @@ export default {
         };
 
         const ttydReachable = ref(null);
+        // Status HTTP del sondeo (0 = sin red, null = sin dato): elige el mensaje del
+        // panel. 401/403 los pone el auth_request de nginx, antes de llegar a ttyd.
+        const ttydStatus = ref(null);
+        const reloadPage = () => window.location.reload();
         const probeTtyd = async () => {
             ttydReachable.value = null;
+            ttydStatus.value = null;
             try {
                 const url = new URL(effectiveTtydUrl.value, window.location.href);
                 if (url.origin === window.location.origin) {
@@ -931,6 +965,7 @@ export default {
                     // (ttyd apagado) contaban como «disponible»: se veía la página de error en el
                     // panel y la barra de pestañas quedaba visible (item #504).
                     const r = await fetch(url.href, { method: "GET", credentials: "same-origin", cache: "no-store" });
+                    ttydStatus.value = r.status;
                     ttydReachable.value = r.ok;
                 } else {
                     // ttyd en otro origen: el status no es legible sin CORS; solo detecta la falta de red.
@@ -938,6 +973,7 @@ export default {
                     ttydReachable.value = true;
                 }
             } catch (e) {
+                ttydStatus.value = 0;
                 ttydReachable.value = false;
             }
         };
@@ -949,6 +985,32 @@ export default {
             terminalTabs.value?.attach(terminalIframe.value?.contentWindow);
         };
         const onIframeError = () => { ttydReachable.value = false; };
+
+        // Latido de sesión. La sesión vence a las 2 h (SESSION_LIFETIME) sin peticiones a
+        // la app, y trabajar solo en la terminal no hace ninguna: el WebSocket no pasa por
+        // Laravel. Si después se corta la conexión, ttyd ya no puede reconectar (nginx da
+        // 401). Se usa la misma puerta que consulta nginx: no escribe en la bitácora (solo
+        // registra el handshake /ws) y su respuesta renueva la cookie de sesión.
+        // El intervalo debe quedar muy por debajo de SESSION_LIFETIME.
+        const SESSION_KEEPALIVE_MS = 10 * 60 * 1000;
+        let sessionKeepAlive = null;
+        const keepSessionAlive = async () => {
+            try {
+                const r = await fetch("/devtools/terminal-auth", { credentials: "same-origin", cache: "no-store" });
+                if (r.status === 401) {
+                    // Ya venció (compu dormida más de 2 h, o se cerró sesión en otra pestaña):
+                    // mostrar «Tu sesión expiró» en vez de dejar una terminal que no reconecta.
+                    ttydStatus.value = 401;
+                    ttydReachable.value = false;
+                }
+            } catch (_) {
+                // Sin red: lo reintenta el siguiente latido.
+            }
+        };
+        // Al volver a la pestaña (o al despertar la compu) se revisa enseguida.
+        const onVisibilityChange = () => {
+            if (document.visibilityState === "visible") keepSessionAlive();
+        };
 
         const close = () => {
             window.location.href = "/home";
@@ -985,6 +1047,8 @@ export default {
 
             // ttyd probe
             probeTtyd();
+            sessionKeepAlive = setInterval(keepSessionAlive, SESSION_KEEPALIVE_MS);
+            document.addEventListener("visibilitychange", onVisibilityChange);
 
             // Listeners globales
             document.addEventListener("mousemove", onDrag);
@@ -1008,6 +1072,8 @@ export default {
             document.removeEventListener("mousemove", onDrag);
             document.removeEventListener("mouseup", endDrag);
             document.removeEventListener("keydown", onKeyDown);
+            document.removeEventListener("visibilitychange", onVisibilityChange);
+            if (sessionKeepAlive) clearInterval(sessionKeepAlive);
             if (pasteHandler) {
                 document.removeEventListener("paste", pasteHandler);
                 pasteHandler = null;
@@ -1073,6 +1139,8 @@ export default {
             endDrag,
             effectiveTtydUrl,
             ttydReachable,
+            ttydStatus,
+            reloadPage,
             probeTtyd,
             onIframeLoad,
             onIframeError,
@@ -1746,6 +1814,10 @@ export default {
     color: var(--dt-text);
     background: var(--dt-bg);
     height: 100%;
+}
+.dt-ttyd-setup .dt-ttyd-nota {
+    font-size: 12px;
+    opacity: 0.8;
 }
 .dt-ttyd-setup pre {
     background: var(--dt-sidebar-bg);
