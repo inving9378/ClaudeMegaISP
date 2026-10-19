@@ -389,7 +389,10 @@ class DashboardService
      */
     public function equipoProgreso(?int $supervisorColaboradorId, bool $verTodo, int $dias = 30): array
     {
-        $query = TalentoColaborador::with('user')->where('status', 'active');
+        $query = TalentoColaborador::with('user')->where('status', 'active')
+            // MEGAISP (usuario de sistema) tiene ficha solo para firmar penalizaciones que
+            // confirma un admin sin ficha; no es parte de ningún equipo.
+            ->whereDoesntHave('user', fn ($q) => $q->where('is_system', true));
         if ($verTodo) {
             // null = super admin sin ficha propia: no hay a quién excluir.
             $query->when($supervisorColaboradorId, fn ($q, $id) => $q->where('id', '!=', $id));
