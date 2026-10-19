@@ -307,14 +307,20 @@ export default {
       this.calcModal = { show: true, colSearch: '', suggestions: [], colaborador_id: null, colaborador_name: '',
                          period_start: '', period_end: '', saving: false, error: '' };
     },
+    // Misma semana que PayWeek::lastCompleted() (sábado 18:00 → sábado 18:00): el cierre es
+    // el sábado de corte más reciente que ya pasó. Antes contaba Sáb–Vie desde "hoy" y, entre
+    // semana, llenaba la semana en curso. Fechas en hora local (toISOString las corría a UTC).
     fillLastWeek() {
-      const today = new Date();
-      const dayOfWeek = today.getDay(); // 0=sun,6=sat
-      const diffToLastSat = dayOfWeek === 6 ? 7 : (dayOfWeek + 1);
-      const lastSat = new Date(today); lastSat.setDate(today.getDate() - diffToLastSat);
-      const lastFri = new Date(lastSat); lastFri.setDate(lastSat.getDate() + 6);
-      this.calcModal.period_start = lastSat.toISOString().substring(0,10);
-      this.calcModal.period_end   = lastFri.toISOString().substring(0,10);
+      const CORTE_HORA = 18; // config/talento.php → pay_week.cutoff_hour
+      const now = new Date();
+      const cierre = new Date(now);
+      cierre.setDate(now.getDate() - ((now.getDay() + 1) % 7)); // sábado de esta semana (hoy si es sábado)
+      cierre.setHours(CORTE_HORA, 0, 0, 0);
+      if (cierre > now) cierre.setDate(cierre.getDate() - 7);   // sábado antes del corte: aún no cierra
+      const apertura = new Date(cierre); apertura.setDate(cierre.getDate() - 7);
+      const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      this.calcModal.period_start = ymd(apertura);
+      this.calcModal.period_end   = ymd(cierre);
     },
     debounceCalcSearch() {
       clearTimeout(this.calcSearchTimeout);
