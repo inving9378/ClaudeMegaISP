@@ -267,8 +267,9 @@ class DashboardService
         $reglas = $evaluaciones->map(fn ($e) => [
             'metric_type'          => $e->rule?->metric_type,
             'regla_nombre'         => $e->rule?->name,
-            'week_start'           => $e->week_start,
-            'week_end'             => $e->week_end,
+            // Solo la fecha: el cast 'date' se serializaba como "2026-10-10T06:00:00.000000Z".
+            'week_start'           => $e->week_start?->toDateString(),
+            'week_end'             => $e->week_end?->toDateString(),
             'outcome'              => $e->outcome,
             'prospects_count'      => $e->prospects_count,
             'sales_count'          => $e->sales_count,
@@ -386,11 +387,12 @@ class DashboardService
      * tiene supervisor_id poblado — el nivel "mi equipo" saldrá vacío hasta que se asignen
      * supervisores en el organigrama real; es honesto reflejar eso, no inventar datos.
      */
-    public function equipoProgreso(int $supervisorColaboradorId, bool $verTodo, int $dias = 30): array
+    public function equipoProgreso(?int $supervisorColaboradorId, bool $verTodo, int $dias = 30): array
     {
         $query = TalentoColaborador::with('user')->where('status', 'active');
         if ($verTodo) {
-            $query->where('id', '!=', $supervisorColaboradorId);
+            // null = super admin sin ficha propia: no hay a quién excluir.
+            $query->when($supervisorColaboradorId, fn ($q, $id) => $q->where('id', '!=', $id));
         } else {
             $query->where('supervisor_id', $supervisorColaboradorId);
         }

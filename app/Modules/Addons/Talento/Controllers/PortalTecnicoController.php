@@ -39,7 +39,7 @@ use Illuminate\Support\Facades\Storage;
 class PortalTecnicoController extends Controller
 {
     /** Cache-busting de los assets estáticos del portal (subir al cambiar app.js/portal.css). */
-    private const ASSET_VER = '28';
+    private const ASSET_VER = '29';
 
     /** Shell del portal (SPA Quasar de una sola página con nav inferior). */
     public function index(Request $request)
@@ -745,14 +745,18 @@ JS;
      */
     public function miEquipoProgreso(Request $request, \App\Modules\Addons\Talento\Services\DashboardService $service)
     {
-        $actor = $this->currentActor($request);
-        $col   = $actor->talento();
-        if (! $col) return response()->json(['error' => 'Sin perfil de colaborador activo.'], 403);
+        $actor   = $this->currentActor($request);
+        $col     = $actor->talento();
+        $verTodo = $actor->esSuperAdminTalento();
+        // El super admin ve a todos aunque no tenga ficha propia (los admins de hoy no la
+        // tienen y la sección les salía en blanco); el supervisor sí la necesita, porque su
+        // equipo se resuelve por supervisor_id.
+        if (! $col && ! $verTodo) return response()->json(['error' => 'Sin perfil de colaborador activo.'], 403);
 
-        abort_unless($actor->esSuperAdminTalento() || $actor->tieneEquipo(), 403, 'No tienes equipo a tu cargo.');
+        abort_unless($verTodo || $actor->tieneEquipo(), 403, 'No tienes equipo a tu cargo.');
 
         $dias = (int) ($request->query('dias', 30));
-        return response()->json($service->equipoProgreso($col->id, $actor->esSuperAdminTalento(), $dias));
+        return response()->json($service->equipoProgreso($col?->id, $verTodo, $dias));
     }
 
     /** 1. Cuenta corriente: ledger del período AGRUPADO POR CONCEPTO + neto (server-side). */
