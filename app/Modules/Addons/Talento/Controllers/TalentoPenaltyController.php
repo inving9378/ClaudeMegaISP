@@ -107,7 +107,9 @@ class TalentoPenaltyController extends Controller
             $this->authorize('talento.penalties.view');
         }
 
-        $q = TalentoPenalty::with(['colaborador.user', 'penaltyType', 'appeal'])
+        // appliedByColaborador.user: la columna "Aplicado por" de la lista salía "—" porque solo el
+        // detalle (showPenalty) cargaba quién la aplicó.
+        $q = TalentoPenalty::with(['colaborador.user', 'penaltyType', 'appliedByColaborador.user', 'appeal'])
             ->orderByDesc('created_at');
 
         if ($request->filled('colaborador_id')) $q->where('colaborador_id', $request->colaborador_id);
