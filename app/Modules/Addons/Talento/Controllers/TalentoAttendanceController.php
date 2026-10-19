@@ -7,6 +7,7 @@ use App\Modules\Addons\Talento\Models\TalentoAttendance;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoShiftExtension;
 use App\Modules\Addons\Talento\Services\AttendanceService;
+use App\Modules\Addons\Talento\Support\Actor;
 use Illuminate\Http\Request;
 
 class TalentoAttendanceController extends Controller
@@ -19,11 +20,30 @@ class TalentoAttendanceController extends Controller
         return view('addon-talento::talento.asistencia');
     }
 
+    /**
+     * Pestaña "Asistencia" de la ficha propia (2026-10-19). Quien tiene talento.attendance.view
+     * ve todo, igual que antes (null = sin filtro). Quien no lo tiene (Vendedor, Mostrador) ve
+     * solo su asistencia y la de su equipo directo: mismo criterio que custodia/dispositivos
+     * (David, 28-sep: la ficha propia muestra tus datos aunque tu rol no tenga el permiso de
+     * staff). Sin ficha de colaborador → 403, como antes.
+     */
+    private function colaboradoresVisibles(): ?\Illuminate\Support\Collection
+    {
+        if (auth()->user()->can('talento.attendance.view')) {
+            return null;
+        }
+        $col = Actor::for(auth()->user())->talento();
+        abort_unless($col, 403);
+
+        return $col->subordinados()->pluck('id')->push($col->id);
+    }
+
     public function data(Request $request)
     {
-        $this->authorize('talento.attendance.view');
+        $visibles = $this->colaboradoresVisibles();
 
         $q = TalentoAttendance::with(['colaborador.user', 'site'])
+            ->when($visibles, fn($q, $ids) => $q->whereIn('colaborador_id', $ids))
             ->when($request->colaborador_id, fn($q, $v) => $q->where('colaborador_id', $v))
             ->when($request->status,         fn($q, $v) => $q->where('status', $v))
             ->when($request->flagged,        fn($q) => $q->where('check_in_flagged', true))
@@ -37,9 +57,10 @@ class TalentoAttendanceController extends Controller
 
     public function show($id)
     {
-        $this->authorize('talento.attendance.view');
+        $visibles = $this->colaboradoresVisibles();
 
         $att = TalentoAttendance::with(['colaborador.user', 'site', 'workOrder', 'extensions'])->findOrFail($id);
+        abort_if($visibles && ! $visibles->contains($att->colaborador_id), 403);
 
         // Last known ping
         $lastPing = $att->pings()->latest('recorded_at')->first();

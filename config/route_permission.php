@@ -2266,6 +2266,29 @@ return [
         // una regla es una decisión de staff, no de autoservicio.
         '/talento/api/reglas-desempeno/evaluaciones',
         '/talento/api/reglas-desempeno/evaluaciones/**',
+        // Pestañas de la ficha propia que salían vacías para Vendedor y Mostrador (2026-10-19):
+        // la ficha las muestra a uno mismo por decisión de David (28-sep, "lo demás lo debe ver
+        // todo el mundo"), pero estas lecturas solo estaban bajo el permiso de staff de cada
+        // sección (custody/devices/embajadores/academy/attendance.view, que TECNICO tiene y esos
+        // dos roles no) → 403 de middleware y tabla "Sin registros". El scoping real ya vive en
+        // el controller: puedeVerCustodiaDe()/puedeVerDispositivosDe()/
+        // puedeVerRolesMultiplesDe() (uno mismo, su supervisor o talento.employees.view),
+        // TalentoAttendanceController::colaboradoresVisibles() (uno mismo + equipo si no tiene
+        // attendance.view) y la Academia, que es self-scoped por auth()->id(). Las escrituras
+        // que comparten path (vincular dispositivo, crear/editar curso, check-in, editar
+        // asistencia) siguen autorizadas en su propio método.
+        '/talento/api/colaboradores/{id}/custodia',
+        '/talento/api/colaboradores/{id}/dispositivos',
+        '/talento/api/colaboradores/{id}/seller-data',
+        '/talento/api/colaboradores/{id}/embajador-data',
+        '/talento/api/asistencia',
+        '/talento/api/asistencia/{id}',
+        '/talento/api/courses',
+        '/talento/api/courses/{id}',
+        '/talento/api/exams/{id}/take',
+        '/talento/api/exams/{id}/submit',
+        '/talento/api/exams/{id}/my-attempts',
+        '/talento/api/my-certifications',
     ],
     'talento.dashboard.view' => [
         '/talento',
