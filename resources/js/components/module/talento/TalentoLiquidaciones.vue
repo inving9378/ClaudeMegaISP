@@ -52,9 +52,9 @@
                 <td class="fw-semibold small">{{ fullName(liq.colaborador?.user) }}</td>
                 <td class="small">{{ formatDate(liq.period_start) }} – {{ formatDate(liq.period_end) }}</td>
                 <td class="text-center">{{ liq.total_units }}</td>
-                <td class="text-end">${{ fmt(liq.base_paid) }}</td>
-                <td class="text-end text-success">${{ fmt(liq.overproduction_paid) }}</td>
-                <td class="text-end fw-bold">${{ fmt(liq.gross_pay) }}</td>
+                <td class="text-end">{{ money(liq.base_paid) }}</td>
+                <td class="text-end text-success">{{ money(liq.overproduction_paid) }}</td>
+                <td class="text-end fw-bold">{{ money(liq.gross_pay) }}</td>
                 <td><span class="tc-status" :class="liq.status === 'closed' ? 'is-ok' : 'is-warn'">{{ liq.status === 'closed' ? 'Cerrada' : 'Borrador' }}</span></td>
                 <td class="text-end">
                   <button @click="viewLiq(liq)" class="tc-btn tc-btn-info me-1">Ver</button>
@@ -157,19 +157,19 @@
               </div>
               <div class="col-md-3">
                 <div class="card bg-light border-0 text-center p-3">
-                  <div class="fs-5 fw-bold">${{ fmt(detail.liq.base_paid) }}</div>
+                  <div class="fs-5 fw-bold">{{ money(detail.liq.base_paid) }}</div>
                   <div class="text-muted small">Sueldo base</div>
                 </div>
               </div>
               <div class="col-md-3">
                 <div class="card bg-success-subtle border-0 text-center p-3">
-                  <div class="fs-5 fw-bold text-success">${{ fmt(detail.liq.overproduction_paid) }}</div>
+                  <div class="fs-5 fw-bold text-success">{{ money(detail.liq.overproduction_paid) }}</div>
                   <div class="text-muted small">Sobreproducción</div>
                 </div>
               </div>
               <div class="col-md-3">
                 <div class="card bg-primary-subtle border-0 text-center p-3">
-                  <div class="fs-4 fw-bold text-primary">${{ fmt(detail.liq.gross_pay) }}</div>
+                  <div class="fs-4 fw-bold text-primary">{{ money(detail.liq.gross_pay) }}</div>
                   <div class="text-muted small">GROSS</div>
                 </div>
               </div>
@@ -207,7 +207,7 @@
                       <span v-if="e.notes" class="text-muted ms-1">{{ e.notes }}</span>
                     </span>
                     <span class="fw-semibold" :class="e.type==='credit'?'text-success':'text-danger'">
-                      ${{ fmt(e.amount) }}
+                      {{ money(e.amount) }}
                     </span>
                   </li>
                 </ul>
@@ -215,7 +215,7 @@
             </div>
 
             <div v-if="detail.liq.other_credits > 0 || detail.liq.other_debits > 0" class="mt-2 small text-muted">
-              Otros créditos: ${{ fmt(detail.liq.other_credits) }} · Otros débitos: ${{ fmt(detail.liq.other_debits) }}
+              Otros créditos: {{ money(detail.liq.other_credits) }} · Otros débitos: {{ money(detail.liq.other_debits) }}
             </div>
           </div>
           <div class="modal-footer">
@@ -237,7 +237,7 @@
             <button @click="cerrarModal.show=false" type="button" class="btn-close"></button>
           </div>
           <div class="modal-body">
-            <p>Esta acción es <strong>irreversible</strong>. ¿Cerrar la liquidación de <strong>{{ fullName(cerrarModal.liq?.colaborador?.user) }}</strong> por <strong>${{ fmt(cerrarModal.liq?.gross_pay) }}</strong>?</p>
+            <p>Esta acción es <strong>irreversible</strong>. ¿Cerrar la liquidación de <strong>{{ fullName(cerrarModal.liq?.colaborador?.user) }}</strong> por <strong>{{ money(cerrarModal.liq?.gross_pay) }}</strong>?</p>
           </div>
           <div class="modal-footer">
             <button @click="cerrarModal.show=false" class="btn btn-secondary" :disabled="cerrarModal.saving">Cancelar</button>
@@ -385,7 +385,12 @@ export default {
                penalty: 'Penalización', advance: 'Adelanto', fund: 'Fondo', adjustment: 'Ajuste',
                embajador: 'Embajador' }[c] ?? c;
     },
-    fmt(n) { return Number(n ?? 0).toFixed(2); },
+    // Signo antes del peso: "-$200.00", no "$-200.00" (un total queda negativo cuando los
+    // descuentos superan el sueldo de la semana).
+    money(n) {
+      const v = Number(n ?? 0);
+      return (v < 0 ? '-$' : '$') + Math.abs(v).toFixed(2);
+    },
     formatDate(d) {
       if (!d) return '—';
       return new Date(d).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
