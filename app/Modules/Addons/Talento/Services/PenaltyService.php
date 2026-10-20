@@ -182,7 +182,7 @@ class PenaltyService
                 ]);
             }
 
-            return $appeal->fresh(['penalty', 'reviewedByColaborador.user']);
+            return $appeal->fresh(['penalty', 'reviewedByColaborador.user', 'reviewedByUser:id,name,father_last_name']);
         });
     }
 }
