@@ -1,6 +1,16 @@
 <template>
   <div class="talento-credenciales tc-wrap" :class="{ 'tc-dark': darkMode }">
 
+    <!-- Ficha del colaborador: arriba su credencial estilo carnet, la misma de
+         Vendedores (2026-10-20: "lo que va es el estilo carnet de cada cual").
+         Las listas de abajo son gestión: solo para quien puede gestionar. -->
+    <template v-if="colaborador">
+      <h6 class="text-uppercase text-muted small mb-3">Credencial</h6>
+      <talento-carnet :colaborador="colaborador" />
+      <hr v-if="mostrarGestion" class="my-4">
+    </template>
+
+    <template v-if="mostrarGestion">
     <!-- Tabs -->
     <ul class="nav nav-tabs mb-3">
       <li class="nav-item">
@@ -234,6 +244,8 @@
       </div>
     </div>
 
+    </template>
+
     <!-- ── MODAL CREDENCIAL (nueva / editar) ── -->
     <div v-if="credModal.show" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5);z-index:9999">
       <div class="modal-dialog modal-lg">
@@ -423,11 +435,15 @@
 import { darkMode } from "../../../hook/appConfig.js";
 import Permission from "../../../helpers/Permission.js";
 import { allViewHasPermission } from "../../../helpers/Request.js";
+import TalentoCarnet from "./TalentoCarnet.vue";
 
 export default {
   name: 'TalentoCredenciales',
+  components: { TalentoCarnet },
   props: {
     colaboradorId: { type: [Number, String], default: null },
+    // Dentro de la ficha: el colaborador ya cargado, para pintar su carnet.
+    colaborador: { type: Object, default: null },
     // Resuelto server-side por la ficha (permisos.credenciales_manage):
     // admin/DESARROLLADOR/staff o CUALQUIER supervisor — a propósito SIN
     // excepción de autoservicio (David, 28-sep).
@@ -479,6 +495,11 @@ export default {
         ? this.puedeGestionar
         : new Permission(this.permisosGlobales).canDo('talento.credentials.view');
     },
+    // En la ficha, quien no gestiona (uno mismo) solo ve su carnet: las alertas
+    // y los fondos son listas globales de gestión y le salían vacías.
+    mostrarGestion() {
+      return !this.colaborador || this.puedeGestionarResuelto;
+    },
     alertCount() {
       return this.expiredCount || null;
     },
@@ -488,6 +509,7 @@ export default {
   },
   async mounted() {
     if (!this.colaboradorId) this.permisosGlobales = await allViewHasPermission();
+    if (!this.mostrarGestion) return;
     // "Por colaborador" es gestión (David, 28-sep) — sin puedeGestionar no
     // hay nada que autoseleccionar ni cargar ahí.
     if (this.colaboradorId && this.puedeGestionarResuelto) {

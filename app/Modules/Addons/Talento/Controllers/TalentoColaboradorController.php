@@ -418,7 +418,8 @@ class TalentoColaboradorController extends Controller
         $front_image_name = Credential::where('type', 'frontal')->select('name')->first();
         $back_image_name  = Credential::where('type', 'reverso')->select('name')->first();
         $logo_image_name  = Credential::where('type', 'logo')->select('name')->first();
-        $titulo = $colaborador->puesto?->name ?? 'Colaborador';
+        // talento_puestos guarda el nombre en 'nombre' (con ->name el PDF siempre decía "Colaborador").
+        $titulo = $colaborador->puesto?->nombre ?? $colaborador->job_title ?? 'Colaborador';
 
         $pdf = PDF::loadView('meganet.module.vendors.pdf', compact(
             'seller', 'front_image_name', 'back_image_name', 'logo_image_name', 'titulo'
