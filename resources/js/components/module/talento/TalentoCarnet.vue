@@ -103,7 +103,9 @@ export default {
   object-fit: cover;
 }
 .tc-carnet-name {
-  margin-top: 10px;
+  /* Baja el nombre a la franja azul del frente: arriba de ella el fondo es blanco
+     y el texto blanco no se leía. */
+  margin-top: 46px;
   font-size: 1.05rem;
   font-weight: bold;
   color: #fff;
