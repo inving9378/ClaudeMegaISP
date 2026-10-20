@@ -190,7 +190,7 @@
           <talento-liquidaciones :colaborador-id="id" :puede-gestionar="permisos.liquidaciones_manage" />
         </div>
         <div v-if="activeTab === 'asistencia'">
-          <talento-asistencia :colaborador-id="id" />
+          <talento-asistencia :colaborador-id="id" :es-propia="esUnoMismoLiteral" />
         </div>
         <div v-if="activeTab === 'campo'">
           <talento-campo :colaborador-id="id" :colaborador-nombre="colaborador?.user?.name ?? ''"

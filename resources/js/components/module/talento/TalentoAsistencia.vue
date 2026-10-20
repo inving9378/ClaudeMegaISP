@@ -15,6 +15,14 @@
       </div>
 
       <div class="p-3">
+        <!-- Ficha propia: la entrada y la salida se marcan en "Mi día" del portal
+             (con ubicación, igual que la app); esta pestaña es el historial. -->
+        <div v-if="esPropia" class="alert alert-light border d-flex flex-wrap align-items-center justify-content-between gap-2 py-2 mb-3">
+          <span class="small"><i class="fa fa-info-circle me-1"></i>Tu entrada y tu salida se registran en <strong>Mi día</strong> del portal, con tu ubicación.</span>
+          <a href="/talento/portal" data-spa-skip class="tc-btn tc-btn-ok btn-sm">
+            <i class="fa fa-sign-in-alt me-1"></i>Registrar entrada o salida
+          </a>
+        </div>
         <!-- Filtros -->
         <div class="row g-2 mb-3">
           <div class="col-md-3">
@@ -209,6 +217,7 @@ export default {
   name: 'TalentoAsistencia',
   props: {
     colaboradorId: { type: [Number, String], default: null },
+    esPropia: { type: Boolean, default: false },
   },
   setup() {
     return { darkMode };

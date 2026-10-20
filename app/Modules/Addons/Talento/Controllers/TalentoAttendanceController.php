@@ -21,15 +21,20 @@ class TalentoAttendanceController extends Controller
     }
 
     /**
-     * Pestaña "Asistencia" de la ficha propia (2026-10-19). Quien tiene talento.attendance.view
-     * ve todo, igual que antes (null = sin filtro). Quien no lo tiene (Vendedor, Mostrador) ve
-     * solo su asistencia y la de su equipo directo: mismo criterio que custodia/dispositivos
-     * (David, 28-sep: la ficha propia muestra tus datos aunque tu rol no tenga el permiso de
-     * staff). Sin ficha de colaborador → 403, como antes.
+     * Qué asistencia y ubicación puede ver quien pregunta. null = todo (sin filtro).
+     *
+     * Ve todo solo el staff que gestiona personal: talento.employees.view,
+     * talento.attendance.manage o super admin de Talento. talento.attendance.view NO basta:
+     * el rol TECNICO lo tiene para abrir SU propio historial, y con él veía la entrada y la
+     * ubicación de todos (2026-10-20: "el técnico debe ver únicamente lo de su usuario";
+     * mismo motivo ya anotado en TalentoMobileEquipoController::asistencia()). El resto ve lo
+     * suyo y lo de su equipo directo. Sin ficha de colaborador → 403, como antes.
      */
     private function colaboradoresVisibles(): ?\Illuminate\Support\Collection
     {
-        if (auth()->user()->can('talento.attendance.view')) {
+        $user = auth()->user();
+        if ($user->can('talento.employees.view') || $user->can('talento.attendance.manage')
+            || Actor::for($user)->esSuperAdminTalento()) {
             return null;
         }
         $col = Actor::for(auth()->user())->talento();
@@ -211,6 +216,8 @@ class TalentoAttendanceController extends Controller
         $this->authorize('talento.location.view');
 
         TalentoColaborador::findOrFail($colaboradorId);
+        $visibles = $this->colaboradoresVisibles();
+        abort_if($visibles && ! $visibles->contains((int) $colaboradorId), 403);
 
         $attendance = TalentoAttendance::where('colaborador_id', $colaboradorId)
             ->whereIn('status', ['open', 'flagged'])
@@ -264,9 +271,11 @@ class TalentoAttendanceController extends Controller
     public function liveAll()
     {
         $this->authorize('talento.location.view');
+        $visibles = $this->colaboradoresVisibles();
 
         $openAttendances = TalentoAttendance::with('colaborador.user')
             ->whereIn('status', ['open', 'flagged'])
+            ->when($visibles, fn($q, $ids) => $q->whereIn('colaborador_id', $ids))
             ->get();
 
         $result = $openAttendances->map(function ($att) {
