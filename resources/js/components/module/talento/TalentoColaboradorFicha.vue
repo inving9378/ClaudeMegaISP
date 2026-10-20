@@ -215,7 +215,7 @@
           <talento-penalizaciones :colaborador-id="id" :puede-gestionar="permisos.penalizaciones_manage" />
         </div>
         <div v-if="activeTab === 'credenciales'">
-          <talento-credenciales :colaborador-id="id" :puede-gestionar="permisos.credenciales_manage" />
+          <talento-credenciales :colaborador-id="id" :colaborador="colaborador" :puede-gestionar="permisos.credenciales_manage" />
         </div>
         <div v-if="activeTab === 'finiquito'">
           <talento-finiquito :colaborador-id="id"
