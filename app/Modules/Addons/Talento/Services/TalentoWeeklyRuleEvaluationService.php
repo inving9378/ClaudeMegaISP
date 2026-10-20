@@ -9,7 +9,7 @@ use App\Modules\Addons\Talento\Models\TalentoHealthBonusLog;
 use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
 use App\Modules\Addons\Talento\Models\TalentoWeeklyRule;
 use App\Modules\Addons\Talento\Models\TalentoWeeklyRuleEvaluation;
-use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
+use App\Modules\Addons\Talento\Support\PayWeek;
 use App\Services\CalculateBalanceSellerService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -267,15 +267,17 @@ class TalentoWeeklyRuleEvaluationService
      * el segundo (reusando la columna sales_count), dejando prospects en 0
      * porque no aplica.
      *
-     * 'tecnico' reusa EXACTO el mismo criterio que ya le muestra el propio
-     * colaborador en "Mi progreso" (DashboardService::calidadTecnico():
-     * status completed/validated, por created_at) — la regla de la fase 2
-     * nunca puede medir un número distinto al que la fase 1 ya le enseña,
-     * o el colaborador vería dos cifras divergentes del mismo trabajo.
+     * 'tecnico' cuenta lo MISMO que el pago: los puntos de trabajos validados
+     * dentro de la ventana PayWeek (Sáb 18:00 → Sáb 18:00), vía
+     * LiquidationService::countBillableUnits(), el punto único que ya comparten la
+     * liquidación y el desglose de "Mi dinero". Antes contaba órdenes completadas
+     * por fecha de creación y la cuota del pago son puntos validados: con 36 de
+     * piso en las dos, un técnico podía quedar penalizado por producir poco y a la
+     * vez cobrar sobreproducción (2026-10-20, se decidió alinear la regla al pago).
      * 'mostrador' reusa igual el criterio de DashboardService::
      * progresoMostrador() (pagos con add_by = este usuario, por created_at).
      *
-     * ⚠️ $week['period_start']/['period_end'] son strings de FECHA sola
+     * ⚠️ (Para 'mostrador' y 'ventas'.) $week['period_start']/['period_end'] son strings de FECHA sola
      * ('Y-m-d', para las columnas week_start/week_end), NO los instantes
      * precisos del corte de PayWeek (start_instant/end_instant, Sáb 18:00).
      * whereBetween() con esas fechas desnudas interpretaría el límite
@@ -289,12 +291,13 @@ class TalentoWeeklyRuleEvaluationService
     private function medirUnidades(string $metricType, User $user, TalentoColaborador $colaborador, array $week): array
     {
         if ($metricType === 'tecnico') {
-            $completados = (int) TalentoWorkOrder::where('colaborador_id', $colaborador->id)
-                ->whereIn('status', ['completed', 'validated'])
-                ->whereDate('created_at', '>=', $week['period_start'])
-                ->whereDate('created_at', '<=', $week['period_end'])
-                ->count();
-            return [0, $completados];
+            // Mismos instantes del corte que la liquidación; si llega una semana solo
+            // con fechas, se rearma igual que lo hace el cálculo del pago.
+            $window = isset($week['start_instant'], $week['end_instant'])
+                ? $week
+                : PayWeek::boundsFor(Carbon::parse($week['period_start'])->addDay());
+            $puntos = app(LiquidationService::class)->countBillableUnits($colaborador->id, $window)['total'];
+            return [0, (int) $puntos];
         }
 
         if ($metricType === 'mostrador') {

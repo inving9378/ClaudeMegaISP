@@ -179,7 +179,7 @@ export default {
     },
     reglaUnidadesLabel(r) {
       if (r.metric_type === "calidad_senal") return `Instalaciones fuera de rango: ${r.sales_count}`;
-      return `Completados: ${r.sales_count}`;
+      return `Puntos validados: ${r.sales_count}`;
     },
     cssVar(name, fallback) {
       const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
