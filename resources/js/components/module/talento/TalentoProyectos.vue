@@ -731,7 +731,13 @@ export default {
     statusLabel(s) { return {planning:'Planificación',active:'Activo',paused:'Pausado',done:'Finalizado'}[s]??s; },
     reportStatusColor(s) { return {pending:'is-slate',approved:'is-ok',capped:'is-warn',rejected:'is-bad'}[s]??'is-slate'; },
     reportStatusLabel(s) { return {pending:'Pendiente',approved:'Aprobado',capped:'Recortado',rejected:'Rechazado'}[s]??s; },
-    fmtDate(d) { if(!d)return'—'; return new Date(d+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}); },
+    // Las fechas llegan como "2026-10-15T06:00:00.000000Z" (cast date de Laravel); antes se
+    // les pegaba 'T12:00:00' y salía "Invalid Date". Se toma el día tal cual.
+    fmtDate(d) {
+      const m = String(d ?? '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!m) return '—';
+      return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+    },
     fmt1(n) { return Number(n??0).toFixed(1); },
     fmt2(n) { return Number(n??0).toFixed(2); },
     fmt3(n) { return Number(n??0).toFixed(3); },
