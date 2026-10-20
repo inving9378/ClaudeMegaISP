@@ -39,7 +39,7 @@ use Illuminate\Support\Facades\Storage;
 class PortalTecnicoController extends Controller
 {
     /** Cache-busting de los assets estáticos del portal (subir al cambiar app.js/portal.css). */
-    private const ASSET_VER = '29';
+    private const ASSET_VER = '30';
 
     /** Shell del portal (SPA Quasar de una sola página con nav inferior). */
     public function index(Request $request)
@@ -757,6 +757,73 @@ JS;
 
         $dias = (int) ($request->query('dias', 30));
         return response()->json($service->equipoProgreso($col?->id, $verTodo, $dias));
+    }
+
+    /**
+     * Penalizaciones del equipo (2026-10-20). El supervisor no tenía pantalla para
+     * confirmar las penalizaciones de su equipo: la API lo permitía, pero el único botón
+     * estaba en /talento/reglas-desempeno, que es de admin. "Por confirmar" son las
+     * evaluaciones semanales en penalty_pending; "recientes", las ya aplicadas de los
+     * últimos 60 días con su estado. Supervisor = solo sus subordinados directos (nunca
+     * él mismo); super admin = todos, igual que "Mi equipo".
+     */
+    public function equipoPenalizaciones(Request $request)
+    {
+        $actor = $this->currentActor($request);
+        $ids = null;
+        if (! $actor->esSuperAdminTalento()) {
+            abort_unless($actor->tieneEquipo(), 403, 'No tienes equipo a tu cargo.');
+            $ids = $actor->talento()->subordinados()->pluck('id');
+        }
+        $nombre = fn ($col) => trim(($col?->user?->name ?? '') . ' ' . ($col?->user?->father_last_name ?? '')) ?: '—';
+
+        $porConfirmar = \App\Modules\Addons\Talento\Models\TalentoWeeklyRuleEvaluation::with(['colaborador.user', 'rule', 'penaltyType'])
+            ->where('outcome', 'penalty_pending')
+            ->when($ids, fn ($q, $v) => $q->whereIn('colaborador_id', $v))
+            ->orderByDesc('week_start')
+            ->limit(100)
+            ->get()
+            ->map(fn ($e) => [
+                'id'           => $e->id,
+                'colaborador'  => $nombre($e->colaborador),
+                'regla'        => $e->rule?->name,
+                'metric_type'  => $e->rule?->metric_type,
+                'week_start'   => $e->week_start?->toDateString(),
+                'week_end'     => $e->week_end?->toDateString(),
+                'unidades'     => $e->sales_count,
+                'prospectos'   => $e->prospects_count,
+                'piso'         => $e->rule?->min_sales,
+                'tipo'         => $e->penaltyType?->name,
+                'monto'        => (float) ($e->penalty_amount ?? 0),
+            ]);
+
+        $recientes = \App\Modules\Addons\Talento\Models\TalentoPenalty::with(['colaborador.user', 'penaltyType', 'appliedByColaborador.user', 'appeal'])
+            ->when($ids, fn ($q, $v) => $q->whereIn('colaborador_id', $v))
+            ->where('created_at', '>=', now()->subDays(60))
+            ->orderByDesc('created_at')
+            ->limit(100)
+            ->get()
+            ->map(fn ($p) => [
+                'id'          => $p->id,
+                'colaborador' => $nombre($p->colaborador),
+                'tipo'        => $p->penaltyType?->name,
+                'monto'       => (float) $p->amount,
+                'status'      => $p->status,
+                'aplicado_por'=> $nombre($p->appliedByColaborador),
+                'fecha'       => $p->created_at?->toDateString(),
+            ]);
+
+        return response()->json([
+            'ver_todo'      => $ids === null,
+            'por_confirmar' => $porConfirmar,
+            'recientes'     => $recientes,
+        ]);
+    }
+
+    /** Confirmar desde el portal = el mismo camino que la pantalla de admin (mismo cargo, mismas reglas). */
+    public function equipoConfirmarPenalizacion(Request $request, int $id)
+    {
+        return app(TalentoReglaDesempenoController::class)->confirmarPenalizacion($request, $id);
     }
 
     /** 1. Cuenta corriente: ledger del período AGRUPADO POR CONCEPTO + neto (server-side). */
