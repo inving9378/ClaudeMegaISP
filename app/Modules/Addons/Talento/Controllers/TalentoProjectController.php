@@ -207,6 +207,34 @@ class TalentoProjectController extends Controller
 
     // ── Reportes de actividad ─────────────────────────────────────────────────
 
+    /**
+     * Entre quiénes se puede repartir un reporte de avance — la misma regla que
+     * después aplica submitReport(): con talento.project_reports.create, cualquier
+     * colaborador activo; sin él, uno mismo y su equipo directo. Antes el modal
+     * pedía la lista completa de colaboradores (solo staff) y a un técnico le
+     * salía vacía, así que no podía reportar nada (2026-10-20).
+     */
+    public function participantes($id)
+    {
+        TalentoProject::findOrFail($id);
+        $propio = Actor::for(auth()->user())->talento();
+
+        $q = TalentoColaborador::with('user:id,name,father_last_name')
+            ->where('status', 'active')
+            ->whereDoesntHave('user', fn($u) => $u->where('is_system', true));
+
+        if (! auth()->user()->can('talento.project_reports.create')) {
+            abort_unless($propio, 403, 'No tienes permiso para reportar avance de proyectos.');
+            $q->whereIn('id', $propio->subordinados()->pluck('id')->push($propio->id));
+        }
+
+        return response()->json($q->get()->map(fn($c) => [
+            'id'    => $c->id,
+            'name'  => trim(($c->user?->name ?? '') . ' ' . ($c->user?->father_last_name ?? '')) ?: "#{$c->id}",
+            'es_yo' => $propio && $c->id === $propio->id,
+        ])->sortBy('name')->values());
+    }
+
     public function submitReport(Request $request, $projectId, $actId)
     {
         TalentoProjectActivity::where('project_id', $projectId)->findOrFail($actId);
@@ -311,7 +339,12 @@ class TalentoProjectController extends Controller
 
     public function listReports(Request $request, $projectId, $actId)
     {
-        $this->authorize('talento.project_reports.view');
+        // Mismo criterio que show(), que ya trae estos reportes dentro del
+        // proyecto: sin el permiso de staff basta ser colaborador. Así quien
+        // reportó puede ver si su reporte sigue pendiente (2026-10-20).
+        if (! auth()->user()->can('talento.project_reports.view')) {
+            abort_unless(Actor::for(auth()->user())->talento(), 403);
+        }
 
         TalentoProjectActivity::where('project_id', $projectId)->findOrFail($actId);
 

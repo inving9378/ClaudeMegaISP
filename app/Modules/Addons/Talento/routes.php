@@ -281,6 +281,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::put('/proyectos/{id}/actividades/{actId}',  [TalentoProjectController::class, 'updateActivity']);
 
             // Reportes diarios
+            Route::get('/proyectos/{id}/participantes',                 [TalentoProjectController::class, 'participantes']);
             Route::get('/proyectos/{id}/actividades/{actId}/reportes',  [TalentoProjectController::class, 'listReports']);
             Route::post('/proyectos/{id}/actividades/{actId}/reportes', [TalentoProjectController::class, 'submitReport']);
             Route::post('/project-reports/{reportId}/approve',          [TalentoProjectController::class, 'approveReport']);

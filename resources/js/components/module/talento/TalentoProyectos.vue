@@ -63,7 +63,9 @@
         <h5 class="mb-0">{{ detail.name }}
           <span class="ms-2 tc-status" :class="statusColor(detail.status)">{{ statusLabel(detail.status) }}</span>
         </h5>
-        <button @click="editDetail=true" class="ms-auto tc-btn tc-btn-info btn-xs"><i class="fa fa-pen"></i> Editar</button>
+        <button v-if="actividadesReportables.length" @click="openReport(null)" class="ms-auto tc-btn tc-btn-ok btn-sm">
+          <i class="fa fa-plus me-1"></i>Reportar avance
+        </button>
       </div>
 
       <!-- Meta info -->
@@ -87,7 +89,7 @@
         <div class="col-md-8">
           <div class="d-flex align-items-center justify-content-between mb-2">
             <h6 class="mb-0 text-uppercase text-muted small">Pool de actividades</h6>
-            <button @click="openAddActivity" class="tc-btn tc-btn-ok btn-xs"><i class="fa fa-plus me-1"></i>Agregar actividad</button>
+            <button v-if="puedeCrear" @click="openAddActivity" class="tc-btn tc-btn-ok btn-xs"><i class="fa fa-plus me-1"></i>Agregar actividad</button>
           </div>
           <div class="table-responsive">
             <table class="table table-sm align-middle">
@@ -113,11 +115,11 @@
                     </div>
                   </td>
                   <td>
-                    <button v-if="act.remaining > 0" @click="openReport(act)" class="tc-btn tc-btn-ok btn-xs"><i class="fa fa-plus"></i></button>
-                    <button @click="openActReports(act)" class="tc-btn tc-btn-seg btn-xs ms-1"><i class="fa fa-list"></i></button>
+                    <button v-if="act.remaining > 0" @click="openReport(act)" class="tc-btn tc-btn-ok btn-xs" title="Reportar avance de esta actividad"><i class="fa fa-plus"></i></button>
+                    <button @click="openActReports(act)" class="tc-btn tc-btn-seg btn-xs ms-1" title="Ver reportes"><i class="fa fa-list"></i></button>
                   </td>
                 </tr>
-                <tr v-if="!detail.activities?.length"><td colspan="6" class="text-muted small text-center py-2">Sin actividades. Agrega una.</td></tr>
+                <tr v-if="!detail.activities?.length"><td colspan="6" class="text-muted small text-center py-2">Sin actividades.<span v-if="puedeCrear"> Agrega una.</span></td></tr>
               </tbody>
             </table>
           </div>
@@ -129,7 +131,7 @@
               Escala: <span v-for="(b,i) in detail.bonus_scale" :key="i">≥{{ b.threshold_pct }}% → ${{ fmt2(b.amount) }}<span v-if="i < detail.bonus_scale.length-1"> · </span></span>
             </span>
             <span v-else>Bono plano: ${{ fmt2(detail.bonus_amount) }}</span>
-            <button v-if="detail.status !== 'done'" @click="awardBonus" class="tc-btn tc-btn-warn-solid btn-xs ms-2" :disabled="awardingBonus">
+            <button v-if="puedeCrear && detail.status !== 'done'" @click="awardBonus" class="tc-btn tc-btn-warn-solid btn-xs ms-2" :disabled="awardingBonus">
               <span v-if="awardingBonus"><span class="spinner-border spinner-border-sm me-1"></span></span>
               <span v-else><i class="fa fa-award me-1"></i>Otorgar bono</span>
             </button>
@@ -195,7 +197,7 @@
               <span v-if="corridor.saving"><span class="spinner-border spinner-border-sm me-1"></span>Guardando…</span>
               <span v-else><i class="fa fa-save me-1"></i>Guardar corredor</span>
             </button>
-            <button v-if="!corridor.editMode" @click="startEdit"
+            <button v-if="puedeCrear && !corridor.editMode" @click="startEdit"
                     class="tc-btn tc-btn-info btn-sm ms-auto">
               <i class="fa fa-pen me-1"></i>{{ corridor.path?.length ? 'Redibujar' : 'Trazar corredor' }}
             </button>
@@ -364,11 +366,22 @@
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">Reportar actividad — {{ reportModal.activity?.activity_type?.name }}</h5>
+            <h5 class="modal-title">Reportar avance — {{ detail?.name }}</h5>
             <button @click="reportModal.show=false" type="button" class="btn-close"></button>
           </div>
           <div class="modal-body">
-            <div class="alert alert-info py-2 small mb-3">
+            <!-- 2026-10-20: el técnico elige aquí en qué actividad reporta (antes solo
+                 había un "+" por fila, y la lista de participantes le salía vacía). -->
+            <div class="mb-3">
+              <label class="form-label">Actividad <span class="text-danger">*</span></label>
+              <select v-model="reportModal.activityId" class="form-select tc-select">
+                <option :value="null" disabled>— Selecciona la actividad —</option>
+                <option v-for="a in actividadesReportables" :key="a.id" :value="a.id">
+                  {{ a.activity_type?.name }}{{ a.location_notes ? ` (${a.location_notes})` : '' }} — restan {{ fmt2(a.remaining) }} {{ a.activity_type?.unit }}
+                </option>
+              </select>
+            </div>
+            <div v-if="reportModal.activity" class="alert alert-info py-2 small mb-3">
               Restante disponible: <strong>{{ fmt2(reportModal.activity?.remaining) }} {{ reportModal.activity?.activity_type?.unit }}</strong>
               (techo: {{ fmt2(reportModal.activity?.planned_quantity) }})
             </div>
@@ -398,13 +411,15 @@
                     <strong>{{ fmt3((reportModal.quantity / reportModal.colaborador_ids.length) * (reportModal.activity?.activity_type?.points_per_unit ?? 0)) }} pts</strong>
                   </span>
                 </div>
-                <div class="d-flex flex-wrap gap-2">
-                  <div v-for="col in colaboradores" :key="col.id" class="form-check form-check-inline">
+                <div v-if="reportModal.loadingParticipantes" class="small text-muted">Cargando…</div>
+                <div v-else class="d-flex flex-wrap gap-2">
+                  <div v-for="col in participantes" :key="col.id" class="form-check form-check-inline">
                     <input :id="`col-${col.id}`" type="checkbox" class="form-check-input"
                            :checked="reportModal.colaborador_ids.includes(col.id)"
                            @change="toggleParticipant(col.id)">
-                    <label :for="`col-${col.id}`" class="form-check-label small">{{ col.user?.name }}</label>
+                    <label :for="`col-${col.id}`" class="form-check-label small">{{ col.name }}<span v-if="col.es_yo" class="text-muted"> (yo)</span></label>
                   </div>
+                  <div v-if="!participantes.length" class="small text-muted">No hay a quién asignar este avance.</div>
                 </div>
               </div>
               <div class="col-12">
@@ -418,7 +433,7 @@
           </div>
           <div class="modal-footer">
             <button @click="reportModal.show=false" class="btn btn-secondary" :disabled="reportModal.saving">Cancelar</button>
-            <button @click="submitReport" class="btn btn-success" :disabled="reportModal.saving || !reportModal.colaborador_ids.length">
+            <button @click="submitReport" class="btn btn-success" :disabled="reportModal.saving || !reportModal.activity || !reportModal.colaborador_ids.length">
               <span v-if="reportModal.saving"><span class="spinner-border spinner-border-sm me-1"></span>Reportando…</span>
               <span v-else><i class="fa fa-check me-1"></i>Reportar</span>
             </button>
@@ -437,10 +452,11 @@
           </div>
           <div class="modal-body">
             <div v-if="reportsListModal.loading" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></div>
-            <div v-else class="table-responsive">
+            <div v-if="reportsListModal.error" class="alert alert-danger py-2 small">{{ reportsListModal.error }}</div>
+            <div v-if="!reportsListModal.loading" class="table-responsive">
               <table class="table table-sm align-middle">
                 <thead class="table-light">
-                  <tr><th>Fecha</th><th>Cant.</th><th>Aprobado</th><th>Estado</th><th>Participantes</th><th>Pts/ud</th></tr>
+                  <tr><th>Fecha</th><th>Cant.</th><th>Aprobado</th><th>Estado</th><th>Participantes</th><th>Pts/ud</th><th v-if="puedeCrear"></th></tr>
                 </thead>
                 <tbody>
                   <tr v-for="r in reportsListModal.reports" :key="r.id">
@@ -450,8 +466,12 @@
                     <td><span class="tc-status" :class="reportStatusColor(r.status)">{{ reportStatusLabel(r.status) }}</span></td>
                     <td class="small">{{ (r.participants ?? []).map(p => p.colaborador?.user?.name).join(', ') }}</td>
                     <td class="small">{{ fmt3((r.participants ?? [])[0]?.points_earned ?? 0) }}</td>
+                    <td v-if="puedeCrear">
+                      <button v-if="r.status === 'pending'" @click="approveReport(r)" class="tc-btn tc-btn-ok btn-xs"
+                              :disabled="reportsListModal.approvingId === r.id">Aprobar</button>
+                    </td>
                   </tr>
-                  <tr v-if="!reportsListModal.reports?.length"><td colspan="6" class="text-muted text-center py-3">Sin reportes.</td></tr>
+                  <tr v-if="!reportsListModal.reports?.length"><td :colspan="puedeCrear ? 7 : 6" class="text-muted text-center py-3">Sin reportes.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -491,6 +511,9 @@ export default {
         ? this.puedeGestionar
         : new Permission(this.permisosGlobales).canDo('talento.projects.manage');
     },
+    actividadesReportables() {
+      return (this.detail?.activities ?? []).filter(a => a.remaining > 0);
+    },
     selectedTypeUnit() {
       const t = this.activityTypes.find(t => t.id === this.actModal.activity_type_id);
       return t?.unit ?? 'ud';
@@ -507,14 +530,15 @@ export default {
       editDetail: false,
       awardingBonus: false,
       activityTypes: [],
-      colaboradores: [],
+      // Entre quiénes se puede repartir un reporte (GET /proyectos/{id}/participantes).
+      participantes: [],
 
       projectModal: { show: false, id: null, name: '', description: '', status: 'planning',
                       start_date: today, end_date: '', bonus_amount: '', bonus_scale: [],
                       saving: false, error: '' },
       actModal: { show: false, activity_type_id: null, planned_quantity: 1, location_notes: '', saving: false, error: '' },
-      reportModal: { show: false, activity: null, quantity: 1, report_date: today, colaborador_ids: [], notes: '', saving: false, error: '' },
-      reportsListModal: { show: false, activity: null, reports: [], loading: false },
+      reportModal: { show: false, activityId: null, activity: null, quantity: 1, report_date: today, colaborador_ids: [], notes: '', saving: false, error: '', loadingParticipantes: false },
+      reportsListModal: { show: false, activity: null, reports: [], loading: false, approvingId: null, error: '' },
 
       // Corredor
       corridorOpen: false,
@@ -541,8 +565,9 @@ export default {
     // colaboradorId) — dentro de la ficha, puedeGestionar ya viene resuelto.
     if (!this.colaboradorId) this.permisosGlobales = await allViewHasPermission();
     this.load();
-    this.loadActivityTypes();
-    this.loadColaboradores();
+    // El catálogo de tipos solo lo usa "Agregar actividad" (gestión); para el
+    // resto daba 403 al abrir la pestaña.
+    if (this.puedeCrear) this.loadActivityTypes();
   },
   methods: {
     debounce() {
@@ -560,9 +585,14 @@ export default {
       const { data } = await axios.get('/talento/api/activity-types');
       this.activityTypes = data ?? [];
     },
-    async loadColaboradores() {
-      const { data } = await axios.get('/talento/api/colaboradores', { params: { per_page: 200, status: 'active' } });
-      this.colaboradores = data?.data ?? [];
+    async loadParticipantes() {
+      this.reportModal.loadingParticipantes = true;
+      try {
+        const { data } = await axios.get(`/talento/api/proyectos/${this.detail.id}/participantes`);
+        this.participantes = data ?? [];
+      } catch {
+        this.participantes = [];
+      } finally { this.reportModal.loadingParticipantes = false; }
     },
     async openDetail(id) {
       this.destroyCorridorMap();
@@ -571,7 +601,9 @@ export default {
       this.corridor = { path: [], draft: [], editMode: false, saving: false,
                         analyzing: false, loadingDeviations: false, deviations: [], focusedDevId: null };
       const { data } = await axios.get(`/talento/api/proyectos/${id}`);
-      this.detail = data;
+      // La API manda las actividades como project_activities; la pantalla las leía
+      // como activities y el pool salía siempre vacío, así que nadie podía reportar.
+      this.detail = { ...data, activities: data?.project_activities ?? data?.activities ?? [] };
     },
 
     destroyCorridorMap() {
@@ -631,10 +663,16 @@ export default {
         this.actModal.error = e.response?.data?.message ?? 'Error al agregar.';
       } finally { this.actModal.saving = false; }
     },
-    openReport(act) {
-      const today = new Date().toISOString().substring(0,10);
-      this.reportModal = { show:true, activity:act, quantity:1, report_date:today,
-                           colaborador_ids:[], notes:'', saving:false, error:'' };
+    async openReport(act) {
+      const d = new Date();
+      const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const unica = this.actividadesReportables.length === 1 ? this.actividadesReportables[0] : null;
+      const elegida = act ?? unica;
+      this.reportModal = { show:true, activityId: elegida?.id ?? null, activity: elegida, quantity:1, report_date:today,
+                           colaborador_ids:[], notes:'', saving:false, error:'', loadingParticipantes: true };
+      await this.loadParticipantes();
+      const yo = this.participantes.find(p => p.es_yo);
+      if (yo) this.reportModal.colaborador_ids = [yo.id];
     },
     toggleParticipant(id) {
       const idx = this.reportModal.colaborador_ids.indexOf(id);
@@ -643,6 +681,7 @@ export default {
     },
     async submitReport() {
       this.reportModal.error = '';
+      if (!this.reportModal.activity) { this.reportModal.error = 'Selecciona la actividad.'; return; }
       if (!this.reportModal.colaborador_ids.length) { this.reportModal.error = 'Selecciona participantes.'; return; }
       this.reportModal.saving = true;
       try {
@@ -658,8 +697,19 @@ export default {
         this.reportModal.error = e.response?.data?.error ?? 'Error al reportar.';
       } finally { this.reportModal.saving = false; }
     },
+    async approveReport(r) {
+      this.reportsListModal.error = '';
+      this.reportsListModal.approvingId = r.id;
+      try {
+        await axios.post(`/talento/api/project-reports/${r.id}/approve`);
+        await this.openActReports(this.reportsListModal.activity);
+        await this.openDetail(this.detail.id);
+      } catch (e) {
+        this.reportsListModal.error = e.response?.data?.error ?? e.response?.data?.message ?? 'No se pudo aprobar.';
+      } finally { this.reportsListModal.approvingId = null; }
+    },
     async openActReports(act) {
-      this.reportsListModal = { show:true, activity:act, reports:[], loading:true };
+      this.reportsListModal = { show:true, activity:act, reports:[], loading:true, approvingId: null, error: '' };
       try {
         const { data } = await axios.get(`/talento/api/proyectos/${this.detail.id}/actividades/${act.id}/reportes`);
         this.reportsListModal.reports = data ?? [];
@@ -681,7 +731,13 @@ export default {
     statusLabel(s) { return {planning:'Planificación',active:'Activo',paused:'Pausado',done:'Finalizado'}[s]??s; },
     reportStatusColor(s) { return {pending:'is-slate',approved:'is-ok',capped:'is-warn',rejected:'is-bad'}[s]??'is-slate'; },
     reportStatusLabel(s) { return {pending:'Pendiente',approved:'Aprobado',capped:'Recortado',rejected:'Rechazado'}[s]??s; },
-    fmtDate(d) { if(!d)return'—'; return new Date(d+'T12:00:00').toLocaleDateString('es-MX',{day:'2-digit',month:'short',year:'numeric'}); },
+    // Las fechas llegan como "2026-10-15T06:00:00.000000Z" (cast date de Laravel); antes se
+    // les pegaba 'T12:00:00' y salía "Invalid Date". Se toma el día tal cual.
+    fmtDate(d) {
+      const m = String(d ?? '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!m) return '—';
+      return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+    },
     fmt1(n) { return Number(n??0).toFixed(1); },
     fmt2(n) { return Number(n??0).toFixed(2); },
     fmt3(n) { return Number(n??0).toFixed(3); },
@@ -858,6 +914,9 @@ export default {
     },
   },
   watch: {
+    'reportModal.activityId'(id) {
+      this.reportModal.activity = this.actividadesReportables.find(a => a.id === id) ?? null;
+    },
     // Cuando el usuario abre la sección corredor, inicia el mapa
     corridorOpen(val) {
       if (val) {
