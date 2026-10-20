@@ -2084,6 +2084,10 @@ return [
         '/talento/mi-ficha',
         '/talento/mi-ficha/{id}',
         '/talento/mi-ficha/{id}/academia',
+        // "Descargar credencial" del carnet (2026-10-20): sin esto un vendedor o técnico
+        // caía en la página de inicio en vez del PDF. El controller ya resuelve "uno mismo,
+        // su equipo o quien gestiona órdenes" (resolverColaboradorAutoservicio()).
+        '/talento/mi-ficha/{id}/pdf',
         '/talento/api/mi-equipo',
         // Pestaña "Liquidaciones" de la ficha propia (2026-10-14): estos 2
         // endpoints de LECTURA nunca estuvieron en NINGÚN bloque de este
