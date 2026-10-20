@@ -845,6 +845,56 @@
                 cargandoEquipoProgreso.value = false;
                 equipoProgresoCargado.value = true;
             }
+            // ── Penalizaciones del equipo (2026-10-20) — el supervisor confirma aquí las
+            // penalizaciones que proponen las reglas semanales; antes solo podía el admin ──
+            const penEquipoCargado = ref(false);
+            const cargandoPenEquipo = ref(false);
+            const penEquipo = ref(null);
+            const penEquipoError = ref('');
+            const confirmandoPen = ref(null);
+            async function cargarPenEquipo() {
+                cargandoPenEquipo.value = true;
+                penEquipoError.value = '';
+                const r = await apiFetch('/talento/portal/equipo/penalizaciones');
+                if (r && r.ok && r.data) {
+                    penEquipo.value = r.data;
+                } else {
+                    penEquipoError.value = (r && r.data && (r.data.error || r.data.message)) || 'No se pudieron cargar las penalizaciones.';
+                }
+                cargandoPenEquipo.value = false;
+                penEquipoCargado.value = true;
+            }
+            function penUnidadesLabel(e) {
+                const base = reglaUnidadesLabel({ metric_type: e.metric_type, sales_count: e.unidades, prospects_count: e.prospectos });
+                return e.piso != null ? `${base} (mínimo ${e.piso})` : base;
+            }
+            function penStatus(s) {
+                return ({
+                    applied:    { label: 'Aplicada',     color: 'negative' },
+                    appealed:   { label: 'En apelación', color: 'orange-8' },
+                    overturned: { label: 'Revocada',     color: 'positive' },
+                    upheld:     { label: 'Mantenida',    color: 'grey-7' },
+                })[s] || { label: s, color: 'grey-7' };
+            }
+            function confirmarPenEquipo(e) {
+                $q.dialog({
+                    title: 'Confirmar penalización',
+                    message: `Se descontarán ${money(e.monto)} a ${e.colaborador} en la semana del ${reglaSemanaLabel(e)}. ¿Confirmas?`,
+                    cancel: { label: 'Cancelar', flat: true },
+                    ok: { label: 'Confirmar', color: 'negative', unelevated: true },
+                    persistent: true,
+                }).onOk(async () => {
+                    confirmandoPen.value = e.id;
+                    const r = await apiFetch(`/talento/portal/equipo/penalizaciones/${e.id}/confirmar`, { method: 'POST', body: {} });
+                    confirmandoPen.value = null;
+                    if (!r || !r.ok) {
+                        $q.notify({ type: 'negative', message: (r && r.data && (r.data.error || r.data.message)) || 'No se pudo confirmar.', timeout: 5000 });
+                        return;
+                    }
+                    $q.notify({ type: 'positive', icon: 'check_circle', message: 'Penalización confirmada.', timeout: 4000 });
+                    cargarPenEquipo();
+                });
+            }
             const TRACK_INFO = {
                 tecnico_planta_interna: { label: 'Técnico', icon: 'verified', color: 'teal-6' },
                 tecnico_planta_externa: { label: 'Técnico', icon: 'verified', color: 'teal-6' },
@@ -930,6 +980,7 @@
                 if (val === 'mis_ventas' && !misVentasCargado.value) cargarMisVentas();
                 if (val === 'mi_mostrador' && !progresoMostradorCargado.value) cargarProgresoMostrador();
                 if (val === 'mi_equipo' && !equipoProgresoCargado.value) cargarEquipoProgreso();
+                if (val === 'penalizaciones_equipo' && !penEquipoCargado.value) cargarPenEquipo();
                 if (val === 'prospectos' && !prospectosCargado.value) cargarProspectos();
                 if (val === 'documentos' && !documentosCargado.value) cargarDocumentos();
             }
@@ -962,6 +1013,7 @@
                 reglaDesempenoLabel, reglaDesempenoColor, reglaMetricLabel, reglaUnidadesLabel, reglaSemanaLabel, reglaMontoLabel,
                 progresoMostrador, cargandoProgresoMostrador, cargarProgresoMostrador, prioridadLabel,
                 equipoProgreso, equipoProgresoError, cargandoEquipoProgreso, cargarEquipoProgreso, trackInfo,
+                penEquipo, penEquipoError, cargandoPenEquipo, confirmandoPen, penUnidadesLabel, penStatus, confirmarPenEquipo, fmtDiaCorto,
                 prospectos, cargandoProspectos, cargarProspectos, nombreProspecto, statusColor,
                 documentos, cargandoDocumentos, documentosTab, documentosListaActiva, documentosKpi,
                 documentosPendientes, documentosFirmados, documentoEstadoInfo, documentoPdfUrl,
@@ -1922,6 +1974,57 @@
                         <div v-else-if="equipoProgresoError" class="tp-empty">
                             <q-icon name="groups" class="tp-empty-icon" />
                             <div class="text-subtitle1">{{ equipoProgresoError }}</div>
+                        </div>
+                    </div>
+
+                    <!-- Penalizaciones del equipo (2026-10-20) — por confirmar + aplicadas recientes -->
+                    <div v-show="tab==='penalizaciones_equipo'" class="q-pa-md">
+                        <div v-if="cargandoPenEquipo" class="tp-empty">
+                            <q-spinner color="teal-6" size="2em" /><div class="text-caption q-mt-sm">Cargando…</div>
+                        </div>
+                        <template v-else-if="penEquipo">
+                            <div class="text-subtitle2">Por confirmar</div>
+                            <div class="text-caption text-grey-6 q-mb-sm">
+                                Las reglas semanales las proponen; el descuento solo se aplica cuando las confirmas.
+                                {{ penEquipo.ver_todo ? 'Todos los colaboradores.' : 'Tu equipo directo.' }}
+                            </div>
+                            <q-list v-if="penEquipo.por_confirmar.length" bordered separator class="tp-card q-mb-lg">
+                                <q-item v-for="e in penEquipo.por_confirmar" :key="'pc'+e.id">
+                                    <q-item-section>
+                                        <q-item-label>{{ e.colaborador }}</q-item-label>
+                                        <q-item-label caption>{{ e.regla }} · semana del {{ reglaSemanaLabel(e) }}</q-item-label>
+                                        <q-item-label caption>{{ penUnidadesLabel(e) }}</q-item-label>
+                                    </q-item-section>
+                                    <q-item-section side>
+                                        <q-item-label class="text-negative text-weight-medium">{{ money(e.monto) }}</q-item-label>
+                                        <q-btn dense unelevated no-caps color="negative" label="Confirmar" class="q-mt-xs"
+                                               :loading="confirmandoPen === e.id" @click="confirmarPenEquipo(e)" />
+                                    </q-item-section>
+                                </q-item>
+                            </q-list>
+                            <div v-else class="tp-empty q-mb-lg">
+                                <q-icon name="task_alt" class="tp-empty-icon" />
+                                <div class="text-subtitle1">No hay penalizaciones por confirmar</div>
+                            </div>
+
+                            <div class="text-subtitle2 q-mb-sm">Aplicadas en los últimos 60 días</div>
+                            <q-list v-if="penEquipo.recientes.length" bordered separator class="tp-card">
+                                <q-item v-for="p in penEquipo.recientes" :key="'pr'+p.id">
+                                    <q-item-section>
+                                        <q-item-label>{{ p.colaborador }}</q-item-label>
+                                        <q-item-label caption>{{ p.tipo }} · {{ fmtDiaCorto(p.fecha) }} · aplicó {{ p.aplicado_por }}</q-item-label>
+                                    </q-item-section>
+                                    <q-item-section side>
+                                        <q-item-label class="text-weight-medium">{{ money(p.monto) }}</q-item-label>
+                                        <q-chip dense :color="penStatus(p.status).color" text-color="white">{{ penStatus(p.status).label }}</q-chip>
+                                    </q-item-section>
+                                </q-item>
+                            </q-list>
+                            <div v-else class="text-caption text-grey-6">Sin penalizaciones aplicadas.</div>
+                        </template>
+                        <div v-else-if="penEquipoError" class="tp-empty">
+                            <q-icon name="gavel" class="tp-empty-icon" />
+                            <div class="text-subtitle1">{{ penEquipoError }}</div>
                         </div>
                     </div>
 

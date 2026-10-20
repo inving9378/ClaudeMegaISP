@@ -210,6 +210,7 @@ final class Actor
             ['prospectos', 'Mi trabajo',  'Mis prospectos', 'groups',       'prospectos',  fn () => (bool) $this->seller(),                       true],   // Fase C
             ['panel',      'Mi trabajo',  'Mi panel',       'insights',     'panel',       fn () => (bool) ($this->seller() || $this->embajador()), false], // Fases D/E
             ['equipo',     'Supervisión', 'Mi equipo',      'groups',       'mi_equipo',   fn () => $this->esSuperAdminTalento() || $this->tieneEquipo(), true], // Fase 5 del dashboard por rol (2026-10-08) — pedido directo de Irving: admin ve a su equipo, super admin ve todo
+            ['penalizaciones', 'Supervisión', 'Penalizaciones', 'gavel',  'penalizaciones_equipo', fn () => $this->esSuperAdminTalento() || $this->tieneEquipo(), true], // 2026-10-20: confirmar las penalizaciones del equipo
             ['documentos', 'Cuenta',      'Mis documentos', 'description',  'documentos',  fn () => $this->user->can('talento.documentos.ver-propios'), true], // Item #9990814
             ['perfil',     'Cuenta',      'Perfil',         'person',       'perfil',      fn (): bool => true,                                  true],
         ];

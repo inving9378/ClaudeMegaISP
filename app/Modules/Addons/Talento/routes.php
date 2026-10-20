@@ -662,6 +662,8 @@ Route::middleware(['web', 'auth', 'can:portal.colaborador'])
         Route::get('/mi-calidad',       [PortalTecnicoController::class, 'miCalidad']);
         Route::get('/mi-progreso-mostrador', [PortalTecnicoController::class, 'miProgresoMostrador']);
         Route::get('/mi-equipo-progreso', [PortalTecnicoController::class, 'miEquipoProgreso']);
+        Route::get('/equipo/penalizaciones', [PortalTecnicoController::class, 'equipoPenalizaciones']);
+        Route::post('/equipo/penalizaciones/{id}/confirmar', [PortalTecnicoController::class, 'equipoConfirmarPenalizacion'])->where('id', '[0-9]+');
 
         // Mis documentos (expediente) — self-scoped por Actor. Item #9990813.
         Route::middleware('can:talento.documentos.ver-propios')->group(function () {

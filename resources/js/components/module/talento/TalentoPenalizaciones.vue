@@ -14,6 +14,15 @@
            autoservicio; quedan ocultas para quien no gestiona/supervisa
            (apelar TU PROPIA penalización sigue disponible en el modal
            "Ver", eso no es esto). -->
+      <!-- 2026-10-20: las penalizaciones que proponen las reglas semanales se confirman
+           aquí (antes solo desde Reglas de desempeño). El supervisor tiene la suya en el
+           portal, sección Penalizaciones. -->
+      <li v-if="puedeGestionarResuelto && !colaboradorId" class="nav-item">
+        <a class="nav-link" :class="{ active: tab === 'pending' }" href="#" @click.prevent="tab='pending'">
+          <i class="fa fa-hourglass-half me-1"></i>Por confirmar
+          <span v-if="pendientes.length" class="tc-status is-warn ms-1">{{ pendientes.length }}</span>
+        </a>
+      </li>
       <li v-if="puedeGestionarResuelto" class="nav-item">
         <a class="nav-link" :class="{ active: tab === 'appeals' }" href="#" @click.prevent="tab='appeals'">
           <i class="fa fa-balance-scale me-1"></i>Apelaciones
@@ -86,6 +95,40 @@
             {{ pg }}
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- ── TAB POR CONFIRMAR ── -->
+    <div v-if="tab === 'pending'">
+      <p class="small text-muted mb-3">
+        Las reglas de desempeño semanal proponen estas penalizaciones; el descuento se aplica cuando alguien la confirma.
+      </p>
+      <div v-if="loadingPend" class="text-center py-5"><div class="spinner-border text-warning"></div></div>
+      <div v-else class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+          <thead class="table-light">
+            <tr><th>Colaborador</th><th>Regla</th><th>Semana</th><th>Resultado</th><th>Monto</th><th></th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="e in pendientes" :key="e.id">
+              <td class="fw-semibold small">{{ e.colaborador?.user?.name ?? '—' }}</td>
+              <td class="small">{{ e.rule?.name ?? '—' }}</td>
+              <td class="small">{{ fmtDia(e.week_start) }} – {{ fmtDia(e.week_end) }}</td>
+              <td class="small text-muted">{{ e.sales_count }}<span v-if="e.rule?.min_sales != null"> (mínimo {{ e.rule.min_sales }})</span></td>
+              <td class="small fw-bold text-danger">{{ fmtMXN(e.penalty_amount) }}</td>
+              <td>
+                <button @click="confirmarPendiente(e)" class="tc-btn tc-btn-bad-solid btn-xs" :disabled="confirmandoId === e.id">
+                  <span v-if="confirmandoId === e.id" class="spinner-border spinner-border-sm"></span>
+                  <span v-else>Confirmar</span>
+                </button>
+              </td>
+            </tr>
+            <tr v-if="!pendientes.length">
+              <td colspan="6" class="text-center text-muted py-4">No hay penalizaciones por confirmar.</td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-if="pendError" class="alert alert-danger py-2 small">{{ pendError }}</div>
       </div>
     </div>
 
@@ -587,6 +630,9 @@ export default {
       pFilters: { colaborador_id: '', category: '', status: '' },
       pPagination: { current_page: 1, last_page: 1 },
 
+      // Por confirmar (evaluaciones semanales en penalty_pending)
+      pendientes: [], loadingPend: true, confirmandoId: null, pendError: '',
+
       // Apelaciones
       appeals: [], loadingA: true,
       aFilters: { pendingOnly: true },
@@ -686,8 +732,34 @@ export default {
       // pestañas ocultas arriba).
       if (this.puedeGestionarResuelto) {
         calls.push(this.loadTypes(), this.loadAppeals());
+        if (!this.colaboradorId) calls.push(this.loadPendientes());
       }
       await Promise.all(calls);
+    },
+    async loadPendientes() {
+      this.loadingPend = true;
+      try {
+        const { data } = await axios.get('/talento/api/reglas-desempeno/evaluaciones', { params: { outcome: 'penalty_pending' } });
+        this.pendientes = data?.data ?? [];
+      } finally { this.loadingPend = false; }
+    },
+    async confirmarPendiente(e) {
+      const nombre = e.colaborador?.user?.name ?? 'el colaborador';
+      if (!confirm(`Se descontarán ${this.fmtMXN(e.penalty_amount)} a ${nombre} en la semana del ${this.fmtDia(e.week_start)}. ¿Confirmas?`)) return;
+      this.pendError = '';
+      this.confirmandoId = e.id;
+      try {
+        await axios.post(`/talento/api/reglas-desempeno/evaluaciones/${e.id}/confirmar-penalizacion`);
+        await Promise.all([this.loadPendientes(), this.loadPenalties()]);
+      } catch (err) {
+        this.pendError = err.response?.data?.message ?? err.response?.data?.error ?? 'No se pudo confirmar.';
+      } finally { this.confirmandoId = null; }
+    },
+    // Fechas de semana (date sin hora): se toma el día tal cual, sin pasar por la zona horaria.
+    fmtDia(d) {
+      const m = String(d ?? '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!m) return '—';
+      return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
     },
     async loadMyProfile() {
       try {
