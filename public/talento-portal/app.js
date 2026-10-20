@@ -772,7 +772,7 @@
             }
             function reglaUnidadesLabel(r) {
                 if (r.metric_type === 'ventas') return `Prospectos: ${r.prospects_count} · Ventas: ${r.sales_count}`;
-                if (r.metric_type === 'tecnico') return `Completados: ${r.sales_count}`;
+                if (r.metric_type === 'tecnico') return `Puntos validados: ${r.sales_count}`;
                 if (r.metric_type === 'mostrador') return `Pagos capturados: ${r.sales_count}`;
                 if (r.metric_type === 'calidad_senal') return `Instalaciones fuera de rango: ${r.sales_count}`;
                 return `Unidades: ${r.sales_count}`;
