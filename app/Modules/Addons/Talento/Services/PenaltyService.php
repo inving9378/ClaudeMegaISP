@@ -2,6 +2,8 @@
 
 namespace App\Modules\Addons\Talento\Services;
 
+use App\Models\User;
+use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
 use App\Modules\Addons\Talento\Models\TalentoPenalty;
 use App\Modules\Addons\Talento\Models\TalentoPenaltyAppeal;
@@ -12,6 +14,31 @@ use Illuminate\Support\Facades\Log;
 
 class PenaltyService
 {
+    /**
+     * Ficha con la que firma quien aplica, confirma o resuelve una penalización.
+     * Quien tiene ficha firma con la suya. Un admin/DESARROLLADOR sin ficha firma
+     * como MEGAISP (el mismo usuario de sistema que firma los pagos automáticos),
+     * cuya ficha se crea la primera vez. Antes cada camino exigía ficha propia y
+     * ningún admin podía, por ejemplo, resolver una apelación (2026-10-19).
+     */
+    public function firmanteDe(User $user): ?TalentoColaborador
+    {
+        $propia = TalentoColaborador::where('user_id', $user->id)->first();
+        if ($propia) {
+            return $propia;
+        }
+
+        $bot = User::systemBot();
+        if (! $bot) {
+            return null;
+        }
+
+        return TalentoColaborador::firstOrCreate(
+            ['user_id' => $bot->id],
+            ['type' => 'interno', 'status' => 'active', 'department' => 'Sistema']
+        );
+    }
+
     /**
      * Apply a penalty and write an immutable DEBIT to the ledger.
      * Returns the new TalentoPenalty.
@@ -80,20 +107,33 @@ class PenaltyService
      * Justice rule: reviewed_by MUST differ from applied_by.
      * If overturned: add a CREDIT reversal to ledger (never delete the original debit).
      */
-    public function resolveAppeal(TalentoPenaltyAppeal $appeal, int $reviewerColaboradorId, string $decision, ?string $notes): TalentoPenaltyAppeal
+    public function resolveAppeal(TalentoPenaltyAppeal $appeal, int $reviewerColaboradorId, string $decision, ?string $notes, ?int $reviewerUserId = null): TalentoPenaltyAppeal
     {
         $penalty = $appeal->penalty;
 
-        // Justice validation
-        if ($reviewerColaboradorId === $penalty->applied_by) {
+        // Justice validation: quien aplicó no resuelve. Se compara la ficha y,
+        // además, la persona (penalties.created_by): dos admins sin ficha firman
+        // ambos como MEGAISP y siguen siendo personas distintas. Sin created_by
+        // (penalizaciones viejas) no se puede distinguir, así que la ficha de
+        // sistema repetida también se bloquea.
+        $fichaSistema = ($bot = User::systemBot())
+            ? TalentoColaborador::where('user_id', $bot->id)->value('id')
+            : null;
+        $mismaFicha = $reviewerColaboradorId === (int) $penalty->applied_by
+            && ($reviewerColaboradorId !== (int) $fichaSistema || $penalty->created_by === null);
+        $mismaPersona = $reviewerUserId !== null && $penalty->created_by !== null
+            && (int) $penalty->created_by === $reviewerUserId;
+
+        if ($mismaFicha || $mismaPersona) {
             throw new \InvalidArgumentException(
-                'El revisor de la apelación debe ser distinto del supervisor que aplicó la penalización.'
+                'El revisor de la apelación debe ser distinto de quien aplicó la penalización.'
             );
         }
 
-        return DB::transaction(function () use ($appeal, $penalty, $reviewerColaboradorId, $decision, $notes) {
+        return DB::transaction(function () use ($appeal, $penalty, $reviewerColaboradorId, $decision, $notes, $reviewerUserId) {
             $appeal->update([
                 'reviewed_by'    => $reviewerColaboradorId,
+                'reviewed_by_user_id' => $reviewerUserId,
                 'decision'       => $decision,
                 'decision_notes' => $notes,
                 'resolved_at'    => now(),
@@ -132,7 +172,7 @@ class PenaltyService
                     'period_start'   => $periodStart,
                     'period_end'     => $periodEnd,
                     'notes'          => "Reversión de penalización #{$penalty->id} por apelación aprobada",
-                    'created_by'     => $reviewerColaboradorId,
+                    'created_by'     => $reviewerUserId ?? $reviewerColaboradorId,
                 ]);
 
                 Log::info('Talento: penalty reversed via appeal', [
@@ -142,7 +182,7 @@ class PenaltyService
                 ]);
             }
 
-            return $appeal->fresh(['penalty', 'reviewedByColaborador.user']);
+            return $appeal->fresh(['penalty', 'reviewedByColaborador.user', 'reviewedByUser:id,name,father_last_name']);
         });
     }
 }

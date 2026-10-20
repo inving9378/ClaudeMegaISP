@@ -3,7 +3,6 @@
 namespace App\Modules\Addons\Talento\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoWeeklyRule;
 use App\Modules\Addons\Talento\Models\TalentoWeeklyRuleEvaluation;
 use App\Modules\Addons\Talento\Services\PenaltyService;
@@ -162,16 +161,7 @@ class TalentoReglaDesempenoController extends Controller
         // de sistema que ya usa PaymentApplicationService::resolveSystemUserId()
         // para pagos automáticos) en vez de bloquear la acción — crea su
         // ficha "ligera" la primera vez si todavía no existe, idempotente.
-        $applierColaborador = TalentoColaborador::where('user_id', auth()->id())->first();
-        if (! $applierColaborador) {
-            $bot = \App\Models\User::systemBot();
-            if ($bot) {
-                $applierColaborador = TalentoColaborador::firstOrCreate(
-                    ['user_id' => $bot->id],
-                    ['type' => 'interno', 'status' => 'active', 'department' => 'Sistema']
-                );
-            }
-        }
+        $applierColaborador = $this->penaltyService->firmanteDe(auth()->user());
         abort_unless($applierColaborador, 422, 'No tienes perfil de colaborador.');
 
         $notes = trim((string) $request->input('notes', ''));
