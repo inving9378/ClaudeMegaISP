@@ -119,8 +119,8 @@
                 <span v-else class="tc-status is-bad">❌ Mantenida</span>
               </td>
               <td>
-                <button @click="openResolve(ap)" class="tc-btn tc-btn-warn btn-xs"
-                        :disabled="ap.decision !== null">
+                <button @click="openResolve(ap)" class="tc-btn btn-xs"
+                        :class="ap.decision !== null ? 'tc-btn-seg' : 'tc-btn-warn'">
                   {{ ap.decision !== null ? 'Ver' : 'Resolver' }}
                 </button>
               </td>
@@ -457,6 +457,10 @@
                 <span v-if="resolveModal.appeal.decision_notes" class="small text-muted ms-2">
                   {{ resolveModal.appeal.decision_notes }}
                 </span>
+              </div>
+              <div v-if="resolvioNombre(resolveModal.appeal)" class="small text-muted mt-2">
+                Resolvió: <span class="fw-semibold">{{ resolvioNombre(resolveModal.appeal) }}</span>
+                <span v-if="resolveModal.appeal.resolved_at"> · {{ fmtDate(resolveModal.appeal.resolved_at) }}</span>
               </div>
             </template>
           </div>
@@ -802,6 +806,13 @@ export default {
     },
 
     // ── Resolve ────────────────────────────────────────────────────────────
+    // Un admin sin ficha resuelve firmando como MEGAISP: el nombre real es el de
+    // la persona (reviewed_by_user), no el de la ficha de sistema.
+    resolvioNombre(ap) {
+      const u = ap?.reviewed_by_user;
+      if (u) return [u.name, u.father_last_name].filter(Boolean).join(' ');
+      return ap?.reviewed_by_colaborador?.user?.name ?? '';
+    },
     openResolve(ap) {
       const appliedByColId = ap.penalty?.applied_by_colaborador?.id
                           ?? ap.penalty?.applied_by;
