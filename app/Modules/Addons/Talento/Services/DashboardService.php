@@ -450,7 +450,7 @@ class DashboardService
 
     public function tecnicoPreview(int $colaboradorId, ?string $periodStart = null, ?string $periodEnd = null): array
     {
-        $colaborador = TalentoColaborador::with('level')->findOrFail($colaboradorId);
+        $colaborador = TalentoColaborador::findOrFail($colaboradorId);
 
         // Ventana de pago (PayWeek): semana completa alineada al motor (corte 18:00).
         $w           = $periodStart
@@ -545,7 +545,6 @@ class DashboardService
                 'loan_deductions'    => round($loanTotal, 2),
             ],
             'gross_pay'        => $grossPay,
-            'level'            => $colaborador->level ? ['name' => $colaborador->level->name, 'rank' => $colaborador->level->rank] : null,
             'recent_orders'    => $recentOrders,
         ];
     }
@@ -599,7 +598,7 @@ class DashboardService
     {
         $colaborador = TalentoColaborador::findOrFail($supervisorColaboradorId);
 
-        $equipo = TalentoColaborador::with(['user', 'level'])
+        $equipo = TalentoColaborador::with('user')
             ->where('supervisor_id', $colaborador->id)
             ->where('status', 'active')
             ->get();
@@ -633,7 +632,6 @@ class DashboardService
             return [
                 'id'           => $member->id,
                 'name'         => $member->user?->name ?? '—',
-                'level'        => $member->level?->name,
                 'units'        => $units,
                 'quota'        => $weeklyQuota,
                 'quota_pct'    => $quotaPct,

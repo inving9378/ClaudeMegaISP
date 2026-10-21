@@ -8,7 +8,6 @@ use App\Models\Project;
 use App\Models\Task;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderType;
-use App\Modules\Addons\Talento\Services\LevelService;
 use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
 use App\Modules\Addons\Talento\Support\Actor;
 use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppGateway;
@@ -156,18 +155,6 @@ class TalentoWorkOrderController extends Controller
             return response()->json([
                 'error' => 'Este colaborador no tiene un usuario de sistema vinculado; no se le puede asignar la orden.',
             ], 422);
-        }
-
-        // Gating por nivel (Fase 7b): si el tipo requiere un nivel, validar rank del colaborador
-        if ($type->required_level_id) {
-            $levelSvc = app(LevelService::class);
-            if (!$levelSvc->satisfiesRequirement($colaborador->level_id, $type->required_level_id)) {
-                $reqLevel = \App\Modules\Addons\Talento\Models\TalentoLevel::find($type->required_level_id);
-                return response()->json([
-                    'error'          => "El colaborador no tiene el nivel requerido para este tipo de orden ({$reqLevel?->name}).",
-                    'required_level' => $reqLevel,
-                ], 422);
-            }
         }
 
         // Parsear scheduled_at → start_date + start_time

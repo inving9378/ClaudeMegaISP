@@ -21,7 +21,6 @@ class RolePermissionRevocationSeeder extends Seeder
         'talento.dashboard.view', // dashboard propio
         'talento.attendance.view',// asistencia propia
         'talento.academy.view',   // academia/cursos
-        'talento.levels.view',    // nivel propio
         'talento.work_orders.view',  // sus OTs
         'talento.work_sites.view',   // sitios donde trabaja
         'talento.devices.view',      // su dispositivo asignado
