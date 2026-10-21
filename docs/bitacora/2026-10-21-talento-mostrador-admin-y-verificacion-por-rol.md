@@ -99,3 +99,20 @@ $4,716.67 (2,000 + 2,166.67 + 550 de bonos); cada técnico ve su resultado en Mi
 monto en su ficha; la pantalla de sueldo muestra $9.26 por punto (2,000 ÷ 216). Mostrador $1,500
 y vendedor $1,900 sin cambio. **Hasta mezclar, recalcular en el sitio de dev daría los montos
 inflados.**
+
+## 2026-10-21 — Mezcladas a main las tres ramas del día
+
+`fc4400b0` (Mostrador administrador + pantallas por permiso), `cbfa05e0` (la propia liquidación
+la cierra el admin) y `82cd9073` (cuota diaria × 6), verificado `main` antes de cada una, sin
+conflictos. Las migraciones `2026_10_21_100000/100100` ya estaban corridas en dev. `route:clear`,
+`view:clear`, `permission:cache-reset` y build de producción. Humo en dev real: 10/10 tras las dos
+primeras (logo, Mostrador, cierre propio, técnico, vendedor) y 7/7 tras la tercera (recalcular en
+el sitio da $1,600 / $3,333.33 / $4,716.67 / $1,500 / $1,900; $9.26 por punto en la pantalla de
+sueldo). Sin push a origin.
+
+**Pendiente para Irving — sobreproducción:** el pago de sobreproducción (sueldo base ÷ cuota =
+precio por unidad; lo que pasa de la cuota se paga a ese precio) entró el 2026-06-03 en
+`1e6c5241` ("Fase 2 — motor de compensación", hecho por una sesión de Claude con la cuenta de git
+compartida). No hay registro (Hoja de Ruta, bitácoras, documentación ni conversaciones guardadas)
+de quién lo pidió ni de quién aprobó la fórmula. Confirmar si se paga y con qué fórmula; para no
+pagarla basta con cuota 0 en la regla de sueldo (sin cambio de código).
