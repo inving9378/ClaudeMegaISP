@@ -66,3 +66,24 @@ del ajuste de la regla de prueba de hoy).
 3. `php artisan asistente:aprender talento` y commitear la guía (todavía menciona Niveles).
 4. Si después se mezcla `feat/talento-api-app-21oct`: en `TalentoMobileEquipoController::
    informacion()` el puesto queda `$col->puestoNombre()`.
+
+## 2026-10-21 — Mezclado a main; el borrado de tablas pasa a un segundo tiempo
+
+Se mezclaron a main, en orden, `fix/talento-quita-niveles`, `fix/talento-quita-puestos` (puesta
+encima de la de niveles para que no chocaran), `feat/talento-api-app-21oct` (puesta encima de la
+de puestos; en `informacion()` el puesto queda `puestoNombre()`) y esta bitácora.
+
+Al correr `migrate` en dev, el guardrail #1018 frenó las migraciones: no se borra una tabla o
+columna en la misma versión que deja de usarla, sino en una versión de contracción posterior,
+cuando la primera lleve 14 días aplicada en producción (`config/migration_guard.php`). Producción
+corre con `APP_ENV=local`, así que también lo aplica: con las migraciones como estaban, la
+siguiente publicación se habría detenido en el paso de migrar.
+
+- Primer tiempo (rama `fix/talento-retiro-en-dos-tiempos`): las migraciones pasan a
+  `2026_10_21_120000_retira_permisos_talento_levels` (permisos y página del manual) y
+  `2026_10_21_120100_paquetes_por_rol_y_retira_permiso_puestos` (paquetes por rol y permiso).
+  Las tablas y columnas se quedan, sin uso.
+- Segundo tiempo (rama `contraccion/talento-niveles-puestos`, sin mezclar): borra
+  `talento_levels`, `talento_level_assignments`, `talento_puestos` y las columnas `level_id`,
+  `required_level_id`, `puesto_id` y `job_title`. Se mezcla cuando la versión que lleve el primer
+  tiempo cumpla 14 días en producción, declarando `contraccion_de: V{n}` en su item.
