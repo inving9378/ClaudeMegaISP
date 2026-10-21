@@ -2300,7 +2300,6 @@ return [
         '/talento/api/cajas/latest',
         '/talento/api/cajas/bonus-log',
         '/talento/api/cajas/settings',
-        '/talento/api/work-order-types',
         '/talento/api/app/branding',
         '/talento/api/app/latest',
     ],
@@ -2326,8 +2325,6 @@ return [
         '/talento/api/colaboradores/{id}/dispositivos',
         '/talento/api/colaboradores/{id}/embajador-data',
         '/talento/api/colaboradores/{id}/funds',
-        '/talento/api/colaboradores/{id}/level-eligibility',
-        '/talento/api/colaboradores/{id}/level-history',
         '/talento/api/colaboradores/{id}/loans',
         '/talento/api/colaboradores/{id}/proyecto-avance',
         '/talento/api/colaboradores/{id}/regla',
@@ -2427,7 +2424,6 @@ return [
         '/talento/api/campo/{workOrderId}/activacion',
         '/talento/api/campo/{workOrderId}/encuesta',
         '/talento/api/campo/{workOrderId}/ia-validacion',
-        '/talento/api/work-order-types',
         '/talento/api/standards',
         '/talento/api/sitios',
         '/talento/api/sitios/config/radio',
@@ -2519,18 +2515,13 @@ return [
     ],
     'talento.catalog.view' => [
         '/talento/api/activity-types',
-        '/talento/api/activity-types-config',
-        '/talento/api/work-order-types',
     ],
     'talento.activity_types.view' => [
         '/talento/api/activity-types',
-        '/talento/api/activity-types-config',
     ],
     'talento.activity_types.manage' => [
         '/talento/api/activity-types',
         '/talento/api/activity-types/{id}',
-        '/talento/api/activity-types/{id}/level',
-        '/talento/api/work-order-types/{id}/level',
     ],
     'talento.academy.view' => [
         '/talento/academia',
@@ -2569,19 +2560,6 @@ return [
         '/talento/api/courses/{id}/practical',
         '/talento/api/courses/{id}',
         '/talento/api/certifications/{id}/revoke',
-    ],
-    'talento.levels.view' => [
-        '/talento/niveles',
-        '/talento/escalafon',
-        '/talento/api/colaboradores/{id}/level-eligibility',
-        '/talento/api/colaboradores/{id}/level-history',
-    ],
-    'talento.levels.manage' => [
-        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
-        // el controller hace la restricción real.
-        '/talento/api/levels',
-        '/talento/api/levels/{id}',
-        '/talento/api/colaboradores/{id}/promote',
     ],
     'talento.escalafon.view' => [
         // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);

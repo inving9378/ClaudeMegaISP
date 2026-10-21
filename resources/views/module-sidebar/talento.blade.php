@@ -1,4 +1,4 @@
-@if(auth()->user()->canAny(['talento.view','talento.work_orders.view','talento.compensation.view','talento.liquidation.view','talento.attendance.view','talento.location.view','talento.work_sites.view','talento.custody.view','talento.devices.view','talento.roadmap.view','talento.caja.view','talento.routes.view','talento.projects.view','talento.quality.view','talento.penalties.view','talento.credentials.view','talento.loans.view','talento.academy.view','talento.levels.view','talento.dashboard.view','talento.escalafon.view','talento.embajadores.view']))
+@if(auth()->user()->canAny(['talento.view','talento.work_orders.view','talento.compensation.view','talento.liquidation.view','talento.attendance.view','talento.location.view','talento.work_sites.view','talento.custody.view','talento.devices.view','talento.roadmap.view','talento.caja.view','talento.routes.view','talento.projects.view','talento.quality.view','talento.penalties.view','talento.credentials.view','talento.loans.view','talento.academy.view','talento.dashboard.view','talento.escalafon.view','talento.embajadores.view']))
 <li>
     <a href="javascript: void(0);" class="has-arrow">
         <i data-feather="users"></i>
@@ -32,9 +32,6 @@
              permiso puntual de cada una sin importar si tiene roster completo. --}}
         @if(auth()->user()->can('talento.puestos.manage'))
             <li><a href="{{ url('/talento/puestos') }}"><span><small><i class="fa fa-fw fa-briefcase"></i></small> Catálogo de puestos</span></a></li>
-        @endif
-        @if(auth()->user()->can('talento.levels.view'))
-            <li><a href="{{ url('/talento/niveles') }}"><span><small><i class="fa fa-fw fa-layer-group"></i></small> Niveles</span></a></li>
         @endif
         @if(auth()->user()->can('talento.escalafon.view'))
             <li><a href="{{ url('/talento/escalafon') }}"><span><small><i class="fa fa-fw fa-trophy"></i></small> Escalafón</span></a></li>

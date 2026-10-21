@@ -20,7 +20,6 @@ use App\Modules\Addons\Talento\Controllers\TalentoPenaltyController;
 use App\Modules\Addons\Talento\Controllers\TalentoCredentialController;
 use App\Modules\Addons\Talento\Controllers\TalentoLoanSettlementController;
 use App\Modules\Addons\Talento\Controllers\TalentoAcademyController;
-use App\Modules\Addons\Talento\Controllers\TalentoLevelController;
 use App\Modules\Addons\Talento\Controllers\TalentoDashboardController;
 use App\Modules\Addons\Talento\Controllers\TalentoEscalafonController;
 use App\Modules\Addons\Talento\Controllers\TalentoEmbajadoresController;
@@ -85,7 +84,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/credenciales',   [TalentoCredentialController::class, 'index']);
         Route::get('/finiquito',      [TalentoLoanSettlementController::class, 'index']);
         Route::get('/academia',       [TalentoAcademyController::class, 'index']);
-        Route::get('/niveles',        [TalentoLevelController::class, 'index']);
         // /dashboard retirado (29-sep) — consolidado dentro de /talento
         // (TalentoColaboradores.vue). Ver TalentoDashboardController.
         Route::get('/escalafon',      [TalentoEscalafonController::class, 'index']);
@@ -387,20 +385,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/colaboradores/{id}/academy-progress',        [TalentoAcademyController::class, 'progressForColaborador']);
             Route::post('/certifications/{id}/revoke',                [TalentoAcademyController::class, 'revokeCertification']);
             Route::get('/colaboradores/{id}/academy-progress',        [TalentoAcademyController::class, 'progressForColaborador']);
-
-            // ── Niveles ───────────────────────────────────────────────────
-            Route::get('/levels',                              [TalentoLevelController::class, 'levelsIndex']);
-            Route::post('/levels',                             [TalentoLevelController::class, 'storeLevel']);
-            Route::put('/levels/{id}',                         [TalentoLevelController::class, 'updateLevel']);
-            Route::get('/colaboradores/{id}/level-eligibility',[TalentoLevelController::class, 'eligibility']);
-            Route::post('/colaboradores/{id}/promote',         [TalentoLevelController::class, 'promote']);
-            Route::get('/colaboradores/{id}/level-history',    [TalentoLevelController::class, 'levelHistory']);
-
-            // ── Gating config ─────────────────────────────────────────────
-            Route::get('/work-order-types',                    [TalentoLevelController::class, 'workOrderTypes']);
-            Route::put('/work-order-types/{id}/level',         [TalentoLevelController::class, 'setWorkOrderTypeLevel']);
-            Route::get('/activity-types-config',               [TalentoLevelController::class, 'activityTypes']);
-            Route::put('/activity-types/{id}/level',           [TalentoLevelController::class, 'setActivityTypeLevel']);
 
             // ── Dashboard / Escalafón ─────────────────────────────────────
             Route::get('/dashboard/info-cards',                [TalentoDashboardController::class, 'infoCards']);

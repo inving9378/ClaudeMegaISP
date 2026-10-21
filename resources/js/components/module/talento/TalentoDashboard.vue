@@ -166,12 +166,11 @@
         <div class="table-responsive">
           <table class="table table-hover table-sm align-middle">
             <thead class="table-light">
-              <tr><th>Colaborador</th><th>Nivel</th><th>Unidades</th><th>Cuota</th><th>% cuota</th><th>Pago proyectado</th></tr>
+              <tr><th>Colaborador</th><th>Unidades</th><th>Cuota</th><th>% cuota</th><th>Pago proyectado</th></tr>
             </thead>
             <tbody>
               <tr v-for="m in equipoData.members" :key="m.id">
                 <td class="fw-semibold small">{{ m.name }}</td>
-                <td class="small text-muted">{{ m.level ?? '—' }}</td>
                 <td>{{ m.units }}</td>
                 <td>{{ m.quota }}</td>
                 <td>

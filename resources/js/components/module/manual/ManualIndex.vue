@@ -219,7 +219,6 @@ const MENU = [
         { label: 'Expediente RH — paquete de documentos',    search: 'talento-expediente-paquete-de-documentos' },
         { label: 'Préstamos y finiquito',                    search: 'talento-prestamos-y-finiquito' },
         { label: 'Academia',                                 search: 'talento-academia' },
-        { label: 'Niveles',                                  search: 'talento-niveles' },
         { label: 'Dashboard de Talento',                     search: 'talento-dashboard' },
         { label: 'Escalafón',                                search: 'talento-escalafon' },
         { label: 'Colaboradores con roles múltiples',        search: 'talento-roles-multiples' },

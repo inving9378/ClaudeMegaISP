@@ -29,7 +29,7 @@ class CompositeScoreService
     public function scoreAll(array $weights = [], int $weeksBack = 4): array
     {
         $weights = $this->mergeWeights($weights);
-        $colaboradores = TalentoColaborador::with(['user', 'level'])
+        $colaboradores = TalentoColaborador::with('user')
             ->where('status', 'active')
             ->get();
 
@@ -75,7 +75,6 @@ class CompositeScoreService
         return [
             'colaborador_id' => $col->id,
             'name'           => $col->user?->name ?? '—',
-            'level'          => $col->level?->name,
             'total_score'    => $totalScore,
             'stars'          => $this->starsFromScore($totalScore),
             'components'     => array_map(fn($v) => round($v, 1), $components),
@@ -175,7 +174,7 @@ class CompositeScoreService
 
         $result = [];
         foreach ($colIds as $id) {
-            $col = TalentoColaborador::with(['user', 'level'])->find($id);
+            $col = TalentoColaborador::with('user')->find($id);
             if (!$col) continue;
 
             $recent = $this->scoreOne($col, $weights, 2)['total_score'];

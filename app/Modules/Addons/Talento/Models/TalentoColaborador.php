@@ -13,7 +13,7 @@ class TalentoColaborador extends BaseModel
     protected $table = 'talento_colaboradores';
 
     protected $fillable = [
-        'user_id', 'type', 'categoria_externo', 'department', 'supervisor_id', 'level_id',
+        'user_id', 'type', 'categoria_externo', 'department', 'supervisor_id',
         'hire_date', 'status', 'base_salary', 'notes',
         // Expediente RH (item #199 — Hijo A)
         'birth_date', 'curp', 'nss', 'emergency_contact_name', 'emergency_contact_phone',
@@ -64,12 +64,5 @@ class TalentoColaborador extends BaseModel
     public function devices()
     {
         return $this->hasMany(TalentoDevice::class, 'user_id', 'user_id');
-    }
-
-    // Nivel vigente (columna level_id, actualizada por LevelService::promote()).
-    // talento_level_assignments es el histórico de asignaciones, no la fuente del nivel actual.
-    public function level()
-    {
-        return $this->belongsTo(TalentoLevel::class, 'level_id');
     }
 }

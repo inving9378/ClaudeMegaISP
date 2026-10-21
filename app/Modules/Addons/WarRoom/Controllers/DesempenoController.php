@@ -149,7 +149,6 @@ class DesempenoController extends Controller
             'colaborador_id' => $id,
             'name'           => $col->user?->name ?? '—',
             'department'     => $col->department,
-            'level'          => DB::table('talento_levels')->find($col->level_id)?->name,
             'metrics'        => [
                 'ots_validadas'      => ['count' => (int)($ots->cnt ?? 0),          'pts'      => (float)($ots->pts ?? 0)],
                 'ots_billables'      => ['count' => (int)($ots->billable_cnt ?? 0), 'pts'      => (float)($ots->billable_pts ?? 0)],

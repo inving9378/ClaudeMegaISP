@@ -150,7 +150,7 @@ class TalentoUserManualSeeder extends Seeder
                 'title' => 'Roadmap',
                 'roles' => [ManualSection::ROLE_ADMIN_ONLY],
                 'shot' => 'roadmap',
-                'content' => "**Ruta:** `/talento/roadmap` — **ojo:** esta pantalla no es la ruta de crecimiento de un colaborador (eso vive en \"Niveles\"/\"Escalafón\"). Es la bitácora de construcción del propio módulo Talento: por fases (Fase 0, Fase 1…), qué se construyó en cada una y cuándo se completó. Sirve para saber qué tan avanzado está el sistema, no para gestionar personal.",
+                'content' => "**Ruta:** `/talento/roadmap` — **ojo:** esta pantalla no es la ruta de crecimiento de un colaborador (eso vive en \"Escalafón\"). Es la bitácora de construcción del propio módulo Talento: por fases (Fase 0, Fase 1…), qué se construyó en cada una y cuándo se completó. Sirve para saber qué tan avanzado está el sistema, no para gestionar personal.",
             ],
             [
                 'slug' => 'talento-proyectos',
@@ -218,16 +218,6 @@ class TalentoUserManualSeeder extends Seeder
                     . "- Pestaña **\"Mis certificaciones\"**: los cursos que el colaborador que mira ya completó y certificó.",
             ],
             [
-                'slug' => 'talento-niveles',
-                'title' => 'Niveles',
-                'roles' => self::TECNICOS,
-                'shot' => 'niveles',
-                'content' => "**Ruta:** `/talento/niveles` — la escala de experiencia (junior, senior, etc.) y qué se necesita para subir de un nivel a otro.\n\n"
-                    . "- Pestaña **\"Colaboradores\"** (la que abre por default): se elige un colaborador del desplegable para ver su nivel actual y su avance hacia el siguiente.\n"
-                    . "- Pestaña **\"Definición de niveles\"**: la lista de niveles que existen y sus requisitos.\n"
-                    . "- Pestaña **\"Gating\"**: qué le queda bloqueado a un colaborador hasta que alcance cierto nivel.",
-            ],
-            [
                 'slug' => 'talento-dashboard',
                 'title' => 'Dashboard de Talento',
                 'roles' => self::TECNICOS,
@@ -244,7 +234,7 @@ class TalentoUserManualSeeder extends Seeder
                 'shot' => 'escalafon',
                 'content' => "**Ruta:** `/talento/escalafon` — el ranking de colaboradores por desempeño.\n\n"
                     . "- El selector **\"Semanas\"** (arriba a la derecha) cambia la ventana de tiempo que se está midiendo.\n"
-                    . "- Pestaña **\"Posiciones\"** (la que abre por default): tabla con posición, colaborador, nivel, estrellas, puntaje total y el desglose por categoría (cuota, calidad, salud de red, apego a normas, asistencia) — los primeros 3 lugares llevan medalla.\n"
+                    . "- Pestaña **\"Posiciones\"** (la que abre por default): tabla con posición, colaborador, estrellas, puntaje total y el desglose por categoría (cuota, calidad, salud de red, apego a normas, asistencia) — los primeros 3 lugares llevan medalla.\n"
                     . "- Pestaña **\"Más mejorado\"**: quién subió más posiciones respecto al periodo anterior.",
             ],
             [

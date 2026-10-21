@@ -67,7 +67,7 @@ class CertificationService
     }
 
     /**
-     * Return the academy progress for a collaborator (consumed by LevelService).
+     * Return the academy progress for a collaborator.
      * Mirrors TalentoAcademyController::progressForColaborador().
      */
     public function progressForColaborador(int $colaboradorId): array
