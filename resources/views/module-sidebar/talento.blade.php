@@ -30,9 +30,6 @@
         {{-- Catálogos/vistas globales — NUNCA son "de una persona", no tienen
              equivalente en ninguna pestaña, se quedan para quien tenga el
              permiso puntual de cada una sin importar si tiene roster completo. --}}
-        @if(auth()->user()->can('talento.puestos.manage'))
-            <li><a href="{{ url('/talento/puestos') }}"><span><small><i class="fa fa-fw fa-briefcase"></i></small> Catálogo de puestos</span></a></li>
-        @endif
         @if(auth()->user()->can('talento.escalafon.view'))
             <li><a href="{{ url('/talento/escalafon') }}"><span><small><i class="fa fa-fw fa-trophy"></i></small> Escalafón</span></a></li>
         @endif

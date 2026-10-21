@@ -65,7 +65,7 @@ export default {
       return [this.user.name, this.user.father_last_name, this.user.mother_last_name].filter(Boolean).join(" ");
     },
     titulo() {
-      return this.colaborador.puesto?.nombre ?? this.colaborador.job_title ?? "Colaborador";
+      return this.colaborador.puesto_nombre ?? "Colaborador";
     },
     logoSrc() {
       return this.imgLogo?.name ? `/credencial/${this.imgLogo.name}` : "/images/logo_meganet.jpg";

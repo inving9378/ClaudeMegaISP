@@ -17,7 +17,7 @@ class TalentoColaborador extends BaseModel
         'hire_date', 'status', 'base_salary', 'notes',
         // Expediente RH (item #199 — Hijo A)
         'birth_date', 'curp', 'nss', 'emergency_contact_name', 'emergency_contact_phone',
-        'job_title', 'puesto_id', 'relation_type', 'relation_end_date', 'pay_frequency', 'work_location',
+        'relation_type', 'relation_end_date', 'pay_frequency', 'work_location',
         'shift_start', 'shift_end', 'work_days',
     ];
 
@@ -36,7 +36,7 @@ class TalentoColaborador extends BaseModel
      */
     public const EXPEDIENTE_FIELDS = [
         'birth_date', 'curp', 'nss', 'emergency_contact_name', 'emergency_contact_phone',
-        'job_title', 'puesto_id', 'relation_type', 'relation_end_date', 'pay_frequency', 'work_location',
+        'relation_type', 'relation_end_date', 'pay_frequency', 'work_location',
         'base_salary', 'shift_start', 'shift_end', 'work_days',
     ];
 
@@ -45,10 +45,39 @@ class TalentoColaborador extends BaseModel
         return $this->belongsTo(User::class);
     }
 
-    // Catálogo de puestos (item #923). job_title (texto libre) se conserva como espejo legible.
-    public function puesto()
+    // El puesto es el rol del usuario en Administración: el catálogo propio (talento_puestos) y el
+    // texto libre job_title se retiraron el 2026-10-21. Los roles de sistema no son puesto.
+    public const ROLES_QUE_NO_SON_PUESTO = ['super-administrator', 'Super Administrador', 'ADMINISTRADOR_COMPLETO', 'DESARROLLADOR', 'client'];
+
+    private const ORDEN_PUESTO = ['TECNICO_PLANTA', 'TECNICO_INSTALADOR', 'TECNICO', 'SUPERVISOR_MOSTRADOR', 'Mostrador', 'Vendedor'];
+
+    private const NOMBRE_PUESTO = [
+        'TECNICO_PLANTA'       => 'Técnico de planta',
+        'TECNICO_INSTALADOR'   => 'Técnico instalador',
+        'TECNICO'              => 'Técnico',
+        'SUPERVISOR_MOSTRADOR' => 'Supervisor de mostrador',
+        'Almacen'              => 'Almacén',
+    ];
+
+    public static function nombrePuesto(string $rol): string
     {
-        return $this->belongsTo(TalentoPuesto::class, 'puesto_id');
+        return self::NOMBRE_PUESTO[$rol] ?? $rol;
+    }
+
+    /** Roles del usuario que cuentan como puesto, el principal primero. */
+    public function rolesDePuesto(): array
+    {
+        $roles = $this->user?->roles->pluck('name')->diff(self::ROLES_QUE_NO_SON_PUESTO) ?? collect();
+
+        return $roles->sortBy(fn ($rol) => array_search($rol, self::ORDEN_PUESTO, true) === false ? 99 : array_search($rol, self::ORDEN_PUESTO, true))
+            ->values()->all();
+    }
+
+    public function puestoNombre(): ?string
+    {
+        $rol = $this->rolesDePuesto()[0] ?? null;
+
+        return $rol ? self::nombrePuesto($rol) : null;
     }
 
     public function supervisor()

@@ -28,7 +28,6 @@ use App\Modules\Addons\Talento\Controllers\TalentoMobileApiController;
 use App\Modules\Addons\Talento\Controllers\TalentoMobileEquipoController;
 use App\Modules\Addons\Talento\Controllers\TalentoEvidenciaConfigController;
 use App\Modules\Addons\Talento\Controllers\TalentoPaqueteDocumentoController;
-use App\Modules\Addons\Talento\Controllers\TalentoPuestoController;
 use App\Modules\Addons\Talento\Controllers\TalentoSellerItemsController;
 use App\Modules\Addons\Talento\Controllers\TalentoCajaVendedorController;
 use App\Modules\Addons\Talento\Controllers\TalentoComisionSellerController;
@@ -92,7 +91,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/ventas/ranking', [TalentoVentasController::class, 'indexRanking']);
         Route::get('/config/evidencias',  [TalentoEvidenciaConfigController::class, 'index']);
         Route::get('/expediente/paquetes', [TalentoPaqueteDocumentoController::class, 'index']);
-        Route::get('/puestos',        [TalentoPuestoController::class, 'index']);
         Route::get('/articulos-vendedor', [TalentoSellerItemsController::class, 'index']);
         Route::get('/caja-vendedor',  [TalentoCajaVendedorController::class, 'index']);
         Route::get('/comisiones',     [TalentoComisionSellerController::class, 'index']);
@@ -413,19 +411,11 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/config/evidencias',       [TalentoEvidenciaConfigController::class, 'catalogo']);
             Route::post('/config/evidencias/toggle', [TalentoEvidenciaConfigController::class, 'toggle']);
 
-            // ── Catálogo de puestos (item #923 Fase 3) — select de la ficha de colaborador ──
-            Route::get('/puestos', [TalentoPuestoController::class, 'data']);
-
-            // ── Expediente RH: paquete de documentos por puesto (Hijo D1) ──
+            // ── Expediente RH: paquete de documentos por puesto = rol de Administración (Hijo D1) ──
             Route::get('/expediente/paquetes/puestos',      [TalentoPaqueteDocumentoController::class, 'puestos']);
             Route::get('/expediente/paquetes/templates',    [TalentoPaqueteDocumentoController::class, 'templates']);
             Route::get('/expediente/paquetes/asignaciones', [TalentoPaqueteDocumentoController::class, 'asignaciones']);
             Route::post('/expediente/paquetes/sincronizar',  [TalentoPaqueteDocumentoController::class, 'sincronizar']);
-
-            // ── Catálogo de puestos (item #923 Fase 2) ─────────────────────
-            Route::get('/puestos',           [TalentoPuestoController::class, 'data']);
-            Route::post('/puestos',          [TalentoPuestoController::class, 'store']);
-            Route::put('/puestos/{id}',      [TalentoPuestoController::class, 'update']);
 
             // ── Catálogo de artículos de vendedor (item #9990450, solo lectura, reusa Vendedores/Inventario) ──
             Route::get('/articulos-vendedor', [TalentoSellerItemsController::class, 'data']);

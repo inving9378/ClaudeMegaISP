@@ -4,10 +4,11 @@ namespace App\Modules\Addons\Talento\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\Talento\Models\TalentoDocumentTemplate;
-use App\Modules\Addons\Talento\Models\TalentoPuesto;
+use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoPuestoDocumentTemplate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Models\Role;
 
 class TalentoPaqueteDocumentoController extends Controller
 {
@@ -22,10 +23,13 @@ class TalentoPaqueteDocumentoController extends Controller
 
     public function puestos()
     {
-        // Item #923: reapuntado del texto libre `job_title` al catálogo `talento_puestos`.
-        $puestos = TalentoPuesto::where('activo', true)
-            ->orderBy('nombre')
-            ->get(['id', 'nombre']);
+        // El puesto es el rol de Administración (2026-10-21): `id` es el nombre del rol, que es lo
+        // que guarda la columna `puesto` del paquete.
+        $puestos = Role::whereNotIn('name', TalentoColaborador::ROLES_QUE_NO_SON_PUESTO)
+            ->orderBy('name')
+            ->pluck('name')
+            ->map(fn ($rol) => ['id' => $rol, 'nombre' => TalentoColaborador::nombrePuesto($rol)])
+            ->values();
 
         return response()->json($puestos);
     }
@@ -42,10 +46,10 @@ class TalentoPaqueteDocumentoController extends Controller
     public function asignaciones(Request $request)
     {
         $data = $request->validate([
-            'puesto_id' => 'required|integer|exists:talento_puestos,id',
+            'rol' => 'required|string|exists:roles,name',
         ]);
 
-        $templateIds = TalentoPuestoDocumentTemplate::where('puesto_id', $data['puesto_id'])
+        $templateIds = TalentoPuestoDocumentTemplate::where('puesto', $data['rol'])
             ->pluck('template_id');
 
         return response()->json($templateIds);
@@ -56,7 +60,7 @@ class TalentoPaqueteDocumentoController extends Controller
     public function sincronizar(Request $request)
     {
         $data = $request->validate([
-            'puesto_id'          => 'required|integer|exists:talento_puestos,id',
+            'rol'                => 'required|string|exists:roles,name',
             'template_ids'       => 'array',
             'template_ids.*'     => 'integer|exists:talento_document_templates,id',
         ]);
@@ -64,36 +68,31 @@ class TalentoPaqueteDocumentoController extends Controller
         $templateIdsDeseados = collect($data['template_ids'] ?? [])->unique()->values();
 
         $templateIdsFinales = DB::transaction(function () use ($data, $templateIdsDeseados) {
-            $nombre = TalentoPuesto::whereKey($data['puesto_id'])->value('nombre');
-
-            $actuales = TalentoPuestoDocumentTemplate::where('puesto_id', $data['puesto_id'])
+            $actuales = TalentoPuestoDocumentTemplate::where('puesto', $data['rol'])
                 ->pluck('template_id');
 
             $aAgregar = $templateIdsDeseados->diff($actuales);
             $aQuitar  = $actuales->diff($templateIdsDeseados);
 
             foreach ($aAgregar as $templateId) {
-                // Dual-write (item #923): igual que `toggle`, conserva `puesto` (string) como
-                // snapshot legible hasta la contracción que retire la columna vieja.
                 TalentoPuestoDocumentTemplate::firstOrCreate(
-                    ['puesto_id' => $data['puesto_id'], 'template_id' => $templateId],
-                    ['puesto' => $nombre]
+                    ['puesto' => $data['rol'], 'template_id' => $templateId]
                 );
             }
 
             if ($aQuitar->isNotEmpty()) {
-                TalentoPuestoDocumentTemplate::where('puesto_id', $data['puesto_id'])
+                TalentoPuestoDocumentTemplate::where('puesto', $data['rol'])
                     ->whereIn('template_id', $aQuitar)
                     ->delete();
             }
 
-            return TalentoPuestoDocumentTemplate::where('puesto_id', $data['puesto_id'])
+            return TalentoPuestoDocumentTemplate::where('puesto', $data['rol'])
                 ->pluck('template_id');
         });
 
         return response()->json([
             'ok'           => true,
-            'puesto_id'    => (int) $data['puesto_id'],
+            'rol'          => $data['rol'],
             'template_ids' => $templateIdsFinales->values(),
         ]);
     }

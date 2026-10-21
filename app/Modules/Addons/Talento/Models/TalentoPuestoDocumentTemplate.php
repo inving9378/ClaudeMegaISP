@@ -8,8 +8,9 @@ class TalentoPuestoDocumentTemplate extends BaseModel
 {
     protected $table = 'talento_puesto_document_templates';
 
+    // `puesto` guarda el nombre del rol de Administración (ver TalentoColaborador::rolesDePuesto()).
     protected $fillable = [
-        'puesto', 'puesto_id', 'template_id', 'obligatorio', 'vigencia_meses',
+        'puesto', 'template_id', 'obligatorio', 'vigencia_meses',
     ];
 
     protected $casts = [
@@ -19,10 +20,5 @@ class TalentoPuestoDocumentTemplate extends BaseModel
     public function template()
     {
         return $this->belongsTo(TalentoDocumentTemplate::class, 'template_id');
-    }
-
-    public function puesto()
-    {
-        return $this->belongsTo(TalentoPuesto::class, 'puesto_id');
     }
 }
