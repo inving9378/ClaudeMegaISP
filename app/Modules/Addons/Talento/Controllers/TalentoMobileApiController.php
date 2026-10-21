@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Talento\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Modules\Addons\Talento\Support\Actor;
 use App\Modules\Addons\Talento\Models\TalentoCompensationRule;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
@@ -608,24 +609,21 @@ class TalentoMobileApiController extends Controller
         $unidades = app(\App\Modules\Addons\Talento\Services\LiquidationService::class)
             ->countBillableUnits($colaborador->id, $w)['total'];
 
-        // Cuota semanal — talento_compensation_rules (global por target_type)
-        $cuota = DB::table('talento_compensation_rules')
-            ->where('active', true)
-            ->where(function ($q) use ($colaborador) {
-                $q->where('target_type', 'all')
-                  ->orWhere('target_type', $colaborador->tipo ?? $colaborador->role_type ?? 'technician');
-            })
-            ->orderByDesc('id')
-            ->first(['period', 'weekly_quota_units']);
-        $cuota = TalentoCompensationRule::cuotaSemanal($cuota);
+        // Cuota, sueldo base y sobreproducción: el mismo desglose que el pago (LiquidationService::
+        // breakdown), con la regla asignada a la persona. Antes la cuota salía de la regla global de
+        // técnico (vendedor y mostrador veían 216) y el proyectado solo sumaba el libro de cuentas,
+        // sin sueldo base ni sobreproducción.
+        $desglose = app(\App\Modules\Addons\Talento\Services\LiquidationService::class)
+            ->breakdown($colaborador->id, $w);
+        $cuota = $desglose['quota'];
 
         // Movimientos del ledger esta semana (tabla: talento_ledger_entries)
         $movimientos = DB::table('talento_ledger_entries')
             ->where('colaborador_id', $colaborador->id)
-            ->where(function ($q) use ($inicio, $fin) {
-                $q->whereBetween('period_start', [$inicio, $fin])
-                  ->orWhereBetween('period_end',   [$inicio, $fin]);
-            })
+            // La semana exacta, como el portal web: con "entre inicio y fin" entraban también los
+            // de la semana anterior, porque comparten el sábado de corte.
+            ->where('period_start', $inicio)
+            ->where('period_end', $fin)
             ->orderByDesc('created_at')
             ->get([
                 'id',
@@ -640,11 +638,16 @@ class TalentoMobileApiController extends Controller
             ]))
             ->toArray();
 
-        // Proyectado = CREDITs - DEBITs
-        $proyectado = collect($movimientos)->reduce(function ($carry, $m) {
+        // Proyectado = sueldo base + sobreproducción + bonos y descuentos de la semana (igual que la
+        // liquidación: el sueldo base y la sobreproducción del libro no se cuentan dos veces).
+        $otros = collect($movimientos)->reduce(function ($carry, $m) {
             $m = (object)$m;
+            if (in_array($m->concepto, ['salary_base', 'overproduction'], true)) {
+                return $carry;
+            }
             return $carry + ($m->tipo === 'CREDIT' ? (float)$m->monto : -(float)$m->monto);
         }, 0.0);
+        $proyectado = $desglose['projected_pay'] + $otros;
 
         // ── Bono de salud de red ──────────────────────────────────────────────
         // Promedio de potencia dBm de evidencias tipo lectura_dbm de la semana
@@ -702,6 +705,10 @@ class TalentoMobileApiController extends Controller
             'corte'            => $fin,
             'unidades'         => $unidades,
             'cuota'            => (int)$cuota,
+            'sueldo_base'      => $desglose['base_salary'],
+            'valor_por_unidad' => $desglose['value_per_unit'],
+            'sobreproduccion'  => $desglose['overproduction'],
+            'otros'            => round($otros, 2),
             'proyectado'       => round($proyectado, 2),
             'movimientos'      => $movimientos,
             'bono_salud_red'   => [
@@ -907,14 +914,34 @@ class TalentoMobileApiController extends Controller
         return response()->json(['message' => 'Sin perfil de colaborador activo.'], 403);
     }
 
+    /**
+     * Quién es la persona, para que la app arme sus pestañas por rol (2026-10-21). Antes leía
+     * columnas que talento_colaboradores no tiene (nombre/tipo/telefono): el nombre llegaba
+     * vacío y todos eran 'technician'. El rol sale de Actor::trackPrincipal(), igual que el
+     * portal web.
+     */
     private function colaboradorPayload(TalentoColaborador $col): array
     {
+        $user  = $col->user;
+        $actor = Actor::for($user);
+        $track = $actor->trackPrincipal();
+
         return [
-            'id'       => $col->id,
-            'nombre'   => trim(($col->nombre ?? '') . ' ' . ($col->apellido ?? '')),
-            'tipo'     => $col->tipo ?? $col->role_type ?? 'technician',
-            'email'    => $col->user?->email,
-            'telefono' => $col->telefono,
+            'id'           => $col->id,
+            'nombre'       => trim(($user?->name ?? '') . ' ' . ($user?->father_last_name ?? '')),
+            'tipo'         => match (true) {
+                str_starts_with($track, 'tecnico_') => 'technician',
+                $track === 'vendedor'               => 'seller',
+                $track === 'mostrador'              => 'counter',
+                default                             => 'generic',
+            },
+            'track'        => $track,
+            'es_tecnico'   => $actor->esTecnico(),
+            'es_vendedor'  => $actor->esVendedorTrack(),
+            'es_mostrador' => $actor->esMostradorTrack(),
+            'tiene_equipo' => $actor->tieneEquipo(),
+            'email'        => $user?->email,
+            'telefono'     => $user?->phone,
         ];
     }
 

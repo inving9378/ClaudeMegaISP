@@ -94,6 +94,64 @@ class TalentoMobileEquipoController extends Controller
         return response()->json(['error' => 'Sin perfil de colaborador activo o sin permiso.'], 403);
     }
 
+    private const ESTADO_PENALIZACION = [
+        'applied'    => 'Aplicada',
+        'appealed'   => 'Apelada',
+        'overturned' => 'Revocada',
+        'upheld'     => 'Mantenida',
+    ];
+
+    private const DECISION_APELACION = [
+        'upheld'  => 'Mantenida',
+        'overturned' => 'Revocada',
+    ];
+
+    private static function nombreDe($user): ?string
+    {
+        return $user ? trim($user->name . ' ' . ($user->father_last_name ?? '')) : null;
+    }
+
+    // ── Mi progreso: regla semanal (2026-10-21) ─────────────────────────────────
+
+    /**
+     * Resultado de las reglas semanales de la persona (o de alguien de su equipo con
+     * colaborador_id): puntos validados / pagos / prospectos y ventas, si cumple, penalización
+     * o bono y el monto. Mismos datos que "Mi progreso" del portal web (DashboardService::
+     * reglaDesempeno).
+     */
+    public function progreso(Request $request, \App\Modules\Addons\Talento\Services\DashboardService $service)
+    {
+        $col = $this->resolverObjetivo($request, 'talento.employees.view');
+        if (! $col) return $this->noPerfil();
+
+        $col->loadMissing('user');
+
+        return response()->json([
+            'colaborador_id' => $col->id,
+            'nombre'         => self::nombreDe($col->user),
+            'track'          => $col->user ? Actor::for($col->user)->trackPrincipal() : 'generico',
+            'regla'          => $service->reglaDesempeno($col->id),
+        ]);
+    }
+
+    // ── Supervisor: penalizaciones de su equipo (2026-10-21) ─────────────────────
+    // Mismos endpoints que el portal web; resuelven a la persona con $request->user().
+
+    public function equipoPenalizaciones(Request $request)
+    {
+        return app(PortalTecnicoController::class)->equipoPenalizaciones($request);
+    }
+
+    public function equipoConfirmarPenalizacion(Request $request, int $id)
+    {
+        return app(PortalTecnicoController::class)->equipoConfirmarPenalizacion($request, $id);
+    }
+
+    public function equipoProgreso(Request $request, \App\Modules\Addons\Talento\Services\DashboardService $service)
+    {
+        return app(PortalTecnicoController::class)->miEquipoProgreso($request, $service);
+    }
+
     // ── Mi equipo — switcher para supervisores/staff ────────────────────────────
 
     public function miEquipo(Request $request)
@@ -111,7 +169,9 @@ class TalentoMobileEquipoController extends Controller
 
         return response()->json([
             'propio' => $propio ? ['id' => $propio->id, 'nombre' => $propio->user->name ?? '—'] : null,
-            'es_supervisor_o_staff' => $propio?->subordinados()->exists() || $esStaff,
+            // Supervisor = tiene equipo; "staff" solo el admin sin ficha (2026-10-21: el Mostrador ahora
+            // tiene employees.view pero en la app es un colaborador más, sin selector vacío).
+            'es_supervisor_o_staff' => $propio ? $propio->subordinados()->exists() : $esStaff,
             'equipo' => $equipo->map(fn ($c) => [
                 'id' => $c->id,
                 'nombre' => $c->user->name ?? '—',
@@ -192,7 +252,12 @@ class TalentoMobileEquipoController extends Controller
             ->orderByDesc('period_start')
             ->limit(52)
             ->get(['id', 'period_start', 'period_end', 'total_units', 'base_paid', 'overproduction_paid',
-                'other_credits', 'other_debits', 'gross_pay', 'status', 'closed_at']);
+                'other_credits', 'other_debits', 'gross_pay', 'status', 'closed_at'])
+            ->map(fn ($l) => array_merge($l->toArray(), [
+                'period_start' => $l->period_start?->toDateString(),
+                'period_end'   => $l->period_end?->toDateString(),
+                'estado'       => $l->status === 'closed' ? 'Cerrada' : 'Borrador',
+            ]));
 
         return response()->json(['liquidaciones' => $liqs]);
     }
@@ -299,7 +364,9 @@ class TalentoMobileEquipoController extends Controller
         if (! $col) return $this->noPerfil();
 
         $penalizaciones = TalentoPenalty::where('colaborador_id', $col->id)
-            ->with(['penaltyType:id,name,category', 'appeal'])
+            ->with(['penaltyType:id,name,category', 'appliedByColaborador.user:id,name,father_last_name',
+                'ledgerEntries:id,reference_id,reference_type,period_start,period_end',
+                'appeal.reviewedByUser:id,name,father_last_name', 'appeal.reviewedByColaborador.user:id,name,father_last_name'])
             ->orderByDesc('created_at')
             ->limit(60)
             ->get()
@@ -308,43 +375,39 @@ class TalentoMobileEquipoController extends Controller
                 'tipo' => optional($p->penaltyType)->name,
                 'monto' => round((float) $p->amount, 2),
                 'status' => $p->status,
-                'fecha' => optional($p->created_at)->toDateTimeString(),
+                'estado' => self::ESTADO_PENALIZACION[$p->status] ?? $p->status,
+                'fecha' => optional($p->created_at)->toDateString(),
+                'semana_inicio' => optional($p->ledgerEntries->first()?->period_start)->toDateString(),
+                'semana_fin' => optional($p->ledgerEntries->first()?->period_end)->toDateString(),
+                'aplicada_por' => self::nombreDe($p->appliedByColaborador?->user),
                 'notas' => $p->notes,
                 'apelacion' => $p->appeal ? [
                     'id' => $p->appeal->id,
                     'razon' => $p->appeal->reason,
                     'decision' => $p->appeal->decision,
+                    'decision_texto' => self::DECISION_APELACION[$p->appeal->decision] ?? 'Pendiente',
                     'decision_notas' => $p->appeal->decision_notes,
+                    'resolvio' => self::nombreDe($p->appeal->reviewedByUser ?? $p->appeal->reviewedByColaborador?->user),
+                    'resuelta_el' => optional($p->appeal->resolved_at)->toDateString(),
                 ] : null,
                 // Uno mismo (dueño de la penalización) puede apelar la suya — mismo
                 // criterio ya usado en TalentoPenaltyController (self-apelar) — nunca
                 // el supervisor apela EN NOMBRE de otro.
-                'puede_apelar' => ! $p->appeal
+                'puede_apelar' => ! $p->appeal && $p->status === 'applied'
                     && (string) ($this->actor($request)->talento()?->id) === (string) $p->colaborador_id,
             ]);
 
         return response()->json(['penalizaciones' => $penalizaciones]);
     }
 
+    /**
+     * Mismo flujo que la web (TalentoPenaltyController::submitAppeal): guarda la apelación a nombre
+     * de la ficha, con fecha, y pasa la penalización a "apelada". La versión propia de la app
+     * guardaba el id de usuario, sin fecha y sin cambiar el estado (2026-10-21).
+     */
     public function apelarPenalizacion(Request $request, int $penaltyId)
     {
-        $data = $request->validate(['reason' => 'required|string|max:1000']);
-
-        $penalty = TalentoPenalty::findOrFail($penaltyId);
-        $propio = $this->actor($request)->talento();
-
-        // Apelar la propia penalización es SIEMPRE de uno mismo — nunca del
-        // supervisor en su nombre (mismo criterio que TalentoPenaltyController).
-        abort_unless($propio && (string) $propio->id === (string) $penalty->colaborador_id, 403);
-        abort_if(TalentoPenaltyAppeal::where('penalty_id', $penalty->id)->exists(), 422, 'Esta penalización ya tiene una apelación.');
-
-        $appeal = TalentoPenaltyAppeal::create([
-            'penalty_id' => $penalty->id,
-            'appealed_by' => $request->user()->id,
-            'reason' => $data['reason'],
-        ]);
-
-        return response()->json($appeal, 201);
+        return app(TalentoPenaltyController::class)->submitAppeal($request, $penaltyId);
     }
 
     // ── 10. Credenciales ──────────────────────────────────────────────────────────
