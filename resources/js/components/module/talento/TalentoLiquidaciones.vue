@@ -58,7 +58,7 @@
                 <td><span class="tc-status" :class="liq.status === 'closed' ? 'is-ok' : 'is-warn'">{{ liq.status === 'closed' ? 'Cerrada' : 'Borrador' }}</span></td>
                 <td class="text-end">
                   <button @click="viewLiq(liq)" class="tc-btn tc-btn-info me-1">Ver</button>
-                  <button v-if="liq.status === 'draft' && (!colaboradorId || puedeGestionar)" @click="openCerrar(liq)" class="tc-btn tc-btn-bad-solid">Cerrar</button>
+                  <button v-if="liq.status === 'draft' && (!colaboradorId || puedeGestionar) && liq.puede_cerrar !== false" @click="openCerrar(liq)" class="tc-btn tc-btn-bad-solid">Cerrar</button>
                 </td>
               </tr>
               <tr v-if="!liquidaciones.length">
@@ -220,7 +220,7 @@
           </div>
           <div class="modal-footer">
             <button @click="detail.show=false" class="btn btn-secondary">Cerrar</button>
-            <button v-if="detail.liq?.status === 'draft' && (!colaboradorId || puedeGestionar)" @click="openCerrar(detail.liq)" class="tc-btn tc-btn-bad-solid">
+            <button v-if="detail.liq?.status === 'draft' && (!colaboradorId || puedeGestionar) && detail.liq.puede_cerrar !== false" @click="openCerrar(detail.liq)" class="tc-btn tc-btn-bad-solid">
               <i class="fa fa-lock me-1"></i>Cerrar liquidación
             </button>
           </div>
