@@ -19,7 +19,9 @@ class AvailablePeriodsService
     public function getAvailablePeriodsByClient(int $clientId): array
     {
         // 🔹 1. Traer todas las invoices del cliente en una sola query
+        // Item #571: una factura cancelada no es un periodo pendiente.
         $invoices = Invoice::where('client_id', $clientId)
+            ->where('status', '!=', Invoice::STATUS_CANCELLED)
             ->orderBy('period', 'asc')
             ->get()
             ->keyBy('period');
