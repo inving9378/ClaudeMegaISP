@@ -69,7 +69,14 @@ class TalentoLiquidacionController extends Controller
             }
         }
 
-        return response()->json($q->paginate($request->per_page ?? 25));
+        $page = $q->paginate($request->per_page ?? 25);
+        $puedeCerrar = auth()->user()->can('talento.liquidation.manage');
+        $noCierra = $this->fichaQueNoPuedeCerrar();
+        $page->getCollection()->each(fn ($l) => $l->puede_cerrar = $puedeCerrar
+            && $l->status === 'draft'
+            && (int) $l->colaborador_id !== $noCierra);
+
+        return response()->json($page);
     }
 
     public function calcular(Request $request)
@@ -134,6 +141,10 @@ class TalentoLiquidacionController extends Controller
             ])
             ->get(['id','type_id','points','is_billable','validated_at','notes']);
 
+        $liq->puede_cerrar = $liq->status === 'draft'
+            && auth()->user()->can('talento.liquidation.manage')
+            && (int) $liq->colaborador_id !== $this->fichaQueNoPuedeCerrar();
+
         return response()->json($liq);
     }
 
@@ -143,12 +154,31 @@ class TalentoLiquidacionController extends Controller
 
         $liq = TalentoLiquidation::findOrFail($id);
 
+        if ((int) $liq->colaborador_id === $this->fichaQueNoPuedeCerrar()) {
+            return response()->json(['error' => 'Tu propia liquidación la cierra un administrador.'], 403);
+        }
+
         try {
             $closed = $this->service->close($liq);
             return response()->json($closed);
         } catch (\RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
         }
+    }
+
+    /**
+     * Ficha cuya liquidación no puede cerrar quien hace la petición: la suya, salvo que sea
+     * administrador (2026-10-21: un Mostrador con ficha administra Talento y calcula pagos,
+     * pero la suya la cierra el admin). null = puede cerrar cualquiera.
+     */
+    private function fichaQueNoPuedeCerrar(): ?int
+    {
+        $actor = Actor::for(auth()->user());
+        if ($actor->esSuperAdminTalento()) {
+            return null;
+        }
+
+        return $actor->talento()?->id;
     }
 
     /**
