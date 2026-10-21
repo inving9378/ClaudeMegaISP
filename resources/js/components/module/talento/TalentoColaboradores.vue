@@ -13,7 +13,7 @@
     <div class="tc-card">
       <div class="tc-cardhead d-flex align-items-center justify-content-between gap-2 p-3">
         <h5 class="tc-h1"><i class="fa fa-id-badge me-2"></i>Colaboradores</h5>
-        <button v-if="canManage" @click="openModal(null)" class="tc-btn tc-btn-ok">
+        <button v-if="canCreate" @click="openModal(null)" class="tc-btn tc-btn-ok">
           <i class="fa fa-plus me-1"></i> Nuevo colaborador
         </button>
       </div>
@@ -444,6 +444,7 @@ export default {
       userSearchTimeout: null,
       searchTimeout: null,
       canManage: false,
+      canCreate: false,
       roleDepartments: {},
       documentosModal: { show: false, colaboradorId: null, colaboradorName: '' },
       deleteModal: { show: false, colaboradorId: null, colaboradorName: '', deleting: false, error: '' },
@@ -470,12 +471,14 @@ export default {
     this.loadRoleDepartments();
   },
   methods: {
+    // Dar de alta (users-disponibles) y editar (role-departments) tienen permisos distintos:
+    // Mostrador edita fichas pero no las da de alta.
     async checkPermission() {
       try {
         await axios.get('/talento/api/colaboradores/users-disponibles', { params: { search: '' } });
-        this.canManage = true;
+        this.canCreate = true;
       } catch {
-        this.canManage = false;
+        this.canCreate = false;
       }
     },
     debounceLoad() {
@@ -590,7 +593,10 @@ export default {
       try {
         const { data } = await axios.get('/talento/api/colaboradores/role-departments');
         this.roleDepartments = data ?? {};
-      } catch {}
+        this.canManage = true;
+      } catch {
+        this.canManage = false;
+      }
     },
     selectUser(u) {
       this.modal.user_id = u.id;
