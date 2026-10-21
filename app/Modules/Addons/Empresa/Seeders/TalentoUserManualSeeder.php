@@ -196,7 +196,7 @@ class TalentoUserManualSeeder extends Seeder
                 'roles' => [ManualSection::ROLE_ADMIN_ONLY],
                 'shot' => 'paquetes-de-documentos',
                 'content' => "**Ruta:** `/talento/expediente/paquetes` — qué documentos (contrato, responsivas, reglamentos) le corresponden a cada puesto.\n\n"
-                    . "- El desplegable **\"Puesto\"** elige el puesto a configurar.\n"
+                    . "- El desplegable **\"Puesto\"** elige el puesto a configurar: son los roles de Administración, y quien tiene varios roles recibe los documentos de todos.\n"
                     . "- Al elegirlo aparece la lista de plantillas del expediente con una casilla cada una — se marcan las que aplican a ese puesto (un técnico recibe el paquete completo, un puesto de oficina solo el suyo) y se guarda. Ese paquete es lo que se genera automáticamente cuando se da de alta a alguien nuevo en ese puesto.",
             ],
             [

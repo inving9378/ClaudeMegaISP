@@ -103,10 +103,10 @@ class TalentoMobileEquipoController extends Controller
 
         $equipo = collect();
         if ($propio) {
-            $equipo = $propio->subordinados()->with('user')->get();
+            $equipo = $propio->subordinados()->with('user.roles')->get();
         } elseif ($esStaff) {
             // Staff sin ficha propia (admin puro): puede elegir cualquier colaborador.
-            $equipo = TalentoColaborador::with('user')->where('status', 'active')->limit(200)->get();
+            $equipo = TalentoColaborador::with('user.roles')->where('status', 'active')->limit(200)->get();
         }
 
         return response()->json([
@@ -115,7 +115,7 @@ class TalentoMobileEquipoController extends Controller
             'equipo' => $equipo->map(fn ($c) => [
                 'id' => $c->id,
                 'nombre' => $c->user->name ?? '—',
-                'puesto' => $c->job_title,
+                'puesto' => $c->puestoNombre(),
                 'departamento' => $c->department,
             ])->values(),
         ]);
@@ -128,13 +128,13 @@ class TalentoMobileEquipoController extends Controller
         $col = $this->resolverObjetivo($request, 'talento.employees.view');
         if (! $col) return $this->noPerfil();
 
-        $col->loadMissing(['user', 'supervisor.user', 'puesto']);
+        $col->loadMissing(['user', 'supervisor.user']);
 
         return response()->json([
             'nombre' => $col->user->name ?? '—',
             'email' => $col->user->email ?? null,
             'telefono' => $col->user->phone ?? null,
-            'puesto' => optional($col->puesto)->name ?? $col->job_title,
+            'puesto' => $col->puestoNombre(),
             'departamento' => $col->department,
             'tipo' => $col->type,
             'status' => $col->status,

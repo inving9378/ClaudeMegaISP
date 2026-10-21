@@ -61,7 +61,6 @@ class TalentoManualDemoAccountSeeder extends Seeder
                 'user_id' => $user->id,
                 'type' => 'interno',
                 'department' => 'Campo',
-                'job_title' => 'Técnico de campo (cuenta demo)',
                 'hire_date' => now()->subMonths(6)->toDateString(),
                 'status' => 'active',
             ]);

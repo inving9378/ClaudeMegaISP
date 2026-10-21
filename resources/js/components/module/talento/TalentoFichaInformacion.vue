@@ -8,7 +8,7 @@
           <dt class="col-5">Email</dt><dd class="col-7">{{ colaborador.user?.email ?? '—' }}</dd>
           <dt class="col-5">Tipo</dt><dd class="col-7">{{ colaborador.type ?? '—' }}</dd>
           <dt class="col-5">Departamento</dt><dd class="col-7">{{ colaborador.department ?? '—' }}</dd>
-          <dt class="col-5">Puesto</dt><dd class="col-7">{{ colaborador.puesto?.nombre ?? colaborador.job_title ?? '—' }}</dd>
+          <dt class="col-5">Puesto</dt><dd class="col-7">{{ colaborador.puesto_nombre ?? '—' }}</dd>
           <dt class="col-5">Supervisor</dt><dd class="col-7">{{ colaborador.supervisor?.user?.name ?? '—' }}</dd>
           <dt class="col-5">Ingreso</dt><dd class="col-7">{{ formatDate(colaborador.hire_date) }}</dd>
           <dt class="col-5">Status</dt><dd class="col-7">

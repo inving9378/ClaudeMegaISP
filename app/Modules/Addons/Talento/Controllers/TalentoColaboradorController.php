@@ -358,11 +358,12 @@ class TalentoColaboradorController extends Controller
     {
         $colaborador = $this->resolverColaboradorAutoservicio($id);
 
-        $colaborador->load(['user', 'supervisor.user', 'subordinados.user', 'puesto']);
+        $colaborador->load(['user', 'supervisor.user', 'subordinados.user']);
 
         if ($colaborador->user) {
             $colaborador->user->role_names = $colaborador->user->getRoleNames();
         }
+        $colaborador->puesto_nombre = $colaborador->puestoNombre();
 
         $this->hideExpedienteFields($colaborador);
 
@@ -403,7 +404,7 @@ class TalentoColaboradorController extends Controller
 
     private function renderCredencialPdf(TalentoColaborador $colaborador)
     {
-        $colaborador->loadMissing('user', 'puesto');
+        $colaborador->loadMissing('user');
 
         $seller = (object) [
             'name' => $colaborador->user?->name,
@@ -418,8 +419,7 @@ class TalentoColaboradorController extends Controller
         $front_image_name = Credential::where('type', 'frontal')->select('name')->first();
         $back_image_name  = Credential::where('type', 'reverso')->select('name')->first();
         $logo_image_name  = Credential::where('type', 'logo')->select('name')->first();
-        // talento_puestos guarda el nombre en 'nombre' (con ->name el PDF siempre decía "Colaborador").
-        $titulo = $colaborador->puesto?->nombre ?? $colaborador->job_title ?? 'Colaborador';
+        $titulo = $colaborador->puestoNombre() ?? 'Colaborador';
 
         $pdf = PDF::loadView('meganet.module.vendors.pdf', compact(
             'seller', 'front_image_name', 'back_image_name', 'logo_image_name', 'titulo'
@@ -495,7 +495,7 @@ class TalentoColaboradorController extends Controller
         $miPropioColaborador = Actor::for(auth()->user())->talento();
         abort_if(! $miPropioColaborador, 404, 'No tienes un perfil de colaborador activo.');
 
-        $q = TalentoColaborador::with(['user', 'supervisor.user', 'puesto'])
+        $q = TalentoColaborador::with(['user', 'supervisor.user'])
             ->where('supervisor_id', $miPropioColaborador->id)
             ->when($request->search, fn($q, $s) =>
                 $q->whereHas('user', fn($u) => $u->where('name', 'like', "%$s%")->orWhere('email', 'like', "%$s%"))
@@ -521,7 +521,7 @@ class TalentoColaboradorController extends Controller
     {
         $this->authorize('talento.view');
 
-        $q = TalentoColaborador::with(['user', 'supervisor.user', 'puesto'])
+        $q = TalentoColaborador::with(['user', 'supervisor.user'])
             ->when($request->search, fn($q, $s) =>
                 $q->whereHas('user', fn($u) => $u->where('name', 'like', "%$s%")->orWhere('email', 'like', "%$s%"))
             )
@@ -568,13 +568,14 @@ class TalentoColaboradorController extends Controller
     {
         $this->authorize('talento.view');
 
-        $colaborador = TalentoColaborador::with(['user', 'supervisor.user', 'subordinados.user', 'puesto'])
+        $colaborador = TalentoColaborador::with(['user', 'supervisor.user', 'subordinados.user'])
             ->findOrFail($id);
 
         // Enrich with Spatie roles (read-only display — roles are managed in Administradores)
         if ($colaborador->user) {
             $colaborador->user->role_names = $colaborador->user->getRoleNames();
         }
+        $colaborador->puesto_nombre = $colaborador->puestoNombre();
 
         $this->hideExpedienteFields($colaborador);
 
@@ -634,8 +635,6 @@ class TalentoColaboradorController extends Controller
             'nss'                     => 'nullable|string|max:11',
             'emergency_contact_name'  => 'nullable|string|max:150',
             'emergency_contact_phone' => 'nullable|string|max:20',
-            'job_title'               => 'nullable|string|max:100',
-            'puesto_id'               => 'nullable|exists:talento_puestos,id',
             'relation_type'           => 'nullable|in:indeterminada,determinada,obra',
             'relation_end_date'       => 'nullable|date',
             'pay_frequency'           => 'nullable|in:semanal,quincenal,mensual',

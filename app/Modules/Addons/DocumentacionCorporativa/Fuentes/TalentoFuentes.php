@@ -33,12 +33,12 @@ class TalentoFuentes
      * `config.clasificacion=tecnicos` filtra además por rol Spatie del user
      * asociado (TECNICO/TECNICO_INSTALADOR/TECNICO_PLANTA) — mismo criterio
      * que ya usa `ClientPaymentController::tecnicos()`, en vez de parsear
-     * `job_title` (texto libre, frágil).
+     * un texto libre de puesto (frágil).
      */
     private static function plantilla(array $config): array
     {
         $query = TalentoColaborador::query()
-            ->with('user')
+            ->with('user.roles')
             ->where('type', 'interno')
             ->where('status', 'active');
 
@@ -53,7 +53,7 @@ class TalentoFuentes
 
         $datos = $colaboradores->map(fn (TalentoColaborador $c) => [
             'nombre'        => $c->user?->name ?? 'Sin nombre',
-            'puesto'        => $c->job_title,
+            'puesto'        => $c->puestoNombre(),
             'departamento'  => $c->department,
             'fecha_ingreso' => optional($c->hire_date)->format('d/m/Y'),
             'estado'        => $c->status,
@@ -80,7 +80,7 @@ class TalentoFuentes
     private static function externos(array $config): array
     {
         $query = TalentoColaborador::query()
-            ->with('user')
+            ->with('user.roles')
             ->where('type', 'externo')
             ->where('status', 'active');
 
@@ -93,7 +93,7 @@ class TalentoFuentes
 
         $datos = $colaboradores->map(fn (TalentoColaborador $c) => [
             'nombre'        => $c->user?->name ?? 'Sin nombre',
-            'puesto'        => $c->job_title,
+            'puesto'        => $c->puestoNombre(),
             'relacion'      => $c->relation_type,
             'fecha_ingreso' => optional($c->hire_date)->format('d/m/Y'),
             'estado'        => $c->status,

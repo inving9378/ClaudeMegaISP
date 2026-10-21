@@ -17,7 +17,7 @@ use Illuminate\Console\Command;
  */
 class RegenerarDocumentosCommand extends Command
 {
-    protected $signature = 'talento:regenerar-documentos {colaborador_id? : ID de un colaborador puntual; si se omite, regenera todos los que tienen puesto}';
+    protected $signature = 'talento:regenerar-documentos {colaborador_id? : ID de un colaborador puntual; si se omite, regenera todos los activos}';
     protected $description = 'Re-renderiza los documentos del expediente RH con el mapeo/renderer actual (upsert, no destruye firmas).';
 
     public function handle(EmployeeDocumentPackageService $service): int
@@ -26,7 +26,7 @@ class RegenerarDocumentosCommand extends Command
 
         $colaboradores = $colaboradorId
             ? TalentoColaborador::whereKey($colaboradorId)->get()
-            : TalentoColaborador::whereNotNull('job_title')->get();
+            : TalentoColaborador::where('status', 'active')->whereNotNull('user_id')->with('user.roles')->get();
 
         if ($colaboradores->isEmpty()) {
             $this->warn('No hay colaboradores que regenerar.');

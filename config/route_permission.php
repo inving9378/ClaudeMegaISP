@@ -2338,13 +2338,8 @@ return [
     ],
     // Alta de perfiles (2026-10-21): separada de talento.manage para que Mostrador edite fichas
     // sin poder darlas de alta. El controller (store/usersDisponibles) hace la restricción real.
-    // 2026-10-21: puestos y catálogo de reglas de desempeño solo los abría el rol admin (las
+    // 2026-10-21: el catálogo de reglas de desempeño solo lo abría el rol admin (las
     // direcciones no tenían permiso). El controller hace la restricción real (ver/gestionar).
-    'talento.puestos.manage' => [
-        '/talento/puestos',
-        '/talento/api/puestos',
-        '/talento/api/puestos/{id}',
-    ],
     'talento.reglas_desempeno.view' => [
         '/talento/reglas-desempeno',
         '/talento/api/reglas-desempeno',
