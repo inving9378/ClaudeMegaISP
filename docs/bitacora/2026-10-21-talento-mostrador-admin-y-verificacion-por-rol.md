@@ -56,10 +56,21 @@ al recalcular (uno por persona).
 ### Para decidir
 
 - Diana y OSCAR conservan "dar de alta fichas" por permisos directos de su cuenta (no del rol).
-- Un Mostrador con ficha puede calcular y cerrar su propia liquidación (no hay candado de
-  "nadie se calcula a sí mismo"; las penalizaciones sí lo tienen).
 - Reglas de técnico en puntos: las evaluaciones demo del 10→17 oct se hicieron con la forma
   anterior (órdenes completadas). Con la regla nueva y sin órdenes validadas, los tres técnicos
   quedarían penalizados; validadas, los tres pasarían el techo (90/360/450 puntos). Faltan los
   valores reales.
 - Un permiso `talento.*` nuevo no llega solo a Mostrador: hay que dárselo al rol.
+
+## 2026-10-21 — Decidido: la propia liquidación la cierra el admin
+
+Rama `fix/talento-liquidacion-propia-la-cierra-el-admin` (sin mergear, sale de `main`): un
+Mostrador con ficha no puede cerrar su propia liquidación; la cierra el administrador. `cerrar()`
+responde 403 ("Tu propia liquidación la cierra un administrador.") si la liquidación es de la
+ficha de quien lo pide, salvo super admin; lista y detalle traen `puede_cerrar` y el botón Cerrar
+no aparece en la propia. Calcular la propia sigue permitido (queda en borrador).
+
+Probado junto con `feat/talento-mostrador-admin` en una rama temporal (ya borrada), 11/11: el
+Mostrador no ve Cerrar en su fila ni en su detalle y el servidor se lo niega; sí lo ve en las de
+otros; el admin sí lo ve en la del Mostrador; el técnico tampoco cierra la suya. Ninguna
+liquidación se cerró (las 5 demo siguen en borrador); admin temporal borrado.
