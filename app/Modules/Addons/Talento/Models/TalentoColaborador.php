@@ -49,7 +49,9 @@ class TalentoColaborador extends BaseModel
     // texto libre job_title se retiraron el 2026-10-21. Los roles de sistema no son puesto.
     public const ROLES_QUE_NO_SON_PUESTO = ['super-administrator', 'Super Administrador', 'ADMINISTRADOR_COMPLETO', 'DESARROLLADOR', 'client'];
 
-    private const ORDEN_PUESTO = ['TECNICO_PLANTA', 'TECNICO_INSTALADOR', 'TECNICO', 'SUPERVISOR_MOSTRADOR', 'Mostrador', 'Vendedor'];
+    // Vendedor va al final: es una función que se suma a otro puesto (mismo criterio que
+    // talento:sync-colaboradores), así que solo es el puesto de quien no tiene otro rol.
+    private const ORDEN_PUESTO = ['TECNICO_PLANTA', 'TECNICO_INSTALADOR', 'TECNICO', 'SUPERVISOR_MOSTRADOR', 'Mostrador'];
 
     private const NOMBRE_PUESTO = [
         'TECNICO_PLANTA'       => 'Técnico de planta',
@@ -69,8 +71,9 @@ class TalentoColaborador extends BaseModel
     {
         $roles = $this->user?->roles->pluck('name')->diff(self::ROLES_QUE_NO_SON_PUESTO) ?? collect();
 
-        return $roles->sortBy(fn ($rol) => array_search($rol, self::ORDEN_PUESTO, true) === false ? 99 : array_search($rol, self::ORDEN_PUESTO, true))
-            ->values()->all();
+        $orden = fn ($rol) => $rol === 'Vendedor' ? 99 : (array_search($rol, self::ORDEN_PUESTO, true) === false ? 50 : array_search($rol, self::ORDEN_PUESTO, true));
+
+        return $roles->sortBy($orden)->values()->all();
     }
 
     public function puestoNombre(): ?string
