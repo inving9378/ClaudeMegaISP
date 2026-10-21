@@ -544,6 +544,11 @@ Route::middleware(['auth:sanctum'])
         // en la app — uno mismo o, si se pasa ?colaborador_id=, el equipo del
         // supervisor o staff (mismo criterio puedeVer() en TODOS los endpoints).
         Route::get('/portal/equipo',            [TalentoMobileEquipoController::class, 'miEquipo']);
+        // 2026-10-21: Mi progreso (regla semanal) y penalizaciones del equipo para el supervisor.
+        Route::get('/portal/progreso',          [TalentoMobileEquipoController::class, 'progreso']);
+        Route::get('/portal/equipo/progreso',   [TalentoMobileEquipoController::class, 'equipoProgreso']);
+        Route::get('/portal/equipo/penalizaciones', [TalentoMobileEquipoController::class, 'equipoPenalizaciones']);
+        Route::post('/portal/equipo/penalizaciones/{id}/confirmar', [TalentoMobileEquipoController::class, 'equipoConfirmarPenalizacion'])->whereNumber('id');
         Route::get('/portal/informacion',       [TalentoMobileEquipoController::class, 'informacion']);
         Route::get('/portal/compensacion',      [TalentoMobileEquipoController::class, 'compensacion']);
         Route::get('/portal/liquidaciones',     [TalentoMobileEquipoController::class, 'liquidaciones']);
