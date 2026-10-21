@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Talento\Services;
 
 use App\Models\Task;
+use App\Modules\Addons\Talento\Models\TalentoCompensationRule;
 use App\Modules\Addons\Talento\Models\TalentoAttendance;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Services\ProjectActivityService;
@@ -63,7 +64,7 @@ class LiquidationService
             ->value('data');
 
         $baseSalary       = $ruleSnapshot ? (float)($ruleSnapshot['base_salary'] ?? 0) : 0.0;
-        $weeklyQuota      = $ruleSnapshot ? (int)($ruleSnapshot['weekly_quota_units'] ?? 0) : 0;
+        $weeklyQuota      = $ruleSnapshot ? TalentoCompensationRule::cuotaSemanal($ruleSnapshot) : 0;
 
         // Unidades facturables — PUNTO ÚNICO DE VERDAD (mismas fuentes que el desglose del portal:
         // OTs + tasks de campo + puntos de proyecto externo). Ver countBillableUnits().
@@ -294,11 +295,13 @@ class LiquidationService
             ->orderByDesc('assigned_at')
             ->value('data');
 
-        $quota          = $ruleData ? (int)($ruleData['weekly_quota_units'] ?? 0) : 0;
+        $quota          = $ruleData ? TalentoCompensationRule::cuotaSemanal($ruleData) : 0;
         $baseSalary     = $ruleData ? (float)($ruleData['base_salary'] ?? 0) : 0.0;
         $valuePerUnit   = $quota > 0 ? round($baseSalary / $quota, 4) : 0.0;
         $overUnits      = max(0, $units - $quota);
-        $overproduction = round($overUnits * $valuePerUnit, 2);
+        // Con el valor sin redondear, igual que calculate(): redondear antes de multiplicar
+        // dejaba el desglose un centavo arriba del pago.
+        $overproduction = $quota > 0 ? round($overUnits * ($baseSalary / $quota), 2) : 0.0;
 
         return [
             'period_start'   => $window['period_start'],

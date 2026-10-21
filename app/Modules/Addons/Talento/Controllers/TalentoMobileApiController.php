@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Talento\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Modules\Addons\Talento\Models\TalentoCompensationRule;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
 use App\Modules\Addons\Talento\Services\GeocodingService;
@@ -615,7 +616,8 @@ class TalentoMobileApiController extends Controller
                   ->orWhere('target_type', $colaborador->tipo ?? $colaborador->role_type ?? 'technician');
             })
             ->orderByDesc('id')
-            ->value('weekly_quota_units') ?? 0;
+            ->first(['period', 'weekly_quota_units']);
+        $cuota = TalentoCompensationRule::cuotaSemanal($cuota);
 
         // Movimientos del ledger esta semana (tabla: talento_ledger_entries)
         $movimientos = DB::table('talento_ledger_entries')

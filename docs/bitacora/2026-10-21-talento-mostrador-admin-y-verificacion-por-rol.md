@@ -56,10 +56,6 @@ al recalcular (uno por persona).
 ### Para decidir
 
 - Diana y OSCAR conservan "dar de alta fichas" por permisos directos de su cuenta (no del rol).
-- Reglas de técnico en puntos: las evaluaciones demo del 10→17 oct se hicieron con la forma
-  anterior (órdenes completadas). Con la regla nueva y sin órdenes validadas, los tres técnicos
-  quedarían penalizados; validadas, los tres pasarían el techo (90/360/450 puntos). Faltan los
-  valores reales.
 - Un permiso `talento.*` nuevo no llega solo a Mostrador: hay que dárselo al rol.
 
 ## 2026-10-21 — Decidido: la propia liquidación la cierra el admin
@@ -74,3 +70,32 @@ Probado junto con `feat/talento-mostrador-admin` en una rama temporal (ya borrad
 Mostrador no ve Cerrar en su fila ni en su detalle y el servidor se lo niega; sí lo ve en las de
 otros; el admin sí lo ve en la del Mostrador; el técnico tampoco cierra la suya. Ninguna
 liquidación se cerró (las 5 demo siguen en borrador); admin temporal borrado.
+
+## 2026-10-21 — Cuota diaria × 6 y regla de prueba del técnico en puntos
+
+El piso y el techo no son un número del sistema: los define cada regla. Lo que estaba mal eran
+los valores de la regla de prueba del técnico (36/45, puestos cuando se contaban órdenes).
+
+**Hallazgo de dinero:** la pantalla de reglas de sueldo deja elegir periodo "Diario" (la regla
+de prueba "Técnicos — cuota diaria (4 instalaciones o 12 garantías)" guarda 36), pero el pago
+tomaba ese número como cuota de toda la semana: con las órdenes demo validadas el medio cobraba
+$20,000 y el alto $25,550. Decisión: **una cuota diaria cuenta 6 días, lunes a sábado.**
+
+Rama `fix/talento-cuota-diaria-por-6-dias` (sin mergear): `TalentoCompensationRule::cuotaSemanal()`
+es el punto único (diaria × 6; cualquier otra igual que antes) para liquidación, desglose del
+portal, tablero, puntuación, app y el $/unidad de la pantalla (que además muestra "= N por semana").
+De paso el desglose del portal redondeaba antes de multiplicar y quedaba un centavo arriba del pago.
+
+**Datos demo ajustados (solo dev, respaldo en el scratchpad de la sesión):** las 100 órdenes de
+los tres técnicos demo validadas el 14-oct (dentro de la semana 10→17); regla de prueba #17 →
+"DEMO — Técnico — puntos validados por semana", piso 216 (= cuota de pago: 4 × 6 × 9) y techo
+405 (45 instalaciones); se borraron sus evaluaciones anteriores con su penalización y su bono y se
+reevaluó la semana: bajo 90 pts → penalización (la confirmó el supervisor desde su pantalla),
+medio 360 → cumple, alto 450 → bono $300.
+
+Probado en la rama (19/19): la regla mide lo mismo que el pago (90/360/450) y las liquidaciones
+dan bajo $1,600 (2,000 − 400), medio $3,333.33 (2,000 + 1,333.33 de sobreproducción), alto
+$4,716.67 (2,000 + 2,166.67 + 550 de bonos); cada técnico ve su resultado en Mi progreso y su
+monto en su ficha; la pantalla de sueldo muestra $9.26 por punto (2,000 ÷ 216). Mostrador $1,500
+y vendedor $1,900 sin cambio. **Hasta mezclar, recalcular en el sitio de dev daría los montos
+inflados.**
