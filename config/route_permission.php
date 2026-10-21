@@ -2336,6 +2336,12 @@ return [
         '/talento/api/colaboradores/{id}',
         '/talento/api/colaboradores/{id}/regla',
     ],
+    // Alta de perfiles (2026-10-21): separada de talento.manage para que Mostrador edite fichas
+    // sin poder darlas de alta. El controller (store/usersDisponibles) hace la restricción real.
+    'talento.colaboradores.create' => [
+        '/talento/api/colaboradores',
+        '/talento/api/colaboradores/users-disponibles',
+    ],
     // Item #9990830 (Fase 1 del tablero de pendientes): listado admin cross-colaborador de
     // documentos pendientes de firma, distinto de talento.employees.view (ficha de un colaborador).
     'talento.documentos.ver-todos' => [
@@ -2407,15 +2413,12 @@ return [
         '/talento/sitios',
     ],
     'talento.work_orders.manage' => [
-        // Fase 5 (2026-10-13): Mostrador tiene este permiso pero NO
-        // talento.employees.view (ese sigue siendo admin-only a propósito —
-        // destaparía compensación/penalizaciones/préstamos de cualquiera).
-        // Sin esta línea, el selector de técnico de "Nueva orden"
-        // (TalentoOrdenes.vue, búsqueda en /talento/api/colaboradores)
-        // quedaría inalcanzable para Mostrador aunque sí pudiera crear la
-        // orden — data() en sí ya está gateado por talento.view (que
-        // Mostrador también recibe en esta misma fase) + hideExpedienteFields(),
-        // esto solo deja pasar el path a nivel de middleware.
+        // Fase 5 (2026-10-13): quien tiene este permiso sin
+        // talento.employees.view (Mostrador lo era hasta el 2026-10-21) necesita
+        // el selector de técnico de "Nueva orden" (TalentoOrdenes.vue,
+        // búsqueda en /talento/api/colaboradores). data() en sí ya está
+        // gateado por talento.view + hideExpedienteFields(); esto solo deja
+        // pasar el path a nivel de middleware.
         '/talento/api/colaboradores',
         '/talento/api/ots/**',
         '/talento/api/campo/{workOrderId}/aceptar',

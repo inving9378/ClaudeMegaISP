@@ -545,7 +545,7 @@ class TalentoColaboradorController extends Controller
 
     public function store(Request $request)
     {
-        $this->authorize('talento.manage');
+        $this->authorize('talento.colaboradores.create');
 
         $data = $request->validate([
             'user_id'       => 'required|exists:users,id|unique:talento_colaboradores,user_id',
@@ -706,7 +706,7 @@ class TalentoColaboradorController extends Controller
 
     public function usersDisponibles(Request $request)
     {
-        $this->authorize('talento.manage');
+        $this->authorize('talento.colaboradores.create');
 
         $existingUserIds = TalentoColaborador::pluck('user_id');
 
