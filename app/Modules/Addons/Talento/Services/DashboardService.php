@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Talento\Services;
 
+use App\Modules\Addons\Talento\Models\TalentoCompensationRule;
 use App\Modules\Addons\Talento\Models\TalentoAttendance;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoCompensationRuleHistory;
@@ -466,7 +467,7 @@ class DashboardService
             ->value('data');
 
         $baseSalary  = $ruleSnapshot ? (float)($ruleSnapshot['base_salary']        ?? 0) : 0.0;
-        $weeklyQuota = $ruleSnapshot ? (int)($ruleSnapshot['weekly_quota_units']   ?? 0) : 0;
+        $weeklyQuota = $ruleSnapshot ? TalentoCompensationRule::cuotaSemanal($ruleSnapshot) : 0;
 
         $internalUnits = (int) TalentoWorkOrder::where('colaborador_id', $colaboradorId)
             ->validatedBillable()
@@ -562,7 +563,7 @@ class DashboardService
             ->value('data');
 
         $baseSalary  = $ruleSnapshot ? (float)($ruleSnapshot['base_salary']        ?? 0) : 0.0;
-        $weeklyQuota = $ruleSnapshot ? (int)($ruleSnapshot['weekly_quota_units']   ?? 0) : 0;
+        $weeklyQuota = $ruleSnapshot ? TalentoCompensationRule::cuotaSemanal($ruleSnapshot) : 0;
 
         $overproductionPaid = 0.0;
         $valuePerUnit       = $weeklyQuota > 0 ? round($baseSalary / $weeklyQuota, 4) : 0.0;
@@ -617,7 +618,7 @@ class DashboardService
                 ->value('data');
 
             $baseSalary  = $ruleSnapshot ? (float)($ruleSnapshot['base_salary']        ?? 0) : 0.0;
-            $weeklyQuota = $ruleSnapshot ? (int)($ruleSnapshot['weekly_quota_units']   ?? 0) : 0;
+            $weeklyQuota = $ruleSnapshot ? TalentoCompensationRule::cuotaSemanal($ruleSnapshot) : 0;
 
             $units = (int) TalentoWorkOrder::where('colaborador_id', $member->id)
                 ->validatedBillable()

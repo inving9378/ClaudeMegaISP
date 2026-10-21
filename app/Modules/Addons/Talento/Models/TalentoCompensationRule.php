@@ -31,14 +31,31 @@ class TalentoCompensationRule extends BaseModel
         'clawback_requires_collection' => 'boolean',
     ];
 
+    /** Días que cuenta una cuota "Diaria" en la semana de pago: lunes a sábado (decisión 2026-10-21). */
+    public const DIAS_LABORALES_SEMANA = 6;
+
     /**
-     * Computed: value per unit = base_salary / weekly_quota_units.
+     * Cuota de la semana de pago a partir de la regla o de su copia en el historial. Una cuota
+     * "Diaria" se multiplica por 6 días (lunes a sábado); cualquier otra se toma como semanal,
+     * igual que antes. Punto único: liquidación, desglose del portal, tablero, puntuación y app.
+     */
+    public static function cuotaSemanal(array|object|null $regla): int
+    {
+        $regla = (array) $regla;
+        $cuota = (int) ($regla['weekly_quota_units'] ?? 0);
+
+        return ($regla['period'] ?? null) === 'daily' ? $cuota * self::DIAS_LABORALES_SEMANA : $cuota;
+    }
+
+    /**
+     * Computed: value per unit = base_salary / cuota semanal.
      * Not stored — derived on demand.
      */
     public function getValuePerUnitAttribute(): float
     {
-        if ($this->weekly_quota_units <= 0) return 0.0;
-        return round($this->base_salary / $this->weekly_quota_units, 4);
+        $cuota = self::cuotaSemanal(['period' => $this->period, 'weekly_quota_units' => $this->weekly_quota_units]);
+        if ($cuota <= 0) return 0.0;
+        return round($this->base_salary / $cuota, 4);
     }
 
     public function history()

@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Talento\Services;
 
+use App\Modules\Addons\Talento\Models\TalentoCompensationRule;
 use App\Modules\Addons\Talento\Models\TalentoAttendance;
 use App\Modules\Addons\Talento\Models\TalentoCajaInspection;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
@@ -87,7 +88,7 @@ class CompositeScoreService
     {
         $ruleSnapshot = TalentoCompensationRuleHistory::where('colaborador_id', $colId)
             ->orderByDesc('assigned_at')->value('data');
-        $weeklyQuota = $ruleSnapshot ? (int)($ruleSnapshot['weekly_quota_units'] ?? 0) : 0;
+        $weeklyQuota = $ruleSnapshot ? TalentoCompensationRule::cuotaSemanal($ruleSnapshot) : 0;
 
         if ($weeklyQuota === 0) return 0.0;
 

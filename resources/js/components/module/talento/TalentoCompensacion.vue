@@ -129,7 +129,7 @@
                 <td>{{ h.data?.name }}</td>
                 <td class="text-end">${{ fmt(h.data?.base_salary) }}</td>
                 <td class="text-center">{{ h.data?.weekly_quota_units }}</td>
-                <td class="text-end">${{ fmt(h.data?.weekly_quota_units > 0 ? h.data?.base_salary / h.data?.weekly_quota_units : 0) }}</td>
+                <td class="text-end">${{ fmt(cuotaSemana(h.data) > 0 ? h.data?.base_salary / cuotaSemana(h.data) : 0) }}</td>
               </tr>
               <tr v-if="!assign.history.length">
                 <td colspan="5" class="text-muted small text-center py-2">Sin historial.</td>
@@ -184,10 +184,11 @@
               <div class="col-md-4">
                 <label class="form-label">Cuota {{ quotaPeriodLabel(ruleModal.period) }} (unidades)</label>
                 <input v-model="ruleModal.weekly_quota_units" type="number" min="0" class="form-control">
+                <div v-if="ruleModal.period === 'daily'" class="form-text">= {{ cuotaSemana(ruleModal) }} por semana (lunes a sábado)</div>
               </div>
               <div class="col-md-4 d-flex flex-column justify-content-end">
                 <div class="form-text">
-                  $/unidad = ${{ fmt(ruleModal.weekly_quota_units > 0 ? ruleModal.base_salary / ruleModal.weekly_quota_units : 0) }}
+                  $/unidad = ${{ fmt(cuotaSemana(ruleModal) > 0 ? ruleModal.base_salary / cuotaSemana(ruleModal) : 0) }}
                 </div>
               </div>
               <div class="col-md-3">
@@ -422,6 +423,8 @@ export default {
     // Forma femenina para "Cuota ___ (unidades)" / "ud/___" — periodLabel() ya no
     // concuerda en género ("Cuota Diario" está mal, "cuota" es femenino).
     quotaPeriodLabel(p) { return { daily: 'diaria', weekly: 'semanal', biweekly: 'quincenal', monthly: 'mensual' }[p] ?? p; },
+    // Igual que TalentoCompensationRule::cuotaSemanal(): una cuota diaria cuenta 6 días (lunes a sábado).
+    cuotaSemana(r) { const q = parseInt(r?.weekly_quota_units) || 0; return r?.period === 'daily' ? q * 6 : q; },
     fmt(n) { return Number(n ?? 0).toFixed(2); },
     formatDate(d) {
       if (!d) return '—';
