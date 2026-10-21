@@ -62,7 +62,7 @@ class ClientPaymentController extends Controller
                 } else {
                     $payment = $client->clientCreatePayment($request);
                     $invoiceService = new InvoiceService();
-                    $invoiceService->updateProformaInvoicePendingDespuesDeUnPago($client, $payment);
+                    $aplicacion = $invoiceService->updateProformaInvoicePendingDespuesDeUnPago($client, $payment);
 
                     ClientPaymentMetadata::create([
                         'payment_id' => $payment->id,
@@ -117,7 +117,9 @@ class ClientPaymentController extends Controller
                     return response()->json([
                         'success' => true,
                         'message' => 'El pago se ha realizado con éxito.',
-                        'data' => $payment
+                        'data' => $payment,
+                        // Item #571: a qué mes quedó el pago (la ventana de caja lo muestra).
+                        'aviso_aplicacion' => $invoiceService->avisoDeAplicacion($aplicacion),
                     ], 200);
                 }
             } else {

@@ -614,7 +614,19 @@ export default {
                 .then((response) => {
                     changeBalance.value = true;
 
-                    toastr.success("Pago");
+                    // Item #571: a qué mes quedó el pago. Si el mes elegido ya estaba
+                    // pagado y el dinero pasó al siguiente, el aviso se queda hasta cerrarlo.
+                    const aviso = response?.aviso_aplicacion;
+                    if (aviso?.tipo === "movido") {
+                        toastr.warning(aviso.texto, "Pago aplicado a otro mes", {
+                            timeOut: 0,
+                            extendedTimeOut: 0,
+                            closeButton: true,
+                            tapToDismiss: false,
+                        });
+                    } else {
+                        toastr.success(aviso?.texto || "Pago");
+                    }
                     initComponent(props.action);
                     emit("cleanModal");
                 })
