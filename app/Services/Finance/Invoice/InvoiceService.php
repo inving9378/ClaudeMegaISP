@@ -125,6 +125,7 @@ class InvoiceService
 
         $facturasProcesadas = [];
         $aplicados = [];
+        $movidos = [];
         $rest = $payment->amount;
 
         foreach ($periods as $period) {
@@ -136,7 +137,11 @@ class InvoiceService
             // Item #571: un periodo ya pagado no recibe otra factura; el dinero pasa al siguiente
             // periodo sin pagar. La ventana de cobro propone meses seguidos a partir del primero
             // abierto y no sabe cuáles ya se pagaron fuera de orden.
+            $pedido = $period;
             $period = $this->periodoSinPagarDesde($client, $period, $aplicados);
+            if ($period !== $pedido) {
+                $movidos[] = ['pedido' => $pedido, 'aplicado' => $period];
+            }
             $invoice = $this->facturaAbiertaDelPeriodo($client, $period)
                 ?? $this->crearNuevaFacturaProforma($client, $period);
             $aplicados[] = $period;
@@ -176,8 +181,45 @@ class InvoiceService
                 ->filter(fn($i) => $i->wasRecentlyCreated ?? false)
                 ->count(),
             'credito_restante' => $rest,
+            'periodos_aplicados' => $aplicados,
+            'periodos_movidos' => $movidos,
             'mensaje' => 'Pago aplicado a los periodos seleccionados. Facturas faltantes creadas automáticamente.'
         ];
+    }
+
+    /**
+     * Item #571: aviso para la ventana de caja con el mes al que quedó el pago. Si un periodo
+     * elegido ya estaba pagado y el dinero pasó al siguiente, el aviso lo dice (tipo «movido»).
+     *
+     * @return array{tipo: string, texto: string}|null
+     */
+    public function avisoDeAplicacion(array $resultado): ?array
+    {
+        $aplicados = $resultado['periodos_aplicados'] ?? [];
+        if (empty($aplicados)) {
+            return null;
+        }
+
+        $meses = implode(', ', array_map(fn ($p) => $this->nombreDelPeriodo($p), $aplicados));
+        $movidos = $resultado['periodos_movidos'] ?? [];
+        if (empty($movidos)) {
+            return ['tipo' => 'aplicado', 'texto' => "Pago aplicado a {$meses}."];
+        }
+
+        $ya = implode(', ', array_map(fn ($m) => $this->nombreDelPeriodo($m['pedido']), $movidos));
+
+        $ya = mb_strtoupper(mb_substr($ya, 0, 1)) . mb_substr($ya, 1);
+
+        return ['tipo' => 'movido', 'texto' => "{$ya} ya estaba pagado. El pago se aplicó a {$meses}."];
+    }
+
+    private function nombreDelPeriodo(string $period): string
+    {
+        if (! preg_match('/^(\d{4})-(\d{2})$/', $period, $m)) {
+            return $period;
+        }
+
+        return Carbon::create((int) $m[1], (int) $m[2], 1)->locale('es')->monthName . ' ' . $m[1];
     }
 
     /**
