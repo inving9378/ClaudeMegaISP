@@ -2305,6 +2305,9 @@ return [
         '/talento/api/app/latest',
     ],
     'talento.employees.view' => [
+        // 2026-10-21: ranking de ventas de todos, para staff (talento.ventas.view lo tiene
+        // Vendedor y le abriría las ventas de los demás). Antes solo el rol admin llegaba.
+        '/talento/ventas/ranking',
         // Mostrador tiene este permiso pero no talento.embajadores.view —
         // sin esta línea, la pantalla suelta redirigía a Mostrador al
         // dashboard en silencio (29-sep, verificando "Roles múltiples").
@@ -2338,6 +2341,21 @@ return [
     ],
     // Alta de perfiles (2026-10-21): separada de talento.manage para que Mostrador edite fichas
     // sin poder darlas de alta. El controller (store/usersDisponibles) hace la restricción real.
+    // 2026-10-21: puestos y catálogo de reglas de desempeño solo los abría el rol admin (las
+    // direcciones no tenían permiso). El controller hace la restricción real (ver/gestionar).
+    'talento.puestos.manage' => [
+        '/talento/puestos',
+        '/talento/api/puestos',
+        '/talento/api/puestos/{id}',
+    ],
+    'talento.reglas_desempeno.view' => [
+        '/talento/reglas-desempeno',
+        '/talento/api/reglas-desempeno',
+    ],
+    'talento.reglas_desempeno.manage' => [
+        '/talento/api/reglas-desempeno',
+        '/talento/api/reglas-desempeno/{id}',
+    ],
     'talento.colaboradores.create' => [
         '/talento/api/colaboradores',
         '/talento/api/colaboradores/users-disponibles',
@@ -2345,6 +2363,9 @@ return [
     // Item #9990830 (Fase 1 del tablero de pendientes): listado admin cross-colaborador de
     // documentos pendientes de firma, distinto de talento.employees.view (ficha de un colaborador).
     'talento.documentos.ver-todos' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/documentos-pendientes',
         '/talento/api/documentos/pendientes',
     ],
     // Item #9990831 (Fase 2 del tablero de pendientes): acción de enviar recordatorio WhatsApp,
@@ -2413,6 +2434,12 @@ return [
         '/talento/sitios',
     ],
     'talento.work_orders.manage' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/prospectos-crm',
+        '/talento/api/ordenes/{id}/actividades',
+        '/talento/api/ordenes/{id}/status',
+        '/talento/api/order-types/{id}',
         // Fase 5 (2026-10-13): quien tiene este permiso sin
         // talento.employees.view (Mostrador lo era hasta el 2026-10-21) necesita
         // el selector de técnico de "Nueva orden" (TalentoOrdenes.vue,
@@ -2433,6 +2460,9 @@ return [
         '/talento/api/standards/{id}/image',
     ],
     'talento.work_orders.validate' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/ordenes/{id}/validate',
         '/talento/api/ots/**',
     ],
     'talento.field_flow.accept' => [
@@ -2453,6 +2483,9 @@ return [
         '/talento/api/cajas/**',
     ],
     'talento.compensation.manage' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/reglas/{id}',
         '/talento/api/cajas',
         '/talento/api/cajas/settings',
         '/talento/api/cajas/bonus-log/{workOrderId}/evaluate',
@@ -2521,11 +2554,19 @@ return [
         '/talento/api/my-certifications',
     ],
     'talento.academy.manage' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/courses/{id}/exams',
+        '/talento/api/courses/{id}/materials',
+        '/talento/api/exams/{id}/questions',
         '/talento/api/courses',
         '/talento/api/courses/{id}',
         '/talento/api/course-materials/{id}',
     ],
     'talento.academy.evaluate' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/courses/{id}/practical',
         '/talento/api/courses/{id}',
         '/talento/api/certifications/{id}/revoke',
     ],
@@ -2536,9 +2577,17 @@ return [
         '/talento/api/colaboradores/{id}/level-history',
     ],
     'talento.levels.manage' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/levels',
+        '/talento/api/levels/{id}',
         '/talento/api/colaboradores/{id}/promote',
     ],
     'talento.escalafon.view' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/escalafon',
+        '/talento/api/escalafon/config',
         '/talento/escalafon',
     ],
     'talento.escalafon.manage' => [
@@ -2550,12 +2599,21 @@ return [
         '/talento/penalty-evidence/{id}',
     ],
     'talento.penalties.manage' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/penalty-types',
+        '/talento/api/penalty-types/{id}',
+        '/talento/api/penalty-types/{id}/image',
         '/talento/api/penalties/**',
     ],
     'talento.penalties.appeal' => [
         '/talento/api/penalties/{id}/appeal',
     ],
     'talento.penalties.resolve' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/penalty-appeals',
+        '/talento/api/penalty-appeals/{id}/resolve',
         '/talento/api/penalties/{id}/resolve',
         '/talento/api/penalties/{id}/dismiss',
     ],
@@ -2601,6 +2659,9 @@ return [
         '/talento/api/rutas/{id}/stops/reordenar',
     ],
     'talento.roadmap.view' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/roadmap',
         '/talento/roadmap',
         '/talento/api/roadmap/**',
     ],
@@ -2619,6 +2680,9 @@ return [
         '/talento/api/sitios/{id}',
     ],
     'talento.credentials.view' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/credentials/expiring',
         '/talento/credenciales',
         '/talento/credential-doc/{id}',
         '/talento/api/colaboradores/{id}/credentials',
@@ -2669,6 +2733,9 @@ return [
         '/talento/api/loans/**',
     ],
     'talento.funds.view' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/credentials/funds-alert',
         '/talento/api/colaboradores/{id}/funds',
     ],
     'talento.funds.manage' => [
