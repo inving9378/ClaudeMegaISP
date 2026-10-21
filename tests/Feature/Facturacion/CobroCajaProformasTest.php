@@ -115,8 +115,9 @@ class CobroCajaProformasTest extends TestCase
         $cliente = $this->cliente();
         $octubre = $this->proforma($cliente, '2026-10');
 
-        $this->servicio->updateProformaInvoicePendingDespuesDeUnPago($cliente, $this->pago($cliente, 200, '2026-10,2026-11'));
+        $resultado = $this->servicio->updateProformaInvoicePendingDespuesDeUnPago($cliente, $this->pago($cliente, 200, '2026-10,2026-11'));
 
+        $this->assertSame(['tipo' => 'aplicado', 'texto' => 'Pago aplicado a octubre 2026.'], $this->servicio->avisoDeAplicacion($resultado));
         $this->assertSame(Invoice::STATUS_PAID, $octubre->fresh()->status);
         $this->assertCount(0, $this->proformasDe($cliente, '2026-11'), 'Sin dinero no debe nacer la de noviembre.');
     }
@@ -128,9 +129,15 @@ class CobroCajaProformasTest extends TestCase
         $octubre = $this->proforma($cliente, '2026-10');
         $pago = $this->pago($cliente, 200, '2026-09');
 
-        $this->servicio->updateProformaInvoicePendingDespuesDeUnPago($cliente, $pago);
+        $resultado = $this->servicio->updateProformaInvoicePendingDespuesDeUnPago($cliente, $pago);
 
         $this->assertCount(1, $this->proformasDe($cliente, '2026-09'), 'No debe nacer otra de septiembre.');
+        $this->assertSame([['pedido' => '2026-09', 'aplicado' => '2026-10']], $resultado['periodos_movidos']);
+        $this->assertSame(
+            ['tipo' => 'movido', 'texto' => 'Septiembre 2026 ya estaba pagado. El pago se aplicó a octubre 2026.'],
+            $this->servicio->avisoDeAplicacion($resultado),
+            'La ventana de caja avisa a qué mes pasó el dinero.'
+        );
         $this->assertSame(Invoice::STATUS_PAID, $octubre->fresh()->status);
         $this->assertSame($pago->id, (int) $octubre->fresh()->payment_id);
         $this->assertSame('2026-10', $pago->fresh()->payment_period, 'El pago dice dónde quedó su dinero.');
