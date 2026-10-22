@@ -289,4 +289,9 @@ const antiguedad = (iso) => {
 .ea-dark .ea-opcion-sel { background: #26262c; border-color: #818CF8; }
 .ea-dark .ea-aviso { background: #3b2a1a; color: #fdba74; }
 .ea-dark .ea-tabla { color: #e5e7eb; }
+/* El tema oscuro global pinta de blanco el texto de los span: los distintivos fijan el suyo. */
+.ea-dark .ea-badge-pausa { background: #78350F; color: #FDE68A !important; }
+.ea-dark .ea-badge-activo { background: #14532D; color: #BBF7D0 !important; }
+.ea-dark .ea-badge-gris { background: #334155; color: #E2E8F0 !important; }
+.ea-dark .ea-reco { background: #14532D; color: #BBF7D0 !important; }
 </style>
