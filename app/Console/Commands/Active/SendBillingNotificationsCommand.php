@@ -47,6 +47,17 @@ class SendBillingNotificationsCommand extends Command
             return self::SUCCESS;
         }
 
+        // Reactivación «en lotes por hora» (Configuración › Envíos automáticos): tope por hora
+        // mientras quede lo acumulado; sin ritmo, null y todo igual que siempre.
+        $ritmo = app(\App\Services\Finance\Billing\EnviosAutomaticos::class)->cupoPorRitmo();
+        if ($ritmo !== null && ! $dryRun) {
+            if ($ritmo <= 0) {
+                $this->info('Ritmo por hora alcanzado (reactivación en lotes). Sigue en la siguiente hora.');
+                return self::SUCCESS;
+            }
+            $limit = min($limit, $ritmo);
+        }
+
         $this->info("Buscando notificaciones pendientes (dry-run=" . ($dryRun ? 'si' : 'no') . ", limit={$limit})...");
 
         // Solo filas listas: en_espera + send_by_email + ventana vencida

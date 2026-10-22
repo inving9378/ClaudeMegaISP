@@ -73,6 +73,7 @@ import ContratablesClientTab from "./components/module/planes/ContratablesClient
 
 //Configuracion
 import CatalogoApiPanel from "./components/module/configuracion/CatalogoApiPanel.vue";
+import EnviosAutomaticos from "./components/module/setting/finance/envios/EnviosAutomaticos.vue";
 import DebtPaymentClient from "./components/module/setting/DebtPaymentClient";
 import DebitCustomListar from "./components/module/setting/DebitCustomListar";
 import CommandConfig from "./components/module/setting/CommandConfig";
@@ -540,6 +541,7 @@ const app = createApp({
         MapaRedCatalogos,
 
         CatalogoApiPanel,
+        EnviosAutomaticos,
         'contratable-catalog-list': ContratableCatalogList,
         'contratable-catalog-form': ContratableCatalogForm,
         DebtPaymentClient,

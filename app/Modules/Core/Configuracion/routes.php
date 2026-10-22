@@ -314,6 +314,15 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/envio-prefactura', [\App\Modules\Core\Configuracion\Controllers\Finance\EnvioPrefacturaGeneralController::class, 'update']);
         });
 
+        // Finanzas › Envíos automáticos: pausa general de los avisos de cobro (billing_config.envio_pausado).
+        // Solo super-administrador: lo exige el controlador, no route_permission.
+        Route::group(['prefix' => 'envios-automaticos'], function () {
+            Route::get('/', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'index']);
+            Route::get('/estado', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'estado']);
+            Route::post('/pausar', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'pausar']);
+            Route::post('/reactivar', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'reactivar']);
+        });
+
         // Vista web del catálogo de API
         Route::get('/api/catalogo', fn() => view('core-configuracion::catalogo-api.index'));
 

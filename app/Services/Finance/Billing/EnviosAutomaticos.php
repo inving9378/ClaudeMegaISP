@@ -1,0 +1,287 @@
+<?php
+
+namespace App\Services\Finance\Billing;
+
+use App\Console\Commands\Active\CancelarColasCobroCommand;
+use App\Models\BillingConfig;
+use App\Models\BillingNotification;
+use App\Models\User;
+use App\Services\Finance\Invoice\EnvioPrefactura;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
+use InvalidArgumentException;
+
+/**
+ * Configuración › Finanzas › «Envíos automáticos» (2026-10-22). Muestra y controla la pausa general
+ * de los avisos de cobro automáticos (billing_config.envio_pausado), que solo lee
+ * billing:send-pending-notifications. La segunda compuerta (ReactivacionEnvios, etapa en el .env)
+ * se muestra pero no se cambia aquí.
+ *
+ * Al reactivar hay que decidir qué pasa con lo acumulado en la cola:
+ *  - enviar todo: sale en el orden de siempre, con los límites de la etapa;
+ *  - descartar lo de más de 48 h (recomendado): se cancelan, no se borran, y queda un archivo para
+ *    revertir con `billing:cancelar-colas --revertir=… --ejecutar`;
+ *  - enviar en lotes por hora: tope por hora hasta que se vacíe lo acumulado; luego se quita solo.
+ *
+ * Solo super-administrador. Cada cambio queda en activity_log (log_name facturacion-envios).
+ */
+class EnviosAutomaticos
+{
+    public const ROLES = ['super-administrator', 'Super Administrador'];
+
+    public const ENVIAR_TODO = 'enviar_todo';
+    public const DESCARTAR_VIEJOS = 'descartar_48h';
+    public const LOTES_POR_HORA = 'lotes_por_hora';
+    public const OPCIONES = [self::DESCARTAR_VIEJOS, self::ENVIAR_TODO, self::LOTES_POR_HORA];
+
+    public const HORAS_DESCARTE = 48;
+    public const LOTE_MIN = 10;
+    public const LOTE_MAX = 500;
+    public const LOTE_SUGERIDO = 50;
+
+    public const TIPOS = [
+        BillingNotification::TYPE_PREFACTURA => 'Prefacturas',
+        BillingNotification::TYPE_RECIBO     => 'Recibos',
+        BillingNotification::TYPE_TICKET     => 'Tickets',
+    ];
+
+    public const LOG = 'facturacion-envios';
+
+    public static function puedeGestionar(?User $user): bool
+    {
+        return $user !== null && $user->hasAnyRole(self::ROLES);
+    }
+
+    public function estado(): array
+    {
+        $config = BillingConfig::current();
+        $porId = $config->envio_pausado_cambiado_por ? User::find($config->envio_pausado_cambiado_por) : null;
+
+        return [
+            'pausado' => (bool) $config->envio_pausado,
+            'cambiado_por' => $porId ? trim($porId->name . ' ' . $porId->father_last_name) : null,
+            'cambiado_at' => $config->envio_pausado_cambiado_at?->toIso8601String(),
+            'ritmo' => $config->envio_lote_por_hora ? [
+                'por_hora' => (int) $config->envio_lote_por_hora,
+                'acumulado_hasta' => $config->envio_lote_hasta?->toIso8601String(),
+                'enviados_ultima_hora' => $this->enviadosUltimaHora(),
+            ] : null,
+            'cola' => $this->cola(),
+            'etapa' => $this->etapa(),
+            'proforma_anticipada' => $this->proformaAnticipada(),
+            'opciones' => [
+                'horas_descarte' => self::HORAS_DESCARTE,
+                'lote_min' => self::LOTE_MIN,
+                'lote_max' => self::LOTE_MAX,
+                'lote_sugerido' => self::LOTE_SUGERIDO,
+            ],
+        ];
+    }
+
+    /** En cola = en espera. Por tipo: cuántas, cuántas pasan de 48 h y la más vieja. */
+    public function cola(): array
+    {
+        $limite = now()->subHours(self::HORAS_DESCARTE);
+        $filas = DB::table('billing_notifications')->where('status', BillingNotification::STATUS_WAITING)
+            ->selectRaw('document_type, count(*) as total, sum(created_at < ?) as viejas, sum(send_by_email = 1) as con_correo, min(created_at) as mas_vieja', [$limite])
+            ->groupBy('document_type')
+            ->get()
+            ->keyBy('document_type');
+
+        $tipos = [];
+        foreach (self::TIPOS as $tipo => $nombre) {
+            $f = $filas[$tipo] ?? null;
+            $tipos[] = [
+                'tipo' => $tipo,
+                'nombre' => $nombre,
+                'total' => (int) ($f->total ?? 0),
+                'viejas' => (int) ($f->viejas ?? 0),
+                'con_correo' => (int) ($f->con_correo ?? 0),
+                'mas_vieja' => $f?->mas_vieja ? Carbon::parse($f->mas_vieja)->toIso8601String() : null,
+            ];
+        }
+        $otros = $filas->except(array_keys(self::TIPOS))->sum('total');
+
+        return [
+            'tipos' => $tipos,
+            'total' => array_sum(array_column($tipos, 'total')) + (int) $otros,
+            'viejas' => array_sum(array_column($tipos, 'viejas')),
+            'otros' => (int) $otros,
+        ];
+    }
+
+    public function pausar(User $user): array
+    {
+        $this->exigirPermiso($user);
+
+        return DB::transaction(function () use ($user) {
+            $config = $this->bloquear();
+            if ($config->envio_pausado) {
+                throw new InvalidArgumentException('Los envíos ya están pausados.');
+            }
+            $cola = $this->cola();
+            $this->guardar($config, true, $user, ['envio_lote_por_hora' => null, 'envio_lote_hasta' => null]);
+            $this->auditar($user, $config, 'Envíos automáticos pausados', ['antes' => 'activos', 'despues' => 'pausados', 'cola' => $cola['total']]);
+
+            return ['message' => 'Envíos automáticos pausados. Lo que se genere queda en cola.'];
+        });
+    }
+
+    /** @param int|null $porHora solo con LOTES_POR_HORA */
+    public function reactivar(User $user, string $opcion, ?int $porHora = null): array
+    {
+        $this->exigirPermiso($user);
+        if (! in_array($opcion, self::OPCIONES, true)) {
+            throw new InvalidArgumentException('Elige qué hacer con lo acumulado.');
+        }
+        if ($opcion === self::LOTES_POR_HORA && ($porHora === null || $porHora < self::LOTE_MIN || $porHora > self::LOTE_MAX)) {
+            throw new InvalidArgumentException('El lote por hora va de ' . self::LOTE_MIN . ' a ' . self::LOTE_MAX . '.');
+        }
+
+        return DB::transaction(function () use ($user, $opcion, $porHora) {
+            $config = $this->bloquear();
+            if (! $config->envio_pausado) {
+                throw new InvalidArgumentException('Los envíos ya están activos.');
+            }
+            $ahora = now();
+            $antes = $this->cola();
+            $detalle = ['antes' => 'pausados', 'despues' => 'activos', 'opcion' => $opcion, 'cola_antes' => $antes['total']];
+            $extra = ['envio_lote_por_hora' => null, 'envio_lote_hasta' => null];
+            $mensaje = 'Envíos reactivados: lo acumulado sale con los límites de la etapa.';
+
+            if ($opcion === self::DESCARTAR_VIEJOS) {
+                [$n, $archivo, $porTipo] = $this->descartarViejos($ahora->copy()->subHours(self::HORAS_DESCARTE));
+                $detalle += ['descartadas' => $n, 'descartadas_por_tipo' => $porTipo, 'archivo_para_revertir' => $archivo];
+                $mensaje = "Envíos reactivados. Se descartaron {$n} avisos con más de " . self::HORAS_DESCARTE . ' h en cola (no se borran; se pueden revertir).';
+            } elseif ($opcion === self::LOTES_POR_HORA) {
+                $extra = ['envio_lote_por_hora' => $porHora, 'envio_lote_hasta' => $ahora];
+                $detalle += ['por_hora' => $porHora];
+                $mensaje = "Envíos reactivados en lotes de {$porHora} por hora hasta vaciar lo acumulado.";
+            }
+
+            $this->guardar($config, false, $user, $extra);
+            $this->auditar($user, $config, 'Envíos automáticos reactivados', $detalle);
+
+            return ['message' => $mensaje] + $detalle;
+        });
+    }
+
+    /**
+     * Para billing:send-pending-notifications: cuántos más puede mandar esta corrida por el ritmo
+     * de lotes (null = sin ritmo). Cuando ya no queda nada acumulado, quita el ritmo.
+     */
+    public function cupoPorRitmo(?BillingConfig $config = null): ?int
+    {
+        $config ??= BillingConfig::current();
+        if (! $config->envio_lote_por_hora) {
+            return null;
+        }
+        $quedan = BillingNotification::where('status', BillingNotification::STATUS_WAITING)
+            ->where('created_at', '<=', $config->envio_lote_hasta ?? now())
+            ->exists();
+        if (! $quedan) {
+            $config->forceFill(['envio_lote_por_hora' => null, 'envio_lote_hasta' => null])->save();
+            activity(self::LOG)->performedOn($config)->withProperties(['motivo' => 'acumulado vacío'])->log('Ritmo por hora terminado: ya no queda nada acumulado');
+
+            return null;
+        }
+
+        return max(0, (int) $config->envio_lote_por_hora - $this->enviadosUltimaHora());
+    }
+
+    private function enviadosUltimaHora(): int
+    {
+        return BillingNotification::where('status', BillingNotification::STATUS_SENT)
+            ->where('enviado_at', '>=', now()->subHour())
+            ->count();
+    }
+
+    /** @return array{0: int, 1: ?string, 2: array<string, int>} [canceladas, archivo, por tipo] */
+    private function descartarViejos(Carbon $limite): array
+    {
+        [, , , $cancelado, $colNota] = CancelarColasCobroCommand::COLAS['billing_notifications'];
+        $nota = 'Descartada al reactivar los envíos: llevaba más de ' . self::HORAS_DESCARTE . ' h en cola.';
+        $resultado = ['origen' => 'Configuración › Envíos automáticos', 'tabla' => 'billing_notifications', 'cancelado' => $cancelado,
+            'columna_nota' => $colNota, 'ejecutado_at' => now()->toIso8601String(), 'cancelados' => []];
+        $porTipo = [];
+
+        BillingNotification::where('status', BillingNotification::STATUS_WAITING)
+            ->where('created_at', '<', $limite)
+            ->select(['id', 'document_type', 'status', 'updated_at', $colNota])
+            ->lockForUpdate()
+            ->chunkById(1000, function ($lote) use (&$resultado, &$porTipo, $cancelado, $colNota, $nota) {
+                $ahora = now()->startOfSecond();
+                DB::table('billing_notifications')->whereIn('id', $lote->pluck('id'))
+                    ->update(['status' => $cancelado, $colNota => $nota, 'updated_at' => $ahora]);
+                foreach ($lote as $fila) {
+                    // Mismo formato que billing:cancelar-colas, para revertir con su --revertir.
+                    $resultado['cancelados'][] = [$fila->id, (string) $fila->status, (string) $fila->getRawOriginal('updated_at'), $ahora->format('Y-m-d H:i:s'), $fila->{$colNota}];
+                    $porTipo[$fila->document_type] = ($porTipo[$fila->document_type] ?? 0) + 1;
+                }
+            });
+
+        $n = count($resultado['cancelados']);
+        if ($n === 0) {
+            return [0, null, []];
+        }
+        $archivo = CancelarColasCobroCommand::DIRECTORIO . '/reactivacion-' . now()->format('Ymd-His') . '.json';
+        Storage::disk('local')->put($archivo, json_encode($resultado, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+
+        return [$n, 'storage/app/' . $archivo, $porTipo];
+    }
+
+    private function bloquear(): BillingConfig
+    {
+        $id = BillingConfig::current()->id;
+
+        return BillingConfig::whereKey($id)->lockForUpdate()->firstOrFail();
+    }
+
+    private function guardar(BillingConfig $config, bool $pausado, User $user, array $extra): void
+    {
+        $config->forceFill([
+            'envio_pausado' => $pausado,
+            'envio_pausado_cambiado_por' => $user->id,
+            'envio_pausado_cambiado_at' => now(),
+        ] + $extra)->save();
+    }
+
+    private function auditar(User $user, BillingConfig $config, string $descripcion, array $detalle): void
+    {
+        activity(self::LOG)->causedBy($user)->performedOn($config)->withProperties($detalle)->log($descripcion);
+    }
+
+    private function exigirPermiso(User $user): void
+    {
+        if (! self::puedeGestionar($user)) {
+            throw new \Illuminate\Auth\Access\AuthorizationException('Solo un super-administrador puede pausar o reactivar los envíos automáticos.');
+        }
+    }
+
+    private function etapa(): array
+    {
+        $etapa = app(ReactivacionEnvios::class);
+
+        return ['nombre' => $etapa->etapa()] + $etapa->resumenConfig();
+    }
+
+    /** BILLING_PROFORMA_ANTICIPADA y los días de anticipo, sin abrir el .env. */
+    private function proformaAnticipada(): array
+    {
+        $propios = Schema::hasColumn('billing_configurations', 'envio_prefactura_dias')
+            ? DB::table('billing_configurations')->whereNotNull('envio_prefactura_dias')
+                ->selectRaw('count(*) as n, min(envio_prefactura_dias) as minimo, max(envio_prefactura_dias) as maximo')->first()
+            : null;
+        $creacion = DB::table('config_finance_notifications')->where('type_config', 'proforma_invoice')->orderBy('id')->value('auto_send_notifications');
+
+        return [
+            'encendido' => (bool) config('billing.proforma_anticipada'),
+            'dias' => EnvioPrefactura::diasPorDefecto(),
+            'clientes_con_valor_propio' => (int) ($propios->n ?? 0),
+            'rango_propio' => ($propios->n ?? 0) ? [(int) $propios->minimo, (int) $propios->maximo] : null,
+            'creacion_automatica' => $creacion === null ? null : (bool) $creacion,
+        ];
+    }
+}
