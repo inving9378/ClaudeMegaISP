@@ -53,10 +53,10 @@ class EnviosAutomaticosTest extends TestCase
         return $user;
     }
 
-    private function aviso(string $tipo, int $horas, string $estado = 'en_espera', ?int $enviadoHaceMin = null): int
+    private function aviso(string $tipo, int $horas, string $estado = 'en_espera', ?int $enviadoHaceMin = null, bool $conCorreo = true): int
     {
         return DB::table('billing_notifications')->insertGetId([
-            'client_id' => $this->clienteId, 'document_type' => $tipo, 'status' => $estado, 'send_by_email' => true, 'email' => 'nadie@example.test',
+            'client_id' => $this->clienteId, 'document_type' => $tipo, 'status' => $estado, 'send_by_email' => $conCorreo, 'email' => 'nadie@example.test',
             'notificar_despues_de' => now()->subHours($horas), 'enviado_at' => $enviadoHaceMin !== null ? now()->subMinutes($enviadoHaceMin) : null,
             'created_at' => now()->subHours($horas), 'updated_at' => now()->subHours($horas),
         ]);
@@ -114,6 +114,7 @@ class EnviosAutomaticosTest extends TestCase
     {
         $admin = $this->usuario('Super Administrador');
         $acumulado = $this->aviso('prefactura', 5);
+        $this->aviso('ticket', 5, 'en_espera', null, false); // sin correo: nunca sale y no debe retener el ritmo
         foreach (range(1, 4) as $i) {
             $this->aviso('recibo', 1, 'enviado', 10);
         }
@@ -155,6 +156,9 @@ class EnviosAutomaticosTest extends TestCase
         $this->actingAs($dev)->getJson('/configuracion/envios-automaticos/estado')->assertStatus(403);
 
         $this->actingAs($admin)->getJson('/configuracion/envios-automaticos/estado')->assertOk()->assertJsonPath('pausado', true);
+        $enPanel = fn (User $u) => collect($this->actingAs($u)->getJson('/api/modules/config-sections')->json('sections_flat'))->contains('key', 'envios_automaticos');
+        $this->assertTrue($enPanel($admin), 'La sección aparece en Configuración para super-administrador.');
+        $this->assertFalse($enPanel($dev), 'Y no para DESARROLLADOR.');
         $this->actingAs($admin)->postJson('/configuracion/envios-automaticos/reactivar', ['opcion' => 'enviar_todo', 'confirmacion' => 'si'])
             ->assertStatus(422);
         $this->assertTrue(BillingConfig::current()->fresh()->envio_pausado, 'Sin la palabra escrita no cambia nada.');

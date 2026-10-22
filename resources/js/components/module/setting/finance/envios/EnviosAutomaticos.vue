@@ -106,7 +106,14 @@
                 <template v-if="dialogo === 'reactivar'">
                     <div class="ea-head">Reactivar envíos automáticos</div>
                     <div class="ea-body">
-                        <p class="mb-2"><b>¿Qué hago con lo acumulado?</b> Hay {{ numero(estado.cola.total) }} avisos en cola.</p>
+                        <p class="mb-2">
+                            <b>¿Qué hago con lo acumulado?</b> Hay {{ numero(estado.cola.total) }} avisos en cola;
+                            {{ numero(estado.cola.con_correo) }} tienen correo y podrían salir.
+                        </p>
+                        <p v-if="estado.etapa.nombre === 'cerrado'" class="ea-aviso mb-2">
+                            La etapa de reactivación está en «cerrado»: aunque reactives, no sale nada hasta abrir la etapa
+                            en el .env del servidor. Lo que elijas aquí con lo acumulado sí se aplica ahora.
+                        </p>
                         <label class="ea-opcion" :class="{ 'ea-opcion-sel': opcion === 'descartar_48h' }">
                             <input v-model="opcion" type="radio" value="descartar_48h" />
                             <span>
@@ -183,7 +190,7 @@ const palabra = computed(() => (dialogo.value === "reactivar" ? "REACTIVAR" : "P
 const confirmacionValida = computed(() => confirmacion.value.trim().toUpperCase() === palabra.value);
 const horasParaVaciar = computed(() => {
     const n = Number(porHora.value) || 0;
-    return n > 0 ? Math.ceil((estado.value?.cola.total || 0) / n) : "—";
+    return n > 0 ? Math.ceil((estado.value?.cola.con_correo || 0) / n) : "—";
 });
 
 const cargar = async () => {

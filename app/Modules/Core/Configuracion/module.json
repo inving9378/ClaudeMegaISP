@@ -347,6 +347,40 @@
             }
         },
         {
+            "key": "envios_automaticos",
+            "label": "Envíos automáticos",
+            "type": "notificaciones",
+            "category": "Finanzas",
+            "icon": "paper-plane",
+            "url": "/configuracion/envios-automaticos",
+            "role": [
+                "super-administrator",
+                "Super Administrador"
+            ],
+            "description": "Pausa o reactiva el envío automático de prefacturas, recibos y tickets; cola por tipo y proforma anticipada.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Pausa general",
+                        "definition": "Mientras está puesta no sale ningún aviso de cobro automático; los documentos se siguen generando y quedan en cola."
+                    },
+                    {
+                        "term": "Etapa de reactivación",
+                        "definition": "Segunda compuerta en el .env del servidor (cerrado, piloto, zona, todos). Aunque se quite la pausa, solo sale lo que la etapa permite."
+                    }
+                ],
+                "steps": [
+                    "Revisar cuánto hay en cola y qué tan viejo es.",
+                    "Reactivar y elegir qué hacer con lo acumulado: descartar lo de más de 48 h (recomendado), enviar todo o enviar en lotes por hora.",
+                    "Escribir REACTIVAR para confirmar. El cambio queda en la auditoría."
+                ],
+                "actions": [
+                    "Pausar envíos",
+                    "Reactivar envíos"
+                ]
+            }
+        },
+        {
             "key": "nomenclatura",
             "label": "Nomenclatura",
             "type": "general",

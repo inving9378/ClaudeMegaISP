@@ -555,24 +555,6 @@
             <h3>Finanzas</h3>
             <div class="row d-flex">
                 <div class="col-md-2">
-                    <div class="cursor-pointer">
-                        <a :href="`${url}/configuracion/envios-automaticos`"
-                            ><div class="card-body position-relative">
-                                <div class="faq-count d-flex">
-                                    <h5 class="text-warning m-0">
-                                        <i
-                                            class="fa fa-fw fa-1x circle-icon fa-paper-plane"
-                                        ></i>
-                                    </h5>
-                                    <span class="ms-1 align-self-center"
-                                        >Envíos automáticos</span
-                                    >
-                                </div>
-                            </div></a
-                        >
-                    </div>
-                </div>
-                <div class="col-md-2">
                     <div class="cursor-pointer disabled">
                         <a :href="`${url}/`"
                             ><div class="card-body position-relative">

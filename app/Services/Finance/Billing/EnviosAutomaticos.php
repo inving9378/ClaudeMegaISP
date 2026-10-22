@@ -108,6 +108,7 @@ class EnviosAutomaticos
             'tipos' => $tipos,
             'total' => array_sum(array_column($tipos, 'total')) + (int) $otros,
             'viejas' => array_sum(array_column($tipos, 'viejas')),
+            'con_correo' => array_sum(array_column($tipos, 'con_correo')),
             'otros' => (int) $otros,
         ];
     }
@@ -178,7 +179,10 @@ class EnviosAutomaticos
         if (! $config->envio_lote_por_hora) {
             return null;
         }
+        // Solo cuenta lo que el envío puede llegar a mandar (con correo): un ticket sin correo se
+        // queda en espera para siempre y no debe dejar el ritmo puesto.
         $quedan = BillingNotification::where('status', BillingNotification::STATUS_WAITING)
+            ->where('send_by_email', true)
             ->where('created_at', '<=', $config->envio_lote_hasta ?? now())
             ->exists();
         if (! $quedan) {
