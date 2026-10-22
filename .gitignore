@@ -84,3 +84,20 @@ docs/decisiones-pendientes-irving.md
 # Reportes generados/temporales servidos desde public — no van al repo (item release 2026-09-08)
 /public/reportes/
 package-lock.json
+
+# Item seguridad V1.64 (2026-10-22): datos de clientes y credenciales no se versionan.
+# El repo es público. Lo que había quedó en storage/app/cuarentena/ (no versionado).
+/public/csv/
+/database/sql/
+/documentation/others/
+/storage/backups/
+*.sql
+*.sql.gz
+*.csv
+*.xlsx
+*.xls
+*.bak
+*.dump
+# Excepciones: catálogos públicos y el esquema de referencia (sin datos)
+!/config/state_municipalities_and_colonies/*.sql
+!/storage/schema/reference.sql

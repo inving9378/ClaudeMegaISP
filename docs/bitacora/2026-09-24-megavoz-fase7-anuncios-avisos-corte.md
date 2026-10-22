@@ -60,8 +60,8 @@ como "en producción" en `module.json`/CLAUDE.md) — con este bug, **nunca pudo
 haberse ejecutado con éxito en dev**, porque la query truena en el primer intento
 real. Tras el fix, la query corre — pero `cargarMorosos()` tropieza con un
 **segundo bug preexistente, separado, NO corregido aquí**: un cliente real tiene
-en `cmi.phone` un valor de teléfono corrupto/duplicado (`"5617491441
-5576808632"`, dos números con doble espacio) que excede el ancho de la columna
+en `cmi.phone` un valor de teléfono corrupto/duplicado (`"[teléfono]
+[teléfono]"`, dos números con doble espacio) que excede el ancho de la columna
 `cobranza_llamadas.telefono` — `Data too long for column 'telefono'`. Es un
 problema de calidad de dato de UN cliente específico (o de falta de saneo antes
 de insertar), no de esquema — fuera de alcance de este arreglo puntual. Queda
