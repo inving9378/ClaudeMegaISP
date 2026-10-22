@@ -5,6 +5,15 @@
         </section>
 
         <template v-else-if="estado">
+            <div v-if="estado.entorno_pruebas" class="ea-entorno" role="status">
+                <b>Entorno de pruebas: los correos no salen.</b>
+                <template v-if="estado.entorno_pruebas.buzon">
+                    Todo correo va solo al buzón de pruebas {{ estado.entorno_pruebas.buzon }}, con el asunto
+                    «{{ estado.entorno_pruebas.prefijo }}».
+                </template>
+                <template v-else>Todo correo se cancela y queda en el log.</template>
+                El WhatsApp de facturación está bloqueado.
+            </div>
             <section class="ea-card">
                 <div class="ea-head">Avisos de cobro automáticos</div>
                 <div class="ea-body">
@@ -402,6 +411,7 @@ const antiguedad = (iso) => {
 .ea-switch { display: flex; align-items: center; gap: 8px; padding-left: 0; min-height: 0; }
 .ea-switch .form-check-input { width: 2.6em; height: 1.35em; cursor: pointer; margin: 0; }
 .ea-ritmo { margin-top: 10px; }
+.ea-entorno { margin: 12px 0 0; padding: 10px 14px; border-radius: 12px; border: 2px solid #F59E0B; background: #FEF3C7; color: #92400E; font-size: 13px; }
 .ea-fuera td { opacity: 0.45; }
 .ea-label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin: 10px 0 4px; }
 .ea-velo { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 1050; display: flex;
@@ -422,6 +432,8 @@ const antiguedad = (iso) => {
 .ea-dark .ea-opcion { border-color: #2c2c34; }
 .ea-dark .ea-opcion-sel { background: #26262c; border-color: #818CF8; }
 .ea-dark .ea-aviso { background: #3b2a1a; color: #fdba74; }
+.ea-dark .ea-entorno { background: #3b2a1a; border-color: #B45309; color: #FDE68A; }
+.ea-dark .ea-entorno b { color: #FDE68A !important; }
 .ea-dark .ea-tabla { color: #e5e7eb; }
 /* El tema oscuro global pinta de blanco el texto de los span: los distintivos fijan el suyo. */
 .ea-dark .ea-badge-pausa { background: #78350F; color: #FDE68A !important; }

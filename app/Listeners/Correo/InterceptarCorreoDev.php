@@ -2,6 +2,7 @@
 
 namespace App\Listeners\Correo;
 
+use App\Support\Entorno;
 use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\Mime\Address;
@@ -21,7 +22,9 @@ use Symfony\Component\Mime\Email;
  *  - el cuerpo lleva un aviso visible de prueba;
  *  - si `destino` falta o no es válido, el correo se cancela (return false).
  *
- * Apagada (default) no toca nada: devuelve null y el envío sigue igual.
+ * Fuera de producción (App\Support\Entorno) intercepta SIEMPRE, aunque el .env la apague: la base
+ * de dev trae los correos reales de los clientes (2026-10-22). Sin `destino` válido, no sale nada.
+ * En producción, apagada (default) no toca nada: devuelve null y el envío sigue igual.
  */
 class InterceptarCorreoDev
 {
@@ -32,7 +35,7 @@ class InterceptarCorreoDev
     public function handle(MessageSending $event)
     {
         $config = config('mail.interceptar', []);
-        if (empty($config['activo'])) {
+        if (empty($config['activo']) && Entorno::esProduccion()) {
             return null;
         }
 

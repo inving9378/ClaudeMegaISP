@@ -2,6 +2,7 @@
 
 namespace App\Support\Seguridad;
 
+use App\Support\Entorno;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 
@@ -17,7 +18,7 @@ final class CuentasDemo
      */
     public static function servidorProtegido(): bool
     {
-        return app()->environment('production') || (bool) config('updates.enabled');
+        return Entorno::esProduccion();
     }
 
     /** Contraseña nueva para una cuenta demo: aleatoria, nunca fija en el código. */

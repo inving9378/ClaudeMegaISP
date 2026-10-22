@@ -8,6 +8,7 @@ use App\Models\BillingNotification;
 use App\Models\User;
 use App\Services\Finance\Invoice\EnvioPrefactura;
 use App\Support\ArchivoObligatorio;
+use App\Support\Entorno;
 use App\Support\Seguridad\SuperAdministrador;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -68,6 +69,7 @@ class EnviosAutomaticos
 
         return [
             'encendido' => $this->encendido($config),
+            'entorno_pruebas' => $this->entornoPruebas(),
             'pausado' => (bool) $config->envio_pausado,
             'cambiado_por' => $porId ? trim($porId->name . ' ' . $porId->father_last_name) : null,
             'cambiado_at' => $config->envio_pausado_cambiado_at?->toIso8601String(),
@@ -432,6 +434,21 @@ class EnviosAutomaticos
             'cambiada_por' => $por ? trim($por->name . ' ' . $por->father_last_name) : null,
             'cambiada_at' => $config->reactivacion_cambiada_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * Fuera de producción, a dónde va el correo (el buzón de pruebas, enmascarado; null = se cancela)
+     * y que el WhatsApp de facturación está bloqueado. En producción, null.
+     */
+    private function entornoPruebas(): ?array
+    {
+        if (Entorno::esProduccion()) {
+            return null;
+        }
+        $destino = trim((string) config('mail.interceptar.destino'));
+        $buzon = filter_var($destino, FILTER_VALIDATE_EMAIL) ? preg_replace('/^(.).*(@.*)$/', '$1•••$2', $destino) : null;
+
+        return ['buzon' => $buzon, 'prefijo' => (string) config('mail.interceptar.prefijo', '[DEV — PRUEBA]')];
     }
 
     /** BILLING_PROFORMA_ANTICIPADA y los días de anticipo, sin abrir el .env. */

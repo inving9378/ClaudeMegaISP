@@ -341,4 +341,18 @@ class EnviosAutomaticosTest extends TestCase
         $this->assertSame('en_espera', DB::table('billing_notifications')->where('id', $id)->value('status'));
         $this->assertSame(0, DB::table('activity_log')->where('description', 'Envíos automáticos encendidos')->where('causer_id', $admin->id)->count());
     }
+
+    public function test_fuera_de_produccion_avisa_y_bloquea_el_whatsapp_de_facturacion(): void
+    {
+        config(['updates.enabled' => false, 'mail.interceptar.destino' => 'pruebas@example.test', 'billing.whatsapp_fallback_enabled' => true]);
+        $estado = $this->envios->estado();
+        $this->assertSame('p•••@example.test', $estado['entorno_pruebas']['buzon']);
+        $whatsapp = new ReactivacionEnvios(['etapa' => 'todos', 'whatsapp' => true, 'limite_por_corrida' => 1, 'limite_diario' => 1]);
+        $this->assertFalse($whatsapp->permiteWhatsApp(), 'Fuera de producción el WhatsApp de facturación no sale.');
+        $this->assertSame('apagado', app(\App\Services\Finance\Billing\DocumentoWhatsAppService::class)->enviar(new \App\Models\Invoice())['status']);
+
+        config(['updates.enabled' => true]);
+        $this->assertNull($this->envios->estado()['entorno_pruebas'], 'En producción no hay aviso.');
+        $this->assertTrue($whatsapp->permiteWhatsApp());
+    }
 }

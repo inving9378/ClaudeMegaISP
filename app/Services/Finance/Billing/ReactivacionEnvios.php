@@ -3,6 +3,7 @@
 namespace App\Services\Finance\Billing;
 
 use App\Models\BillingConfig;
+use App\Support\Entorno;
 use Closure;
 use Illuminate\Support\Facades\DB;
 
@@ -172,7 +173,8 @@ class ReactivacionEnvios
     /** WhatsApp necesita su propia aprobación además del flag de respaldo que ya existía. */
     public function permiteWhatsApp(): bool
     {
-        return $this->etapa() !== self::CERRADO && ! empty($this->cfg['whatsapp']) && (bool) config('billing.whatsapp_fallback_enabled');
+        // Fuera de producción nunca: la base de dev trae los teléfonos reales de los clientes.
+        return Entorno::esProduccion() && $this->etapa() !== self::CERRADO && ! empty($this->cfg['whatsapp']) && (bool) config('billing.whatsapp_fallback_enabled');
     }
 
     /** @return int[] */

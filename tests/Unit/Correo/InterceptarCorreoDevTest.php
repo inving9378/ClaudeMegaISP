@@ -46,9 +46,9 @@ class InterceptarCorreoDevTest extends TestCase
         config(['mail.interceptar' => ['activo' => true, 'destino' => $destino, 'prefijo' => '[DEV — PRUEBA]']]);
     }
 
-    public function test_apagada_no_toca_el_correo(): void
+    public function test_apagada_en_produccion_no_toca_el_correo(): void
     {
-        config(['mail.interceptar.activo' => false]);
+        config(['mail.interceptar.activo' => false, 'updates.enabled' => true]);
 
         Mail::to('cliente@real.mx')->send($this->correoDePrueba());
 
@@ -57,6 +57,21 @@ class InterceptarCorreoDevTest extends TestCase
         $this->assertEqualsCanonicalizing(['cliente@real.mx', 'copia@real.mx', 'oculta@real.mx'], $correos);
         $this->assertFalse($enviado->getOriginalMessage()->getHeaders()->has(InterceptarCorreoDev::CABECERA));
         $this->assertStringNotContainsString('[DEV — PRUEBA]', $enviado->getOriginalMessage()->getSubject());
+    }
+
+    /** Fuera de producción intercepta aunque el .env la apague (la base de dev trae correos reales). */
+    public function test_fuera_de_produccion_intercepta_aunque_este_apagada(): void
+    {
+        config(['mail.interceptar' => ['activo' => false, 'destino' => self::DESTINO, 'prefijo' => '[DEV — PRUEBA]'], 'updates.enabled' => false]);
+
+        Mail::to('cliente@real.mx')->send($this->correoDePrueba());
+
+        $correos = array_map(fn (Address $a) => $a->getAddress(), $this->enviados()->sole()->getEnvelope()->getRecipients());
+        $this->assertSame([self::DESTINO], $correos);
+
+        config(['mail.interceptar.destino' => null]);
+        Mail::to('cliente@real.mx')->send($this->correoDePrueba());
+        $this->assertCount(1, $this->enviados(), 'Sin buzón de pruebas, fuera de producción no sale nada.');
     }
 
     public function test_activa_deja_un_solo_destinatario_sin_originales(): void

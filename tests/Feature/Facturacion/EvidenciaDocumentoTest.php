@@ -33,7 +33,9 @@ class EvidenciaDocumentoTest extends TestCase
         parent::setUp();
         Queue::fake();
         Storage::fake(config('billing.pdf_disk', 'local'));
-        config(['mail.default' => 'array', 'mail.mailers.array' => ['transport' => 'array'], 'mail.interceptar.activo' => false]);
+        // Se revisa el correo tal como sale en producción (fuera de ella el interceptor es obligatorio);
+        // el transporte `array` no manda nada.
+        config(['mail.default' => 'array', 'mail.mailers.array' => ['transport' => 'array'], 'mail.interceptar.activo' => false, 'updates.enabled' => true]);
         Mail::purge('array');
         // Sin salida externa: las cuentas de correo del Hub (servicio_asignaciones) mandarían por SMTP
         // real aunque el transporte por defecto sea `array`. Se quitan dentro de la transacción

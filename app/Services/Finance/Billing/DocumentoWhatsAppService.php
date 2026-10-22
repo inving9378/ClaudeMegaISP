@@ -5,6 +5,7 @@ namespace App\Services\Finance\Billing;
 use App\Models\BillingDocumentoEvidencia as Evidencia;
 use App\Models\Invoice;
 use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppGateway;
+use App\Support\Entorno;
 
 /**
  * FAC-09 (item #516): manda por WhatsApp (API oficial de Meta, plantilla de utilidad con el PDF
@@ -30,6 +31,9 @@ class DocumentoWhatsAppService
     /** @return array{status: string, motivo: string, evidencia_id?: ?int, message_id?: ?string} */
     public function enviar(Invoice $invoice, ?string $telefono = null): array
     {
+        if (! Entorno::esProduccion()) {
+            return ['status' => 'apagado', 'motivo' => 'entorno de pruebas: el WhatsApp de facturación no sale'];
+        }
         $cfg = (array) config('billing.whatsapp_documento', []);
         if (empty($cfg['activo'])) {
             return ['status' => 'apagado', 'motivo' => 'billing.whatsapp_documento.activo = false'];
