@@ -79,9 +79,10 @@ class BillingDocumentService
     }
 
     /**
-     * Genera Ticket + Recibo para un pago confirmado.
-     * Idempotente por (payment_id, document_type).
-     * El Ticket nunca se envía por correo salvo billing_config.send_ticket_email.
+     * Pago confirmado: el recibo (REC-) entra a la cola de envío. El ticket de caja (TKT-) ya no se
+     * encola (#580, decisión de Irving 2026-10-22): es solo para imprimir en caja y se reenvía a
+     * mano desde la ficha del cliente (ticketPdf()). El nombre del método se conserva por sus
+     * llamadores.
      */
     public function generarTicketYRecibo(Payment $payment): void
     {
@@ -96,35 +97,6 @@ class BillingDocumentService
         $subtotal = round(collect($items)->sum('subtotal'), 2);
         $tax      = round(collect($items)->sum('tax'), 2);
         $total    = (float) $payment->amount;
-
-        // ── Ticket ──
-        $this->upsertDocumento(
-            payment: $payment,
-            client: $client,
-            type: BillingNotification::TYPE_TICKET,
-            pdfView: 'billing.ticket',
-            viewData: [
-                'folio'      => 'TKT-' . str_pad($payment->id, 8, '0', STR_PAD_LEFT),
-                'fecha'      => Carbon::parse($payment->date)->format('d/m/Y'),
-                'hora'       => Carbon::parse($payment->date)->format('H:i'),
-                'cajero'     => optional(\App\Models\User::find($payment->add_by))->name ?? 'Sistema',
-                'client'     => $client,
-                'company'    => $company,
-                'items'      => $items,
-                'subtotal'   => $subtotal,
-                'tax'        => $tax,
-                'total'      => $total,
-                'metodoPago' => $method,
-                'referencia' => $payment->receipt ?? null,
-                'payment'    => $payment,
-            ],
-            fileName: "ticket_{$payment->id}.pdf",
-            sendEmail: (bool) $config->send_ticket_email,
-            subject: null,
-            window: BillingNotification::makeWindow($config->windowHours()),
-            // FAC-04/05: un ticket que no se va a enviar no necesita PDF (nadie lo descarga).
-            generarPdf: (bool) $config->send_ticket_email,
-        );
 
         // ── Recibo ──
         $this->upsertDocumento(
@@ -151,6 +123,39 @@ class BillingDocumentService
             subject: "Recibo de pago #{$folio} — {$company->company_name}",
             window: BillingNotification::makeWindow($config->windowHours()),
         );
+    }
+
+    /**
+     * #580: el ticket de caja (TKT-) de un pago, recién generado, para imprimir en caja o reenviar
+     * a mano desde la ficha. No se guarda en disco ni se encola.
+     *
+     * @return array{folio: string, nombre: string, bytes: string}
+     */
+    public function ticketPdf(Payment $payment): array
+    {
+        $client = $payment->client()->with('client_main_information')->first();
+        $items = $this->buildItemsFromPayment($payment);
+        $folio = 'TKT-' . str_pad($payment->id, 8, '0', STR_PAD_LEFT);
+        $datos = [
+            'folio'      => $folio,
+            'fecha'      => Carbon::parse($payment->date)->format('d/m/Y'),
+            'hora'       => Carbon::parse($payment->date)->format('H:i'),
+            'cajero'     => optional(\App\Models\User::find($payment->add_by))->name ?? 'Sistema',
+            'client'     => $client,
+            'company'    => $this->getCompany(),
+            'items'      => $items,
+            'subtotal'   => round(collect($items)->sum('subtotal'), 2),
+            'tax'        => round(collect($items)->sum('tax'), 2),
+            'total'      => (float) $payment->amount,
+            'metodoPago' => $payment->payment_method?->type ?? 'Efectivo',
+            'referencia' => $payment->receipt ?? null,
+            'payment'    => $payment,
+        ];
+        // Papel de 80 mm (impresora de caja); el alto crece con los conceptos.
+        $alto = 430 + 22 * count($items);
+        $pdf = Pdf::loadView('billing.ticket', $datos)->setPaper([0, 0, 226.77, $alto])->setOption('isFontSubsettingEnabled', true);
+
+        return ['folio' => $folio, 'nombre' => "ticket_{$folio}.pdf", 'bytes' => $pdf->output()];
     }
 
     /**

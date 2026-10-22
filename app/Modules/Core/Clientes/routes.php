@@ -185,6 +185,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
                 Route::post('/destroy/{id}', [ClientPaymentController::class, 'destroy']);
                 Route::post('/table', [ClientPaymentController::class, 'table']);
                 Route::get('/pdf/{id}', [ClientPaymentController::class, 'getPrintPdf']);
+                // #580: ticket de caja (TKT-) para imprimir y reenviar a mano; ya no se encola.
+                Route::get('/ticket/{id}', [\App\Modules\Core\Clientes\Controllers\TicketCajaController::class, 'ver'])->whereNumber('id');
+                Route::get('/ticket/{id}/pdf', [\App\Modules\Core\Clientes\Controllers\TicketCajaController::class, 'pdf'])->whereNumber('id');
+                Route::post('/ticket/{id}/enviar', [\App\Modules\Core\Clientes\Controllers\TicketCajaController::class, 'enviar'])->whereNumber('id');
                 Route::post('/get-totals/{id}', [ClientPaymentController::class, 'getTotals']);
                 Route::post('/get-cost-all-service-active/{id}', [ClientPaymentController::class, 'getCostAllServiceActive']);
                 Route::post('/get-active-service-expiration/{id}', [ClientPaymentController::class, 'getActiveServiceExpiration']);

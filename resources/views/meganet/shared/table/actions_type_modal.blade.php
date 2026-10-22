@@ -3,6 +3,10 @@
         <a href="{{ $documentslip }}" data-toggle="tooltip" data-placement="top" title="Descargar Documento"
             target="_black"><i class="fas fa-file-pdf"></i></a>
     @endif
+    @if (!empty($ticket))
+        <a href="{{ $ticket }}" data-toggle="tooltip" data-placement="top" title="Ticket de caja (imprimir o reenviar)"
+            target="_blank" rel="noopener"><i class="fas fa-receipt"></i></a>
+    @endif
     @if (isset($document))
         <a href="{{ $document }}" data-toggle="tooltip" data-placement="top" title="Descargar Documento" download><i
                 class="fas fa-download"></i></a>

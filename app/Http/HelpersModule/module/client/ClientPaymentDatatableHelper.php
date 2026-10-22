@@ -104,7 +104,9 @@ class ClientPaymentDatatableHelper extends HelperDatatable
                     'group' => 'client_payroll_payment',
                     'submodule' => 'client',
                     'document' => $document,
-                    'documentslip' => $document_slip
+                    'documentslip' => $document_slip,
+                    // #580: ticket de caja para imprimir o reenviar a mano.
+                    'ticket' => $value->id ? url('/cliente/billing/payment/ticket/' . $value->id) : null,
                 ];
 
                 if ($type_modal_edit) $info = Arr::add($info, 'modal', $request['request']->modal['modal']);

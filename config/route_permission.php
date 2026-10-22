@@ -211,9 +211,12 @@ return [
     ],
     'client_payroll_payment_add_client' => [
         '/cliente/billing/payment/crear/{id}',
+        '/cliente/billing/payment/ticket/{id}/enviar',
     ],
     'client_payroll_payment_view_client' => [
         '/cliente/billing/payment/table',
+        '/cliente/billing/payment/ticket/{id}',
+        '/cliente/billing/payment/ticket/{id}/pdf',
     ],
     'client_payroll_payment_edit_client' => [
         'cliente/billing/payment/update/{id}'

@@ -222,21 +222,23 @@ class FacturaPagadaReemplazaReciboTest extends TestCase
 
     // ─── Ticket ───────────────────────────────────────────────────────────────────
 
-    public function test_ticket_sin_pdf_si_no_se_envia_y_con_pdf_si_se_envia(): void
+    /** #580 (decisión de Irving 2026-10-22): el ticket es solo para caja; se genera al momento. */
+    public function test_el_ticket_no_se_encola_ni_con_send_ticket_email_y_se_genera_al_momento(): void
     {
         $cliente = $this->cliente();
 
         $sin = $this->pago($cliente, self::CLIENTE_LEGACY);
-        $ticket = BillingNotification::where('payment_id', $sin->id)->where('document_type', BillingNotification::TYPE_TICKET)->sole();
-        $this->assertNull($ticket->pdf_path);
-        $this->assertFalse($ticket->send_by_email);
+        $this->assertSame(0, BillingNotification::where('payment_id', $sin->id)->where('document_type', BillingNotification::TYPE_TICKET)->count());
         $this->assertNotNull($this->recibo($sin)->pdf_path, 'el recibo se sigue generando (lo descarga la app)');
 
         DB::table('billing_config')->update(['send_ticket_email' => 1]);
         $con = $this->pago($cliente, self::CLIENTE_LEGACY);
-        $ticket2 = BillingNotification::where('payment_id', $con->id)->where('document_type', BillingNotification::TYPE_TICKET)->sole();
-        $this->assertNotNull($ticket2->pdf_path);
-        Storage::disk(config('billing.pdf_disk', 'local'))->assertExists($ticket2->pdf_path);
+        $this->assertSame(0, BillingNotification::where('payment_id', $con->id)->where('document_type', BillingNotification::TYPE_TICKET)->count(),
+            'send_ticket_email ya no encola tickets');
+
+        $ticket = app(\App\Services\Finance\Billing\BillingDocumentService::class)->ticketPdf($con);
+        $this->assertSame('TKT-' . str_pad($con->id, 8, '0', STR_PAD_LEFT), $ticket['folio']);
+        $this->assertStringStartsWith('%PDF', $ticket['bytes']);
     }
 
     // ─── Revalidación al enviar (el comando) ──────────────────────────────────────
