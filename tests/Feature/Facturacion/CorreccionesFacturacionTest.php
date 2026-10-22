@@ -42,6 +42,15 @@ class CorreccionesFacturacionTest extends TestCase
 
     // ─── Datos sintéticos ────────────────────────────────────────────────────
 
+    /** La carpeta queda sin permiso de escritura, como cuando la creó otro usuario del servidor. */
+    private function carpetaSinPermiso(string $dir): void
+    {
+        Storage::disk('local')->makeDirectory($dir);
+        $ruta = Storage::disk('local')->path($dir);
+        chmod($ruta, 0500);
+        $this->beforeApplicationDestroyed(fn () => @chmod($ruta, 0755));
+    }
+
     private function cliente(string $corte = '2026-07-04 23:59:59'): int
     {
         $usuario = (int) DB::table('users')->value('id');
@@ -275,5 +284,17 @@ class CorreccionesFacturacionTest extends TestCase
         $this->assertSame(200, $r->status(), (string) $r->getContent());
         $r->assertJsonPath('estado', Correccion::APLICADA);
         $this->assertSame(Invoice::STATUS_CANCELLED, Invoice::find($x['dup'])->status);
+    }
+
+    public function test_sin_respaldo_no_se_corrige_y_queda_pendiente(): void
+    {
+        $this->carpetaSinPermiso(CorreccionesFacturacion::DIR);
+        $x = $this->fantasmaDuplicada();
+
+        $this->correr();
+
+        $this->assertNotSame(Invoice::STATUS_CANCELLED, Invoice::find($x['dup'])->status, 'Sin respaldo no se toca la factura.');
+        $c = Correccion::where('client_id', $x['c'])->sole();
+        $this->assertSame(Correccion::PENDIENTE, $c->estado, 'Queda en «Correcciones pendientes» para aprobarla cuando se pueda respaldar.');
     }
 }

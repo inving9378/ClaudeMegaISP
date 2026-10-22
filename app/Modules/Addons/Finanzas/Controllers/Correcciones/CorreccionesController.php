@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Finanzas\Controllers\Correcciones;
 
 use App\Models\FacturacionCorreccion as Correccion;
 use App\Services\Finance\Billing\CorreccionesFacturacion;
+use App\Support\ArchivoObligatorioException;
 use App\Support\Seguridad\SuperAdministrador;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
@@ -83,6 +84,8 @@ class CorreccionesController extends Controller
             return response()->json(['message' => $mensaje, 'estado' => $c->estado]);
         } catch (InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
+        } catch (ArchivoObligatorioException $e) {
+            return response()->json(['message' => $e->getMessage()], 500);
         }
     }
 

@@ -5,8 +5,11 @@ namespace App\Console\Commands\Active;
 use App\Models\Balance;
 use App\Modules\Core\Clientes\Models\Client;
 use App\Services\Finance\Billing\ReacomodoPagos;
+use App\Support\ArchivoObligatorio;
+use App\Support\ArchivoObligatorioException;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 
@@ -87,7 +90,13 @@ class ReacomodarPagosClienteCommand extends Command
 
         $base = 'respaldos/facturacion/reacomodo-cliente-' . $cliente->id . '-' . now()->format('Ymd-His');
         $respaldo = $this->reacomodo->respaldo($cliente, ['comando' => 'facturacion:reacomodar-pagos', 'parametros' => $this->options() + ['cliente' => $cliente->id]]);
-        Storage::disk('local')->put($base . '.json', json_encode($respaldo, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        try {
+            ArchivoObligatorio::guardar($base . '.json', json_encode($respaldo, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        } catch (ArchivoObligatorioException $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
 
         $deshacer = DB::transaction(function () use ($cliente, $plan, $motivo) {
             Client::where('id', $cliente->id)->lockForUpdate()->first();
@@ -95,7 +104,12 @@ class ReacomodarPagosClienteCommand extends Command
             return $this->reacomodo->aplicar($cliente, $plan, $motivo);
         });
 
-        Storage::disk('local')->put($base . '-deshacer.sql', implode("\n", $deshacer) . "\n");
+        // Ya se escribió: si el SQL para deshacer no se guarda, se muestra aquí y queda en el log.
+        if (! Storage::disk('local')->put($base . '-deshacer.sql', implode("\n", $deshacer) . "\n")) {
+            $this->warn("No se pudo guardar storage/app/{$base}-deshacer.sql. SQL para deshacer:");
+            $this->line(implode("\n", $deshacer));
+            Log::warning('[facturacion:reacomodar-pagos] SQL para deshacer sin archivo', ['cliente' => $cliente->id, 'sql' => $deshacer]);
+        }
         Storage::disk('local')->put($base . '-reporte.txt', implode("\n", $this->reporte) . "\n");
 
         $this->info('Hecho. Respaldo, SQL para deshacer y reporte en storage/app/' . $base . '{.json,-deshacer.sql,-reporte.txt}');

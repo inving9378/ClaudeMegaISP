@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands\Active;
 
+use App\Support\ArchivoObligatorio;
+use App\Support\ArchivoObligatorioException;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -108,7 +110,11 @@ class CancelarColasCobroCommand extends Command
         ];
         $json = json_encode($manifiesto, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
         $ruta = self::DIRECTORIO . '/' . $cola . '-' . now()->format('Ymd-His') . '.json';
-        Storage::disk('local')->put($ruta, $json);
+        try {
+            ArchivoObligatorio::guardar($ruta, $json);
+        } catch (ArchivoObligatorioException $e) {
+            return $this->fallar($e->getMessage());
+        }
 
         $this->info("Manifiesto: storage/app/{$ruta}");
         $this->info("Cola {$cola}: {$manifiesto['total']} filas (tipos " . implode(',', $tipos) . '; estados ' . implode(',', $estados)
@@ -150,6 +156,20 @@ class CancelarColasCobroCommand extends Command
         $resultado = ['manifiesto' => $ruta, 'manifiesto_sha256' => $sha, 'tabla' => $tabla, 'cancelado' => $cancelado,
             'columna_nota' => $colNota, 'ejecutado_at' => now()->toIso8601String(), 'cancelados' => [], 'omitidos' => []];
 
+        // Un archivo por ejecución, nunca se sobrescribe (cada uno es lo único que permite revertir esa corrida).
+        // Se aparta ANTES de cancelar: si no se puede escribir, no se cancela nada.
+        $salida = null;
+        if ($ejecutar) {
+            do {
+                $salida = preg_replace('/\.json$/', '', $ruta) . '-resultado-' . now()->format('Ymd-His') . '-' . bin2hex(random_bytes(3)) . '.json';
+            } while (Storage::disk('local')->exists($salida));
+            try {
+                ArchivoObligatorio::guardar($salida, json_encode($resultado, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+            } catch (ArchivoObligatorioException $e) {
+                return $this->fallar($e->getMessage());
+            }
+        }
+
         foreach (array_chunk(array_keys($foto), max(1, (int) $this->option('lote'))) as $ids) {
             DB::transaction(function () use ($tabla, $ids, $foto, $cancelado, $colNota, $nota, $ejecutar, &$resultado) {
                 $actuales = DB::table($tabla)->whereIn('id', $ids)->when($ejecutar, fn ($q) => $q->lockForUpdate())
@@ -189,11 +209,15 @@ class CancelarColasCobroCommand extends Command
             return self::SUCCESS;
         }
 
-        // Un archivo por ejecución, nunca se sobrescribe (cada uno es lo único que permite revertir esa corrida).
-        do {
-            $salida = preg_replace('/\.json$/', '', $ruta) . '-resultado-' . now()->format('Ymd-His') . '-' . bin2hex(random_bytes(3)) . '.json';
-        } while (Storage::disk('local')->exists($salida));
-        Storage::disk('local')->put($salida, json_encode($resultado, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT));
+        $final = json_encode($resultado, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+        if (! Storage::disk('local')->put($salida, $final)) {
+            // Ya se canceló: el resultado no se pierde, queda en el log y en pantalla para revertir a mano.
+            Log::critical('[billing:cancelar-colas] no se pudo guardar el resultado para revertir', ['ruta' => $salida, 'resultado' => $resultado]);
+            $this->error("No se pudo guardar storage/app/{$salida}. Resultado para revertir:");
+            $this->line($final);
+
+            return self::FAILURE;
+        }
         Log::info('[billing:cancelar-colas] ejecutado', ['tabla' => $tabla, 'cancelados' => $n, 'omitidos' => $o, 'manifiesto_sha256' => $sha, 'resultado' => $salida]);
         $this->info("Cancelados: {$n}. Omitidos: {$o}. Resultado (para revertir): storage/app/{$salida}");
 

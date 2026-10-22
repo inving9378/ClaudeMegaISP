@@ -7,11 +7,12 @@ use App\Models\BillingConfig;
 use App\Models\BillingNotification;
 use App\Models\User;
 use App\Services\Finance\Invoice\EnvioPrefactura;
+use App\Support\ArchivoObligatorio;
 use App\Support\Seguridad\SuperAdministrador;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 
 /**
@@ -299,8 +300,10 @@ class EnviosAutomaticos
         if ($n === 0) {
             return [0, null, []];
         }
-        $archivo = CancelarColasCobroCommand::DIRECTORIO . "/{$prefijoArchivo}-" . now()->format('Ymd-His') . '.json';
-        Storage::disk('local')->put($archivo, json_encode($resultado, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        // El sufijo evita que dos cambios en el mismo segundo se pisen el archivo (cada uno es lo único que lo revierte).
+        $archivo = CancelarColasCobroCommand::DIRECTORIO . "/{$prefijoArchivo}-" . now()->format('Ymd-His') . '-' . Str::lower(Str::random(4)) . '.json';
+        // Sin archivo no hay cómo revertir: si no se guarda, la excepción deshace el cambio (corre en transacción).
+        ArchivoObligatorio::guardar($archivo, json_encode($resultado, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 
         return [$n, 'storage/app/' . $archivo, $porTipo];
     }

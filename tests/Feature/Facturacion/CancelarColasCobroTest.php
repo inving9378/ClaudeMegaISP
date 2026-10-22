@@ -35,6 +35,15 @@ class CancelarColasCobroTest extends TestCase
         $this->ids[] = $this->fila('pending', '2026-10-15 10:00:00');
     }
 
+    /** La carpeta queda sin permiso de escritura, como cuando la creó otro usuario del servidor. */
+    private function carpetaSinPermiso(string $dir): void
+    {
+        Storage::disk('local')->makeDirectory($dir);
+        $ruta = Storage::disk('local')->path($dir);
+        chmod($ruta, 0500);
+        $this->beforeApplicationDestroyed(fn () => @chmod($ruta, 0755));
+    }
+
     private function fila(string $estado, string $fecha): int
     {
         return DB::table('invoice_emails')->insertGetId(['client_id' => 1, 'via' => 'fac07-sintetico', 'status' => $estado,
@@ -114,5 +123,15 @@ class CancelarColasCobroTest extends TestCase
         Storage::disk('local')->put($manifiesto, json_encode($datos));
 
         $this->assertStringContainsString('No se aplica', $this->correr(['--manifiesto' => $manifiesto]));
+    }
+
+    public function test_no_cancela_si_no_puede_guardar_el_resultado_para_revertir(): void
+    {
+        [$manifiesto, $sha] = $this->preparar();
+        $this->carpetaSinPermiso(dirname($manifiesto));
+
+        $salida = $this->correr(['--manifiesto' => $manifiesto, '--ejecutar' => true, '--sha256' => $sha]);
+        $this->assertStringContainsString('No se pudo guardar', $salida);
+        $this->assertSame(['pending', 'pending', 'pending', 'sent', 'pending'], $this->estados());
     }
 }

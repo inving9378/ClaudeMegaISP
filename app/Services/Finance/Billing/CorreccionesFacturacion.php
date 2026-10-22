@@ -6,6 +6,7 @@ use App\Models\FacturacionCorreccion as Correccion;
 use App\Models\Invoice;
 use App\Models\User;
 use App\Modules\Core\Clientes\Models\Client;
+use App\Support\ArchivoObligatorio;
 use App\Support\Seguridad\SuperAdministrador;
 use Carbon\Carbon;
 use Closure;
@@ -37,7 +38,7 @@ class CorreccionesFacturacion
 {
     public const LOG = 'facturacion-correcciones';
 
-    private const DIR = 'respaldos/facturacion';
+    public const DIR = 'respaldos/facturacion';
 
     /** Mientras es true nada se aplica solo (recálculo pedido desde la pantalla). */
     private bool $soloProponer = false;
@@ -102,6 +103,8 @@ class CorreccionesFacturacion
             } catch (Throwable $e) {
                 Log::warning("[facturacion:correcciones] cliente {$id}: {$e->getMessage()}");
                 $filas = [['cliente' => (int) $id, 'categoria' => '', 'decision' => 'error', 'detalle' => $e->getMessage(), 'clave' => null]];
+                // Lo que el cliente tiene pendiente no se retira por un error de esta vuelta (p. ej. sin respaldo).
+                array_push($tocadas, ...Correccion::where('client_id', (int) $id)->where('estado', Correccion::PENDIENTE)->pluck('clave')->all());
             }
             foreach ($filas as $f) {
                 if ($f['clave']) {
@@ -338,7 +341,7 @@ class CorreccionesFacturacion
     {
         $base = self::DIR . "/correccion-{$c->id}-cliente-{$cliente->id}-" . now()->format('Ymd-His');
         $respaldo = $this->reacomodo->respaldo($cliente, ['origen' => 'facturacion_correcciones', 'correccion' => $c->id, 'parametros' => $c->parametros]);
-        Storage::disk('local')->put($base . '.json', json_encode($respaldo, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        ArchivoObligatorio::guardar($base . '.json', json_encode($respaldo, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
         $deshacer = DB::transaction(function () use ($c, $cliente, $planear) {
             Client::where('id', $cliente->id)->lockForUpdate()->first();
@@ -352,7 +355,10 @@ class CorreccionesFacturacion
         });
 
         $sql = implode("\n", $deshacer) . "\n";
-        Storage::disk('local')->put($base . '-deshacer.sql', $sql);
+        // Ya se escribió: si el archivo no se guarda, el SQL queda igual en la columna deshacer_sql.
+        if (! Storage::disk('local')->put($base . '-deshacer.sql', $sql)) {
+            Log::warning("[correcciones] no se pudo guardar storage/app/{$base}-deshacer.sql; el SQL está en facturacion_correcciones.deshacer_sql", ['correccion' => $c->id]);
+        }
         $c->update(['estado' => Correccion::APLICADA, 'resuelta_por' => $user?->id, 'resuelta_at' => now(), 'respaldo_path' => 'storage/app/' . $base . '.json', 'deshacer_sql' => $sql]);
 
         $log = activity(self::LOG)->performedOn($c)->withProperties(['cliente' => $cliente->id, 'tipo' => $c->tipo, 'origen' => $c->origen, 'parametros' => $c->parametros]);

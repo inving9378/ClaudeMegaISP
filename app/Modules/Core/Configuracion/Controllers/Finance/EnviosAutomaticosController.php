@@ -3,6 +3,7 @@
 namespace App\Modules\Core\Configuracion\Controllers\Finance;
 
 use App\Services\Finance\Billing\EnviosAutomaticos;
+use App\Support\ArchivoObligatorioException;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -90,6 +91,8 @@ class EnviosAutomaticosController extends Controller
         } catch (InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage(), 'conteo' => $this->envios->conteoDepuracion((int) $datos['horas']),
                 'estado' => $this->envios->estado()], 422);
+        } catch (ArchivoObligatorioException $e) {
+            return response()->json(['message' => $e->getMessage(), 'estado' => $this->envios->estado()], 500);
         }
     }
 
@@ -99,6 +102,8 @@ class EnviosAutomaticosController extends Controller
             return response()->json($accion() + ['estado' => $this->envios->estado()]);
         } catch (InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage(), 'estado' => $this->envios->estado()], 422);
+        } catch (ArchivoObligatorioException $e) {
+            return response()->json(['message' => $e->getMessage(), 'estado' => $this->envios->estado()], 500);
         }
     }
 

@@ -40,6 +40,15 @@ class EnviosAutomaticosTest extends TestCase
         $this->assertGreaterThan(0, $this->clienteId, 'La BD de pruebas necesita al menos un cliente.');
     }
 
+    /** La carpeta queda sin permiso de escritura, como cuando la creó otro usuario del servidor. */
+    private function carpetaSinPermiso(string $dir): void
+    {
+        Storage::disk('local')->makeDirectory($dir);
+        $ruta = Storage::disk('local')->path($dir);
+        chmod($ruta, 0500);
+        $this->beforeApplicationDestroyed(fn () => @chmod($ruta, 0755));
+    }
+
     private function usuario(string $rol): User
     {
         $id = DB::table('users')->insertGetId([
@@ -225,5 +234,26 @@ class EnviosAutomaticosTest extends TestCase
 
         $this->expectException(InvalidArgumentException::class);
         $this->envios->reactivar($admin, EnviosAutomaticos::ENVIAR_TODO);
+    }
+
+    public function test_si_no_se_puede_guardar_el_archivo_para_revertir_no_se_depura_nada(): void
+    {
+        Storage::fake('local');
+        $this->carpetaSinPermiso('billing/manifiestos');
+        $admin = $this->usuario('super-administrator');
+        $id = $this->aviso('recibo', 100);
+
+        try {
+            $this->envios->depurar($admin, 48, null, 1);
+            $this->fail('Debía fallar sin archivo para revertir.');
+        } catch (\App\Support\ArchivoObligatorioException $e) {
+            $this->assertStringContainsString('No se cambió nada', $e->getMessage());
+        }
+        $this->assertSame('en_espera', DB::table('billing_notifications')->where('id', $id)->value('status'));
+
+        $this->actingAs($admin)->postJson('/configuracion/envios-automaticos/depurar', ['horas' => 48, 'esperado' => 1, 'confirmacion' => 'DEPURAR'])
+            ->assertStatus(500)->assertJsonPath('message', fn ($m) => str_contains($m, 'No se pudo guardar'));
+        $this->assertSame('en_espera', DB::table('billing_notifications')->where('id', $id)->value('status'));
+        $this->assertSame(0, DB::table('activity_log')->where('description', 'Cola de avisos depurada')->where('causer_id', $admin->id)->count());
     }
 }
