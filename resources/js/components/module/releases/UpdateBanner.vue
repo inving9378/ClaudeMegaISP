@@ -130,6 +130,10 @@
                 <i class="bi bi-exclamation-triangle me-1"></i> No se pudo verificar
             </span>
         </div>
+        <!-- Seguridad V1.64: repositorio privado sin token (o token inválido) se dice a la vista. -->
+        <div v-if="checkFailed && avisoToken" class="alert alert-warning py-2 px-3 small mb-3">
+            <i class="bi bi-key me-1"></i> {{ checkError }}
+        </div>
 
         <!-- Modal de mejoras -->
         <div v-if="showChangelog" class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
@@ -219,6 +223,8 @@ export default {
         const upToDate        = ref(false);
         const checkFailed     = ref(false);   // no se pudo consultar GitHub (≠ estás al día)
         const checkError      = ref(null);    // motivo, como tooltip del aviso
+        const checkReason     = ref(null);    // código del motivo (seguridad V1.64)
+        const avisoToken      = computed(() => ['repo_privado_sin_token', 'token_invalido', 'token_sin_acceso'].includes(checkReason.value));
 
         // ── Deploy en curso (auto-reenganche + banner persistente) ──────────────
         const activeDeploy = ref(null); // { id, version, status, percent, currentStep, progressText }
@@ -286,6 +292,7 @@ export default {
             showCheckButton.value = !!data.show_check_button;
             checkFailed.value     = !!data.check_failed;
             checkError.value      = data.check_error || null;
+            checkReason.value     = data.check_reason || null;
             if (data.update_available && data.release) {
                 updateAvailable.value = true;
                 release.value = data.release;
@@ -383,7 +390,7 @@ export default {
 
         return {
             enabled, showCheckButton, updateAvailable, release, showChangelog, applying, progressModal, checking, upToDate,
-            checkFailed, checkError, manualStepsList,
+            checkFailed, checkError, avisoToken, manualStepsList,
             checkNow, applyUpdate, onDeployClosed, dismiss, formatDate,
             activeDeploy, activeRunning, activeBannerClass, reopenModal, reloadPage, dismissActive,
         };

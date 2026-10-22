@@ -76,11 +76,29 @@ class GitHubUpdateService
     /**
      * Estado "no se pudo consultar", distinguible de "no hay actualización".
      */
-    private function checkFailed(string $motivo): array
+    private function checkFailed(string $motivo, ?string $codigo = null): array
     {
         Log::channel('single')->warning("GitHubUpdateService: {$motivo}");
 
-        return ['check_failed' => true, 'error' => $motivo];
+        return ['check_failed' => true, 'error' => $motivo, 'motivo' => $codigo];
+    }
+
+    /**
+     * Seguridad V1.64: token de solo lectura para un repositorio privado. Primero el del Hub
+     * (Integraciones → GitHub, cifrado en la BD); si no hay, GITHUB_READ_TOKEN del .env.
+     */
+    public static function tokenDeLectura(): string
+    {
+        try {
+            $token = \App\Services\Core\ApiIntegrationService::instance()->getKey('github');
+            if ($token) {
+                return $token;
+            }
+        } catch (\Throwable) {
+            // Sin la tabla del Hub (instalación a medias) se usa el respaldo.
+        }
+
+        return (string) config('updates.read_token', '');
     }
 
     public function clearCache(): void
@@ -90,7 +108,7 @@ class GitHubUpdateService
 
     private function fetchFromGitHub(): ?array
     {
-        $token = config('updates.read_token', '');
+        $token = self::tokenDeLectura();
         $repo  = config('updates.repo', '');
 
         if (empty($repo)) {
@@ -107,7 +125,15 @@ class GitHubUpdateService
                 ->get("https://api.github.com/repos/{$repo}/releases/latest");
 
             if (!$response->successful()) {
-                return $this->checkFailed("GitHub respondió {$response->status()} al consultar el último release.");
+                // Seguridad V1.64: un repositorio privado responde 404 sin token. Se dice tal
+                // cual, para que no parezca una falla de red.
+                $donde = 'Cárgalo en Integraciones → GitHub (actualizaciones).';
+                return match (true) {
+                    $response->status() === 404 && !$token => $this->checkFailed("El repositorio de GitHub es privado y este servidor no tiene token de lectura. {$donde}", 'repo_privado_sin_token'),
+                    $response->status() === 401 => $this->checkFailed("El token de lectura de GitHub no es válido o ya venció. {$donde}", 'token_invalido'),
+                    $response->status() === 404 => $this->checkFailed("El token de lectura de GitHub no tiene acceso al repositorio {$repo}. {$donde}", 'token_sin_acceso'),
+                    default => $this->checkFailed("GitHub respondió {$response->status()} al consultar el último release."),
+                };
             }
 
             $latest = $response->json();
@@ -168,7 +194,7 @@ class GitHubUpdateService
         $base                  = $this->buildResult($latest);
         $base['installed_tag'] = $installedTag;
 
-        $token = config('updates.read_token', '');
+        $token = self::tokenDeLectura();
         $repo  = config('updates.repo', '');
 
         $versions = $installedTag
