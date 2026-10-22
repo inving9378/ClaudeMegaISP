@@ -275,6 +275,7 @@ const atendida = computed(() => dialogo.value?.accion === "descartar" && dialogo
 .cf-dark .cf-head { background: #26262c; color: #e5e7eb; border-color: #2c2c34; }
 .cf-dark .cf-cliente { color: #e5e7eb; }
 .cf-dark .cf-nota { color: #9ca3af; }
+.cf-dark .cf-label { color: #cbd5e1 !important; }
 .cf-dark .cf-tabla { color: #e5e7eb; }
 .cf-dark .cf-cambia td { background: #2a2414; }
 .cf-dark .cf-opcion { border-color: #2c2c34; }
