@@ -3,6 +3,7 @@
 namespace App\Modules\Core\Configuracion\Controllers\Finance;
 
 use App\Services\Finance\Billing\EnviosAutomaticos;
+use App\Services\Finance\Billing\ReactivacionEnvios;
 use App\Support\ArchivoObligatorioException;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
@@ -21,6 +22,7 @@ class EnviosAutomaticosController extends Controller
     public const PALABRA_PAUSAR = 'PAUSAR';
     public const PALABRA_REACTIVAR = 'REACTIVAR';
     public const PALABRA_DEPURAR = 'DEPURAR';
+    public const PALABRA_ETAPA = 'ETAPA';
 
     public function __construct(private EnviosAutomaticos $envios)
     {
@@ -64,6 +66,21 @@ class EnviosAutomaticosController extends Controller
         ], ['por_hora' => 'avisos por hora']);
 
         return $this->responder(fn () => $this->envios->reactivar($request->user(), $datos['opcion'], isset($datos['por_hora']) ? (int) $datos['por_hora'] : null));
+    }
+
+    /** Etapa de reactivación (cerrado → baja → normal), guardada en billing_config. */
+    public function etapa(Request $request): JsonResponse
+    {
+        $this->exigirPermiso();
+        $datos = $request->validate([
+            'nivel' => ['required', Rule::in(ReactivacionEnvios::NIVELES)],
+            'por_corrida' => 'nullable|required_if:nivel,' . ReactivacionEnvios::NIVEL_BAJA . '|integer|min:1|max:' . EnviosAutomaticos::ETAPA_CORRIDA_MAX,
+            'por_dia' => 'nullable|required_if:nivel,' . ReactivacionEnvios::NIVEL_BAJA . '|integer|min:1|max:' . EnviosAutomaticos::ETAPA_DIA_MAX,
+            'confirmacion' => ['required', Rule::in([self::PALABRA_ETAPA])],
+        ], ['confirmacion.in' => 'Escribe ' . self::PALABRA_ETAPA . ' para confirmar.'], ['por_corrida' => 'por corrida', 'por_dia' => 'por día']);
+
+        return $this->responder(fn () => $this->envios->cambiarEtapa($request->user(), $datos['nivel'],
+            isset($datos['por_corrida']) ? (int) $datos['por_corrida'] : null, isset($datos['por_dia']) ? (int) $datos['por_dia'] : null));
     }
 
     public function conteoDepuracion(Request $request): JsonResponse

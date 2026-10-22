@@ -83,7 +83,8 @@ class SendBillingNotificationsCommand extends Command
         $fueraDeEtapa = 0;
         $etapa = app(ReactivacionEnvios::class);
         $enviadosHoy = BillingNotification::where('status', BillingNotification::STATUS_SENT)->whereDate('enviado_at', today())->count();
-        $this->info('Reactivación (FAC-08): etapa ' . $etapa->etapa() . ', cupo de esta corrida ' . $etapa->cupo(0, $enviadosHoy) . '.');
+        $this->info('Reactivación (FAC-08): etapa ' . ($etapa->nivel() ?? $etapa->etapa()) . ', cupo de esta corrida '
+            . ($etapa->sinTope() ? "sin tope de etapa (hasta {$limit})" : $etapa->cupo(0, $enviadosHoy)) . '.');
 
         foreach ($ids as $id) {
             // FAC-08: segunda compuerta detrás de la pausa. Fuera de etapa = se queda en espera.

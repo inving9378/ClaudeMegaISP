@@ -321,6 +321,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/estado', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'estado']);
             Route::post('/pausar', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'pausar']);
             Route::post('/reactivar', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'reactivar']);
+            Route::post('/etapa', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'etapa']);
             Route::get('/depurar/conteo', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'conteoDepuracion']);
             Route::post('/depurar', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'depurar']);
         });

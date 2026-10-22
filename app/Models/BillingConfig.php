@@ -17,6 +17,11 @@ class BillingConfig extends Model
         'envio_pausado_cambiado_at',
         'envio_lote_por_hora',
         'envio_lote_hasta',
+        'reactivacion_nivel',
+        'reactivacion_limite_corrida',
+        'reactivacion_limite_diario',
+        'reactivacion_cambiada_por',
+        'reactivacion_cambiada_at',
     ];
 
     protected $casts = [
@@ -27,6 +32,9 @@ class BillingConfig extends Model
         'envio_pausado_cambiado_at' => 'datetime',
         'envio_lote_por_hora'       => 'integer',
         'envio_lote_hasta'          => 'datetime',
+        'reactivacion_limite_corrida' => 'integer',
+        'reactivacion_limite_diario'  => 'integer',
+        'reactivacion_cambiada_at'  => 'datetime',
     ];
 
     /**

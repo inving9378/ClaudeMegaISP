@@ -37,10 +37,20 @@
                         Aunque estén activos, hoy no sale nada automático: la etapa de reactivación es «cerrado».
                     </p>
                     <div class="ea-etapa">
-                        <b>Segunda compuerta, etapa de reactivación:</b> «{{ estado.etapa.nombre }}» · hasta
-                        {{ estado.etapa.limite_por_corrida }} por corrida y {{ estado.etapa.limite_diario }} por día · se
-                        detiene con {{ estado.etapa.max_errores_por_corrida }} errores · WhatsApp {{ estado.etapa.whatsapp ? "aprobado" : "no aprobado" }}.
-                        <span class="ea-nota">Se cambia en el .env del servidor (BILLING_REACTIVACION_ETAPA y vecinas).</span>
+                        <div class="ea-fila">
+                            <b>Etapa de reactivación:</b>
+                            <span class="ea-badge" :class="etapaVista.clase">{{ etapaVista.nombre }}</span>
+                            <span>{{ etapaVista.detalle }}</span>
+                            <button type="button" class="btn btn-outline-primary btn-sm ms-auto" @click="abrir('etapa')">Cambiar etapa…</button>
+                        </div>
+                        <p class="ea-nota">
+                            <template v-if="estado.etapa.origen === 'pantalla' && estado.etapa.cambiada_at">
+                                Cambiada por {{ estado.etapa.cambiada_por || "un proceso del sistema" }} · {{ fecha(estado.etapa.cambiada_at) }}.
+                            </template>
+                            <template v-else>Hoy viene del .env del servidor (BILLING_REACTIVACION_ETAPA) hasta que se cambie aquí.</template>
+                            Es la segunda compuerta: aunque se quite la pausa, solo sale lo que la etapa permite. Se detiene con
+                            {{ estado.etapa.max_errores_por_corrida }} errores por corrida · WhatsApp {{ estado.etapa.whatsapp ? "aprobado" : "no aprobado" }}.
+                        </p>
                     </div>
                 </div>
             </section>
@@ -117,7 +127,7 @@
                         </p>
                         <p v-if="estado.etapa.nombre === 'cerrado'" class="ea-aviso mb-2">
                             La etapa de reactivación está en «cerrado»: aunque reactives, no sale nada hasta abrir la etapa
-                            en el .env del servidor. Lo que elijas aquí con lo acumulado sí se aplica ahora.
+                            («Cambiar etapa…»). Lo que elijas aquí con lo acumulado sí se aplica ahora.
                         </p>
                         <label class="ea-opcion" :class="{ 'ea-opcion-sel': opcion === 'descartar_48h' }">
                             <input v-model="opcion" type="radio" value="descartar_48h" />
@@ -145,8 +155,44 @@
                                 </span>
                             </span>
                         </label>
-                        <p class="ea-nota">Los límites de la etapa ({{ estado.etapa.limite_diario }} por día) siguen mandando.</p>
+                        <p class="ea-nota">La etapa sigue mandando: {{ etapaVista.nombre }}, {{ etapaVista.detalle }}.</p>
                         <label class="ea-label" for="ea-conf">Escribe REACTIVAR para confirmar</label>
+                        <input id="ea-conf" v-model="confirmacion" class="form-control form-control-sm" autocomplete="off" />
+                    </div>
+                </template>
+                <template v-else-if="dialogo === 'etapa'">
+                    <div class="ea-head">Etapa de reactivación</div>
+                    <div class="ea-body">
+                        <p class="mb-2">Cuánto sale cuando los envíos están activos. Se guarda aquí; no hace falta tocar el .env.</p>
+                        <label class="ea-opcion" :class="{ 'ea-opcion-sel': nivel === 'cerrado' }">
+                            <input v-model="nivel" type="radio" value="cerrado" />
+                            <span><b>Cerrado</b><br />No sale nada automático aunque se quite la pausa.</span>
+                        </label>
+                        <label class="ea-opcion" :class="{ 'ea-opcion-sel': nivel === 'baja' }">
+                            <input v-model="nivel" type="radio" value="baja" />
+                            <span>
+                                <b>Etapa baja</b> <span class="ea-reco">Para empezar</span><br />
+                                Todos los clientes, con tope. Cada corrida es cada 15 minutos.
+                                <span v-if="nivel === 'baja'" class="ea-fila mt-1">
+                                    <input v-model.number="porCorrida" type="number" class="form-control form-control-sm ea-input" min="1"
+                                           :max="estado.opciones.etapa_corrida_max" aria-label="Por corrida" /> por corrida ·
+                                    <input v-model.number="porDia" type="number" class="form-control form-control-sm ea-input" min="1"
+                                           :max="estado.opciones.etapa_dia_max" aria-label="Por día" /> por día
+                                </span>
+                            </span>
+                        </label>
+                        <label class="ea-opcion" :class="{ 'ea-opcion-sel': nivel === 'normal', 'ea-opcion-off': estado.etapa.nivel !== 'baja' }">
+                            <input v-model="nivel" type="radio" value="normal" :disabled="estado.etapa.nivel !== 'baja'" />
+                            <span>
+                                <b>Normal</b><br />
+                                Sin tope de etapa: hasta 100 por corrida, cada 15 minutos.
+                                <template v-if="estado.etapa.nivel !== 'baja'">Se habilita desde la etapa baja.</template>
+                            </span>
+                        </label>
+                        <p v-if="estado.pausado && nivel !== 'cerrado'" class="ea-nota mb-2">
+                            Los envíos están pausados: la etapa se guarda, pero no sale nada hasta reactivarlos.
+                        </p>
+                        <label class="ea-label" for="ea-conf">Escribe ETAPA para confirmar</label>
                         <input id="ea-conf" v-model="confirmacion" class="form-control form-control-sm" autocomplete="off" />
                     </div>
                 </template>
@@ -192,9 +238,9 @@
                 <div v-if="errorAccion" class="ea-error">{{ errorAccion }}</div>
                 <div class="ea-pie">
                     <button type="button" class="btn btn-light btn-sm" :disabled="enviando" @click="cerrar">Cancelar</button>
-                    <button type="button" class="btn btn-sm" :class="dialogo === 'reactivar' ? 'btn-success' : 'btn-danger'"
+                    <button type="button" class="btn btn-sm" :class="{ reactivar: 'btn-success', etapa: 'btn-primary' }[dialogo] || 'btn-danger'"
                             :disabled="enviando || !confirmacionValida || (dialogo === 'depurar' && (contando || !aDepurar))" @click="aplicar">
-                        {{ enviando ? "Aplicando…" : { reactivar: "Reactivar", pausar: "Pausar", depurar: `Cancelar ${numero(aDepurar)}` }[dialogo] }}
+                        {{ enviando ? "Aplicando…" : { reactivar: "Reactivar", pausar: "Pausar", depurar: `Cancelar ${numero(aDepurar)}`, etapa: "Guardar etapa" }[dialogo] }}
                     </button>
                 </div>
             </div>
@@ -207,7 +253,7 @@
  * Configuración › Finanzas › «Envíos automáticos»: estado y control de billing_config.envio_pausado,
  * la cola por tipo y la proforma anticipada. Solo super-administrador (lo exige el servidor).
  * GET /configuracion/envios-automaticos/estado · POST …/pausar · POST …/reactivar ·
- * GET …/depurar/conteo · POST …/depurar.
+ * GET …/depurar/conteo · POST …/depurar · POST …/etapa (etapa de reactivación en billing_config).
  */
 import { computed, onMounted, ref } from "vue";
 import { darkMode } from "../../../../../hook/appConfig";
@@ -229,7 +275,20 @@ const conteo = ref(null);
 const contando = ref(false);
 let temporizadorConteo = null;
 
-const palabra = computed(() => ({ reactivar: "REACTIVAR", pausar: "PAUSAR", depurar: "DEPURAR" })[dialogo.value]);
+const nivel = ref("baja");
+const porCorrida = ref(20);
+const porDia = ref(100);
+
+const palabra = computed(() => ({ reactivar: "REACTIVAR", pausar: "PAUSAR", depurar: "DEPURAR", etapa: "ETAPA" })[dialogo.value]);
+/** Cómo se ve la etapa: la de la pantalla (cerrado / baja / normal) o, si nunca se cambió aquí, la del .env. */
+const etapaVista = computed(() => {
+    const e = estado.value?.etapa || {};
+    const topes = `${numero(e.limite_por_corrida)} por corrida y ${numero(e.limite_diario)} por día`;
+    if (e.nivel === "cerrado" || e.nombre === "cerrado") return { nombre: "Cerrado", clase: "ea-badge-pausa", detalle: "no sale nada automático" };
+    if (e.nivel === "baja") return { nombre: "Etapa baja", clase: "ea-badge-baja", detalle: topes };
+    if (e.nivel === "normal") return { nombre: "Normal", clase: "ea-badge-activo", detalle: "sin tope de etapa (hasta 100 por corrida, cada 15 minutos)" };
+    return { nombre: `«${e.nombre}» (del .env)`, clase: "ea-badge-gris", detalle: topes };
+});
 const aDepurar = computed(() => {
     if (!conteo.value) return 0;
     return depurarTipo.value ? conteo.value.tipos.find((t) => t.tipo === depurarTipo.value)?.n || 0 : conteo.value.total;
@@ -259,6 +318,12 @@ const abrir = (tipo) => {
     opcion.value = "descartar_48h";
     confirmacion.value = "";
     errorAccion.value = "";
+    if (tipo === "etapa") {
+        const e = estado.value.etapa;
+        nivel.value = !e.nivel || e.nivel === "cerrado" ? "baja" : e.nivel;
+        porCorrida.value = e.nivel === "baja" ? e.limite_por_corrida : estado.value.opciones.etapa_baja_por_corrida;
+        porDia.value = e.nivel === "baja" ? e.limite_diario : estado.value.opciones.etapa_baja_por_dia;
+    }
     if (tipo === "depurar") {
         depurarHoras.value = estado.value.opciones.horas_descarte;
         depurarTipo.value = "";
@@ -303,6 +368,12 @@ const aplicar = async () => {
             reactivar: { opcion: opcion.value, por_hora: opcion.value === "lotes_por_hora" ? porHora.value : null, confirmacion: palabraEscrita },
             pausar: { confirmacion: palabraEscrita },
             depurar: { horas: Number(depurarHoras.value), tipo: depurarTipo.value || null, esperado: aDepurar.value, confirmacion: palabraEscrita },
+            etapa: {
+                nivel: nivel.value,
+                por_corrida: nivel.value === "baja" ? Number(porCorrida.value) : null,
+                por_dia: nivel.value === "baja" ? Number(porDia.value) : null,
+                confirmacion: palabraEscrita,
+            },
         }[dialogo.value];
         const { data } = await axios.post(url, cuerpo);
         estado.value = data.estado;
@@ -344,6 +415,7 @@ const antiguedad = (iso) => {
 .ea-badge-pausa { background: #FEF3C7; color: #92400E; }
 .ea-badge-activo { background: #DCFCE7; color: #166534; }
 .ea-badge-gris { background: #F1F5F9; color: #475569; }
+.ea-badge-baja { background: #E0F2FE; color: #075985; }
 .ea-nota { font-size: 12px; color: #6b7280; margin: 6px 0 0; }
 .ea-aviso { font-size: 12.5px; background: #FFF7ED; color: #9A3412; border-radius: 8px; padding: 6px 10px; margin: 8px 0 0; }
 .ea-etapa { font-size: 12.5px; margin-top: 10px; color: #334155; }
@@ -360,6 +432,7 @@ const antiguedad = (iso) => {
     padding: 8px 10px; margin-bottom: 8px; font-size: 13px; cursor: pointer; }
 .ea-opcion input[type="radio"] { margin-top: 4px; }
 .ea-opcion-sel { border-color: #6366F1; background: #F5F7FF; }
+.ea-opcion-off { opacity: 0.55; cursor: not-allowed; }
 .ea-reco { font-size: 11px; font-weight: 700; color: #166534; background: #DCFCE7; border-radius: 999px; padding: 1px 8px; }
 .ea-error { color: #B91C1C; font-size: 12.5px; padding: 0 16px 8px; }
 .ea-pie { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 16px; border-top: 1px solid #f1f3f5; }
@@ -375,5 +448,6 @@ const antiguedad = (iso) => {
 .ea-dark .ea-badge-pausa { background: #78350F; color: #FDE68A !important; }
 .ea-dark .ea-badge-activo { background: #14532D; color: #BBF7D0 !important; }
 .ea-dark .ea-badge-gris { background: #334155; color: #E2E8F0 !important; }
+.ea-dark .ea-badge-baja { background: #0C4A6E; color: #BAE6FD !important; }
 .ea-dark .ea-reco { background: #14532D; color: #BBF7D0 !important; }
 </style>

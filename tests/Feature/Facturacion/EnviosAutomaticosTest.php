@@ -256,4 +256,69 @@ class EnviosAutomaticosTest extends TestCase
         $this->assertSame('en_espera', DB::table('billing_notifications')->where('id', $id)->value('status'));
         $this->assertSame(0, DB::table('activity_log')->where('description', 'Cola de avisos depurada')->where('causer_id', $admin->id)->count());
     }
+
+    public function test_la_etapa_se_cambia_en_la_pantalla_y_manda_sobre_el_env(): void
+    {
+        config(['billing.reactivacion.etapa' => 'cerrado']);
+        BillingConfig::current()->forceFill(['reactivacion_nivel' => null, 'reactivacion_limite_corrida' => null, 'reactivacion_limite_diario' => null])->save();
+        $admin = $this->usuario('super-administrator');
+        $etapa = fn () => new \App\Services\Finance\Billing\ReactivacionEnvios();
+
+        $this->assertSame(['cerrado', null], [$etapa()->etapa(), $etapa()->nivel()], 'Sin cambio en la pantalla manda el .env.');
+        try {
+            $this->envios->cambiarEtapa($admin, 'normal');
+            $this->fail('A «normal» solo desde la etapa baja.');
+        } catch (InvalidArgumentException $e) {
+            $this->assertStringContainsString('etapa baja', $e->getMessage());
+        }
+
+        $r = $this->envios->cambiarEtapa($admin, 'baja');
+        $this->assertStringContainsString('20 por corrida y 100 por día', $r['message']);
+        $this->assertStringContainsString('siguen pausados', $r['message']);
+        $this->assertSame(['todos', 'baja', false], [$etapa()->etapa(), $etapa()->nivel(), $etapa()->sinTope()]);
+        $this->assertSame([20, 5, 0], [$etapa()->cupo(0, 0), $etapa()->cupo(0, 95), $etapa()->cupo(20, 20)]);
+        $this->assertTrue($etapa()->permiteCliente($this->clienteId)[0], 'La etapa baja abre a todos los clientes.');
+
+        $this->envios->cambiarEtapa($admin, 'baja', 30, 300);
+        $this->assertSame(30, $etapa()->cupo(0, 0));
+        $this->envios->cambiarEtapa($admin, 'normal');
+        $this->assertTrue($etapa()->sinTope());
+        $this->assertSame(PHP_INT_MAX, $etapa()->cupo(500, 5000));
+        $this->envios->cambiarEtapa($admin, 'cerrado');
+        $this->assertSame([false, 'reactivación cerrada'], $etapa()->permiteCliente($this->clienteId));
+
+        $config = BillingConfig::current()->fresh();
+        $this->assertSame([$admin->id, 'cerrado'], [(int) $config->reactivacion_cambiada_por, $config->reactivacion_nivel]);
+        $this->assertSame(4, DB::table('activity_log')->where('log_name', EnviosAutomaticos::LOG)->where('description', 'Etapa de reactivación cambiada')
+            ->where('causer_id', $admin->id)->count());
+        $this->assertSame('pantalla', $this->envios->estado()['etapa']['origen']);
+    }
+
+    public function test_la_etapa_baja_frena_el_envio_por_corrida(): void
+    {
+        $admin = $this->usuario('super-administrator');
+        BillingConfig::current()->forceFill(['envio_pausado' => false])->save();
+        $this->envios->cambiarEtapa($admin, 'baja', 2, 100);
+        foreach (range(1, 4) as $i) {
+            $this->aviso('recibo', 30);
+        }
+
+        Artisan::call('billing:send-pending-notifications', ['--dry-run' => true]);
+        $this->assertStringContainsString('etapa baja, cupo de esta corrida 2', Artisan::output());
+    }
+
+    public function test_la_etapa_por_http_solo_super_admin_con_la_palabra(): void
+    {
+        $admin = $this->usuario('super-administrator');
+        $dev = $this->usuario('DESARROLLADOR');
+        BillingConfig::current()->forceFill(['reactivacion_nivel' => null])->save();
+
+        $this->actingAs($dev)->postJson('/configuracion/envios-automaticos/etapa', ['nivel' => 'baja', 'por_corrida' => 20, 'por_dia' => 100, 'confirmacion' => 'ETAPA'])->assertStatus(403);
+        $this->actingAs($admin)->postJson('/configuracion/envios-automaticos/etapa', ['nivel' => 'baja', 'por_corrida' => 20, 'por_dia' => 100, 'confirmacion' => 'si'])->assertStatus(422);
+        $this->actingAs($admin)->postJson('/configuracion/envios-automaticos/etapa', ['nivel' => 'baja', 'por_corrida' => 50, 'por_dia' => 10, 'confirmacion' => 'ETAPA'])->assertStatus(422);
+        $this->assertNull(BillingConfig::current()->fresh()->reactivacion_nivel);
+
+        $this->actingAs($admin)->postJson('/configuracion/envios-automaticos/etapa', ['nivel' => 'baja', 'por_corrida' => 20, 'por_dia' => 100, 'confirmacion' => 'ETAPA'])
+            ->assertOk()->assertJsonPath('estado.etapa.nivel', 'baja')->assertJsonPath('estado.etapa.limite_por_corrida', 20);
+    }
 }

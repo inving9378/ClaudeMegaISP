@@ -45,6 +45,8 @@ class EnviosAutomaticos
     public const LOTE_MAX = 500;
     public const LOTE_SUGERIDO = 50;
     public const DEPURAR_MAX_HORAS = 8760;
+    public const ETAPA_CORRIDA_MAX = 200;
+    public const ETAPA_DIA_MAX = 2000;
 
     public const TIPOS = [
         BillingNotification::TYPE_PREFACTURA => 'Prefacturas',
@@ -82,6 +84,10 @@ class EnviosAutomaticos
                 'lote_max' => self::LOTE_MAX,
                 'lote_sugerido' => self::LOTE_SUGERIDO,
                 'depurar_max_horas' => self::DEPURAR_MAX_HORAS,
+                'etapa_baja_por_corrida' => ReactivacionEnvios::BAJA_POR_CORRIDA,
+                'etapa_baja_por_dia' => ReactivacionEnvios::BAJA_POR_DIA,
+                'etapa_corrida_max' => self::ETAPA_CORRIDA_MAX,
+                'etapa_dia_max' => self::ETAPA_DIA_MAX,
             ],
         ];
     }
@@ -173,6 +179,67 @@ class EnviosAutomaticos
             $this->auditar($user, $config, 'Envíos automáticos reactivados', $detalle);
 
             return ['message' => $mensaje] + $detalle;
+        });
+    }
+
+    /**
+     * Etapa de reactivación desde la pantalla (billing_config, sin tocar el .env): cerrado → baja
+     * (todos los clientes, $porCorrida por corrida y $porDia por día) → normal (sin tope de etapa).
+     * A «normal» solo se llega desde la etapa baja; volver a baja o a cerrado se puede siempre.
+     */
+    public function cambiarEtapa(User $user, string $nivel, ?int $porCorrida = null, ?int $porDia = null): array
+    {
+        $this->exigirPermiso($user);
+        if (! in_array($nivel, ReactivacionEnvios::NIVELES, true)) {
+            throw new InvalidArgumentException('Elige una etapa: cerrado, etapa baja o normal.');
+        }
+        if ($nivel === ReactivacionEnvios::NIVEL_BAJA) {
+            $porCorrida ??= ReactivacionEnvios::BAJA_POR_CORRIDA;
+            $porDia ??= ReactivacionEnvios::BAJA_POR_DIA;
+            if ($porCorrida < 1 || $porCorrida > self::ETAPA_CORRIDA_MAX || $porDia < 1 || $porDia > self::ETAPA_DIA_MAX) {
+                throw new InvalidArgumentException('En la etapa baja: de 1 a ' . self::ETAPA_CORRIDA_MAX . ' por corrida y de 1 a ' . self::ETAPA_DIA_MAX . ' por día.');
+            }
+            if ($porDia < $porCorrida) {
+                throw new InvalidArgumentException('El tope por día no puede ser menor que el de cada corrida.');
+            }
+        } else {
+            $porCorrida = $porDia = null;
+        }
+
+        return DB::transaction(function () use ($user, $nivel, $porCorrida, $porDia) {
+            $config = $this->bloquear();
+            $antes = $this->etapa();
+            if ($nivel === ReactivacionEnvios::NIVEL_NORMAL && $antes['nivel'] !== ReactivacionEnvios::NIVEL_BAJA) {
+                throw new InvalidArgumentException('A «normal» se pasa desde la etapa baja: ábrela primero y revisa cómo salen los envíos.');
+            }
+            if ($antes['nivel'] === $nivel && (int) $config->reactivacion_limite_corrida === (int) $porCorrida && (int) $config->reactivacion_limite_diario === (int) $porDia) {
+                throw new InvalidArgumentException('La etapa ya está así.');
+            }
+
+            $config->forceFill([
+                'reactivacion_nivel' => $nivel,
+                'reactivacion_limite_corrida' => $porCorrida,
+                'reactivacion_limite_diario' => $porDia,
+                'reactivacion_cambiada_por' => $user->id,
+                'reactivacion_cambiada_at' => now(),
+            ])->save();
+            $despues = $this->etapa();
+            $this->auditar($user, $config, 'Etapa de reactivación cambiada', [
+                'antes' => ['nivel' => $antes['nivel'] ?? ('.env: ' . $antes['nombre']), 'por_corrida' => $antes['limite_por_corrida'], 'por_dia' => $antes['limite_diario']],
+                'despues' => ['nivel' => $nivel, 'por_corrida' => $porCorrida, 'por_dia' => $porDia],
+                'pausado' => (bool) $config->envio_pausado,
+            ]);
+
+            $mensaje = match ($nivel) {
+                ReactivacionEnvios::NIVEL_CERRADO => 'Etapa cerrada: no sale nada automático aunque se quite la pausa.',
+                ReactivacionEnvios::NIVEL_BAJA => "Etapa baja: hasta {$porCorrida} por corrida y {$porDia} por día.",
+                default => 'Etapa normal: sin tope de etapa (hasta 100 por corrida, cada 15 minutos).',
+            };
+            if ($config->envio_pausado && $nivel !== ReactivacionEnvios::NIVEL_CERRADO) {
+                $mensaje .= ' Los envíos siguen pausados: no sale nada hasta reactivarlos.';
+            }
+
+            return ['message' => $mensaje, 'etapa' => $despues];
         });
     }
 
@@ -338,9 +405,14 @@ class EnviosAutomaticos
 
     private function etapa(): array
     {
-        $etapa = app(ReactivacionEnvios::class);
+        $etapa = new ReactivacionEnvios();
+        $config = BillingConfig::current();
+        $por = $config->reactivacion_cambiada_por ? User::find($config->reactivacion_cambiada_por) : null;
 
-        return ['nombre' => $etapa->etapa()] + $etapa->resumenConfig();
+        return ['nombre' => $etapa->etapa()] + $etapa->resumenConfig() + [
+            'cambiada_por' => $por ? trim($por->name . ' ' . $por->father_last_name) : null,
+            'cambiada_at' => $config->reactivacion_cambiada_at?->toIso8601String(),
+        ];
     }
 
     /** BILLING_PROFORMA_ANTICIPADA y los días de anticipo, sin abrir el .env. */
