@@ -6,7 +6,7 @@
          Las listas de abajo son gestión: solo para quien puede gestionar. -->
     <template v-if="colaborador">
       <h6 class="text-uppercase text-muted small mb-3">Credencial</h6>
-      <talento-carnet :colaborador="colaborador" />
+      <talento-carnet :colaborador="colaborador" :puede-editar="puedeEditarCarnet" :puede-diseno="puedeDisenoCarnet" />
       <hr v-if="mostrarGestion" class="my-4">
     </template>
 
@@ -448,6 +448,9 @@ export default {
     // admin/DESARROLLADOR/staff o CUALQUIER supervisor — a propósito SIN
     // excepción de autoservicio (David, 28-sep).
     puedeGestionar: { type: Boolean, default: false },
+    // Carnet: la persona o un administrador cambian sus datos; el diseño, quien entra a Configuración › Ventas.
+    puedeEditarCarnet: { type: Boolean, default: false },
+    puedeDisenoCarnet: { type: Boolean, default: false },
   },
   setup() {
     return { darkMode };

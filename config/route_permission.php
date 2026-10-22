@@ -2081,6 +2081,8 @@ return [
     'talento.view' => [
         '/talento',
         '/talento/colaborador/{id}',
+        // 2026-10-22: datos del carnet; el controller deja solo a la persona o a un administrador.
+        '/talento/api/colaboradores/{id}/carnet',
         '/talento/mi-ficha',
         '/talento/mi-ficha/{id}',
         '/talento/mi-ficha/{id}/academia',

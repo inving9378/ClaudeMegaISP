@@ -113,6 +113,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/colaboradores/{id}',              [TalentoColaboradorController::class, 'show']);
             Route::put('/colaboradores/{id}',              [TalentoColaboradorController::class, 'update']);
             Route::delete('/colaboradores/{id}',           [TalentoColaboradorController::class, 'destroy']);
+            // Carnet: la persona cambia sus datos y su foto; un administrador, los de cualquiera.
+            Route::get('/colaboradores/{id}/carnet',       [TalentoColaboradorController::class, 'carnet']);
+            Route::post('/colaboradores/{id}/carnet',      [TalentoColaboradorController::class, 'actualizarCarnet']);
 
             // ── Custodia (solo lectura) ───────────────────────────────────────
             Route::get('/colaboradores/{id}/custodia',     [TalentoCustodiaController::class, 'show']);

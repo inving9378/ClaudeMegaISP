@@ -20,10 +20,15 @@
                     alt="Logo meganet"
                 />
                 <div class="container-perfil">
-                    <img src="{{ 
-                        $seller->photography ? 
-                        public_path('perfiles') . '/' . $seller->photography : 
-                        public_path('images/perfil.png') }}" 
+                    @php
+                        // La foto puede estar en el disco public (Mi perfil, carnet de Talento) o en
+                        // public/perfiles (edición de usuario); si no existe, la imagen por defecto.
+                        $fotoCredencial = public_path('images/perfil.png');
+                        foreach ($seller->photography ? [storage_path('app/public/' . $seller->photography), public_path('perfiles/' . $seller->photography)] : [] as $rutaFoto) {
+                            if (is_file($rutaFoto)) { $fotoCredencial = $rutaFoto; break; }
+                        }
+                    @endphp
+                    <img src="{{ $fotoCredencial }}" 
                         class="image-perfil" 
                         alt="Foto del vendedor"
                     />
