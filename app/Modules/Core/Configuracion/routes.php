@@ -319,9 +319,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::group(['prefix' => 'envios-automaticos'], function () {
             Route::get('/', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'index']);
             Route::get('/estado', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'estado']);
-            Route::post('/pausar', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'pausar']);
-            Route::post('/reactivar', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'reactivar']);
-            Route::post('/etapa', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'etapa']);
+            Route::post('/encender', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'encender']);
+            Route::post('/apagar', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'apagar']);
+            Route::post('/ritmo', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'ritmo']);
             Route::get('/depurar/conteo', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'conteoDepuracion']);
             Route::post('/depurar', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'depurar']);
         });

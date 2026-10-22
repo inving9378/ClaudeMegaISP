@@ -138,8 +138,9 @@ class EvidenciaDocumentoTest extends TestCase
 
     public function test_el_envio_automatico_deja_evidencia_aceptada_del_pdf_que_salio(): void
     {
-        DB::table('billing_config')->update(['envio_pausado' => 0, 'send_ticket_email' => 0]);
-        config(['billing.reactivacion' => ['etapa' => 'todos', 'limite_por_corrida' => 100, 'limite_diario' => 1000, 'max_errores_por_corrida' => 10]]);
+        // Encendido con ritmo normal (la etapa vive en billing_config; el .env ya no la manda).
+        DB::table('billing_config')->update(['envio_pausado' => 0, 'send_ticket_email' => 0, 'reactivacion_nivel' => 'normal']);
+        config(['billing.reactivacion' => ['max_errores_por_corrida' => 10]]);
         $this->app->instance(PrefacturaPdfService::class, new PrefacturaPdfServiceFalso());
 
         $usuario = (int) DB::table('users')->value('id');

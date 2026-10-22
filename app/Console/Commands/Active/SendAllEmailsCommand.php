@@ -46,7 +46,7 @@ class SendAllEmailsCommand extends Command
         // En «cerrado» (default) este canal no manda nada a clientes.
         $etapa = app(ReactivacionEnvios::class);
         if ($etapa->etapa() === ReactivacionEnvios::CERRADO) {
-            $this->info('Reactivación de envíos cerrada (billing.reactivacion.etapa): no se envía nada por este canal.');
+            $this->info('Envíos automáticos apagados (Configuración › Envíos automáticos): no se envía nada por este canal.');
             return;
         }
         $enviadosCorrida = 0;

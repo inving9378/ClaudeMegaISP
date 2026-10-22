@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
  * segunda compuerta, DETRÁS de la pausa general (billing_config.envio_pausado, que no se toca):
  * aunque se quite la pausa, solo sale lo que la etapa permite.
  *
- * Etapas (config billing.reactivacion.etapa), de menos a más:
+ * Etapas internas, de menos a más:
  *  - cerrado (default): no sale nada automático. Lista vacía = cero.
  *  - piloto: solo los client_id de clientes_piloto.
  *  - zona: piloto + clientes de las colonias / municipios listados (no hay campo «zona» en el
@@ -20,10 +20,11 @@ use Illuminate\Support\Facades\DB;
  * Más límites: por corrida, por día y parada por errores. WhatsApp tiene su propia aprobación
  * (aprobar correo no activa WhatsApp).
  *
- * Desde 2026-10-22 la etapa se cambia en Configuración › Finanzas › «Envíos automáticos» y se
- * guarda en billing_config (reactivacion_nivel): cerrado → baja (todos los clientes, N por corrida
- * y M por día; 20 y 100 de inicio) → normal (todos, sin tope de etapa: solo el --limit de cada
- * corrida). Si nunca se cambió ahí, manda el .env como antes (BILLING_REACTIVACION_*).
+ * Desde 2026-10-22 la etapa vive en billing_config (reactivacion_nivel) y se maneja con el
+ * interruptor de Configuración › Finanzas › «Envíos automáticos», junto con la pausa general:
+ * apagado (envio_pausado) = cerrado; encendido = «prueba» (todos los clientes, 20 por corrida y 100
+ * por día) o «normal» (todos, sin tope de etapa: solo el --limit de cada corrida). El .env
+ * (BILLING_REACTIVACION_ETAPA) solo dio el valor inicial al migrar (nivelInicial()).
  *
  * No aplica al «Enviar» manual de la pantalla (acción humana, con confirmación, uno a uno).
  */
@@ -36,13 +37,14 @@ class ReactivacionEnvios
 
     private const ETAPAS = [self::CERRADO, self::PILOTO, self::ZONA, self::TODOS];
 
-    /** Niveles de la pantalla «Envíos automáticos» (billing_config.reactivacion_nivel). */
+    /** Niveles guardados en billing_config.reactivacion_nivel; encendido solo con prueba o normal. */
     public const NIVEL_CERRADO = 'cerrado';
-    public const NIVEL_BAJA = 'baja';
+    public const NIVEL_PRUEBA = 'prueba';
     public const NIVEL_NORMAL = 'normal';
-    public const NIVELES = [self::NIVEL_CERRADO, self::NIVEL_BAJA, self::NIVEL_NORMAL];
-    public const BAJA_POR_CORRIDA = 20;
-    public const BAJA_POR_DIA = 100;
+    public const NIVELES = [self::NIVEL_CERRADO, self::NIVEL_PRUEBA, self::NIVEL_NORMAL];
+    public const RITMOS = [self::NIVEL_PRUEBA, self::NIVEL_NORMAL];
+    public const PRUEBA_POR_CORRIDA = 20;
+    public const PRUEBA_POR_DIA = 100;
 
     private array $cfg;
 
@@ -62,35 +64,46 @@ class ReactivacionEnvios
     }
 
     /**
-     * La config de billing.reactivacion con lo que se haya elegido en la pantalla encima. Sin nivel
-     * guardado (o sin la columna aún) queda igual que el .env.
+     * La config de billing.reactivacion (límites de errores, WhatsApp, listas) con la etapa que manda
+     * billing_config: con los envíos apagados o sin nivel guardado, cerrado.
      */
     public static function configVigente(): array
     {
         $cfg = (array) config('billing.reactivacion', []);
+        $cfg['etapa'] = self::CERRADO;
         $cfg['nivel'] = null;
         try {
             $bc = BillingConfig::current();
         } catch (\Throwable) {
             return $cfg;
         }
-        $nivel = $bc->reactivacion_nivel;
-        if (! in_array($nivel, self::NIVELES, true)) {
+        $nivel = in_array($bc->reactivacion_nivel, self::NIVELES, true) ? $bc->reactivacion_nivel : self::NIVEL_CERRADO;
+        $cfg['nivel'] = $nivel;
+        if ($bc->envio_pausado || $nivel === self::NIVEL_CERRADO) {
             return $cfg;
         }
 
-        $cfg['nivel'] = $nivel;
-        $cfg['etapa'] = $nivel === self::NIVEL_CERRADO ? self::CERRADO : self::TODOS;
-        if ($nivel === self::NIVEL_BAJA) {
-            $cfg['limite_por_corrida'] = (int) ($bc->reactivacion_limite_corrida ?: self::BAJA_POR_CORRIDA);
-            $cfg['limite_diario'] = (int) ($bc->reactivacion_limite_diario ?: self::BAJA_POR_DIA);
+        $cfg['etapa'] = self::TODOS;
+        if ($nivel === self::NIVEL_PRUEBA) {
+            $cfg['limite_por_corrida'] = self::PRUEBA_POR_CORRIDA;
+            $cfg['limite_diario'] = self::PRUEBA_POR_DIA;
         }
         $cfg['sin_tope'] = $nivel === self::NIVEL_NORMAL;
 
         return $cfg;
     }
 
-    /** cerrado | baja | normal si se eligió en la pantalla; null si manda el .env. */
+    /**
+     * Valor inicial de billing_config.reactivacion_nivel al migrar, desde BILLING_REACTIVACION_ETAPA:
+     * «todos» pasa a prueba (mismos topes de 20/100 por defecto); cerrado, piloto y zona (que no
+     * existen en el interruptor) quedan cerrados.
+     */
+    public static function nivelInicial(?string $etapaEnv): string
+    {
+        return strtolower(trim((string) $etapaEnv)) === self::TODOS ? self::NIVEL_PRUEBA : self::NIVEL_CERRADO;
+    }
+
+    /** cerrado | prueba | normal (lo guardado en billing_config); null si la config vino de fuera. */
     public function nivel(): ?string
     {
         return $this->cfg['nivel'] ?? null;
@@ -175,7 +188,6 @@ class ReactivacionEnvios
         return [
             'etapa'                   => $this->etapa(),
             'nivel'                   => $this->nivel(),
-            'origen'                  => $this->nivel() ? 'pantalla' : 'env',
             'sin_tope'                => $this->sinTope(),
             'clientes_piloto'         => count(self::ids($this->cfg['clientes_piloto'] ?? [])),
             'colonias'                => count(self::ids($this->cfg['colonias'] ?? [])),

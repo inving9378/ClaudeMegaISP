@@ -111,8 +111,9 @@ class FacturaPagadaReemplazaReciboTest extends TestCase
     /** Quita la pausa y abre la etapa de reactivación (FAC-08), que por defecto está cerrada. */
     private function abrirEnvios(): void
     {
-        DB::table('billing_config')->update(['envio_pausado' => 0]);
-        config(['billing.reactivacion' => ['etapa' => 'todos', 'limite_por_corrida' => 100, 'limite_diario' => 1000, 'max_errores_por_corrida' => 10]]);
+        // Encendido con ritmo normal (la etapa vive en billing_config; el .env ya no la manda).
+        DB::table('billing_config')->update(['envio_pausado' => 0, 'reactivacion_nivel' => 'normal']);
+        config(['billing.reactivacion' => ['max_errores_por_corrida' => 10]]);
     }
 
     private function recibo(Payment $payment): BillingNotification
@@ -315,7 +316,7 @@ class FacturaPagadaReemplazaReciboTest extends TestCase
 
     public function test_con_la_etapa_de_reactivacion_cerrada_no_sale_nada_aunque_se_quite_la_pausa(): void
     {
-        DB::table('billing_config')->update(['envio_pausado' => 0]);   // etapa por defecto: cerrado
+        DB::table('billing_config')->update(['envio_pausado' => 0, 'reactivacion_nivel' => 'cerrado']);   // estado que el interruptor ya no deja, por si acaso
         $cliente = $this->cliente();
         $prefactura = $this->notificacionPrefactura($this->factura($cliente));
 

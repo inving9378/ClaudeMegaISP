@@ -5,6 +5,7 @@ namespace Tests\Feature\Facturacion;
 use App\Models\BillingConfig;
 use App\Models\User;
 use App\Services\Finance\Billing\EnviosAutomaticos;
+use App\Services\Finance\Billing\ReactivacionEnvios;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Foundation\Testing\TestCase;
@@ -34,7 +35,8 @@ class EnviosAutomaticosTest extends TestCase
         parent::setUp();
         app(PermissionRegistrar::class)->forgetCachedPermissions();
         DB::table('billing_notifications')->delete();
-        BillingConfig::current()->forceFill(['envio_pausado' => true, 'envio_lote_por_hora' => null, 'envio_lote_hasta' => null])->save();
+        BillingConfig::current()->forceFill(['envio_pausado' => true, 'envio_lote_por_hora' => null, 'envio_lote_hasta' => null,
+            'reactivacion_nivel' => 'cerrado', 'reactivacion_limite_corrida' => null, 'reactivacion_limite_diario' => null])->save();
         $this->envios = app(EnviosAutomaticos::class);
         $this->clienteId = (int) DB::table('clients')->min('id');
         $this->assertGreaterThan(0, $this->clienteId, 'La BD de pruebas necesita al menos un cliente.');
@@ -91,24 +93,26 @@ class EnviosAutomaticosTest extends TestCase
         $this->assertArrayHasKey('dias', $estado['proforma_anticipada']);
     }
 
-    public function test_reactivar_descartando_lo_viejo_cancela_sin_borrar_audita_y_se_puede_revertir(): void
+    public function test_encender_descartando_lo_viejo_con_ritmo_prueba_audita_y_se_puede_revertir(): void
     {
         $admin = $this->usuario('super-administrator');
         $viejo1 = $this->aviso('prefactura', 72);
         $viejo2 = $this->aviso('recibo', 49);
         $nuevo = $this->aviso('ticket', 3);
 
-        $r = $this->envios->reactivar($admin, EnviosAutomaticos::DESCARTAR_VIEJOS);
+        $r = $this->envios->encender($admin, EnviosAutomaticos::DESCARTAR_VIEJOS, 'prueba');
 
         $config = BillingConfig::current()->fresh();
-        $this->assertFalse($config->envio_pausado);
-        $this->assertSame($admin->id, (int) $config->envio_pausado_cambiado_por);
-        $this->assertNotNull($config->envio_pausado_cambiado_at);
+        $this->assertTrue($this->envios->encendido());
+        $this->assertSame([false, 'prueba', 20, 100], [$config->envio_pausado, $config->reactivacion_nivel,
+            $config->reactivacion_limite_corrida, $config->reactivacion_limite_diario]);
+        $this->assertSame([$admin->id, $admin->id], [(int) $config->envio_pausado_cambiado_por, (int) $config->reactivacion_cambiada_por]);
         $this->assertSame(2, $r['descartadas']);
         $this->assertSame(['cancelado', 'cancelado', 'en_espera'],
             DB::table('billing_notifications')->whereIn('id', [$viejo1, $viejo2, $nuevo])->orderBy('id')->pluck('status')->all());
         $this->assertSame(3, DB::table('billing_notifications')->whereIn('id', [$viejo1, $viejo2, $nuevo])->count(), 'No se borra nada.');
-        $this->assertSame(1, DB::table('activity_log')->where('log_name', EnviosAutomaticos::LOG)->where('causer_id', $admin->id)->count());
+        $this->assertSame(1, DB::table('activity_log')->where('log_name', EnviosAutomaticos::LOG)->where('description', 'Envíos automáticos encendidos')
+            ->where('causer_id', $admin->id)->count());
 
         $archivo = $r['archivo_para_revertir'];
         try {
@@ -119,7 +123,7 @@ class EnviosAutomaticosTest extends TestCase
         }
     }
 
-    public function test_reactivar_en_lotes_pone_tope_por_hora_y_se_quita_solo_al_vaciar_lo_acumulado(): void
+    public function test_encender_en_lotes_pone_tope_por_hora_y_se_quita_solo_al_vaciar_lo_acumulado(): void
     {
         $admin = $this->usuario('Super Administrador');
         $acumulado = $this->aviso('prefactura', 5);
@@ -129,11 +133,11 @@ class EnviosAutomaticosTest extends TestCase
         }
         $this->aviso('recibo', 3, 'enviado', 90); // fuera de la última hora
 
-        $this->envios->reactivar($admin, EnviosAutomaticos::LOTES_POR_HORA, 10);
+        $this->envios->encender($admin, EnviosAutomaticos::LOTES_POR_HORA, 'normal', 10);
         $this->assertSame(6, $this->envios->cupoPorRitmo());
 
         DB::table('billing_notifications')->where('id', $acumulado)->update(['status' => 'enviado', 'enviado_at' => now()]);
-        $this->assertNull($this->envios->cupoPorRitmo(), 'Sin acumulado, el ritmo se quita.');
+        $this->assertNull($this->envios->cupoPorRitmo(), 'Sin acumulado, el ritmo por hora se quita.');
         $this->assertNull(BillingConfig::current()->fresh()->envio_lote_por_hora);
     }
 
@@ -144,7 +148,7 @@ class EnviosAutomaticosTest extends TestCase
         foreach (range(1, 10) as $i) {
             $this->aviso('recibo', 1, 'enviado', 5);
         }
-        $this->envios->reactivar($admin, EnviosAutomaticos::LOTES_POR_HORA, 10);
+        $this->envios->encender($admin, EnviosAutomaticos::LOTES_POR_HORA, 'prueba', 10);
 
         Artisan::call('billing:send-pending-notifications');
 
@@ -152,31 +156,49 @@ class EnviosAutomaticosTest extends TestCase
         $this->assertSame('en_espera', DB::table('billing_notifications')->where('id', $pendiente)->value('status'));
     }
 
-    public function test_solo_super_administrador_y_con_confirmacion_escrita(): void
+    /** Los cuatro casos del interruptor por la pantalla: encender, cancelar, cambiar ritmo y apagar. */
+    public function test_interruptor_encender_cancelar_cambiar_ritmo_y_apagar(): void
     {
         $dev = $this->usuario('DESARROLLADOR');
         $admin = $this->usuario('super-administrator');
+        $url = '/configuracion/envios-automaticos';
+        $encender = ['opcion' => 'descartar_48h', 'ritmo' => 'prueba', 'confirmacion' => 'REACTIVAR'];
 
         try {
-            $this->envios->reactivar($dev, EnviosAutomaticos::ENVIAR_TODO);
-            $this->fail('DESARROLLADOR no debe poder reactivar.');
+            $this->envios->encender($dev, EnviosAutomaticos::ENVIAR_TODO, 'prueba');
+            $this->fail('DESARROLLADOR no debe poder encender.');
         } catch (AuthorizationException) {
         }
-        $this->actingAs($dev)->getJson('/configuracion/envios-automaticos/estado')->assertStatus(403);
-
-        $this->actingAs($admin)->getJson('/configuracion/envios-automaticos/estado')->assertOk()->assertJsonPath('pausado', true);
+        foreach (['estado' => 'getJson', 'encender' => 'postJson', 'apagar' => 'postJson', 'ritmo' => 'postJson'] as $ruta => $metodo) {
+            $this->actingAs($dev)->{$metodo}("{$url}/{$ruta}", $ruta === 'encender' ? $encender : ['ritmo' => 'normal'])->assertStatus(403);
+        }
         $enPanel = fn (User $u) => collect($this->actingAs($u)->getJson('/api/modules/config-sections')->json('sections_flat'))->contains('key', 'envios_automaticos');
         $this->assertTrue($enPanel($admin), 'La sección aparece en Configuración para super-administrador.');
         $this->assertFalse($enPanel($dev), 'Y no para DESARROLLADOR.');
-        $this->actingAs($admin)->postJson('/configuracion/envios-automaticos/reactivar', ['opcion' => 'enviar_todo', 'confirmacion' => 'si'])
-            ->assertStatus(422);
-        $this->assertTrue(BillingConfig::current()->fresh()->envio_pausado, 'Sin la palabra escrita no cambia nada.');
 
-        $this->actingAs($admin)->postJson('/configuracion/envios-automaticos/reactivar', ['opcion' => 'enviar_todo', 'confirmacion' => 'REACTIVAR'])
-            ->assertOk()->assertJsonPath('estado.pausado', false);
-        $this->actingAs($admin)->postJson('/configuracion/envios-automaticos/pausar', ['confirmacion' => 'PAUSAR'])
-            ->assertOk()->assertJsonPath('estado.pausado', true);
-        $this->assertSame(2, DB::table('activity_log')->where('log_name', EnviosAutomaticos::LOG)->where('causer_id', $admin->id)->count());
+        // Cancelar: sin la palabra (o sin ritmo) no se enciende y queda apagado.
+        $this->actingAs($admin)->postJson("{$url}/encender", ['confirmacion' => 'si'] + $encender)->assertStatus(422);
+        $this->actingAs($admin)->postJson("{$url}/encender", ['ritmo' => 'cerrado'] + $encender)->assertStatus(422);
+        $this->actingAs($admin)->getJson("{$url}/estado")->assertOk()->assertJsonPath('encendido', false);
+        $this->actingAs($admin)->postJson("{$url}/ritmo", ['ritmo' => 'normal'])->assertStatus(422);
+
+        // Encender.
+        $this->actingAs($admin)->postJson("{$url}/encender", $encender)->assertOk()
+            ->assertJsonPath('estado.encendido', true)->assertJsonPath('estado.etapa.ritmo', 'prueba')->assertJsonPath('estado.etapa.limite_por_corrida', 20);
+
+        // Cambiar ritmo.
+        $this->actingAs($admin)->postJson("{$url}/ritmo", ['ritmo' => 'normal'])->assertOk()
+            ->assertJsonPath('estado.etapa.ritmo', 'normal')->assertJsonPath('estado.etapa.sin_tope', true);
+        $this->actingAs($admin)->postJson("{$url}/ritmo", ['ritmo' => 'normal'])->assertStatus(422);
+
+        // Apagar: sin palabra, inmediato; el ritmo queda guardado para la próxima vez.
+        $this->actingAs($admin)->postJson("{$url}/apagar")->assertOk()
+            ->assertJsonPath('estado.encendido', false)->assertJsonPath('estado.pausado', true)->assertJsonPath('estado.etapa.nombre', 'cerrado')
+            ->assertJsonPath('estado.etapa.ritmo', 'normal');
+        $this->actingAs($admin)->postJson("{$url}/apagar")->assertStatus(422);
+
+        $this->assertSame(['Envíos automáticos encendidos', 'Ritmo de envío cambiado', 'Envíos automáticos apagados'],
+            DB::table('activity_log')->where('log_name', EnviosAutomaticos::LOG)->where('causer_id', $admin->id)->orderBy('id')->pluck('description')->all());
     }
 
     public function test_depurar_cancela_por_tipo_lo_viejo_aunque_este_pausado_y_se_puede_revertir(): void
@@ -227,13 +249,13 @@ class EnviosAutomaticosTest extends TestCase
         Storage::disk('local')->delete(preg_replace('#^storage/app/#', '', $r->json('archivo_para_revertir')));
     }
 
-    public function test_no_reactiva_dos_veces(): void
+    public function test_no_enciende_dos_veces(): void
     {
         $admin = $this->usuario('super-administrator');
-        $this->envios->reactivar($admin, EnviosAutomaticos::ENVIAR_TODO);
+        $this->envios->encender($admin, EnviosAutomaticos::ENVIAR_TODO, 'prueba');
 
         $this->expectException(InvalidArgumentException::class);
-        $this->envios->reactivar($admin, EnviosAutomaticos::ENVIAR_TODO);
+        $this->envios->encender($admin, EnviosAutomaticos::ENVIAR_TODO, 'normal');
     }
 
     public function test_si_no_se_puede_guardar_el_archivo_para_revertir_no_se_depura_nada(): void
@@ -257,68 +279,66 @@ class EnviosAutomaticosTest extends TestCase
         $this->assertSame(0, DB::table('activity_log')->where('description', 'Cola de avisos depurada')->where('causer_id', $admin->id)->count());
     }
 
-    public function test_la_etapa_se_cambia_en_la_pantalla_y_manda_sobre_el_env(): void
+    public function test_el_ritmo_manda_en_el_envio_y_apagado_es_cerrado(): void
     {
-        config(['billing.reactivacion.etapa' => 'cerrado']);
-        BillingConfig::current()->forceFill(['reactivacion_nivel' => null, 'reactivacion_limite_corrida' => null, 'reactivacion_limite_diario' => null])->save();
         $admin = $this->usuario('super-administrator');
-        $etapa = fn () => new \App\Services\Finance\Billing\ReactivacionEnvios();
+        $etapa = fn () => new ReactivacionEnvios();
+        $this->assertSame('cerrado', $etapa()->etapa());
 
-        $this->assertSame(['cerrado', null], [$etapa()->etapa(), $etapa()->nivel()], 'Sin cambio en la pantalla manda el .env.');
-        try {
-            $this->envios->cambiarEtapa($admin, 'normal');
-            $this->fail('A «normal» solo desde la etapa baja.');
-        } catch (InvalidArgumentException $e) {
-            $this->assertStringContainsString('etapa baja', $e->getMessage());
-        }
-
-        $r = $this->envios->cambiarEtapa($admin, 'baja');
-        $this->assertStringContainsString('20 por corrida y 100 por día', $r['message']);
-        $this->assertStringContainsString('siguen pausados', $r['message']);
-        $this->assertSame(['todos', 'baja', false], [$etapa()->etapa(), $etapa()->nivel(), $etapa()->sinTope()]);
+        $this->envios->encender($admin, EnviosAutomaticos::ENVIAR_TODO, 'prueba');
+        $this->assertSame(['todos', 'prueba', false], [$etapa()->etapa(), $etapa()->nivel(), $etapa()->sinTope()]);
         $this->assertSame([20, 5, 0], [$etapa()->cupo(0, 0), $etapa()->cupo(0, 95), $etapa()->cupo(20, 20)]);
-        $this->assertTrue($etapa()->permiteCliente($this->clienteId)[0], 'La etapa baja abre a todos los clientes.');
-
-        $this->envios->cambiarEtapa($admin, 'baja', 30, 300);
-        $this->assertSame(30, $etapa()->cupo(0, 0));
-        $this->envios->cambiarEtapa($admin, 'normal');
-        $this->assertTrue($etapa()->sinTope());
-        $this->assertSame(PHP_INT_MAX, $etapa()->cupo(500, 5000));
-        $this->envios->cambiarEtapa($admin, 'cerrado');
-        $this->assertSame([false, 'reactivación cerrada'], $etapa()->permiteCliente($this->clienteId));
-
-        $config = BillingConfig::current()->fresh();
-        $this->assertSame([$admin->id, 'cerrado'], [(int) $config->reactivacion_cambiada_por, $config->reactivacion_nivel]);
-        $this->assertSame(4, DB::table('activity_log')->where('log_name', EnviosAutomaticos::LOG)->where('description', 'Etapa de reactivación cambiada')
-            ->where('causer_id', $admin->id)->count());
-        $this->assertSame('pantalla', $this->envios->estado()['etapa']['origen']);
-    }
-
-    public function test_la_etapa_baja_frena_el_envio_por_corrida(): void
-    {
-        $admin = $this->usuario('super-administrator');
-        BillingConfig::current()->forceFill(['envio_pausado' => false])->save();
-        $this->envios->cambiarEtapa($admin, 'baja', 2, 100);
-        foreach (range(1, 4) as $i) {
+        $this->assertTrue($etapa()->permiteCliente($this->clienteId)[0], 'Prueba abre a todos los clientes, con tope.');
+        foreach (range(1, 3) as $i) {
             $this->aviso('recibo', 30);
         }
-
         Artisan::call('billing:send-pending-notifications', ['--dry-run' => true]);
-        $this->assertStringContainsString('etapa baja, cupo de esta corrida 2', Artisan::output());
+        $this->assertStringContainsString('etapa prueba, cupo de esta corrida 20', Artisan::output());
+
+        $this->envios->cambiarRitmo($admin, 'normal');
+        $this->assertSame(PHP_INT_MAX, $etapa()->cupo(500, 5000));
+
+        $this->envios->apagar($admin);
+        $this->assertSame([false, 'reactivación cerrada'], $etapa()->permiteCliente($this->clienteId), 'Apagado no sale nada, ni por las otras colas.');
     }
 
-    public function test_la_etapa_por_http_solo_super_admin_con_la_palabra(): void
+    public function test_no_existe_encendido_pero_cerrado(): void
     {
         $admin = $this->usuario('super-administrator');
-        $dev = $this->usuario('DESARROLLADOR');
-        BillingConfig::current()->forceFill(['reactivacion_nivel' => null])->save();
+        BillingConfig::current()->forceFill(['envio_pausado' => false, 'reactivacion_nivel' => 'cerrado'])->save();
 
-        $this->actingAs($dev)->postJson('/configuracion/envios-automaticos/etapa', ['nivel' => 'baja', 'por_corrida' => 20, 'por_dia' => 100, 'confirmacion' => 'ETAPA'])->assertStatus(403);
-        $this->actingAs($admin)->postJson('/configuracion/envios-automaticos/etapa', ['nivel' => 'baja', 'por_corrida' => 20, 'por_dia' => 100, 'confirmacion' => 'si'])->assertStatus(422);
-        $this->actingAs($admin)->postJson('/configuracion/envios-automaticos/etapa', ['nivel' => 'baja', 'por_corrida' => 50, 'por_dia' => 10, 'confirmacion' => 'ETAPA'])->assertStatus(422);
-        $this->assertNull(BillingConfig::current()->fresh()->reactivacion_nivel);
+        $this->assertFalse($this->envios->estado()['encendido'], 'Sin ritmo cuenta como apagado.');
+        $this->envios->apagar($admin);
+        $this->assertTrue(BillingConfig::current()->fresh()->envio_pausado, 'Apagar deja la pausa puesta.');
+        $this->expectException(InvalidArgumentException::class);
+        $this->envios->encender($admin, EnviosAutomaticos::ENVIAR_TODO, 'cerrado');
+    }
 
-        $this->actingAs($admin)->postJson('/configuracion/envios-automaticos/etapa', ['nivel' => 'baja', 'por_corrida' => 20, 'por_dia' => 100, 'confirmacion' => 'ETAPA'])
-            ->assertOk()->assertJsonPath('estado.etapa.nivel', 'baja')->assertJsonPath('estado.etapa.limite_por_corrida', 20);
+    public function test_el_env_solo_da_el_valor_inicial(): void
+    {
+        $this->assertSame('prueba', ReactivacionEnvios::nivelInicial('todos'));
+        foreach (['cerrado', 'piloto', 'zona', null, ''] as $etapa) {
+            $this->assertSame('cerrado', ReactivacionEnvios::nivelInicial($etapa));
+        }
+        config(['billing.reactivacion.etapa' => 'todos']);
+        $this->assertSame('cerrado', (new ReactivacionEnvios())->etapa(), 'En marcha manda billing_config, no el .env.');
+    }
+
+    public function test_si_no_se_guarda_el_archivo_para_revertir_no_se_enciende(): void
+    {
+        Storage::fake('local');
+        $this->carpetaSinPermiso('billing/manifiestos');
+        $admin = $this->usuario('super-administrator');
+        $id = $this->aviso('recibo', 100);
+
+        try {
+            $this->envios->encender($admin, EnviosAutomaticos::DESCARTAR_VIEJOS, 'prueba');
+            $this->fail('Debía fallar sin archivo para revertir.');
+        } catch (\App\Support\ArchivoObligatorioException) {
+        }
+        $config = BillingConfig::current()->fresh();
+        $this->assertSame([true, 'cerrado'], [$config->envio_pausado, $config->reactivacion_nivel], 'Sigue apagado.');
+        $this->assertSame('en_espera', DB::table('billing_notifications')->where('id', $id)->value('status'));
+        $this->assertSame(0, DB::table('activity_log')->where('description', 'Envíos automáticos encendidos')->where('causer_id', $admin->id)->count());
     }
 }

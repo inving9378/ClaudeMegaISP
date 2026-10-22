@@ -9,49 +9,43 @@
                 <div class="ea-head">Avisos de cobro automáticos</div>
                 <div class="ea-body">
                     <div class="ea-fila">
-                        <span class="ea-badge" :class="estado.pausado ? 'ea-badge-pausa' : 'ea-badge-activo'">
-                            {{ estado.pausado ? "Pausados" : "Activos" }}
-                        </span>
-                        <span class="ea-nota">
+                        <div class="form-check form-switch m-0 ea-switch">
+                            <input id="ea-interruptor" class="form-check-input" type="checkbox" role="switch"
+                                   :checked="estado.encendido" :disabled="!!dialogo" @click.prevent="alternar" />
+                            <label class="form-check-label" for="ea-interruptor">
+                                <b>{{ estado.encendido ? "Encendidos" : "Apagados" }}</b>
+                            </label>
+                        </div>
+                        <span class="ea-nota m-0">
                             <template v-if="estado.cambiado_at">
-                                Último cambio: {{ estado.cambiado_por || "un proceso del sistema" }} · {{ fecha(estado.cambiado_at) }}
+                                {{ estado.encendido ? "Encendidos" : "Apagados" }} por {{ estado.cambiado_por || "un proceso del sistema" }} ·
+                                {{ fecha(estado.cambiado_at) }}
                             </template>
                             <template v-else>Sin registro de quién ni cuándo: el último cambio es anterior a esta pantalla.</template>
                         </span>
-                        <button v-if="estado.pausado" type="button" class="btn btn-success btn-sm ms-auto" @click="abrir('reactivar')">
-                            Reactivar envíos…
+                    </div>
+                    <div class="ea-fila ea-ritmo">
+                        <b>Ritmo:</b>
+                        <span class="ea-badge" :class="ritmoVista.clase">{{ ritmoVista.texto }}</span>
+                        <button v-if="estado.encendido" type="button" class="btn btn-outline-primary btn-sm" @click="abrir('ritmo')">
+                            Cambiar ritmo…
                         </button>
-                        <button v-else type="button" class="btn btn-outline-danger btn-sm ms-auto" @click="abrir('pausar')">
-                            Pausar envíos…
-                        </button>
+                        <span v-if="estado.etapa.cambiada_at" class="ea-nota m-0">
+                            Cambiado por {{ estado.etapa.cambiada_por || "un proceso del sistema" }} · {{ fecha(estado.etapa.cambiada_at) }}
+                        </span>
                     </div>
                     <p class="ea-nota">
-                        Controla el envío automático de prefacturas, recibos y tickets. Pausado, los documentos se siguen
-                        generando y quedan en cola; nada sale solo.
+                        Encendidos, salen prefacturas y recibos automáticos con el ritmo elegido. Apagados, los documentos se
+                        siguen generando y quedan en cola; nada sale solo.
                     </p>
                     <p v-if="estado.ritmo" class="ea-aviso">
                         Enviando en lotes de {{ estado.ritmo.por_hora }} por hora ({{ estado.ritmo.enviados_ultima_hora }} en la
                         última hora) hasta vaciar lo acumulado antes del {{ fecha(estado.ritmo.acumulado_hasta) }}. Después se quita solo.
                     </p>
-                    <p v-if="!estado.pausado && estado.etapa.nombre === 'cerrado'" class="ea-aviso">
-                        Aunque estén activos, hoy no sale nada automático: la etapa de reactivación es «cerrado».
+                    <p class="ea-nota">
+                        Cada corrida es cada 15 minutos y se detiene con {{ estado.etapa.max_errores_por_corrida }} errores · WhatsApp
+                        {{ estado.etapa.whatsapp ? "aprobado" : "no aprobado" }}.
                     </p>
-                    <div class="ea-etapa">
-                        <div class="ea-fila">
-                            <b>Etapa de reactivación:</b>
-                            <span class="ea-badge" :class="etapaVista.clase">{{ etapaVista.nombre }}</span>
-                            <span>{{ etapaVista.detalle }}</span>
-                            <button type="button" class="btn btn-outline-primary btn-sm ms-auto" @click="abrir('etapa')">Cambiar etapa…</button>
-                        </div>
-                        <p class="ea-nota">
-                            <template v-if="estado.etapa.origen === 'pantalla' && estado.etapa.cambiada_at">
-                                Cambiada por {{ estado.etapa.cambiada_por || "un proceso del sistema" }} · {{ fecha(estado.etapa.cambiada_at) }}.
-                            </template>
-                            <template v-else>Hoy viene del .env del servidor (BILLING_REACTIVACION_ETAPA) hasta que se cambie aquí.</template>
-                            Es la segunda compuerta: aunque se quite la pausa, solo sale lo que la etapa permite. Se detiene con
-                            {{ estado.etapa.max_errores_por_corrida }} errores por corrida · WhatsApp {{ estado.etapa.whatsapp ? "aprobado" : "no aprobado" }}.
-                        </p>
-                    </div>
                 </div>
             </section>
 
@@ -118,16 +112,12 @@
 
         <div v-if="dialogo" class="ea-velo" @click.self="cerrar">
             <div class="ea-dialogo" role="dialog" aria-modal="true">
-                <template v-if="dialogo === 'reactivar'">
-                    <div class="ea-head">Reactivar envíos automáticos</div>
+                <template v-if="dialogo === 'encender'">
+                    <div class="ea-head">Encender los envíos automáticos</div>
                     <div class="ea-body">
                         <p class="mb-2">
                             <b>¿Qué hago con lo acumulado?</b> Hay {{ numero(estado.cola.total) }} avisos en cola;
                             {{ numero(estado.cola.con_correo) }} tienen correo y podrían salir.
-                        </p>
-                        <p v-if="estado.etapa.nombre === 'cerrado'" class="ea-aviso mb-2">
-                            La etapa de reactivación está en «cerrado»: aunque reactives, no sale nada hasta abrir la etapa
-                            («Cambiar etapa…»). Lo que elijas aquí con lo acumulado sí se aplica ahora.
                         </p>
                         <label class="ea-opcion" :class="{ 'ea-opcion-sel': opcion === 'descartar_48h' }">
                             <input v-model="opcion" type="radio" value="descartar_48h" />
@@ -146,54 +136,43 @@
                         <label class="ea-opcion" :class="{ 'ea-opcion-sel': opcion === 'lotes_por_hora' }">
                             <input v-model="opcion" type="radio" value="lotes_por_hora" />
                             <span>
-                                <b>Enviar en lotes por hora</b><br />
+                                <b>Enviar por lotes</b><br />
                                 Sale todo, pero con tope por hora hasta vaciar lo acumulado.
                                 <span v-if="opcion === 'lotes_por_hora'" class="ea-fila mt-1">
                                     <input v-model.number="porHora" type="number" class="form-control form-control-sm ea-input"
-                                           :min="estado.opciones.lote_min" :max="estado.opciones.lote_max" />
+                                           :min="estado.opciones.lote_min" :max="estado.opciones.lote_max" aria-label="Por hora" />
                                     por hora · unas {{ horasParaVaciar }} h para vaciar
                                 </span>
                             </span>
                         </label>
-                        <p class="ea-nota">La etapa sigue mandando: {{ etapaVista.nombre }}, {{ etapaVista.detalle }}.</p>
+                        <p class="mt-3 mb-2"><b>Ritmo</b></p>
+                        <label class="ea-opcion" :class="{ 'ea-opcion-sel': ritmo === 'prueba' }">
+                            <input v-model="ritmo" type="radio" value="prueba" />
+                            <span>
+                                <b>Prueba</b> <span class="ea-reco">Para empezar</span><br />
+                                {{ estado.opciones.prueba_por_corrida }} por corrida y {{ estado.opciones.prueba_por_dia }} al día.
+                            </span>
+                        </label>
+                        <label class="ea-opcion" :class="{ 'ea-opcion-sel': ritmo === 'normal' }">
+                            <input v-model="ritmo" type="radio" value="normal" />
+                            <span><b>Normal</b><br />Sin tope de ritmo: hasta 100 por corrida.</span>
+                        </label>
                         <label class="ea-label" for="ea-conf">Escribe REACTIVAR para confirmar</label>
                         <input id="ea-conf" v-model="confirmacion" class="form-control form-control-sm" autocomplete="off" />
                     </div>
                 </template>
-                <template v-else-if="dialogo === 'etapa'">
-                    <div class="ea-head">Etapa de reactivación</div>
+                <template v-else-if="dialogo === 'ritmo'">
+                    <div class="ea-head">Cambiar el ritmo</div>
                     <div class="ea-body">
-                        <p class="mb-2">Cuánto sale cuando los envíos están activos. Se guarda aquí; no hace falta tocar el .env.</p>
-                        <label class="ea-opcion" :class="{ 'ea-opcion-sel': nivel === 'cerrado' }">
-                            <input v-model="nivel" type="radio" value="cerrado" />
-                            <span><b>Cerrado</b><br />No sale nada automático aunque se quite la pausa.</span>
+                        <label class="ea-opcion" :class="{ 'ea-opcion-sel': ritmo === 'prueba' }">
+                            <input v-model="ritmo" type="radio" value="prueba" />
+                            <span><b>Prueba</b><br />{{ estado.opciones.prueba_por_corrida }} por corrida y {{ estado.opciones.prueba_por_dia }} al día.</span>
                         </label>
-                        <label class="ea-opcion" :class="{ 'ea-opcion-sel': nivel === 'baja' }">
-                            <input v-model="nivel" type="radio" value="baja" />
-                            <span>
-                                <b>Etapa baja</b> <span class="ea-reco">Para empezar</span><br />
-                                Todos los clientes, con tope. Cada corrida es cada 15 minutos.
-                                <span v-if="nivel === 'baja'" class="ea-fila mt-1">
-                                    <input v-model.number="porCorrida" type="number" class="form-control form-control-sm ea-input" min="1"
-                                           :max="estado.opciones.etapa_corrida_max" aria-label="Por corrida" /> por corrida ·
-                                    <input v-model.number="porDia" type="number" class="form-control form-control-sm ea-input" min="1"
-                                           :max="estado.opciones.etapa_dia_max" aria-label="Por día" /> por día
-                                </span>
-                            </span>
+                        <label class="ea-opcion" :class="{ 'ea-opcion-sel': ritmo === 'normal' }">
+                            <input v-model="ritmo" type="radio" value="normal" />
+                            <span><b>Normal</b><br />Sin tope de ritmo: hasta 100 por corrida.</span>
                         </label>
-                        <label class="ea-opcion" :class="{ 'ea-opcion-sel': nivel === 'normal', 'ea-opcion-off': estado.etapa.nivel !== 'baja' }">
-                            <input v-model="nivel" type="radio" value="normal" :disabled="estado.etapa.nivel !== 'baja'" />
-                            <span>
-                                <b>Normal</b><br />
-                                Sin tope de etapa: hasta 100 por corrida, cada 15 minutos.
-                                <template v-if="estado.etapa.nivel !== 'baja'">Se habilita desde la etapa baja.</template>
-                            </span>
-                        </label>
-                        <p v-if="estado.pausado && nivel !== 'cerrado'" class="ea-nota mb-2">
-                            Los envíos están pausados: la etapa se guarda, pero no sale nada hasta reactivarlos.
-                        </p>
-                        <label class="ea-label" for="ea-conf">Escribe ETAPA para confirmar</label>
-                        <input id="ea-conf" v-model="confirmacion" class="form-control form-control-sm" autocomplete="off" />
+                        <p class="ea-nota">Se aplica desde la siguiente corrida.</p>
                     </div>
                 </template>
                 <template v-else-if="dialogo === 'depurar'">
@@ -228,19 +207,18 @@
                     </div>
                 </template>
                 <template v-else>
-                    <div class="ea-head">Pausar envíos automáticos</div>
+                    <div class="ea-head">Apagar los envíos automáticos</div>
                     <div class="ea-body">
-                        <p>Dejan de salir prefacturas, recibos y tickets automáticos. Lo que se genere queda en cola hasta reactivar.</p>
-                        <label class="ea-label" for="ea-conf">Escribe PAUSAR para confirmar</label>
-                        <input id="ea-conf" v-model="confirmacion" class="form-control form-control-sm" autocomplete="off" />
+                        <p class="m-0">Dejan de salir prefacturas y recibos automáticos desde ya. Lo que se genere queda en cola hasta encenderlos.</p>
                     </div>
                 </template>
                 <div v-if="errorAccion" class="ea-error">{{ errorAccion }}</div>
                 <div class="ea-pie">
                     <button type="button" class="btn btn-light btn-sm" :disabled="enviando" @click="cerrar">Cancelar</button>
-                    <button type="button" class="btn btn-sm" :class="{ reactivar: 'btn-success', etapa: 'btn-primary' }[dialogo] || 'btn-danger'"
-                            :disabled="enviando || !confirmacionValida || (dialogo === 'depurar' && (contando || !aDepurar))" @click="aplicar">
-                        {{ enviando ? "Aplicando…" : { reactivar: "Reactivar", pausar: "Pausar", depurar: `Cancelar ${numero(aDepurar)}`, etapa: "Guardar etapa" }[dialogo] }}
+                    <button type="button" class="btn btn-sm" :class="{ encender: 'btn-success', ritmo: 'btn-primary' }[dialogo] || 'btn-danger'"
+                            :disabled="enviando || !confirmacionValida || (dialogo === 'depurar' && (contando || !aDepurar)) || (dialogo === 'ritmo' && ritmo === estado.etapa.ritmo)"
+                            @click="aplicar">
+                        {{ enviando ? "Aplicando…" : { encender: "Encender", apagar: "Apagar", depurar: `Cancelar ${numero(aDepurar)}`, ritmo: "Guardar ritmo" }[dialogo] }}
                     </button>
                 </div>
             </div>
@@ -252,8 +230,10 @@
 /**
  * Configuración › Finanzas › «Envíos automáticos»: estado y control de billing_config.envio_pausado,
  * la cola por tipo y la proforma anticipada. Solo super-administrador (lo exige el servidor).
- * GET /configuracion/envios-automaticos/estado · POST …/pausar · POST …/reactivar ·
- * GET …/depurar/conteo · POST …/depurar · POST …/etapa (etapa de reactivación en billing_config).
+ * Un interruptor maneja juntas la pausa y la etapa (billing_config): encender pide qué hacer con lo
+ * acumulado, el ritmo y REACTIVAR, y no cambia hasta confirmar; apagar es inmediato.
+ * GET /configuracion/envios-automaticos/estado · POST …/encender · POST …/apagar · POST …/ritmo ·
+ * GET …/depurar/conteo · POST …/depurar.
  */
 import { computed, onMounted, ref } from "vue";
 import { darkMode } from "../../../../../hook/appConfig";
@@ -275,25 +255,21 @@ const conteo = ref(null);
 const contando = ref(false);
 let temporizadorConteo = null;
 
-const nivel = ref("baja");
-const porCorrida = ref(20);
-const porDia = ref(100);
+const ritmo = ref("prueba");
 
-const palabra = computed(() => ({ reactivar: "REACTIVAR", pausar: "PAUSAR", depurar: "DEPURAR", etapa: "ETAPA" })[dialogo.value]);
-/** Cómo se ve la etapa: la de la pantalla (cerrado / baja / normal) o, si nunca se cambió aquí, la del .env. */
-const etapaVista = computed(() => {
+const palabra = computed(() => ({ encender: "REACTIVAR", depurar: "DEPURAR" })[dialogo.value] || null);
+/** El ritmo junto al interruptor: el vigente si está encendido; si no, el guardado que se propone al encender. */
+const ritmoVista = computed(() => {
     const e = estado.value?.etapa || {};
-    const topes = `${numero(e.limite_por_corrida)} por corrida y ${numero(e.limite_diario)} por día`;
-    if (e.nivel === "cerrado" || e.nombre === "cerrado") return { nombre: "Cerrado", clase: "ea-badge-pausa", detalle: "no sale nada automático" };
-    if (e.nivel === "baja") return { nombre: "Etapa baja", clase: "ea-badge-baja", detalle: topes };
-    if (e.nivel === "normal") return { nombre: "Normal", clase: "ea-badge-activo", detalle: "sin tope de etapa (hasta 100 por corrida, cada 15 minutos)" };
-    return { nombre: `«${e.nombre}» (del .env)`, clase: "ea-badge-gris", detalle: topes };
+    if (!e.ritmo) return { texto: "Sin elegir (se elige al encender)", clase: "ea-badge-gris" };
+    if (!estado.value.encendido) return { texto: `${e.ritmo_nombre} · se usa al encender`, clase: "ea-badge-gris" };
+    return { texto: e.ritmo_nombre, clase: e.ritmo === "prueba" ? "ea-badge-baja" : "ea-badge-activo" };
 });
 const aDepurar = computed(() => {
     if (!conteo.value) return 0;
     return depurarTipo.value ? conteo.value.tipos.find((t) => t.tipo === depurarTipo.value)?.n || 0 : conteo.value.total;
 });
-const confirmacionValida = computed(() => confirmacion.value.trim().toUpperCase() === palabra.value);
+const confirmacionValida = computed(() => !palabra.value || confirmacion.value.trim().toUpperCase() === palabra.value);
 const horasParaVaciar = computed(() => {
     const n = Number(porHora.value) || 0;
     return n > 0 ? Math.ceil((estado.value?.cola.con_correo || 0) / n) : "—";
@@ -318,12 +294,8 @@ const abrir = (tipo) => {
     opcion.value = "descartar_48h";
     confirmacion.value = "";
     errorAccion.value = "";
-    if (tipo === "etapa") {
-        const e = estado.value.etapa;
-        nivel.value = !e.nivel || e.nivel === "cerrado" ? "baja" : e.nivel;
-        porCorrida.value = e.nivel === "baja" ? e.limite_por_corrida : estado.value.opciones.etapa_baja_por_corrida;
-        porDia.value = e.nivel === "baja" ? e.limite_diario : estado.value.opciones.etapa_baja_por_dia;
-    }
+    if (tipo === "encender") ritmo.value = estado.value.etapa.ritmo || "prueba";
+    if (tipo === "ritmo") ritmo.value = estado.value.etapa.ritmo === "prueba" ? "normal" : "prueba";
     if (tipo === "depurar") {
         depurarHoras.value = estado.value.opciones.horas_descarte;
         depurarTipo.value = "";
@@ -354,6 +326,9 @@ const pedirConteo = () => {
     temporizadorConteo = setTimeout(cargarConteo, 400);
 };
 
+/** El interruptor no cambia solo: encender abre el diálogo (si se cancela, sigue apagado); apagar pide una confirmación simple. */
+const alternar = () => abrir(estado.value.encendido ? "apagar" : "encender");
+
 const cerrar = () => {
     if (!enviando.value) dialogo.value = null;
 };
@@ -365,15 +340,15 @@ const aplicar = async () => {
         const url = `/configuracion/envios-automaticos/${dialogo.value}`;
         const palabraEscrita = confirmacion.value.trim().toUpperCase();
         const cuerpo = {
-            reactivar: { opcion: opcion.value, por_hora: opcion.value === "lotes_por_hora" ? porHora.value : null, confirmacion: palabraEscrita },
-            pausar: { confirmacion: palabraEscrita },
-            depurar: { horas: Number(depurarHoras.value), tipo: depurarTipo.value || null, esperado: aDepurar.value, confirmacion: palabraEscrita },
-            etapa: {
-                nivel: nivel.value,
-                por_corrida: nivel.value === "baja" ? Number(porCorrida.value) : null,
-                por_dia: nivel.value === "baja" ? Number(porDia.value) : null,
+            encender: {
+                opcion: opcion.value,
+                ritmo: ritmo.value,
+                por_hora: opcion.value === "lotes_por_hora" ? porHora.value : null,
                 confirmacion: palabraEscrita,
             },
+            apagar: {},
+            ritmo: { ritmo: ritmo.value },
+            depurar: { horas: Number(depurarHoras.value), tipo: depurarTipo.value || null, esperado: aDepurar.value, confirmacion: palabraEscrita },
         }[dialogo.value];
         const { data } = await axios.post(url, cuerpo);
         estado.value = data.estado;
@@ -423,6 +398,9 @@ const antiguedad = (iso) => {
 .ea-input { width: 90px; display: inline-block; }
 .ea-select { width: auto; display: inline-block; }
 .ea-btn-head { font-weight: 500; }
+.ea-switch { display: flex; align-items: center; gap: 8px; }
+.ea-switch .form-check-input { width: 2.6em; height: 1.35em; cursor: pointer; margin: 0; }
+.ea-ritmo { margin-top: 10px; }
 .ea-fuera td { opacity: 0.45; }
 .ea-label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin: 10px 0 4px; }
 .ea-velo { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 1050; display: flex;

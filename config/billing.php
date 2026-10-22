@@ -91,12 +91,11 @@ return [
     |--------------------------------------------------------------------------
     | Reactivación gradual de envíos automáticos (FAC-08, item #515)
     |--------------------------------------------------------------------------
-    | Segunda compuerta DETRÁS de billing_config.envio_pausado (que no cambia):
-    | cerrado (default, no sale nada) → piloto (clientes_piloto) → zona (piloto +
-    | colonias/municipios) → todos. Límites por corrida y por día; la corrida se
-    | detiene al llegar a max_errores_por_corrida. WhatsApp se aprueba aparte.
-    | Cada avance de etapa lo decide y aplica Irving. Estado y verificación DNS:
-    | php artisan billing:reactivacion-estado
+    | Desde 2026-10-22 la etapa vive en billing_config y la maneja el interruptor
+    | de Configuración › Finanzas › «Envíos automáticos» (apagado = cerrado;
+    | encendido = ritmo Prueba 20/100 o Normal). BILLING_REACTIVACION_ETAPA solo
+    | dio el valor inicial al migrar. De aquí siguen mandando la parada por
+    | errores y la aprobación de WhatsApp. Estado: php artisan billing:reactivacion-estado
     */
     /*
     |--------------------------------------------------------------------------

@@ -16,12 +16,13 @@ use Illuminate\Support\Str;
 use InvalidArgumentException;
 
 /**
- * Configuración › Finanzas › «Envíos automáticos» (2026-10-22). Muestra y controla la pausa general
- * de los avisos de cobro automáticos (billing_config.envio_pausado), que solo lee
- * billing:send-pending-notifications. La segunda compuerta (ReactivacionEnvios, etapa en el .env)
- * se muestra pero no se cambia aquí.
+ * Configuración › Finanzas › «Envíos automáticos» (2026-10-22). Un solo interruptor maneja juntas la
+ * pausa general (billing_config.envio_pausado) y la etapa de reactivación (reactivacion_nivel):
+ *  - encendido = sin pausa y ritmo «prueba» (20 por corrida, 100 al día) o «normal»;
+ *  - apagado = pausa puesta. No existe «encendido pero cerrado».
+ * El ritmo se cambia aparte mientras está encendido.
  *
- * Al reactivar hay que decidir qué pasa con lo acumulado en la cola:
+ * Al encender hay que decidir qué pasa con lo acumulado en la cola:
  *  - enviar todo: sale en el orden de siempre, con los límites de la etapa;
  *  - descartar lo de más de 48 h (recomendado): se cancelan, no se borran, y queda un archivo para
  *    revertir con `billing:cancelar-colas --revertir=… --ejecutar`;
@@ -45,8 +46,6 @@ class EnviosAutomaticos
     public const LOTE_MAX = 500;
     public const LOTE_SUGERIDO = 50;
     public const DEPURAR_MAX_HORAS = 8760;
-    public const ETAPA_CORRIDA_MAX = 200;
-    public const ETAPA_DIA_MAX = 2000;
 
     public const TIPOS = [
         BillingNotification::TYPE_PREFACTURA => 'Prefacturas',
@@ -67,6 +66,7 @@ class EnviosAutomaticos
         $porId = $config->envio_pausado_cambiado_por ? User::find($config->envio_pausado_cambiado_por) : null;
 
         return [
+            'encendido' => $this->encendido($config),
             'pausado' => (bool) $config->envio_pausado,
             'cambiado_por' => $porId ? trim($porId->name . ' ' . $porId->father_last_name) : null,
             'cambiado_at' => $config->envio_pausado_cambiado_at?->toIso8601String(),
@@ -84,10 +84,8 @@ class EnviosAutomaticos
                 'lote_max' => self::LOTE_MAX,
                 'lote_sugerido' => self::LOTE_SUGERIDO,
                 'depurar_max_horas' => self::DEPURAR_MAX_HORAS,
-                'etapa_baja_por_corrida' => ReactivacionEnvios::BAJA_POR_CORRIDA,
-                'etapa_baja_por_dia' => ReactivacionEnvios::BAJA_POR_DIA,
-                'etapa_corrida_max' => self::ETAPA_CORRIDA_MAX,
-                'etapa_dia_max' => self::ETAPA_DIA_MAX,
+                'prueba_por_corrida' => ReactivacionEnvios::PRUEBA_POR_CORRIDA,
+                'prueba_por_dia' => ReactivacionEnvios::PRUEBA_POR_DIA,
             ],
         ];
     }
@@ -125,25 +123,40 @@ class EnviosAutomaticos
         ];
     }
 
-    public function pausar(User $user): array
+    /** Encendido = sin pausa y con ritmo (prueba o normal). Cualquier otra combinación es apagado. */
+    public function encendido(?BillingConfig $config = null): bool
+    {
+        $config ??= BillingConfig::current();
+
+        return ! $config->envio_pausado && in_array($config->reactivacion_nivel, ReactivacionEnvios::RITMOS, true);
+    }
+
+    /** Apagar: confirmación simple, efecto inmediato. El ritmo queda guardado para la próxima vez. */
+    public function apagar(User $user): array
     {
         $this->exigirPermiso($user);
 
         return DB::transaction(function () use ($user) {
             $config = $this->bloquear();
-            if ($config->envio_pausado) {
-                throw new InvalidArgumentException('Los envíos ya están pausados.');
+            if (! $this->encendido($config) && $config->envio_pausado) {
+                throw new InvalidArgumentException('Los envíos ya están apagados.');
             }
             $cola = $this->cola();
             $this->guardar($config, true, $user, ['envio_lote_por_hora' => null, 'envio_lote_hasta' => null]);
-            $this->auditar($user, $config, 'Envíos automáticos pausados', ['antes' => 'activos', 'despues' => 'pausados', 'cola' => $cola['total']]);
+            $this->auditar($user, $config, 'Envíos automáticos apagados', ['antes' => 'encendidos', 'despues' => 'apagados',
+                'ritmo' => $config->reactivacion_nivel, 'cola' => $cola['total']]);
 
-            return ['message' => 'Envíos automáticos pausados. Lo que se genere queda en cola.'];
+            return ['message' => 'Envíos automáticos apagados. Lo que se genere queda en cola.'];
         });
     }
 
-    /** @param int|null $porHora solo con LOTES_POR_HORA */
-    public function reactivar(User $user, string $opcion, ?int $porHora = null): array
+    /**
+     * Encender: qué hacer con lo acumulado ($opcion) y el ritmo (prueba o normal), en una sola
+     * transacción. Si al descartar no se puede guardar el archivo para revertir, no cambia nada.
+     *
+     * @param int|null $porHora solo con LOTES_POR_HORA
+     */
+    public function encender(User $user, string $opcion, string $ritmo, ?int $porHora = null): array
     {
         $this->exigirPermiso($user);
         if (! in_array($opcion, self::OPCIONES, true)) {
@@ -152,95 +165,84 @@ class EnviosAutomaticos
         if ($opcion === self::LOTES_POR_HORA && ($porHora === null || $porHora < self::LOTE_MIN || $porHora > self::LOTE_MAX)) {
             throw new InvalidArgumentException('El lote por hora va de ' . self::LOTE_MIN . ' a ' . self::LOTE_MAX . '.');
         }
+        $this->validarRitmo($ritmo);
 
-        return DB::transaction(function () use ($user, $opcion, $porHora) {
+        return DB::transaction(function () use ($user, $opcion, $ritmo, $porHora) {
             $config = $this->bloquear();
-            if (! $config->envio_pausado) {
-                throw new InvalidArgumentException('Los envíos ya están activos.');
+            if ($this->encendido($config)) {
+                throw new InvalidArgumentException('Los envíos ya están encendidos.');
             }
             $ahora = now();
             $antes = $this->cola();
-            $detalle = ['antes' => 'pausados', 'despues' => 'activos', 'opcion' => $opcion, 'cola_antes' => $antes['total']];
+            $detalle = ['antes' => 'apagados', 'despues' => 'encendidos', 'opcion' => $opcion, 'ritmo' => $ritmo, 'cola_antes' => $antes['total']];
             $extra = ['envio_lote_por_hora' => null, 'envio_lote_hasta' => null];
-            $mensaje = 'Envíos reactivados: lo acumulado sale con los límites de la etapa.';
+            $mensaje = 'Envíos encendidos: lo acumulado sale con el ritmo elegido.';
 
             if ($opcion === self::DESCARTAR_VIEJOS) {
                 [$n, $archivo, $porTipo] = $this->cancelarViejos($ahora->copy()->subHours(self::HORAS_DESCARTE), null,
-                    'Descartada al reactivar los envíos: llevaba más de ' . self::HORAS_DESCARTE . ' h en cola.', 'reactivacion');
+                    'Descartada al encender los envíos: llevaba más de ' . self::HORAS_DESCARTE . ' h en cola.', 'reactivacion');
                 $detalle += ['descartadas' => $n, 'descartadas_por_tipo' => $porTipo, 'archivo_para_revertir' => $archivo];
-                $mensaje = "Envíos reactivados. Se descartaron {$n} avisos con más de " . self::HORAS_DESCARTE . ' h en cola (no se borran; se pueden revertir).';
+                $mensaje = "Envíos encendidos. Se descartaron {$n} avisos con más de " . self::HORAS_DESCARTE . ' h en cola (no se borran; se pueden revertir).';
             } elseif ($opcion === self::LOTES_POR_HORA) {
                 $extra = ['envio_lote_por_hora' => $porHora, 'envio_lote_hasta' => $ahora];
                 $detalle += ['por_hora' => $porHora];
-                $mensaje = "Envíos reactivados en lotes de {$porHora} por hora hasta vaciar lo acumulado.";
+                $mensaje = "Envíos encendidos en lotes de {$porHora} por hora hasta vaciar lo acumulado.";
             }
 
-            $this->guardar($config, false, $user, $extra);
-            $this->auditar($user, $config, 'Envíos automáticos reactivados', $detalle);
+            $this->guardar($config, false, $user, $extra + $this->camposRitmo($ritmo, $user));
+            $this->auditar($user, $config, 'Envíos automáticos encendidos', $detalle);
 
-            return ['message' => $mensaje] + $detalle;
+            return ['message' => $mensaje . ' Ritmo: ' . $this->nombreRitmo($ritmo) . '.'] + $detalle;
         });
     }
 
-    /**
-     * Etapa de reactivación desde la pantalla (billing_config, sin tocar el .env): cerrado → baja
-     * (todos los clientes, $porCorrida por corrida y $porDia por día) → normal (sin tope de etapa).
-     * A «normal» solo se llega desde la etapa baja; volver a baja o a cerrado se puede siempre.
-     */
-    public function cambiarEtapa(User $user, string $nivel, ?int $porCorrida = null, ?int $porDia = null): array
+    /** Cambiar el ritmo con los envíos encendidos (prueba ↔ normal). */
+    public function cambiarRitmo(User $user, string $ritmo): array
     {
         $this->exigirPermiso($user);
-        if (! in_array($nivel, ReactivacionEnvios::NIVELES, true)) {
-            throw new InvalidArgumentException('Elige una etapa: cerrado, etapa baja o normal.');
-        }
-        if ($nivel === ReactivacionEnvios::NIVEL_BAJA) {
-            $porCorrida ??= ReactivacionEnvios::BAJA_POR_CORRIDA;
-            $porDia ??= ReactivacionEnvios::BAJA_POR_DIA;
-            if ($porCorrida < 1 || $porCorrida > self::ETAPA_CORRIDA_MAX || $porDia < 1 || $porDia > self::ETAPA_DIA_MAX) {
-                throw new InvalidArgumentException('En la etapa baja: de 1 a ' . self::ETAPA_CORRIDA_MAX . ' por corrida y de 1 a ' . self::ETAPA_DIA_MAX . ' por día.');
-            }
-            if ($porDia < $porCorrida) {
-                throw new InvalidArgumentException('El tope por día no puede ser menor que el de cada corrida.');
-            }
-        } else {
-            $porCorrida = $porDia = null;
-        }
+        $this->validarRitmo($ritmo);
 
-        return DB::transaction(function () use ($user, $nivel, $porCorrida, $porDia) {
+        return DB::transaction(function () use ($user, $ritmo) {
             $config = $this->bloquear();
-            $antes = $this->etapa();
-            if ($nivel === ReactivacionEnvios::NIVEL_NORMAL && $antes['nivel'] !== ReactivacionEnvios::NIVEL_BAJA) {
-                throw new InvalidArgumentException('A «normal» se pasa desde la etapa baja: ábrela primero y revisa cómo salen los envíos.');
+            if (! $this->encendido($config)) {
+                throw new InvalidArgumentException('El ritmo se cambia con los envíos encendidos; al encender se elige.');
             }
-            if ($antes['nivel'] === $nivel && (int) $config->reactivacion_limite_corrida === (int) $porCorrida && (int) $config->reactivacion_limite_diario === (int) $porDia) {
-                throw new InvalidArgumentException('La etapa ya está así.');
+            $antes = $config->reactivacion_nivel;
+            if ($antes === $ritmo) {
+                throw new InvalidArgumentException('El ritmo ya es ' . $this->nombreRitmo($ritmo) . '.');
             }
+            $config->forceFill($this->camposRitmo($ritmo, $user))->save();
+            $this->auditar($user, $config, 'Ritmo de envío cambiado', ['antes' => $antes, 'despues' => $ritmo]);
 
-            $config->forceFill([
-                'reactivacion_nivel' => $nivel,
-                'reactivacion_limite_corrida' => $porCorrida,
-                'reactivacion_limite_diario' => $porDia,
-                'reactivacion_cambiada_por' => $user->id,
-                'reactivacion_cambiada_at' => now(),
-            ])->save();
-            $despues = $this->etapa();
-            $this->auditar($user, $config, 'Etapa de reactivación cambiada', [
-                'antes' => ['nivel' => $antes['nivel'] ?? ('.env: ' . $antes['nombre']), 'por_corrida' => $antes['limite_por_corrida'], 'por_dia' => $antes['limite_diario']],
-                'despues' => ['nivel' => $nivel, 'por_corrida' => $porCorrida, 'por_dia' => $porDia],
-                'pausado' => (bool) $config->envio_pausado,
-            ]);
-
-            $mensaje = match ($nivel) {
-                ReactivacionEnvios::NIVEL_CERRADO => 'Etapa cerrada: no sale nada automático aunque se quite la pausa.',
-                ReactivacionEnvios::NIVEL_BAJA => "Etapa baja: hasta {$porCorrida} por corrida y {$porDia} por día.",
-                default => 'Etapa normal: sin tope de etapa (hasta 100 por corrida, cada 15 minutos).',
-            };
-            if ($config->envio_pausado && $nivel !== ReactivacionEnvios::NIVEL_CERRADO) {
-                $mensaje .= ' Los envíos siguen pausados: no sale nada hasta reactivarlos.';
-            }
-
-            return ['message' => $mensaje, 'etapa' => $despues];
+            return ['message' => 'Ritmo de envío: ' . $this->nombreRitmo($ritmo) . '.'];
         });
+    }
+
+    private function camposRitmo(string $ritmo, User $user): array
+    {
+        $prueba = $ritmo === ReactivacionEnvios::NIVEL_PRUEBA;
+
+        return [
+            'reactivacion_nivel' => $ritmo,
+            'reactivacion_limite_corrida' => $prueba ? ReactivacionEnvios::PRUEBA_POR_CORRIDA : null,
+            'reactivacion_limite_diario' => $prueba ? ReactivacionEnvios::PRUEBA_POR_DIA : null,
+            'reactivacion_cambiada_por' => $user->id,
+            'reactivacion_cambiada_at' => now(),
+        ];
+    }
+
+    private function nombreRitmo(string $ritmo): string
+    {
+        return $ritmo === ReactivacionEnvios::NIVEL_PRUEBA
+            ? 'Prueba (' . ReactivacionEnvios::PRUEBA_POR_CORRIDA . ' por corrida, ' . ReactivacionEnvios::PRUEBA_POR_DIA . ' al día)'
+            : 'Normal';
+    }
+
+    private function validarRitmo(string $ritmo): void
+    {
+        if (! in_array($ritmo, ReactivacionEnvios::RITMOS, true)) {
+            throw new InvalidArgumentException('Elige el ritmo: Prueba o Normal.');
+        }
     }
 
     /** Cuántos avisos llevan más de $horas en cola, por tipo (lo que «Depurar cola» cancelaría). */
@@ -399,17 +401,21 @@ class EnviosAutomaticos
     private function exigirPermiso(User $user): void
     {
         if (! self::puedeGestionar($user)) {
-            throw new \Illuminate\Auth\Access\AuthorizationException('Solo un super-administrador puede pausar o reactivar los envíos automáticos.');
+            throw new \Illuminate\Auth\Access\AuthorizationException('Solo un super-administrador puede encender o apagar los envíos automáticos.');
         }
     }
 
+    /** La etapa vigente y el ritmo guardado (que se usa al encender), con quién y cuándo lo cambió. */
     private function etapa(): array
     {
         $etapa = new ReactivacionEnvios();
         $config = BillingConfig::current();
         $por = $config->reactivacion_cambiada_por ? User::find($config->reactivacion_cambiada_por) : null;
+        $ritmo = in_array($config->reactivacion_nivel, ReactivacionEnvios::RITMOS, true) ? $config->reactivacion_nivel : null;
 
         return ['nombre' => $etapa->etapa()] + $etapa->resumenConfig() + [
+            'ritmo' => $ritmo,
+            'ritmo_nombre' => $ritmo ? $this->nombreRitmo($ritmo) : null,
             'cambiada_por' => $por ? trim($por->name . ' ' . $por->father_last_name) : null,
             'cambiada_at' => $config->reactivacion_cambiada_at?->toIso8601String(),
         ];
