@@ -41,7 +41,7 @@
                     <span class="cf-cliente">{{ c.cliente }}</span>
                     <span class="cf-chip">{{ tipos[c.tipo] }}</span>
                     <span class="cf-chip cf-chip-suave">{{ origenes[c.origen] || c.origen }}</span>
-                    <span v-if="vista === 'historial'" class="cf-chip" :class="`cf-est-${c.estado}`">{{ estados[c.estado] || c.estado }}</span>
+                    <span v-if="vista === 'historial'" class="cf-chip" :class="`cf-est-${c.estado}`">{{ etiquetaEstado(c) }}</span>
                 </div>
                 <div class="cf-body">
                     <p class="mb-2">{{ c.detalle }}</p>
@@ -95,7 +95,7 @@
                     </template>
 
                     <div v-if="vista === 'historial'" class="cf-nota">
-                        {{ estados[c.estado] || c.estado }}{{ c.resuelta_por ? ` por ${c.resuelta_por}` : "" }}{{ c.resuelta_at ? ` · ${fecha(c.resuelta_at)}` : "" }}.
+                        {{ cierre(c) }}
                         <template v-if="c.motivo"> Motivo: {{ c.motivo }}</template>
                         <template v-if="c.tiene_deshacer"> Respaldo y SQL para deshacer guardados ({{ c.respaldo_path }}).</template>
                     </div>
@@ -115,7 +115,7 @@
 
         <div v-if="dialogo" class="cf-velo" @click.self="cerrar">
             <div class="cf-dialogo" role="dialog" aria-modal="true">
-                <div class="cf-head">{{ dialogo.accion === "aprobar" ? "Aprobar corrección" : "Descartar corrección" }} · cliente #{{ dialogo.c.client_id }}</div>
+                <div class="cf-head">{{ dialogo.accion === "aprobar" ? "Aprobar corrección" : atendida ? "Marcar atendida" : "Descartar corrección" }} · cliente #{{ dialogo.c.client_id }}</div>
                 <div class="cf-body">
                     <template v-if="dialogo.accion === 'aprobar'">
                         <p v-if="dialogo.c.tipo === 'monto_pago'">
@@ -125,16 +125,16 @@
                         <p class="cf-nota">Antes de escribir se guarda un respaldo y el SQL para deshacerlo. Si los datos del cliente cambiaron, no se aplica y se recalcula.</p>
                     </template>
                     <template v-else>
-                        <label class="cf-label" for="cf-motivo">¿Por qué se descarta?</label>
+                        <label class="cf-label" for="cf-motivo">{{ atendida ? "¿Qué se hizo con este caso?" : "¿Por qué se descarta?" }}</label>
                         <textarea id="cf-motivo" v-model="motivo" class="form-control form-control-sm" rows="3"></textarea>
                     </template>
                     <div v-if="errorAccion" class="cf-error">{{ errorAccion }}</div>
                 </div>
                 <div class="cf-pie">
                     <button type="button" class="btn btn-light btn-sm" :disabled="enviando" @click="cerrar">Cancelar</button>
-                    <button type="button" class="btn btn-sm" :class="dialogo.accion === 'aprobar' ? 'btn-success' : 'btn-danger'"
+                    <button type="button" class="btn btn-sm" :class="dialogo.accion === 'aprobar' || atendida ? 'btn-success' : 'btn-danger'"
                             :disabled="enviando || (dialogo.accion === 'descartar' && motivo.trim().length < 5)" @click="confirmar">
-                        {{ enviando ? "Aplicando…" : dialogo.accion === "aprobar" ? "Aprobar" : "Descartar" }}
+                        {{ enviando ? "Aplicando…" : dialogo.accion === "aprobar" ? "Aprobar" : atendida ? "Marcar atendida" : "Descartar" }}
                     </button>
                 </div>
             </div>
@@ -233,6 +233,13 @@ const confirmar = async () => {
 const dinero = (n) => Number(n || 0).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
 const lado = (x) => (x ? `${estadosFactura[x.estado] || x.estado} · ${x.pago ? `pago ${x.pago}` : "sin pago"} · debe ${dinero(x.pendiente)}` : "");
 const fecha = (iso) => new Date(iso).toLocaleString("es-MX", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+// Una revisión no se «descarta»: se marca atendida (mismo estado en el servidor, otra palabra).
+const etiquetaEstado = (c) => (c.tipo === "revision" && c.estado === "descartada" ? "Atendida" : estados[c.estado] || c.estado);
+const cierre = (c) => {
+    const t = `${etiquetaEstado(c)}${c.resuelta_por ? ` por ${c.resuelta_por}` : ""}${c.resuelta_at ? ` · ${fecha(c.resuelta_at)}` : ""}`;
+    return t.endsWith(".") ? t : `${t}.`;
+};
+const atendida = computed(() => dialogo.value?.accion === "descartar" && dialogo.value?.c.tipo === "revision");
 </script>
 
 <style scoped>
