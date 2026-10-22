@@ -78,9 +78,13 @@ class TalentoLiquidacionController extends Controller
         $page = $q->paginate($request->per_page ?? 25);
         $puedeCerrar = auth()->user()->can('talento.liquidation.manage');
         $noCierra = $this->fichaQueNoPuedeCerrar();
-        $page->getCollection()->each(fn ($l) => $l->puede_cerrar = $puedeCerrar
-            && $l->status === 'draft'
-            && (int) $l->colaborador_id !== $noCierra);
+        // foreach y no each(fn): each() se detiene cuando la función devuelve false, y la primera fila
+        // que no se podía cerrar dejaba a las siguientes sin la bandera (la pantalla les mostraba Cerrar).
+        foreach ($page->getCollection() as $l) {
+            $l->puede_cerrar = $puedeCerrar
+                && $l->status === 'draft'
+                && (int) $l->colaborador_id !== $noCierra;
+        }
 
         if ($soloTotales) {
             $page->getCollection()->each(function ($l) {
