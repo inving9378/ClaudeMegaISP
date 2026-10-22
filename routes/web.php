@@ -25,8 +25,6 @@ use App\Http\Controllers\InternetConsumptionRadiusController;
 |
 */
 
-include('script_db.php');
-
 /*
  * Rutas modulares
  * ---------------
