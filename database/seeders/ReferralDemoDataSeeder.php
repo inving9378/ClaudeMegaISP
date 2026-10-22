@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Support\Seguridad\CuentasDemo;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -13,6 +14,12 @@ class ReferralDemoDataSeeder extends Seeder
 
     public function run(): void
     {
+        // Seguridad V1.64: sin contraseña en el código y nunca en producción.
+        if (CuentasDemo::detenerSiEsProtegido($this->command)) {
+            return;
+        }
+        $passwordPortal = CuentasDemo::contrasena();
+        CuentasDemo::mostrarUnaVez($this->command, 'portal de los clientes demo', $passwordPortal);
         DB::statement('SET FOREIGN_KEY_CHECKS=0;');
         $this->cleanPreviousData();
 
@@ -56,7 +63,7 @@ class ReferralDemoDataSeeder extends Seeder
                     'name'            => $parts[0],
                     'father_last_name'=> $parts[1] ?? null,
                     'email'           => $slug . '@demo.meganet.com',
-                    'password'        => 'Demo1234!',
+                    'password'        => $passwordPortal,
                     'created_at'      => $now,
                     'updated_at'      => $now,
                 ]);
