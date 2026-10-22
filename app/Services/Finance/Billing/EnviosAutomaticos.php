@@ -10,6 +10,7 @@ use App\Services\Finance\Invoice\EnvioPrefactura;
 use App\Support\ArchivoObligatorio;
 use App\Support\Seguridad\SuperAdministrador;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -290,7 +291,7 @@ class EnviosAutomaticos
         });
     }
 
-    private function enColaDesdeAntes(Carbon $limite, ?string $tipo)
+    private function enColaDesdeAntes(Carbon $limite, ?string $tipo): Builder
     {
         return BillingNotification::where('status', BillingNotification::STATUS_WAITING)
             ->where('created_at', '<', $limite)
@@ -337,27 +338,39 @@ class EnviosAutomaticos
             ->count();
     }
 
-    /** @return array{0: int, 1: ?string, 2: array<string, int>} [canceladas, archivo, por tipo] */
     /**
-     * Cancela (no borra) lo que está en cola desde antes de $limite, de un tipo o de todos, y deja
-     * el archivo que revierte billing:cancelar-colas --revertir=… --ejecutar.
+     * Cancela (no borra) lo que está en cola desde antes de $limite, de un tipo o de todos.
      *
      * @return array{0: int, 1: ?string, 2: array<string, int>} [canceladas, archivo, por tipo]
      */
     private function cancelarViejos(Carbon $limite, ?string $tipo, string $nota, string $prefijoArchivo): array
     {
-        [, , , $cancelado, $colNota] = CancelarColasCobroCommand::COLAS['billing_notifications'];
-        $resultado = ['origen' => 'Configuración › Envíos automáticos', 'tabla' => 'billing_notifications', 'cancelado' => $cancelado,
+        [, , , $cancelado] = CancelarColasCobroCommand::COLAS['billing_notifications'];
+
+        return $this->cambiarEstado($this->enColaDesdeAntes($limite, $tipo), $cancelado, $nota, $prefijoArchivo);
+    }
+
+    /**
+     * Pone $estadoNuevo a las filas de $consulta y deja el archivo que lo revierte con
+     * `billing:cancelar-colas --revertir=… --ejecutar` (mismo formato: «cancelado» es el estado que se
+     * puso y cada fila guarda el que tenía). Sirve para cancelar y, desde «Ver detalle de la cola»,
+     * para reactivar. Debe correr dentro de una transacción.
+     *
+     * @return array{0: int, 1: ?string, 2: array<string, int>} [cambiadas, archivo, por tipo]
+     */
+    public function cambiarEstado(Builder $consulta, string $estadoNuevo, string $nota, string $prefijoArchivo): array
+    {
+        [, , , , $colNota] = CancelarColasCobroCommand::COLAS['billing_notifications'];
+        $resultado = ['origen' => 'Configuración › Envíos automáticos', 'tabla' => 'billing_notifications', 'cancelado' => $estadoNuevo,
             'columna_nota' => $colNota, 'ejecutado_at' => now()->toIso8601String(), 'cancelados' => []];
         $porTipo = [];
 
-        $this->enColaDesdeAntes($limite, $tipo)
-            ->select(['id', 'document_type', 'status', 'updated_at', $colNota])
+        $consulta->select(['id', 'document_type', 'status', 'updated_at', $colNota])
             ->lockForUpdate()
-            ->chunkById(1000, function ($lote) use (&$resultado, &$porTipo, $cancelado, $colNota, $nota) {
+            ->chunkById(1000, function ($lote) use (&$resultado, &$porTipo, $estadoNuevo, $colNota, $nota) {
                 $ahora = now()->startOfSecond();
                 DB::table('billing_notifications')->whereIn('id', $lote->pluck('id'))
-                    ->update(['status' => $cancelado, $colNota => $nota, 'updated_at' => $ahora]);
+                    ->update(['status' => $estadoNuevo, $colNota => $nota, 'updated_at' => $ahora]);
                 foreach ($lote as $fila) {
                     // Mismo formato que billing:cancelar-colas, para revertir con su --revertir.
                     $resultado['cancelados'][] = [$fila->id, (string) $fila->status, (string) $fila->getRawOriginal('updated_at'), $ahora->format('Y-m-d H:i:s'), $fila->{$colNota}];
@@ -393,12 +406,12 @@ class EnviosAutomaticos
         ] + $extra)->save();
     }
 
-    private function auditar(User $user, BillingConfig $config, string $descripcion, array $detalle): void
+    public function auditar(User $user, BillingConfig $config, string $descripcion, array $detalle): void
     {
         activity(self::LOG)->causedBy($user)->performedOn($config)->withProperties($detalle)->log($descripcion);
     }
 
-    private function exigirPermiso(User $user): void
+    public function exigirPermiso(User $user): void
     {
         if (! self::puedeGestionar($user)) {
             throw new \Illuminate\Auth\Access\AuthorizationException('Solo un super-administrador puede encender o apagar los envíos automáticos.');
@@ -406,7 +419,7 @@ class EnviosAutomaticos
     }
 
     /** La etapa vigente y el ritmo guardado (que se usa al encender), con quién y cuándo lo cambió. */
-    private function etapa(): array
+    public function etapa(): array
     {
         $etapa = new ReactivacionEnvios();
         $config = BillingConfig::current();

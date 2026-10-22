@@ -324,6 +324,11 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/ritmo', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'ritmo']);
             Route::get('/depurar/conteo', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'conteoDepuracion']);
             Route::post('/depurar', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'depurar']);
+            // #579: «Ver detalle de la cola»
+            Route::get('/cola', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'cola']);
+            Route::get('/cola/listar', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'listarCola']);
+            Route::post('/cola/conteo', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'conteoCola']);
+            Route::post('/cola/aplicar', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'aplicarCola']);
         });
 
         // Vista web del catálogo de API

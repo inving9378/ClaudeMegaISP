@@ -52,7 +52,8 @@
             <section class="ea-card">
                 <div class="ea-head ea-fila">
                     En cola
-                    <button type="button" class="btn btn-outline-secondary btn-sm ms-auto ea-btn-head" @click="abrir('depurar')">
+                    <a href="/configuracion/envios-automaticos/cola" class="btn btn-outline-primary btn-sm ms-auto ea-btn-head">Ver detalle de la cola</a>
+                    <button type="button" class="btn btn-outline-secondary btn-sm ea-btn-head" @click="abrir('depurar')">
                         Depurar cola…
                     </button>
                 </div>
