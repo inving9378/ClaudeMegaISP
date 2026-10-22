@@ -10,16 +10,20 @@ datos o credenciales, la contraseña de nginx para dev y el orden para volver pr
 credencial. Las excepciones legítimas van en `.githooks/permitidos.txt`.
 
 El repo apunta sus hooks a `/var/www/megaisp/.git/hooks` (compartido por todos los worktrees).
-Ahí hay un envoltorio que corre la copia de main del candado:
+Ahí hay un envoltorio que corre la copia de main del candado. Ojo: este repo tiene
+`core.filemode=false`, así que el envoltorio lo corre con `bash` en vez de depender del permiso
+de ejecución (la primera versión lo saltaba en silencio):
 
 ```bash
 cat > /var/www/megaisp/.git/hooks/pre-commit <<'SH'
 #!/usr/bin/env bash
-# Envoltorio (no versionado): corre el candado versionado de la copia de main.
+# Envoltorio (no versionado): corre el candado versionado de la copia de main con bash, tenga o
+# no permiso de ejecución. Si no encuentra el candado, BLOQUEA: nunca falla en silencio.
 for h in /var/www/megaisp/.githooks/pre-commit "$(git rev-parse --show-toplevel)/.githooks/pre-commit"; do
-    [ -x "$h" ] && exec "$h" "$@"
+    [ -f "$h" ] && exec bash "$h" "$@"
 done
-exit 0
+echo "✋ No encuentro el candado .githooks/pre-commit; commit bloqueado. Ver deploy/README-seguridad-repo.md." >&2
+exit 1
 SH
 chmod +x /var/www/megaisp/.git/hooks/pre-commit
 ```
