@@ -1,3 +1,0 @@
-mysqldump -u debian-sys-maint -p meganet > respaldo_meganetdb.sql
-
-kns0ACtmAzsXvx6J

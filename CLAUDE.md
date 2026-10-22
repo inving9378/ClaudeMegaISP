@@ -283,8 +283,8 @@ El login valida contra la columna **`client_main_information.password`** (la "Co
 - VoIP: GATEADO (en preparación)
 
 **Cliente de prueba:**
-- `clients.id` = 6810, nombre "FRANCISCO AGUILAR", teléfono `5510757244`
-- Contraseña portal (para validación en browser): `Portal2026Test!`
+- `clients.id` = 6810 (nombre y teléfono fuera del repo: es público)
+- Contraseña de portal para validar en navegador: pedirla en sesión; nunca se escribe aquí (el repo es público)
   ⚠️ Rotar esta contraseña luego de validar — es temporal de prueba
 
 ---

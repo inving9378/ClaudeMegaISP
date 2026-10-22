@@ -1,0 +1,8 @@
+# Rutas (con comodines) que el hook pre-commit deja pasar aunque coincidan con una regla.
+# Solo archivos SIN datos de clientes ni credenciales.
+config/state_municipalities_and_colonies/*.sql
+storage/schema/reference.sql
+.env.example
+docs/auditoria/*.csv
+database/files/*.xlsx
+app/Console/Commands/Disabled/excel/*.xlsx

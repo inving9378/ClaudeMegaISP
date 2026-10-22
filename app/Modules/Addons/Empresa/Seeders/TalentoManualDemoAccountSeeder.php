@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Empresa\Seeders;
 use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Services\Security\PasswordService;
+use App\Support\Seguridad\CuentasDemo;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -19,10 +20,15 @@ use Illuminate\Support\Facades\DB;
 class TalentoManualDemoAccountSeeder extends Seeder
 {
     public const LOGIN = 'manual_demo_tecnico';
-    public const PASSWORD = 'ManualDemo2026!';
 
     public function run(): void
     {
+        // Seguridad V1.64: sin contraseña en el código y nunca en producción.
+        if (CuentasDemo::detenerSiEsProtegido($this->command)) {
+            return;
+        }
+        $password = CuentasDemo::contrasena();
+
         $user = User::firstOrCreate(
             ['login_user' => self::LOGIN],
             [
@@ -30,7 +36,7 @@ class TalentoManualDemoAccountSeeder extends Seeder
                 'father_last_name' => 'Manual',
                 'mother_last_name' => 'Colaborador',
                 'email' => 'manual-demo-tecnico@meganet.local',
-                'password' => PasswordService::make(self::PASSWORD),
+                'password' => PasswordService::make($password),
                 'active' => 1,
                 'estado' => 'activo',
                 'color' => '#0d9488',
@@ -142,6 +148,12 @@ class TalentoManualDemoAccountSeeder extends Seeder
             if ($rows) {
                 DB::table('inventory_item_stocks')->insert($rows);
             }
+        }
+
+        if ($user->wasRecentlyCreated) {
+            CuentasDemo::mostrarUnaVez($this->command, self::LOGIN, $password);
+        } else {
+            $this->command?->info(self::LOGIN . ' ya existía: su contraseña no se cambió.');
         }
     }
 }

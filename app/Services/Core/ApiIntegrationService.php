@@ -246,7 +246,19 @@ class ApiIntegrationService
             'whatsapp-oficial' => fn() => $this->validateWhatsappOficial($key, $integration->config ?? []),
             'pexels'           => fn() => $this->validatePexels($key),
             'google_maps'      => fn() => $this->validateGoogleMaps($key),
+            'github'           => fn() => $this->validateGithub($key),
         ];
+    }
+
+    /** Seguridad V1.64: el token debe poder leer el repositorio de las actualizaciones. */
+    private function validateGithub(string $key): bool
+    {
+        $repo = (string) config('updates.repo', '');
+        $res = Http::timeout(10)
+            ->withHeaders(['Authorization' => "Bearer {$key}", 'Accept' => 'application/vnd.github+json'])
+            ->get("https://api.github.com/repos/{$repo}");
+
+        return $repo !== '' && $res->status() === 200;
     }
 
     private function validationResult(ApiIntegration $integration, bool $ok, string $message): array

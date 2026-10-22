@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# Candado de seguridad (V1.64, 2026-10-22). El repo es público: este hook bloquea un commit
+# que agregue volcados o exportaciones de datos, o líneas con credenciales.
+#
+# Instalación en un servidor (una vez): ver deploy/README-seguridad-repo.md.
+# Saltarlo, solo si sabes exactamente lo que subes: git commit --no-verify
+set -u
+
+raiz=$(git rev-parse --show-toplevel)
+permitidos="$(dirname "$0")/permitidos.txt"
+[ -f "$permitidos" ] || permitidos="$raiz/.githooks/permitidos.txt"
+fallos=()
+
+permitido() {
+    local f="$1" pat
+    [ -f "$permitidos" ] || return 1
+    while IFS= read -r pat; do
+        [[ -z "$pat" || "$pat" == \#* ]] && continue
+        # shellcheck disable=SC2053
+        [[ "$f" == $pat ]] && return 0
+    done < "$permitidos"
+    return 1
+}
+
+# 1) Archivos que no deben entrar: volcados, exportaciones, llaves y .env.
+while IFS= read -r -d '' f; do
+    permitido "$f" && continue
+    case "$f" in
+        public/csv/*|database/sql/*|documentation/others/*|storage/backups/*|storage/app/cuarentena/*)
+            fallos+=("$f: ruta reservada para datos que no se versionan") ;;
+        *.sql|*.sql.gz|*.csv|*.xlsx|*.xls|*.bak|*.dump)
+            fallos+=("$f: volcado o exportación de datos") ;;
+        *.pem|*.key|*.p12|*.pfx|*id_rsa*|*id_ed25519*)
+            fallos+=("$f: llave o certificado privado") ;;
+        .env|*/.env|.env.*|*/.env.*)
+            [[ "$f" == *.example ]] || fallos+=("$f: archivo .env") ;;
+    esac
+done < <(git diff --cached --name-only --diff-filter=ACMR -z)
+
+# 2) Líneas agregadas con forma de credencial (solo nombres de patrón; nunca se imprime el valor).
+declare -A patrones=(
+    [token_github]='gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,}'
+    [llave_anthropic]='sk-ant-[A-Za-z0-9_-]{20,}'
+    [llave_openai]='sk-proj-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{40,}'
+    [llave_aws]='AKIA[0-9A-Z]{16}'
+    [llave_google]='AIza[0-9A-Za-z_-]{35}'
+    [token_slack]='xox[baprs]-[A-Za-z0-9-]{10,}'
+    [llave_privada]='-----BEGIN [A-Z ]*PRIVATE KEY-----'
+    [app_key]='APP_KEY=base64:[A-Za-z0-9+/]{43}='
+    [url_con_contrasena]='[a-z][a-z0-9+.-]*://[^[:space:]:/@'"'"'"$<{]{2,}:[^[:space:]:/@'"'"'"$<{]{4,}@'
+    [usuario_mysql]="IDENTIFIED BY '[^'\$<{]{4,}'"
+    [linea_pass]='^[[:space:]]*(pass|passwd|password|contrase(ñ|n)a|clave)[[:space:]]*[:=][[:space:]]*[^[:space:]<{$]{6,}[[:space:]]*$'
+)
+archivo=""
+while IFS= read -r linea; do
+    if [[ "$linea" == "+++ b/"* ]]; then archivo="${linea#+++ b/}"; continue; fi
+    [[ "$linea" == +* && "$linea" != "+++"* ]] || continue
+    [[ "$archivo" == .githooks/* ]] && continue
+    permitido "$archivo" && continue
+    contenido="${linea:1}"
+    for nombre in "${!patrones[@]}"; do
+        # «pass: valor» solo en notas y configuración: en código es un campo de un objeto.
+        if [[ "$nombre" == linea_pass ]]; then
+            case "$archivo" in *.txt|*.md|*.conf|*.ini|*.cfg|*.yml|*.yaml|*.sh|*.tpl|*.properties) ;; *) continue ;; esac
+        fi
+        if printf '%s\n' "$contenido" | grep -qE -- "${patrones[$nombre]}"; then
+            fallos+=("$archivo: línea con forma de credencial ($nombre)")
+        fi
+    done
+done < <(git diff --cached -U0 --no-color --diff-filter=ACMR)
+
+if [ ${#fallos[@]} -gt 0 ]; then
+    {
+        echo "✋ Commit bloqueado: el repositorio es público y esto no debe subir."
+        printf '   - %s\n' "${fallos[@]}" | sort -u
+        echo "   Saca el archivo del commit (git restore --staged <archivo>) o pon el secreto en .env."
+        echo "   Si es un falso positivo de un archivo que sí debe versionarse, agrégalo a .githooks/permitidos.txt."
+    } >&2
+    exit 1
+fi
+exit 0

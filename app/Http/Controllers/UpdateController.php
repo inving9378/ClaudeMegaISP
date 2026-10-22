@@ -59,6 +59,8 @@ class UpdateController extends Controller
             'release'           => ($enabled && !$checkFailed) ? $result : null,
             'check_failed'      => $checkFailed,
             'check_error'       => $checkFailed ? ($result['error'] ?? null) : null,
+            // Seguridad V1.64: repo privado sin token / token inválido → aviso visible.
+            'check_reason'      => $checkFailed ? ($result['motivo'] ?? null) : null,
             'can_check'         => $canCheck,
             'show_check_button' => $enabled && $canCheck && (bool) config('updates.manual_check_button', true),
             // Deploy en curso (si lo hay) → el banner del dashboard se re-engancha solo:

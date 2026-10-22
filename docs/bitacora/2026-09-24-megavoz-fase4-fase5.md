@@ -24,7 +24,7 @@ nueva** (`target="_blank"`) — nunca en la misma pestaña: `spa-nav.js` remonta
 Vue de la página entera al navegar, y eso mataría la llamada en curso.
 
 Verificado con el cliente de prueba real (id 6810, "FRANCISCO AGUILAR", tel.
-5510757244): nombre, saldo (-$4,937), servicio "GAMER 100" y tickets abiertos
+[teléfono]): nombre, saldo negativo, servicio "GAMER 100" y tickets abiertos
 (0) resueltos correctamente end-to-end.
 
 ### Fase 5 — tablero de KPIs
