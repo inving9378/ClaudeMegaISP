@@ -2481,6 +2481,11 @@ return [
         '/talento/api/cajas/settings',
         '/talento/api/cajas/bonus-log/{workOrderId}/evaluate',
     ],
+    // 2026-10-22: el Mostrador ve cuánto cobra cada quien, sin desglose ni cálculo (el controller
+    // recorta la lista; /talento/finiquito y los detalles siguen en talento.liquidation.view).
+    'talento.liquidation.totales' => [
+        '/talento/liquidaciones',
+    ],
     'talento.liquidation.view' => [
         '/talento/liquidaciones',
         '/talento/finiquito',

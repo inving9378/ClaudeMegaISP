@@ -22,7 +22,7 @@ class TalentoLiquidacionController extends Controller
 
     public function index()
     {
-        $this->authorize('talento.liquidation.view');
+        abort_unless(auth()->user()->canAny(['talento.liquidation.view', 'talento.liquidation.totales']), 403);
         return view('addon-talento::talento.liquidaciones');
     }
 
@@ -35,6 +35,18 @@ class TalentoLiquidacionController extends Controller
         // fila y la de sus subordinados directos — nunca la de un extraño,
         // aunque manipule el parámetro colaborador_id a mano.
         $esStaff = auth()->user()->can('talento.liquidation.view');
+
+        $miFicha = Actor::for(auth()->user())->talento();
+        $idsVisibles = $miFicha
+            ? $miFicha->subordinados()->pluck('id')->push($miFicha->id)->unique()->values()->all()
+            : [];
+
+        // Quien solo puede ver cuánto cobra cada quien (Mostrador, 2026-10-22) ve la lista de todos
+        // con el total a pagar, sin desglose ni cálculo. Lo suyo (y lo de su equipo) lo ve completo,
+        // como cualquier colaborador.
+        $soloTotales = ! $esStaff
+            && auth()->user()->can('talento.liquidation.totales')
+            && ! ($request->filled('colaborador_id') && in_array((int) $request->colaborador_id, $idsVisibles, true));
 
         $q = TalentoLiquidation::with('colaborador.user')
             // El input "Buscar colaborador…" de la UI nunca se leía aquí — en
@@ -50,17 +62,11 @@ class TalentoLiquidacionController extends Controller
             ->when($request->to,     fn($q, $v) => $q->where('period_end', '<=', $v))
             ->orderBy('period_start', 'desc');
 
-        if ($esStaff) {
+        if ($esStaff || $soloTotales) {
             $q->when($request->colaborador_id, fn($q, $v) => $q->where('colaborador_id', $v));
         } else {
-            $miPropioColaborador = Actor::for(auth()->user())->talento();
-            abort_if(! $miPropioColaborador, 403);
+            abort_if(! $miFicha, 403);
 
-            $idsVisibles = $miPropioColaborador->subordinados()->pluck('id')
-                ->push($miPropioColaborador->id)
-                ->unique()
-                ->values()
-                ->all();
             $q->whereIn('colaborador_id', $idsVisibles);
 
             if ($request->filled('colaborador_id')) {
@@ -72,11 +78,23 @@ class TalentoLiquidacionController extends Controller
         $page = $q->paginate($request->per_page ?? 25);
         $puedeCerrar = auth()->user()->can('talento.liquidation.manage');
         $noCierra = $this->fichaQueNoPuedeCerrar();
-        $page->getCollection()->each(fn ($l) => $l->puede_cerrar = $puedeCerrar
-            && $l->status === 'draft'
-            && (int) $l->colaborador_id !== $noCierra);
+        // foreach y no each(fn): each() se detiene cuando la función devuelve false, y la primera fila
+        // que no se podía cerrar dejaba a las siguientes sin la bandera (la pantalla les mostraba Cerrar).
+        foreach ($page->getCollection() as $l) {
+            $l->puede_cerrar = $puedeCerrar
+                && $l->status === 'draft'
+                && (int) $l->colaborador_id !== $noCierra;
+        }
 
-        return response()->json($page);
+        if ($soloTotales) {
+            $page->getCollection()->each(function ($l) {
+                $l->setVisible(['id', 'colaborador_id', 'colaborador', 'period_start', 'period_end', 'gross_pay', 'status', 'puede_cerrar']);
+                $l->colaborador?->setVisible(['id', 'user']);
+                $l->colaborador?->user?->setVisible(['id', 'name', 'father_last_name', 'mother_last_name']);
+            });
+        }
+
+        return response()->json(array_merge($page->toArray(), ['solo_totales' => $soloTotales]));
     }
 
     public function calcular(Request $request)
