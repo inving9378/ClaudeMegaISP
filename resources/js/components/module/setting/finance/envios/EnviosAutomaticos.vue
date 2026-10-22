@@ -398,7 +398,7 @@ const antiguedad = (iso) => {
 .ea-input { width: 90px; display: inline-block; }
 .ea-select { width: auto; display: inline-block; }
 .ea-btn-head { font-weight: 500; }
-.ea-switch { display: flex; align-items: center; gap: 8px; }
+.ea-switch { display: flex; align-items: center; gap: 8px; padding-left: 0; min-height: 0; }
 .ea-switch .form-check-input { width: 2.6em; height: 1.35em; cursor: pointer; margin: 0; }
 .ea-ritmo { margin-top: 10px; }
 .ea-fuera td { opacity: 0.45; }
