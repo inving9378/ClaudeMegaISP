@@ -152,7 +152,7 @@ class BillingDocumentService
             'payment'    => $payment,
         ];
         // Papel de 80 mm (impresora de caja); el alto crece con los conceptos.
-        $alto = 430 + 22 * count($items);
+        $alto = 320 + 22 * count($items);
         $pdf = Pdf::loadView('billing.ticket', $datos)->setPaper([0, 0, 226.77, $alto])->setOption('isFontSubsettingEnabled', true);
 
         return ['folio' => $folio, 'nombre' => "ticket_{$folio}.pdf", 'bytes' => $pdf->output()];

@@ -141,7 +141,8 @@
                             {{ numero(conteo.no_aplican) }} no cambian:
                             {{ dialogo === "cancelar" ? "ya se enviaron o ya estaban cancelados." : "están en espera, ya se enviaron o son tickets (solo caja)." }}
                         </p>
-                        <p v-if="dialogo === 'reactivar'" class="ec-aviso">
+                        <p v-if="!conteo.total" class="ec-aviso">No hay nada que {{ dialogo === "cancelar" ? "cancelar" : "reactivar" }} en lo seleccionado.</p>
+                        <p v-else-if="dialogo === 'reactivar'" class="ec-aviso">
                             Vuelven a «en espera»; {{ numero(conteo.con_correo) }} tienen correo.
                             <template v-if="conteo.pausado">Los envíos están pausados: no sale nada hasta que se reactiven.</template>
                             <template v-else>
@@ -152,8 +153,10 @@
                         <p v-else class="ec-nota">
                             Se cancelan, no se borran: queda un archivo para revertir y el registro en la auditoría.
                         </p>
-                        <label class="ec-label" for="ec-conf">Escribe {{ palabra }} para confirmar</label>
-                        <input id="ec-conf" v-model="confirmacion" class="form-control form-control-sm" autocomplete="off" @keyup.enter="aplicar" />
+                        <template v-if="conteo.total">
+                            <label class="ec-label" for="ec-conf">Escribe {{ palabra }} para confirmar</label>
+                            <input id="ec-conf" v-model="confirmacion" class="form-control form-control-sm" autocomplete="off" @keyup.enter="aplicar" />
+                        </template>
                     </template>
                 </div>
                 <div v-if="errorAccion" class="ec-error">{{ errorAccion }}</div>
