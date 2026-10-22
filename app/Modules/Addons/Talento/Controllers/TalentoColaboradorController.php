@@ -174,6 +174,10 @@ class TalentoColaboradorController extends Controller
             // TalentoPenaltyController::applyPenalty()).
             'penalizaciones_manage' => auth()->user()->can('talento.penalties.manage') || $esSuSupervisor,
             'credenciales'    => auth()->user()->can('talento.credentials.view') || $tieneAccesoAmplio,
+            // Carnet (2026-10-22): sus datos los cambia la persona o un administrador; el diseño
+            // (frente, reverso y logo) es uno para todos y lo cambia quien entra a Configuración › Ventas.
+            'carnet_editar'   => $this->puedeEditarCarnet($colaboradorDeLaFicha),
+            'carnet_diseno'   => auth()->user()->can('config_view_sales'),
             // David (28-sep): "la pestaña de por colaborador debe salirle
             // solo a los superiores" — a diferencia del resto de los
             // *_manage, a propósito SIN $esSuSupervisor implícito en
@@ -364,6 +368,7 @@ class TalentoColaboradorController extends Controller
             $colaborador->user->role_names = $colaborador->user->getRoleNames();
         }
         $colaborador->puesto_nombre = $colaborador->puestoNombre();
+        $colaborador->user?->append('url_photography');
 
         $this->hideExpedienteFields($colaborador);
 
@@ -400,6 +405,78 @@ class TalentoColaboradorController extends Controller
         $colaborador = TalentoColaborador::findOrFail($id);
 
         return $this->renderCredencialPdf($colaborador);
+    }
+
+    /**
+     * Datos del carnet (2026-10-22): cada colaborador cambia su foto, nombre, teléfono, correo y RFC
+     * desde su propia ficha, y quien administra credenciales, los de cualquiera. Se guardan en su
+     * usuario (los mismos de Administración › Usuarios).
+     */
+    public function carnet(string $id)
+    {
+        $colaborador = $this->colaboradorDelCarnet($id);
+
+        return response()->json($this->datosCarnet($colaborador->user));
+    }
+
+    public function actualizarCarnet(Request $request, string $id)
+    {
+        $colaborador = $this->colaboradorDelCarnet($id);
+        $data = $request->validate([
+            'name'             => 'required|string|max:100',
+            'father_last_name' => 'nullable|string|max:100',
+            'mother_last_name' => 'nullable|string|max:100',
+            'phone'            => 'nullable|string|max:20',
+            'email'            => 'nullable|email|max:150',
+            'rfc'              => 'nullable|string|max:13',
+            'foto'             => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
+        ]);
+
+        $user = $colaborador->user;
+        if ($request->hasFile('foto')) {
+            // Igual que "Mi perfil": disco public, uploads/perfil/{id}/…
+            $foto = (new \App\Services\FileUploadService())->uploadImage($request->file('foto'), 'perfil/' . $user->id);
+            if (! $foto) {
+                return response()->json(['error' => 'No se pudo guardar la foto. Intenta con otra imagen.'], 422);
+            }
+            $user->photography = $foto;
+        }
+        $user->name             = $data['name'];
+        $user->father_last_name = $data['father_last_name'] ?? null;
+        $user->mother_last_name = $data['mother_last_name'] ?? null;
+        $user->phone            = $data['phone'] ?? null;
+        $user->email            = $data['email'] ?? null;
+        $user->rfc              = isset($data['rfc']) ? strtoupper(trim($data['rfc'])) : null;
+        $user->save();
+
+        return response()->json($this->datosCarnet($user->fresh()));
+    }
+
+    private function colaboradorDelCarnet(string $id): TalentoColaborador
+    {
+        $colaborador = TalentoColaborador::with('user')->findOrFail($id);
+        abort_unless($this->puedeEditarCarnet($colaborador), 403, 'Solo puedes cambiar tu propia credencial.');
+        abort_unless($colaborador->user, 404, 'Este colaborador no tiene un usuario del sistema.');
+
+        return $colaborador;
+    }
+
+    private function puedeEditarCarnet(?TalentoColaborador $colaborador): bool
+    {
+        if (! $colaborador) {
+            return false;
+        }
+        $actor = Actor::for(auth()->user());
+
+        return (string) $actor->talento()?->id === (string) $colaborador->id
+            || $actor->esSuperAdminTalento()
+            || auth()->user()->can('talento.credentials.manage');
+    }
+
+    private function datosCarnet(User $user): array
+    {
+        return $user->only(['name', 'father_last_name', 'mother_last_name', 'phone', 'email', 'rfc', 'photography'])
+            + ['url_photography' => $user->photography ? $user->url_photography : null];
     }
 
     private function renderCredencialPdf(TalentoColaborador $colaborador)
@@ -576,6 +653,7 @@ class TalentoColaboradorController extends Controller
             $colaborador->user->role_names = $colaborador->user->getRoleNames();
         }
         $colaborador->puesto_nombre = $colaborador->puestoNombre();
+        $colaborador->user?->append('url_photography');
 
         $this->hideExpedienteFields($colaborador);
 

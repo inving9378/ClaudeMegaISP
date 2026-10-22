@@ -160,6 +160,11 @@ class User extends Authenticatable
             return \Illuminate\Support\Facades\Storage::url($this->photography);
         }
 
+        // Foto guardada por la edición de usuario de Administración (public/perfiles/{nombre}).
+        if (is_file(public_path('perfiles/' . $this->photography))) {
+            return url('perfiles/' . $this->photography);
+        }
+
         // Imagen por defecto si no existe el archivo
         return url('assets/images/users/avatar-1.jpg');
     }
