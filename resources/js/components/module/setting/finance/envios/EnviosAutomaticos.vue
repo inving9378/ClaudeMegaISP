@@ -46,7 +46,12 @@
             </section>
 
             <section class="ea-card">
-                <div class="ea-head">En cola</div>
+                <div class="ea-head ea-fila">
+                    En cola
+                    <button type="button" class="btn btn-outline-secondary btn-sm ms-auto ea-btn-head" @click="abrir('depurar')">
+                        Depurar cola…
+                    </button>
+                </div>
                 <div class="ea-body">
                     <table class="table table-sm ea-tabla mb-1">
                         <thead>
@@ -145,6 +150,37 @@
                         <input id="ea-conf" v-model="confirmacion" class="form-control form-control-sm" autocomplete="off" />
                     </div>
                 </template>
+                <template v-else-if="dialogo === 'depurar'">
+                    <div class="ea-head">Depurar la cola de avisos</div>
+                    <div class="ea-body">
+                        <p class="mb-2">
+                            Cancela los avisos que llevan más de las horas indicadas en cola. No se borran: queda un archivo para
+                            revertirlo. Funciona aunque los envíos estén pausados.
+                        </p>
+                        <div class="ea-fila mb-2">
+                            <label class="ea-label m-0" for="ea-horas">Con más de</label>
+                            <input id="ea-horas" v-model.number="depurarHoras" type="number" min="1" :max="estado.opciones.depurar_max_horas"
+                                   class="form-control form-control-sm ea-input" @input="pedirConteo" />
+                            <span>horas</span>
+                            <select v-model="depurarTipo" class="form-select form-select-sm ea-select" aria-label="Tipo de aviso">
+                                <option value="">Todos los tipos</option>
+                                <option v-for="t in estado.cola.tipos" :key="t.tipo" :value="t.tipo">{{ t.nombre }}</option>
+                            </select>
+                        </div>
+                        <table class="table table-sm ea-tabla mb-1">
+                            <thead><tr><th>Tipo</th><th class="text-end">Se cancelarían</th></tr></thead>
+                            <tbody>
+                                <tr v-for="t in conteo?.tipos || []" :key="t.tipo" :class="{ 'ea-fuera': depurarTipo && depurarTipo !== t.tipo }">
+                                    <td>{{ t.nombre }}</td>
+                                    <td class="text-end">{{ contando ? "…" : numero(t.n) }}</td>
+                                </tr>
+                                <tr><td><b>Total a cancelar</b></td><td class="text-end"><b>{{ contando ? "…" : numero(aDepurar) }}</b></td></tr>
+                            </tbody>
+                        </table>
+                        <label class="ea-label" for="ea-conf">Escribe DEPURAR para confirmar</label>
+                        <input id="ea-conf" v-model="confirmacion" class="form-control form-control-sm" autocomplete="off" />
+                    </div>
+                </template>
                 <template v-else>
                     <div class="ea-head">Pausar envíos automáticos</div>
                     <div class="ea-body">
@@ -157,8 +193,8 @@
                 <div class="ea-pie">
                     <button type="button" class="btn btn-light btn-sm" :disabled="enviando" @click="cerrar">Cancelar</button>
                     <button type="button" class="btn btn-sm" :class="dialogo === 'reactivar' ? 'btn-success' : 'btn-danger'"
-                            :disabled="enviando || !confirmacionValida" @click="aplicar">
-                        {{ enviando ? "Aplicando…" : dialogo === "reactivar" ? "Reactivar" : "Pausar" }}
+                            :disabled="enviando || !confirmacionValida || (dialogo === 'depurar' && (contando || !aDepurar))" @click="aplicar">
+                        {{ enviando ? "Aplicando…" : { reactivar: "Reactivar", pausar: "Pausar", depurar: `Cancelar ${numero(aDepurar)}` }[dialogo] }}
                     </button>
                 </div>
             </div>
@@ -170,7 +206,8 @@
 /**
  * Configuración › Finanzas › «Envíos automáticos»: estado y control de billing_config.envio_pausado,
  * la cola por tipo y la proforma anticipada. Solo super-administrador (lo exige el servidor).
- * GET /configuracion/envios-automaticos/estado · POST …/pausar · POST …/reactivar.
+ * GET /configuracion/envios-automaticos/estado · POST …/pausar · POST …/reactivar ·
+ * GET …/depurar/conteo · POST …/depurar.
  */
 import { computed, onMounted, ref } from "vue";
 import { darkMode } from "../../../../../hook/appConfig";
@@ -186,7 +223,17 @@ const confirmacion = ref("");
 const enviando = ref(false);
 const errorAccion = ref("");
 
-const palabra = computed(() => (dialogo.value === "reactivar" ? "REACTIVAR" : "PAUSAR"));
+const depurarHoras = ref(48);
+const depurarTipo = ref("");
+const conteo = ref(null);
+const contando = ref(false);
+let temporizadorConteo = null;
+
+const palabra = computed(() => ({ reactivar: "REACTIVAR", pausar: "PAUSAR", depurar: "DEPURAR" })[dialogo.value]);
+const aDepurar = computed(() => {
+    if (!conteo.value) return 0;
+    return depurarTipo.value ? conteo.value.tipos.find((t) => t.tipo === depurarTipo.value)?.n || 0 : conteo.value.total;
+});
 const confirmacionValida = computed(() => confirmacion.value.trim().toUpperCase() === palabra.value);
 const horasParaVaciar = computed(() => {
     const n = Number(porHora.value) || 0;
@@ -212,6 +259,34 @@ const abrir = (tipo) => {
     opcion.value = "descartar_48h";
     confirmacion.value = "";
     errorAccion.value = "";
+    if (tipo === "depurar") {
+        depurarHoras.value = estado.value.opciones.horas_descarte;
+        depurarTipo.value = "";
+        conteo.value = null;
+        cargarConteo();
+    }
+};
+
+const cargarConteo = async () => {
+    const horas = Number(depurarHoras.value);
+    if (!Number.isInteger(horas) || horas < 1) {
+        conteo.value = null;
+        return;
+    }
+    contando.value = true;
+    try {
+        const { data } = await axios.get("/configuracion/envios-automaticos/depurar/conteo", { params: { horas } });
+        if (horas === Number(depurarHoras.value)) conteo.value = data;
+    } catch (e) {
+        errorAccion.value = e.response?.data?.message || "No se pudo contar la cola.";
+    } finally {
+        contando.value = false;
+    }
+};
+
+const pedirConteo = () => {
+    clearTimeout(temporizadorConteo);
+    temporizadorConteo = setTimeout(cargarConteo, 400);
 };
 
 const cerrar = () => {
@@ -223,9 +298,12 @@ const aplicar = async () => {
     errorAccion.value = "";
     try {
         const url = `/configuracion/envios-automaticos/${dialogo.value}`;
-        const cuerpo = dialogo.value === "reactivar"
-            ? { opcion: opcion.value, por_hora: opcion.value === "lotes_por_hora" ? porHora.value : null, confirmacion: confirmacion.value.trim().toUpperCase() }
-            : { confirmacion: confirmacion.value.trim().toUpperCase() };
+        const palabraEscrita = confirmacion.value.trim().toUpperCase();
+        const cuerpo = {
+            reactivar: { opcion: opcion.value, por_hora: opcion.value === "lotes_por_hora" ? porHora.value : null, confirmacion: palabraEscrita },
+            pausar: { confirmacion: palabraEscrita },
+            depurar: { horas: Number(depurarHoras.value), tipo: depurarTipo.value || null, esperado: aDepurar.value, confirmacion: palabraEscrita },
+        }[dialogo.value];
         const { data } = await axios.post(url, cuerpo);
         estado.value = data.estado;
         toastr.success(data.message, "Envíos automáticos");
@@ -234,6 +312,7 @@ const aplicar = async () => {
         const errores = e.response?.data?.errors;
         errorAccion.value = errores ? Object.values(errores).flat()[0] : e.response?.data?.message || "No se pudo aplicar.";
         if (e.response?.data?.estado) estado.value = e.response.data.estado;
+        if (e.response?.data?.conteo) conteo.value = e.response.data.conteo;
     } finally {
         enviando.value = false;
     }
@@ -270,6 +349,9 @@ const antiguedad = (iso) => {
 .ea-etapa { font-size: 12.5px; margin-top: 10px; color: #334155; }
 .ea-tabla { font-size: 13px; }
 .ea-input { width: 90px; display: inline-block; }
+.ea-select { width: auto; display: inline-block; }
+.ea-btn-head { font-weight: 500; }
+.ea-fuera td { opacity: 0.45; }
 .ea-label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin: 10px 0 4px; }
 .ea-velo { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 1050; display: flex;
     align-items: center; justify-content: center; padding: 16px; }

@@ -25,7 +25,9 @@ use InvalidArgumentException;
  *    revertir con `billing:cancelar-colas --revertir=… --ejecutar`;
  *  - enviar en lotes por hora: tope por hora hasta que se vacíe lo acumulado; luego se quita solo.
  *
- * Solo super-administrador. Cada cambio queda en activity_log (log_name facturacion-envios).
+ * «Depurar cola» cancela lo que lleve más de N horas en cola (por tipo o todo), esté pausado o no,
+ * con el mismo archivo reversible. Solo super-administrador. Cada cambio queda en activity_log
+ * (log_name facturacion-envios).
  */
 class EnviosAutomaticos
 {
@@ -40,6 +42,7 @@ class EnviosAutomaticos
     public const LOTE_MIN = 10;
     public const LOTE_MAX = 500;
     public const LOTE_SUGERIDO = 50;
+    public const DEPURAR_MAX_HORAS = 8760;
 
     public const TIPOS = [
         BillingNotification::TYPE_PREFACTURA => 'Prefacturas',
@@ -76,6 +79,7 @@ class EnviosAutomaticos
                 'lote_min' => self::LOTE_MIN,
                 'lote_max' => self::LOTE_MAX,
                 'lote_sugerido' => self::LOTE_SUGERIDO,
+                'depurar_max_horas' => self::DEPURAR_MAX_HORAS,
             ],
         ];
     }
@@ -153,7 +157,8 @@ class EnviosAutomaticos
             $mensaje = 'Envíos reactivados: lo acumulado sale con los límites de la etapa.';
 
             if ($opcion === self::DESCARTAR_VIEJOS) {
-                [$n, $archivo, $porTipo] = $this->descartarViejos($ahora->copy()->subHours(self::HORAS_DESCARTE));
+                [$n, $archivo, $porTipo] = $this->cancelarViejos($ahora->copy()->subHours(self::HORAS_DESCARTE), null,
+                    'Descartada al reactivar los envíos: llevaba más de ' . self::HORAS_DESCARTE . ' h en cola.', 'reactivacion');
                 $detalle += ['descartadas' => $n, 'descartadas_por_tipo' => $porTipo, 'archivo_para_revertir' => $archivo];
                 $mensaje = "Envíos reactivados. Se descartaron {$n} avisos con más de " . self::HORAS_DESCARTE . ' h en cola (no se borran; se pueden revertir).';
             } elseif ($opcion === self::LOTES_POR_HORA) {
@@ -167,6 +172,65 @@ class EnviosAutomaticos
 
             return ['message' => $mensaje] + $detalle;
         });
+    }
+
+    /** Cuántos avisos llevan más de $horas en cola, por tipo (lo que «Depurar cola» cancelaría). */
+    public function conteoDepuracion(int $horas): array
+    {
+        $this->validarHoras($horas);
+        $filas = $this->enColaDesdeAntes(now()->subHours($horas), null)->toBase()
+            ->selectRaw('document_type, count(*) as n')->groupBy('document_type')->pluck('n', 'document_type');
+        $tipos = [];
+        foreach (self::TIPOS as $tipo => $nombre) {
+            $tipos[] = ['tipo' => $tipo, 'nombre' => $nombre, 'n' => (int) ($filas[$tipo] ?? 0)];
+        }
+
+        return ['horas' => $horas, 'tipos' => $tipos, 'total' => (int) $filas->sum()];
+    }
+
+    /**
+     * «Depurar cola»: cancela lo que lleve más de $horas en cola, de un tipo o de todos. $esperado es
+     * el conteo que vio la persona: si la cola cambió no se toca nada y se avisa con el nuevo.
+     * Funciona aunque los envíos estén pausados.
+     */
+    public function depurar(User $user, int $horas, ?string $tipo, int $esperado): array
+    {
+        $this->exigirPermiso($user);
+        $this->validarHoras($horas);
+        if ($tipo !== null && ! array_key_exists($tipo, self::TIPOS)) {
+            throw new InvalidArgumentException('Tipo de aviso desconocido.');
+        }
+
+        return DB::transaction(function () use ($user, $horas, $tipo, $esperado) {
+            $limite = now()->subHours($horas);
+            $actual = $this->enColaDesdeAntes($limite, $tipo)->lockForUpdate()->count();
+            if ($actual !== $esperado) {
+                throw new InvalidArgumentException("La cola cambió: ahora son {$actual}, no {$esperado}. Revisa el conteo y confirma de nuevo.");
+            }
+            if ($actual === 0) {
+                throw new InvalidArgumentException('No hay avisos con más de ' . $horas . ' h en cola' . ($tipo ? ' de ese tipo' : '') . '.');
+            }
+            [$n, $archivo, $porTipo] = $this->cancelarViejos($limite, $tipo, "Descartada al depurar la cola: llevaba más de {$horas} h en cola.", 'depuracion');
+            $detalle = ['horas' => $horas, 'tipo' => $tipo ?? 'todos', 'canceladas' => $n, 'por_tipo' => $porTipo, 'archivo_para_revertir' => $archivo,
+                'pausado' => (bool) BillingConfig::current()->envio_pausado];
+            $this->auditar($user, BillingConfig::current(), 'Cola de avisos depurada', $detalle);
+
+            return ['message' => "Se cancelaron {$n} avisos con más de {$horas} h en cola (no se borran; se pueden revertir)."] + $detalle;
+        });
+    }
+
+    private function enColaDesdeAntes(Carbon $limite, ?string $tipo)
+    {
+        return BillingNotification::where('status', BillingNotification::STATUS_WAITING)
+            ->where('created_at', '<', $limite)
+            ->when($tipo, fn ($q) => $q->where('document_type', $tipo));
+    }
+
+    private function validarHoras(int $horas): void
+    {
+        if ($horas < 1 || $horas > self::DEPURAR_MAX_HORAS) {
+            throw new InvalidArgumentException('Las horas van de 1 a ' . self::DEPURAR_MAX_HORAS . '.');
+        }
     }
 
     /**
@@ -203,16 +267,20 @@ class EnviosAutomaticos
     }
 
     /** @return array{0: int, 1: ?string, 2: array<string, int>} [canceladas, archivo, por tipo] */
-    private function descartarViejos(Carbon $limite): array
+    /**
+     * Cancela (no borra) lo que está en cola desde antes de $limite, de un tipo o de todos, y deja
+     * el archivo que revierte billing:cancelar-colas --revertir=… --ejecutar.
+     *
+     * @return array{0: int, 1: ?string, 2: array<string, int>} [canceladas, archivo, por tipo]
+     */
+    private function cancelarViejos(Carbon $limite, ?string $tipo, string $nota, string $prefijoArchivo): array
     {
         [, , , $cancelado, $colNota] = CancelarColasCobroCommand::COLAS['billing_notifications'];
-        $nota = 'Descartada al reactivar los envíos: llevaba más de ' . self::HORAS_DESCARTE . ' h en cola.';
         $resultado = ['origen' => 'Configuración › Envíos automáticos', 'tabla' => 'billing_notifications', 'cancelado' => $cancelado,
             'columna_nota' => $colNota, 'ejecutado_at' => now()->toIso8601String(), 'cancelados' => []];
         $porTipo = [];
 
-        BillingNotification::where('status', BillingNotification::STATUS_WAITING)
-            ->where('created_at', '<', $limite)
+        $this->enColaDesdeAntes($limite, $tipo)
             ->select(['id', 'document_type', 'status', 'updated_at', $colNota])
             ->lockForUpdate()
             ->chunkById(1000, function ($lote) use (&$resultado, &$porTipo, $cancelado, $colNota, $nota) {
@@ -230,7 +298,7 @@ class EnviosAutomaticos
         if ($n === 0) {
             return [0, null, []];
         }
-        $archivo = CancelarColasCobroCommand::DIRECTORIO . '/reactivacion-' . now()->format('Ymd-His') . '.json';
+        $archivo = CancelarColasCobroCommand::DIRECTORIO . "/{$prefijoArchivo}-" . now()->format('Ymd-His') . '.json';
         Storage::disk('local')->put($archivo, json_encode($resultado, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 
         return [$n, 'storage/app/' . $archivo, $porTipo];

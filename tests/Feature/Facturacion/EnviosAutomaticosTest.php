@@ -170,6 +170,54 @@ class EnviosAutomaticosTest extends TestCase
         $this->assertSame(2, DB::table('activity_log')->where('log_name', EnviosAutomaticos::LOG)->where('causer_id', $admin->id)->count());
     }
 
+    public function test_depurar_cancela_por_tipo_lo_viejo_aunque_este_pausado_y_se_puede_revertir(): void
+    {
+        $admin = $this->usuario('super-administrator');
+        $ticketViejo = $this->aviso('ticket', 100);
+        $ticketNuevo = $this->aviso('ticket', 10);
+        $reciboViejo = $this->aviso('recibo', 100);
+        $this->assertTrue(BillingConfig::current()->envio_pausado, 'Funciona con los envíos pausados.');
+
+        $conteo = collect($this->envios->conteoDepuracion(48)['tipos'])->pluck('n', 'tipo');
+        $this->assertSame(['prefactura' => 0, 'recibo' => 1, 'ticket' => 1], $conteo->all());
+
+        $r = $this->envios->depurar($admin, 48, 'ticket', 1);
+
+        $this->assertSame(1, $r['canceladas']);
+        $estados = DB::table('billing_notifications')->whereIn('id', [$ticketViejo, $ticketNuevo, $reciboViejo])->pluck('status', 'id');
+        $this->assertSame(['cancelado', 'en_espera', 'en_espera'], [$estados[$ticketViejo], $estados[$ticketNuevo], $estados[$reciboViejo]]);
+        $this->assertTrue(BillingConfig::current()->fresh()->envio_pausado, 'Depurar no cambia la pausa.');
+        $this->assertSame(1, DB::table('activity_log')->where('log_name', EnviosAutomaticos::LOG)->where('description', 'Cola de avisos depurada')->count());
+
+        try {
+            Artisan::call('billing:cancelar-colas', ['--revertir' => $r['archivo_para_revertir'], '--ejecutar' => true]);
+            $this->assertSame('en_espera', DB::table('billing_notifications')->where('id', $ticketViejo)->value('status'));
+        } finally {
+            Storage::disk('local')->delete(preg_replace('#^storage/app/#', '', $r['archivo_para_revertir']));
+        }
+    }
+
+    public function test_depurar_exige_super_admin_la_palabra_y_el_conteo_vigente(): void
+    {
+        $dev = $this->usuario('DESARROLLADOR');
+        $admin = $this->usuario('Super Administrador');
+        $viejo = $this->aviso('prefactura', 72);
+
+        $this->actingAs($dev)->getJson('/configuracion/envios-automaticos/depurar/conteo?horas=48')->assertStatus(403);
+        $this->actingAs($dev)->postJson('/configuracion/envios-automaticos/depurar', ['horas' => 48, 'esperado' => 1, 'confirmacion' => 'DEPURAR'])->assertStatus(403);
+
+        $this->actingAs($admin)->getJson('/configuracion/envios-automaticos/depurar/conteo?horas=48')->assertOk()->assertJsonPath('total', 1);
+        $this->actingAs($admin)->postJson('/configuracion/envios-automaticos/depurar', ['horas' => 48, 'esperado' => 1, 'confirmacion' => 'si'])->assertStatus(422);
+        $this->actingAs($admin)->postJson('/configuracion/envios-automaticos/depurar', ['horas' => 48, 'esperado' => 5, 'confirmacion' => 'DEPURAR'])
+            ->assertStatus(422)->assertJsonPath('conteo.total', 1);
+        $this->assertSame('en_espera', DB::table('billing_notifications')->where('id', $viejo)->value('status'), 'Si el conteo cambió no se toca nada.');
+
+        $r = $this->actingAs($admin)->postJson('/configuracion/envios-automaticos/depurar', ['horas' => 48, 'esperado' => 1, 'confirmacion' => 'DEPURAR'])
+            ->assertOk()->assertJsonPath('canceladas', 1);
+        $this->assertSame('cancelado', DB::table('billing_notifications')->where('id', $viejo)->value('status'));
+        Storage::disk('local')->delete(preg_replace('#^storage/app/#', '', $r->json('archivo_para_revertir')));
+    }
+
     public function test_no_reactiva_dos_veces(): void
     {
         $admin = $this->usuario('super-administrator');

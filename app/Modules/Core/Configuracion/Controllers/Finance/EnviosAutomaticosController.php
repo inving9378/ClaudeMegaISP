@@ -19,6 +19,7 @@ class EnviosAutomaticosController extends Controller
 {
     public const PALABRA_PAUSAR = 'PAUSAR';
     public const PALABRA_REACTIVAR = 'REACTIVAR';
+    public const PALABRA_DEPURAR = 'DEPURAR';
 
     public function __construct(private EnviosAutomaticos $envios)
     {
@@ -62,6 +63,34 @@ class EnviosAutomaticosController extends Controller
         ], ['por_hora' => 'avisos por hora']);
 
         return $this->responder(fn () => $this->envios->reactivar($request->user(), $datos['opcion'], isset($datos['por_hora']) ? (int) $datos['por_hora'] : null));
+    }
+
+    public function conteoDepuracion(Request $request): JsonResponse
+    {
+        $this->exigirPermiso();
+        $datos = $request->validate(['horas' => 'required|integer|min:1|max:' . EnviosAutomaticos::DEPURAR_MAX_HORAS]);
+
+        return response()->json($this->envios->conteoDepuracion((int) $datos['horas']));
+    }
+
+    /** «Depurar cola»: cancela (no borra) lo que lleve más de N horas, por tipo o todo. */
+    public function depurar(Request $request): JsonResponse
+    {
+        $this->exigirPermiso();
+        $datos = $request->validate([
+            'horas' => 'required|integer|min:1|max:' . EnviosAutomaticos::DEPURAR_MAX_HORAS,
+            'tipo' => ['nullable', Rule::in(array_keys(EnviosAutomaticos::TIPOS))],
+            'esperado' => 'required|integer|min:0',
+            'confirmacion' => ['required', Rule::in([self::PALABRA_DEPURAR])],
+        ], ['confirmacion.in' => 'Escribe ' . self::PALABRA_DEPURAR . ' para confirmar.'], ['horas' => 'horas']);
+
+        try {
+            return response()->json($this->envios->depurar($request->user(), (int) $datos['horas'], $datos['tipo'] ?? null, (int) $datos['esperado'])
+                + ['estado' => $this->envios->estado()]);
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage(), 'conteo' => $this->envios->conteoDepuracion((int) $datos['horas']),
+                'estado' => $this->envios->estado()], 422);
+        }
     }
 
     private function responder(callable $accion): JsonResponse
