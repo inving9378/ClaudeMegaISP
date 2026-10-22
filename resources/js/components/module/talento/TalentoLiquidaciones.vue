@@ -4,7 +4,7 @@
     <div class="tc-card">
       <div class="tc-cardhead d-flex flex-wrap align-items-center justify-content-between gap-2 p-3">
         <h5 class="tc-h1"><i class="fa fa-file-invoice-dollar me-2"></i>Liquidaciones Semanales</h5>
-        <button v-if="!colaboradorId || puedeGestionar" @click="openCalc" class="tc-btn tc-btn-ok">
+        <button v-if="(!colaboradorId || puedeGestionar) && soloTotales === false" @click="openCalc" class="tc-btn tc-btn-ok">
           <i class="fa fa-calculator me-1"></i> Calcular
         </button>
       </div>
@@ -39,10 +39,12 @@
               <tr>
                 <th>Colaborador</th>
                 <th>Período</th>
-                <th class="text-center">Unidades</th>
-                <th class="text-end">Base</th>
-                <th class="text-end">Sobreprod.</th>
-                <th class="text-end">Gross</th>
+                <template v-if="!soloTotales">
+                  <th class="text-center">Unidades</th>
+                  <th class="text-end">Base</th>
+                  <th class="text-end">Sobreprod.</th>
+                </template>
+                <th class="text-end">{{ soloTotales ? 'A pagar' : 'Gross' }}</th>
                 <th>Estado</th>
                 <th></th>
               </tr>
@@ -51,19 +53,21 @@
               <tr v-for="liq in liquidaciones" :key="liq.id">
                 <td class="fw-semibold small">{{ fullName(liq.colaborador?.user) }}</td>
                 <td class="small">{{ formatDate(liq.period_start) }} – {{ formatDate(liq.period_end) }}</td>
-                <td class="text-center">{{ liq.total_units }}</td>
-                <td class="text-end">{{ money(liq.base_paid) }}</td>
-                <td class="text-end text-success">{{ money(liq.overproduction_paid) }}</td>
+                <template v-if="!soloTotales">
+                  <td class="text-center">{{ liq.total_units }}</td>
+                  <td class="text-end">{{ money(liq.base_paid) }}</td>
+                  <td class="text-end text-success">{{ money(liq.overproduction_paid) }}</td>
+                </template>
                 <td class="text-end fw-bold">{{ money(liq.gross_pay) }}</td>
                 <td><span class="tc-status" :class="liq.status === 'closed' ? 'is-ok' : 'is-warn'">{{ liq.status === 'closed' ? 'Cerrada' : 'Borrador' }}</span></td>
                 <td class="text-end">
-                  <button @click="viewLiq(liq)" class="tc-btn tc-btn-info me-1">Ver</button>
+                  <button v-if="!soloTotales" @click="viewLiq(liq)" class="tc-btn tc-btn-info me-1">Ver</button>
                   <button v-if="liq.status === 'draft' && (!colaboradorId || puedeGestionar) && liq.puede_cerrar !== false" @click="openCerrar(liq)" class="tc-btn tc-btn-bad-solid">Cerrar</button>
                 </td>
               </tr>
               <tr v-if="!liquidaciones.length">
-                <td colspan="8" class="text-center text-muted py-4">
-                  <template v-if="!colaboradorId || puedeGestionar">No hay liquidaciones. Usa "Calcular" para generar la primera.</template>
+                <td :colspan="soloTotales ? 5 : 8" class="text-center text-muted py-4">
+                  <template v-if="(!colaboradorId || puedeGestionar) && !soloTotales">No hay liquidaciones. Usa "Calcular" para generar la primera.</template>
                   <template v-else>Todavía no se ha calculado ninguna liquidación.</template>
                 </td>
               </tr>
@@ -273,6 +277,9 @@ export default {
   data() {
     return {
       liquidaciones: [],
+      // Quien solo ve cuánto cobra cada quien (Mostrador): sin desglose, sin Calcular ni Ver.
+      // null hasta la primera carga, para que el botón Calcular no aparezca y desaparezca.
+      soloTotales: null,
       loading: true,
       pagination: { current_page: 1, last_page: 1 },
       filters: { search: '', status: '', from: '', to: '' },
@@ -299,6 +306,7 @@ export default {
         if (this.colaboradorId) params.colaborador_id = this.colaboradorId;
         const { data } = await axios.get('/talento/api/liquidaciones', { params });
         this.liquidaciones = data?.data ?? [];
+        this.soloTotales = data?.solo_totales === true;
         this.pagination = { current_page: data?.current_page ?? 1, last_page: data?.last_page ?? 1 };
       } finally { this.loading = false; }
     },

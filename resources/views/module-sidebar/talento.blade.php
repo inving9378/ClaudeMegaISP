@@ -27,6 +27,14 @@
         @if(auth()->user()->can('talento.view'))
             <li><a href="{{ url('/talento') }}"><span><small><i class="fa fa-fw fa-id-badge"></i></small> {{ $rosterCompleto ? 'Colaboradores' : 'Dashboard' }}</span></a></li>
         @endif
+        {{-- 2026-10-22: el Mostrador ya no ve la lista de colaboradores (entra a su dashboard, como un
+             técnico); desde aquí sigue creando órdenes y ve cuánto cobra cada quien. --}}
+        @if(auth()->user()->can('talento.work_orders.manage'))
+            <li><a href="{{ url('/talento/ordenes') }}"><span><small><i class="fa fa-fw fa-clipboard-list"></i></small> Órdenes de trabajo</span></a></li>
+        @endif
+        @if(auth()->user()->can('talento.liquidation.totales'))
+            <li><a href="{{ url('/talento/liquidaciones') }}"><span><small><i class="fa fa-fw fa-file-invoice-dollar"></i></small> Liquidaciones</span></a></li>
+        @endif
         {{-- Catálogos/vistas globales — NUNCA son "de una persona", no tienen
              equivalente en ninguna pestaña, se quedan para quien tenga el
              permiso puntual de cada una sin importar si tiene roster completo. --}}
