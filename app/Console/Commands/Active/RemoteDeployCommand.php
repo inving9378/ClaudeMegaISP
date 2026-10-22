@@ -350,7 +350,7 @@ class RemoteDeployCommand extends Command
         }
     }
 
-    private function buildEnv(): array
+    protected function buildEnv(): array
     {
         $parent = getenv() ?: [];
 
@@ -362,13 +362,30 @@ class RemoteDeployCommand extends Command
             $home = posix_getpwuid(posix_getuid())['dir'] ?? '';
         }
 
+        // Seguridad V1.64: con el repositorio privado y un origen https, git usa el token de
+        // lectura (Hub → GitHub). Va por variables de entorno, no en el comando: no queda en
+        // la bitácora del deploy ni en la lista de procesos. Con origen SSH no hace falta.
+        $git = ['safe.directory' => base_path()];
+        $token = \App\Services\Updates\GitHubUpdateService::tokenDeLectura();
+        if ($token !== '' && str_starts_with($this->origenGit(), 'https://github.com/')) {
+            $git['http.https://github.com/.extraheader'] = 'AUTHORIZATION: basic ' . base64_encode("x-access-token:{$token}");
+        }
+
+        $variables = ['GIT_CONFIG_COUNT' => (string) count($git)];
+        foreach (array_keys($git) as $i => $clave) {
+            $variables["GIT_CONFIG_KEY_{$i}"] = $clave;
+            $variables["GIT_CONFIG_VALUE_{$i}"] = $git[$clave];
+        }
+
         return array_merge($parent, [
             'PATH'               => ($parent['PATH'] ?? '') . ':/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
             'HOME'               => $home ?: '/root',
-            'GIT_CONFIG_COUNT'   => '1',
-            'GIT_CONFIG_KEY_0'   => 'safe.directory',
-            'GIT_CONFIG_VALUE_0' => base_path(),
-        ]);
+        ], $variables);
+    }
+
+    protected function origenGit(): string
+    {
+        return trim((string) @shell_exec('git -C ' . escapeshellarg(base_path()) . ' remote get-url origin 2>/dev/null'));
     }
 
     protected function runShell(string $command, int $timeout): array
