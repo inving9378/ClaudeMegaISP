@@ -27,6 +27,13 @@ use Illuminate\Support\Facades\Route;
  */
 
 Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('finanzas')->group(function () {
+    // Item #571, Parte B: «Correcciones pendientes». Solo super-administrador (lo exige el controlador).
+    Route::prefix('correcciones-pendientes')->group(function () {
+        Route::get('/', [\App\Modules\Addons\Finanzas\Controllers\Correcciones\CorreccionesController::class, 'index']);
+        Route::get('/listar', [\App\Modules\Addons\Finanzas\Controllers\Correcciones\CorreccionesController::class, 'listar']);
+        Route::post('/{id}/aprobar', [\App\Modules\Addons\Finanzas\Controllers\Correcciones\CorreccionesController::class, 'aprobar'])->whereNumber('id');
+        Route::post('/{id}/descartar', [\App\Modules\Addons\Finanzas\Controllers\Correcciones\CorreccionesController::class, 'descartar'])->whereNumber('id');
+    });
 
     Route::prefix('transacciones')->group(function () {
         Route::get('/', [FinanceTransactionController::class, 'index']);

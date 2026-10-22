@@ -7,6 +7,7 @@ use App\Models\BillingConfig;
 use App\Models\BillingNotification;
 use App\Models\User;
 use App\Services\Finance\Invoice\EnvioPrefactura;
+use App\Support\Seguridad\SuperAdministrador;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -31,7 +32,7 @@ use InvalidArgumentException;
  */
 class EnviosAutomaticos
 {
-    public const ROLES = ['super-administrator', 'Super Administrador'];
+    public const ROLES = SuperAdministrador::ROLES;
 
     public const ENVIAR_TODO = 'enviar_todo';
     public const DESCARTAR_VIEJOS = 'descartar_48h';
@@ -54,7 +55,7 @@ class EnviosAutomaticos
 
     public static function puedeGestionar(?User $user): bool
     {
-        return $user !== null && $user->hasAnyRole(self::ROLES);
+        return SuperAdministrador::es($user);
     }
 
     public function estado(): array

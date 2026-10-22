@@ -152,4 +152,34 @@ return [
     | prod sin decisión explícita de Irving.
     */
     'whatsapp_fallback_enabled' => (bool) env('BILLING_WHATSAPP_FALLBACK_ENABLED', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Correcciones de facturación al actualizar (item #571, Parte B)
+    |--------------------------------------------------------------------------
+    | facturacion:correcciones-automaticas toma la corrida que deja la migración
+    | y clasifica las proformas abiertas del servidor donde corre. Se aplican
+    | solas SOLO: (a) las fantasma cuya corrección no mueve dinero ni sube lo que
+    | debe el cliente, y (b) los casos ya decididos de abajo, si el resultado
+    | coincide EXACTO con el esperado. Lo demás queda en Finanzas › Correcciones
+    | pendientes. Con BILLING_CORRECCIONES_AUTOMATICAS=false nada se aplica solo:
+    | todo queda como propuesta.
+    */
+    'correcciones' => [
+        'automaticas' => (bool) env('BILLING_CORRECCIONES_AUTOMATICAS', true),
+        'decididas' => [
+            // Decisión de Irving (2026-10-21): marzo de 2026 no se cobra, la 89111 se anula y cada
+            // pago va a su mes. El monto del pago del 05-07 (135973) NO se toca aquí: va a la pantalla.
+            [
+                'clave' => '571-cliente-1286',
+                'cliente' => 1286,
+                'desde' => '2026-02',
+                'pagos_desde' => '2026-03-01',
+                'anular' => [89111],
+                'esperado' => [85165 => 127730, 88135 => 129820, 90155 => 131804, 92072 => 133889,
+                    93349 => 135973, 95300 => 137960, 98074 => 139971, 99470 => 141980],
+                'motivo' => 'Marzo 2026 no se cobra; cada pago a su mes (decisión de Irving, bitácora 2026-10-21 item 571)',
+            ],
+        ],
+    ],
 ];

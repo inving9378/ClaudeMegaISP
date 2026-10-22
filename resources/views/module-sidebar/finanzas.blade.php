@@ -62,6 +62,15 @@
             </li>
         @endif
 
+        {{-- Item #571, Parte B: correcciones de facturación que esperan a una persona. Solo super-administrador. --}}
+        @if(\App\Support\Seguridad\SuperAdministrador::es(auth()->user()))
+            <li>
+                <a href="{{ url('/finanzas/correcciones-pendientes') }}">
+                    <span data-key="t-finanzas-correcciones"><small><i class="fas fa-tools"></i></small> Correcciones pendientes</span>
+                </a>
+            </li>
+        @endif
+
         {{-- Hijos dinámicos desde module_sidebar_config (Fase 2.3/3.5).
              Marketing dejó de ser caso especial: ahora es módulo top-level
              con su propio partial (module-sidebar/marketing.blade.php). --}}

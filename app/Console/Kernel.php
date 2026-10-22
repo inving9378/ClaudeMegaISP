@@ -44,6 +44,8 @@ class Kernel extends ConsoleKernel
             $schedule->command('facturacion:estados-cuenta-mensuales')->dailyAt('04:00')->withoutOverlapping();
         }
         $schedule->command('billing:send-pending-notifications')->everyFifteenMinutes()->withoutOverlapping();
+        // Item #571, Parte B: toma la corrida de correcciones que deja una actualización (una sola vez).
+        $schedule->command('facturacion:correcciones-automaticas')->everyTenMinutes()->withoutOverlapping();
         $schedule->command('auditoria:minar-bitacora')->everyFifteenMinutes()->withoutOverlapping();
         $schedule->command('app:mikrotik-sync-command')->everyFiveMinutes()->withoutOverlapping();
         $schedule->command('mikrotik:sync-consumption')->everyTenMinutes()->withoutOverlapping();
