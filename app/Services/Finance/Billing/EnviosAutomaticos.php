@@ -6,14 +6,12 @@ use App\Console\Commands\Active\CancelarColasCobroCommand;
 use App\Models\BillingConfig;
 use App\Models\BillingNotification;
 use App\Models\User;
-use App\Services\Finance\Invoice\EnvioPrefactura;
 use App\Support\ArchivoObligatorio;
 use App\Support\Entorno;
 use App\Support\Seguridad\SuperAdministrador;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 
@@ -451,21 +449,9 @@ class EnviosAutomaticos
         return ['buzon' => $buzon, 'prefijo' => (string) config('mail.interceptar.prefijo', '[DEV — PRUEBA]')];
     }
 
-    /** BILLING_PROFORMA_ANTICIPADA y los días de anticipo, sin abrir el .env. */
+    /** #581: el interruptor de la proforma anticipada y sus días de anticipo. */
     private function proformaAnticipada(): array
     {
-        $propios = Schema::hasColumn('billing_configurations', 'envio_prefactura_dias')
-            ? DB::table('billing_configurations')->whereNotNull('envio_prefactura_dias')
-                ->selectRaw('count(*) as n, min(envio_prefactura_dias) as minimo, max(envio_prefactura_dias) as maximo')->first()
-            : null;
-        $creacion = DB::table('config_finance_notifications')->where('type_config', 'proforma_invoice')->orderBy('id')->value('auto_send_notifications');
-
-        return [
-            'encendido' => (bool) config('billing.proforma_anticipada'),
-            'dias' => EnvioPrefactura::diasPorDefecto(),
-            'clientes_con_valor_propio' => (int) ($propios->n ?? 0),
-            'rango_propio' => ($propios->n ?? 0) ? [(int) $propios->minimo, (int) $propios->maximo] : null,
-            'creacion_automatica' => $creacion === null ? null : (bool) $creacion,
-        ];
+        return app(InterruptorProformaAnticipada::class)->estado();
     }
 }

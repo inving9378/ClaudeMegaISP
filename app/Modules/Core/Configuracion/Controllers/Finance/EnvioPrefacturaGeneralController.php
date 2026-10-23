@@ -2,6 +2,7 @@
 
 namespace App\Modules\Core\Configuracion\Controllers\Finance;
 
+use App\Services\Finance\Billing\InterruptorProformaAnticipada;
 use App\Services\Finance\Invoice\EnvioPrefactura;
 use App\Services\Finance\Invoice\ProformaAnticipada;
 use Illuminate\Http\JsonResponse;
@@ -12,11 +13,16 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * FR-05 (#539): valor general de «Envío prefactura» (días antes del día de facturación; 5 por
- * defecto). Solo lee y escribe billing_config.envio_prefactura_dias: nunca envio_pausado ni ninguna
- * otra columna. Mismo acceso que Configuración › Notificaciones de finanzas.
+ * defecto). Solo escribe billing_config.envio_prefactura_dias (con quién/cuándo, #581): nunca
+ * envio_pausado ni el interruptor de la proforma anticipada. Mismo acceso que Configuración ›
+ * Notificaciones de finanzas.
  */
 class EnvioPrefacturaGeneralController extends Controller
 {
+    public function __construct(private InterruptorProformaAnticipada $interruptor)
+    {
+    }
+
     public function show(): JsonResponse
     {
         $propios = Schema::hasColumn('billing_configurations', 'envio_prefactura_dias')
@@ -26,7 +32,7 @@ class EnvioPrefacturaGeneralController extends Controller
         return response()->json([
             'dias' => EnvioPrefactura::diasPorDefecto(),
             'clientes_con_valor_propio' => $propios,
-            'interruptor_encendido' => (bool) config('billing.proforma_anticipada'),
+            'interruptor_encendido' => InterruptorProformaAnticipada::encendida(),
         ]);
     }
 
@@ -37,11 +43,11 @@ class EnvioPrefacturaGeneralController extends Controller
             [],
             ['dias' => 'Envío prefactura']
         );
-        $id = DB::table('billing_config')->orderBy('id')->value('id');
-        if (! $id || ! Schema::hasColumn('billing_config', 'envio_prefactura_dias')) {
+        if (! Schema::hasColumn('billing_config', 'envio_prefactura_dias')) {
             return response()->json(['error' => 'No existe la configuración general de facturación.'], 422);
         }
-        DB::table('billing_config')->where('id', $id)->update(['envio_prefactura_dias' => (int) $datos['dias'], 'updated_at' => now()]);
+        // #581: mismo cambio (con auditoría y quién/cuándo) que «Días de anticipo» en Envíos automáticos.
+        $this->interruptor->cambiarDias($request->user(), (int) $datos['dias'], 'Notificaciones Finanzas › Facturas proforma');
 
         return response()->json(['dias' => (int) $datos['dias'], 'message' => 'Envío prefactura guardado.']);
     }

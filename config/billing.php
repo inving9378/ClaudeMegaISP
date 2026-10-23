@@ -43,10 +43,12 @@ return [
     | Proforma N días antes del corte (FAC-06, item #512)
     |--------------------------------------------------------------------------
     | Apagado = invoice:create-proformas exactamente como siempre (todas el día 25
-    | del mes anterior). Encendido = cada cliente el día (corte − N), con N =
-    | config_finance_notifications.delay_days de «proforma_invoice», días
-    | naturales y sin recuperar cortes ya pasados. Encenderlo y fijar N es
-    | decisión de Irving (FAC-06b, #513). Simulación: invoice:proformas-simular.
+    | del mes anterior). Encendido = cada cliente Activo N días antes de su día de
+    | facturación (FR-05, #539: N = billing_config.envio_prefactura_dias o el del
+    | cliente), días naturales y sin recuperar cortes ya pasados.
+    | Desde #581 (2026-10-22) el interruptor vive en billing_config.proforma_anticipada
+    | y se maneja en Configuración › Finanzas › «Envíos automáticos»: este valor solo
+    | da el inicial al migrar. Simulación: invoice:proformas-simular.
     */
     'proforma_anticipada' => (bool) env('BILLING_PROFORMA_ANTICIPADA', false),
 

@@ -4,6 +4,7 @@ namespace App\Console\Commands\Active;
 
 use App\Services\Finance\Billing\CapaContrato;
 use App\Services\Finance\Billing\FotoReglas;
+use App\Services\Finance\Billing\InterruptorProformaAnticipada;
 use App\Services\Finance\Billing\ReglasFacturacion;
 use App\Support\PlazoContrato;
 use Carbon\Carbon;
@@ -34,7 +35,7 @@ class ReglasFacturacionSimularCommand extends Command
         $desde = ReglasFacturacion::reglasDesde();
 
         $this->info("Simulación (solo lectura) al {$hoy->format('d/m/Y')}. Reglas desde: " . ($desde ? $desde->format('d/m/Y H:i') : 'sin fecha')
-            . '. Interruptores: proforma anticipada ' . $this->onOff('billing.proforma_anticipada')
+            . '. Interruptores: proforma anticipada ' . (InterruptorProformaAnticipada::encendida() ? 'ENCENDIDO' : 'apagado')
             . ', estado de cuenta mensual ' . $this->onOff('billing.estado_cuenta_mensual')
             . ', capa de contrato ' . $this->onOff('billing.capa_contrato') . '.');
 

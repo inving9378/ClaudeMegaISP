@@ -15,6 +15,7 @@
                 Aplica a todos los clientes que no tienen su propio valor en su Configuración de facturación<span
                     v-if="propios"> ({{ propios }} {{ propios === 1 ? "cliente tiene" : "clientes tienen" }} uno propio)</span>.
                 <b v-if="!encendido">La proforma anticipada sigue apagada: hoy no cambia cuándo se generan.</b>
+                Se enciende en Configuración › Envíos automáticos.
             </p>
         </div>
     </section>

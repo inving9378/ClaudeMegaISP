@@ -4,7 +4,9 @@ namespace App\Modules\Core\Configuracion\Controllers\Finance;
 
 use App\Services\Finance\Billing\ColaAvisos;
 use App\Services\Finance\Billing\EnviosAutomaticos;
+use App\Services\Finance\Billing\InterruptorProformaAnticipada;
 use App\Services\Finance\Billing\ReactivacionEnvios;
+use App\Services\Finance\Invoice\ProformaAnticipada;
 use App\Support\ArchivoObligatorioException;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
@@ -24,7 +26,7 @@ class EnviosAutomaticosController extends Controller
     public const PALABRA_DEPURAR = 'DEPURAR';
     public const PALABRA_CANCELAR = 'CANCELAR';
 
-    public function __construct(private EnviosAutomaticos $envios, private ColaAvisos $colaAvisos)
+    public function __construct(private EnviosAutomaticos $envios, private ColaAvisos $colaAvisos, private InterruptorProformaAnticipada $proforma)
     {
     }
 
@@ -77,6 +79,35 @@ class EnviosAutomaticosController extends Controller
         $datos = $request->validate(['ritmo' => ['required', Rule::in(ReactivacionEnvios::RITMOS)]], ['ritmo.required' => 'Elige el ritmo: Prueba o Normal.']);
 
         return $this->responder(fn () => $this->envios->cambiarRitmo($request->user(), $datos['ritmo']));
+    }
+
+    /** #581: encender la proforma anticipada con los días de anticipo y la palabra ENCENDER. */
+    public function proformaEncender(Request $request): JsonResponse
+    {
+        $this->exigirPermiso();
+        $datos = $request->validate([
+            'dias' => 'required|integer|min:0|max:' . ProformaAnticipada::MAX_DIAS,
+            'confirmacion' => ['required', Rule::in([InterruptorProformaAnticipada::PALABRA])],
+        ], ['confirmacion.in' => 'Escribe ' . InterruptorProformaAnticipada::PALABRA . ' para confirmar.'], ['dias' => 'días de anticipo']);
+
+        return $this->responder(fn () => $this->proforma->encender($request->user(), (int) $datos['dias']));
+    }
+
+    /** #581: apagar la proforma anticipada (confirmación simple, sin palabra). */
+    public function proformaApagar(Request $request): JsonResponse
+    {
+        $this->exigirPermiso();
+
+        return $this->responder(fn () => $this->proforma->apagar($request->user()));
+    }
+
+    /** #581: días de anticipo (valor general), encendida o apagada. */
+    public function proformaDias(Request $request): JsonResponse
+    {
+        $this->exigirPermiso();
+        $datos = $request->validate(['dias' => 'required|integer|min:0|max:' . ProformaAnticipada::MAX_DIAS], [], ['dias' => 'días de anticipo']);
+
+        return $this->responder(fn () => $this->proforma->cambiarDias($request->user(), (int) $datos['dias'], 'Configuración › Envíos automáticos'));
     }
 
     public function conteoDepuracion(Request $request): JsonResponse

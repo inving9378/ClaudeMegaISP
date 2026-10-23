@@ -11,6 +11,7 @@ use App\Services\Finance\Invoice\InvoiceService;
 use App\Services\Finance\Billing\BillingDocumentService;
 use App\Services\Finance\Invoice\EnvioPrefactura;
 use App\Services\Finance\Invoice\ProformaAnticipada;
+use App\Services\Finance\Billing\InterruptorProformaAnticipada;
 use App\Services\Finance\Billing\ReglasFacturacion;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -49,7 +50,7 @@ class CreateProformaInvoiceCommand extends Command
                 return;
             }
 
-            if (config('billing.proforma_anticipada')) {
+            if (InterruptorProformaAnticipada::encendida()) {
                 $this->crearAnticipadas();
                 return;
             }

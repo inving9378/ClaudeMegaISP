@@ -22,6 +22,11 @@ class BillingConfig extends Model
         'reactivacion_limite_diario',
         'reactivacion_cambiada_por',
         'reactivacion_cambiada_at',
+        'proforma_anticipada',
+        'proforma_anticipada_cambiada_por',
+        'proforma_anticipada_cambiada_at',
+        'envio_prefactura_dias_cambiado_por',
+        'envio_prefactura_dias_cambiado_at',
     ];
 
     protected $casts = [
@@ -35,19 +40,32 @@ class BillingConfig extends Model
         'reactivacion_limite_corrida' => 'integer',
         'reactivacion_limite_diario'  => 'integer',
         'reactivacion_cambiada_at'  => 'datetime',
+        'proforma_anticipada'       => 'boolean',
+        'proforma_anticipada_cambiada_at' => 'datetime',
+        'envio_prefactura_dias_cambiado_at' => 'datetime',
+    ];
+
+    /** Columna vigilada → [cuándo, quién] (#581 suma la proforma anticipada y sus días). */
+    private const CAMBIOS = [
+        'envio_pausado' => ['envio_pausado_cambiado_at', 'envio_pausado_cambiado_por'],
+        'proforma_anticipada' => ['proforma_anticipada_cambiada_at', 'proforma_anticipada_cambiada_por'],
+        'envio_prefactura_dias' => ['envio_prefactura_dias_cambiado_at', 'envio_prefactura_dias_cambiado_por'],
     ];
 
     /**
-     * Quién y cuándo cambió la pausa general, aunque el cambio no venga de la pantalla
-     * «Envíos automáticos» (que los fija ella misma). Desde consola queda sin usuario.
+     * Quién y cuándo cambió la pausa general, la proforma anticipada o sus días, aunque el cambio
+     * no venga de la pantalla «Envíos automáticos» (que los fija ella misma). Desde consola queda
+     * sin usuario.
      */
     protected static function booted(): void
     {
         static::saving(function (self $config) {
-            if ($config->isDirty('envio_pausado') && ! $config->isDirty('envio_pausado_cambiado_at')
-                && \Illuminate\Support\Facades\Schema::hasColumn($config->getTable(), 'envio_pausado_cambiado_at')) {
-                $config->envio_pausado_cambiado_at = now();
-                $config->envio_pausado_cambiado_por = auth()->id();
+            foreach (self::CAMBIOS as $columna => [$at, $por]) {
+                if ($config->isDirty($columna) && ! $config->isDirty($at)
+                    && \Illuminate\Support\Facades\Schema::hasColumn($config->getTable(), $at)) {
+                    $config->{$at} = now();
+                    $config->{$por} = auth()->id();
+                }
             }
         });
     }

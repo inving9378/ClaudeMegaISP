@@ -322,6 +322,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/encender', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'encender']);
             Route::post('/apagar', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'apagar']);
             Route::post('/ritmo', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'ritmo']);
+            // #581: interruptor de la proforma anticipada y sus días de anticipo
+            Route::post('/proforma/encender', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'proformaEncender']);
+            Route::post('/proforma/apagar', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'proformaApagar']);
+            Route::post('/proforma/dias', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'proformaDias']);
             Route::get('/depurar/conteo', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'conteoDepuracion']);
             Route::post('/depurar', [\App\Modules\Core\Configuracion\Controllers\Finance\EnviosAutomaticosController::class, 'depurar']);
             // #579: «Ver detalle de la cola»

@@ -3,6 +3,7 @@
 namespace App\Console\Commands\Active;
 
 use App\Models\Invoice;
+use App\Services\Finance\Billing\InterruptorProformaAnticipada;
 use App\Modules\Core\Clientes\Models\ClientBillingPause;
 use App\Modules\Core\Configuracion\Repositories\ConfigFinanceNotificationRepository;
 use App\Services\Finance\Invoice\EnvioPrefactura;
@@ -49,7 +50,7 @@ class ProformasSimularCommand extends Command
         $origenN = $n !== null ? "N={$n} (--dias)" : "N = Envío prefactura de cada cliente (general: {$general})";
 
         $this->info("Simulación (solo lectura): hoy={$hoy->toDateString()}, {$origenN}, horizonte={$horizonte} días, interruptor="
-            . (config('billing.proforma_anticipada') ? 'ENCENDIDO' : 'apagado') . '.');
+            . (InterruptorProformaAnticipada::encendida() ? 'ENCENDIDO' : 'apagado') . '.');
 
         $limite = $hoy->copy()->addDays($horizonte);
         $propios = Schema::hasColumn('billing_configurations', 'envio_prefactura_dias') ? 'bc.envio_prefactura_dias' : DB::raw('NULL as envio_prefactura_dias');

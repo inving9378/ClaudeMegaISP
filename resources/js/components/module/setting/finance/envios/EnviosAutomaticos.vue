@@ -92,27 +92,47 @@
             </section>
 
             <section class="ea-card">
-                <div class="ea-head">Proforma anticipada (BILLING_PROFORMA_ANTICIPADA)</div>
+                <div class="ea-head">Proforma anticipada</div>
                 <div class="ea-body">
                     <div class="ea-fila">
-                        <span class="ea-badge" :class="estado.proforma_anticipada.encendido ? 'ea-badge-activo' : 'ea-badge-gris'">
-                            {{ estado.proforma_anticipada.encendido ? "Encendida" : "Apagada" }}
+                        <div class="form-check form-switch m-0 ea-switch">
+                            <input id="ea-proforma" class="form-check-input" type="checkbox" role="switch"
+                                   :checked="pa.encendido" :disabled="!!dialogo" @click.prevent="abrir(pa.encendido ? 'proforma-apagar' : 'proforma-encender')" />
+                            <label class="form-check-label" for="ea-proforma">
+                                <b>{{ pa.encendido ? "Encendida" : "Apagada" }}</b>
+                            </label>
+                        </div>
+                        <span class="ea-nota m-0">
+                            <template v-if="pa.cambiado_at">
+                                {{ pa.encendido ? "Encendida" : "Apagada" }} por {{ pa.cambiado_por || "un proceso del sistema" }} · {{ fecha(pa.cambiado_at) }}
+                            </template>
+                            <template v-else>Sin registro de quién ni cuándo: el valor viene del .env del servidor, de antes de esta pantalla.</template>
                         </span>
-                        <span>Días de anticipo: <b>{{ estado.proforma_anticipada.dias }}</b> (valor general)</span>
+                    </div>
+                    <div class="ea-fila ea-ritmo">
+                        <b>Días de anticipo:</b>
+                        <span class="ea-badge" :class="pa.encendido ? 'ea-badge-activo' : 'ea-badge-gris'">
+                            {{ dias(pa.dias) }}{{ pa.encendido ? "" : " · se usan al encender" }}
+                        </span>
+                        <button type="button" class="btn btn-outline-primary btn-sm" @click="abrir('proforma-dias')">Cambiar días…</button>
+                        <span v-if="pa.dias_cambiados_at" class="ea-nota m-0">
+                            Cambiados por {{ pa.dias_cambiados_por || "un proceso del sistema" }} · {{ fecha(pa.dias_cambiados_at) }}
+                        </span>
                     </div>
                     <p class="ea-nota">
-                        <template v-if="estado.proforma_anticipada.clientes_con_valor_propio">
-                            {{ numero(estado.proforma_anticipada.clientes_con_valor_propio) }} clientes tienen su propio valor
-                            (de {{ estado.proforma_anticipada.rango_propio[0] }} a {{ estado.proforma_anticipada.rango_propio[1] }} días).
-                        </template>
-                        Creación automática de proformas:
-                        {{ estado.proforma_anticipada.creacion_automatica === null ? "sin configurar" : estado.proforma_anticipada.creacion_automatica ? "activa" : "apagada" }}.
-                        <template v-if="!estado.proforma_anticipada.encendido">
-                            Apagada, las proformas se generan como siempre (el día 25 del mes anterior) y los días no se usan.
-                        </template>
+                        Encendida, cada cliente Activo recibe su proforma esos días antes de su día de facturación. Apagada, todas se
+                        generan el día 25 del mes anterior. Generar la proforma no la envía: eso depende de «Avisos de cobro automáticos».
                     </p>
                     <p class="ea-nota">
-                        El interruptor se cambia en el .env del servidor; los días, en Notificaciones Finanzas › Facturas proforma.
+                        <template v-if="pa.clientes_con_valor_propio">
+                            {{ numero(pa.clientes_con_valor_propio) }} clientes tienen su propio valor (de {{ pa.rango_propio[0] }} a
+                            {{ pa.rango_propio[1] }} días) y lo conservan.
+                        </template>
+                        Los días también se cambian en Notificaciones Finanzas › Facturas proforma.
+                    </p>
+                    <p v-if="pa.creacion_automatica !== true" class="ea-aviso">
+                        La creación automática de proformas está {{ pa.creacion_automatica === false ? "apagada" : "sin configurar" }}
+                        (Notificaciones Finanzas › Facturas proforma): no se genera ninguna, con o sin este interruptor.
                     </p>
                 </div>
             </section>
@@ -216,6 +236,62 @@
                         <input id="ea-conf" v-model="confirmacion" class="form-control form-control-sm" autocomplete="off" />
                     </div>
                 </template>
+                <template v-else-if="dialogo === 'proforma-encender'">
+                    <div class="ea-head">Encender la proforma anticipada</div>
+                    <div class="ea-body">
+                        <p class="mb-2">
+                            Desde la próxima corrida (todos los días a las 03:00) las proformas dejan de generarse todas el día 25 del mes
+                            anterior: cada cliente Activo recibe la suya los días indicados antes de su día de facturación.
+                        </p>
+                        <label class="ea-label" for="ea-dias">Días de anticipo (valor general)</label>
+                        <div class="ea-fila">
+                            <input id="ea-dias" v-model.number="diasForm" type="number" min="0" :max="pa.max_dias" class="form-control form-control-sm ea-input" />
+                            <span class="ea-nota m-0" v-if="pa.clientes_con_valor_propio">
+                                {{ numero(pa.clientes_con_valor_propio) }} clientes con valor propio conservan el suyo.
+                            </span>
+                        </div>
+                        <ul class="ea-lista">
+                            <li>
+                                Con esta regla solo los clientes Activos ({{ numero(pa.clientes_activos) }}) reciben proforma; Bloqueados,
+                                Inactivos y Nuevos ({{ numero(pa.clientes_sin_proforma_al_encender) }}) ya no.
+                                {{ pa.estado_cuenta_mensual
+                                    ? "Bloqueados e Inactivos con adeudo reciben en su lugar el estado de cuenta mensual."
+                                    : "El estado de cuenta mensual que la sustituye está apagado: no reciben ningún documento del mes." }}
+                            </li>
+                            <li>No es retroactiva: un corte que ya pasó no se recupera. Las proformas que ya existen no cambian.</li>
+                            <li>
+                                Generarla no la envía: los avisos de cobro siguen {{ estado.encendido ? "encendidos" : "apagados" }}.
+                            </li>
+                        </ul>
+                        <p v-if="pa.creacion_automatica !== true" class="ea-aviso">
+                            La creación automática de proformas está {{ pa.creacion_automatica === false ? "apagada" : "sin configurar" }}:
+                            aunque la enciendas, no se genera ninguna.
+                        </p>
+                        <label class="ea-label" for="ea-conf">Escribe ENCENDER para confirmar</label>
+                        <input id="ea-conf" v-model="confirmacion" class="form-control form-control-sm" autocomplete="off" />
+                    </div>
+                </template>
+                <template v-else-if="dialogo === 'proforma-apagar'">
+                    <div class="ea-head">Apagar la proforma anticipada</div>
+                    <div class="ea-body">
+                        <p class="m-0">
+                            Desde la próxima corrida las proformas vuelven a generarse el día 25 del mes anterior, para todos los clientes
+                            que no están cancelados. Las que ya existen no cambian. Los días de anticipo quedan guardados para la próxima vez.
+                        </p>
+                    </div>
+                </template>
+                <template v-else-if="dialogo === 'proforma-dias'">
+                    <div class="ea-head">Cambiar los días de anticipo</div>
+                    <div class="ea-body">
+                        <label class="ea-label mt-0" for="ea-dias">Días antes del día de facturación (valor general)</label>
+                        <input id="ea-dias" v-model.number="diasForm" type="number" min="0" :max="pa.max_dias" class="form-control form-control-sm ea-input" />
+                        <p class="ea-nota">
+                            Aplica a los clientes sin valor propio<template v-if="pa.clientes_con_valor_propio">
+                            ({{ numero(pa.clientes_con_valor_propio) }} tienen el suyo)</template>.
+                            {{ pa.encendido ? "Se aplica desde la próxima corrida (03:00)." : "La proforma anticipada está apagada: se usan cuando la enciendas." }}
+                        </p>
+                    </div>
+                </template>
                 <template v-else>
                     <div class="ea-head">Apagar los envíos automáticos</div>
                     <div class="ea-body">
@@ -225,10 +301,13 @@
                 <div v-if="errorAccion" class="ea-error">{{ errorAccion }}</div>
                 <div class="ea-pie">
                     <button type="button" class="btn btn-light btn-sm" :disabled="enviando" @click="cerrar">Cancelar</button>
-                    <button type="button" class="btn btn-sm" :class="{ encender: 'btn-success', ritmo: 'btn-primary' }[dialogo] || 'btn-danger'"
-                            :disabled="enviando || !confirmacionValida || (dialogo === 'depurar' && (contando || !aDepurar)) || (dialogo === 'ritmo' && ritmo === estado.etapa.ritmo)"
+                    <button type="button" class="btn btn-sm"
+                            :class="{ encender: 'btn-success', ritmo: 'btn-primary', 'proforma-encender': 'btn-success', 'proforma-dias': 'btn-primary' }[dialogo] || 'btn-danger'"
+                            :disabled="enviando || !confirmacionValida || (dialogo === 'depurar' && (contando || !aDepurar)) || (dialogo === 'ritmo' && ritmo === estado.etapa.ritmo)
+                                || (dialogo.startsWith('proforma-') && dialogo !== 'proforma-apagar' && !diasValidos) || (dialogo === 'proforma-dias' && diasForm === pa.dias)"
                             @click="aplicar">
-                        {{ enviando ? "Aplicando…" : { encender: "Encender", apagar: "Apagar", depurar: `Cancelar ${numero(aDepurar)}`, ritmo: "Guardar ritmo" }[dialogo] }}
+                        {{ enviando ? "Aplicando…" : { encender: "Encender", apagar: "Apagar", depurar: `Cancelar ${numero(aDepurar)}`, ritmo: "Guardar ritmo",
+                            'proforma-encender': "Encender", 'proforma-apagar': "Apagar", 'proforma-dias': "Guardar días" }[dialogo] }}
                     </button>
                 </div>
             </div>
@@ -242,8 +321,10 @@
  * la cola por tipo y la proforma anticipada. Solo super-administrador (lo exige el servidor).
  * Un interruptor maneja juntas la pausa y la etapa (billing_config): encender pide qué hacer con lo
  * acumulado, el ritmo y REACTIVAR, y no cambia hasta confirmar; apagar es inmediato.
+ * #581: la proforma anticipada tiene su propio interruptor (billing_config.proforma_anticipada):
+ * encender pide los días de anticipo y ENCENDER; apagar, confirmación simple; los días, aparte.
  * GET /configuracion/envios-automaticos/estado · POST …/encender · POST …/apagar · POST …/ritmo ·
- * GET …/depurar/conteo · POST …/depurar.
+ * GET …/depurar/conteo · POST …/depurar · POST …/proforma/encender · …/proforma/apagar · …/proforma/dias.
  */
 import { computed, onMounted, ref } from "vue";
 import { darkMode } from "../../../../../hook/appConfig";
@@ -266,8 +347,11 @@ const contando = ref(false);
 let temporizadorConteo = null;
 
 const ritmo = ref("prueba");
+const diasForm = ref(5);
 
-const palabra = computed(() => ({ encender: "REACTIVAR", depurar: "DEPURAR" })[dialogo.value] || null);
+const pa = computed(() => estado.value?.proforma_anticipada || {});
+const diasValidos = computed(() => Number.isInteger(diasForm.value) && diasForm.value >= 0 && diasForm.value <= (pa.value.max_dias ?? 60));
+const palabra = computed(() => ({ encender: "REACTIVAR", depurar: "DEPURAR", "proforma-encender": "ENCENDER" })[dialogo.value] || null);
 /** El ritmo junto al interruptor: el vigente si está encendido; si no, el guardado que se propone al encender. */
 const ritmoVista = computed(() => {
     const e = estado.value?.etapa || {};
@@ -306,6 +390,7 @@ const abrir = (tipo) => {
     errorAccion.value = "";
     if (tipo === "encender") ritmo.value = estado.value.etapa.ritmo || "prueba";
     if (tipo === "ritmo") ritmo.value = estado.value.etapa.ritmo === "prueba" ? "normal" : "prueba";
+    if (tipo.startsWith("proforma-")) diasForm.value = pa.value.dias;
     if (tipo === "depurar") {
         depurarHoras.value = estado.value.opciones.horas_descarte;
         depurarTipo.value = "";
@@ -347,7 +432,7 @@ const aplicar = async () => {
     enviando.value = true;
     errorAccion.value = "";
     try {
-        const url = `/configuracion/envios-automaticos/${dialogo.value}`;
+        const url = `/configuracion/envios-automaticos/${dialogo.value.replace("proforma-", "proforma/")}`;
         const palabraEscrita = confirmacion.value.trim().toUpperCase();
         const cuerpo = {
             encender: {
@@ -359,10 +444,13 @@ const aplicar = async () => {
             apagar: {},
             ritmo: { ritmo: ritmo.value },
             depurar: { horas: Number(depurarHoras.value), tipo: depurarTipo.value || null, esperado: aDepurar.value, confirmacion: palabraEscrita },
+            "proforma-encender": { dias: diasForm.value, confirmacion: palabraEscrita },
+            "proforma-apagar": {},
+            "proforma-dias": { dias: diasForm.value },
         }[dialogo.value];
         const { data } = await axios.post(url, cuerpo);
         estado.value = data.estado;
-        toastr.success(data.message, "Envíos automáticos");
+        toastr.success(data.message, dialogo.value.startsWith("proforma-") ? "Proforma anticipada" : "Envíos automáticos");
         dialogo.value = null;
     } catch (e) {
         const errores = e.response?.data?.errors;
@@ -375,6 +463,7 @@ const aplicar = async () => {
 };
 
 const numero = (n) => Number(n || 0).toLocaleString("es-MX");
+const dias = (n) => `${n} ${n === 1 ? "día" : "días"}`;
 const fecha = (iso, soloDia = false) => {
     const d = new Date(iso);
     return soloDia
@@ -413,6 +502,8 @@ const antiguedad = (iso) => {
 .ea-ritmo { margin-top: 10px; }
 .ea-entorno { margin: 12px 0 0; padding: 10px 14px; border-radius: 12px; border: 2px solid #F59E0B; background: #FEF3C7; color: #92400E; font-size: 13px; }
 .ea-fuera td { opacity: 0.45; }
+.ea-lista { font-size: 13px; margin: 10px 0 0; padding-left: 18px; }
+.ea-lista li { margin-bottom: 4px; }
 .ea-label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin: 10px 0 4px; }
 .ea-velo { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 1050; display: flex;
     align-items: center; justify-content: center; padding: 16px; }
