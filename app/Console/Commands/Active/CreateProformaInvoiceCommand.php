@@ -165,38 +165,44 @@ class CreateProformaInvoiceCommand extends Command
 
     private function createProformaForClient(Client $cliente, $fechaCorte, string $periodo)
     {
-        // Bloqueo de fila para prevenir crons simultáneos
-        $cliente = Client::where('id', $cliente->id)->lockForUpdate()->first();
+        // El candado solo vale dentro de una transacción (en autocommit se suelta al
+        // terminar el SELECT): bloqueo + revisión + creación van en la misma (#572).
+        $proforma = DB::transaction(function () use ($cliente, $fechaCorte, $periodo) {
+            $cliente = Client::where('id', $cliente->id)->lockForUpdate()->first();
 
-        // Revalidar si ya existe factura para este cliente + periodo
-        $existe = Invoice::where('client_id', $cliente->id)
-            ->where('period', $periodo)
-            ->exists();
+            // Revalidar si ya existe factura para este cliente + periodo
+            $existe = Invoice::where('client_id', $cliente->id)
+                ->where('period', $periodo)
+                ->exists();
 
-        if ($existe) {
-            $this->info("Ya existe proforma para cliente {$cliente->id} en período {$periodo}, se omite.");
+            if ($existe) {
+                $this->info("Ya existe proforma para cliente {$cliente->id} en período {$periodo}, se omite.");
+                return null;
+            }
+
+            $montos = (new ClientRepository())->calculateAmounts($cliente);
+
+            $data = [
+                'number' => $this->invoiceService->generateInvoiceNumber(),
+                'client_id' => $cliente->id,
+                'due_date' => $fechaCorte,
+                'subtotal' => $montos['subtotal'],
+                'tax' => $montos['tax'],
+                'total' => $montos['total'],
+                'pending_balance' => $montos['total'],
+                'status' => Invoice::STATUS_DRAFT,
+                'type' => Invoice::TYPE_PROFORMA,
+                'period' => $periodo,
+                'notes' => "Proforma correspondiente al período {$periodo}",
+                'created_by' => 0
+            ];
+
+            return $this->invoiceService->createProformaInvoice($data);
+        });
+
+        if (!$proforma) {
             return;
         }
-
-        $clientRepository = new ClientRepository();
-        $montos = $clientRepository->calculateAmounts($cliente);
-
-        $data = [
-            'number' => $this->invoiceService->generateInvoiceNumber(),
-            'client_id' => $cliente->id,
-            'due_date' => $fechaCorte,
-            'subtotal' => $montos['subtotal'],
-            'tax' => $montos['tax'],
-            'total' => $montos['total'],
-            'pending_balance' => $montos['total'],
-            'status' => Invoice::STATUS_DRAFT,
-            'type' => Invoice::TYPE_PROFORMA,
-            'period' => $periodo,
-            'notes' => "Proforma correspondiente al período {$periodo}",
-            'created_by' => 0
-        ];
-
-        $proforma = $this->invoiceService->createProformaInvoice($data);
 
         $this->info("Proforma creada para cliente {$cliente->id}: {$proforma->number}");
 
