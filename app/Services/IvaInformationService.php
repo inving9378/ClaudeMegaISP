@@ -25,9 +25,10 @@ class IvaInformationService
         //obtener cantidad redondeada
         $cantidad = $this->total / (1 + ($this->tasa / 100));
         $cantidad = round($cantidad, 2);
-        //obtener IVA
-        $iva = $this->tasa / 100 * $cantidad;
-        $iva = round($iva, 2);
+        //obtener IVA: lo que falta para llegar al total, así Cantidad + IVA = Total al centavo.
+        //Redondear Tasa * Cantidad por separado perdía o sumaba un centavo ($99 salía en $98.99);
+        //la diferencia contra Tasa * Cantidad es de menos de un centavo, dentro de la tolerancia del SAT.
+        $iva = round($this->total - $cantidad, 2);
 
         return [
             'iva' => $iva,
