@@ -6,5 +6,5 @@
 
 @section('content')
     <Breadcrumb :list='[{"title":"Inicio"},{"title":"Flotas","url":"/flotas"},{"title":"Vehículo","active":"active"}]'></Breadcrumb>
-    <fleet-vehicle-show base-url="{{ url('/flotas') }}"></fleet-vehicle-show>
+    <fleet-vehicle-show base-url="{{ url('/flotas') }}" :vehicle-id="{{ (int) request()->route('id') }}"></fleet-vehicle-show>
 @endsection

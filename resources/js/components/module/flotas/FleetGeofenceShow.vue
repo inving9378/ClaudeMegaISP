@@ -103,10 +103,14 @@ import 'leaflet/dist/leaflet.css';
 
 export default {
     name: 'FleetGeofenceShow',
-    props: { baseUrl: { type: String, default: '/flotas' } },
+    props: {
+        baseUrl: { type: String, default: '/flotas' },
+        // Lo da el servidor: con la navegación SPA, location.pathname todavía es la página anterior.
+        geofenceId: { type: [Number, String], default: null },
+    },
     setup(props) {
         const parts = window.location.pathname.split('/').filter(Boolean);
-        const geofenceId = parts[parts.length - 1];
+        const geofenceId = String(Number(props.geofenceId) > 0 ? props.geofenceId : (/^\d+$/.test(parts[parts.length - 1]) ? parts[parts.length - 1] : ''));
 
         const geofence = ref(null);
         const loading = ref(true);

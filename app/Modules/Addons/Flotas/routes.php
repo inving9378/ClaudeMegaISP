@@ -70,10 +70,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/{id}/notification-preference',  [FleetNotificationController::class, 'myPreference']);
             Route::post('/{id}/notification-preference', [FleetNotificationController::class, 'savePreference']);
 
-            Route::get('/{id}',      [FleetVehicleController::class, 'show']);
-            Route::patch('/{id}',    [FleetVehicleController::class, 'update']);
-            Route::delete('/{id}',   [FleetVehicleController::class, 'destroy']);
-            Route::post('/{id}/restore', [FleetVehicleController::class, 'restore']);
+            Route::get('/{id}',      [FleetVehicleController::class, 'show'])->whereNumber('id');
+            Route::patch('/{id}',    [FleetVehicleController::class, 'update'])->whereNumber('id');
+            Route::delete('/{id}',   [FleetVehicleController::class, 'destroy'])->whereNumber('id');
+            Route::post('/{id}/restore', [FleetVehicleController::class, 'restore'])->whereNumber('id');
         });
 
         // ── API: GPS / Flota en mapa ───────────────────────────────────────────
@@ -107,10 +107,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::prefix('api/geocercas')->group(function () {
             Route::get('/',        [FleetGeofenceController::class, 'index']);
             Route::post('/',       [FleetGeofenceController::class, 'store']);
-            Route::get('/{id}',    [FleetGeofenceController::class, 'show']);
-            Route::put('/{id}',    [FleetGeofenceController::class, 'update']);
-            Route::patch('/{id}',  [FleetGeofenceController::class, 'update']);
-            Route::delete('/{id}', [FleetGeofenceController::class, 'destroy']);
+            Route::get('/{id}',    [FleetGeofenceController::class, 'show'])->whereNumber('id');
+            Route::put('/{id}',    [FleetGeofenceController::class, 'update'])->whereNumber('id');
+            Route::patch('/{id}',  [FleetGeofenceController::class, 'update'])->whereNumber('id');
+            Route::delete('/{id}', [FleetGeofenceController::class, 'destroy'])->whereNumber('id');
             Route::post('/{id}/vehiculos', [FleetGeofenceController::class, 'assignVehicles']);
         });
 

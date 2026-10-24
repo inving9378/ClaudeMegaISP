@@ -198,12 +198,14 @@ export default {
     name: 'FleetVehicleShow',
     props: {
         baseUrl: { type: String, default: '/flotas' },
+        // Lo da el servidor: con la navegación SPA, location.pathname todavía es la página anterior.
+        vehicleId: { type: [Number, String], default: null },
     },
     setup(props) {
         const { fmtMoney, fmtKm, statusLabel, docStatus } = useFleetFormatters();
 
         const path      = window.location.pathname.split('/').filter(Boolean);
-        const vehicleId = path[path.length - 1];
+        const vehicleId = String(Number(props.vehicleId) > 0 ? props.vehicleId : (/^\d+$/.test(path[path.length - 1]) ? path[path.length - 1] : ''));
         const queryTab  = new URLSearchParams(window.location.search).get('tab');
         const tabKeys   = ['informacion', 'asignacion', 'mantenimientos', 'documentos', 'combustible', 'gps', 'historial', 'fotos'];
         const activeTab = ref(tabKeys.includes(queryTab) ? queryTab : 'informacion');

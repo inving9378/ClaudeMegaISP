@@ -148,12 +148,16 @@ import 'leaflet/dist/leaflet.css';
 
 export default {
     name: 'FleetGeofenceForm',
-    props: { baseUrl: { type: String, default: '/flotas' } },
+    props: {
+        baseUrl: { type: String, default: '/flotas' },
+        // 0 = alta nueva. Lo da el servidor: con la navegación SPA, location.pathname todavía es la página anterior.
+        geofenceId: { type: [Number, String], default: null },
+    },
     setup(props) {
-        // ── id desde la URL (.../geocercas/{id}/editar) ──────────────────
+        // ── id: del servidor; la URL (.../geocercas/{id}/editar) solo como respaldo ──
         const parts = window.location.pathname.split('/').filter(Boolean);
-        let geofenceId = null;
-        if (parts.includes('editar')) {
+        let geofenceId = Number(props.geofenceId) > 0 ? String(props.geofenceId) : null;
+        if (props.geofenceId === null && parts.includes('editar')) {
             geofenceId = parts[parts.indexOf('editar') - 1];
         }
         const isEdit = ref(!!geofenceId);
