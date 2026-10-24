@@ -110,8 +110,8 @@ class ColaAvisos
             'no_aplican' => max(0, $seleccionados - $total),
             'tipos' => $tipos,
             'con_correo' => $conCorreo,
-            'pausado' => (bool) BillingConfig::current()->envio_pausado,
-            'etapa' => $this->envios->etapa()['nombre'] ?? null,
+            'pausado' => ! $this->envios->encendido(),
+            'etapa' => $this->envios->etapa()['ritmo_nombre'] ?? null,
         ];
     }
 
@@ -149,12 +149,12 @@ class ColaAvisos
             $config = BillingConfig::current();
             $detalle = ['accion' => $accion, 'cambiadas' => $n, 'por_tipo' => $porTipo, 'archivo_para_revertir' => $archivo,
                 'seleccion' => isset($seleccion['ids']) ? ['ids' => count($seleccion['ids'])] : ['filtro' => $this->normalizar($seleccion['filtro'] ?? [])],
-                'pausado' => (bool) $config->envio_pausado];
+                'pausado' => ! $this->envios->encendido($config)];
             $this->envios->auditar($user, $config, $cancelar ? 'Avisos cancelados desde el detalle de la cola' : 'Avisos reactivados desde el detalle de la cola', $detalle);
 
             $mensaje = $cancelar
                 ? "Se cancelaron {$n} avisos (no se borran; se pueden revertir)."
-                : "Se reactivaron {$n} avisos: vuelven a «en espera»" . ($config->envio_pausado ? ' y no saldrán mientras los envíos sigan pausados.' : ' y salen con el próximo envío automático.');
+                : "Se reactivaron {$n} avisos: vuelven a «en espera»" . (! $this->envios->encendido($config) ? ' y no saldrán mientras los envíos sigan apagados.' : ' y salen con el próximo envío automático.');
 
             return ['message' => $mensaje] + $detalle;
         });

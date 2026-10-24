@@ -193,6 +193,8 @@ class EnviosAutomaticosController extends Controller
             }
 
             return response()->json(['message' => $e->getMessage(), 'conteo' => $conteo], 422);
+        } catch (ArchivoObligatorioException $e) {
+            return response()->json(['message' => $e->getMessage()], 500);
         }
     }
 

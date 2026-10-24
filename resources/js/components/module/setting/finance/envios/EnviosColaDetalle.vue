@@ -144,10 +144,10 @@
                         <p v-if="!conteo.total" class="ec-aviso">No hay nada que {{ dialogo === "cancelar" ? "cancelar" : "reactivar" }} en lo seleccionado.</p>
                         <p v-else-if="dialogo === 'reactivar'" class="ec-aviso">
                             Vuelven a «en espera»; {{ numero(conteo.con_correo) }} tienen correo.
-                            <template v-if="conteo.pausado">Los envíos están pausados: no sale nada hasta que se reactiven.</template>
+                            <template v-if="conteo.pausado">Los envíos están apagados: no sale nada hasta encenderlos.</template>
                             <template v-else>
-                                Los envíos están activos: salen con el próximo envío automático (cada 15 minutos), con los límites de la
-                                etapa «{{ conteo.etapa }}».
+                                Los envíos están encendidos: salen con el próximo envío automático (cada 15 minutos), con el ritmo
+                                {{ conteo.etapa }}.
                             </template>
                         </p>
                         <p v-else class="ec-nota">

@@ -48,6 +48,15 @@ class ColaAvisosTest extends TestCase
         parent::tearDown();
     }
 
+    /** La carpeta queda sin permiso de escritura, como cuando la creó otro usuario del servidor. */
+    private function carpetaSinPermiso(string $dir): void
+    {
+        Storage::disk('local')->makeDirectory($dir);
+        $ruta = Storage::disk('local')->path($dir);
+        chmod($ruta, 0500);
+        $this->beforeApplicationDestroyed(fn () => @chmod($ruta, 0755));
+    }
+
     private function usuario(string $rol): User
     {
         $id = DB::table('users')->insertGetId([
@@ -146,7 +155,7 @@ class ColaAvisosTest extends TestCase
         $this->assertSame(2, $this->cola->conteo('reactivar', ['ids' => $ids])['total']);
         $r = $this->cola->aplicar($admin, 'reactivar', ['ids' => $ids], 2);
         $this->archivos[] = $r['archivo_para_revertir'];
-        $this->assertStringContainsString('pausados', $r['message'], 'Si los envíos están pausados, lo dice.');
+        $this->assertStringContainsString('apagados', $r['message'], 'Si los envíos están apagados, lo dice.');
         $this->assertSame(['en_espera', 'en_espera', 'cancelado', 'enviado'], array_values($this->estados($ids)));
         $this->assertStringContainsString('Reactivada a mano', (string) DB::table('billing_notifications')->where('id', $cancelado)->value('error_log'));
 
@@ -202,5 +211,23 @@ class ColaAvisosTest extends TestCase
         $r = $this->actingAs($admin)->postJson('/configuracion/envios-automaticos/cola/aplicar', $cuerpo + ['confirmacion' => 'CANCELAR'])->assertOk();
         $this->archivos[] = $r->json('archivo_para_revertir');
         $this->assertSame('cancelado', DB::table('billing_notifications')->where('id', $id)->value('status'));
+    }
+
+    public function test_sin_archivo_para_revertir_no_cancela_ni_reactiva(): void
+    {
+        Storage::fake('local');
+        $this->carpetaSinPermiso('billing/manifiestos');
+        $admin = $this->usuario('super-administrator');
+        $espera = $this->aviso('recibo', 10);
+        $cancelado = $this->aviso('prefactura', 10, 'cancelado');
+
+        foreach ([['cancelar', $espera], ['reactivar', $cancelado]] as [$accion, $id]) {
+            try {
+                $this->cola->aplicar($admin, $accion, ['ids' => [$id]], 1);
+                $this->fail("{$accion}: debía fallar sin archivo para revertir.");
+            } catch (\App\Support\ArchivoObligatorioException) {
+            }
+        }
+        $this->assertSame(['en_espera', 'cancelado'], array_values($this->estados([$espera, $cancelado])));
     }
 }
