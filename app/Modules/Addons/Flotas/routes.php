@@ -29,8 +29,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         // Geocercas (Sub-fase 3.1) — TODAS antes de /{id} para que no las capture como id.
         Route::get('/geocercas',              fn() => view('addon-flotas::flotas.geocercas.index'));
         Route::get('/geocercas/nueva',        fn() => view('addon-flotas::flotas.geocercas.form'));
-        Route::get('/geocercas/{id}/editar',  fn() => view('addon-flotas::flotas.geocercas.form'));
-        Route::get('/geocercas/{id}',         fn() => view('addon-flotas::flotas.geocercas.show'));
+        Route::get('/geocercas/{id}/editar',  fn() => view('addon-flotas::flotas.geocercas.form'))->whereNumber('id');
+        Route::get('/geocercas/{id}',         fn() => view('addon-flotas::flotas.geocercas.show'))->whereNumber('id');
 
         // Log de notificaciones (Sub-fase 3.3) — antes de /{id}.
         Route::get('/notificaciones-log',     fn() => view('addon-flotas::flotas.notificaciones'));
@@ -44,7 +44,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         // Análisis comparativo de gastos (item #688) — antes de /{id}.
         Route::get('/comparativo',            fn() => view('addon-flotas::flotas.comparativo'));
 
-        Route::get('/{id}',       fn() => view('addon-flotas::flotas.show'));
+        Route::get('/{id}',       fn() => view('addon-flotas::flotas.show'))->whereNumber('id');
 
         // ── API: Vehículos ─────────────────────────────────────────────────────
         Route::prefix('api/vehiculos')->group(function () {
@@ -57,18 +57,18 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/data/operadores', [FleetVehicleController::class, 'operators']);
 
             // Asignaciones del vehículo
-            Route::get('/{id}/asignaciones',  [FleetAssignmentController::class, 'index']);
-            Route::post('/{id}/asignaciones', [FleetAssignmentController::class, 'store']);
+            Route::get('/{id}/asignaciones',  [FleetAssignmentController::class, 'index'])->whereNumber('id');
+            Route::post('/{id}/asignaciones', [FleetAssignmentController::class, 'store'])->whereNumber('id');
 
             // Tracking GPS del vehículo (Fase 2)
-            Route::get('/{id}/gps',          [FleetGpsController::class, 'status']);
-            Route::get('/{id}/gps/history',  [FleetGpsController::class, 'history']);
-            Route::post('/{id}/gps/device',  [FleetGpsController::class, 'activateDevice']);
-            Route::get('/{id}/geofence-events', [FleetGpsController::class, 'geofenceEvents']);
+            Route::get('/{id}/gps',          [FleetGpsController::class, 'status'])->whereNumber('id');
+            Route::get('/{id}/gps/history',  [FleetGpsController::class, 'history'])->whereNumber('id');
+            Route::post('/{id}/gps/device',  [FleetGpsController::class, 'activateDevice'])->whereNumber('id');
+            Route::get('/{id}/geofence-events', [FleetGpsController::class, 'geofenceEvents'])->whereNumber('id');
 
             // Preferencias de alerta del usuario (Sub-fase 3.3)
-            Route::get('/{id}/notification-preference',  [FleetNotificationController::class, 'myPreference']);
-            Route::post('/{id}/notification-preference', [FleetNotificationController::class, 'savePreference']);
+            Route::get('/{id}/notification-preference',  [FleetNotificationController::class, 'myPreference'])->whereNumber('id');
+            Route::post('/{id}/notification-preference', [FleetNotificationController::class, 'savePreference'])->whereNumber('id');
 
             Route::get('/{id}',      [FleetVehicleController::class, 'show'])->whereNumber('id');
             Route::patch('/{id}',    [FleetVehicleController::class, 'update'])->whereNumber('id');
@@ -84,23 +84,23 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         // ── API: Log de notificaciones (Sub-fase 3.3) ───────────────────────────
         Route::prefix('api/notificaciones-log')->group(function () {
             Route::get('/',            [FleetNotificationController::class, 'log']);
-            Route::post('/{id}/resend',[FleetNotificationController::class, 'resend']);
+            Route::post('/{id}/resend',[FleetNotificationController::class, 'resend'])->whereNumber('id');
         });
 
         // ── API: Tokens de push del conductor (item #101, Fase 5.5) ─────────────
         // Scaffold aditivo: registro del token, envío real bloqueado hasta item #72 (Firebase).
         Route::prefix('api/push-tokens')->group(function () {
             Route::post('/',       [FleetPushTokenController::class, 'store']);
-            Route::delete('/{id}', [FleetPushTokenController::class, 'destroy']);
+            Route::delete('/{id}', [FleetPushTokenController::class, 'destroy'])->whereNumber('id');
         });
 
         // ── API: Reglas de alertas (Sub-fase 3.4) ───────────────────────────────
         Route::prefix('api/reglas')->group(function () {
             Route::get('/',           [FleetRuleController::class, 'index']);
             Route::post('/',          [FleetRuleController::class, 'store']);
-            Route::put('/{id}',       [FleetRuleController::class, 'update']);
-            Route::delete('/{id}',    [FleetRuleController::class, 'destroy']);
-            Route::post('/{id}/toggle',[FleetRuleController::class, 'toggle']);
+            Route::put('/{id}',       [FleetRuleController::class, 'update'])->whereNumber('id');
+            Route::delete('/{id}',    [FleetRuleController::class, 'destroy'])->whereNumber('id');
+            Route::post('/{id}/toggle',[FleetRuleController::class, 'toggle'])->whereNumber('id');
         });
 
         // ── API: Geocercas (Sub-fase 3.1) ───────────────────────────────────────
@@ -111,17 +111,17 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::put('/{id}',    [FleetGeofenceController::class, 'update'])->whereNumber('id');
             Route::patch('/{id}',  [FleetGeofenceController::class, 'update'])->whereNumber('id');
             Route::delete('/{id}', [FleetGeofenceController::class, 'destroy'])->whereNumber('id');
-            Route::post('/{id}/vehiculos', [FleetGeofenceController::class, 'assignVehicles']);
+            Route::post('/{id}/vehiculos', [FleetGeofenceController::class, 'assignVehicles'])->whereNumber('id');
         });
 
         // ── API: Mantenimientos ────────────────────────────────────────────────
         Route::prefix('api/mantenimientos')->group(function () {
             Route::get('/',        [FleetMaintenanceController::class, 'index']);
             Route::post('/',       [FleetMaintenanceController::class, 'store']);
-            Route::get('/{id}',    [FleetMaintenanceController::class, 'show']);
-            Route::patch('/{id}',  [FleetMaintenanceController::class, 'update']);
-            Route::delete('/{id}', [FleetMaintenanceController::class, 'destroy']);
-            Route::post('/{id}/files', [FleetMaintenanceController::class, 'uploadFile']);
+            Route::get('/{id}',    [FleetMaintenanceController::class, 'show'])->whereNumber('id');
+            Route::patch('/{id}',  [FleetMaintenanceController::class, 'update'])->whereNumber('id');
+            Route::delete('/{id}', [FleetMaintenanceController::class, 'destroy'])->whereNumber('id');
+            Route::post('/{id}/files', [FleetMaintenanceController::class, 'uploadFile'])->whereNumber('id');
         });
 
         // ── API: Documentos ────────────────────────────────────────────────────
@@ -131,34 +131,34 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/alertas/proximos',       [FleetDocumentController::class, 'proximos']);    // ANTES de /{id}
             Route::get('/dashboard/all',          [FleetDocumentController::class, 'dashboard']);   // ANTES de /{id}
             Route::post('/ocr',                   [FleetDocumentController::class, 'ocr']);         // #580 — ANTES de /{id}
-            Route::post('/{id}/ocr/revisado',     [FleetDocumentController::class, 'markOcrReviewed']);
-            Route::get('/{id}',                   [FleetDocumentController::class, 'show']);
-            Route::post('/{id}',                  [FleetDocumentController::class, 'update']);      // multipart/form-data no admite PATCH en algunos navegadores
-            Route::patch('/{id}',                 [FleetDocumentController::class, 'update']);
-            Route::delete('/{id}',                [FleetDocumentController::class, 'destroy']);
-            Route::get('/{id}/descargar',         [FleetDocumentController::class, 'download']);    // segmento literal — no choca con /{id}
-            Route::get('/{id}/renovar/prefill',   [FleetDocumentController::class, 'renew']);       // prefill para renovación
+            Route::post('/{id}/ocr/revisado',     [FleetDocumentController::class, 'markOcrReviewed'])->whereNumber('id');
+            Route::get('/{id}',                   [FleetDocumentController::class, 'show'])->whereNumber('id');
+            Route::post('/{id}',                  [FleetDocumentController::class, 'update'])->whereNumber('id');      // multipart/form-data no admite PATCH en algunos navegadores
+            Route::patch('/{id}',                 [FleetDocumentController::class, 'update'])->whereNumber('id');
+            Route::delete('/{id}',                [FleetDocumentController::class, 'destroy'])->whereNumber('id');
+            Route::get('/{id}/descargar',         [FleetDocumentController::class, 'download'])->whereNumber('id');    // segmento literal — no choca con /{id}
+            Route::get('/{id}/renovar/prefill',   [FleetDocumentController::class, 'renew'])->whereNumber('id');       // prefill para renovación
         });
 
         // ── API: Proveedores ───────────────────────────────────────────────────
         Route::prefix('api/proveedores')->group(function () {
             Route::get('/',        [FleetProviderController::class, 'index']);
             Route::post('/',       [FleetProviderController::class, 'store']);
-            Route::patch('/{id}',  [FleetProviderController::class, 'update']);
-            Route::delete('/{id}', [FleetProviderController::class, 'destroy']);
+            Route::patch('/{id}',  [FleetProviderController::class, 'update'])->whereNumber('id');
+            Route::delete('/{id}', [FleetProviderController::class, 'destroy'])->whereNumber('id');
         });
 
         // ── API: Combustible ───────────────────────────────────────────────────
         Route::prefix('api/combustible')->group(function () {
             Route::get('/',        [FleetFuelLogController::class, 'index']);
             Route::post('/',       [FleetFuelLogController::class, 'store']);
-            Route::delete('/{id}', [FleetFuelLogController::class, 'destroy']);
+            Route::delete('/{id}', [FleetFuelLogController::class, 'destroy'])->whereNumber('id');
         });
 
         // ── API: Fotos ─────────────────────────────────────────────────────────
         Route::prefix('api/fotos')->group(function () {
             Route::post('/',       [FleetPhotoController::class, 'store']);
-            Route::delete('/{id}', [FleetPhotoController::class, 'destroy']);
+            Route::delete('/{id}', [FleetPhotoController::class, 'destroy'])->whereNumber('id');
         });
 
         // ── Suscripciones SaaS (Fase 6) ────────────────────────────────────────
