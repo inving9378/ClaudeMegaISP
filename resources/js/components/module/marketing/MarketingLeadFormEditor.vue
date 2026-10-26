@@ -146,11 +146,19 @@ export default {
     };
   },
   mounted() {
-    const id = this.formId || (window.location.pathname.match(/lead-forms\/(\d+)/) || [])[1];
-    if (id && id !== 'create') this.loadForm(id);
+    const id = this.resolvedId();
+    if (id) this.loadForm(id);
     this.loadSources();
   },
   methods: {
+    // El id lo da el servidor (form-id; vacío = alta nueva): con la navegación SPA, location.pathname
+    // todavía es la página anterior. La URL (.../lead-forms/{id}/edit) solo es respaldo si falta la prop.
+    resolvedId() {
+      if (this.formId !== null && this.formId !== undefined) {
+        return Number(this.formId) > 0 ? String(this.formId) : '';
+      }
+      return (window.location.pathname.match(/lead-forms\/(\d+)(\/|$)/) || [])[1] || '';
+    },
     async loadForm(id) {
       const { data } = await axios.get('/api/marketing/lead-forms/' + id);
       const f = data.data ?? data;
@@ -185,8 +193,8 @@ export default {
         const payload = { ...this.form };
         // Clean internal _optionsRaw from payload
         payload.fields_schema = payload.fields_schema.map(({ _optionsRaw, ...f }) => f);
-        const id = this.formId || (window.location.pathname.match(/lead-forms\/(\d+)/) || [])[1];
-        if (id && id !== 'create') {
+        const id = this.resolvedId();
+        if (id) {
           await axios.put('/api/marketing/lead-forms/' + id, payload);
         } else {
           await axios.post('/api/marketing/lead-forms', payload);
