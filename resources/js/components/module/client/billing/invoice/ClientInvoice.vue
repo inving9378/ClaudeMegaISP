@@ -151,7 +151,10 @@ export default {
         const dataForm = reactive({
             data: new Form({}),
         });
+        // El id del cliente llega del padre (ficha); la URL (/cliente/editar/{id}) solo es respaldo:
+        // con la navegación SPA, location todavía es la página anterior mientras se monta.
         const getClientIdByUrl = () => {
+            if (Number(props.id) > 0) return String(props.id);
             const url = window.location.href;
             const match = url.match(/\/cliente\/editar\/(\d+)/);
             return match ? match[1] : null;
