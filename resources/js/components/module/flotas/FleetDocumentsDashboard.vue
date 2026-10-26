@@ -393,7 +393,7 @@ export default {
         function vehicleLabel(d) {
             const v = d.vehicle;
             if (!v) return `Vehículo #${d.vehicle_id}`;
-            return [v.plate, v.brand, v.model].filter(Boolean).join(' · ');
+            return [v.plates, v.brand, v.model].filter(Boolean).join(' · ');
         }
 
         const badgeClass = (s) => ({ vencido: 'bg-danger', por_vencer: 'bg-warning text-dark', vigente: 'bg-success' }[s] || 'bg-secondary');

@@ -271,7 +271,7 @@ class FleetDocumentController extends FleetBaseController
     {
         $this->authorizeDocumentView();
 
-        $q = FleetDocument::with('vehicle:id,plate,model,brand,client_id')
+        $q = FleetDocument::with('vehicle:id,plates,model,brand,client_id')
             ->forClient($this->clientId())
             ->orderBy('expiration_date');
 
