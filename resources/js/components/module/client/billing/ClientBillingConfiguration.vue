@@ -91,12 +91,12 @@ export default {
                   );
         };
 
+        // El id del cliente llega del padre (ficha); la URL (/cliente/editar/{id}) solo es respaldo,
+        // y solo si es un número: con la navegación SPA, location todavía es la página anterior.
         const getIdByAction = async () => {
-            const url = new URL(location.href); // Crea un objeto URL
-            const path = url.pathname; // Obtén solo la parte del path (sin el dominio)
-            // Divide la ruta en partes y toma el ID después de "/cliente/editar/"
-            const id = path.split("/cliente/editar/")[1];
-            return id || null; // Devuelve null si no encuentra el ID
+            if (Number(props.id) > 0) return String(props.id);
+            const id = new URL(location.href).pathname.split("/cliente/editar/")[1];
+            return /^\d+$/.test(id ?? "") ? id : null;
         };
 
         const getTypeOfBillingById = async (id) => {
