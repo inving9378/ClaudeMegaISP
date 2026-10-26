@@ -8,7 +8,7 @@
 
         <div v-else-if="loadError" class="alert alert-danger d-flex align-items-center">
             <i class="bi bi-exclamation-triangle-fill me-2"></i>
-            No se pudo cargar el vehículo. <a :href="baseUrl" class="ms-1">Volver a Flotas</a>
+            <span>{{ loadError }}</span> <a :href="baseUrl" class="ms-1">Volver a Flotas</a>
         </div>
 
         <template v-else-if="vehicle">
@@ -219,7 +219,7 @@ export default {
         }
 
         const loading   = ref(true);
-        const loadError = ref(false);
+        const loadError = ref('');   // texto del aviso; vacío = sin error
         const vehicle   = ref(null);
         const assignments = ref([]);
         const operators   = ref([]);
@@ -294,15 +294,43 @@ export default {
         }
         function onProviderCreated(provider) { providers.value.push(provider); }
 
+        // Qué decirle a la persona según por qué falló la carga. Sin reintentos automáticos.
+        function loadErrorMessage(e) {
+            const status = e?.response?.status;
+            if (status === 401) return 'Tu sesión terminó. Vuelve a iniciar sesión para ver el vehículo.';
+            if (status === 403) return 'No tienes permiso para ver este vehículo.';
+            if (status === 404) return 'Este vehículo no existe o fue eliminado.';
+            if (status === 419) return 'La página caducó. Recárgala (F5) e inténtalo de nuevo.';
+            if (status === 408 || status === 504 || e?.code === 'ECONNABORTED' || e?.code === 'ETIMEDOUT') {
+                return 'El servidor tardó demasiado en responder. Inténtalo de nuevo en un momento.';
+            }
+            if (status >= 500) return `El servidor tuvo un error al cargar el vehículo (código ${status}). Si se repite, avisa a soporte.`;
+            if (e?.request && !e?.response) return 'No hay conexión con el servidor. Revisa tu red e inténtalo de nuevo.';
+            return status ? `No se pudo cargar el vehículo (código ${status}).` : 'No se pudo cargar el vehículo.';
+        }
+
         onMounted(async () => {
             try {
+                if (!vehicleId) {
+                    loadError.value = 'No se recibió el número del vehículo. Ábrelo de nuevo desde la lista.';
+                    return;
+                }
                 await reloadVehicle();
                 await Promise.all([
                     reloadAssignments(),
                     axios.get(`${props.baseUrl}/api/vehiculos/data/operadores`).catch(() => ({ data: { users: [] } })).then(({ data }) => { operators.value = data?.users ?? []; }),
                     axios.get(`${props.baseUrl}/api/proveedores`).catch(() => ({ data: { providers: [] } })).then(({ data }) => { providers.value = data?.providers ?? []; }),
                 ]);
-            } catch { loadError.value = true; }
+            } catch (e) {
+                // window.console: el build de producción (drop_console) borra las llamadas a console.*.
+                window.console.error('[Flotas] No se pudo cargar el vehículo', {
+                    method: (e?.config?.method || 'get').toUpperCase(),
+                    url:    e?.config?.url ?? `${props.baseUrl}/api/vehiculos/${vehicleId}`,
+                    status: e?.response?.status ?? null,
+                    code:   e?.code ?? null,
+                }, e);
+                loadError.value = loadErrorMessage(e);
+            }
             finally { loading.value = false; }
         });
 
