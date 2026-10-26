@@ -81,7 +81,9 @@ export default {
     return { lead: null, activities: [], tab: 'timeline', scoring: false, activitiesLoading: false, editDialog: false };
   },
   mounted() {
-    const id = this.leadId || window.location.pathname.split('/').pop();
+    // El id lo da el servidor: con la navegación SPA, location.pathname todavía es la página anterior.
+    const last = window.location.pathname.split('/').filter(Boolean).pop() ?? '';
+    const id = Number(this.leadId) > 0 ? String(this.leadId) : (/^\d+$/.test(last) ? last : '');
     if (id) { this.loadLead(id); this.loadActivities(id); }
   },
   methods: {
