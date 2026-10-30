@@ -64,7 +64,6 @@
 
                     <div v-else-if="hasData" style="min-height: 250px">
                         <apexchart
-                            :key="chartKey"
                             type="area"
                             height="250"
                             :options="chartOptions"
@@ -156,7 +155,6 @@ export default {
                         ...chartOptions.value,
                         xaxis: {...chartOptions.value.xaxis, categories: res.graph_data.labels}
                     };
-                    chartKey.value++;
                 }
             } catch (e) {
                 console.error("Error al cargar estadísticas:", e);
