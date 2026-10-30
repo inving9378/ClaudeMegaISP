@@ -271,6 +271,7 @@ import ProjectListar from "./components/module/scheduling/project/ProjectListar.
 import TaskListar from "./components/module/scheduling/task/TaskListar.vue";
 
 import VueApexCharts from "vue3-apexcharts";
+import "./helpers/apexSvgCompat";
 import QCalendar from "./shared/QCalendar.vue";
 
 //OLTS
