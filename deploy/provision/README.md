@@ -5,11 +5,20 @@
 dev — **NO usa Docker**: Evolution corre como app Node bajo PM2, con MySQL como
 backing y sin Redis.
 
+## Desde la página de add-ons (sin root)
+
+El add-on `addon-whatsapp-agent` declara este instalador como su dependencia de sistema
+(`app/Modules/Addons/WhatsAppAgent/system/install.sh` y `purge.sh`). En **Configuración →
+Add-ons → WhatsApp Agent → detalle → Dependencias del servidor** están los botones
+"Instalar dependencias" / "Purgar dependencias": corren `install.sh` / `uninstall.sh` como
+root vía `deploy/system/lib.sh` (root directo, sudo, o `su` pidiendo la contraseña en un
+modal). La API key no se imprime en esa salida (`PROVISION_HIDE_KEY=1`); queda en el `.env`.
+
 ## Qué instala / configura
 
 | Componente | Detalle |
 |---|---|
-| Runtime | **Node 20.x** + **PM2** (fork_mode) |
+| Runtime | **Node** (respeta el que haya si es >= 20; si falta instala **24.x**) + **PM2** (fork_mode) |
 | Evolution | **v2.3.7**, commit exacto **`fa09d378`**, en `/opt/evolution-api`, compilado a `dist/` |
 | Backing | **MySQL** (el del sistema — NO se instala), DB `evolution_api` + user `evolution_user`, esquema vía **Prisma** (`migrate deploy`, provider mysql) |
 | Cache | **Local en disco** (`CACHE_LOCAL_ENABLED=true`), **sin Redis** |
@@ -80,7 +89,7 @@ con el `.env` nuevo (rotación explícita, nunca automática/silenciosa).
 
 ## Idempotencia (cómo detecta y omite)
 
-- **Node**: si ya está en 20.x → omite.
+- **Node**: si ya hay uno >= 20 → omite (no se cambia: lo usa todo el sistema). Si falta o es más viejo, instala 24.x.
 - **PM2**: si el binario ya existe → omite.
 - **Código Evolution**: si `/opt/evolution-api` ya está en `fa09d378` → no re-clona;
   compila solo si falta `dist/main.js`.
@@ -123,19 +132,22 @@ mysql -e "DROP DATABASE IF EXISTS evolution_api; DROP USER IF EXISTS 'evolution_
 ```
 deploy/provision/
 ├── install.sh              # orquestador (preflight → 10 → 20 → 30 → 40 → cierre)
+├── uninstall.sh            # lo inverso: PM2, proxy, /opt, BD (con respaldo), .env, usuario
 ├── lib/
 │   ├── common.sh           # helpers, guardas, lectura del .env del sistema
 │   ├── 05-evolution-user.sh # usuario de sistema dedicado 'evolution' (home, sin login)
-│   ├── 10-node-pm2.sh      # Node 20 + PM2
+│   ├── 10-node-pm2.sh      # Node (>= 20; si falta, 24) + PM2
 │   ├── 20-evolution.sh     # clone fa09d378 + build + .env + DB + Prisma
 │   ├── 30-nginx.sh         # nginx: inyecta location /evolution/
 │   ├── 30-apache.sh        # Apache: inyecta ProxyPass /evolution/ (+ módulos)
 │   ├── 30-proxy.sh         # elige nginx/Apache (o SKIP_WEB_PROXY) y despacha
-│   └── 40-pm2-boot.sh      # pm2 start + save + startup
+│   ├── 40-pm2-boot.sh      # pm2 start + save + startup
+│   └── 90-unprovision.sh   # pasos de uninstall.sh (quitar todo lo anterior)
 ├── templates/
 │   └── evolution.env.tpl   # plantilla del .env con {{PLACEHOLDERS}}
 └── tests/
-    └── test-30-apache.sh   # Apache simulado (sin root): bash deploy/provision/tests/test-30-apache.sh
+    ├── test-30-apache.sh   # Apache simulado (sin root): bash deploy/provision/tests/test-30-apache.sh
+    └── test-90-unprovision.sh # quitar el proxy (Apache/nginx) y el .env, simulado
 ```
 
 ## Runbook — PRODUCCIÓN (Apache, `/var/www/ClaudeMegaISP`) — item #9991239

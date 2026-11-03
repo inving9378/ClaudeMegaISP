@@ -84,7 +84,18 @@
                                     <i class="fa fa-fw" :class="expanded[m.slug] ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
                                 </td>
                                 <td>
-                                    <div class="fw-semibold">{{ m.name }}</div>
+                                    <div class="fw-semibold">
+                                        {{ m.name }}
+                                        <span v-if="m.system" class="badge bg-light text-secondary border ms-1"
+                                              title="Instala programas en el servidor (ver detalle)">
+                                            <i class="fa fa-server"></i>
+                                        </span>
+                                        <span v-if="m.system_last_run && isRunActive(m.system_last_run)"
+                                              class="badge bg-warning text-dark ms-1 sys-link" title="Ver la corrida en curso"
+                                              @click.stop="openSysRun(m, m.system_last_run.id)">
+                                            <i class="fa fa-spinner fa-spin me-1"></i>{{ statusLabel(m.system_last_run.status) }}
+                                        </span>
+                                    </div>
                                     <code class="text-muted" style="font-size:11px">{{ m.slug }}</code>
                                 </td>
                                 <td>
@@ -186,6 +197,29 @@
                                                 <span class="text-muted"> ≥ {{ dep.min_version }}</span>
                                             </div>
                                         </div>
+                                        <div class="col-12" v-if="m.system">
+                                            <div class="sys-box">
+                                                <div class="small text-muted mb-1"><i class="fa fa-server me-1"></i>Dependencias del servidor</div>
+                                                <div class="small mb-2">{{ m.system.description || 'Este módulo instala programas en el servidor.' }}</div>
+                                                <div v-if="m.system_last_run" class="small mb-2">
+                                                    Última corrida: {{ actionLabel(m.system_last_run.action) }} ·
+                                                    <span :class="statusClass(m.system_last_run.status)">{{ statusLabel(m.system_last_run.status) }}</span>
+                                                    · {{ formatDate(m.system_last_run.finished_at || m.system_last_run.started_at || m.system_last_run.created_at) }}
+                                                    <span v-if="m.system_last_run.started_by"> · por {{ m.system_last_run.started_by }}</span>
+                                                    · <a href="#" @click.prevent="openSysRun(m, m.system_last_run.id)">ver salida</a>
+                                                </div>
+                                                <div class="d-flex gap-1 flex-wrap">
+                                                    <button v-if="m.system.install" class="btn btn-sm btn-outline-primary"
+                                                            :disabled="sysBusy(m)" @click="startSys(m, 'install')">
+                                                        <i class="fa fa-download me-1"></i>Instalar dependencias
+                                                    </button>
+                                                    <button v-if="m.system.purge" class="btn btn-sm btn-outline-danger"
+                                                            :disabled="sysBusy(m)" @click="confirmPurge(m)">
+                                                        <i class="fa fa-broom me-1"></i>Purgar dependencias
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </td>
                             </tr>
@@ -244,6 +278,12 @@
                     <strong>Dependencias:</strong>
                     <span v-for="d in modal.module.dependencies" :key="d.slug"> <code>{{ d.slug }}</code> ≥ {{ d.min_version }}</span>
                 </div>
+                <div v-if="modal.module.system && modal.module.system.install" class="alert alert-info py-2 small">
+                    <i class="fa fa-server me-1"></i>
+                    Primero se instalan sus dependencias del servidor
+                    ({{ modal.module.system.description || 'programas que necesita' }}).
+                    Puede tardar varios minutos y pedir una contraseña; el módulo se instala al terminar.
+                </div>
                 <div class="d-flex justify-content-end gap-2 mt-3">
                     <button class="btn btn-sm btn-outline-secondary" @click="modal.show=false">Cancelar</button>
                     <button class="btn btn-sm btn-primary" :disabled="busy === modal.module.slug" @click="doInstall(modal.module)">
@@ -268,10 +308,76 @@
                         Conservar tablas y datos (recomendado para módulos con datos de producción)
                     </label>
                 </div>
+                <div v-if="modal.module.system && modal.module.system.purge" class="alert alert-secondary py-2 small mt-2">
+                    <i class="fa fa-server me-1"></i>
+                    <span v-if="modal.keepData">Las dependencias del servidor se conservan (puedes purgarlas después desde el detalle).</span>
+                    <span v-else>También se purgan sus dependencias del servidor: {{ modal.module.system.description }}</span>
+                </div>
                 <div class="d-flex justify-content-end gap-2 mt-3">
                     <button class="btn btn-sm btn-outline-secondary" @click="modal.show=false">Cancelar</button>
                     <button class="btn btn-sm btn-danger" :disabled="busy === modal.module.slug" @click="doUninstall(modal.module)">
                         <i class="fa fa-trash me-1"></i>Confirmar desinstalación
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal de confirmación: purgar solo las dependencias del servidor -->
+        <div v-if="modal.show && modal.action === 'purge'" class="modal-overlay" @click.self="modal.show=false">
+            <div class="modal-box">
+                <h5>Purgar dependencias de <strong>{{ modal.module.name }}</strong></h5>
+                <p class="small mb-2">{{ modal.module.system.description }}</p>
+                <div class="alert alert-warning py-2 small">
+                    <i class="fa fa-exclamation-triangle me-1"></i>
+                    Se borra del servidor lo que instaló este módulo, incluidos sus datos.
+                    El módulo en sí (tablas, permisos, menú) no se toca.
+                </div>
+                <div class="d-flex justify-content-end gap-2 mt-3">
+                    <button class="btn btn-sm btn-outline-secondary" @click="modal.show=false">Cancelar</button>
+                    <button class="btn btn-sm btn-danger" @click="modal.show=false; startSys(modal.module, 'purge')">
+                        <i class="fa fa-broom me-1"></i>Purgar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Corrida de dependencias del servidor: salida en vivo + contraseña -->
+        <div v-if="sysRun.show" class="modal-overlay" @click.self="closeSysRun">
+            <div class="modal-box modal-box-wide">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h5><i class="fa fa-server me-1"></i>{{ actionLabel(sysRun.run && sysRun.run.action) }} dependencias</h5>
+                        <p class="text-muted small mb-2">{{ sysRun.module.name }} · <code>{{ sysRun.run ? sysRun.run.script : '' }}</code></p>
+                    </div>
+                    <span v-if="sysRun.run" class="badge" :class="statusBadge(sysRun.run.status)">
+                        <i v-if="isRunActive(sysRun.run)" class="fa fa-spinner fa-spin me-1"></i>{{ statusLabel(sysRun.run.status) }}
+                    </span>
+                </div>
+
+                <pre ref="sysLog" class="sys-log">{{ sysRun.run ? sysRun.run.log : 'Cargando…' }}</pre>
+                <div v-if="sysRun.run && sysRun.run.log_truncated" class="small text-muted">Se muestra solo el final de la salida.</div>
+                <div v-if="sysRun.run && sysRun.run.error" class="alert alert-danger py-2 small mt-2">{{ sysRun.run.error }}</div>
+
+                <form v-if="sysPasswordFor" class="sys-pw mt-2"
+                      autocomplete="off" @submit.prevent="sendPassword">
+                    <label class="form-label small mb-1" for="sys-pw-input">
+                        <i class="fa fa-key me-1"></i>
+                        <template v-if="sysPasswordFor.via === 'su'">Contraseña de <strong>root</strong> de este servidor</template>
+                        <template v-else>Contraseña de <strong>{{ sysPasswordFor.user }}</strong> (para sudo)</template>
+                        <span v-if="sysPasswordFor.attempt > 1" class="text-danger"> · intento {{ sysPasswordFor.attempt }} de 3</span>
+                    </label>
+                    <div class="d-flex gap-2">
+                        <input id="sys-pw-input" ref="sysPw" v-model="sysRun.password" type="password"
+                               class="form-control form-control-sm" autocomplete="new-password" :disabled="sysRun.sending">
+                        <button type="submit" class="btn btn-sm btn-primary" :disabled="!sysRun.password || sysRun.sending">Enviar</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" :disabled="sysRun.sending" @click="cancelSysRun">Cancelar</button>
+                    </div>
+                    <div class="small text-muted mt-1">Se usa solo para esta corrida; no se guarda.</div>
+                </form>
+
+                <div class="d-flex justify-content-end gap-2 mt-3">
+                    <button class="btn btn-sm btn-outline-secondary" @click="closeSysRun">
+                        {{ sysRun.run && isRunActive(sysRun.run) ? 'Seguir en segundo plano' : 'Cerrar' }}
                     </button>
                 </div>
             </div>
@@ -325,9 +431,20 @@ export default {
             modal: { show: false, action: null, module: null, preview: null, keepData: true },
             visibilityModal: { show: false, moduleKey: '' },
             reorderModal: { show: false },
+            sysRun: { show: false, module: null, runId: null, run: null, password: '', sending: false,
+                      answered: null, startedHere: false, notified: false, timer: null },
         };
     },
+    beforeUnmount() {
+        this.stopSysPoll();
+    },
     computed: {
+        /** A quién pide contraseña la corrida abierta (null si no está esperando, o si ya se contestó). */
+        sysPasswordFor() {
+            const run = this.sysRun.run;
+            if (!run || run.status !== 'awaiting_password' || !run.password_for) return null;
+            return this.passwordKey(run.password_for) === this.sysRun.answered ? null : run.password_for;
+        },
         canManageVisibility() {
             return this.$store?.getters?.hasPermission
                 ? this.$store.getters.hasPermission('module.visibility.manage')
@@ -432,7 +549,10 @@ export default {
                     {},
                     { headers: { 'X-CSRF-TOKEN': this.csrfToken } }
                 );
-                if (data.success) {
+                if (data.success && data.action === 'system_run') {
+                    // Primero corren sus dependencias del servidor; el módulo se instala al terminar.
+                    this.showSysRun(m, data.run.id, data.run, true);
+                } else if (data.success) {
                     m.active = true;
                     m.installed_version = m.manifest_version;
                     this.notify(`${m.name} instalado correctamente.`, 'positive');
@@ -480,6 +600,8 @@ export default {
                     m.active = false;
                     if (!this.modal.keepData) m.installed_version = null;
                     this.notify(`${m.name} desinstalado.`, 'positive');
+                    if (data.system_run) this.showSysRun(m, data.system_run.id, data.system_run, true);
+                    if (data.system_error) this.notify(data.system_error, 'negative');
                 } else {
                     this.notify(data.error || 'Error al desinstalar', 'negative');
                 }
@@ -488,6 +610,158 @@ export default {
             } finally {
                 this.busy = null;
             }
+        },
+        // ── Dependencias del servidor (module.json → "system") ──────────────
+        isRunActive(run) {
+            return !!run && ['starting', 'running', 'awaiting_password'].includes(run.status);
+        },
+        statusLabel(s) {
+            return ({ starting: 'Iniciando', running: 'En curso', awaiting_password: 'Esperando contraseña',
+                      success: 'Terminó bien', failed: 'Falló' })[s] || s || '—';
+        },
+        statusClass(s) {
+            return s === 'success' ? 'text-success' : (s === 'failed' ? 'text-danger' : 'text-warning');
+        },
+        statusBadge(s) {
+            return s === 'success' ? 'bg-success' : (s === 'failed' ? 'bg-danger' : 'bg-warning text-dark');
+        },
+        actionLabel(a) {
+            return a === 'purge' ? 'Purgar' : 'Instalar';
+        },
+        formatDate(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            return isNaN(d) ? iso : d.toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
+        },
+        passwordKey(p) {
+            return p ? `${p.via}:${p.user}:${p.attempt}` : null;
+        },
+        sysBusy(m) {
+            return this.busy === m.slug || this.isRunActive(m.system_last_run);
+        },
+        confirmPurge(m) {
+            this.modal = { show: true, action: 'purge', module: m, preview: null, keepData: true };
+        },
+        async startSys(m, action) {
+            this.busy = m.slug;
+            try {
+                const { data } = await axios.post(
+                    `/admin/modules/${m.slug}/system/${action}`,
+                    {},
+                    { headers: { 'X-CSRF-TOKEN': this.csrfToken } }
+                );
+                if (data.success) this.showSysRun(m, data.run.id, data.run, true);
+                else this.notify(data.error || 'No se pudo iniciar la corrida', 'negative');
+            } catch (e) {
+                this.notify(e.response?.data?.error || e.message, 'negative');
+            } finally {
+                this.busy = null;
+            }
+        },
+        openSysRun(m, runId) {
+            this.showSysRun(m, runId, null, false);
+        },
+        showSysRun(m, runId, run, startedHere) {
+            this.stopSysPoll();
+            this.sysRun = { show: true, module: m, runId, run: null, password: '', sending: false,
+                            answered: null, startedHere, notified: false, timer: null };
+            if (run) this.applySysRun(m, run);
+            this.pollSysRun();
+        },
+        async pollSysRun() {
+            const { module: m, runId } = this.sysRun;
+            if (!this.sysRun.show || !runId) return;
+            try {
+                const { data } = await axios.get(`/admin/modules/${m.slug}/system/runs/${runId}`);
+                if (data.success && this.sysRun.runId === runId) this.applySysRun(m, data.run);
+            } catch (e) { /* se reintenta en el siguiente ciclo */ }
+            const sigue = !this.sysRun.run || this.isRunActive(this.sysRun.run);
+            if (this.sysRun.show && this.sysRun.runId === runId && sigue) {
+                this.sysRun.timer = setTimeout(() => this.pollSysRun(), 1500);
+            }
+        },
+        applySysRun(m, run) {
+            const prev = this.sysRun.run;
+            const pegado = this.logAtBottom();
+            this.sysRun.run = run;
+            const { log, log_truncated, ...resumen } = run;
+            m.system_last_run = resumen;
+
+            const terminoAhora = !this.isRunActive(run) && (this.sysRun.startedHere || (prev && this.isRunActive(prev)));
+            if (terminoAhora && !this.sysRun.notified) {
+                this.sysRun.notified = true;
+                this.onSysRunFinished(m, run);
+            }
+            if (this.sysPasswordFor) this.$nextTick(() => this.$refs.sysPw?.focus());
+            if (pegado) {
+                this.$nextTick(() => {
+                    const el = this.$refs.sysLog;
+                    if (el) el.scrollTop = el.scrollHeight;
+                });
+            }
+        },
+        logAtBottom() {
+            const el = this.$refs.sysLog;
+            return !el || el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+        },
+        onSysRunFinished(m, run) {
+            if (run.status !== 'success') {
+                this.notify(`${m.name}: la corrida de dependencias falló. Revisa la salida.`, 'negative');
+                return;
+            }
+            if (run.action === 'install' && run.lifecycle === 'installed') {
+                m.active = true;
+                m.installed_version = m.manifest_version;
+                this.notify(`${m.name}: dependencias instaladas y módulo instalado.`, 'positive');
+            } else {
+                this.notify(`${m.name}: dependencias ${run.action === 'purge' ? 'purgadas' : 'instaladas'}.`, 'positive');
+            }
+        },
+        async sendPassword() {
+            const { module: m, runId } = this.sysRun;
+            const pedida = this.sysPasswordFor;
+            if (!pedida || !this.sysRun.password) return;
+            this.sysRun.sending = true;
+            try {
+                await axios.post(
+                    `/admin/modules/${m.slug}/system/runs/${runId}/password`,
+                    { password: this.sysRun.password },
+                    { headers: { 'X-CSRF-TOKEN': this.csrfToken } }
+                );
+                // Que el formulario no reaparezca con el aviso ya contestado mientras el script lo procesa.
+                this.sysRun.answered = this.passwordKey(pedida);
+            } catch (e) {
+                this.notify(e.response?.data?.error || e.message, 'negative');
+            } finally {
+                this.sysRun.password = '';
+                this.sysRun.sending = false;
+            }
+        },
+        async cancelSysRun() {
+            const { module: m, runId } = this.sysRun;
+            const pedida = this.sysPasswordFor;
+            this.sysRun.sending = true;
+            try {
+                await axios.post(
+                    `/admin/modules/${m.slug}/system/runs/${runId}/cancel`,
+                    {},
+                    { headers: { 'X-CSRF-TOKEN': this.csrfToken } }
+                );
+                this.sysRun.answered = this.passwordKey(pedida);
+            } catch (e) {
+                this.notify(e.response?.data?.error || e.message, 'negative');
+            } finally {
+                this.sysRun.password = '';
+                this.sysRun.sending = false;
+            }
+        },
+        stopSysPoll() {
+            if (this.sysRun && this.sysRun.timer) clearTimeout(this.sysRun.timer);
+        },
+        closeSysRun() {
+            this.stopSysPoll();
+            this.sysRun.show = false;
+            this.sysRun.password = '';
         },
         async reload() {
             this.loading = true;
@@ -547,6 +821,19 @@ export default {
     box-shadow: 0 8px 32px rgba(0,0,0,.18);
 }
 .modal-box h5 { margin-bottom: 4px; }
+.modal-box-wide { width: 860px; }
+
+/* Dependencias del servidor */
+.sys-box { border: 1px solid #e9ecef; border-radius: 8px; padding: 10px 12px; background: #fff; }
+.sys-link { cursor: pointer; }
+.sys-log {
+    background: #0f1117; color: #d4d4d4;
+    font-size: 12px; line-height: 1.45;
+    height: 360px; max-height: 55vh; overflow: auto;
+    padding: 10px 12px; border-radius: 6px; margin: 0;
+    white-space: pre-wrap; word-break: break-word;
+}
+.sys-pw { border: 1px solid #ffe69c; background: #fff8e1; border-radius: 8px; padding: 10px 12px; }
 
 /* Dark mode — responde al toggle de Medussa ([data-layout-mode=dark]), no al SO */
 [data-layout-mode=dark] .kpi-chip            { background:#2a2d3e; border-color:#3a3d50; }
@@ -555,6 +842,8 @@ export default {
 [data-layout-mode=dark] .expanded-row        { background:#1e2433; }
 [data-layout-mode=dark] .expanded-row td     { border-color:#2e3547; }
 [data-layout-mode=dark] .modal-box           { background:#252836; color:#cdd6f4; border:1px solid #3a3d50; }
+[data-layout-mode=dark] .sys-box             { background:#1e2433; border-color:#2e3547; }
+[data-layout-mode=dark] .sys-pw              { background:#2a2410; border-color:#5c4a12; }
 /* thead.table-light no tiene cobertura global — override manual */
 [data-layout-mode=dark] thead.table-light    { background:#262b38 !important; color:#adb5bd !important; }
 [data-layout-mode=dark] thead.table-light th { border-color:#333a4d !important; color:#8b95a8 !important; background:#262b38 !important; }

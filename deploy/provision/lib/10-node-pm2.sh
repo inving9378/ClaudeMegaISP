@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # =============================================================================
-# 10-node-pm2.sh — Instalación idempotente de Node 20 y PM2
+# 10-node-pm2.sh — Instalación idempotente de Node y PM2
 # =============================================================================
 # Se hace `source` desde install.sh (que ya cargó common.sh). Define una única
 # función: provision_node_pm2. No ejecuta nada al ser sourceado.
 #
 # Guardas (decisión 2 — "detecta y omite"):
-#   - Node: si ya está en la mayor 20.x → OMITIR.
-#   - PM2:  si el binario ya existe     → OMITIR.
+#   - Node: si ya hay uno >= NODE_MIN_MAJOR → OMITIR (no se toca: lo usa todo el sistema).
+#   - PM2:  si el binario ya existe         → OMITIR.
 # =============================================================================
 
 # _node_major — imprime la versión mayor de Node instalada (vacío si no hay Node).
@@ -17,28 +17,28 @@ _node_major() {
 }
 
 provision_node_pm2() {
-    log_step "Node ${NODE_MAJOR}.x + PM2"
+    log_step "Node >= ${NODE_MIN_MAJOR} + PM2"
 
-    # --- Node 20 -------------------------------------------------------------
+    # --- Node ----------------------------------------------------------------
     local major; major="$(_node_major)"
-    if [[ "$major" == "$NODE_MAJOR" ]]; then
-        log_skip "Node ya está en la mayor ${NODE_MAJOR}.x ($(node -v))"
+    if [[ -n "$major" ]] && (( major >= NODE_MIN_MAJOR )); then
+        log_skip "Node $(node -v) ya cumple >= ${NODE_MIN_MAJOR} (no se cambia: lo usa todo el sistema)"
     else
         if [[ -n "$major" ]]; then
-            log_info "Node presente pero en v${major}.x; instalando Node ${NODE_MAJOR}.x (NodeSource)"
+            log_info "Node presente pero en v${major}.x; instalando Node ${NODE_INSTALL_MAJOR}.x (NodeSource)"
         else
-            log_info "Node ausente; instalando Node ${NODE_MAJOR}.x (NodeSource)"
+            log_info "Node ausente; instalando Node ${NODE_INSTALL_MAJOR}.x (NodeSource)"
         fi
         require curl "Se requiere 'curl' para el instalador de NodeSource"
 
         # Repo oficial NodeSource para la mayor deseada. El setup script es
         # idempotente (reconfigura el repo apt); luego instalamos el paquete.
-        curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | run_root bash -
+        curl -fsSL "https://deb.nodesource.com/setup_${NODE_INSTALL_MAJOR}.x" | run_root bash -
         run_root apt-get install -y nodejs
 
         # Verificación dura: si tras instalar no quedó la mayor esperada, abortamos.
         major="$(_node_major)"
-        [[ "$major" == "$NODE_MAJOR" ]] || die "La instalación de Node no dejó la mayor ${NODE_MAJOR}.x (quedó: '${major:-ninguna}')"
+        [[ "$major" == "$NODE_INSTALL_MAJOR" ]] || die "La instalación de Node no dejó la mayor ${NODE_INSTALL_MAJOR}.x (quedó: '${major:-ninguna}')"
         log_ok "Node instalado: $(node -v)"
     fi
 

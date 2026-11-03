@@ -57,41 +57,8 @@ class ModuleLifecycleService
      */
     public function install(string $slug, bool $force = false): array
     {
-        $manifest = $this->requireManifest($slug);
-
-        if (($manifest['type'] ?? 'addon') === 'core') {
-            throw new \LogicException("El módulo '{$slug}' es core y se gestiona automáticamente.");
-        }
-
-        // Rol de instalación exigido por el módulo (Sprint 1 · Voz Mayorista).
-        //
-        // Genérico a propósito: cualquier módulo puede declarar `instance_role`
-        // en su manifiesto y este gate lo respeta. Van a venir más módulos que
-        // solo tengan sentido en la instalación de Meganet —facturación
-        // mayorista, aprovisionamiento de VMs— y todos necesitan exactamente
-        // esto. Un módulo que no lo declara no exige nada y sigue instalándose
-        // igual que siempre, así que los módulos ya registrados no cambian.
-        //
-        // NO admite `$force`: el resto de los checks de este método protegen
-        // contra errores del operador, pero este protege el negocio de Meganet
-        // de una instalación de cliente. Forzarlo no es un caso de uso.
-        $rolExigido = $manifest['instance_role'] ?? null;
-        if (! RolInstancia::satisface($rolExigido)) {
-            throw new \LogicException(RolInstancia::mensajeRechazo($slug, (string) $rolExigido));
-        }
-
+        $manifest = $this->assertInstallable($slug, $force);
         $registry = ModuleRegistry::where('slug', $slug)->first();
-        if ($registry && $registry->active) {
-            throw new \LogicException("El módulo '{$slug}' ya está instalado y activo.");
-        }
-
-        // Validar dependencias
-        $depErrors = $this->checkDependencies($manifest);
-        if (! empty($depErrors) && ! $force) {
-            throw new \RuntimeException(
-                "Dependencias no cumplidas:\n" . implode("\n", $depErrors)
-            );
-        }
 
         $moduleDir = $this->moduleDir($slug);
 
@@ -133,6 +100,55 @@ class ModuleLifecycleService
         \App\Modules\Core\ModuleManager\Services\ModuleRegistry::clearCache();
 
         return ['success' => true, 'slug' => $slug, 'action' => 'installed'];
+    }
+
+    /**
+     * Comprueba, sin tocar nada, que install() aceptaría el módulo. La página de add-ons
+     * lo llama antes de correr el script de sistema (ModuleSystemService), para no
+     * instalar dependencias en el servidor de un módulo que luego se va a rechazar.
+     *
+     * @throws \RuntimeException si las dependencias no se cumplen (y force=false)
+     * @throws \LogicException   si el módulo es core, no aplica a esta instancia o ya está instalado
+     */
+    public function assertInstallable(string $slug, bool $force = false): array
+    {
+        $manifest = $this->requireManifest($slug);
+
+        if (($manifest['type'] ?? 'addon') === 'core') {
+            throw new \LogicException("El módulo '{$slug}' es core y se gestiona automáticamente.");
+        }
+
+        // Rol de instalación exigido por el módulo (Sprint 1 · Voz Mayorista).
+        //
+        // Genérico a propósito: cualquier módulo puede declarar `instance_role`
+        // en su manifiesto y este gate lo respeta. Van a venir más módulos que
+        // solo tengan sentido en la instalación de Meganet —facturación
+        // mayorista, aprovisionamiento de VMs— y todos necesitan exactamente
+        // esto. Un módulo que no lo declara no exige nada y sigue instalándose
+        // igual que siempre, así que los módulos ya registrados no cambian.
+        //
+        // NO admite `$force`: el resto de los checks de este método protegen
+        // contra errores del operador, pero este protege el negocio de Meganet
+        // de una instalación de cliente. Forzarlo no es un caso de uso.
+        $rolExigido = $manifest['instance_role'] ?? null;
+        if (! RolInstancia::satisface($rolExigido)) {
+            throw new \LogicException(RolInstancia::mensajeRechazo($slug, (string) $rolExigido));
+        }
+
+        $registry = ModuleRegistry::where('slug', $slug)->first();
+        if ($registry && $registry->active) {
+            throw new \LogicException("El módulo '{$slug}' ya está instalado y activo.");
+        }
+
+        // Validar dependencias
+        $depErrors = $this->checkDependencies($manifest);
+        if (! empty($depErrors) && ! $force) {
+            throw new \RuntimeException(
+                "Dependencias no cumplidas:\n" . implode("\n", $depErrors)
+            );
+        }
+
+        return $manifest;
     }
 
     // ── Actualización ────────────────────────────────────────────────────────

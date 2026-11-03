@@ -8,6 +8,7 @@ use App\Modules\Core\ModuleManager\Console\ReconcileModuleRegistryCommand;
 use App\Modules\Core\Security\Console\AuditarPermisosCommand;
 use App\Modules\Core\Security\Console\SyncPermissionsCommand;
 use App\Modules\Core\ModuleManager\Console\ModuleListCommand;
+use App\Modules\Core\ModuleManager\Console\ModuleSystemCommand;
 use App\Modules\Core\ModuleManager\Services\ModuleLifecycleService;
 use App\Modules\Core\ModuleManager\Services\ModuleManagerService;
 use App\Modules\Core\ModuleManager\Services\ModuleRegistry;
@@ -30,6 +31,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
             $this->commands([
                 ModuleListCommand::class,
                 ModuleLifecycleCommand::class,
+                ModuleSystemCommand::class,
                 ReconcileModuleRegistryCommand::class,
                 SyncPermissionsCommand::class,
                 AuditarPermisosCommand::class,

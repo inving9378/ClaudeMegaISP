@@ -2,6 +2,7 @@
 
 use App\Modules\Core\ModuleManager\Controllers\AdminPanelController;
 use App\Modules\Core\ModuleManager\Controllers\ModuleManagerController;
+use App\Modules\Core\ModuleManager\Controllers\ModuleSystemController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -28,6 +29,14 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::post('/{slug}/upgrade', [ModuleManagerController::class, 'upgradeModule'])->name('admin.modules.upgrade');
         Route::get('/{slug}/uninstall/preview', [ModuleManagerController::class, 'uninstallPreview'])->name('admin.modules.uninstall.preview');
         Route::delete('/{slug}/uninstall', [ModuleManagerController::class, 'uninstallModule'])->name('admin.modules.uninstall');
+
+        // Dependencias de sistema del módulo (module.json → "system"; ver deploy/system/lib.sh).
+        // Fuera de config/route_permission.php a propósito: solo admin/desarrollador/super-admin.
+        Route::post('/{slug}/system/{action}', [ModuleSystemController::class, 'start'])
+            ->whereIn('action', ['install', 'purge'])->name('admin.modules.system.start');
+        Route::get('/{slug}/system/runs/{run}', [ModuleSystemController::class, 'show'])->name('admin.modules.system.show');
+        Route::post('/{slug}/system/runs/{run}/password', [ModuleSystemController::class, 'password'])->name('admin.modules.system.password');
+        Route::post('/{slug}/system/runs/{run}/cancel', [ModuleSystemController::class, 'cancel'])->name('admin.modules.system.cancel');
 
         // Datos compilados por ModuleRegistry
         Route::get('/registry/data', [ModuleManagerController::class, 'registryData'])->name('admin.modules.registry');

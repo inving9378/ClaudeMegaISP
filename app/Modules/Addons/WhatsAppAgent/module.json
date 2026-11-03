@@ -6,6 +6,11 @@
     "type": "addon",
     "dependencies": [],
     "active": true,
+    "system": {
+        "install": "system/install.sh",
+        "purge": "system/purge.sh",
+        "description": "Evolution API (gateway de WhatsApp): usuario 'evolution', código en /opt/evolution-api con PM2, su base de datos y el proxy /evolution/ del servidor web."
+    },
 
     "permissions": [
         { "name": "whatsapp_view_conversations",  "description": "Ver conversaciones de WhatsApp" },

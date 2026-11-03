@@ -11,6 +11,11 @@
         }
     ],
     "active": false,
+    "system": {
+        "install": "system/install.sh",
+        "purge": "system/purge.sh",
+        "description": "Prueba inofensiva: crea /opt/megaisp-addon-demo (pide root) y una carpeta en storage (sin root)."
+    },
     "permissions": [
         {
             "name": "demo_view",

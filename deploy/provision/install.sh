@@ -3,7 +3,7 @@
 # install.sh — Provisioning idempotente de Evolution API (NATIVO, sin Docker)
 # =============================================================================
 # Replica la Evolution de dev en un server nuevo o en producción:
-#   Node 20 + PM2 · Evolution v2.3.7 (commit fa09d378) · MySQL 8.4 + Prisma ·
+#   Node >= 20 (si falta, instala 24) + PM2 · Evolution v2.3.7 (commit fa09d378) · MySQL 8.4 + Prisma ·
 #   proxy /evolution/ en el vhost de MegaISP (nginx o Apache) · arranque en boot.
 #
 # NO instala MySQL (se asume presente). NO gestiona Asterisk (ver TODO abajo).
@@ -58,23 +58,6 @@ source "${SCRIPT_DIR}/lib/40-pm2-boot.sh"
 # TODO(futuro): source "${SCRIPT_DIR}/lib/50-asterisk.sh"  # Asterisk se maneja
 #   aparte (nativo, ya existe VoiceGateway). NO forma parte de este install.sh.
 
-# Usuario bajo el que se corre `php artisan` en MegaISP (dueño de bootstrap/cache).
-: "${MEGAISP_USER:=www-data}"
-
-# run_as USER CMD... — ejecuta un comando como USER (para artisan como www-data).
-run_as() {
-    local u="$1"; shift
-    if [[ "$(id -un)" == "$u" ]]; then
-        "$@"
-    elif is_root; then
-        sudo -u "$u" -H "$@"
-    elif have sudo; then
-        sudo -n -u "$u" -H "$@"
-    else
-        die "No puedo ejecutar como '$u' (falta sudo): $*"
-    fi
-}
-
 # --- Preflight ---------------------------------------------------------------
 preflight() {
     log_step "Preflight"
@@ -123,9 +106,14 @@ summary() {
     log_step "Resumen"
     printf '  %s\n' "Evolution provisionada (NATIVO, sin Docker)."
     printf '  %s\n' "SERVER_URL : ${PROVISIONED_SERVER_URL:-?}"
-    printf '\n  %s\n' "GUARDA ESTA API KEY (se muestra UNA sola vez):"
-    printf '  API_KEY    : %s\n' "${PROVISIONED_API_KEY:-?}"
-    printf '\n  %s\n' "Ya quedó escrita en ambos .env (Evolution y MegaISP/WHATSAPP_API_KEY)."
+    if [[ "${PROVISION_HIDE_KEY:-}" == "1" ]]; then
+        # Corrida desde la página de add-ons: esta salida queda guardada y se ve en pantalla.
+        printf '\n  %s\n' "API_KEY    : no se muestra; ya quedó escrita en ambos .env (Evolution y MegaISP/WHATSAPP_API_KEY)."
+    else
+        printf '\n  %s\n' "GUARDA ESTA API KEY (se muestra UNA sola vez):"
+        printf '  API_KEY    : %s\n' "${PROVISIONED_API_KEY:-?}"
+        printf '\n  %s\n' "Ya quedó escrita en ambos .env (Evolution y MegaISP/WHATSAPP_API_KEY)."
+    fi
     printf '  %s\n' "Verificación manual sugerida:"
     printf '    %s\n' "curl -H \"apikey: <API_KEY>\" ${PROVISIONED_SERVER_URL:-http://127.0.0.1:${EVOLUTION_PORT}}/instance/fetchInstances"
 }
@@ -135,7 +123,7 @@ main() {
     log_step "== Provisioning de Evolution API (idempotente) =="
     preflight
     provision_evolution_user # 05 — usuario de sistema dedicado 'evolution'
-    provision_node_pm2      # 10 — Node 20 + PM2
+    provision_node_pm2      # 10 — Node (>= 20; si falta, 24) + PM2
     provision_evolution     # 20 — código + .env + DB + Prisma
     provision_web_proxy     # 30 — proxy /evolution/ en el vhost (nginx o Apache)
     provision_pm2_boot      # 40 — PM2 start + save + startup

@@ -11,6 +11,7 @@ use App\Modules\Core\ModuleManager\Models\ModuleRegistry;
 use App\Modules\Core\ModuleManager\Services\ModuleLifecycleService;
 use App\Modules\Core\ModuleManager\Services\ModuleManagerService;
 use App\Modules\Core\ModuleManager\Services\ModuleRegistry as ModuleRegistryService;
+use App\Modules\Core\ModuleManager\Services\ModuleSystemService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -161,6 +162,8 @@ class ModuleManagerController extends Controller
             ->get()
             ->keyBy('module_slug');
 
+        $system = app(ModuleSystemService::class);
+
         $rows = [];
         foreach ($manifests as $manifest) {
             $slug = $manifest['slug'] ?? null;
@@ -170,6 +173,7 @@ class ModuleManagerController extends Controller
             $dir = $manifest['_dir'];
             $reg = $registry->get($slug);
             $log = $logs->get($slug);
+            $sys = $system->declared($manifest);
 
             $rows[] = [
                 'slug' => $slug,
@@ -187,6 +191,9 @@ class ModuleManagerController extends Controller
                 'total_input_tokens' => $log ? (int) $log->total_input : 0,
                 'total_output_tokens' => $log ? (int) $log->total_output : 0,
                 'runs' => $log ? (int) $log->runs : 0,
+                // Dependencias de sistema (install.sh / purge.sh) y su última corrida en este servidor.
+                'system' => $sys,
+                'system_last_run' => $sys ? $system->latestRun($slug) : null,
             ];
         }
 
@@ -287,6 +294,20 @@ class ModuleManagerController extends Controller
     {
         try {
             $force  = (bool) $request->boolean('force', false);
+
+            // Con dependencias de sistema: primero corre install.sh en segundo plano (puede
+            // tardar y pedir contraseña) y el módulo se instala al final de esa corrida.
+            $system = app(ModuleSystemService::class);
+            if ($system->declared($system->manifest($slug))['install'] ?? false) {
+                app(ModuleLifecycleService::class)->assertInstallable($slug, $force);
+
+                return response()->json([
+                    'success' => true,
+                    'action'  => 'system_run',
+                    'run'     => $system->start($slug, 'install', true, $force),
+                ]);
+            }
+
             $result = app(ModuleLifecycleService::class)->install($slug, $force);
             return response()->json($result);
         } catch (\InvalidArgumentException $e) {
@@ -325,6 +346,20 @@ class ModuleManagerController extends Controller
         try {
             $keepData = (bool) $request->boolean('keep_data', false);
             $result   = app(ModuleLifecycleService::class)->uninstall($slug, $keepData);
+
+            // Desinstalación definitiva: también se purgan sus dependencias de sistema.
+            // Con "conservar datos" se dejan (ahí suelen vivir datos: BD propia, sesiones...).
+            if (! ($result['keep_data'] ?? true)) {
+                $system = app(ModuleSystemService::class);
+                if ($system->declared($system->manifest($slug))['purge'] ?? false) {
+                    try {
+                        $result['system_run'] = $system->start($slug, 'purge');
+                    } catch (\Throwable $e) {
+                        $result['system_error'] = 'El módulo se desinstaló, pero no se pudo lanzar purge.sh: ' . $e->getMessage();
+                    }
+                }
+            }
+
             return response()->json($result);
         } catch (\LogicException $e) {
             return response()->json(['success' => false, 'error' => $e->getMessage()], 422);

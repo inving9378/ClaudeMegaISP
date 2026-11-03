@@ -21,7 +21,12 @@ EVOLUTION_COMMIT="fa09d378"                    # commit EXACTO (git describe: 2.
 EVOLUTION_PM2_NAME="evolution-api"             # nombre del proceso en PM2
 EVOLUTION_PORT="8080"                          # puerto local donde escucha Evolution
 
-NODE_MAJOR="20"                                # Node 20.x
+# Node: se respeta el que ya tenga el server si es >= NODE_MIN_MAJOR (lo comparte el build
+# de MegaISP; cambiarlo aquí afectaría a todo el sistema). Si falta o es más viejo se instala
+# NODE_INSTALL_MAJOR: Evolution está hecha para Node 24 y la línea 20 ya no recibe parches
+# (ver docs/bitacora/2026-10-26-actualizacion-node-24.md).
+NODE_MIN_MAJOR="20"
+NODE_INSTALL_MAJOR="24"
 
 EVO_DB_NAME="evolution_api"                    # base de datos de Evolution
 EVO_DB_USER="evolution_user"                   # usuario MySQL de Evolution
@@ -68,6 +73,23 @@ require() {
 
 # is_root — ¿corremos como root? (varios pasos necesitan privilegios).
 is_root() { [[ "$(id -u)" -eq 0 ]]; }
+
+# Usuario bajo el que se corre `php artisan` en MegaISP (dueño de bootstrap/cache).
+: "${MEGAISP_USER:=www-data}"
+
+# run_as USER CMD... — ejecuta un comando como USER (para artisan como www-data).
+run_as() {
+    local u="$1"; shift
+    if [[ "$(id -un)" == "$u" ]]; then
+        "$@"
+    elif is_root; then
+        sudo -u "$u" -H "$@"
+    elif have sudo; then
+        sudo -n -u "$u" -H "$@"
+    else
+        die "No puedo ejecutar como '$u' (falta sudo): $*"
+    fi
+}
 
 # run_root CMD... — ejecuta como root (directo si ya somos root, si no vía sudo -n).
 run_root() {
