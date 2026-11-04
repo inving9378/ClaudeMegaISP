@@ -1,0 +1,117 @@
+diff --git a/prisma/mysql-schema.prisma b/prisma/mysql-schema.prisma
+index 71b5a743..63ef9377 100644
+--- a/prisma/mysql-schema.prisma
++++ b/prisma/mysql-schema.prisma
+@@ -655,6 +655,7 @@ model IsOnWhatsapp {
+   id         String   @id @default(cuid())
+   remoteJid  String   @unique @db.VarChar(100)
+   jidOptions String
++  lid        String?  @db.VarChar(100)
+   createdAt  DateTime @default(dbgenerated("CURRENT_TIMESTAMP")) @db.Timestamp
+   updatedAt  DateTime @updatedAt @db.Timestamp
+ }
+diff --git a/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts b/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts
+index 60e857fc..85f655ee 100644
+--- a/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts
++++ b/src/api/integrations/channel/whatsapp/whatsapp.baileys.service.ts
+@@ -524,9 +524,9 @@ export class BaileysStartupService extends ChannelStartupService {
+     try {
+       // Use raw SQL to avoid JSON path issues
+       const webMessageInfo = (await this.prismaRepository.$queryRaw`
+-        SELECT * FROM "Message"
+-        WHERE "instanceId" = ${this.instanceId}
+-        AND "key"->>'id' = ${key.id}
++        SELECT * FROM \`Message\`
++        WHERE instanceId = ${this.instanceId}
++        AND \`key\`->>'$.id' = ${key.id}
+       `) as proto.IWebMessageInfo[];
+ 
+       if (full) {
+@@ -1638,9 +1638,9 @@ export class BaileysStartupService extends ChannelStartupService {
+             const searchId = originalMessageId || key.id;
+ 
+             const messages = (await this.prismaRepository.$queryRaw`
+-              SELECT * FROM "Message"
+-              WHERE "instanceId" = ${this.instanceId}
+-              AND "key"->>'id' = ${searchId}
++              SELECT * FROM \`Message\`
++              WHERE instanceId = ${this.instanceId}
++              AND \`key\`->>'$.id' = ${searchId}
+               LIMIT 1
+             `) as any[];
+             findMessage = messages[0] || null;
+@@ -4734,15 +4734,17 @@ export class BaileysStartupService extends ChannelStartupService {
+   private async updateMessagesReadedByTimestamp(remoteJid: string, timestamp?: number): Promise<number> {
+     if (timestamp === undefined || timestamp === null) return 0;
+ 
+-    // Use raw SQL to avoid JSON path issues
++    // PATCH MegaISP: queryRaw convertido de PostgreSQL a MySQL (identificadores
++    // con backtick, `key`->>'$.path' para JSON, sin ::boolean). Restaurada
++    // (antes neutralizada por incompatibilidad de sintaxis con MySQL).
+     const result = await this.prismaRepository.$executeRaw`
+-      UPDATE "Message"
+-      SET "status" = ${status[4]}
+-      WHERE "instanceId" = ${this.instanceId}
+-      AND "key"->>'remoteJid' = ${remoteJid}
+-      AND ("key"->>'fromMe')::boolean = false
+-      AND "messageTimestamp" <= ${timestamp}
+-      AND ("status" IS NULL OR "status" = ${status[3]})
++      UPDATE \`Message\`
++      SET status = ${status[4]}
++      WHERE instanceId = ${this.instanceId}
++      AND \`key\`->>'$.remoteJid' = ${remoteJid}
++      AND \`key\`->>'$.fromMe' = 'false'
++      AND messageTimestamp <= ${timestamp}
++      AND (status IS NULL OR status = ${status[3]})
+     `;
+ 
+     if (result) {
+@@ -4757,16 +4759,16 @@ export class BaileysStartupService extends ChannelStartupService {
+   }
+ 
+   private async updateChatUnreadMessages(remoteJid: string): Promise<number> {
++    // PATCH MegaISP: queryRaw convertido de PostgreSQL a MySQL. Restaurada.
+     const [chat, unreadMessages] = await Promise.all([
+       this.prismaRepository.chat.findFirst({ where: { remoteJid } }),
+-      // Use raw SQL to avoid JSON path issues
+       this.prismaRepository.$queryRaw`
+-        SELECT COUNT(*)::int as count FROM "Message"
+-        WHERE "instanceId" = ${this.instanceId}
+-        AND "key"->>'remoteJid' = ${remoteJid}
+-        AND ("key"->>'fromMe')::boolean = false
+-        AND "status" = ${status[3]}
+-      `.then((result: any[]) => result[0]?.count || 0),
++        SELECT COUNT(*) as count FROM \`Message\`
++        WHERE instanceId = ${this.instanceId}
++        AND \`key\`->>'$.remoteJid' = ${remoteJid}
++        AND \`key\`->>'$.fromMe' = 'false'
++        AND status = ${status[3]}
++      `.then((result: any[]) => Number(result[0]?.count ?? 0)),
+     ]);
+ 
+     if (chat && chat.unreadMessages !== unreadMessages) {
+diff --git a/src/config/error.config.ts b/src/config/error.config.ts
+index 302c67d1..0d985104 100644
+--- a/src/config/error.config.ts
++++ b/src/config/error.config.ts
+@@ -8,6 +8,11 @@ export function onUnexpectedError() {
+       stderr: process.stderr.fd,
+       error,
+     });
++    // Restaura el comportamiento sano de Node (crash-only): ante una excepción
++    // no capturada (p. ej. abort de un fetch al CDN de WhatsApp emitido en el
++    // socket TLS), salir para que PM2 reinicie limpio en vez de quedar zombie
++    // con la conexión de Baileys colgada.
++    process.exit(1);
+   });
+ 
+   process.on('unhandledRejection', (error, origin) => {
+@@ -17,5 +22,8 @@ export function onUnexpectedError() {
+       stderr: process.stderr.fd,
+     });
+     logger.error(error);
++    // Misma lógica: no dejar el proceso en estado indefinido; salir y dejar
++    // que PM2 lo reinicie limpio.
++    process.exit(1);
+   });
+ }

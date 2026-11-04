@@ -11,7 +11,9 @@
 #
 # Guardas de idempotencia (decisión 2):
 #   - Código: si ya está en el commit $EVOLUTION_COMMIT → no re-clona/re-checkout.
-#   - Build:  si falta dist/main.js o cambió el commit → npm ci + build; si no → OMITIR.
+#   - Parches: los de dev (patches/evolution-mysql-megaisp.patch); si ya están → OMITIR.
+#   - Build:  si falta dist/main.js, cambió el commit o se aplicaron los parches →
+#             npm ci + generate + tsup; si no → OMITIR.
 #   - .env:   si ya existe → NO se sobrescribe (preserva la key/password generados).
 #   - DB:     CREATE ... IF NOT EXISTS (no rota el password de un usuario existente).
 #             Caso borde (#201): si el .env se borró/regeneró (password NUEVO) pero el
@@ -51,7 +53,9 @@ _evo() {
 _ensure_evolution_code() {
     if [[ -d "$EVOLUTION_DIR/.git" ]]; then
         local head
-        head="$(git -C "$EVOLUTION_DIR" rev-parse --short HEAD 2>/dev/null || echo '')"
+        # Como el dueño del código: git rechaza como root un repo ajeno ("dubious
+        # ownership") y el commit salía 'desconocido' en cada corrida.
+        head="$(_evo git -C "$EVOLUTION_DIR" rev-parse --short HEAD 2>/dev/null || echo '')"
         if [[ "$head" == "$EVOLUTION_COMMIT" ]]; then
             log_skip "Evolution ya está en el commit ${EVOLUTION_COMMIT}"
             # aunque el commit sea el correcto, puede faltar el build compilado
@@ -76,6 +80,28 @@ _ensure_evolution_code() {
         _evo git clone --quiet "$EVOLUTION_REPO" "$EVOLUTION_DIR"
         _evo git -C "$EVOLUTION_DIR" checkout --quiet "$EVOLUTION_COMMIT"
         EVO_BUILD_NEEDED=1
+    fi
+}
+
+# --- 1b) Parches de MegaISP (los que corre dev sobre el mismo commit) --------
+# Evolution v2.3.7 trae SQL crudo de PostgreSQL y un esquema MySQL incompleto; dev
+# corre con estos cambios desde 2026-07: queries de mensajes en sintaxis MySQL (sin
+# ellas messages.upsert revienta y el webhook a MegaISP nunca se dispara), columna
+# `lid` en IsOnWhatsapp (la migración MySQL ya existe; faltaba en el esquema) y
+# salida del proceso ante uncaughtException para que PM2 lo reinicie.
+# El parche se pasa por stdin: el usuario de Evolution no necesita leer el repo.
+_ensure_evolution_patches() {
+    local patch="${PROVISION_DIR}/patches/evolution-mysql-megaisp.patch"
+    [[ -f "$patch" ]] || die "No encuentro el parche ${patch}"
+    if _evo git -C "$EVOLUTION_DIR" apply --reverse --check - <"$patch" >/dev/null 2>&1; then
+        log_skip "Parches de MegaISP ya aplicados"
+    elif _evo git -C "$EVOLUTION_DIR" apply --check - <"$patch" >/dev/null 2>&1; then
+        log_info "Aplicando parches de MegaISP (MySQL) sobre Evolution"
+        _evo git -C "$EVOLUTION_DIR" apply - <"$patch"
+        EVO_BUILD_NEEDED=1
+        log_ok "Parches aplicados"
+    else
+        die "Los parches de MegaISP no aplican limpio en ${EVOLUTION_DIR} (¿cambios locales?). Revisa: git -C ${EVOLUTION_DIR} status"
     fi
 }
 
@@ -196,8 +222,11 @@ _ensure_build() {
     _evo bash -c "cd '${EVOLUTION_DIR}' && npm ci"
     log_info "prisma generate (cliente Prisma, provider mysql)"
     _evo bash -c "cd '${EVOLUTION_DIR}' && npx prisma generate --schema prisma/mysql-schema.prisma"
-    log_info "npm run build (compilando a dist/)"
-    _evo bash -c "cd '${EVOLUTION_DIR}' && npm run build"
+    # tsup directo, como dev: `npm run build` antepone `tsc --noEmit`, que con el
+    # cliente Prisma de MySQL truena por tipos de PostgreSQL que trae Evolution
+    # (JSON path como arreglo, labelId_instanceId) aunque el bundle sí funcione.
+    log_info "tsup (compilando a dist/)"
+    _evo bash -c "cd '${EVOLUTION_DIR}' && npx tsup"
     [[ -f "$EVOLUTION_DIR/dist/main.js" ]] || die "El build no generó dist/main.js"
     log_ok "Build completo (dist/main.js)"
 }
@@ -229,6 +258,7 @@ provision_evolution() {
     log_info "Usuario propietario/ejecución: ${EVOLUTION_USER}"
 
     _ensure_evolution_code     # 1) git en el commit exacto (fija EVO_BUILD_NEEDED)
+    _ensure_evolution_patches  # 1b) parches de MegaISP (fija EVO_BUILD_NEEDED)
     _ensure_evolution_env      # 2) secretos + .env (preserva si existe)
     _sync_megaisp_key          # 3) WHATSAPP_API_KEY/URL en el .env del sistema
     _ensure_evolution_db       # 4) BD + usuario MySQL

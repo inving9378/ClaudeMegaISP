@@ -19,11 +19,11 @@ modal). La API key no se imprime en esa salida (`PROVISION_HIDE_KEY=1`); queda e
 | Componente | Detalle |
 |---|---|
 | Runtime | **Node** (respeta el que haya si es >= 20; si falta instala **24.x**) + **PM2** (fork_mode) |
-| Evolution | **v2.3.7**, commit exacto **`fa09d378`**, en `/opt/evolution-api`, compilado a `dist/` |
+| Evolution | **v2.3.7**, commit exacto **`fa09d378`** + `patches/evolution-mysql-megaisp.patch` (los parches MySQL que corre dev), en `/opt/evolution-api`, compilado a `dist/` con `tsup` |
 | Backing | **MySQL** (el del sistema — NO se instala), DB `evolution_api` + user `evolution_user`, esquema vía **Prisma** (`migrate deploy`, provider mysql) |
 | Cache | **Local en disco** (`CACHE_LOCAL_ENABLED=true`), **sin Redis** |
 | Proxy | `/evolution/` **dentro del vhost de MegaISP** → `http://127.0.0.1:8080/` con WebSocket. **nginx** (`location`) o **Apache** (`ProxyPass … upgrade=websocket`, o `RewriteRule [P]` a `ws://` en Apache < 2.4.47); se autodetecta |
-| Boot | `pm2 startup` (systemd) + `pm2 save` |
+| Boot | `pm2 startup` (systemd) + `pm2 save`; el proceso queda bajo la unit `pm2-evolution` (no bajo el servidor web que lanzó el script) |
 
 **Fuera de alcance:** Asterisk (se maneja aparte, ya hay VoiceGateway). Hay un
 `TODO` en `install.sh` marcando dónde engancharía un `50-asterisk.sh` futuro.
@@ -137,12 +137,14 @@ deploy/provision/
 │   ├── common.sh           # helpers, guardas, lectura del .env del sistema
 │   ├── 05-evolution-user.sh # usuario de sistema dedicado 'evolution' (home, sin login)
 │   ├── 10-node-pm2.sh      # Node (>= 20; si falta, 24) + PM2
-│   ├── 20-evolution.sh     # clone fa09d378 + build + .env + DB + Prisma
+│   ├── 20-evolution.sh     # clone fa09d378 + parches + build (tsup) + .env + DB + Prisma
 │   ├── 30-nginx.sh         # nginx: inyecta location /evolution/
 │   ├── 30-apache.sh        # Apache: inyecta ProxyPass /evolution/ (+ módulos)
 │   ├── 30-proxy.sh         # elige nginx/Apache (o SKIP_WEB_PROXY) y despacha
-│   ├── 40-pm2-boot.sh      # pm2 start + save + startup
+│   ├── 40-pm2-boot.sh      # pm2 start + save + startup + pasar el proceso a systemd
 │   └── 90-unprovision.sh   # pasos de uninstall.sh (quitar todo lo anterior)
+├── patches/
+│   └── evolution-mysql-megaisp.patch # git diff de dev sobre fa09d378 (SQL MySQL, lid, salida ante errores)
 ├── templates/
 │   └── evolution.env.tpl   # plantilla del .env con {{PLACEHOLDERS}}
 └── tests/
