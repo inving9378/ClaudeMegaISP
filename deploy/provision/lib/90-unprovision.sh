@@ -10,7 +10,6 @@
 # Apache (proxy, proxy_http...) se quedan, porque otros pueden usarlos.
 # =============================================================================
 
-: "${EVOLUTION_BACKUP_DIR:=/var/backups/megaisp}"   # respaldo de la BD antes de borrarla
 
 log_gone() { printf '%s[--]%s Nada que quitar: %s\n' "$_C_SKIP" "$_C_RESET" "$*"; }
 
@@ -178,14 +177,8 @@ unprovision_db() {
     exists="$(run_root mysql -N -B -e \
         "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='${EVO_DB_NAME}'" 2>/dev/null || true)"
     if [[ "$exists" == "$EVO_DB_NAME" ]]; then
-        require mysqldump "Se requiere 'mysqldump' para respaldar ${EVO_DB_NAME} antes de borrarla"
-        local dump="${EVOLUTION_BACKUP_DIR}/${EVO_DB_NAME}-$(date +%Y%m%d%H%M%S).sql.gz"
-        run_root mkdir -p "$EVOLUTION_BACKUP_DIR"
-        run_root chmod 700 "$EVOLUTION_BACKUP_DIR"
-        log_info "Respaldando ${EVO_DB_NAME} en ${dump}"
-        run_root bash -c 'set -o pipefail; umask 077; mysqldump --single-transaction --routines "$1" | gzip > "$2"' \
-            _ "$EVO_DB_NAME" "$dump" \
-            || die "No se pudo respaldar ${EVO_DB_NAME}; no se borró nada de la base."
+        log_info "Respaldando ${EVO_DB_NAME} en ${EVOLUTION_BACKUP_DIR}"
+        local dump; dump="$(respaldar_bd_evolution)"
         run_root mysql -e "DROP DATABASE IF EXISTS \`${EVO_DB_NAME}\`"
         log_ok "Base '${EVO_DB_NAME}' borrada (respaldo: ${dump})"
     else

@@ -1,0 +1,17 @@
+diff --git a/prisma/mysql-migrations/20251104120000_megaisp_lid_is_onwhatsapp/migration.sql b/prisma/mysql-migrations/20251104120000_megaisp_lid_is_onwhatsapp/migration.sql
+new file mode 100644
+index 00000000..2d4cef04
+--- /dev/null
++++ b/prisma/mysql-migrations/20251104120000_megaisp_lid_is_onwhatsapp/migration.sql
+@@ -0,0 +1,11 @@
++-- MegaISP: la migración 20250918183910_add_kafka_integration de Evolution borra la columna
++-- `lid` que agrega 20250613143000_add_lid_column_to_is_onwhatsapp, pero el esquema la usa
++-- (parche MegaISP). Se vuelve a crear solo si falta (en dev se agregó a mano en 2026-07).
++SET @megaisp_lid := (SELECT COUNT(*) FROM information_schema.columns
++    WHERE table_schema = DATABASE() AND table_name = 'IsOnWhatsapp' AND column_name = 'lid');
++SET @megaisp_sql := IF(@megaisp_lid = 0,
++    'ALTER TABLE `IsOnWhatsapp` ADD COLUMN `lid` VARCHAR(100) NULL',
++    'DO 0');
++PREPARE megaisp_stmt FROM @megaisp_sql;
++EXECUTE megaisp_stmt;
++DEALLOCATE PREPARE megaisp_stmt;

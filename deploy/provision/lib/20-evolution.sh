@@ -11,7 +11,7 @@
 #
 # Guardas de idempotencia (decisión 2):
 #   - Código: si ya está en el commit $EVOLUTION_COMMIT → no re-clona/re-checkout.
-#   - Parches: los de dev (patches/evolution-mysql-megaisp.patch); si ya están → OMITIR.
+#   - Parches: los de patches/*.patch, en orden; los que ya están → OMITIR.
 #   - Build:  si falta dist/main.js, cambió el commit o se aplicaron los parches →
 #             npm ci + generate + tsup; si no → OMITIR.
 #   - .env:   si ya existe → NO se sobrescribe (preserva la key/password generados).
@@ -20,7 +20,10 @@
 #             usuario MySQL YA existía (password VIEJO) → desajuste .env↔MySQL. Por
 #             default el script ABORTA con mensaje claro (no rota nada solo). Para
 #             re-sincronizar a propósito: EVOLUTION_FORCE_ROTATE_DB_PASSWORD=1.
-#   - migrate deploy: siempre corre (Prisma lo hace idempotente).
+#   - migrate deploy: siempre corre (Prisma lo hace idempotente). Si la BD ya tenía
+#             tablas sin historial de Prisma: se registran las migraciones que ya tiene
+#             (comparando estructura); si no es de ninguna: vacía → respaldo + recrear,
+#             con datos → ABORTA.
 #
 # Efectos exportados para el resumen final de install.sh:
 #   PROVISIONED_API_KEY, PROVISIONED_SERVER_URL
@@ -85,24 +88,31 @@ _ensure_evolution_code() {
 
 # --- 1b) Parches de MegaISP (los que corre dev sobre el mismo commit) --------
 # Evolution v2.3.7 trae SQL crudo de PostgreSQL y un esquema MySQL incompleto; dev
-# corre con estos cambios desde 2026-07: queries de mensajes en sintaxis MySQL (sin
-# ellas messages.upsert revienta y el webhook a MegaISP nunca se dispara), columna
-# `lid` en IsOnWhatsapp (la migración MySQL ya existe; faltaba en el esquema) y
-# salida del proceso ante uncaughtException para que PM2 lo reinicie.
-# El parche se pasa por stdin: el usuario de Evolution no necesita leer el repo.
+# corre con estos cambios desde 2026-07:
+#   01 — queries de mensajes en sintaxis MySQL (sin ellas messages.upsert revienta y el
+#        webhook a MegaISP nunca se dispara), `lid` en el esquema de IsOnWhatsapp y
+#        salida del proceso ante uncaughtException para que PM2 lo reinicie;
+#   02 — migración que vuelve a crear `lid` (la de Kafka de Evolution la borra; en dev
+#        se agregó a mano), idempotente.
+# Cada parche se aplica una vez (si ya está, se omite) y por stdin: el usuario de
+# Evolution no necesita leer el repo.
 _ensure_evolution_patches() {
-    local patch="${PROVISION_DIR}/patches/evolution-mysql-megaisp.patch"
-    [[ -f "$patch" ]] || die "No encuentro el parche ${patch}"
-    if _evo git -C "$EVOLUTION_DIR" apply --reverse --check - <"$patch" >/dev/null 2>&1; then
-        log_skip "Parches de MegaISP ya aplicados"
-    elif _evo git -C "$EVOLUTION_DIR" apply --check - <"$patch" >/dev/null 2>&1; then
-        log_info "Aplicando parches de MegaISP (MySQL) sobre Evolution"
-        _evo git -C "$EVOLUTION_DIR" apply - <"$patch"
-        EVO_BUILD_NEEDED=1
-        log_ok "Parches aplicados"
-    else
-        die "Los parches de MegaISP no aplican limpio en ${EVOLUTION_DIR} (¿cambios locales?). Revisa: git -C ${EVOLUTION_DIR} status"
-    fi
+    local patch nombre n=0
+    for patch in "${PROVISION_DIR}"/patches/*.patch; do
+        [[ -f "$patch" ]] || continue
+        n=$((n + 1)); nombre="$(basename "$patch")"
+        if _evo git -C "$EVOLUTION_DIR" apply --reverse --check - <"$patch" >/dev/null 2>&1; then
+            log_skip "Parche ${nombre} ya aplicado"
+        elif _evo git -C "$EVOLUTION_DIR" apply --check - <"$patch" >/dev/null 2>&1; then
+            log_info "Aplicando parche ${nombre}"
+            _evo git -C "$EVOLUTION_DIR" apply - <"$patch"
+            EVO_BUILD_NEEDED=1
+            log_ok "Parche ${nombre} aplicado"
+        else
+            die "El parche ${nombre} no aplica limpio en ${EVOLUTION_DIR} (¿cambios locales?). Revisa: git -C ${EVOLUTION_DIR} status"
+        fi
+    done
+    (( n > 0 )) || die "No encuentro parches en ${PROVISION_DIR}/patches"
 }
 
 # --- 2) Secretos + .env (preserva si existe) ---------------------------------
@@ -231,7 +241,117 @@ _ensure_build() {
     log_ok "Build completo (dist/main.js)"
 }
 
-# --- 6) Aplicar esquema Prisma (siempre, es idempotente) ---------------------
+# --- 6) Aplicar esquema Prisma ------------------------------------------------
+# _evo_prisma ARGS... — `npx prisma` en el directorio de Evolution, como su dueño.
+# Prisma carga el .env de ese directorio (DATABASE_CONNECTION_URI) → sin secretos en argv.
+_evo_prisma() {
+    _evo bash -c 'cd "$1" && shift && npx prisma "$@"' _ "$EVOLUTION_DIR" "$@"
+}
+
+# _evo_db_query SQL — consulta sobre la BD de Evolution como root de MySQL (una columna, sin encabezado).
+_evo_db_query() {
+    run_root mysql -N -B -D "$EVO_DB_NAME" -e "$1"
+}
+
+# _evo_rollback_fallidas "NOMBRES" — marca como revertidas las migraciones que quedaron
+# a medias (finished_at NULL): mientras existan, `migrate deploy` se niega (P3009).
+_evo_rollback_fallidas() {
+    local m
+    for m in $1; do
+        log_info "Prisma: la migración ${m} quedó fallida en un intento anterior → se marca como revertida"
+        _evo_prisma migrate resolve --rolled-back "$m" --schema prisma/mysql-schema.prisma >/dev/null
+    done
+}
+
+# _evo_db_huella BD — columnas, índices y llaves foráneas de BD (sin _prisma_migrations ni
+# el nombre de la BD), ordenado: dos BD con la misma huella tienen la misma estructura.
+_evo_db_huella() {
+    local q="table_schema='$1' AND table_name<>'_prisma_migrations'"
+    run_root mysql -N -B -e "SELECT 'col', table_name, column_name, column_type, is_nullable, IFNULL(column_default,'(null)'), extra FROM information_schema.columns WHERE ${q} ORDER BY 2,3"
+    run_root mysql -N -B -e "SELECT 'idx', table_name, index_name, non_unique, seq_in_index, column_name FROM information_schema.statistics WHERE ${q} ORDER BY 2,3,5"
+    run_root mysql -N -B -e "SELECT 'fk', table_name, constraint_name, referenced_table_name, update_rule, delete_rule FROM information_schema.referential_constraints WHERE constraint_schema='$1' AND table_name<>'_prisma_migrations' ORDER BY 2,3"
+}
+
+_evo_db_referencia_borrar() {
+    run_root mysql -e "DROP DATABASE IF EXISTS \`${EVO_DB_NAME}_ref\`"
+}
+
+# _evo_db_sin_historial "FALLIDAS" — la BD ya tiene tablas pero Prisma no tiene ninguna
+# migración aplicada (BD creada o importada fuera de este instalador, o historial perdido).
+# `migrate deploy` intentaría crear todo de nuevo ("Table ... already exists").
+# Se arma una BD temporal ${EVO_DB_NAME}_ref aplicando las migraciones una por una (como
+# root, sin Prisma ni contraseñas) y se busca hasta cuál coincide la estructura:
+#   - coincide hasta la k → se registran 1..k como aplicadas sin tocar los datos y
+#                           `migrate deploy` aplica las que faltan;
+#   - ninguna, sin datos  → respaldo + BD recreada vacía (la llena `migrate deploy`);
+#   - ninguna, con datos  → se muestra la diferencia y se ABORTA sin tocar nada.
+# (Se compara contra las migraciones y no contra el esquema Prisma: en Evolution no
+# coinciden al 100%, y lo que existe en las BD reales es lo que dejan las migraciones.)
+_evo_db_sin_historial() {
+    local fallidas="$1" ref="${EVO_DB_NAME}_ref" tablas huella_bd huella_ref="" m k=0 hasta=0
+    local -a migs
+    mapfile -t migs < <(_evo bash -c 'ls -1 "$1/prisma/migrations"' _ "$EVOLUTION_DIR" | grep -E '^[0-9]{14}_' | sort)
+    tablas="$(_evo_db_query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name<>'_prisma_migrations'")"
+    log_warn "La BD '${EVO_DB_NAME}' ya tiene ${tablas} tablas, pero sin historial de Prisma (se creó fuera de este instalador o se perdió su historial)."
+    log_info "Comparando su estructura con la que deja cada migración de Evolution (BD temporal ${ref})"
+
+    huella_bd="$(_evo_db_huella "$EVO_DB_NAME")"
+    run_root mysql -e "DROP DATABASE IF EXISTS \`${ref}\`; CREATE DATABASE \`${ref}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+    for m in "${migs[@]}"; do
+        if ! run_root mysql -D "$ref" < "${EVOLUTION_DIR}/prisma/migrations/${m}/migration.sql" >/dev/null; then
+            _evo_db_referencia_borrar
+            die "No pude aplicar ${m} en la BD de referencia ${ref}."
+        fi
+        k=$((k + 1))
+        huella_ref="$(_evo_db_huella "$ref")"
+        if [[ "$huella_ref" == "$huella_bd" ]]; then
+            hasta=$k                          # la última de una racha de coincidencias
+        elif (( hasta > 0 )); then
+            break
+        fi
+    done
+    _evo_db_referencia_borrar
+
+    if (( hasta > 0 )); then
+        log_info "Su estructura es la que dejan las primeras ${hasta} de ${#migs[@]} migraciones: se registran como aplicadas sin tocar los datos"
+        _evo_rollback_fallidas "$fallidas"
+        for m in "${migs[@]:0:hasta}"; do
+            _evo_prisma migrate resolve --applied "$m" --schema prisma/mysql-schema.prisma >/dev/null
+        done
+        log_ok "Historial de Prisma registrado (${hasta} migraciones)"
+        return 0
+    fi
+
+    local t c filas=0 con_datos=""
+    for t in $(_evo_db_query "SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name<>'_prisma_migrations' ORDER BY table_name"); do
+        c="$(_evo_db_query "SELECT COUNT(*) FROM \`${t}\`")"
+        if (( c > 0 )); then
+            filas=$((filas + c))
+            con_datos+="    ${t}: ${c} filas"$'\n'
+        fi
+    done
+    if (( filas == 0 )); then
+        log_info "Su estructura no es la de ninguna migración y no tiene datos: se respalda y se recrea vacía"
+        local dump; dump="$(respaldar_bd_evolution antes-de-recrear)"
+        log_ok "Respaldo: ${dump}"
+        run_root mysql <<SQL
+DROP DATABASE \`${EVO_DB_NAME}\`;
+CREATE DATABASE \`${EVO_DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+GRANT ALL PRIVILEGES ON \`${EVO_DB_NAME}\`.* TO '${EVO_DB_USER}'@'127.0.0.1';
+GRANT ALL PRIVILEGES ON \`${EVO_DB_NAME}\`.* TO '${EVO_DB_USER}'@'localhost';
+FLUSH PRIVILEGES;
+SQL
+        log_ok "BD '${EVO_DB_NAME}' recreada vacía"
+        return 0
+    fi
+
+    log_warn "Tablas con datos:"
+    printf '%s' "$con_datos"
+    log_warn "Diferencias de estructura (< esta BD, > con todas las migraciones; primeras 60 líneas):"
+    { diff <(printf '%s\n' "$huella_bd") <(printf '%s\n' "$huella_ref") | grep -E '^[<>]' | head -n 60; } || true
+    die "La BD '${EVO_DB_NAME}' tiene datos (${filas} filas) y una estructura que no es la de ninguna migración de Evolution ${EVOLUTION_COMMIT}; no se toca. Hay que decidir a mano si se conservan (migrar su estructura) o se respaldan y descartan."
+}
+
 _ensure_prisma_deploy() {
     # `prisma/migrations/` viene en el .gitignore de Evolution (línea
     # "/prisma/migrations/*") → en un checkout nuevo (clon fresco) llega VACÍA.
@@ -245,10 +365,24 @@ _ensure_prisma_deploy() {
     log_info "Sincronizando prisma/mysql-migrations → prisma/migrations (mismo paso que el db:deploy de Evolution)"
     _evo bash -c "cd '${EVOLUTION_DIR}' && rm -rf prisma/migrations && cp -r prisma/mysql-migrations prisma/migrations"
 
+    # Estado de la BD antes de migrar: tablas y historial de Prisma.
+    local tablas aplicadas=0 fallidas=""
+    tablas="$(_evo_db_query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name<>'_prisma_migrations'")"
+    if [[ "$(_evo_db_query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='_prisma_migrations'")" == "1" ]]; then
+        aplicadas="$(_evo_db_query "SELECT COUNT(*) FROM _prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL")"
+        fallidas="$(_evo_db_query "SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NULL AND rolled_back_at IS NULL ORDER BY started_at")"
+    fi
+
+    if (( aplicadas > 0 )); then
+        [[ -z "$fallidas" ]] || die "Prisma tiene migraciones fallidas sobre una BD con historial (${fallidas//$'\n'/, }); no se adivina su estado. Revisa: cd ${EVOLUTION_DIR} && npx prisma migrate status --schema prisma/mysql-schema.prisma"
+    elif (( tablas == 0 )); then
+        _evo_rollback_fallidas "$fallidas"
+    else
+        _evo_db_sin_historial "$fallidas"
+    fi
+
     log_info "prisma migrate deploy (aplicando esquema a MySQL)"
-    # Prisma carga el .env del directorio del proyecto automáticamente
-    # (DATABASE_PROVIDER y DATABASE_CONNECTION_URI) → sin secretos en argv.
-    _evo bash -c "cd '${EVOLUTION_DIR}' && npx prisma migrate deploy --schema prisma/mysql-schema.prisma"
+    _evo_prisma migrate deploy --schema prisma/mysql-schema.prisma
     log_ok "Esquema Prisma aplicado"
 }
 

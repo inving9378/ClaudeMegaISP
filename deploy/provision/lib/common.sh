@@ -32,6 +32,7 @@ EVO_DB_NAME="evolution_api"                    # base de datos de Evolution
 EVO_DB_USER="evolution_user"                   # usuario MySQL de Evolution
 EVO_DB_HOST="127.0.0.1"
 EVO_DB_PORT="3306"
+: "${EVOLUTION_BACKUP_DIR:=/var/backups/megaisp}"   # respaldos de la BD de Evolution
 
 # Marcadores que identifican al server de DESARROLLO (.11). El script DEBE abortar
 # si detecta cualquiera de ellos, para no reconfigurar la Evolution de dev que ya
@@ -161,6 +162,19 @@ gen_secret() {
 }
 
 # --- Guarda de seguridad: NO correr en el server de dev ----------------------
+# respaldar_bd_evolution [ETIQUETA] — mysqldump comprimido de la BD de Evolution en
+# $EVOLUTION_BACKUP_DIR (700, solo root). Imprime la ruta; si el respaldo falla, aborta.
+respaldar_bd_evolution() {
+    require mysqldump "Se requiere 'mysqldump' para respaldar ${EVO_DB_NAME}"
+    local dump="${EVOLUTION_BACKUP_DIR}/${EVO_DB_NAME}-$(date +%Y%m%d%H%M%S)${1:+-$1}.sql.gz"
+    run_root mkdir -p "$EVOLUTION_BACKUP_DIR"
+    run_root chmod 700 "$EVOLUTION_BACKUP_DIR"
+    run_root bash -c 'set -o pipefail; umask 077; mysqldump --single-transaction --routines "$1" | gzip > "$2"' \
+        _ "$EVO_DB_NAME" "$dump" \
+        || die "No se pudo respaldar ${EVO_DB_NAME} en ${dump}; no se tocó la base."
+    printf '%s\n' "$dump"
+}
+
 # abort_if_dev_server — aborta si el host actual parece ser el de desarrollo.
 # Compara hostname y APP_URL del .env de MegaISP contra los marcadores conocidos.
 abort_if_dev_server() {

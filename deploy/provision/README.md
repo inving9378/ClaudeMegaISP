@@ -19,8 +19,8 @@ modal). La API key no se imprime en esa salida (`PROVISION_HIDE_KEY=1`); queda e
 | Componente | Detalle |
 |---|---|
 | Runtime | **Node** (respeta el que haya si es >= 20; si falta instala **24.x**) + **PM2** (fork_mode) |
-| Evolution | **v2.3.7**, commit exacto **`fa09d378`** + `patches/evolution-mysql-megaisp.patch` (los parches MySQL que corre dev), en `/opt/evolution-api`, compilado a `dist/` con `tsup` |
-| Backing | **MySQL** (el del sistema — NO se instala), DB `evolution_api` + user `evolution_user`, esquema vía **Prisma** (`migrate deploy`, provider mysql) |
+| Evolution | **v2.3.7**, commit exacto **`fa09d378`** + `patches/*.patch` (los parches MySQL que corre dev y la columna `lid`), en `/opt/evolution-api`, compilado a `dist/` con `tsup` |
+| Backing | **MySQL** (el del sistema — NO se instala), DB `evolution_api` + user `evolution_user`, esquema vía **Prisma** (`migrate deploy`, provider mysql). Si la BD ya tenía tablas sin historial de Prisma: registra las migraciones que ya tiene (compara estructura), recrea vacía con respaldo si no es de ninguna y está vacía, y **aborta sin tocar** si tiene datos |
 | Cache | **Local en disco** (`CACHE_LOCAL_ENABLED=true`), **sin Redis** |
 | Proxy | `/evolution/` **dentro del vhost de MegaISP** → `http://127.0.0.1:8080/` con WebSocket. **nginx** (`location`) o **Apache** (`ProxyPass … upgrade=websocket`, o `RewriteRule [P]` a `ws://` en Apache < 2.4.47); se autodetecta |
 | Boot | `pm2 startup` (systemd) + `pm2 save`; el proceso queda bajo la unit `pm2-evolution` (no bajo el servidor web que lanzó el script) |
@@ -144,11 +144,13 @@ deploy/provision/
 │   ├── 40-pm2-boot.sh      # pm2 start + save + startup + pasar el proceso a systemd
 │   └── 90-unprovision.sh   # pasos de uninstall.sh (quitar todo lo anterior)
 ├── patches/
-│   └── evolution-mysql-megaisp.patch # git diff de dev sobre fa09d378 (SQL MySQL, lid, salida ante errores)
+│   ├── 01-evolution-mysql-megaisp.patch # git diff de dev sobre fa09d378 (SQL MySQL, lid en el esquema, salida ante errores)
+│   └── 02-evolution-lid-migracion.patch # migración idempotente que repone `lid` (la de Kafka de Evolution la borra)
 ├── templates/
 │   └── evolution.env.tpl   # plantilla del .env con {{PLACEHOLDERS}}
 └── tests/
     ├── test-30-apache.sh   # Apache simulado (sin root): bash deploy/provision/tests/test-30-apache.sh
+    ├── test-20-prisma.sh   # esquema en MySQL: mysqld privado + clon parchado (~5 min, sin root)
     └── test-90-unprovision.sh # quitar el proxy (Apache/nginx) y el .env, simulado
 ```
 
