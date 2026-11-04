@@ -87,7 +87,9 @@ class ClientInternetServiceDatatableHelper extends HelperDatatable
                     'id' => $id,
                     'module' => 'ClientInternetService',
                     'group' => 'client_service_internet',
-                    'submodule' => 'client'
+                    'submodule' => 'client',
+                    // #988: el botón «Datos de red» solo aparece si el cliente es dedicado.
+                    'dedicado' => $this->esDedicado((int) $value->client_id),
                 ];
 
                // if (!$value->client_bundle_service_id) {
@@ -112,5 +114,14 @@ class ClientInternetServiceDatatableHelper extends HelperDatatable
     public function includeButtonEditTypeModalIfIsRequested($request)
     {
         return isset($request['request']->modal);
+    }
+
+    /** ¿El cliente tiene prendido «Cliente dedicado»? Una consulta por cliente por tabla. */
+    private function esDedicado(int $clienteId): bool
+    {
+        static $cache = [];
+
+        return $cache[$clienteId] ??= (bool) \Illuminate\Support\Facades\DB::table('client_additional_information')
+            ->where('client_id', $clienteId)->whereNull('deleted_at')->value('is_dedicated');
     }
 }

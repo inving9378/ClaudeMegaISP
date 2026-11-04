@@ -7,6 +7,12 @@
     <a id="change_tarif_internet" class="mr-2" href="javascript:void(0);" id-item="{{ $id }}"
         data-toggle="tooltip" data-placement="top" title="Editar Tarifa"><i class="fas fa-exchange-alt"></i></a>
 
+    {{-- #988: datos de red del dedicado (ventana propia; no edita el servicio) --}}
+    @if (!empty($dedicado))
+        <a id="datos_red_dedicado" class="mr-2" href="javascript:void(0);" id-item="{{ $id }}"
+            data-toggle="tooltip" data-placement="top" title="Datos de red"><i class="fas fa-network-wired"></i></a>
+    @endif
+
     @if (
         \Illuminate\Support\Facades\Auth::user()->can($group . '_edit_' . $submodule) ||
             \Illuminate\Support\Facades\Auth::user()->isAdmin())

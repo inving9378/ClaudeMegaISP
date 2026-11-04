@@ -50,6 +50,12 @@ class Kernel extends ConsoleKernel
         $schedule->command('app:mikrotik-sync-command')->everyFiveMinutes()->withoutOverlapping();
         $schedule->command('mikrotik:sync-consumption')->everyTenMinutes()->withoutOverlapping();
         $schedule->command('mikrotik:sync-ping')->everyFiveMinutes()->withoutOverlapping();
+        // Item #988: tráfico por VLAN de los dedicados, cada minuto. Con METRICAS_ACTIVO apagado
+        // (default) ni se registra. En segundo plano para que un router lento no retrase el resto
+        // del minuto; el candado vence a los 5 min si una corrida muere a medias.
+        if (config('metricas.activo')) {
+            $schedule->command('metricas:colectar')->everyMinute()->withoutOverlapping(5)->runInBackground();
+        }
         // Item #676: cada 30 min, ventana mayor a los ~18 min de los 5 tries internos de
         // CreateClientWithServiceJob (ver ese job) — evita re-despachar mientras un intento
         // previo sigue en su propio ciclo de backoff.

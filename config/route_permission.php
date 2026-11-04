@@ -80,6 +80,13 @@ return [
         '/cliente/statistics/get-ping-status/{id}',
         '/cliente/statistics/get-ping-history/{id}',
         '/cliente/statistics/get-ping-daily/{id}',
+        // #988: «Datos de red» del dedicado. Ver con el permiso de la ficha; guardar además pide
+        // clientes.datos_red.editar (el middleware no distingue método: lo exige el controller).
+        '/cliente/servicio-internet/{servicioId}/datos-red',
+        // #988 Fase 4: Estadísticas de servicios dedicados (solo lectura).
+        '/cliente/statistics/dedicado/{id}',
+        '/cliente/statistics/dedicado/servicio/{servicioId}/estado',
+        '/cliente/statistics/dedicado/servicio/{servicioId}/historico',
         // FR-04 (#538): historial de cambios de estado y de contrato, misma lectura que la ficha
         '/cliente/historial-cambios/{id}',
         // FR-07 (#541): contrato del cliente (solo lectura)
@@ -276,6 +283,12 @@ return [
     ],
     'facturacion.fiscal.timbrar' => [
         '/cliente/billing/datos-fiscales/{clientId}/timbrar',
+    ],
+
+    // #988: editar los «Datos de red» de un servicio dedicado (router, interfaz, VLAN, bloque,
+    // IPs a monitorear). La misma ruta vive en client_view_client para poder verlos.
+    'clientes.datos_red.editar' => [
+        '/cliente/servicio-internet/{servicioId}/datos-red',
     ],
 
     // Vendedores

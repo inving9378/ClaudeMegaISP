@@ -29,6 +29,7 @@
         :render="render"
         @cleanModal="cleanModal"
     />
+    <DatosRedDedicado v-model="datosRed.abierto" :servicio-id="datosRed.servicioId" />
 </template>
 
 <script>
@@ -41,6 +42,7 @@ import Permission from "../../../../../helpers/Permission";
 import { allViewHasPermission } from "../../../../../helpers/Request";
 import { hasService } from "../../helpers/helper";
 import ChangeInternetService from "./ChangeInternetService.vue";
+import DatosRedDedicado from "./DatosRedDedicado.vue";
 import { showLoading, hideLoading } from "../../../../../helpers/loading";
 import Swal from "sweetalert2";
 
@@ -62,6 +64,7 @@ export default {
         Datatable,
         ClientCrudInternetService,
         ChangeInternetService,
+        DatosRedDedicado,
     },
     setup(props, { emit }) {
         const ns = `.leak983-internetService-${getCurrentInstance().uid}`;
@@ -82,6 +85,8 @@ export default {
         const allService = reactive({
             Internet: false,
         });
+        // #988: ventana «Datos de red» del servicio dedicado.
+        const datosRed = reactive({ abierto: false, servicioId: null });
 
         watch(
             () => props.showAddService,
@@ -123,6 +128,11 @@ export default {
                 $(e.target).parent().attr("id-item");
                 let idItem = $(e.target).parent().attr("id-item");
                 refreshIp(idItem);
+            });
+
+            $(document).on("click" + ns, `#datos_red_dedicado`, function (e) {
+                datosRed.servicioId = Number($(e.target).closest("[id-item]").attr("id-item"));
+                datosRed.abierto = true;
             });
 
             allService.Internet = await hasService(
@@ -217,6 +227,7 @@ export default {
             hasPermission,
             loadDatatable,
             allService,
+            datosRed,
         };
     },
 };

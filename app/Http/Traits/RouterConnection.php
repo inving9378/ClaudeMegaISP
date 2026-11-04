@@ -209,12 +209,12 @@ trait RouterConnection
         $device_password,
         $device_port
     ) {
-        if (config('app.env') !== "production") {
-            $device_ip = $_ENV['MIKROTIK_DEV_IP'] ?? '89.0.142.86';
-            $device_login = $_ENV['MIKROTIK_DEV_LOGIN'] ?? 'admin';
-            $device_password = $_ENV['MIKROTIK_DEV_PASSWORD'] ?? 'admin';
-            $device_port = $_ENV['MIKROTIK_DEV_PORT'] ?? "8735";
-        }
+        [
+            'ip' => $device_ip,
+            'login' => $device_login,
+            'password' => $device_password,
+            'port' => $device_port,
+        ] = $this->destinoConexion($device_ip, $device_login, $device_password, $device_port);
         try {
             $client = new Client(
                 $device_ip,
@@ -230,6 +230,31 @@ trait RouterConnection
             return null;
         }
         return $client;
+    }
+
+    /**
+     * Host y credenciales con los que de verdad se abre la conexión. Fuera de production se
+     * sustituyen por MIKROTIK_DEV_*, con respaldo fijo a un router de prueba que ya no existe
+     * (#997). Público para que quien abre su propia conexión (el monitoreo de dedicados, #988,
+     * que necesita un timeout corto) use exactamente el mismo destino y pueda decir cuál fue.
+     *
+     * @return array{ip: mixed, login: mixed, password: mixed, port: mixed}
+     */
+    public function destinoConexion($device_ip, $device_login, $device_password, $device_port): array
+    {
+        if (config('app.env') !== "production") {
+            $device_ip = $_ENV['MIKROTIK_DEV_IP'] ?? '89.0.142.86';
+            $device_login = $_ENV['MIKROTIK_DEV_LOGIN'] ?? 'admin';
+            $device_password = $_ENV['MIKROTIK_DEV_PASSWORD'] ?? 'admin';
+            $device_port = $_ENV['MIKROTIK_DEV_PORT'] ?? "8735";
+        }
+
+        return [
+            'ip' => $device_ip,
+            'login' => $device_login,
+            'password' => $device_password,
+            'port' => $device_port,
+        ];
     }
 
     /**

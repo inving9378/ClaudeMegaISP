@@ -1,0 +1,41 @@
+{
+    "_nota": "Respuestas de RouterOS 7.19 escritas a mano para las pruebas del item #988. Los nombres de interfaz son EJEMPLOS con espacios; las IPs son de documentación (RFC 5737).",
+    "/system/identity/print": [
+        {"name": "ROUTER DE PRUEBA"}
+    ],
+    "/interface/print": [
+        {"name": "VLAN 101 CLIENTE A", "rx-byte": "912345678901", "tx-byte": "1834567890123", "rx-packet": "812345678", "tx-packet": "1534567890", "running": "true", "disabled": "false"},
+        {"name": "VLAN 100 CLIENTE B", "rx-byte": "45678901234", "tx-byte": "98765432109", "rx-packet": "45678901", "tx-packet": "87654321", "running": "true", "disabled": "false"},
+        {"name": "VLAN 102 RESERVA", "rx-byte": "0", "tx-byte": "0", "rx-packet": "0", "tx-packet": "0", "running": "false", "disabled": "true"},
+        {"name": "<pppoe-cliente-residencial>", "rx-byte": "1", "tx-byte": "1", "rx-packet": "1", "tx-packet": "1", "running": "true", "disabled": "false"}
+    ],
+    "/interface/vlan/print": [
+        {"name": "VLAN 101 CLIENTE A", "vlan-id": "101", "interface": "sfp-sfpplus1"},
+        {"name": "VLAN 100 CLIENTE B", "vlan-id": "100", "interface": "sfp-sfpplus1"},
+        {"name": "VLAN 102 RESERVA", "vlan-id": "102", "interface": "sfp-sfpplus1"},
+        {"name": "VLAN 102 OTRO PUERTO", "vlan-id": "102", "interface": "ether5"}
+    ],
+    "/interface/monitor-traffic": [
+        {"name": "VLAN 101 CLIENTE A", "rx-bits-per-second": "48213000", "tx-bits-per-second": "231004000", "rx-packets-per-second": "9100", "tx-packets-per-second": "21800"},
+        {"name": "VLAN 100 CLIENTE B", "rx-bits-per-second": "12000000", "tx-bits-per-second": "80500000", "rx-packets-per-second": "3200", "tx-packets-per-second": "8100"},
+        {"name": "VLAN 102 RESERVA", "rx-bits-per-second": "0", "tx-bits-per-second": "0", "rx-packets-per-second": "0", "tx-packets-per-second": "0"},
+        {"name": "VLAN 102 OTRO PUERTO", "rx-bits-per-second": "0", "tx-bits-per-second": "0", "rx-packets-per-second": "0", "tx-packets-per-second": "0"}
+    ],
+    "/ping": {
+        "203.0.113.123": [
+            {"seq": "0", "time": "356us", "sent": "1", "received": "1"},
+            {"seq": "1", "time": "412us", "sent": "2", "received": "2"},
+            {"seq": "2", "time": "1ms234us", "sent": "3", "received": "3"}
+        ],
+        "203.0.113.124": [
+            {"seq": "0", "status": "timeout", "sent": "1", "received": "0"},
+            {"seq": "1", "status": "timeout", "sent": "2", "received": "0"},
+            {"seq": "2", "status": "timeout", "sent": "3", "received": "0"}
+        ],
+        "203.0.113.133": [
+            {"seq": "0", "time": "298us", "sent": "1", "received": "1"},
+            {"seq": "1", "status": "timeout", "sent": "2", "received": "1"},
+            {"seq": "2", "time": "302us", "sent": "3", "received": "2"}
+        ]
+    }
+}

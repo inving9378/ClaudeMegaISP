@@ -18,7 +18,9 @@ use App\Modules\Core\Clientes\Controllers\ClientPlanPromotionController;
 use App\Modules\Core\Clientes\Controllers\ClientTransactionController;
 use App\Modules\Core\Clientes\Controllers\ClientVozServiceController;
 use App\Modules\Core\Clientes\Controllers\DashboardController;
+use App\Modules\Core\Clientes\Controllers\DedicadoMonitoreoController;
 use App\Modules\Core\Clientes\Controllers\DocumentClientController;
+use App\Modules\Core\Clientes\Controllers\ServicioDatosRedController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -227,7 +229,16 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/get-ping-status/{id}',  [ClientPingController::class, 'getPingStatus']);
             Route::get('/get-ping-history/{id}', [ClientPingController::class, 'getPingHistory']);
             Route::get('/get-ping-daily/{id}',   [ClientPingController::class, 'getPingDailySummary']);
+            // Item #988: dedicados con «Datos de red» (tablas nuevas, no ping_statistics).
+            Route::get('/dedicado/{id}', [DedicadoMonitoreoController::class, 'resumen'])->whereNumber('id');
+            Route::get('/dedicado/servicio/{servicioId}/estado', [DedicadoMonitoreoController::class, 'estado'])->whereNumber('servicioId');
+            Route::get('/dedicado/servicio/{servicioId}/historico', [DedicadoMonitoreoController::class, 'historico'])->whereNumber('servicioId');
         });
+
+        // Item #988: «Datos de red» de un servicio de internet dedicado (tablas propias: guardar
+        // aquí nunca guarda el servicio, que dispara trabajos al router).
+        Route::get('/servicio-internet/{servicioId}/datos-red', [ServicioDatosRedController::class, 'show'])->whereNumber('servicioId');
+        Route::post('/servicio-internet/{servicioId}/datos-red', [ServicioDatosRedController::class, 'guardar'])->whereNumber('servicioId');
 
         // Plan promotions
         Route::post('/{id}/plan-promotions', [ClientPlanPromotionController::class, 'index']);
