@@ -13,7 +13,11 @@
       <button class="tc-btn" style="margin-left:8px" @click="load">Reintentar</button>
     </div>
 
-    <!-- Estado EN VIVO del circuito (#335) + kill switch -->
+    <!-- Estado EN VIVO del circuito (#335) + kill switch.
+         #1030 (Panorama simplificado) — es la LÍNEA DE ESTADO: una frase que dice si el circuito
+         trabaja o por qué está ocioso. N sale de `sesiones`, la misma fuente que «Trabajando ahora»;
+         el motivo de ocioso sale de «Por qué no avanza» (ver `motivoOcioso`). El «N en cola» que
+         vivía aquí se movió a «Detalle técnico»: ese número no es el del despachador (#1030). -->
     <div class="tc-statusbar">
       <div class="tc-left">
         <span class="tc-pill" :class="estadoClass">
@@ -21,24 +25,23 @@
           <span v-else class="tc-statdot" :class="estadoClass"></span>
           {{ estadoLabel }}
         </span>
-        <div>
-          <!-- #507 sub-paso 4 — se retira "Vuelta en curso": ya no hay rondas. Lo que importa ahora
-               es QUÉ TERMINAL está trabajando y cuánto queda en cola (modo continuo). -->
+        <div class="tc-estado-txt">
           <h1 class="tc-h1">
-            <template v-if="running">{{ terminalesActivas }} {{ terminalesActivas === 1 ? 'terminal trabajando' : 'terminales trabajando' }}<span v-if="live.current_item" class="tc-hnorm"> · tocando <span class="tc-idnum">#{{ live.current_item }}</span></span></template>
-            <template v-else>Circuito CC · Torre de control</template>
+            <template v-if="terminalesActivas > 0">Circuito: {{ terminalesActivas }} {{ terminalesActivas === 1 ? 'terminal trabajando' : 'terminales trabajando' }}<span v-if="live.current_item" class="tc-hnorm"> · tocando <span class="tc-idnum">#{{ live.current_item }}</span></span></template>
+            <template v-else>Circuito: {{ pausado ? 'en pausa' : 'ocioso' }} <span class="tc-hnorm">— {{ motivoOcioso.texto }}</span></template>
             <!-- El (v2) salió de aquí el 2026-08-19: la versión ya está en el título de la Torre
                  («Torre de control V2») y repetirla en la misma pantalla no informa de nada. -->
           </h1>
           <div class="tc-meta">
+            <a href="?tab=terminales" class="tc-vercircuito" @click.prevent="$emit('ir-a', 'terminales')">Ver circuito →</a>
             <template v-if="running">
-              Modo continuo · {{ terminalesLibres }} {{ terminalesLibres === 1 ? 'terminal libre' : 'terminales libres' }} · <b class="tc-strong">{{ kpi(autoEjecutables, 'auto_ejecutables') }}</b> en cola<span class="tc-beat"> · ♥ vivo hace {{ sinceBeat }}s</span>
+              · {{ terminalesLibres }} {{ terminalesLibres === 1 ? 'terminal libre' : 'terminales libres' }}<span class="tc-beat"> · ♥ vivo hace {{ sinceBeat }}s</span>
             </template>
             <template v-else-if="pausado">
-              Circuito detenido · no ejecuta hasta reanudar · {{ kpi(total, 'resumen') }} items
+              · no ejecuta hasta reanudar · {{ kpi(total, 'resumen') }} items
             </template>
             <template v-else>
-              Modo continuo · las terminales libres jalan trabajo solas · <b class="tc-strong">{{ kpi(autoEjecutables, 'auto_ejecutables') }}</b> en cola · {{ kpi(total, 'resumen') }} items<span v-if="ultimaHace"> · último cierre <b class="tc-strong">{{ ultimaHace }}</b></span>
+              · las terminales libres jalan trabajo solas · {{ kpi(total, 'resumen') }} items<span v-if="ultimaHace"> · último cierre <b class="tc-strong">{{ ultimaHace }}</b></span>
             </template>
           </div>
         </div>
@@ -49,6 +52,8 @@
         <button v-if="canDisparar" class="tc-runbtn" :disabled="disparando || pausado"
           :title="pausado ? 'Reanuda el circuito para ejecutar' : 'Adelanta el reparto: las terminales libres jalan trabajo ya'"
           @click="disparar">{{ disparando ? '⏳ Jalando…' : '▶ Jalar trabajo ahora' }}</button>
+        <!-- #1030 — acceso visible a Adjuntos: abre «Detalle técnico», despliega el panel y baja hasta él. -->
+        <button v-if="hasPermission.data.canView('roadmap.adjuntos.view')" type="button" class="tc-logbtn" @click="abrirAdjuntar">📎 Adjuntar</button>
         <button class="tc-logbtn" :class="{ 'tc-logbtn-on': logOpen }" @click="toggleLog">{{ logOpen ? '✕ Ocultar log' : '👁 Ver log en vivo' }}</button>
         <button class="tc-killbtn" :class="{ 'tc-resume': pausado }" :disabled="toggling" @click="toggle">
           {{ toggling ? '…' : (pausado ? '▶ Reanudar circuito' : '⏸ Pausar circuito') }}
@@ -84,51 +89,6 @@
     <div v-else-if="cronCaido" class="tc-alert tc-alert-soft">
       ⚠ <b>Posible cron detenido</b> — el scheduler on-box no late hace {{ schedulerBeatSecs != null ? Math.round(schedulerBeatSecs/60) + ' min' : 'un rato' }}. Verifica el cron del ejecutor (meganet).
     </div>
-    <div v-else-if="!pausado && !running && autoEjecutables > 0" class="tc-alert tc-alert-soft">
-      ⏸ <b>Ocioso</b> — {{ kpi(autoEjecutables, 'auto_ejecutables') }} auto-ejecutable(s) en cola; el pool los tomará en segundos (o esperan que el revisor apruebe los B).
-    </div>
-
-    <!-- #507 sub-paso 4 — AUTOPILOT: qué decide solo, qué te consulta y qué lleva hecho hoy.
-         El kill switch NO se duplica aquí a propósito: vive en la barra de arriba, siempre visible. -->
-    <div class="tc-ap" :class="{ 'tc-ap-off': !autopilot.enabled, 'tc-ap-pausa': pausado }">
-      <div class="tc-ap-l">
-        <span class="tc-ap-dot" :class="autopilot.enabled && !pausado ? 'tc-ap-on' : 'tc-ap-dim'"></span>
-        <b class="tc-ap-t">Autopilot {{ !autopilot.enabled ? 'apagado' : (pausado ? 'en pausa' : 'activo') }}</b>
-        <span class="tc-ap-pol">
-          decide solo hasta <b>nivel {{ autopilot.max_nivel }}</b> con confianza <b>{{ autopilot.umbral_confianza }}</b><template v-if="autopilot.requiere_reversible"> y marcado reversible</template>. Lo demás te lo pregunta.
-        </span>
-      </div>
-      <div class="tc-ap-r">
-        <span class="tc-ap-kpi"><b>{{ autopilot.auto_hoy }}</b> auto-ejecutados hoy</span>
-        <span class="tc-ap-kpi"><b>{{ kpi(autoEjecutables, 'auto_ejecutables') }}</b> en cola</span>
-        <span class="tc-ap-kpi tc-ap-kpi-dec"><b>{{ cola.length }}</b> te esperan</span>
-        <!-- #791 — decisiones MUDAS de los últimos 7 días (foto de `circuito:digest`), con la
-             referencia del "antes" para leer la tendencia sin repetir el barrido a mano. -->
-        <span v-if="digest" class="tc-ap-kpi tc-ap-kpi-digest" :class="{ 'tc-ap-kpi-ok': digest.mudas === 0 }" :title="digestTitle">
-          <b>{{ digest.mudas }}</b> mudas 7d <span class="tc-ap-kpi-sub">(antes {{ digest.mudas_baseline_vivos }})</span>
-        </span>
-        <span v-else class="tc-ap-kpi tc-ap-kpi-sub" title="El digest diario aún no corrió">— mudas 7d</span>
-        <!-- 2A.4 — FRENOS QUE PUSO IRVING. No caducan solos (son decisiones suyas, no consejos del
-             clasificador): esto es el recordatorio. El tooltip trae los que acumulan más
-             aprobaciones mudas, que es donde decidió una cosa y quiere otra. -->
-        <span v-if="digest && digest.frenos_humanos" class="tc-ap-kpi tc-ap-kpi-freno" :title="frenosTitle">
-          <b>{{ digest.frenos_humanos }}</b> frenos tuyos
-        </span>
-        <!-- #807 — la unica senal que NO se puede confundir con prudencia. Solo aparece cuando hay
-             algo que decir: con la IA sana no ocupa espacio; con la IA caida es lo primero que se ve.
-             Un proceso programado que dejo de latir se pinta igual (#808). -->
-        <span v-if="digest && digest.sin_modelo" class="tc-ap-kpi tc-ap-kpi-roto" :title="sinModeloTitle">
-          <b>{{ digest.sin_modelo }}</b> escalaron SIN MODELO
-        </span>
-        <span v-if="digest && digest.procesos_mudos && digest.procesos_mudos.length"
-              class="tc-ap-kpi tc-ap-kpi-roto" :title="procesosMudosTitle">
-          <b>{{ digest.procesos_mudos.length }}</b> proceso(s) sin latir
-        </span>
-      </div>
-    </div>
-
-    <!-- Visor "Trabajando ahora" (#349): stepper de fases por sesión + resumen de la vuelta -->
-    <torre-trabajando-ahora :sesiones="sesiones" :resumen="resumenUltima" :now-ms="nowMs" :pausado="pausado" :dark="darkMode" />
 
     <!-- Log en vivo (#335): tail espejeado por BD -->
     <div v-if="logOpen" class="tc-livelog">
@@ -179,40 +139,26 @@
       </aside>
 
       <div class="tc-main">
-      <!-- KPIs por estado -->
-      <div class="tc-kpis">
-        <div class="tc-kpi"><div class="tc-n">{{ kpi(total, 'resumen') }}</div><div class="tc-l">Items totales</div><div class="tc-bar" style="background:var(--tc-accent)"></div></div>
-        <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-slate)">{{ kpi(est('pendiente_revision'), 'resumen') }}</div><div class="tc-l">Pendiente revisión</div><div class="tc-bar" style="background:var(--tc-slate)"></div></div>
-        <!-- #9990617: antes usaba est('requiere_irving') (conteo crudo GROUP BY estado, incluía
-             items status=done ya cerrados) y no cuadraba con la lista de abajo. Ahora usa
-             resumenCola.espera_decision, que viene del MISMO scope bandeja() que arma `cola`
-             (RoadmapController::torre(), misma respuesta) — nunca puede desincronizarse de la lista. -->
-        <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-warn)">{{ kpi(resumenCola.espera_decision ?? cola.length, 'resumen_cola') }}</div><div class="tc-l">Requiere Irving</div><div class="tc-bar" style="background:var(--tc-warn)"></div></div>
-        <!-- #9990912 — KPI hermano del anterior: cuánto de la bandeja espera un INSUMO material
-             (credencial/hardware/sesión/autorización/frontera), no una decisión. Mismo bloque
-             'resumen_cola' (ya viene en la respuesta de torre() desde #9990906), tinte ámbar
-             propio (tc-kpi-insumo) para no confundirse con "Requiere Irving". -->
-        <div class="tc-kpi"><div class="tc-n tc-kpi-insumo">{{ kpi(resumenCola.espera_insumo, 'resumen_cola') }}</div><div class="tc-l">Esperan un insumo</div><div class="tc-bar tc-kpi-insumo-bar"></div></div>
-        <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-info)">{{ kpi(est('en_progreso'), 'resumen') }}</div><div class="tc-l">En progreso</div><div class="tc-bar" style="background:var(--tc-info)"></div></div>
-        <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-ok)">{{ kpi(est('completado'), 'resumen') }}</div><div class="tc-l">Completado</div><div class="tc-bar" style="background:var(--tc-ok)"></div></div>
-        <!-- #9990622: estados que antes no tenían tarjeta (182 items invisibles) -->
-        <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-accent)">{{ kpi(est('aprobado_irving'), 'resumen') }}</div><div class="tc-l">Aprobado por Irving</div><div class="tc-bar" style="background:var(--tc-accent)"></div></div>
-        <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-accent)">{{ kpi(est('aprobado_revisor'), 'resumen') }}</div><div class="tc-l">Aprobado por revisor</div><div class="tc-bar" style="background:var(--tc-accent)"></div></div>
-        <div class="tc-kpi"><div class="tc-n" style="color:var(--tc-muted)">{{ kpi(est('cancelado') + est('rechazado'), 'resumen') }}</div><div class="tc-l">Cancelados/Rechazados</div><div class="tc-bar" style="background:var(--tc-muted)"></div></div>
-      </div>
-      <div class="tc-meta" style="margin-top:6px">Las tarjetas de estado (todas menos "Items totales") suman el Total. "Requiere Irving" muestra solo lo accionable.</div>
+      <div class="tc-stack">
+        <!-- #1052 — «Esperan tu merge»: terminados que esperan tu merge, ordenados por cuántos frenados libera.
+             Solo lectura. En vivo con cada recarga de la Torre (antes, foto diaria del digest). -->
+        <div v-if="mergesTotal" class="tc-card tc-merge-card">
+          <h2 class="tc-h2">🔀 Esperan tu merge ({{ mergesTotal }})</h2>
+          <div class="tc-meta">Liberarían {{ mergesLiberan }} {{ mergesLiberan === 1 ? 'item frenado' : 'items frenados' }} por dependencias. Ordenados por cuántos libera cada uno.</div>
+          <div v-if="mergesTotal > mergesPendientes.length" class="tc-meta tc-trunc">Mostrando los primeros {{ mergesPendientes.length }}; hay {{ mergesTotal }} en total.</div>
+          <ul class="tc-merge-lista">
+            <li v-for="m in mergesPendientes" :key="m.id">
+              <span class="tc-idnum">#{{ m.id }}</span> {{ m.title }}
+              <b class="tc-merge-n" :title="'Libera ' + m.desbloquea + ' item(s) frenado(s) por dependencias'">libera {{ m.desbloquea }}</b>
+            </li>
+          </ul>
+        </div>
 
-      <!-- #9991164 — Adjuntos (maquetas, capturas, PDFs, evidencia) amarrables a items. Panel
-           colapsado por defecto para no quitarle espacio al Panorama; vive aquí, no en una pestaña
-           aparte, porque es donde Irving decide y de donde la terminal lee (Fase 3 inyecta las
-           rutas absolutas en el prompt al despachar). Origen: #9990934 construyó a ciegas por una
-           maqueta que nunca existió en el repo. -->
-      <torre-adjuntos v-if="hasPermission.data.canView('roadmap.adjuntos.view')" />
-
-      <div class="tc-grid">
         <!-- Bandeja: requiere_irving -->
         <div class="tc-card">
-          <h2 class="tc-h2">⚑ Tu bandeja — requiere tu decisión (<template v-if="bandejaTruncada">{{ cola.length }} de {{ contadores.total }}</template><template v-else>{{ cola.length }}</template>)</h2>
+          <!-- #1030 — una sola lista: decisiones, respuestas e insumos, cada fila con su etiqueta. -->
+          <h2 class="tc-h2">⚑ Tu bandeja (<template v-if="bandejaTruncada">{{ cola.length }} de {{ contadores.total }}</template><template v-else>{{ cola.length }}</template> + {{ insumosPlanos.length }})</h2>
+          <div class="tc-meta tc-bandeja-cuenta">{{ cola.length }} {{ cola.length === 1 ? 'decisión' : 'decisiones' }} · {{ insumosPlanos.length }} {{ insumosPlanos.length === 1 ? 'insumo' : 'insumos' }}</div>
           <!-- Si el servidor recortó la lista, se dice; jamás se enseña un número que no cuadre
                con las bombitas del sidebar. -->
           <div v-if="bandejaTruncada" class="tc-meta tc-trunc">Mostrando los primeros {{ cola.length }}; hay {{ contadores.total }} en total.</div>
@@ -223,8 +169,8 @@
             Filtrando por <b>{{ moduloFiltroLabel }}</b> ({{ colaFiltrada.length }} de {{ cola.length }})
             <button type="button" class="tc-filtro-x" @click="filtrarModulo(null)">✕</button>
           </div>
-          <div v-if="!cola.length" class="tc-meta">Nada requiere tu decisión ahora. ✓</div>
-          <div v-else-if="!colaFiltrada.length" class="tc-meta">Ningún item de ese módulo en tu bandeja.</div>
+          <div v-if="!cola.length && !insumosPlanos.length" class="tc-meta">Nada requiere tu decisión ni un insumo tuyo ahora. ✓</div>
+          <div v-else-if="!colaFiltrada.length && !insumosFiltrados.length" class="tc-meta">Ningún item de ese módulo en tu bandeja.</div>
           <div v-for="it in colaFiltrada" :key="it.id" :id="'tc-item-' + it.id" class="tc-inbox-item tc-inbox-compact" :class="{ 'tc-highlight': highlightId === it.id, 'tc-inbox-rev': itemEnRevision && itemEnRevision.id === it.id }">
             <span class="tc-tag" :class="lvClass(it.nivel_riesgo)">{{ it.nivel_riesgo || '—' }}</span>
             <div class="tc-inbox-body">
@@ -233,6 +179,7 @@
                    ver RoadmapItem::scopeBandeja) — encabezado corto + título, sin párrafos largos -->
               <div class="tc-t-compact">
                 <span class="tc-idnum">#{{ it.id }}</span>
+                <span class="tc-tipo" :class="'tc-tipo-' + tipoBandeja(it).clave">{{ tipoBandeja(it).label }}</span>
                 <span class="tc-badge tc-badge-dec">{{ estadoLabelItem(it) }}</span>
                 <span class="tc-prio" :class="'tc-prio-' + (it.priority || 'none')">{{ prioLabel(it.priority) }}</span>
                 <span v-if="it.modulo" class="tc-modulo-chip">{{ it.modulo }}</span>
@@ -320,6 +267,16 @@
                       <span v-if="op.recomendada" class="tc-opt-badge">RECOMENDADA</span>{{ op.texto }}<span
                         v-if="op.confianza" class="tc-opt-meta">confianza {{ op.confianza }}<template v-if="op.reversible === true"> · reversible</template><template v-else-if="op.reversible === false"> · no reversible</template></span></button>
                   </div>
+                  <!-- #1069 — «otra respuesta»: si ninguna opción sirve, texto libre; cuenta como respondida. -->
+                  <div v-if="pregActual(it).opciones && pregActual(it).opciones.length" class="tc-otra"
+                       :class="{ 'tc-otra-sel': selPreg(it.id, pregActual(it).id) === 'otra' }">
+                    <input v-model="libre[it.id + ':' + pregActual(it).id]" class="tc-seg-in" type="text"
+                           :placeholder="pregActual(it).respuesta_libre ? pregActual(it).respuesta_libre : 'Otra respuesta…'"
+                           @keyup.enter="elegirLibre(it, pregActual(it))" />
+                    <button type="button" class="tc-btn tc-btn-mut"
+                            :disabled="!(libre[it.id + ':' + pregActual(it).id] || '').trim()"
+                            @click="elegirLibre(it, pregActual(it))">Responder con esto</button>
+                  </div>
                 </div>
               </div>
               <!-- #437 — semáforo "brief pendiente": el gate async encoló proponer-opciones en
@@ -376,33 +333,24 @@
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- #9990906 (CIRC-03 Fase C) — "Esperan un insumo tuyo": la otra mitad de la bandeja,
-             bloqueada por algo MATERIAL (credencial/hardware/sesión presencial/autorización/
-             frontera de producción, clasificado en Fase B vía motivo_espera) — no por una
-             decisión de diseño que elegir. Separada de "Tu bandeja" para no mezclar "elegir"
-             con "traer"; acordeón por tipo, colapsado por default. -->
-        <div class="tc-card" v-if="colaEsperaInsumo.length">
-          <h2 class="tc-h2">📦 Esperan un insumo tuyo ({{ resumenCola.espera_insumo ?? 0 }})</h2>
-          <div class="tc-meta" style="margin:-6px 0 10px">
-            No son decisiones: son items detenidos hasta que les traigas algo (credencial, hardware, tu tiempo o una autorización).
-          </div>
-          <div v-for="grupo in colaEsperaInsumo" :key="grupo.tipo" class="tc-insumo-grupo">
-            <button type="button" class="tc-insumo-grupo-head" @click="toggleInsumoGrupo(grupo.tipo)">
-              <span>{{ grupo.label }} ({{ grupo.count }})</span>
-              <span>{{ insumoOpen[grupo.tipo] ? '▲' : '▼' }}</span>
-            </button>
-            <div v-if="insumoOpen[grupo.tipo]" class="tc-insumo-grupo-body">
-              <div v-for="it in grupo.items" :key="it.id" class="tc-ev">
-                <div>
-                  <span class="tc-idnum">#{{ it.id }}</span> <b>{{ it.title }}</b>
-                  <span v-if="it.modulo" class="tc-modulo-chip" style="margin-left:6px">{{ it.modulo }}</span>
-                </div>
-                <div class="tc-meta" style="margin-top:3px">{{ it.que_falta }}</div>
-                <div class="tc-actions" style="margin-top:6px">
-                  <button class="tc-btn tc-btn-ver" @click="verMas(it)">🔎 Ver</button>
-                </div>
+          <!-- #9990906 (CIRC-03 Fase C) — insumos: items detenidos hasta que les traigas algo MATERIAL
+               (credencial, hardware, sesión presencial, autorización, frontera de producción; clasificado
+               vía motivo_espera), no una decisión que elegir. #1030 — antes era una tarjeta aparte con
+               acordeón por tipo; ahora van en esta misma lista, después de las decisiones, y el tipo
+               queda en la etiqueta «Insumo · …». -->
+          <div v-for="it in insumosFiltrados" :key="'ins-' + it.id" class="tc-inbox-item tc-inbox-compact tc-inbox-insumo">
+            <span class="tc-tag" :class="lvClass(it.nivel_riesgo)">{{ it.nivel_riesgo || '—' }}</span>
+            <div class="tc-inbox-body">
+              <div class="tc-t-compact">
+                <span class="tc-idnum">#{{ it.id }}</span>
+                <span class="tc-tipo tc-tipo-insumo">Insumo · {{ it.grupo_label }}</span>
+                <span v-if="it.modulo" class="tc-modulo-chip">{{ it.modulo }}</span>
+              </div>
+              <div class="tc-titulo-c">{{ it.title }}</div>
+              <div v-if="it.que_falta" class="tc-meta" style="margin-top:3px">{{ it.que_falta }}</div>
+              <div class="tc-actions" style="margin-top:6px">
+                <button class="tc-btn tc-btn-ver" @click="verMas(it)">🔎 Ver</button>
               </div>
             </div>
           </div>
@@ -440,11 +388,30 @@
           </div>
         </div>
 
+        <!-- #1136 — Aprobados para la siguiente versión (marcado_version): escondidos hasta abrirlos. -->
+        <div class="tc-card" v-if="aprobadosVersion.length">
+          <button type="button" class="tc-colapsa" :aria-expanded="aprobadosAbierto ? 'true' : 'false'" @click="aprobadosAbierto = !aprobadosAbierto">
+            <span class="tc-colapsa-caret" aria-hidden="true">{{ aprobadosAbierto ? '▾' : '▸' }}</span>
+            <span class="tc-h2 tc-colapsa-t">📦 Aprobados para la siguiente versión ({{ aprobadosVersion.length }})</span>
+          </button>
+          <div v-show="aprobadosAbierto">
+            <div v-for="a in aprobadosVersion" :key="a.id" class="tc-ev">
+              <span class="tc-idnum">#{{ a.id }}</span> <b>{{ a.title }}</b>
+              <span v-if="a.modulo" class="tc-modulo-chip">{{ a.modulo }}</span>
+            </div>
+          </div>
+        </div>
+
         <!-- #878 — DECIDIDO SIN TI. La contraparte de la auto-decisión: no una espera previa,
              sino la reversibilidad posterior. Lista corta, legible en diez segundos. -->
+        <!-- #1030 — colapsado por defecto, con el contador visible en el título. -->
         <div class="tc-card">
-          <h2 class="tc-h2">🤖 Decidido sin ti ({{ decisionesAuto.length }})</h2>
-          <div class="tc-meta" style="margin:-6px 0 10px">
+          <button type="button" class="tc-colapsa" :aria-expanded="decididoAbierto ? 'true' : 'false'" @click="decididoAbierto = !decididoAbierto">
+            <span class="tc-colapsa-caret" aria-hidden="true">{{ decididoAbierto ? '▾' : '▸' }}</span>
+            <span class="tc-h2 tc-colapsa-t">🤖 Decidido sin ti ({{ decisionesAuto.length }})</span>
+          </button>
+          <div v-show="decididoAbierto">
+          <div class="tc-meta" style="margin:4px 0 10px">
             Lo que la máquina resolvió sola. Si alguna estuvo mal, deshazla aquí.
           </div>
           <div v-if="!decisionesAuto.length" class="tc-meta">Nada se decidió solo todavía. ✓</div>
@@ -470,13 +437,25 @@
             </div>
             <div v-if="deshacerMsg[d.item_id]" class="tc-meta" style="margin-top:4px">{{ deshacerMsg[d.item_id] }}</div>
           </div>
+          </div>
         </div>
 
+      </div>
+
+      <!-- #1030 — DETALLE TÉCNICO. Todo lo que no es «lo que te toca» vive aquí, cerrado por defecto.
+           Cada bloque conserva su título y su contenido; solo cambió de lugar. -->
+      <div id="tc-detalle" class="tc-card tc-detalle">
+        <button type="button" class="tc-colapsa" :aria-expanded="detalleAbierto ? 'true' : 'false'" @click="toggleDetalle">
+          <span class="tc-colapsa-caret" aria-hidden="true">{{ detalleAbierto ? '▾' : '▸' }}</span>
+          <span class="tc-h2 tc-colapsa-t">🔧 Detalle técnico</span>
+          <span class="tc-meta tc-detalle-hint">por qué no avanza · trabajando ahora · autopilot · conteos · actividad · ejecuciones · cola · riesgo · acoplamiento · válvula · adjuntos</span>
+        </button>
+        <div v-show="detalleAbierto" class="tc-detalle-body">
         <!-- #880 — Épica #874 Fase 2: POR QUÉ NO AVANZA. Convierte "no se mueve y no sé por qué"
              en una frase (columnas reales: bloqueado_por_bucle, consulta_supervisor, colision_pausada_por,
              esperando_merge_irving, reap_count). Solo LECTURA por ahora: ninguna de estas señales
              tiene todavía una acción reversible propia expuesta por API — cuando exista, aquí va su botón. -->
-        <div class="tc-card">
+        <div id="tc-noavanza" class="tc-card">
           <h2 class="tc-h2">🚧 Por qué no avanza ({{ noAvanza.length }})</h2>
           <div class="tc-meta" style="margin:-6px 0 10px">
             Items con una señal real de estancamiento, no solo "lleva rato ahí".
@@ -495,6 +474,84 @@
             </div>
           </div>
         </div>
+
+    <!-- Visor "Trabajando ahora" (#349): stepper de fases por sesión + resumen de la vuelta -->
+    <torre-trabajando-ahora :sesiones="sesiones" :resumen="resumenUltima" :now-ms="nowMs" :pausado="pausado" :dark="darkMode" />
+
+    <!-- #507 sub-paso 4 — AUTOPILOT: qué decide solo, qué te consulta y qué lleva hecho hoy.
+         El kill switch NO se duplica aquí a propósito: vive en la barra de arriba, siempre visible. -->
+    <div class="tc-ap" :class="{ 'tc-ap-off': !autopilot.enabled, 'tc-ap-pausa': pausado }">
+      <div class="tc-ap-l">
+        <span class="tc-ap-dot" :class="autopilot.enabled && !pausado ? 'tc-ap-on' : 'tc-ap-dim'"></span>
+        <b class="tc-ap-t">Autopilot {{ !autopilot.enabled ? 'apagado' : (pausado ? 'en pausa' : 'activo') }}</b>
+        <span class="tc-ap-pol">
+          decide solo hasta <b>nivel {{ autopilot.max_nivel }}</b> con confianza <b>{{ autopilot.umbral_confianza }}</b><template v-if="autopilot.requiere_reversible"> y marcado reversible</template>. Lo demás te lo pregunta.
+        </span>
+      </div>
+      <div class="tc-ap-r">
+        <span class="tc-ap-kpi"><b>{{ autopilot.auto_hoy }}</b> auto-ejecutados hoy</span>
+        <span class="tc-ap-kpi" title="Items que el circuito puede ejecutar solo, sin pedirte nada. Si el número es alto y no baja, revisa que haya terminales libres trabajando."><b>{{ kpi(autoEjecutables, 'auto_ejecutables') }}</b> en cola</span>
+        <span class="tc-ap-kpi tc-ap-kpi-dec" title="Items que esperan una decisión tuya. Si crece, ábrelos en «Lo que te toca»: mientras no los resuelvas, no avanzan."><b>{{ cola.length }}</b> te esperan</span>
+        <!-- #791 — decisiones MUDAS de los últimos 7 días (foto de `circuito:digest`), con la
+             referencia del "antes" para leer la tendencia sin repetir el barrido a mano. -->
+        <span v-if="digest" class="tc-ap-kpi tc-ap-kpi-digest" :class="{ 'tc-ap-kpi-ok': digest.mudas === 0 }" :title="AYUDA_MUDAS + digestTitle">
+          <b>{{ digest.mudas }}</b> mudas 7d <span class="tc-ap-kpi-sub">(antes {{ digest.mudas_baseline_vivos }})</span>
+        </span>
+        <span v-else class="tc-ap-kpi tc-ap-kpi-sub" title="El digest diario aún no corrió">— mudas 7d</span>
+        <!-- #627 — seguimiento general (foto del digest): abiertos / cerrados hoy / atorados. -->
+        <span v-if="digest && digest.seguimiento" class="tc-ap-kpi tc-ap-kpi-sub"
+              :title="AYUDA_SEGUIMIENTO + (digest.seguimiento.merges_pendientes || []).slice(0, 8).map(m => '#' + m.id + ' desbloquea ' + m.desbloquea).join('\n')">
+          <b>{{ digest.seguimiento.abiertos }}</b> abiertos · {{ digest.seguimiento.avanzaron }} cerrados hoy · {{ digest.seguimiento.atorados }} atorados
+        </span>
+        <!-- 2A.4 — FRENOS QUE PUSO IRVING. No caducan solos (son decisiones suyas, no consejos del
+             clasificador): esto es el recordatorio. El tooltip trae los que acumulan más
+             aprobaciones mudas, que es donde decidió una cosa y quiere otra. -->
+        <span v-if="digest && digest.frenos_humanos" class="tc-ap-kpi tc-ap-kpi-freno" :title="AYUDA_FRENOS + frenosTitle">
+          <b>{{ digest.frenos_humanos }}</b> frenos tuyos
+        </span>
+        <!-- #807 — la unica senal que NO se puede confundir con prudencia. Solo aparece cuando hay
+             algo que decir: con la IA sana no ocupa espacio; con la IA caida es lo primero que se ve.
+             Un proceso programado que dejo de latir se pinta igual (#808). -->
+        <span v-if="digest && digest.sin_modelo" class="tc-ap-kpi tc-ap-kpi-roto" :title="AYUDA_SIN_MODELO + sinModeloTitle">
+          <b>{{ digest.sin_modelo }}</b> escalaron SIN MODELO
+        </span>
+        <span v-if="digest && digest.procesos_mudos && digest.procesos_mudos.length"
+              class="tc-ap-kpi tc-ap-kpi-roto" :title="AYUDA_PROCESOS + procesosMudosTitle">
+          <b>{{ digest.procesos_mudos.length }}</b> proceso(s) sin latir
+        </span>
+      </div>
+      <!-- #1048 — ayuda en llano: qué significa cada indicador y qué hacer si el número es alto. -->
+      <div class="tc-ap-ayuda">
+        <div v-if="digest && digest.mudas"><b>mudas 7d:</b> aprobaciones que se quedaron sin ejecutar y nadie avisó. Si sube, revisa esos items.</div>
+        <div v-if="digest && digest.seguimiento"><b>atorados:</b> items abiertos que llevan tiempo sin moverse. Mira «Por qué no avanza».</div>
+        <div v-if="digest && digest.frenos_humanos"><b>frenos tuyos:</b> items que tú detuviste a propósito y no se sueltan solos. Quita el freno si ya no aplica.</div>
+        <div v-if="digest && digest.sin_modelo"><b>escalaron SIN MODELO:</b> el revisor no pudo consultar la IA y mandó todo a tu bandeja sin juzgarlo. Revisa la llave de Anthropic.</div>
+        <div v-if="digest && digest.procesos_mudos && digest.procesos_mudos.length"><b>procesos sin latir:</b> tareas programadas que dejaron de correr. Revisa el cron o ejecuta <code>circuito:digest</code>.</div>
+      </div>
+    </div>
+
+      <!-- KPIs por estado -->
+      <div class="tc-kpis">
+        <div class="tc-kpi" title="Todos los items de la Hoja de Ruta, sin filtrar (COUNT de roadmap_items)."><div class="tc-n">{{ kpi(total, 'resumen') }}</div><div class="tc-l">Items totales</div><div class="tc-bar" style="background:var(--tc-accent)"></div></div>
+        <div class="tc-kpi" title="Cuenta estado_aprobacion = pendiente_revision: items nuevos que el revisor aún no tría."><div class="tc-n" style="color:var(--tc-slate)">{{ kpi(est('pendiente_revision'), 'resumen') }}</div><div class="tc-l">Pendiente revisión</div><div class="tc-bar" style="background:var(--tc-slate)"></div></div>
+        <!-- #9990617: antes usaba est('requiere_irving') (conteo crudo GROUP BY estado, incluía
+             items status=done ya cerrados) y no cuadraba con la lista de abajo. Ahora usa
+             resumenCola.espera_decision, que viene del MISMO scope bandeja() que arma `cola`
+             (RoadmapController::torre(), misma respuesta) — nunca puede desincronizarse de la lista. -->
+        <div class="tc-kpi" title="Cuenta la bandeja accionable: items en requiere_irving que esperan una DECISIÓN tuya (no incluye los que esperan un insumo ni los ya cerrados)."><div class="tc-n" style="color:var(--tc-warn)">{{ kpi(resumenCola.espera_decision ?? cola.length, 'resumen_cola') }}</div><div class="tc-l">Requiere Irving</div><div class="tc-bar" style="background:var(--tc-warn)"></div></div>
+        <!-- #9990912 — KPI hermano del anterior: cuánto de la bandeja espera un INSUMO material
+             (credencial/hardware/sesión/autorización/frontera), no una decisión. Mismo bloque
+             'resumen_cola' (ya viene en la respuesta de torre() desde #9990906), tinte ámbar
+             propio (tc-kpi-insumo) para no confundirse con "Requiere Irving". -->
+        <div class="tc-kpi" title="Cuenta items de la bandeja que esperan un INSUMO material (credencial, hardware, sesión, autorización), no una decisión."><div class="tc-n tc-kpi-insumo">{{ kpi(resumenCola.espera_insumo, 'resumen_cola') }}</div><div class="tc-l">Esperan un insumo</div><div class="tc-bar tc-kpi-insumo-bar"></div></div>
+        <div class="tc-kpi" title="Cuenta estado_aprobacion = en_progreso (conteo crudo por estado). Incluye también los items con candado de desarrollo humano que tienen ese estado; hoy no hay un estado «en pausa» que los distinga."><div class="tc-n" style="color:var(--tc-info)">{{ kpi(est('en_progreso'), 'resumen') }}</div><div class="tc-l">En progreso<span v-if="pausado"> · en pausa</span></div><div class="tc-bar" style="background:var(--tc-info)"></div></div>
+        <div class="tc-kpi" title="Cuenta estado_aprobacion = completado."><div class="tc-n" style="color:var(--tc-ok)">{{ kpi(est('completado'), 'resumen') }}</div><div class="tc-l">Completado</div><div class="tc-bar" style="background:var(--tc-ok)"></div></div>
+        <!-- #9990622: estados que antes no tenían tarjeta (182 items invisibles) -->
+        <div class="tc-kpi" title="Cuenta estado_aprobacion = aprobado_irving: aprobados por ti, listos para que una terminal los tome."><div class="tc-n" style="color:var(--tc-accent)">{{ kpi(est('aprobado_irving'), 'resumen') }}</div><div class="tc-l">Aprobado por Irving</div><div class="tc-bar" style="background:var(--tc-accent)"></div></div>
+        <div class="tc-kpi" title="Cuenta estado_aprobacion = aprobado_revisor: aprobados por el revisor automático."><div class="tc-n" style="color:var(--tc-accent)">{{ kpi(est('aprobado_revisor'), 'resumen') }}</div><div class="tc-l">Aprobado por revisor</div><div class="tc-bar" style="background:var(--tc-accent)"></div></div>
+        <div class="tc-kpi" title="Cuenta estado_aprobacion = cancelado más rechazado."><div class="tc-n" style="color:var(--tc-muted)">{{ kpi(est('cancelado') + est('rechazado'), 'resumen') }}</div><div class="tc-l">Cancelados/Rechazados</div><div class="tc-bar" style="background:var(--tc-muted)"></div></div>
+      </div>
+      <div class="tc-meta" style="margin-top:6px">Las tarjetas de estado (todas menos "Items totales") suman el Total. "Requiere Irving" muestra solo lo accionable.</div>
 
         <!-- Actividad reciente -->
         <div class="tc-card">
@@ -522,12 +579,46 @@
             </div>
           </div>
         </div>
+
+      <!-- Ejecuciones del cron (#319) -->
+      <div class="tc-card" style="margin-top:14px">
+        <h2 class="tc-h2">Ejecuciones del circuito (cron)</h2>
+        <div v-if="!ejecuciones.length" class="tc-meta">Sin ejecuciones registradas todavía.</div>
+        <div v-for="e in ejecuciones" :key="e.id" class="tc-ejec">
+          <span class="tc-tag" :class="e.pausado ? 'tc-lvC' : (e.ejecuto ? 'tc-lvA' : 'tc-lvNone')">
+            {{ e.pausado ? 'pausa' : (e.ejecuto ? 'ejecutó' : 'propuso') }}
+          </span>
+          <div class="tc-ejec-body">
+            <div class="tc-ejec-head">
+              <span>{{ rel(e.started_at) }}</span> · <span>{{ e.modo }}</span>
+              <span v-if="e.modelo"> · <span class="tc-tag-modelo">{{ e.modelo }}</span></span>
+              · <span>{{ e.duracion_seg }}s</span>
+              <span v-if="e.n_propuestas"> · {{ e.n_propuestas }} prop.</span>
+              <span v-if="e.n_decisiones"> · {{ e.n_decisiones }} dec.</span>
+              <span v-if="e.items_tocados && e.items_tocados.length"> · items {{ e.items_tocados.join(', ') }}</span>
+              <span v-if="e.rc" class="tc-ejec-rc"> · rc={{ e.rc }}</span>
+            </div>
+            <div v-if="e.resumen" class="tc-s">{{ e.resumen }}</div>
+          </div>
+        </div>
       </div>
 
       <!-- #482: Cola ejecutable — pendientes/aprobados que el circuito corre por prioridad; 🔥 salta la fila
            Debajo de "Tu bandeja" (antes iba arriba del grid, encima de la bandeja) -->
       <div class="tc-card" style="margin-bottom:14px">
         <h2 class="tc-h2">▶ Cola ejecutable — lo que el circuito auto-corre</h2>
+        <!-- #1030 paso B — la cola ya sale del MISMO cálculo que el despachador (queSigue): lo que toma en
+             su próxima ronda y lo listo que espera turno de su módulo. Debajo, por qué no sale el resto. -->
+        <div class="tc-aviso-1030 tc-aviso-1030-ok">
+          Mismo cálculo que el despachador · <b>{{ resumenCola.sale_ahora ?? '—' }}</b> salen en la próxima ronda
+          <template v-if="resumenCola.frenados && Object.keys(resumenCola.frenados).length">
+            · frenados: <span v-for="(n, cod) in resumenCola.frenados" :key="cod" class="tc-frenado"><b>{{ n }}</b> {{ frenadoLabel(cod) }}</span>
+          </template>
+        </div>
+        <!-- #1030 — aviso de «ocioso con cola» que vivía arriba; usa el mismo conteo de esta tarjeta. -->
+        <div v-if="!pausado && !running && autoEjecutables > 0" class="tc-alert tc-alert-soft">
+          ⏸ <b>Ocioso</b> — {{ kpi(autoEjecutables, 'auto_ejecutables') }} auto-ejecutable(s) en cola; el pool los tomará en segundos (o esperan que el revisor apruebe los B).
+        </div>
         <div class="tc-execsum">
           <span class="tc-execsum-auto">{{ resumenCola.auto_ejecutables }} auto-ejecutables</span>
           <span class="tc-execsum-sep">·</span>
@@ -562,6 +653,8 @@
           <div class="tc-exec-body">
             <span class="tc-idnum">#{{ it.id }}</span> {{ it.title }}
             <span class="tc-exec-est">{{ it.estado_aprobacion }}</span>
+            <span v-if="it.sale_ahora" class="tc-exec-sale">sale en la próxima ronda</span>
+            <span v-else class="tc-exec-turno">espera turno de su módulo</span>
           </div>
           <button v-if="canDisparar" class="tc-btn tc-btn-urg" :class="{ 'tc-btn-urg-on': it.urgente }"
             :disabled="urgiendo === it.id" @click="marcarUrgente(it)"
@@ -641,26 +734,13 @@
         </div>
       </div>
 
-      <!-- Ejecuciones del cron (#319) -->
-      <div class="tc-card" style="margin-top:14px">
-        <h2 class="tc-h2">Ejecuciones del circuito (cron)</h2>
-        <div v-if="!ejecuciones.length" class="tc-meta">Sin ejecuciones registradas todavía.</div>
-        <div v-for="e in ejecuciones" :key="e.id" class="tc-ejec">
-          <span class="tc-tag" :class="e.pausado ? 'tc-lvC' : (e.ejecuto ? 'tc-lvA' : 'tc-lvNone')">
-            {{ e.pausado ? 'pausa' : (e.ejecuto ? 'ejecutó' : 'propuso') }}
-          </span>
-          <div class="tc-ejec-body">
-            <div class="tc-ejec-head">
-              <span>{{ rel(e.started_at) }}</span> · <span>{{ e.modo }}</span>
-              <span v-if="e.modelo"> · <span class="tc-tag-modelo">{{ e.modelo }}</span></span>
-              · <span>{{ e.duracion_seg }}s</span>
-              <span v-if="e.n_propuestas"> · {{ e.n_propuestas }} prop.</span>
-              <span v-if="e.n_decisiones"> · {{ e.n_decisiones }} dec.</span>
-              <span v-if="e.items_tocados && e.items_tocados.length"> · items {{ e.items_tocados.join(', ') }}</span>
-              <span v-if="e.rc" class="tc-ejec-rc"> · rc={{ e.rc }}</span>
-            </div>
-            <div v-if="e.resumen" class="tc-s">{{ e.resumen }}</div>
-          </div>
+      <!-- #9991164 — Adjuntos (maquetas, capturas, PDFs, evidencia) amarrables a items. Panel
+           colapsado por defecto para no quitarle espacio al Panorama; vive aquí, no en una pestaña
+           aparte, porque es donde Irving decide y de donde la terminal lee (Fase 3 inyecta las
+           rutas absolutas en el prompt al despachar). Origen: #9990934 construyó a ciegas por una
+           maqueta que nunca existió en el repo. -->
+      <torre-adjuntos id="tc-adjuntos" ref="adjuntosRef" v-if="hasPermission.data.canView('roadmap.adjuntos.view')" />
+
         </div>
       </div>
 
@@ -673,7 +753,7 @@
 </template>
 
 <script>
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import axios from 'axios';
 import { darkMode } from '../../../../hook/appConfig.js';
 import { useEscuchar, verMas } from './torreEscuchar.js';
@@ -685,7 +765,13 @@ import { allViewHasPermission } from '../../../../helpers/Request';
 export default {
     name: 'TorreControl',
     components: { TorreTrabajandoAhora, TorreAdjuntos },
-    setup() {
+    emits: ['ir-a'], // #1030 — «Ver circuito» pide a ReleasesIndex cambiar de pestaña
+    props: {
+        // #1030 — id del usuario en sesión (lo pasa la vista Blade): separa por usuario las
+        // preferencias que la Torre guarda en el navegador.
+        userId: { type: String, default: '' },
+    },
+    setup(props) {
         // #9991164 — mismo helper de permisos que ReleasesIndex: el panel de adjuntos solo se monta con roadmap.adjuntos.view.
         const hasPermission = reactive({ data: new Permission({}) });
         // 🔊 Escuchar + 🔎 Ver más de la bandeja: MISMA lógica que la tarjeta de Integración.
@@ -703,13 +789,13 @@ export default {
         // material (credencial/hardware/sesión/autorización/frontera), no por una decisión.
         // Agrupada por motivo_espera, cada grupo con su acordeón propio (colapsado por default).
         const colaEsperaInsumo = ref([]);
-        const insumoOpen = reactive({});   // tipo -> bool (acordeón abierto)
-        function toggleInsumoGrupo(tipo) { insumoOpen[tipo] = !insumoOpen[tipo]; }
         const agendados = ref({ count: 0, items: [] });   // #958: N items agendados + lista (título/fecha)
         const agendadosOpen = ref(false);
         const actividad = ref([]);
         // FASE 1 — Cambios para que Irving pruebe (validación funcional)
         const cambiosValidacion = ref([]);
+        const aprobadosVersion = ref([]);   // #1136
+        const aprobadosAbierto = ref(false);
         const valBusy = ref(null);
         const riesgos = ref([]);
         const auditItem = ref(null);
@@ -772,6 +858,28 @@ export default {
         }
 
         const decisionesAuto = ref([]);
+        const decididoAbierto = ref(false); // #1030 — «Decidido sin ti» colapsado por defecto
+        // #1030 — «Detalle técnico»: cerrado por defecto; se recuerda abierto/cerrado por usuario en
+        // este navegador. Sin almacenamiento (modo privado, bloqueado) simplemente arranca cerrado.
+        const DETALLE_KEY = 'torre.panorama.detalle.' + (props.userId || 'anon');
+        const detalleAbierto = ref((() => {
+            try { return localStorage.getItem(DETALLE_KEY) === '1'; } catch (e) { return false; }
+        })());
+        watch(detalleAbierto, (v) => {
+            try { localStorage.setItem(DETALLE_KEY, v ? '1' : '0'); } catch (e) { /* sin almacenamiento: no se recuerda */ }
+        });
+        function toggleDetalle() { detalleAbierto.value = !detalleAbierto.value; }
+        const adjuntosRef = ref(null);
+        async function abrirAdjuntar() {
+            detalleAbierto.value = true;
+            await nextTick();
+            const a = adjuntosRef.value;
+            if (a && !a.abierto) a.toggle();
+            await nextTick();
+            // Con margen: la barra superior del sistema es fija y taparía el título del panel.
+            const el = document.getElementById('tc-adjuntos');
+            if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 90, behavior: 'smooth' });
+        }
         const deshaciendo    = ref(null);
         const deshacerMsg    = reactive({});
 
@@ -873,6 +981,7 @@ export default {
         // #791 — foto del último `circuito:digest` (mudas 7d + referencia del "antes"). Null hasta
         // que el digest corra una vez (el cron lo llama; no bloquea el resto de la Torre).
         const digest = ref(null);
+        const mergesVivos = ref(null);   // «Esperan tu merge» en vivo: {total, liberan, items}
         // 2A.4 — los frenos humanos NO caducan; el sistema no revoca una decisión de Irving por
         // antigüedad. Este tooltip es el recordatorio: cuáles, desde hace cuánto y cuántas veces
         // los aprobó en el vacío. Quitarlos sigue siendo suyo («Quitar el freno y aprobar»).
@@ -886,6 +995,13 @@ export default {
                 + 'NINGUNO caduca solo: son decisiones tuyas, no consejos del clasificador.\n\n'
                 + (top ? `Los que más aprobaciones mudas acumulan:\n${top}` : '');
         });
+
+        // #1048 — ayuda en llano (qué significa + qué hacer si el número es alto), antepuesta a los tooltips.
+        const AYUDA_MUDAS = 'Aprobaciones de los últimos 7 días que no se ejecutaron y nadie lo notó. Si sube, revisa esos items.\n\n';
+        const AYUDA_SEGUIMIENTO = 'Atorados = items abiertos que llevan tiempo sin moverse. Si son muchos, mira «Por qué no avanza».\n\n';
+        const AYUDA_FRENOS = 'Items que tú detuviste a propósito; no se sueltan solos. Si ya no aplican, quita el freno.\n\n';
+        const AYUDA_SIN_MODELO = 'El revisor no pudo consultar la IA y mandó items a tu bandeja sin juzgarlos. Si no es 0, revisa la llave de Anthropic.\n\n';
+        const AYUDA_PROCESOS = 'Tareas programadas del circuito que dejaron de correr. Si hay alguna, revisa el cron.\n\n';
 
         // #807 — escalaciones por AUSENCIA DE MODELO (no por juicio). Si esto no es 0, la bandeja
         // llena no es cautela del circuito: es que el revisor no pudo emitir veredicto.
@@ -936,6 +1052,40 @@ export default {
             }
             return cola.value.filter((it) => claveModulo(it.modulo) === moduloFiltro.value);
         });
+        // #1030 — los insumos entran a la misma lista de la bandeja: se aplanan los grupos por tipo
+        // (el tipo pasa a la etiqueta de la fila) y respetan el mismo filtro por módulo.
+        const insumosPlanos = computed(() => colaEsperaInsumo.value.flatMap(
+            (g) => (g.items || []).map((it) => ({ ...it, grupo_label: g.label }))));
+        const insumosFiltrados = computed(() => {
+            if (!moduloFiltro.value) return insumosPlanos.value;
+            if (moduloFiltro.value === SIN_MODULO) {
+                return insumosPlanos.value.filter((it) => !claveModulo(it.modulo) || String(it.modulo || '').trim() === 'Sin clasificar');
+            }
+            return insumosPlanos.value.filter((it) => claveModulo(it.modulo) === moduloFiltro.value);
+        });
+        // #1035 — el backend manda `tipo_bandeja` (decision|insumo|respuesta); el prefijo [RESPUESTA]
+        // del título queda solo como respaldo si el payload viene sin el campo.
+        // #1030 paso B — motivos del despachador (diagnosticoCeroDespacho) en palabras.
+        const FRENADO_LABELS = {
+            dependencia_sin_cerrar: 'esperan otro item',
+            bloqueado_por_dependencia: 'esperan su fase',
+            no_despachable: 'no tomables (estado, nivel o revisor apagado)',
+            fuera_del_pool: 'fuera de la cola',
+            esperando_merge: 'esperan merge',
+            bloqueado_por_bucle: 'frenados por bucle',
+            freno_humano: 'frenados por ti',
+            agendado: 'agendados',
+            desarrollo_humano: 'en desarrollo humano',
+            sesion_supervisada: 'piden sesión supervisada',
+        };
+        function frenadoLabel(cod) { return FRENADO_LABELS[cod] || cod; }
+        function tipoBandeja(it) {
+            const t = it.tipo_bandeja
+                || (/^\s*\[RESPUESTA\]/i.test(String(it.title || '')) ? 'respuesta' : 'decision');
+            return t === 'respuesta' ? { clave: 'respuesta', label: 'Respuesta' }
+                : t === 'insumo' ? { clave: 'insumo', label: 'Insumo' }
+                : { clave: 'decision', label: 'Decisión' };
+        }
         const moduloFiltroLabel = computed(() => {
             if (moduloFiltro.value === SIN_MODULO) return 'Sin clasificar';
             const g = contadores.value.por_modulo.find((x) => x.clave === moduloFiltro.value);
@@ -988,6 +1138,13 @@ export default {
         }
 
         // ¿El servidor recortó la bandeja? (compara contra el total autoritativo del endpoint)
+        // #1052 — merges que esperan a Irving, ya ordenados por desbloqueo. En vivo desde el payload de
+        // la Torre (MergesPendientesService); la foto del digest queda solo como respaldo si ese bloque falla.
+        const mergesPendientes = computed(() => (mergesVivos.value ? mergesVivos.value.items
+            : (digest.value && digest.value.seguimiento && digest.value.seguimiento.merges_pendientes)) || []);
+        const mergesTotal = computed(() => (mergesVivos.value ? mergesVivos.value.total : mergesPendientes.value.length));
+        const mergesLiberan = computed(() => (mergesVivos.value ? mergesVivos.value.liberan
+            : mergesPendientes.value.reduce((n, m) => n + (m.desbloquea || 0), 0)));
         const bandejaTruncada = computed(() => (contadores.value.total || 0) > cola.value.length);
 
         const terminalesActivas = computed(() => sesiones.value.filter((s) => s.running).length);
@@ -1125,6 +1282,20 @@ export default {
         // "pausa olvidada" de arriba (esa es el kill switch MANUAL). Este se levanta solo al
         // expirar, así que NO lleva botón de reanudar — mostrarlo invitaría a un clic innecesario.
         const pausaLimiteCuenta = computed(() => pausado.value && pausadoInfo.value?.causa === 'limite_cuenta');
+        // #1030 — motivo de la línea de estado cuando no hay terminales trabajando. Primero los frenos
+        // del propio circuito (freno, límite de cuenta, cron que no late); si no, el primer item de
+        // «Por qué no avanza», que es lo que ya calcula el backend. `fuente` dice de dónde salió.
+        const motivoOcioso = computed(() => {
+            if (pausaLimiteCuenta.value) return { fuente: 'limite', texto: 'freno automático por límite de la cuenta de Claude' };
+            if (pausado.value) return { fuente: 'freno', texto: 'el freno está puesto; no ejecuta hasta reanudar' };
+            if (cronCaido.value) return { fuente: 'cron', texto: 'el despachador (cron) no late' };
+            const n = noAvanza.value;
+            if (n.length) {
+                const it = n[0];
+                return { fuente: 'no_avanza', id: it.id, texto: '#' + it.id + ': ' + it.porque_no_avanza + (n.length > 1 ? ' (+' + (n.length - 1) + ' más)' : '') };
+            }
+            return { fuente: 'sin_trabajo', texto: 'nada estancado; no hay trabajo listo para las terminales' };
+        });
         function horaCorta(iso) {
             if (!iso) return '';
             try {
@@ -1254,12 +1425,14 @@ export default {
                 agendados.value = data.agendados || { count: 0, items: [] };   // #958
                 actividad.value = data.actividad_reciente || [];
                 cambiosValidacion.value = data.cambios_validacion || [];   // FASE 1
+                aprobadosVersion.value = data.aprobados_version || [];   // #1136
                 riesgos.value = data.riesgos_auditoria || [];
                 auditItem.value = data.auditoria_item_id || null;
                 ejecuciones.value = data.ejecuciones || [];
                 noAvanza.value = data.no_avanza || [];   // #880 — "por qué no avanza este item"
                 if (data.autopilot) autopilot.value = data.autopilot;   // #507 banner del autopilot
                 digest.value = data.digest || null;   // #791 foto del último `circuito:digest`
+                mergesVivos.value = data.merges_pendientes || null;
                 applyEstado(data);
                 cargarContadores();   // #507 bombitas por módulo (endpoint propio, no bloquea)
                 cargarDecisionesAuto();   // #878 "Decidido sin ti" (endpoint propio, no bloquea)
@@ -1358,6 +1531,28 @@ export default {
                 // No bloquea: la selección local queda aplicada, se reintenta al recargar.
             }
             // #507: al contestar, avanza sola a la siguiente pregunta pendiente del item.
+            avanzarAPendiente(it);
+        }
+
+        // #1069 — «otra respuesta»: persiste el texto libre de UNA pregunta y la da por respondida.
+        const libre = reactive({});
+        async function elegirLibre(it, pg) {
+            const k = it.id + ':' + pg.id;
+            const texto = (libre[k] || '').trim();
+            if (!texto) return;
+            if (!sel[it.id]) sel[it.id] = {};
+            delete aviso[it.id];
+            revisandoId.value = it.id;
+            try {
+                await axios.post('/api/roadmap/circuito/elegir-opcion', { id: it.id, pregunta_id: pg.id, texto_libre: texto });
+                sel[it.id][pg.id] = 'otra';
+                pg.respuesta_libre = texto;
+                pg.opcion_elegida = 'otra';
+                libre[k] = '';
+            } catch (e) {
+                setAviso(it.id, 'warn', 'No se pudo guardar la respuesta. Intenta de nuevo.');
+                return;
+            }
             avanzarAPendiente(it);
         }
 
@@ -1547,13 +1742,13 @@ export default {
             loading, toggling, pausado, pausadoInfo, pausaOlvidada, pausaHorasTxt, pausaLimiteCuenta, pausaLimiteHoraTxt, generatedAt, total, est, nivel, niveles, barH,
             cola, colaEjecutable, resumenCola, agendados, agendadosOpen, fechaCorta, actividad, riesgos, auditItem, lvClass, sevLabel, sevClass, riskText,
             // #9990906 (CIRC-03 Fase C) — "Esperan un insumo tuyo"
-            colaEsperaInsumo, insumoOpen, toggleInsumoGrupo,
+            mergesPendientes, mergesTotal, mergesLiberan, colaEsperaInsumo, insumosPlanos, insumosFiltrados, tipoBandeja, frenadoLabel,
             evIcon, evColor, rel, toggle,
             // #torre: Actividad reciente navegable (abrir item / deep-link / recorrido)
             openItem, verRecorrido, estadoAprobLabel, highlightId,
             // FASE 1: Cambios para que Irving pruebe (validación funcional)
-            cambiosValidacion, valBusy, abrirYProbar, validarFunciona, reportarProblema,
-            sel, coment, soloComentario, deciding, decidir, elegirOpcion, selPreg, aviso,
+            cambiosValidacion, aprobadosVersion, aprobadosAbierto, valBusy, abrirYProbar, validarFunciona, reportarProblema,
+            sel, coment, soloComentario, deciding, decidir, elegirOpcion, libre, elegirLibre, selPreg, aviso,
             // #477: tarjeta compacta nivel C
             descOpen, tecOpen, tieneDescExtendida, estadoLabelItem,
             // 🔊 Escuchar + 🔎 Ver más (compartido con Integración)
@@ -1566,9 +1761,9 @@ export default {
             // #878 — ceros mudos: el front DEBE poder distinguir 0 de «no pude preguntar».
             errorCarga, bloquesFallidos, datosIncompletos, bloquesFallidosLista, falloBloque, kpi,
             // #878 — constancia visible + deshacer de lo que la máquina decidió sola.
-            decisionesAuto, deshaciendo, deshacerMsg, deshacerAuto, verItemAuto, cargarDecisionesAuto, hace,
+            decisionesAuto, decididoAbierto, detalleAbierto, toggleDetalle, adjuntosRef, abrirAdjuntar, deshaciendo, deshacerMsg, deshacerAuto, verItemAuto, cargarDecisionesAuto, hace,
             // #880 — Épica #874 Fase 2: "por qué no avanza este item" (lectura)
-            noAvanza,
+            noAvanza, motivoOcioso,
             // Visor "Trabajando ahora" (#349)
             sesiones, resumenUltima, nowMs,
             logOpen, logTail, logPre, toggleLog,
@@ -1577,7 +1772,7 @@ export default {
             // #507 sub-paso 4 — autopilot, terminales en vivo, bombitas por módulo y paginación
             autopilot, terminalesActivas, terminalesLibres,
             // #791 — KPI de decisiones mudas (foto del digest diario) junto al banner del autopilot
-            digest, digestTitle, frenosTitle, sinModeloTitle, procesosMudosTitle,
+            digest, digestTitle, AYUDA_MUDAS, AYUDA_SEGUIMIENTO, AYUDA_FRENOS, AYUDA_SIN_MODELO, AYUDA_PROCESOS, frenosTitle, sinModeloTitle, procesosMudosTitle,
             contadores, moduloFiltro, moduloFiltroLabel, filtrarModulo, colaFiltrada, SIN_MODULO, bandejaTruncada,
             itemEnRevision, pregIdx, pregActual, pregPrev, pregNext, irAPregunta,
             preguntaRespondida, faltanPreguntas,
@@ -1622,6 +1817,40 @@ export default {
 .tc-strong{color:var(--tc-ink);}
 .tc-beat{color:var(--tc-ok);font-weight:600;}
 .tc-barbtns{display:flex;gap:8px;align-items:center;flex:0 0 auto;}
+/* #1030 — etiqueta de tipo en la bandeja: decisión, respuesta o insumo */
+.tc-tipo{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;}
+.tc-tipo-decision{background:#eef2ff;color:#4338ca;}
+.tc-tipo-respuesta{background:#ecfeff;color:#0e7490;}
+.tc-tipo-insumo{background:#fff7ed;color:#c2410c;}
+.tc-bandeja-cuenta{margin:-6px 0 6px;}
+/* #1030 — encabezado plegable (Decidido sin ti, Detalle técnico) */
+.tc-colapsa{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;padding:0;cursor:pointer;color:var(--tc-ink);text-align:left;}
+.tc-colapsa-caret{font-size:13px;color:var(--tc-muted);width:12px;}
+.tc-colapsa-t{margin:0;white-space:nowrap;}
+/* #1030 — bloques visibles en columna y el «Detalle técnico» plegable */
+.tc-stack{display:flex;flex-direction:column;gap:14px;}
+.tc-detalle{margin-top:14px;}
+.tc-detalle-hint{font-size:11.5px;font-weight:400;text-transform:none;letter-spacing:0;margin-left:4px;}
+.tc-detalle-body{display:flex;flex-direction:column;gap:14px;margin-top:14px;}
+.tc-detalle-body > .tc-card{margin-top:0!important;margin-bottom:0!important;box-shadow:none;}
+.tc-aviso-1030{margin:-4px 0 10px;padding:6px 10px;border-radius:8px;font-size:12px;font-weight:600;background:#fffbeb;color:#b45309;border:1px solid #fde68a;}
+.tc-aviso-1030-ok{background:#f0fdfa;color:#0f766e;border-color:#99f6e4;font-weight:500;}
+.tc-merge-lista{margin:6px 0 0;padding-left:18px;font-size:13px;}
+.tc-merge-n{margin-left:8px;color:var(--tc-warn);white-space:nowrap;}
+.tc-frenado{margin-right:10px;white-space:nowrap;}
+.tc-exec-sale{margin-left:6px;font-size:11px;font-weight:600;color:var(--tc-ok);}
+.tc-exec-turno{margin-left:6px;font-size:11px;font-weight:600;color:var(--tc-muted);}
+@media (max-width:640px){ .tc-detalle-hint{display:none;} }
+/* #1030 — línea de estado: enlace a Terminales y acomodo en pantalla chica (se revisa desde el teléfono) */
+.tc-estado-txt{min-width:0;}
+.tc-vercircuito{color:var(--tc-accent);font-weight:600;text-decoration:none;}
+.tc-vercircuito:hover{text-decoration:underline!important;}
+@media (max-width:640px){
+  .tc-statusbar{flex-wrap:wrap;padding:12px;}
+  .tc-left{align-items:flex-start;}
+  .tc-barbtns{flex-wrap:wrap;width:100%;}
+  .tc-barbtns > button{flex:1 1 auto;}
+}
 .tc-logbtn{font-size:12.5px;font-weight:600;color:var(--tc-ink);background:var(--tc-surface);border:1px solid var(--tc-line);padding:7px 13px;border-radius:9px;cursor:pointer;}
 .tc-logbtn-on{border-color:var(--tc-accent);color:var(--tc-accent);}
 /* ── Disparo manual + urgente (#337) ── */
@@ -1658,6 +1887,9 @@ export default {
 .tc-idnum{color:var(--tc-accent);font-weight:700;}
 .tc-inbox-body{flex:1;min-width:0;}
 .tc-opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.tc-otra{display:flex;gap:6px;align-items:flex-start;margin-top:8px;}
+.tc-otra .tc-seg-in{margin-bottom:0;flex:1;}
+.tc-otra-sel .tc-seg-in{border-color:var(--tc-ok,#16a34a);}
 .tc-noopts{margin-top:8px;font-size:12px;font-style:italic;color:var(--tc-muted);}
 /* #477 — tarjeta compacta nivel C */
 .tc-t-compact{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;}
@@ -1814,6 +2046,8 @@ export default {
 .tc-ap-kpi-roto{cursor:help;font-weight:600;}
 .tc-ap-kpi-roto b{color:var(--tc-bad);}
 .tc-ap-kpi-sub{font-size:10.5px;color:var(--tc-muted);}
+/* #1048 — líneas de ayuda en llano bajo el banner del autopilot */
+.tc-ap-ayuda{font-size:11px;color:var(--tc-muted);margin-top:6px;line-height:1.5;}
 
 /* Layout de dos columnas: sidebar interno + contenido */
 .tc-layout{display:flex;align-items:flex-start;gap:16px;margin-top:14px;}
@@ -1889,6 +2123,11 @@ export default {
 .tc-dark .tc-killbtn{background:#1c2740;color:#f87171;border-color:#5b2b2b;}
 .tc-dark .tc-killbtn.tc-resume{background:#132a1f;color:#4ade80;border-color:#2b5b3b;}
 .tc-dark .tc-badge-dec{background:rgba(251,191,36,.15);color:#fbbf24;}
+.tc-dark .tc-aviso-1030{background:rgba(251,191,36,.12);color:#fbbf24;border-color:#5b4a20;}
+.tc-dark .tc-aviso-1030-ok{background:rgba(45,212,191,.10);color:#5eead4;border-color:#155e52;}
+.tc-dark .tc-tipo-decision{background:rgba(129,140,248,.18);color:#a5b4fc;}
+.tc-dark .tc-tipo-respuesta{background:rgba(34,211,238,.15);color:#67e8f9;}
+.tc-dark .tc-tipo-insumo{background:rgba(251,146,60,.15);color:#fdba74;}
 .tc-dark .tc-btn-voz{background:#0f172a;color:#2dd4bf;border-color:#2a3550;}
 .tc-dark .tc-btn-ver{background:rgba(45,212,191,.12);color:#2dd4bf;border-color:#265b57;}
 .tc-dark .tc-ev-click:hover{background:rgba(148,163,184,.10);}

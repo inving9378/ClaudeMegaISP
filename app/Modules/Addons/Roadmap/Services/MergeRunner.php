@@ -162,10 +162,28 @@ class MergeRunner
 
         // Ya integrada (rama es ancestro de main) → no-op idempotente.
         if ($this->git(['merge-base', '--is-ancestor', $branch, 'main'])->isSuccessful()) {
-            $sha = trim($this->git(['rev-parse', 'HEAD'])->getOutput());
-            $this->markMerged($item, $item->merge_commit ?: $sha, $branch);
+            // #1013 — NUNCA anotar el HEAD de main: puede ser el merge de OTRO item (rama heredada de
+            // un item viejo con el mismo id → el item quedaba completado sin que su código llegara).
+            // Sin trabajo propio (punta anterior al alta del item) → no se marca; con trabajo propio
+            // ya contenido en main → se anota la PUNTA de la rama.
+            $tip = trim($this->git(['rev-parse', $branch])->getOutput());
+            $tipAt = (int) trim($this->git(['log', '-1', '--format=%at', $branch])->getOutput());
+            if ($item->created_at && $tipAt < $item->created_at->getTimestamp()) {
+                $motivo = "la rama {$branch} ya está en main pero no trae trabajo de este item "
+                    . '(su punta es anterior al alta: rama heredada de un item viejo con el mismo id)';
+                $item->estado_aprobacion = 'aprobado_irving';
+                $item->branch = null;
+                $item->log = array_merge($item->log ?: [], [[
+                    'ts' => now()->toIso8601String(), 'por' => 'merge-runner',
+                    'evento' => 'merge_sin_trabajo_propio', 'branch' => $branch, 'motivo' => $motivo,
+                ]]);
+                $item->save();
 
-            return ['estado' => 'ok', 'ok' => true, 'merge_commit' => $item->merge_commit ?: $sha,
+                return $this->fail('La rama no trae trabajo de este item: ' . $motivo . '.', false);
+            }
+            $this->markMerged($item, $item->merge_commit ?: $tip, $branch);
+
+            return ['estado' => 'ok', 'ok' => true, 'merge_commit' => $item->merge_commit ?: $tip,
                 'salida' => "La rama {$branch} ya estaba integrada en main.", 'escalado' => false, 'at' => time()];
         }
 
@@ -263,6 +281,18 @@ class MergeRunner
             return $this->fail("Regresión al integrar {$branch}: {$reg['detalle']}\nMerge abortado, main intacto.", true);
         }
 
+        // #1065 — PUNTO DE RESTAURACIÓN de DEV antes de que aterrice una migración de un item nivel C
+        // (el único que llega aquí por el carril C con interruptor). Fail-closed: sin respaldo no se mergea.
+        if ($item->nivel_riesgo === 'C' && config('circuito.jarvis.automerge.nivel_c.enabled', false)) {
+            $stagedMig = array_filter(preg_split('/\R/', trim($this->git(['diff', '--cached', '--name-only'])->getOutput())),
+                fn ($f) => str_contains((string) $f, 'database/migrations/'));
+            if ($stagedMig && ($err = $this->puntoDeRestauracion()) !== null) {
+                $this->git(['merge', '--abort']);
+
+                return $this->fail("Sin punto de restauración de DEV antes de la migración: {$err}\nMerge abortado, main intacto.", true);
+            }
+        }
+
         // FASE 3: finaliza el merge (commit).
         $this->antesDeCommitParaPruebas(); // no-op en producción; seam de prueba (#9990345), ver abajo.
         $commit = $this->git(['commit', '--no-edit', '-m', "Integra circuito #{$item->id} ({$branch}) a main"]);
@@ -345,6 +375,18 @@ class MergeRunner
         return ['estado' => 'ok', 'ok' => true, 'merge_commit' => $sha,
             'salida' => "Integrada a dev (merge {$sha}). Regresión OK.{$rebuild}", 'escalado' => false,
             'necesita_rebuild' => $necesitaRebuild, 'at' => time()];
+    }
+
+    /** @return string|null null = respaldo OK; texto = motivo del fallo. Seam sobrescribible en pruebas. */
+    protected function puntoDeRestauracion(): ?string
+    {
+        try {
+            $code = \Illuminate\Support\Facades\Artisan::call('backup_db:process');
+
+            return $code === 0 ? null : 'backup_db:process terminó con código ' . $code;
+        } catch (\Throwable $e) {
+            return $e->getMessage();
+        }
     }
 
     /**

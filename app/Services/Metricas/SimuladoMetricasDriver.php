@@ -10,8 +10,7 @@ use RuntimeException;
  * (item #988). Las filas que produce quedan con origen 'simulado' y la pantalla avisa
  * «Datos simulados».
  *
- * Bloqueado en producción por dos lados: APP_ENV=production o una base de datos listada en
- * metricas.bases_produccion (en PROD APP_ENV puede venir como local).
+ * Bloqueado en producción (EntornoMetricas: APP_ENV production o base en metricas.bases_produccion).
  *
  * Tráfico: la velocidad sigue una curva diaria (pico a las 15:00, valle de madrugada) con dos
  * ondas más cortas, y el contador es su integral exacta, así que siempre crece y la diferencia
@@ -44,14 +43,7 @@ final class SimuladoMetricasDriver implements MetricasDriver
 
     public static function permitido(): bool
     {
-        if (app()->environment('production')) {
-            return false;
-        }
-
-        $conexion = config('database.default');
-        $base = (string) config("database.connections.{$conexion}.database");
-
-        return ! in_array($base, (array) config('metricas.bases_produccion', []), true);
+        return ! EntornoMetricas::esProduccion();
     }
 
     public function nombre(): string

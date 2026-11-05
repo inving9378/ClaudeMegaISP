@@ -1,6 +1,10 @@
 <template>
   <div class="talento-asistencia tc-wrap" :class="{ 'tc-dark': darkMode }">
 
+    <!-- Ficha propia: aquí se registran la entrada y la salida, con ubicación como la app
+         (2026-10-24; antes en Mi día, que ahora solo muestra lo registrado). -->
+    <talento-marcar-asistencia v-if="esPropia && puedeMarcar" @marcado="load()" />
+
     <div class="tc-card">
       <div class="tc-cardhead d-flex flex-wrap align-items-center justify-content-between gap-2 p-3">
         <h5 class="tc-h1"><i class="fa fa-calendar-check me-2"></i>Asistencia</h5>
@@ -9,7 +13,7 @@
           <button @click="setRange('today')" class="tc-btn" :class="range==='today' ? 'tc-btn-info' : 'tc-btn-seg'">Hoy</button>
           <button @click="setRange('week')"  class="tc-btn" :class="range==='week'  ? 'tc-btn-info' : 'tc-btn-seg'">Esta semana</button>
           <span v-if="flaggedCount > 0" class="tc-status is-warn">
-            <i class="fa fa-flag me-1"></i>{{ flaggedCount }} flagged
+            <i class="fa fa-flag me-1"></i>{{ flaggedCount }} para revisión
           </span>
         </div>
       </div>
@@ -26,7 +30,7 @@
               <option value="">Todos</option>
               <option value="open">Abierta</option>
               <option value="closed">Cerrada</option>
-              <option value="flagged">Flagged</option>
+              <option value="flagged">Para revisión</option>
             </select>
           </div>
           <div class="col-md-2">
@@ -38,7 +42,7 @@
           <div class="col-md-2 d-flex align-items-center gap-2">
             <div class="form-check mb-0">
               <input v-model="filters.flagged" @change="load" type="checkbox" class="form-check-input" id="onlyFlagged">
-              <label class="form-check-label small" for="onlyFlagged">Solo flagged</label>
+              <label class="form-check-label small" for="onlyFlagged">Solo para revisión</label>
             </div>
           </div>
         </div>
@@ -54,7 +58,7 @@
                 <th>Salida esp.</th>
                 <th>Salida real</th>
                 <th>Sitio</th>
-                <th class="text-center">Flag</th>
+                <th class="text-center">Revisión</th>
                 <th class="text-center">Día</th>
                 <th></th>
               </tr>
@@ -68,7 +72,11 @@
                   <span v-if="att.check_out_at">{{ fmt(att.check_out_at) }}</span>
                   <span v-else class="tc-status" :class="openStatusVariant(att.status)">{{ openStatusLabel(att.status) }}</span>
                 </td>
-                <td class="small">{{ att.site?.name ?? '—' }}</td>
+                <td class="small">
+                  {{ att.site?.name ?? '—' }}
+                  <!-- El GPS falló y la persona escribió dónde estaba (2026-10-29). -->
+                  <div v-if="att.check_in_location_source && att.check_in_location_source !== 'gps'" class="tc-muted-txt">Ubicación escrita</div>
+                </td>
                 <td class="text-center">
                   <span v-if="att.check_in_flagged" class="tc-status is-warn" :title="att.check_in_flag_reason">
                     <i class="fa fa-flag"></i>
@@ -123,6 +131,9 @@
                 <strong>Sitio:</strong> {{ detail.att.site?.name ?? '—' }}
                 <span class="ms-2 tc-status" :class="detail.att.check_in_within_geofence ? 'is-ok' : 'is-slate'">
                   {{ detail.att.check_in_within_geofence ? 'Dentro de geocerca' : 'Fuera de geocerca' }}
+                </span>
+                <span v-if="detail.att.check_in_location_source && detail.att.check_in_location_source !== 'gps'" class="ms-1 tc-status is-slate">
+                  Ubicación escrita, sin GPS
                 </span>
               </div>
               <div class="col-md-6" v-if="detail.att.check_in_flagged">
@@ -204,11 +215,16 @@
 
 <script>
 import { darkMode } from "../../../hook/appConfig.js";
+import TalentoMarcarAsistencia from "./TalentoMarcarAsistencia.vue";
 
 export default {
   name: 'TalentoAsistencia',
+  components: { TalentoMarcarAsistencia },
   props: {
     colaboradorId: { type: [Number, String], default: null },
+    esPropia: { type: Boolean, default: false },
+    // Quien tiene «Mi día» (portal.colaborador) registra su entrada y salida aquí.
+    puedeMarcar: { type: Boolean, default: false },
   },
   setup() {
     return { darkMode };
@@ -306,7 +322,7 @@ export default {
     // <span> literal como texto en pantalla — bug preexistente, corregido de
     // paso al migrar a tc-status.
     openStatusVariant(s) { return { open: 'is-info', closed: 'is-slate', flagged: 'is-warn' }[s] ?? 'is-slate'; },
-    openStatusLabel(s) { return { open: 'Abierta', closed: 'Cerrada', flagged: 'Flagged' }[s] ?? s; },
+    openStatusLabel(s) { return { open: 'Abierta', closed: 'Cerrada', flagged: 'Para revisión' }[s] ?? s; },
     // Mismo hallazgo que Órdenes/Compensación/Liquidaciones: colaboradores
     // que comparten nombre de pila se ven como duplicados si solo se
     // muestra el primer nombre. Null-safe.

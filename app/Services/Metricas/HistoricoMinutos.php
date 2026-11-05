@@ -20,9 +20,10 @@ final class HistoricoMinutos
     public const PERDIDA_ALTA = 'perdida_alta';
     public const LATENCIA_ALTA = 'latencia_alta';
     public const SIN_DATOS = 'sin_datos';
+    public const PAUSADO = 'pausado';
 
     /** Estados de tráfico en los que el colector no leyó los contadores (no son base de la siguiente diferencia). */
-    private const SIN_CONTADORES = ['router_sin_conexion', 'router_no_verificado', 'omitido', 'error', 'sin_interfaz', 'interfaz_no_encontrada'];
+    private const SIN_CONTADORES = ['router_sin_conexion', 'router_no_verificado', 'omitido', 'error', 'sin_interfaz', 'vlan_repetida', 'interfaz_no_encontrada'];
 
     private const REGLAS = [
         'perdida_alta_pct'        => 20,
@@ -36,12 +37,15 @@ final class HistoricoMinutos
 
     private ?float $latenciaPeriodo = null;
 
+    private ?array $eventosCalculados = null;
+
     /**
      * @param  int  $desde  epoch del primer minuto que se evalúa (segundos en 0)
      * @param  int  $hasta  epoch del fin, exclusivo: no se evalúan minutos >= $hasta
      * @param  array<int, array{estado: string, estado_ping: ?string, lat_avg_ms: ?float, lat_max_ms: ?float, loss_pct: ?float, bajada_bps: ?int, subida_bps: ?int, ping_ips: ?int}>  $filas  por epoch del minuto
      * @param  array<int, array<string, array{enviados: int, recibidos: int, lat_avg_ms: ?float, lat_max_ms: ?float}>>  $pings  por epoch del minuto y por IP
      * @param  array<int, float>  $latenciaBase  por epoch de la hora: latencia promedio del servicio en las 24 h anteriores
+     * @param  array<int, array{desde: int, hasta: ?int, motivo: string}>  $pausas  periodos en pausa; no cuentan ni como caída ni como hueco
      */
     public function __construct(
         private readonly int $desde,
@@ -50,18 +54,19 @@ final class HistoricoMinutos
         private readonly array $pings = [],
         private readonly array $latenciaBase = [],
         array $reglas = [],
+        private readonly array $pausas = [],
     ) {
         $this->reglas = $reglas + self::REGLAS;
     }
 
     /**
-     * Disponibilidad = minutos con al menos una IP respondiendo ÷ minutos medidos (los huecos del
-     * colector no cuentan). Latencia y pérdida, promedio de los minutos medidos y su máximo. Tráfico:
+     * Disponibilidad = minutos con al menos una IP respondiendo ÷ minutos medidos (ni los huecos del
+     * colector ni el tiempo en pausa cuentan). Latencia y pérdida, promedio de los minutos medidos y su máximo. Tráfico:
      * picos y totales (cada fila es el promedio desde la lectura anterior de contadores).
      */
     public function indicadores(): array
     {
-        $medidos = $responden = $sinRespuesta = $sinDatos = 0;
+        $medidos = $responden = $sinRespuesta = $sinDatos = $pausado = 0;
         $latSuma = $perdSuma = 0.0;
         $latN = $perdN = 0;
         $latMax = $perdMax = null;
@@ -70,6 +75,11 @@ final class HistoricoMinutos
         $lecturaAnterior = null;
 
         for ($t = $this->desde; $t < $this->hasta; $t += 60) {
+            if ($this->enPausa($t)) {
+                $pausado++;
+
+                continue;
+            }
             $f = $this->filas[$t] ?? null;
 
             if ($f !== null && ! in_array($f['estado'], self::SIN_CONTADORES, true)) {
@@ -114,6 +124,8 @@ final class HistoricoMinutos
             'minutos_medidos'       => $medidos,
             'minutos_sin_respuesta' => $sinRespuesta,
             'minutos_sin_datos'     => $sinDatos,
+            'minutos_pausado'       => $pausado,
+            'minutos_degradado'     => $this->minutosDegradados(),
             'disponibilidad_pct'    => $medidos > 0 ? round($responden / $medidos * 100, 2) : null,
             'latencia_prom_ms'      => $latN > 0 ? round($latSuma / $latN, 3) : null,
             'latencia_max_ms'       => $latMax,
@@ -134,17 +146,38 @@ final class HistoricoMinutos
      *   equipo que no responde ya es «Degradado» o «Sin respuesta»; no se repite aquí).
      * - Latencia alta: más de 10× el promedio de las 24 h anteriores y más de 2 ms.
      * - Sin datos del colector: no hubo lectura (no cuenta como caída).
+     * - Monitoreo pausado: no se debía medir, con su motivo (tampoco es caída).
      *
      * @return array<int, array{tipo: string, inicio: int, fin: int, minutos: int, detalle: string}>
      */
     public function eventos(): array
+    {
+        return $this->eventosCalculados ??= $this->calcularEventos();
+    }
+
+    /** Minutos en «Degradado» o «Pérdida alta», ya con su duración mínima. No bajan la disponibilidad. */
+    private function minutosDegradados(): int
+    {
+        $minutos = [];
+        foreach ($this->eventos() as $e) {
+            if (in_array($e['tipo'], [self::DEGRADADO, self::PERDIDA_ALTA], true)) {
+                for ($t = $e['inicio']; $t < $e['fin']; $t += 60) {
+                    $minutos[$t] = true;
+                }
+            }
+        }
+
+        return count($minutos);
+    }
+
+    private function calcularEventos(): array
     {
         $minimos = [self::PERDIDA_ALTA => (int) $this->reglas['perdida_alta_minutos']];
         $abiertas = [];
         $eventos = [];
 
         for ($t = $this->desde; $t <= $this->hasta; $t += 60) {
-            $activos = $t < $this->hasta ? $this->tiposDelMinuto($t) : [];
+            $activos = $t < $this->hasta && ! $this->enPausa($t) ? $this->tiposDelMinuto($t) : [];
             foreach ([self::SIN_DATOS, self::SIN_RESPUESTA, self::DEGRADADO, self::PERDIDA_ALTA, self::LATENCIA_ALTA] as $tipo) {
                 if (isset($activos[$tipo])) {
                     $abiertas[$tipo][] = $t;
@@ -154,6 +187,15 @@ final class HistoricoMinutos
                     }
                     unset($abiertas[$tipo]);
                 }
+            }
+        }
+
+        foreach ($this->pausas as $p) {
+            $inicio = max($this->desde, $p['desde'] - $p['desde'] % 60);
+            $fin = min($this->hasta, $p['hasta'] ?? $this->hasta);
+            if ($fin > $inicio) {
+                $eventos[] = ['tipo' => self::PAUSADO, 'inicio' => $inicio, 'fin' => $fin, 'minutos' => (int) ceil(($fin - $inicio) / 60),
+                    'detalle' => 'Monitoreo pausado: ' . $p['motivo']];
             }
         }
 
@@ -229,13 +271,13 @@ final class HistoricoMinutos
     }
 
     /**
-     * Franjas para sombrear: «Sin respuesta» y «Sin datos del colector», en epoch ms.
+     * Franjas para sombrear: «Sin respuesta», «Sin datos del colector» y «Monitoreo pausado», en epoch ms.
      *
      * @param  array  $eventos  los de eventos()
      */
     public static function bandas(array $eventos): array
     {
-        $bandas = [self::SIN_RESPUESTA => [], self::SIN_DATOS => []];
+        $bandas = [self::SIN_RESPUESTA => [], self::SIN_DATOS => [], self::PAUSADO => []];
         foreach (array_reverse($eventos) as $e) {
             if (isset($bandas[$e['tipo']])) {
                 $bandas[$e['tipo']][] = [$e['inicio'] * 1000, $e['fin'] * 1000];
@@ -243,6 +285,17 @@ final class HistoricoMinutos
         }
 
         return $bandas;
+    }
+
+    private function enPausa(int $t): bool
+    {
+        foreach ($this->pausas as $p) {
+            if ($t + 60 > $p['desde'] && ($p['hasta'] === null || $t < $p['hasta'])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function medido(?array $f): bool

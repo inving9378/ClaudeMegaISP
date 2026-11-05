@@ -486,4 +486,60 @@ class HelperController extends Controller
         $teamRepository = new TeamRepository();
         return $teamRepository->getTeamsWithUsersGroup();
     }
+
+    private const ETIQUETA_ROL = [
+        // Los dos roles de super administrador se ven igual: van juntos en un solo grupo.
+        'super-administrator'    => 'Super administrador',
+        'Super Administrador'    => 'Super administrador',
+        'ADMINISTRADOR_COMPLETO' => 'Administrador completo',
+        'DESARROLLADOR'          => 'Desarrollador',
+        'TECNICO'                => 'Técnico',
+        'TECNICO_PLANTA'         => 'Técnico de planta',
+        'TECNICO_INSTALADOR'     => 'Técnico instalador',
+        'SUPERVISOR_MOSTRADOR'   => 'Supervisor de mostrador',
+        'Almacen'                => 'Almacén',
+    ];
+
+    /**
+     * "Asignado a" por rol (tareas de Agenda y tickets, 2026-10-22): cada rol con sus personas
+     * activas (cuenta activa, sin clientes ni cuentas de sistema). Quien tiene varios roles sale
+     * en cada uno. Lo consume SelectRolUsuario.vue.
+     */
+    public function getOptionsRolUsuario()
+    {
+        $usuarios = User::with('roles:id,name')
+            ->where('estado', 'activo')
+            ->where(fn ($q) => $q->where('is_system', false)->orWhereNull('is_system'))
+            ->whereHas('roles', fn ($q) => $q->where('name', '<>', 'client'))
+            ->get(['id', 'name', 'father_last_name']);
+
+        $porRol = [];
+        foreach ($usuarios as $usuario) {
+            $nombre = trim($usuario->name . ' ' . $usuario->father_last_name);
+            foreach ($usuario->roles as $rol) {
+                if ($rol->name === 'client') {
+                    continue;
+                }
+                $porRol[$rol->name][] = ['id' => $usuario->id, 'nombre' => $nombre];
+            }
+        }
+
+        // Agrupados por cómo se ve el rol, sin repetir personas.
+        $porEtiqueta = [];
+        foreach ($porRol as $rol => $personas) {
+            $etiqueta = self::ETIQUETA_ROL[$rol] ?? $rol;
+            foreach ($personas as $persona) {
+                $porEtiqueta[$etiqueta][$persona['id']] = $persona;
+            }
+        }
+
+        return collect($porEtiqueta)
+            ->map(fn ($personas, $etiqueta) => [
+                'rol'      => $etiqueta,
+                'etiqueta' => $etiqueta,
+                'personas' => collect($personas)->sortBy('nombre', SORT_NATURAL | SORT_FLAG_CASE)->values()->all(),
+            ])
+            ->sortBy('etiqueta', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
+    }
 }

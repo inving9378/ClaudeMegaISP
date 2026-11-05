@@ -468,6 +468,15 @@
         <a href="{{ route('portal.flotas') }}" class="{{ request()->routeIs('portal.flotas') ? 'active' : '' }}">
             🚗 Mis Vehículos
         </a>
+        <a href="{{ route('portal.flotas.reglas.index') }}" class="{{ request()->routeIs('portal.flotas.reglas.index') ? 'active' : '' }}">
+            🔔 Reglas de alertas
+        </a>
+        <a href="{{ route('portal.flotas.contactos.index') }}" class="{{ request()->routeIs('portal.flotas.contactos.index') ? 'active' : '' }}">
+            📇 Contactos de alerta
+        </a>
+        <a href="{{ route('portal.flotas.notificaciones') }}" class="{{ request()->routeIs('portal.flotas.notificaciones') ? 'active' : '' }}">
+            🔔 Notificaciones de flota
+        </a>
         <a href="{{ route('portal.megafamilia') }}" class="{{ request()->routeIs('portal.megafamilia') ? 'active' : '' }}">
             👨‍👩‍👧 MegaFamilia
         </a>

@@ -23,7 +23,7 @@ class IaModulosController extends Controller
 {
     /** Sugerencias de modelo por protocolo (el campo admite cualquier otro). */
     private const MODELOS_SUGERIDOS = [
-        'claude'            => ['claude-sonnet-4-6', 'claude-opus-4-7', 'claude-haiku-4-5-20251001'],
+        'claude'            => ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5', 'claude-opus-4-7', 'claude-sonnet-4-6'],
         'openai'            => ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'gpt-4.1'],
         'gemini'            => ['gemini-2.5-flash', 'gemini-2.5-pro'],
         'openai_compatible' => [],
@@ -34,6 +34,7 @@ class IaModulosController extends Controller
         'pdf'          => 'PDF',
         'herramientas' => 'Herramientas',
         'voz'          => 'Voz',
+        'anthropic'    => 'Claude (Anthropic)',
     ];
 
     public function __construct()
@@ -57,6 +58,8 @@ class IaModulosController extends Controller
                     fn($r) => self::ETIQUETAS_REQUIERE[$r] ?? $r, (array) ($m['requiere'] ?? [])
                 )),
                 'listo'              => (bool) ($m['listo'] ?? false),
+                // #1076 — sin asignación no se apaga: usa su ahorro por defecto (modelos[0])
+                'respaldo'           => (bool) ($m['respaldo'] ?? false),
                 'modelos'            => $m['modelos'] ?? null,
                 'api_integration_id' => $a?->api_integration_id,
                 'modelo'             => $a?->modelo,

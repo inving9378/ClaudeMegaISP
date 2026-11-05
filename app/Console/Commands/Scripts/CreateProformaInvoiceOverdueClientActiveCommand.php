@@ -104,7 +104,8 @@ class CreateProformaInvoiceOverdueClientActiveCommand extends Command
     private function createRetroactiveProformasForClient(Client $cliente)
     {
         $clientRepository = new ClientRepository();
-        $montos = $clientRepository->calculateAmounts($cliente);
+        // Sin Flotas: estas proformas nacen pagadas (#622; InvoiceService tampoco se las agrega).
+        $montos = $clientRepository->calculateAmounts($cliente, null, false);
 
         $fechaCreacionCliente = $cliente->created_at;
         $today = Carbon::now();

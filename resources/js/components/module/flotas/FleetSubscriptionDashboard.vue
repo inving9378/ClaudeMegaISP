@@ -76,8 +76,8 @@
         :pagination="{ rowsPerPage: 25 }"
         no-data-label="Sin suscripciones registradas"
       >
-        <template #body-cell-status="{ row }">
-          <q-td>
+        <template #body-cell-status="{ row, props }">
+          <q-td :props="props">
             <q-chip
               :color="statusColor(row.status)"
               text-color="white"
@@ -86,14 +86,14 @@
             />
           </q-td>
         </template>
-        <template #body-cell-plan="{ row }">
-          <q-td>{{ planLabel(row.plan) }}</q-td>
+        <template #body-cell-plan="{ row, props }">
+          <q-td :props="props">{{ planLabel(row.plan) }}</q-td>
         </template>
-        <template #body-cell-monthly_price="{ row }">
-          <q-td>${{ Number(row.monthly_price).toLocaleString('es-MX') }}</q-td>
+        <template #body-cell-monthly_price="{ row, props }">
+          <q-td :props="props">${{ Number(row.monthly_price).toLocaleString('es-MX') }}</q-td>
         </template>
-        <template #body-cell-actions="{ row }">
-          <q-td>
+        <template #body-cell-actions="{ row, props }">
+          <q-td :props="props">
             <q-btn
               flat dense size="sm" icon="open_in_new" color="primary"
               :href="`/cliente/editar/${row.client_id}`"
@@ -141,7 +141,7 @@ export default {
         { name: 'vehicles_count',   label: 'Vehículos',      field: 'vehicles_count',   align: 'center', sortable: true },
         { name: 'monthly_price',    label: 'Monto/mes',      field: 'monthly_price',    align: 'right',  sortable: true },
         { name: 'next_billing_date',label: 'Próx. factura',  field: 'next_billing_date',align: 'center' },
-        { name: 'trial_ends_at',    label: 'Fin de prueba',  field: r => r.trial_ends_at?.slice(0,10) ?? '—', align: 'center' },
+        { name: 'trial_ends_at',    label: 'Fin de prueba',  field: r => r.trial_ends_at ? new Date(r.trial_ends_at).toLocaleDateString('en-CA') : '—', align: 'center' },
         { name: 'actions',          label: '',               field: 'id',               align: 'center' },
       ],
       statusOptions: [

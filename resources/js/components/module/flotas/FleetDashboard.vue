@@ -2,6 +2,15 @@
     <div class="flt-dash-wrap">
 
         <!-- ── HEADER ──────────────────────────────────────────────────── -->
+        <!-- Plan del cliente, solo lectura (#658): solo en modo portal -->
+        <div v-if="modo === 'portal' && plan" class="flt-card mb-3">
+            <div class="flt-card-body d-flex flex-wrap gap-4">
+                <div><div class="small text-muted">Bloque</div><strong>{{ plan.bloque }}</strong></div>
+                <div><div class="small text-muted">Unidades</div><strong>{{ plan.unidades }} / {{ plan.unidades_incluidas }} incluidas</strong></div>
+                <div><div class="small text-muted">Precio mensual</div><strong>${{ Number(plan.precio_mensual).toLocaleString('es-MX', { minimumFractionDigits: 2 }) }}</strong></div>
+                <div v-if="plan.fin_prueba"><div class="small text-muted">{{ plan.es_promo ? 'Fin de promoción' : 'Fin de prueba' }}</div><strong>{{ plan.fin_prueba }}</strong></div>
+            </div>
+        </div>
         <div class="flt-dash-header">
             <div>
                 <h4 class="flt-dash-title">Flotas</h4>
@@ -11,7 +20,7 @@
                 <a :href="`${baseUrl}/mapa`" class="btn btn-outline-primary btn-sm">
                     <i class="bi bi-map me-1"></i>Ver mapa
                 </a>
-                <a :href="`${baseUrl}/comparativo`" class="btn btn-outline-primary btn-sm">
+                <a v-if="modo !== 'portal'" :href="`${baseUrl}/comparativo`" class="btn btn-outline-primary btn-sm">
                     <i class="bi bi-bar-chart me-1"></i>Comparativo de gastos
                 </a>
                 <button class="btn btn-outline-secondary btn-sm" @click="exportCsv">
@@ -91,6 +100,24 @@
                                 <i :class="['bi', a.icon, 'flt-alert-icon', a.critical ? 'text-danger' : 'text-warning']"></i>
                                 <span class="flex-grow-1">{{ a.text }}</span>
                                 <a :href="a.link" class="btn btn-sm btn-outline-primary">Atender</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Costo por km (item #612) -->
+                    <div class="flt-card mb-4">
+                        <div class="flt-card-head">
+                            <span><i class="bi bi-cash-coin me-2"></i>Costo por km (últimos {{ costoKm.months || 12 }} meses)</span>
+                            <a v-if="modo !== 'portal'" :href="`${baseUrl}/comparativo`" class="small">Comparativo →</a>
+                        </div>
+                        <div class="flt-card-body">
+                            <div v-if="!costoKm.ranking || !costoKm.ranking.length" class="text-muted small py-2">Sin datos suficientes.</div>
+                            <div class="flt-alert-row" v-for="r in (costoKm.ranking || [])" :key="r.id">
+                                <span class="flt-alert-dot" :class="r.atipico ? 'bg-danger' : 'bg-success'"></span>
+                                <a :href="`${baseUrl}/${r.id}`" class="flex-grow-1">{{ r.name }} <span class="text-muted">{{ r.plates || '' }}</span></a>
+                                <span class="small text-muted me-3">{{ fmtMoney(r.gasto) }} · {{ fmtKm(r.km) }} km</span>
+                                <strong>{{ r.costo_km === null ? 'Sin km' : fmtMoney(r.costo_km) + '/km' }}</strong>
+                                <span v-if="r.atipico" class="badge bg-danger ms-2">Atípico</span>
                             </div>
                         </div>
                     </div>
@@ -189,11 +216,16 @@ import axios from 'axios';
 
 export default {
     name: 'FleetDashboard',
-    props: { baseUrl: { type: String, default: '/flotas' } },
+    props: {
+        baseUrl: { type: String, default: '/flotas' },
+        // 'panel' (default) | 'portal': el portal oculta Comparativo y muestra el plan en solo lectura (#658)
+        modo: { type: String, default: 'panel' },
+    },
     setup(props) {
         const loading = ref(true);
         const metrics = ref({});
         const alertas = ref([]);
+        const costoKm = ref({});
         const vehicles = ref([]);
         const maintenances = ref([]);
         const fuelLogs = ref([]);
@@ -315,18 +347,23 @@ export default {
             showToast('CSV exportado.', 'success', 'bi bi-download');
         }
 
+        const plan = ref(null);
+
         // ── Carga ─────────────────────────────────────────────────────────
         onMounted(async () => {
             const safe = (p, fallback) => p.then((r) => r.data).catch(() => fallback);
             const b = props.baseUrl;
-            const [m, al, vh, mt, fl, dc] = await Promise.all([
+            const [m, al, vh, mt, fl, dc, ck] = await Promise.all([
                 safe(axios.get(`${b}/api/vehiculos/data/dashboard`), {}),
                 safe(axios.get(`${b}/api/vehiculos/data/alertas`), { alertas: [] }),
                 safe(axios.get(`${b}/api/vehiculos`), { vehicles: [] }),
                 safe(axios.get(`${b}/api/mantenimientos`), { maintenances: [] }),
                 safe(axios.get(`${b}/api/combustible`), { fuel_log: [] }),
                 safe(axios.get(`${b}/api/documentos`), { documents: [] }),
+                safe(axios.get(`${b}/api/vehiculos/data/costo-km`), {}),
             ]);
+            costoKm.value = ck ?? {};
+            if (props.modo === 'portal') plan.value = (await safe(axios.get(`${b}/api/plan`), {}))?.plan ?? null;
             metrics.value = m ?? {};
             alertas.value = al?.alertas ?? [];
             vehicles.value = vh?.vehicles ?? [];
@@ -337,7 +374,7 @@ export default {
         });
 
         return {
-            baseUrl: props.baseUrl, loading, metrics, alertas, vehicles, toast,
+            baseUrl: props.baseUrl, modo: props.modo, plan, loading, metrics, costoKm, alertas, vehicles, toast,
             statusFilter, sortBy, showAllAlerts,
             fmtMoney, fmtKm,
             gpsCount, noGpsCount, mappedAlerts, visibleAlerts, criticalCount,

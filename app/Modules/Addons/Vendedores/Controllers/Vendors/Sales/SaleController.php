@@ -164,6 +164,11 @@ class SaleController extends Controller
     // Obtenet el ranking de los vendedores
     public function rankingSales($startDate, $endDate)
     {
+        if (config('unificacion.interruptores.ranking_ventas_i2')) {
+            // UNI-T I2 (#894): mismo criterio de venta que el ranking de Talento.
+            return response()->json(app(\App\Services\RankingVentasService::class)->ranking($startDate, $endDate));
+        }
+
         $ranking = ClientMainInformation::join('users', 'users.id', '=', 'client_main_information.seller_id')
             ->select('users.name', DB::raw('count(*) as sales'))
             ->whereBetween('client_main_information.activation_date', [$startDate, $endDate])

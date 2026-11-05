@@ -12,7 +12,7 @@ class TalentoAttendance extends BaseModel
     protected $fillable = [
         'colaborador_id', 'check_in_at', 'check_in_lat', 'check_in_lng',
         'check_in_site_id', 'check_in_work_order_id', 'check_in_project_id',
-        'check_in_within_geofence', 'check_in_flagged', 'check_in_flag_reason',
+        'check_in_within_geofence', 'check_in_flagged', 'check_in_flag_reason', 'check_in_location_source',
         'expected_end_at', 'check_out_at', 'check_out_lat', 'check_out_lng',
         'day_type', 'status', 'notes',
     ];

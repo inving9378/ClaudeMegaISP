@@ -23,17 +23,20 @@ class IAPricingService
      * Se hace match por prefijo: la primera clave que sea prefijo del modelo gana.
      */
     protected const TARIFAS = [
-        // Claude
-        'claude-opus-4-7' => [15.00, 75.00],
-        'claude-opus-4-6' => [15.00, 75.00],
-        'claude-opus' => [15.00, 75.00],
+        // Claude: lista oficial al 2026-10-30, sin modelos retirados. 'claude-opus-5-5'
+        // va antes que 'claude-opus' porque el primer prefijo que coincide gana.
+        // Haiku 5.5: tarifa de prompts de hasta 100K tokens (arriba de eso cuesta 5x).
+        'claude-fable' => [10.00, 50.00],
+        'claude-opus-5-5' => [4.00, 20.00],
+        'claude-opus-4-7' => [5.00, 25.00],
+        'claude-opus-4-6' => [5.00, 25.00],
+        'claude-opus' => [5.00, 25.00],
+        'claude-sonnet-5' => [2.00, 10.00],
         'claude-sonnet-4-6' => [3.00, 15.00],
         'claude-sonnet' => [3.00, 15.00],
-        'claude-haiku-4-5' => [0.80, 4.00],
-        'claude-haiku' => [0.80, 4.00],
-        'claude-3-5-sonnet' => [3.00, 15.00],
-        'claude-3-5-haiku' => [0.80, 4.00],
-        'claude-3-opus' => [15.00, 75.00],
+        'claude-haiku-5-5' => [0.10, 0.50],
+        'claude-haiku-4-5' => [1.00, 5.00],
+        'claude-haiku' => [1.00, 5.00],
         'claude' => [3.00, 15.00],
 
         // OpenAI

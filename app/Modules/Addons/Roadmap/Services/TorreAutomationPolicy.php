@@ -199,6 +199,13 @@ class TorreAutomationPolicy
             $this->registrarAblandamientoPaso($item, $eventoAblandamiento, $detFrontera['motivo'] ?? null);
         }
 
+        // Regla d de la limpieza (2026-10-30): lo que ya salió vacío dos veces sin que una persona lo
+        // volviera a aprobar está en «Esperan tu decisión». Re-aprobarlo desde aquí sólo repite la
+        // misma vuelta vacía (#1000: el carril mecánico lo devolvía a la cola 5 minutos después).
+        if ($item->agotoVueltasVacias()) {
+            return 'requiere_irving';
+        }
+
         // (5) `manual` ES ABSOLUTO. Ningún override lo sobrepasa.
         //
         // Es un PARO DE EMERGENCIA, y un paro con excepciones no es un paro. El modo de fallo que

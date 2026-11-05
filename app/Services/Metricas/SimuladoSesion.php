@@ -5,11 +5,15 @@ namespace App\Services\Metricas;
 use App\Models\Router;
 
 /**
- * Sesión simulada (solo DEV, item #988): contesta la identidad que el router tiene registrada
- * como esperada, contadores que siempre crecen y ping sub-milisegundo. Ver SimuladoMetricasDriver.
+ * Sesión simulada (solo DEV, item #988): contesta la identidad registrada o el título del router,
+ * contadores que siempre crecen y ping sub-milisegundo. Ver SimuladoMetricasDriver. Con
+ * metricas.simulado se pueden ver en pantalla los casos de otra identidad y de VLAN no encontrada o repetida.
  */
 final class SimuladoSesion implements SesionRouter
 {
+    /** @var array<string, array{por: ?string, nombres: string[]}> */
+    private array $resolucion = [];
+
     public function __construct(private readonly Router $router)
     {
     }
@@ -36,7 +40,8 @@ final class SimuladoSesion implements SesionRouter
 
     public function identidad(): string
     {
-        return (string) ($this->router->mikrotik?->identidad_esperada ?: $this->router->title);
+        return (string) (config('metricas.simulado.identidades', [])[$this->router->title]
+            ?? ($this->router->mikrotik?->identidad_esperada ?: $this->router->title));
     }
 
     public function interfaces(array $pedidas): array
@@ -44,11 +49,26 @@ final class SimuladoSesion implements SesionRouter
         $ahora = microtime(true);
         $lecturas = [];
         foreach ($pedidas as $clave => $p) {
-            $semilla = SimuladoMetricasDriver::semilla((int) $this->router->id, $p['interfaz'] ?? null, $p['vlan_id'] ?? null);
-            $lecturas[$clave] = $semilla === null ? null : SimuladoMetricasDriver::lectura($semilla, $ahora);
+            $vlan = $p['vlan_id'] ?? null;
+            $porNombre = trim((string) ($p['interfaz'] ?? '')) !== '';
+            $this->resolucion[$clave] = ['por' => $porNombre ? 'nombre' : ($vlan ? 'vlan_id' : null), 'nombres' => match (true) {
+                $porNombre => [$p['interfaz']],
+                ! $vlan || $vlan === config('metricas.simulado.vlan_no_encontrada') => [],
+                $vlan === config('metricas.simulado.vlan_repetida') => ["VLAN {$vlan} (simulada)", "VLAN {$vlan} copia (simulada)"],
+                default => ["VLAN {$vlan} (simulada)"],
+            }];
+            $semilla = SimuladoMetricasDriver::semilla((int) $this->router->id, $p['interfaz'] ?? null, $vlan);
+            $lecturas[$clave] = $semilla === null || count($this->resolucion[$clave]['nombres']) !== 1
+                ? null
+                : SimuladoMetricasDriver::lectura($semilla, $ahora);
         }
 
         return $lecturas;
+    }
+
+    public function resolucion(): array
+    {
+        return $this->resolucion;
     }
 
     public function ping(string $ip, int $paquetes, string $intervalo): LecturaPing

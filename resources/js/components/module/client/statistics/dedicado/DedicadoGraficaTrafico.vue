@@ -19,6 +19,14 @@
                     </svg>
                     Velocidad contratada {{ mbps(contratada, 0) }}
                 </li>
+                <li v-if="datos.bandas?.sin_datos?.length">
+                    <span class="dg-muestra" :style="{ background: colores.sinDatos, opacity: OPACIDAD.sinDatos }" aria-hidden="true"></span>
+                    Sin datos del colector
+                </li>
+                <li v-if="datos.bandas?.pausado?.length">
+                    <span class="dg-muestra" :style="{ background: colores.pausado, opacity: OPACIDAD.pausado }" aria-hidden="true"></span>
+                    Monitoreo pausado
+                </li>
             </ul>
         </q-card-section>
         <q-card-section class="dg-cuerpo">
@@ -39,7 +47,7 @@
 import { computed } from "vue";
 import VueApexCharts from "vue3-apexcharts";
 import { darkMode } from "../../../../../hook/appConfig.js";
-import { COLORES, cubeta, ejeX, franjas, lineaAhora, mbps } from "./formato.js";
+import { COLORES, OPACIDAD, cubeta, ejeX, franjas, lineaAhora, mbps } from "./formato.js";
 
 // #988 Fase 4, sección 7: bajada (tx de la VLAN) en azul con relleno suave y subida (rx) en naranja
 // oscuro, ya convertidas en el servidor; línea punteada gris con la velocidad del plan. Eje Y de 0
@@ -108,7 +116,7 @@ export default {
                     yaxis: contratada.value
                         ? [{ y: contratada.value, borderColor: c.contratada, strokeDashArray: 5, borderWidth: 2 }]
                         : [],
-                    xaxis: [...franjas(props.datos, "sin_datos", c.sinDatos, 0.28, "Sin datos del colector"), ...lineaAhora(props.datos, c)],
+                    xaxis: [...franjas(props.datos, "sin_datos", c.sinDatos, OPACIDAD.sinDatos, "Sin datos del colector"), ...franjas(props.datos, "pausado", c.pausado, OPACIDAD.pausado, "Monitoreo pausado"), ...lineaAhora(props.datos, c)],
                 },
                 tooltip: {
                     shared: true,
@@ -121,7 +129,7 @@ export default {
             };
         });
 
-        return { clave, darkMode, colores, contratada, superaPlan, series, opciones, minutosCubeta, mbps };
+        return { OPACIDAD, clave, darkMode, colores, contratada, superaPlan, series, opciones, minutosCubeta, mbps };
     },
 };
 </script>
@@ -137,6 +145,12 @@ export default {
     gap: 8px 16px;
     flex-wrap: wrap;
     padding-bottom: 0;
+}
+.dg-muestra {
+    display: inline-block;
+    width: 16px;
+    height: 10px;
+    border-radius: 2px;
 }
 .dg-leyenda {
     display: flex;

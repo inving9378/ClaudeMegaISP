@@ -129,13 +129,34 @@
                 <td>{{ h.data?.name }}</td>
                 <td class="text-end">${{ fmt(h.data?.base_salary) }}</td>
                 <td class="text-center">{{ h.data?.weekly_quota_units }}</td>
-                <td class="text-end">${{ fmt(h.data?.weekly_quota_units > 0 ? h.data?.base_salary / h.data?.weekly_quota_units : 0) }}</td>
+                <td class="text-end">${{ fmt(cuotaSemana(h.data) > 0 ? h.data?.base_salary / cuotaSemana(h.data) : 0) }}</td>
               </tr>
               <tr v-if="!assign.history.length">
                 <td colspan="5" class="text-muted small text-center py-2">Sin historial.</td>
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- METAS VIGENTES: objetivo, resultado y evidencia (UNI-T M3) -->
+    <div v-if="assign.colaborador_id && assign.metasEnabled" class="tc-card mb-3">
+      <div class="p-3">
+        <h2 class="tc-h2">Metas — {{ assign.colaborador_name }}</h2>
+        <div v-if="!assign.metas.length" class="text-muted small">Sin metas vigentes.</div>
+        <div v-for="m in assign.metas" :key="m.id" class="border rounded p-2 mb-2">
+          <div><strong>{{ m.concepto }}</strong> (v{{ m.version }}) — objetivo: {{ m.valor }} {{ m.unidad }} / {{ m.periodo }}</div>
+          <div v-if="m.resultado" class="small">
+            Resultado semana {{ m.resultado.semana_inicio }} a {{ m.resultado.semana_fin }}:
+            {{ m.resultado.ventas }} ({{ m.resultado.resultado }}), prospectos {{ m.resultado.prospectos }}
+          </div>
+          <div v-else class="small text-muted">Sin evaluación semanal todavía.</div>
+          <ul v-if="m.evidencia && m.evidencia.length" class="small mb-0">
+            <li v-for="e in m.evidencia" :key="e.tipo + e.id">
+              <a :href="e.url" target="_blank">{{ e.tipo }} #{{ e.id }}</a> — {{ e.puntos }} pts, validada {{ e.validada }}
+            </li>
+          </ul>
         </div>
       </div>
     </div>
@@ -184,10 +205,11 @@
               <div class="col-md-4">
                 <label class="form-label">Cuota {{ quotaPeriodLabel(ruleModal.period) }} (unidades)</label>
                 <input v-model="ruleModal.weekly_quota_units" type="number" min="0" class="form-control">
+                <div v-if="ruleModal.period === 'daily'" class="form-text">= {{ cuotaSemana(ruleModal) }} por semana (lunes a sábado)</div>
               </div>
               <div class="col-md-4 d-flex flex-column justify-content-end">
                 <div class="form-text">
-                  $/unidad = ${{ fmt(ruleModal.weekly_quota_units > 0 ? ruleModal.base_salary / ruleModal.weekly_quota_units : 0) }}
+                  $/unidad = ${{ fmt(cuotaSemana(ruleModal) > 0 ? ruleModal.base_salary / cuotaSemana(ruleModal) : 0) }}
                 </div>
               </div>
               <div class="col-md-3">
@@ -289,7 +311,7 @@ export default {
       assign: {
         search: '', suggestions: [], colaborador_id: null, colaborador_name: '',
         rule_id: null, rulePreview: null, assigned_at: new Date().toISOString().substring(0,10),
-        saving: false, error: '', success: '', history: [], loadingHistory: false,
+        saving: false, error: '', success: '', history: [], loadingHistory: false, metas: [], metasEnabled: false,
       },
       assignSearchTimeout: null,
     };
@@ -396,6 +418,9 @@ export default {
       try {
         const { data } = await axios.get(`/talento/api/colaboradores/${this.assign.colaborador_id}/regla/historial`);
         this.assign.history = data ?? [];
+        const r = await axios.get(`/talento/api/colaboradores/${this.assign.colaborador_id}/metas`);
+        this.assign.metasEnabled = !!r.data?.enabled;
+        this.assign.metas = r.data?.metas ?? [];
       } finally { this.assign.loadingHistory = false; }
     },
     onAssignRuleChange() {
@@ -422,6 +447,8 @@ export default {
     // Forma femenina para "Cuota ___ (unidades)" / "ud/___" — periodLabel() ya no
     // concuerda en género ("Cuota Diario" está mal, "cuota" es femenino).
     quotaPeriodLabel(p) { return { daily: 'diaria', weekly: 'semanal', biweekly: 'quincenal', monthly: 'mensual' }[p] ?? p; },
+    // Igual que TalentoCompensationRule::cuotaSemanal(): una cuota diaria cuenta 6 días (lunes a sábado).
+    cuotaSemana(r) { const q = parseInt(r?.weekly_quota_units) || 0; return r?.period === 'daily' ? q * 6 : q; },
     fmt(n) { return Number(n ?? 0).toFixed(2); },
     formatDate(d) {
       if (!d) return '—';

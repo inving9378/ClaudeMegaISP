@@ -181,6 +181,8 @@ class Module extends BaseModel
                 'filter' => $field->search ? (json_decode($field->search)->filter ?? null) : null,
                 'scope' => $field->search ? (json_decode($field->search)->scope ?? null) : null,
                 'append' => $field->search ? (json_decode($field->search)->append ?? null) : null,
+                // Listas de personal: solo cuentas activas (2026-10-29).
+                'solo_activos' => $field->search ? (bool) (json_decode($field->search)->solo_activos ?? false) : false,
 
             ],
             'options' => $field->search ? null : ($field->options !== null ? json_decode($field->options) : null),

@@ -79,6 +79,12 @@ class ModuleRegistry
         return $this->compiled()['client_tabs'];
     }
 
+    /** Pestañas de ficha de CRM (prospecto) aportadas por módulos activos. */
+    public function getCrmTabs(): array
+    {
+        return $this->compiled()['crm_tabs'];
+    }
+
     /**
      * Pestañas diferidas: módulos que declaran client_tab con deferred:true.
      * Permite auditar la deuda pendiente de infra sin bloquear el render.
@@ -138,6 +144,7 @@ class ModuleRegistry
         $aiContext         = [];
         $clientTabs        = [];
         $clientTabsDeferred = [];
+        $crmTabs           = [];
         $serviceTypes      = [];
         $screens           = [];
         $sidebarSubmenu    = [];
@@ -189,6 +196,11 @@ class ModuleRegistry
                 }
             }
 
+            $crmTab = $manifest['crm_tab'] ?? null;
+            if (! empty($crmTab) && ! ($crmTab['deferred'] ?? false)) {
+                $crmTabs[] = array_merge($crmTab, ['_module' => $slug]);
+            }
+
             foreach ($manifest['screens'] ?? [] as $screen) {
                 $screens[] = array_merge($screen, ['_module' => $slug]);
             }
@@ -214,6 +226,7 @@ class ModuleRegistry
             'ai_context'           => $aiContext,
             'client_tabs'          => $clientTabs,
             'client_tabs_deferred' => $clientTabsDeferred,
+            'crm_tabs'             => $crmTabs,
             'service_types'        => $serviceTypes,
             'screens'              => $screens,
             'sidebar_submenu'      => $sidebarSubmenu,

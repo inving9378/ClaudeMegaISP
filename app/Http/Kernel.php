@@ -91,5 +91,8 @@ class Kernel extends HttpKernel
 
         // Persiste la última ruta visitada por el usuario (para post-login redirect inteligente).
         'track_last_route' => \App\Http\Middleware\TrackLastVisitedRoute::class,
+
+        // Item #1159: clave Bearer de las consultas públicas /api/externo/* (`clave.externa:cobertura`).
+        'clave.externa' => \App\Http\Middleware\ClaveApiExterna::class,
     ];
 }

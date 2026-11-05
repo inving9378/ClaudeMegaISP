@@ -93,6 +93,7 @@
 </template>
 
 <script setup>
+import { currentSearch } from "../../../hook/comunValues.js";
 import InformationClientCrud from "./InformationClientCrud";
 import ClientService from "./service/ClientService.vue";
 import { ref, onMounted, onUnmounted, watch, computed, getCurrentInstance } from "vue";
@@ -241,7 +242,7 @@ const setInitialTab = async () => {
     // pestaña concreta sin pisar la preferencia guardada del usuario en DB (lo usan los
     // enlaces de JARVIS). "pagos" = pestaña externa Facturación (el sub-tab Pagos lo
     // resuelve ClientBilling); cualquier otro valor debe ser el nombre de una pestaña visible.
-    const urlTab = new URLSearchParams(window.location.search).get("tab");
+    const urlTab = new URLSearchParams(currentSearch()).get("tab");
     // "facturacion" = Facturación › Vista de facturación (enlace del resumen de Datos de facturación, FR-01).
     const urlTabName = urlTab === "pagos" || urlTab === "facturacion" ? "facture" : urlTab;
     if (urlTabName && tabs.value.includes(urlTabName)) {

@@ -48,6 +48,8 @@ return [
         'key' => env('CLAUDE_API_KEY'),
         'model' => env('CLAUDE_MODEL', 'claude-sonnet-4-6'),
         'endpoint' => env('CLAUDE_API_ENDPOINT', 'https://api.anthropic.com/v1/messages'),
+        // #1076 — pesos por dólar con que ClaudeApiClient anota el costo de cada llamada en el log.
+        'tipo_cambio_mxn' => (float) env('ANTHROPIC_TIPO_CAMBIO_MXN', 19),
     ],
 
     // Respaldo #2 (tras el Hub api_integrations) de UsesApiIntegration::resolveApiKey()
@@ -81,6 +83,15 @@ return [
         'password'        => env('OLT_HUAWEI_PASS', ''),
         'transport'       => env('OLT_HUAWEI_TRANSPORT', 'telnet'),
         'connect_timeout' => env('OLT_HUAWEI_TIMEOUT', 30),
+    ],
+
+    // PAC Facturama (CFDI 4.0, #117). Apagado y sin credenciales por defecto.
+    'facturama' => [
+        'enabled'        => env('FACTURAMA_ENABLED', false),
+        'sandbox'        => env('FACTURAMA_SANDBOX', true),
+        'user'           => env('FACTURAMA_USER', ''),
+        'password'       => env('FACTURAMA_PASSWORD', ''),
+        'expedition_zip' => env('FACTURAMA_EXPEDITION_ZIP', ''),
     ],
 
 ];

@@ -48,7 +48,7 @@
                   <td class="text-muted small">{{ o.id }}</td>
                   <td class="small fw-semibold">{{ o.colaborador?.user?.name }}</td>
                   <td class="small">{{ o.type?.name }}</td>
-                  <td class="small">{{ fmtdt(o.scheduled_at) }}</td>
+                  <td class="small">{{ fechaAgenda(o.scheduled_at) }}</td>
                   <td><span class="tc-status" :class="statusColor(o.status)">{{ statusLabel(o.status) }}</span></td>
                   <td>
                     <button @click="openOrder(o.id)" class="tc-btn tc-btn-info btn-xs">
@@ -90,7 +90,7 @@
                 <div>
                   <div class="fw-bold">{{ flow.order?.colaborador?.user?.name }}</div>
                   <div class="small text-muted">
-                    Agendada: {{ fmtdt(flow.order?.scheduled_at) }}
+                    Agendada: {{ fechaAgenda(flow.order?.scheduled_at) }}
                     <span v-if="flow.order?.modem_sn" class="ms-3">SN: <code>{{ flow.order.modem_sn }}</code></span>
                   </div>
                 </div>
@@ -304,15 +304,23 @@
               <div class="tc-cardhead p-3"><i class="fa fa-user-plus me-2"></i>Onboarding + Encuesta</div>
               <div class="p-3">
                 <div v-if="!onboarding.done && flow.order?.status === 'active'">
-                  <p class="small text-muted mb-2">Genera la contraseña temporal del cliente y crea la encuesta de instalación.</p>
+                  <p class="small text-muted mb-2">Muestra con qué entra el cliente a su portal y crea la encuesta de instalación.</p>
                   <button @click="doOnboard" class="tc-btn tc-btn-ok btn-sm" :disabled="onboarding.loading">
                     <span v-if="onboarding.loading"><span class="spinner-border spinner-border-sm me-1"></span></span>
-                    <span v-else><i class="fa fa-user-plus me-1"></i>Generar onboarding</span>
+                    <span v-else><i class="fa fa-user-plus me-1"></i>Acceso al portal y encuesta</span>
                   </button>
                 </div>
-                <div v-if="onboarding.result" class="alert alert-success small py-2 mt-2">
-                  <strong>Contraseña temporal:</strong> <code>{{ onboarding.result.temp_password }}</code>
-                  (muéstrasela al cliente, se borrará al cerrar este panel)
+                <div v-if="onboarding.result?.temp_password" class="alert alert-success small py-2 mt-2">
+                  <div class="mb-1">Para entrar a <a :href="onboarding.result.portal_url" target="_blank" rel="noopener">{{ onboarding.result.portal_url }}</a>:</div>
+                  <div><strong>Usuario:</strong> <code>{{ onboarding.result.login_user }}</code> (también sirve su número de cliente o su correo)</div>
+                  <div><strong>Contraseña:</strong> <code>{{ onboarding.result.temp_password }}</code></div>
+                  <div class="text-muted mt-1">
+                    {{ onboarding.result.password_generada ? 'No tenía contraseña: esta es nueva y ya quedó en su ficha.' : 'Es la que ya tenía registrada.' }}
+                    Ayúdale a entrar desde su celular; puede cambiarla en el portal, en Mi Perfil. Esto se borra al cerrar el panel.
+                  </div>
+                </div>
+                <div v-else-if="onboarding.result" class="alert alert-warning small py-2 mt-2">
+                  No se encontró la ficha del cliente, así que no se pudo preparar su acceso al portal. La encuesta sí se creó.
                 </div>
                 <!-- Encuesta -->
                 <div v-if="flow.order?.status === 'survey_pending' || flow.survey" class="mt-3 border-top pt-3">
@@ -408,6 +416,7 @@ import Permission from "../../../helpers/Permission.js";
 import { allViewHasPermission } from "../../../helpers/Request.js";
 import TalentoFlujoCrearModal from "./TalentoFlujoCrearModal.vue";
 import FirmaCanvas from "../../firma/FirmaCanvas.vue";
+import { fechaAgenda } from "./fechaAgenda.js";
 
 // Mismo umbral que TalentoExpedienteDocumentos.vue (trazos mínimos para
 // considerar la firma real, no un simple toque accidental).
@@ -715,6 +724,7 @@ export default {
                   survey_pending:'Pend. Encuesta' };
       return m[s] ?? s;
     },
+    fechaAgenda,
     fmtdt(d) {
       if (!d) return '—';
       return new Date(d).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });

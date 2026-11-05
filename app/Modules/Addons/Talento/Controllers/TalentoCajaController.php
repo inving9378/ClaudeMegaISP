@@ -74,7 +74,9 @@ class TalentoCajaController extends Controller
 
     public function latestPerCaja()
     {
-        $this->authorize('talento.caja.view');
+        // 2026-10-27: quien puede registrar una baseline (técnico activo, ver store()) también ve
+        // la lista; antes la pestaña Cajas ODB del técnico quedaba vacía con 403.
+        abort_unless(auth()->user()->can('talento.caja.view') || $this->esTecnicoActivo(), 403);
 
         // One row per caja_ref (latest)
         $rows = DB::table('talento_caja_baselines as b1')
@@ -90,6 +92,16 @@ class TalentoCajaController extends Controller
         return response()->json($rows);
     }
 
+    /** Técnico con ficha de Talento: registra baselines y ve la lista aunque no tenga el permiso general. */
+    private function esTecnicoActivo(): bool
+    {
+        $miColaborador = Actor::for(auth()->user())->talento();
+        return $miColaborador && !empty(array_intersect(
+            $miColaborador->user?->getRoleNames()->toArray() ?? [],
+            self::ROLES_TECNICO
+        ));
+    }
+
     public function store(Request $request)
     {
         // David (28-sep, corrigiendo su propio pedido anterior): "registrar
@@ -99,12 +111,7 @@ class TalentoCajaController extends Controller
         // SÍ solo admin/supervisor), esto lo puede hacer cualquier técnico
         // activo además de quien tenga el permiso general.
         if (! auth()->user()->can('talento.caja.manage')) {
-            $miColaborador = Actor::for(auth()->user())->talento();
-            $esTecnico = $miColaborador && !empty(array_intersect(
-                $miColaborador->user?->getRoleNames()->toArray() ?? [],
-                self::ROLES_TECNICO
-            ));
-            abort_unless($esTecnico, 403, 'No tienes permiso para registrar baselines de cajas.');
+            abort_unless($this->esTecnicoActivo(), 403, 'No tienes permiso para registrar baselines de cajas.');
         }
 
         $data = $request->validate([
@@ -150,6 +157,12 @@ class TalentoCajaController extends Controller
         $this->authorize('talento.work_orders.validate');
 
         $result = $this->bonusService->evaluate((int)$workOrderId);
+        if ($result->ya_existia ?? false) {
+            return response()->json(array_merge($result->toArray(), [
+                'ya_existe' => true,
+                'message'   => 'El bono de esta orden ya fue registrado; no se vuelve a pagar.',
+            ]));
+        }
         return response()->json($result);
     }
 

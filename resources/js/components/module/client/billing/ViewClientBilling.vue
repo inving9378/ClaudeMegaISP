@@ -228,8 +228,8 @@
                 <div class="ml-xl-3">
                     <ClientDatosFacturacionCard
                         :client-id="id"
-                        :puede-ver="hasPermission.data.canView('facturacion.ver')"
-                        :puede-editar="hasPermission.data.canView('facturacion.fiscal.editar')"
+                        :puede-ver="hasPermission.data.canView('facturacion.datos.ver')"
+                        :puede-editar="hasPermission.data.canView('facturacion.datos.editar')"
                     />
                     <!-- Estados de cuenta generados (FR-02 #536); no aparece si no hay -->
                     <ClientEstadosCuentaCard

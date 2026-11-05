@@ -84,6 +84,18 @@ class FleetVehicle extends BaseModel
     // ── Scopes ────────────────────────────────────────────────────────────────
     // scopeForClient() lo provee el trait BelongsToClientTenant (allowNullTenant=true).
 
+    /** Unidades internas de Meganet (sin dueño cliente). */
+    public function scopeInterno(Builder $q): Builder
+    {
+        return $q->whereNull($this->getTable() . '.client_id');
+    }
+
+    /** Unidades de un cliente concreto. */
+    public function scopeDeCliente(Builder $q, int $clientId): Builder
+    {
+        return $q->where($this->getTable() . '.client_id', $clientId);
+    }
+
     public function scopeActive(Builder $q): Builder
     {
         return $q->where('status', 'active');

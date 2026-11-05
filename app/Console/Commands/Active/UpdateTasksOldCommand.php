@@ -35,6 +35,12 @@ class UpdateTasksOldCommand extends Command
 
     public function handle()
     {
+        if (config('unificacion.interruptores.fechas_atrasadas_intactas_f2')) {
+            // F2: lo atrasado conserva su fecha; reprogramar es una acción explícita del usuario.
+            Log::info('Comando de Actualizar Tareas omitido: las fechas atrasadas se conservan (UNI-T F2)');
+            return self::SUCCESS;
+        }
+
         $taskRepository = new TaskRepository();
 
         $tasksToUpdate = $taskRepository->getTasksToUpdate();
@@ -59,6 +65,13 @@ class UpdateTasksOldCommand extends Command
             if (!$startTime || $startTime->isPast()) {
                 $startHour = $startTime ? $startTime->format('H:i') : '10:00'; // Mantener la hora o usar 10:00 si es null
                 $startTime = Carbon::today()->setTimeFromTimeString($startHour); // Fecha de hoy, mantener la hora
+            }
+
+            if (config('unificacion.interruptores.programacion_unica')) {
+                // Misma forma oficial que el resto: start_date sigue al día de start_time.
+                $task->fill(\App\Services\TaskScheduleService::fields($startTime, $endTime));
+                $task->save();
+                continue;
             }
 
             $task->start_time = $startTime;

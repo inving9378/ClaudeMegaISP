@@ -14,7 +14,7 @@ class FleetRuleController extends FleetBaseController
     // GET /flotas/api/reglas — reglas del usuario actual
     public function index(): JsonResponse
     {
-        $this->authorize('fleet.rules.view');
+        $this->autorizar('fleet.rules.view');
 
         $rules = FleetGeofenceRule::where('user_id', auth()->id())
             ->orderByDesc('active')->orderBy('name')
@@ -27,7 +27,7 @@ class FleetRuleController extends FleetBaseController
     // POST /flotas/api/reglas
     public function store(Request $request): JsonResponse
     {
-        $this->authorize('fleet.rules.manage');
+        $this->autorizar('fleet.rules.manage');
 
         $data = $this->validateData($request);
         $data['user_id']   = auth()->id();
@@ -40,7 +40,7 @@ class FleetRuleController extends FleetBaseController
     // PUT /flotas/api/reglas/{id}
     public function update(Request $request, int $id): JsonResponse
     {
-        $this->authorize('fleet.rules.manage');
+        $this->autorizar('fleet.rules.manage');
 
         $rule = FleetGeofenceRule::where('user_id', auth()->id())->findOrFail($id);
         $rule->update($this->validateData($request));
@@ -50,7 +50,7 @@ class FleetRuleController extends FleetBaseController
     // DELETE /flotas/api/reglas/{id}
     public function destroy(int $id): JsonResponse
     {
-        $this->authorize('fleet.rules.manage');
+        $this->autorizar('fleet.rules.manage');
 
         $rule = FleetGeofenceRule::where('user_id', auth()->id())->findOrFail($id);
         $rule->delete();
@@ -60,7 +60,7 @@ class FleetRuleController extends FleetBaseController
     // POST /flotas/api/reglas/{id}/toggle
     public function toggle(int $id): JsonResponse
     {
-        $this->authorize('fleet.rules.manage');
+        $this->autorizar('fleet.rules.manage');
 
         $rule = FleetGeofenceRule::where('user_id', auth()->id())->findOrFail($id);
         $rule->update(['active' => !$rule->active]);

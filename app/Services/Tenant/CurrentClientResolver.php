@@ -40,6 +40,20 @@ class CurrentClientResolver
     }
 
     /**
+     * Resolución para rutas del PANEL de staff (/flotas/*, api/vehiculos…): ignora el guard
+     * 'cliente' del portal, para que una sesión de portal abierta en el mismo navegador no
+     * convierta el panel de Meganet en la flota de ese cliente (#633/#634).
+     */
+    public function resolveForPanel(): ?int
+    {
+        if (request()->bearerToken() && Auth::guard('sanctum')->check()) {
+            return $this->fromApi();
+        }
+
+        return $this->fromWebAdmin();
+    }
+
+    /**
      * Panel admin (guard web). Equivalente EXACTO a FleetBaseController::clientId():
      * roles internos → null; el resto → su client_id.
      */

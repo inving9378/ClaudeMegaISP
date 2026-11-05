@@ -161,6 +161,14 @@ class ApiController extends Controller
 
         $user = User::where('login_user', $cmi->user)->first();
 
+        // Una cuenta ajena (de personal, del sistema u otro cliente) con el mismo usuario que el
+        // Usuario WEB de la ficha no da sesión: con la Contraseña WEB de la ficha se entraba a esa
+        // cuenta (2026-10-23).
+        if ($user && ! $user->esCuentaDelCliente((int) $cmi->client_id)) {
+            \Log::warning('megafamilia_login_cuenta_ajena', ['cmi_id' => $cmi->id, 'user_id' => $user->id]);
+            return response()->json(['success' => false, 'error' => 'Credenciales inválidas'], 401);
+        }
+
         if ($user) {
             // Cliente con users row: verifica bcrypt/base64 (creados por seeder o migración).
             // Fallback a plain de CMI para clientes cuyo bcrypt no coincide pero sí su web password.
@@ -1106,6 +1114,21 @@ class ApiController extends Controller
         return response()->json(['success' => true, 'rules' => $rules]);
     }
 
+    /**
+     * Registra/refresca el token FCM de un dispositivo (el cliente RN lo envía
+     * tras `messaging().getToken()` y en `onTokenRefresh`). Solo el dueño de la
+     * cuenta puede tocar sus dispositivos (requireDevice).
+     */
+    public function updateDeviceFcmToken(Request $request, int $id): JsonResponse
+    {
+        $device = $this->requireDevice($id);
+        $data = $request->validate([
+            'fcm_token' => 'required|string|max:512',
+        ]);
+        $device->update(['fcm_token' => $data['fcm_token'], 'last_seen_at' => now()]);
+        return response()->json(['success' => true]);
+    }
+
     // ---- GEOFENCES (Panel del Padre) --------------------------------------
 
     public function profileGeofences(int $id): JsonResponse
@@ -1307,8 +1330,23 @@ class ApiController extends Controller
         ]);
 
         if (isset($data['status'])) {
-            $task->status = $this->mapOrdenStatusToTask($data['status']);
-            $task->save();
+            $nuevoEstado = $this->mapOrdenStatusToTask($data['status']);
+            if ($nuevoEstado === 'Done' && $task->talento_type_id && config('unificacion.interruptores.ordenes_d5a')) {
+                // D5a: una orden de Talento solo se cierra por el servicio de órdenes (compuerta de evidencias/dBm).
+                $colaborador = \App\Modules\Addons\Talento\Models\TalentoColaborador::where('user_id', Auth::id())->first();
+                if (! $colaborador) {
+                    return response()->json(['message' => 'No tienes un perfil de colaborador para cerrar esta orden.'], 403);
+                }
+                $res = app(\App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService::class)
+                    ->completar($task->id, $colaborador->id, ['nota_tecnico' => $data['notes'] ?? null]);
+                if (empty($res['success'])) {
+                    return response()->json($res, $res['status_code'] ?? 422);
+                }
+                $task->refresh();
+            } else {
+                $task->status = $nuevoEstado;
+                $task->save();
+            }
         }
 
         if (! empty($data['notes'])) {

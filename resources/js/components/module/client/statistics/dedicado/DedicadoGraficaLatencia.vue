@@ -18,8 +18,12 @@
                     Sin respuesta
                 </li>
                 <li>
-                    <span class="dg-muestra dg-sin-datos" :style="{ background: colores.sinDatos }" aria-hidden="true"></span>
+                    <span class="dg-muestra" :style="{ background: colores.sinDatos, opacity: OPACIDAD.sinDatos }" aria-hidden="true"></span>
                     Sin datos del colector
+                </li>
+                <li v-if="datos.bandas?.pausado?.length">
+                    <span class="dg-muestra" :style="{ background: colores.pausado, opacity: OPACIDAD.pausado }" aria-hidden="true"></span>
+                    Monitoreo pausado
                 </li>
             </ul>
         </q-card-section>
@@ -36,7 +40,7 @@
 import { computed } from "vue";
 import VueApexCharts from "vue3-apexcharts";
 import { darkMode } from "../../../../../hook/appConfig.js";
-import { COLORES, DASH, cubeta, ejeX, franjas, lineaAhora, ms, nombreIp, pct, topeRedondo } from "./formato.js";
+import { COLORES, DASH, OPACIDAD, cubeta, ejeX, franjas, lineaAhora, ms, nombreIp, pct, topeRedondo } from "./formato.js";
 
 // #988 Fase 4, sección 6: una línea de latencia por IP (estilo distinto por IP) en el eje izquierdo
 // con autoescala y decimales; la pérdida promedio entre IPs en barras en el eje derecho (0 a 20 %,
@@ -133,7 +137,8 @@ export default {
                 ],
                 annotations: {
                     xaxis: [
-                        ...franjas(props.datos, "sin_datos", c.sinDatos, 0.28, "Sin datos del colector"),
+                        ...franjas(props.datos, "sin_datos", c.sinDatos, OPACIDAD.sinDatos, "Sin datos del colector"),
+                        ...franjas(props.datos, "pausado", c.pausado, OPACIDAD.pausado, "Monitoreo pausado"),
                         ...franjas(props.datos, "sin_respuesta", c.caida, 0.45, "Sin respuesta"),
                         ...lineaAhora(props.datos, c),
                     ],
@@ -154,7 +159,7 @@ export default {
             };
         });
 
-        return { clave, darkMode, colores, color, dash, nombreIp, series, opciones, minutosCubeta };
+        return { clave, darkMode, colores, color, dash, nombreIp, series, opciones, minutosCubeta, OPACIDAD };
     },
 };
 </script>
@@ -194,9 +199,6 @@ export default {
 .dg-barra {
     width: 8px;
     height: 12px;
-}
-.dg-sin-datos {
-    opacity: 0.6;
 }
 .dg-cuerpo {
     padding-top: 4px;

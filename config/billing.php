@@ -12,6 +12,10 @@ return [
     */
     'notification_window_hours' => env('BILLING_NOTIFICATION_WINDOW_HOURS', 12),
 
+    // Correos en copia (separados por coma) de los recordatorios de pago de ReminderPaymentCommand.
+    // Valor solo en .env (repo público): BILLING_REMINDER_CC_FALLBACK. Vacío = sin copia.
+    'reminder_cc_fallback' => env('BILLING_REMINDER_CC_FALLBACK', ''),
+
     /*
     |--------------------------------------------------------------------------
     | Directorio de almacenamiento de PDFs generados

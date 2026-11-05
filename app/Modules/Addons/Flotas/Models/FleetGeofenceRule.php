@@ -17,6 +17,7 @@ class FleetGeofenceRule extends BaseModel
         'name', 'description', 'user_id', 'client_id',
         'vehicle_ids', 'geofence_ids', 'event_types',
         'time_from', 'time_to', 'days_of_week', 'channels', 'active',
+        'tipo', 'params', 'origen',
     ];
 
     protected $casts = [
@@ -25,6 +26,7 @@ class FleetGeofenceRule extends BaseModel
         'event_types'  => 'array',
         'days_of_week' => 'array',
         'channels'     => 'array',
+        'params'       => 'array',
         'active'       => 'boolean',
     ];
 

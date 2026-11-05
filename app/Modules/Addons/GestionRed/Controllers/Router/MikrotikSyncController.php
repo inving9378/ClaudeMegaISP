@@ -32,7 +32,7 @@ class MikrotikSyncController extends Controller
             $status = null;
         }
 
-        $items = $this->repository->pendientesOFallidos($status);
+        $items = $this->repository->pendientesOFallidos($status, $request->integer('router_id') ?: null);
 
         return response()->json([
             'items' => $items,

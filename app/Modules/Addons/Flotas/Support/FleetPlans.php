@@ -64,9 +64,30 @@ class FleetPlans
         ],
     ];
 
+    /** Plan (bloque) que corresponde a N unidades: el menor que las incluye; arriba del tope, el mayor (Pro + excedente). */
+    public static function keyForUnits(int $units): string
+    {
+        $plans = self::PLANS;
+        uasort($plans, fn ($a, $b) => $a['included_units'] <=> $b['included_units']);
+        foreach ($plans as $key => $plan) {
+            if ($units <= $plan['included_units']) {
+                return $key;
+            }
+        }
+        return array_key_last($plans);
+    }
+
     public static function all(): array
     {
         return array_values(self::PLANS);
+    }
+
+    /** Precio mensual del bloque que corresponde a $units: base del plan + excedente sobre su tope. */
+    public static function priceForUnits(int $units): float
+    {
+        $key = self::keyForUnits($units);
+
+        return round(self::basePrice($key) + max(0, $units - self::includedUnits($key)) * self::OVERAGE_UNIT_PRICE, 2);
     }
 
     public static function exists(string $key): bool

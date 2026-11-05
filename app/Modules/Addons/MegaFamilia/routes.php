@@ -289,6 +289,7 @@ Route::prefix('api/megafamilia')->middleware(['log_api_mobile', 'force_json'])->
 
         Route::get('/devices/{id}/rules', [ApiController::class, 'deviceRules'])->whereNumber('id');
         Route::put('/devices/{id}/rules', [ApiController::class, 'updateDeviceRules'])->whereNumber('id');
+        Route::put('/devices/{id}/fcm-token', [ApiController::class, 'updateDeviceFcmToken'])->whereNumber('id');
 
         // Geocercas del Panel del Padre (item roadmap #32), scoped por perfil.
         Route::get('/profiles/{id}/geofences', [ApiController::class, 'profileGeofences'])->whereNumber('id');

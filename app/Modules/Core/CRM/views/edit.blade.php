@@ -6,6 +6,7 @@
         <crm-crud
             action="update/{{$id}}"
             tabs="{{ $tabs }}"
+            module-tabs="{{ $moduleTabs }}"
             id="{{ $id }}"
         >
         </crm-crud>

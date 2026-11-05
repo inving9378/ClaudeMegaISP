@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Core\Configuracion\Repositories\DefaultValueRepository;
 use App\Http\Repository\ModuleRepository;
 use App\Models\Task;
+use App\Services\Billing\FechasGraciaService;
 use App\Services\TaskService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -18,9 +19,14 @@ class FullcalendarController extends Controller
         $billingDatePost = $request->postData["billing_date"];
         $billingExpirationPost = $request->postData["billing_expiration"];
         $gracePeriodPost = $request->postData["grace_period"];
-        if ($billingDatePost) {
-            $billingDate = Carbon::createFromDate(Carbon::now()->year, Carbon::now()->month, $billingDatePost)
-                ->toDateString();
+        // Misma regla que BillingExpirationService::adjustBillingDate: el día de
+        // facturación se limita a los días del mes (31 en un mes de 30 = último día)
+        // y la expiración se suma en días; la gracia corre desde la fecha de corte.
+        $base = $billingDatePost
+            ? FechasGraciaService::diaFacturacion(Carbon::now()->year, Carbon::now()->month, (int) $billingDatePost)
+            : null;
+        if ($base) {
+            $billingDate = $base->toDateString();
             $events[] = [
                 'title' => 'Dia de facturación',
                 'start' => $billingDate,
@@ -28,9 +34,9 @@ class FullcalendarController extends Controller
                 'color' => '#c7e4f3'
             ];
         }
-        if ($billingExpirationPost) {
-            $billingExpiration = Carbon::createFromDate(Carbon::now()->year, Carbon::now()->month, $billingDatePost)
-                ->addDays($billingExpirationPost)->toDateString();
+        $corte = $base ? $base->copy()->addDays((int) $billingExpirationPost) : null;
+        if ($billingExpirationPost && $corte) {
+            $billingExpiration = $corte->toDateString();
             $events[] = [
                 'title' => 'Dia de Expiracion del servicio',
                 'start' => $billingExpiration,
@@ -38,9 +44,9 @@ class FullcalendarController extends Controller
                 'color' => '#f8f0c7'
             ];
         }
-        if ($gracePeriodPost) {
-            $gracePeriod = Carbon::createFromDate(Carbon::now()->year, Carbon::now()->month, $billingDatePost)
-                ->addDays($gracePeriodPost)->toDateString();
+        // Gracia 0 también se pinta (fin de gracia = día de corte).
+        if ($gracePeriodPost !== null && $gracePeriodPost !== '' && $corte) {
+            $gracePeriod = FechasGraciaService::finGracia($corte, (int) $gracePeriodPost)->toDateString();
             $events[] = [
                 'title' => 'Fin del Periodo de Gracia',
                 'start' => $gracePeriod,
@@ -79,8 +85,17 @@ class FullcalendarController extends Controller
             $end = $this->limpiaFechas($task->end_time);
 
             // Convertir las fechas a objetos Carbon directamente
-            $timeStart = Carbon::parse($start);
-            $timeEnd = Carbon::parse($end);
+            if (config('unificacion.interruptores.programacion_unica')) {
+                [$timeStart, $timeEnd] = \App\Services\TaskScheduleService::ventana($task->start_date, $task->start_time, $task->end_time);
+                if (!$timeStart) {
+                    continue;
+                }
+                $start = $timeStart->format('Y-m-d H:i:s');
+                $end = $timeEnd->format('Y-m-d H:i:s');
+            } else {
+                $timeStart = Carbon::parse($start);
+                $timeEnd = Carbon::parse($end);
+            }
 
             $timeDifference = $this->getTimeDifference($timeStart, $timeEnd);
 
@@ -90,6 +105,10 @@ class FullcalendarController extends Controller
                 'end' =>  Carbon::parse($end)->format('Y-m-d\TH:i:s'), // Incluye la hora en el formato ISO 8601
                 'color' => '#ecd0d0',
                 'status' => $task->status,
+                'priority' => $task->priority,
+                // Item #1158: una orden de Talento se mueve de día con motivo (Talento › Órdenes o «Mi día»),
+                // no arrastrándola aquí.
+                'es_orden_talento' => (bool) $task->talento_type_id,
                 'id' => $task->id,
                 'address' => $task->address,
                 'time' => $timeStart->format("H:i") . ' - ' . $timeEnd->format("H:i") . ' (' . $timeDifference . ')',

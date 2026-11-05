@@ -13,7 +13,7 @@
     <div class="tc-card">
       <div class="tc-cardhead d-flex align-items-center justify-content-between gap-2 p-3">
         <h5 class="tc-h1"><i class="fa fa-id-badge me-2"></i>Colaboradores</h5>
-        <button v-if="canManage" @click="openModal(null)" class="tc-btn tc-btn-ok">
+        <button v-if="canCreate" @click="openModal(null)" class="tc-btn tc-btn-ok">
           <i class="fa fa-plus me-1"></i> Nuevo colaborador
         </button>
       </div>
@@ -23,10 +23,8 @@
       <div class="row g-2 mb-3">
         <div class="col-md-2">
           <select v-model="filters.status" @change="load" class="form-select form-select-sm tc-select">
-            <option value="">Todos los status</option>
-            <option value="active">Activo</option>
-            <option value="inactive">Inactivo</option>
-            <option value="suspended">Suspendido</option>
+            <option value="">Activos</option>
+            <option value="inactive">Ver inactivos</option>
           </select>
         </div>
         <div class="col-md-2">
@@ -96,6 +94,9 @@
         <template v-slot:body-cell-status="props">
           <q-td :props="props">
             <span class="tc-status" :class="statusBadge(props.row.status)">{{ statusLabel(props.row.status) }}</span>
+            <div v-if="props.row.user && props.row.user.estado !== 'activo'" class="mt-1">
+              <span class="tc-status is-warn" style="font-size:10px;" title="Su cuenta del sistema está desactivada (Administración › Usuarios)">Cuenta desactivada</span>
+            </div>
           </q-td>
         </template>
         <template v-slot:body-cell-acciones="props">
@@ -205,7 +206,11 @@
               <!-- Departamento -->
               <div class="col-md-4">
                 <label class="form-label">Departamento</label>
-                <input v-model="modal.department" type="text" class="form-control" placeholder="Ej. Técnico, Ventas…">
+                <select v-if="departamentosActivo" v-model="modal.department" class="form-select">
+                  <option value="">— Sin departamento —</option>
+                  <option v-for="d in departamentosOpciones" :key="d" :value="d">{{ d }}</option>
+                </select>
+                <input v-else v-model="modal.department" type="text" class="form-control" placeholder="Ej. Técnico, Ventas…">
                 <div v-if="!modal.id && modal.department" class="form-text text-success">
                   <i class="fa fa-magic me-1"></i>Autodetectado del rol — puedes editarlo.
                 </div>
@@ -220,6 +225,23 @@
                     {{ c.user?.name }}
                   </option>
                 </select>
+              </div>
+
+              <!-- Equipo (UNI-T C4c; el servidor lo ignora si el interruptor está apagado) -->
+              <div class="col-md-3">
+                <label class="form-label">Equipo</label>
+                <input v-model="modal.equipo" type="text" maxlength="100" class="form-control" placeholder="Sin equipo">
+              </div>
+
+              <!-- Historial de supervisor/equipo (UNI-T C4c) -->
+              <div v-if="supHistorial.length" class="col-12">
+                <small class="text-muted d-block mb-1">Historial de supervisor / equipo</small>
+                <ul class="list-unstyled small mb-0">
+                  <li v-for="(h, i) in supHistorial" :key="i">
+                    {{ h.created_at }} · {{ h.cambiado_por || 'Sistema' }} · {{ h.campo === 'equipo' ? 'Equipo' : 'Supervisor (id)' }}:
+                    {{ h.valor_anterior || '—' }} → {{ h.valor_nuevo || '—' }}
+                  </li>
+                </ul>
               </div>
 
               <!-- Fecha ingreso -->
@@ -265,16 +287,6 @@
                 <input v-model="modal.emergency_contact_phone" type="text" class="form-control" placeholder="Teléfono">
               </div>
 
-              <div class="col-md-4">
-                <label class="form-label">Puesto</label>
-                <select v-model="modal.puesto_id" class="form-select tc-select" @change="onPuestoChange">
-                  <option :value="null">— Sin especificar —</option>
-                  <option v-for="p in puestos" :key="p.id" :value="p.id">{{ p.nombre }}</option>
-                </select>
-                <div v-if="modal.job_title && !puestoCoincide" class="form-text text-muted">
-                  Valor libre guardado: "{{ modal.job_title }}"
-                </div>
-              </div>
               <div class="col-md-4">
                 <label class="form-label">Tipo de relación laboral</label>
                 <select v-model="modal.relation_type" class="form-select tc-select">
@@ -418,6 +430,7 @@ export default {
     return {
       items: [],
       supervisores: [],
+      supHistorial: [],
       loading: true,
       saving: false,
       pagination: { current_page: 1, last_page: 1 },
@@ -444,38 +457,44 @@ export default {
       userSearchTimeout: null,
       searchTimeout: null,
       canManage: false,
+      canCreate: false,
       roleDepartments: {},
+      departamentosCatalogo: [],
+      departamentosActivo: false,
       documentosModal: { show: false, colaboradorId: null, colaboradorName: '' },
       deleteModal: { show: false, colaboradorId: null, colaboradorName: '', deleting: false, error: '' },
-      puestos: [],
     };
   },
   computed: {
+    departamentosOpciones() {
+      const actual = this.modal.department;
+      return actual && !this.departamentosCatalogo.includes(actual)
+        ? [...this.departamentosCatalogo, actual]
+        : this.departamentosCatalogo;
+    },
     workDaysList() {
       return (this.modal.work_days || '').split(',').filter(Boolean);
     },
-    // item #9990208 — si job_title libre coincide (case-insensitive/trim) con algún puesto
-    // del catálogo, no se muestra como "valor libre" aparte (ya está representado por el select).
-    puestoCoincide() {
-      const jt = (this.modal.job_title || '').trim().toLowerCase();
-      if (!jt) return true;
-      return this.puestos.some(p => (p.nombre || '').trim().toLowerCase() === jt);
-    },
   },
   mounted() {
-    this.checkPermission();
     this.load();
+    // Un supervisor solo ve su equipo: dar de alta y editar fichas no son suyos (eran 4 consultas
+    // con 403 en cada visita).
+    if (this.soloMiEquipo) return;
+    this.checkPermission();
     this.loadSupervisores();
-    this.loadPuestos();
     this.loadRoleDepartments();
+    this.loadDepartamentos();
   },
   methods: {
+    // Dar de alta (users-disponibles) y editar (role-departments) tienen permisos distintos:
+    // Mostrador edita fichas pero no las da de alta.
     async checkPermission() {
       try {
         await axios.get('/talento/api/colaboradores/users-disponibles', { params: { search: '' } });
-        this.canManage = true;
+        this.canCreate = true;
       } catch {
-        this.canManage = false;
+        this.canCreate = false;
       }
     },
     debounceLoad() {
@@ -512,30 +531,25 @@ export default {
         this.supervisores = data?.data ?? [];
       } catch {}
     },
-    async loadPuestos() {
-      try {
-        const { data } = await axios.get('/talento/api/puestos', { params: { activo: 1 } });
-        this.puestos = data ?? [];
-      } catch {}
-    },
-    // Al elegir un puesto del catálogo, sincroniza job_title como espejo legible (#870 y otros
-    // lectores siguen leyendo job_title — ver migración 2026_09_03_150100).
-    onPuestoChange() {
-      const p = this.puestos.find(p => p.id === this.modal.puesto_id);
-      if (p) this.modal.job_title = p.nombre;
-    },
     goPage(p) {
       if (p < 1 || p > this.pagination.last_page) return;
       this.load(p);
     },
+    async cargarSupHistorial(id) {
+      this.supHistorial = [];
+      try {
+        const { data } = await axios.get(`/talento/api/colaboradores/${id}/supervision-historial`);
+        this.supHistorial = data.data ?? [];
+      } catch (e) { /* sin permiso o sin datos: no se muestra */ }
+    },
     emptyModal() {
       return {
         show: false, id: null, user_id: null, user_name: '', type: 'interno', status: 'active',
-        department: '', supervisor_id: null, hire_date: '', base_salary: '', notes: '',
+        department: '', supervisor_id: null, equipo: '', hire_date: '', base_salary: '', notes: '',
         role_names: [],
         // Expediente RH (item #199)
         birth_date: '', curp: '', nss: '', emergency_contact_name: '', emergency_contact_phone: '',
-        job_title: '', puesto_id: null, relation_type: null, relation_end_date: '', pay_frequency: null,
+        relation_type: null, relation_end_date: '', pay_frequency: null,
         work_location: '', shift_start: '', shift_end: '', work_days: '',
       };
     },
@@ -549,7 +563,7 @@ export default {
           show: true, id: col.id,
           user_id: col.user_id, user_name: col.user?.name ?? '',
           type: col.type, status: col.status,
-          department: col.department ?? '', supervisor_id: col.supervisor_id,
+          department: col.department ?? '', supervisor_id: col.supervisor_id, equipo: col.equipo ?? '',
           hire_date: col.hire_date ? col.hire_date.substring(0,10) : '',
           base_salary: col.base_salary ?? '', notes: col.notes ?? '',
           // Roles Spatie (solo lectura — se gestionan en Administradores)
@@ -559,13 +573,15 @@ export default {
           curp: col.curp ?? '', nss: col.nss ?? '',
           emergency_contact_name: col.emergency_contact_name ?? '',
           emergency_contact_phone: col.emergency_contact_phone ?? '',
-          job_title: col.job_title ?? '', puesto_id: col.puesto_id ?? null, relation_type: col.relation_type ?? null,
+          relation_type: col.relation_type ?? null,
           relation_end_date: col.relation_end_date ? col.relation_end_date.substring(0,10) : '',
           pay_frequency: col.pay_frequency ?? null, work_location: col.work_location ?? '',
           shift_start: col.shift_start ?? '', shift_end: col.shift_end ?? '',
           work_days: col.work_days ?? '',
         };
+        this.cargarSupHistorial(col.id);
       } else {
+        this.supHistorial = [];
         this.modal = { ...this.emptyModal(), show: true };
       }
     },
@@ -586,11 +602,21 @@ export default {
         this.userSuggestions = data ?? [];
       } catch {}
     },
+    async loadDepartamentos() {
+      try {
+        const { data } = await axios.get('/talento/api/colaboradores/departamentos');
+        this.departamentosCatalogo = data.catalogo ?? [];
+        this.departamentosActivo = !!data.activo;
+      } catch {}
+    },
     async loadRoleDepartments() {
       try {
         const { data } = await axios.get('/talento/api/colaboradores/role-departments');
         this.roleDepartments = data ?? {};
-      } catch {}
+        this.canManage = true;
+      } catch {
+        this.canManage = false;
+      }
     },
     selectUser(u) {
       this.modal.user_id = u.id;
@@ -625,6 +651,7 @@ export default {
           status: this.modal.status,
           department: this.modal.department || null,
           supervisor_id: this.modal.supervisor_id || null,
+          equipo: this.modal.equipo || null,
           hire_date: this.modal.hire_date || null,
           base_salary: this.modal.base_salary || null,
           notes: this.modal.notes || null,
@@ -634,8 +661,6 @@ export default {
           nss: this.modal.nss || null,
           emergency_contact_name: this.modal.emergency_contact_name || null,
           emergency_contact_phone: this.modal.emergency_contact_phone || null,
-          job_title: this.modal.job_title || null,
-          puesto_id: this.modal.puesto_id || null,
           relation_type: this.modal.relation_type || null,
           relation_end_date: this.modal.relation_end_date || null,
           pay_frequency: this.modal.pay_frequency || null,

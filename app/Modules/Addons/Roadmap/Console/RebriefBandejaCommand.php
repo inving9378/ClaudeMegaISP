@@ -107,7 +107,7 @@ class RebriefBandejaCommand extends Command
                     $fallo++;
                 } else {
                     // Mismo camino que el resto del circuito (dispara el autopilot, que en pausa no hace nada).
-                    $revisor->aplicarPreguntas($item, $pregs, 'revisor:rebrief-backfill(#507)');
+                    $revisor->aplicarPreguntas($item, $pregs, 'revisor:rebrief-backfill(#507)', $r['escalado'] ?? null);
                     $conDatos = collect($pregs)->flatMap(fn ($p) => $p['opciones'])
                         ->filter(fn ($o) => ($o['confianza'] ?? null) !== null)->count();
                     $this->info("  ✓  {$etq} — " . count($pregs) . ' pregunta(s), ' . $conDatos . ' opción(es) con datos');

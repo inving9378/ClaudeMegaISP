@@ -3,7 +3,7 @@
 namespace App\Modules\Addons\Embajadores\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Client;
+use App\Modules\Core\Clientes\Models\Client;
 use App\Modules\Core\Clientes\Models\Client as ClientModel;
 use App\Models\ClientMainInformation;
 use App\Models\Referrals\ClientReferralProfile;

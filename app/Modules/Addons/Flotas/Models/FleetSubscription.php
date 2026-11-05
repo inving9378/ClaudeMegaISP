@@ -21,7 +21,7 @@ class FleetSubscription extends BaseModel
 
     protected $fillable = [
         'client_id', 'plan', 'status',
-        'trial_starts_at', 'trial_ends_at', 'trial_notified_days',
+        'trial_starts_at', 'trial_ends_at', 'trial_notified_days', 'is_promo',
         'started_at', 'cancelled_at', 'cancel_reason',
         'vehicles_count', 'base_price', 'included_units',
         'overage_units', 'overage_unit_price', 'overage_amount', 'monthly_price',
@@ -38,6 +38,7 @@ class FleetSubscription extends BaseModel
         'last_billed_at'       => 'date',
         'data_retention_until' => 'date',
         'auto_renew'           => 'boolean',
+        'is_promo'             => 'boolean',
         'vehicles_count'       => 'integer',
         'trial_notified_days'  => 'integer',
         'included_units'       => 'integer',

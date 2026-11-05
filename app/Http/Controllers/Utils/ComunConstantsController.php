@@ -17,6 +17,7 @@ class ComunConstantsController
     const STATE_BLOCKED = 'Bloqueado';
     const STATE_INACTIVE = 'Inactivo';
     const STATE_NEW = 'Nuevo';
+    const STATE_UNINSTALLED = 'Desinstalado';
     const IS_NUMERICAL_TRUE = 1;
     const IS_NUMERICAL_FALSE = 0;
     const IS_TRUE = true;
@@ -28,7 +29,8 @@ class ComunConstantsController
         "Inactivo" => "Inactivo",
         "Nuevo" => "Nuevo",
         "Bloqueado" => "Bloqueado",
-        "Cancelado" => "Cancelado"
+        "Cancelado" => "Cancelado",
+        "Desinstalado" => "Desinstalado"
     ];
 
 
@@ -102,7 +104,7 @@ class ComunConstantsController
         ],
         'Client' => [
             'name' => 'required',
-            'estado' => 'required|in:Nuevo,Activo,Inactivo,Bloqueado,Cancelado',
+            'estado' => 'required|in:Nuevo,Activo,Inactivo,Bloqueado,Cancelado,Desinstalado',
             'user' => 'unique:client_main_information,user',
         ],
         'Payment' => [

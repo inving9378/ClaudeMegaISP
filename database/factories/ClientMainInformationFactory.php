@@ -17,7 +17,7 @@ class ClientMainInformationFactory extends Factory
             'name'           => $this->faker->firstName(),
             'father_last_name' => $this->faker->lastName(),
             'phone'          => $this->faker->numerify('55########'),
-            'estado'         => 'Activado',
+            'estado'         => ClientMainInformation::STATE_ACTIVE,
         ];
     }
 

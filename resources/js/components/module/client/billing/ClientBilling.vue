@@ -69,6 +69,7 @@
 </template>
 
 <script>
+import { currentSearch } from "../../../../hook/comunValues.js";
 import { onMounted, reactive, ref } from "vue";
 import ViewClientBilling from "./ViewClientBilling";
 import ViewClientPayment from "./payment/ViewClientPayment";
@@ -104,7 +105,7 @@ export default {
         const setTab = async () => {
             // Override por URL (?tab=pagos): abre directo el sub-tab Pagos sin
             // pisar la preferencia guardada del usuario en DB.
-            const urlTab = new URLSearchParams(window.location.search).get("tab");
+            const urlTab = new URLSearchParams(currentSearch()).get("tab");
             if (urlTab === "pagos") {
                 currentTab.value = "payment";
                 return;

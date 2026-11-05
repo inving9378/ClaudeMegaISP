@@ -121,7 +121,7 @@ class ClientInternetServiceDatatableHelper extends HelperDatatable
     {
         static $cache = [];
 
-        return $cache[$clienteId] ??= (bool) \Illuminate\Support\Facades\DB::table('client_additional_information')
-            ->where('client_id', $clienteId)->whereNull('deleted_at')->value('is_dedicated');
+        return $cache[$clienteId] ??= \Illuminate\Support\Facades\DB::table('client_additional_information')
+            ->where('client_id', $clienteId)->whereNull('deleted_at')->value('tipo_cliente') === \App\Services\Clientes\TipoCliente::DEDICADO;
     }
 }

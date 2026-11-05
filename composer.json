@@ -26,6 +26,7 @@
         "mavinoo/laravel-batch": "^2.4",
         "openpay/sdk": "^3.1",
         "pear2/net_routeros": "dev-develop@dev",
+        "phpoffice/phpword": "^1.4",
         "simonschaufi/php-libkml": "^1.0",
         "spatie/laravel-activitylog": "^4.8",
         "spatie/laravel-permission": "^6.3.0",

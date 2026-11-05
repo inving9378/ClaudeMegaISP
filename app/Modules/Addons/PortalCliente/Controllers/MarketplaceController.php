@@ -120,11 +120,13 @@ class MarketplaceController extends Controller
     }
 
     /**
-     * Resuelve el users.id asociado al cliente (via CMI.user = users.login_user).
+     * Resuelve el users.id asociado al cliente (via CMI.user = users.login_user). Una cuenta
+     * ajena con ese usuario (de personal u otro cliente) no cuenta como la del cliente.
      */
     private function resolveUserId($cmi): ?int
     {
         if (! $cmi->user) return null;
-        return DB::table('users')->where('login_user', $cmi->user)->value('id');
+        $cuenta = \App\Models\User::where('login_user', $cmi->user)->first();
+        return $cuenta && $cuenta->esCuentaDelCliente((int) $cmi->client_id) ? $cuenta->id : null;
     }
 }

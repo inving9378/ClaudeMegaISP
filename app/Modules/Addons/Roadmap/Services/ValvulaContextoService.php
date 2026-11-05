@@ -2,9 +2,10 @@
 
 namespace App\Modules\Addons\Roadmap\Services;
 
-use App\Modules\Addons\Marketing\Services\ClaudeApiClient;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Support\DetectorTerminos;
+use App\Modules\Addons\Roadmap\Support\IaSupervisor;
+use App\Modules\Addons\Roadmap\Support\RespuestaNoConcluyente;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -99,28 +100,19 @@ class ValvulaContextoService
             ), ['guarda' => 'termino_ausente']);
         }
 
-        $modelo = (string) config(
-            'circuito.valvula_contexto.model',
-            config('circuito.revisor.model_routine', 'claude-sonnet-4-6')
-        );
+        // #1076 — el modelo lo elige Integraciones → Módulos IA («circuito.valvula»).
+        $modelo = IaSupervisor::modelo(IaSupervisor::VALVULA);
 
         try {
-            $resp = (new ClaudeApiClient())->messages([
-                'model'      => $modelo,
+            $r = IaSupervisor::llamar(IaSupervisor::VALVULA, [
                 // Clasificación binaria con una frase de razón: no necesita más.
                 'max_tokens' => (int) config('circuito.valvula_contexto.max_tokens', 300),
                 'system'     => $this->systemPrompt($estricto),
                 'messages'   => [['role' => 'user', 'content' => $this->userPrompt($item, $termino, $categoria)]],
-            ]);
+            ], ['item' => $item->id]);
+            $modelo = $r['modelo'];
 
-            $texto = '';
-            foreach ((array) ($resp['content'] ?? []) as $blk) {
-                if (($blk['type'] ?? '') === 'text') {
-                    $texto .= $blk['text'] ?? '';
-                }
-            }
-
-            $v = $this->parse($texto);
+            $v = $this->parse($r['texto']);
             if ($v === null) {
                 return $noSePudo('La válvula contestó algo que no se pudo leer; queda el veredicto del keyword.');
             }
@@ -164,6 +156,9 @@ class ValvulaContextoService
                 'seguro'    => $v['seguro'],
                 'guarda'    => null,
             ];
+        } catch (RespuestaNoConcluyente $e) {
+            // El modelo declinó (refusal): no es «mención» ni «acción». Manda el keyword.
+            return $noSePudo($e->getMessage() . ' Queda el veredicto del keyword.');
         } catch (\Throwable $e) {
             // Falla-segura EXPLÍCITA: sin modelo, sin red, timeout o error de la API → el keyword
             // manda. Es el punto 4 de la condición de Irving, y es lo que hace que el peor caso de

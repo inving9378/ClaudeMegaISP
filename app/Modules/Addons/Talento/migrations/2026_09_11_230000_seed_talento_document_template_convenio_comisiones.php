@@ -86,7 +86,7 @@ return new class extends Migration
             );
         }
 
-        $puestoComercial = TalentoPuesto::where('nombre', 'Vendedor')->first();
+        $puestoComercial = class_exists(TalentoPuesto::class) ? TalentoPuesto::where('nombre', 'Vendedor')->first() : null;
         if ($puestoComercial) {
             TalentoPuestoDocumentTemplate::firstOrCreate(
                 ['puesto_id' => $puestoComercial->id, 'template_id' => $template->id],

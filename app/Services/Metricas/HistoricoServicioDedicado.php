@@ -44,9 +44,13 @@ class HistoricoServicioDedicado
         $primera = DB::table('cliente_metricas')->where('servicio_id', $servicioId)->min('ts');
         $primeraT = $primera !== null ? strtotime($primera) : null;
 
-        // Se evalúa desde la primera lectura del servicio (antes no existía su monitoreo: no es un
-        // hueco del colector) y hasta el minuto anterior al actual, que puede no haberse leído aún.
-        $desdeEval = $primeraT !== null ? max($desde, $primeraT) : $ahora;
+        $pausas = $this->pausas($servicioId);
+        $primeraPausa = $pausas !== [] ? min(array_column($pausas, 'desde')) : null;
+
+        // Se evalúa desde la primera lectura o pausa del servicio (antes no existía su monitoreo: no es
+        // un hueco del colector) y hasta el minuto anterior al actual, que puede no haberse leído aún.
+        $inicio = $primeraT !== null && $primeraPausa !== null ? min($primeraT, $primeraPausa) : ($primeraT ?? $primeraPausa);
+        $desdeEval = $inicio !== null ? max($desde, $inicio - $inicio % 60) : $ahora;
         $hastaEval = max($desdeEval, $ahora - $ahora % 60 - 60);
 
         [$filas, $simulado] = $this->filas($servicioId, $desde, $ahora);
@@ -58,7 +62,7 @@ class HistoricoServicioDedicado
             'latencia_alta_factor'    => config('metricas.eventos.latencia_alta_factor', 10),
             'latencia_alta_minimo_ms' => config('metricas.eventos.latencia_alta_minimo_ms', 2),
             'hueco_max_segundos'      => config('metricas.hueco_max_segundos', 300),
-        ]);
+        ], $pausas);
 
         $ips = $this->ips($monitoreo, $ipsVistas);
         $series = $calculo->series($ejeDesde, $ejeHasta, $eje['paso'], array_column($ips, 'ip'), $ahora);
@@ -141,6 +145,17 @@ class HistoricoServicioDedicado
             '7d'  => [strtotime('-6 days', $hoy), strtotime('-6 days', $hoy), $manana],
             '30d' => [strtotime('-29 days', $hoy), strtotime('-29 days', $hoy), $manana],
         };
+    }
+
+    /** @return array<int, array{desde: int, hasta: ?int, motivo: string}> */
+    private function pausas(int $servicioId): array
+    {
+        return DB::table('servicio_monitoreo_pausas')->where('servicio_id', $servicioId)->orderBy('desde')->get(['motivo', 'desde', 'hasta'])
+            ->map(fn ($p) => [
+                'desde'  => strtotime($p->desde),
+                'hasta'  => $p->hasta !== null ? strtotime($p->hasta) : null,
+                'motivo' => PoliticaMonitoreo::texto($p->motivo),
+            ])->all();
     }
 
     /** @return array{0: array<int, array>, 1: bool} filas por epoch del minuto y si hay datos simulados */

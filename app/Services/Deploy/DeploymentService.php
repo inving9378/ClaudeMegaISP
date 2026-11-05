@@ -22,6 +22,19 @@ class DeploymentService
         // ⚠️ NO cachea config (item #520): borra el cache y relee del fuente. Ver el método.
         $configRefresh = $this->refreshDeploymentConfig();
 
+        // Candado del proyecto UNI-T (item #863): no se emite versión con commits `Proyecto-UNI:`
+        // sin pasar por el procedimiento de versión parcial (ver docs/unificacion/07-...).
+        if ($bloqueo = $this->candadoProyectoUni($log, $version)) {
+            $log->update([
+                'status'        => 'failed',
+                'steps'         => [$configRefresh, $bloqueo],
+                'error_message' => $bloqueo['output'],
+                'started_at'    => now(),
+                'finished_at'   => now(),
+            ]);
+            return;
+        }
+
         // Preflight de release (item #9990682, F2c de la épica #9990668) — paso de REPORTE, no
         // bloqueante: corre justo al emitir la versión y su veredicto va en 'output', nunca en
         // 'status' (siempre 'success'). Ver runReleasePreflight().
@@ -243,6 +256,50 @@ class DeploymentService
 
         $record['duration_ms'] = (int) ((microtime(true) - $startedAt) * 1000);
         return $record;
+    }
+
+    /**
+     * Candado UNI-T. Devuelve el registro de paso fallido si hay que detener la emisión; null si
+     * puede seguir (sin commits del proyecto, candado apagado, o excepción autorizada — que queda
+     * en el historial del log y en el log de aplicación).
+     */
+    public function candadoProyectoUni(DeploymentLog $log, string $version): ?array
+    {
+        if (!config('unificacion.candado_publicacion.activo', true)) {
+            return null;
+        }
+
+        try {
+            $repo = base_path();
+            $n = ProyectoUniCommits::contar(
+                ProyectoUniCommits::mensajesEnRango($repo, ProyectoUniCommits::ultimoTag($repo))
+            );
+        } catch (\Throwable $e) {
+            Log::warning('Candado UNI-T: no se pudo evaluar: ' . $e->getMessage());
+            return null;
+        }
+        if ($n === 0) {
+            return null;
+        }
+
+        $excepcion = $log->payload['excepcion_proyecto_uni'] ?? null;
+        if (is_array($excepcion) && !empty($excepcion['motivo']) && !empty($excepcion['user_id'])) {
+            Log::warning("Candado UNI-T: excepción autorizada para {$version} ({$n} commits)", $excepcion);
+            return null;
+        }
+
+        return [
+            'key'         => 'candado_proyecto_uni',
+            'name'        => 'Candado del proyecto de unificación',
+            'status'      => 'failed',
+            'output'      => "Emisión detenida: hay {$n} commit(s) del proyecto de unificación (línea «Proyecto-UNI:») "
+                . 'entre el último tag y HEAD. Emitir publica main completo. Use el procedimiento de versión parcial '
+                . '(rama release desde el último tag + cherry-pick de lo que sí sale; ver docs/unificacion/07-entorno-y-promocion.md) '
+                . 'o, con el permiso ' . config('unificacion.candado_publicacion.permiso_excepcion') . ', indique un motivo de excepción.',
+            'exit_code'   => 1,
+            'duration_ms' => 0,
+            'ran_at'      => now()->toIso8601String(),
+        ];
     }
 
     /**

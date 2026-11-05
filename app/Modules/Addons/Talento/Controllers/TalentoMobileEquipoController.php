@@ -8,6 +8,8 @@ use App\Modules\Addons\Talento\Models\TalentoCajaBaseline;
 use App\Modules\Addons\Talento\Models\TalentoCajaInspection;
 use App\Modules\Addons\Talento\Models\TalentoCertification;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
+use App\Modules\Addons\Talento\Models\TalentoCompensationRuleHistory;
+use App\Modules\Addons\Talento\Models\TalentoConstructionStandard;
 use App\Modules\Addons\Talento\Models\TalentoCourse;
 use App\Modules\Addons\Talento\Models\TalentoCredential;
 use App\Modules\Addons\Talento\Models\TalentoDevice;
@@ -17,6 +19,7 @@ use App\Modules\Addons\Talento\Models\TalentoLiquidation;
 use App\Modules\Addons\Talento\Models\TalentoLoan;
 use App\Modules\Addons\Talento\Models\TalentoPenalty;
 use App\Modules\Addons\Talento\Models\TalentoPenaltyAppeal;
+use App\Modules\Addons\Talento\Models\TalentoPenaltyType;
 use App\Modules\Addons\Talento\Models\TalentoActivityReportParticipant;
 use App\Modules\Addons\Talento\Models\TalentoRoute;
 use App\Modules\Addons\Talento\Services\LiquidationService;
@@ -28,6 +31,8 @@ use App\Modules\Addons\Talento\Controllers\TalentoQualityController;
 use App\Modules\Addons\Talento\Controllers\TalentoProjectController;
 use App\Modules\Addons\Talento\Controllers\TalentoDeviceController;
 use App\Modules\Addons\Talento\Controllers\TalentoRouteController;
+use App\Modules\Addons\Talento\Controllers\TalentoLiquidacionController;
+use App\Modules\Addons\Talento\Controllers\PortalTecnicoController;
 use Illuminate\Support\Facades\URL;
 use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
@@ -94,6 +99,64 @@ class TalentoMobileEquipoController extends Controller
         return response()->json(['error' => 'Sin perfil de colaborador activo o sin permiso.'], 403);
     }
 
+    private const ESTADO_PENALIZACION = [
+        'applied'    => 'Aplicada',
+        'appealed'   => 'Apelada',
+        'overturned' => 'Revocada',
+        'upheld'     => 'Mantenida',
+    ];
+
+    private const DECISION_APELACION = [
+        'upheld'  => 'Mantenida',
+        'overturned' => 'Revocada',
+    ];
+
+    private static function nombreDe($user): ?string
+    {
+        return $user ? trim($user->name . ' ' . ($user->father_last_name ?? '')) : null;
+    }
+
+    // ── Mi progreso: regla semanal (2026-10-21) ─────────────────────────────────
+
+    /**
+     * Resultado de las reglas semanales de la persona (o de alguien de su equipo con
+     * colaborador_id): puntos validados / pagos / prospectos y ventas, si cumple, penalización
+     * o bono y el monto. Mismos datos que "Mi progreso" del portal web (DashboardService::
+     * reglaDesempeno).
+     */
+    public function progreso(Request $request, \App\Modules\Addons\Talento\Services\DashboardService $service)
+    {
+        $col = $this->resolverObjetivo($request, 'talento.employees.view');
+        if (! $col) return $this->noPerfil();
+
+        $col->loadMissing('user');
+
+        return response()->json([
+            'colaborador_id' => $col->id,
+            'nombre'         => self::nombreDe($col->user),
+            'track'          => $col->user ? Actor::for($col->user)->trackPrincipal() : 'generico',
+            'regla'          => $service->reglaDesempeno($col->id),
+        ]);
+    }
+
+    // ── Supervisor: penalizaciones de su equipo (2026-10-21) ─────────────────────
+    // Mismos endpoints que el portal web; resuelven a la persona con $request->user().
+
+    public function equipoPenalizaciones(Request $request)
+    {
+        return app(PortalTecnicoController::class)->equipoPenalizaciones($request);
+    }
+
+    public function equipoConfirmarPenalizacion(Request $request, int $id)
+    {
+        return app(PortalTecnicoController::class)->equipoConfirmarPenalizacion($request, $id);
+    }
+
+    public function equipoProgreso(Request $request, \App\Modules\Addons\Talento\Services\DashboardService $service)
+    {
+        return app(PortalTecnicoController::class)->miEquipoProgreso($request, $service);
+    }
+
     // ── Mi equipo — switcher para supervisores/staff ────────────────────────────
 
     public function miEquipo(Request $request)
@@ -103,19 +166,21 @@ class TalentoMobileEquipoController extends Controller
 
         $equipo = collect();
         if ($propio) {
-            $equipo = $propio->subordinados()->with('user')->get();
+            $equipo = $propio->subordinados()->activos()->with('user.roles')->get();
         } elseif ($esStaff) {
             // Staff sin ficha propia (admin puro): puede elegir cualquier colaborador.
-            $equipo = TalentoColaborador::with('user')->where('status', 'active')->limit(200)->get();
+            $equipo = TalentoColaborador::with('user.roles')->activos()->limit(200)->get();
         }
 
         return response()->json([
             'propio' => $propio ? ['id' => $propio->id, 'nombre' => $propio->user->name ?? '—'] : null,
-            'es_supervisor_o_staff' => $propio?->subordinados()->exists() || $esStaff,
+            // Supervisor = tiene equipo; "staff" solo el admin sin ficha (2026-10-21: el Mostrador ahora
+            // tiene employees.view pero en la app es un colaborador más, sin selector vacío).
+            'es_supervisor_o_staff' => $propio ? $propio->subordinados()->exists() : $esStaff,
             'equipo' => $equipo->map(fn ($c) => [
                 'id' => $c->id,
                 'nombre' => $c->user->name ?? '—',
-                'puesto' => $c->job_title,
+                'puesto' => $c->puestoNombre(),
                 'departamento' => $c->department,
             ])->values(),
         ]);
@@ -128,21 +193,23 @@ class TalentoMobileEquipoController extends Controller
         $col = $this->resolverObjetivo($request, 'talento.employees.view');
         if (! $col) return $this->noPerfil();
 
-        $col->loadMissing(['user', 'supervisor.user', 'puesto']);
+        $col->loadMissing(['user', 'supervisor.user']);
 
         return response()->json([
             'nombre' => $col->user->name ?? '—',
             'email' => $col->user->email ?? null,
             'telefono' => $col->user->phone ?? null,
-            'puesto' => optional($col->puesto)->name ?? $col->job_title,
+            'puesto' => $col->puestoNombre(),
             'departamento' => $col->department,
             'tipo' => $col->type,
             'status' => $col->status,
             'ingreso' => optional($col->hire_date)->toDateString(),
             'supervisor' => $col->supervisor?->user->name ?? null,
-            // David (2-oct): para la credencial visual en "Mi credencial" --
-            // url_photography ya resuelve a un avatar por default si no hay foto.
-            'foto' => $col->user->url_photography ?? null,
+            // David (2-oct): para la credencial visual en "Mi credencial". 29-oct: con enlace
+            // firmado, para que cargue también desde fuera de la oficina (ver fotoFirmada).
+            'foto' => $col->user ? URL::temporarySignedRoute(
+                'talento.colaborador.foto.firmada', now()->addHour(), ['id' => $col->id]
+            ) : null,
         ]);
     }
 
@@ -155,30 +222,29 @@ class TalentoMobileEquipoController extends Controller
 
         $w = PayWeek::current();
 
-        $rows = TalentoLedgerEntry::where('colaborador_id', $col->id)
-            ->where('period_start', $w['period_start'])
-            ->where('period_end', $w['period_end'])
-            ->selectRaw('concept, type, SUM(amount) AS total, COUNT(*) AS n')
-            ->groupBy('concept', 'type')
-            ->get();
+        $cuenta = app(\App\Modules\Addons\Talento\Services\CompensacionService::class)
+            ->cuentaCorriente($col->id, $w);
 
-        $credito = round((float) $rows->where('type', 'credit')->sum('total'), 2);
-        $debito = round((float) $rows->where('type', 'debit')->sum('total'), 2);
-
-        return response()->json([
+        return response()->json(array_merge([
             'period_start' => $w['period_start'],
             'period_end' => $w['period_end'],
-            'conceptos' => $rows->map(fn ($r) => [
-                'concepto' => $r->concept,
-                'tipo' => $r->type,
-                'subtotal' => round((float) $r->total, 2),
-                'n' => (int) $r->n,
-            ])->values(),
-            'total_credito' => $credito,
-            'total_debito' => $debito,
-            'neto' => round($credito - $debito, 2),
+        ], $cuenta, [
             'desglose' => app(LiquidationService::class)->breakdown($col->id, $w),
-        ]);
+            // 30-oct-2026: lo demás que muestra la web (Mi dinero y la pestaña Compensación).
+            'fondo' => PortalTecnicoController::fondoDe($col->id, $w),
+            'prestamos' => PortalTecnicoController::prestamosDe($col->id, $w),
+            'regla' => TalentoCompensationRuleHistory::where('colaborador_id', $col->id)
+                ->orderByDesc('assigned_at')
+                ->get()
+                ->map(fn ($h) => [
+                    'assigned_at' => optional($h->assigned_at)->toDateString(),
+                    'nombre' => $h->data['name'] ?? null,
+                    'sueldo_base' => round((float) ($h->data['base_salary'] ?? 0), 2),
+                    'cuota' => (int) ($h->data['weekly_quota_units'] ?? 0),
+                    'periodo' => $h->data['period'] ?? 'weekly',
+                ])
+                ->values(),
+        ]));
     }
 
     // ── 3. Liquidaciones (historial) ─────────────────────────────────────────────
@@ -192,9 +258,126 @@ class TalentoMobileEquipoController extends Controller
             ->orderByDesc('period_start')
             ->limit(52)
             ->get(['id', 'period_start', 'period_end', 'total_units', 'base_paid', 'overproduction_paid',
-                'other_credits', 'other_debits', 'gross_pay', 'status', 'closed_at']);
+                'other_credits', 'other_debits', 'gross_pay', 'status', 'closed_at'])
+            ->map(fn ($l) => array_merge($l->toArray(), [
+                'period_start' => $l->period_start?->toDateString(),
+                'period_end'   => $l->period_end?->toDateString(),
+                'estado'       => $l->status === 'closed' ? 'Cerrada' : 'Borrador',
+            ]));
 
-        return response()->json(['liquidaciones' => $liqs]);
+        return response()->json([
+            'liquidaciones' => $liqs,
+            'colaborador_id' => $col->id,
+            'nombre' => self::nombreCompleto($col->user?->toArray()),
+            // 30-oct-2026: como en la web, el comprobante para quien ve la lista de pagos y
+            // «Calcular» para quien lleva la nómina.
+            'puede_comprobante' => $this->puedeComprobante($request),
+            'puede_calcular' => $this->puedeCalcular($request),
+        ]);
+    }
+
+    /**
+     * La pantalla «Liquidaciones» de la web, para la app (30-oct-2026): el Mostrador ve cuánto cobra
+     * cada quien en una semana; administración ve todas las liquidaciones. Es la misma consulta que
+     * la web (TalentoLiquidacionController::data); aquí solo se dejan los datos que muestra la app.
+     */
+    public function liquidacionesLista(Request $request)
+    {
+        if (! $this->puedeComprobante($request)) {
+            return response()->json(['disponible' => false]);
+        }
+
+        // La lista es la de todos, como en la web: lo de una sola persona va por /portal/liquidaciones.
+        $request->query->remove('colaborador_id');
+        $payload = app(TalentoLiquidacionController::class)->data($request)->getData(true);
+
+        $payload['data'] = collect($payload['data'] ?? [])->map(fn ($l) => [
+            'id' => $l['id'] ?? null,
+            'colaborador_id' => $l['colaborador_id'],
+            'nombre' => self::nombreCompleto($l['colaborador']['user'] ?? null) ?? "Colaborador #{$l['colaborador_id']}",
+            'period_start' => substr((string) $l['period_start'], 0, 10),
+            'period_end' => substr((string) $l['period_end'], 0, 10),
+            'total_units' => $l['total_units'] ?? null,
+            'base_paid' => $l['base_paid'] ?? null,
+            'overproduction_paid' => $l['overproduction_paid'] ?? null,
+            'gross_pay' => $l['gross_pay'] ?? 0,
+            'status' => $l['status'] ?? null,
+            'puede_cerrar' => (bool) ($l['puede_cerrar'] ?? false),
+            'sin_regla' => (bool) ($l['sin_regla'] ?? false),
+        ])->values();
+
+        $payload['disponible'] = true;
+        $payload['puede_calcular'] = $this->puedeCalcular($request);
+        if ($payload['puede_calcular']) {
+            $payload['colaboradores'] = TalentoColaborador::with('user')->activos()->get()
+                ->map(fn ($c) => ['id' => $c->id, 'nombre' => self::nombreCompleto($c->user?->toArray()) ?? "Colaborador #{$c->id}"])
+                ->sortBy(fn ($c) => mb_strtolower($c['nombre']))
+                ->values();
+        }
+
+        return response()->json($payload);
+    }
+
+    /** Detalle de una liquidación (unidades, órdenes y movimientos). Mismos permisos que en la web. */
+    public function liquidacionDetalle($id)
+    {
+        return app(TalentoLiquidacionController::class)->show($id);
+    }
+
+    /** «Calcular» desde la app: la misma acción de la web, con sus mismos permisos y reglas. */
+    public function liquidacionCalcular(Request $request)
+    {
+        return app(TalentoLiquidacionController::class)->calcular($request);
+    }
+
+    /** «Cerrar» desde la app: la misma acción de la web. */
+    public function liquidacionCerrar(Request $request, $id)
+    {
+        return app(TalentoLiquidacionController::class)->cerrar($request, $id);
+    }
+
+    /**
+     * Enlace al comprobante de pago para abrirlo en el teléfono (30-oct-2026). Como la credencial:
+     * el navegador del teléfono no lleva la sesión de la app, así que el enlace va firmado, dura
+     * 10 minutos y lleva quién lo entrega (sale impreso en el comprobante).
+     */
+    public function liquidacionComprobanteUrl(Request $request)
+    {
+        abort_unless($this->puedeComprobante($request), 403);
+        $data = $request->validate([
+            'colaborador_id' => 'required|integer',
+            'semana' => 'required|date_format:Y-m-d',
+        ]);
+
+        return response()->json([
+            'url' => URL::temporarySignedRoute('talento.liquidacion.comprobante.firmado', now()->addMinutes(10), [
+                'colaborador_id' => (int) $data['colaborador_id'],
+                'semana' => $data['semana'],
+                'entrega' => $request->user()->id,
+            ]),
+        ]);
+    }
+
+    /** Nombre con los dos apellidos, como en la lista de la web (hay nombres de pila repetidos). */
+    private static function nombreCompleto(?array $u): ?string
+    {
+        $nombre = trim(implode(' ', array_filter([$u['name'] ?? null, $u['father_last_name'] ?? null, $u['mother_last_name'] ?? null])));
+
+        return $nombre !== '' ? $nombre : null;
+    }
+
+    private function puedeComprobante(Request $request): bool
+    {
+        return $request->user()->canAny(['talento.liquidation.view', 'talento.liquidation.totales']);
+    }
+
+    /** Los mismos permisos que pide TalentoLiquidacionController::calcular(). */
+    private function puedeCalcular(Request $request): bool
+    {
+        $u = $request->user();
+
+        return $u->can('talento.liquidation.manage')
+            && (! config('permission_action_checks.enforce', false) || $u->can('talento.liquidacion.calcular'));
     }
 
     // ── 4. Asistencia (historial, no solo hoy) ───────────────────────────────────
@@ -299,7 +482,9 @@ class TalentoMobileEquipoController extends Controller
         if (! $col) return $this->noPerfil();
 
         $penalizaciones = TalentoPenalty::where('colaborador_id', $col->id)
-            ->with(['penaltyType:id,name,category', 'appeal'])
+            ->with(['penaltyType:id,name,category', 'appliedByColaborador.user:id,name,father_last_name',
+                'ledgerEntries:id,reference_id,reference_type,period_start,period_end',
+                'appeal.reviewedByUser:id,name,father_last_name', 'appeal.reviewedByColaborador.user:id,name,father_last_name'])
             ->orderByDesc('created_at')
             ->limit(60)
             ->get()
@@ -308,43 +493,39 @@ class TalentoMobileEquipoController extends Controller
                 'tipo' => optional($p->penaltyType)->name,
                 'monto' => round((float) $p->amount, 2),
                 'status' => $p->status,
-                'fecha' => optional($p->created_at)->toDateTimeString(),
+                'estado' => self::ESTADO_PENALIZACION[$p->status] ?? $p->status,
+                'fecha' => optional($p->created_at)->toDateString(),
+                'semana_inicio' => optional($p->ledgerEntries->first()?->period_start)->toDateString(),
+                'semana_fin' => optional($p->ledgerEntries->first()?->period_end)->toDateString(),
+                'aplicada_por' => self::nombreDe($p->appliedByColaborador?->user),
                 'notas' => $p->notes,
                 'apelacion' => $p->appeal ? [
                     'id' => $p->appeal->id,
                     'razon' => $p->appeal->reason,
                     'decision' => $p->appeal->decision,
+                    'decision_texto' => self::DECISION_APELACION[$p->appeal->decision] ?? 'Pendiente',
                     'decision_notas' => $p->appeal->decision_notes,
+                    'resolvio' => self::nombreDe($p->appeal->reviewedByUser ?? $p->appeal->reviewedByColaborador?->user),
+                    'resuelta_el' => optional($p->appeal->resolved_at)->toDateString(),
                 ] : null,
                 // Uno mismo (dueño de la penalización) puede apelar la suya — mismo
                 // criterio ya usado en TalentoPenaltyController (self-apelar) — nunca
                 // el supervisor apela EN NOMBRE de otro.
-                'puede_apelar' => ! $p->appeal
+                'puede_apelar' => ! $p->appeal && $p->status === 'applied'
                     && (string) ($this->actor($request)->talento()?->id) === (string) $p->colaborador_id,
             ]);
 
         return response()->json(['penalizaciones' => $penalizaciones]);
     }
 
+    /**
+     * Mismo flujo que la web (TalentoPenaltyController::submitAppeal): guarda la apelación a nombre
+     * de la ficha, con fecha, y pasa la penalización a "apelada". La versión propia de la app
+     * guardaba el id de usuario, sin fecha y sin cambiar el estado (2026-10-21).
+     */
     public function apelarPenalizacion(Request $request, int $penaltyId)
     {
-        $data = $request->validate(['reason' => 'required|string|max:1000']);
-
-        $penalty = TalentoPenalty::findOrFail($penaltyId);
-        $propio = $this->actor($request)->talento();
-
-        // Apelar la propia penalización es SIEMPRE de uno mismo — nunca del
-        // supervisor en su nombre (mismo criterio que TalentoPenaltyController).
-        abort_unless($propio && (string) $propio->id === (string) $penalty->colaborador_id, 403);
-        abort_if(TalentoPenaltyAppeal::where('penalty_id', $penalty->id)->exists(), 422, 'Esta penalización ya tiene una apelación.');
-
-        $appeal = TalentoPenaltyAppeal::create([
-            'penalty_id' => $penalty->id,
-            'appealed_by' => $request->user()->id,
-            'reason' => $data['reason'],
-        ]);
-
-        return response()->json($appeal, 201);
+        return app(TalentoPenaltyController::class)->submitAppeal($request, $penaltyId);
     }
 
     // ── 10. Credenciales ──────────────────────────────────────────────────────────
@@ -412,7 +593,10 @@ class TalentoMobileEquipoController extends Controller
         $col = $this->resolverObjetivo($request, 'talento.employees.view');
         if (! $col) return $this->noPerfil();
 
-        $cursos = TalentoCourse::where('active', true)->orderBy('order')->get(['id', 'title', 'description', 'department']);
+        // Solo los generales y los de sus roles (2026-10-24).
+        $cursos = TalentoCourse::where('active', true)
+            ->paraRoles(\App\Models\User::find($col->user_id)?->getRoleNames() ?? [])
+            ->orderBy('order')->get(['id', 'title', 'description', 'department', 'roles']);
 
         $certificaciones = TalentoCertification::where('colaborador_id', $col->id)
             ->with('course:id,title')
@@ -542,7 +726,32 @@ class TalentoMobileEquipoController extends Controller
 
     public function cursoDetalle(int $cursoId)
     {
-        return app(TalentoAcademyController::class)->showCourse($cursoId);
+        $curso = app(TalentoAcademyController::class)->showCourse($cursoId)->getData(true);
+
+        // 30-oct-2026: las imágenes de referencia de los materiales van con enlace firmado bajo
+        // /talento/api, para que carguen también desde fuera de la oficina (en /storage nginx pide
+        // su contraseña). Ver cursoImagenFirmada().
+        foreach ($curso['materials'] ?? [] as $i => $material) {
+            foreach (['reference_standard' => 'estandar', 'reference_penalty_type' => 'penalizacion'] as $clave => $tipo) {
+                if (! empty($material[$clave]['reference_image_path'])) {
+                    $curso['materials'][$i][$clave]['reference_image_url'] = URL::temporarySignedRoute(
+                        'talento.curso.imagen.firmada', now()->addHour(), ['tipo' => $tipo, 'id' => $material[$clave]['id']]
+                    );
+                }
+            }
+        }
+
+        return response()->json($curso);
+    }
+
+    public function cursoImagenFirmada(string $tipo, int $id)
+    {
+        $modelo = $tipo === 'estandar' ? TalentoConstructionStandard::class : TalentoPenaltyType::class;
+        $ruta = $modelo::findOrFail($id)->reference_image_path;
+        $disco = \Illuminate\Support\Facades\Storage::disk('public');
+        abort_unless($ruta && $disco->exists($ruta), 404);
+
+        return response()->file($disco->path($ruta), ['Cache-Control' => 'private, max-age=3600']);
     }
 
     public function examenTomar(int $examId)
@@ -653,11 +862,48 @@ class TalentoMobileEquipoController extends Controller
      */
     public function credencialPlantilla()
     {
-        return response()->json([
-            'front' => \App\Models\Credential::where('type', 'frontal')->value('name'),
-            'back' => \App\Models\Credential::where('type', 'reverso')->value('name'),
-            'logo' => \App\Models\Credential::where('type', 'logo')->value('name'),
+        $front = \App\Models\Credential::where('type', 'frontal')->value('name');
+        $back = \App\Models\Credential::where('type', 'reverso')->value('name');
+        $logo = \App\Models\Credential::where('type', 'logo')->value('name');
+
+        // 29-oct-2026: la app 1.21 usa las *_url (bajo /talento/api, cargan desde fuera de la
+        // oficina); las versiones anteriores siguen armando la dirección con front/back/logo.
+        // ?v= cambia al subir otra plantilla, para que el teléfono no se quede con la anterior.
+        $url = fn (string $tipo, ?string $nombre) => route('talento.api.credencial.plantilla', [
+            'tipo' => $tipo,
+            'v' => $nombre ? substr(md5($nombre), 0, 8) : 'base',
         ]);
+
+        return response()->json([
+            'front' => $front,
+            'back' => $back,
+            'logo' => $logo,
+            'front_url' => $url('frontal', $front),
+            'back_url' => $url('reverso', $back),
+            'logo_url' => $url('logo', $logo),
+        ]);
+    }
+
+    /**
+     * Imagen de la plantilla del gafete para la app (2026-10-29): la subida en Credenciales o, si
+     * no hay, el default estático — el mismo respaldo que usa InformationSeller.vue. Sin sesión:
+     * son imágenes fijas de la empresa, sin datos de ningún colaborador.
+     */
+    public function credencialPlantillaImagen(string $tipo)
+    {
+        $defaults = [
+            'frontal' => 'images/gafete-front.png',
+            'reverso' => 'images/gafete-back.png',
+            'logo' => 'images/logo_meganet.jpg',
+        ];
+
+        $nombre = \App\Models\Credential::where('type', $tipo)->value('name');
+        $ruta = $nombre ? public_path('credencial/' . basename($nombre)) : null;
+        if (! $ruta || ! is_file($ruta)) {
+            $ruta = public_path($defaults[$tipo]);
+        }
+
+        return response()->file($ruta, ['Cache-Control' => 'public, max-age=86400']);
     }
 
     public function downloadQr()

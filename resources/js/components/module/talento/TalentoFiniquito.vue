@@ -22,7 +22,7 @@
     <div v-if="tab === 'loans'">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
         <div class="d-flex gap-2 flex-wrap">
-          <select v-model="lFilters.colaborador_id" @change="loadLoans" class="form-select form-select-sm tc-select" style="width:200px">
+          <select v-if="!colaboradorId" v-model="lFilters.colaborador_id" @change="loadLoans" class="form-select form-select-sm tc-select" style="width:200px">
             <option value="">Todos los técnicos</option>
             <option v-for="c in colaboradores" :key="c.id" :value="c.id">{{ c.user?.name }}</option>
           </select>
@@ -376,6 +376,7 @@ export default {
     // permisos.settlement_manage — mismo criterio, pero ni siquiera con
     // excepción de autoservicio para VER (Finiquito no es self-service).
     puedeGestionarFiniquito: { type: Boolean, default: false },
+    colaboradorNombre: { type: String, default: '' },
   },
   setup() {
     return { darkMode };
@@ -438,6 +439,12 @@ export default {
   },
   methods: {
     async loadColaboradores() {
+      // En la ficha todo es de esta persona; la lista completa solo la ve quien ve a todos
+      // (un supervisor recibía 403 y el selector de «Registrar préstamo» quedaba vacío).
+      if (this.colaboradorId) {
+        this.colaboradores = [{ id: Number(this.colaboradorId), user: { name: this.colaboradorNombre } }];
+        return;
+      }
       const { data } = await axios.get('/talento/api/colaboradores', { params: { per_page: 300, status: 'active' } });
       this.colaboradores = data?.data ?? [];
     },
@@ -455,7 +462,7 @@ export default {
     // ── Préstamos ──────────────────────────────────────────────────────────
     openNewLoan() {
       this.loanModal = {
-        show: true, colaborador_id: null, amount: 0,
+        show: true, colaborador_id: this.colaboradorId ? Number(this.colaboradorId) : null, amount: 0,
         repayment_weekly: null, reason: '', saving: false, error: '',
       };
     },

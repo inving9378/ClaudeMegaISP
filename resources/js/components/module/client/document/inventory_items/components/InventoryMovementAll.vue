@@ -193,6 +193,9 @@ export default {
                         id: "id",
                         text: "name",
                         scope: "notClientRole",
+                        // El destino solo ofrece personal activo; el origen deja a todos, por si
+                        // quien se fue todavía tiene material (2026-10-29).
+                        solo_activos: suffix === "to",
                     },
                 },
                 client: {

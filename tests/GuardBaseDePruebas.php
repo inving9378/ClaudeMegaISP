@@ -46,6 +46,13 @@ final class GuardBaseDePruebas
     public const EN_MEMORIA = ':memory:';
 
     /**
+     * #1054 — base aparte para las pruebas que recrean la base (RefreshDatabase/DatabaseMigrations):
+     * su `migrate:fresh` ya no borra los datos de catálogo de `megaisp_test`. La crea root de MySQL
+     * una vez; ver docs/bitacora/2026-10-30-item-1054.md.
+     */
+    public const BASE_QUE_SE_RECREA = 'megaisp_fresh_test';
+
+    /**
      * ¿Este nombre de base es seguro para una suite que corre `migrate:fresh`?
      *
      * `null`/vacío devuelve false a propósito (fail-closed): la ausencia de dato NO es permiso.

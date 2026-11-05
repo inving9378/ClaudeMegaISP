@@ -26,7 +26,6 @@ class FleetSubscriptionController extends Controller
         $this->authorize('fleet.subscriptions.manage');
 
         $query = FleetSubscription::withTrashed(false)
-            ->with('client:id,name')
             ->when($request->status, fn ($q, $s) => $q->where('status', $s))
             ->when($request->plan,   fn ($q, $p) => $q->where('plan', $p))
             ->latest('id');
@@ -79,10 +78,11 @@ class FleetSubscriptionController extends Controller
         $this->authorize('fleet.subscriptions.manage');
 
         $data = $request->validate([
-            'plan' => ['required', 'string', 'in:' . implode(',', FleetPlans::keys())],
+            'plan'  => ['required', 'string', 'in:' . implode(',', FleetPlans::keys())],
+            'promo' => ['sometimes', 'boolean'],
         ]);
 
-        $sub = $this->service->startTrial($clientId, $data['plan']);
+        $sub = $this->service->startTrial($clientId, $data['plan'], (bool) ($data['promo'] ?? false));
 
         return response()->json(['ok' => true, 'subscription' => $sub], 201);
     }

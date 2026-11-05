@@ -48,6 +48,17 @@
     padding: 15px;
 }
 
+// Los botones flotantes (JARVIS, ayuda, teléfono) ocupan los últimos ~80px de la esquina inferior
+// derecha y tapaban Guardar/Cerrar de las ventanas laterales (2026-10-22). El pie sube por encima
+// y el cuerpo se acorta lo mismo para que todo siga cabiendo en la pantalla.
+.modal-dialog-slide-right .modal-body {
+    max-height: calc(100vh - 230px);
+}
+
+.modal-dialog-slide-right .modal-footer {
+    padding-bottom: 92px;
+}
+
 @media (max-width: 500px) {
     .modal-dialog-slide-right {
         width: 100%;

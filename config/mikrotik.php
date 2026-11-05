@@ -73,6 +73,8 @@ return [
         'enabled' => (bool) env('MIKROTIK_RETRY_SYNC_ENABLED', true),
         // Máximo de servicios re-despachados por corrida (protege contra flood si hay muchos failed).
         'batch_limit' => (int) env('MIKROTIK_RETRY_SYNC_BATCH_LIMIT', 50),
+        // Minutos que un servicio 'pending' debe llevar sin actualizarse para ser reintentado (#596).
+        'pending_after_minutes' => (int) env('MIKROTIK_RETRY_PENDING_AFTER_MIN', 15),
         // Circuit breaker: si el total de 'failed' supera esto, probablemente es una caída masiva
         // de red (no fallas puntuales) — aborta la corrida completa en vez de bombardear routers
         // caídos; se vuelve a intentar en la siguiente corrida programada.

@@ -9,6 +9,7 @@ use App\Modules\Addons\Talento\Models\TalentoFund;
 use App\Modules\Addons\Talento\Services\FundService;
 use App\Modules\Addons\Talento\Support\Actor;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class TalentoCredentialController extends Controller
@@ -264,8 +265,8 @@ class TalentoCredentialController extends Controller
             ->exists();
         if ($existing) return;
 
-        $target  = (float)(setting('talento_license_renewal_cost') ?? 800);
-        $weekly  = (float)(setting('talento_license_weekly_deduction') ?? 100);
+        $target  = (float)(DB::table('settings')->where('key', 'talento_license_renewal_cost')->value('value') ?? 800);
+        $weekly  = (float)(DB::table('settings')->where('key', 'talento_license_weekly_deduction')->value('value') ?? 100);
 
         TalentoFund::create([
             'colaborador_id'   => $cred->colaborador_id,

@@ -3,7 +3,7 @@
         :for="idSelect"
         :class="`col-form-label text-md-end ms-auto`"
     >
-        Estado
+        {{ label }}
     </label>
     <div class="gap-2" style="width: 200px">
         <select
@@ -40,17 +40,25 @@ export default {
         options: String,
         id: String,
         name: String,
+        label: { type: String, default: "Estado" },
+        // Valores ya elegidos al montar. No emite setFilter: el padre ya los tiene.
+        initial: {
+            type: Array,
+            default: () => [],
+        },
     },
     components: {},
     emits: ["setFilter"],
     setup(props, { emit }) {
-        const val = ref([]);
+        const val = ref([...props.initial]);
         const options = ref([]);
         const opts = reactive(options);
 
         const idSelect = ref(`${props.id}_select`);
 
-        watch(val, () => {
+        // El multiselect entrega un arreglo nuevo cada vez que se cierra, aunque no cambie nada.
+        watch(val, (actual, anterior) => {
+            if (_.isEqual(actual, anterior)) return;
             emit("setFilter", { [props.name]: val.value });
         });
 

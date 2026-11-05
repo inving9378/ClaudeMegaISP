@@ -1,5 +1,5 @@
 <template>
-    <div class="container my-5 release-timeline">
+    <div class="container my-5 release-timeline" :class="{ 'torre-acoplada': dockPx > 0 }" :style="dockPx > 0 ? { '--jcd-dock': dockPx + 'px' } : null">
 
         <!-- ── Encabezado: la Torre de control es el contenedor/hub ── -->
         <div class="d-flex align-items-center gap-2 mb-3">
@@ -7,7 +7,11 @@
             <h1 class="h4 fw-bold mb-0">Torre de control V2</h1>
             <!-- Item #827 (Jarvis Parte 3b, Fase 3) — drawer del chat de sugerencias, a la
                  derecha del título para que se vea desde cualquier pestaña de la Torre. -->
-            <jarvis-chat-drawer class="ms-auto" />
+            <!-- #1068 — uso de la suscripción de Claude con la que trabajan las terminales. -->
+            <!-- Limpieza de la Hoja de ruta: la cola en vivo, con la misma regla del despachador. -->
+            <torre-cola-resumen class="ms-auto" />
+            <torre-cuota-plan />
+            <jarvis-chat-drawer :user-id="user_id" :pestana="tab" @dock="dockPx = $event" />
         </div>
 
         <!-- Item #891 §3 — alerta anticipada del certificado TLS en la CABECERA, no solo en el
@@ -23,38 +27,41 @@
             Renuévalo antes de que expire — si expira, se pierde la Torre completa (incluido este aviso).
         </div>
 
+        <!-- #1073 — IA del sistema ciega (llave rechazada, sin saldo o sin cuota): sin esto el
+             supervisor escala todo y el circuito solo parece prudente. -->
+        <div v-if="iaAviso && iaAviso.estado === 'rojo'"
+             class="alert alert-danger mb-2 py-1 px-3 d-flex align-items-center gap-2 text-truncate"
+             style="white-space:nowrap">
+            <i class="bi bi-robot"></i>
+            <b>La IA del sistema está ciega.</b>
+            <span class="text-truncate">{{ iaAviso.mensaje }}</span>
+            <a href="/integraciones" class="alert-link ms-auto">Integraciones</a>
+        </div>
+
         <!-- Item #9991088 (Fase 3 de #9991086) — el checkout principal (/var/www/megaisp, lo que
              sirve dev.meganett.com.mx) puede quedar con archivos viejos en disco aunque `main` ya
              avance, si el sync post-merge no corrió. Antes eso se veía como un bug de frontend
              (#9991082); ahora se ve aquí. -->
         <div v-if="checkoutAviso && checkoutAviso.estado !== 'verde'"
-             class="alert mb-3 py-2 px-3"
-             :class="checkoutAviso.estado === 'rojo' ? 'alert-danger' : 'alert-warning'">
-            <i class="bi bi-hdd-network me-1"></i>
+             class="alert mb-2 py-1 px-3 d-flex align-items-center gap-2 text-truncate"
+             style="white-space:nowrap"
+             :class="checkoutAviso.estado === 'rojo' ? 'alert-danger' : 'alert-warning'"
+             :title="`rama ${checkoutAviso.rama} · sha checkout ${checkoutAviso.sha_principal} · sha main ${checkoutAviso.sha_main} · ${checkoutAviso.commits_detras || 0} detrás, ${checkoutAviso.commits_adelante || 0} adelante`">
+            <i class="bi bi-hdd-network"></i>
             <b>Checkout principal desincronizado.</b>
-            <span v-if="checkoutAviso.mensaje">{{ checkoutAviso.mensaje }}</span>
-            <br>
-            <small class="text-body-secondary">
-                rama <code>{{ checkoutAviso.rama }}</code> ·
-                sha checkout <code>{{ checkoutAviso.sha_principal }}</code> ·
-                sha main <code>{{ checkoutAviso.sha_main }}</code>
-                <template v-if="checkoutAviso.commits_detras || checkoutAviso.commits_adelante">
-                    · {{ checkoutAviso.commits_detras }} commit(s) detrás, {{ checkoutAviso.commits_adelante }} adelante
-                </template>
-                <template v-if="checkoutAviso.ultimo_commit_main_at">
-                    · último commit de main: {{ formatDate(checkoutAviso.ultimo_commit_main_at) }}
-                </template>
-            </small>
+            <span v-if="checkoutAviso.mensaje" class="text-truncate">{{ checkoutAviso.mensaje }}</span>
+            <a href="#" class="alert-link ms-auto" @click.prevent="tab = 'configuracion'">Ver</a>
         </div>
 
         <!-- Item #9990671 (F1) — banner rojo con el conteo de versiones no publicadas en
              GitHub. Si GitHub no respondió, aviso amarillo aparte (nunca se pinta en verde
              sin poder verificarlo). -->
         <div v-if="publicacionAviso && publicacionAviso.ok && publicacionAviso.no_publicadas > 0"
-             class="alert alert-danger mb-3 py-2 px-3">
-            <i class="bi bi-cloud-slash me-1"></i>
+             class="alert alert-danger mb-2 py-1 px-3 d-flex align-items-center gap-2 text-truncate"
+             style="white-space:nowrap">
+            <i class="bi bi-cloud-slash"></i>
             <b>{{ publicacionAviso.no_publicadas }} versión(es) no publicada(s) en GitHub.</b>
-            <a href="#" class="alert-link" @click.prevent="tab = 'historial'">Ver lista</a>
+            <a href="#" class="alert-link ms-auto" @click.prevent="tab = 'historial'">Ver lista</a>
         </div>
         <div v-else-if="publicacionAviso && !publicacionAviso.ok"
              class="alert alert-warning mb-3 py-2 px-3">
@@ -70,7 +77,7 @@
                     <i class="bi bi-speedometer2 me-1"></i> Panorama
                 </a>
             </li>
-            <li class="nav-item">
+            <li class="nav-item" v-if="tabsClasicas">
                 <a class="nav-link" :class="{ active: tab === 'roadmap' }" href="#" @click.prevent="tab = 'roadmap'">
                     <i class="bi bi-map me-1"></i> Hoja de ruta
                 </a>
@@ -81,8 +88,13 @@
                  aterrice. Cuando el árbol tenga paridad completa, este es el punto de swap. -->
             <li class="nav-item">
                 <a class="nav-link" :class="{ active: tab === 'arbol' }" href="#" @click.prevent="tab = 'arbol'">
-                    <i class="bi bi-list-nested me-1"></i> Árbol
+                    <i class="bi bi-list-nested me-1"></i> Módulos
                 </a>
+            </li>
+            <li class="nav-item ms-2 align-self-center">
+                <label class="form-check form-check-inline small text-muted mb-0" title="Muestra «Hoja de ruta» y «Módulos» como pestañas separadas, como antes">
+                    <input type="checkbox" class="form-check-input" v-model="tabsClasicas" @change="onTabsClasicas"> Pestañas clásicas
+                </label>
             </li>
             <li class="nav-item">
                 <a class="nav-link" :class="{ active: tab === 'terminales' }" href="#" @click.prevent="tab = 'terminales'">
@@ -91,7 +103,7 @@
             </li>
             <li class="nav-item">
                 <a class="nav-link" :class="{ active: tab === 'integracion' }" href="#" @click.prevent="tab = 'integracion'">
-                    <i class="bi bi-diagram-3 me-1"></i> Integración
+                    <i class="bi bi-diagram-3 me-1"></i> Para mergear
                 </a>
             </li>
             <li class="nav-item">
@@ -143,10 +155,11 @@
         <roadmap-tab v-if="tab === 'roadmap'" />
 
         <!-- ── Sub-sección: Panorama (dashboard de la Torre) ── -->
-        <torre-control v-if="tab === 'panorama'" />
+        <torre-control v-if="tab === 'panorama'" :user-id="user_id" @ir-a="tab = $event" />
 
         <!-- ── Sub-sección: Árbol jerárquico (#9990970, CIRC-09 Fase 3) ── -->
-        <torre-panorama-arbol v-if="tab === 'arbol'" />
+        <torre-panorama-arbol v-if="tab === 'arbol' && tabsClasicas" />
+        <torre-modulos v-if="tab === 'arbol' && !tabsClasicas" />
 
         <!-- ── Sub-sección: Terminales en vivo (rejilla por sesión, #350) ── -->
         <torre-terminales v-if="tab === 'terminales'" />
@@ -350,10 +363,12 @@
 </template>
 
 <script>
+import { currentSearch } from "../../../hook/comunValues.js";
 import { ref, onMounted, onBeforeUnmount, onErrorCaptured, reactive, watch } from "vue";
 import axios from "axios";
 import ReleasesCrud from "./ReleasesCrud.vue";
 import RoadmapTab from "./torre-control/RoadmapTab.vue";
+import TorreModulos from "./torre-control/TorreModulos.vue";
 import TorreControl from "./torre-control/TorreControl.vue";
 import TorrePanoramaArbol from "./torre-control/TorrePanoramaArbol.vue";
 import TorreTerminales from "./torre-control/TorreTerminales.vue";
@@ -361,6 +376,8 @@ import TorreHistorialAcciones from "./torre-control/TorreHistorialAcciones.vue";
 import TorreActividadEquipo from "./torre-control/TorreActividadEquipo.vue";
 import IntegracionRamas from "./torre-control/IntegracionRamas.vue";
 import JarvisChatDrawer from "./torre-control/JarvisChatDrawer.vue";
+import TorreCuotaPlan from "./torre-control/TorreCuotaPlan.vue";
+import TorreColaResumen from "./torre-control/TorreColaResumen.vue";
 import DeployProgressModal from "./DeployProgressModal.vue";
 import Swal from "sweetalert2";
 import Permission from "../../../helpers/Permission";
@@ -368,10 +385,13 @@ import { allViewHasPermission } from "../../../helpers/Request";
 
 export default {
     name: "ReleasesIndex",
-    components: { ReleasesCrud, RoadmapTab, TorreControl, TorrePanoramaArbol, TorreTerminales, TorreHistorialAcciones, TorreActividadEquipo, IntegracionRamas, JarvisChatDrawer, DeployProgressModal },
+    components: { ReleasesCrud, RoadmapTab, TorreModulos, TorreControl, TorrePanoramaArbol, TorreTerminales, TorreHistorialAcciones, TorreActividadEquipo, IntegracionRamas, JarvisChatDrawer, TorreCuotaPlan, TorreColaResumen, DeployProgressModal },
     props: {
         releases: { type: String },
         next_page_url: { type: String },
+        // #1030 — id del usuario en sesión, solo para guardar preferencias de la Torre en el navegador
+        // separadas por usuario (p. ej. si «Detalle técnico» queda abierto). No viaja a ningún lado.
+        user_id: { type: String, default: '' },
     },
     setup(props) {
         // #648 — la pestaña inicial se puede fijar por query string (`/releases?tab=configuracion`).
@@ -381,13 +401,22 @@ export default {
             'actividad-equipo', 'historial', 'configuracion'];
         const tabInicial = (() => {
             try {
-                const q = new URLSearchParams(window.location.search).get('tab');
+                const q = new URLSearchParams(currentSearch()).get('tab');
                 return TABS_VALIDAS.includes(q) ? q : 'panorama';
             } catch (e) {
                 return 'panorama';
             }
         })();
-        const tab = ref(tabInicial);
+        // #1145 — interruptor de pestañas clásicas (Hoja de ruta + Módulos separadas). Por navegador.
+        const tabsClasicas = ref(false);
+        try { tabsClasicas.value = window.localStorage.getItem('torre_tabs_clasicas') === '1'; } catch (e) { /* sin storage */ }
+        const tabInicialEf = (tabInicial === 'roadmap' && !tabsClasicas.value) ? 'arbol' : tabInicial;
+        const tab = ref(tabInicialEf);
+        const onTabsClasicas = () => {
+            try { window.localStorage.setItem('torre_tabs_clasicas', tabsClasicas.value ? '1' : '0'); } catch (e) { /* sin storage */ }
+            if (!tabsClasicas.value && tab.value === 'roadmap') tab.value = 'arbol';
+        };
+        const dockPx = ref(0); // #1112: ancho que Jarvis acoplado le quita a la Torre
 
         // Captura los errores de render de las sub-pestañas (Vue los propaga al padre). Devolver
         // `false` corta la propagación: el error se muestra aquí y no tumba la Torre entera.
@@ -421,14 +450,17 @@ export default {
         // Item #9991088 (Fase 3 de #9991086) — aviso de desync del checkout principal vs main,
         // mismo endpoint que certAviso (una sola llamada alimenta los dos avisos de cabecera).
         const checkoutAviso = ref(null);
+        const iaAviso = ref(null); // #1073 — IA del sistema ciega, mismo endpoint
         async function cargarSaludEntornoAvisos() {
             try {
                 const { data } = await axios.get("/api/roadmap/torre/salud-entorno");
                 certAviso.value = data.certificado || null;
                 checkoutAviso.value = data.checkout_principal || null;
+                iaAviso.value = data.ia || null;
             } catch (e) {
                 certAviso.value = null; // best-effort: si falla, no hay banner, no se rompe la Torre
                 checkoutAviso.value = null;
+                iaAviso.value = null;
             }
         }
 
@@ -687,7 +719,10 @@ export default {
         };
 
         return {
+            dockPx,
             tab,
+            tabsClasicas,
+            onTabsClasicas,
             errorTab,
             reintentos,
             releases,
@@ -710,6 +745,7 @@ export default {
             hasPermission,
             certAviso,
             checkoutAviso,
+            iaAviso,
             publicacionAviso,
             publicacionEstadoDe,
             publicacionClase,
@@ -732,6 +768,8 @@ export default {
 </script>
 
 <style scoped>
+/* #1112 — Jarvis acoplado: la Torre cede el ancho del panel en vez de quedar tapada. */
+.torre-acoplada { margin-left: 0; margin-right: var(--jcd-dock); max-width: none; width: auto; }
 .plan-regreso-pre {
     white-space: pre-wrap;
     word-break: break-word;

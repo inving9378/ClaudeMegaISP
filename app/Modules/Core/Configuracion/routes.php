@@ -18,6 +18,7 @@ use App\Modules\Core\Configuracion\Controllers\SettingAdditionalFieldController;
 use App\Modules\Core\Configuracion\Controllers\CatalogoApiController;
 use App\Modules\Core\Configuracion\Controllers\SettingApiMovilController;
 use App\Modules\Core\Configuracion\Controllers\ModuleConfigPanelController;
+use App\Modules\Core\Configuracion\Controllers\MonitoreoDedicadosController;
 use App\Modules\Core\Configuracion\Controllers\SettingController;
 use App\Modules\Core\Configuracion\Controllers\SettingDebitPaymentCustomController;
 use App\Modules\Core\Configuracion\Controllers\StatusSeller\StatusSellerController;
@@ -80,6 +81,12 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
     ->prefix('configuracion')
     ->group(function () {
         Route::get('/', [SettingController::class, 'index']);
+
+        // Item #988: interruptor del monitoreo de servicios dedicados.
+        Route::get('/monitoreo-dedicados', [MonitoreoDedicadosController::class, 'index']);
+        Route::get('/monitoreo-dedicados/estado', [MonitoreoDedicadosController::class, 'estado']);
+        Route::post('/monitoreo-dedicados', [MonitoreoDedicadosController::class, 'guardar']);
+
         Route::post('/debt-payment-client-recurrent', [SettingController::class, 'debtPaymentClientRecurrent']);
         Route::post('/debt-payment-client-custom', [SettingController::class, 'debtPaymentClientCustom']);
 
@@ -164,7 +171,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/{id}/get-commissions-by-seller', [ComissionController::class, 'getCommissionsNotPaidToTheSeller']);
             Route::get('/get-list-commissions-by-seller/{seller_id}', [ComissionController::class, 'getListOfCommissionsToBePaid']);
             Route::get('/{id}/get-details-commission', [ComissionController::class, 'getCommissionWithDetails']);
-            Route::post('/create-comision-internal-distributor', [ComissionController::class, 'createComission']);
         });
 
         Route::group(['prefix' => 'reglas-comisiones'], function () {
@@ -420,4 +426,14 @@ Route::middleware(['web', 'auth', 'permission:module.visibility.manage'])
         Route::post('/reorder',     [ModuleVisibilityController::class, 'reorder'])->name('reorder');
         Route::get('/{moduleKey}',  [ModuleVisibilityController::class, 'show'])->name('show');
         Route::put('/{moduleKey}',  [ModuleVisibilityController::class, 'update'])->name('update');
+    });
+
+// #1144 — Zonas PPPoE (Calling-Station-Id): permiso propio (solo roles base).
+Route::middleware(['web', 'auth', 'permission:pppoe.csid.gestionar'])
+    ->prefix('configuracion/csid-zonas')
+    ->group(function () {
+        Route::get('/', [\App\Modules\Core\Configuracion\Controllers\CsidZonasController::class, 'index']);
+        Route::get('/listar', [\App\Modules\Core\Configuracion\Controllers\CsidZonasController::class, 'listar']);
+        Route::post('/modo', [\App\Modules\Core\Configuracion\Controllers\CsidZonasController::class, 'cambiarModo']);
+        Route::post('/reaprender', [\App\Modules\Core\Configuracion\Controllers\CsidZonasController::class, 'reaprender']);
     });

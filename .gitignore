@@ -23,6 +23,7 @@ composer.phar
 # (driver.min.*, maps.js, qrcode.min.js, app_2.css, pdf.css, receipt.css).
 public/mix-manifest.json
 /public/js/app.js
+/public/js/portal-flotas.js
 /public/js/*.LICENSE.txt
 /public/js/[0-9]*.js
 /public/js/node_modules_*.js
@@ -101,3 +102,5 @@ package-lock.json
 # Excepciones: catálogos públicos y el esquema de referencia (sin datos)
 !/config/state_municipalities_and_colonies/*.sql
 !/storage/schema/reference.sql
+
+!/database/schema/mysql-schema.sql

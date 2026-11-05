@@ -45,5 +45,27 @@ A Meganet le sirve para llevar el control de sus propios vehículos (camionetas 
 - **Disco `local` privado** — almacena documentos, fotos y archivos de mantenimiento (sin symlink público; se sirven vía endpoint controlado).
 - Dispositivos GPS físicos (protocolo Ruptela u otras marcas vía `Services/Gps/Drivers/*`) por conexión TCP directa al listener — no depende de una API externa de terceros.
 
+## Modelo de dueño: flota interna vs. flota de cliente (#639)
+
+**Regla única:** `fleet_vehicles.client_id` NULL = unidad interna de Meganet; con valor = unidad de ese cliente. Geocercas, reglas, contactos de alerta y suscripciones llevan su propio `client_id` con el mismo significado. Dispositivos GPS, posiciones, documentos, mantenimientos, combustible y eventos de geocerca heredan el dueño **por el vehículo**.
+
+**Dónde se aplica cada scope**
+- **Modelos:** trait `BelongsToClientTenant` → `scopeForClient($clientId)`; `forClient(null)` = solo internos, `forClient(N)` = solo del cliente N (el cliente nunca ve filas con `client_id` NULL). `FleetVehicle::scopeInterno()` = solo internas.
+- **Controladores:** `FleetBaseController::clientId()` decide el dueño; `autorizar()` es el punto único de permisos; `vehicleForClient($id)` resuelve una unidad ya acotada (ajena → 404).
+- **Panel `/flotas`** (guard `web`): roles internos → `clientId()` NULL → solo flota interna. Ignora la sesión del portal.
+- **Portal `/portal/flotas/api/*`** (guard `cliente`, middleware `flotas.portal`): el `client_id` sale SIEMPRE de `CurrentClientResolver`, nunca de la petición; exige suscripción usable. No existen allí proveedores, suscripción, comparativo, clientes-flota ni reenvío de notificaciones (`PORTAL_DENEGADOS` + rutas ausentes).
+- **"Flotas de clientes"** (`/flotas/clientes`, `/flotas/api/clientes-flota`): única vista del personal sobre unidades de clientes; permiso `fleet.clients.view`/`manage`, `client_id` explícito, auditoría en `fleet_client_audit_log`.
+- **Alertas:** las unidades de cliente notifican solo a sus contactos (`fleet_client_alert_contacts`), con bitácora (`fleet_client_alert_deliveries`) y tope de WhatsApp por cliente.
+
+**Cómo agregar una vista/endpoint nuevo sin romper el aislamiento**
+1. Toda consulta parte de un modelo con `forClient($this->clientId())` (o `vehicleForClient()`); nunca `Model::find($id)` suelto.
+2. Autoriza con `$this->autorizar('permiso')`, no con `authorize()` directo; si la función no debe existir para el cliente, agrégala a `PORTAL_DENEGADOS` y no la registres en `/portal/flotas/api`.
+3. Una tabla nueva con dueño lleva `client_id` (o cuelga de `vehicle_id`) y el trait del scope.
+4. Agrega el caso a `php artisan portal:test-idor` (clientes A/B + unidad interna, intentando leer/modificar por id) y corre la prueba: debe quedar todo en verde.
+
+**Verificación de aislamiento:** `php artisan portal:test-idor` (34 pruebas, transacción con rollback): unidades, GPS/IMEI, posiciones, recorridos, geocercas, reglas, alertas, contactos, documentos, mantenimientos, combustible y bitácora vía HTTP real; más el panel interno sin datos de cliente y "Flotas de clientes" con/sin permiso.
+
+**Pendientes de root para Irving:** activar `megaisp-gps-listener.service` (`deploy/README-gps-listener.md`, abrir puerto 5027 y `GPS_LISTENER_PUBLIC_IP`); `permission:cache-reset` en el checkout principal tras migrar permisos; `FLOTAS_BILLING_ENABLED` sigue en `false` (solo Irving).
+
 ---
 _Doc viva generada por el Circuito CC (pool de documentación del sistema). Read-only sobre el código, aditiva. Sin secretos._

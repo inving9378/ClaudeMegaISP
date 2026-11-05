@@ -41,7 +41,7 @@ class DesempenoSerieController extends Controller
         $to   = Carbon::parse($request->input('to',   now()->toDateString()))->endOfDay();
 
         // Colaboradores activos del department
-        $query = TalentoColaborador::with('user')->where('status', 'active');
+        $query = TalentoColaborador::with('user')->activos();
         if ($department === '__none__') {
             $query->whereNull('department');
         } elseif ($department !== '') {

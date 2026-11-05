@@ -85,4 +85,31 @@ class ReanudarColisionesParaguasMergeadoTest extends TestCase
         $this->assertNotContains($perdedor->id, $reanudados);
         $this->assertNotNull($perdedor->fresh()->colision_pausada_por, 'Una colisión real (ganador sin merge_commit ni estado terminal) sigue bloqueando.');
     }
+
+    public function test_ganador_congelado_fuera_del_pool_libera_al_perdedor(): void
+    {
+        // #983 — caso #893/#957: el ganador quedó congelado y sin merge; no está en vuelo.
+        $ganador = RoadmapItem::create([
+            'title'                   => 'Ganador congelado '.uniqid(),
+            'estado_aprobacion'       => 'aprobado_irving',
+            'status'                  => 'pending',
+            'excluir_pool_automatico' => true,
+        ]);
+
+        $perdedor = RoadmapItem::create([
+            'title'                => 'Perdedor pausado por ganador congelado '.uniqid(),
+            'estado_aprobacion'    => 'en_progreso',
+            'status'               => 'pending',
+            'colision_pausada_por' => $ganador->id,
+            'colision_pausada_at'  => now(),
+            'worker_sid'           => 'wt-9',
+        ]);
+        $perdedor->estado_previo_claim = 'aprobado_revisor';
+        $perdedor->save();
+
+        $reanudados = (new RoadmapCircuitoService())->reanudarColisionesResueltas();
+
+        $this->assertContains($perdedor->id, $reanudados);
+        $this->assertNull($perdedor->fresh()->colision_pausada_por);
+    }
 }

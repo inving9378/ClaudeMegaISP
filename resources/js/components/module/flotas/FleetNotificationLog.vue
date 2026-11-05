@@ -29,7 +29,7 @@
                 <thead>
                     <tr>
                         <th>Fecha/hora</th><th>Vehículo</th><th>Geocerca · evento</th>
-                        <th>Destinatario</th><th>Canal</th><th>Estado</th><th></th>
+                        <th v-if="!portal">Destinatario</th><th>Canal</th><th>Estado</th><th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -45,7 +45,7 @@
                                 {{ l.event_type === 'enter' ? 'Entrada' : 'Salida' }}
                             </span>
                         </td>
-                        <td>
+                        <td v-if="!portal">
                             <div>{{ l.user }}</div>
                             <div class="text-muted small">{{ l.destination || '—' }}</div>
                         </td>
@@ -55,7 +55,7 @@
                             <i v-if="l.error_message" class="bi bi-info-circle ms-1 text-muted" :title="l.error_message"></i>
                         </td>
                         <td class="text-end">
-                            <button v-if="l.status === 'failed'" class="btn btn-sm btn-outline-primary" :disabled="resending === l.id" @click="resend(l)">
+                            <button v-if="!portal && l.status === 'failed'" class="btn btn-sm btn-outline-primary" :disabled="resending === l.id" @click="resend(l)">
                                 <i class="bi bi-arrow-repeat me-1"></i>{{ resending === l.id ? '…' : 'Reenviar' }}
                             </button>
                         </td>
@@ -86,7 +86,11 @@ import axios from 'axios';
 
 export default {
     name: 'FleetNotificationLog',
-    props: { baseUrl: { type: String, default: '/flotas' } },
+    props: {
+        baseUrl: { type: String, default: '/flotas' },
+        // Modo portal del cliente: sin reenvío (solo lectura).
+        portal: { type: Boolean, default: false },
+    },
     setup(props) {
         const items = ref([]);
         const loading = ref(true);

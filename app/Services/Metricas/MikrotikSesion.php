@@ -13,6 +13,9 @@ final class MikrotikSesion implements SesionRouter
 {
     private const PROPS_INTERFAZ = ['name', 'rx-byte', 'tx-byte', 'rx-packet', 'tx-packet', 'running', 'disabled'];
 
+    /** @var array<string, array{por: ?string, nombres: string[]}> */
+    private array $resolucion = [];
+
     public function __construct(
         private readonly RouterOsApi $api,
         private readonly string $host,
@@ -61,10 +64,12 @@ final class MikrotikSesion implements SesionRouter
             $nombre = $porNombre[$clave] ?? null;
             if ($nombre !== null && isset($contadores[$nombre])) {
                 $resultado[$clave] = $contadores[$nombre];
+                $this->resolucion[$clave] = ['por' => 'nombre', 'nombres' => [$nombre]];
             } elseif (! empty($p['vlan_id'])) {
                 $faltan[$clave] = (int) $p['vlan_id'];
             } else {
                 $resultado[$clave] = null;
+                $this->resolucion[$clave] = ['por' => null, 'nombres' => []];
             }
         }
 
@@ -81,6 +86,7 @@ final class MikrotikSesion implements SesionRouter
             foreach ($faltan as $clave => $vlanId) {
                 $nombres = $nombresPorVlan[$vlanId] ?? [];
                 $resueltos[$clave] = count($nombres) === 1 ? $nombres[0] : null;
+                $this->resolucion[$clave] = ['por' => 'vlan_id', 'nombres' => $nombres];
             }
             $extra = $this->contadores(array_values(array_unique(array_filter($resueltos))));
             foreach ($resueltos as $clave => $nombre) {
@@ -89,6 +95,11 @@ final class MikrotikSesion implements SesionRouter
         }
 
         return $resultado;
+    }
+
+    public function resolucion(): array
+    {
+        return $this->resolucion;
     }
 
     public function ping(string $ip, int $paquetes, string $intervalo): LecturaPing

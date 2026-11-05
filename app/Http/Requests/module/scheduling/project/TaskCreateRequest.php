@@ -15,6 +15,10 @@ class TaskCreateRequest extends FormRequest
      */
     public function authorize()
     {
+        // #698: al editar por id, la tarea tiene que ser del usuario (o ser supervisor/administrador)
+        if ($id = $this->route('id')) {
+            \App\Services\TaskService::tareaAutorizada($id);
+        }
         return true;
     }
 

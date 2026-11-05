@@ -120,7 +120,7 @@ class ProjectController extends Controller
     {
         $teamIds = $project->teams()->pluck('teams.id');
 
-        $query = User::query()->notClientRole()->select('id', 'name')->orderBy('name');
+        $query = User::query()->notClientRole()->activo()->select('id', 'name')->orderBy('name');
 
         if ($teamIds->isNotEmpty()) {
             $query->whereHas('teams', fn ($q) => $q->whereIn('teams.id', $teamIds));

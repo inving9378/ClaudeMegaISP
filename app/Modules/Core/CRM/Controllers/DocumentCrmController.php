@@ -118,6 +118,16 @@ class DocumentCrmController extends Controller
         return response()->json($response);
     }
 
+    /** #570: sirve el contrato PDF desde disco privado; el middleware de ruta exige sesión y permiso. */
+    public function servirContrato($documentId)
+    {
+        $doc = \App\Models\DocumentCrm::findOrFail($documentId);
+        $archivos = \Illuminate\Support\Facades\Storage::disk('local')->files('contratos/crm/' . $doc->crm_id . '/document');
+        $ruta = collect($archivos)->first(fn ($f) => str_starts_with(basename($f), $doc->id . '-'));
+        abort_if(!$ruta, 404);
+        return \Illuminate\Support\Facades\Storage::disk('local')->response($ruta, null, ['Content-Type' => 'application/pdf', 'X-Content-Type-Options' => 'nosniff']);
+    }
+
     public function loadContentTemplate(ShowPreviewContractRequest $request)
     {
         $documentTemplateRepository = new DocumentTemplateRepository();
@@ -150,8 +160,15 @@ class DocumentCrmController extends Controller
         }
 
         $documentTemplateRepository = new DocumentTemplateRepository();
-        $nameTemplate = $documentTemplateRepository->getNameById($request->template);
-        $filePath = 'crm/' . $request->idClient . '/document/temp_contract_template/' . $nameTemplate . '.pdf';
-        return $documentTemplateService->saveTemporalTemplateAndReturnPath($validation['html'], $filePath);
+        $filePath = 'contratos/temp/crm/' . (int) $request->idClient . '/' . (int) $request->template . '.pdf';
+        return $documentTemplateService->saveTemporalTemplateAndReturnPath($validation['html'], $filePath, '/crm/document/vista-previa/' . (int) $request->idClient);
+    }
+
+    /** #600: sirve la vista previa temporal desde disco privado (sesión + permiso por ruta). */
+    public function servirVistaPrevia($idClient, $template)
+    {
+        $ruta = 'contratos/temp/crm/' . (int) $idClient . '/' . (int) $template . '.pdf';
+        abort_if(!\Illuminate\Support\Facades\Storage::disk('local')->exists($ruta), 404);
+        return \Illuminate\Support\Facades\Storage::disk('local')->response($ruta, null, ['Content-Type' => 'application/pdf', 'X-Content-Type-Options' => 'nosniff']);
     }
 }

@@ -1,0 +1,30 @@
+{
+    "slug": "addon-crm-empresarial",
+    "name": "CRM Empresarial",
+    "version": "0.1.0",
+    "description": "Segmentos de cliente (residencial, negocio, PyME, dedicado) y expediente empresarial: personas morales/físicas, representantes, contactos, sitios de instalación y documentos.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true,
+    "keep_data": true,
+
+    "permissions": [
+        { "name": "crm-empresarial.expediente.view",   "description": "Ver segmentos y expedientes empresariales del CRM" },
+        { "name": "crm-empresarial.expediente.manage", "description": "Crear y editar expedientes empresariales (representantes, contactos, sitios y documentos)" },
+        { "name": "crm-empresarial.precios.aprobar",   "description": "Aprobar un precio de servicio distinto al de lista en el configurador del CRM Empresarial" },
+        { "name": "crm-empresarial.propuestas.view",   "description": "Ver las propuestas comerciales del expediente" },
+        { "name": "crm-empresarial.propuestas.create", "description": "Crear propuestas, versiones nuevas y registrar respuesta del cliente" },
+        { "name": "crm-empresarial.propuestas.aprobar", "description": "Aprobar internamente una propuesta" },
+        { "name": "crm-empresarial.propuestas.enviar", "description": "Marcar una propuesta como enviada al cliente" },
+        { "name": "crm-empresarial.conversion.manage", "description": "Convertir un prospecto empresarial en cliente administrativo (sin activar servicios)" }
+    ],
+
+    "menu": [],
+    "admin_cards": [],
+    "sidebar": { "location": "main" },
+    "config_sections": [],
+    "api_endpoints": [],
+    "client_tab": null,
+    "crm_tab": { "label": "Expediente", "component": "CrmExpedienteTab", "permission": "crm-empresarial.expediente.view" },
+    "service_type": null
+}

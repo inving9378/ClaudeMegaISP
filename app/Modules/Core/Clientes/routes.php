@@ -89,6 +89,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/table', [DocumentClientController::class, 'table']);
             Route::post('/destroy/{id}', [DocumentClientController::class, 'destroy']);
             Route::post('/generate_contract/{id}', [DocumentClientController::class, 'generateContract']);
+            Route::get('/contrato/{documentId}', [DocumentClientController::class, 'servirContrato']);
+            Route::get('/vista-previa/{idClient}/{template}', [DocumentClientController::class, 'servirVistaPrevia']);
             Route::get('/load_content_template', [DocumentClientController::class, 'loadContentTemplate']);
             Route::post('/show_content_template', [DocumentClientController::class, 'showContentTemplate']);
         });
@@ -121,6 +123,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         // Servicios internet
         Route::prefix('clientinternetservice')->group(function () {
             Route::post('/table', [ClientInternetServiceController::class, 'table']);
+            Route::get('/macs/{id}', [ClientInternetServiceController::class, 'macs']);
             Route::post('/update/{id}', [ClientInternetServiceController::class, 'update']);
             Route::post('/crear/{id}', [ClientInternetServiceController::class, 'store']);
             Route::post('/destroy/{id}', [ClientInternetServiceController::class, 'destroy']);
@@ -229,6 +232,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/get-ping-status/{id}',  [ClientPingController::class, 'getPingStatus']);
             Route::get('/get-ping-history/{id}', [ClientPingController::class, 'getPingHistory']);
             Route::get('/get-ping-daily/{id}',   [ClientPingController::class, 'getPingDailySummary']);
+            Route::get('/get-ping-monthly-report/{id}', [ClientPingController::class, 'getPingMonthlyReport']);
             // Item #988: dedicados con «Datos de red» (tablas nuevas, no ping_statistics).
             Route::get('/dedicado/{id}', [DedicadoMonitoreoController::class, 'resumen'])->whereNumber('id');
             Route::get('/dedicado/servicio/{servicioId}/estado', [DedicadoMonitoreoController::class, 'estado'])->whereNumber('servicioId');
@@ -239,6 +243,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         // aquí nunca guarda el servicio, que dispara trabajos al router).
         Route::get('/servicio-internet/{servicioId}/datos-red', [ServicioDatosRedController::class, 'show'])->whereNumber('servicioId');
         Route::post('/servicio-internet/{servicioId}/datos-red', [ServicioDatosRedController::class, 'guardar'])->whereNumber('servicioId');
+        Route::post('/servicio-internet/{servicioId}/datos-red/probar', [ServicioDatosRedController::class, 'probar'])->whereNumber('servicioId')->middleware('throttle:10,1');
+        Route::post('/servicio-internet/{servicioId}/datos-red/identidad', [ServicioDatosRedController::class, 'confirmarIdentidad'])->whereNumber('servicioId');
 
         // Plan promotions
         Route::post('/{id}/plan-promotions', [ClientPlanPromotionController::class, 'index']);

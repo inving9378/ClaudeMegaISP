@@ -21,11 +21,24 @@ class TaskDatatableHelper extends HelperDatatable
         $this->columns = Module::where('name', $moduleName)->first()->columnsDatatable->pluck('name')->toArray();
     }
 
+    /**
+     * Con el interruptor B4 el conteo y la búsqueda usan la misma condición que el listado
+     * (admin, super admin o task_view_full_task ven todo); apagado conserva la condición anterior.
+     */
+    private static function soloAsignadas(): bool
+    {
+        $user = auth()->user();
+        if (config('unificacion.interruptores.scheduling_b4')) {
+            return !$user->isAdmin() && !$user->isSuperAdmin() && !$user->can('task_view_full_task');
+        }
+        return (!$user->can('task_view_full_task') && !$user->isAdmin()) || (!$user->can('task_view_full_task') && !$user->isSuperAdmin());
+    }
+
     public function count($filters = null)
     {
         if ($filters) {
             $query = $this->model::filters($this->columns, null, $filters);
-            if ((!auth()->user()->can('task_view_full_task') && !auth()->user()->isAdmin()) || (!auth()->user()->can('task_view_full_task') && !auth()->user()->isSuperAdmin())) {
+            if (self::soloAsignadas()) {
                 $query = $query->whereHas('users', function ($query) {
                     $query->where('user_id', auth()->user()->id);
                 });
@@ -34,7 +47,7 @@ class TaskDatatableHelper extends HelperDatatable
         }
 
         $query = $this->model::select('*');
-        if ((!auth()->user()->can('task_view_full_task') && !auth()->user()->isAdmin()) || (!auth()->user()->can('task_view_full_task') && !auth()->user()->isSuperAdmin())) {
+        if (self::soloAsignadas()) {
             $query = $query->whereHas('users', function ($query) {
                 $query->where('user_id', auth()->user()->id);
             });
@@ -67,7 +80,7 @@ class TaskDatatableHelper extends HelperDatatable
             ->limit($limit)
             ->orderBy($order, $dir);
 
-        if ((!auth()->user()->can('task_view_full_task') && !auth()->user()->isAdmin()) || (!auth()->user()->can('task_view_full_task') && !auth()->user()->isSuperAdmin())) {
+        if (self::soloAsignadas()) {
             $query = $query->whereHas('users', function ($query) {
                 $query->where('user_id', auth()->user()->id);
             });
@@ -79,7 +92,7 @@ class TaskDatatableHelper extends HelperDatatable
     public function filtering_query($search)
     {
         $query = $this->model::filters($this->columns, $search);
-        if ((!auth()->user()->can('task_view_full_task') && !auth()->user()->isAdmin()) || (!auth()->user()->can('task_view_full_task') && !auth()->user()->isSuperAdmin())) {
+        if (self::soloAsignadas()) {
             $query = $query->whereHas('users', function ($query) {
                 $query->where('user_id', auth()->user()->id);
             });
@@ -98,6 +111,10 @@ class TaskDatatableHelper extends HelperDatatable
                 $id = $value->id;
                 $nestedData = [];
                 $status_cls = $value->status_cls;
+                // Antes de que el bucle reemplace los valores por su texto visible.
+                $abierta = in_array($value->status, ['ToDo', 'InProgress'], true);
+                $prioridad = $value->priority;
+                $inicioCrudo = $value->start_time;
                 foreach ($this->columns as $val) {
                     if ($val == 'project_id') {
                         $value->project_id = $value->project_title;
@@ -172,9 +189,16 @@ class TaskDatatableHelper extends HelperDatatable
                 $nestedData['start_time'] = view('meganet.shared.table.module.task.start_time', [
                     'id' => $id,
                     'start_time' => $value->start_time,
-                    'color' => $this->getColorByDate($value->start_time),
+                    // Rojo solo si ya pasó y sigue abierta: una tarea terminada no está «atrasada».
+                    'atrasada' => $abierta && $inicioCrudo && $this->getColorByDate($inicioCrudo) !== '',
                     'dir' => '/scheduling/task/editar/' . $value->id,
                 ])->toHtml();
+
+                if (in_array('priority', $this->columns, true)) {
+                    $nestedData['priority'] = view('meganet.shared.table.module.task.priority', [
+                        'priority' => $prioridad,
+                    ])->toHtml();
+                }
 
                 $data[] = $nestedData;
             }

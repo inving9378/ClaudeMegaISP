@@ -54,7 +54,7 @@ class RoadmapItem extends Model
         // (depende_de entre hermanos); reemplaza subtasks.descomposicion (ver DependenciaGate).
         'descomposicion',
         // Circuito de mejora continua (Parte 1.1)
-        'modulo', 'nivel_riesgo', 'estado_aprobacion',
+        'modulo', 'modulo_slug', 'nivel_riesgo', 'estado_aprobacion',
         // Quién fijó el nivel_riesgo vigente: interno|externo (circuito #260)
         'nivel_riesgo_origen',
         // #9990875 — CÓMO se asignó nivel_riesgo cuando no fue por el flujo normal del circuito:
@@ -310,8 +310,78 @@ TXT;
 
     public const ESTADOS_SINCRONIZABLES_DESDE_KANBAN = ['pendiente_revision', 'en_progreso', 'aprobado_irving'];
 
+    /**
+     * #1050 (paso A de #1030) — slug del módulo del registro (o área `area-*`) para una etiqueta de
+     * `modulo`, con el mapa de `config/roadmap_modulos.php`. Ignora mayúsculas y acentos. Primero
+     * mira los prefijos de título de esa etiqueta (p. ej. «CRM-E …» → CRM Empresarial). NULL si la
+     * etiqueta no tiene alias.
+     */
+    public static function slugDeModulo(?string $modulo, ?string $titulo = null): ?string
+    {
+        $norm  = fn ($s) => trim((string) preg_replace('/[^a-z0-9]+/', ' ', strtolower(\Illuminate\Support\Str::ascii((string) $s))));
+        $clave = $norm($modulo);
+        if ($clave === '') {
+            return null;
+        }
+        foreach ((array) config('roadmap_modulos.por_prefijo_titulo', []) as $etiqueta => $prefijos) {
+            if ($norm($etiqueta) === $clave) {
+                foreach ((array) $prefijos as $prefijo => $slug) {
+                    if (str_starts_with(ltrim((string) $titulo), $prefijo)) {
+                        return $slug;
+                    }
+                }
+            }
+        }
+        foreach ((array) config('roadmap_modulos.alias', []) as $etiqueta => $slug) {
+            if ($norm($etiqueta) === $clave) {
+                return $slug;
+            }
+        }
+
+        return null;
+    }
+
+    /** #1050 — la columna existe (el código puede llegar antes que la migración). */
+    private static ?bool $tieneModuloSlug = null;
+
+    private static function tieneModuloSlug(): bool
+    {
+        return self::$tieneModuloSlug ??= \Illuminate\Support\Facades\Schema::hasColumn('roadmap_items', 'modulo_slug');
+    }
+
     protected static function booted(): void
     {
+        // #1078 — una PERSONA que aprueba, reencola o cambia la instrucción de un item es la novedad
+        // que justifica otra vuelta: reinicia la espera por vueltas vacías. Los procesos del
+        // circuito (cron, colas, terminales, la API externa) corren sin sesión y NO la reinician;
+        // si no, una re-aprobación automática volvería a abrir el mismo bucle.
+        static::saving(function (self $item) {
+            if (! $item->exists || (int) $item->vueltas_vacias === 0 || ! auth()->check()) {
+                return;
+            }
+            $reaprobado = $item->isDirty('estado_aprobacion')
+                && in_array($item->estado_aprobacion, ['aprobado_irving', 'aprobado_revisor', 'aprobado_claude'], true);
+            if ($reaprobado || $item->isDirty(['prompt', 'description', 'depende_de'])) {
+                $item->vueltas_vacias = 0;
+                $item->ultima_vuelta_vacia_at = null;
+            }
+        });
+
+        // #1050 — `modulo_slug` se deriva de la etiqueta al guardar: si la etiqueta cambia, se
+        // recalcula; si el item todavía no tiene slug, se llena. Una etiqueta sin alias deja NULL y
+        // un aviso en el log (es la señal para agregarla a config/roadmap_modulos.php).
+        static::saving(function (self $item) {
+            if (! self::tieneModuloSlug()) {
+                return;
+            }
+            if ($item->isDirty('modulo') || ($item->modulo_slug === null && trim((string) $item->modulo) !== '')) {
+                $item->modulo_slug = self::slugDeModulo($item->modulo, $item->title);
+                if ($item->modulo_slug === null && trim((string) $item->modulo) !== '') {
+                    Log::warning('roadmap-modulo-sin-alias', ['item' => $item->id, 'modulo' => $item->modulo]);
+                }
+            }
+        });
+
         // #9990206 — GUARD CONTRA IDs EXPLÍCITOS. Una sola inserción con `id` puesto a mano
         // (p.ej. `id=999999` para probar un comando) despega el AUTO_INCREMENT de InnoDB para
         // SIEMPRE: MySQL nunca lo baja por debajo de `max(id)+1`, ni borrando la fila después.
@@ -510,29 +580,7 @@ TXT;
                 && $item->estado_aprobacion === 'completado'
                 && ! $item->cierreParaguas
                 && $item->tieneSubItemsAbiertos()) {
-                $abiertos = $item->subItemsAbiertos()->count();
-
-                $item->estado_aprobacion       = 'aprobado_irving';
-                $item->status                  = 'pending';
-                $item->excluir_pool_automatico = true;
-                // #898 — sin esto el `worker_sid`/`claimed_at` de la sesión que disparó el intento
-                // de cierre se queda pegado: `status` ya no es 'done' aquí, así que
-                // `reclamosHuerfanosPorSid()` (solo mira status='done') nunca lo ve y el botón
-                // "Liberar reclamo" de la Torre no lo alcanza. Se libera aquí mismo, al parquear.
-                $item->worker_sid              = null;
-                $item->claimed_at              = null;
-
-                $log = $item->log ?: [];
-                $log[] = [
-                    'ts'              => now()->toIso8601String(),
-                    'por'             => 'paraguas',
-                    'evento'          => 'paraguas_abierto',
-                    'subitems_abiertos' => $abiertos,
-                    'motivo'          => "Este item se descompuso y le quedan {$abiertos} sub-item(s) "
-                                       . 'abierto(s): no se completa. Queda como paraguas y cierra solo '
-                                       . 'cuando el último de ellos cierre.',
-                ];
-                $item->log = $log;
+                $item->aparcarComoParaguas();
             }
 
             // (3) #878 — NINGÚN ACTOR AUTOMÁTICO REVOCA UNA AUTORIZACIÓN HUMANA EXPLÍCITA.
@@ -606,6 +654,11 @@ TXT;
                 // — que sí conviene dejar en solo-advertencia mientras maduran). El incidente #9990366
                 // fue exactamente un cierre hueco que el modo advertencia dejó pasar.
                 $tieneBloqueantes = ($verificacion['bloqueantes'] ?? []) !== [];
+                // #1137 — con la tarjeta obligatoria encendida, faltar reporte/enlace también frena.
+                if (config('circuito.jarvis.cierre.tarjeta_obligatoria', false)
+                    && collect((array) $verificacion['faltantes'])->contains(fn ($f) => str_contains((string) $f, 'reporte_coloquial') || str_contains((string) $f, 'enlace_revision'))) {
+                    $tieneBloqueantes = true;
+                }
 
                 $log = $item->log ?: [];
                 $log[] = [
@@ -632,6 +685,14 @@ TXT;
                         'item' => $item->id, 'faltantes' => $verificacion['faltantes'],
                     ]);
                 }
+            }
+
+            // #1137 — «Hecho = Irving lo vio»: con el interruptor encendido, el cierre deja la tarjeta
+            // pendiente de validación (no toca a quien ya fue validado por Irving).
+            if ($item->estado_aprobacion === 'completado'
+                && config('circuito.jarvis.cierre.tarjeta_obligatoria', false)
+                && ! $item->validado_por_irving) {
+                $item->pendiente_validacion_irving = true;
             }
 
             // #1008 (#1003 §6) — MISMO punto de enganche que el gate de arriba (no se registra un
@@ -1229,7 +1290,94 @@ TXT;
           // triaje automático de riesgo aconseja, no detiene (decisión de Irving 2026-08-18).
           // Incluye el fallback legacy del rótulo en el título, que se retira cuando
           // `contarFallbackRotulo()` marque 0 durante una semana.
-          ->where(fn ($x) => static::sqlSinFrenoHumano($x));
+          ->where(fn ($x) => static::sqlSinFrenoHumano($x))
+          // #1078 — ESPERA CRECIENTE tras vueltas sin ningún cambio: 1 h después de la primera,
+          // 4 h después de la segunda y 24 h desde la tercera. Sin esto, un item que la terminal
+          // declinaba volvía a la cola y se relanzaba al minuto (268 de 361 vueltas vacías del
+          // 23 al 27-oct). Una acción de una persona reinicia el conteo (ver saving abajo).
+          ->where(fn ($x) => $x->where('vueltas_vacias', 0)
+              ->orWhereNull('ultima_vuelta_vacia_at')
+              ->orWhereRaw(static::SQL_ESPERA_VUELTAS_VACIAS));
+    }
+
+    /**
+     * (2b) PARAGUAS — retiene un item descompuesto con sub-items abiertos: sigue autorizado, fuera
+     * del pool, y lo cierra solo el último hijo. Lo usan el guard de `completado` y, desde #1078,
+     * `circuito:cerrar-vuelta` cuando la vuelta descompuso el item sin intentar cerrarlo (el «bucle
+     * reap sobre paraguas» que se arreglaba a mano item por item). Solo asigna; quien llama guarda.
+     */
+    public function aparcarComoParaguas(): void
+    {
+        $abiertos = $this->subItemsAbiertos()->count();
+
+        $this->estado_aprobacion       = 'aprobado_irving';
+        $this->status                  = 'pending';
+        $this->excluir_pool_automatico = true;
+        // #898 — sin esto el `worker_sid`/`claimed_at` de la sesión que disparó el intento
+        // de cierre se queda pegado: `status` ya no es 'done' aquí, así que
+        // `reclamosHuerfanosPorSid()` (solo mira status='done') nunca lo ve y el botón
+        // "Liberar reclamo" de la Torre no lo alcanza. Se libera aquí mismo, al parquear.
+        $this->worker_sid              = null;
+        $this->claimed_at              = null;
+
+        $log = $this->log ?: [];
+        $log[] = [
+            'ts'              => now()->toIso8601String(),
+            'por'             => 'paraguas',
+            'evento'          => 'paraguas_abierto',
+            'subitems_abiertos' => $abiertos,
+            'motivo'          => "Este item se descompuso y le quedan {$abiertos} sub-item(s) "
+                               . 'abierto(s): no se completa. Queda como paraguas y cierra solo '
+                               . 'cuando el último de ellos cierre.',
+        ];
+        $this->log = $log;
+    }
+
+    /** Minutos de espera según cuántas vueltas vacías seguidas lleva el item (#1078). */
+    public const ESPERA_VUELTAS_VACIAS_MIN = [1 => 60, 2 => 240, 3 => 1440];
+
+    /** El mismo escalón en SQL, con NOW() crudo por la razón de `agendado_para` (arriba). */
+    public const SQL_ESPERA_VUELTAS_VACIAS = 'ultima_vuelta_vacia_at <= NOW() - INTERVAL '
+        . '(CASE WHEN vueltas_vacias = 1 THEN 60 WHEN vueltas_vacias = 2 THEN 240 ELSE 1440 END) MINUTE';
+
+    /**
+     * #1078 — la vuelta terminó sin commits ni cierre. Solo marca los contadores; quien llama guarda.
+     */
+    public function registrarVueltaVacia(): void
+    {
+        $this->vueltas_vacias = (int) $this->vueltas_vacias + 1;
+        $this->ultima_vuelta_vacia_at = now();
+    }
+
+    /**
+     * Regla d de la limpieza de la Hoja de ruta (Irving, 2026-10-30): salió vacío las veces que lo
+     * mandan a «Esperan tu decisión» y ninguna persona lo ha vuelto a aprobar desde entonces (eso
+     * reinicia `vueltas_vacias`, ver `booted()`). Ningún actor automático lo re-aprueba.
+     *
+     * Si el item salió de una consulta con columnas recortadas (`circuito:destrabar-bandeja` usa
+     * `COLUMNAS_NECESARIAS`) y no trae `vueltas_vacias`, se lee de la BD: con la columna ausente
+     * el contador llegaba `null` → 0, y el carril mecánico re-aprobaba #1000 cada 6 minutos.
+     */
+    public function agotoVueltasVacias(): bool
+    {
+        $vueltas = array_key_exists('vueltas_vacias', $this->getAttributes()) || ! $this->exists
+            ? $this->vueltas_vacias
+            : static::whereKey($this->getKey())->value('vueltas_vacias');
+
+        return (int) $vueltas >= \App\Modules\Addons\Roadmap\Console\CerrarVueltaCommand::FALLOS_ANTES_DE_BANDEJA;
+    }
+
+    /** Cuándo vuelve a ser elegible por la espera de vueltas vacías (null = ya lo es). */
+    public function esperaVueltasVaciasHasta(): ?\Illuminate\Support\Carbon
+    {
+        $n = (int) $this->vueltas_vacias;
+        if ($n === 0 || ! $this->ultima_vuelta_vacia_at) {
+            return null;
+        }
+        $hasta = \Illuminate\Support\Carbon::parse($this->ultima_vuelta_vacia_at)
+            ->addMinutes(self::ESPERA_VUELTAS_VACIAS_MIN[min($n, 3)]);
+
+        return $hasta->isFuture() ? $hasta : null;
     }
 
     /**
@@ -1406,7 +1554,10 @@ TXT;
         }
 
         if ($this->bloqueado_por_bucle) {
-            return ['code' => 'bloqueado_por_bucle', 'accion' => 'cambio_material',
+            // #1121 — este freno lo puso el sistema (anti-bucle / cerrar-vuelta / JARVIS): la
+            // aprobación de una persona ES el cambio material que pide, así que la Torre puede
+            // ofrecer «Quitar el freno y aprobar» (forzar=true).
+            return ['code' => 'bloqueado_por_bucle', 'accion' => 'cambio_material', 'desbloqueable' => true,
                 'error' => 'Item fuera del pool por anti-bucle: ' . ($this->motivo_bloqueo ?: 'se re-escaló por la misma causa varias veces')
                     . ' Aprobarlo igual reabre el ciclo; cambia algo material (decisión, alcance, rama) o reenvía con forzar=true.'];
         }
@@ -1418,7 +1569,11 @@ TXT;
         }
 
         if ($this->excluir_pool_automatico) {
-            return ['code' => 'fuera_del_pool', 'accion' => 'destrabar',
+            // #1121 — desbloqueable salvo que sea un paraguas con sub-items abiertos (ese lo cierra
+            // solo el último hijo; soltarlo lo re-trabajaría encima de sus hijos).
+            $esParaguas = $this->subItemsAbiertos()->count() > 0;
+
+            return ['code' => 'fuera_del_pool', 'accion' => 'destrabar', 'desbloqueable' => !$esParaguas,
                 'error' => 'Item excluido del pool automático' . ($this->motivo_bloqueo ? ' (' . $this->motivo_bloqueo . ')' : ' sin motivo registrado')
                     . '. Aprobarlo no lo devuelve a la cola: hay que destrabarlo (forzar=true) o corregir la causa.'];
         }
@@ -1614,6 +1769,8 @@ TXT;
                     'pregunta'       => trim((string) ($p['pregunta'] ?? '')),
                     'opciones'       => $ops,
                     'opcion_elegida' => $p['opcion_elegida'] ?? null,
+                    // #1069 — «otra respuesta»: texto libre de Irving cuando ninguna opción le sirve.
+                    'respuesta_libre' => $p['respuesta_libre'] ?? null,
                     'fase'           => $p['fase'] ?? null,
                     // #507 — el Revisor marca la pregunta que NO puede resolver con seguridad:
                     // aunque haya recomendada de alta confianza, esta pregunta es de Irving.
@@ -1668,6 +1825,42 @@ TXT;
      * una opción REAL de ESA pregunta. Persiste en `preguntas` (y espeja al legacy `opcion_elegida`
      * la primera pregunta) o en el legacy si es el modelo viejo. Devuelve true si resolvió.
      */
+    /** Clave reservada de «otra respuesta» (#1069): cuenta como respondida; el texto va en `respuesta_libre`. */
+    public const CLAVE_OTRA = 'otra';
+
+    /**
+     * #1069 — «otra respuesta»: guarda el texto libre como respuesta de UNA pregunta. Marca
+     * `opcion_elegida = CLAVE_OTRA` (así cuenta como respondida) y conserva el texto en
+     * `respuesta_libre`. Texto vacío = deselecciona. Solo aplica con multi-pregunta persistida.
+     */
+    public function responderPreguntaLibre(string $preguntaId, ?string $texto): bool
+    {
+        if (! static::multiPreguntaEnabled() || empty($this->preguntas) || ! is_array($this->preguntas)) {
+            return false;
+        }
+        $texto = trim((string) $texto);
+        $preg  = $this->preguntas;
+        $ok    = false;
+        foreach ($preg as $idx => &$p) {
+            if ((string) ($p['id'] ?? ('q' . ($idx + 1))) !== $preguntaId) {
+                continue;
+            }
+            $p['respuesta_libre'] = $texto !== '' ? $texto : null;
+            $p['opcion_elegida']  = $texto !== '' ? static::CLAVE_OTRA : null;
+            $ok = true;
+            break;
+        }
+        unset($p);
+        if ($ok) {
+            $this->preguntas = $preg;
+            if ($preguntaId === ($this->preguntasNormalizadas()[0]['id'] ?? null)) {
+                $this->opcion_elegida = $texto !== '' ? static::CLAVE_OTRA : null;
+            }
+        }
+
+        return $ok;
+    }
+
     public function responderPregunta(string $preguntaId, ?string $inputOpcion): bool
     {
         $preguntas = $this->preguntasNormalizadas();
@@ -1963,7 +2156,8 @@ TXT;
      * y las seis terminales; mantener un espejo consistente entre todos ellos es justo el tipo de
      * bug que ya costó caro aquí).
      *
-     *   en_cola        → triado y ejecutable, esperando terminal libre.
+     *   en_cola        → triado y que una terminal PUEDE tomar ya (#1122).
+     *   en_espera      → triado pero apartado/paraguas/espera a otro (ver `motivoEsperaCola()`).
      *   asignado       → reclamado por una terminal, todavía sin rama.
      *   en_progreso    → la terminal ya abrió rama y está trabajando.
      *   en_verificacion→ trabajo terminado, rama esperando verificación/merge.
@@ -1995,7 +2189,46 @@ TXT;
             return ! empty($this->branch) ? 'en_progreso' : 'asignado';
         }
 
-        return $estacion === 'listo' ? 'en_cola' : 'sin_triar';
+        if ($estacion === 'listo') {
+            // #1122 — «en cola» = lo que una terminal PUEDE tomar; el resto es «en_espera».
+            return $this->motivoEsperaCola() === null ? 'en_cola' : 'en_espera';
+        }
+
+        return 'sin_triar';
+    }
+
+    /**
+     * #1122 — ¿por qué un item ya triado (estación `listo`) NO lo puede tomar una terminal ahora?
+     * `null` = sí lo puede tomar. Reusa las dos reglas del reclamo sin duplicarlas:
+     * `motivoNoDespachable()` (scopeDespachable) y las dependencias (`esperandoDependencias`).
+     * Solo traduce a lenguaje llano; no decide nada.
+     */
+    public function motivoEsperaCola(): ?string
+    {
+        if ($this->estacion !== 'listo') {
+            return null;
+        }
+
+        $dep = app(\App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService::class)->esperandoDependencias((int) $this->id);
+        if ($dep !== null) {
+            return 'espera a ' . implode(' y ', array_map(fn ($n) => '#' . $n, $dep['faltan']));
+        }
+
+        if ($this->tieneSubItemsAbiertos()) {
+            return 'paraguas';
+        }
+
+        $m = $this->motivoNoDespachable();
+        if ($m === null) {
+            return null;
+        }
+
+        return match ($m['code']) {
+            'esperando_merge'     => 'espera tu merge',
+            'bloqueado_por_bucle' => 'anti-bucle: falta tu decisión',
+            'bloqueado_por_dependencia' => 'espera a otra sección de su fase',
+            default               => 'apartado: ' . ($m['motivo_texto'] ?? $m['code']),
+        };
     }
 
     /**
@@ -2021,6 +2254,9 @@ TXT;
                     $q->orWhereIn('id', $redirigidos);
                 }
             })
+            // #501: el item [RESPUESTA] del canal de respuesta cuelga del origen por origen_item_id
+            // pero NO es trabajo pendiente del origen (tiene su propio ciclo en la bandeja).
+            ->where(fn ($q) => $q->whereNull('tipo')->orWhere('tipo', '!=', 'respuesta'))
             ->whereNull('archivado_at')
             ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'rechazado'])
             ->whereNotIn('status', ['done', 'cancelled']);
@@ -2265,6 +2501,14 @@ TXT;
      * `explicarOrdenCola()`; se deja tal cual por si la pestaña vuelve — el criterio real de
      * orden sigue viviendo aquí, en un solo lugar).
      */
+    /**
+     * Cuántos pendientes vivos tienen a este item en su `depende_de` (subconsulta correlacionada; la
+     * regex aguanta la lista guardada como JSON o como texto doble-codificado, ver DependenciaItems).
+     */
+    public const SQL_DESBLOQUEA = "SELECT COUNT(*) FROM roadmap_items d WHERE d.archivado_at IS NULL "
+        . "AND d.estado_aprobacion NOT IN ('completado', 'cancelado', 'rechazado') AND d.depende_de IS NOT NULL "
+        . "AND CAST(d.depende_de AS CHAR) REGEXP CONCAT('(^|[^0-9])', roadmap_items.id, '([^0-9]|$)')";
+
     public static function criteriosOrdenCola(): array
     {
         return [
@@ -2273,6 +2517,35 @@ TXT;
                 'orderBy'  => fn ($q) => $q->orderByDesc('urgente'),
                 'valor'    => fn (self $i) => $i->urgente ? 1 : 0,
                 'describe' => fn ($v) => $v ? 'está marcado urgente' : 'no está marcado urgente',
+            ],
+            // Limpieza de la Hoja de ruta (orden pedido por Irving, 2026-10-30): urgentes y los que
+            // desbloquean a otros → nivel A, B, C → prioridad → los que no dependen de nada. «Por
+            // concluirse» y la antigüedad quedan como desempates finales.
+            [
+                'label'    => 'desbloquea a otros',
+                'orderBy'  => fn ($q) => $q->orderByRaw('(' . self::SQL_DESBLOQUEA . ') DESC'),
+                'valor'    => fn (self $i) => (int) (\Illuminate\Support\Facades\DB::selectOne('SELECT (' . str_replace('roadmap_items.id', '?', self::SQL_DESBLOQUEA) . ') AS n', [(int) $i->id])->n ?? 0),
+                'describe' => fn ($v) => $v ? "lo esperan {$v} pendiente(s)" : 'nadie lo espera',
+            ],
+            [
+                'label'    => 'nivel',
+                'orderBy'  => fn ($q) => $q->orderByRaw("FIELD(nivel_riesgo,'C','B','A') DESC"),
+                'valor'    => fn (self $i) => $i->nivel_riesgo ?: 'sin nivel',
+                'describe' => fn ($v) => 'es de nivel ' . $v,
+            ],
+            [
+                'label'    => 'prioridad',
+                'orderBy'  => fn ($q) => $q->orderByRaw("FIELD(priority,'baja','media','alta') DESC"),
+                'valor'    => fn (self $i) => $i->priority ?: 'sin prioridad',
+                'describe' => fn ($v) => 'su prioridad es ' . $v,
+            ],
+            [
+                'label'    => 'no depende de nada',
+                'orderBy'  => fn ($q) => $q->orderByRaw(
+                    "CASE WHEN depende_de IS NULL OR CAST(depende_de AS CHAR) IN ('[]', 'null', '\"[]\"', '') THEN 0 ELSE 1 END"
+                ),
+                'valor'    => fn (self $i) => \App\Modules\Addons\Roadmap\Support\DependenciaItems::ids($i->depende_de) === [] ? 1 : 0,
+                'describe' => fn ($v) => $v ? 'no depende de otro pendiente' : 'depende de otro pendiente',
             ],
             [
                 'label'    => 'por concluirse',
@@ -2283,12 +2556,6 @@ TXT;
                 'describe' => fn ($v) => $v
                     ? 'ya tiene trabajo en curso por concluir (rama abierta o reanudable)'
                     : 'no tiene trabajo en curso por concluir',
-            ],
-            [
-                'label'    => 'prioridad',
-                'orderBy'  => fn ($q) => $q->orderByRaw("FIELD(priority,'baja','media','alta') DESC"),
-                'valor'    => fn (self $i) => $i->priority ?: 'sin prioridad',
-                'describe' => fn ($v) => 'su prioridad es ' . $v,
             ],
             [
                 // #987 (Pieza 5b FASE 3) — este es el mecanismo que hace FIFO a los hallazgos del

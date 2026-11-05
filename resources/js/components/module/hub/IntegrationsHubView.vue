@@ -1212,6 +1212,7 @@ export default {
     iaOpcionGeneral(m) {
       const g = this.iaGenerales[m.grupo];
       const integ = g?._origInt ? this.iaIntegracion(g._origInt) : null;
+      if (!integ && m.respaldo) return `— Ahorro por defecto (${m.modelos?.[0] ?? 'Claude'}) —`;
       return integ ? `Usar la general (${integ.nombre})` : '— Usar la general (no hay: sin IA) —';
     },
 
@@ -1252,6 +1253,12 @@ export default {
           return { txt: 'Sin asignar · IA apagada', cls: 'bg-light text-muted' };
         }
         return { txt: 'No puede usar la IA', cls: 'bg-danger-subtle text-danger', detalle: e.problema, detalleCls: 'text-danger' };
+      }
+      // Supervisor del Circuito (#1076): sin asignación no se apaga, sigue con su modelo de ahorro
+      if (e.origen === 'por_defecto') {
+        return e.aviso
+          ? { txt: 'Lo asignado no sirve · usa el de ahorro', cls: 'bg-warning-subtle text-warning', detalle: `${e.aviso} Mientras: ${e.modelo}`, detalleCls: 'text-warning' }
+          : { txt: 'Activa · ahorro por defecto', cls: 'bg-info-subtle text-info', detalle: `Llave de Anthropic del Hub · ${e.modelo}` };
       }
       const integ = this.iaIntegracion(e.api_integration_id);
       const detalle = `${integ?.nombre ?? 'Integración'} · ${e.modelo}`;

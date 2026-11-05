@@ -92,7 +92,7 @@ class SuspendService
         $previousEstado = $clientMainInformation->getOriginal('estado');
         $clientMainInformation->load('client');
         if (
-            $clientMainInformation->estado === ComunConstantsController::STATE_INACTIVE
+            in_array($clientMainInformation->estado, [ComunConstantsController::STATE_INACTIVE, ComunConstantsController::STATE_UNINSTALLED], true)
         ) {
 
             $clientId = $clientMainInformation->client->id;
@@ -113,7 +113,7 @@ class SuspendService
             $client->save();
             activity()->tap(function (Activity $activity) use ($clientId) {
                 $activity->client_id =  $clientId;
-            })->log('Cliente #' . $clientId . ' pasado a inactivo por lo que se deja de Facturar');
+            })->log('Cliente #' . $clientId . ' pasado a ' . strtolower($clientMainInformation->estado) . ' por lo que se deja de Facturar');
         }
     }
 

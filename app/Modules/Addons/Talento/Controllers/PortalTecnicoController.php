@@ -9,9 +9,11 @@ use App\Modules\Addons\Talento\Models\TalentoEmployeeDocument;
 use App\Modules\Addons\Talento\Models\TalentoEmployeeDocumentSignature;
 use App\Modules\Addons\Talento\Models\TalentoFund;
 use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
+use App\Modules\Addons\Talento\Models\TalentoLiquidation;
 use App\Modules\Addons\Talento\Models\TalentoLoan;
 use App\Modules\Addons\Talento\Services\AcuseReopeningService;
 use App\Modules\Addons\Talento\Services\AttendanceService;
+use App\Modules\Addons\Talento\Services\CompensacionService;
 use App\Modules\Addons\Talento\Services\LiquidationService;
 use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
 use App\Modules\Addons\Talento\Services\SignatureService;
@@ -28,152 +30,41 @@ use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * Portal Técnico Web — shell PWA del módulo Talento.
+ * Portal de Colaborador — endpoints self-scoped del módulo Talento.
  *
- * Versión web (PWA) de la app de campo. Reutiliza la MISMA capa de servicios
- * que /talento/api (sesión Medussa en vez de token Sanctum). Este controlador
- * solo sirve el shell + assets PWA + preferencia de tema; las pantallas
- * (Mi día, OT+evidencia, Proyectos) se cablean en los sub-pasos 2–4 delegando
- * en los servicios existentes.
+ * El shell PWA aparte se retiró el 2026-10-23: todo vive en la ficha de Talento de cada
+ * persona, como pestañas (Mi día, Mi dinero, Mis prospectos, Mi equipo). Estos endpoints
+ * siguen siendo la fuente de esas pestañas, con la misma capa de servicios que /talento/api.
  */
 class PortalTecnicoController extends Controller
 {
-    /** Cache-busting de los assets estáticos del portal (subir al cambiar app.js/portal.css). */
-    private const ASSET_VER = '28';
-
-    /** Shell del portal (SPA Quasar de una sola página con nav inferior). */
+    /**
+     * Antes servía el shell del Portal; ahora lleva a «Mi día» de la propia ficha (quien la tiene)
+     * o a Talento. Así no se rompen los accesos guardados ni la app instalada en el celular.
+     */
     public function index(Request $request)
     {
-        $actor       = $this->currentActor($request);
-        $colaborador = $actor->talento();
-        $theme       = $this->currentTheme($request);
+        $colaborador = $this->currentActor($request)->talento();
 
-        return view('addon-talento::portal.shell', [
-            'assetVer'    => self::ASSET_VER,
-            'theme'       => $theme,
-            'sections'    => $actor->sections(),
-            // Groundwork para la vista por rol/combinación (llamada de Irving,
-            // 2026-10-08) — puramente informativo hoy, sin pantalla que lo
-            // consuma todavía (se cablea cuando llegue el mockup visual).
-            'track'       => $actor->trackPrincipal(),
-            'colaborador' => $colaborador ? [
-                'id'     => $colaborador->id,
-                // El nombre vive en el user vinculado; talento_colaboradores no tiene
-                // columna de nombre. Fallback a nombre/apellido por si existieran a futuro.
-                'nombre' => $colaborador->user?->name
-                    ?: (trim(($colaborador->nombre ?? '') . ' ' . ($colaborador->apellido ?? '')) ?: null),
-                'tipo'   => $colaborador->tipo ?? $colaborador->role_type ?? 'technician',
-                'email'  => $colaborador->user?->email,
-            ] : null,
-        ]);
-    }
-
-    /** Manifest PWA (servido dinámico para fijar scope/start_url del portal). */
-    public function manifest()
-    {
-        $manifest = [
-            'name'             => 'Talento Meganet — Campo',
-            'short_name'       => 'Talento Campo',
-            'description'      => 'Portal técnico de campo: check-in, órdenes de trabajo, evidencia y proyectos.',
-            'start_url'        => '/talento/portal',
-            'scope'            => '/talento/portal/',
-            'display'          => 'standalone',
-            'orientation'      => 'portrait',
-            'background_color' => '#0d9488',
-            'theme_color'      => '#0d9488',
-            'lang'             => 'es',
-            'icons'            => [
-                [
-                    'src'   => '/talento-portal/icons/icon-192.png',
-                    'sizes' => '192x192',
-                    'type'  => 'image/png',
-                    'purpose' => 'any',
-                ],
-                [
-                    'src'   => '/talento-portal/icons/icon-512.png',
-                    'sizes' => '512x512',
-                    'type'  => 'image/png',
-                    'purpose' => 'any',
-                ],
-                [
-                    'src'   => '/talento-portal/icons/icon-maskable-512.png',
-                    'sizes' => '512x512',
-                    'type'  => 'image/png',
-                    'purpose' => 'maskable',
-                ],
-            ],
-        ];
-
-        return Response::make(json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), 200, [
-            'Content-Type' => 'application/manifest+json; charset=utf-8',
-        ]);
+        return redirect($colaborador ? "/talento/colaborador/{$colaborador->id}?tab=mi_dia" : '/talento');
     }
 
     /**
-     * Service worker del app-shell. Servido en /talento/portal/sw.js para que
-     * el scope efectivo sea /talento/portal/. El outbox offline (IndexedDB)
-     * llega en el Sub-paso 5; por ahora solo precachea el shell y sirve
-     * network-first con fallback a caché para navegaciones sin señal.
+     * Service worker de baja: quien instaló el Portal como app conserva el worker viejo, que al
+     * revisar actualizaciones recibe este, borra el caché del Portal y se da de baja solo.
      */
     public function serviceWorker()
     {
-        $ver = self::ASSET_VER;
-        $js = <<<JS
-// Talento Portal Técnico — Service Worker (app-shell). Generado por PortalTecnicoController.
-const CACHE = 'talento-portal-shell-v{$ver}';
-const SHELL = [
-  '/talento/portal',
-  '/talento-portal/portal.css?v={$ver}',
-  '/talento-portal/app.js?v={$ver}',
-  '/plugins/quasar/js/vue.global.prod.js',
-  '/plugins/quasar/js/quasar.umd.prod.js',
-  '/plugins/quasar/css/quasar.prod.css',
-  '/plugins/quasar/css/material-icons.css',
-  '/talento-portal/icons/icon-192.png',
-];
-
-self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
-});
-
+        $js = <<<'JS'
+// Talento Portal — retirado (2026-10-23). Limpia el caché del Portal y se da de baja.
+self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => {
   e.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
-    ).then(() => self.clients.claim())
-  );
-});
-
-self.addEventListener('fetch', (e) => {
-  const req = e.request;
-  if (req.method !== 'GET') return; // nunca cachear POST/PUT (check-in, evidencia)
-
-  const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return; // solo mismo origen
-
-  // No cachear llamadas de datos del portal ni el manifest/sw
-  if (url.pathname.startsWith('/talento/portal/api')) return;
-
-  // Navegaciones: network-first, fallback al shell cacheado (offline).
-  if (req.mode === 'navigate') {
-    e.respondWith(
-      fetch(req).catch(() => caches.match('/talento/portal').then((r) => r || caches.match(req)))
-    );
-    return;
-  }
-
-  // Assets estáticos del shell: cache-first con revalidación de red.
-  e.respondWith(
-    caches.match(req).then((cached) => {
-      const network = fetch(req).then((res) => {
-        if (res && res.status === 200 && res.type === 'basic') {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy));
-        }
-        return res;
-      }).catch(() => cached);
-      return cached || network;
-    })
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('talento-portal-')).map((k) => caches.delete(k))))
+      .then(() => self.registration.unregister())
+      .then(() => self.clients.matchAll({ type: 'window' }))
+      .then((clients) => clients.forEach((c) => c.navigate(c.url)))
   );
 });
 JS;
@@ -183,21 +74,6 @@ JS;
             'Service-Worker-Allowed'  => '/talento/portal/',
             'Cache-Control'           => 'no-cache',
         ]);
-    }
-
-    /** Persiste el tema (light/dark) por usuario. */
-    public function saveTheme(Request $request)
-    {
-        $data = $request->validate([
-            'theme' => 'required|in:light,dark',
-        ]);
-
-        DB::table('talento_portal_preferences')->updateOrInsert(
-            ['user_id' => $request->user()->id],
-            ['theme' => $data['theme'], 'updated_at' => now(), 'created_at' => now()]
-        );
-
-        return response()->json(['ok' => true, 'theme' => $data['theme']]);
     }
 
     // ── Mi día: asistencia (check-in / checkout geocercado) ────────────────────
@@ -242,6 +118,7 @@ JS;
             'geocerca'     => $this->siteName($registro->check_in_site_id),
             'flagged'      => (bool) $registro->check_in_flagged,
             'flag_reason'  => $registro->check_in_flag_reason,
+            'a_mano'       => ($registro->check_in_location_source ?? 'gps') !== 'gps',
             'stale_day'    => $staleDay,
         ]);
     }
@@ -249,15 +126,17 @@ JS;
     /**
      * Check-in geocercado. Delega en AttendanceService::checkIn (validación de
      * geocerca en servidor + flag por precisión > 100 m / fuera de cerca, sin
-     * bloquear). El navegador solo manda lat/lng/accuracy_m.
+     * bloquear). El navegador solo manda lat/lng/accuracy_m; si no pudo dar la ubicación, la persona
+     * escribe dónde está y llega location_source = manual_address (2026-10-29).
      */
     public function checkin(Request $request)
     {
         $data = $request->validate([
-            'lat'      => 'required|numeric',
-            'lng'      => 'required|numeric',
-            'accuracy' => 'nullable|numeric',
-            'wo_id'    => 'nullable|integer',
+            'lat'             => 'required|numeric',
+            'lng'             => 'required|numeric',
+            'accuracy'        => 'nullable|numeric',
+            'wo_id'           => 'nullable|integer',
+            'location_source' => 'nullable|string|in:gps,manual_address',
         ]);
 
         $colaborador = $this->resolveColaborador($request);
@@ -270,7 +149,8 @@ JS;
             (float) $data['lat'],
             (float) $data['lng'],
             isset($data['accuracy']) ? (float) $data['accuracy'] : null,
-            $data['wo_id'] ?? null
+            $data['wo_id'] ?? null,
+            $data['location_source'] ?? 'gps'
         );
 
         $att = $res['attendance'] ?? null;
@@ -337,6 +217,34 @@ JS;
     }
 
     // ── Acuses reabiertos pendientes de re-firma (notificación in-app, item #9990818) ──────────
+
+    /**
+     * POST /talento/portal/ot/task/{id}/reprogramar — el técnico mueve SU orden a otro día y dice por
+     * qué (item #1158). El motivo queda en el historial de la orden.
+     */
+    public function reprogramarOt(Request $request, int $id)
+    {
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) {
+            return response()->json(['message' => 'Sin perfil de colaborador activo.'], 403);
+        }
+
+        $data = $request->validate([
+            'fecha'  => 'required|date',
+            'motivo' => 'required|string|min:5|max:500',
+        ], [
+            'fecha.required'  => 'Elige el nuevo día.',
+            'motivo.required' => 'Escribe por qué se mueve la orden.',
+            'motivo.min'      => 'Escribe por qué se mueve la orden.',
+        ]);
+
+        $r = app(OrdenTrabajoUnifiedService::class)->reprogramarPropia($id, $colaborador->id, $data['fecha'], $data['motivo'], auth()->id());
+        if (! $r['ok']) {
+            return response()->json(['message' => $r['mensaje']], $r['codigo']);
+        }
+
+        return response()->json($r);
+    }
 
     /**
      * Item roadmap #9990818 (q3 de #9990806, ya aprobada por Irving: notificación in-app +
@@ -426,6 +334,7 @@ JS;
                 'cliente'      => $detalle['cliente'],
                 'direccion'    => $detalle['direccion'],
                 'telefono'     => $detalle['telefono'],
+                'es_prospecto' => $detalle['es_prospecto'] ?? false,
                 'notas'        => $detalle['notas'] ?? null,
                 'nota_tecnico' => $detalle['nota_tecnico'] ?? null,
                 'scheduled_at' => $detalle['scheduled_at'] ?? null,
@@ -745,14 +654,85 @@ JS;
      */
     public function miEquipoProgreso(Request $request, \App\Modules\Addons\Talento\Services\DashboardService $service)
     {
-        $actor = $this->currentActor($request);
-        $col   = $actor->talento();
-        if (! $col) return response()->json(['error' => 'Sin perfil de colaborador activo.'], 403);
+        $actor   = $this->currentActor($request);
+        $col     = $actor->talento();
+        $verTodo = $actor->esSuperAdminTalento();
+        // El super admin ve a todos aunque no tenga ficha propia (los admins de hoy no la
+        // tienen y la sección les salía en blanco); el supervisor sí la necesita, porque su
+        // equipo se resuelve por supervisor_id.
+        if (! $col && ! $verTodo) return response()->json(['error' => 'Sin perfil de colaborador activo.'], 403);
 
-        abort_unless($actor->esSuperAdminTalento() || $actor->tieneEquipo(), 403, 'No tienes equipo a tu cargo.');
+        abort_unless($verTodo || $actor->tieneEquipo(), 403, 'No tienes equipo a tu cargo.');
 
         $dias = (int) ($request->query('dias', 30));
-        return response()->json($service->equipoProgreso($col->id, $actor->esSuperAdminTalento(), $dias));
+        return response()->json($service->equipoProgreso($col?->id, $verTodo, $dias));
+    }
+
+    /**
+     * Penalizaciones del equipo (2026-10-20). El supervisor no tenía pantalla para
+     * confirmar las penalizaciones de su equipo: la API lo permitía, pero el único botón
+     * estaba en /talento/reglas-desempeno, que es de admin. "Por confirmar" son las
+     * evaluaciones semanales en penalty_pending; "recientes", las ya aplicadas de los
+     * últimos 60 días con su estado. Supervisor = solo sus subordinados directos (nunca
+     * él mismo); super admin = todos, igual que "Mi equipo".
+     */
+    public function equipoPenalizaciones(Request $request)
+    {
+        $actor = $this->currentActor($request);
+        $ids = null;
+        if (! $actor->esSuperAdminTalento()) {
+            abort_unless($actor->tieneEquipo(), 403, 'No tienes equipo a tu cargo.');
+            $ids = $actor->talento()->subordinados()->pluck('id');
+        }
+        $nombre = fn ($col) => trim(($col?->user?->name ?? '') . ' ' . ($col?->user?->father_last_name ?? '')) ?: '—';
+
+        $porConfirmar = \App\Modules\Addons\Talento\Models\TalentoWeeklyRuleEvaluation::with(['colaborador.user', 'rule', 'penaltyType'])
+            ->where('outcome', 'penalty_pending')
+            ->when($ids, fn ($q, $v) => $q->whereIn('colaborador_id', $v))
+            ->orderByDesc('week_start')
+            ->limit(100)
+            ->get()
+            ->map(fn ($e) => [
+                'id'           => $e->id,
+                'colaborador'  => $nombre($e->colaborador),
+                'regla'        => $e->rule?->name,
+                'metric_type'  => $e->rule?->metric_type,
+                'week_start'   => $e->week_start?->toDateString(),
+                'week_end'     => $e->week_end?->toDateString(),
+                'unidades'     => $e->sales_count,
+                'prospectos'   => $e->prospects_count,
+                'piso'         => $e->rule?->min_sales,
+                'tipo'         => $e->penaltyType?->name,
+                'monto'        => (float) ($e->penalty_amount ?? 0),
+            ]);
+
+        $recientes = \App\Modules\Addons\Talento\Models\TalentoPenalty::with(['colaborador.user', 'penaltyType', 'appliedByColaborador.user', 'appeal'])
+            ->when($ids, fn ($q, $v) => $q->whereIn('colaborador_id', $v))
+            ->where('created_at', '>=', now()->subDays(60))
+            ->orderByDesc('created_at')
+            ->limit(100)
+            ->get()
+            ->map(fn ($p) => [
+                'id'          => $p->id,
+                'colaborador' => $nombre($p->colaborador),
+                'tipo'        => $p->penaltyType?->name,
+                'monto'       => (float) $p->amount,
+                'status'      => $p->status,
+                'aplicado_por'=> $nombre($p->appliedByColaborador),
+                'fecha'       => $p->created_at?->toDateString(),
+            ]);
+
+        return response()->json([
+            'ver_todo'      => $ids === null,
+            'por_confirmar' => $porConfirmar,
+            'recientes'     => $recientes,
+        ]);
+    }
+
+    /** Confirmar desde el portal = el mismo camino que la pantalla de admin (mismo cargo, mismas reglas). */
+    public function equipoConfirmarPenalizacion(Request $request, int $id)
+    {
+        return app(TalentoReglaDesempenoController::class)->confirmarPenalizacion($request, $id);
     }
 
     /** 1. Cuenta corriente: ledger del período AGRUPADO POR CONCEPTO + neto (server-side). */
@@ -762,30 +742,13 @@ JS;
         if (! $col) return response()->json(['error' => 'Sin perfil de colaborador activo.'], 403);
         $w = $this->dineroWindow($request);
 
-        $rows = TalentoLedgerEntry::where('colaborador_id', $col->id)
-            ->where('period_start', $w['period_start'])
-            ->where('period_end', $w['period_end'])
-            ->selectRaw('concept, type, SUM(amount) AS total, COUNT(*) AS n')
-            ->groupBy('concept', 'type')
-            ->get();
+        $cuenta = app(CompensacionService::class)->cuentaCorriente($col->id, $w);
 
-        $credito = round((float) $rows->where('type', 'credit')->sum('total'), 2);
-        $debito  = round((float) $rows->where('type', 'debit')->sum('total'), 2);
-
-        return response()->json([
+        return response()->json(array_merge([
             'period_start'  => $w['period_start'],
             'period_end'    => $w['period_end'],
             'regime'        => $w['regime'],
-            'conceptos'     => $rows->map(fn ($r) => [
-                'concepto' => $r->concept,
-                'tipo'     => $r->type,               // credit | debit
-                'subtotal' => round((float) $r->total, 2),
-                'n'        => (int) $r->n,
-            ])->values(),
-            'total_credito' => $credito,
-            'total_debito'  => $debito,
-            'neto'          => round($credito - $debito, 2),
-        ]);
+        ], $cuenta));
     }
 
     /** 2. Desglose: cuota, valor por unidad, unidades, sobreproducción (reusa LiquidationService::breakdown). */
@@ -805,7 +768,13 @@ JS;
         if (! $col) return response()->json(['error' => 'Sin perfil de colaborador activo.'], 403);
         $w = $this->dineroWindow($request);
 
-        $fondos = TalentoFund::where('colaborador_id', $col->id)->get()->map(fn ($f) => [
+        return response()->json(self::fondoDe($col->id, $w));
+    }
+
+    /** Fondos de ahorro de un colaborador en una semana. Lo usa también la app (TalentoMobileEquipoController). */
+    public static function fondoDe(int $colaboradorId, array $w): array
+    {
+        $fondos = TalentoFund::where('colaborador_id', $colaboradorId)->get()->map(fn ($f) => [
             'purpose'          => $f->purpose,
             'accumulated'      => round((float) $f->accumulated, 2),
             'target'           => round((float) $f->target_amount, 2),
@@ -817,18 +786,18 @@ JS;
         ])->values();
 
         // Aporte del período (asientos fund_contribution del ledger en esta ventana).
-        $aportePeriodo = round((float) TalentoLedgerEntry::where('colaborador_id', $col->id)
+        $aportePeriodo = round((float) TalentoLedgerEntry::where('colaborador_id', $colaboradorId)
             ->where('concept', 'fund_contribution')
             ->where('period_start', $w['period_start'])->where('period_end', $w['period_end'])
             ->sum('amount'), 2);
 
-        return response()->json([
+        return [
             'period_start'   => $w['period_start'],
             'period_end'     => $w['period_end'],
             'fondos'         => $fondos,
             'aporte_periodo' => $aportePeriodo,
             'naturaleza'     => 'ahorro recuperable, no penalización',
-        ]);
+        ];
     }
 
     /** 4. Préstamos (SOLO LECTURA): original, saldo, pagado (server-side), repago semanal. */
@@ -838,7 +807,13 @@ JS;
         if (! $col) return response()->json(['error' => 'Sin perfil de colaborador activo.'], 403);
         $w = $this->dineroWindow($request);
 
-        $prestamos = TalentoLoan::where('colaborador_id', $col->id)->get()->map(fn ($l) => [
+        return response()->json(self::prestamosDe($col->id, $w));
+    }
+
+    /** Préstamos de un colaborador y su abono de la semana. Lo usa también la app (TalentoMobileEquipoController). */
+    public static function prestamosDe(int $colaboradorId, array $w): array
+    {
+        $prestamos = TalentoLoan::where('colaborador_id', $colaboradorId)->get()->map(fn ($l) => [
             'reason'           => $l->reason,
             'amount'           => round((float) $l->amount, 2),                          // original
             'balance'          => round((float) $l->balance, 2),                         // saldo pendiente
@@ -849,18 +824,18 @@ JS;
         ])->values();
 
         // Repago del período (asientos loan_repayment del ledger en esta ventana).
-        $repagoPeriodo = round((float) TalentoLedgerEntry::where('colaborador_id', $col->id)
+        $repagoPeriodo = round((float) TalentoLedgerEntry::where('colaborador_id', $colaboradorId)
             ->where('concept', 'loan_repayment')
             ->where('period_start', $w['period_start'])->where('period_end', $w['period_end'])
             ->sum('amount'), 2);
 
-        return response()->json([
+        return [
             'period_start'   => $w['period_start'],
             'period_end'     => $w['period_end'],
             'prestamos'      => $prestamos,
             'repago_periodo' => $repagoPeriodo,
             'solo_consulta'  => true,
-        ]);
+        ];
     }
 
     /**
@@ -1176,14 +1151,5 @@ JS;
     private function resolveColaborador(Request $request): ?TalentoColaborador
     {
         return $this->currentActor($request)->talento();
-    }
-
-    private function currentTheme(Request $request): string
-    {
-        $theme = DB::table('talento_portal_preferences')
-            ->where('user_id', $request->user()->id)
-            ->value('theme');
-
-        return in_array($theme, ['light', 'dark'], true) ? $theme : 'light';
     }
 }

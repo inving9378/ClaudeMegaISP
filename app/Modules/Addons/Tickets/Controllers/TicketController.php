@@ -91,13 +91,24 @@ class TicketController extends Controller
     public function setStatusTicketById($id, Request $request)
     {
         $ticket = $this->data['model']::find($id);
-        return $ticket->update(['estado' => $request->statusTicket]);
+        $cambios = ['estado' => $request->statusTicket];
+        if (config('unificacion.interruptores.tickets_fechas_g3a')) {
+            // closed_at: al cerrar se fija (si no tenía); al reabrir se limpia.
+            if ($request->statusTicket === 'Cerrado') {
+                $cambios['closed_at'] = $ticket->closed_at ?: now();
+            } else {
+                $cambios['closed_at'] = null;
+            }
+        }
+        return $ticket->update($cambios);
     }
 
     public function notificationsReadMarked($notificationId)
     {
         $user = User::find(Auth::user()->id);
-        $idTiket = $user->notifications->where('id', $notificationId)->first()->data[0]['id'];
+        $found = $user->notifications->where('id', $notificationId)->first();
+        abort_if(!$found, 404);
+        $idTiket = $found->data[0]['id'];
         foreach ($user->unreadNotifications->where('id', $notificationId) as $notification) {
             $notification->markAsRead();
         }
@@ -247,6 +258,14 @@ class TicketController extends Controller
             $request->all();
         $this->saveRelationMultipleIfExist($this->data['model'], $model, $request, 'sync');
 
+        if (config('unificacion.interruptores.tickets_g1')) {
+            // Aviso al responsable NUEVO, ya con el cambio guardado.
+            $actualizado = $model->update($input);
+            $user = User::find($model->fresh()->assigned_to);
+            if ($user) $user->notify(new TicketOpen($model, $model->ticket_thread));
+            return $actualizado;
+        }
+
         $asigned = $model->assigned_to;
         $user = User::find($asigned);
         if ($user) $user->notify(new TicketOpen($model, $model->ticket_thread));
@@ -280,7 +299,11 @@ class TicketController extends Controller
     {
         $created = Ticket::find($id);
         $time = Carbon::parse($created->created_at)->diffForHumans();
-        return ['time' => $time];
+        $respuesta = ['time' => $time];
+        if (config('unificacion.interruptores.tickets_plazos_g3c')) {
+            $respuesta['plazo'] = app(\App\Modules\Addons\Tickets\Services\TicketPlazoService::class)->estado($created);
+        }
+        return $respuesta;
     }
 
     public function getDataClient($clientId)

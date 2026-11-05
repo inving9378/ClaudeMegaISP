@@ -899,7 +899,7 @@ class ClientRepository
         }
     }
 
-    public function calculateAmounts(Client $client): array
+    public function calculateAmounts(Client $client, ?string $periodo = null, bool $conFlotas = true): array
     {
         $clientWithServices = $this->getServicesForClient($client->id);
         $client_services = [];
@@ -949,8 +949,9 @@ class ClientRepository
         // === Suscripciones de Flotas (AISLADO + GATEADO, off por defecto) ==========
         // Mismo patrón que contratables arriba: con el kill-switch en false el bloque
         // no inyecta nada y el motor de facturación es idéntico al actual.
-        if (config('flotas_billing.billing_enabled')) {
-            foreach ($this->resolveFleetSubscriptionLines($client) as $line) {
+        // $conFlotas = false: proformas retroactivas (nacen pagadas), no llevan Flotas (#622).
+        if ($conFlotas && config('flotas_billing.billing_enabled')) {
+            foreach ($this->resolveFleetSubscriptionLines($client, $periodo) as $line) {
                 $line['number'] = $i + 1;
                 $client_services[] = $line;
                 $ivaSum   += $line['iva'];
@@ -1031,18 +1032,27 @@ class ClientRepository
      * esa suscripción, igual patrón que resolveContratableLines.
      * Solo lectura: no muta nada (calculateAmounts pura).
      */
-    private function resolveFleetSubscriptionLines(Client $client): array
+    private function resolveFleetSubscriptionLines(Client $client, ?string $periodo = null): array
     {
+        // Sin período explícito: el de la próxima factura (las proformas se generan el mes anterior).
+        if (! $periodo || ! preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $periodo)) {
+            $periodo = now()->addMonthNoOverflow()->format('Y-m');
+        }
         $lines = [];
         $prorrateo = new FlotasProrrateoService();
 
         $subs = FleetSubscription::query()
             ->where('client_id', $client->id)
-            ->whereIn('status', ['active', 'past_due'])
+            // Activas + promoción en curso: la promo genera el cargo por adelantado del mes en
+            // que termina (desde el día siguiente a su fin); una prueba normal no cobra nada.
+            ->where(function ($q) {
+                $q->whereIn('status', ['active', 'past_due'])
+                  ->orWhere(fn ($p) => $p->where('status', 'trial')->where('is_promo', true));
+            })
             ->get();
 
         foreach ($subs as $sub) {
-            foreach ($prorrateo->calcularLineas($sub) as $linea) {
+            foreach ($prorrateo->calcularLineasPeriodo($sub, $periodo) as $linea) {
                 $lines[] = $linea;
             }
         }

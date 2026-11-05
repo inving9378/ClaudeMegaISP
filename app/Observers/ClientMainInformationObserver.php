@@ -19,6 +19,7 @@ use App\Services\ClientService\BillingExpirationService;
 use App\Services\ClientService\BillingPaymentDateService;
 use App\Services\ClientService\SuspendService;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class ClientMainInformationObserver
 {
@@ -132,7 +133,7 @@ class ClientMainInformationObserver
 
     public function updateUserIfIsDifferent($clientMainInformation)
     {
-        $user = User::where('client_id', $clientMainInformation->client_id)->first();
+        $user = $this->cuentaDelCliente($clientMainInformation);
         if ($user) {
             $user->name = $clientMainInformation->name;
             $user->email = $clientMainInformation->email;
@@ -140,7 +141,18 @@ class ClientMainInformationObserver
             $user->mother_last_name = $clientMainInformation->mother_last_name;
             $user->phone = $clientMainInformation->phone;
             $user->location = $clientMainInformation->location;
-            $user->login_user = $clientMainInformation->user;
+            // Un Usuario WEB que ya es de otra cuenta no se guarda (como hacía el índice único, pero
+            // con aviso en el campo en vez de un 500): la cuenta y la ficha se quedarían con usuarios
+            // distintos y el cliente perdería el enlace con su cuenta.
+            $usuarioWeb = $clientMainInformation->user;
+            if (filled($usuarioWeb) && $usuarioWeb !== $user->login_user) {
+                if (User::where('login_user', $usuarioWeb)->where('id', '<>', $user->id)->exists()) {
+                    throw ValidationException::withMessages([
+                        'user' => 'Ese Usuario WEB ya lo usa otra cuenta; elige otro.',
+                    ]);
+                }
+                $user->login_user = $usuarioWeb;
+            }
             // Sólo re-hashea cuando la contraseña realmente cambió. Así evitamos
             // sobrescribir (y revertir) el hash bcrypt en cada edición de cliente.
             if ($clientMainInformation->isDirty('password') && ! empty($clientMainInformation->password)) {
@@ -148,5 +160,24 @@ class ClientMainInformationObserver
             }
             $user->save();
         }
+    }
+
+    /**
+     * La cuenta que se sincroniza con la ficha (2026-10-23): solo cuentas de cliente (rol client
+     * o sin rol, como quedaron las importadas), nunca una de personal ni la del sistema; una de
+     * personal ligada al número perdía su usuario de entrada al guardar la ficha. Si el número
+     * tiene varias, la que ya tiene el Usuario WEB de la ficha.
+     */
+    protected function cuentaDelCliente(ClientMainInformation $clientMainInformation): ?User
+    {
+        $cuentas = User::with('roles')
+            ->cuentasDeCliente()
+            ->where('client_id', $clientMainInformation->client_id)
+            ->orderBy('id')
+            ->get();
+
+        return $cuentas->firstWhere('login_user', $clientMainInformation->getOriginal('user'))
+            ?? $cuentas->first(fn (User $cuenta) => $cuenta->roles->contains('name', 'client'))
+            ?? $cuentas->first();
     }
 }

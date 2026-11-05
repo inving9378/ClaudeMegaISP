@@ -34,9 +34,7 @@ use App\Observers\ClientVozServiceObserver;
 use App\Observers\FieldModuleObserver;
 use App\Observers\SettingAdditionalFieldObserver;
 use App\Events\ProspectRegistered;
-use App\Events\ClientRegistered;
 use App\Listeners\CalculateProspectCommission;
-use App\Listeners\CalculateClientCommission;
 use App\Models\Balance;
 use App\Modules\Core\Configuracion\Models\BillingConfiguration;
 use App\Observers\BillingConfigurationObserver;
@@ -64,9 +62,6 @@ class EventServiceProvider extends ServiceProvider
         ],
         ProspectRegistered::class => [
             CalculateProspectCommission::class,
-        ],
-        ClientRegistered::class => [
-            CalculateClientCommission::class,
         ],
 
         // Embajadores Meganet — motor de comisiones + activación embajadores
@@ -137,6 +132,16 @@ class EventServiceProvider extends ServiceProvider
         \App\Models\Referrals\ReferralCommission::observe(\App\Observers\Referrals\ReferralCommissionObserver::class);
         Network::observe(NetworkDeleteInMikrotikObserver::class);
         ClientInternetService::observe(ClientInternetServiceObserver::class);
+        // #988: el monitoreo es parte del dedicado. En las DOS clases de cada modelo: los eventos de
+        // Eloquent no se comparten entre la legacy y la modular.
+        foreach ([
+            ClientInternetService::class, \App\Modules\Core\Clientes\Models\ClientInternetService::class,
+            ClientMainInformation::class, \App\Modules\Core\Clientes\Models\ClientMainInformation::class,
+            \App\Models\ClientAdditionalInformation::class, \App\Modules\Core\Clientes\Models\ClientAdditionalInformation::class,
+            \App\Models\Client::class, \App\Modules\Core\Clientes\Models\Client::class,
+        ] as $modelo) {
+            $modelo::observe(\App\Observers\MonitoreoDedicadoObserver::class);
+        }
         ClientBundleService::observe(ClientBundleServiceObserver::class);
         MikrotikConfig::observe(MikrotikConfigObserver::class);
         ClientUser::observe(ClientUserObserver::class);

@@ -16,6 +16,7 @@ class VerifyCsrfToken extends Middleware
         'payments/spei/webhook',
         'webhooks/marketing/meta-ads',
         'webhooks/marketing/evolution',
+        'webhooks/firma-electronica',
         'public/marketing/lead-form/*/submit',
     ];
 }

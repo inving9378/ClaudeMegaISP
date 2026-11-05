@@ -3,8 +3,10 @@
 namespace App\Modules\Addons\Flotas\Controllers;
 
 use App\Modules\Addons\Flotas\Models\FleetDocument;
+use App\Modules\Addons\Flotas\Models\FleetFuelLog;
 use App\Modules\Addons\Flotas\Models\FleetMaintenance;
 use App\Modules\Addons\Flotas\Models\FleetVehicle;
+use App\Modules\Addons\Flotas\Support\FleetVehicleRules;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,7 +15,7 @@ class FleetVehicleController extends FleetBaseController
 {
     public function operators(Request $request): JsonResponse
     {
-        $this->authorize('fleet.view');
+        $this->autorizar('fleet.view');
 
         $search = trim((string) $request->input('search', ''));
 
@@ -39,7 +41,7 @@ class FleetVehicleController extends FleetBaseController
 
     public function index(Request $request): JsonResponse
     {
-        $this->authorize('fleet.view');
+        $this->autorizar('fleet.view');
 
         $q = FleetVehicle::with(['currentAssignment.operator'])
             ->forClient($this->clientId())
@@ -62,30 +64,9 @@ class FleetVehicleController extends FleetBaseController
 
     public function store(Request $request): JsonResponse
     {
-        $this->authorize('fleet.manage');
+        $this->autorizar('fleet.manage');
 
-        $data = $request->validate([
-            'plates'               => 'nullable|string|max:20',
-            'brand'                => 'required|string|max:100',
-            'model'                => 'required|string|max:100',
-            'year'                 => 'nullable|integer|min:1900|max:2100',
-            'color'                => 'nullable|string|max:50',
-            'vin'                  => 'nullable|string|max:50',
-            'motor_number'         => 'nullable|string|max:50',
-            'vehicle_type'         => 'nullable|in:car,pickup,truck,motorcycle,other',
-            'fuel_type'            => 'nullable|in:gasoline,diesel,electric,hybrid',
-            'tank_capacity_liters' => 'nullable|numeric|min:0',
-            'current_km'           => 'nullable|integer|min:0',
-            'status'               => 'nullable|in:active,in_workshop,inactive',
-            'habitual_location'    => 'nullable|string|max:255',
-            'notes'                => 'nullable|string',
-            'has_gps'              => 'boolean',
-            'gps_brand'            => 'nullable|string|max:100',
-            'gps_model'            => 'nullable|string|max:100',
-            'gps_imei'             => 'nullable|string|max:20',
-            'gps_sim'              => 'nullable|string|max:20',
-            'gps_carrier'          => 'nullable|string|max:50',
-        ]);
+        $data = $request->validate(FleetVehicleRules::store());
 
         $data['client_id'] = $this->clientId();
         $vehicle = FleetVehicle::create($data);
@@ -95,7 +76,7 @@ class FleetVehicleController extends FleetBaseController
 
     public function show(int $id): JsonResponse
     {
-        $this->authorize('fleet.view');
+        $this->autorizar('fleet.view');
 
         $vehicle = FleetVehicle::with([
             'currentAssignment.operator',
@@ -111,7 +92,7 @@ class FleetVehicleController extends FleetBaseController
 
     public function update(Request $request, int $id): JsonResponse
     {
-        $this->authorize('fleet.manage');
+        $this->autorizar('fleet.manage');
 
         $vehicle = $this->vehicleForClient($id);
         $vehicle->update($request->except(['client_id']));
@@ -121,7 +102,7 @@ class FleetVehicleController extends FleetBaseController
 
     public function destroy(int $id): JsonResponse
     {
-        $this->authorize('fleet.manage');
+        $this->autorizar('fleet.manage');
 
         $this->vehicleForClient($id)->delete();
 
@@ -130,7 +111,7 @@ class FleetVehicleController extends FleetBaseController
 
     public function restore(int $id): JsonResponse
     {
-        $this->authorize('fleet.manage');
+        $this->autorizar('fleet.manage');
 
         FleetVehicle::withTrashed()->forClient($this->clientId())->findOrFail($id)->restore();
 
@@ -139,7 +120,7 @@ class FleetVehicleController extends FleetBaseController
 
     public function dashboard(): JsonResponse
     {
-        $this->authorize('fleet.view');
+        $this->autorizar('fleet.view');
 
         $clientId = $this->clientId();
         $baseQ = fn() => FleetVehicle::forClient($clientId);
@@ -166,9 +147,64 @@ class FleetVehicleController extends FleetBaseController
         return response()->json(compact('total', 'active', 'workshop', 'expiredDocs', 'expiringDocs', 'gastoMes'));
     }
 
+    /**
+     * Ranking de costo por km (mantenimiento + combustible) entre vehículos, con atípicos (item #612).
+     * Estadística simple (cerca de Tukey sobre costo/km), sin IA. km = odómetro máx − mín visto en el periodo.
+     */
+    public function costoKm(Request $request): JsonResponse
+    {
+        $this->autorizar('fleet.view');
+
+        $months = max(1, min(36, (int) $request->input('months', 12)));
+        $from   = now()->subMonths($months)->startOfDay();
+        $clientId = $this->clientId();
+
+        $vehicles = FleetVehicle::forClient($clientId)->get()->keyBy('id');
+        $maint = FleetMaintenance::forClient($clientId)->where('service_date', '>=', $from)
+            ->where('is_draft', false)->get(['vehicle_id', 'total_cost', 'service_km'])->groupBy('vehicle_id');
+        $fuel = FleetFuelLog::whereIn('vehicle_id', $vehicles->keys())->where('refuel_date', '>=', $from)
+            ->get(['vehicle_id', 'cost', 'km_at_refuel'])->groupBy('vehicle_id');
+
+        $rows = $vehicles->map(function ($v) use ($maint, $fuel) {
+            $m = $maint->get($v->id, collect());
+            $f = $fuel->get($v->id, collect());
+            $gasto = (float) $m->sum('total_cost') + (float) $f->sum('cost');
+            $odo = $m->pluck('service_km')->merge($f->pluck('km_at_refuel'))->filter(fn($k) => $k > 0);
+            $km = $odo->count() >= 2 ? (int) ($odo->max() - $odo->min()) : 0;
+            return [
+                'id'         => $v->id,
+                'name'       => $v->display_name,
+                'plates'     => $v->plates,
+                'gasto'      => round($gasto, 2),
+                'km'         => $km,
+                'costo_km'   => $km > 0 ? round($gasto / $km, 2) : null,
+                'atipico'    => false,
+            ];
+        })->values();
+
+        $vals = $rows->pluck('costo_km')->filter(fn($c) => $c !== null)->sort()->values();
+        $n = $vals->count();
+        $umbral = null;
+        if ($n >= 4) {
+            $q = fn($p) => $vals[(int) floor(($n - 1) * $p)];
+            $umbral = $q(0.75) + 1.5 * ($q(0.75) - $q(0.25));
+        } elseif ($n >= 2) {
+            $umbral = $vals[(int) floor(($n - 1) / 2)] * 1.5;
+        }
+        $rows = $rows->map(function ($r) use ($umbral) {
+            $r['atipico'] = $umbral !== null && $r['costo_km'] !== null && $r['costo_km'] > $umbral;
+            return $r;
+        })->sortByDesc(fn($r) => $r['costo_km'] ?? -1)->values();
+
+        return response()->json([
+            'months' => $months, 'umbral' => $umbral !== null ? round($umbral, 2) : null,
+            'ranking' => $rows,
+        ]);
+    }
+
     public function alertas(): JsonResponse
     {
-        $this->authorize('fleet.view');
+        $this->autorizar('fleet.view');
 
         $clientId = $this->clientId();
 

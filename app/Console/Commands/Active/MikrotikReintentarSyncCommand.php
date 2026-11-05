@@ -19,8 +19,8 @@ use Illuminate\Support\Facades\Log;
  * siguiente corrida programada (Kernel.php, cada 30 min — ventana mayor a los ~18 min
  * que tardan los 5 tries internos, para no duplicar dispatches en vuelo).
  *
- * Solo 'failed', NO 'pending': tratar pending requiere que Irving elija entre las
- * opciones A/B/C del brief de #86 (aún sin decidir) — fuera de alcance de este sub-item.
+ * #596: también toma 'pending' con más de retry.pending_after_minutes sin actualizarse
+ * (servicio que quedó en espera de conexión al router).
  */
 class MikrotikReintentarSyncCommand extends Command
 {
@@ -32,6 +32,19 @@ class MikrotikReintentarSyncCommand extends Command
         ClientCustomService::class,
         ClientBundleService::class,
     ];
+
+    /** failed siempre; pending solo si lleva más de retry.pending_after_minutes sin tocarse (#596). */
+    private function candidatos(string $modelClass)
+    {
+        $pendingAfter = (int) config('mikrotik.retry.pending_after_minutes', 15);
+        return $modelClass::where(function ($q) use ($pendingAfter) {
+            $q->where('mikrotik_sync_status', 'failed')
+                ->orWhere(function ($q2) use ($pendingAfter) {
+                    $q2->where('mikrotik_sync_status', 'pending')
+                        ->where('updated_at', '<', now()->subMinutes($pendingAfter));
+                });
+        });
+    }
 
     public function handle(): int
     {
@@ -45,7 +58,7 @@ class MikrotikReintentarSyncCommand extends Command
 
         $totalFailed = 0;
         foreach (self::MODEL_CLASSES as $modelClass) {
-            $totalFailed += $modelClass::where('mikrotik_sync_status', 'failed')->count();
+            $totalFailed += $this->candidatos($modelClass)->count();
         }
 
         if ($totalFailed === 0) {
@@ -67,7 +80,7 @@ class MikrotikReintentarSyncCommand extends Command
             if ($remaining <= 0) {
                 break;
             }
-            $services = $modelClass::where('mikrotik_sync_status', 'failed')
+            $services = $this->candidatos($modelClass)
                 ->orderBy('mikrotik_synced_at')
                 ->limit($remaining)
                 ->get();

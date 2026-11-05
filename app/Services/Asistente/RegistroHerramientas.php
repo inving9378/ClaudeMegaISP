@@ -28,6 +28,7 @@ class RegistroHerramientas
         Herramientas\ListarTickets::class,
         Herramientas\ResumenPagosDelDia::class,
         Herramientas\ListarPagos::class,
+        Herramientas\ConsultarFlota::class,
         Herramientas\Recordar::class,
         Herramientas\ActualizarContactoCliente::class,
         Herramientas\CrearTicket::class,

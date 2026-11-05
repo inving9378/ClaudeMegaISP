@@ -1,4 +1,4 @@
-@if(auth()->user()->canAny(['fleet.view', 'fleet.gps.view', 'fleet.geofences.view', 'fleet.notifications.view', 'fleet.rules.view', 'fleet.documents.view', 'fleet.subscriptions.manage']))
+@if(auth()->user()->canAny(['fleet.view', 'fleet.gps.view', 'fleet.geofences.view', 'fleet.notifications.view', 'fleet.rules.view', 'fleet.documents.view', 'fleet.subscriptions.manage', 'fleet.clients.view']))
     <li>
         <a href="javascript: void(0);" class="has-arrow">
             <i data-feather="truck"></i>
@@ -15,6 +15,9 @@
             @endif
             @if(auth()->user()->can('fleet.geofences.view'))
                 <li><a href="{{ url('/flotas/geocercas') }}"><span><small><i class="fa fa-fw fa-draw-polygon"></i></small> Geocercas</span></a></li>
+            @endif
+            @if(auth()->user()->can('fleet.clients.view'))
+                <li><a href="{{ url('/flotas/clientes') }}"><span><small><i class="fa fa-fw fa-truck-moving"></i></small> Flotas de clientes</span></a></li>
             @endif
             @if(auth()->user()->can('fleet.notifications.view'))
                 <li><a href="{{ url('/flotas/notificaciones-log') }}"><span><small><i class="fa fa-fw fa-bell"></i></small> Notificaciones</span></a></li>

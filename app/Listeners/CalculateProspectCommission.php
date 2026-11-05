@@ -11,6 +11,10 @@ use App\Models\CommissionDetail;
 use App\Models\Seller;
 use App\Models\CommissionRule;
 
+/**
+ * @deprecated UNI-T I6 (#897): el cuerpo está comentado y no escribe nada; se conserva solo porque
+ * ProspectRegistered sí se dispara (CRM). Retirar junto con el motor commissions cuando Irving decida.
+ */
 class CalculateProspectCommission
 {
     /**

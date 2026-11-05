@@ -39,7 +39,12 @@ class TaskRepository
 
     public function getTasksToUpdate()
     {
-        return $this->model->whereDate('start_time', '<', now())->orWhereNull('start_time')->get();
+        return $this->model
+            ->where(fn ($q) => $q->whereDate('start_time', '<', now())->orWhereNull('start_time'))
+            // Item #1158: con las atrasadas encendidas, una orden de Talento conserva su día (sale en
+            // rojo en «Mi día» hasta que se termine o se reprograme con motivo); no se mueve a hoy.
+            ->when(config('talento.ordenes_atrasadas_en_mi_dia', true), fn ($q) => $q->whereNull('talento_type_id'))
+            ->get();
     }
 
     public function getTasksByIdInArray($taskIds){

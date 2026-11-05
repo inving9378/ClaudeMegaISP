@@ -256,6 +256,10 @@ class ClientDatatableHelper
             ],
 
             // Campos de client_additional_information
+            'tipo_cliente' => [
+                'column' => 'client_additional_information.tipo_cliente',
+                'join' => "'client_additional_information', 'clients.id', '=', 'client_additional_information.client_id'",
+            ],
             'category' => [
                 'column' => 'client_additional_information.category',
                 'join' => "'client_additional_information', 'clients.id', '=', 'client_additional_information.client_id'"
@@ -762,6 +766,10 @@ class ClientDatatableHelper
                         continue;
                     }
 
+                    if ($val === 'tipo_cliente') {
+                        $value->tipo_cliente = \App\Services\Clientes\TipoCliente::OPCIONES[$value->tipo_cliente] ?? $value->tipo_cliente;
+                    }
+
                     if (in_array($val, ['serie_equipo', 'serie_equipo_origen'])) {
                         continue;
                     }
@@ -851,6 +859,7 @@ class ClientDatatableHelper
             'type_billings.type as type_of_billing_id',
 
             'client_additional_information.category',
+            'client_additional_information.tipo_cliente',
             'client_additional_information.modem_sn',
             'client_additional_information.gpon_ont',
             'client_additional_information.power_dbm',
@@ -928,6 +937,7 @@ class ClientDatatableHelper
             'custom_id' => 'custom_service',
             'voz_id' => 'voz_service',
             'client_main_information.estado' => 'client_main_information',
+            'client_additional_information.tipo_cliente' => 'client_additional_information',
             'fecha_pago_today' => [],
             'fecha_corte_today' => [],
         ];
@@ -944,17 +954,17 @@ class ClientDatatableHelper
                 }
                 if ($keyV === 'fecha_corte') {
                     if (is_array($val) && count($val) == 2) {
-                        $query->whereDate('clients.fecha_corte', '>=', Carbon::parse($val[0])->subDay()->format('Y-m-d'))
-                            ->whereDate('clients.fecha_corte', '<', Carbon::parse($val[1])->format('Y-m-d'));
+                        $query->whereDate('clients.fecha_corte', '>=', Carbon::parse($val[0])->setTimezone(config('app.timezone'))->subDay()->format('Y-m-d'))
+                            ->whereDate('clients.fecha_corte', '<', Carbon::parse($val[1])->setTimezone(config('app.timezone'))->format('Y-m-d'));
                     }
                 } elseif ($keyV === 'fecha_pago_today') {
                     $query->whereDate('clients.fecha_pago', Carbon::parse($val)->format('Y-m-d'));
                 } elseif ($keyV === 'fecha_corte_today') {
                     $query->whereDate('clients.fecha_corte', Carbon::parse($val)->format('Y-m-d'));
                 } elseif ($relation) {
-                    if ($keyV === 'client_main_information.estado') {
+                    if ($keyV === 'client_main_information.estado' || $keyV === 'client_additional_information.tipo_cliente') {
                         $query = $query->whereHas($relation, function ($query) use ($keyV, $val) {
-                            $query->whereIn($keyV, $val);
+                            $query->whereIn($keyV, (array) $val);
                         })->with($relation);
                     } elseif ($keyV === 'internet_id') {
                         $query = $query->whereHas('internet_service', function ($query) use ($keyV, $val) {
@@ -1029,7 +1039,7 @@ class ClientDatatableHelper
 
         $totalFiltered = $totalData;
 
-        if ($request->limit == 0) {
+        if ($request->limits == 0) { // solo al pedir "todos" (antes leía `limit`, que no llega: null == 0 siempre)
             set_time_limit(0);
             ini_set('memory_limit', '8912M');
         }

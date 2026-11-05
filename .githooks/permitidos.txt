@@ -6,3 +6,5 @@ storage/schema/reference.sql
 docs/auditoria/*.csv
 database/files/*.xlsx
 app/Console/Commands/Disabled/excel/*.xlsx
+
+database/schema/mysql-schema.sql

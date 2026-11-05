@@ -10,7 +10,6 @@ use App\Modules\Addons\Talento\Models\TalentoProjectActivityReport;
 use App\Modules\Addons\Talento\Models\TalentoProjectDeviation;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Services\CorridorDeviationService;
-use App\Modules\Addons\Talento\Services\LevelService;
 use App\Modules\Addons\Talento\Services\ProjectActivityService;
 use App\Modules\Addons\Talento\Services\ProjectBonusService;
 use App\Modules\Addons\Talento\Support\Actor;
@@ -63,10 +62,7 @@ class TalentoProjectController extends Controller
         // supervisor (no hay un colaborador_id puntual al crear un
         // proyecto, así que el criterio es "ser supervisor de alguien",
         // igual que TalentoCajaController::puedeGestionarSettings()).
-        if (! auth()->user()->can('talento.projects.manage')) {
-            $esSupervisor = (bool) Actor::for(auth()->user())->talento()?->subordinados()->exists();
-            abort_unless($esSupervisor, 403, 'No tienes permiso para crear proyectos.');
-        }
+        abort_unless($this->puedeGestionarProyectos(), 403, 'No tienes permiso para crear proyectos.');
 
         $data = $request->validate([
             'name'                => 'required|string|max:160',
@@ -162,7 +158,8 @@ class TalentoProjectController extends Controller
 
     public function addActivity(Request $request, $projectId)
     {
-        $this->authorize('talento.projects.manage');
+        // 2026-10-27: el supervisor que crea el proyecto también le agrega actividades (antes 403).
+        abort_unless($this->puedeGestionarProyectos(), 403, 'No tienes permiso para agregar actividades.');
 
         TalentoProject::findOrFail($projectId);
 
@@ -207,6 +204,34 @@ class TalentoProjectController extends Controller
 
     // ── Reportes de actividad ─────────────────────────────────────────────────
 
+    /**
+     * Entre quiénes se puede repartir un reporte de avance — la misma regla que
+     * después aplica submitReport(): con talento.project_reports.create, cualquier
+     * colaborador activo; sin él, uno mismo y su equipo directo. Antes el modal
+     * pedía la lista completa de colaboradores (solo staff) y a un técnico le
+     * salía vacía, así que no podía reportar nada (2026-10-20).
+     */
+    public function participantes($id)
+    {
+        TalentoProject::findOrFail($id);
+        $propio = Actor::for(auth()->user())->talento();
+
+        $q = TalentoColaborador::with('user:id,name,father_last_name')
+            ->activos()
+            ->whereDoesntHave('user', fn($u) => $u->where('is_system', true));
+
+        if (! auth()->user()->can('talento.project_reports.create')) {
+            abort_unless($propio, 403, 'No tienes permiso para reportar avance de proyectos.');
+            $q->whereIn('id', $propio->subordinados()->pluck('id')->push($propio->id));
+        }
+
+        return response()->json($q->get()->map(fn($c) => [
+            'id'    => $c->id,
+            'name'  => trim(($c->user?->name ?? '') . ' ' . ($c->user?->father_last_name ?? '')) ?: "#{$c->id}",
+            'es_yo' => $propio && $c->id === $propio->id,
+        ])->sortBy('name')->values());
+    }
+
     public function submitReport(Request $request, $projectId, $actId)
     {
         TalentoProjectActivity::where('project_id', $projectId)->findOrFail($actId);
@@ -239,22 +264,6 @@ class TalentoProjectController extends Controller
             foreach ($data['colaborador_ids'] as $colId) {
                 abort_unless(in_array((string) $colId, $idsPermitidos, true), 403,
                     'Solo puedes reportar avance propio o de colaboradores a tu cargo.');
-            }
-        }
-
-        // Gating por nivel (Fase 7b): verificar nivel de cada colaborador participante
-        $activity    = TalentoProjectActivity::with('activityType')->find($actId);
-        $reqLevelId  = $activity?->activityType?->required_level_id;
-        if ($reqLevelId) {
-            $levelSvc = app(LevelService::class);
-            foreach ($data['colaborador_ids'] as $colId) {
-                $col = TalentoColaborador::find($colId);
-                if (!$levelSvc->satisfiesRequirement($col?->level_id, $reqLevelId)) {
-                    $reqLevel = \App\Modules\Addons\Talento\Models\TalentoLevel::find($reqLevelId);
-                    return response()->json([
-                        'error' => "El colaborador #{$colId} no tiene el nivel requerido ({$reqLevel?->name}) para este tipo de actividad.",
-                    ], 422);
-                }
             }
         }
 
@@ -311,7 +320,12 @@ class TalentoProjectController extends Controller
 
     public function listReports(Request $request, $projectId, $actId)
     {
-        $this->authorize('talento.project_reports.view');
+        // Mismo criterio que show(), que ya trae estos reportes dentro del
+        // proyecto: sin el permiso de staff basta ser colaborador. Así quien
+        // reportó puede ver si su reporte sigue pendiente (2026-10-20).
+        if (! auth()->user()->can('talento.project_reports.view')) {
+            abort_unless(Actor::for(auth()->user())->talento(), 403);
+        }
 
         TalentoProjectActivity::where('project_id', $projectId)->findOrFail($actId);
 
@@ -321,6 +335,17 @@ class TalentoProjectController extends Controller
             ->get();
 
         return response()->json($reports);
+    }
+
+    /**
+     * Crear proyectos y trabajarlos (actividades, corredor): admin o CUALQUIER supervisor
+     * (David, 28-sep: "el proyecto lo crea un superior"). Otorgar el bono sigue siendo solo de
+     * talento.projects.manage.
+     */
+    private function puedeGestionarProyectos(): bool
+    {
+        return auth()->user()->can('talento.projects.manage')
+            || (bool) Actor::for(auth()->user())->talento()?->subordinados()->exists();
     }
 
     // ── Bono de proyecto ──────────────────────────────────────────────────────
@@ -341,7 +366,8 @@ class TalentoProjectController extends Controller
 
     public function activityTypes()
     {
-        $this->authorize('talento.activity_types.view');
+        // El catálogo lo pide «Agregar actividad»: lo lee también quien gestiona proyectos.
+        abort_unless(auth()->user()->can('talento.activity_types.view') || $this->puedeGestionarProyectos(), 403);
         return response()->json(TalentoActivityType::orderBy('name')->get());
     }
 
@@ -419,6 +445,8 @@ class TalentoProjectController extends Controller
     /** PUT /api/proyectos/{id}/corredor — guarda el trazado dibujado en el mapa */
     public function saveCorridor(Request $request, $id)
     {
+        // 2026-10-27: no revisaba quién lo pide (bastaba entrar a Talento).
+        abort_unless($this->puedeGestionarProyectos(), 403, 'No tienes permiso para trazar el corredor.');
         $project = TalentoProject::findOrFail($id);
         $data = $request->validate([
             'corridor_path'   => 'required|array|min:2',
@@ -432,6 +460,7 @@ class TalentoProjectController extends Controller
     /** POST /api/proyectos/{id}/corredor/analizar — corre detección de desvíos */
     public function analyzeCorridor(Request $request, $id)
     {
+        abort_unless($this->puedeGestionarProyectos(), 403, 'No tienes permiso para analizar el corredor.');
         $project = TalentoProject::findOrFail($id);
         if (empty($project->corridor_path)) {
             return response()->json(['error' => 'El proyecto no tiene corredor trazado.'], 422);

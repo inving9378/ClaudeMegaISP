@@ -31,7 +31,9 @@
                 <q-card flat bordered class="dh-tarjeta dh-indicador" :dark="darkMode">
                     <div class="dh-etiqueta">Disponibilidad</div>
                     <div class="dh-valor">{{ disponibilidad }}</div>
-                    <div class="dh-sub">{{ ind.minutos_sin_respuesta.toLocaleString("es-MX") }} min sin respuesta</div>
+                    <div class="dh-sub">
+                        {{ ind.minutos_sin_respuesta.toLocaleString("es-MX") }} min sin respuesta<template v-if="ind.minutos_degradado"> · {{ ind.minutos_degradado.toLocaleString("es-MX") }} min degradado</template><template v-if="ind.minutos_pausado"> · no cuenta {{ ind.minutos_pausado.toLocaleString("es-MX") }} min en pausa</template>
+                    </div>
                 </q-card>
                 <q-card flat bordered class="dh-tarjeta dh-indicador" :dark="darkMode">
                     <div class="dh-etiqueta">Latencia promedio</div>

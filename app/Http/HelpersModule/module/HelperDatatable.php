@@ -46,7 +46,7 @@ class HelperDatatable
         $totalData = $this->countTotalData($idModule, $filters, $request, $columns);
         $totalFiltered = $totalData;
 
-        if ($request->limit == 0) {
+        if ($request->limits == 0) { // solo al pedir "todos" (antes leía `limit`, que no llega: null == 0 siempre)
             set_time_limit(0);
             ini_set('memory_limit', '8912M');
         }
@@ -149,7 +149,8 @@ class HelperDatatable
     private function resolveDir($dir): string
     {
         if (is_bool($dir)) {
-            return $dir ? 'ASC' : 'DESC';
+            // Convención Quasar: descending=true → DESC (la flecha ↓ coincide con los datos).
+            return $dir ? 'DESC' : 'ASC';
         }
         return strtolower((string) $dir) === 'desc' ? 'DESC' : 'ASC';
     }

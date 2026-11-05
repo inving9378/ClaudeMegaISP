@@ -4,6 +4,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Sesión de la app móvil (item #693)
+    |--------------------------------------------------------------------------
+    | token_ttl_minutes: vigencia del token Sanctum 'talento-mobile' (por token, NO global:
+    | MegaFamilia/catálogo siguen sin vencimiento). Vencido => 401 y la app vuelve al login.
+    | login_max_attempts / login_decay_seconds: límite de intentos fallidos por usuario+IP.
+    */
+    'mobile' => [
+        'token_ttl_minutes'  => (int) env('TALENTO_MOBILE_TOKEN_TTL_MINUTES', 60 * 24 * 30),
+        'login_max_attempts' => (int) env('TALENTO_MOBILE_LOGIN_MAX_ATTEMPTS', 5),
+        'login_decay_seconds' => (int) env('TALENTO_MOBILE_LOGIN_DECAY_SECONDS', 300),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Semana de pago (PayWeek)
     |--------------------------------------------------------------------------
     | Punto único de configuración de la ventana de la semana de pago del
@@ -65,5 +79,13 @@ return [
         'ventas'      => ['/sellers', '/vendedores'],
         'comisiones'  => ['/sellers', '/vendedores'],
     ],
+
+
+    /*
+    | Órdenes atrasadas (item #1158, pedido de Irving 2026-11-03): una orden pendiente o en curso
+    | cuyo día ya pasó no se queda atrás. «Mi día» (web y app) la sigue mostrando arriba, en rojo,
+    | hasta que se termine o se reprograme con un motivo. Apagarlo devuelve «Mi día» a solo lo de hoy.
+    */
+    'ordenes_atrasadas_en_mi_dia' => env('TALENTO_ORDENES_ATRASADAS_EN_MI_DIA', true),
 
 ];

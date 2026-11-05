@@ -14,6 +14,7 @@ use App\Http\Repository\CustomRepository;
 use App\Http\Repository\InternetRepository;
 use App\Http\Repository\VoiseRepository;
 use App\Models\ClientBundleService;
+use App\Models\User;
 use App\Support\Security\QueryGuard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -56,6 +57,9 @@ class SearchModelController extends Controller
             }
             if (isset($request->scope)) {
                 $scope = QueryGuard::scope($model, $request->scope, false);
+                if ($model === User::class && $request->boolean('solo_activos')) {
+                    return $this->personalActivo($scope, $text, $id, $request->input('actual'));
+                }
                 return $model::$scope()->get()->pluck($text, $id);
             }
             if (isset($request->append)) {
@@ -97,6 +101,27 @@ class SearchModelController extends Controller
                 ->get()
                 ->pluck($text, $keyId);
         }
+    }
+
+    /**
+     * Listas para asignar personal (campos con "solo_activos" en su búsqueda, 2026-10-29): solo
+     * cuentas activas. Quien ya está guardado en el registro sigue en la lista aunque ya no esté
+     * activo, marcado «(inactivo)», para que no se pierda al guardar.
+     */
+    private function personalActivo(string $scope, string $text, string $id, $actual)
+    {
+        $lista = User::$scope()->activo()->get()->pluck($text, $id);
+        $faltan = collect(is_array($actual) ? $actual : explode(',', (string) $actual))
+            ->map(fn ($valor) => (int) $valor)
+            ->filter()
+            ->reject(fn ($valor) => $lista->has($valor));
+        if ($faltan->isNotEmpty()) {
+            User::whereIn($id, $faltan)->get()->each(function ($usuario) use ($lista, $text, $id) {
+                $lista->put($usuario->$id, $usuario->$text . ($usuario->estado === 'activo' ? '' : ' (inactivo)'));
+            });
+        }
+
+        return $lista;
     }
 
     protected function getModelFilterByRelationOrByField($model, $filter, $firstLoad = false)

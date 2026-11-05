@@ -7,15 +7,21 @@ use App\Models\Seller;
 use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoRoleDepartment;
+use App\Modules\Addons\Talento\Services\DepartamentoCatalogo;
+use Illuminate\Validation\Rule;
 use App\Modules\Addons\Talento\Support\Actor;
 use App\Models\Credential;
 use PDF;
 // TalentoEmployeeDocumentController y TalentoAcademyController están en este
 // MISMO namespace (Controllers) — sin use, se referencian por nombre corto.
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class TalentoColaboradorController extends Controller
 {
+    // El Mostrador entra a Talento como un técnico (2026-10-22/23).
+    private const ROLES_MOSTRADOR = Actor::ROLES_MOSTRADOR;
+
     /**
      * David (28-sep, corregido el mismo día): 3 comportamientos al entrar a
      * Talento, según quién es:
@@ -42,6 +48,9 @@ class TalentoColaboradorController extends Controller
             if ($miPropioColaborador && ! $esSupervisor) {
                 return redirect("/talento/colaborador/{$miPropioColaborador->id}");
             }
+            // Sin ficha propia no hay tablero que mostrar, y la lista de colaboradores no es suya
+            // (2026-10-23: un Mostrador sin ficha caía en el listado completo).
+            abort_unless($miPropioColaborador, 403, 'Todavía no tienes ficha de colaborador en Talento; pídela a un administrador.');
             // Si es supervisor, cae al listado, pero apuntado a /mi-equipo.
             $soloMiEquipo = $esSupervisor;
         }
@@ -84,7 +93,7 @@ class TalentoColaboradorController extends Controller
         // ruta (check_route_permission), así que el frontend usa un endpoint
         // aparte (miFicha(), por Actor) cuando alguno de los tres aplica.
         $esPropia = $miPropioColaborador && (string) $miPropioColaborador->id === (string) $id;
-        $usarEndpointPropio = $esPropia || $esSuSupervisor || auth()->user()->can('talento.work_orders.manage');
+        $usarEndpointPropio = $esPropia || $esSuSupervisor || $this->abreFichasPorOrdenes();
 
         // David (28-sep), corrigiendo la pasada anterior: "las que tienen que
         // ver con partes técnicas... que las vean los técnicos, LO DEMÁS LO
@@ -98,11 +107,20 @@ class TalentoColaboradorController extends Controller
         // gestiona en general.
         $tieneAccesoAmplio = $esPropia || $esSuSupervisor || auth()->user()->can('talento.employees.view');
 
+        // La ficha de otro que no se puede ver lleva a la propia (2026-10-23): antes se abría vacía,
+        // y el Mostrador podía recorrer a todos con las flechas.
+        if (! $tieneAccesoAmplio && ! $this->abreFichasPorOrdenes()) {
+            return redirect('/talento');
+        }
+
         $permisos = [
+            // La lista de colaboradores (ruta «Colaboradores» y flechas anterior/siguiente) solo
+            // para quien puede verla; quien entra a su propia ficha como un técnico no la ve.
+            'lista_colaboradores' => auth()->user()->can('talento.employees.view'),
             'ordenes'         => auth()->user()->can('talento.work_orders.view') || $tieneAccesoAmplio,
             // Distinción ver-lo-mío vs gestionar-de-todos (David, 28-sep):
-            // un técnico viendo SU PROPIA ficha ya tiene sus órdenes dentro de
-            // "Mi trabajo (Portal)" — esta pestaña admin (con crear/validar)
+            // un técnico viendo SU PROPIA ficha ya tiene sus órdenes de hoy en
+            // "Mi día" — esta pestaña admin (con crear/validar)
             // solo se le muestra si además gestiona órdenes O es su supervisor
             // directo. A propósito NO lleva $tieneAccesoAmplio (verse a uno
             // mismo no debe dar de gratis el botón "Nueva orden").
@@ -163,6 +181,8 @@ class TalentoColaboradorController extends Controller
             // gratis el botón).
             'proyectos_manage' => auth()->user()->can('talento.projects.manage')
                 || (bool) ($miPropioColaborador?->subordinados()->exists()),
+            // El bono del proyecto es dinero: solo el permiso (TalentoProjectController::awardBonus()).
+            'proyectos_bono'  => auth()->user()->can('talento.projects.manage'),
             'penalizaciones'  => auth()->user()->can('talento.penalties.view') || $tieneAccesoAmplio,
             // David (28-sep): "los técnicos no pueden penalizarse, eso no lo
             // haría nadie ahí, solo debe mostrarse las penalizaciones... el
@@ -174,31 +194,37 @@ class TalentoColaboradorController extends Controller
             // TalentoPenaltyController::applyPenalty()).
             'penalizaciones_manage' => auth()->user()->can('talento.penalties.manage') || $esSuSupervisor,
             'credenciales'    => auth()->user()->can('talento.credentials.view') || $tieneAccesoAmplio,
+            // Carnet (2026-10-22): sus datos los cambia la persona o un administrador; el diseño
+            // (frente, reverso y logo) es uno para todos y lo cambia quien entra a Configuración › Ventas.
+            'carnet_editar'   => $this->puedeEditarCarnet($colaboradorDeLaFicha),
+            'carnet_diseno'   => auth()->user()->can('config_view_sales'),
             // David (28-sep): "la pestaña de por colaborador debe salirle
             // solo a los superiores" — a diferencia del resto de los
             // *_manage, a propósito SIN $esSuSupervisor implícito en
             // "verse a uno mismo": aquí NI SIQUIERA uno mismo entra (el
             // colaborador no gestiona su propia credencial/fondo, se
             // entera por correo automático) — solo admin/DESARROLLADOR o
-            // ser supervisor de ALGUIEN. Mismo criterio que
-            // TalentoCredentialController::esSuperiorDe().
+            // ser supervisor de ESTA persona. Mismo criterio que
+            // TalentoCredentialController::esSuperiorDe() (2026-10-27: decía "de ALGUIEN" y en
+            // su propia ficha el supervisor veía la gestión, que el servidor le negaba con 403).
             'credenciales_manage' => auth()->user()->can('talento.credentials.view')
                 || auth()->user()->can('talento.funds.view')
                 || auth()->user()->can('talento.employees.view')
-                || (bool) ($miPropioColaborador?->subordinados()->exists()),
+                || $esSuSupervisor,
             'finiquito'       => auth()->user()->can('talento.loans.view') || $tieneAccesoAmplio,
             // Préstamos: uno mismo puede VER su saldo (mismo criterio que
             // ordenes_manage) — registrar/autorizar un préstamo SÍ es
-            // gestión, a propósito SIN $tieneAccesoAmplio.
+            // gestión, a propósito SIN $tieneAccesoAmplio. Supervisor DIRECTO de esta persona,
+            // como TalentoLoanSettlementController::esGestorDePrestamosDe() (2026-10-27).
             'prestamos_manage' => auth()->user()->can('talento.loans.manage')
-                || (bool) ($miPropioColaborador?->subordinados()->exists()),
+                || $esSuSupervisor,
             // Finiquito: a diferencia del resto, SIN excepción de
             // autoservicio ni siquiera para ver (calcular/cerrar tu propio
             // finiquito no tiene sentido estando activo) — mismo criterio
-            // que credenciales_manage.
+            // que credenciales_manage (supervisor directo, como esSuperiorDeFiniquito()).
             'settlement_manage' => auth()->user()->can('talento.settlement.view')
                 || auth()->user()->can('talento.liquidation.view')
-                || (bool) ($miPropioColaborador?->subordinados()->exists()),
+                || $esSuSupervisor,
             'custodia'        => auth()->user()->can('talento.custody.view') || $tieneAccesoAmplio,
             // David (28-sep): "a no ser que sea supervisor o los otros
             // roles... quita el buscador de colaboradores" — el
@@ -266,22 +292,24 @@ class TalentoColaboradorController extends Controller
             // UserController::puedeGestionarUsuario()/
             // esSupervisorTalentoDe(), que valida el objetivo exacto).
             'informacion_gestion_acceso' => auth()->user()->can('user_edit_user') || $esSuSupervisor,
+            // «Mis prospectos» abre cada prospecto en el CRM solo si puede editarlos ahí.
+            'crm_editar' => auth()->user()->can('crm_edit_crm'),
         ];
 
-        // "Mi trabajo (Portal)" — SOLO para uno mismo, JAMÁS para el
-        // supervisor viendo a su subordinado: el Portal (completar OT,
-        // evidencia, firma) es autoservicio self-scoped por Actor — que el
-        // supervisor actuara ahí "por" su subordinado equivaldría a
-        // falsificar su firma/evidencia. Se reusa el Portal TAL CUAL (iframe)
-        // en vez de duplicar su lógica — ver CLAUDE.md "SERVICIOS COMPARTIDOS
-        // ÚNICOS".
-        $mostrarPortal = $esPropia && auth()->user()->can('portal.colaborador');
+        // Lo que estaba en el Portal (que se retiró el 2026-10-23) son pestañas de la propia ficha:
+        // las mismas secciones que el Portal le daba a esta persona. SOLO para uno mismo, JAMÁS para
+        // el supervisor viendo a su subordinado: completar órdenes, subir evidencia o firmar es
+        // autoservicio self-scoped por Actor — que el supervisor actuara ahí "por" su subordinado
+        // equivaldría a falsificar su firma/evidencia.
+        $secciones = $esPropia && auth()->user()->can('portal.colaborador')
+            ? array_column(Actor::for(auth()->user())->sections(), 'key')
+            : [];
 
         return view('addon-talento::talento.ficha', [
             'id' => $id,
             'permisos' => $permisos,
             'esPropia' => $usarEndpointPropio,
-            'mostrarPortal' => $mostrarPortal,
+            'secciones' => $secciones,
             // David (29-sep): "Academia — debe poder entrar a los cursos y
             // empezarlos ahí mismo". A diferencia de Documentos, TalentoAcademia
             // .vue (catálogo completo: ver curso, tomar examen) es SIEMPRE
@@ -289,7 +317,7 @@ class TalentoColaboradorController extends Controller
             // apuntarlo al colaborador de la ficha. Solo tiene sentido montarlo
             // cuando quien mira ES literalmente ese colaborador (nunca su
             // supervisor: "tomar el examen por él" sería falsificarlo, mismo
-            // criterio que mostrarPortal) — señal aparte de esPropia de arriba,
+            // criterio que las pestañas del Portal) — señal aparte de esPropia de arriba,
             // que también es true para el supervisor.
             'esUnoMismoLiteral' => $esPropia,
         ]);
@@ -323,10 +351,14 @@ class TalentoColaboradorController extends Controller
 
         abort_unless($tieneAccesoAmplio, 403);
 
+        // El Mostrador tiene el mismo tablero que un técnico (2026-10-23).
         $esTecnico = $colaboradorDeLaFicha->user
-            && collect($colaboradorDeLaFicha->user->getRoleNames())
-                ->intersect(['TECNICO', 'TECNICO_INSTALADOR', 'TECNICO_PLANTA'])
-                ->isNotEmpty();
+            && (config('unificacion.interruptores.track_unico', false)
+                ? Actor::for($colaboradorDeLaFicha->user)->trackPrincipal() !== 'vendedor'
+                    && Actor::for($colaboradorDeLaFicha->user)->trackPrincipal() !== 'generico'
+                : collect($colaboradorDeLaFicha->user->getRoleNames())
+                    ->intersect(array_merge(['TECNICO', 'TECNICO_INSTALADOR', 'TECNICO_PLANTA'], self::ROLES_MOSTRADOR))
+                    ->isNotEmpty());
 
         if (!$esTecnico) {
             return response()->json(['es_tecnico' => false]);
@@ -358,13 +390,20 @@ class TalentoColaboradorController extends Controller
     {
         $colaborador = $this->resolverColaboradorAutoservicio($id);
 
-        $colaborador->load(['user', 'supervisor.user', 'subordinados.user', 'puesto']);
+        $colaborador->load(['user', 'supervisor.user', 'subordinados.user']);
 
         if ($colaborador->user) {
             $colaborador->user->role_names = $colaborador->user->getRoleNames();
         }
+        $colaborador->puesto_nombre = $colaborador->puestoNombre();
+        $colaborador->user?->append('url_photography');
 
         $this->hideExpedienteFields($colaborador);
+        // Su propio RFC sí: sale en su carnet y él mismo lo cambia en «Editar foto y datos»
+        // (2026-10-23: en la ficha propia el carnet salía sin RFC).
+        if ((string) Actor::for(auth()->user())->talento()?->id === (string) $colaborador->id) {
+            $colaborador->user?->makeVisible('rfc');
+        }
 
         return response()->json($colaborador);
     }
@@ -379,11 +418,13 @@ class TalentoColaboradorController extends Controller
      * romper su comportamiento) — "servicios compartidos unicos", no se
      * duplica ninguna plantilla ni se sube una imagen nueva.
      */
-    public function pdf(string $id)
+    public function pdf(Request $request, string $id)
     {
         $colaborador = $this->resolverColaboradorAutoservicio($id);
 
-        return $this->renderCredencialPdf($colaborador);
+        // ?descargar=1 la baja como archivo (2026-10-28, video de Irving: «ni me la descarga, nada más
+        // me mandó a otra página»); sin él se abre en el navegador, como antes.
+        return $this->renderCredencialPdf($colaborador, $request->boolean('descargar'));
     }
 
     /**
@@ -401,9 +442,100 @@ class TalentoColaboradorController extends Controller
         return $this->renderCredencialPdf($colaborador);
     }
 
-    private function renderCredencialPdf(TalentoColaborador $colaborador)
+    /**
+     * Foto de la credencial en la app con enlace firmado (2026-10-29). Desde fuera de la oficina
+     * nginx pide contraseña en /storage y /perfiles; este enlace queda libre y lo protege la firma,
+     * así las fotos del personal no se abren a internet. Mismo orden que User::url_photography.
+     */
+    public function fotoFirmada(string $id)
     {
-        $colaborador->loadMissing('user', 'puesto');
+        $foto = TalentoColaborador::findOrFail($id)->user?->photography;
+        $disco = \Illuminate\Support\Facades\Storage::disk('public');
+
+        $ruta = match (true) {
+            $foto && $disco->exists($foto) => $disco->path($foto),
+            $foto && is_file(public_path('perfiles/' . basename($foto))) => public_path('perfiles/' . basename($foto)),
+            default => public_path('assets/images/users/avatar-1.jpg'),
+        };
+
+        return response()->file($ruta, ['Cache-Control' => 'private, max-age=3600']);
+    }
+
+    /**
+     * Datos del carnet (2026-10-22): cada colaborador cambia su foto, nombre, teléfono, correo y RFC
+     * desde su propia ficha, y quien administra credenciales, los de cualquiera. Se guardan en su
+     * usuario (los mismos de Administración › Usuarios).
+     */
+    public function carnet(string $id)
+    {
+        $colaborador = $this->colaboradorDelCarnet($id);
+
+        return response()->json($this->datosCarnet($colaborador->user));
+    }
+
+    public function actualizarCarnet(Request $request, string $id)
+    {
+        $colaborador = $this->colaboradorDelCarnet($id);
+        $data = $request->validate([
+            'name'             => 'required|string|max:100',
+            'father_last_name' => 'nullable|string|max:100',
+            'mother_last_name' => 'nullable|string|max:100',
+            'phone'            => 'nullable|string|max:20',
+            'email'            => 'nullable|email|max:150',
+            'rfc'              => 'nullable|string|max:13',
+            'foto'             => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
+        ]);
+
+        $user = $colaborador->user;
+        if ($request->hasFile('foto')) {
+            // Igual que "Mi perfil": disco public, uploads/perfil/{id}/…
+            $foto = (new \App\Services\FileUploadService())->uploadImage($request->file('foto'), 'perfil/' . $user->id);
+            if (! $foto) {
+                return response()->json(['error' => 'No se pudo guardar la foto. Intenta con otra imagen.'], 422);
+            }
+            $user->photography = $foto;
+        }
+        $user->name             = $data['name'];
+        $user->father_last_name = $data['father_last_name'] ?? null;
+        $user->mother_last_name = $data['mother_last_name'] ?? null;
+        $user->phone            = $data['phone'] ?? null;
+        $user->email            = $data['email'] ?? null;
+        $user->rfc              = isset($data['rfc']) ? strtoupper(trim($data['rfc'])) : null;
+        $user->save();
+
+        return response()->json($this->datosCarnet($user->fresh()));
+    }
+
+    private function colaboradorDelCarnet(string $id): TalentoColaborador
+    {
+        $colaborador = TalentoColaborador::with('user')->findOrFail($id);
+        abort_unless($this->puedeEditarCarnet($colaborador), 403, 'Solo puedes cambiar tu propia credencial.');
+        abort_unless($colaborador->user, 404, 'Este colaborador no tiene un usuario del sistema.');
+
+        return $colaborador;
+    }
+
+    private function puedeEditarCarnet(?TalentoColaborador $colaborador): bool
+    {
+        if (! $colaborador) {
+            return false;
+        }
+        $actor = Actor::for(auth()->user());
+
+        return (string) $actor->talento()?->id === (string) $colaborador->id
+            || $actor->esSuperAdminTalento()
+            || auth()->user()->can('talento.credentials.manage');
+    }
+
+    private function datosCarnet(User $user): array
+    {
+        return $user->only(['name', 'father_last_name', 'mother_last_name', 'phone', 'email', 'rfc', 'photography'])
+            + ['url_photography' => $user->photography ? $user->url_photography : null];
+    }
+
+    private function renderCredencialPdf(TalentoColaborador $colaborador, bool $descargar = false)
+    {
+        $colaborador->loadMissing('user');
 
         $seller = (object) [
             'name' => $colaborador->user?->name,
@@ -418,13 +550,16 @@ class TalentoColaboradorController extends Controller
         $front_image_name = Credential::where('type', 'frontal')->select('name')->first();
         $back_image_name  = Credential::where('type', 'reverso')->select('name')->first();
         $logo_image_name  = Credential::where('type', 'logo')->select('name')->first();
-        $titulo = $colaborador->puesto?->name ?? 'Colaborador';
+        $titulo = $colaborador->puestoNombre() ?? 'Colaborador';
 
         $pdf = PDF::loadView('meganet.module.vendors.pdf', compact(
             'seller', 'front_image_name', 'back_image_name', 'logo_image_name', 'titulo'
         ));
 
-        return $pdf->stream();
+        $archivo = 'credencial-' . (Str::slug(trim(($colaborador->user?->name ?? '') . ' '
+            . ($colaborador->user?->father_last_name ?? ''))) ?: $colaborador->id) . '.pdf';
+
+        return $descargar ? $pdf->download($archivo) : $pdf->stream($archivo);
     }
 
     /**
@@ -455,7 +590,7 @@ class TalentoColaboradorController extends Controller
     {
         $miPropioColaborador = Actor::for(auth()->user())->talento();
 
-        if ($id !== null && $miPropioColaborador === null && auth()->user()->can('talento.work_orders.manage')) {
+        if ($id !== null && $miPropioColaborador === null && $this->abreFichasPorOrdenes()) {
             // Quien gestiona órdenes en general (ej. Mostrador) no
             // necesariamente tiene su propio registro de colaborador —
             // Diana no es "un talento", pero sí puede crearle órdenes a uno.
@@ -472,7 +607,7 @@ class TalentoColaboradorController extends Controller
         }
 
         $colaborador = $miPropioColaborador->subordinados()->where('id', $id)->first()
-            ?? (auth()->user()->can('talento.work_orders.manage') ? TalentoColaborador::find($id) : null);
+            ?? ($this->abreFichasPorOrdenes() ? TalentoColaborador::find($id) : null);
         abort_if(! $colaborador, 403, 'No tienes permiso para ver a este colaborador.');
 
         return $colaborador;
@@ -494,12 +629,12 @@ class TalentoColaboradorController extends Controller
         $miPropioColaborador = Actor::for(auth()->user())->talento();
         abort_if(! $miPropioColaborador, 404, 'No tienes un perfil de colaborador activo.');
 
-        $q = TalentoColaborador::with(['user', 'supervisor.user', 'puesto'])
+        $q = TalentoColaborador::with(['user', 'supervisor.user'])
             ->where('supervisor_id', $miPropioColaborador->id)
             ->when($request->search, fn($q, $s) =>
                 $q->whereHas('user', fn($u) => $u->where('name', 'like', "%$s%")->orWhere('email', 'like', "%$s%"))
             )
-            ->when($request->status, fn($q, $s) => $q->where('status', $s))
+            ->tap(fn($q) => $this->filtrarPorEstado($q, $request->status))
             ->when($request->type,   fn($q, $t) => $q->where('type', $t))
             ->when($request->department, fn($q, $d) => $q->where('department', $d))
             ->orderBy('id', 'desc')
@@ -520,11 +655,11 @@ class TalentoColaboradorController extends Controller
     {
         $this->authorize('talento.view');
 
-        $q = TalentoColaborador::with(['user', 'supervisor.user', 'puesto'])
+        $q = TalentoColaborador::with(['user', 'supervisor.user'])
             ->when($request->search, fn($q, $s) =>
                 $q->whereHas('user', fn($u) => $u->where('name', 'like', "%$s%")->orWhere('email', 'like', "%$s%"))
             )
-            ->when($request->status, fn($q, $s) => $q->where('status', $s))
+            ->tap(fn($q) => $this->filtrarPorEstado($q, $request->status))
             ->when($request->type,   fn($q, $t) => $q->where('type', $t))
             ->when($request->department, fn($q, $d) => $q->where('department', $d))
             ->orderBy('id', 'desc')
@@ -539,17 +674,39 @@ class TalentoColaboradorController extends Controller
 
         $this->hideExpedienteFields($q->getCollection());
 
+        // Quien llega aquí sin poder ver la lista (crea órdenes de trabajo: elige a quién) solo
+        // necesita el nombre (2026-10-23).
+        if (! auth()->user()->can('talento.employees.view')) {
+            $q->getCollection()->each(function ($col) {
+                $col->setVisible(['id', 'user_id', 'type', 'status', 'user']);
+                $col->user?->setVisible(['id', 'name', 'father_last_name', 'mother_last_name']);
+            });
+        }
+
         return response()->json($q);
+    }
+
+    /**
+     * Quien gestiona órdenes en general puede abrir la ficha de cualquiera, salvo el Mostrador
+     * (2026-10-23): entra a Talento como un técnico, a su propio tablero, y de los demás solo ve
+     * cuánto cobra cada uno en Liquidaciones. Sus órdenes las crea desde «Órdenes de trabajo».
+     */
+    private function abreFichasPorOrdenes(): bool
+    {
+        return auth()->user()->can('talento.work_orders.manage')
+            && ! (config('unificacion.interruptores.track_unico', false)
+                ? Actor::for(auth()->user())->trackPrincipal() === 'mostrador'
+                : auth()->user()->hasAnyRole(self::ROLES_MOSTRADOR));
     }
 
     public function store(Request $request)
     {
-        $this->authorize('talento.manage');
+        $this->authorize('talento.colaboradores.create');
 
         $data = $request->validate([
             'user_id'       => 'required|exists:users,id|unique:talento_colaboradores,user_id',
             'type'          => 'required|in:interno,externo',
-            'department'    => 'nullable|string|max:100',
+            'department'    => $this->departmentRules(null),
             'supervisor_id' => 'nullable|exists:talento_colaboradores,id',
             'hire_date'     => 'nullable|date',
             'status'        => 'required|in:active,inactive,suspended',
@@ -567,13 +724,15 @@ class TalentoColaboradorController extends Controller
     {
         $this->authorize('talento.view');
 
-        $colaborador = TalentoColaborador::with(['user', 'supervisor.user', 'subordinados.user', 'puesto'])
+        $colaborador = TalentoColaborador::with(['user', 'supervisor.user', 'subordinados.user'])
             ->findOrFail($id);
 
         // Enrich with Spatie roles (read-only display — roles are managed in Administradores)
         if ($colaborador->user) {
             $colaborador->user->role_names = $colaborador->user->getRoleNames();
         }
+        $colaborador->puesto_nombre = $colaborador->puestoNombre();
+        $colaborador->user?->append('url_photography');
 
         $this->hideExpedienteFields($colaborador);
 
@@ -588,8 +747,9 @@ class TalentoColaboradorController extends Controller
 
         $data = $request->validate([
             'type'          => 'sometimes|in:interno,externo',
-            'department'    => 'nullable|string|max:100',
+            'department'    => $this->departmentRules($colaborador->department),
             'supervisor_id' => 'nullable|exists:talento_colaboradores,id',
+            'equipo'        => 'nullable|string|max:100',
             'hire_date'     => 'nullable|date',
             'status'        => 'sometimes|in:active,inactive,suspended',
             'base_salary'   => 'nullable|numeric|min:0',
@@ -602,9 +762,50 @@ class TalentoColaboradorController extends Controller
             return response()->json(['error' => 'Un colaborador no puede ser su propio supervisor.'], 422);
         }
 
+        // UNI-T C4c (#957): con el interruptor apagado, equipo se ignora y no hay historial.
+        $c4c = (bool) config('unificacion.interruptores.supervision_ficha_c4c');
+        if (! $c4c) {
+            unset($data['equipo']);
+        }
+        $antes = $colaborador->only(['supervisor_id', 'equipo']);
+
         $colaborador->update($data);
 
+        if ($c4c) {
+            foreach (['supervisor_id', 'equipo'] as $campo) {
+                if (! array_key_exists($campo, $data)) {
+                    continue;
+                }
+                $nuevo = $colaborador->{$campo};
+                if ((string) $antes[$campo] === (string) $nuevo) {
+                    continue;
+                }
+                \DB::table('talento_colaborador_supervision_historial')->insert([
+                    'colaborador_id' => $colaborador->id,
+                    'campo'          => $campo,
+                    'valor_anterior' => $antes[$campo],
+                    'valor_nuevo'    => $nuevo,
+                    'cambiado_por'   => auth()->id(),
+                    'created_at'     => now(),
+                ]);
+            }
+        }
+
         return response()->json($colaborador->load('user', 'supervisor.user'));
+    }
+
+    /** Historial de cambios de supervisor/equipo (UNI-T C4c, #957). */
+    public function supervisionHistorial($id)
+    {
+        $this->authorize('talento.manage');
+
+        $filas = \DB::table('talento_colaborador_supervision_historial as h')
+            ->leftJoin('users as u', 'u.id', '=', 'h.cambiado_por')
+            ->where('h.colaborador_id', $id)
+            ->orderByDesc('h.id')
+            ->get(['h.campo', 'h.valor_anterior', 'h.valor_nuevo', 'h.created_at', 'u.name as cambiado_por']);
+
+        return response()->json(['data' => $filas]);
     }
 
     public function destroy($id)
@@ -633,8 +834,6 @@ class TalentoColaboradorController extends Controller
             'nss'                     => 'nullable|string|max:11',
             'emergency_contact_name'  => 'nullable|string|max:150',
             'emergency_contact_phone' => 'nullable|string|max:20',
-            'job_title'               => 'nullable|string|max:100',
-            'puesto_id'               => 'nullable|exists:talento_puestos,id',
             'relation_type'           => 'nullable|in:indeterminada,determinada,obra',
             'relation_end_date'       => 'nullable|date',
             'pay_frequency'           => 'nullable|in:semanal,quincenal,mensual',
@@ -658,6 +857,19 @@ class TalentoColaboradorController extends Controller
      * de la respuesta a quien no tenga 'talento.expediente.view', permiso propio y distinto del
      * de ver la ficha normal ('talento.view'). Acepta un Model o una Collection de Eloquent.
      */
+    /**
+     * Sin status (o "active") solo los activos — activo en Talento y con cuenta activa —; "inactive"
+     * es el resto. Así todos los selectores de Talento muestran solo activos (2026-10-22).
+     */
+    private function filtrarPorEstado($query, ?string $status): void
+    {
+        match ($status) {
+            null, '', 'active' => $query->activos(),
+            'inactive'         => $query->noActivos(),
+            default            => $query->where('status', $status),
+        };
+    }
+
     private function hideExpedienteFields($items): void
     {
         if (auth()->user()?->can('talento.expediente.view')) {
@@ -694,6 +906,27 @@ class TalentoColaboradorController extends Controller
         return response()->json(['id' => $colaborador->id]);
     }
 
+    /** UNI-T C4b: con el interruptor encendido el departamento sale del catálogo (o conserva su valor actual). */
+    private function departmentRules(?string $actual): array
+    {
+        $reglas = ['nullable', 'string', 'max:100'];
+        if (DepartamentoCatalogo::activo()) {
+            $reglas[] = Rule::in(array_filter([...DepartamentoCatalogo::lista(), $actual]));
+        }
+
+        return $reglas;
+    }
+
+    public function departamentos()
+    {
+        $this->authorize('talento.manage');
+
+        return response()->json([
+            'catalogo' => DepartamentoCatalogo::lista(),
+            'activo'   => DepartamentoCatalogo::activo(),
+        ]);
+    }
+
     public function roleDepartments()
     {
         $this->authorize('talento.manage');
@@ -705,7 +938,7 @@ class TalentoColaboradorController extends Controller
 
     public function usersDisponibles(Request $request)
     {
-        $this->authorize('talento.manage');
+        $this->authorize('talento.colaboradores.create');
 
         $existingUserIds = TalentoColaborador::pluck('user_id');
 

@@ -19,6 +19,8 @@ class ServicioMonitoreo extends BaseModel
 
     protected $casts = [
         'activo'  => 'boolean',
+        'automatica' => 'boolean',
+        'revisado_at' => 'datetime',
         'vlan_id' => 'integer',
     ];
 

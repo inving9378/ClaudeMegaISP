@@ -19,7 +19,7 @@ class GrupoTimbradoController extends Controller
     ) {}
     public function index()
     {
-        if (! auth()->user()->can('voip.grupos.view')) {
+        if (! auth()->user()?->can('voip.grupos.view')) {
             abort(403);
         }
         return view('addon-voip::grupos.index');
@@ -27,7 +27,7 @@ class GrupoTimbradoController extends Controller
 
     public function data(): JsonResponse
     {
-        if (! auth()->user()->can('voip.grupos.view')) {
+        if (! auth()->user()?->can('voip.grupos.view')) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
@@ -52,7 +52,7 @@ class GrupoTimbradoController extends Controller
 
     public function extensionesDisponibles(): JsonResponse
     {
-        if (! auth()->user()->can('voip.grupos.view')) {
+        if (! auth()->user()?->can('voip.grupos.view')) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
@@ -63,7 +63,7 @@ class GrupoTimbradoController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        if (! auth()->user()->can('voip.grupos.create')) {
+        if (! auth()->user()?->can('voip.grupos.create')) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
@@ -89,7 +89,7 @@ class GrupoTimbradoController extends Controller
 
     public function update(Request $request, GrupoTimbrado $grupoTimbrado): JsonResponse
     {
-        if (! auth()->user()->can('voip.grupos.edit')) {
+        if (! auth()->user()?->can('voip.grupos.edit')) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
@@ -116,7 +116,7 @@ class GrupoTimbradoController extends Controller
 
     public function destroy(GrupoTimbrado $grupoTimbrado): JsonResponse
     {
-        if (! auth()->user()->can('voip.grupos.delete')) {
+        if (! auth()->user()?->can('voip.grupos.delete')) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 

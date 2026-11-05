@@ -14,7 +14,7 @@
                         <h5 class="cic-title">
                             {{ headerName || "Cliente" }}
                             <span class="text-muted fw-normal">· #{{ id }}</span>
-                            <span class="badge cic-estado ms-1" v-if="dataForm.data.estado" :class="clientStatusMeta(dataForm.data.estado).bsClass">{{ dataForm.data.estado }}</span>
+                            <span class="estado-chip ms-1" v-if="dataForm.data.estado" :class="clientStatusToneClass(dataForm.data.estado)">{{ dataForm.data.estado }}</span>
                         </h5>
                         <div class="cic-subline">
                             <span v-if="planLabel"><i class="mdi mdi-package-variant me-1"></i>Plan {{ planLabel }}</span>
@@ -49,6 +49,11 @@
                                 <button type="button" class="btn btn-outline-info waves-effect waves-light dropdown-item" data-bs-target="#crudTask" data-bs-toggle="modal">
                                     <span>Agregar Tarea</span>
                                 </button>
+                                <AsignarTrabajo
+                                    v-if="hasPermission.data.canView('talento.work_orders.manage')"
+                                    :client-id="id"
+                                    boton-class="btn btn-outline-info waves-effect waves-light dropdown-item"
+                                />
                             </div>
                         </div>
                         <div class="dropdown d-inline-block me-2">
@@ -188,7 +193,7 @@
                     </section>
 
                     <!-- Servicio y conexión -->
-                    <section class="cic-card cic-card--servicio">
+                    <section class="cic-card cic-card--servicio estado-cliente-scope">
                         <div class="cic-card-head"><i class="mdi mdi-router-wireless"></i> Servicio y conexión</div>
                         <div v-if="dataForm.data.box_nomenclator_old" class="cic-banner-old">
                             <span class="text-muted">Nomenclatura antigua:</span>
@@ -250,8 +255,8 @@
         <!-- Datos de facturación (FR-01 #535): solo lectura aquí; se capturan en Facturación -->
         <ClientDatosFacturacionResumen
             :client-id="id"
-            :puede-ver="hasPermission.data.canView('facturacion.ver')"
-            :puede-editar="hasPermission.data.canView('facturacion.fiscal.editar')"
+            :puede-ver="hasPermission.data.canView('facturacion.datos.ver')"
+            :puede-editar="hasPermission.data.canView('facturacion.datos.editar')"
         />
 
         <!-- Contrato y autorrenovación (FR-07 #541) -->
@@ -365,12 +370,13 @@ import PanelOnu from "../olts/components/onus/PanelOnu.vue";
 import InputModalWithGoogleMapForm from "../../../shared/InputModalWithGoogleMapForm";
 import { changeBalance, clientMainInformationId, clientLoadToken } from "./info/comun_variable";
 import TaskClients from "./helpers/TaskClients.vue";
+import AsignarTrabajo from "../talento/AsignarTrabajo.vue";
 import CrmRecentActivity from "../crm/components/CrmRecentActivity.vue";
 import ClientRecentActivity from "./components/ClientRecentActivity.vue";
 import Swal from "sweetalert2";
 import Permission from "../../../helpers/Permission";
 import { allViewHasPermission } from "../../../helpers/Request";
-import { clientStatusMeta } from "../../../helpers/clientStatus";
+import { clientStatusToneClass } from "../../../helpers/clientStatus";
 import { getOnuByClient, getSignal } from "../olts/helper/request";
 import { formatDate } from "@fullcalendar/core/index.js";
 import { message } from "../../../helpers/toastMsg";
@@ -400,13 +406,15 @@ const emits = defineEmits(["getTypeOfBilling"]);
 const SECTIONS = {
     datos_personales: ["name", "father_last_name", "mother_last_name", "email", "phone", "phone2", "phone3", "nif_pasaport", "social_id"],
     direccion: ["street", "external_number", "internal_number", "colony_id", "zip", "municipality_id", "state_id", "location_id", "address", "geo_data"],
-    servicio: ["estado", "connection_type", "ift", "category", "is_dedicated", "modem_sn", "vendor", "box_nomenclator", "last_time_online", "reinstatement"],
+    servicio: ["estado", "connection_type", "ift", "tipo_cliente", "modem_sn", "vendor", "box_nomenclator", "last_time_online", "reinstatement"],
     credenciales: ["user", "password", "original_password", "password_wifi", "user_film", "password_film"],
     contrato: ["type_of_billing_id", "duration_contract_id", "plazo_especial_meses", "activation_date", "discharge_date", "activation_cost", "is_payment_activation_cost", "distribute_commission", "partner_id", "seller_id", "medium_id"],
     encuesta: ["installation_on_time", "technician_attencion", "amount_technician_and_why", "doubt_signed_contract", "comment"],
 };
 // Campos renderizados a mano (mapa/widgets/banner) → no van en los loops de sección.
 const SPECIAL_WIDGET_FIELDS = ["geodata", "gpon_ont", "power_dbm", "olt_power_dbm", "status_smart", "box_nomenclator_old"];
+// #988: los reemplazó «Tipo de cliente»; siguen en BD pero ya no se capturan.
+const CAMPOS_RETIRADOS = ["category", "is_dedicated", "segmento_id"];
 
 // Devuelve los objetos de config (de cualquiera de los 2 grupos) en el orden pedido.
 function sectionFields(names) {
@@ -424,7 +432,7 @@ function hasField(name) {
 
 // Anti-pérdida: cualquier campo del backend no asignado a una sección ni especial.
 function otrosFields() {
-    const assigned = new Set([...Object.values(SECTIONS).flat(), ...SPECIAL_WIDGET_FIELDS]);
+    const assigned = new Set([...Object.values(SECTIONS).flat(), ...SPECIAL_WIDGET_FIELDS, ...CAMPOS_RETIRADOS]);
     const out = [];
     for (const grpKey of ["client_main_information", "client_additional_information"]) {
         const grp = fieldsJson.value?.[grpKey] ?? {};
@@ -839,7 +847,6 @@ const onUpdateCurrentOnu = (onu) => {
 .cic-avatar { width: 52px; height: 52px; border-radius: 12px; background: #eef2ff; color: #4f46e5; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; flex-shrink: 0; }
 .cic-header-main { flex: 1 1 280px; min-width: 0; }
 .cic-title { margin: 0; font-size: 1.15rem; font-weight: 700; }
-.cic-estado { /* color driven by Bootstrap bg-* class from clientStatusMeta */ }
 .cic-subline { display: flex; flex-wrap: wrap; gap: 14px; color: #6b7280; font-size: 0.82rem; margin-top: 3px; }
 .cic-portal-link { color: #4f46e5; text-decoration: none; white-space: nowrap; }
 /* !important: bootstrap.min.css trae a{text-decoration:none!important} global */
@@ -863,6 +870,19 @@ const onUpdateCurrentOnu = (onu) => {
 .cic-grid :deep(.col-md-6),
 .cic-grid :deep(.col-md-9),
 .cic-grid :deep([class*="col-"]) { width: 100% !important; max-width: 100% !important; flex: 0 0 100% !important; padding-left: 0; padding-right: 0; }
+
+/* #988: en estas columnas angostas el menú del select cortaba las palabras a media letra. */
+.cic-grid :deep(.choices__list--dropdown),
+.cic-grid :deep(.choices__list[aria-expanded]) {
+    width: max-content;
+    min-width: 100%;
+    max-width: min(340px, 85vw);
+}
+.cic-grid :deep(.choices__list--dropdown .choices__item),
+.cic-grid :deep(.choices__list[aria-expanded] .choices__item) {
+    word-break: normal;
+    overflow-wrap: break-word;
+}
 
 /* Banner nomenclatura antigua */
 .cic-banner-old { background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px; padding: 8px 14px; margin: 12px 16px 0; font-size: 0.86rem; }

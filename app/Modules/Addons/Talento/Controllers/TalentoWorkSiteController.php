@@ -70,9 +70,9 @@ class TalentoWorkSiteController extends Controller
     {
         $this->authorize('talento.work_sites.view');
 
-        $radius = (int) \Illuminate\Support\Facades\DB::table('settings')
+        $radius = (int) (\Illuminate\Support\Facades\DB::table('settings')
             ->where('key', 'talento_checkin_default_radius_m')
-            ->value('value') ?? 300;
+            ->value('value') ?? 300);
 
         return response()->json(['default_radius_m' => $radius]);
     }

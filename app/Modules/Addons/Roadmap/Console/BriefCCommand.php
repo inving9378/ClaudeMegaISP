@@ -24,7 +24,8 @@ class BriefCCommand extends Command
         $items = RoadmapItem::query()
             ->where('nivel_riesgo', 'C')
             ->whereIn('estado_aprobacion', ['pendiente_revision', 'aprobado_irving', 'requiere_irving'])
-            ->whereNotIn('status', ['done', 'cancelado'])
+            ->whereNotIn('status', ['done', 'cancelled', 'cancelado'])
+            ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'rechazado'])
             ->where(function ($q) {
                 $q->whereNull('comentarios_claude')
                     ->orWhere('comentarios_claude', 'not like', '%BRIEF DE DECISIÓN%');

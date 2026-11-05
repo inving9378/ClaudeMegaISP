@@ -28,9 +28,10 @@
                     </div>
                     <div class="text-muted small text-truncate" v-if="r.description">{{ r.description }}</div>
                     <div class="flt-rule-badges mt-1">
+                        <span v-if="isPortal" class="badge bg-primary-subtle text-dark border">{{ tipoLabel(r.tipo) }}<template v-if="tipoResumen(r)"> · {{ tipoResumen(r) }}</template></span>
                         <span class="badge bg-light text-dark border"><i class="bi bi-truck me-1"></i>{{ r.vehicle_ids.length ? r.vehicle_ids.length + ' vehículo(s)' : 'Todos' }}</span>
-                        <span class="badge bg-light text-dark border"><i class="bi bi-bounding-box me-1"></i>{{ r.geofence_ids.length ? r.geofence_ids.length + ' geocerca(s)' : 'Todas' }}</span>
-                        <span class="badge bg-light text-dark border">{{ r.event_types.map(eventLabel).join('/') }}</span>
+                        <span v-if="!isPortal || r.tipo === 'geocerca'" class="badge bg-light text-dark border"><i class="bi bi-bounding-box me-1"></i>{{ r.geofence_ids.length ? r.geofence_ids.length + ' geocerca(s)' : 'Todas' }}</span>
+                        <span v-if="!isPortal || r.tipo === 'geocerca'" class="badge bg-light text-dark border">{{ r.event_types.map(eventLabel).join('/') }}</span>
                         <span class="badge bg-light text-dark border"><i class="bi bi-calendar3 me-1"></i>{{ daysLabel(r.days_of_week) }}</span>
                         <span class="badge bg-light text-dark border"><i class="bi bi-clock me-1"></i>{{ r.time_from && r.time_to ? r.time_from + '–' + r.time_to : 'Cualquier hora' }}</span>
                         <span class="badge bg-info-subtle text-dark border" v-for="c in r.channels" :key="c"><i class="bi me-1" :class="c==='whatsapp'?'bi-whatsapp':'bi-envelope'"></i>{{ c }}</span>
@@ -63,6 +64,36 @@
                             <label class="form-label fw-semibold">Descripción</label>
                             <textarea class="form-control" rows="2" v-model="form.description"></textarea>
                         </div>
+                        <div v-if="isPortal" class="mb-3">
+                            <label class="form-label fw-semibold">Tipo de regla <span class="text-danger">*</span></label>
+                            <select class="form-select" v-model="form.tipo">
+                                <option v-for="t in tipos" :key="t" :value="t">{{ tipoLabel(t) }}</option>
+                            </select>
+                            <div class="row g-2 mt-1">
+                                <div class="col-md-6" v-if="form.tipo === 'velocidad'">
+                                    <label class="form-label small">Velocidad máxima (km/h)</label>
+                                    <input type="number" class="form-control form-control-sm" min="10" max="250" v-model.number="form.max_kmh">
+                                </div>
+                                <div class="col-md-6" v-if="form.tipo === 'sin_conexion'">
+                                    <label class="form-label small">Minutos sin conexión</label>
+                                    <input type="number" class="form-control form-control-sm" min="5" max="10080" v-model.number="form.minutos">
+                                </div>
+                                <div class="col-md-6" v-if="form.tipo === 'documento'">
+                                    <label class="form-label small">Avisar días antes del vencimiento</label>
+                                    <input type="number" class="form-control form-control-sm" min="1" max="365" v-model.number="form.dias_antes">
+                                </div>
+                                <template v-if="form.tipo === 'mantenimiento'">
+                                    <div class="col-md-6">
+                                        <label class="form-label small">Avisar km antes</label>
+                                        <input type="number" class="form-control form-control-sm" min="50" max="20000" v-model.number="form.km_antes">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small">Avisar días antes</label>
+                                        <input type="number" class="form-control form-control-sm" min="1" max="365" v-model.number="form.mant_dias">
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold">Vehículos</label>
@@ -71,7 +102,7 @@
                                     <option v-for="v in vehicles" :key="v.id" :value="v.id">{{ v.display_name }}</option>
                                 </select>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-6" v-if="!isPortal || form.tipo === 'geocerca'">
                                 <label class="form-label fw-semibold">Geocercas</label>
                                 <div class="form-check"><input class="form-check-input" type="checkbox" id="rAllGeo" v-model="form.all_geofences"><label class="form-check-label" for="rAllGeo">Todas las geocercas</label></div>
                                 <select v-if="!form.all_geofences" class="form-select form-select-sm mt-1" multiple size="4" v-model="form.geofence_ids">
@@ -80,12 +111,12 @@
                             </div>
                         </div>
                         <div class="row g-3 mt-1">
-                            <div class="col-md-4">
+                            <div class="col-md-4" v-if="!isPortal || form.tipo === 'geocerca'">
                                 <label class="form-label fw-semibold">Tipo de evento</label>
                                 <div class="form-check"><input class="form-check-input" type="checkbox" id="rEnter" value="enter" v-model="form.event_types"><label class="form-check-label" for="rEnter">Entrada</label></div>
                                 <div class="form-check"><input class="form-check-input" type="checkbox" id="rExit" value="exit" v-model="form.event_types"><label class="form-check-label" for="rExit">Salida</label></div>
                             </div>
-                            <div class="col-md-8">
+                            <div :class="(!isPortal || form.tipo === 'geocerca') ? 'col-md-8' : 'col-12'">
                                 <label class="form-label fw-semibold">Horario</label>
                                 <div class="form-check"><input class="form-check-input" type="checkbox" id="rAnyTime" v-model="form.any_time"><label class="form-check-label" for="rAnyTime">Cualquier hora</label></div>
                                 <div v-if="!form.any_time" class="d-flex align-items-center gap-2 mt-1">
@@ -162,7 +193,12 @@ const DAY_DEFS = [
 
 export default {
     name: 'FleetRuleList',
-    props: { baseUrl: { type: String, default: '/flotas' } },
+    props: {
+        baseUrl: { type: String, default: '/flotas' },
+        // 'panel' (default) | 'portal': mismo criterio que FleetDashboard (#658). No se deduce de baseUrl,
+        // que llega absoluto (url('/portal/flotas') = http://host/portal/flotas).
+        modo: { type: String, default: 'panel' },
+    },
     setup(props) {
         const rules = ref([]);
         const vehicles = ref([]);
@@ -173,8 +209,25 @@ export default {
         const toDelete = ref(null);
         const deleting = ref(false);
 
+        // Modo portal (baseUrl=/portal/flotas): reglas del cliente con tipos de #644. El panel queda igual.
+        const isPortal = props.modo === 'portal';
+        const tipos = ref(['geocerca', 'velocidad', 'horario', 'sin_conexion', 'documento', 'mantenimiento']);
+        const maxReglas = ref(null);
+        const TIPO_LABELS = { geocerca: 'Geocerca', velocidad: 'Exceso de velocidad', horario: 'Uso fuera de horario',
+            sin_conexion: 'Sin conexión', documento: 'Documento por vencer', mantenimiento: 'Mantenimiento próximo' };
+        const tipoLabel = (t) => TIPO_LABELS[t] || t;
+        function tipoResumen(r) {
+            const p = r.params || {};
+            if (r.tipo === 'velocidad') return `${p.max_kmh} km/h`;
+            if (r.tipo === 'sin_conexion') return `${p.minutos} min`;
+            if (r.tipo === 'documento') return `${p.dias_antes} días antes`;
+            if (r.tipo === 'mantenimiento') return [p.km_antes ? `${p.km_antes} km` : null, p.dias_antes ? `${p.dias_antes} días` : null].filter(Boolean).join(' / ');
+            return '';
+        }
+
         const blankForm = () => ({
             id: null, name: '', description: '',
+            tipo: 'geocerca', max_kmh: 100, minutos: 30, dias_antes: 30, km_antes: 500, mant_dias: null,
             all_vehicles: true, vehicle_ids: [],
             all_geofences: true, geofence_ids: [],
             event_types: ['enter', 'exit'],
@@ -201,7 +254,13 @@ export default {
         function load() {
             loading.value = true;
             axios.get(`${props.baseUrl}/api/reglas`)
-                .then(({ data }) => { rules.value = data?.rules ?? []; })
+                .then(({ data }) => {
+                    rules.value = (isPortal ? data?.reglas : data?.rules) ?? [];
+                    if (isPortal) {
+                        if (data?.tipos?.length) tipos.value = data.tipos;
+                        maxReglas.value = data?.limite ?? null;
+                    }
+                })
                 .catch(() => notify('No se pudieron cargar las reglas.', 'error'))
                 .finally(() => { loading.value = false; });
         }
@@ -218,6 +277,12 @@ export default {
             Object.assign(form, blankForm());
             if (rule) {
                 form.id = rule.id; form.name = rule.name; form.description = rule.description || '';
+                if (isPortal) {
+                    const p = rule.params || {};
+                    form.tipo = rule.tipo || 'geocerca';
+                    form.max_kmh = p.max_kmh ?? 100; form.minutos = p.minutos ?? 30; form.dias_antes = p.dias_antes ?? 30;
+                    if (form.tipo === 'mantenimiento') { form.km_antes = p.km_antes ?? null; form.mant_dias = p.dias_antes ?? null; }
+                }
                 form.vehicle_ids = [...rule.vehicle_ids]; form.all_vehicles = rule.vehicle_ids.length === 0;
                 form.geofence_ids = [...rule.geofence_ids]; form.all_geofences = rule.geofence_ids.length === 0;
                 form.event_types = [...rule.event_types];
@@ -237,7 +302,10 @@ export default {
 
         function save() {
             if (!form.name.trim()) { notify('El nombre es obligatorio.', 'error'); return; }
-            if (!form.event_types.length) { notify('Selecciona al menos un tipo de evento.', 'error'); return; }
+            const geo = !isPortal || form.tipo === 'geocerca';
+            if (isPortal && form.tipo === 'horario' && form.any_time) { notify('Define el horario de la regla.', 'error'); return; }
+            if (isPortal && form.tipo === 'mantenimiento' && !form.km_antes && !form.mant_dias) { notify('Indica km o días de aviso.', 'error'); return; }
+            if (geo && !form.event_types.length) { notify('Selecciona al menos un tipo de evento.', 'error'); return; }
             if (!form.channels.length) { notify('Selecciona al menos un canal.', 'error'); return; }
             if (!form.any_time && (!form.time_from || !form.time_to)) { notify('Define desde y hasta, o marca "Cualquier hora".', 'error'); return; }
 
@@ -251,12 +319,20 @@ export default {
                 days_of_week: form.days_of_week,
                 channels: form.channels, active: form.active,
             };
+            if (isPortal) {
+                payload.tipo = form.tipo;
+                if (form.tipo === 'velocidad') payload.max_kmh = form.max_kmh;
+                if (form.tipo === 'sin_conexion') payload.minutos = form.minutos;
+                if (form.tipo === 'documento') payload.dias_antes = form.dias_antes;
+                if (form.tipo === 'mantenimiento') { payload.km_antes = form.km_antes || null; payload.mant_dias = form.mant_dias || null; }
+                if (form.tipo !== 'geocerca') { payload.event_types = []; payload.geofence_ids = []; }
+            }
             saving.value = true;
             const req = form.id
                 ? axios.put(`${props.baseUrl}/api/reglas/${form.id}`, payload)
                 : axios.post(`${props.baseUrl}/api/reglas`, payload);
             req.then(() => { notify(form.id ? 'Regla actualizada.' : 'Regla creada.'); showForm.value = false; load(); })
-                .catch((e) => notify(e?.response?.data?.message || 'No se pudo guardar la regla.', 'error'))
+                .catch((e) => notify(Object.values(e?.response?.data?.errors || {})[0]?.[0] || e?.response?.data?.message || 'No se pudo guardar la regla.', 'error'))
                 .finally(() => { saving.value = false; });
         }
 
@@ -277,7 +353,7 @@ export default {
         onMounted(() => { load(); loadOptions(); });
 
         return { rules, vehicles, geofences, loading, showForm, saving, toDelete, deleting, form, toast,
-                 dayDefs, eventLabel, daysLabel, openForm, toggleDay, setDays, save, toggle, askDelete, confirmDelete };
+                 dayDefs, isPortal, tipos, maxReglas, tipoLabel, tipoResumen, eventLabel, daysLabel, openForm, toggleDay, setDays, save, toggle, askDelete, confirmDelete };
     },
 };
 </script>

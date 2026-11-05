@@ -307,6 +307,9 @@ class ParquearTimeoutCommand extends Command
         $item->estado_aprobacion = 'requiere_irving';
         $item->aprobado_por      = 'timeout';
         $item->veces_timeouteo   = (int) $item->veces_timeouteo + 1;
+        if (! $avance) {
+            $item->registrarVueltaVacia();   // #1078: si algo automático lo re-aprueba, espera 1 h / 4 h / 24 h
+        }
         // #927 — SOLTAR EL CLAIM TAMBIÉN AQUÍ. La rama de reanudación ya lo hacía; ésta no, así que
         // un item escalado a la bandeja conservaba su `worker_sid` y su `claimed_at` para siempre:
         // el reaper lo veía como reclamo huérfano y la Torre pintaba la terminal ocupada sin nadie

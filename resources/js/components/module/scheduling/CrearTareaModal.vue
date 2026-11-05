@@ -243,6 +243,18 @@ export default {
             estimated_time: null,
         });
 
+        async function resolveClientKey(clientId) {
+            if (!clientId) return;
+            try {
+                const { data } = await axios.post(`/tickets/get-data-client/${clientId}`);
+                const cmi = data?.client_main_information;
+                const id = Array.isArray(cmi) ? cmi[0]?.id : cmi?.id;
+                if (id && form.ticket_id) form.client_main_information_id = id;
+            } catch (e) {
+                // sin llave: la tarea se crea sin cliente, como antes
+            }
+        }
+
         function fillFromTicket() {
             const t = props.ticket;
             form.title = `[Ticket #${t.id}] ${t.topic || ""}`;
@@ -255,7 +267,9 @@ export default {
                 : `Generada desde solicitud de soporte.\n\nReferencia: Ticket #${t.id}`;
 
             form.ticket_id = t.id ? parseInt(t.id) : null;
-            form.client_main_information_id = t.customer_lead || null;
+            // customer_lead es clients.id; la tarea guarda client_main_information.id
+            form.client_main_information_id = null;
+            resolveClientKey(t.customer_lead);
 
             // Mapeo correcto: tickets.priority INT → tasks.priority string
             // 1=Urgente→Alta, 2=Alta→Alta, 3=Normal→Media, 4=Baja→Baja
@@ -290,6 +304,7 @@ export default {
                         id: "id",
                         text: "name",
                         scope: "notClientRole",
+                        solo_activos: true,
                     }),
                 ]);
                 projects.value = Object.entries(pRes.data).map(([id, text]) => ({

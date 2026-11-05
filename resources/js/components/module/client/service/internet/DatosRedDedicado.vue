@@ -6,7 +6,7 @@
                     <div class="text-h6">Datos de red del dedicado</div>
                     <div class="text-caption drd-tenue">{{ subtitulo }}</div>
                 </div>
-                <q-btn icon="close" flat round dense v-close-popup />
+                <q-btn icon="close" flat round dense aria-label="Cerrar" @click="cerrar" />
             </q-card-section>
             <q-separator :dark="darkMode" />
 
@@ -93,8 +93,11 @@
                         :error-message="errores.ip_router"
                     />
                 </div>
-
-                <q-toggle v-model="form.activo" label="Monitorear este servicio" :disable="!puedeEditar" :dark="darkMode" class="q-mt-sm" />
+                <div class="drd-estado">
+                    <span class="drd-punto" :class="monitoreo.activo === false ? 'drd-pausado' : 'drd-activo'" aria-hidden="true"></span>
+                    <span>{{ monitoreo.activo === false ? `Monitoreo pausado: ${monitoreo.motivo}` : "Monitoreo activo" }}</span>
+                    <q-badge v-if="monitoreo.automatica" color="amber-9" label="Automática, sin revisar" />
+                </div>
 
                 <div class="drd-subtitulo">IPs del bloque a monitorear</div>
                 <div v-if="!filas.length" class="drd-tenue">Captura el bloque para ver sus IPs.</div>
@@ -134,10 +137,25 @@
                         </tr>
                     </tbody>
                 </q-markup-table>
+
+                <ProbarLecturaResultado v-if="prueba" :r="prueba" :confirmando="confirmando" @confirmar="confirmarIdentidad" />
             </q-card-section>
 
             <q-card-actions align="right" class="drd-acciones">
-                <q-btn flat label="Cerrar" v-close-popup />
+                <q-btn
+                    v-if="puedeEditar && !cargando && !errorCarga"
+                    outline
+                    color="primary"
+                    no-caps
+                    label="Probar lectura"
+                    :loading="probando"
+                    :disable="!sePuedeProbar"
+                    @click="probar"
+                >
+                    <q-tooltip v-if="!sePuedeProbar">Guarda primero: se prueba lo que está guardado.</q-tooltip>
+                </q-btn>
+                <q-space />
+                <q-btn flat label="Cerrar" @click="cerrar" />
                 <q-btn v-if="puedeEditar && !cargando && !errorCarga" color="primary" label="Guardar" :loading="guardando" @click="guardar" />
             </q-card-actions>
         </q-card>
@@ -145,10 +163,11 @@
 </template>
 
 <script>
-import { computed, reactive, ref, watch } from "vue";
+import { computed, nextTick, reactive, ref, watch } from "vue";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { darkMode } from "../../../../../hook/appConfig";
+import ProbarLecturaResultado from "./ProbarLecturaResultado.vue";
 
 // #988: «Datos de red» de un servicio de internet dedicado. Guarda en sus propias tablas por
 // /cliente/servicio-internet/{id}/datos-red; nunca guarda el servicio (eso manda trabajos al router).
@@ -178,6 +197,7 @@ const hostsDe = (cidr, prefijoMinimo) => {
 
 export default {
     name: "DatosRedDedicado",
+    components: { ProbarLecturaResultado },
     props: {
         modelValue: { type: Boolean, default: false },
         servicioId: { type: [Number, String], default: null },
@@ -193,8 +213,17 @@ export default {
         const puedeEditar = ref(false);
         const prefijoMinimo = ref(24);
         const errores = ref({});
-        const form = reactive({ router_id: null, interfaz_vlan: null, vlan_id: null, bloque_cidr: null, ip_router: null, activo: true });
+        const form = reactive({ router_id: null, interfaz_vlan: null, vlan_id: null, bloque_cidr: null, ip_router: null });
         const filas = ref([]);
+        const monitoreo = ref({ activo: null, motivo: null, automatica: false });
+        const propuesto = ref(false);
+        const prueba = ref(null);
+        const probando = ref(false);
+        const confirmando = ref(false);
+        // Lo que está guardado, para saber si «Probar lectura» probaría otra cosa que lo que se ve.
+        const fotoGuardada = ref("");
+        const foto = () => JSON.stringify([form, filas.value]);
+        const sePuedeProbar = computed(() => !propuesto.value && foto() === fotoGuardada.value);
 
         const bloque = computed(() => hostsDe(form.bloque_cidr, prefijoMinimo.value));
         const hosts = computed(() => bloque.value.hosts);
@@ -231,6 +260,8 @@ export default {
             avisos.value = r.avisos || [];
             puedeEditar.value = !!r.puede_editar;
             prefijoMinimo.value = r.prefijo_minimo || 24;
+            monitoreo.value = r.monitoreo || monitoreo.value;
+            propuesto.value = !!r.propuesto;
             vlanGuardada.value = r.propuesto ? null : r.datos.vlan_id;
             Object.assign(form, {
                 router_id: r.datos.router_id,
@@ -238,10 +269,10 @@ export default {
                 vlan_id: r.datos.vlan_id,
                 bloque_cidr: r.datos.bloque_cidr,
                 ip_router: r.datos.ip_router,
-                activo: r.datos.activo,
             });
             // hosts se recalcula en el siguiente tick; se arma con lo guardado.
             rehacerFilas(r.datos.ips || []);
+            nextTick(() => (fotoGuardada.value = foto()));
         };
 
         const cargar = async () => {
@@ -249,6 +280,7 @@ export default {
             cargando.value = true;
             errorCarga.value = null;
             errores.value = {};
+            prueba.value = null;
             try {
                 const { data } = await axios.get(`/cliente/servicio-internet/${props.servicioId}/datos-red`);
                 aplicar(data);
@@ -256,6 +288,33 @@ export default {
                 errorCarga.value = e.response?.data?.message || "No se pudieron cargar los datos de red.";
             } finally {
                 cargando.value = false;
+            }
+        };
+
+        const cerrar = () => emit("update:modelValue", false);
+
+        const probar = async () => {
+            probando.value = true;
+            prueba.value = null;
+            try {
+                const { data } = await axios.post(`/cliente/servicio-internet/${props.servicioId}/datos-red/probar`, {}, { timeout: 25000 });
+                prueba.value = data;
+            } catch (e) {
+                Swal.fire("Error", e.response?.status === 429 ? "Demasiadas pruebas seguidas: espera un minuto." : e.response?.data?.message || "No se pudo probar la lectura.", "error");
+            } finally {
+                probando.value = false;
+            }
+        };
+
+        const confirmarIdentidad = async () => {
+            confirmando.value = true;
+            try {
+                await axios.post(`/cliente/servicio-internet/${props.servicioId}/datos-red/identidad`);
+                await probar();
+            } catch (e) {
+                Swal.fire("Error", e.response?.data?.message || "No se pudo confirmar el router.", "error");
+            } finally {
+                confirmando.value = false;
             }
         };
 
@@ -272,6 +331,7 @@ export default {
                 });
                 aplicar(data);
                 emit("guardado", props.servicioId);
+                cerrar();
                 Swal.fire("Guardado", "Los datos de red del dedicado quedaron guardados.", "success");
             } catch (e) {
                 if (e.response?.status === 422) {
@@ -289,7 +349,7 @@ export default {
             return i >= 0 ? errores.value[`ips.${i}.ip`] : null;
         };
 
-        return { darkMode, cargando, guardando, errorCarga, servicio, routers, avisos, puedeEditar, errores, form, filas, hosts, errorBloque, subtitulo, cargar, guardar, errorDeIp };
+        return { darkMode, cerrar, monitoreo, prueba, probando, confirmando, sePuedeProbar, probar, confirmarIdentidad, cargando, guardando, errorCarga, servicio, routers, avisos, puedeEditar, errores, form, filas, hosts, errorBloque, subtitulo, cargar, guardar, errorDeIp };
     },
 };
 </script>
@@ -337,6 +397,25 @@ export default {
 }
 .drd-acciones {
     margin: 0 !important;
+}
+.drd-estado {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 18px 0 10px;
+    font-weight: 500;
+}
+.drd-punto {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+.drd-activo {
+    background: #16a34a;
+}
+.drd-pausado {
+    background: #6b7280;
 }
 /* Quasar usa .row por dentro (el interruptor, los campos) y el Bootstrap global les pone ancho
    completo y relleno: se neutraliza solo dentro de esta ventana (mismo arreglo que FechaHoraOrden.vue). */

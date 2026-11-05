@@ -102,7 +102,6 @@
                             <tr>
                                 <th>Colaborador</th>
                                 <th v-if="!selectedDepartment">Equipo</th>
-                                <th>Nivel</th>
                                 <th>OTs val.</th>
                                 <th>Pts OTs</th>
                                 <th>Proy pts</th>
@@ -124,8 +123,7 @@
                                 <!-- Vista plana intra-equipo -->
                                 <tr v-for="col in filteredData" :key="col.colaborador_id">
                                     <td class="fw-semibold">{{ col.name }}</td>
-                                    <td class="text-muted small">{{ col.level ?? '—' }}</td>
-                                    <td>{{ col.metrics.ots_validadas.count }}</td>
+                                                                        <td>{{ col.metrics.ots_validadas.count }}</td>
                                     <td>{{ col.metrics.ots_validadas.pts }}</td>
                                     <td>{{ col.metrics.actividad_proyecto }}</td>
                                     <td>{{ col.metrics.asistencias }}</td>
@@ -145,7 +143,7 @@
                                 <!-- Vista agrupada por equipo (Todos) -->
                                 <template v-for="group in groupedData" :key="group.department">
                                     <tr class="wr-dept-header">
-                                        <td colspan="17" class="wr-dept-header-cell">
+                                        <td colspan="16" class="wr-dept-header-cell">
                                             <i class="ti ti-building me-1"></i>
                                             {{ group.department }}
                                             <span class="wr-dept-count ms-2">{{ group.items.length }} colaborador{{ group.items.length !== 1 ? 'es' : '' }}</span>
@@ -156,8 +154,7 @@
                                         <td>
                                             <span class="wr-dept-badge">{{ col.department || 'Sin equipo' }}</span>
                                         </td>
-                                        <td class="text-muted small">{{ col.level ?? '—' }}</td>
-                                        <td>{{ col.metrics.ots_validadas.count }}</td>
+                                                                                <td>{{ col.metrics.ots_validadas.count }}</td>
                                         <td>{{ col.metrics.ots_validadas.pts }}</td>
                                         <td>{{ col.metrics.actividad_proyecto }}</td>
                                         <td>{{ col.metrics.asistencias }}</td>

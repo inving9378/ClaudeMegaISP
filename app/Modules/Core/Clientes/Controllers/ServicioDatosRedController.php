@@ -4,6 +4,7 @@ namespace App\Modules\Core\Clientes\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Services\Metricas\DatosRedDedicado;
+use App\Services\Metricas\ProbadorLectura;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -32,8 +33,27 @@ class ServicioDatosRedController extends Controller
         abort_unless($this->puedeEditar($request), 403, 'No tienes permiso para editar los datos de red del dedicado.');
 
         return response()->json($this->datosRed->guardar($servicioId, $request->only([
-            'router_id', 'interfaz_vlan', 'vlan_id', 'bloque_cidr', 'ip_router', 'activo', 'ips',
-        ])) + ['puede_editar' => true]);
+            'router_id', 'interfaz_vlan', 'vlan_id', 'bloque_cidr', 'ip_router', 'ips',
+        ]), $request->user()?->id) + ['puede_editar' => true]);
+    }
+
+    /** POST /cliente/servicio-internet/{servicioId}/datos-red/probar — sin guardar lecturas, hasta 15 s. */
+    public function probar(Request $request, int $servicioId, ProbadorLectura $probador): JsonResponse
+    {
+        abort_unless($this->puedeEditar($request), 403, 'No tienes permiso para probar la lectura de este servicio.');
+        @set_time_limit(30);
+
+        return response()->json($probador->probar($servicioId, $request->user()->id));
+    }
+
+    /** POST /cliente/servicio-internet/{servicioId}/datos-red/identidad — «Sí, es este router». */
+    public function confirmarIdentidad(Request $request, int $servicioId, ProbadorLectura $probador): JsonResponse
+    {
+        abort_unless($this->puedeEditar($request), 403, 'No tienes permiso para confirmar el router.');
+        $identidad = $probador->confirmarIdentidad($servicioId, $request->user());
+        abort_if($identidad === null, 422, 'Vuelve a probar la lectura: la identidad que contestó el router ya no está vigente.');
+
+        return response()->json(['identidad' => $identidad]);
     }
 
     private function puedeEditar(Request $request): bool

@@ -4,7 +4,7 @@ namespace App\Listeners\Referrals;
 
 use App\Events\InvoicePaid;
 use App\Events\Referrals\EmbajadorActivated;
-use App\Models\Client;
+use App\Modules\Core\Clientes\Models\Client;
 use App\Modules\Core\Clientes\Models\Client as ClientModel;
 use App\Models\Referrals\ClientReferralProfile;
 use Illuminate\Contracts\Queue\ShouldQueue;

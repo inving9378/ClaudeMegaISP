@@ -132,6 +132,7 @@ class DigestCommand extends Command
         $frenos     = $this->resurfacearFrenos();
         $superficie = $this->superficieDeclarada();
         $this->seguimientoEpicaMapaRed();
+        $seguimiento = $this->seguimientoGeneral();
 
         DB::table('settings')->updateOrInsert([
             'key' => self::SETTING,
@@ -150,6 +151,7 @@ class DigestCommand extends Command
                     array_filter($liveness, fn ($p) => $p['vencido']))),
                 'superficie_pct'  => $superficie['pct'],
                 'superficie'      => $superficie,
+                'seguimiento'     => $seguimiento,
                 'frenos_humanos'  => count(\App\Modules\Addons\Roadmap\Console\RetriageFrenosCommand::frenosHumanos()),
                 'frenos_top'      => array_slice(array_map(
                     fn ($f) => ['id' => $f['id'], 'dias' => $f['dias'], 'mudas' => $f['mudas'], 'rotulo' => $f['rotulo']],
@@ -478,5 +480,42 @@ class DigestCommand extends Command
 
         DB::table('settings')->updateOrInsert(['key' => self::SETTING_EPICA_MR00_AT],
             ['value' => now()->toDateTimeString()]);
+    }
+
+    /**
+     * #627 (mandato #625, puntos 4 y 8) — SEGUIMIENTO GENERAL: merges pendientes de Irving ordenados
+     * por cuántos items desbloquean (`depende_de`), y conteo abiertos / avanzaron hoy / atorados con
+     * su motivo. Solo lectura. El resultado viaja en el snapshot para que la Torre lo pinte.
+     */
+    private function seguimientoGeneral(): array
+    {
+        $cerrados = ['completado', 'cancelado', 'rechazado'];
+        $items = DB::table('roadmap_items')->whereNotIn('estado_aprobacion', $cerrados)
+            ->get(['id', 'title', 'estado_aprobacion', 'esperando_merge_irving', 'merge_commit',
+                'depende_de', 'motivo_bloqueo', 'motivo_espera', 'updated_at']);
+
+        // Misma regla que la tarjeta en vivo de la Panorama y que Jarvis (MergesPendientesService).
+        $merges = collect(app(\App\Modules\Addons\Roadmap\Services\MergesPendientesService::class)->listar()['items']);
+
+        $avanzaron = DB::table('roadmap_items')->whereIn('estado_aprobacion', $cerrados)
+            ->where('updated_at', '>=', Carbon::today())->count();
+        $atorados = $items->filter(fn ($i) => $i->motivo_bloqueo || $i->motivo_espera
+            || $i->estado_aprobacion === 'requiere_irving')
+            ->map(fn ($i) => ['id' => $i->id, 'porque' => mb_substr((string) ($i->motivo_bloqueo
+                ?: $i->motivo_espera ?: $i->estado_aprobacion), 0, 60)])->values();
+
+        $this->newLine();
+        $this->line("<options=bold>7. Seguimiento: {$items->count()} abiertos · {$avanzaron} cerrados hoy · {$atorados->count()} atorados</>");
+        foreach ($merges->take(10) as $m) {
+            $this->line("   merge pendiente #{$m['id']} desbloquea {$m['desbloquea']} — {$m['title']}");
+        }
+
+        return [
+            'abiertos'  => $items->count(),
+            'avanzaron' => $avanzaron,
+            'atorados'  => $atorados->count(),
+            'atorados_top' => $atorados->take(10)->all(),
+            'merges_pendientes' => $merges->take(15)->all(),
+        ];
     }
 }

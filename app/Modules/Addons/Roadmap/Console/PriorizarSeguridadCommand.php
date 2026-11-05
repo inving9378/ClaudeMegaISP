@@ -78,7 +78,8 @@ class PriorizarSeguridadCommand extends Command
 
         // Candidatos: pendientes, aún SIN procesar por esta pasada, que disparan alguna señal.
         $pend = RoadmapItem::when($soloItem, fn ($q) => $q->whereKey($soloItem))
-            ->whereNotIn('status', ['done', 'cancelado'])
+            ->whereNotIn('status', ['done', 'cancelled', 'cancelado'])
+            ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'rechazado'])
             ->where('en_desarrollo_humano', false)
             // Fase 0 (anti-rebote): NUNCA re-triar un item con decisión de Irving ya vigente. Una
             // re-lectura estática de señales no es un hallazgo material → no pisa su decisión.
@@ -135,6 +136,7 @@ class PriorizarSeguridadCommand extends Command
         };
 
         // SEGURIDAD/DINERO real → ALTA + atacar primero + escalar a la bandeja (salvo carril AUTO).
+        $estadoAntes = $item->estado_aprobacion;
         if (in_array($cat, ['seguridad', 'dinero'], true)) {
             $item->priority = 'alta';
             // Fase 0 (anti-rebote): si Irving ya decidió este item, NO se devuelve a requiere_irving
@@ -178,6 +180,12 @@ class PriorizarSeguridadCommand extends Command
             . trim((string) $r['texto_brief']) . "\n";
         $item->comentarios_claude = (string) $item->comentarios_claude . $sello;
         $item->revisado_at = now();
+        if ($item->estado_aprobacion !== $estadoAntes) {
+            $log = (array) $item->log;
+            $log[] = ['at' => now()->toDateTimeString(), 'evento' => 'cambio_estado_priorizar_seguridad',
+                'de' => $estadoAntes, 'a' => $item->estado_aprobacion, 'por' => $item->aprobado_por ?: 'priorizacion-riesgo(opus)'];
+            $item->log = $log;
+        }
         $item->save();
     }
 }

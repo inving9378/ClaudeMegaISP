@@ -6,6 +6,7 @@ use App\Http\Controllers\HelperController;
 use App\Http\Requests\module\client\ClientCreateRequest;
 use App\Models\User;
 use App\Modules\Core\Clientes\Controllers\ClientController;
+use App\Services\Clientes\TipoCliente;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -53,6 +54,7 @@ class CrearCliente extends Herramienta
             'properties' => $this->propiedadesAlta() + [
                 'curp'             => ['type' => 'string', 'description' => 'CURP o número de identificación.'],
                 'plazo_meses'      => ['type' => 'integer', 'enum' => array_keys(self::PLAZOS)],
+                'tipo_cliente'     => ['type' => 'string', 'enum' => array_keys(TipoCliente::OPCIONES), 'description' => 'Solo si el usuario lo dice. Por defecto residencial.'],
                 'costo_activacion' => ['type' => 'number', 'description' => 'Solo si el usuario lo dice. Por defecto $299.'],
             ],
             'required' => ['nombre'],
@@ -78,7 +80,9 @@ class CrearCliente extends Herramienta
         }
 
         $costo = isset($args['costo_activacion']) && is_numeric($args['costo_activacion']) ? max(0, (float) $args['costo_activacion']) : 299;
+        $tipo = TipoCliente::normalizar($args['tipo_cliente'] ?? null);
         $datos += [
+            'tipo_cliente'         => $tipo,
             'nif_pasaport'         => $curp,
             'duration_contract_id' => self::PLAZOS[$plazo],
             'activation_cost'      => $costo,
@@ -93,6 +97,7 @@ class CrearCliente extends Herramienta
             'resumen' => "Dar de alta cliente nuevo:\n" . implode("\n", $this->lineasResumen($datos, $colonia))
                 . "\n- CURP / identificación: {$curp}\n- Plazo del contrato: {$plazo} meses"
                 . "\n- Costo de activación: " . DatosCliente::dinero($costo) . ' (pendiente de pago)'
+                . "\n- Tipo de cliente: " . TipoCliente::OPCIONES[$tipo]
                 . "\n- Estado: Nuevo · Vendedor: " . trim("{$user->name} {$user->father_last_name}")
                 . "\n- El usuario y la contraseña del portal se generan solos, como en la pantalla."
                 . "\n- Los servicios (internet, etc.) se agregan después en su ficha.",
@@ -138,7 +143,6 @@ class CrearCliente extends Herramienta
             'seller_id'                  => $user->id,
             'is_payment_activation_cost' => 0,
             'connection_type'            => 'olt',
-            'is_dedicated'               => false,
         ];
     }
 }

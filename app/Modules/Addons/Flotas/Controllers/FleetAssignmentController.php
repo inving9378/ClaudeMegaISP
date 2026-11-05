@@ -14,7 +14,7 @@ class FleetAssignmentController extends FleetBaseController
 {
     public function index(int $vehicleId): JsonResponse
     {
-        $this->authorize('fleet.view');
+        $this->autorizar('fleet.view');
 
         $this->vehicleForClient($vehicleId);
 
@@ -25,7 +25,7 @@ class FleetAssignmentController extends FleetBaseController
             ->get()
             ->map(fn($a) => array_merge($a->toArray(), [
                 'is_active'     => $a->is_active,
-                'operator_name' => $a->operator?->name,
+                'operator_name' => $a->display_name,
             ]));
 
         return response()->json(['assignments' => $assignments]);
@@ -33,7 +33,7 @@ class FleetAssignmentController extends FleetBaseController
 
     public function store(Request $request, int $vehicleId): JsonResponse
     {
-        $this->authorize('fleet.assign');
+        $this->autorizar('fleet.assign');
 
         $this->vehicleForClient($vehicleId);
 
@@ -61,7 +61,7 @@ class FleetAssignmentController extends FleetBaseController
         return response()->json([
             'assignment' => array_merge($assignment->load('operator')->toArray(), [
                 'is_active'     => $assignment->is_active,
-                'operator_name' => $assignment->operator?->name,
+                'operator_name' => $assignment->display_name,
             ]),
         ], 201);
     }

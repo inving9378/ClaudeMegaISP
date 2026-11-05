@@ -9,7 +9,7 @@ use App\Modules\Addons\Talento\Models\TalentoHealthBonusLog;
 use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
 use App\Modules\Addons\Talento\Models\TalentoWeeklyRule;
 use App\Modules\Addons\Talento\Models\TalentoWeeklyRuleEvaluation;
-use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
+use App\Modules\Addons\Talento\Support\PayWeek;
 use App\Services\CalculateBalanceSellerService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -44,6 +44,33 @@ class TalentoWeeklyRuleEvaluationService
     // sin UI de selección) no lo tenga en su propia constante homónima.
     private const SYSTEM_ROLES = ['super-administrator', 'Super Administrador', 'ADMINISTRADOR_COMPLETO', 'DESARROLLADOR'];
 
+    /**
+     * Reglas DEMO (UNI-T J5 #1009): con el interruptor `reglas_demo_aisladas` solo aplican a cuentas
+     * demo_*\/prueba_*. Se reconocen por el prefijo «DEMO» de su nombre, no por id: los ids de una
+     * instancia no coinciden con los de otra.
+     */
+    public static function esReglaDemo(TalentoWeeklyRule $rule): bool
+    {
+        return preg_match('/^\s*DEMO\b/u', (string) $rule->name) === 1;
+    }
+
+    public static function esCuentaDemo(?string $loginUser): bool
+    {
+        return $loginUser !== null && preg_match('/^(demo_|prueba_)/i', $loginUser) === 1;
+    }
+
+    /** Roles de negocio de un usuario (sin los roles de sistema). */
+    public function rolesDeNegocio(User $user): array
+    {
+        return $user->getRoleNames()->diff(self::SYSTEM_ROLES)->values()->all();
+    }
+
+    /** Regla que resolvería hoy para (roles, metric_type, login); ver resolveRule. */
+    public function reglaQueAplicaA(array $roleNames, string $metricType, ?string $loginUser = null, ?bool $aislar = null): ?TalentoWeeklyRule
+    {
+        return $this->resolveRule($roleNames, $metricType, $loginUser, $aislar);
+    }
+
     public function __construct(private CalculateBalanceSellerService $balanceService) {}
 
     /** @return Collection<int, TalentoWeeklyRuleEvaluation> */
@@ -56,6 +83,7 @@ class TalentoWeeklyRuleEvaluationService
         }
 
         $roleNames = $user->getRoleNames()->diff(self::SYSTEM_ROLES)->values()->all();
+        $login = $user->login_user;
 
         $metricTypes = TalentoWeeklyRule::active()->distinct()->pluck('metric_type');
 
@@ -65,7 +93,7 @@ class TalentoWeeklyRuleEvaluationService
         // tiene sentido dejar una fila 'no_rule' por cada eje ajeno cada
         // semana para siempre, eso infla la tabla sin ningún dato útil.
         $reglasQueAplican = $metricTypes
-            ->map(fn (string $metricType) => $this->resolveRule($roleNames, $metricType))
+            ->map(fn (string $metricType) => $this->resolveRule($roleNames, $metricType, $login))
             ->filter()
             ->values();
 
@@ -81,6 +109,54 @@ class TalentoWeeklyRuleEvaluationService
             ->map(fn (TalentoWeeklyRule $rule) => $this->evaluateUnaRegla($colaborador, $user, $week, $rule))
             ->filter()
             ->values();
+    }
+
+    /**
+     * Cómo va la semana EN CURSO contra el mínimo de cada regla que le aplica (aviso del jueves de
+     * la app, 3-nov-2026). Solo lee: no crea evaluaciones ni toca el pago. Mide igual que el
+     * cierre del domingo (resolveRule + medirUnidades) y deja fuera calidad_senal, que cuenta
+     * fallas, no trabajo hecho.
+     *
+     * @return array<int, array{metrica: string, regla: ?string, unidad: string, actual: int, minimo: int}>
+     */
+    public function avanceEnCurso(TalentoColaborador $colaborador): array
+    {
+        $user = $colaborador->user;
+        if (! $user) {
+            return [];
+        }
+
+        $roleNames = $this->rolesDeNegocio($user);
+        $week = PayWeek::current();
+        $avance = [];
+
+        foreach (TalentoWeeklyRule::active()->distinct()->pluck('metric_type') as $metricType) {
+            if ($metricType === 'calidad_senal') {
+                continue;
+            }
+            $rule = $this->resolveRule($roleNames, $metricType, $user->login_user);
+            if (! $rule) {
+                continue;
+            }
+
+            [$prospects, $sales] = $this->medirUnidades($metricType, $user, $colaborador, $week);
+
+            if ($rule->min_prospects !== null) {
+                $avance[] = ['metrica' => $metricType, 'regla' => $rule->name, 'unidad' => 'prospectos',
+                    'actual' => (int) $prospects, 'minimo' => (int) $rule->min_prospects];
+            }
+            if ($rule->min_sales !== null) {
+                $unidad = match ($metricType) {
+                    'tecnico' => 'puntos',
+                    'mostrador' => 'pagos registrados',
+                    default => 'ventas',
+                };
+                $avance[] = ['metrica' => $metricType, 'regla' => $rule->name, 'unidad' => $unidad,
+                    'actual' => (int) $sales, 'minimo' => (int) $rule->min_sales];
+            }
+        }
+
+        return $avance;
     }
 
     private function evaluateUnaRegla(TalentoColaborador $colaborador, User $user, array $week, ?TalentoWeeklyRule $rule): ?TalentoWeeklyRuleEvaluation
@@ -120,7 +196,7 @@ class TalentoWeeklyRuleEvaluationService
             'prospects_count'  => $prospects,
             'sales_count'      => $sales,
             'evaluated_at'     => now(),
-        ];
+        ] + $this->metaRef($rule, $week);
 
         $belowFloor = ($rule->min_prospects !== null && $prospects < $rule->min_prospects)
             || ($rule->min_sales !== null && $sales < $rule->min_sales);
@@ -149,6 +225,26 @@ class TalentoWeeklyRuleEvaluationService
         }
 
         return TalentoWeeklyRuleEvaluation::create($base + ['outcome' => 'meets_quota']);
+    }
+
+    /**
+     * UNI-T M2d: meta/versión vigente (mínimo semanal del eje de la regla) que acompañó a la evaluación.
+     * Apagado (metas_m2=false) devuelve [] y la fila queda byte a byte como antes. Solo anota: no altera el resultado.
+     */
+    private function metaRef(TalentoWeeklyRule $rule, array $week): array
+    {
+        if (! config('unificacion.metas_m2')) {
+            return [];
+        }
+        $roles = TalentoWeeklyRule::normalizeRoles($rule->roles ?? []);
+        sort($roles);
+        $meta = app(MetaService::class)->resolver(
+            'minimo_semanal_'.$rule->metric_type,
+            $roles ? ['rol' => implode('+', $roles)] : [],
+            $week['period_end']
+        );
+
+        return $meta ? ['meta_id' => $meta->id, 'meta_version' => $meta->version] : [];
     }
 
     /**
@@ -183,7 +279,7 @@ class TalentoWeeklyRuleEvaluationService
             'week_end'         => $week['period_end'],
             'prospects_count'  => 0,
             'evaluated_at'     => now(),
-        ];
+        ] + $this->metaRef($rule, $week);
 
         if ($logs->isEmpty()) {
             return TalentoWeeklyRuleEvaluation::create($base + ['sales_count' => 0, 'outcome' => 'sin_datos']);
@@ -245,7 +341,22 @@ class TalentoWeeklyRuleEvaluationService
             return;
         }
 
-        TalentoLedgerEntry::create([
+        // UNI-T I5 (#1056): compatibilidad con otros incentivos (motor único de main). Apagado = como hoy.
+        if (config('unificacion.interruptores.bono_semanal_compat_i5', false)) {
+            $compat = app(\App\Services\IncentiveCompatibilityService::class);
+            $userId = TalentoColaborador::whereKey($eval->colaborador_id)->value('user_id');
+            $previos = $compat->otorgadosPrevios(
+                'talento',
+                $userId ? (int) $userId : null,
+                Carbon::parse($eval->week_start)->toDateString(),
+                Carbon::parse($eval->week_end)->toDateString()
+            );
+            if (! $compat->aplicable('talento', $previos)) {
+                return;
+            }
+        }
+
+        TalentoLedgerEntry::registrar([
             'colaborador_id' => $eval->colaborador_id,
             'type'           => 'credit',
             'concept'        => 'bonus',
@@ -267,15 +378,17 @@ class TalentoWeeklyRuleEvaluationService
      * el segundo (reusando la columna sales_count), dejando prospects en 0
      * porque no aplica.
      *
-     * 'tecnico' reusa EXACTO el mismo criterio que ya le muestra el propio
-     * colaborador en "Mi progreso" (DashboardService::calidadTecnico():
-     * status completed/validated, por created_at) — la regla de la fase 2
-     * nunca puede medir un número distinto al que la fase 1 ya le enseña,
-     * o el colaborador vería dos cifras divergentes del mismo trabajo.
+     * 'tecnico' cuenta lo MISMO que el pago: los puntos de trabajos validados
+     * dentro de la ventana PayWeek (Sáb 18:00 → Sáb 18:00), vía
+     * LiquidationService::countBillableUnits(), el punto único que ya comparten la
+     * liquidación y el desglose de "Mi dinero". Antes contaba órdenes completadas
+     * por fecha de creación y la cuota del pago son puntos validados: con 36 de
+     * piso en las dos, un técnico podía quedar penalizado por producir poco y a la
+     * vez cobrar sobreproducción (2026-10-20, se decidió alinear la regla al pago).
      * 'mostrador' reusa igual el criterio de DashboardService::
      * progresoMostrador() (pagos con add_by = este usuario, por created_at).
      *
-     * ⚠️ $week['period_start']/['period_end'] son strings de FECHA sola
+     * ⚠️ (Para 'mostrador' y 'ventas'.) $week['period_start']/['period_end'] son strings de FECHA sola
      * ('Y-m-d', para las columnas week_start/week_end), NO los instantes
      * precisos del corte de PayWeek (start_instant/end_instant, Sáb 18:00).
      * whereBetween() con esas fechas desnudas interpretaría el límite
@@ -289,12 +402,13 @@ class TalentoWeeklyRuleEvaluationService
     private function medirUnidades(string $metricType, User $user, TalentoColaborador $colaborador, array $week): array
     {
         if ($metricType === 'tecnico') {
-            $completados = (int) TalentoWorkOrder::where('colaborador_id', $colaborador->id)
-                ->whereIn('status', ['completed', 'validated'])
-                ->whereDate('created_at', '>=', $week['period_start'])
-                ->whereDate('created_at', '<=', $week['period_end'])
-                ->count();
-            return [0, $completados];
+            // Mismos instantes del corte que la liquidación; si llega una semana solo
+            // con fechas, se rearma igual que lo hace el cálculo del pago.
+            $window = isset($week['start_instant'], $week['end_instant'])
+                ? $week
+                : PayWeek::boundsFor(Carbon::parse($week['period_start'])->addDay());
+            $puntos = app(LiquidationService::class)->countBillableUnits($colaborador->id, $window)['total'];
+            return [0, (int) $puntos];
         }
 
         if ($metricType === 'mostrador') {
@@ -318,14 +432,20 @@ class TalentoWeeklyRuleEvaluationService
      * filtro por metric_type es lo que permite que un técnico tenga a la vez
      * una regla de cantidad Y una de calidad activas sin pisarse.
      */
-    private function resolveRule(array $roleNames, string $metricType): ?TalentoWeeklyRule
+    private function resolveRule(array $roleNames, string $metricType, ?string $loginUser = null, ?bool $aislar = null): ?TalentoWeeklyRule
     {
         $userRoles = TalentoWeeklyRule::normalizeRoles($roleNames);
 
         $candidate = null;
         $candidateSize = -1;
 
+        $aislarDemo = ($aislar ?? config('unificacion.interruptores.reglas_demo_aisladas', false))
+            && !self::esCuentaDemo($loginUser);
+
         foreach (TalentoWeeklyRule::active()->where('metric_type', $metricType)->get() as $rule) {
+            if ($aislarDemo && self::esReglaDemo($rule)) {
+                continue; // regla DEMO: no aplica a cuentas operativas
+            }
             $ruleRoles = TalentoWeeklyRule::normalizeRoles($rule->roles ?? []);
             if (empty($ruleRoles)) {
                 continue;

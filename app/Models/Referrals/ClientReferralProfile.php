@@ -2,7 +2,7 @@
 
 namespace App\Models\Referrals;
 
-use App\Models\Client;
+use App\Modules\Core\Clientes\Models\Client;
 use App\Modules\Core\Clientes\Models\Client as ClientModel;
 use App\Traits\BelongsToClientTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;

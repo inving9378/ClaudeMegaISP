@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Flotas\Controllers;
 
 use App\Modules\Addons\Flotas\Models\FleetDevice;
 use App\Modules\Addons\Flotas\Models\FleetVehicle;
+use App\Modules\Addons\Flotas\Services\FleetGpsDeviceService;
 use App\Modules\Addons\Flotas\Services\FleetPositionService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -18,7 +19,7 @@ class FleetGpsController extends FleetBaseController
     // GET /flotas/api/gps/flota — última posición de todos los vehículos con GPS (mapa global)
     public function fleet(): JsonResponse
     {
-        $this->authorize('fleet.gps.view');
+        $this->autorizar('fleet.gps.view');
 
         return response()->json([
             'vehicles' => $this->positions->getCurrentPositions($this->clientId())->values(),
@@ -28,7 +29,7 @@ class FleetGpsController extends FleetBaseController
     // GET /flotas/api/vehiculos/{id}/gps — estado actual + dispositivo + estadísticas de hoy
     public function status(int $id): JsonResponse
     {
-        $this->authorize('fleet.gps.view');
+        $this->autorizar('fleet.gps.view');
 
         $vehicle = FleetVehicle::forClient($this->clientId())->findOrFail($id);
         $device  = FleetDevice::where('vehicle_id', $vehicle->id)->first();
@@ -46,7 +47,7 @@ class FleetGpsController extends FleetBaseController
     // GET /flotas/api/vehiculos/{id}/gps/history?from=&to=
     public function history(Request $request, int $id): JsonResponse
     {
-        $this->authorize('fleet.gps.view');
+        $this->autorizar('fleet.gps.view');
 
         $vehicle = FleetVehicle::forClient($this->clientId())->findOrFail($id);
 
@@ -73,56 +74,19 @@ class FleetGpsController extends FleetBaseController
     // POST /flotas/api/vehiculos/{id}/gps/device — activa tracking registrando el dispositivo
     public function activateDevice(Request $request, int $id): JsonResponse
     {
-        $this->authorize('fleet.gps.manage');
+        $this->autorizar('fleet.gps.manage');
 
         $vehicle = FleetVehicle::forClient($this->clientId())->findOrFail($id);
 
-        $data = $request->validate([
-            'brand'       => 'required|in:ruptela,concox,gt06_generic,mock',
-            'model'       => 'nullable|string|max:100',
-            'imei'        => 'required|string|max:20|unique:fleet_devices,imei',
-            'sim_number'  => 'nullable|string|max:20',
-            'sim_carrier' => 'nullable|string|max:50',
-        ]);
+        $r = app(FleetGpsDeviceService::class)->vincular($vehicle, $request->all(), true);
 
-        // Un dispositivo físico (no mock) arranca en 'pending_first_connection':
-        // el listener TCP lo pasará a 'active' cuando se conecte por primera vez (Sub-fase 2.3a).
-        $isMock = $data['brand'] === 'mock';
-
-        $device = FleetDevice::create([
-            'vehicle_id'   => $vehicle->id,
-            'imei'         => $data['imei'],
-            'brand'        => $data['brand'],
-            'model'        => $data['model'] ?? null,
-            'sim_number'   => $data['sim_number'] ?? null,
-            'sim_carrier'  => $data['sim_carrier'] ?? null,
-            'status'       => $isMock ? 'active' : 'pending_first_connection',
-            'installed_at' => now(),
-        ]);
-
-        $vehicle->update([
-            'has_gps'     => true,
-            'gps_brand'   => $data['brand'],
-            'gps_model'   => $data['model'] ?? null,
-            'gps_imei'    => $data['imei'],
-            'gps_sim'     => $data['sim_number'] ?? null,
-            'gps_carrier' => $data['sim_carrier'] ?? null,
-        ]);
-
-        // Instrucciones para apuntar el dispositivo físico al listener TCP.
-        $listener = $isMock ? null : [
-            'ip'   => config('gps.listener_public_ip'),
-            'port' => 5027,
-            'protocol' => 'TCP',
-        ];
-
-        return response()->json(['ok' => true, 'device' => $device, 'listener' => $listener], 201);
+        return response()->json(['ok' => true, 'device' => $r['device'], 'listener' => $r['listener']], 201);
     }
 
     // GET /flotas/api/vehiculos/{id}/geofence-events?limit=20 — últimos eventos de geocercas
     public function geofenceEvents(Request $request, int $id): JsonResponse
     {
-        $this->authorize('fleet.geofences.view');
+        $this->autorizar('fleet.geofences.view');
 
         $vehicle = FleetVehicle::forClient($this->clientId())->findOrFail($id);
         $limit = min(100, max(1, (int) $request->input('limit', 20)));

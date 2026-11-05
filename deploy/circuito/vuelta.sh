@@ -14,6 +14,15 @@ export PATH="/home/meganet/.local/bin:/usr/local/bin:/usr/bin:/bin"
 # solo para esta invocación (no toca el .env ni el runtime de la app).
 unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_API_KEY
 
+# #1077 — CONSTANCIA DE COBRO. Tras el unset, solo queda otra vía por la que `claude -p` se cobraría
+# por API: una llave/apiKeyHelper en los settings de la CLI. Se revisa en cada arranque y se
+# registra en circuito_ejecuciones.cobro (suscripcion|api). Si es "api" se avisa en el log.
+COBRO="suscripcion"
+for _s in "$HOME/.claude/settings.json" "$HOME/.claude/settings.local.json"; do
+  if [ -r "$_s" ] && grep -aqE '"(apiKeyHelper|ANTHROPIC_API_KEY|ANTHROPIC_AUTH_TOKEN|CLAUDE_API_KEY)"' "$_s"; then COBRO="api"; fi
+done
+[ -r "$HOME/.claude/.credentials.json" ] || COBRO="desconocido"
+
 PROJ="/var/www/megaisp"
 RUNTIME="/home/meganet/circuito"
 LOGDIR="$RUNTIME/logs"
@@ -105,6 +114,7 @@ PAUSED="$(printf '%s\n' "$FLAGS" | sed -n 's/^pausado=//p')"
 MODO="$(printf '%s\n' "$FLAGS" | sed -n 's/^modo=//p')"
 MODELO_FLAG="$(printf '%s\n' "$FLAGS" | sed -n 's/^modelo=//p')"
 MODEL="${CIRCUITO_MODEL:-${MODELO_FLAG:-sonnet}}"   # #336: settings circuito_modelo_rutina/forzar; CIRCUITO_MODEL manda si viene.
+[ "$COBRO" = "suscripcion" ] || log "ALERTA #1077: cobro=$COBRO — la vuelta podría cobrarse por API, no por la suscripción."
 log "flags: pausado=${PAUSED:-?} modo=${MODO:-?} modelo=${MODEL:-?}"
 
 # ── REGISTRO DE PROCESOS DEL CIRCUITO (vigilancia de Jarvis) ────────────────────────────────
@@ -176,7 +186,7 @@ trap limpiar_al_salir EXIT
 registrar(){  # started finished modo pausado rc meta modelo
   php artisan circuito:registrar-ejecucion \
     --started="$1" --finished="$2" --modo="$3" --pausado="$4" --rc="$5" \
-    --log="$LOG" --meta="$6" --modelo="${7:-}" >>"$LOG" 2>&1 || log "aviso: no se pudo registrar la ejecución."
+    --log="$LOG" --meta="$6" --modelo="${7:-}" --cobro="${COBRO:-desconocido}" --api-key-source="${API_SRC:-}" --num-turns="${NUM_TURNS:-}" --costo-usd="${COSTO_USD:-}" >>"$LOG" 2>&1 || log "aviso: no se pudo registrar la ejecución."
 }
 
 # El centinela manda sobre el flag de base: existe para funcionar cuando la base NO contesta, así
@@ -294,12 +304,25 @@ ejecutar_una() {
   php artisan circuito:vivo --watch --sid="$SID" --log="$LOG" >/dev/null 2>&1 &
   HB_PID=$!
 
+  # #1117 — stream-json: el JSON crudo va a $LOG.jsonl (de ahí salen apiKeySource, num_turns y
+  # total_cost_usd) y el TEXTO se vuelca a $LOG como siempre, en vivo, porque el resto del script
+  # (CIRCUITO_META, 'Reached max turns', 'session limit', circuito:vivo --watch) lee el LOG como texto.
+  local JSONL="$LOG.jsonl"; : >"$JSONL"
   timeout -k "$GRACE" "$TIMEOUT" claude -p "$PROMPT_TEXT" \
     --model "$MODEL" \
     --allowed-tools $TOOLS \
     --max-turns "$MAXTURNS" \
-    >>"$LOG" 2>&1
-  RC=$?
+    --output-format stream-json --verbose \
+    2>>"$LOG" | tee -a "$JSONL" | jq -Rr --unbuffered 'fromjson? | (
+        if .type=="assistant" then (.message.content[]? | if .type=="text" then .text elif .type=="tool_use" then "[tool] \(.name)" else empty end)
+        elif .type=="result" then (if .subtype=="error_max_turns" then "Reached max turns" else empty end), (.result // empty)
+        else empty end)' >>"$LOG" 2>&1
+  RC=${PIPESTATUS[0]}
+  # Telemetría de la vuelta (solo el NOMBRE de la fuente de la llave, jamás un valor).
+  API_SRC="$(jq -Rr 'fromjson? | select(.type=="system" and .subtype=="init") | .apiKeySource // empty' "$JSONL" 2>/dev/null | head -1)"
+  NUM_TURNS="$(jq -Rr 'fromjson? | select(.type=="result") | .num_turns // empty' "$JSONL" 2>/dev/null | tail -1)"
+  COSTO_USD="$(jq -Rr 'fromjson? | select(.type=="result") | .total_cost_usd // empty' "$JSONL" 2>/dev/null | tail -1)"
+  case "$API_SRC" in ""|none|oauth|OAuth) ;; *) log "ALARMA: apiKeySource='$API_SRC' (no es suscripción) — esta vuelta se cobró por API."; COBRO="api";; esac
   FIN="$(date +%s)"
 
   if [ -n "${HB_PID:-}" ]; then kill "$HB_PID" 2>/dev/null; wait "$HB_PID" 2>/dev/null; fi
@@ -370,6 +393,12 @@ ejecutar_una() {
   fi
 
   registrar "$START" "$FIN" "${MODO:-aviso_previo}" "0" "$RC" "$META" "$MODEL"
+
+  # #1078 — si claude -p terminó bien pero el item sigue reclamado por esta vuelta, se decide AQUÍ
+  # (paraguas / avanzó / «Esperan tu decisión»), no al minuto siguiente devolviéndolo a la cola.
+  # Desde el checkout principal por la misma razón que soltar-claim (#927b).
+  (cd "$PROJ" && php artisan circuito:cerrar-vuelta "$ITEM" --sid="$SID" --rc="$RC" --inicio="$START" --log="$LOG") >>"$LOG" 2>&1 \
+    || log "aviso: no se pudo cerrar la vuelta de #$ITEM."
 }
 
 if [ -n "$ITEM" ]; then

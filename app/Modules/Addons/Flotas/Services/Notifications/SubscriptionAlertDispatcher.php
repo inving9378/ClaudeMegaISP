@@ -7,6 +7,7 @@ use App\Modules\Addons\Hub\Services\Servicios;
 use App\Models\User;
 use App\Modules\Addons\Flotas\Models\FleetSubscription;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -14,6 +15,11 @@ use Illuminate\Support\Facades\Log;
  * su trial de Flotas (item #288). Independiente de FleetNotificationDispatcher
  * (geocercas) y DocumentAlertDispatcher (documentos) — mismo patrón de transporte
  * (Mail + WhatsAppProviderFactory por company_id), sin dispatcher/log compartido.
+ *
+ * Item #624: el destinatario PRINCIPAL es el cliente (email/teléfonos de su ficha,
+ * client_main_information; el cliente no tiene usuario de panel). El personal con
+ * fleet.subscriptions.manage recibe copia con el texto en tercera persona. El aviso
+ * se manda SIEMPRE, aunque el cliente haya hecho el alta en el portal (constancia).
  */
 class SubscriptionAlertDispatcher
 {
@@ -23,27 +29,71 @@ class SubscriptionAlertDispatcher
     public function dispatchTrialReminder(FleetSubscription $sub, string $eventType, int $daysLeft): array
     {
         $companyId  = (int) ($sub->client_id ?? 1);
-        $recipients = $this->resolveRecipients($companyId);
+        $asunto = $sub->is_promo
+            ? 'Meganet Flotas — tu promoción gratis está por terminar'
+            : 'Meganet Flotas — tu prueba está por vencer';
 
-        if ($recipients->isEmpty()) {
-            Log::info("Flotas SubscriptionAlert: sin destinatarios para company {$companyId}.");
-            return [];
+        return $this->send($sub, $this->message($sub, $eventType, $daysLeft), $asunto);
+    }
+
+    /** Aviso de cambio de bloque (#621): mismos destinatarios y transporte que los avisos de prueba. */
+    public function dispatchBlockChange(FleetSubscription $sub, string $mensaje): array
+    {
+        return $this->send($sub, $mensaje . ' Detalle: ' . url('/portal/flotas'), 'Meganet Flotas — cambio de bloque');
+    }
+
+    /** Cliente (principal, texto en 2ª persona + liga al portal) y personal (copia). */
+    private function send(FleetSubscription $sub, string $mensaje, string $asunto): array
+    {
+        $companyId = (int) ($sub->client_id ?? 1);
+        $results   = [];
+
+        foreach ($this->clientContacts($sub) as $c) {
+            $texto     = $mensaje;
+            $results[] = $this->sendEmail($texto, $asunto, $c['email'], null);
+            $results[] = $this->sendWhatsapp($texto, $c['phone'], $companyId, null);
         }
 
-        $results = [];
-        foreach ($recipients as $user) {
-            $results[] = $this->sendEmail($sub, $eventType, $daysLeft, $user);
-            $results[] = $this->sendWhatsapp($sub, $eventType, $daysLeft, $user, $companyId);
+        $copia = 'Cliente #' . $sub->client_id . ': ' . $mensaje . ' ' . url('/flotas/suscripciones');
+        foreach ($this->resolveRecipients($companyId) as $user) {
+            $results[] = $this->sendEmail($copia, $asunto, $user->email, $user->id);
+            $results[] = $this->sendWhatsapp($copia, $user->phone, $companyId, $user->id);
         }
 
         return $results;
     }
 
+    /** Contactos de la ficha del cliente: un email y los teléfonos (phone, phone2, phone3). */
+    private function clientContacts(FleetSubscription $sub): array
+    {
+        if ($sub->client_id === null) {
+            return [];
+        }
+        $row = DB::table('client_main_information')->where('client_id', $sub->client_id)->first(['email', 'phone', 'phone2', 'phone3']);
+        if (! $row) {
+            return [];
+        }
+        $contacts = [['email' => $row->email, 'phone' => null]];
+        $vistos   = [];
+        foreach ([$row->phone, $row->phone2, $row->phone3] as $tel) {
+            $d = preg_replace('/[^0-9]/', '', (string) $tel);
+            if ($d !== '' && ! isset($vistos[$d])) {
+                $vistos[$d] = true;
+                $contacts[] = ['email' => null, 'phone' => $d];
+            }
+        }
+        return $contacts;
+    }
+
     private function message(FleetSubscription $sub, string $eventType, int $daysLeft): string
     {
         $plan     = $sub->plan_name ?? $sub->plan;
-        $url      = url('/flotas/suscripciones');
+        $url      = url('/portal/flotas');
         $diasText = $daysLeft <= 0 ? 'HOY' : "en {$daysLeft} día(s)";
+
+        if ($sub->is_promo) {
+            return "🔔 Tu promoción gratis de Flotas ({$plan}) termina {$diasText}. A partir de entonces el servicio empieza a cobrarse dentro de tu factura mensual. Detalle: {$url}";
+        }
 
         if ($eventType === 'trial_expiring') {
             return "⚠️ Tu prueba de Flotas ({$plan}) vence {$diasText}. Configura tu método de pago para no perder acceso: {$url}";
@@ -52,38 +102,37 @@ class SubscriptionAlertDispatcher
         return "🔔 Tu prueba de Flotas ({$plan}) vence {$diasText}. Configura tu método de pago para continuar sin interrupciones: {$url}";
     }
 
-    private function sendEmail(FleetSubscription $sub, string $eventType, int $daysLeft, User $user): array
+    private function sendEmail(string $body, string $subject, ?string $email, ?int $userId): array
     {
-        $email = trim((string) ($user->email ?? ''));
+        $email = trim((string) $email);
         if ($email === '') {
-            return ['channel' => 'email', 'user_id' => $user->id, 'status' => 'skipped', 'recipient' => null, 'error' => 'Usuario sin email'];
+            return ['channel' => 'email', 'user_id' => $userId, 'status' => 'skipped', 'recipient' => null, 'error' => 'Sin email'];
         }
 
         try {
-            $body = $this->message($sub, $eventType, $daysLeft);
-            Correo::mailer('flotas.correo')->raw($body, function ($message) use ($email) {
-                $message->to($email)->subject('Meganet Flotas — tu prueba está por vencer');
+            Correo::mailer('flotas.correo')->raw($body, function ($message) use ($email, $subject) {
+                $message->to($email)->subject($subject);
             });
-            return ['channel' => 'email', 'user_id' => $user->id, 'status' => 'sent', 'recipient' => $email, 'error' => null];
+            return ['channel' => 'email', 'user_id' => $userId, 'status' => 'sent', 'recipient' => $email, 'error' => null];
         } catch (\Throwable $e) {
-            Log::warning("Flotas SubscriptionAlert: email falló para user {$user->id}: {$e->getMessage()}");
-            return ['channel' => 'email', 'user_id' => $user->id, 'status' => 'failed', 'recipient' => $email, 'error' => mb_substr($e->getMessage(), 0, 1000)];
+            Log::warning("Flotas SubscriptionAlert: email falló para destino {$userId}: {$e->getMessage()}");
+            return ['channel' => 'email', 'user_id' => $userId, 'status' => 'failed', 'recipient' => $email, 'error' => mb_substr($e->getMessage(), 0, 1000)];
         }
     }
 
-    private function sendWhatsapp(FleetSubscription $sub, string $eventType, int $daysLeft, User $user, int $companyId): array
+    private function sendWhatsapp(string $body, ?string $phone, int $companyId, ?int $userId): array
     {
-        $phone = preg_replace('/[^0-9]/', '', (string) ($user->phone ?? ''));
+        $phone = preg_replace('/[^0-9]/', '', (string) $phone);
         if ($phone === '') {
-            return ['channel' => 'whatsapp', 'user_id' => $user->id, 'status' => 'skipped', 'recipient' => null, 'error' => 'Usuario sin teléfono'];
+            return ['channel' => 'whatsapp', 'user_id' => $userId, 'status' => 'skipped', 'recipient' => null, 'error' => 'Sin teléfono'];
         }
 
         try {
-            Servicios::whatsapp('flotas.suscripciones', $companyId)->sendText($phone, $this->message($sub, $eventType, $daysLeft));
-            return ['channel' => 'whatsapp', 'user_id' => $user->id, 'status' => 'sent', 'recipient' => $phone, 'error' => null];
+            Servicios::whatsapp('flotas.suscripciones', $companyId)->sendText($phone, $body);
+            return ['channel' => 'whatsapp', 'user_id' => $userId, 'status' => 'sent', 'recipient' => $phone, 'error' => null];
         } catch (\Throwable $e) {
-            Log::warning("Flotas SubscriptionAlert: WhatsApp falló para user {$user->id}: {$e->getMessage()}");
-            return ['channel' => 'whatsapp', 'user_id' => $user->id, 'status' => 'failed', 'recipient' => $phone, 'error' => mb_substr($e->getMessage(), 0, 1000)];
+            Log::warning("Flotas SubscriptionAlert: WhatsApp falló para destino {$userId}: {$e->getMessage()}");
+            return ['channel' => 'whatsapp', 'user_id' => $userId, 'status' => 'failed', 'recipient' => $phone, 'error' => mb_substr($e->getMessage(), 0, 1000)];
         }
     }
 

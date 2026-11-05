@@ -14,7 +14,7 @@
         </a>
       </li>
       <li class="nav-item" v-if="canManage">
-        <a class="nav-link" :class="{ active: tab === 'admin' }" href="#" @click.prevent="tab='admin'">
+        <a class="nav-link" :class="{ active: tab === 'admin' }" href="#" @click.prevent="tab='admin'; loadAdminCourses()">
           <i class="fa fa-cog me-1"></i>Admin
         </a>
       </li>
@@ -205,14 +205,7 @@
 
       <!-- Lista de cursos (catálogo) -->
       <template v-else>
-        <div class="d-flex gap-2 mb-3 flex-wrap">
-          <select v-model="catFilter" @change="loadCourses" class="form-select form-select-sm tc-select" style="width:180px">
-            <option value="">Todos los departamentos</option>
-            <option value="técnicos">Técnicos</option>
-            <option value="general">General</option>
-            <option value="admin">Admin</option>
-          </select>
-        </div>
+        <p class="small text-muted mb-3">Los cursos generales y los de tu puesto.</p>
         <div v-if="loadingCourses" class="text-center py-5"><div class="spinner-border text-primary"></div></div>
         <div v-else class="row g-3">
           <div v-for="c in courses" :key="c.id" class="col-md-4 col-lg-3">
@@ -222,7 +215,7 @@
                   <h6 class="card-title mb-0 small fw-semibold">{{ c.title }}</h6>
                   <span v-if="myCertMap[c.id]" class="tc-status is-ok ms-1" style="white-space:nowrap"><i class="fa fa-medal"></i></span>
                 </div>
-                <div v-if="c.department" class="tc-status small mb-2" :class="departmentVariant(c.department)">{{ c.department }}</div>
+                <div class="tc-status small mb-2" :class="paraVariant(c)">{{ paraTexto(c) }}</div>
                 <p v-if="c.description" class="card-text small text-muted" style="font-size:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">{{ c.description }}</p>
               </div>
               <div class="card-footer p-1">
@@ -286,12 +279,13 @@
       </div>
 
       <div class="accordion" id="coursesAccordion">
-        <div v-for="c in courses" :key="c.id" class="accordion-item mb-2 shadow-sm">
+        <div v-if="loadingAdmin" class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+        <div v-for="c in adminCourses" :key="c.id" class="accordion-item mb-2 shadow-sm">
           <h2 class="accordion-header">
             <button class="accordion-button collapsed py-2" type="button"
                     data-bs-toggle="collapse" :data-bs-target="`#acc-${c.id}`">
               <span class="fw-semibold me-2">{{ c.title }}</span>
-              <span class="tc-status small me-2" :class="c.department ? departmentVariant(c.department) : 'is-slate'">{{ c.department ?? 'sin depto' }}</span>
+              <span class="tc-status small me-2" :class="paraVariant(c)">{{ paraTexto(c) }}</span>
               <span class="tc-status" :class="c.active ? 'is-ok' : 'is-slate'">{{ c.active ? 'Activo' : 'Inactivo' }}</span>
             </button>
           </h2>
@@ -358,8 +352,26 @@
                 <input v-model="courseModal.title" type="text" class="form-control"></div>
               <div class="col-12"><label class="form-label">Descripción</label>
                 <textarea v-model="courseModal.description" class="form-control form-control-sm" rows="2"></textarea></div>
-              <div class="col-md-6"><label class="form-label">Departamento</label>
-                <input v-model="courseModal.department" type="text" class="form-control form-control-sm" placeholder="técnicos, general, admin…"></div>
+              <!-- Para quién (2026-10-24): general = todos; si no, solo los roles marcados. -->
+              <div class="col-12">
+                <label class="form-label">Para quién</label>
+                <div class="d-flex flex-wrap gap-3 mb-2">
+                  <div class="form-check">
+                    <input v-model="courseModal.general" :value="true" type="radio" class="form-check-input" id="cpara-todos">
+                    <label for="cpara-todos" class="form-check-label small">General (para todos)</label>
+                  </div>
+                  <div class="form-check">
+                    <input v-model="courseModal.general" :value="false" type="radio" class="form-check-input" id="cpara-roles">
+                    <label for="cpara-roles" class="form-check-label small">Solo estos roles</label>
+                  </div>
+                </div>
+                <div v-if="!courseModal.general" class="d-flex flex-wrap gap-3 ps-1">
+                  <div v-for="r in rolesCurso" :key="r.rol" class="form-check">
+                    <input v-model="courseModal.roles" :value="r.rol" type="checkbox" class="form-check-input" :id="`crol-${r.rol}`">
+                    <label :for="`crol-${r.rol}`" class="form-check-label small">{{ r.etiqueta }}</label>
+                  </div>
+                </div>
+              </div>
               <div class="col-md-3"><label class="form-label">Orden</label>
                 <input v-model.number="courseModal.order" type="number" min="0" class="form-control form-control-sm"></div>
               <div class="col-md-3 d-flex align-items-end gap-2">
@@ -539,7 +551,9 @@ export default {
       canEvaluate: false,
 
       // Catálogo
-      courses: [], loadingCourses: true, catFilter: '',
+      courses: [], loadingCourses: true,
+      // Pestaña Admin: todos los cursos, no solo los de mi puesto (2026-10-24).
+      adminCourses: [], loadingAdmin: false, rolesCurso: [],
       courseDetail: null, loadingDetail: false,
       myCertMap: {},      // { course_id: bool }
       myBestAttempt: null,
@@ -564,7 +578,7 @@ export default {
       allStandards: [], allPenaltyTypes: [],
 
       // Modals
-      courseModal: { show:false, id:null, title:'', description:'', department:'', order:0, active:true, saving:false, error:'' },
+      courseModal: { show:false, id:null, title:'', description:'', general:true, roles:[], order:0, active:true, saving:false, error:'' },
       matModal: { show:false, courseId:null, type:'text', title:'', content:'', video_url:'',
                   reference_standard_id:null, reference_penalty_type_id:null, order:0, saving:false, error:'' },
       examModal: { show:false, courseId:null, examId:null, title:'', passing_score:70,
@@ -586,30 +600,32 @@ export default {
     if (this.canManage || this.canEvaluate) this.loadColaboradores();
   },
   methods: {
-    // ── Variante visual por departamento (pill distinguible por plaza) ────────
-    // Mapa fijo para los departamentos conocidos + fallback determinista (hash
-    // simple del texto) para cualquier departamento nuevo que se dé de alta a
-    // futuro, así nunca se ven dos plazas distintas con el mismo color por
-    // "no estar en la lista".
-    departmentVariant(dept) {
-      if (!dept) return 'is-slate';
-      const known = { 'técnicos': 'is-info', 'tecnicos': 'is-info', 'general': 'is-accent' };
-      const key = dept.toLowerCase();
-      if (known[key]) return known[key];
-      const variants = ['is-warn', 'is-ok', 'is-bad', 'is-slate', 'is-info', 'is-accent'];
-      let hash = 0;
-      for (let i = 0; i < dept.length; i++) hash = (hash * 31 + dept.charCodeAt(i)) >>> 0;
-      return variants[hash % variants.length];
-    },
     // ── Data loading ────────────────────────────────────────────────────────
     async loadCourses() {
       this.loadingCourses = true;
       try {
-        const params = this.catFilter ? { department: this.catFilter, active_only: 1 } : { active_only: 1 };
-        const { data } = await axios.get('/talento/api/courses', { params });
+        const { data } = await axios.get('/talento/api/courses', { params: { active_only: 1 } });
         this.courses = data ?? [];
-        if (this.tab === 'admin') await this.loadAllMaterials();
       } finally { this.loadingCourses = false; }
+    },
+    async loadAdminCourses() {
+      this.loadingAdmin = true;
+      try {
+        const { data } = await axios.get('/talento/api/courses', { params: { active_only: 1, todos: 1 } });
+        this.adminCourses = data ?? [];
+        await this.loadAllMaterials();
+      } finally { this.loadingAdmin = false; }
+    },
+    async loadRolesCurso() {
+      if (this.rolesCurso.length) return;
+      const { data } = await axios.get('/talento/api/courses-roles');
+      this.rolesCurso = data ?? [];
+    },
+    paraTexto(c) {
+      return c.roles?.length ? 'Para: ' + c.para : 'general';
+    },
+    paraVariant(c) {
+      return c.roles?.length ? 'is-info' : 'is-accent';
     },
     async loadMyCertMap() {
       try {
@@ -653,7 +669,7 @@ export default {
       this.colaboradores = data?.data ?? [];
     },
     async loadAllMaterials() {
-      for (const c of (this.courses ?? [])) {
+      for (const c of (this.adminCourses ?? [])) {
         const { data } = await axios.get(`/talento/api/courses/${c.id}`);
         this.adminMaterials[c.id] = data?.materials ?? [];
       }
@@ -732,23 +748,28 @@ export default {
 
     // ── Admin ───────────────────────────────────────────────────────────────
     openNewCourse() {
-      this.courseModal = { show:true, id:null, title:'', description:'', department:'', order:0, active:true, saving:false, error:'' };
+      this.loadRolesCurso();
+      this.courseModal = { show:true, id:null, title:'', description:'', general:true, roles:[], order:0, active:true, saving:false, error:'' };
     },
     openEditCourse(c) {
+      this.loadRolesCurso();
       this.courseModal = { show:true, id:c.id, title:c.title, description:c.description??'',
-                           department:c.department??'', order:c.order, active:c.active, saving:false, error:'' };
+                           general:!c.roles?.length, roles:[...(c.roles ?? [])], order:c.order, active:c.active, saving:false, error:'' };
     },
     async saveCourse() {
       this.courseModal.error = '';
       if (!this.courseModal.title) { this.courseModal.error = 'El título es requerido.'; return; }
+      if (!this.courseModal.general && !this.courseModal.roles.length) { this.courseModal.error = 'Marca al menos un rol, o elige «General».'; return; }
       this.courseModal.saving = true;
       try {
         const payload = { title:this.courseModal.title, description:this.courseModal.description||null,
-                          department:this.courseModal.department||null, order:this.courseModal.order, active:this.courseModal.active };
+                          roles:this.courseModal.general ? null : this.courseModal.roles,
+                          order:this.courseModal.order, active:this.courseModal.active };
         if (this.courseModal.id) await axios.put(`/talento/api/courses/${this.courseModal.id}`, payload);
         else                     await axios.post('/talento/api/courses', payload);
         this.courseModal.show = false;
         this.loadCourses();
+        this.loadAdminCourses();
       } catch (e) {
         this.courseModal.error = e.response?.data?.message ?? 'Error.';
       } finally { this.courseModal.saving = false; }
@@ -770,7 +791,7 @@ export default {
           reference_penalty_type_id: this.matModal.reference_penalty_type_id,
         });
         this.matModal.show = false;
-        this.loadCourses();
+        this.loadAdminCourses();
       } catch (e) {
         this.matModal.error = e.response?.data?.message ?? 'Error.';
       } finally { this.matModal.saving = false; }
@@ -819,7 +840,7 @@ export default {
       } finally { q.saving = false; }
     },
     async viewColCerts(courseId) {
-      const course = this.courses.find(c => c.id === courseId);
+      const course = this.adminCourses.find(c => c.id === courseId);
       const { data } = await axios.get(`/talento/api/colaboradores/0/certifications`); // placeholder
       // Fetch all certs for the course via existing endpoint (we'll filter client-side)
       const allCerts = [];

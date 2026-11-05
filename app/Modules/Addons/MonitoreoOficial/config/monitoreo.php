@@ -17,7 +17,7 @@ return [
     |   true           → forzar la siembra aunque no sea operador (importación expresa).
     |   false          → vetar la siembra incluso en MEGANET.
     */
-    'auto_seed_demo' => env('MONITOREO_AUTOSEED_DEMO', null),
+    'auto_seed_demo' => null, // el entorno lo fija config/monitoreo.php (MONITOREO_AUTOSEED_DEMO)
 
     /*
     | Clave del módulo ante los servicios compartidos (IA / correo / WhatsApp) para

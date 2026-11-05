@@ -385,28 +385,21 @@ class DocumentTemplateService
     }
 
 
-    public function saveTemporalTemplateAndReturnPath($validation, $tempFilePath)
+    /**
+     * #600: la vista previa se guarda en disco PRIVADO (local) y se sirve por un endpoint con
+     * permiso ($urlBase . '/' . plantilla), ya no por /storage/ público.
+     */
+    public function saveTemporalTemplateAndReturnPath($validation, $tempFilePath, string $urlBase = '')
     {
         ini_set('memory_limit', '-1');
-        $directoryPath = dirname(storage_path('app/public/' . $tempFilePath));
-        if (!file_exists($directoryPath)) {
-            if (!mkdir($directoryPath, 0775, true) && !is_dir($directoryPath)) {
-                throw new \RuntimeException(sprintf('Directory "%s" was not created', $directoryPath));
-            }
-            // Asigna los permisos al directorio recién creado
-            chmod($directoryPath, 0775);
-        }
-
-        // Convertir la vista a PDF
         $html = str_replace('\n', '', $validation);
         $html = $this->wrapHtmlWithBaseStyles($html);
 
         $pdf = Pdf::loadHTML(\App\Support\ContractPdfTemplate::wrap($html));
-        $output = $pdf->output();
-        Storage::disk('public')->put($tempFilePath, $output);
+        Storage::disk('local')->put($tempFilePath, $pdf->output());
         return response()->json([
             'status' => 'ok',
-            'file_path' => '/storage/' . $tempFilePath
+            'file_path' => $urlBase . '/' . basename($tempFilePath, '.pdf'),
         ]);
     }
 

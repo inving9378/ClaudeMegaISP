@@ -97,6 +97,32 @@ class TalentoFieldFlowController extends Controller
         return $colaboradorId !== null && in_array($colaboradorId, $this->idsColaboradoresGestionables(), true);
     }
 
+    private function b5a(): bool
+    {
+        return (bool) config('unificacion.interruptores.acceso_registro_b5a');
+    }
+
+    /** B5a: con el interruptor encendido un id ajeno responde 404 (no filtra existencia); apagado, 403 como antes. */
+    private function denegar(): never
+    {
+        abort($this->b5a() ? 404 : 403);
+    }
+
+    /** B5a: pertenencia en las rutas que antes solo pedían permiso. Apagado = sin cambio. */
+    private function exigirVerFlujo($workOrderId): void
+    {
+        if ($this->b5a() && ! $this->puedeVerFlujoDe((int) $workOrderId)) {
+            abort(404);
+        }
+    }
+
+    private function exigirGestionarFlujo($workOrderId): void
+    {
+        if ($this->b5a() && ! $this->puedeGestionarFlujoDe((int) $workOrderId)) {
+            abort(404);
+        }
+    }
+
     // ── Vista admin del flujo ─────────────────────────────────────────────────
 
     public function index()
@@ -119,7 +145,7 @@ class TalentoFieldFlowController extends Controller
         // en FieldMediaService (marca de agua + distancia GPS).
         if (! auth()->user()->can('talento.media.upload')) {
             $this->authorize('talento.work_orders.view');
-            abort_unless($this->puedeVerFlujoDe((int) $workOrderId), 403);
+            if (! $this->puedeVerFlujoDe((int) $workOrderId)) { $this->denegar(); }
         }
 
         $data = $request->validate([
@@ -161,7 +187,7 @@ class TalentoFieldFlowController extends Controller
     public function listMedia($workOrderId)
     {
         $this->authorize('talento.media.view');
-        abort_unless($this->puedeVerFlujoDe((int) $workOrderId), 403);
+        if (! $this->puedeVerFlujoDe((int) $workOrderId)) { $this->denegar(); }
 
         $canViewSensitive = auth()->user()?->can('talento.media.view_sensitive');
 
@@ -202,6 +228,9 @@ class TalentoFieldFlowController extends Controller
             $this->authorize('talento.media.view');
         }
 
+        // #698: el permiso no basta — la evidencia solo la ve quien puede ver el flujo de esa orden
+        if (! $this->puedeVerFlujoDe((int) ($media->work_order_id ?: $media->tarea_id))) { $this->denegar(); }
+
         $path = $this->mediaService->resolvePath($media);
 
         if (!Storage::disk('local')->exists($path)) {
@@ -216,6 +245,7 @@ class TalentoFieldFlowController extends Controller
     public function runIaValidation($workOrderId)
     {
         $this->authorize('talento.ia_validation.view');
+        $this->exigirVerFlujo($workOrderId);
 
         $result = $this->iaService->validateOrder((int)$workOrderId);
 
@@ -236,7 +266,7 @@ class TalentoFieldFlowController extends Controller
     public function getIaValidation($workOrderId)
     {
         $this->authorize('talento.ia_validation.view');
-        abort_unless($this->puedeVerFlujoDe((int) $workOrderId), 403);
+        if (! $this->puedeVerFlujoDe((int) $workOrderId)) { $this->denegar(); }
 
         $validation = \App\Modules\Addons\Talento\Models\TalentoWorkOrderIaValidation
             ::where(FieldFlowEntity::fkColumn($workOrderId), $workOrderId)
@@ -257,7 +287,7 @@ class TalentoFieldFlowController extends Controller
         // (que ya tiene, para poder ver la OT) + el check fino de abajo.
         if (! auth()->user()->can('talento.field_flow.accept')) {
             $this->authorize('talento.work_orders.view');
-            abort_unless($this->puedeGestionarFlujoDe((int) $workOrderId), 403);
+            if (! $this->puedeGestionarFlujoDe((int) $workOrderId)) { $this->denegar(); }
         }
 
         $data = $request->validate([
@@ -289,7 +319,7 @@ class TalentoFieldFlowController extends Controller
     public function getSignatures($workOrderId)
     {
         $this->authorize('talento.signatures.view');
-        abort_unless($this->puedeVerFlujoDe((int) $workOrderId), 403);
+        if (! $this->puedeVerFlujoDe((int) $workOrderId)) { $this->denegar(); }
 
         $sigs = TalentoWorkOrderSignature::where(FieldFlowEntity::fkColumn($workOrderId), $workOrderId)->get(['id','signer_type','signed_at','signed_lat','signed_lng']);
         return response()->json($sigs);
@@ -304,7 +334,7 @@ class TalentoFieldFlowController extends Controller
         // el check fino (necesita ya poder VER la OT + ser su gestor).
         if (! auth()->user()->can('talento.field_flow.accept')) {
             $this->authorize('talento.work_orders.view');
-            abort_unless($this->puedeGestionarFlujoDe((int) $workOrderId), 403);
+            if (! $this->puedeGestionarFlujoDe((int) $workOrderId)) { $this->denegar(); }
         }
 
         $data = $request->validate([
@@ -329,6 +359,7 @@ class TalentoFieldFlowController extends Controller
     public function confirmActivation(Request $request, $workOrderId)
     {
         $this->authorize('talento.activations.manage');
+        $this->exigirGestionarFlujo($workOrderId);
 
         $data = $request->validate(['dispatch_olt' => 'boolean']);
 
@@ -346,6 +377,7 @@ class TalentoFieldFlowController extends Controller
     public function getActivation($workOrderId)
     {
         $this->authorize('talento.activations.manage');
+        $this->exigirVerFlujo($workOrderId);
 
         // work_order_id y tarea_id son secuencias de ids independientes — nunca
         // hacer OR entre ambas sin resolver primero el origen real, o dos filas
@@ -370,9 +402,16 @@ class TalentoFieldFlowController extends Controller
     public function onboard($workOrderId)
     {
         $this->authorize('talento.activations.manage');
+        $this->exigirGestionarFlujo($workOrderId);
 
         try {
             $result = $this->flowService->onboard((int)$workOrderId);
+            if ($this->b5a() && filled($result['temp_password'] ?? null)) {
+                activity('talento')
+                    ->causedBy(auth()->user())
+                    ->withProperties(['orden_id' => (int) $workOrderId, 'generada' => (bool) ($result['password_generada'] ?? false)])
+                    ->log('Alta de campo: se entregó la Contraseña WEB del cliente al técnico');
+            }
             return response()->json($result);
         } catch (\RuntimeException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
@@ -382,6 +421,7 @@ class TalentoFieldFlowController extends Controller
     public function submitSurvey(Request $request, $workOrderId)
     {
         $this->authorize('talento.survey.manage');
+        $this->exigirGestionarFlujo($workOrderId);
 
         $data = $request->validate([
             'rating_overall'      => 'nullable|integer|between:1,5',
@@ -398,6 +438,7 @@ class TalentoFieldFlowController extends Controller
     public function getSurvey($workOrderId)
     {
         $this->authorize('talento.survey.view');
+        if (! $this->puedeVerFlujoDe((int) $workOrderId)) { $this->denegar(); } // #698
 
         $fkCol = $this->resolveFieldFlowOwnerColumn($workOrderId);
         $survey = TalentoInstallationSurvey::where($fkCol, $workOrderId)->first();
@@ -420,10 +461,9 @@ class TalentoFieldFlowController extends Controller
 
         if (! $this->esStaffOrdenes()) {
             $colaboradorId = $order['colaborador_id'] ?? null;
-            abort_unless(
-                $colaboradorId !== null && in_array((int) $colaboradorId, $this->idsColaboradoresVisibles(), true),
-                403
-            );
+            if (! ($colaboradorId !== null && in_array((int) $colaboradorId, $this->idsColaboradoresVisibles(), true))) {
+                $this->denegar();
+            }
         }
 
         $fkCol = FieldFlowEntity::fkColumn((int) $workOrderId);

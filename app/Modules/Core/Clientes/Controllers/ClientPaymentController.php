@@ -146,6 +146,7 @@ class ClientPaymentController extends Controller
         return \App\Models\User::whereHas('roles', function ($q) use ($roles) {
                 $q->whereIn('name', $roles);
             })
+            ->activo()
             ->orderBy('name')
             ->get(['id', 'name'])
             ->map(fn ($u) => ['id' => $u->id, 'name' => $u->name])

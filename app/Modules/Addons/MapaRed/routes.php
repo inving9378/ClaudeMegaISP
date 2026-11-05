@@ -4,6 +4,7 @@ use App\Modules\Addons\MapaRed\Controllers\BusquedaController;
 use App\Modules\Addons\MapaRed\Controllers\CableAltaRapidaController;
 use App\Modules\Addons\MapaRed\Controllers\CatalogosController;
 use App\Modules\Addons\MapaRed\Controllers\CoberturaController;
+use App\Modules\Addons\MapaRed\Controllers\CoberturaExternaController;
 use App\Modules\Addons\MapaRed\Controllers\CoberturaDeclaradaController;
 use App\Modules\Addons\MapaRed\Controllers\ConnectionsController;
 use App\Modules\Addons\MapaRed\Controllers\DevicesController;
@@ -53,6 +54,18 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
  * MR-06a-4 (item #9990336) suma el bloque de LayersController al mismo grupo.
  * `devicesFromRack` NO se porta: no existe en el controller original (ruta rota sin caller).
  */
+/*
+| Item #1159 — consulta PÚBLICA de cobertura para sistemas de fuera (el asistente Sofía, en Vercel).
+| SIN `web`/`auth`/`check_route_permission`: sin sesión ni cookies. La protege una clave Bearer
+| (`api_externo_claves`, alcance «cobertura», se crea con `php artisan api-externo:clave crear`)
+| más un límite por IP y otro por clave. Contesta solo {cobertura, distancia_m}.
+*/
+Route::middleware([
+    'throttle:' . config('api_externo.limite_por_ip_minuto', 120) . ',1,api-externo-ip',
+    'clave.externa:cobertura',
+])->get('/api/externo/cobertura', [CoberturaExternaController::class, 'consultar'])
+    ->name('api-externo.cobertura');
+
 Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/api')->group(function () {
     Route::get('/zones', [ConnectionsController::class, 'zones'])->name('mapa-red.api.zones');
 

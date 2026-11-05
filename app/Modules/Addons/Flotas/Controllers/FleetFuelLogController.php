@@ -4,13 +4,14 @@ namespace App\Modules\Addons\Flotas\Controllers;
 
 use App\Modules\Addons\Flotas\Models\FleetFuelLog;
 use Illuminate\Http\JsonResponse;
+use App\Modules\Addons\Flotas\Support\FleetVehicleRules;
 use Illuminate\Http\Request;
 
 class FleetFuelLogController extends FleetBaseController
 {
     public function index(Request $request): JsonResponse
     {
-        $this->authorize('fleet.view');
+        $this->autorizar('fleet.view');
 
         $q = FleetFuelLog::with('vehicle')
             ->forClient($this->clientId())
@@ -29,17 +30,9 @@ class FleetFuelLogController extends FleetBaseController
 
     public function store(Request $request): JsonResponse
     {
-        $this->authorize('fleet.fuel.manage');
+        $this->autorizar('fleet.fuel.manage');
 
-        $data = $request->validate([
-            'vehicle_id'   => 'required|integer',
-            'refuel_date'  => 'required|date',
-            'liters'       => 'required|numeric|min:0.1',
-            'cost'         => 'required|numeric|min:0',
-            'km_at_refuel' => 'nullable|integer|min:0',
-            'octane'       => 'nullable|string|max:10',
-            'station_name' => 'nullable|string|max:150',
-        ]);
+        $data = $request->validate(['vehicle_id' => 'required|integer'] + FleetVehicleRules::fuel());
 
         $this->vehicleForClient($data['vehicle_id']);
 
@@ -50,7 +43,7 @@ class FleetFuelLogController extends FleetBaseController
 
     public function destroy(int $id): JsonResponse
     {
-        $this->authorize('fleet.fuel.manage');
+        $this->autorizar('fleet.fuel.manage');
 
         FleetFuelLog::forClient($this->clientId())->findOrFail($id)->delete();
 

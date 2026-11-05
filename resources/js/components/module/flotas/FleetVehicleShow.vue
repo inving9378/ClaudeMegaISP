@@ -100,13 +100,13 @@
                 <fleet-tab-asignacion
                     v-show="activeTab === 'asignacion'"
                     :vehicle="vehicle" :vehicle-id="vehicleId" :base-url="baseUrl"
-                    :assignments="assignments" :operators="operators"
+                    :assignments="assignments" :operators="operators" :modo="modo"
                     @reload="reloadVehicle" @reload-assignments="reloadAssignments" @toast="showToast" />
 
                 <fleet-tab-mantenimientos
                     v-show="activeTab === 'mantenimientos'"
                     :vehicle="vehicle" :vehicle-id="vehicleId" :base-url="baseUrl"
-                    :providers="providers"
+                    :providers="providers" :modo="modo"
                     @reload="reloadVehicle" @provider-created="onProviderCreated" @toast="showToast" />
 
                 <fleet-tab-documentos
@@ -190,6 +190,7 @@
 </template>
 
 <script>
+import { currentSearch } from "../../../hook/comunValues.js";
 import { ref, reactive, computed, onMounted } from 'vue';
 import axios from 'axios';
 import { useFleetFormatters } from './useFleetFormatters.js';
@@ -200,13 +201,14 @@ export default {
         baseUrl: { type: String, default: '/flotas' },
         // Lo da el servidor: con la navegación SPA, location.pathname todavía es la página anterior.
         vehicleId: { type: [Number, String], default: null },
+        modo: { type: String, default: 'panel' },
     },
     setup(props) {
         const { fmtMoney, fmtKm, statusLabel, docStatus } = useFleetFormatters();
 
         const path      = window.location.pathname.split('/').filter(Boolean);
         const vehicleId = String(Number(props.vehicleId) > 0 ? props.vehicleId : (/^\d+$/.test(path[path.length - 1]) ? path[path.length - 1] : ''));
-        const queryTab  = new URLSearchParams(window.location.search).get('tab');
+        const queryTab  = new URLSearchParams(currentSearch()).get('tab');
         const tabKeys   = ['informacion', 'asignacion', 'mantenimientos', 'documentos', 'combustible', 'gps', 'historial', 'fotos'];
         const activeTab = ref(tabKeys.includes(queryTab) ? queryTab : 'informacion');
         const moreOpen  = ref(false);
@@ -318,8 +320,8 @@ export default {
                 await reloadVehicle();
                 await Promise.all([
                     reloadAssignments(),
-                    axios.get(`${props.baseUrl}/api/vehiculos/data/operadores`).catch(() => ({ data: { users: [] } })).then(({ data }) => { operators.value = data?.users ?? []; }),
-                    axios.get(`${props.baseUrl}/api/proveedores`).catch(() => ({ data: { providers: [] } })).then(({ data }) => { providers.value = data?.providers ?? []; }),
+                    (props.modo === 'portal' ? axios.get(`${props.baseUrl}/api/operadores`) : axios.get(`${props.baseUrl}/api/vehiculos/data/operadores`)).catch(() => ({ data: { users: [] } })).then(({ data }) => { operators.value = props.modo === 'portal' ? (data?.operadores ?? []).filter(o => o.activo !== false && o.activo !== 0).map(o => ({ id: o.id, name: o.nombre })) : (data?.users ?? []); }),
+                    (props.modo === 'portal' ? Promise.resolve({ data: { providers: [] } }) : axios.get(`${props.baseUrl}/api/proveedores`)).catch(() => ({ data: { providers: [] } })).then(({ data }) => { providers.value = data?.providers ?? []; }),
                 ]);
             } catch (e) {
                 // window.console: el build de producción (drop_console) borra las llamadas a console.*.

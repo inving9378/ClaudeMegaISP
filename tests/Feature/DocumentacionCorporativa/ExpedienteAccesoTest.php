@@ -36,7 +36,20 @@ class ExpedienteAccesoTest extends TestCase
 
         app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
 
-        $this->empresa = DcEmpresa::activas()->firstOrFail();
+        // La base de pruebas no trae empresa: se crea una de ejemplo (ficticia) y se siembra
+        // su catálogo de apartados/conceptos. Todo se deshace con DatabaseTransactions.
+        $this->empresa = DcEmpresa::create([
+            'razon_social' => 'Empresa de Ejemplo Pruebas S.A. de C.V.',
+            'activo'       => true,
+        ]);
+        app(\App\Modules\Addons\DocumentacionCorporativa\Seeders\CatalogoSeeder::class)->run();
+
+        // Igual con permisos y rol `consejo`: se reconstruyen desde module.json y su migración.
+        $modulo = json_decode(file_get_contents(app_path('Modules/Addons/DocumentacionCorporativa/module.json')), true);
+        foreach ($modulo['permissions'] as $permiso) {
+            Permission::firstOrCreate(['name' => $permiso['name'], 'guard_name' => 'web']);
+        }
+        (require app_path('Modules/Addons/DocumentacionCorporativa/migrations/2026_08_28_120300_create_rol_consejo.php'))->up();
         session(['dc.empresa_id' => $this->empresa->id]);
     }
 
@@ -195,6 +208,8 @@ class ExpedienteAccesoTest extends TestCase
     {
         $concepto = DcConcepto::deEmpresa($this->empresa->id)
             ->where('slug', 'cartera-de-clientes')->firstOrFail();
+        // Esa fuente ya existe en la app real; se apunta a una que no está registrada.
+        $concepto->config = ['fuente' => 'prueba.fuente_inexistente'];
 
         $resultado = app(ResolverFactory::class)
             ->para($concepto, $this->empresa->id)

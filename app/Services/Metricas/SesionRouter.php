@@ -17,8 +17,8 @@ interface SesionRouter
     public function soloLectura(): bool;
 
     /**
-     * true = el host y las credenciales no son los del router registrado sino los de
-     * MIKROTIK_DEV_* (redirección de RouterConnection fuera de production).
+     * true = el host y las credenciales no son los del router registrado sino los del laboratorio
+     * (MIKROTIK_DEV_*), lo que pasa fuera de producción.
      */
     public function redirigido(): bool;
 
@@ -34,6 +34,14 @@ interface SesionRouter
      * @return array<string, LecturaInterfaz|null>  null = no existe (o el VLAN ID es ambiguo)
      */
     public function interfaces(array $pedidas): array;
+
+    /**
+     * Cómo se resolvió cada pedida en la última llamada a interfaces(): por nombre o por VLAN ID y a
+     * qué interfaces. Más de un nombre = ese VLAN ID está repetido y no se adivina cuál es.
+     *
+     * @return array<string, array{por: ?string, nombres: string[]}>
+     */
+    public function resolucion(): array;
 
     /** Ping desde el router a una IP: pocos paquetes con intervalo corto. */
     public function ping(string $ip, int $paquetes, string $intervalo): LecturaPing;

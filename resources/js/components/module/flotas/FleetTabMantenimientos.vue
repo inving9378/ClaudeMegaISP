@@ -21,6 +21,18 @@
             </div>
         </div>
 
+        <div v-if="servicePredictions.length" class="card mb-3"><div class="card-body">
+            <div class="fw-semibold mb-2"><i class="bi bi-calendar-check me-2"></i>Próximos servicios estimados por tipo</div>
+            <div v-for="p in servicePredictions" :key="p.type" class="small d-flex justify-content-between flex-wrap border-top py-1">
+                <span>{{ maintTypeLabel(p.type) }} <span class="text-muted">({{ p.samples }} servicios · confianza {{ p.confidence }})</span></span>
+                <span>
+                    <template v-if="p.next_date">{{ fmtDate(p.next_date) }}</template>
+                    <template v-if="p.next_km"> · {{ fmtKm(p.next_km) }} km</template>
+                    <template v-if="!p.next_date && !p.next_km">—</template>
+                </span>
+            </div>
+        </div></div>
+
         <div class="row g-3 mb-3">
             <div class="col-6 col-lg-3"><div class="flt-mini-card"><div class="flt-mini-label">Total</div><div class="flt-mini-value">{{ maintenances.length }}</div></div></div>
             <div class="col-6 col-lg-3"><div class="flt-mini-card"><div class="flt-mini-label">Este año</div><div class="flt-mini-value">{{ maintYearCount }}</div></div></div>
@@ -79,7 +91,7 @@
                         </span>
                     </div>
                 </div>
-                <div class="col-md-6">
+                <div v-if="modo !== 'portal'" class="col-md-6">
                     <label class="form-label fw-semibold">Proveedor / Taller</label>
                     <div class="input-group">
                         <select class="form-select" v-model="form.provider_id">
@@ -179,7 +191,7 @@
 </template>
 
 <script>
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import axios from 'axios';
 import { useFleetFormatters } from './useFleetFormatters.js';
 
@@ -190,12 +202,23 @@ export default {
         vehicleId: { type: [String, Number], required: true },
         baseUrl:   { type: String, default: '/flotas' },
         providers: { type: Array, default: () => [] },
+        modo:      { type: String, default: 'panel' },
     },
     emits: ['reload', 'provider-created', 'toast'],
     setup(props, { emit }) {
         const { fmtMoney, fmtKm, fmtDate, maintLabels, maintTypeLabel, maintIcon, worksCatalog } = useFleetFormatters();
 
         const maintenances = computed(() => props.vehicle?.maintenances ?? []);
+
+        const servicePredictions = ref([]);
+        async function loadServicePredictions() {
+            try {
+                const { data } = await axios.get(`${props.baseUrl}/api/vehiculos/${props.vehicleId}/prediccion-servicios`);
+                servicePredictions.value = data.predictions ?? [];
+            } catch (e) { servicePredictions.value = []; }
+        }
+        onMounted(loadServicePredictions);
+        watch(() => maintenances.value.length, loadServicePredictions);
         const thisYear = new Date().getFullYear();
         const isThisYear  = (d) => d && new Date(d).getFullYear() === thisYear;
         const isThisMonth = (d) => { if (!d) return false; const t = new Date(d), n = new Date(); return t.getFullYear() === n.getFullYear() && t.getMonth() === n.getMonth(); };
@@ -361,7 +384,7 @@ export default {
         }
 
         return {
-            maintenances, maintYearCount, maintSpendYear, maintAvg, nextServiceBanner,
+            servicePredictions, maintenances, maintYearCount, maintSpendYear, maintAvg, nextServiceBanner,
             predictedService, confidenceLabel, confidenceBadgeClass, predictionBannerClass,
             search, typeFilter, periodFilter, filtered,
             showForm, saving, drag, files, form, totalLive, onDrop, onPick, saveMaint, deleteMaint,

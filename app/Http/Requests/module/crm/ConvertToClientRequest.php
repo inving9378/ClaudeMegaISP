@@ -30,7 +30,9 @@ class ConvertToClientRequest extends FormRequest
             'estado'=>'required',
             'power_dbm'=>'nullable|numeric',
             'seller_id'=>'required',
-            'email' => 'required|unique:client_main_information,email,' . $request->route('id'),
+            // Item #563: el cliente aún no existe al convertir; el id de la ruta es el del CRM y no
+            // debe usarse como excepción del unique (eximía por error al cliente que tuviera ese id).
+            'email' => 'required|unique:client_main_information,email',
             'medium_id'=>'required',
             // FR-03 (#537): plazo copiado del prospecto; meses solo si es «Especial».
             'plazo_especial_meses' => \App\Support\PlazoContrato::reglaMeses($request->input('duration_contract_id')),

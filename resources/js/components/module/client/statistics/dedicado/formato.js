@@ -3,6 +3,9 @@
 
 // Latencia índigo; pérdida y subida naranja oscuro; bajada azul; caída rosa claro. Las líneas de
 // latencia de cada IP se distinguen además por estilo (DASH), no solo por color.
+// Las franjas de las gráficas y su muestra en la leyenda usan la misma opacidad, para que coincidan.
+export const OPACIDAD = { sinDatos: 0.28, pausado: 0.32 };
+
 export const COLORES = {
     claro: {
         latencia: ["#4338ca", "#4f46e5", "#3730a3", "#6366f1"],
@@ -12,6 +15,7 @@ export const COLORES = {
         contratada: "#6b7280",
         caida: "#fda4af",
         sinDatos: "#9ca3af",
+        pausado: "#2dd4bf",
         texto: "#4b5563",
         rejilla: "rgba(0, 0, 0, 0.08)",
     },
@@ -23,6 +27,7 @@ export const COLORES = {
         contratada: "#9ca3af",
         caida: "#fb7185",
         sinDatos: "#6b7280",
+        pausado: "#14b8a6",
         texto: "#d1d5db",
         rejilla: "rgba(255, 255, 255, 0.1)",
     },

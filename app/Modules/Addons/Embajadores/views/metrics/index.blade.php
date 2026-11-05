@@ -105,7 +105,7 @@
     </div>
 </div>
 
-@push('scripts')
+@push('scripts-spa')
 <script>
 function loadMetrics() {
     const days = document.getElementById('days-select').value;

@@ -98,6 +98,11 @@ class CrmDatatableHelper extends HelperDatatable
             $query->where('created_at', '>=', '2024-06-01');
         }
         foreach ($filters as $field => $values) {
+            if ($field == 'segmento_id') {
+                $query->whereHas('crm_main_information', function ($q) use ($values) {
+                    $q->whereIn('segmento_id', (array) $values);
+                });
+            }
             if ($field == 'owner_id') {
                 $query->whereHas('crm_lead_information', function ($query) use ($values) {
                     $query->whereIn('owner_id', $values);
@@ -160,12 +165,18 @@ class CrmDatatableHelper extends HelperDatatable
         $plazos = in_array('plazo_contrato', (array) $this->columns, true) && ! empty($request['array'])
             ? $this->plazosDeContrato(collect($request['array'])->pluck('id')->all())
             : [];
+        $segmentos = in_array('segmento', (array) $this->columns, true) && ! empty($request['array'])
+            ? $this->segmentosDeProspectos(collect($request['array'])->pluck('id')->all())
+            : [];
         if (!empty($request['array'])) {
             foreach ($request['array'] as $key => $value) {
                 $id = $value->id;
                 foreach ($this->columns as $val) {
                     if ($val == 'owner_id') {
                         $value->owner_id = $value->seller_name;
+                    }
+                    if ($val == 'segmento') {
+                        $value->segmento = $segmentos[$value->id] ?? '';
                     }
                     if ($val == 'plazo_contrato') {
                         $value->plazo_contrato = $plazos[$value->id] ?? '';
@@ -201,6 +212,28 @@ class CrmDatatableHelper extends HelperDatatable
      * @return array<int,string> crm_id → texto
      */
     private function plazosDeContrato(array $crmIds): array
+    {
+        return $this->plazosDeContratoPorProspecto($crmIds);
+    }
+
+    /**
+     * CRM-E 03 (#557): nombre del segmento por prospecto (vacío = residencial de siempre).
+     * @return array<int,string> crm_id → nombre
+     */
+    private function segmentosDeProspectos(array $crmIds): array
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('crm_segmentos')
+            || ! \Illuminate\Support\Facades\Schema::hasColumn('crm_main_information', 'segmento_id')) {
+            return [];
+        }
+
+        return \Illuminate\Support\Facades\DB::table('crm_main_information')
+            ->join('crm_segmentos', 'crm_segmentos.id', '=', 'crm_main_information.segmento_id')
+            ->whereIn('crm_main_information.crm_id', $crmIds)
+            ->pluck('crm_segmentos.nombre', 'crm_main_information.crm_id')->all();
+    }
+
+    private function plazosDeContratoPorProspecto(array $crmIds): array
     {
         $nombres = \Illuminate\Support\Facades\DB::table('duration_contracts')->pluck('name', 'id')->all();
         $especial = \App\Support\PlazoContrato::idEspecial();

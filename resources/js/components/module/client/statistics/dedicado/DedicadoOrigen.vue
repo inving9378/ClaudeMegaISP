@@ -75,7 +75,7 @@ export default {
 
         const routerEInterfaz = computed(() => {
             const o = props.origen;
-            const router = o.router ? `Router ${o.router}` : "Sin router";
+            const router = o.router || "Sin router";
             if (o.interfaz) return `${router} · interfaz «${o.interfaz}»`;
             return o.vlan_id ? `${router} · VLAN ${o.vlan_id} (la interfaz se busca por VLAN ID)` : `${router} · sin interfaz ni VLAN`;
         });

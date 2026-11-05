@@ -101,7 +101,7 @@ class ClientBillingPauseController extends Controller
         $pausa = ClientBillingPause::where('client_id', $id)->findOrFail($pausaId);
 
         try {
-            $pausa = $this->service->cancelarPausaProgramada($pausa, auth()->user()->id ?? null);
+            $pausa = $this->service->cancelarPausaProgramada($pausa, auth()->user()?->id);
 
             return response()->json(['success' => true, 'message' => 'Pausa cancelada correctamente.', 'pausa' => $pausa]);
         } catch (\RuntimeException $e) {

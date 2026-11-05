@@ -49,9 +49,21 @@
               :options="array_all_status"
               :id="idTable"
               name="client_main_information.estado"
+              :initial="guardado.estado"
               @setFilter="setFilter"
             >
             </select-filter>
+            <div v-if="array_tipos_cliente" class="d-flex align-items-center gap-2">
+              <select-filter
+                :options="array_tipos_cliente"
+                :id="`${idTable}_tipo`"
+                name="client_additional_information.tipo_cliente"
+                label="Tipo de cliente"
+                :initial="guardado.tipo"
+                @setFilter="setFilter"
+              >
+              </select-filter>
+            </div>
             <a
               class="btn btn-success waves-effect waves-light"
               v-if="add"
@@ -162,6 +174,7 @@
               Inactivo: checkClass(props['key'], 'Inactivo'),
               Nuevo: checkClass(props['key'], 'Nuevo'),
               Cancelado: checkClass(props['key'], 'Cancelado'),
+              Desinstalado: checkClass(props['key'], 'Desinstalado'),
             }"
           >
             <q-td style="width: 20px !important" v-if="selectedTable">
@@ -236,6 +249,7 @@
                 gracia
               </div>
               <div>Cancelado - Cliente eliminado que hay esta en base de datos</div>
+              <div>Desinstalado - Equipo retirado; no se factura ni se reactiva al pagar</div>
             </q-td>
           </q-tr>
         </template>
@@ -357,6 +371,7 @@ import EditId from "./helpers/EditId.vue";
 import VueDatePicker from "@vuepic/vue-datepicker";
 import { darkMode, rowStatusStyle, setRowStatusStyle } from "../../../hook/appConfig";
 import { useOlts } from "../../../composables/useOlts";
+import { useTableUrlState } from "../../../hook/useTableUrlState";
 
 export default {
   name: "DatatableClient",
@@ -406,6 +421,9 @@ export default {
       type: String,
     },
     array_all_status: {
+      type: String,
+    },
+    array_tipos_cliente: {
       type: String,
     },
     color_datatable: {
@@ -493,19 +511,85 @@ export default {
     const dataForm = reactive({
       data: new Form({}),
     });
-    const fechaCorte = ref("");
-    const search = ref("");
+
+    // Estado que sobrevive a entrar a un cliente y volver (spa-nav remonta la vista) y a F5. Se lee
+    // antes de crear los refs para que la PRIMERA petición ya salga con estos valores. El término
+    // de búsqueda nunca va en la URL (#9990815): tablaUrl lo guarda en history.state.
+    const OPCIONES_POR_PAGINA = [5, 10, 15, 25, 50, 100, 500, 1000, 10000, 0];
+    // Orden por defecto explícito: cliente más nuevo (id más alto) primero.
+    // descending:true → la primera petición manda dir=true → backend ORDER BY id DESC,
+    // y la flecha de Quasar (↓) queda coherente con los datos (fix #110).
+    const PAGINACION_INICIAL = { sortBy: "id", descending: true, page: 1, rowsPerPage: 50 };
+    const CAMPO_ESTADO = "client_main_information.estado";
+    const CAMPO_TIPO = "client_additional_information.tipo_cliente";
+
+    const tablaUrl = useTableUrlState({
+      parametros: ["page", "rowsPerPage", "sortBy", "descending", "estado", "tipo", "fechaCorte", "ampliada"],
+    });
+
+    // La URL se puede editar o quedar vieja: lo que no sea válido vuelve a su valor por defecto.
+    // Ordenar por una columna oculta daría error en el servidor, que solo une las visibles.
+    const leerEstadoGuardado = () => {
+      const { url, privado } = tablaUrl.leer();
+      const paginacion = { ...PAGINACION_INICIAL };
+
+      if (/^\d+$/.test(url.rowsPerPage ?? "") && OPCIONES_POR_PAGINA.includes(Number(url.rowsPerPage))) {
+        paginacion.rowsPerPage = Number(url.rowsPerPage);
+      }
+      if (/^[1-9]\d*$/.test(url.page ?? "") && paginacion.rowsPerPage !== 0) {
+        paginacion.page = Number(url.page);
+      }
+      const ordenables = headers.value.map((h) => h.name).filter((name) => name !== "action");
+      if (ordenables.includes(url.sortBy)) {
+        paginacion.sortBy = url.sortBy;
+      }
+      if (url.descending === "0") {
+        paginacion.descending = false;
+      }
+
+      const estadosValidos = Object.keys(JSON.parse(props.array_all_status || "{}"));
+      const estado = (url.estado ?? "").split(",").filter((e) => estadosValidos.includes(e));
+      const tiposValidos = Object.keys(JSON.parse(props.array_tipos_cliente || "{}"));
+      const tipo = (url.tipo ?? "").split(",").filter((t) => tiposValidos.includes(t));
+
+      // Se guarda el instante exacto: el servidor interpreta estas fechas en UTC, así que rehacerlas
+      // solo con el día podría cambiar el resultado del filtro.
+      const fechas = (url.fechaCorte ?? "").split(",").map((f) => new Date(f));
+      const fechaCorte = fechas.length === 2 && fechas.every((f) => !isNaN(f)) ? fechas : "";
+
+      const filtros = {};
+      if (estado.length > 0) filtros[CAMPO_ESTADO] = estado;
+      if (tipo.length > 0) filtros[CAMPO_TIPO] = tipo;
+      if (fechaCorte) filtros.fecha_corte = fechaCorte;
+
+      const search = typeof privado.search === "string" ? privado.search : "";
+
+      return {
+        paginacion,
+        estado,
+        tipo,
+        fechaCorte,
+        filtros,
+        search,
+        ampliada: url.ampliada === "1" && search !== "" && busquedaV2.value,
+      };
+    };
+    const guardado = leerEstadoGuardado();
+    ampliadaActiva.value = guardado.ampliada;
+
+    const fechaCorte = ref(guardado.fechaCorte);
+    const search = ref(guardado.search);
     const loading = ref(false);
     let currentAbortController = null;
 
     const searchColumns = ref("");
-    const ffilters = ref({});
+    const ffilters = ref(guardado.filtros);
 
     const columns = ref([]);
     const rows = ref([]);
     const visibleColumns = ref([]);
     const showHeaders = ref();
-    const rowPerPageOptions = ref([5, 10, 15, 25, 50, 100, 500, 1000, 10000, 0]);
+    const rowPerPageOptions = ref(OPCIONES_POR_PAGINA);
     const iDClient = ref(null);
     const isUpdatedColorDatatable = ref(false);
 
@@ -537,11 +621,7 @@ export default {
           await axios.post(`/${props.module}/destroy/${id}`, { confirmacion: "ELIMINAR" });
           toastr.success("Cliente eliminado definitivamente.", "Clientes");
           emit("item-delete");
-          getRowsByModule(
-            _.map(headers.value, (v) => v.name),
-            showHeaders.value,
-            props.filters
-          );
+          resetTable();
         } catch (error) {
           toastr.error(error.response?.data?.error || "No se pudo eliminar al cliente.", "Clientes");
         }
@@ -578,7 +658,10 @@ export default {
         await getRowsByModule(
           _.map(headers.value, (v) => v.name),
           showHeaders.value,
-          props.filters
+          props.filters,
+          currentSortColumn.value,
+          pagination.value.descending,
+          search.value
         );
       }
     });
@@ -650,20 +733,11 @@ export default {
       })[0];
     };
 
-    const currentSortColumn = ref('id');
+    const currentSortColumn = ref(guardado.paginacion.sortBy);
 
-    const pagination = ref({
-      sortBy: 'id',
-      // Orden por defecto explícito: cliente más nuevo (id más alto) primero.
-      // descending:true → la primera petición manda dir=true → backend ORDER BY id DESC,
-      // y la flecha de Quasar (↓) queda coherente con los datos (fix #110).
-      descending: true,
-      page: 1,
-      rowsPerPage: 50,
-      rowsNumber: 0,
-    });
+    const pagination = ref({ ...guardado.paginacion, rowsNumber: 0 });
 
-    const startPagination = ref(0);
+    const startPagination = ref((guardado.paginacion.page - 1) * guardado.paginacion.rowsPerPage);
     const paginationText = computed(() => {
       const startItem = startPagination.value + 1;
       const endItem = Math.min(
@@ -758,6 +832,9 @@ export default {
           return;
         }
         console.error(error);
+        toastr.error("No se pudo cargar el listado de clientes.", "Clientes");
+        loading.value = false;
+        return;
       }
 
       columns.value = Object.values(col);
@@ -782,6 +859,9 @@ export default {
 
       resetTable();
     }, 1000);
+
+    // spa-nav desmonta esta vista al navegar: si no se cancela, la petición sale igual, ya sin tabla.
+    onUnmounted(() => onRequestDebounced.cancel());
 
     function onRequest(props) {
       if (props.filter != "") {
@@ -824,6 +904,9 @@ export default {
     watch(search, () => {
       ampliadaActiva.value = false;
       ampliadaYaIntentada.value = false;
+      // La petición sale con debounce: sin esto, la página anterior quedaría guardada con el término nuevo.
+      pagination.value.page = 1;
+      startPagination.value = 0;
     });
 
     // Botón "Buscar en todos los campos" del estado de cero resultados (D3.3).
@@ -840,10 +923,52 @@ export default {
       resetTable();
     });
 
+    // #988: hay más de un filtro de este tipo: se juntan, y el que queda vacío ya no filtra.
     const setFilter = (obj) => {
-      ffilters.value = obj;
+      const siguiente = { ...ffilters.value, ...obj };
+      Object.keys(obj).forEach((clave) => {
+        if (Array.isArray(siguiente[clave]) && !siguiente[clave].length) delete siguiente[clave];
+      });
+      ffilters.value = siguiente;
       resetTable();
     };
+
+    // Los valores por defecto se omiten para mantener la URL limpia.
+    const guardarEstadoTabla = () => {
+      const { page, rowsPerPage, sortBy, descending } = pagination.value;
+      const estado = ffilters.value[CAMPO_ESTADO] ?? [];
+      const tipo = ffilters.value[CAMPO_TIPO] ?? [];
+      const fechas = fechaCorte.value;
+      const hayFechas = Array.isArray(fechas) && fechas.length === 2 && fechas.every(Boolean);
+
+      tablaUrl.guardar(
+        {
+          page: page !== PAGINACION_INICIAL.page ? String(page) : null,
+          rowsPerPage: rowsPerPage !== PAGINACION_INICIAL.rowsPerPage ? String(rowsPerPage) : null,
+          sortBy: sortBy && sortBy !== PAGINACION_INICIAL.sortBy ? sortBy : null,
+          descending: descending === false ? "0" : null,
+          estado: estado.length > 0 ? estado.join(",") : null,
+          tipo: tipo.length > 0 ? tipo.join(",") : null,
+          fechaCorte: hayFechas ? fechas.map((f) => new Date(f).toISOString()).join(",") : null,
+          ampliada: ampliadaActiva.value ? "1" : null,
+        },
+        search.value !== "" ? { search: search.value } : {}
+      );
+    };
+
+    watch(
+      [
+        search,
+        () => pagination.value.page,
+        () => pagination.value.rowsPerPage,
+        () => pagination.value.sortBy,
+        () => pagination.value.descending,
+        ffilters,
+        fechaCorte,
+        ampliadaActiva,
+      ],
+      guardarEstadoTabla
+    );
 
     watch(loading, () => {
       if (loading.value) {
@@ -973,6 +1098,7 @@ export default {
       paginationText,
       iDClient,
       resetTable,
+      guardado,
       fechaCorte,
       checkClass,
       expandAfterColumn,

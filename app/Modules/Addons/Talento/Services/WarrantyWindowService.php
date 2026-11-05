@@ -7,6 +7,7 @@ use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderType;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class WarrantyWindowService
 {
@@ -35,7 +36,7 @@ class WarrantyWindowService
         }
 
         $now = Carbon::now();
-        $expires = $now->copy()->addMonths(self::WINDOW_MONTHS);
+        $expires = $now->copy()->addMonths($this->windowMonths());
 
         // Deactivate previous windows for this colaborador+client
         TalentoResponsibilityWindow::where('colaborador_id', $colaboradorId)
@@ -53,6 +54,46 @@ class WarrantyWindowService
             'expires_at'           => $expires,
             'active'               => true,
         ]);
+    }
+
+    /** Meses de la ventana: configurable con el interruptor L1 encendido; 6 si no. */
+    private function windowMonths(): int
+    {
+        if (! config('unificacion.interruptores.garantia_l1')) {
+            return self::WINDOW_MONTHS;
+        }
+        return max(1, (int) config('unificacion.interruptores.garantia_l1_meses', self::WINDOW_MONTHS));
+    }
+
+    /**
+     * UNI-T L1 — liga un ticket a la orden original del cliente si hay una ventana vigente. Idempotente
+     * (un evento por ticket); sin efecto económico. Devuelve el evento o null si no aplica.
+     */
+    public function registrarEventoTicket(int $ticketId, int $clientId): ?object
+    {
+        if (! config('unificacion.interruptores.garantia_l1') || ! Schema::hasTable('talento_warranty_events')) {
+            return null;
+        }
+        if (DB::table('talento_warranty_events')->where('ticket_id', $ticketId)->exists()) {
+            return null;
+        }
+        $window = TalentoResponsibilityWindow::activeFor($clientId)->latest('starts_at')->first();
+        if (! $window) {
+            return null;
+        }
+        [$origen, $ordenId] = $window->tarea_id ? ['task', (int) $window->tarea_id] : ['work_order', (int) $window->source_work_order_id];
+        $ref = \App\Modules\Addons\Talento\Support\OrdenReferencia::format($origen, $ordenId);
+        $participantes = app(OrderParticipantsService::class)->listar($origen, $ordenId);
+        $participantes = $participantes ?: [['user_id' => \App\Modules\Addons\Talento\Models\TalentoColaborador::where('id', $window->colaborador_id)->value('user_id'), 'rol' => 'principal']];
+
+        $id = DB::table('talento_warranty_events')->insertGetId([
+            'ticket_id' => $ticketId, 'client_id' => $clientId, 'window_id' => $window->id,
+            'orden_origen' => $origen, 'orden_id' => $ordenId, 'orden_ref' => $ref,
+            'participantes' => json_encode(array_map(fn ($p) => ['user_id' => $p['user_id'], 'rol' => $p['rol'] ?? 'participante'], $participantes)),
+            'orden_validada_at' => $window->starts_at, 'ventana_expira_at' => $window->expires_at,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        return DB::table('talento_warranty_events')->find($id);
     }
 
     /** Conveniencia: refresca la ventana a partir de un TalentoWorkOrder ya validado. */

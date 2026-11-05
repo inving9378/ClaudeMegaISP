@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Embajadores\StoreProspectRequest;
 use App\Http\Requests\Embajadores\UpdateProspectRequest;
 use App\Http\Resources\Embajadores\ProspectResource;
-use App\Models\Client;
+use App\Modules\Core\Clientes\Models\Client;
 use App\Modules\Core\Clientes\Models\Client as ClientModel;
 use App\Models\ClientMainInformation;
 use App\Models\Referrals\ClientReferralProfile;

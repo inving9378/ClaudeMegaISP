@@ -9,14 +9,23 @@
 
 return [
 
-    // Interruptor maestro. Apagado por default: con false el schedule de metricas:colectar
-    // ni se registra (mismo patrón que pagos.recurrentes_cron_enabled). Prenderlo en PROD
-    // es decisión de Irving, después del dry-run del runbook (Fase 6).
-    'activo' => (bool) env('METRICAS_ACTIVO', false),
+    // Override opcional. El interruptor es «Monitoreo de dedicados» en Configuración (encendido de
+    // inicio); METRICAS_ACTIVO solo se define para forzarlo en el .env (ver AjusteMonitoreo).
+    'activo' => env('METRICAS_ACTIVO'),
 
     // De dónde salen las métricas: 'mikrotik' (contadores de la interfaz VLAN y ping desde el
-    // router) o 'simulado' (solo DEV; bloqueado en producción, ver bases_produccion).
-    'driver' => env('METRICAS_DRIVER', 'mikrotik'),
+    // router) o 'simulado' (solo DEV; bloqueado en producción). Sin definir: el real en producción o
+    // con laboratorio, el simulado en DEV sin laboratorio (EntornoMetricas::driverPorDefecto).
+    'driver' => env('METRICAS_DRIVER'),
+
+    // Router de laboratorio: el único al que se conecta el colector fuera de producción. Sin esto, a
+    // ninguno. Viven en .env; aquí para que se lean también con la configuración en caché.
+    'laboratorio' => [
+        'host'     => env('MIKROTIK_DEV_IP'),
+        'usuario'  => env('MIKROTIK_DEV_LOGIN'),
+        'password' => env('MIKROTIK_DEV_PASSWORD'),
+        'puerto'   => env('MIKROTIK_DEV_PORT'),
+    ],
 
     // Ping desde el MikroTik a cada IP del cliente: pocos paquetes con intervalo corto para que
     // todo quepa en el ciclo de 60 s (formato de intervalo de RouterOS).
@@ -31,10 +40,25 @@ return [
         'timeout_segundos' => (int) env('METRICAS_MIKROTIK_TIMEOUT', 5),
     ],
 
+    // «Probar lectura» de la ventana Datos de red: tiempo máximo y segundos entre las dos lecturas de
+    // contadores con las que calcula la bajada y la subida.
+    'probar' => [
+        'presupuesto_segundos' => 15,
+        'muestra_segundos'     => 5,
+    ],
+
     // Tiempo máximo por router (después de esto, las IPs que falten quedan «omitido») y por
     // corrida completa (los routers que falten quedan «omitido»).
     'presupuesto_router_segundos'  => (int) env('METRICAS_PRESUPUESTO_ROUTER', 40),
     'presupuesto_corrida_segundos' => (int) env('METRICAS_PRESUPUESTO_CORRIDA', 50),
+
+    // Solo el driver simulado de DEV: para ver en pantalla un router que contesta otra identidad
+    // (título => identidad) y una VLAN que no existe o está repetida.
+    'simulado' => [
+        'identidades'        => ['Router de pruebas B' => 'router-b-sitio', 'Router de pruebas C' => 'router-c-cambiado'],
+        'vlan_no_encontrada' => 4094,
+        'vlan_repetida'      => 4093,
+    ],
 
     // Si entre dos lecturas pasan más de estos segundos, el hueco no se promedia: la lectura
     // nueva queda como base y ese minuto sale sin dato (estado hueco_largo).
@@ -62,15 +86,16 @@ return [
         'latencia_alta_minimo_ms' => 2,
     ],
 
-    // Cuánto se conserva: lecturas por minuto y promedios de 5 min. Estadísticas solo lo muestra;
-    // la purga y los promedios los aplica la Fase 5.
+    // Cuánto se conserva (lo aplica metricas:purgar, a diario): detalle por minuto y ping por IP,
+    // promedios de 5 min y latidos del colector.
     'retencion' => [
         'minuto_dias'         => 30,
         'promedio_5min_meses' => 13,
+        'latidos_dias'        => 30,
     ],
 
-    // Bases de datos que son producción. El driver simulado y su seeder se niegan a correr
-    // contra ellas aunque APP_ENV diga otra cosa (en PROD APP_ENV puede venir como local).
+    // Bases de datos que son producción, aunque APP_ENV diga otra cosa (ver EntornoMetricas): con
+    // ellas el colector va al router registrado y el driver simulado se niega a correr.
     'bases_produccion' => ['meganet_prod_claude', 'meganet_prod'],
 
 ];

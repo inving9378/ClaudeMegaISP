@@ -64,7 +64,7 @@ class FundService
                 ->where('period_end', $periodEnd->toDateString())
                 ->delete();
 
-            TalentoLedgerEntry::create([
+            TalentoLedgerEntry::registrar([
                 'colaborador_id' => $colaboradorId,
                 'type'           => 'debit',
                 'concept'        => 'fund_contribution',
@@ -86,6 +86,37 @@ class FundService
         }
 
         return round($total, 2);
+    }
+
+    /**
+     * Deshace las aportaciones que un cálculo anterior de la liquidación apartó en este período
+     * (2026-10-23): al recalcular, el fondo volvía a sumar y el asiento viejo se sumaba al nuevo
+     * en el monto a pagar. Lo de un fondo ya gastado no se deshace: su asiento se queda y se
+     * descuenta una vez, como un cargo más.
+     */
+    public function revertirDeducciones(int $colaboradorId, Carbon $periodStart, Carbon $periodEnd): void
+    {
+        $asientos = TalentoLedgerEntry::where('colaborador_id', $colaboradorId)
+            ->where('concept', 'fund_contribution')
+            ->where('reference_type', TalentoFund::class)
+            ->where('period_start', $periodStart->toDateString())
+            ->where('period_end', $periodEnd->toDateString())
+            ->get();
+
+        foreach ($asientos as $asiento) {
+            $fund = TalentoFund::find($asiento->reference_id);
+            if ($fund && $fund->status === 'spent') {
+                continue;
+            }
+            if ($fund) {
+                $accumulated = round(max(0, (float) $fund->accumulated - (float) $asiento->amount), 2);
+                $fund->update([
+                    'accumulated' => $accumulated,
+                    'status'      => $accumulated >= (float) $fund->target_amount ? 'ready' : 'accumulating',
+                ]);
+            }
+            $asiento->delete();
+        }
     }
 
     /**

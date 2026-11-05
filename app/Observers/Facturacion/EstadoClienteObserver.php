@@ -26,16 +26,18 @@ class EstadoClienteObserver
             return;
         }
         $antes = $info->getOriginal('estado');
-        if ($antes !== ReglasFacturacion::CANCELADO || $info->estado === ReglasFacturacion::CANCELADO || ReglasFacturacion::esCambioManual()) {
+        // #489: «Desinstalado» es igual de pegajoso (solo la ficha lo reactiva).
+        $pegajosos = [ReglasFacturacion::CANCELADO, ReglasFacturacion::DESINSTALADO];
+        if (! in_array($antes, $pegajosos, true) || $info->estado === $antes || ReglasFacturacion::esCambioManual()) {
             return;
         }
 
         $intento = (string) $info->estado;
-        $info->estado = ReglasFacturacion::CANCELADO;
-        Log::info("[ReglasFacturacion] Cliente {$info->client_id} sigue Cancelado: se ignoró el cambio automático a «{$intento}».");
+        $info->estado = $antes;
+        Log::info("[ReglasFacturacion] Cliente {$info->client_id} sigue {$antes}: se ignoró el cambio automático a «{$intento}».");
         activity()->tap(function (Activity $activity) use ($info) {
             $activity->client_id = $info->client_id;
-        })->log("Cliente #{$info->client_id} sigue Cancelado (baja definitiva): se ignoró el cambio automático a «{$intento}»");
+        })->log("Cliente #{$info->client_id} sigue {$antes} (baja): se ignoró el cambio automático a «{$intento}»");
     }
 
     public function updated($info): void

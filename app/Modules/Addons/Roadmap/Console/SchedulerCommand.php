@@ -147,6 +147,20 @@ class SchedulerCommand extends Command
                 }
             }
 
+            // Limpieza de la Hoja de ruta — cuota del plan medida en las propias vueltas y ritmo
+            // (cuántas terminales pueden tomar trabajo nuevo). Best-effort: sin medición, el ritmo
+            // cae a su valor prudente (4), nunca a «sin límite».
+            $ritmo = null;
+            if (! $this->option('dry')) {
+                try {
+                    app(\App\Modules\Addons\Roadmap\Services\CuotaPlanService::class)->actualizarDesdeVueltas();
+                    $ritmo = app(\App\Modules\Addons\Roadmap\Services\RitmoCircuitoService::class)->evaluar();
+                } catch (\Throwable $e) {
+                    Log::channel('roadmap_externo')->warning('ritmo-fallo', ['error' => $e->getMessage()]);
+                }
+            }
+            $ritmo ??= app(\App\Modules\Addons\Roadmap\Services\RitmoCircuitoService::class)->limite();
+
             $n = $svc->getParalelismo();
 
             // Slots libres = worktrees wt-1..wt-N cuyo flock NO está tomado por una vuelta viva.
@@ -162,6 +176,17 @@ class SchedulerCommand extends Command
 
             // #9990349 — detalle completo detrás de --dry o -v; sin ellos, a lo sumo el veredicto.
             $detallado = (bool) $this->option('dry') || $this->output->isVerbose();
+
+            // RITMO: solo se lanzan vueltas nuevas hasta el tope vigente (contando las que ya corren).
+            $permitidas = max(0, (int) $ritmo['max'] - count($busySlots));
+            if (count($freeSlots) > $permitidas) {
+                $freeSlots = array_slice($freeSlots, 0, $permitidas);
+                if (! $freeSlots) {
+                    $this->info('VEREDICTO: 0 vueltas — ritmo: ' . $ritmo['texto']);
+
+                    return self::SUCCESS;
+                }
+            }
 
             if (! $freeSlots) {
                 if ($detallado) {
@@ -212,7 +237,10 @@ class SchedulerCommand extends Command
                             ->orWhere(fn ($x) => $x->where('nivel_riesgo', 'A')->where('estado_aprobacion', 'pendiente_revision'));
                     })
                     // #507 sub-paso 3 — `claimed_at` sella el lease del slot (lo renueva el latido).
-                    ->update(['estado_aprobacion' => 'en_progreso', 'worker_sid' => "wt-{$slot}",
+                    // ORDEN CRÍTICO (#646): `estado_previo_claim` va PRIMERO — MySQL evalúa el SET de
+                    // izquierda a derecha y debe copiar el estado ANTES de pisarlo con en_progreso.
+                    ->update(['estado_previo_claim' => DB::raw('estado_aprobacion'),
+                        'estado_aprobacion' => 'en_progreso', 'worker_sid' => "wt-{$slot}",
                         'claimed_at' => now(), 'updated_at' => now(),
                         'trabajo_iniciado_at' => now(), 'eta_segundos' => $eta['eta_segundos'],
                         'eta_metodo' => $eta['eta_metodo']]);

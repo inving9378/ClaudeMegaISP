@@ -2,14 +2,17 @@
 
 namespace App\Console\Commands\Active;
 
+use App\Services\Metricas\AjusteMonitoreo;
+use App\Services\Metricas\AsegurarMonitoreoDedicados;
 use App\Services\Metricas\ColectorMetricas;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
  * Item #988: métricas por minuto de los clientes dedicados desde su MikroTik — tráfico de su
- * VLAN (bajada/subida del cliente) y ping a las IPs de sus equipos. El schedule solo se
- * registra con METRICAS_ACTIVO; a mano, sin el interruptor, únicamente --dry-run o --forzar.
+ * VLAN (bajada/subida del cliente) y ping a las IPs de sus equipos. Corre cada minuto; con
+ * «Monitoreo de dedicados» apagado en Configuración sale sin hacer nada, salvo --dry-run o --forzar.
  *
  * --dry-run es el primer paso del runbook: por router imprime el host que de verdad se usó, el
  * usuario (y si es el de respaldo) y la identidad que contestó; si no es la esperada se detiene
@@ -18,10 +21,10 @@ use Throwable;
 class ColectarMetricasCommand extends Command
 {
     protected $signature = 'metricas:colectar
-        {--driver= : mikrotik | simulado (por default config metricas.driver)}
+        {--driver= : mikrotik | simulado (por default METRICAS_DRIVER o el que corresponde al entorno)}
         {--cliente=* : limitar a estos clients.id}
         {--dry-run : lee e imprime todo, sin guardar nada; se detiene si un router no es el esperado}
-        {--forzar : guarda aunque METRICAS_ACTIVO esté apagado}
+        {--forzar : guarda aunque el monitoreo esté apagado}
         {--tasas-vlan= : SOLO dry-run, informativo: VLAN ID separados por coma (600,601,602) cuyas tasas en vivo se imprimen para comparar con Winbox}
         {--muestra= : SOLO dry-run: segundos entre dos lecturas de contadores para calcular bajada/subida sin guardar}
         {--paquetes= : SOLO dry-run: paquetes de ping por IP (para medir cuánto tarda con 3 o con 5)}
@@ -33,14 +36,14 @@ class ColectarMetricasCommand extends Command
     {
         $dryRun = (bool) $this->option('dry-run');
 
-        if (! config('metricas.activo') && ! $dryRun && ! $this->option('forzar')) {
-            $this->warn('METRICAS_ACTIVO está apagado: no se guarda nada. Usa --dry-run para probar la lectura o --forzar para guardar de todos modos.');
+        if (! AjusteMonitoreo::activo() && ! $dryRun && ! $this->option('forzar')) {
+            $this->warn('El monitoreo de dedicados está apagado: no se guarda nada. Usa --dry-run para probar la lectura o --forzar para guardar.');
 
             return self::SUCCESS;
         }
 
         try {
-            $driver = ColectorMetricas::driver((string) ($this->option('driver') ?: config('metricas.driver')));
+            $driver = ColectorMetricas::driver($this->option('driver') ?: null);
         } catch (Throwable $e) {
             $this->error($e->getMessage());
 
@@ -63,6 +66,15 @@ class ColectarMetricasCommand extends Command
             $this->error('--ips-extra: no son IPv4 válidas: ' . implode(', ', $invalidas));
 
             return self::FAILURE;
+        }
+
+        // Varios cambios de estado no disparan eventos: antes de medir se deja todo al día.
+        if (! $dryRun) {
+            try {
+                app(AsegurarMonitoreoDedicados::class)->todos();
+            } catch (Throwable $e) {
+                Log::warning('metricas:colectar: no se pudo actualizar el monitoreo de los dedicados: ' . $e->getMessage());
+            }
         }
 
         $r = $colector->correr($driver, array_map('intval', (array) $this->option('cliente')), $dryRun, $opciones);

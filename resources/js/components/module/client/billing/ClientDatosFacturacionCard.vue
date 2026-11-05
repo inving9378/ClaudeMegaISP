@@ -91,6 +91,112 @@
                            maxlength="150" :disabled="!puedeEditar" @input="limpiar('ciudad')" />
                     <div v-if="errores.ciudad" class="invalid-feedback d-block">{{ errores.ciudad }}</div>
                 </div>
+                <div>
+                    <label class="fdc-label">Núm. exterior <span class="fdc-opc">(opcional)</span></label>
+                    <input v-model.trim="form.num_exterior" class="form-control form-control-sm" :class="{ 'is-invalid': errores.num_exterior }"
+                           maxlength="30" :disabled="!puedeEditar" @input="limpiar('num_exterior')" />
+                    <div v-if="errores.num_exterior" class="invalid-feedback d-block">{{ errores.num_exterior }}</div>
+                </div>
+                <div>
+                    <label class="fdc-label">Núm. interior <span class="fdc-opc">(opcional)</span></label>
+                    <input v-model.trim="form.num_interior" class="form-control form-control-sm" :class="{ 'is-invalid': errores.num_interior }"
+                           maxlength="30" :disabled="!puedeEditar" @input="limpiar('num_interior')" />
+                    <div v-if="errores.num_interior" class="invalid-feedback d-block">{{ errores.num_interior }}</div>
+                </div>
+                <div>
+                    <label class="fdc-label">Colonia <span class="fdc-opc">(opcional)</span></label>
+                    <input v-model.trim="form.colonia" class="form-control form-control-sm" :class="{ 'is-invalid': errores.colonia }"
+                           maxlength="150" :disabled="!puedeEditar" @input="limpiar('colonia')" />
+                    <div v-if="errores.colonia" class="invalid-feedback d-block">{{ errores.colonia }}</div>
+                </div>
+                <div>
+                    <label class="fdc-label">Municipio <span class="fdc-opc">(opcional)</span></label>
+                    <input v-model.trim="form.municipio" class="form-control form-control-sm" :class="{ 'is-invalid': errores.municipio }"
+                           maxlength="150" :disabled="!puedeEditar" @input="limpiar('municipio')" />
+                    <div v-if="errores.municipio" class="invalid-feedback d-block">{{ errores.municipio }}</div>
+                </div>
+                <div>
+                    <label class="fdc-label">Estado <span class="fdc-opc">(opcional)</span></label>
+                    <input v-model.trim="form.estado" class="form-control form-control-sm" :class="{ 'is-invalid': errores.estado }"
+                           maxlength="100" :disabled="!puedeEditar" @input="limpiar('estado')" />
+                    <div v-if="errores.estado" class="invalid-feedback d-block">{{ errores.estado }}</div>
+                </div>
+                <div>
+                    <label class="fdc-label">País <span class="fdc-opc">(opcional)</span></label>
+                    <input v-model.trim="form.pais" class="form-control form-control-sm" :class="{ 'is-invalid': errores.pais }"
+                           maxlength="100" :disabled="!puedeEditar" @input="limpiar('pais')" />
+                    <div v-if="errores.pais" class="invalid-feedback d-block">{{ errores.pais }}</div>
+                </div>
+                <div>
+                    <label class="fdc-label">Forma de pago <span class="fdc-opc">(opcional)</span></label>
+                    <select v-model="form.forma_pago_cfdi" class="form-select form-select-sm" :class="{ 'is-invalid': errores.forma_pago_cfdi }"
+                            :disabled="!puedeEditar" @change="limpiar('forma_pago_cfdi')">
+                        <option :value="null">— Sin especificar —</option>
+                        <option v-for="(nombre, clave) in catalogos.formas_pago" :key="clave" :value="clave">{{ clave }} — {{ nombre }}</option>
+                    </select>
+                    <div v-if="errores.forma_pago_cfdi" class="invalid-feedback d-block">{{ errores.forma_pago_cfdi }}</div>
+                </div>
+                <div>
+                    <label class="fdc-label">Método de pago <span class="fdc-opc">(opcional)</span></label>
+                    <select v-model="form.metodo_pago_cfdi" class="form-select form-select-sm" :class="{ 'is-invalid': errores.metodo_pago_cfdi }"
+                            :disabled="!puedeEditar" @change="limpiar('metodo_pago_cfdi')">
+                        <option :value="null">— Sin especificar —</option>
+                        <option v-for="(nombre, clave) in catalogos.metodos_pago" :key="clave" :value="clave">{{ clave }} — {{ nombre }}</option>
+                    </select>
+                    <div v-if="errores.metodo_pago_cfdi" class="invalid-feedback d-block">{{ errores.metodo_pago_cfdi }}</div>
+                </div>
+                <div>
+                    <label class="fdc-label">Día de recepción de facturas <span class="fdc-opc">(opcional)</span></label>
+                    <input v-model.trim="form.dia_recepcion_facturas" class="form-control form-control-sm" :class="{ 'is-invalid': errores.dia_recepcion_facturas }"
+                           maxlength="100" :disabled="!puedeEditar" @input="limpiar('dia_recepcion_facturas')" />
+                    <div v-if="errores.dia_recepcion_facturas" class="invalid-feedback d-block">{{ errores.dia_recepcion_facturas }}</div>
+                </div>
+                <div>
+                    <label class="fdc-label">Días de crédito <span class="fdc-opc">(opcional)</span></label>
+                    <input v-model.trim="form.dias_credito" class="form-control form-control-sm" :class="{ 'is-invalid': errores.dias_credito }"
+                           maxlength="3" inputmode="numeric" :disabled="!puedeEditar" @input="limpiar('dias_credito')" />
+                    <div v-if="errores.dias_credito" class="invalid-feedback d-block">{{ errores.dias_credito }}</div>
+                </div>
+                <div>
+                    <label class="fdc-label">Condiciones de crédito <span class="fdc-opc">(opcional)</span></label>
+                    <input v-model.trim="form.condiciones_credito" class="form-control form-control-sm" :class="{ 'is-invalid': errores.condiciones_credito }"
+                           maxlength="500" :disabled="!puedeEditar" @input="limpiar('condiciones_credito')" />
+                    <div v-if="errores.condiciones_credito" class="invalid-feedback d-block">{{ errores.condiciones_credito }}</div>
+                </div>
+                <div>
+                    <label class="fdc-label">Contacto de facturación <span class="fdc-opc">(opcional)</span></label>
+                    <input v-model.trim="form.contacto_facturacion_nombre" class="form-control form-control-sm" :class="{ 'is-invalid': errores.contacto_facturacion_nombre }"
+                           maxlength="200" :disabled="!puedeEditar" @input="limpiar('contacto_facturacion_nombre')" />
+                    <div v-if="errores.contacto_facturacion_nombre" class="invalid-feedback d-block">{{ errores.contacto_facturacion_nombre }}</div>
+                </div>
+                <div>
+                    <label class="fdc-label">Cargo del contacto <span class="fdc-opc">(opcional)</span></label>
+                    <input v-model.trim="form.contacto_facturacion_cargo" class="form-control form-control-sm" :class="{ 'is-invalid': errores.contacto_facturacion_cargo }"
+                           maxlength="150" :disabled="!puedeEditar" @input="limpiar('contacto_facturacion_cargo')" />
+                    <div v-if="errores.contacto_facturacion_cargo" class="invalid-feedback d-block">{{ errores.contacto_facturacion_cargo }}</div>
+                </div>
+                <div>
+                    <label class="fdc-label">Teléfono del contacto <span class="fdc-opc">(opcional)</span></label>
+                    <input v-model.trim="form.contacto_facturacion_telefono" class="form-control form-control-sm" :class="{ 'is-invalid': errores.contacto_facturacion_telefono }"
+                           maxlength="40" :disabled="!puedeEditar" @input="limpiar('contacto_facturacion_telefono')" />
+                    <div v-if="errores.contacto_facturacion_telefono" class="invalid-feedback d-block">{{ errores.contacto_facturacion_telefono }}</div>
+                </div>
+                <div>
+                    <label class="fdc-label">Extensión <span class="fdc-opc">(opcional)</span></label>
+                    <input v-model.trim="form.contacto_facturacion_extension" class="form-control form-control-sm" :class="{ 'is-invalid': errores.contacto_facturacion_extension }"
+                           maxlength="20" :disabled="!puedeEditar" @input="limpiar('contacto_facturacion_extension')" />
+                    <div v-if="errores.contacto_facturacion_extension" class="invalid-feedback d-block">{{ errores.contacto_facturacion_extension }}</div>
+                </div>
+                <div>
+                    <label class="fdc-label">Celular del contacto <span class="fdc-opc">(opcional)</span></label>
+                    <input v-model.trim="form.contacto_facturacion_celular" class="form-control form-control-sm" :class="{ 'is-invalid': errores.contacto_facturacion_celular }"
+                           maxlength="40" :disabled="!puedeEditar" @input="limpiar('contacto_facturacion_celular')" />
+                    <div v-if="errores.contacto_facturacion_celular" class="invalid-feedback d-block">{{ errores.contacto_facturacion_celular }}</div>
+                </div>
+                <div class="form-check form-switch align-self-end">
+                    <input :id="`fdc-oc-${clientId}`" v-model="form.requiere_orden_compra" class="form-check-input" type="checkbox" :disabled="!puedeEditar" />
+                    <label class="form-check-label" :for="`fdc-oc-${clientId}`">Requiere orden de compra <span class="fdc-opc">(opcional)</span></label>
+                </div>
             </div>
 
             <div class="fdc-foot">
@@ -107,8 +213,8 @@
  * «Datos de facturación» del cliente (FR-01 #535; antes «Datos fiscales», item #480): la ÚNICA
  * tarjeta para facturar, en Facturación › Vista de facturación. Reemplaza a «Dirección de
  * facturación». API: ClientFiscalDataController (GET/POST /cliente/billing/datos-fiscales/{id}),
- * tabla client_fiscal_data. Solo captura: no timbra nada. Permisos: facturacion.ver para verla y
- * facturacion.fiscal.editar para guardar (el backend los exige igual). El RFC/CURP de Datos
+ * tabla client_fiscal_data. Solo captura: no timbra nada. Permisos: facturacion.datos.ver para verla y
+ * facturacion.datos.editar para guardar (el backend los exige igual). El RFC/CURP de Datos
  * personales es otro dato: aquí no se lee ni se precarga.
  */
 import { reactive, ref, watch } from "vue";
@@ -121,7 +227,7 @@ const props = defineProps({
 });
 
 const RFC = /^([A-ZÑ&]{3,4})(\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01]))([A-Z\d]{2}[A\d])$/;
-const CAMPOS = ["rfc", "razon_social", "regimen_fiscal", "codigo_postal_fiscal", "uso_cfdi", "correo_fiscal", "calle", "ciudad"];
+const CAMPOS = ["rfc", "razon_social", "regimen_fiscal", "codigo_postal_fiscal", "uso_cfdi", "correo_fiscal", "calle", "ciudad", "num_exterior", "num_interior", "colonia", "municipio", "estado", "pais", "forma_pago_cfdi", "metodo_pago_cfdi", "dia_recepcion_facturas", "dias_credito", "condiciones_credito", "contacto_facturacion_nombre", "contacto_facturacion_cargo", "contacto_facturacion_telefono", "contacto_facturacion_extension", "contacto_facturacion_celular"];
 
 const vacio = () => ({
     facturacion_fiscal: false,
@@ -133,11 +239,28 @@ const vacio = () => ({
     correo_fiscal: "",
     calle: "",
     ciudad: "",
+    num_exterior: "",
+    num_interior: "",
+    colonia: "",
+    municipio: "",
+    estado: "",
+    pais: "",
+    forma_pago_cfdi: null,
+    metodo_pago_cfdi: null,
+    dia_recepcion_facturas: "",
+    dias_credito: "",
+    condiciones_credito: "",
+    contacto_facturacion_nombre: "",
+    contacto_facturacion_cargo: "",
+    contacto_facturacion_telefono: "",
+    contacto_facturacion_extension: "",
+    contacto_facturacion_celular: "",
+    requiere_orden_compra: false,
 });
 
 const form = reactive(vacio());
 const errores = reactive({});
-const catalogos = reactive({ regimenes_fiscales: {}, usos_cfdi: {} });
+const catalogos = reactive({ regimenes_fiscales: {}, usos_cfdi: {}, formas_pago: {}, metodos_pago: {} });
 const cargado = ref(false);
 const guardando = ref(false);
 let token = 0;
@@ -171,6 +294,23 @@ const cargar = async () => {
             correo_fiscal: f.correo_fiscal || "",
             calle: f.calle || "",
             ciudad: f.ciudad || "",
+            num_exterior: f.num_exterior ?? "",
+            num_interior: f.num_interior ?? "",
+            colonia: f.colonia ?? "",
+            municipio: f.municipio ?? "",
+            estado: f.estado ?? "",
+            pais: f.pais ?? "",
+            forma_pago_cfdi: f.forma_pago_cfdi || null,
+            metodo_pago_cfdi: f.metodo_pago_cfdi || null,
+            dia_recepcion_facturas: f.dia_recepcion_facturas ?? "",
+            dias_credito: f.dias_credito ?? "",
+            condiciones_credito: f.condiciones_credito ?? "",
+            contacto_facturacion_nombre: f.contacto_facturacion_nombre ?? "",
+            contacto_facturacion_cargo: f.contacto_facturacion_cargo ?? "",
+            contacto_facturacion_telefono: f.contacto_facturacion_telefono ?? "",
+            contacto_facturacion_extension: f.contacto_facturacion_extension ?? "",
+            contacto_facturacion_celular: f.contacto_facturacion_celular ?? "",
+            requiere_orden_compra: !!f.requiere_orden_compra,
         });
         cargado.value = true;
     } catch (e) {

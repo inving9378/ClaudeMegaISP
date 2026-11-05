@@ -161,7 +161,7 @@ class SettlementService
                 $amount = (float)$fund->accumulated;
                 if ($amount <= 0) continue;
 
-                TalentoLedgerEntry::create([
+                TalentoLedgerEntry::registrar([
                     'colaborador_id' => $colaboradorId,
                     'type'           => 'credit',
                     'concept'        => 'fund_return',

@@ -25,6 +25,7 @@ class DedicadoMonitoreoController extends Controller
 
         return response()->json($this->estado->resumen($id) + [
             'puede_editar_red' => $user !== null && ($user->can(ServicioDatosRedController::PERMISO_EDITAR) || $user->isAdmin()),
+            'puede_configurar_monitoreo' => $user !== null && ($user->can('metricas.monitoreo.configurar') || $user->isAdmin()),
         ]);
     }
 

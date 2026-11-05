@@ -535,6 +535,11 @@ class JarvisService
      */
     private function mensajeTechoOFrontera(RoadmapItem $item, string $actor, string $etiquetaCarril): string
     {
+        if ($item->agotoVueltasVacias()) {
+            return "[VUELTAS VACÍAS] Salió vacío {$item->vueltas_vacias} veces sin que nadie lo volviera a aprobar: "
+                . "lo vuelve a meter Irving, no el carril «{$etiquetaCarril}».";
+        }
+
         $det = $this->fronteraDuraDeItemDetalle($item);
 
         if ($det['categoria'] !== null) {
@@ -1046,12 +1051,19 @@ class JarvisService
         // importar qué tan limpio esté el diff" — y sin excepción por "ya la respondió": que una
         // pregunta se haya marcado `requiere_irving=true` alguna vez es la señal de que ESE punto
         // lo decidió (o lo decide) un humano, no el diff que sigue.
-        if ($item->nivel_riesgo === 'C') {
+        // #1065 — el nivel C sólo pasa con el interruptor `automerge.nivel_c.enabled` (APAGADO por
+        // defecto) y, más abajo, las cuatro condiciones. Apagado = comportamiento #756 intacto.
+        $esC = $item->nivel_riesgo === 'C';
+        if ($esC && ! config('circuito.jarvis.automerge.nivel_c.enabled', false)) {
             Log::channel('roadmap_externo')->info('jarvis-automerge-bloqueado', [
                 'item' => $item->id, 'motivo' => 'nivel_riesgo_c',
             ]);
 
             return $no('Nivel de riesgo C: lo mergea Irving (botón/--force), el auto-merge no decide sobre frontera dura.');
+        }
+        // Condición 1 (nivel C): Irving aprobó el item (estado previo al reclamo / quien aprobó).
+        if ($esC && ! $this->aprobadoPorIrving($item)) {
+            return $no('Nivel C: falta la aprobación de Irving sobre el item.');
         }
         foreach ((array) $item->preguntas as $p) {
             if (is_array($p) && filter_var($p['requiere_irving'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
@@ -1105,11 +1117,25 @@ class JarvisService
             return $no('La rama no trae cambios: no hay nada que integrar.');
         }
 
-        foreach ((array) config('circuito.jarvis.automerge.rutas_sensibles', []) as $ruta) {
+        $rutasSensibles = (array) config('circuito.jarvis.automerge.rutas_sensibles', []);
+        if ($esC) {
+            // Condición 4: ni dinero, ni permisos, ni borrado de datos.
+            $rutasSensibles = array_merge($rutasSensibles, (array) config('circuito.jarvis.automerge.nivel_c.rutas_sensibles_c', []));
+        }
+        foreach ($rutasSensibles as $ruta) {
             foreach ($diff as $archivo) {
                 if ($ruta !== '' && str_contains($archivo, $ruta)) {
                     return $no("La rama toca «{$archivo}» (ruta sensible): lo mergea Irving.");
                 }
+            }
+        }
+        // Condición 2 (nivel C): lo nuevo va detrás de un interruptor APAGADO — el diff debe traer una
+        // clave en config/ con env('X', false).
+        if ($esC) {
+            $cfgs = array_values(array_filter($diff, fn ($f) => str_starts_with($f, 'config/')));
+            $cuerpoCfg = $cfgs ? $this->circuito->contenidoDeRama((string) $item->branch, $cfgs) : '';
+            if (! preg_match('/env\(\s*[\'"][A-Z0-9_]+[\'"]\s*,\s*false\s*\)/', $cuerpoCfg)) {
+                return $no('Nivel C: el diff no declara un interruptor apagado por defecto (config con env(..., false)).');
             }
         }
 
@@ -1117,7 +1143,7 @@ class JarvisService
         // esquema y el revert del código no lo deshace.
         $migraciones = array_filter($diff, fn ($f) => str_contains($f, 'migrations/'));
         if ($migraciones) {
-            $cuerpo = $this->circuito->contenidoDeRama((string) $item->branch, $migraciones);
+            $cuerpo = $this->sinReversionPropia($this->circuito->contenidoDeRama((string) $item->branch, $migraciones));
             foreach ((array) config('circuito.jarvis.automerge.patrones_destructivos', []) as $p) {
                 if ($p !== '' && stripos($cuerpo, $p) !== false) {
                     return $no("Trae una migración con «{$p}»: no se deshace con git revert, lo revisa Irving.");
@@ -1142,6 +1168,45 @@ class JarvisService
 
         return ['elegible' => true, 'motivo' => 'Trabajo verificado, reversible y sin tocar prod ('
             . count($diff) . ' archivo(s)).'];
+    }
+
+    /**
+     * #1065 cond. 1 — ¿lo aprobó Irving? Estado previo al reclamo `aprobado_irving`, o `aprobado_por`
+     * de Irving. (El estado actual `en_progreso`/`aprobado_irving` por sí solo no basta si lo fijó otro.)
+     */
+    private function aprobadoPorIrving(RoadmapItem $item): bool
+    {
+        return $item->estado_aprobacion === 'aprobado_irving'
+            || $item->estado_previo_claim === 'aprobado_irving'
+            || str_starts_with((string) $item->aprobado_por, 'irving');
+    }
+
+    /**
+     * #1065 — un `dropColumn` dentro de `down()` sobre columnas que el mismo `up()` crea es sólo la
+     * reversión de la propia migración: no cuenta como destructivo. Devuelve el texto con esos
+     * `dropColumn` neutralizados; todo lo demás (incluido `up()` completo) se escanea igual.
+     */
+    private function sinReversionPropia(string $cuerpo): string
+    {
+        return preg_replace_callback(
+            '/function\s+up\s*\(.*?\)[^{]*\{(.*?)\n\s*\}\s*\n\s*(?:\/\*\*.*?\*\/\s*)?(?:public\s+)?function\s+down\s*\(.*?\)[^{]*\{(.*?)\n\s*\}\s*\n\};?/s',
+            function ($m) {
+                $up = $m[1];
+                $down = preg_replace_callback('/dropColumn\(\s*(\[[^\]]*\]|\'[^\']*\'|"[^"]*")\s*\)/', function ($d) use ($up) {
+                    preg_match_all('/[\'"]([^\'"]+)[\'"]/', $d[1], $cols);
+                    foreach ($cols[1] as $c) {
+                        if (! preg_match('/->\w+\(\s*[\'"]' . preg_quote($c, '/') . '[\'"]/', $up)) {
+                            return $d[0];      // columna que up() no crea → sigue contando
+                        }
+                    }
+
+                    return 'revertirColumnaPropia()';
+                }, $m[2]);
+
+                return str_replace($m[2], $down, $m[0]);
+            },
+            $cuerpo
+        ) ?? $cuerpo;
     }
 
     /**
@@ -1714,6 +1779,14 @@ class JarvisService
             }
         }
 
-        return ['consultas_resueltas' => $resueltas, 'esfuerzos_sellados' => $sellados];
+        // #625 — seguimiento del avance: vueltas vacías y reclamos fantasma.
+        $avance = [];
+        try {
+            $avance = app(AvanceService::class)->barrer($apply);
+        } catch (\Throwable $e) {
+            Log::warning('JARVIS avance falló: ' . $e->getMessage());
+        }
+
+        return ['consultas_resueltas' => $resueltas, 'esfuerzos_sellados' => $sellados, 'avance' => $avance];
     }
 }

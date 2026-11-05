@@ -181,9 +181,18 @@ export default {
         };
 
         const getfieldsEditedBundleService = async (model, action) => {
+            // Solo carga al cambiar tarifa de un servicio existente (update/{id});
+            // con crear/{idClient} el substr daba parte del id del cliente.
+            if (!String(action).startsWith("update/")) return;
             let id = action.substr(7);
             idModel.value = id;
-            let result = await requestEditedBundlePlanToChange(id);
+            let result;
+            try {
+                result = await requestEditedBundlePlanToChange(id);
+            } catch (e) {
+                window.console.error("No se pudieron cargar los planes para cambiar", e);
+                return;
+            }
 
             fieldsJson.value = result["fields"];
 

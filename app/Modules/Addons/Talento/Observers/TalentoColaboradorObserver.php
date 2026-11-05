@@ -35,6 +35,12 @@ class TalentoColaboradorObserver
             $this->sync($colaborador);
             if ($colaborador->status === 'active') {
                 $this->reclamarExtension($colaborador);
+            } elseif ($colaborador->user_id) {
+                // #693: dar de baja al colaborador cierra sus sesiones de la app móvil.
+                \Laravel\Sanctum\PersonalAccessToken::where('tokenable_type', User::class)
+                    ->where('tokenable_id', $colaborador->user_id)
+                    ->where('name', 'talento-mobile')
+                    ->delete();
             }
         }
     }

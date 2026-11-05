@@ -67,17 +67,21 @@ class CertificationService
     }
 
     /**
-     * Return the academy progress for a collaborator (consumed by LevelService).
+     * Return the academy progress for a collaborator.
      * Mirrors TalentoAcademyController::progressForColaborador().
      */
     public function progressForColaborador(int $colaboradorId): array
     {
+        // Solo los cursos que le tocan por sus roles (2026-10-24, igual que el controlador).
+        $userId = \App\Modules\Addons\Talento\Models\TalentoColaborador::whereKey($colaboradorId)->value('user_id');
+        $roles  = $userId ? (\App\Models\User::find($userId)?->getRoleNames() ?? []) : [];
+        $ids    = TalentoCourse::where('active', true)->paraRoles($roles)->pluck('id');
         $certs = TalentoCertification::where('colaborador_id', $colaboradorId)
-            ->where('status', 'active')->count();
-        $total = TalentoCourse::where('active', true)->count();
+            ->where('status', 'active')->whereIn('course_id', $ids)->distinct()->count('course_id');
+        $total = $ids->count();
 
         $courses = TalentoCourse::with(['exams' => fn($q) => $q->where('active', true)])
-            ->where('active', true)
+            ->whereIn('id', $ids)
             ->get()
             ->map(function ($c) use ($colaboradorId) {
                 $examPassed = $c->exams->first()

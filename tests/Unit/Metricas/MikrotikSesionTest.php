@@ -64,6 +64,8 @@ class MikrotikSesionTest extends TestCase
         $l = $this->sesion->interfaces(['x' => ['interfaz' => null, 'vlan_id' => 102]]);
 
         $this->assertNull($l['x']);
+        $this->assertSame('vlan_id', $this->sesion->resolucion()['x']['por']);
+        $this->assertCount(2, $this->sesion->resolucion()['x']['nombres'], 'se puede avisar que está repetida');
     }
 
     public function test_interfaz_que_no_existe(): void

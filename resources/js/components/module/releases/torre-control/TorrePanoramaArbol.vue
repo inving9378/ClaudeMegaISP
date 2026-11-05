@@ -58,6 +58,9 @@ import { darkMode } from "../../../../hook/appConfig.js";
 import TorreArbolNodo from "./TorreArbolNodo.vue";
 
 /**
+ * 2026-10-26 — cada módulo muestra TODOS sus items vivos (también los que cuelgan de un proyecto de
+ * otro módulo) y cada item trae el botón «Seguimiento» (por qué no avanza + «Meter al circuito»).
+ *
  * #9990970 (CIRC-09 Fase 3) — Panorama en árbol, SOLO LECTURA: Módulo → Épica → Item → Sub-item,
  * lazy-load sobre el endpoint de la Fase 2 (GET .../torre/panorama-jerarquia). Sin paneles
  * desplegables (Fase 4/5) ni acciones/refresco en vivo (Fase 6) — eso lo agregan los hermanos.
@@ -125,11 +128,16 @@ export default {
                 pagina: 1,
                 total: null,
                 moduloPadre: padre.nivel === "modulo" ? padre.id : (padre.moduloPadre || null),
-                // #9990973 (CIRC-09 Fase 5) — panel placeholder de la fila "Tu decisión".
-                panelDecisionAbierto: false,
-                panelDecisionCargando: false,
-                panelDecisionError: null,
-                panelDecisionData: null,
+                // 2026-10-26 — panel «Seguimiento» (reemplaza el placeholder de "Tu decisión" de
+                // #9990973): por qué no avanza, opciones con la recomendada y «Meter al circuito».
+                panelSeguimientoAbierto: false,
+                panelSeguimientoCargando: false,
+                panelSeguimientoError: null,
+                panelSeguimientoData: null,
+                seguimientoEleccion: {},
+                seguimientoEnviando: false,
+                seguimientoMsg: null,
+                seguimientoMsgTipo: null,
                 // #9990971 (CIRC-09 Fase 4) — paneles de lectura de las filas "Trabajando" y
                 // "Decidido sin ti".
                 panelTrabajandoAbierto: false,
@@ -178,25 +186,107 @@ export default {
         }
 
         /**
-         * #9990973 (CIRC-09 Fase 5) — panel PLACEHOLDER de la fila "Tu decisión". El árbol solo
-         * trae campos livianos (Fase 2); al desplegar se pide el item completo (mismo endpoint
-         * de detalle que ya usa el resto de la Torre, `roadmap_view`) para mostrar por qué
-         * escaló y sus preguntas en crudo. Se cachea en el propio nodo: un segundo click no
-         * repite el fetch.
+         * 2026-10-26 (Irving) — botón «Seguimiento»: por qué no avanza el item, quién lo tiene que
+         * mover y sus preguntas con la recomendada. Cada opción arranca en lo ya elegido o, si no
+         * hay, en la recomendada. Se cachea en el nodo; «Actualizar» lo vuelve a pedir.
          */
-        async function paToggleDecision(node) {
-            node.panelDecisionAbierto = !node.panelDecisionAbierto;
-            if (!node.panelDecisionAbierto || node.panelDecisionData || node.panelDecisionCargando) return;
-            node.panelDecisionCargando = true;
-            node.panelDecisionError = null;
+        async function cargarSeguimiento(node) {
+            node.panelSeguimientoCargando = true;
+            node.panelSeguimientoError = null;
             try {
-                const { data } = await axios.get(`/api/roadmap/items/${node.id}`);
-                node.panelDecisionData = data;
+                const { data } = await axios.get(`/api/roadmap/torre/panorama-jerarquia/${node.id}/seguimiento`);
+                const eleccion = {};
+                for (const p of data.preguntas || []) {
+                    const ops = p.opciones || [];
+                    if (!ops.length) continue;
+                    const recomendada = ops.find((o) => o.recomendada);
+                    eleccion[p.id] = p.opcion_elegida || (recomendada ? recomendada.clave : null);
+                }
+                node.seguimientoEleccion = eleccion;
+                node.panelSeguimientoData = data;
             } catch (e) {
-                node.panelDecisionError = (e.response && e.response.data && e.response.data.mensaje)
-                    || "No se pudo cargar el detalle de la decisión.";
+                node.panelSeguimientoError = (e.response && e.response.data && e.response.data.mensaje)
+                    || "No se pudo cargar el seguimiento.";
             } finally {
-                node.panelDecisionCargando = false;
+                node.panelSeguimientoCargando = false;
+            }
+        }
+
+        async function paToggleSeguimiento(node) {
+            node.panelSeguimientoAbierto = !node.panelSeguimientoAbierto;
+            if (!node.panelSeguimientoAbierto || node.panelSeguimientoData || node.panelSeguimientoCargando) return;
+            node.seguimientoMsg = null;
+            await cargarSeguimiento(node);
+        }
+
+        async function paRecargarSeguimiento(node) {
+            node.seguimientoMsg = null;
+            await cargarSeguimiento(node);
+        }
+
+        function respuestasDe(node) {
+            const respuestas = {};
+            for (const [pid, clave] of Object.entries(node.seguimientoEleccion || {})) {
+                if (clave) respuestas[pid] = clave;
+            }
+            return respuestas;
+        }
+
+        function sigueEsperandoMerge(data, id) {
+            if (!data) return false;
+            if (data.item && data.item.id === id) return data.situacion === "espera_merge";
+            return [...(data.dependencias || []), ...(data.hijos_abiertos || [])]
+                .some((f) => f.id === id && f.situacion === "espera_merge");
+        }
+
+        /**
+         * Botones del panel «Seguimiento» (los arma el servidor según la situación):
+         *   meter   → aprueba con las opciones elegidas, quita el freno, al frente de la cola + vuelta.
+         *   forzar  → igual, pero quitando la dependencia («Iniciar sin esperar»), con confirmación.
+         *   mergear → encola el merge como el botón de Integración; el circuito lo aplica en <1 min y
+         *             aquí se re-consulta hasta verlo.
+         * Si algo lo sigue frenando, el servidor responde 422 con el motivo y aquí solo se muestra.
+         */
+        async function paAccionSeguimiento(node, accion) {
+            if (node.seguimientoEnviando) return;
+            if (accion.tipo === "mergear" && !window.confirm(`¿Mergear la rama de #${accion.item_id} a main?`)) return;
+            if (accion.confirmar && !window.confirm(accion.confirmar)) return;
+            node.seguimientoEnviando = true;
+            node.seguimientoMsg = null;
+            try {
+                if (accion.tipo === "mergear") {
+                    const { data } = await axios.post("/api/roadmap/integracion/merge", { id: accion.item_id });
+                    node.seguimientoMsg = `#${accion.item_id}: ${data.mensaje || "Merge encolado."} El circuito lo aplica en menos de un minuto.`;
+                    node.seguimientoMsgTipo = "ok";
+                    for (let i = 0; i < 18; i++) {
+                        await new Promise((res) => setTimeout(res, 5000));
+                        await cargarSeguimiento(node);
+                        if (!sigueEsperandoMerge(node.panelSeguimientoData, accion.item_id)) {
+                            node.seguimientoMsg = `#${accion.item_id} mezclado a main ✓`;
+                            break;
+                        }
+                    }
+                    return;
+                }
+                const propio = accion.item_id === node.id;
+                const { data } = await axios.post(`/api/roadmap/items/${accion.item_id}/meter-al-circuito`, {
+                    respuestas: propio ? respuestasDe(node) : {},
+                    ignorar_dependencias: accion.tipo === "forzar",
+                });
+                const disparo = data.disparo && data.disparo.ok === false ? ` (${data.disparo.mensaje})` : "";
+                node.seguimientoMsg = (propio ? "" : `#${accion.item_id}: `) + data.mensaje + disparo;
+                node.seguimientoMsgTipo = "ok";
+                if (propio) {
+                    node.estado = "aprobado_irving";
+                    node.bucket = "en_cola";
+                }
+                await cargarSeguimiento(node);
+            } catch (e) {
+                node.seguimientoMsg = (e.response && e.response.data && (e.response.data.mensaje || e.response.data.error || e.response.data.message))
+                    || "No se pudo completar la acción.";
+                node.seguimientoMsgTipo = "error";
+            } finally {
+                node.seguimientoEnviando = false;
             }
         }
 
@@ -253,6 +343,9 @@ export default {
 
         function paEstadoVisual(node) {
             if (node.nivel === "modulo") return null;
+            if (node.bucket === "humano") {
+                return { texto: "Lo trabaja una persona", clase: "pa-badge-gris", icono: "bi-person" };
+            }
             if (node.bucket === "activo") {
                 return { texto: "Trabajando", clase: "pa-badge-verde", icono: "bi-play-circle" };
             }
@@ -377,7 +470,9 @@ export default {
         provide("paEsVisible", paEsVisible);
         provide("paEstadoVisual", paEstadoVisual);
         provide("paEnfocado", enfocado);
-        provide("paToggleDecision", paToggleDecision);
+        provide("paToggleSeguimiento", paToggleSeguimiento);
+        provide("paRecargarSeguimiento", paRecargarSeguimiento);
+        provide("paAccionSeguimiento", paAccionSeguimiento);
         provide("paToggleTrabajando", paToggleTrabajando);
         provide("paToggleDecidido", paToggleDecidido);
 
@@ -418,6 +513,7 @@ export default {
   border-radius:999px; padding:4px 12px; font-size:12px; font-weight:600; cursor:pointer;
 }
 .pa-chip-activo{ background:var(--pa-accent); border-color:var(--pa-accent); color:#fff; }
+.pa-dark .pa-chip-activo{ color:#0b1220; }
 .pa-buscador{
   border:1px solid var(--pa-line); background:var(--pa-surface); color:var(--pa-ink);
   border-radius:8px; padding:5px 12px; font-size:13px; flex:1 1 260px; min-width:200px;

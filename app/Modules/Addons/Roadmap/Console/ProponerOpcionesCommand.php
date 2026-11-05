@@ -109,7 +109,7 @@ class ProponerOpcionesCommand extends Command
                 if (! $apply) {
                     continue;
                 }
-                $revisor->aplicarPreguntas($item, $pregs);
+                $revisor->aplicarPreguntas($item, $pregs, 'revisor:brief-completo', $r['escalado'] ?? null);
                 $escritos++;
                 Log::channel('roadmap_externo')->info('brief-completo', ['item' => $item->id, 'preguntas' => count($pregs), 'modelo' => $r['modelo'] ?? null]);
             } else {

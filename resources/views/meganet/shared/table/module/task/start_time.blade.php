@@ -1,3 +1,9 @@
 <td>
-    <span style="background-color: {{ $color }}; padding:5px;" class="start-time">{{ $start_time }}</span>
+    @if ($start_time)
+        <span class="task-chip {{ $atrasada ? 'task-chip-atrasada' : 'task-chip-fecha' }}"
+            @if ($atrasada) title="Ya pasó su fecha y sigue abierta" @endif>
+            @if ($atrasada)<i class="fas fa-exclamation-circle"></i>@endif
+            {{ $start_time }}
+        </span>
+    @endif
 </td>

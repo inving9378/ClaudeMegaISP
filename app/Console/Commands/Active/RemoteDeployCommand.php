@@ -511,7 +511,7 @@ class RemoteDeployCommand extends Command
 
         // Esta caja es la que recibe el deploy remoto: en la topología actual eso es prod.
         // Si algún día un ambiente no-producción corre este comando, queda igual de correcto.
-        $aplicadaField = app()->environment('production') ? 'aplicada_en_prod_at' : 'aplicada_en_dev_at';
+        $aplicadaField = config('updates.enabled') ? 'aplicada_en_prod_at' : 'aplicada_en_dev_at';
 
         $technicalData = [
             'commit_sha'      => $commitSha,

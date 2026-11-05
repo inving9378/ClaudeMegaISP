@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Roadmap\Services;
 
+use App\Services\Core\SaludIA;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\Process\Process;
@@ -32,8 +33,24 @@ class EnvironmentHealthService
         return [
             'certificado' => $this->seguro('certificado', fn () => $this->certificado()),
             'checkout_principal' => $this->seguro('checkout_principal', fn () => $this->checkoutPrincipal()),
+            'ia' => $this->seguro('ia', fn () => $this->ia()),
             'generado_at' => now()->toIso8601String(),
         ];
+    }
+
+    /** #1073 — banner rojo si la IA del sistema está ciega (llave rechazada, sin saldo, sin cuota). */
+    private function ia(): array
+    {
+        $ciegas = SaludIA::ciegas();
+        if ($ciegas === []) {
+            return ['estado' => 'verde'];
+        }
+        $partes = [];
+        foreach ($ciegas as $prov => $f) {
+            $partes[] = "{$prov}: {$f['texto']} desde " . Carbon::createFromTimestamp((int) $f['desde'])->format('d-m H:i');
+        }
+
+        return ['estado' => 'rojo', 'mensaje' => implode(' · ', $partes)];
     }
 
     /** Certificado TLS leído EN VIVO por conexión local (SNI), no del filesystem de letsencrypt

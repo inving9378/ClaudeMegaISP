@@ -1,3 +1,5 @@
+@use "sass:list";
+@use "sass:string";
 @use "bootstrap_multiselect";
 @use "sidebar";
 @use "cursor";
@@ -68,10 +70,10 @@
     background-color: rgb(255, 0, 0);
 }
 
-[data-layout-mode=dark] .task-status-done,
-[data-layout-mode=dark] .task-status-progress,
-[data-layout-mode=dark] .task-status-todo,
-[data-layout-mode=dark] .task-status-future,
+[data-layout-mode=dark] .task-status-done:not(.task-chip),
+[data-layout-mode=dark] .task-status-progress:not(.task-chip),
+[data-layout-mode=dark] .task-status-todo:not(.task-chip),
+[data-layout-mode=dark] .task-status-future:not(.task-chip),
 [data-layout-mode=dark] .client-block,
 [data-layout-mode=dark] .client-active,
 [data-layout-mode=dark] .client-inactive,
@@ -80,6 +82,41 @@
 [data-layout-mode=dark] span.start-time {
     color: #000 !important;
 }
+
+/* Chips de la lista de Tareas (Scheduling, estilo Torre, 2026-11-04): estado, prioridad y fecha.
+ * Van con .task-chip para no tocar otros usos de .task-status-*. */
+.task-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600; line-height: 1.2;
+    padding: 3px 10px; border-radius: 999px; white-space: nowrap;
+    background: #f1f5f9; color: #475569;
+}
+.task-chip .fas { font-size: 11px; }
+.task-chip-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .75; }
+.task-chip.task-status-todo     { background: #eff6ff; color: #1d4ed8; }
+.task-chip.task-status-progress { background: #fffbeb; color: #b45309; }
+.task-chip.task-status-done     { background: #ecfdf5; color: #047857; }
+.task-chip.task-status-archived { background: #f1f5f9; color: #64748b; }
+.task-chip.task-status-future   { background: #f5f3ff; color: #6d28d9; }
+.task-chip.task-prio-alta  { background: #fef2f2; color: #b91c1c; }
+.task-chip.task-prio-media { background: #fffbeb; color: #b45309; }
+.task-chip.task-prio-baja  { background: #eff6ff; color: #1d4ed8; }
+.task-chip-fecha    { background: transparent; color: inherit; font-weight: 500; padding-left: 0; }
+.task-chip-atrasada { background: #fef2f2; color: #b91c1c; }
+.task-nota-corta {
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden; white-space: normal; max-width: 280px; color: inherit;
+}
+[data-layout-mode=dark] .task-chip { background: rgba(148, 163, 184, .16); color: #cbd5e1; }
+[data-layout-mode=dark] .task-chip.task-status-todo,
+[data-layout-mode=dark] .task-chip.task-prio-baja     { background: rgba(96, 165, 250, .16); color: #93c5fd; }
+[data-layout-mode=dark] .task-chip.task-status-progress,
+[data-layout-mode=dark] .task-chip.task-prio-media    { background: rgba(251, 191, 36, .15); color: #fcd34d; }
+[data-layout-mode=dark] .task-chip.task-status-done   { background: rgba(52, 211, 153, .15); color: #6ee7b7; }
+[data-layout-mode=dark] .task-chip.task-status-future { background: rgba(167, 139, 250, .16); color: #c4b5fd; }
+[data-layout-mode=dark] .task-chip.task-prio-alta,
+[data-layout-mode=dark] .task-chip-atrasada           { background: rgba(248, 113, 113, .15); color: #fca5a5; }
+[data-layout-mode=dark] .task-chip-fecha              { background: transparent; color: inherit; }
 
 /* Filas de tabla por estado: LÍNEA INFERIOR de color (mismo criterio que los badges),
  * fondo neutro del tema y texto del tema (blanco en oscuro). El mapeo estado->color se
@@ -91,6 +128,7 @@ tr.Bloqueado > td, tr.client-block    > td { border-bottom: 2px solid #f87171 !i
 tr.Inactivo  > td, tr.client-inactive > td { border-bottom: 2px solid #fbbf24 !important; }
 tr.Nuevo     > td, tr.client-new      > td { border-bottom: 2px solid #6c84f7 !important; }
 tr.Cancelado > td, tr.client-cancel   > td { border-bottom: 2px solid #9aa7b5 !important; }
+tr.Desinstalado > td, tr.client-uninstalled > td { border-bottom: 2px solid #b4b2a9 !important; }
 
 /* PREFERENCIA POR USUARIO — estilo RELLENO "C3" (body[data-row-style="filled"]).
  * Cada fila con estado se convierte en TARJETA enmarcada: fondo pastel + borde completo
@@ -112,6 +150,9 @@ $c3-filled-states: (
     "Inactivo":  ("client-inactive", #FBF1D8, #DFB35C, #EF9F27, #573D0C),
     "Nuevo":     ("client-new",      #E1E7FD, #7E92E8, #4C63D2, #1A2454),
     "Cancelado": ("client-cancel",   #ECEEF0, #A9B3BD, #6B7883, #2E353B),
+    // Desinstalado (item #488): gris cálido de la ficha de cliente (sección "otros" de
+    // InformationClientCrud.vue), distinto del gris azulado de Cancelado.
+    "Desinstalado": ("client-uninstalled", #F1EFE8, #B4B2A9, #888780, #2C2C2A),
 );
 
 @each $st, $vals in $c3-filled-states {
@@ -165,6 +206,9 @@ $c3-filled-states-dark: (
     "Inactivo":  ("client-inactive", #3A2C10, #A67C2E, #FBBF24, #F7ECCB),
     "Nuevo":     ("client-new",      #1A2340, #3E4FA3, #6C84F7, #DDE3FB),
     "Cancelado": ("client-cancel",   #24282C, #6B7883, #9AA7B5, #E6E6E6),
+    // Fondo #353436 = color.mix(#888780, #1d1d21, 22%): tinte del gris de la ficha sobre su tarjeta
+    // oscura, mismo criterio que los demás (fijado a hex: mix() da canales con decimales).
+    "Desinstalado": ("client-uninstalled", #353436, #888780, #B4B2A9, #F1EFE8),
 );
 
 @each $st, $vals in $c3-filled-states-dark {
@@ -195,6 +239,105 @@ $c3-filled-states-dark: (
     body[data-layout-mode="dark"][data-row-style="filled"] tr.#{$st} > td:last-child,
     body[data-layout-mode="dark"][data-row-style="filled"] tr.#{$alt} > td:last-child {
         border-right: 1.5px solid $border !important;
+    }
+}
+
+/* ESTADO DEL CLIENTE — TOKENS DE COLOR ÚNICOS (item #488).
+ * Salen de los MISMOS mapas $c3-filled-states / -dark de arriba (los del listado), así que la
+ * ficha, el listado y lo que venga después comparten colores sin hex sueltos por vista. Cada
+ * estado expone --estado-{slug}-{bg|border|accent|text} en claro y en oscuro; la clase
+ * .estado-tono--{slug} los vuelca a --estado-* genéricos, que consumen .estado-chip y el
+ * desplegable del estado. Valor guardado -> slug: resources/js/helpers/clientStatus.js. */
+@mixin estado-tono($slug) {
+    --estado-bg:     var(--estado-#{$slug}-bg);
+    --estado-border: var(--estado-#{$slug}-border);
+    --estado-accent: var(--estado-#{$slug}-accent);
+    --estado-text:   var(--estado-#{$slug}-text);
+}
+
+@mixin estado-tokens($states) {
+    @each $st, $vals in $states {
+        $slug: string.to-lower-case($st);
+        --estado-#{$slug}-bg:     #{list.nth($vals, 2)};
+        --estado-#{$slug}-border: #{list.nth($vals, 3)};
+        --estado-#{$slug}-accent: #{list.nth($vals, 4)};
+        --estado-#{$slug}-text:   #{list.nth($vals, 5)};
+    }
+}
+
+:root { @include estado-tokens($c3-filled-states); }
+body[data-layout-mode="dark"] { @include estado-tokens($c3-filled-states-dark); }
+
+@each $st, $vals in $c3-filled-states {
+    .estado-tono--#{string.to-lower-case($st)} { @include estado-tono(string.to-lower-case($st)); }
+}
+
+/* Chip: fondo pastel + texto oscuro del matiz + punto con el color saturado. Sin tono (estado
+ * desconocido o vacío) queda neutro: hereda el color del texto, sin fondo. */
+.estado-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0.15em 0.65em;
+    border-radius: 999px;
+    font-size: 0.75em;
+    font-weight: 600;
+    line-height: 1.5;
+    vertical-align: middle;
+    background: var(--estado-bg, transparent);
+    color: var(--estado-text, inherit);
+    border: 1px solid var(--estado-border, currentColor);
+}
+.estado-chip::before {
+    content: "";
+    width: 0.6em;
+    height: 0.6em;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--estado-accent, currentColor);
+}
+
+/* Desplegable del estado (Choices.js, resources/js/shared/SelectComponent.vue). Choices pone
+ * data-value = valor guardado en el valor seleccionado y en cada opción. Se acota a
+ * .estado-cliente-scope (lo pone la vista) + select[name="estado"], así no toca otros selects ni
+ * el componente compartido. El placeholder (data-value="null") y valores sin tono quedan neutros. */
+.estado-cliente-scope .choices:has(select[name="estado"]) {
+    @each $st, $vals in $c3-filled-states {
+        .choices__item[data-value="#{$st}"] { @include estado-tono(string.to-lower-case($st)); }
+    }
+
+    .choices__list--single .choices__item[data-value]:not([data-value="null"]) {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45em;
+        padding: 0.1em 0.7em;
+        border-radius: 999px;
+        font-weight: 600;
+        background: var(--estado-bg, transparent);
+        color: var(--estado-text, inherit);
+        border: 1px solid var(--estado-border, currentColor);
+    }
+
+    .choices__list--single .choices__item[data-value]:not([data-value="null"])::before,
+    .choices__list--dropdown .choices__item--choice[data-value]:not([data-value="null"])::before {
+        content: "";
+        width: 0.65em;
+        height: 0.65em;
+        border-radius: 50%;
+        flex-shrink: 0;
+        background: var(--estado-accent, currentColor);
+    }
+
+    .choices__list--dropdown .choices__item--choice[data-value]:not([data-value="null"]) {
+        display: flex;
+        align-items: center;
+        gap: 0.55em;
+        border-left: 3px solid var(--estado-accent, transparent);
+    }
+
+    .choices__list--dropdown .choices__item--choice[data-value]:not([data-value="null"]).is-highlighted {
+        background: var(--estado-bg, transparent);
+        color: var(--estado-text, inherit);
     }
 }
 

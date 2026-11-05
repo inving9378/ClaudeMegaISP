@@ -485,6 +485,28 @@
       <control-lista :controles="controlesEditables" titulo="Otros controles verdes del catálogo (se editan donde viven)" mostrar-nota />
     </div>
 
+    <div v-show="seccion === 'interruptores-sistema'">
+      <p class="small text-muted">
+        Solo lectura: estado vigente de los interruptores de unificación y de dinero. Se cambian en el
+        <code>.env</code> (nunca desde aquí).
+      </p>
+      <div v-if="!interruptoresSistema" class="text-muted small">Leyendo interruptores…</div>
+      <div v-for="(lista, grupo) in interruptoresPorGrupo" :key="grupo" class="card mb-3">
+        <div class="card-header py-2"><b>{{ grupo }}</b></div>
+        <table class="table table-sm mb-0 align-middle">
+          <tbody>
+            <tr v-for="i in lista" :key="i.clave">
+              <td style="width:6.5rem">
+                <span class="badge" :class="i.encendido ? 'bg-success' : 'bg-secondary'">{{ i.encendido ? 'Encendido' : 'Apagado' }}</span>
+                <span v-if="i.dinero" class="badge bg-warning text-dark ms-1">dinero</span>
+              </td>
+              <td><code>{{ i.env }}</code><span class="d-block small text-muted">{{ i.que_hace }}</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <div v-show="seccion === 'umbrales'" v-if="config">
       <div class="card mb-3">
         <div class="card-header py-2"><b>Política base de automatización</b></div>
@@ -826,6 +848,48 @@
       </template>
     </div>
 
+    <!-- SUB-PESTAÑA · MODELOS DE IA (#1115) -->
+    <div v-show="seccion === 'modelos-ia'">
+      <div v-if="!iaModos" class="small text-muted">Cargando…</div>
+      <div v-else>
+        <div v-if="iaModos.banner" class="alert alert-warning py-2 small">{{ iaModos.banner }}</div>
+        <div v-if="iaErr" class="alert alert-danger py-2 small">{{ iaErr }}</div>
+        <p class="small text-muted">Ahorro usa lo que ya está en Integraciones → Módulos IA. Normal y Potente reemplazan el modelo de cada pieza. Si un modelo falla, la pieza vuelve sola al anterior.</p>
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+          <button v-for="m in ['ahorro','normal','potente']" :key="m" class="btn btn-sm text-capitalize"
+                  :class="iaModos.modo === m ? 'btn-primary' : 'btn-outline-secondary'" :disabled="!puedeEditar"
+                  @click="iaPost('modo', { modo: m })">{{ m }}</button>
+          <button class="btn btn-sm btn-warning" :disabled="!puedeEditar" @click="iaPost('potente', {})">Potente por 2 horas</button>
+          <span v-if="iaModos.potente_hasta" class="small text-muted">Vence {{ iaModos.potente_hasta }} y vuelve a {{ iaModos.modo_previo || 'ahorro' }}</span>
+        </div>
+        <div v-for="m in ['normal','potente']" :key="m" class="mb-3">
+          <div class="fw-semibold text-capitalize">Modo {{ m }} · modelo por pieza</div>
+          <div v-for="pz in iaModos.piezas" :key="m + pz" class="d-flex align-items-center gap-2 small my-1" v-show="iaModos.tablas[m][pz]">
+            <span style="min-width:200px">{{ pz }}</span>
+            <select class="form-select form-select-sm w-auto" :value="iaModos.tablas[m][pz]" :disabled="!puedeEditar"
+                    @change="iaPost('pieza', { modo: m, pieza: pz, modelo: $event.target.value })">
+              <option v-for="c in iaModos.candidatos" :key="c" :value="c" :disabled="!(iaModos.verificados[c] && iaModos.verificados[c].ok)">
+                {{ c }}{{ iaModos.verificados[c] && iaModos.verificados[c].ok ? '' : ' (sin verificar)' }}
+              </option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-3">
+          <div class="fw-semibold">Modelos verificados</div>
+          <div v-for="c in iaModos.candidatos" :key="c" class="d-flex align-items-center gap-2 small my-1">
+            <span style="min-width:200px">{{ c }}</span>
+            <span :class="iaModos.verificados[c] ? (iaModos.verificados[c].ok ? 'text-success' : 'text-danger') : 'text-muted'">
+              {{ iaModos.verificados[c] ? (iaModos.verificados[c].ok ? 'ok' : 'falló') : 'sin verificar' }}</span>
+            <button class="btn btn-sm btn-outline-secondary" :disabled="!puedeEditar" @click="iaPost('verificar', { modelo: c })">Verificar con llamada real</button>
+          </div>
+        </div>
+        <div class="fw-semibold">Historial</div>
+        <table class="table table-sm small"><tbody>
+          <tr v-for="h in iaModos.historial" :key="h.id"><td>{{ h.created_at }}</td><td>{{ h.tipo }}</td><td>{{ h.pieza }}</td><td>{{ h.antes }} → {{ h.despues }}</td><td>{{ h.detalle }}</td></tr>
+        </tbody></table>
+      </div>
+    </div>
+
     <!-- ══════════════════════════════════════════════════════════════════════════════════
          SUB-PESTAÑA · PERMISOS
          ══════════════════════════════════════════════════════════════════════════════════ -->
@@ -968,7 +1032,9 @@ export default {
     setup() {
         const secciones = [
             { clave: "fronteras", titulo: "Fronteras", icono: "bi-shield-lock" },
+            { clave: "modelos-ia", titulo: "Modelos de IA", icono: "bi-cpu" },
             { clave: "interruptores", titulo: "Interruptores", icono: "bi-toggles" },
+            { clave: "interruptores-sistema", titulo: "Interruptores del sistema", icono: "bi-toggle-on" },
             { clave: "umbrales", titulo: "Niveles y umbrales", icono: "bi-sliders" },
             { clave: "acciones", titulo: "Acciones", icono: "bi-lightning" },
             { clave: "sin-interruptor", titulo: "Sin interruptor", icono: "bi-lock" },
@@ -992,6 +1058,12 @@ export default {
         const compuertas = ref(null);
         const permisos = ref(null);
         const identidad = ref(null);
+        const interruptoresSistema = ref(null);
+        const interruptoresPorGrupo = computed(() => {
+            const g = {};
+            (interruptoresSistema.value || []).forEach((i) => { (g[i.grupo] ||= []).push(i); });
+            return g;
+        });
 
         const form = reactive({
             nivel_automatizacion: "estandar",
@@ -1050,6 +1122,7 @@ export default {
                 .then((r) => { compuertas.value = r.data; sembrarValoresSeleccionados(); })
                 .catch(() => {});
             axios.get("/api/roadmap/torre/compuertas/permisos").then((r) => { permisos.value = r.data; }).catch(() => {});
+            axios.get("/api/roadmap/torre/interruptores-sistema").then((r) => { interruptoresSistema.value = r.data.interruptores; }).catch(() => {});
             axios.get("/api/roadmap/torre/jarvis-identidad").then((r) => { identidad.value = r.data; }).catch(() => {});
         }
 
@@ -1242,10 +1315,24 @@ export default {
             armado: "bg-success", disparado: "bg-danger", medio_abierto: "bg-warning text-dark",
         }[estado] || "bg-secondary");
 
-        onMounted(() => cargarTodo());
+        const iaModos = ref(null);
+        const iaErr = ref("");
+        const iaCargar = () => axios.get("/api/roadmap/torre/ia-modos").then((r) => { iaModos.value = r.data; }).catch(() => {});
+        const iaPost = async (ruta, datos) => {
+            iaErr.value = "";
+            try {
+                const { data } = await axios.post("/api/roadmap/torre/ia-modos/" + ruta, datos);
+                iaModos.value = data;
+            } catch (e) {
+                iaErr.value = e.response?.data?.message || "No se pudo guardar.";
+            }
+        };
+
+        onMounted(() => { cargarTodo(); iaCargar(); });
 
         return {
-            secciones, seccion, cargando, guardando, aplicando, error, puedeEditar, avisoConsolidacion,
+            iaModos, iaErr, iaPost,
+            secciones, seccion, interruptoresSistema, interruptoresPorGrupo, cargando, guardando, aplicando, error, puedeEditar, avisoConsolidacion,
             fronteras, config, compuertas, permisos, identidad, form, nuevoTermino, nuevoExacto,
             confirmacion, toast, toastError, valorSel, etiquetaControl, etiquetaOrigen,
             cargarTodo, pedirConfirmacion, cancelarConfirmacion, confirmar,

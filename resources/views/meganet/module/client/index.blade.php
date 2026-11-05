@@ -22,7 +22,8 @@
         busqueda_v2_habilitado="{{ $busquedaV2Habilitado ? '1' : '0' }}"
         busqueda_campos_buscables="{{ json_encode($busquedaCamposBuscables) }}"
         @if (isset($filters)) filters="{{ $filters }}" @endif
-        array_all_status="{{ json_encode($allStatusToFilter) }}">
+        array_all_status="{{ json_encode($allStatusToFilter) }}"
+        array_tipos_cliente="{{ json_encode(\App\Services\Clientes\TipoCliente::OPCIONES) }}">
     </Datatable-Client>
     @if (session()->has('message'))
         <Message message="{{ session()->get('message') }}" module="Cliente"></Message>

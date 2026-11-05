@@ -29,7 +29,9 @@ class ContractClientService
         $client = $clientRepository->getClientById($idClient);
         $dataClient = $this->getDataClient($client);
 
-        $dataTemplate = $request->html ?? $documentTemplateRepository->getHtmlById($request->template);
+        // #570: el html libre del request solo se acepta de quien puede editar plantillas.
+        $htmlLibre = auth()->user()?->can('documentos.edit') ? $request->html : null;
+        $dataTemplate = $htmlLibre ?? $documentTemplateRepository->getHtmlById($request->template);
         $documentTemplateService = new DocumentTemplateService();
         $validation = $documentTemplateService->validateAndReplaceTemplate($dataTemplate, $dataClient);
 
@@ -44,7 +46,7 @@ class ContractClientService
         // Convertir la vista a PDF
         $html = str_replace('\n', '', $validation['html']);
 
-        $pdf = Pdf::loadHTML(\App\Support\ContractPdfTemplate::wrap($html));
+        $pdf = Pdf::setOption(['enable_remote' => false])->loadHTML(\App\Support\ContractPdfTemplate::wrap($html)); // #570: sin SSRF
         $documentTemplateRepository = new DocumentTemplateRepository();
         if (isset($request->name) && !empty($request->name)) {
             $nameTemplate = $request->name;
@@ -52,9 +54,7 @@ class ContractClientService
             $nameTemplate = $documentTemplateRepository->getNameById($request->template);
         }
 
-        $filePath = 'client/' . $idClient . '/document/' . $nameTemplate . '.pdf';
         $output = $pdf->output();
-        Storage::disk('public')->put($filePath, $output);
 
         $documentClientRepository = new DocumentClientRepository();
         $document = [
@@ -65,11 +65,14 @@ class ContractClientService
             'show' => true,
         ];
         $documentClient = $documentClientRepository->create($document);
+        // #570: disco local privado, ruta que distingue cliente/CRM; se sirve por controlador con permiso.
+        $filePath = 'contratos/cliente/' . $idClient . '/document/' . $documentClient->id . '-' . \Illuminate\Support\Str::slug($nameTemplate) . '.pdf';
+        Storage::disk('local')->put($filePath, $output);
         $documentClient->file()->create([
             'name' => $nameTemplate . '.pdf',
-            'path' => '/storage/' . $filePath,
+            'path' => '/cliente/document/contrato/' . $documentClient->id,
             'type' => 'pdf',
-            'size' => Storage::disk('public')->size($filePath),
+            'size' => Storage::disk('local')->size($filePath),
             'preview' => false,
             'fileable_id' => $documentClient->id,
             'fileable_type' => 'App\Models\DocumentClient',
@@ -81,7 +84,7 @@ class ContractClientService
 
         return [
             'status' => 'ok',
-            'file_path' => '/storage/' . $filePath
+            'file_path' => '/cliente/document/contrato/' . $documentClient->id
         ];
     }
 

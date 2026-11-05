@@ -61,7 +61,7 @@ return [
     'crm_export_crm' => ['/crm/table'],
 
 
-    'crm_document_view_crm' => ['/crm/document/listar', '/crm/document/table', '/crm/send-notification/{id}'],
+    'crm_document_view_crm' => ['/crm/document/listar', '/crm/document/contrato/{documentId}', '/crm/document/vista-previa/{idClient}/{template}', '/crm/document/table', '/crm/send-notification/{id}'],
     'crm_document_add_crm' => ['/crm/document/crear', '/crm/document/add/{idCrm}', '/crm/document/success/', '/crm/document/upload-file/{id}', '/crm/document/generate_contract/{id}', '/crm/document/load_content_template', '/crm/document/show_content_template'],
     'crm_document_edit_crm' => ['/crm/document/editar', '/crm/document/update/{idCrm}', '/crm/document/success/', '/crm/document/upload-file/{id}'],
     'crm_document_delete_crm' => ['/crm/document/destroy/{id}'],
@@ -80,6 +80,7 @@ return [
         '/cliente/statistics/get-ping-status/{id}',
         '/cliente/statistics/get-ping-history/{id}',
         '/cliente/statistics/get-ping-daily/{id}',
+        '/cliente/statistics/get-ping-monthly-report/{id}',
         // #988: «Datos de red» del dedicado. Ver con el permiso de la ficha; guardar además pide
         // clientes.datos_red.editar (el middleware no distingue método: lo exige el controller).
         '/cliente/servicio-internet/{servicioId}/datos-red',
@@ -137,6 +138,7 @@ return [
 
     'client_service_internet_view_client' => [
         '/cliente/clientinternetservice/table',
+        '/cliente/clientinternetservice/macs/{id}',
         '/cliente/get-client-filtered-by-internet-service/{id}'
     ],
     'client_service_internet_add_client' => ['/cliente/clientinternetservice/crear/{id}'],
@@ -187,7 +189,7 @@ return [
     'client_service_custom_edit_client' => ['/cliente/clientcustomservice/update/{id}'],
     'client_service_custom_delete_client' => ['/cliente/clientcustomservice/destroy/{id}'],
 
-    'client_document_view_client' => ['/cliente/document/listar', '/cliente/document/table'],
+    'client_document_view_client' => ['/cliente/document/listar', '/cliente/document/contrato/{documentId}', '/cliente/document/vista-previa/{idClient}/{template}', '/cliente/document/table'],
     'client_document_add_client' => ['/cliente/document/add/{idClient}', '/cliente/document/generate_contract/{id}', '/cliente/document/load_content_template', '/cliente/document/show_content_template', '/cliente/document/upload-file/{id}'],
     'client_document_edit_client' => ['/cliente/document/update/{idClient}', '/cliente/document/generate_contract/{id}', '/cliente/document/load_content_template', '/cliente/document/show_content_template', '/cliente/document/upload-file/{id}'],
     'client_document_delete_client' => ['/cliente/document/destroy{id}'],
@@ -271,15 +273,17 @@ return [
     // acción (facturacion.ver/facturacion.fiscal.editar/facturacion.fiscal.timbrar) — el
     // middleware solo es filtro previo (no distingue método HTTP, por eso la ruta base GET/POST
     // vive en ambas claves); la autorización fina por acción la sigue haciendo el controller.
-    'facturacion.ver' => [
+    'facturacion.datos.ver' => [
         '/cliente/billing/datos-fiscales/{clientId}',
+    ],
+    'facturacion.datos.editar' => [
+        '/cliente/billing/datos-fiscales/{clientId}',
+        '/cliente/billing/datos-fiscales/{clientId}/constancia',
+    ],
+    'facturacion.ver' => [
         // FR-02 (#536): estados de cuenta generados (solo lectura).
         '/cliente/billing/estados-cuenta/{clientId}',
         '/cliente/billing/estados-cuenta/{clientId}/{id}/pdf',
-    ],
-    'facturacion.fiscal.editar' => [
-        '/cliente/billing/datos-fiscales/{clientId}',
-        '/cliente/billing/datos-fiscales/{clientId}/constancia',
     ],
     'facturacion.fiscal.timbrar' => [
         '/cliente/billing/datos-fiscales/{clientId}/timbrar',
@@ -289,6 +293,14 @@ return [
     // IPs a monitorear). La misma ruta vive en client_view_client para poder verlos.
     'clientes.datos_red.editar' => [
         '/cliente/servicio-internet/{servicioId}/datos-red',
+        '/cliente/servicio-internet/{servicioId}/datos-red/probar',
+        '/cliente/servicio-internet/{servicioId}/datos-red/identidad',
+    ],
+
+    // #988: interruptor «Monitoreo de dedicados» de Configuración.
+    'metricas.monitoreo.configurar' => [
+        '/configuracion/monitoreo-dedicados',
+        '/configuracion/monitoreo-dedicados/estado',
     ],
 
     // Vendedores
@@ -329,6 +341,10 @@ return [
     ],
     'seller_view_dashboard' => ['/vendedores/dashboard', '/vendedores/seguimiento-me', '/vendedores/{id}/getDataById', '/configuracion/metodos-de-pago/get-all-methods'],
     'seller_view_statics' => ['/vendedores/salesAndProspects/{startDate}/{endDate}/{id}', '/vendedores/{id}/compareSales', '/vendedores/salesByMedium/{startDate}/{endDate}/{id}', '/vendedores/{id}/prospectsByStatus/{startDate}/{endDate}'],
+    ...((bool) env('UNIFICACION_VENDEDORES_I3', false) ? [
+        'seller_view_statics_i3' => ['/statics/**'],
+        'seller_view_prospects' => ['/vendedores/prospectos', '/vendedores/prospectos/**'],
+    ] : []),
     'seller_view_sales' => ['/vendedores/ventas/{id}/salesBySeller'],
     'seller_follow_payment_client' => ['/configuracion/reglas-comisiones/get-rule-by-seller/{id}', '/vendedores/payments/{id}/getListPayments'],
     'seller_view_all_payments_for_seller' => ['/vendedores/payments-sellers/{id}/get-all-payments-of-seller'],
@@ -348,6 +364,7 @@ return [
         '/sellers/cuts/suppliers-expenses-list/{id}',
         '/sellers/cuts/extras-incomes-list/{id}',
         '/sellers/cuts/installations-list/{id}',
+        '/sellers/cuts/installations-sync/{id}',
         '/sellers/cuts/observations-list/{id}',
         '/sellers/cuts/get-user-current-box/{id}',
         '/sellers/cuts/get-received-payments-by-box/{id}',
@@ -419,7 +436,7 @@ return [
 
     'ticket_view_open' => ['/tickets/abiertos/{client_id}', '/tickets/table', '/tickets/abiertos'],
     'ticket_add_open' => ['/tickets/crear/{clientId}', '/tickets/add', '/tickets/success/{id}', '/tickets/mensaje/add/{id}'],
-    'ticket_edit_open' => ['/tickets/editar', '/tickets/update', '/tickets/mensaje/update/{id}'],
+    'ticket_edit_open' => array_merge(['/tickets/editar', '/tickets/update', '/tickets/mensaje/update/{id}'], env('UNIFICACION_TICKETS_G1', false) ? ['/tickets/update/{id}'] : []),
     'ticket_delete_open' => ['/tickets/destroy/{id}'],
 
     'ticket_view_close' => ['/tickets/cerrados', '/tickets/table', '/tickets/cerrados/{client_id}'],
@@ -988,6 +1005,8 @@ return [
     ],
     'task_archive_task' => [
         '/scheduling/task/archived/{id}',
+        // B4 (UNI-T): la ruta real es archive/{id}; solo se mapea con el interruptor encendido.
+        ...((bool) env('UNIFICACION_SCHEDULING_B4', false) ? ['/scheduling/task/archive/{id}'] : []),
     ],
 
     'task_view_task' => [
@@ -1677,7 +1696,6 @@ return [
         '/configuracion/comisiones/{id}/get-commissions-by-seller',
         '/configuracion/comisiones/get-list-commissions-by-seller/{seller_id}',
         '/configuracion/comisiones/{id}/get-details-commission',
-        '/configuracion/comisiones/create-comision-internal-distributor',
         '/configuracion/rules',
         '/configuracion/rules/get-sellers-by-type/{type}',
         '/configuracion/rules/create',
@@ -1927,6 +1945,15 @@ return [
         '/flotas/{id}',
         '/flotas/api/**',           // todos los GET de API de flotas
     ],
+    'fleet.clients.view' => [
+        '/flotas/clientes',
+        '/flotas/clientes/{id}',
+        '/flotas/api/clientes-flota',
+        '/flotas/api/clientes-flota/{clientId}',
+    ],
+    'fleet.clients.manage' => [
+        '/flotas/api/clientes-flota/{clientId}/vehiculos/{id}/gps',
+    ],
     'fleet.gps.view' => [
         '/flotas/mapa',
         '/flotas/api/gps/flota',
@@ -2097,9 +2124,17 @@ return [
     'talento.view' => [
         '/talento',
         '/talento/colaborador/{id}',
+        // 2026-10-22: datos del carnet; el controller deja solo a la persona o a un administrador.
+        '/talento/api/colaboradores/{id}/carnet',
         '/talento/mi-ficha',
         '/talento/mi-ficha/{id}',
         '/talento/mi-ficha/{id}/academia',
+        // 2026-10-27: campanita de una orden de Talento; el controller solo abre avisos propios.
+        '/talento/aviso/{id}',
+        // "Descargar credencial" del carnet (2026-10-20): sin esto un vendedor o técnico
+        // caía en la página de inicio en vez del PDF. El controller ya resuelve "uno mismo,
+        // su equipo o quien gestiona órdenes" (resolverColaboradorAutoservicio()).
+        '/talento/mi-ficha/{id}/pdf',
         '/talento/api/mi-equipo',
         // Pestaña "Liquidaciones" de la ficha propia (2026-10-14): estos 2
         // endpoints de LECTURA nunca estuvieron en NINGÚN bloque de este
@@ -2199,6 +2234,10 @@ return [
         // crear), por eso va aparte igual que /talento/api/rutas arriba.
         '/talento/api/proyectos',
         '/talento/api/proyectos/**',
+        // 2026-10-27: catálogo de tipos de actividad para «Agregar actividad» del supervisor; el
+        // controller (activityTypes()) deja leer solo a quien gestiona proyectos, y crear/editar
+        // tipos sigue con talento.activity_types.manage.
+        '/talento/api/activity-types',
         // Aprobar un reporte (approveReport()) vive bajo otro prefijo — el
         // controller (aprobación por supervisor/admin) hace la distinción.
         '/talento/api/project-reports/**',
@@ -2212,6 +2251,10 @@ return [
         '/talento/api/penalties',
         '/talento/api/penalties/**',
         '/talento/penalty-evidence/{id}',
+        // 2026-10-27: leer el catálogo de tipos (lo pide «Aplicar penalización» del supervisor
+        // directo en la ficha). Crear/editar tipos sigue exigiendo talento.penalties.manage en el
+        // controller (storeType/updateType/uploadTypeImage).
+        '/talento/api/penalty-types',
         // "Por colaborador" (credencial/fondo de UN colaborador puntual):
         // el permiso de STAFF o el supervisor DIRECTO de ese colaborador —
         // el controller (esSuperiorDe()/esGestorDe()) hace la distinción
@@ -2282,6 +2325,29 @@ return [
         // una regla es una decisión de staff, no de autoservicio.
         '/talento/api/reglas-desempeno/evaluaciones',
         '/talento/api/reglas-desempeno/evaluaciones/**',
+        // Pestañas de la ficha propia que salían vacías para Vendedor y Mostrador (2026-10-19):
+        // la ficha las muestra a uno mismo por decisión de David (28-sep, "lo demás lo debe ver
+        // todo el mundo"), pero estas lecturas solo estaban bajo el permiso de staff de cada
+        // sección (custody/devices/embajadores/academy/attendance.view, que TECNICO tiene y esos
+        // dos roles no) → 403 de middleware y tabla "Sin registros". El scoping real ya vive en
+        // el controller: puedeVerCustodiaDe()/puedeVerDispositivosDe()/
+        // puedeVerRolesMultiplesDe() (uno mismo, su supervisor o talento.employees.view),
+        // TalentoAttendanceController::colaboradoresVisibles() (uno mismo + equipo si no tiene
+        // attendance.view) y la Academia, que es self-scoped por auth()->id(). Las escrituras
+        // que comparten path (vincular dispositivo, crear/editar curso, check-in, editar
+        // asistencia) siguen autorizadas en su propio método.
+        '/talento/api/colaboradores/{id}/custodia',
+        '/talento/api/colaboradores/{id}/dispositivos',
+        '/talento/api/colaboradores/{id}/seller-data',
+        '/talento/api/colaboradores/{id}/embajador-data',
+        '/talento/api/asistencia',
+        '/talento/api/asistencia/{id}',
+        '/talento/api/courses',
+        '/talento/api/courses/{id}',
+        '/talento/api/exams/{id}/take',
+        '/talento/api/exams/{id}/submit',
+        '/talento/api/exams/{id}/my-attempts',
+        '/talento/api/my-certifications',
     ],
     'talento.dashboard.view' => [
         '/talento',
@@ -2289,11 +2355,17 @@ return [
         '/talento/api/cajas/latest',
         '/talento/api/cajas/bonus-log',
         '/talento/api/cajas/settings',
-        '/talento/api/work-order-types',
         '/talento/api/app/branding',
         '/talento/api/app/latest',
     ],
     'talento.employees.view' => [
+        // 2026-10-21: ranking de ventas de todos, para staff (talento.ventas.view lo tiene
+        // Vendedor y le abriría las ventas de los demás). Antes solo el rol admin llegaba.
+        // 2026-10-22: sus dos consultas también (seguían en ventas.view; prospectos trae
+        // nombre, correo, teléfono y dirección de los prospectos de todos los vendedores).
+        '/talento/ventas/ranking',
+        '/talento/api/ventas/ranking',
+        '/talento/api/prospectos',
         // Mostrador tiene este permiso pero no talento.embajadores.view —
         // sin esta línea, la pantalla suelta redirigía a Mostrador al
         // dashboard en silencio (29-sep, verificando "Roles múltiples").
@@ -2312,8 +2384,6 @@ return [
         '/talento/api/colaboradores/{id}/dispositivos',
         '/talento/api/colaboradores/{id}/embajador-data',
         '/talento/api/colaboradores/{id}/funds',
-        '/talento/api/colaboradores/{id}/level-eligibility',
-        '/talento/api/colaboradores/{id}/level-history',
         '/talento/api/colaboradores/{id}/loans',
         '/talento/api/colaboradores/{id}/proyecto-avance',
         '/talento/api/colaboradores/{id}/regla',
@@ -2325,9 +2395,28 @@ return [
         '/talento/api/colaboradores/{id}',
         '/talento/api/colaboradores/{id}/regla',
     ],
+    // Alta de perfiles (2026-10-21): separada de talento.manage para que Mostrador edite fichas
+    // sin poder darlas de alta. El controller (store/usersDisponibles) hace la restricción real.
+    // 2026-10-21: el catálogo de reglas de desempeño solo lo abría el rol admin (las
+    // direcciones no tenían permiso). El controller hace la restricción real (ver/gestionar).
+    'talento.reglas_desempeno.view' => [
+        '/talento/reglas-desempeno',
+        '/talento/api/reglas-desempeno',
+    ],
+    'talento.reglas_desempeno.manage' => [
+        '/talento/api/reglas-desempeno',
+        '/talento/api/reglas-desempeno/{id}',
+    ],
+    'talento.colaboradores.create' => [
+        '/talento/api/colaboradores',
+        '/talento/api/colaboradores/users-disponibles',
+    ],
     // Item #9990830 (Fase 1 del tablero de pendientes): listado admin cross-colaborador de
     // documentos pendientes de firma, distinto de talento.employees.view (ficha de un colaborador).
     'talento.documentos.ver-todos' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/documentos-pendientes',
         '/talento/api/documentos/pendientes',
     ],
     // Item #9990831 (Fase 2 del tablero de pendientes): acción de enviar recordatorio WhatsApp,
@@ -2368,6 +2457,14 @@ return [
         // el permiso general de gestión ni siquiera podía VER la lista.
         '/talento/api/ordenes',
         '/talento/api/ordenes/{id}',
+        // "Asignar trabajo" desde la ficha del cliente o del prospecto (2026-10-22).
+        '/talento/api/ordenes/asignables',
+        // G2: órdenes ligadas a un ticket (lectura, misma puerta que la lista).
+        '/talento/api/ordenes/ticket/{ticketId}',
+        // Item #1158: calendario de carga (el controller acota a uno mismo + su equipo si no es staff)
+        // y reprogramar con motivo (el controller exige gestionar órdenes o ser supervisor directo).
+        '/talento/api/ordenes/carga',
+        '/talento/api/ordenes/{id}/reprogramar',
         // El selector de tipo del formulario "Nueva orden" — sin esto ni
         // siquiera el supervisor con permiso real de crear (ver store())
         // podía ver qué tipos existen. Gap pre-existente, no de esta sesión.
@@ -2389,22 +2486,24 @@ return [
         '/talento/api/campo/{workOrderId}/activacion',
         '/talento/api/campo/{workOrderId}/encuesta',
         '/talento/api/campo/{workOrderId}/ia-validacion',
-        '/talento/api/work-order-types',
         '/talento/api/standards',
         '/talento/api/sitios',
         '/talento/api/sitios/config/radio',
         '/talento/sitios',
     ],
     'talento.work_orders.manage' => [
-        // Fase 5 (2026-10-13): Mostrador tiene este permiso pero NO
-        // talento.employees.view (ese sigue siendo admin-only a propósito —
-        // destaparía compensación/penalizaciones/préstamos de cualquiera).
-        // Sin esta línea, el selector de técnico de "Nueva orden"
-        // (TalentoOrdenes.vue, búsqueda en /talento/api/colaboradores)
-        // quedaría inalcanzable para Mostrador aunque sí pudiera crear la
-        // orden — data() en sí ya está gateado por talento.view (que
-        // Mostrador también recibe en esta misma fase) + hideExpedienteFields(),
-        // esto solo deja pasar el path a nivel de middleware.
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/prospectos-crm',
+        '/talento/api/ordenes/{id}/actividades',
+        '/talento/api/ordenes/{id}/status',
+        '/talento/api/order-types/{id}',
+        // Fase 5 (2026-10-13): quien tiene este permiso sin
+        // talento.employees.view (Mostrador lo era hasta el 2026-10-21) necesita
+        // el selector de técnico de "Nueva orden" (TalentoOrdenes.vue,
+        // búsqueda en /talento/api/colaboradores). data() en sí ya está
+        // gateado por talento.view + hideExpedienteFields(); esto solo deja
+        // pasar el path a nivel de middleware.
         '/talento/api/colaboradores',
         '/talento/api/ots/**',
         '/talento/api/campo/{workOrderId}/aceptar',
@@ -2419,7 +2518,15 @@ return [
         '/talento/api/standards/{id}/image',
     ],
     'talento.work_orders.validate' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/ordenes/{id}/validate',
+        '/talento/api/ordenes/{id}/return',
         '/talento/api/ots/**',
+    ],
+    'talento.ordenes.corregir_validada' => [
+        // UNI-T D7.3: corregir tipo/puntos/participantes de una orden ya validada (el servicio exige motivo y su interruptor).
+        '/talento/api/ordenes/{id}/corregir-validada',
     ],
     'talento.field_flow.accept' => [
         '/talento/api/campo/{workOrderId}/aceptar',
@@ -2439,12 +2546,22 @@ return [
         '/talento/api/cajas/**',
     ],
     'talento.compensation.manage' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/reglas/{id}',
         '/talento/api/cajas',
         '/talento/api/cajas/settings',
         '/talento/api/cajas/bonus-log/{workOrderId}/evaluate',
     ],
+    // 2026-10-22: el Mostrador ve cuánto cobra cada quien, sin desglose ni cálculo (el controller
+    // recorta la lista; /talento/finiquito y los detalles siguen en talento.liquidation.view).
+    'talento.liquidation.totales' => [
+        '/talento/liquidaciones',
+        '/talento/liquidaciones/comprobante',
+    ],
     'talento.liquidation.view' => [
         '/talento/liquidaciones',
+        '/talento/liquidaciones/comprobante',
         '/talento/finiquito',
         '/talento/api/settlements',
         '/talento/api/settlements/{id}',
@@ -2461,6 +2578,10 @@ return [
         '/talento/api/liquidaciones/calcular',
         '/talento/api/liquidaciones/{id}/cerrar',
     ],
+    // UNI-T J4 F2a: confirmar el pago (quién, cuándo, referencia) de una liquidación cerrada.
+    'talento.liquidation.pagar' => [
+        '/talento/api/liquidaciones/{id}/pagar',
+    ],
     'talento.settlement.view' => [
         '/talento/finiquito',
         '/talento/api/settlements',
@@ -2472,18 +2593,13 @@ return [
     ],
     'talento.catalog.view' => [
         '/talento/api/activity-types',
-        '/talento/api/activity-types-config',
-        '/talento/api/work-order-types',
     ],
     'talento.activity_types.view' => [
         '/talento/api/activity-types',
-        '/talento/api/activity-types-config',
     ],
     'talento.activity_types.manage' => [
         '/talento/api/activity-types',
         '/talento/api/activity-types/{id}',
-        '/talento/api/activity-types/{id}/level',
-        '/talento/api/work-order-types/{id}/level',
     ],
     'talento.academy.view' => [
         '/talento/academia',
@@ -2507,24 +2623,29 @@ return [
         '/talento/api/my-certifications',
     ],
     'talento.academy.manage' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/courses/{id}/exams',
+        '/talento/api/courses/{id}/materials',
+        // Roles que se eligen en «Para quién» del curso (2026-10-24).
+        '/talento/api/courses-roles',
+        '/talento/api/exams/{id}/questions',
         '/talento/api/courses',
         '/talento/api/courses/{id}',
         '/talento/api/course-materials/{id}',
     ],
     'talento.academy.evaluate' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/courses/{id}/practical',
         '/talento/api/courses/{id}',
         '/talento/api/certifications/{id}/revoke',
     ],
-    'talento.levels.view' => [
-        '/talento/niveles',
-        '/talento/escalafon',
-        '/talento/api/colaboradores/{id}/level-eligibility',
-        '/talento/api/colaboradores/{id}/level-history',
-    ],
-    'talento.levels.manage' => [
-        '/talento/api/colaboradores/{id}/promote',
-    ],
     'talento.escalafon.view' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/escalafon',
+        '/talento/api/escalafon/config',
         '/talento/escalafon',
     ],
     'talento.escalafon.manage' => [
@@ -2536,12 +2657,21 @@ return [
         '/talento/penalty-evidence/{id}',
     ],
     'talento.penalties.manage' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/penalty-types',
+        '/talento/api/penalty-types/{id}',
+        '/talento/api/penalty-types/{id}/image',
         '/talento/api/penalties/**',
     ],
     'talento.penalties.appeal' => [
         '/talento/api/penalties/{id}/appeal',
     ],
     'talento.penalties.resolve' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/penalty-appeals',
+        '/talento/api/penalty-appeals/{id}/resolve',
         '/talento/api/penalties/{id}/resolve',
         '/talento/api/penalties/{id}/dismiss',
     ],
@@ -2586,13 +2716,6 @@ return [
         '/talento/api/rutas/{id}/analizar-desvios',
         '/talento/api/rutas/{id}/stops/reordenar',
     ],
-    'talento.roadmap.view' => [
-        '/talento/roadmap',
-        '/talento/api/roadmap/**',
-    ],
-    'talento.roadmap.manage' => [
-        '/talento/api/roadmap/**',
-    ],
     'talento.work_sites.view' => [
         '/talento/sitios',
         '/talento/api/sitios',
@@ -2605,6 +2728,9 @@ return [
         '/talento/api/sitios/{id}',
     ],
     'talento.credentials.view' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/credentials/expiring',
         '/talento/credenciales',
         '/talento/credential-doc/{id}',
         '/talento/api/colaboradores/{id}/credentials',
@@ -2655,6 +2781,9 @@ return [
         '/talento/api/loans/**',
     ],
     'talento.funds.view' => [
+        // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
+        // el controller hace la restricción real.
+        '/talento/api/credentials/funds-alert',
         '/talento/api/colaboradores/{id}/funds',
     ],
     'talento.funds.manage' => [
@@ -2704,8 +2833,6 @@ return [
     'talento.ventas.view' => [
         '/talento/mis-ventas',
         '/talento/api/mis-ventas',
-        '/talento/api/ventas/ranking',
-        '/talento/api/prospectos',
     ],
     // Fase C: caja diaria de EFECTIVO (Vendedores). Nombre "caja-vendedor" a
     // propósito — NO confundir con "talento.caja.*" (caja de HERRAMIENTAS/bono
@@ -2722,6 +2849,7 @@ return [
         '/talento/api/caja/observaciones/{id}',
         '/talento/api/caja/proveedores/{id}',
         '/talento/api/caja/instalaciones/{id}',
+        '/talento/api/caja/instalaciones/{id}/sincronizar',
     ],
     'talento.caja-vendedor.manage' => [
         '/talento/api/caja/box/{id}/cerrar',
@@ -2840,6 +2968,12 @@ return [
     'documentacion-corporativa.view' => [
         '/documentacion-corporativa',
         '/documentacion-corporativa/**',
+    ],
+
+    // CRM Empresarial (addon-crm-empresarial) — item #555
+    'crm-empresarial.expediente.view' => [
+        '/crm-empresarial',
+        '/crm-empresarial/**',
     ],
 
     // ══════════════════════════════════════════════════════════════════════════

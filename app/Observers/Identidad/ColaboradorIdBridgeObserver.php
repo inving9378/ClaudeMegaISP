@@ -4,6 +4,8 @@ namespace App\Observers\Identidad;
 
 use App\Modules\Core\Clientes\Models\ClientMainInformation;
 use App\Services\Identidad\ColaboradorIdResolver;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Fase 3b de #9990778 (item #9990963) — doble escritura de colaborador_id en
@@ -27,6 +29,47 @@ class ColaboradorIdBridgeObserver
     public function updating(ClientMainInformation $model): void
     {
         $this->resolver($model, esNuevo: false);
+    }
+
+    /** UNI-T C2 (#878): historial de cambios de seller_id/colaborador_id (solo con la doble escritura encendida). */
+    public function created(ClientMainInformation $model): void
+    {
+        $this->historial($model, true);
+    }
+
+    public function updated(ClientMainInformation $model): void
+    {
+        $this->historial($model, false);
+    }
+
+    private function historial(ClientMainInformation $model, bool $esNuevo): void
+    {
+        if (!ColaboradorIdResolver::habilitado()) {
+            return;
+        }
+        try {
+            if (!Schema::hasTable('identidad_cambios_historial')) {
+                return;
+            }
+            foreach (['seller_id', 'colaborador_id'] as $campo) {
+                $cambio = $esNuevo ? $model->{$campo} !== null : $model->wasChanged($campo);
+                if (!$cambio) {
+                    continue;
+                }
+                DB::table('identidad_cambios_historial')->insert([
+                    'tabla' => 'client_main_information',
+                    'registro_id' => $model->getKey(),
+                    'campo' => $campo,
+                    'valor_anterior' => $esNuevo ? null : $model->getOriginal($campo),
+                    'valor_nuevo' => $model->{$campo},
+                    'origen' => 'observer',
+                    'user_id' => auth()->id(),
+                    'created_at' => now(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            // El historial nunca bloquea el alta/edición.
+        }
     }
 
     private function resolver(ClientMainInformation $model, bool $esNuevo): void

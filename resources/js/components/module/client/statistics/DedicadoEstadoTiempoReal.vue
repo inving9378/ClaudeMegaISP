@@ -19,6 +19,14 @@
         </q-card-section>
         <q-separator :dark="darkMode" />
 
+        <q-banner v-if="estado && estado.automatica && !soloConsulta" dense class="detr-aviso">
+            <template #avatar><q-icon name="warning" color="warning" /></template>
+            Configuración automática, sin revisar: se tomó del servicio y nadie la ha confirmado.
+            <template v-if="puedeEditar" #action>
+                <q-btn flat no-caps dense color="primary" label="Revisar datos de red" @click="$emit('configurar')" />
+            </template>
+        </q-banner>
+
         <q-card-section v-if="error" class="text-negative">{{ error }}</q-card-section>
 
         <q-card-section v-else-if="estado" class="detr-cuerpo">
@@ -29,7 +37,7 @@
                         <span class="detr-punto" :class="`detr-${estado.estado}`" aria-hidden="true"></span>
                         {{ textoEstado(estado.estado) }}
                     </div>
-                    <div v-if="estado.motivo" class="detr-nota">{{ estado.motivo }}</div>
+                    <div v-if="estado.motivo && !estado.causa" class="detr-nota">{{ estado.motivo }}</div>
                 </div>
                 <div class="detr-celda">
                     <div class="detr-titulo">IP monitoreada</div>
@@ -53,8 +61,16 @@
                     <div class="detr-valor detr-subida">{{ mbps(estado.subida_bps) }}</div>
                 </div>
                 <div class="detr-celda">
-                    <div class="detr-titulo">Última lectura</div>
+                    <div class="detr-titulo">{{ estado.ultima_es_intento ? "Último intento" : "Última lectura" }}</div>
                     <div class="detr-valor">{{ haceCuanto }}</div>
+                </div>
+            </div>
+
+            <div v-if="estado.causa" class="detr-causa" role="status">
+                <q-icon name="info" size="20px" />
+                <div>
+                    <div class="text-weight-medium">{{ estado.causa.titulo }}</div>
+                    <div v-if="estado.causa.detalle" class="detr-nota">{{ estado.causa.detalle }}</div>
                 </div>
             </div>
 
@@ -90,14 +106,18 @@ const TEXTOS = {
     degradado: "Degradado",
     sin_respuesta: "Sin respuesta",
     sin_datos: "Sin datos",
+    pausado: "Monitoreo pausado",
+    revisar: "Revisar",
 };
 
 export default {
     name: "DedicadoEstadoTiempoReal",
     props: {
         servicioId: { type: Number, required: true },
+        puedeEditar: { type: Boolean, default: false },
+        soloConsulta: { type: Boolean, default: false },
     },
-    emits: ["cargado"],
+    emits: ["cargado", "configurar"],
     setup(props, { emit }) {
         const estado = ref(null);
         const cargando = ref(false);
@@ -286,5 +306,27 @@ export default {
     .detr-ip {
         grid-template-columns: 1fr 1fr;
     }
+}
+.detr-pausado {
+    background: #6b7280;
+}
+.detr-revisar {
+    background: #d97706;
+}
+.detr-aviso {
+    background: rgba(245, 158, 11, 0.12);
+}
+.detr-causa {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(107, 114, 128, 0.12);
+}
+.detr-valor.detr-mono {
+    font-size: 1rem;
+    overflow-wrap: anywhere;
 }
 </style>

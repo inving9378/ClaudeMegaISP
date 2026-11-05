@@ -2,7 +2,6 @@
 
 namespace App\Services\Metricas;
 
-use App\Http\Traits\RouterConnection;
 use App\Models\Router;
 use App\Services\Metricas\RouterOs\PearRouterOsApi;
 use Illuminate\Support\Facades\Crypt;
@@ -13,7 +12,8 @@ use Throwable;
 
 /**
  * Métricas reales desde el MikroTik de cada dedicado (item #988), con el registro de
- * routers/NAS de siempre (routers + mikrotiks) y el mismo destino que RouterConnection.
+ * routers/NAS de siempre (routers + mikrotiks). En producción (EntornoMetricas) se conecta al router
+ * registrado; fuera de ella, solo al de laboratorio, y sin laboratorio a ninguno.
  *
  * Usuario: el de solo lectura (login_api_ro) si está capturado; si no, el de la API de siempre
  * como respaldo, y la sesión lo dice (soloLectura() = false) para que el dry-run lo muestre.
@@ -21,8 +21,6 @@ use Throwable;
  */
 final class MikrotikMetricasDriver implements MetricasDriver
 {
-    use RouterConnection;
-
     public function nombre(): string
     {
         return 'mikrotik';
@@ -33,7 +31,14 @@ final class MikrotikMetricasDriver implements MetricasDriver
         $mikrotik = $router->mikrotik ?? throw new RuntimeException('El router no tiene datos de API (mikrotiks).');
         [$login, $password, $soloLectura] = $this->credenciales($mikrotik);
 
-        $destino = $this->destinoConexion($router->ip_host, $login, $password, $mikrotik->port_api);
+        $destino = self::destino(
+            EntornoMetricas::esProduccion(),
+            ['ip' => $router->ip_host, 'login' => $login, 'password' => $password, 'port' => $mikrotik->port_api],
+            (array) config('metricas.laboratorio', [])
+        );
+        if ($destino === null) {
+            throw new SinConexionRouter('sin destino', 'fuera de producción no hay router de laboratorio configurado (MIKROTIK_DEV_*): no se conecta a ningún router.');
+        }
         $puerto = (int) ($destino['port'] ?: 8728);
         $host = $destino['ip'] . ':' . $puerto;
         $redirigido = $destino['ip'] !== $router->ip_host || $destino['login'] !== $login
@@ -59,6 +64,24 @@ final class MikrotikMetricasDriver implements MetricasDriver
             $soloLectura && ! $redirigido,
             $redirigido,
         );
+    }
+
+    /**
+     * Con qué host y credenciales se abre la conexión: las del router en producción; las del
+     * laboratorio fuera de ella; null si no hay laboratorio (nunca un router de respaldo fijo).
+     *
+     * @param  array{ip: mixed, login: string, password: string, port: mixed}  $registrado
+     * @return array{ip: mixed, login: mixed, password: mixed, port: mixed}|null
+     */
+    public static function destino(bool $esProduccion, array $registrado, array $laboratorio): ?array
+    {
+        if ($esProduccion) {
+            return $registrado;
+        }
+
+        return EntornoMetricas::laboratorioCompleto($laboratorio)
+            ? ['ip' => $laboratorio['host'], 'login' => $laboratorio['usuario'], 'password' => $laboratorio['password'], 'port' => $laboratorio['puerto'] ?? null]
+            : null;
     }
 
     /** @return array{0: string, 1: string, 2: bool} login, contraseña, ¿es el de solo lectura? */

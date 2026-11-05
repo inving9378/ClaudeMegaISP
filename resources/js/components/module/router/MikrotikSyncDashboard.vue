@@ -8,6 +8,10 @@
                     <option value="pending">Pendientes</option>
                     <option value="failed">Fallidos</option>
                 </select>
+                <select class="form-select form-select-sm w-auto" v-model="routerFilter">
+                    <option value="">Todos los routers</option>
+                    <option v-for="r in routers" :key="r.id" :value="r.id">{{ r.title }}</option>
+                </select>
                 <button class="btn btn-sm btn-outline-secondary" @click="load"><i class="bi bi-arrow-clockwise"></i></button>
             </div>
         </div>
@@ -69,6 +73,8 @@ export default {
         const loading = ref(true);
         const statusFilter = ref('');
         const retrying = ref(null);
+        const routerFilter = ref('');
+        const routers = ref([]);
 
         const toast = reactive({ visible: false, message: '', type: 'success', icon: '' });
         function notify(message, type = 'success') {
@@ -92,8 +98,14 @@ export default {
             loading.value = true;
             const params = {};
             if (statusFilter.value) params.status = statusFilter.value;
+            if (routerFilter.value) params.router_id = routerFilter.value;
             axios.get(`${props.baseUrl}/api/servicios`, { params })
-                .then(({ data }) => { items.value = data?.items ?? []; })
+                .then(({ data }) => { items.value = data?.items ?? [];
+                    if (!routerFilter.value) {
+                        const m = {};
+                        items.value.forEach((r) => { if (r.router_id) m[r.router_id] = r.router; });
+                        routers.value = Object.entries(m).map(([id, title]) => ({ id: Number(id), title }));
+                    } })
                 .catch(() => notify('No se pudo cargar el listado.', 'error'))
                 .finally(() => { loading.value = false; });
         }
@@ -106,10 +118,10 @@ export default {
                 .finally(() => { retrying.value = null; });
         }
 
-        watch(statusFilter, load);
+        watch([statusFilter, routerFilter], load);
         onMounted(load);
 
-        return { items, loading, statusFilter, toast, statusLabel, statusBadge, isRetrying, fmtDate, load, retry };
+        return { items, loading, statusFilter, routerFilter, routers, toast, statusLabel, statusBadge, isRetrying, fmtDate, load, retry };
     },
 };
 </script>

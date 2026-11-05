@@ -11,6 +11,8 @@
     "facturas": "/finanzas/facturas",
     "lista_clientes": "/cliente/listar",
     "manual": "/manual",
+    "flotas": "/flotas",
+    "flota_vehiculo": "/flotas/{id}",
     "prospecto": "/crm/editar/{id}",
     "lista_prospectos": "/crm/listar",
     "crear_prospecto": "/crm/crear",

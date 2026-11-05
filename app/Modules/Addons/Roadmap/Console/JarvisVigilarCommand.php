@@ -9,6 +9,7 @@ use App\Modules\Addons\Roadmap\Support\FrenoCircuito;
 use App\Modules\Addons\Roadmap\Support\GraciaDeArranque;
 use App\Modules\Addons\Roadmap\Support\RegistroPids;
 use App\Modules\Addons\Roadmap\Support\JarvisVigilia;
+use App\Services\Core\SaludIA;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -87,6 +88,7 @@ class JarvisVigilarCommand extends Command
             'git'       => $this->medirGit(),
             'gasto'     => $this->medirGasto(),
             'cert_dev'  => $this->medirCertDev(),
+            'ia'        => $this->medirIA(),
         ];
 
         $estado['bd_integra'] = $this->medirBdIntegra($anterior);
@@ -1181,7 +1183,32 @@ class JarvisVigilarCommand extends Command
                     . 'es permanente (MySQL no baja el contador), esto es solo para enterarse a tiempo.', ];
         }
 
+        // #1073 — IA ciega: el supervisor escala todo y parece prudente; esto lo vuelve una alarma.
+        foreach (($e['ia']['ciegas'] ?? []) as $prov => $f) {
+            $a[] = ['clave' => 'ia_ciega:' . $prov, 'nivel' => 'alarma',
+                'texto' => "La IA del sistema ({$prov}) está ciega: {$f['texto']} desde las " . date('H:i', (int) $f['desde'])
+                    . ' del ' . date('d-m', (int) $f['desde']) . " ({$f['conteo']} llamadas fallidas, la última a las "
+                    . date('H:i', (int) $f['ultima']) . '). El supervisor decide sin modelo y escala todo.', ];
+        }
+        if (($e['ia']['latido_viejo_min'] ?? null) !== null) {
+            $a[] = ['clave' => 'ia_latido', 'nivel' => 'me_pregunta',
+                'texto' => "El latido de la IA no corre desde hace {$e['ia']['latido_viejo_min']} min: sin él, una "
+                    . 'llave rechazada o una cuenta sin saldo solo se notan cuando el circuito llama al modelo.', ];
+        }
+
         return $a;
+    }
+
+    /** #1073 — lee el registro de salud de la IA (archivo, no BD). */
+    private function medirIA(): array
+    {
+        $latido = SaludIA::estado()['latido']['anthropic']['at'] ?? null;
+        $viejo  = null;
+        if (config('circuito.ia_salud.latido.enabled', true) && $latido !== null && (time() - (int) $latido) > 40 * 60) {
+            $viejo = intdiv(time() - (int) $latido, 60);
+        }
+
+        return ['ciegas' => SaludIA::ciegas(), 'latido_viejo_min' => $viejo];
     }
 
     /**

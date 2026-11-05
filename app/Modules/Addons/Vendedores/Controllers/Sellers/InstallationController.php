@@ -23,45 +23,27 @@ class InstallationController extends Controller
 
     public function index($id)
     {
-        $box = CutBox::find($id);
-        if (isset($box)) {
-            $installations = $box->installations->pluck('client_id');
-            $news = ClientMainInformation::where('seller_id', $box->user_id)->whereDate('activation_date', $box->created_at->format('Y-m-d'))->whereNotIn('id', $installations)->get();
-            $data = [];
-            $user_id = auth()->user()?->id;
-            $now = now();
-            $branch_id = $box->user->sucursal_id;
-            $client_repository = new ClientRepository();
-            foreach ($news as $c) {
-                $installation_cost = $client_repository->getPriceInstalationCost($c->client_id);
-                $service = $client_repository->getCostAllService($c->client_id);
-                $payment = Payment::where('add_by', $box->user_id)->where('is_first_payment', true)->where('paymentable_id', $c->client_id)->where('paymentable_type', Client::class)->whereDate('date', $box->created_at->format('Y-m-d'))->first();
-                $data[] = [
-                    'service_amount' => $service,
-                    'installation_cost' => $installation_cost,
-                    'warranty_cost' => null,
-                    'constance' => null,
-                    'activated' => $payment !== null,
-                    'box_id' => $id,
-                    'client_id' => $c->id,
-                    'technical_id' => null,
-                    'branch_id' => $branch_id,
-                    'comments' => null,
-                    'created_by' => $user_id,
-                    'created_at' => $now,
-                    'updated_at' => $now
-                ];
-            };
-            if (!empty($data)) {
-                CutInstallation::insert($data);
-            }
+        // I3: con el interruptor, listar no escribe; la sincronización es la acción explícita sync().
+        if (!config('unificacion.interruptores.vendedores_i3')) {
+            app(\App\Modules\Addons\Talento\Services\CajaInstalacionesService::class)->sincronizar((int) $id);
         }
         $object = $this->repository->getByColumns(['box_id' => $id]);
         return response()->json($object);
     }
 
+    /** Acción explícita e idempotente: crea las filas del corte que falten (mismo criterio que antes). */
+    public function sync($id)
+    {
+        app(\App\Modules\Addons\Talento\Services\CajaInstalacionesService::class)->sincronizar((int) $id);
+        return response()->json(['ok' => true]);
+    }
+
     public function store(Request $request)
     {
+        // B3b (#951): el patrón '/sellers/cuts/{id}' deja pasar este POST sin el permiso de alta.
+        if (config('unificacion.interruptores.cortes_vendedor_b3b')) {
+            abort_unless(auth()->user()?->can('seller_cuts_add_installation'), 403);
+        }
         $data = $request->all();
         $data['payment_date'] = substr($request->payment_date, 0, 10);
         $object = $this->repository->create($data);

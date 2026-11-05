@@ -4,6 +4,7 @@ namespace App\Modules\Addons\IA\Services\Adaptadores;
 
 use App\Modules\Addons\IA\Models\IAProveedor;
 use App\Modules\Addons\IA\Services\IAAdaptadorInterface;
+use App\Services\Core\SaludIA;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -63,11 +64,13 @@ abstract class AdaptadorHttpBase implements IAAdaptadorInterface
                 throw new RuntimeException("{$this->nombreApi()} API no respondió a tiempo (timeout de {$timeout}s): {$e->getMessage()}", 0, $e);
             }
 
+            $status = $response->status();
+            SaludIA::registrar($this->proveedorSalud(), 'modulo-ia:' . $this->proveedor->nombre, $status, $response->successful() ? '' : $response->body());
+
             if ($response->successful()) {
                 return $response->json() ?? [];
             }
 
-            $status = $response->status();
             $espera = self::BACKOFFS[$intento] ?? end(self::BACKOFFS);
             $reintentable = $status === 429 || $status >= 500;
 
@@ -80,6 +83,15 @@ abstract class AdaptadorHttpBase implements IAAdaptadorInterface
 
             throw new RuntimeException("{$this->nombreApi()} API error: " . $response->body());
         }
+    }
+
+    /** Nombre del proveedor en el registro de salud de la IA (#1073): el mismo que usa ClaudeApiClient. */
+    protected function proveedorSalud(): string
+    {
+        return match ($this->proveedor->driver) {
+            'claude' => 'anthropic',
+            default  => (string) $this->proveedor->driver,
+        };
     }
 
     protected function clave(): ?string

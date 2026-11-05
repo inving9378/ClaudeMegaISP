@@ -52,6 +52,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/table', [DocumentCrmController::class, 'table']);
             Route::post('/destroy/{id}', [DocumentCrmController::class, 'destroy']);
             Route::post('/generate_contract/{id}', [DocumentCrmController::class, 'generateContract']);
+            Route::get('/contrato/{documentId}', [DocumentCrmController::class, 'servirContrato']);
+            Route::get('/vista-previa/{idClient}/{template}', [DocumentCrmController::class, 'servirVistaPrevia']);
             Route::get('/load_content_template', [DocumentCrmController::class, 'loadContentTemplate']);
             Route::post('/show_content_template', [DocumentCrmController::class, 'showContentTemplate']);
         });

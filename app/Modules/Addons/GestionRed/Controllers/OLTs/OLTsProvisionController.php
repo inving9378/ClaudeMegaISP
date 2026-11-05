@@ -45,7 +45,7 @@ class OLTsProvisionController extends Controller
 
     public function preview(Request $request): JsonResponse
     {
-        if (! auth()->user()->can('gestion-red.provision.preview')) {
+        if (! auth()->user()?->can('gestion-red.provision.preview')) {
             return response()->json(['error' => 'No autorizado.'], 403);
         }
 

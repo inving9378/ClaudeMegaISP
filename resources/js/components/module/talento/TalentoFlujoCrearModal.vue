@@ -21,9 +21,12 @@
                 <option v-for="t in tiposCampo" :key="t.id" :value="t.id">{{ t.name }}</option>
               </select>
             </div>
+            <!-- El día es obligatorio, como en Nueva orden y Asignar trabajo (2026-10-27): sin él la orden
+                 no le salía al técnico en «Mi día». La hora es opcional. -->
             <div class="col-12">
-              <label class="form-label">Agendada</label>
-              <input v-model="form.scheduled_at" type="datetime-local" class="form-control">
+              <label class="form-label" for="fc_fecha">Agendada <span class="text-danger">*</span></label>
+              <FechaHoraOrden v-model="form.scheduled_at" input-id="fc_fecha" />
+              <div class="form-text">La hora es opcional.</div>
             </div>
             <div class="col-12">
               <label class="form-label">Notas</label>
@@ -47,6 +50,8 @@
 </template>
 
 <script>
+import FechaHoraOrden from "./FechaHoraOrden.vue";
+
 /**
  * Modal chico y propio para "Nuevo flujo" (pestaña Flujo de campo) — NO
  * reusa el modal de TalentoOrdenes.vue a propósito: ese cubre casos que
@@ -58,6 +63,7 @@
  */
 export default {
   name: 'TalentoFlujoCrearModal',
+  components: { FechaHoraOrden },
   props: {
     show: { type: Boolean, default: false },
     colaboradorId: { type: [Number, String], required: true },
@@ -93,6 +99,7 @@ export default {
     async crear() {
       this.form.error = '';
       if (!this.form.type_id) { this.form.error = 'Selecciona un tipo de flujo.'; return; }
+      if (!this.form.scheduled_at) { this.form.error = 'Elige el día de la orden.'; return; }
       this.form.saving = true;
       try {
         const { data } = await axios.post('/talento/api/ordenes', {

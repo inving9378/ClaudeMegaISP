@@ -69,6 +69,10 @@
       </div>
     </div>
   </div>
+  <div v-else-if="loadError" class="text-center q-pa-xl text-negative">
+    <q-icon name="error_outline" size="48px" />
+    <div class="text-subtitle1 q-mt-sm">{{ loadError }}</div>
+  </div>
   <div v-else class="text-center q-pa-xl"><q-spinner size="60px" color="primary" /></div>
 </template>
 
@@ -78,7 +82,7 @@ export default {
   name: 'MarketingLeadDetail',
   props: { leadId: { type: [String, Number], default: null } },
   data() {
-    return { lead: null, activities: [], tab: 'timeline', scoring: false, activitiesLoading: false, editDialog: false };
+    return { lead: null, loadError: '', activities: [], tab: 'timeline', scoring: false, activitiesLoading: false, editDialog: false };
   },
   mounted() {
     // El id lo da el servidor: con la navegación SPA, location.pathname todavía es la página anterior.
@@ -88,14 +92,22 @@ export default {
   },
   methods: {
     async loadLead(id) {
-      const { data } = await axios.get('/api/marketing/leads/' + id);
-      this.lead = data.data ?? data;
+      try {
+        const { data } = await axios.get('/api/marketing/leads/' + id);
+        this.lead = data.data ?? data;
+      } catch (e) {
+        this.loadError = e?.response?.status === 403
+          ? 'No tienes permiso para ver este lead.'
+          : 'No se pudo cargar el lead. Intenta de nuevo.';
+      }
     },
     async loadActivities(id) {
       this.activitiesLoading = true;
       try {
         const { data } = await axios.get('/api/marketing/leads/' + id + '/activities');
         this.activities = data.data ?? data;
+      } catch (e) {
+        this.activities = [];
       } finally { this.activitiesLoading = false; }
     },
     async reScore() {

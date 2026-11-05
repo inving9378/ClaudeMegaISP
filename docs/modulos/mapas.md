@@ -42,3 +42,10 @@ Le da al equipo de red un único mapa interactivo (Leaflet + Google Maps) para t
 
 ---
 _Doc viva generada por el Circuito CC (pool de documentación del sistema). Read-only sobre el código, aditiva. Sin secretos._
+
+## Consulta pública de cobertura (item #1159, módulo MapaRed)
+- `GET /api/externo/cobertura?lat=..&lng=..` con `Authorization: Bearer <clave>` → `{"cobertura": true|false, "distancia_m": 143}`. Para sistemas de fuera (el asistente Sofía, en Vercel). Sin sesión ni cookies.
+- Misma regla que el mapa (`MapaRedCoberturaService::consultarPunto`): hay cobertura si la caja con puertos libres más cercana está a `mapared.cobertura.radio_metros` (200) o menos. `distancia_m` es a esa caja, redondeada; `null` si no hay ninguna caja con puertos libres. No devuelve nada de la red.
+- Claves en `api_externo_claves` (solo la huella sha256; la clave se ve una vez): `php artisan api-externo:clave crear "<nombre>"`, `listar`, `revocar <n>`. Alta y revocación quedan en `activity_log` (`log_name=api_externo`).
+- Límites (`config/api_externo.php`): 60 por minuto por clave y 120 por minuto por IP; si se pasan, 429 con `Retry-After`. Errores: 401 sin clave o clave mala o revocada, 422 si faltan `lat`/`lng`.
+- En dev el candado de nginx pide contraseña desde fuera de la oficina: para llamarla desde internet contra dev habría que sumar `api/externo` a `deploy/nginx/dev-acceso/server-excepciones.conf` (requiere sudo). Producción (Apache) no tiene ese candado.

@@ -2,12 +2,13 @@
 
 namespace App\Modules\Addons\Roadmap\Services;
 
-use App\Modules\Addons\Marketing\Services\ClaudeApiClient;
 use App\Modules\Addons\Roadmap\Jobs\ProponerOpcionesJob;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Support\HuecosDelSpec;
 use App\Modules\Addons\Roadmap\Support\DetectorTerminos;
 use App\Modules\Addons\Roadmap\Support\CarrilSeguridad;
+use App\Modules\Addons\Roadmap\Support\IaSupervisor;
+use App\Modules\Addons\Roadmap\Support\RespuestaNoConcluyente;
 use App\Modules\Addons\Roadmap\Services\ValvulaContextoService;
 use App\Modules\Addons\Roadmap\Services\TorreAutomationPolicy;
 use Illuminate\Support\Facades\DB;
@@ -126,29 +127,41 @@ class RevisorService
             return $v;
         }
 
-        // 2) Revisor adversarial ESCALONADO (#338). Rutina = Sonnet; si queda BORDERLINE (baja
-        //    confianza o categoría amplio/duda) y NO es frontera dura clara → 2ª opinión con Opus
-        //    (solo en lo difícil, para no quemar límites). Frontera dura ya escala sin gastar Opus.
-        $routine = (string) config('circuito.revisor.model_routine', config('circuito.revisor.model', 'claude-sonnet-4-6'));
-        $hard    = (string) config('circuito.revisor.model_hard', 'claude-opus-4-7');
-
-        $r = $this->callModel($routine, $item, $decisorCtx);
+        // 2) Revisor adversarial ESCALONADO (#338). Rutina = el modelo barato («circuito.revisor»
+        //    en Módulos IA, #1076); si queda BORDERLINE (baja confianza o categoría amplio/duda) y
+        //    NO es frontera dura clara → 2ª opinión («circuito.segunda_opinion», Opus) solo en lo
+        //    difícil, para no quemar límites. Frontera dura ya escala sin gastar Opus.
+        $r = $this->callModel(IaSupervisor::REVISOR, $item, $decisorCtx);
         $v = $r['v'];
-        $modeloUsado = $routine;
+        $modeloUsado = $r['modelo'];
         $usage = $r['usage'];
+        $hard = IaSupervisor::modelo(IaSupervisor::SEGUNDA_OPINION);
 
         $okRoutine    = ($v['_ok'] ?? true) !== false;
         $fronteraDura = in_array($v['categoria_escalada'] ?? '', ['dinero', 'seguridad', 'prod', 'negocio'], true);
         $borderline   = ($v['confianza'] ?? 'baja') === 'baja'
             || in_array($v['categoria_escalada'] ?? '', ['amplio', 'duda'], true);
 
-        if ($okRoutine && $borderline && ! $fronteraDura && $routine !== $hard) {
-            $r2 = $this->callModel($hard, $item, $decisorCtx);
-            if (($r2['v']['_ok'] ?? true) !== false) {
+        if ($okRoutine && $borderline && ! $fronteraDura && $modeloUsado !== $hard) {
+            $motivo = ($v['confianza'] ?? 'baja') === 'baja'
+                ? "el modelo de rutina ({$modeloUsado}) respondió con confianza baja"
+                : "el modelo de rutina ({$modeloUsado}) dudó (categoría «" . ($v['categoria_escalada'] ?? '?') . '»)';
+            $r2 = $this->callModel(IaSupervisor::SEGUNDA_OPINION, $item, $decisorCtx);
+            $okOpus = ($r2['v']['_ok'] ?? true) !== false;
+            $escalado = [
+                'pieza'     => IaSupervisor::REVISOR,
+                'de'        => $modeloUsado,
+                'a'         => $r2['modelo'],
+                'motivo'    => $motivo,
+                'resultado' => $okOpus ? 'respondió' : 'no respondió: se queda el veredicto de rutina',
+            ];
+            if ($okOpus) {
                 $v = $r2['v'];
-                $modeloUsado = $hard . ' (2ª opinión)';
+                $modeloUsado = $r2['modelo'] . ' (2ª opinión)';
                 $usage = $r2['usage'];
             }
+            // aplicarVeredicto() lo deja en el log del item (evento escalado_a_opus).
+            $v['_escalado'] = $escalado;
         }
 
         unset($v['_ok']);
@@ -162,29 +175,42 @@ class RevisorService
         return $v;
     }
 
-    /** Una llamada al modelo dado. Devuelve ['v'=>veredicto parseado, 'usage'=>usage]. Falla-segura. */
-    private function callModel(string $model, RoadmapItem $item, ?string $decisorCtx): array
+    /**
+     * #1076 — UNA llamada al modelo de la pieza, sin auditar, sin segunda opinión y sin tocar el
+     * item. Solo para comparar modelos (`circuito:comparar-modelos-ia`): el circuito usa revisar().
+     *
+     * @return array{v:array, usage:array, modelo:string}
+     */
+    public function soloVeredicto(RoadmapItem $item, ?string $decisorCtx = null, string $pieza = IaSupervisor::REVISOR): array
     {
-        try {
-            $params = [
-                'model'      => $model,
-                'max_tokens' => (int) config('circuito.revisor.max_tokens', 700),
-                'system'     => $this->systemPrompt(),
-                'messages'   => [['role' => 'user', 'content' => $this->userPrompt($item, $decisorCtx)]],
-            ];
-            // `temperature` está DEPRECADO en Opus 4.x → solo lo mandamos a modelos que lo aceptan (Sonnet).
-            if (stripos($model, 'opus') === false) {
-                $params['temperature'] = 0;
-            }
-            $resp = (new ClaudeApiClient())->messages($params);
-            $text = '';
-            foreach ((array) ($resp['content'] ?? []) as $blk) {
-                if (($blk['type'] ?? '') === 'text') {
-                    $text .= $blk['text'] ?? '';
-                }
-            }
+        return $this->callModel($pieza, $item, $decisorCtx);
+    }
 
-            return ['v' => $this->parse($text), 'usage' => $resp['usage'] ?? []];
+    /** Una llamada al modelo de la pieza. Devuelve ['v'=>veredicto, 'usage'=>usage, 'modelo'=>id]. Falla-segura. */
+    private function callModel(string $pieza, RoadmapItem $item, ?string $decisorCtx): array
+    {
+        $modelo = IaSupervisor::modelo($pieza);
+        try {
+            $r = IaSupervisor::llamar($pieza, [
+                'max_tokens'  => (int) config('circuito.revisor.max_tokens', 700),
+                'system'      => $this->systemPrompt(),
+                'messages'    => [['role' => 'user', 'content' => $this->userPrompt($item, $decisorCtx)]],
+                // Solo los Sonnet/Haiku 4.x lo aceptan; IaSupervisor lo quita en el resto (400 en 5.x/Opus).
+                'temperature' => 0,
+            ], ['item' => $item->id]);
+
+            return ['v' => $this->parse($r['texto']), 'usage' => $r['usage'], 'modelo' => $r['modelo']];
+        } catch (RespuestaNoConcluyente $e) {
+            // #1076 — el modelo DECLINÓ (refusal): contestó, pero no hay juicio. Mismo destino que
+            // una respuesta ilegible (escala); nunca se lee como «autoriza» ni como «escala» suyo.
+            return ['v' => [
+                'veredicto'          => 'escala',
+                'categoria_escalada' => self::CAT_ILEGIBLE,
+                'confianza'          => 'baja',
+                'razon'              => $e->getMessage() . ' Falla-segura → escala. NO es un juicio del revisor.',
+                'riesgos'            => ['el modelo declinó'],
+                '_ok'                => false,
+            ], 'usage' => [], 'modelo' => $modelo];
         } catch (\Throwable $e) {
             // Falla-segura: la IA no contestó → ESCALA. El COMPORTAMIENTO no cambia; lo que cambia
             // es que queda registrado POR QUÉ (#807). Antes esto se guardaba como `duda`, idéntico a
@@ -198,7 +224,7 @@ class RevisorService
                     . '). Falla-segura → escala. Esto NO es un juicio del revisor: revisa la key/red antes de leerlo como cautela.',
                 'riesgos'            => ['revisor sin modelo'],
                 '_ok'                => false,
-            ], 'usage' => []];
+            ], 'usage' => [], 'modelo' => $modelo];
         }
     }
 
@@ -266,6 +292,11 @@ class RevisorService
                 'estado'   => $nuevo,
             ];
             $item->log = $log;
+        }
+
+        // #1076 — si el modelo barato dudó y se pagó una segunda opinión cara, queda en el log.
+        if (! empty($v['_escalado'])) {
+            $item->log = self::conEscalado($item->log ?: [], $v['_escalado'], $actor);
         }
 
         $item->save();
@@ -727,20 +758,33 @@ TXT;
      */
     public function briefarC(RoadmapItem $item): array
     {
-        $hard = (string) config('circuito.revisor.model_hard', 'claude-opus-4-7');
         $texto = '';
-        $modelo = $hard;
+        $modelo = IaSupervisor::modelo(IaSupervisor::BRIEFS);
+        $escalado = null;
         try {
-            $resp = (new ClaudeApiClient())->messages([
-                'model'       => $hard,
+            $params = [
                 'max_tokens'  => (int) config('circuito.revisor.brief_tokens', 1100),
-                
                 'system'      => "Eres asesor técnico de Irving (dueño de un ISP, codebase Laravel/Vue en español). Este item es de nivel C (arquitectura / negocio / decisión de diseño): NO se ejecuta solo, lo decide Irving. Prepárale un BRIEF de decisión BREVE y accionable en español, en markdown, con EXACTAMENTE estas secciones: **Qué se decide** (1-2 frases), **Opciones** (2-3 con pros/contras en una línea c/u), **Riesgos** (bullets), **Recomendación** (1 opción + por qué, alineada a sus preferencias: conservador, aditivo/reversible, dev-primero, no romper prod). Sé concreto, sin relleno. Considera el perfil de Irving:\n\n" . $this->perfilIrving(),
                 'messages'    => [['role' => 'user', 'content' => $this->userPrompt($item, null)]],
-            ]);
-            foreach ((array) ($resp['content'] ?? []) as $blk) {
-                if (($blk['type'] ?? '') === 'text') {
-                    $texto .= $blk['text'] ?? '';
+            ];
+            $r = IaSupervisor::llamar(IaSupervisor::BRIEFS, $params, ['item' => $item->id]);
+            $texto = $r['texto'];
+            $modelo = $r['modelo'] ?? $modelo;
+
+            // Regla de Irving (30-oct): un brief sin recomendación o muy genérico se rehace con Opus.
+            if (($motivo = $this->motivoRehacerBriefC($texto, $modelo)) !== null) {
+                $escalado = ['pieza' => IaSupervisor::BRIEFS, 'de' => $modelo,
+                    'a' => IaSupervisor::modelo(IaSupervisor::SEGUNDA_OPINION), 'motivo' => $motivo];
+                try {
+                    $r2 = IaSupervisor::llamar(IaSupervisor::SEGUNDA_OPINION, $params, ['item' => $item->id]);
+                    $escalado['a'] = $r2['modelo'] ?? $escalado['a'];
+                    $escalado['resultado'] = trim((string) $r2['texto']) !== '' ? 'respondió' : 'vino vacío: se queda el brief barato';
+                    if (trim((string) $r2['texto']) !== '') {
+                        $texto  = $r2['texto'];
+                        $modelo = $escalado['a'];
+                    }
+                } catch (\Throwable $e2) {
+                    $escalado['resultado'] = 'falló (' . mb_strimwidth($e2->getMessage(), 0, 120, '…') . '): se queda el brief barato';
                 }
             }
         } catch (\Throwable $e) {
@@ -751,11 +795,28 @@ TXT;
             $this->auditarSinModelo($item, 'brief-C', $e);
         }
 
-        $sello = "\n\n--- BRIEF DE DECISIÓN (C, Opus) " . now()->toDateTimeString() . " ---\n" . trim($texto) . "\n";
-        $item->estado_aprobacion  = 'requiere_irving';
+        $sello = "\n\n--- BRIEF DE DECISIÓN (C, {$modelo}) " . now()->toDateTimeString() . " ---\n" . trim($texto) . "\n";
         $item->comentarios_claude = (string) $item->comentarios_claude . $sello;
-        $item->revisado_at        = now();
-        $item->aprobado_por       = 'revisor(brief-C)';
+        if ($escalado !== null) {
+            $item->log = self::conEscalado($item->log ?: [], $escalado, 'revisor(brief-C)');
+        }
+        // #662 — el revisor NUNCA baja una aprobación humana: si Irving ya aprobó, solo se anexa el brief.
+        if ($item->estado_aprobacion !== 'aprobado_irving') {
+            $previo = (string) $item->estado_aprobacion;
+            $log = $item->log ?: [];
+            $log[] = [
+                'ts'     => now()->toIso8601String(),
+                'por'    => 'revisor(brief-C)',
+                'evento' => 'brief_c_estado',
+                'de'     => $previo,
+                'a'      => 'requiere_irving',
+                'motivo' => 'Item nivel C sin brief: se prepara el brief de decisión para Irving.',
+            ];
+            $item->log                = $log;
+            $item->estado_aprobacion  = 'requiere_irving';
+            $item->revisado_at        = now();
+            $item->aprobado_por       = 'revisor(brief-C)';
+        }
         $item->save();
         $this->encolarBriefAsincrono($item);
         $this->auditar($item, ['veredicto' => 'escala', 'en_alcance' => false, 'categoria_escalada' => 'negocio',
@@ -772,11 +833,10 @@ TXT;
      */
     public function proponerOpciones(RoadmapItem $item): array
     {
-        $hard = (string) config('circuito.revisor.model_hard', 'claude-opus-4-7');
+        $hard = IaSupervisor::modelo(IaSupervisor::BRIEFS);
         $texto = '';
         try {
-            $resp = (new ClaudeApiClient())->messages([
-                'model'      => $hard,
+            $r = IaSupervisor::llamar(IaSupervisor::BRIEFS, [
                 'max_tokens' => (int) config('circuito.revisor.brief_tokens', 1100),
                 'system'     => "Eres asesor técnico de Irving (dueño de un ISP, codebase Laravel/Vue en español). "
                     . "Este item es nivel C (arquitectura / negocio / decisión de diseño): el circuito NO lo ejecuta, lo "
@@ -786,12 +846,8 @@ TXT;
                     . "'Opción N: <qué se hace> — Pro: <ventaja breve>. Contra: <riesgo/costo breve>'. Alinéate al perfil "
                     . "de Irving:\n\n" . $this->perfilIrving(),
                 'messages'   => [['role' => 'user', 'content' => $this->userPrompt($item, null)]],
-            ]);
-            foreach ((array) ($resp['content'] ?? []) as $blk) {
-                if (($blk['type'] ?? '') === 'text') {
-                    $texto .= $blk['text'] ?? '';
-                }
-            }
+            ], ['item' => $item->id]);
+            $texto = $r['texto'];
             $ops = $this->parseOpciones($texto);
 
             // #807 — `motivo` discrimina las dos formas de devolver vacío: 'vacio' = el modelo
@@ -811,51 +867,174 @@ TXT;
      * una con sus 2-3 opciones (marca UNA con '(RECOMENDADA)' si aplica) + fase opcional. Devuelve
      * [{id,pregunta,opciones:[str],opcion_elegida:null,fase}]. PROPONE, NO decide. Falla-segura.
      */
-    public function proponerPreguntas(RoadmapItem $item): array
+    public function proponerPreguntas(RoadmapItem $item, bool $permitirEscalar = true): array
     {
-        $hard  = (string) config('circuito.revisor.model_hard', 'claude-opus-4-7');
-        $texto = '';
+        $hard = IaSupervisor::modelo(IaSupervisor::BRIEFS);
         try {
-            $resp = (new ClaudeApiClient())->messages([
-                'model'      => $hard,
-                // #507 sub-paso 1 — las opciones pasaron de string plano a objeto con 3 campos más;
-                // el margen sube a x3 para que el JSON no se trunque (un array sin cerrar no parsea
-                // y el item se queda en "brief pendiente").
-                'max_tokens' => (int) config('circuito.revisor.brief_tokens', 1100) * 3,
-                'system'     => 'Eres asesor técnico de Irving (dueño de un ISP, codebase Laravel/Vue en español). '
-                    . 'Este item está en tu bandeja de decisión (requiere tu aprobación, no la del circuito). Desglósalo en TODAS las preguntas de '
-                    . 'decisión que Irving debe responder para desbloquearlo de una sola pasada (1 si es una sola '
-                    . 'decisión; varias si el item esconde varias). Para CADA pregunta propón 2-3 opciones accionables. Si una decisión '
-                    . 'pertenece a una fase posterior, inclúyela igual con "fase":"Fase X". Responde EXCLUSIVAMENTE un '
-                    . 'array JSON (sin markdown) de objetos con esta forma EXACTA: '
-                    . '{"pregunta":"...","requiere_irving":false,"fase":null,"opciones":['
-                    . '{"texto":"Opción 1: <qué> — Pro: <x>. Contra: <y>","recomendada":true,"confianza":"alta","reversible":true}, …]}.' . "\n\n"
-                    . "CÓMO LLENAR LOS CAMPOS (importante — un AUTOPILOT los lee y puede EJECUTAR la opción recomendada sin preguntarle a Irving):\n"
-                    . "- \"recomendada\": true en A LO MÁS UNA opción por pregunta, la que recomiendas. Si no hay una claramente preferible, ninguna. NO escribas '(RECOMENDADA)' dentro del texto.\n"
-                    . "- \"confianza\": \"alta\" | \"media\" | \"baja\" — qué tan seguro estás de que esa opción es la correcta SIN consultarle a Irving. \"alta\" es un COMPROMISO: úsala solo si te parecería bien que se ejecutara sola. Si hay supuestos sin verificar, contexto faltante o un trade-off real → \"media\" o \"baja\". ANTE LA DUDA: \"baja\".\n"
-                    . "- \"reversible\": true SOLO si aplicarla y arrepentirse se deshace fácil (cambio aditivo, detrás de flag, un revert limpio) SIN migración destructiva y SIN tocar dinero, permisos/roles, credenciales, datos de clientes ni producción. ANTE LA DUDA: false. Sé CONSERVADOR aquí.\n"
-                    . "- \"requiere_irving\" (por pregunta): true si la decisión es de negocio/estrategia/precio/política, si toca dinero, seguridad, permisos o producción, o si simplemente no puedes elegir con seguridad. Con true, la pregunta va a Irving aunque marques una recomendada.\n\n"
-                    . 'Perfil de Irving:' . "\n\n" . $this->perfilIrving(),
-                'messages'   => [['role' => 'user', 'content' => $this->userPrompt($item, null)]],
-            ]);
-            foreach ((array) ($resp['content'] ?? []) as $blk) {
-                if (($blk['type'] ?? '') === 'text') {
-                    $texto .= $blk['text'] ?? '';
+            $r     = $this->llamarPreguntas(IaSupervisor::BRIEFS, $item);
+            $hard  = $r['modelo'];
+            $texto = $r['texto'];
+            $pregs = $this->parsePreguntas($texto);
+
+            // #1076 — el brief lo arma el modelo barato. Si recomienda con confianza BAJA algo que el
+            // autopilot podría decidir solo, se paga una segunda opinión cara (Opus) y queda en el
+            // log del item (aplicarPreguntas). Nunca en frontera dura: va a Irving de todos modos.
+            // Regla de Irving (30-oct): un brief sin recomendación o muy genérico también se rehace con
+            // Opus, aunque toque frontera dura (el brief es para él). Va antes que la de confianza baja.
+            $escalado = null;
+            $motivo = $permitirEscalar
+                ? ($this->motivoRehacerBrief($pregs, $hard) ?? $this->motivoEscalarBrief($item, $pregs, $hard))
+                : null;
+            if ($motivo !== null) {
+                $escalado = ['pieza' => IaSupervisor::BRIEFS, 'de' => $hard,
+                    'a' => IaSupervisor::modelo(IaSupervisor::SEGUNDA_OPINION), 'motivo' => $motivo];
+                try {
+                    $r2 = $this->llamarPreguntas(IaSupervisor::SEGUNDA_OPINION, $item);
+                    $p2 = $this->parsePreguntas($r2['texto']);
+                    $escalado['a'] = $r2['modelo'];
+                    $escalado['resultado'] = $p2 ? 'respondió' : 'no salió nada usable: se queda el brief barato';
+                    if ($p2) {
+                        $pregs = $p2;
+                        $texto = $r2['texto'];
+                        $hard  = $r2['modelo'];
+                    }
+                } catch (\Throwable $e) {
+                    $escalado['resultado'] = 'falló (' . mb_strimwidth($e->getMessage(), 0, 120, '…') . '): se queda el brief barato';
                 }
             }
-            $pregs = $this->parsePreguntas($texto);
 
             // #807 — ver `proponerOpciones`: vacío-por-fallo y vacío-por-nada tienen que distinguirse.
             // Éste es el caso caro: sin `preguntas` el autopilot no califica NADA, y eso es idéntico
             // a "briefs viejos sin confianza/reversible", que es benigno y esperado.
             return ['ok' => ! empty($pregs), 'motivo' => empty($pregs) ? 'vacio' : null,
-                'preguntas' => $pregs, 'modelo' => $hard, 'raw' => trim($texto)];
+                'preguntas' => $pregs, 'modelo' => $hard, 'raw' => trim($texto), 'escalado' => $escalado];
         } catch (\Throwable $e) {
             $this->auditarSinModelo($item, 'proponer-preguntas', $e);
 
             return ['ok' => false, 'motivo' => self::CAT_SIN_MODELO, 'preguntas' => [], 'modelo' => $hard,
                 'error' => mb_strimwidth($e->getMessage(), 0, 160, '…')];
         }
+    }
+
+    /** Largo mínimo de una recomendación para no contarla como genérica (regla de Irving, 30-oct). */
+    private const BRIEF_RECOMENDACION_MIN = 40;
+
+    /**
+     * Regla de Irving (30-oct): ¿el brief de preguntas salió sin recomendación o muy genérico? Sin
+     * recomendación = alguna pregunta no marca opción recomendada (o no salió ninguna pregunta).
+     * Genérico = una sola opción, o la recomendada sin «Pro»/«Contra» o con menos de 40 caracteres.
+     */
+    private function motivoRehacerBrief(array $pregs, string $modelo): ?string
+    {
+        if (IaSupervisor::esCaro($modelo) || $modelo === IaSupervisor::modelo(IaSupervisor::SEGUNDA_OPINION)) {
+            return null;
+        }
+        if ($pregs === []) {
+            return "el modelo de briefs ({$modelo}) no dejó ninguna pregunta usable";
+        }
+
+        $sinRecomendacion = $genericas = [];
+        foreach ($pregs as $p) {
+            $id = $p['id'] ?? '?';
+            $opciones = array_values(array_filter((array) ($p['opciones'] ?? []),
+                fn ($o) => trim((string) (is_array($o) ? ($o['texto'] ?? '') : $o)) !== ''));
+            $recomendada = collect($opciones)->first(fn ($o) => is_array($o) && ! empty($o['recomendada']));
+            if ($recomendada === null) {
+                $sinRecomendacion[] = $id;
+                continue;
+            }
+            $texto = trim((string) ($recomendada['texto'] ?? ''));
+            if (count($opciones) < 2 || mb_strlen($texto) < self::BRIEF_RECOMENDACION_MIN
+                || ! preg_match('/\bpro\b/iu', $texto) || ! preg_match('/\bcontra\b/iu', $texto)) {
+                $genericas[] = $id;
+            }
+        }
+
+        $partes = array_filter([
+            $sinRecomendacion ? 'sin recomendación (' . implode(', ', $sinRecomendacion) . ')' : null,
+            $genericas ? 'recomendación muy genérica (' . implode(', ', $genericas) . ')' : null,
+        ]);
+
+        return $partes ? "el brief de {$modelo} salió " . implode(' y ', $partes) : null;
+    }
+
+    /** Lo mismo para el brief en texto de los items C: su sección «Recomendación» manda. */
+    private function motivoRehacerBriefC(string $texto, string $modelo): ?string
+    {
+        if (IaSupervisor::esCaro($modelo) || $modelo === IaSupervisor::modelo(IaSupervisor::SEGUNDA_OPINION)) {
+            return null;
+        }
+        if (! preg_match('/\*\*\s*Recomendaci[oó]n\s*\*\*:?\s*(.*?)(?=\n\s*\*\*[^*\n]+\*\*|\z)/isu', $texto, $m)) {
+            return "el brief de {$modelo} salió sin recomendación";
+        }
+
+        return mb_strlen(trim($m[1])) < self::BRIEF_RECOMENDACION_MIN
+            ? "el brief de {$modelo} salió con una recomendación muy genérica"
+            : null;
+    }
+
+    /**
+     * #1076 — ¿el brief barato merece segunda opinión? Solo si alguna pregunta que NO es de Irving
+     * trae su opción recomendada con confianza «baja» (con «alta» el autopilot ya puede actuar; con
+     * requiere_irving la decide él y la confianza no habilita nada), si el modelo no es ya el caro, y
+     * si el item no toca una frontera dura (mismo candado que el revisor: ahí no se gasta Opus).
+     */
+    private function motivoEscalarBrief(RoadmapItem $item, array $pregs, string $modelo): ?string
+    {
+        if (IaSupervisor::esCaro($modelo) || $modelo === IaSupervisor::modelo(IaSupervisor::SEGUNDA_OPINION)) {
+            return null;
+        }
+
+        $dudosas = [];
+        foreach ($pregs as $p) {
+            if (! empty($p['requiere_irving'])) {
+                continue;
+            }
+            foreach ((array) ($p['opciones'] ?? []) as $o) {
+                if (! empty($o['recomendada']) && ($o['confianza'] ?? null) === 'baja') {
+                    $dudosas[] = $p['id'] ?? '?';
+                }
+            }
+        }
+        if (! $dudosas) {
+            return null;
+        }
+
+        try {
+            if (app(JarvisService::class)->fronteraDuraDeItemDetalle($item)['categoria'] !== null) {
+                return null;
+            }
+        } catch (\Throwable) {
+            return null;   // sin poder descartar la frontera dura, no se gasta Opus
+        }
+
+        return "el modelo de briefs ({$modelo}) recomendó con confianza baja (" . implode(', ', $dudosas) . ')';
+    }
+
+    /** La llamada del brief completo, para la pieza dada (briefs o segunda opinión). */
+    private function llamarPreguntas(string $pieza, RoadmapItem $item): array
+    {
+        return IaSupervisor::llamar($pieza, [
+            // #507 sub-paso 1 — las opciones pasaron de string plano a objeto con 3 campos más;
+            // el margen sube a x3 para que el JSON no se trunque (un array sin cerrar no parsea
+            // y el item se queda en "brief pendiente").
+            'max_tokens' => (int) config('circuito.revisor.brief_tokens', 1100) * 3,
+            'system'     => 'Eres asesor técnico de Irving (dueño de un ISP, codebase Laravel/Vue en español). '
+                . 'Este item está en tu bandeja de decisión (requiere tu aprobación, no la del circuito). Desglósalo en TODAS las preguntas de '
+                . 'decisión que Irving debe responder para desbloquearlo de una sola pasada (1 si es una sola '
+                . 'decisión; varias si el item esconde varias). Para CADA pregunta propón 2-3 opciones accionables. Si una decisión '
+                . 'pertenece a una fase posterior, inclúyela igual con "fase":"Fase X". Responde EXCLUSIVAMENTE un '
+                . 'array JSON (sin markdown) de objetos con esta forma EXACTA: '
+                . '{"pregunta":"...","requiere_irving":false,"fase":null,"opciones":['
+                . '{"texto":"Opción 1: <qué> — Pro: <x>. Contra: <y>","recomendada":true,"confianza":"alta","reversible":true}, …]}.' . "\n\n"
+                . "CÓMO LLENAR LOS CAMPOS (importante — un AUTOPILOT los lee y puede EJECUTAR la opción recomendada sin preguntarle a Irving):\n"
+                . "- \"recomendada\": true en A LO MÁS UNA opción por pregunta, la que recomiendas. Si no hay una claramente preferible, ninguna. NO escribas '(RECOMENDADA)' dentro del texto.\n"
+                . "- \"confianza\": \"alta\" | \"media\" | \"baja\" — qué tan seguro estás de que esa opción es la correcta SIN consultarle a Irving. \"alta\" es un COMPROMISO: úsala solo si te parecería bien que se ejecutara sola. Si hay supuestos sin verificar, contexto faltante o un trade-off real → \"media\" o \"baja\". ANTE LA DUDA: \"baja\".\n"
+                . "- \"reversible\": true SOLO si aplicarla y arrepentirse se deshace fácil (cambio aditivo, detrás de flag, un revert limpio) SIN migración destructiva y SIN tocar dinero, permisos/roles, credenciales, datos de clientes ni producción. ANTE LA DUDA: false. Sé CONSERVADOR aquí.\n"
+                . "- \"requiere_irving\" (por pregunta): true si la decisión es de negocio/estrategia/precio/política, si toca dinero, seguridad, permisos o producción, o si simplemente no puedes elegir con seguridad. Con true, la pregunta va a Irving aunque marques una recomendada.\n\n"
+                . 'Perfil de Irving:' . "\n\n" . $this->perfilIrving(),
+            'messages'   => [['role' => 'user', 'content' => $this->userPrompt($item, null)]],
+        ], ['item' => $item->id]);
     }
 
     /**
@@ -932,7 +1111,7 @@ TXT;
      * Reescribe el brief entero; deja el item en requiere_irving (bandeja). Preserva respuestas ya
      * dadas a preguntas con el MISMO id (para no borrar lo que Irving ya contestó).
      */
-    public function aplicarPreguntas(RoadmapItem $item, array $preguntas, string $actor = 'revisor:brief-completo'): RoadmapItem
+    public function aplicarPreguntas(RoadmapItem $item, array $preguntas, string $actor = 'revisor:brief-completo', ?array $escalado = null): RoadmapItem
     {
         $previas = [];
         foreach ((array) $item->preguntas as $p) {
@@ -951,6 +1130,10 @@ TXT;
         $item->estado_aprobacion  = 'requiere_irving';
         $item->revisado_at        = now();
         $item->aprobado_por       = $actor;
+        // #1076 — el brief barato dudó y se pagó una segunda opinión: queda en el log del item.
+        if ($escalado) {
+            $item->log = self::conEscalado($item->log ?: [], $escalado, $actor);
+        }
         $item->save();
 
         // #507 sub-paso 2 — AUTOPILOT: con el brief recién escrito, intenta decidir SOLO antes de
@@ -959,6 +1142,26 @@ TXT;
         app(AutopilotService::class)->intentar($item);
 
         return $item->fresh();
+    }
+
+    /**
+     * #1076 — entrada `escalado_a_opus` del log del item: el modelo barato dudó y se pagó el caro.
+     * Es la única forma de saber, item por item, cuánto se escaló y por qué.
+     */
+    private static function conEscalado(array $log, array $escalado, string $actor): array
+    {
+        $log[] = [
+            'ts'        => now()->toIso8601String(),
+            'por'       => $actor,
+            'evento'    => 'escalado_a_opus',
+            'pieza'     => $escalado['pieza'] ?? null,
+            'de'        => $escalado['de'] ?? null,
+            'a'         => $escalado['a'] ?? null,
+            'motivo'    => $escalado['motivo'] ?? null,
+            'resultado' => $escalado['resultado'] ?? null,
+        ];
+
+        return $log;
     }
 
     /** Extrae el array JSON de opciones del texto del modelo (tolera fences ```json). Máx 3, strings no vacíos. */
@@ -995,7 +1198,7 @@ TXT;
      */
     public function briefarSeguridad(RoadmapItem $item): array
     {
-        $hard = (string) config('circuito.revisor.model_hard', 'claude-opus-4-7');
+        $hard = IaSupervisor::modelo(IaSupervisor::SEGURIDAD);
         $sys = "Eres el AUDITOR DE RIESGO (Opus) del Circuito CC de MegaISP (ISP; Laravel 10/Vue; español; login por login_user; passwords base64 no bcrypt; permisos Spatie). Se te da un item del backlog. Clasifícalo por RIESGO y, si es de SEGURIDAD o DINERO real, prepara un FIX + BRIEF para que Irving lo apruebe rápido.\n"
             . "CATEGORÍAS:\n"
             . "- seguridad: vuln real de auth/permisos/roles (rol nuevo=todos los permisos, syncRoles destructivo, escalada de privilegio), IDOR/PII/LFPDPPP, auth bypass / endpoint sin gate / expuesto en PUBLIC_ROUTES, /register público sobre staff, account takeover, reset de contraseña sin OTP, contraseñas en texto plano, webhook forjable (sin HMAC/firma), credenciales/API keys expuestas o hardcodeadas.\n"
@@ -1010,14 +1213,13 @@ TXT;
         $modelo = $hard;
         $v = ['categoria' => 'no_aplica', 'subcat' => '', 'severidad' => 'media', 'titulo_corto' => '', 'texto_brief' => '', 'modelo' => $modelo];
         try {
-            $resp = (new ClaudeApiClient())->messages([
-                'model' => $hard, 'max_tokens' => (int) config('circuito.revisor.brief_tokens', 1100),
+            $r = IaSupervisor::llamar(IaSupervisor::SEGURIDAD, [
+                'max_tokens' => (int) config('circuito.revisor.brief_tokens', 1100),
                 'system' => $sys, 'messages' => [['role' => 'user', 'content' => $this->userPrompt($item, (string) $item->comentarios_claude)]],
-            ]);
-            $text = '';
-            foreach ((array) ($resp['content'] ?? []) as $blk) {
-                if (($blk['type'] ?? '') === 'text') { $text .= $blk['text'] ?? ''; }
-            }
+            ], ['item' => $item->id]);
+            $text = $r['texto'];
+            $modelo = $r['modelo'];
+            $v['modelo'] = $modelo;
             if (preg_match('/\{.*\}/s', $text, $m) && is_array($j = json_decode($m[0], true))) {
                 $cat = in_array($j['categoria'] ?? '', ['seguridad', 'dinero', 'negocio', 'prod', 'no_aplica'], true) ? $j['categoria'] : 'no_aplica';
                 $sev = in_array($j['severidad'] ?? '', ['critica', 'alta', 'media', 'baja'], true) ? $j['severidad'] : 'media';
@@ -1048,7 +1250,7 @@ TXT;
      */
     public function destrabar(RoadmapItem $item): array
     {
-        $hard = (string) config('circuito.revisor.model_hard', 'claude-opus-4-7');
+        $hard = IaSupervisor::modelo(IaSupervisor::DESTRABE);
         $sys = "Eres el DES-TRABADOR (Opus) de la bandeja de Irving en el Circuito CC de MegaISP (ISP; Laravel/Vue; español). Este item quedó ESCALADO (requiere_irving). Re-evalúalo con criterio y decide su CATEGORÍA y si el circuito puede resolverlo SOLO:\n"
             . "- tecnico_seguro: bug / refactor local / código muerto / guard de null / ruta o enlace muerto / typo / texto/label / UI NO sensible; ADITIVO y reversible; O una escalación que fue FALSO POSITIVO (el revisor lo mandó por un término amplio de la denylist, no por riesgo real). INCLUYE explícitamente: registrar un permiso NUEVO para un endpoint NUEVO (convención del proyecto — no cambia permisos existentes ni escala privilegios), mencionar `login_user` como campo de identidad, o un token CSRF/sesión rutinario. Que el item diga 'permiso'/'login'/'token' NO lo hace sensible por sí mismo. **TAMBIÉN es tecnico_seguro lo GRANDE pero NO-sensible y ADITIVO**: arquitectura/mejoras del PROPIO circuito, auditorías y mapas READ-ONLY (de API/módulos/permisos — solo LEER y reportar, sin modificar), documentación, consolidaciones y refactors ADITIVOS/reversibles — AUNQUE SEAN GRANDES o 'épicas'. El TAMAÑO NO lo hace de Irving. → el circuito lo ejecuta solo (reejecutable=true).\n"
             . "- negocio: SOLO una DECISIÓN de negocio/producto/precios/paquetes/estrategia, o una elección de DISEÑO donde un humano DEBE escoger entre opciones con trade-off (no hay respuesta mecánica). Un item GRANDE, una 'épica', una auditoría o un refactor NO son negocio por su tamaño: si son aditivos y no tocan la frontera dura (dinero/seguridad/prod), son tecnico_seguro. 'qué quiere Irving' aplica solo cuando de verdad depende de su gusto/estrategia. → Irving decide (reejecutable=false; Opus NO inventa su criterio).\n"
@@ -1062,14 +1264,12 @@ TXT;
         $modelo = $hard;
         $v = ['categoria' => 'negocio', 'reejecutable' => false, 'razon' => '', 'brief' => ''];
         try {
-            $resp = (new ClaudeApiClient())->messages([
-                'model' => $hard, 'max_tokens' => (int) config('circuito.revisor.brief_tokens', 1100),
+            $r = IaSupervisor::llamar(IaSupervisor::DESTRABE, [
+                'max_tokens' => (int) config('circuito.revisor.brief_tokens', 1100),
                 'system' => $sys, 'messages' => [['role' => 'user', 'content' => $this->userPrompt($item, (string) $item->comentarios_claude)]],
-            ]);
-            $text = '';
-            foreach ((array) ($resp['content'] ?? []) as $blk) {
-                if (($blk['type'] ?? '') === 'text') { $text .= $blk['text'] ?? ''; }
-            }
+            ], ['item' => $item->id]);
+            $text = $r['texto'];
+            $modelo = $r['modelo'];
             if (preg_match('/\{.*\}/s', $text, $m) && is_array($j = json_decode($m[0], true))) {
                 $cat = in_array($j['categoria'] ?? '', ['tecnico_seguro', 'negocio', 'dinero', 'seguridad', 'prod'], true) ? $j['categoria'] : 'negocio';
                 $v = ['categoria' => $cat, 'reejecutable' => (bool) ($j['reejecutable'] ?? false) && $cat === 'tecnico_seguro',
@@ -1114,7 +1314,7 @@ TXT;
             // Técnico/seguro (o falso positivo) → vuelve al POOL. Estado según la política.
             $item->estado_aprobacion = $porPolitica;
             $item->comentarios_claude = (string) $item->comentarios_claude
-                . "\n\n--- DES-TRABE (Opus) " . now()->toDateTimeString() . " → RE-APROBADO (tecnico_seguro) ---\nRazón: " . trim($v['razon']) . "\n";
+                . "\n\n--- DES-TRABE ({$modelo}) " . now()->toDateTimeString() . " → RE-APROBADO (tecnico_seguro) ---\nRazón: " . trim($v['razon']) . "\n";
             $item->aprobado_por = 'destrabe(opus)';
 
             // #841 — mismo fix que en aplicarVeredicto(): sin esta entrada en el log, un reap
@@ -1135,7 +1335,7 @@ TXT;
             // Genuinamente de Irving → queda con TAG de categoría + brief para despacho en lote.
             $item->estado_aprobacion = 'requiere_irving';
             $item->comentarios_claude = (string) $item->comentarios_claude
-                . "\n\n--- DES-TRABE (Opus) " . now()->toDateTimeString() . " [CATEGORIA:" . $v['categoria'] . "] ---\nRazón: " . trim($v['razon']) . "\n"
+                . "\n\n--- DES-TRABE ({$modelo}) " . now()->toDateTimeString() . " [CATEGORIA:" . $v['categoria'] . "] ---\nRazón: " . trim($v['razon']) . "\n"
                 . (trim($v['brief']) !== '' ? "Brief:\n" . trim($v['brief']) . "\n" : '');
             $item->aprobado_por = 'destrabe(opus)';
         }

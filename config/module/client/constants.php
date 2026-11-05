@@ -78,12 +78,12 @@ return [
                 'placeholder' => 'Teléfono',
                 'position' => 9
             ],
-            'category' => [
-                'label' => 'Categoría',
-                'placeholder' => 'Seleccionar la Categoría',
+            'tipo_cliente' => [
+                'label' => 'Tipo de cliente',
+                'placeholder' => 'Seleccionar tipo de cliente',
                 'type' => 'select-component',
-                'value' => null,
-                'options' => ['Particular' => 'Particular', 'Empresa' => 'Empresa'],
+                'value' => 'residencial',
+                'options' => ['residencial' => 'Residencial', 'negocio' => 'Negocio', 'pyme' => 'Pyme', 'dedicado' => 'Dedicado'],
                 'position' => 10
             ],
             'activation_date' => [
@@ -379,8 +379,8 @@ return [
                 'name' => 'Número Interior',
                 'class' => null
             ],
-            'category' => [
-                'name' => 'Categoría',
+            'tipo_cliente' => [
+                'name' => 'Tipo de cliente',
                 'class' => null
             ],
             'modem_sn' => [
@@ -878,12 +878,12 @@ return [
                 'options' => ['olt' => 'olt', 'wifi' => 'wifi'],
                 'position' => 1
             ],
-            'category' => [
-                'label' => 'Categoría',
-                'placeholder' => 'Seleccionar Categoría',
+            'tipo_cliente' => [
+                'label' => 'Tipo de cliente',
+                'placeholder' => 'Seleccionar tipo de cliente',
                 'type' => 'select-component',
-                'value' => null,
-                'options' => ['Particular' => 'Particular', 'Empresa' => 'Empresa'],
+                'value' => 'residencial',
+                'options' => ['residencial' => 'Residencial', 'negocio' => 'Negocio', 'pyme' => 'Pyme', 'dedicado' => 'Dedicado'],
                 'position' => 2
             ],
             'modem_sn' => [

@@ -23,12 +23,30 @@ class ClientFiscalData extends Model
         'calle',
         'ciudad',
         'constancia_path',
+        'num_exterior',
+        'num_interior',
+        'colonia',
+        'municipio',
+        'estado',
+        'pais',
+        'forma_pago_cfdi',
+        'metodo_pago_cfdi',
+        'requiere_orden_compra',
+        'dia_recepcion_facturas',
+        'dias_credito',
+        'condiciones_credito',
+        'contacto_facturacion_nombre',
+        'contacto_facturacion_cargo',
+        'contacto_facturacion_telefono',
+        'contacto_facturacion_extension',
+        'contacto_facturacion_celular',
         'created_by',
         'updated_by',
     ];
 
     protected $casts = [
         'facturacion_fiscal' => 'boolean',
+        'requiere_orden_compra' => 'boolean',
     ];
 
     /**
@@ -67,6 +85,28 @@ class ClientFiscalData extends Model
             '616' => 'Sin obligaciones fiscales',
             '621' => 'Incorporación Fiscal',
             '626' => 'Régimen Simplificado de Confianza (RESICO)',
+        ];
+    }
+
+    /** SAT c_FormaPago (subconjunto usual). */
+    public static function catalogoFormaPago(): array
+    {
+        return [
+            '01' => 'Efectivo',
+            '02' => 'Cheque nominativo',
+            '03' => 'Transferencia electrónica de fondos',
+            '04' => 'Tarjeta de crédito',
+            '28' => 'Tarjeta de débito',
+            '99' => 'Por definir',
+        ];
+    }
+
+    /** SAT c_MetodoPago. */
+    public static function catalogoMetodoPago(): array
+    {
+        return [
+            'PUE' => 'Pago en una sola exhibición',
+            'PPD' => 'Pago en parcialidades o diferido',
         ];
     }
 

@@ -13,7 +13,7 @@ class ListarClientes extends Herramienta
 {
     use FiltrosListado;
 
-    private const ESTADOS = ['Nuevo', 'Activo', 'Bloqueado', 'Inactivo', 'Cancelado'];
+    private const ESTADOS = ['Nuevo', 'Activo', 'Bloqueado', 'Inactivo', 'Cancelado', 'Desinstalado'];
 
     public function nombre(): string
     {
@@ -50,6 +50,11 @@ class ListarClientes extends Herramienta
         $rango = $this->rango($args);
         if (isset($rango['error'])) {
             return $rango;
+        }
+
+        $estadoPedido = $args['estado'] ?? null;
+        if ($estadoPedido !== null && $estadoPedido !== '' && !in_array($estadoPedido, self::ESTADOS, true)) {
+            return ['error' => "Estado «{$estadoPedido}» no válido. Los estados son: " . implode(', ', self::ESTADOS) . '.'];
         }
 
         $q = DB::table('clients as cl')

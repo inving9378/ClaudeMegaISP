@@ -46,6 +46,8 @@ export const getPermissionsCatalog = async () => {
         data = response.data;
     }).catch((error) => {
         console.log(error);
+        // La ventana de permisos avisa que la pestaña «Otros» no cargó.
+        data = { permissions: [], failed: true };
     });
     return data;
 }
@@ -83,6 +85,8 @@ export const updatePermissionByRole = async (id, data) => {
         response = res.data;
     }).catch((error) => {
         console.log(error);
+        // Para mostrar el motivo (p. ej. «vuelve a cargar la página») en vez de un error genérico.
+        response = error.response?.data || {};
     });
     return response;
 }

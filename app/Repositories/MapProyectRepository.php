@@ -219,6 +219,8 @@ class MapProyectRepository extends BaseRepository
             $color = '#b52b2b';
         } else if ($state == 'Cancelado') {
             $color = '#808080';
+        } else if ($state == 'Desinstalado') {
+            $color = '#a39485';
         } else if ($state == 'Inactivo') {
             $color = '#f0ad4e';
         }

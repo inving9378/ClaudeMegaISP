@@ -36,7 +36,6 @@
                 <tr>
                   <th style="width:50px">#</th>
                   <th>Colaborador</th>
-                  <th>Nivel</th>
                   <th>Estrellas</th>
                   <th>Puntaje</th>
                   <th title="Cuota">Cuota</th>
@@ -62,7 +61,6 @@
                       {{ Math.abs(row.improvement_delta) }} pts vs periodo anterior
                     </div>
                   </td>
-                  <td class="small text-muted">{{ row.level ?? '—' }}</td>
                   <td>
                     <span v-for="s in row.stars" :key="s" class="text-warning">★</span>
                     <span v-for="s in (5-row.stars)" :key="'e'+s" class="text-muted">☆</span>

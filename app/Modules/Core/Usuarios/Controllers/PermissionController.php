@@ -102,32 +102,62 @@ class PermissionController extends Controller
         ], 200);
     }
 
+    /**
+     * Guardar los permisos de un rol desde la ventana de Administración → Roles.
+     *
+     * 2026-11-02: antes se quitaba todo permiso que no viniera marcado, también los de pestañas
+     * que la ventana no llegó a mostrar. La pestaña «Otros / Sin categorizar» (Talento y todo
+     * módulo nuevo) se carga aparte y, si falla, no aparece ni avisa: guardar así le quitaba
+     * al rol esos permisos de golpe y sin rastro (el rol Mostrador perdió sus 17 de Talento la
+     * noche del 28 al 29-oct). Ahora la ventana manda además:
+     *   - `shown`:  los permisos que mostró. Solo se quita lo que se mostró y quedó desmarcado.
+     *   - `loaded`: los que tenía el rol al abrirla. Si el rol cambió mientras tanto, no se
+     *               guarda nada (409) y hay que volver a abrirla.
+     * Cada guardado con cambios queda en activity_log (log_name `permisos`) con quién y qué.
+     */
     public function update(Request $request, $role_id)
     {
         $request->validate([
             'permissions' => 'array',
             'permissions.*' => 'required|string|exists:permissions,name',
+            'shown' => 'present|array',
+            'shown.*' => 'string',
+            'loaded' => 'present|array',
+            'loaded.*' => 'string',
             'scopes' => 'array',
             'scopes.*' => 'in:propios,todos',
+        ], [
+            'shown.present' => 'Vuelve a cargar la página antes de guardar: la ventana de permisos se actualizó.',
+            'loaded.present' => 'Vuelve a cargar la página antes de guardar: la ventana de permisos se actualizó.',
         ]);
+
+        $role = Role::find($role_id);
+        if (!$role) {
+            return response()->json(['status' => 404, 'message' => 'Rol no encontrado']);
+        }
 
         set_time_limit(0);
         ini_set('memory_limit', '8912M');
         DB::beginTransaction();
         try {
-            $role = Role::find($role_id);
-            if (!$role) {
-                return response()->json(['status' => 404, 'message' => 'Rol no encontrado']);
+            $currentPermissions = $role->permissions()->pluck('name')->toArray();
+            $newPermissions = $request->input('permissions', []);
+            $shownPermissions = $request->input('shown', []);
+            $loadedPermissions = $request->input('loaded', []);
+
+            if (array_diff($currentPermissions, $loadedPermissions) || array_diff($loadedPermissions, $currentPermissions)) {
+                DB::rollBack();
+                return response()->json([
+                    'status' => 409,
+                    'message' => 'Los permisos de este rol cambiaron desde que abriste la ventana. Ciérrala y vuelve a abrirla para ver los actuales; no se guardó nada.',
+                ]);
             }
 
-            $currentPermissions = $role->permissions()->pluck('name')->toArray();
-            $newPermissions = $request->input('permissions');
-
             // Permisos a añadir
-            $permissionsToAdd = array_diff($newPermissions, $currentPermissions);
+            $permissionsToAdd = array_values(array_diff($newPermissions, $currentPermissions));
 
-            // Permisos a revocar
-            $permissionsToRemove = array_diff($currentPermissions, $newPermissions);
+            // Permisos a revocar: solo los que la ventana mostró y quedaron desmarcados
+            $permissionsToRemove = array_values(array_intersect(array_diff($currentPermissions, $newPermissions), $shownPermissions));
 
             // Actualizar los permisos del rol
             foreach ($permissionsToAdd as $permission) {
@@ -138,7 +168,15 @@ class PermissionController extends Controller
                 $role->revokePermissionTo($permission);
             }
 
-            $this->syncScopeAssignments($role, $request->input('scopes', []));
+            $this->syncScopeAssignments($role, $request->input('scopes', []), $shownPermissions);
+
+            if ($permissionsToAdd || $permissionsToRemove) {
+                activity('permisos')
+                    ->causedBy(Auth::user())
+                    ->performedOn($role)
+                    ->withProperties(['agregados' => $permissionsToAdd, 'quitados' => $permissionsToRemove])
+                    ->log('Permisos del rol ' . $role->name . ': ' . count($permissionsToAdd) . ' agregados, ' . count($permissionsToRemove) . ' quitados');
+            }
 
             // Reforma de permisos B1.2: editar un rol toca SOLO role_has_permissions.
             // Se elimina la propagación que antes escribía/borraba los permisos como
@@ -161,8 +199,10 @@ class PermissionController extends Controller
      * (#851 Fase A); cualquier otra clave del payload se ignora (no confía ciegamente
      * en el front). 'todos' o ausente = borra la fila — es el default de la tabla,
      * así el comportamiento sin fila explícita queda idéntico al actual.
+     * Solo toca los permisos que la ventana mostró (`$shown`): uno que no se mostró no
+     * pudo elegirse, así que conserva su alcance.
      */
-    private function syncScopeAssignments(Role $role, array $scopes): void
+    private function syncScopeAssignments(Role $role, array $scopes, array $shown): void
     {
         if (!Schema::hasTable('permission_scopes') || !Schema::hasTable('role_permission_scopes')) {
             return;
@@ -172,7 +212,11 @@ class PermissionController extends Controller
             ->join('permissions', 'permissions.id', '=', 'permission_scopes.permission_id')
             ->pluck('permission_scopes.permission_id', 'permissions.name');
 
+        $shown = array_flip($shown);
         foreach ($scopeablePermissionIds as $name => $permissionId) {
+            if (!isset($shown[$name])) {
+                continue;
+            }
             $chosen = $scopes[$name] ?? 'todos';
             $query = DB::table('role_permission_scopes')
                 ->where('role_id', $role->id)

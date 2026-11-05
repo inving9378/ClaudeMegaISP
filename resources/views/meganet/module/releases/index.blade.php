@@ -4,5 +4,5 @@
 @endsection
 
 @section('content')
-    <releases-index releases="{{ json_encode($releases) }}" next_page_url="{{ $next_page_url }}"></releases-index>
+    <releases-index releases="{{ json_encode($releases) }}" next_page_url="{{ $next_page_url }}" user_id="{{ auth()->id() }}"></releases-index>
 @endsection

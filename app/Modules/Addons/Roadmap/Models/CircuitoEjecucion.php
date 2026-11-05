@@ -13,7 +13,7 @@ class CircuitoEjecucion extends Model
     protected $table = 'circuito_ejecuciones';
 
     protected $fillable = [
-        'started_at', 'finished_at', 'duracion_seg', 'modo', 'modelo', 'pausado', 'rc',
+        'started_at', 'finished_at', 'duracion_seg', 'modo', 'modelo', 'cobro', 'api_key_source', 'num_turns', 'costo_usd', 'pausado', 'rc',
         'items_tocados', 'n_propuestas', 'n_decisiones', 'ejecuto', 'resumen', 'log_path',
     ];
 

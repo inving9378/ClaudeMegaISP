@@ -27,6 +27,8 @@ use App\Http\Traits\Models\Client\ClientMainInformation\Scope\ScopeClientMainInf
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Validation\ValidationException;
+use App\Rules\UsuarioWebLibre;
 
 class ClientMainInformation extends BaseModel
 {
@@ -35,6 +37,23 @@ class ClientMainInformation extends BaseModel
     protected static function newFactory()
     {
         return \Database\Factories\ClientMainInformationFactory::new();
+    }
+
+    /**
+     * Último candado de UsuarioWebLibre para lo que guarda la ficha sin pasar por los formularios
+     * (2026-10-23). Solo se revisa cuando el Usuario WEB cambia, para no frenar otros guardados de
+     * una ficha que ya esté así. Vale para esta clase y para App\Models\ClientMainInformation.
+     */
+    protected static function booted()
+    {
+        static::saving(function (self $ficha) {
+            if ($ficha->isDirty('user') && filled($ficha->user)
+                && UsuarioWebLibre::esDeOtraCuenta((string) $ficha->user, (int) $ficha->client_id)) {
+                throw ValidationException::withMessages([
+                    'user' => (new UsuarioWebLibre())->message(),
+                ]);
+            }
+        });
     }
 
     protected $guarded = [];
@@ -48,6 +67,7 @@ class ClientMainInformation extends BaseModel
     const STATE_BLOCKED = 'Bloqueado';
 
     const STATE_INACTIVE = 'Inactivo';
+    const STATE_UNINSTALLED = 'Desinstalado';
 
     const COLUMNS_TYPE_IN_THIS_TABLE = [
         'int' => [
@@ -247,6 +267,29 @@ class ClientMainInformation extends BaseModel
     }
 
 
+    /**
+     * #1147: el formulario de conversión mandaba el literal «now». Se normaliza:
+     * «now» → fecha real de hoy; fecha válida → se conserva; texto no fecha → NULL
+     * (PlazoContrato::inicio cae entonces a la fecha de alta).
+     */
+    public function setActivationDateAttribute($value)
+    {
+        if ($value === null || $value === '') {
+            $this->attributes['activation_date'] = null;
+            return;
+        }
+        if (is_string($value) && strtolower(trim($value, " \t\"'")) === 'now') {
+            $this->attributes['activation_date'] = Carbon::now()->toDateTimeString();
+            return;
+        }
+        try {
+            $f = $value instanceof \DateTimeInterface ? Carbon::instance($value) : Carbon::parse($value);
+            $this->attributes['activation_date'] = is_string($value) ? $value : $f->toDateTimeString();
+        } catch (\Throwable $e) {
+            $this->attributes['activation_date'] = null;
+        }
+    }
+
     public function setDischargeDateAttribute($value)
     {
         $this->attributes['discharge_date'] = Carbon::now()->toDateTimeString();
@@ -295,6 +338,7 @@ class ClientMainInformation extends BaseModel
         if ($state === "Activo") return "client-active";
         else if ($state === "Bloqueado") return "client-block";
         else if ($state === "Cancelado") return "client-cancel";
+        else if ($state === "Desinstalado") return "client-uninstalled";
         return "client-inactive";
     }
 

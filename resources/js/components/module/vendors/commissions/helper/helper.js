@@ -28,17 +28,6 @@ export const getSellers = async () => {
     return data;
 };
 
-export const createCommission = async (data) => {
-    let response = {};
-    await axios["post"](
-        `/configuracion/comisiones/create-comision-internal-distributor`,
-        data
-    ).then((res) => {
-        response = res.data;
-    });
-    return response;
-};
-
 export const getRuleById = async (id) => {
     let response = {};
     await axios["get"](

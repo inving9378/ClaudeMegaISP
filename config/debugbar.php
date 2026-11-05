@@ -14,7 +14,10 @@ return [
      |
      */
 
-    'enabled' => env('DEBUGBAR_ENABLED', null),
+    // Seguridad V1.64.1: en un servidor que recibe versiones (producción) la barra queda apagada
+    // aunque APP_DEBUG esté en true. Ya solo la ve DESARROLLADOR, pero encendida sigue guardando
+    // consultas y sesión de cada visita. DEBUGBAR_ENABLED explícito sigue mandando; en dev nada cambia.
+    'enabled' => env('DEBUGBAR_ENABLED', env('GITHUB_UPDATES_ENABLED', false) ? false : null),
     'except' => [
         'telescope*',
         'horizon*',
@@ -253,6 +256,11 @@ return [
                 'request_request.password_confirmation',
                 'request_request.current_password',
                 'request_request.new_password',
+                // Llaves de API: Integraciones (key al crear/editar, new_key al rotar) y
+                // proveedores de IA (api_key). Sin esto quedaban en texto plano en storage/debugbar.
+                'request_request.key',
+                'request_request.new_key',
+                'request_request.api_key',
                 'request_cookies',
                 'request_headers.cookie',
                 'request_headers.authorization',

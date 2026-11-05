@@ -103,7 +103,7 @@
                                     <!-- Talento: badge "es colaborador" + enlace a ficha -->
                                     <a
                                         v-if="props.row.talento_colaborador_id"
-                                        :href="'/talento?colaborador=' + props.row.talento_colaborador_id"
+                                        :href="'/talento/colaborador/' + props.row.talento_colaborador_id"
                                         class="badge bg-success text-white text-decoration-none me-1"
                                         style="font-size:10px;"
                                         title="Ver ficha de colaborador en Talento"

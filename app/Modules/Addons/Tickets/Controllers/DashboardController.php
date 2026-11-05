@@ -32,14 +32,15 @@ class DashboardController extends Controller
     public function getTicketAssignedToMe(Request $request)
     {
         $estado = $request->value;
+        $campo = config('unificacion.interruptores.tickets_g1') ? 'assigned_to' : 'customer_lead';
         if ($estado != 'Todo') {
-            $ticketAsignedToMe = Ticket::where('customer_lead', $this->userAutenticated()
+            $ticketAsignedToMe = Ticket::where($campo, $this->userAutenticated()
                 ->id)
                 ->where('estado', $estado)
                 ->orderBy('priority')->get();
             return $ticketAsignedToMe;
         }
-        $ticketAsignedToMe = Ticket::where('customer_lead', $this->userAutenticated()
+        $ticketAsignedToMe = Ticket::where($campo, $this->userAutenticated()
             ->id)
             ->orderBy('priority')->get();
         return $ticketAsignedToMe;

@@ -78,7 +78,12 @@ class TalentoEmployeeDocumentController extends Controller
      */
     private function puedeGestionarDocumentosDe($colaboradorId): bool
     {
-        if (auth()->user()->can('talento.expediente.documentos.gestionar') || auth()->user()->can('talento.work_orders.manage')) {
+        if (auth()->user()->can('talento.expediente.documentos.gestionar')) {
+            return true;
+        }
+
+        // UNI-T B5c: con el interruptor encendido, work_orders.manage ya no abre documentos.
+        if (! config('unificacion.interruptores.firma_documentos_estricta') && auth()->user()->can('talento.work_orders.manage')) {
             return true;
         }
 
@@ -515,6 +520,18 @@ HTML;
             $request->validate(['slot_key' => 'required|string']);
             $slotKey = $request->input('slot_key');
             abort_unless($slots->contains('key', $slotKey), 422, 'El slot de firma indicado no existe en esta plantilla.');
+        }
+
+        // UNI-T B5c: el espacio del trabajador solo lo firma el trabajador; el de la empresa, quien
+        // tenga el permiso de documentos. Sin slots (legado) la única firma es la del trabajador.
+        if (config('unificacion.interruptores.firma_documentos_estricta')) {
+            $tipo = $slotKey ? $slots->firstWhere('key', $slotKey)->firmante_tipo : 'colaborador';
+            if ($tipo === 'admin') {
+                abort_unless(auth()->user()->can('talento.expediente.documentos.gestionar'), 403, 'No tienes permiso para firmar por la empresa.');
+            } else {
+                $propio = Actor::for(auth()->user())->talento();
+                abort_unless($propio && (string) $propio->id === (string) $colaboradorId, 403, 'Este espacio solo lo firma el propio trabajador.');
+            }
         }
 
         $trazos = null;

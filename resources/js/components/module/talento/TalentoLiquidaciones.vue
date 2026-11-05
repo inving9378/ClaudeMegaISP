@@ -4,7 +4,7 @@
     <div class="tc-card">
       <div class="tc-cardhead d-flex flex-wrap align-items-center justify-content-between gap-2 p-3">
         <h5 class="tc-h1"><i class="fa fa-file-invoice-dollar me-2"></i>Liquidaciones Semanales</h5>
-        <button v-if="!colaboradorId || puedeGestionar" @click="openCalc" class="tc-btn tc-btn-ok">
+        <button v-if="(!colaboradorId || puedeGestionar) && soloTotales === false" @click="openCalc" class="tc-btn tc-btn-ok">
           <i class="fa fa-calculator me-1"></i> Calcular
         </button>
       </div>
@@ -12,24 +12,38 @@
       <div class="p-3">
         <!-- Filtros -->
         <div class="row g-2 mb-3">
-          <div class="col-md-3" v-if="!colaboradorId || puedeGestionar">
+          <!-- El Mostrador no busca uno por uno: ve la lista completa con lo que cobra cada quien. -->
+          <div class="col-md-3" v-if="(!colaboradorId || puedeGestionar) && soloTotales === false">
             <input v-model="filters.search" @input="debounceLoad" type="text"
                    class="form-control form-control-sm" placeholder="Buscar colaborador…">
           </div>
-          <div class="col-md-2">
-            <select v-model="filters.status" @change="load" class="form-select form-select-sm tc-select">
-              <option value="">Todos</option>
-              <option value="draft">Borrador</option>
-              <option value="closed">Cerrada</option>
+          <!-- Mostrador: una semana a la vez (por omisión la que toca pagar). -->
+          <div class="col-md-4" v-if="soloTotales">
+            <select v-model="filters.semana" @change="load()" class="form-select form-select-sm tc-select" title="Semana">
+              <option v-for="w in semanas" :key="w.period_start" :value="w.period_start">
+                {{ formatDate(w.period_start + 'T12:00:00') }} – {{ formatDate(w.period_end + 'T12:00:00') }}{{ w.en_curso ? ' (en curso)' : '' }}
+              </option>
             </select>
           </div>
-          <div class="col-md-2">
-            <input v-model="filters.from" @change="load" type="date" class="form-control form-control-sm" title="Desde">
-          </div>
-          <div class="col-md-2">
-            <input v-model="filters.to" @change="load" type="date" class="form-control form-control-sm" title="Hasta">
-          </div>
+          <template v-else>
+            <div class="col-md-2">
+              <select v-model="filters.status" @change="load" class="form-select form-select-sm tc-select">
+                <option value="">Todos</option>
+                <option value="draft">Borrador</option>
+                <option value="closed">Cerrada</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <input v-model="filters.from" @change="load" type="date" class="form-control form-control-sm" title="Desde">
+            </div>
+            <div class="col-md-2">
+              <input v-model="filters.to" @change="load" type="date" class="form-control form-control-sm" title="Hasta">
+            </div>
+          </template>
         </div>
+        <p v-if="soloTotales" class="small text-muted mb-2">
+          Monto calculado al momento con lo validado hasta ahora; cuando un administrador cierra la liquidación queda fijo.
+        </p>
 
         <!-- Tabla -->
         <div v-if="loading" class="text-center py-5"><div class="spinner-border text-primary"></div></div>
@@ -38,32 +52,55 @@
             <thead class="table-light">
               <tr>
                 <th>Colaborador</th>
-                <th>Período</th>
-                <th class="text-center">Unidades</th>
-                <th class="text-end">Base</th>
-                <th class="text-end">Sobreprod.</th>
-                <th class="text-end">Gross</th>
-                <th>Estado</th>
-                <th></th>
+                <th v-if="!soloTotales">Período</th>
+                <template v-if="!soloTotales">
+                  <th class="text-center">Unidades</th>
+                  <th class="text-end">Base</th>
+                  <th class="text-end">Sobreprod.</th>
+                </template>
+                <th class="text-end">{{ soloTotales ? 'A pagar' : 'Gross' }}</th>
+                <th v-if="soloTotales && puedeComprobante"></th>
+                <template v-if="!soloTotales">
+                  <th>Estado</th>
+                  <th></th>
+                </template>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="liq in liquidaciones" :key="liq.id">
+              <tr v-for="liq in liquidaciones" :key="liq.id ?? 'c' + liq.colaborador_id">
                 <td class="fw-semibold small">{{ fullName(liq.colaborador?.user) }}</td>
-                <td class="small">{{ formatDate(liq.period_start) }} – {{ formatDate(liq.period_end) }}</td>
-                <td class="text-center">{{ liq.total_units }}</td>
-                <td class="text-end">${{ fmt(liq.base_paid) }}</td>
-                <td class="text-end text-success">${{ fmt(liq.overproduction_paid) }}</td>
-                <td class="text-end fw-bold">${{ fmt(liq.gross_pay) }}</td>
-                <td><span class="tc-status" :class="liq.status === 'closed' ? 'is-ok' : 'is-warn'">{{ liq.status === 'closed' ? 'Cerrada' : 'Borrador' }}</span></td>
-                <td class="text-end">
-                  <button @click="viewLiq(liq)" class="tc-btn tc-btn-info me-1">Ver</button>
-                  <button v-if="liq.status === 'draft' && (!colaboradorId || puedeGestionar)" @click="openCerrar(liq)" class="tc-btn tc-btn-bad-solid">Cerrar</button>
+                <td v-if="!soloTotales" class="small">{{ formatDate(liq.period_start) }} – {{ formatDate(liq.period_end) }}</td>
+                <template v-if="!soloTotales">
+                  <td class="text-center">{{ liq.total_units }}</td>
+                  <td class="text-end">{{ money(liq.base_paid) }}</td>
+                  <td class="text-end text-success">{{ money(liq.overproduction_paid) }}</td>
+                </template>
+                <td class="text-end fw-bold">
+                  {{ money(liq.gross_pay) }}
+                  <div v-if="soloTotales && liq.status === 'closed'" class="small fw-normal text-muted">cerrada</div>
+                  <div v-if="liq.sin_regla" class="small fw-normal text-muted">sin regla de pago</div>
                 </td>
+                <!-- Sin sueldo dado de alta no hay nada que pagarle: no se imprime un comprobante en cero. -->
+                <td v-if="soloTotales && puedeComprobante" class="text-end">
+                  <button v-if="!liq.sin_regla" @click="abrirComprobante(liq, filters.semana)" class="tc-btn tc-btn-info">
+                    <i class="fa fa-print me-1"></i>Comprobante
+                  </button>
+                </td>
+                <template v-if="!soloTotales">
+                  <td><span class="tc-status" :class="estado(liq.status).clase">{{ estado(liq.status).texto }}</span></td>
+                  <td class="text-end">
+                    <button @click="viewLiq(liq)" class="tc-btn tc-btn-info me-1">Ver</button>
+                    <button v-if="puedeComprobante" @click="abrirComprobante(liq, String(liq.period_start).slice(0, 10))" class="tc-btn tc-btn-info me-1">
+                      <i class="fa fa-print me-1"></i>Comprobante
+                    </button>
+                    <button v-if="liq.status === 'draft' && (!colaboradorId || puedeGestionar) && liq.puede_cerrar === true" @click="openCerrar(liq)" class="tc-btn tc-btn-bad-solid">Cerrar</button>
+                  </td>
+                </template>
               </tr>
               <tr v-if="!liquidaciones.length">
-                <td colspan="8" class="text-center text-muted py-4">
-                  <template v-if="!colaboradorId || puedeGestionar">No hay liquidaciones. Usa "Calcular" para generar la primera.</template>
+                <td :colspan="soloTotales ? 3 : 8" class="text-center text-muted py-4">
+                  <template v-if="(!colaboradorId || puedeGestionar) && !soloTotales">No hay liquidaciones. Usa "Calcular" para generar la primera.</template>
+                  <template v-else-if="soloTotales">No hay colaboradores activos.</template>
                   <template v-else>Todavía no se ha calculado ninguna liquidación.</template>
                 </td>
               </tr>
@@ -157,19 +194,19 @@
               </div>
               <div class="col-md-3">
                 <div class="card bg-light border-0 text-center p-3">
-                  <div class="fs-5 fw-bold">${{ fmt(detail.liq.base_paid) }}</div>
+                  <div class="fs-5 fw-bold">{{ money(detail.liq.base_paid) }}</div>
                   <div class="text-muted small">Sueldo base</div>
                 </div>
               </div>
               <div class="col-md-3">
                 <div class="card bg-success-subtle border-0 text-center p-3">
-                  <div class="fs-5 fw-bold text-success">${{ fmt(detail.liq.overproduction_paid) }}</div>
+                  <div class="fs-5 fw-bold text-success">{{ money(detail.liq.overproduction_paid) }}</div>
                   <div class="text-muted small">Sobreproducción</div>
                 </div>
               </div>
               <div class="col-md-3">
                 <div class="card bg-primary-subtle border-0 text-center p-3">
-                  <div class="fs-4 fw-bold text-primary">${{ fmt(detail.liq.gross_pay) }}</div>
+                  <div class="fs-4 fw-bold text-primary">{{ money(detail.liq.gross_pay) }}</div>
                   <div class="text-muted small">GROSS</div>
                 </div>
               </div>
@@ -207,7 +244,7 @@
                       <span v-if="e.notes" class="text-muted ms-1">{{ e.notes }}</span>
                     </span>
                     <span class="fw-semibold" :class="e.type==='credit'?'text-success':'text-danger'">
-                      ${{ fmt(e.amount) }}
+                      {{ money(e.amount) }}
                     </span>
                   </li>
                 </ul>
@@ -215,14 +252,36 @@
             </div>
 
             <div v-if="detail.liq.other_credits > 0 || detail.liq.other_debits > 0" class="mt-2 small text-muted">
-              Otros créditos: ${{ fmt(detail.liq.other_credits) }} · Otros débitos: ${{ fmt(detail.liq.other_debits) }}
+              Otros créditos: {{ money(detail.liq.other_credits) }} · Otros débitos: {{ money(detail.liq.other_debits) }}
             </div>
           </div>
           <div class="modal-footer">
             <button @click="detail.show=false" class="btn btn-secondary">Cerrar</button>
-            <button v-if="detail.liq?.status === 'draft' && (!colaboradorId || puedeGestionar)" @click="openCerrar(detail.liq)" class="tc-btn tc-btn-bad-solid">
+            <button v-if="detail.liq?.status === 'draft' && (!colaboradorId || puedeGestionar) && detail.liq.puede_cerrar !== false" @click="openCerrar(detail.liq)" class="tc-btn tc-btn-bad-solid">
               <i class="fa fa-lock me-1"></i>Cerrar liquidación
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Comprobante de pago: vista previa e imprimir (ticket de 80 mm, como el de caja) -->
+    <div v-if="comprobante.show" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.55);z-index:9999">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="fa fa-receipt me-2"></i>Comprobante de pago — {{ comprobante.nombre }}</h5>
+            <button @click="comprobante.show=false" type="button" class="btn-close"></button>
+          </div>
+          <div class="modal-body">
+            <iframe ref="marcoComprobante" :src="comprobante.url" class="tc-comprobante-marco" :title="`Comprobante de pago de ${comprobante.nombre}`"></iframe>
+          </div>
+          <div class="modal-footer">
+            <a :href="comprobante.url" :download="comprobante.archivo" class="btn btn-outline-secondary">
+              <i class="fa fa-download me-1"></i>Descargar
+            </a>
+            <button @click="comprobante.show=false" class="btn btn-secondary">Cerrar</button>
+            <button @click="imprimirComprobante" class="btn btn-primary"><i class="fa fa-print me-1"></i>Imprimir</button>
           </div>
         </div>
       </div>
@@ -237,7 +296,7 @@
             <button @click="cerrarModal.show=false" type="button" class="btn-close"></button>
           </div>
           <div class="modal-body">
-            <p>Esta acción es <strong>irreversible</strong>. ¿Cerrar la liquidación de <strong>{{ fullName(cerrarModal.liq?.colaborador?.user) }}</strong> por <strong>${{ fmt(cerrarModal.liq?.gross_pay) }}</strong>?</p>
+            <p>Esta acción es <strong>irreversible</strong>. ¿Cerrar la liquidación de <strong>{{ fullName(cerrarModal.liq?.colaborador?.user) }}</strong> por <strong>{{ money(cerrarModal.liq?.gross_pay) }}</strong>?</p>
           </div>
           <div class="modal-footer">
             <button @click="cerrarModal.show=false" class="btn btn-secondary" :disabled="cerrarModal.saving">Cancelar</button>
@@ -273,9 +332,13 @@ export default {
   data() {
     return {
       liquidaciones: [],
+      // Quien solo ve cuánto cobra cada quien (Mostrador): sin desglose, sin Calcular ni Ver.
+      // null hasta la primera carga, para que el botón Calcular no aparezca y desaparezca.
+      soloTotales: null,
       loading: true,
       pagination: { current_page: 1, last_page: 1 },
-      filters: { search: '', status: '', from: '', to: '' },
+      filters: { search: '', status: '', from: '', to: '', semana: '' },
+      semanas: [],
       searchTimeout: null,
       calcModal: {
         show: false, colSearch: '', suggestions: [], colaborador_id: null, colaborador_name: '',
@@ -284,6 +347,8 @@ export default {
       calcSearchTimeout: null,
       detail: { show: false, liq: null },
       cerrarModal: { show: false, liq: null, saving: false },
+      puedeComprobante: false,
+      comprobante: { show: false, url: '', nombre: '', archivo: '' },
     };
   },
   mounted() { this.load(); },
@@ -299,6 +364,12 @@ export default {
         if (this.colaboradorId) params.colaborador_id = this.colaboradorId;
         const { data } = await axios.get('/talento/api/liquidaciones', { params });
         this.liquidaciones = data?.data ?? [];
+        this.soloTotales = data?.solo_totales === true;
+        this.puedeComprobante = data?.puede_comprobante === true;
+        if (this.soloTotales) {
+          this.semanas = data?.semanas ?? [];
+          this.filters.semana = data?.semana?.period_start ?? '';
+        }
         this.pagination = { current_page: data?.current_page ?? 1, last_page: data?.last_page ?? 1 };
       } finally { this.loading = false; }
     },
@@ -307,14 +378,20 @@ export default {
       this.calcModal = { show: true, colSearch: '', suggestions: [], colaborador_id: null, colaborador_name: '',
                          period_start: '', period_end: '', saving: false, error: '' };
     },
+    // Misma semana que PayWeek::lastCompleted() (sábado 18:00 → sábado 18:00): el cierre es
+    // el sábado de corte más reciente que ya pasó. Antes contaba Sáb–Vie desde "hoy" y, entre
+    // semana, llenaba la semana en curso. Fechas en hora local (toISOString las corría a UTC).
     fillLastWeek() {
-      const today = new Date();
-      const dayOfWeek = today.getDay(); // 0=sun,6=sat
-      const diffToLastSat = dayOfWeek === 6 ? 7 : (dayOfWeek + 1);
-      const lastSat = new Date(today); lastSat.setDate(today.getDate() - diffToLastSat);
-      const lastFri = new Date(lastSat); lastFri.setDate(lastSat.getDate() + 6);
-      this.calcModal.period_start = lastSat.toISOString().substring(0,10);
-      this.calcModal.period_end   = lastFri.toISOString().substring(0,10);
+      const CORTE_HORA = 18; // config/talento.php → pay_week.cutoff_hour
+      const now = new Date();
+      const cierre = new Date(now);
+      cierre.setDate(now.getDate() - ((now.getDay() + 1) % 7)); // sábado de esta semana (hoy si es sábado)
+      cierre.setHours(CORTE_HORA, 0, 0, 0);
+      if (cierre > now) cierre.setDate(cierre.getDate() - 7);   // sábado antes del corte: aún no cierra
+      const apertura = new Date(cierre); apertura.setDate(cierre.getDate() - 7);
+      const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      this.calcModal.period_start = ymd(apertura);
+      this.calcModal.period_end   = ymd(cierre);
     },
     debounceCalcSearch() {
       clearTimeout(this.calcSearchTimeout);
@@ -362,6 +439,26 @@ export default {
       const { data } = await axios.get(`/talento/api/liquidaciones/${id}`);
       this.detail = { show: true, liq: data };
     },
+    // semana = sábado en que empieza la semana de pago (YYYY-MM-DD).
+    abrirComprobante(liq, semana) {
+      const nombre = this.fullName(liq.colaborador?.user);
+      const params = new URLSearchParams({ colaborador_id: liq.colaborador_id, semana });
+      this.comprobante = {
+        show: true,
+        url: `/talento/liquidaciones/comprobante?${params}`,
+        nombre,
+        archivo: `Comprobante de pago ${nombre} ${semana}.pdf`,
+      };
+    },
+    // Igual que el ticket de caja: imprime el PDF que se ve en el recuadro.
+    imprimirComprobante() {
+      try {
+        this.$refs.marcoComprobante.contentWindow.focus();
+        this.$refs.marcoComprobante.contentWindow.print();
+      } catch {
+        window.open(this.comprobante.url, '_blank', 'noopener');
+      }
+    },
     openCerrar(liq) { this.cerrarModal = { show: true, liq, saving: false }; },
     async confirmCerrar() {
       this.cerrarModal.saving = true;
@@ -379,7 +476,21 @@ export default {
                penalty: 'Penalización', advance: 'Adelanto', fund: 'Fondo', adjustment: 'Ajuste',
                embajador: 'Embajador' }[c] ?? c;
     },
-    fmt(n) { return Number(n ?? 0).toFixed(2); },
+    // Signo antes del peso: "-$200.00", no "$-200.00" (un total queda negativo cuando los
+    // descuentos superan el sueldo de la semana).
+    money(n) {
+      const v = Number(n ?? 0);
+      return (v < 0 ? '-$' : '$') + Math.abs(v).toFixed(2);
+    },
+    // closed/draft vienen de la tabla; por_cerrar/en_curso, del monto calculado para el Mostrador.
+    estado(status) {
+      return {
+        closed:     { texto: 'Cerrada',    clase: 'is-ok' },
+        draft:      { texto: 'Borrador',   clase: 'is-warn' },
+        por_cerrar: { texto: 'Por cerrar', clase: 'is-warn' },
+        en_curso:   { texto: 'En curso',   clase: 'is-info' },
+      }[status] ?? { texto: status, clase: 'is-warn' };
+    },
     formatDate(d) {
       if (!d) return '—';
       return new Date(d).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
@@ -399,6 +510,14 @@ export default {
    "acción de peso". Recoloreado con --tc-bad (ya es danger, coherente con
    el botón "Cerrar" de la fila) en vez de --tc-warn, con transparencia para
    que funcione igual de bien en claro y en oscuro. */
+.talento-liquidaciones .tc-comprobante-marco {
+  width: 100%;
+  height: 560px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+.talento-liquidaciones.tc-dark .tc-comprobante-marco { border-color: #2c2c34; }
 .talento-liquidaciones .tc-modal-header-danger {
   background: rgba(220, 38, 38, 0.12);
   border-bottom-color: rgba(220, 38, 38, 0.25);

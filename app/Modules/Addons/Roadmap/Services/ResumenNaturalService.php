@@ -2,8 +2,8 @@
 
 namespace App\Modules\Addons\Roadmap\Services;
 
-use App\Modules\Addons\Marketing\Services\ClaudeApiClient;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Addons\Roadmap\Support\IaSupervisor;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -52,23 +52,14 @@ class ResumenNaturalService
         }
 
         try {
-            $resp = (new ClaudeApiClient())->messages([
-                'model'      => (string) config(
-                    'circuito.resumen_natural.model',
-                    config('circuito.revisor.model_routine', 'claude-sonnet-4-6')
-                ),
+            // #1076 — el modelo lo elige Integraciones → Módulos IA («circuito.resumen»).
+            $r = IaSupervisor::llamar(IaSupervisor::RESUMEN, [
                 'max_tokens' => (int) config('circuito.resumen_natural.max_tokens', 400),
                 'system'     => $this->systemPrompt(),
                 'messages'   => [['role' => 'user', 'content' => $this->userPrompt($item, $cuerpo)]],
-            ]);
+            ], ['item' => $item->id]);
 
-            $texto = '';
-            foreach (($resp['content'] ?? []) as $b) {
-                if (($b['type'] ?? '') === 'text') {
-                    $texto .= $b['text'];
-                }
-            }
-            $texto = trim($texto);
+            $texto = trim($r['texto']);
 
             // Un resumen vacío o de una palabra no es un resumen: mejor null y que caiga al título.
             return mb_strlen($texto) >= 20 ? $texto : null;

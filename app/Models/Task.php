@@ -8,12 +8,14 @@ use App\Notifications\StandardNotification;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Notification;
 
 class Task extends Model
 {
     use HasFactory;
     use ScopeTask;
+    use SoftDeletes;
 
     public static function boot()
     {
@@ -268,7 +270,8 @@ class Task extends Model
                     }
                 }
             } else {
-                return substr($arrayUsers[0], 0, -2);
+                // 2026-11-04: antes se le quitaban las 2 últimas letras (BRANDON salía como BRAND en el calendario).
+                return trim($users[0]->name . ' ' . $users[0]->father_last_name);
             }
         }
 
@@ -287,8 +290,7 @@ class Task extends Model
                 return strtoupper(substr($nameTeam, 0, 1));
             }
         }
-        $name = $this->user ? $this->user->name : '';
-        return substr($name, 0, -2);
+        return $this->user ? trim($this->user->name . ' ' . $this->user->father_last_name) : '';
     }
 
     public function ifDistinctTeam($array)
@@ -354,15 +356,19 @@ class Task extends Model
         return $cls;
     }
 
-    public function sendNotifications($priority = null)
+    public function sendNotifications($priority = null, $recipients = null)
     {
         $notification = new TaskNotification();
         $notification->priority = $priority;
         $notification->title = 'Nueva tarea asignada';
         $notification->task_id = $this->id;
-        $notification->base_url = '/scheduling/task/read-notification/';
+        // Las órdenes de Talento abren en el «Mi día» de quien la tiene asignada (2026-10-27); la
+        // dirección de Scheduling exige task_view_full_task y al técnico lo regresaba al inicio.
+        $notification->base_url = $this->talento_type_id
+            ? '/talento/aviso/'
+            : '/scheduling/task/read-notification/';
         $notification->created_id = auth()->user()->id;
         $notification->save();
-        Notification::send($this->users, new StandardNotification($notification));
+        Notification::send($recipients ?? $this->users, new StandardNotification($notification));
     }
 }

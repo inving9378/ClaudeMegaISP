@@ -14,29 +14,55 @@ use Illuminate\View\View;
 
 class BoxController extends Controller
 {
+    /**
+     * #700: la caja es de un usuario. Quien no es dueño solo la ve/opera si tiene el alcance de
+     * cortes (`seller_cuts`, o es admin). Con solo el permiso de ruta de otra pantalla
+     * (p. ej. `seller_view_panel`) únicamente puede tocar la propia.
+     */
+    private function autorizarCaja(int $ownerId): void
+    {
+        $actor = auth()->user();
+        abort_if(!$actor, 401);
+        if ((int) $actor->id === $ownerId || $actor->isAdmin() || $actor->can('seller_cuts')) {
+            return;
+        }
+        abort(403, 'No tienes autorización para consultar la caja de otro usuario.');
+    }
+
+    private function cajaOrFail($id): CutBox
+    {
+        $box = CutBox::find($id);
+        abort_if(!$box, 404, 'Corte no encontrado.');
+        $this->autorizarCaja((int) $box->user_id);
+        return $box;
+    }
+
 
     public function getCurrentBox($id)
     {
         $user = User::find($id);
+        abort_if(!$user, 404, 'Usuario no encontrado.');
+        $this->autorizarCaja((int) $user->id);
         $box = $user->getCurrentBox();
         return response()->json($box);
     }
 
     public function findBox($id)
     {
-        $box = CutBox::find($id);
-        return response()->json($box);
+        return response()->json($this->cajaOrFail($id));
     }
 
     public function getReceivedPaymentsByBox($id)
     {
-        $box = CutBox::find($id);
+        $box = $this->cajaOrFail($id);
         return response()->json($box->getReceivedPayments());
     }
 
     public function close($id)
     {
-        $box = CutBox::find($id);
+        $box = $this->cajaOrFail($id);
+        // B5b: una caja cerrada no se recalcula.
+        abort_if(config('unificacion.interruptores.comisiones_acceso_b5b') && $box->end_at !== null, 409, 'La caja ya está cerrada.');
         $received = $box->getReceivedPaymentsAmount();
         $installations = $box->getInstallationsAmount();
         $extras = $box->getExtrasAmount();
@@ -53,12 +79,13 @@ class BoxController extends Controller
 
     public function technicals()
     {
-        $objects = User::technicalRole()->get();
+        $objects = User::technicalRole()->activo()->get();
         return response()->json($objects);
     }
 
     public function cuts(Request $request, $id)
     {
+        $this->autorizarCaja((int) $id);
         $data = CutBox::query();
         $data->where('user_id', $id);
         if (isset($request->search)) {
@@ -92,7 +119,7 @@ class BoxController extends Controller
 
     public function pdf($id)
     {
-        $box = CutBox::find($id);
+        $box = $this->cajaOrFail($id);
         $options = new Options();
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isRemoteEnabled', true);

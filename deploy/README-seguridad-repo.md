@@ -33,11 +33,14 @@ versiona, permisos 700). En prod esos archivos se borran solos al aplicar la ver
 
 ## 2. Contraseña de nginx para dev (requiere root)
 
-Desde la red de la oficina (192.168.105.0/24), el propio servidor y sus contenedores se entra
+Desde la red de la oficina (192.168.104.0/22: de 192.168.104.0 a 192.168.107.255, más 192.168.100.x),
+las IPs públicas de la empresa (38.123.192.x), el propio servidor y sus contenedores se entra
 igual que hoy. Desde fuera, nginx pide usuario y contraseña. Quedan sin contraseña de nginx las
 rutas que usan máquinas de fuera y ya se autentican solas: `/mcp` y `/api/roadmap-externo`
-(Torre/Cowork), webhooks (WhatsApp, Evolution, SPEI, OpenPay), `/talento/api` (app de campo),
-`/downloads/` (APK) y el reto de Let's Encrypt.
+(Torre/Cowork), webhooks (WhatsApp, Evolution, SPEI, OpenPay), `/talento/api` (app de campo; ahí
+van también el PDF y la foto de «Mi credencial», con enlace firmado), `/downloads/` (APK), las
+plantillas del gafete (`/credencial/` y dos imágenes fijas; agregado 2026-10-29) y el reto de
+Let's Encrypt.
 
 ```bash
 # 1) Usuario y contraseña (se pide la contraseña; no se escribe en el comando)
@@ -69,6 +72,23 @@ Desde la oficina, todo igual que antes.
 
 **Deshacer:** quitar los dos `include`, restaurar las copias de `/root` y `sudo nginx -t &&
 sudo systemctl reload nginx`.
+
+**Corrección 2026-10-23 — la red de la oficina es /22, no /24.** La primera versión dejaba
+fuera a 192.168.104.x, 192.168.106.x y 192.168.107.x: a esas computadoras de la oficina nginx
+les pedía la contraseña como si vinieran de internet. El rango sale de la tarjeta del servidor
+(`ip route` → `192.168.104.0/22 dev ens18`). Para aplicarlo en un servidor que ya tiene el candado:
+
+```bash
+sudo cp deploy/nginx/dev-acceso/http-red-interna.conf /etc/nginx/conf.d/megaisp-dev-red-interna.conf
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+**Corrección 2026-10-23 (tarde) — también 192.168.100.x y 38.123.192.x.** Desde 192.168.100.x
+(otro segmento de la oficina, llega al servidor por la puerta de enlace 192.168.104.1) seguía
+saliendo la ventana del candado; además se exentan las IPs públicas de la empresa
+(38.123.192.0/24, decisión del equipo). Se aplica con el mismo `cp` + `nginx -t && reload` de arriba.
+⚠️ Si alguna dirección de 38.123.192.x se llega a asignar a clientes del ISP, esos clientes entrarían
+a dev sin contraseña: en ese caso reducir la línea al bloque de los servidores (38.123.192.192/27).
 
 ## 3. Volver privado el repositorio, en este orden
 

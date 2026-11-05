@@ -22,6 +22,9 @@ class FleetSubscriptionService
     /** Umbrales (días antes del fin de trial) en los que se notifica. */
     public const TRIAL_REMINDER_DAYS = [30, 15, 7, 1];
 
+    /** Meses gratis de la promoción de activación (#620). */
+    public const PROMO_MONTHS = 3;
+
     /** Días que se retienen los datos tras expirar el trial sin pago. */
     public const DATA_RETENTION_DAYS = 90;
 
@@ -47,7 +50,7 @@ class FleetSubscriptionService
     // ── Alta / cambio de plan ─────────────────────────────────────────────────────
 
     /** Inicia (o reactiva en trial) la suscripción de un cliente. */
-    public function startTrial(int $clientId, string $plan): FleetSubscription
+    public function startTrial(int $clientId, string $plan, bool $promo = false): FleetSubscription
     {
         if (! FleetPlans::exists($plan)) {
             throw new \InvalidArgumentException("Plan inválido: {$plan}");
@@ -61,6 +64,8 @@ class FleetSubscriptionService
 
         $trialDays = FleetPlans::trialDays($plan);
         $now       = now();
+        // Promoción: 3 meses calendario gratis; al vencer pasa sola a 'active' (ver runDailyMaintenance).
+        $endsAt    = $promo ? $now->copy()->addMonthsNoOverflow(self::PROMO_MONTHS) : $now->copy()->addDays($trialDays);
 
         $sub = new FleetSubscription();
         $sub->forceFill([
@@ -68,7 +73,8 @@ class FleetSubscriptionService
             'plan'               => $plan,
             'status'             => 'trial',
             'trial_starts_at'    => $now,
-            'trial_ends_at'      => $now->copy()->addDays($trialDays),
+            'trial_ends_at'      => $endsAt,
+            'is_promo'           => $promo,
             'base_price'         => FleetPlans::basePrice($plan),
             'included_units'     => FleetPlans::includedUnits($plan),
             'overage_unit_price' => FleetPlans::overageUnitPrice(),
@@ -77,10 +83,11 @@ class FleetSubscriptionService
         $sub->save();
 
         $this->syncVehicleCount($sub);
-        $this->logEvent($sub, $existing ? 'reactivated' : 'trial_started', [
-            'plan'       => $plan,
-            'trial_days' => $trialDays,
-            'trial_ends' => $sub->trial_ends_at?->toDateString(),
+        $this->logEvent($sub, $promo ? 'promo_started' : ($existing ? 'reactivated' : 'trial_started'), [
+            'plan'         => $plan,
+            'trial_days'   => $trialDays,
+            'promo_months' => $promo ? self::PROMO_MONTHS : null,
+            'trial_ends'   => $sub->trial_ends_at?->toDateString(),
         ]);
 
         return $sub->fresh();
@@ -115,7 +122,20 @@ class FleetSubscriptionService
      */
     public function syncVehicleCount(FleetSubscription $sub): FleetSubscription
     {
-        $count        = FleetVehicle::forClient($sub->client_id)->count();
+        $count = FleetVehicle::forClient($sub->client_id)->count();
+
+        // Bloque automático por unidades (F2b): el plan sigue a la flota registrada.
+        $autoPlan = FleetPlans::keyForUnits($count);
+        if ($autoPlan !== $sub->plan) {
+            $from = $sub->plan;
+            $sub->plan               = $autoPlan;
+            $sub->base_price         = FleetPlans::basePrice($autoPlan);
+            $sub->included_units     = FleetPlans::includedUnits($autoPlan);
+            $sub->overage_unit_price = FleetPlans::overageUnitPrice();
+            $sub->save();
+            $this->logEvent($sub, 'plan_changed', ['from' => $from, 'to' => $autoPlan, 'auto' => true]);
+        }
+
         $overageUnits = max(0, $count - (int) $sub->included_units);
         $overageAmount = round($overageUnits * (float) $sub->overage_unit_price, 2);
         $price        = round((float) $sub->base_price + $overageAmount, 2);
@@ -144,10 +164,48 @@ class FleetSubscriptionService
         return $sub;
     }
 
-    // ── Pago / facturación ────────────────────────────────────────────────────────
+    /**
+     * Punto único de enganche del aviso por cambio de bloque (decisión 5: el bloque
+     * sigue a las unidades registradas). Devuelve el cambio {from,to,units} o null si
+     * no cambió de bloque. Deja evento en el historial; F3 (#621) cuelga aquí el aviso al cliente.
+     */
+    public function avisarCambioDeBloque(FleetSubscription $sub, int $unidadesAntes, int $unidadesDespues): ?array
+    {
+        $from = FleetPlans::keyForUnits($unidadesAntes);
+        $to   = FleetPlans::keyForUnits($unidadesDespues);
+        // Arriba del tope (Pro + excedente) el bloque no cambia pero el precio sí: también se avisa al subir.
+        $arribaDelTope = $unidadesDespues > $unidadesAntes
+            && $unidadesDespues > (int) FleetPlans::get($to)['included_units'];
+        if ($from === $to && ! $arribaDelTope) {
+            return null;
+        }
+
+        $this->logEvent($sub, 'block_change_notice', ['from' => $from, 'to' => $to, 'units' => $unidadesDespues]);
+
+        $planTo = FleetPlans::get($to);
+        $extra  = max(0, $unidadesDespues - (int) $planTo['included_units']);
+        $precio = (float) $planTo['base_price'] + $extra * (float) $planTo['overage_unit_price'];
+        $aviso  = [
+            'from'    => $from,
+            'to'      => $to,
+            'units'   => $unidadesDespues,
+            'mensaje' => 'Pasas al bloque ' . $planTo['name'] . ' ($' . number_format($precio, 2) . '/mes); se reflejará en tu próxima factura.',
+        ];
+
+        // Solo se avisa por el canal de suscripción cuando el bloque SUBE (decisión 3). Nunca bloquea.
+        if ($unidadesDespues > $unidadesAntes) {
+            try {
+                (new SubscriptionAlertDispatcher())->dispatchBlockChange($sub, $aviso['mensaje']);
+            } catch (\Throwable $e) {
+                Log::warning('Flotas: aviso de cambio de bloque falló: ' . $e->getMessage());
+            }
+        }
+
+        return $aviso;
+    }
 
     /** Convierte el trial en suscripción pagada (tras configurar método de pago). */
-    public function activate(FleetSubscription $sub): FleetSubscription
+    public function activate(FleetSubscription $sub, string $eventType = 'activated'): FleetSubscription
     {
         $this->syncVehicleCount($sub);
 
@@ -157,7 +215,7 @@ class FleetSubscriptionService
         $sub->data_retention_until = null;
         $sub->save();
 
-        $this->logEvent($sub, 'activated', [
+        $this->logEvent($sub, $eventType, [
             'plan'          => $sub->plan,
             'monthly_price' => (float) $sub->monthly_price,
             'next_billing'  => $sub->next_billing_date?->toDateString(),
@@ -167,11 +225,45 @@ class FleetSubscriptionService
     }
 
     /**
+     * Ajuste de un mes cerrado que lleva la factura $invoiceId (#622, Opción A): deja registro para
+     * no volver a ajustarlo. Idempotente por (mes ajustado, factura).
+     */
+    public function registrarAjuste(FleetSubscription $sub, string $ajusteDe, float $monto, int $invoiceId): void
+    {
+        $existe = \App\Modules\Addons\Flotas\Models\FleetSubscriptionEvent::where('subscription_id', $sub->id)
+            ->where('event_type', 'billed')
+            ->where('metadata->ajuste_de', $ajusteDe)
+            ->where('metadata->invoice_id', $invoiceId)->exists();
+        if (! $existe) {
+            $this->logEvent($sub, 'billed', ['tipo' => 'ajuste', 'ajuste_de' => $ajusteDe, 'monto_ajuste' => $monto, 'invoice_id' => $invoiceId]);
+        }
+    }
+
+    /**
      * Marca un ciclo facturado y avanza la fecha de cobro un mes.
      * (La generación del cargo real en el módulo Pagos se engancha aquí en una sub-tarea posterior.)
      */
-    public function markBilled(FleetSubscription $sub): FleetSubscription
+    public function markBilled(FleetSubscription $sub, array $cargo = []): FleetSubscription
     {
+        // Cargo por adelantado de un período (#622): idempotente por período+factura.
+        if (isset($cargo['periodo'], $cargo['invoice_id'])
+            && \App\Modules\Addons\Flotas\Models\FleetSubscriptionEvent::where('subscription_id', $sub->id)
+                ->where('event_type', 'billed')
+                ->where('metadata->periodo', $cargo['periodo'])
+                ->where('metadata->invoice_id', $cargo['invoice_id'])->exists()) {
+            return $sub;
+        }
+        // El cargo por adelantado solo deja registro: no cambia estado ni fecha de cobro
+        // (una promo en curso no debe pasar a 'active' por aparecer en una factura).
+        if (isset($cargo['periodo'], $cargo['invoice_id'])) {
+            $this->logEvent($sub, 'billed', [
+                'amount'   => (float) $cargo['monto_adelantado'],
+                'vehicles' => (int) $cargo['unidades'],
+            ] + $cargo);
+
+            return $sub;
+        }
+
         $this->syncVehicleCount($sub);
 
         $sub->status            = 'active';
@@ -184,7 +276,7 @@ class FleetSubscriptionService
             'amount'       => (float) $sub->monthly_price,
             'vehicles'     => (int) $sub->vehicles_count,
             'next_billing' => $sub->next_billing_date?->toDateString(),
-        ]);
+        ] + $cargo);
 
         return $sub->fresh();
     }
@@ -234,6 +326,13 @@ class FleetSubscriptionService
             ->chunkById(200, function ($subs) use (&$summary) {
                 foreach ($subs as $sub) {
                     $daysLeft = (int) ceil(now()->floatDiffInDays(Carbon::parse($sub->trial_ends_at), false));
+
+                    if ($daysLeft <= 0 && $sub->is_promo) {
+                        // Promo terminada: empieza a cobrarse sola (dentro de la factura mensual).
+                        $this->activate($sub, 'promo_converted');
+                        $summary['converted'] = ($summary['converted'] ?? 0) + 1;
+                        continue;
+                    }
 
                     if ($daysLeft <= 0) {
                         $this->expire($sub);

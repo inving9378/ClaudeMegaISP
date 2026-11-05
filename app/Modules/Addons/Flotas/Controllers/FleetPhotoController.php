@@ -11,7 +11,7 @@ class FleetPhotoController extends FleetBaseController
 {
     public function store(Request $request): JsonResponse
     {
-        $this->authorize('fleet.manage');
+        $this->autorizar('fleet.manage');
 
         $request->validate([
             'vehicle_id' => 'required|integer',
@@ -38,7 +38,7 @@ class FleetPhotoController extends FleetBaseController
 
     public function destroy(int $id): JsonResponse
     {
-        $this->authorize('fleet.manage');
+        $this->autorizar('fleet.manage');
 
         $photo = FleetPhoto::forClient($this->clientId())->findOrFail($id);
         Storage::disk('public')->delete($photo->file_path);

@@ -6,9 +6,9 @@
         <div>
           <h5 class="tc-h1 mb-0">Paquete de documentos por puesto</h5>
           <small class="text-muted">
-            Elige un puesto, marca qué plantillas del expediente le corresponden
-            (ej. técnico recibe el paquete completo, un puesto de oficina solo el suyo)
-            y guarda: todos los cambios se mandan en un solo request.
+            Elige un puesto (el rol que la persona tiene en Administración), marca qué plantillas
+            del expediente le corresponden y guarda. Quien tiene varios roles recibe los documentos
+            de todos ellos.
           </small>
         </div>
         <span v-if="saving" class="tc-status is-warn ms-3">
@@ -45,7 +45,7 @@
                   <option v-for="p in puestos" :key="p.id" :value="p.id">{{ p.nombre }}</option>
                 </select>
                 <small v-if="!puestos.length" class="text-muted">
-                  No hay puestos capturados aún (catálogo Talento → Puestos).
+                  No hay roles en Administración.
                 </small>
               </div>
             </div>
@@ -224,7 +224,7 @@ export default {
       this.saveError = null;
       try {
         const res = await axios.get('/talento/api/expediente/paquetes/asignaciones', {
-          params: { puesto_id: this.puestoSeleccionado },
+          params: { rol: this.puestoSeleccionado },
         });
         this.savedSet   = new Set(res.data ?? []);
         this.workingSet = new Set(this.savedSet);
@@ -277,7 +277,7 @@ export default {
 
       try {
         const res = await axios.post('/talento/api/expediente/paquetes/sincronizar', {
-          puesto_id:    this.puestoSeleccionado,
+          rol:          this.puestoSeleccionado,
           template_ids: Array.from(this.workingSet),
         });
         this.savedSet = new Set(res.data?.template_ids ?? Array.from(this.workingSet));

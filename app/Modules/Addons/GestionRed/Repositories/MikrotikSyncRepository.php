@@ -5,6 +5,7 @@ namespace App\Modules\Addons\GestionRed\Repositories;
 use App\Models\ClientBundleService;
 use App\Models\ClientCustomService;
 use App\Models\ClientInternetService;
+use App\Models\MikrotikSyncAttempt;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -25,7 +26,7 @@ class MikrotikSyncRepository
      * @param string|null $status 'pending'|'failed'|null (ambos)
      * @return array<int, array<string, mixed>>
      */
-    public function pendientesOFallidos(?string $status = null): array
+    public function pendientesOFallidos(?string $status = null, ?int $routerId = null): array
     {
         $statuses = $status ? [$status] : ['pending', 'failed'];
         $rows = [];
@@ -37,9 +38,15 @@ class MikrotikSyncRepository
                 ? ['client.client_main_information', 'router']
                 : ['client.client_main_information'];
 
-            $services = $modelClass::whereIn('mikrotik_sync_status', $statuses)
-                ->with($relations)
-                ->get();
+            if ($routerId && !$withRouter) {
+                continue;
+            }
+
+            $query = $modelClass::whereIn('mikrotik_sync_status', $statuses)->with($relations);
+            if ($routerId) {
+                $query->where('router_id', $routerId);
+            }
+            $services = $query->get();
 
             foreach ($services as $service) {
                 $rows[] = $this->formatear($tipo, $service, $withRouter);
@@ -63,6 +70,12 @@ class MikrotikSyncRepository
 
     private function formatear(string $tipo, Model $service, bool $withRouter): array
     {
+        // Último intento registrado en mikrotik_sync_attempts (item #595) como respaldo del error.
+        $ultimo = MikrotikSyncAttempt::where('service_type', get_class($service))
+            ->where('service_id', $service->id)
+            ->where('resultado', 'error')
+            ->orderByDesc('id')
+            ->first();
         $clientName = $service->client?->client_main_information?->client_name_with_fathers_names;
 
         return [
@@ -73,7 +86,8 @@ class MikrotikSyncRepository
             'client_name' => $clientName ?: "Cliente #{$service->client_id}",
             'router' => $withRouter ? ($service->router->title ?? null) : null,
             'status' => $service->mikrotik_sync_status,
-            'error' => $service->mikrotik_sync_error,
+            'error' => $service->mikrotik_sync_error ?: $ultimo?->razon,
+            'router_id' => $withRouter ? $service->router_id : null,
             'fecha' => optional($service->mikrotik_synced_at)->toDateTimeString(),
         ];
     }

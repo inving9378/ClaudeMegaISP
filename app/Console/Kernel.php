@@ -46,16 +46,24 @@ class Kernel extends ConsoleKernel
         $schedule->command('billing:send-pending-notifications')->everyFifteenMinutes()->withoutOverlapping();
         // Item #571, Parte B: toma la corrida de correcciones que deja una actualización (una sola vez).
         $schedule->command('facturacion:correcciones-automaticas')->everyTenMinutes()->withoutOverlapping();
+        // Item #577: convierte users.password base64 -> bcrypt (todos). Idempotente: tras la primera
+        // corrida no encuentra nada que cambiar. Guarda el valor anterior en password_legacy.
+        $schedule->command('auth:rehash-passwords --todos')->dailyAt('03:30')->withoutOverlapping();
         $schedule->command('auditoria:minar-bitacora')->everyFifteenMinutes()->withoutOverlapping();
         $schedule->command('app:mikrotik-sync-command')->everyFiveMinutes()->withoutOverlapping();
         $schedule->command('mikrotik:sync-consumption')->everyTenMinutes()->withoutOverlapping();
         $schedule->command('mikrotik:sync-ping')->everyFiveMinutes()->withoutOverlapping();
-        // Item #988: tráfico por VLAN de los dedicados, cada minuto. Con METRICAS_ACTIVO apagado
-        // (default) ni se registra. En segundo plano para que un router lento no retrase el resto
-        // del minuto; el candado vence a los 5 min si una corrida muere a medias.
-        if (config('metricas.activo')) {
-            $schedule->command('metricas:colectar')->everyMinute()->withoutOverlapping(5)->runInBackground();
+        if (config('ping_externo.enabled')) {
+            $schedule->command('mikrotik:sync-ping-externo')->everyFiveMinutes()->withoutOverlapping();
         }
+        $schedule->command('clientes:alerta-perdida-paquetes')->everyFiveMinutes()->withoutOverlapping();
+        // Item #988: tráfico por VLAN de los dedicados, cada minuto. Siempre registrado: el comando
+        // sale sin hacer nada si «Monitoreo de dedicados» está apagado en Configuración. En segundo
+        // plano para que un router lento no retrase el resto del minuto; el candado vence a los 5 min
+        // si una corrida muere a medias.
+        $schedule->command('metricas:colectar')->everyMinute()->withoutOverlapping(5)->runInBackground();
+        $schedule->command('metricas:purgar')->dailyAt('03:50')->withoutOverlapping();
+        $schedule->command('metricas:asegurar-dedicados')->dailyAt('03:40')->withoutOverlapping();
         // Item #676: cada 30 min, ventana mayor a los ~18 min de los 5 tries internos de
         // CreateClientWithServiceJob (ver ese job) — evita re-despachar mientras un intento
         // previo sigue en su propio ciclo de backoff.
@@ -79,6 +87,11 @@ class Kernel extends ConsoleKernel
         // conserva las últimas 7 versiones y borra el resto, análogo a la retención de
         // backup_db:process. Comando ya blindado (solo toca {V}/{V}.zip con match exacto).
         $schedule->command('backups:purge-test --force')->dailyAt('02:20')->withoutOverlapping();
+        $schedule->command('crme:propuestas-vencer')->dailyAt('01:10')->withoutOverlapping();
+
+        // #1154 (Fase 1b de #576) — modo APRENDER MAC PPPoE: radacct + caller-id de /ppp/active.
+        // Solo lectura, un router caído no frena a los demás; sin solapes para no saturar los NAS.
+        $schedule->command('pppoe:aprender-mac --mikrotik')->everyTenMinutes()->withoutOverlapping();
 
         // MegaVoz Fase 3 — retención de grabaciones de la cola (config voip.grabaciones.retencion_dias).
         // Borra el .wav por antigüedad, conserva la fila de voip_llamadas (solo limpia la referencia).
@@ -89,6 +102,9 @@ class Kernel extends ConsoleKernel
 
         // Archivar activity_logs con más de 90 días a la BD meganet_logs
         $schedule->command('activitylog:archive --days=90')->dailyAt('02:00')->withoutOverlapping();
+
+        // #996 — ping_statistics: crudo 90 días; daily_ping_statistics se conserva para siempre.
+        $schedule->command('ping:purge-raw --force')->dailyAt('02:40')->withoutOverlapping();
 
         // #9990687 (F5b) — cruza tabla releases / tags locales / tags en origin / GitHub Releases
         // y crea items tipo=hallazgo por cada divergencia nueva (dedupe automático por huella).
@@ -103,6 +119,10 @@ class Kernel extends ConsoleKernel
         // 15 min (cadencia q3 ya decidida por Irving). Solo categoriza en el log de cada item, no
         // toca git ni la BD fuera de eso.
         $schedule->command('circuito:auditar-huerfanos')->everyFifteenMinutes()->withoutOverlapping()->onOneServer();
+
+        // #1073 — latido de la IA: detecta llave rechazada o cuenta sin saldo aunque no haya trabajo.
+        // En DEV no hay schedule:run: ahí corre por la línea equivalente del crontab del circuito.
+        $schedule->command('ia:latido')->everyFifteenMinutes()->withoutOverlapping();
 
         // MR-32 (#971, extendido en #9990374) — LIBERADOR EN CASCADA de la épica MAPA DE RED (#936).
         //
@@ -204,9 +224,24 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->onOneServer();
 
+        // Flotas portal — reglas del cliente que se evalúan por barrido (sin conexión, documento, mantenimiento)
+        $schedule->command('flotas:check-client-rules')
+            ->everyFifteenMinutes()
+            ->withoutOverlapping()
+            ->onOneServer();
+
         // Talento Fase 6b — Alertas de vencimiento de credenciales (cron diario 07:00)
         $schedule->command('talento:check-credential-expirations')
             ->dailyAt('07:00')
+            ->withoutOverlapping()
+            ->onOneServer();
+
+        // Talento Fase 4a — encuestas de instalación sin respuesta: se cierran solas a los días
+        // configurados (talento_survey_autoclose_days, 7) y validan la orden que las esperaba.
+        // Nunca re-valida una orden ya validada (no se paga dos veces). Programado el 2026-10-22:
+        // desde junio existía pero nadie lo corría.
+        $schedule->command('talento:cerrar-encuestas')
+            ->dailyAt('06:30')
             ->withoutOverlapping()
             ->onOneServer();
 

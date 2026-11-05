@@ -20,7 +20,7 @@
 
     <!-- Tabs -->
     <ul class="nav nav-tabs tc-tabs mb-3">
-      <li class="nav-item"><a class="nav-link" :class="{active:tab==='produccion'}" href="#" @click.prevent="tab='produccion'"><i class="fa fa-chart-bar me-1"></i>Producción diaria</a></li>
+      <li class="nav-item"><a class="nav-link" :class="{active:tab==='produccion'}" href="#" @click.prevent="tab='produccion'"><i class="fa fa-chart-bar me-1"></i>Producción diaria (unidades reconocidas)</a></li>
       <li class="nav-item"><a class="nav-link" :class="{active:tab==='tecnico'}" href="#" @click.prevent="tab='tecnico'"><i class="fa fa-hard-hat me-1"></i>Mi panel</a></li>
       <li class="nav-item"><a class="nav-link" :class="{active:tab==='calculadora'}" href="#" @click.prevent="tab='calculadora'"><i class="fa fa-calculator me-1"></i>Calculadora de pago</a></li>
       <li class="nav-item"><a class="nav-link" :class="{active:tab==='supervisor'}" href="#" @click.prevent="tab='supervisor'"><i class="fa fa-users me-1"></i>Mi equipo</a></li>
@@ -166,12 +166,11 @@
         <div class="table-responsive">
           <table class="table table-hover table-sm align-middle">
             <thead class="table-light">
-              <tr><th>Colaborador</th><th>Nivel</th><th>Unidades</th><th>Cuota</th><th>% cuota</th><th>Pago proyectado</th></tr>
+              <tr><th>Colaborador</th><th>Unidades</th><th>Cuota</th><th>% cuota</th><th>Pago proyectado</th></tr>
             </thead>
             <tbody>
               <tr v-for="m in equipoData.members" :key="m.id">
                 <td class="fw-semibold small">{{ m.name }}</td>
-                <td class="small text-muted">{{ m.level ?? '—' }}</td>
                 <td>{{ m.units }}</td>
                 <td>{{ m.quota }}</td>
                 <td>
@@ -270,8 +269,18 @@ export default {
       this.loadingProd = true;
       const r = await axios.get('/talento/api/dashboard/daily-production', { params: { days: this.prodDays } }).catch(() => null);
       this.loadingProd = false;
-      if (r?.data?.series) {
-        this.dailyData = r.data.series;
+      // 2026-10-27: el servidor manda las series por día (categories + una lista por tipo); aquí se
+      // esperaba `series` y la gráfica nunca se dibujó. Garantía <6m = no cobrable, >6m = cobrable.
+      const d = r?.data;
+      const filas = (d?.categories ?? []).map((date, i) => ({
+        date,
+        installed: d.instalaciones?.[i] ?? 0,
+        warranty_under_6m: d.garantias_non_billable?.[i] ?? 0,
+        warranty_over_6m: d.garantias_billable?.[i] ?? 0,
+      }));
+      const hayDatos = filas.some(f => f.installed || f.warranty_under_6m || f.warranty_over_6m);
+      this.dailyData = hayDatos ? filas : [];
+      if (hayDatos) {
         await this.$nextTick();
         this.rebuildChart();
       }

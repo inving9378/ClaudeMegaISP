@@ -240,7 +240,7 @@ class ClientController extends Controller
         $input = \Illuminate\Support\Arr::only($input, $key);
         $input['created_at'] = (new FormatDateService($request->created_at))->formatDateWithTime();
         $input['client_id'] = $model->id;
-        DB::table('client_additional_information')->insert($input);
+        DB::table('client_additional_information')->insert(\App\Services\Clientes\TipoCliente::aplicarEnDatos($input));
     }
 
     /**

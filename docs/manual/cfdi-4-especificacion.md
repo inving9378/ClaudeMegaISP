@@ -94,6 +94,21 @@ sandbox. 3. Cancelación y consulta. 4. Complemento de pago/PUE-PPD según el co
 6. Piloto en producción con pocos clientes (como FAC-08). 7. Envío «Tu CFDI {periodo} — Meganet» (la
 rama ya está prevista en el documento vigente).
 
+## 11b. Preguntas exactas para el contador (borrador, item #1062)
+1. ¿Se timbra al pagarse (PUE) o al emitir la prefactura (PPD + complemento de pago)? ¿Qué pasa con
+   pagos parciales y abonos?
+2. Clave de producto/servicio y unidad SAT para internet residencial, instalación, equipos y cargos
+   por reconexión.
+3. Mapeo de nuestros métodos de pago (efectivo, transferencia, OXXO, tarjeta, pago a técnico) a
+   c_FormaPago.
+4. Factura global: periodicidad y qué pagos incluye; ¿se puede timbrar individual un pago ya incluido?
+5. Cancelación: motivo por escenario y manejo de notas de crédito/bonificaciones.
+6. Cargos del periodo de suspensión (#534): ¿se timbran? Regla 10 del sistema: no se timbra un
+   periodo no pagado. ¿Es correcta?
+7. Autorrenovación y facturas emitidas sin pago (hasta 3): tratamiento fiscal de lo facturado y no
+   cobrado (incobrables) y su cancelación.
+8. Clientes de CONTPAQi vs. MegaISP: fecha de corte y cómo evitar el doble timbrado.
+
 ## 12. Fuentes
 - SAT — infografía «Factura electrónica CFDI 4.0: como cliente, ¿qué datos necesito proporcionar?»:
   https://www.sat.gob.mx/minisitio/Factura/documentos/Infografia_FacturaElectronica_Datos_Receptor.pdf

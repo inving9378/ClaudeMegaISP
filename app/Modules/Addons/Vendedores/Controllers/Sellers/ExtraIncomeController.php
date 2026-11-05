@@ -23,6 +23,10 @@ class ExtraIncomeController extends Controller
 
     public function store(Request $request)
     {
+        // B3b (#951): el patrón '/sellers/cuts/{id}' deja pasar este POST sin el permiso de alta.
+        if (config('unificacion.interruptores.cortes_vendedor_b3b')) {
+            abort_unless(auth()->user()?->can('seller_cuts_add_extra_icome'), 403);
+        }
         $data = $request->all();
         $data['payment_date'] = substr($request->payment_date, 0, 10);
         $object = $this->repository->create($data);

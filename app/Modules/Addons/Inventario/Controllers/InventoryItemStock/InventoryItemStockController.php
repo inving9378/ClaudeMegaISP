@@ -53,7 +53,7 @@ class InventoryItemStockController extends CrudModalController
         $modelableTo = $model->modelable_type;
         $idTo = $model->modelable_id;
         $modelableFrom = "App\Models\User";
-        $idFrom = auth()->user()->id;
+        $idFrom = auth()->user()?->id;
         $typeChange = $request->type_change_stock;
         $validator = Validator::make($request->all(), [
             'type_change_stock' => 'required',
@@ -75,11 +75,11 @@ class InventoryItemStockController extends CrudModalController
         try {
             $inventoryService = new InventoryService();
             if ($request->type_change_stock == 'increment') {
-                $inventoryService->addMovementInventoryItemByType($inventoryItemId, $quantity, ComunConstantsController::INVENTORY_MOVEMENT_TYPE_ENTRADA, 'Ajuste Stock Aumento por ' . auth()->user()->name, $idTo, $modelableTo, $idFrom, $modelableFrom, null, false, 'accepted');
+                $inventoryService->addMovementInventoryItemByType($inventoryItemId, $quantity, ComunConstantsController::INVENTORY_MOVEMENT_TYPE_ENTRADA, 'Ajuste Stock Aumento por ' . auth()->user()?->name, $idTo, $modelableTo, $idFrom, $modelableFrom, null, false, 'accepted');
             }
 
             if ($request->type_change_stock == 'decrement') {
-                $inventoryService->addMovementInventoryItemByType($inventoryItemId, $quantity, ComunConstantsController::INVENTORY_MOVEMENT_TYPE_SALIDA, 'Ajuste Stock Disminucion por ' . auth()->user()->name, $idTo, $modelableTo, $idFrom, $modelableFrom, null, false, 'accepted');
+                $inventoryService->addMovementInventoryItemByType($inventoryItemId, $quantity, ComunConstantsController::INVENTORY_MOVEMENT_TYPE_SALIDA, 'Ajuste Stock Disminucion por ' . auth()->user()?->name, $idTo, $modelableTo, $idFrom, $modelableFrom, null, false, 'accepted');
             }
 
             $model->save();

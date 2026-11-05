@@ -152,7 +152,12 @@ class IA
     /**
      * Qué usa hoy la función, sin lanzar (para la pantalla).
      *
-     * @return array{origen:?string, api_integration_id:?int, modelo:?string, problema:?string}
+     * Las funciones con `respaldo` en el catálogo (el supervisor del Circuito, #1076) no se apagan
+     * sin asignación: siguen con su modelo de ahorro por defecto (`modelos[0]`). La pantalla lo
+     * muestra como origen 'por_defecto' en vez de «IA apagada», que sería falso. Si había algo
+     * asignado que no sirve, el motivo viaja en `aviso`.
+     *
+     * @return array{origen:?string, api_integration_id:?int, modelo:?string, problema:?string, aviso?:?string}
      */
     public static function efectivo(string $clave): array
     {
@@ -160,8 +165,50 @@ class IA
             [$modelo, $integracion, , $origen] = self::resolver($clave);
             return ['origen' => $origen, 'api_integration_id' => $integracion->id, 'modelo' => $modelo, 'problema' => null];
         } catch (IANoConfigurada $e) {
+            $porDefecto = self::modeloPorDefecto($clave);
+            if ($porDefecto !== null) {
+                $asignada = IAAsignacion::where('clave', $clave)->exists()
+                    || IAAsignacion::where('clave', self::claveGeneral((string) (self::modulo($clave)['grupo'] ?? '')))->exists();
+                return ['origen' => 'por_defecto', 'api_integration_id' => null, 'modelo' => $porDefecto, 'problema' => null,
+                    'aviso' => $asignada ? $e->getMessage() : null];
+            }
             return ['origen' => null, 'api_integration_id' => null, 'modelo' => null, 'problema' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Modelo que se eligió en Integraciones → Módulos IA para la clave, o `$porDefecto`.
+     *
+     * Para consumidores que NO pasan por los adaptadores: el supervisor del Circuito (#1076) llama
+     * directo a Anthropic con ClaudeApiClient, que resuelve la llave por su cuenta. De aquí solo
+     * toma el MODELO, así que la asignación tiene que ser de un proveedor que hable el protocolo de
+     * Claude; si no lo es, si no hay asignación o si la base no responde, devuelve `$porDefecto`.
+     * Nunca lanza: elegir modelo jamás puede tumbar la llamada.
+     */
+    public static function modeloPara(string $clave, string $porDefecto): string
+    {
+        try {
+            [$modelo, , $catalogo] = self::resolver($clave);
+            $modelo = trim((string) $modelo);
+            if ($catalogo?->driver === 'claude' && $modelo !== '') {
+                return $modelo;
+            }
+        } catch (\Throwable) {
+        }
+
+        return $porDefecto;
+    }
+
+    /** Modelo de ahorro de una función con `respaldo` en el catálogo (el primero de `modelos`), o null. */
+    public static function modeloPorDefecto(string $clave): ?string
+    {
+        $modulo = self::modulo($clave) ?? [];
+        if (empty($modulo['respaldo'])) {
+            return null;
+        }
+        $primero = $modulo['modelos'][0] ?? null;
+
+        return is_string($primero) && trim($primero) !== '' ? trim($primero) : null;
     }
 
     /** Clave en ia_asignaciones de la IA general de un módulo (grupo del catálogo). */
@@ -432,6 +479,8 @@ class IA
                 'herramientas' => [in_array($catalogo->driver, ['claude', 'openai', 'gemini'], true), 'herramientas'],
                 // Texto a voz / voz a texto: hoy solo la API de audio de OpenAI
                 'voz' => [$catalogo->driver === 'openai', 'voz (texto a voz / voz a texto)'],
+                // El supervisor del Circuito llama directo a la API de Anthropic (#1076)
+                'anthropic' => [$catalogo->driver === 'claude', 'el protocolo de Claude (Anthropic)'],
                 default => [true, $capacidad],
             };
             if (!$ok) {

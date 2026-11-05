@@ -1,6 +1,41 @@
 <?php
 
+/*
+| #1076 — AHORRO POR DEFECTO del supervisor («gastar lo mínimo en APIs», decisión de Irving).
+| El modelo de cada pieza se ELIGE en Integraciones → Módulos IA (grupo «Circuito»); esto es solo
+| el respaldo cuando allá no hay asignación. Se define una vez aquí y lo leen `ia.modelos` y las
+| llaves viejas (`revisor.model_routine`, `valvula_contexto.model`…), para que no diverjan.
+| Elección medida con `circuito:comparar-modelos-ia` (ver docs/bitacora/2026-10-30-item-1076.md):
+|   válvula → Haiku 5.5: ningún «mención» donde la referencia vio «acción»; 20× más barato que Sonnet.
+|   revisor → Sonnet 5.5: Haiku autorizó uno que la referencia escalaba; Sonnet 5.5 no aflojó nada.
+|   briefs, auditor de riesgo y des-trabe → Sonnet 5.5 (plan aprobado); Opus solo como 2ª opinión.
+*/
+$iaModelos = [
+    'valvula'         => env('CIRCUITO_VALVULA_MODEL', 'claude-haiku-5-5'),
+    'revisor'         => env('CIRCUITO_REVISOR_MODEL', 'claude-sonnet-5-5'),
+    'segunda_opinion' => env('CIRCUITO_REVISOR_MODEL_HARD', 'claude-opus-4-7'),
+    'briefs'          => env('CIRCUITO_BRIEFS_MODEL', 'claude-sonnet-5-5'),
+    'seguridad'       => env('CIRCUITO_SEGURIDAD_MODEL', 'claude-sonnet-5-5'),
+    'destrabe'        => env('CIRCUITO_DESTRABE_MODEL', 'claude-sonnet-5-5'),
+    'resumen'         => env('CIRCUITO_RESUMEN_MODEL', 'claude-sonnet-5-5'),
+    'asesor_cobranza' => env('CIRCUITO_ASESOR_MODEL', 'claude-sonnet-5-5'),
+    'jarvis_chat'     => env('CIRCUITO_JARVIS_CHAT_MODEL', 'claude-haiku-5-5'),
+];
+
 return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | IA del supervisor (#1076) — modelo por pieza
+    |--------------------------------------------------------------------------
+    | Respaldo de Integraciones → Módulos IA (claves `circuito.<pieza>`). Cada llamada del
+    | supervisor pasa por `IaSupervisor::llamar()`, que adapta los parámetros al modelo (sin
+    | `temperature` en los 5.x, esfuerzo y razonamiento por pieza, caché del prompt fijo) y deja
+    | en el log `claude` la pieza y el costo en USD/MXN (`circuito:gasto-ia` lo suma).
+    */
+    'ia' => [
+        'modelos' => $iaModelos,
+    ],
 
     /*
     |--------------------------------------------------------------------------
@@ -127,8 +162,8 @@ return [
     */
     'valvula_contexto' => [
         'enabled'    => (bool) env('CIRCUITO_VALVULA_CONTEXTO', true),
-        // Hereda el modelo de rutina del revisor si no se fija uno: no se inventa un ID nuevo.
-        'model'      => env('CIRCUITO_VALVULA_MODEL', env('CIRCUITO_REVISOR_MODEL', 'claude-sonnet-4-6')),
+        // RESPALDO (#1076): el modelo se elige en Integraciones → Módulos IA → «circuito.valvula».
+        'model'      => $iaModelos['valvula'],
         // Clasificación binaria + una frase: no necesita más techo.
         'max_tokens' => (int) env('CIRCUITO_VALVULA_MAX_TOKENS', 300),
     ],
@@ -137,9 +172,11 @@ return [
         // MODELO ESCALONADO (#338): B rutinario → Sonnet; B difícil/borderline/baja-confianza → Opus
         // (2ª opinión); C → Opus arma un BRIEF de decisión para Irving. Opus SOLO en lo difícil/C
         // (con N=6, Opus en todo B quemaría límites).
-        'model'         => env('CIRCUITO_REVISOR_MODEL', 'claude-sonnet-4-6'),      // rutina (compat)
-        'model_routine' => env('CIRCUITO_REVISOR_MODEL', 'claude-sonnet-4-6'),
-        'model_hard'    => env('CIRCUITO_REVISOR_MODEL_HARD', 'claude-opus-4-7'),
+        // RESPALDO (#1076): el modelo se elige en Integraciones → Módulos IA («circuito.revisor»,
+        // «circuito.segunda_opinion»). Los briefs ya no usan model_hard: tienen «circuito.briefs».
+        'model'         => $iaModelos['revisor'],      // rutina (compat)
+        'model_routine' => $iaModelos['revisor'],
+        'model_hard'    => $iaModelos['segunda_opinion'],
         'max_tokens'    => (int) env('CIRCUITO_REVISOR_MAX_TOKENS', 700),
         'brief_tokens'  => (int) env('CIRCUITO_REVISOR_BRIEF_TOKENS', 1100),
         // Perfil vivo de decisiones/preferencias de Irving, inlineado al prompt (menos falsos
@@ -356,6 +393,32 @@ return [
     | mientras el candado no apunte aquí, ese riesgo de corrupción de esquema está VIVO.
     */
     'candado_migraciones' => env('CIRCUITO_CANDADO_MIGRACIONES', '/var/www/megaisp/storage/app/circuito/migrate-esquema.lock'),
+
+    /*
+    | Salud de la IA del sistema (#1073). Cada llamada al modelo anota en este archivo si respondió
+    | o por qué falló (llave rechazada, sin saldo, límite de gasto, cuota sostenida); el latido la
+    | prueba cada 15 min aunque no haya trabajo. Lo leen el vigilante (alarma + WhatsApp con tope)
+    | y la cabecera de la Torre (banner rojo). Ruta absoluta del checkout principal: lo escriben
+    | la web, el cron, las colas y las terminales.
+    */
+    'ia_salud' => [
+        'archivo' => env('CIRCUITO_IA_SALUD_ARCHIVO', '/var/www/megaisp/storage/app/circuito/ia-salud.json'),
+        'latido' => [
+            'enabled' => (bool) env('CIRCUITO_IA_LATIDO', true),
+            'modelo'  => env('CIRCUITO_IA_LATIDO_MODELO', 'claude-haiku-5-5'),
+        ],
+    ],
+
+    /*
+    | Cuota del plan de Claude que usan las terminales (#1068). No hay API pública: la deja la línea
+    | de estado de Claude Code (deploy/circuito/cuota-plan-statusline.sh) en cada sesión interactiva.
+    | La leen la cabecera de la Torre y Jarvis.
+    */
+    'cuota_plan' => [
+        'archivo' => env('CIRCUITO_CUOTA_PLAN_ARCHIVO', '/var/www/megaisp/storage/app/circuito/cuota-plan.json'),
+        // Registros stream-json de cada vuelta (#1117): traen `rate_limit_event` con el uso del plan.
+        'logs_vueltas' => env('CIRCUITO_CUOTA_PLAN_LOGS', '/home/meganet/circuito/logs'),
+    ],
 
     /*
     |--------------------------------------------------------------------------
@@ -810,6 +873,23 @@ return [
             'cap_por_ciclo' => (int) env('CIRCUITO_JARVIS_AUTOMERGE_CAP', 5),
 
             /*
+            | #1065 — AUTO-MERGE DE NIVEL C. APAGADO por defecto: solo Irving lo enciende
+            | (CIRCUITO_JARVIS_AUTOMERGE_NIVEL_C=true). Encendido, un item C se auto-mergea a DEV solo si
+            | (1) Irving lo aprobó, (2) lo nuevo va detrás de un interruptor apagado (el diff trae una
+            | clave de config con env(..., false)), (3) la verificación del MergeRunner pasa y (4) el diff
+            | no toca rutas de dinero/permisos/borrado (rutas_sensibles_c, además de rutas_sensibles).
+            | Producción nunca la toca el circuito.
+            */
+            'nivel_c' => [
+                'enabled' => (bool) env('CIRCUITO_JARVIS_AUTOMERGE_NIVEL_C', false),
+                'rutas_sensibles_c' => [
+                    'app/Modules/Addons/Payments/', 'app/Modules/Addons/Billing/', 'Payment', 'Invoice',
+                    'Permission', 'config/route_permission.php', 'RolesAndPermissions', 'Seeders/',
+                    'Domiciliacion', 'OpenPay', 'Openpay',
+                ],
+            ],
+
+            /*
             | RUTAS SENSIBLES — si la rama toca alguna, NO se auto-mergea aunque el título sea
             | inocente. Es la diferencia entre "el item dice que no toca prod" y "el diff no toca
             | prod": lo segundo es verificable.
@@ -900,6 +980,17 @@ return [
             | Subir a `true` cuando el modo advertencia lleve un tiempo sin sorpresas.
             */
             'bloquea'                 => (bool) env('CIRCUITO_JARVIS_CIERRE_BLOQUEA', false),
+
+            /*
+            | #1137 (Paso 4c) — TARJETA OBLIGATORIA AL CERRAR + «Hecho = Irving lo vio». INTERRUPTOR,
+            | apagado por defecto (decisión Irving, q2: arranque conservador). Encendido:
+            |  · cerrar exige reporte_coloquial + enlace_revision (si faltan, el cierre se parquea en
+            |    `aprobado_irving`, sin importar `bloquea`);
+            |  · al completarse, el item queda `pendiente_validacion_irving=true` para que le aparezca
+            |    la tarjeta; «Hecho» definitivo = `validado_por_irving` (acción humana, nunca autopilot).
+            | Los items ya completados quedan como están (solo aplica a cierres nuevos).
+            */
+            'tarjeta_obligatoria'     => (bool) env('CIRCUITO_JARVIS_TARJETA_OBLIGATORIA', false),
         ],
     ],
 

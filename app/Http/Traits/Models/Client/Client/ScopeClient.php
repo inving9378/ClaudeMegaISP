@@ -64,6 +64,13 @@ trait ScopeClient
                             if (isset($search)) {
                                 $this->aplicarBusquedaTextoClientes($query, $search, $columns, $columnasCrudas, $ampliada);
                             }
+                        } elseif ($keyV === 'client_additional_information.tipo_cliente') {
+                            $query = $query->whereHas('client_additional_information', function ($query) use ($keyV, $val) {
+                                $query->whereIn($keyV, (array) $val);
+                            });
+                            if (isset($search)) {
+                                $this->aplicarBusquedaTextoClientes($query, $search, $columns, $columnasCrudas, $ampliada);
+                            }
                         } elseif ($keyV === 'client_main_information.estado') {
                             $query = $query->whereHas('client_main_information', function ($query) use ($keyV, $val) {
                                 $query->whereIn($keyV, $val);
@@ -471,7 +478,7 @@ trait ScopeClient
     public function scopeIsDedicated($query)
     {
         $query->whereHas('client_additional_information', function ($query) {
-            $query->where('is_dedicated', true);
+            $query->where('tipo_cliente', \App\Services\Clientes\TipoCliente::DEDICADO);
         });
     }
 }

@@ -13,6 +13,7 @@ class TalentoWeeklyRuleEvaluation extends BaseModel
         'prospects_count', 'sales_count', 'outcome',
         'penalty_type_id', 'penalty_amount', 'penalty_id',
         'confirmed_by', 'confirmed_at', 'bonus_amount_applied', 'evaluated_at',
+        'meta_id', 'meta_version',
     ];
 
     protected $casts = [

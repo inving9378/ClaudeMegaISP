@@ -50,7 +50,7 @@ class UserController extends Controller
 
     private function puedeGestionarUsuario($targetUserId): bool
     {
-        return auth()->user()->can('user_edit_user') || $this->esSupervisorTalentoDe($targetUserId);
+        return auth()->user()?->can('user_edit_user') || $this->esSupervisorTalentoDe($targetUserId);
     }
 
     /**
@@ -118,7 +118,7 @@ class UserController extends Controller
         // Un supervisor editando a su subordinado (sin user_edit_user real)
         // no debe ver roles admin en el selector — defensa en profundidad,
         // el guard real está en update().
-        if (! auth()->user()->can('user_edit_user')) {
+        if (! auth()->user()?->can('user_edit_user')) {
             $roles = $roles->reject(fn ($r) => in_array($r->name, self::ROLES_SOLO_ADMIN_ASIGNA, true))->values();
         }
 
@@ -323,7 +323,7 @@ class UserController extends Controller
             // supervisor no debe servir para convertir a su subordinado en
             // administrador. getRoles() ya filtra el selector, esto es la
             // verificación real server-side.
-            if (! auth()->user()->can('user_edit_user') && array_intersect($roles, self::ROLES_SOLO_ADMIN_ASIGNA)) {
+            if (! auth()->user()?->can('user_edit_user') && array_intersect($roles, self::ROLES_SOLO_ADMIN_ASIGNA)) {
                 DB::rollBack();
                 return response()->json(['status' => 403, 'message' => 'No puedes asignar ese rol.']);
             }

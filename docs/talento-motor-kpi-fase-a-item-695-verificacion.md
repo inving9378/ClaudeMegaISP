@@ -68,3 +68,25 @@ verificado el mismo día — no tendría justificación.
   gemelo `#700`. Cuando Irving cargue reglas reales en `/talento/compensacion`, el orden correcto
   sigue siendo Fase C → Fase B → Fase A (con aprobación explícita adicional para mover dinero real
   en cada entorno).
+
+## Segunda re-apertura (2026-08-29, wt-2)
+
+Este mismo item `#695` — ya cerrado `completado` y mergeado a main en `4d6b85ec`
+("Integra circuito #695 ... a main", 2026-08-28 19:43) — apareció de nuevo en el pool como
+`pending`/`en_progreso` y fue reclamado por este worktree. No se encontró ningún cambio de
+insumo que lo justifique: es la misma fila de `roadmap_items` (id 695), con el mismo
+`comentarios_claude` histórico intacto, solo con `estado_aprobacion`/`status`/`worker_sid`
+reseteados y una nueva `revisado_at`/`aprobado_por=irving:admin` seis horas después del merge.
+Parece un reciclaje espurio del scheduler sobre un item ya resuelto, no una instrucción nueva de
+Irving sobre el contenido.
+
+Re-verificado de cero en esta vuelta, sin asumir nada de la vez anterior:
+- `talento_compensation_rules`: **0 filas** (idéntico).
+- `#693` (Fase C): sigue `requiere_irving` (idéntico).
+- `#694`/`#697`/`#698`/`#700` (Fase B y el gemelo de Fase A): todos `completado`, ninguno escribió
+  motor de pago/clawback (idéntico).
+
+Conclusión sin cambios: la precondición sigue incumplida, no hay nada nuevo que ejecutar. Se
+cierra otra vez como `completado` (investigación, sin código de aplicación) para que el item deje
+de ocupar el pool; si vuelve a reabrirse sin que cambie el insumo de fondo, es una señal para
+revisar el propio mecanismo de reciclaje del scheduler, no el contenido de este item.

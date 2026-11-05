@@ -18,8 +18,8 @@ use Throwable;
  * Colector por minuto de los servicios dedicados (item #988): tráfico de su VLAN y ping a las
  * IPs de su bloque, todo desde su MikroTik.
  *
- * Por router: se abre UNA conexión, se verifica que conteste la identidad esperada (si no la
- * tiene registrada o contesta otra, no se lee nada de él), se leen de una vez los contadores de
+ * Por router: se abre UNA conexión, se verifica su identidad (IdentidadRouter: si es igual al título
+ * se registra sola; sin confirmar o distinta, no se lee nada de él), se leen de una vez los contadores de
  * todas las interfaces y se hace ping a cada IP con pocos paquetes. Por servicio queda una fila
  * en cliente_metricas (tráfico + resumen del ping) y una en cliente_metricas_ping por IP; por
  * corrida, un latido. Un router o un servicio que falla no detiene a los demás.
@@ -32,8 +32,11 @@ final class ColectorMetricas
     {
     }
 
-    public static function driver(string $nombre): MetricasDriver
+    /** Sin nombre, el que corresponde a este entorno (EntornoMetricas::driverPorDefecto). */
+    public static function driver(?string $nombre = null): MetricasDriver
     {
+        $nombre = $nombre ?: EntornoMetricas::driverPorDefecto();
+
         return match ($nombre) {
             'mikrotik' => new MikrotikMetricasDriver(),
             'simulado' => new SimuladoMetricasDriver(),
@@ -105,11 +108,19 @@ final class ColectorMetricas
                 $info['redirigido'] = $sesion->redirigido();
                 $info['identidad'] = $sesion->identidad();
 
-                $esperada = trim((string) $info['esperada']);
-                if ($esperada === '' || $info['identidad'] !== $esperada) {
+                $evaluacion = IdentidadRouter::evaluar($info['identidad'], $info['esperada'], $router->title);
+                if ($evaluacion === IdentidadRouter::POR_TITULO && ! $sesion->redirigido()) {
+                    if (! $dryRun) {
+                        IdentidadRouter::guardar((int) $routerId, $info['identidad']);
+                    }
+                    $info['esperada'] = $info['identidad'];
+                    $evaluacion = IdentidadRouter::COINCIDE;
+                }
+                if ($evaluacion !== IdentidadRouter::COINCIDE) {
+                    $esperada = trim((string) $info['esperada']);
                     $info['estado'] = $esperada === '' ? 'sin_identidad_esperada' : 'identidad_distinta';
                     $info['error'] = $esperada === ''
-                        ? 'El router no tiene identidad esperada registrada: no se lee.'
+                        ? "Contestó «{$info['identidad']}», que no es el título del router: falta confirmarlo en «Probar lectura»."
                         : "Contestó «{$info['identidad']}», se esperaba «{$esperada}»: no se lee.";
                     $latido['routers_error']++;
                     $this->sinLectura($servicios, 'router_no_verificado', $param, $filas, $pings, $latido);
@@ -216,7 +227,8 @@ final class ColectorMetricas
                 if (isset($pedidas[(string) $s['servicio_id']])) {
                     $lectura = $lecturas[(string) $s['servicio_id']] ?? null;
                     if ($lectura === null) {
-                        $trafico['estado'] = 'interfaz_no_encontrada';
+                        $nombres = $sesion->resolucion()[(string) $s['servicio_id']]['nombres'] ?? [];
+                        $trafico['estado'] = count($nombres) > 1 ? 'vlan_repetida' : 'interfaz_no_encontrada';
                     } else {
                         $previo = $previos->get($s['servicio_id']);
                         $nombre = $s['interfaz'] ?? ('vlan:' . $s['vlan_id']);

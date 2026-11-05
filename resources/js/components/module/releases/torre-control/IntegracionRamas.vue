@@ -1,7 +1,7 @@
 <template>
   <div class="ig-wrap" :class="{ 'ig-dark': darkMode }">
     <div class="ig-head">
-      <h2 class="ig-h2">Integración · Ramas del circuito</h2>
+      <h2 class="ig-h2">Integración · Ramas del circuito <span v-if="esperanMergeCount" class="ig-segcount" title="Items abiertos que esperan tu merge">{{ esperanMergeCount }} esperan merge<template v-if="esperanSinRama"> · {{ esperanSinRama }} sin rama</template></span></h2>
       <div class="ig-head-r">
         <div class="ig-seg" role="tablist">
           <button class="ig-segbtn" :class="{ 'ig-segbtn-on': vista === 'radar' }" @click="verRadar">
@@ -177,6 +177,8 @@ export default {
     setup() {
         const loading = ref(true);
         const ramas = ref([]);
+        const esperanMergeCount = ref(0);
+        const esperanSinRama = ref(0);
         const open = reactive({});
         const busy = ref(null);
         const msg = reactive({});
@@ -240,6 +242,8 @@ export default {
                 modoIntegracion.value = data.modo_integracion || 'auto-merge';
                 autoMerge.value = data.auto_merge !== undefined ? !!data.auto_merge : (modoIntegracion.value === 'auto-merge');
                 archivadasCount.value = data.archivadas_count || 0;
+                esperanMergeCount.value = data.esperan_merge_count || 0;
+                esperanSinRama.value = data.esperan_sin_rama_count || 0;
                 vozTts.value = data.voz_tts || null;
                 if (data.rate_tts) rateTts.value = Number(data.rate_tts);
             } finally {
@@ -445,7 +449,7 @@ export default {
         onBeforeUnmount(() => document.removeEventListener('keydown', onEsc));
 
         return {
-            darkMode, loading, ramas, open, busy, msg, lvClass, fronteraControlClass, fronteraControlIcon,
+            darkMode, loading, ramas, esperanMergeCount, esperanSinRama, open, busy, msg, lvClass, fronteraControlClass, fronteraControlIcon,
             toggle, load, merge, rechazar, revert,
             modoIntegracion, autoMerge, hablando, toggleAutoMerge, leer, verMas, estadoBadge, marcarVersion,
             vista, archivadasCount, algunoMergeado, fechaCorta,

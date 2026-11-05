@@ -24,7 +24,7 @@ class CobranzaCampanaService
             // ('Activo'/'Bloqueado'/'Cancelado'/'Inactivo'). `c.status`
             // habría tronado con "Column not found" en cuanto activarCampana()
             // se corriera de verdad — nunca se había ejecutado en dev.
-            ->where('cmi.estado', 'Activo')
+            ->whereIn('cmi.estado', ['Activo', 'Bloqueado']) // #491: el moroso ya cortado (Bloqueado) también se cobra
             ->whereNotNull('cmi.phone')
             ->whereNotExists(function ($q) use ($campana) {
                 $q->from('cobranza_llamadas')
@@ -86,7 +86,7 @@ class CobranzaCampanaService
             ->join('clients as c', 'c.id', '=', 'bz.client')
             ->join('client_main_information as cmi', 'cmi.client_id', '=', 'c.id')
             ->where('z.district_id', $districtId)
-            ->where('cmi.estado', 'Activo')
+            ->whereIn('cmi.estado', ['Activo', 'Bloqueado']) // #491: el moroso ya cortado (Bloqueado) también se cobra
             ->whereNotNull('cmi.phone')
             ->whereNotExists(function ($q) use ($campana) {
                 $q->from('cobranza_llamadas')

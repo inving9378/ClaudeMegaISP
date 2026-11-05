@@ -4,6 +4,9 @@ namespace App\Modules\Addons\Talento\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Modules\Addons\Talento\Support\Actor;
+use App\Modules\Addons\Talento\Services\AttendanceService;
+use App\Modules\Addons\Talento\Models\TalentoCompensationRule;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
 use App\Modules\Addons\Talento\Services\GeocodingService;
@@ -11,6 +14,7 @@ use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
 use App\Services\Security\PasswordService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Gateway para la app móvil "Talento Equipo" (React Native).
@@ -34,6 +38,16 @@ class TalentoMobileApiController extends Controller
             'password' => 'required|string',
         ]);
 
+        // Límite de intentos fallidos por usuario+IP (#693). Mismo 429 exista o no el usuario.
+        $limiterKey = 'talento-mobile-login:' . mb_strtolower((string) $request->usuario) . '|' . $request->ip();
+        $maxAttempts = (int) config('talento.mobile.login_max_attempts', 5);
+        if (RateLimiter::tooManyAttempts($limiterKey, $maxAttempts)) {
+            $wait = RateLimiter::availableIn($limiterKey);
+            return response()->json([
+                'message' => 'Demasiados intentos fallidos. Intenta de nuevo en ' . ceil($wait / 60) . ' minuto(s).',
+            ], 429)->header('Retry-After', $wait);
+        }
+
         $user = User::where('login_user', $request->usuario)
             ->orWhere('email', $request->usuario)
             ->first();
@@ -49,6 +63,7 @@ class TalentoMobileApiController extends Controller
         // upgrade-on-login (mismo rastro de auditoría: password_legacy +
         // password_migrated_at, para poder revertir si algo sale mal).
         if (! $user || ! PasswordService::check($request->password, $user->password)) {
+            RateLimiter::hit($limiterKey, (int) config('talento.mobile.login_decay_seconds', 300));
             return response()->json(['message' => 'Credenciales incorrectas.'], 401);
         }
 
@@ -57,6 +72,10 @@ class TalentoMobileApiController extends Controller
             $user->password = PasswordService::make($request->password);
             $user->password_migrated_at = now();
             $user->saveQuietly();
+        }
+
+        if (config('unificacion.interruptores.cuenta_activa') && $user->isNotActive()) {
+            return response()->json(['message' => 'Tu cuenta está inactiva.'], 403);
         }
 
         $colaborador = TalentoColaborador::where('user_id', $user->id)
@@ -72,7 +91,10 @@ class TalentoMobileApiController extends Controller
         // Un dispositivo activo a la vez
         $user->tokens()->where('name', 'talento-mobile')->delete();
 
-        $token = $user->createToken('talento-mobile')->plainTextToken;
+        RateLimiter::clear($limiterKey);
+
+        $ttl = (int) config('talento.mobile.token_ttl_minutes', 0);
+        $token = $user->createToken('talento-mobile', ['*'], $ttl > 0 ? now()->addMinutes($ttl) : null)->plainTextToken;
 
         return response()->json([
             'token'       => $token,
@@ -179,6 +201,31 @@ class TalentoMobileApiController extends Controller
             }
         }
 
+        // H4 (UNI-T): mismas reglas que el portal, vía AttendanceService (detrás de interruptor).
+        if (config('unificacion.interruptores.asistencia_app_servicio')) {
+            $res = app(AttendanceService::class)->checkIn(
+                $colaborador->id,
+                (float) $request->lat,
+                (float) $request->lng,
+                $request->filled('accuracy') ? (float) $request->accuracy : null,
+                null,
+                $request->input('location_source', 'gps')
+            );
+            if ($res['status'] === 'already_open') {
+                return response()->json(['message' => 'Ya tienes un check-in activo hoy.'], 422);
+            }
+            $att = $res['attendance'];
+            if ($request->client_uuid) {
+                DB::table('talento_attendances')->where('id', $att->id)->update(['client_uuid' => $request->client_uuid]);
+            }
+            return response()->json([
+                'id'          => $att->id,
+                'check_in_at' => now()->toISOString(),
+                'geocerca'    => $att->site?->name,
+                'flagged'     => (bool) $att->check_in_flagged,
+            ], 201);
+        }
+
         $existing = DB::table('talento_attendances')
             ->where('colaborador_id', $colaborador->id)
             ->whereDate('check_in_at', now()->toDateString())
@@ -228,6 +275,16 @@ class TalentoMobileApiController extends Controller
         $colaborador = $this->resolveColaborador($request);
         if (! $colaborador) return $this->noColaborador();
 
+        if (config('unificacion.interruptores.asistencia_app_servicio')) {
+            $res = app(AttendanceService::class)->checkOut($colaborador->id, (float) $request->lat, (float) $request->lng);
+            if ($res['status'] === 'no_open_attendance') {
+                return response()->json(['message' => 'Sin check-in activo para cerrar.'], 422);
+            }
+            DB::table('talento_attendances')->where('id', $res['attendance']->id)
+                ->update(['check_out_location_source' => $request->input('location_source', 'gps')]);
+            return response()->json(['check_out_at' => now()->toISOString()]);
+        }
+
         $updated = DB::table('talento_attendances')
             ->where('colaborador_id', $colaborador->id)
             ->whereDate('check_in_at', now()->toDateString())
@@ -256,6 +313,69 @@ class TalentoMobileApiController extends Controller
         if (! $colaborador) return $this->noColaborador();
 
         return response()->json(['ots' => $this->unified->summaryForHoy($colaborador->id)]);
+    }
+
+    /**
+     * Calendario de la app (2026-11-05): GET /talento/api/calendario?desde=YYYY-MM-DD&hasta=YYYY-MM-DD.
+     * Solo lo de la persona en sesión; el rango se limita para que la consulta siga siendo ligera.
+     */
+    public function calendario(Request $request)
+    {
+        $data = $request->validate([
+            'desde' => 'required|date_format:Y-m-d',
+            'hasta' => 'required|date_format:Y-m-d|after_or_equal:desde',
+        ]);
+
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) return $this->noColaborador();
+
+        if (\Carbon\Carbon::parse($data['desde'])->diffInDays($data['hasta']) > 62) {
+            return response()->json(['message' => 'El rango no puede ser mayor a 62 días.'], 422);
+        }
+
+        return response()->json([
+            'hoy'     => now()->toDateString(),
+            'eventos' => $this->unified->calendarioDe($colaborador->id, $data['desde'], $data['hasta']),
+        ]);
+    }
+
+    /**
+     * Polling delta (item #606): GET /talento/api/cambios?since=<ISO8601>
+     * Devuelve solo lo modificado desde `since`, scopeado al colaborador autenticado.
+     * Sin `since` o inválido => ventana de las últimas 24 h. La app guarda `server_time`
+     * y lo manda como próximo `since`.
+     */
+    public function cambios(Request $request)
+    {
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) return $this->noColaborador();
+
+        $serverTime = now();
+        try {
+            $since = $request->filled('since')
+                ? \Carbon\Carbon::parse($request->query('since'))
+                : $serverTime->copy()->subDay();
+        } catch (\Throwable $e) {
+            $since = $serverTime->copy()->subDay();
+        }
+        if ($since->lt($serverTime->copy()->subDays(7))) {
+            $since = $serverTime->copy()->subDays(7);
+        }
+
+        $penalizaciones = \App\Modules\Addons\Talento\Models\TalentoPenalty::where('colaborador_id', $colaborador->id)
+            ->where('updated_at', '>', $since)
+            ->orderBy('updated_at')
+            ->limit(100)
+            ->get(['id', 'status', 'amount', 'updated_at']);
+
+        $ots = $this->unified->cambiosDesde($colaborador->id, $since);
+
+        return response()->json([
+            'server_time'    => $serverTime->toISOString(),
+            'ots'            => $ots,
+            'penalizaciones' => $penalizaciones,
+            'hay_cambios'    => count($ots) > 0 || $penalizaciones->isNotEmpty(),
+        ]);
     }
 
     public function otShow(Request $request, int $id)
@@ -306,7 +426,12 @@ class TalentoMobileApiController extends Controller
         ]);
 
         $logoUrl = null;
-        if ($info) {
+        $archivo = $this->archivoLogoApp($info);
+        if ($archivo) {
+            // 30-oct-2026: el archivo del servidor se da por /talento/api, que abre también desde fuera
+            // de la oficina. ?v= cambia si se sube otro logo, para que el teléfono no use el anterior.
+            $logoUrl = request()->getSchemeAndHttpHost() . '/talento/api/app/branding/logo?v=' . filemtime($archivo);
+        } elseif ($info) {
             // talento_app_logo sobreescribe url_logo si está configurado
             $raw = $info->talento_app_logo ?: $info->url_logo;
             if ($raw) {
@@ -323,6 +448,37 @@ class TalentoMobileApiController extends Controller
             'company_name' => $info?->company_name ?? 'Meganet',
             'logo_url'     => $logoUrl,
         ]);
+    }
+
+    public function appBrandingLogo()
+    {
+        $archivo = $this->archivoLogoApp(DB::table('company_information')->first(['url_logo', 'talento_app_logo']));
+        abort_unless($archivo, 404);
+
+        return response()->file($archivo, ['Cache-Control' => 'public, max-age=86400']);
+    }
+
+    /**
+     * El archivo del logo de la app en el servidor (talento_app_logo o, si no hay, url_logo), o null
+     * si es una dirección externa o no existe. Solo imágenes de public/ o de storage/app/public.
+     */
+    private function archivoLogoApp(?object $info): ?string
+    {
+        $raw = $info ? ($info->talento_app_logo ?: $info->url_logo) : null;
+        if (! $raw || str_starts_with($raw, 'http')) {
+            return null;
+        }
+
+        $archivo = realpath(public_path(ltrim($raw, '/')));
+        if (! $archivo || ! is_file($archivo)) {
+            return null;
+        }
+        $dentro = collect([realpath(public_path()), realpath(config('filesystems.disks.public.root'))])
+            ->filter()
+            ->contains(fn ($raiz) => str_starts_with($archivo, $raiz . DIRECTORY_SEPARATOR));
+        $imagen = in_array(strtolower(pathinfo($archivo, PATHINFO_EXTENSION)), ['png', 'jpg', 'jpeg', 'webp', 'gif'], true);
+
+        return $dentro && $imagen ? $archivo : null;
     }
 
     public function tiposEvidencia(Request $request, int $id)
@@ -372,8 +528,12 @@ class TalentoMobileApiController extends Controller
 
     public function otEvidencia(Request $request, int $id)
     {
+        // 2026-11-05: la firma llega del pad de la app en PNG; con solo JPG nunca se podía guardar.
+        // Las fotos siguen siendo solo JPG.
+        $esFirma = DB::table('talento_evidence_types')->where('id', (int) $request->input('evidence_type_id'))->value('es_firma');
+
         $request->validate([
-            'foto'             => 'required|file|mimes:jpg,jpeg|max:10240',
+            'foto'             => 'required|file|mimes:' . ($esFirma ? 'png,jpg,jpeg' : 'jpg,jpeg') . '|max:10240',
             'evidence_type_id' => 'required|integer|exists:talento_evidence_types,id',
             'lat'              => 'required|numeric',
             'lng'              => 'required|numeric',
@@ -601,29 +761,27 @@ class TalentoMobileApiController extends Controller
         $filtroFin = $w['end_instant'];
 
         // Unidades facturables — PUNTO ÚNICO DE VERDAD (item #241): reusa countBillableUnits()
-        // (misma fuente que la liquidación y el breakdown del portal: OTs + tasks de campo +
+        // (misma fuente que la liquidación y el breakdown del portal: OTs + órdenes de Talento de campo o internas +
         // puntos de proyecto externo) en vez de recalcular a mano, para que la app móvil muestre
         // exactamente las unidades que se pagan.
         $unidades = app(\App\Modules\Addons\Talento\Services\LiquidationService::class)
             ->countBillableUnits($colaborador->id, $w)['total'];
 
-        // Cuota semanal — talento_compensation_rules (global por target_type)
-        $cuota = DB::table('talento_compensation_rules')
-            ->where('active', true)
-            ->where(function ($q) use ($colaborador) {
-                $q->where('target_type', 'all')
-                  ->orWhere('target_type', $colaborador->tipo ?? $colaborador->role_type ?? 'technician');
-            })
-            ->orderByDesc('id')
-            ->value('weekly_quota_units') ?? 0;
+        // Cuota, sueldo base y sobreproducción: el mismo desglose que el pago (LiquidationService::
+        // breakdown), con la regla asignada a la persona. Antes la cuota salía de la regla global de
+        // técnico (vendedor y mostrador veían 216) y el proyectado solo sumaba el libro de cuentas,
+        // sin sueldo base ni sobreproducción.
+        $desglose = app(\App\Modules\Addons\Talento\Services\LiquidationService::class)
+            ->breakdown($colaborador->id, $w);
+        $cuota = $desglose['quota'];
 
         // Movimientos del ledger esta semana (tabla: talento_ledger_entries)
         $movimientos = DB::table('talento_ledger_entries')
             ->where('colaborador_id', $colaborador->id)
-            ->where(function ($q) use ($inicio, $fin) {
-                $q->whereBetween('period_start', [$inicio, $fin])
-                  ->orWhereBetween('period_end',   [$inicio, $fin]);
-            })
+            // La semana exacta, como el portal web: con "entre inicio y fin" entraban también los
+            // de la semana anterior, porque comparten el sábado de corte.
+            ->where('period_start', $inicio)
+            ->where('period_end', $fin)
             ->orderByDesc('created_at')
             ->get([
                 'id',
@@ -638,26 +796,18 @@ class TalentoMobileApiController extends Controller
             ]))
             ->toArray();
 
-        // Proyectado = CREDITs - DEBITs
-        $proyectado = collect($movimientos)->reduce(function ($carry, $m) {
-            $m = (object)$m;
-            return $carry + ($m->tipo === 'CREDIT' ? (float)$m->monto : -(float)$m->monto);
-        }, 0.0);
+        // Proyectado = lo que pagaría «Calcular» (2026-10-28). Antes sumaba los movimientos del libro
+        // al sueldo base completo: no descontaba faltas, ni el préstamo ni el fondo hasta calcular la
+        // semana. «Otros» es lo que separa el monto del sueldo y la sobreproducción: bonos menos
+        // penalizaciones, préstamo y fondo.
+        $pago       = $desglose['pago'];
+        $proyectado = $pago['a_pagar'];
+        $otros      = $proyectado - $pago['sueldo_base'] - $pago['sobreproduccion'];
 
         // ── Bono de salud de red ──────────────────────────────────────────────
         // Promedio de potencia dBm de evidencias tipo lectura_dbm de la semana
-        $avgDbm = DB::table('talento_work_order_media as m')
-            ->join('talento_evidence_types as et', 'et.id', '=', 'm.evidence_type_id')
-            ->where(function ($q) use ($colaborador) {
-                $q->whereIn('m.work_order_id', function ($sub) use ($colaborador) {
-                    $sub->select('id')->from('talento_work_orders')
-                        ->where('colaborador_id', $colaborador->id);
-                })->orWhereNotNull('m.tarea_id');
-            })
-            ->where('et.es_lectura_dbm', true)
-            ->whereNotNull('m.potencia_dbm')
-            ->whereBetween('m.created_at', [$filtroIni, $filtroFin])
-            ->avg('m.potencia_dbm');
+        $avgDbm = app(\App\Modules\Addons\Talento\Services\CompensacionService::class)
+            ->dbmPromedio($colaborador->id, $w);
 
         $bonoSaludTier  = null;
         $bonoSaludMonto = 0;
@@ -700,6 +850,10 @@ class TalentoMobileApiController extends Controller
             'corte'            => $fin,
             'unidades'         => $unidades,
             'cuota'            => (int)$cuota,
+            'sueldo_base'      => $pago['sueldo_base'],
+            'valor_por_unidad' => $desglose['value_per_unit'],
+            'sobreproduccion'  => $pago['sobreproduccion'],
+            'otros'            => round($otros, 2),
             'proyectado'       => round($proyectado, 2),
             'movimientos'      => $movimientos,
             'bono_salud_red'   => [
@@ -905,14 +1059,34 @@ class TalentoMobileApiController extends Controller
         return response()->json(['message' => 'Sin perfil de colaborador activo.'], 403);
     }
 
+    /**
+     * Quién es la persona, para que la app arme sus pestañas por rol (2026-10-21). Antes leía
+     * columnas que talento_colaboradores no tiene (nombre/tipo/telefono): el nombre llegaba
+     * vacío y todos eran 'technician'. El rol sale de Actor::trackPrincipal(), igual que el
+     * portal web.
+     */
     private function colaboradorPayload(TalentoColaborador $col): array
     {
+        $user  = $col->user;
+        $actor = Actor::for($user);
+        $track = $actor->trackPrincipal();
+
         return [
-            'id'       => $col->id,
-            'nombre'   => trim(($col->nombre ?? '') . ' ' . ($col->apellido ?? '')),
-            'tipo'     => $col->tipo ?? $col->role_type ?? 'technician',
-            'email'    => $col->user?->email,
-            'telefono' => $col->telefono,
+            'id'           => $col->id,
+            'nombre'       => trim(($user?->name ?? '') . ' ' . ($user?->father_last_name ?? '')),
+            'tipo'         => match (true) {
+                str_starts_with($track, 'tecnico_') => 'technician',
+                $track === 'vendedor'               => 'seller',
+                $track === 'mostrador'              => 'counter',
+                default                             => 'generic',
+            },
+            'track'        => $track,
+            'es_tecnico'   => $actor->esTecnico(),
+            'es_vendedor'  => $actor->esVendedorTrack(),
+            'es_mostrador' => $actor->esMostradorTrack(),
+            'tiene_equipo' => $actor->tieneEquipo(),
+            'email'        => $user?->email,
+            'telefono'     => $user?->phone,
         ];
     }
 

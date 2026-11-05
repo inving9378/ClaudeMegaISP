@@ -4,7 +4,6 @@ use App\Modules\Addons\Talento\Controllers\TalentoColaboradorController;
 use App\Modules\Addons\Talento\Controllers\TalentoCustodiaController;
 use App\Modules\Addons\Talento\Controllers\TalentoEmployeeDocumentController;
 use App\Modules\Addons\Talento\Controllers\TalentoDeviceController;
-use App\Modules\Addons\Talento\Controllers\TalentoRoadmapController;
 use App\Modules\Addons\Talento\Controllers\TalentoWorkOrderController;
 use App\Modules\Addons\Talento\Controllers\TalentoCompensacionController;
 use App\Modules\Addons\Talento\Controllers\TalentoLiquidacionController;
@@ -20,7 +19,6 @@ use App\Modules\Addons\Talento\Controllers\TalentoPenaltyController;
 use App\Modules\Addons\Talento\Controllers\TalentoCredentialController;
 use App\Modules\Addons\Talento\Controllers\TalentoLoanSettlementController;
 use App\Modules\Addons\Talento\Controllers\TalentoAcademyController;
-use App\Modules\Addons\Talento\Controllers\TalentoLevelController;
 use App\Modules\Addons\Talento\Controllers\TalentoDashboardController;
 use App\Modules\Addons\Talento\Controllers\TalentoEscalafonController;
 use App\Modules\Addons\Talento\Controllers\TalentoEmbajadoresController;
@@ -29,12 +27,12 @@ use App\Modules\Addons\Talento\Controllers\TalentoMobileApiController;
 use App\Modules\Addons\Talento\Controllers\TalentoMobileEquipoController;
 use App\Modules\Addons\Talento\Controllers\TalentoEvidenciaConfigController;
 use App\Modules\Addons\Talento\Controllers\TalentoPaqueteDocumentoController;
-use App\Modules\Addons\Talento\Controllers\TalentoPuestoController;
 use App\Modules\Addons\Talento\Controllers\TalentoSellerItemsController;
 use App\Modules\Addons\Talento\Controllers\TalentoCajaVendedorController;
 use App\Modules\Addons\Talento\Controllers\TalentoComisionSellerController;
 use App\Modules\Addons\Talento\Controllers\PortalTecnicoController;
 use App\Modules\Addons\Talento\Controllers\TalentoReglaDesempenoController;
+use App\Modules\Addons\Talento\Controllers\TalentoAvisosController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -54,6 +52,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         // /colaborador/{id} por convención de este archivo (fijas antes que
         // con parámetro), aunque aquí no colisionan (prefijos distintos).
         Route::get('/mi-ficha/{id?}', [TalentoColaboradorController::class, 'miFicha']);
+        // Campanita «Nueva tarea asignada» de una orden de Talento (Task::sendNotifications()).
+        Route::get('/aviso/{id}', [TalentoWorkOrderController::class, 'abrirAviso']);
         // NOTA (28-sep): ya NO hay /mi-ficha/{id}/documentos aparte — la
         // pestaña "Paquetes de documentos" de la ficha ahora reusa el MISMO
         // endpoint de siempre (/api/colaboradores/{id}/documentos y sus
@@ -68,11 +68,12 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/api/colaboradores/{id}/progreso', [TalentoColaboradorController::class, 'progreso']);
         Route::get('/custodia',       [TalentoCustodiaController::class,     'index']);
         Route::get('/dispositivos',   [TalentoDeviceController::class,       'index']);
-        Route::get('/roadmap',        [TalentoRoadmapController::class,      'index']);
         Route::get('/ordenes',        [TalentoWorkOrderController::class,    'index']);
         Route::get('/compensacion',   [TalentoCompensacionController::class, 'index']);
         Route::get('/liquidaciones',  [TalentoLiquidacionController::class,  'index']);
-        Route::get('/asistencia',     [TalentoAttendanceController::class,   'index']);
+        // Comprobante de pago de una persona en una semana (PDF de 80 mm para imprimir).
+        Route::get('/liquidaciones/comprobante', [TalentoLiquidacionController::class, 'comprobante']);
+        Route::get('/asistencia',    [TalentoAttendanceController::class,   'index']);
         Route::get('/mapa-en-vivo',   fn() => view('addon-talento::talento.mapa_vivo'));
         Route::get('/sitios',         fn() => view('addon-talento::talento.sitios'));
         Route::get('/campo',          [TalentoFieldFlowController::class,   'index']);
@@ -85,7 +86,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/credenciales',   [TalentoCredentialController::class, 'index']);
         Route::get('/finiquito',      [TalentoLoanSettlementController::class, 'index']);
         Route::get('/academia',       [TalentoAcademyController::class, 'index']);
-        Route::get('/niveles',        [TalentoLevelController::class, 'index']);
         // /dashboard retirado (29-sep) — consolidado dentro de /talento
         // (TalentoColaboradores.vue). Ver TalentoDashboardController.
         Route::get('/escalafon',      [TalentoEscalafonController::class, 'index']);
@@ -94,7 +94,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/ventas/ranking', [TalentoVentasController::class, 'indexRanking']);
         Route::get('/config/evidencias',  [TalentoEvidenciaConfigController::class, 'index']);
         Route::get('/expediente/paquetes', [TalentoPaqueteDocumentoController::class, 'index']);
-        Route::get('/puestos',        [TalentoPuestoController::class, 'index']);
         Route::get('/articulos-vendedor', [TalentoSellerItemsController::class, 'index']);
         Route::get('/caja-vendedor',  [TalentoCajaVendedorController::class, 'index']);
         Route::get('/comisiones',     [TalentoComisionSellerController::class, 'index']);
@@ -114,9 +113,14 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/colaboradores',                  [TalentoColaboradorController::class, 'store']);
             Route::get('/colaboradores/users-disponibles', [TalentoColaboradorController::class, 'usersDisponibles']);
             Route::get('/colaboradores/role-departments',  [TalentoColaboradorController::class, 'roleDepartments']);
+            Route::get('/colaboradores/departamentos',     [TalentoColaboradorController::class, 'departamentos']);
             Route::get('/colaboradores/{id}',              [TalentoColaboradorController::class, 'show']);
             Route::put('/colaboradores/{id}',              [TalentoColaboradorController::class, 'update']);
+            Route::get('/colaboradores/{id}/supervision-historial', [TalentoColaboradorController::class, 'supervisionHistorial']);
             Route::delete('/colaboradores/{id}',           [TalentoColaboradorController::class, 'destroy']);
+            // Carnet: la persona cambia sus datos y su foto; un administrador, los de cualquiera.
+            Route::get('/colaboradores/{id}/carnet',       [TalentoColaboradorController::class, 'carnet']);
+            Route::post('/colaboradores/{id}/carnet',      [TalentoColaboradorController::class, 'actualizarCarnet']);
 
             // ── Custodia (solo lectura) ───────────────────────────────────────
             Route::get('/colaboradores/{id}/custodia',     [TalentoCustodiaController::class, 'show']);
@@ -152,13 +156,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/colaboradores/{id}/regla',       [TalentoCompensacionController::class, 'assignRule']);
             Route::get('/colaboradores/{id}/regla',        [TalentoCompensacionController::class, 'currentRule']);
             Route::get('/colaboradores/{id}/regla/historial', [TalentoCompensacionController::class, 'historyForColaborador']);
+            Route::get('/colaboradores/{id}/metas',        [TalentoCompensacionController::class, 'metasVigentes']);
 
             // ── Avance semanal (endpoint para app) ───────────────────────────
             Route::get('/colaboradores/{id}/avance',       [TalentoLiquidacionController::class, 'avance']);
-
-            // ── Roadmap ───────────────────────────────────────────────────────
-            Route::get('/roadmap',        [TalentoRoadmapController::class, 'data']);
-            Route::put('/roadmap/{id}',   [TalentoRoadmapController::class, 'update']);
 
             // ── Tipos de orden ────────────────────────────────────────────────
             Route::get('/order-types',       [TalentoWorkOrderController::class, 'types']);
@@ -172,10 +173,16 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/prospectos-crm',                   [TalentoWorkOrderController::class, 'prospectosCrm']);
             Route::get('/ordenes',                          [TalentoWorkOrderController::class, 'data']);
             Route::post('/ordenes',                         [TalentoWorkOrderController::class, 'store']);
+            Route::post('/ordenes/asignables',              [TalentoWorkOrderController::class, 'asignables']);
+            Route::get('/ordenes/carga',                    [TalentoWorkOrderController::class, 'carga']);
+            Route::post('/ordenes/{id}/reprogramar',        [TalentoWorkOrderController::class, 'reprogramar'])->whereNumber('id');
+            Route::get('/ordenes/ticket/{ticketId}',        [TalentoWorkOrderController::class, 'ordenesDeTicket']);
             Route::get('/ordenes/{id}',                     [TalentoWorkOrderController::class, 'show']);
             Route::put('/ordenes/{id}',                     [TalentoWorkOrderController::class, 'update']);
             Route::put('/ordenes/{id}/status',              [TalentoWorkOrderController::class, 'changeStatus']);
             Route::post('/ordenes/{id}/validate',           [TalentoWorkOrderController::class, 'validateOrder']);
+            Route::post('/ordenes/{id}/return',             [TalentoWorkOrderController::class, 'returnOrder']);
+            Route::post('/ordenes/{id}/corregir-validada',  [TalentoWorkOrderController::class, 'corregirValidada']);
             Route::post('/ordenes/{id}/actividades',        [TalentoWorkOrderController::class, 'addActivity']);
 
             // ── Reglas de compensación ────────────────────────────────────────
@@ -188,6 +195,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/liquidaciones/calcular',[TalentoLiquidacionController::class, 'calcular']);
             Route::get('/liquidaciones/{id}',     [TalentoLiquidacionController::class, 'show']);
             Route::post('/liquidaciones/{id}/cerrar', [TalentoLiquidacionController::class, 'cerrar']);
+            Route::post('/liquidaciones/{id}/pagar', [TalentoLiquidacionController::class, 'pagar']);
 
             // ── Work Sites ────────────────────────────────────────────────────
             Route::get('/sitios',             [TalentoWorkSiteController::class, 'data']);
@@ -281,6 +289,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::put('/proyectos/{id}/actividades/{actId}',  [TalentoProjectController::class, 'updateActivity']);
 
             // Reportes diarios
+            Route::get('/proyectos/{id}/participantes',                 [TalentoProjectController::class, 'participantes']);
             Route::get('/proyectos/{id}/actividades/{actId}/reportes',  [TalentoProjectController::class, 'listReports']);
             Route::post('/proyectos/{id}/actividades/{actId}/reportes', [TalentoProjectController::class, 'submitReport']);
             Route::post('/project-reports/{reportId}/approve',          [TalentoProjectController::class, 'approveReport']);
@@ -362,6 +371,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
             // ── Academia — Cursos ─────────────────────────────────────────
             Route::get('/courses',                    [TalentoAcademyController::class, 'courses']);
+            Route::get('/courses-roles',              [TalentoAcademyController::class, 'rolesParaCursos']);
             Route::post('/courses',                   [TalentoAcademyController::class, 'storeCourse']);
             Route::get('/courses/{id}',               [TalentoAcademyController::class, 'showCourse']);
             Route::put('/courses/{id}',               [TalentoAcademyController::class, 'updateCourse']);
@@ -386,20 +396,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/colaboradores/{id}/academy-progress',        [TalentoAcademyController::class, 'progressForColaborador']);
             Route::post('/certifications/{id}/revoke',                [TalentoAcademyController::class, 'revokeCertification']);
             Route::get('/colaboradores/{id}/academy-progress',        [TalentoAcademyController::class, 'progressForColaborador']);
-
-            // ── Niveles ───────────────────────────────────────────────────
-            Route::get('/levels',                              [TalentoLevelController::class, 'levelsIndex']);
-            Route::post('/levels',                             [TalentoLevelController::class, 'storeLevel']);
-            Route::put('/levels/{id}',                         [TalentoLevelController::class, 'updateLevel']);
-            Route::get('/colaboradores/{id}/level-eligibility',[TalentoLevelController::class, 'eligibility']);
-            Route::post('/colaboradores/{id}/promote',         [TalentoLevelController::class, 'promote']);
-            Route::get('/colaboradores/{id}/level-history',    [TalentoLevelController::class, 'levelHistory']);
-
-            // ── Gating config ─────────────────────────────────────────────
-            Route::get('/work-order-types',                    [TalentoLevelController::class, 'workOrderTypes']);
-            Route::put('/work-order-types/{id}/level',         [TalentoLevelController::class, 'setWorkOrderTypeLevel']);
-            Route::get('/activity-types-config',               [TalentoLevelController::class, 'activityTypes']);
-            Route::put('/activity-types/{id}/level',           [TalentoLevelController::class, 'setActivityTypeLevel']);
 
             // ── Dashboard / Escalafón ─────────────────────────────────────
             Route::get('/dashboard/info-cards',                [TalentoDashboardController::class, 'infoCards']);
@@ -428,19 +424,11 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/config/evidencias',       [TalentoEvidenciaConfigController::class, 'catalogo']);
             Route::post('/config/evidencias/toggle', [TalentoEvidenciaConfigController::class, 'toggle']);
 
-            // ── Catálogo de puestos (item #923 Fase 3) — select de la ficha de colaborador ──
-            Route::get('/puestos', [TalentoPuestoController::class, 'data']);
-
-            // ── Expediente RH: paquete de documentos por puesto (Hijo D1) ──
+            // ── Expediente RH: paquete de documentos por puesto = rol de Administración (Hijo D1) ──
             Route::get('/expediente/paquetes/puestos',      [TalentoPaqueteDocumentoController::class, 'puestos']);
             Route::get('/expediente/paquetes/templates',    [TalentoPaqueteDocumentoController::class, 'templates']);
             Route::get('/expediente/paquetes/asignaciones', [TalentoPaqueteDocumentoController::class, 'asignaciones']);
             Route::post('/expediente/paquetes/sincronizar',  [TalentoPaqueteDocumentoController::class, 'sincronizar']);
-
-            // ── Catálogo de puestos (item #923 Fase 2) ─────────────────────
-            Route::get('/puestos',           [TalentoPuestoController::class, 'data']);
-            Route::post('/puestos',          [TalentoPuestoController::class, 'store']);
-            Route::put('/puestos/{id}',      [TalentoPuestoController::class, 'update']);
 
             // ── Catálogo de artículos de vendedor (item #9990450, solo lectura, reusa Vendedores/Inventario) ──
             Route::get('/articulos-vendedor', [TalentoSellerItemsController::class, 'data']);
@@ -469,6 +457,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::delete('/caja/proveedores/{id}',             [TalentoCajaVendedorController::class, 'suppliersDestroy']);
 
             Route::get('/caja/instalaciones/{boxId}',           [TalentoCajaVendedorController::class, 'installationsIndex']);
+            Route::post('/caja/instalaciones/{boxId}/sincronizar', [TalentoCajaVendedorController::class, 'installationsSync']);
             Route::post('/caja/instalaciones',                  [TalentoCajaVendedorController::class, 'installationsStore']);
             Route::put('/caja/instalaciones/{id}',              [TalentoCajaVendedorController::class, 'installationsUpdate']);
             Route::delete('/caja/instalaciones/{id}',           [TalentoCajaVendedorController::class, 'installationsDestroy']);
@@ -522,6 +511,14 @@ Route::post('/talento/api/auth/login', [TalentoMobileApiController::class, 'logi
 Route::get('/talento/api/health',       [TalentoMobileApiController::class, 'health'])         ->middleware([]);
 Route::get('/talento/api/app/latest',   [TalentoMobileApiController::class, 'latestRelease'])  ->middleware([]);
 Route::get('/talento/api/app/branding', [TalentoMobileApiController::class, 'appBranding'])    ->middleware([]);
+// 30-oct-2026: el logo de la pantalla de entrada. Es el logo de la empresa, sin datos de nadie; bajo
+// /talento/api para que cargue también desde fuera de la oficina (en /storage nginx pide su contraseña).
+Route::get('/talento/api/app/branding/logo', [TalentoMobileApiController::class, 'appBrandingLogo'])->middleware([]);
+// 29-oct-2026: fondo, reverso y logo del gafete para «Mi credencial» (app 1.21). Imágenes fijas de la
+// empresa, sin datos de nadie; bajo /talento/api para que carguen también desde fuera de la oficina.
+Route::get('/talento/api/credencial/plantilla/{tipo}', [TalentoMobileEquipoController::class, 'credencialPlantillaImagen'])
+    ->whereIn('tipo', ['frontal', 'reverso', 'logo'])
+    ->name('talento.api.credencial.plantilla');
 
 // Aviso de privacidad público — exigido por Google Play antes de aprobar
 // cualquier app que pida permisos de cámara/ubicación, aunque sea de
@@ -537,7 +534,7 @@ Route::get('/legal/privacidad-talento', function () {
 })->middleware([]);
 
 // Rutas protegidas con Sanctum
-Route::middleware(['auth:sanctum'])
+Route::middleware(['auth:sanctum', 'talento.cuenta_activa'])
     ->prefix('talento/api')
     ->group(function () {
         Route::post('/auth/logout',          [TalentoMobileApiController::class, 'logout']);
@@ -548,7 +545,12 @@ Route::middleware(['auth:sanctum'])
         Route::post('/asistencia/checkout',  [TalentoMobileApiController::class, 'checkout']);
         Route::get('/geocodificar',          [TalentoMobileApiController::class, 'geocodificar']);
 
-        Route::get('/ots/historial',                   [TalentoMobileApiController::class, 'otHistorial']);
+        Route::get('/cambios',                         [TalentoMobileApiController::class, 'cambios']);
+        // 3-nov-2026: lo que la app compara para avisar en el teléfono (los avisos los arma la app).
+        Route::get('/avisos',                          [TalentoAvisosController::class, 'estado']);
+        // 5-nov-2026: la pantalla de calendario de la app (solo lo de la persona en sesión).
+        Route::get('/calendario',                      [TalentoMobileApiController::class, 'calendario']);
+        Route::get('/ots/historial',                  [TalentoMobileApiController::class, 'otHistorial']);
         Route::get('/ots/hoy',                        [TalentoMobileApiController::class, 'otsHoy']);
         Route::get('/ots/{id}',                       [TalentoMobileApiController::class, 'otShow']);
         Route::get('/ots/{id}/tipos-evidencia',       [TalentoMobileApiController::class, 'tiposEvidencia']);
@@ -569,9 +571,21 @@ Route::middleware(['auth:sanctum'])
         // en la app — uno mismo o, si se pasa ?colaborador_id=, el equipo del
         // supervisor o staff (mismo criterio puedeVer() en TODOS los endpoints).
         Route::get('/portal/equipo',            [TalentoMobileEquipoController::class, 'miEquipo']);
+        // 2026-10-21: Mi progreso (regla semanal) y penalizaciones del equipo para el supervisor.
+        Route::get('/portal/progreso',          [TalentoMobileEquipoController::class, 'progreso']);
+        Route::get('/portal/equipo/progreso',   [TalentoMobileEquipoController::class, 'equipoProgreso']);
+        Route::get('/portal/equipo/penalizaciones', [TalentoMobileEquipoController::class, 'equipoPenalizaciones']);
+        Route::post('/portal/equipo/penalizaciones/{id}/confirmar', [TalentoMobileEquipoController::class, 'equipoConfirmarPenalizacion'])->whereNumber('id');
         Route::get('/portal/informacion',       [TalentoMobileEquipoController::class, 'informacion']);
         Route::get('/portal/compensacion',      [TalentoMobileEquipoController::class, 'compensacion']);
         Route::get('/portal/liquidaciones',     [TalentoMobileEquipoController::class, 'liquidaciones']);
+        // 30-oct-2026: la pantalla «Liquidaciones» de la web en la app (cuánto cobra cada quien,
+        // Calcular, Ver, Cerrar y el comprobante), con los mismos permisos que la web.
+        Route::get('/portal/liquidaciones/lista',           [TalentoMobileEquipoController::class, 'liquidacionesLista']);
+        Route::get('/portal/liquidaciones/comprobante-url', [TalentoMobileEquipoController::class, 'liquidacionComprobanteUrl']);
+        Route::post('/portal/liquidaciones/calcular',       [TalentoMobileEquipoController::class, 'liquidacionCalcular']);
+        Route::get('/portal/liquidaciones/{id}',            [TalentoMobileEquipoController::class, 'liquidacionDetalle'])->whereNumber('id');
+        Route::post('/portal/liquidaciones/{id}/cerrar',    [TalentoMobileEquipoController::class, 'liquidacionCerrar'])->whereNumber('id');
         Route::get('/portal/asistencia',        [TalentoMobileEquipoController::class, 'asistencia']);
         Route::get('/portal/cajas',             [TalentoMobileEquipoController::class, 'cajas']);
         Route::get('/portal/rutas',             [TalentoMobileEquipoController::class, 'rutas']);
@@ -613,28 +627,29 @@ Route::middleware(['auth:sanctum'])
     });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Portal Técnico Web (PWA) — versión web de la app de campo.
+// Portal de Colaborador — endpoints self-scoped (sus pantallas viven en la ficha de Talento).
 // Sesión Medussa (guard web) + permiso portal.colaborador (base de colaborador). Reutiliza la
 // misma capa de servicios que /talento/api. Fuera del grupo check_route_permission
-// a propósito: usa `can:` directo. Shell propio (no toca el sidebar admin).
+// a propósito: usa `can:` directo.
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Assets PWA públicos — los pide el navegador (registro del SW / manifest) y no
-// son sensibles; fuera de auth para evitar redirecciones a login en el fetch.
-Route::get('/talento/portal/manifest.webmanifest', [PortalTecnicoController::class, 'manifest'])->middleware('web');
-Route::get('/talento/portal/sw.js',                [PortalTecnicoController::class, 'serviceWorker'])->middleware('web');
+// El shell PWA se retiró (2026-10-23): todo está en la ficha de Talento. Queda el service worker
+// de baja para quien instaló el Portal en el celular (público: lo pide el navegador sin sesión).
+Route::get('/talento/portal/sw.js', [PortalTecnicoController::class, 'serviceWorker'])->middleware('web');
 
-// Shell + preferencias (sesión + permiso).
+// Endpoints de las pestañas «Mi día», «Mi dinero», «Mis prospectos» y «Mi equipo» de la ficha.
 Route::middleware(['web', 'auth', 'can:portal.colaborador'])
     ->prefix('talento/portal')
     ->group(function () {
-        Route::get('/',                   [PortalTecnicoController::class, 'index']);
-        Route::post('/preferencias/tema', [PortalTecnicoController::class, 'saveTheme']);
+        // Antes el shell; ahora lleva a «Mi día» de la propia ficha.
+        Route::get('/', [PortalTecnicoController::class, 'index']);
 
         // Mi día — asistencia (delegan en AttendanceService).
         Route::get('/asistencia/hoy',      [PortalTecnicoController::class, 'asistenciaHoy']);
         Route::post('/asistencia/checkin', [PortalTecnicoController::class, 'checkin'])->name('talento.portal.asistencia.checkin');
         Route::post('/asistencia/checkout',[PortalTecnicoController::class, 'checkout'])->name('talento.portal.asistencia.checkout');
+        // Sin ubicación del navegador: se escribe dónde está (misma búsqueda que la app).
+        Route::get('/geocodificar',        [TalentoMobileApiController::class, 'geocodificar']);
 
         // Mi día — OTs del día (delega en OrdenTrabajoUnifiedService::summaryForHoy).
         Route::get('/ots/hoy', [PortalTecnicoController::class, 'otsHoy']);
@@ -661,6 +676,8 @@ Route::middleware(['web', 'auth', 'can:portal.colaborador'])
         Route::get('/mi-calidad',       [PortalTecnicoController::class, 'miCalidad']);
         Route::get('/mi-progreso-mostrador', [PortalTecnicoController::class, 'miProgresoMostrador']);
         Route::get('/mi-equipo-progreso', [PortalTecnicoController::class, 'miEquipoProgreso']);
+        Route::get('/equipo/penalizaciones', [PortalTecnicoController::class, 'equipoPenalizaciones']);
+        Route::post('/equipo/penalizaciones/{id}/confirmar', [PortalTecnicoController::class, 'equipoConfirmarPenalizacion'])->where('id', '[0-9]+');
 
         // Mis documentos (expediente) — self-scoped por Actor. Item #9990813.
         Route::middleware('can:talento.documentos.ver-propios')->group(function () {
@@ -681,6 +698,8 @@ Route::middleware(['web', 'auth', 'can:portal.colaborador'])
             ->whereIn('origen', ['work_order', 'task'])->whereNumber('id');
         Route::post('/ot/{origen}/{id}/completar', [PortalTecnicoController::class, 'completarOt'])
             ->whereIn('origen', ['work_order', 'task'])->whereNumber('id');
+        // Reprogramar una orden propia con motivo (item #1158): lo atrasado no se queda atrás.
+        Route::post('/ot/task/{id}/reprogramar', [PortalTecnicoController::class, 'reprogramarOt'])->whereNumber('id');
 
         // Evidencia anti-fraude (cámara viva; watermark quemado por el servidor).
         Route::post('/ot/{origen}/{id}/evidencia', [PortalTecnicoController::class, 'subirEvidenciaOt'])
@@ -701,7 +720,24 @@ Route::middleware(['web', 'auth', 'can:portal.colaborador'])
 // asi que se protege SOLO con el middleware `signed` de Laravel: el link se
 // genera ya autorizado desde el endpoint Sanctum (ver
 // TalentoMobileEquipoController::credencialPdfUrl) y expira en 10 minutos.
-Route::get('/talento/colaborador/{id}/credencial-firmada', [TalentoColaboradorController::class, 'pdfFirmado'])
+// 29-oct-2026: bajo /talento/api/ para que abra también desde fuera de la oficina (nginx ya
+// deja pasar esa ruta sin su contraseña; aquí la protección sigue siendo la firma).
+Route::get('/talento/api/colaborador/{id}/credencial-firmada', [TalentoColaboradorController::class, 'pdfFirmado'])
     ->middleware('signed')
     ->whereNumber('id')
     ->name('talento.colaborador.pdf.firmado');
+// 30-oct-2026: el comprobante de pago abierto desde la app, con la misma protección (firma, 10 minutos).
+Route::get('/talento/api/comprobante-pago-firmado', [TalentoLiquidacionController::class, 'comprobanteFirmado'])
+    ->middleware('signed')
+    ->name('talento.liquidacion.comprobante.firmado');
+// 29-oct-2026: la foto de "Mi credencial" en la app, con la misma protección (firma, 1 hora).
+Route::get('/talento/api/colaborador/{id}/foto-firmada', [TalentoColaboradorController::class, 'fotoFirmada'])
+    ->middleware('signed')
+    ->whereNumber('id')
+    ->name('talento.colaborador.foto.firmada');
+// 30-oct-2026: las imágenes de referencia de los cursos en la app, con la misma protección (firma, 1 hora).
+Route::get('/talento/api/curso-imagen-firmada/{tipo}/{id}', [TalentoMobileEquipoController::class, 'cursoImagenFirmada'])
+    ->middleware('signed')
+    ->whereIn('tipo', ['estandar', 'penalizacion'])
+    ->whereNumber('id')
+    ->name('talento.curso.imagen.firmada');

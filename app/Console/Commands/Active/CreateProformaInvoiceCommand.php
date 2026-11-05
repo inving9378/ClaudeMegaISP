@@ -181,7 +181,7 @@ class CreateProformaInvoiceCommand extends Command
                 return null;
             }
 
-            $montos = (new ClientRepository())->calculateAmounts($cliente);
+            $montos = (new ClientRepository())->calculateAmounts($cliente, $periodo);
 
             $data = [
                 'number' => $this->invoiceService->generateInvoiceNumber(),

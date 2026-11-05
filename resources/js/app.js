@@ -23,6 +23,7 @@ import BundleCrud from "./components/module/planes/BundleCrud";
 //CRM
 import CrmCrud from "./components/module/crm/CrmCrud";
 import AddCrmCrud from "./components/module/crm/AddCrmCrud";
+import CrmExpedienteTab from "./components/module/crm/expediente/CrmExpedienteTab.vue";
 import ConvertToClient from "./components/module/crm/components/ConvertToClient";
 import CrmDatatable from "./components/module/crm/CrmDatatable";
 import CrmOrphanDocuments from "./components/module/crm/CrmOrphanDocuments.vue";
@@ -73,6 +74,7 @@ import ContratablesClientTab from "./components/module/planes/ContratablesClient
 
 //Configuracion
 import CatalogoApiPanel from "./components/module/configuracion/CatalogoApiPanel.vue";
+import MonitoreoDedicadosConfig from "./components/module/setting/MonitoreoDedicadosConfig.vue";
 import EnviosAutomaticos from "./components/module/setting/finance/envios/EnviosAutomaticos.vue";
 import EnviosColaDetalle from "./components/module/setting/finance/envios/EnviosColaDetalle.vue";
 import TicketCaja from "./components/module/client/billing/payment/TicketCaja.vue";
@@ -171,15 +173,16 @@ import FleetGeofenceForm from "./components/module/flotas/FleetGeofenceForm.vue"
 import FleetGeofenceShow from "./components/module/flotas/FleetGeofenceShow.vue";
 import FleetNotificationLog from "./components/module/flotas/FleetNotificationLog.vue";
 import FleetRuleList from "./components/module/flotas/FleetRuleList.vue";
+import CrmeServicios from "./components/module/crm-empresarial/CrmeServicios.vue";
 import FleetExpenseComparison from "./components/module/flotas/FleetExpenseComparison.vue";
 import FleetDocumentsDashboard from "./components/module/flotas/FleetDocumentsDashboard.vue";
 import FleetClientPlanTab from "./components/module/flotas/FleetClientPlanTab.vue";
 import FleetSubscriptionDashboard from "./components/module/flotas/FleetSubscriptionDashboard.vue";
+import FleetClientsAdmin from "./components/module/flotas/FleetClientsAdmin.vue";
 import TalentoColaboradores from "./components/module/talento/TalentoColaboradores.vue";
 import TalentoColaboradorFicha from "./components/module/talento/TalentoColaboradorFicha.vue";
 import TalentoCustodia from "./components/module/talento/TalentoCustodia.vue";
 import TalentoDispositivos from "./components/module/talento/TalentoDispositivos.vue";
-import TalentoRoadmap from "./components/module/talento/TalentoRoadmap.vue";
 import TalentoOrdenes from "./components/module/talento/TalentoOrdenes.vue";
 import TalentoCompensacion from "./components/module/talento/TalentoCompensacion.vue";
 import TalentoLiquidaciones from "./components/module/talento/TalentoLiquidaciones.vue";
@@ -196,7 +199,6 @@ import TalentoReglasDesempeno from "./components/module/talento/TalentoReglasDes
 import TalentoCredenciales from "./components/module/talento/TalentoCredenciales.vue";
 import TalentoFiniquito from "./components/module/talento/TalentoFiniquito.vue";
 import TalentoAcademia from "./components/module/talento/TalentoAcademia.vue";
-import TalentoNiveles from "./components/module/talento/TalentoNiveles.vue";
 import TalentoDashboard from "./components/module/talento/TalentoDashboard.vue";
 import TalentoEscalafon from "./components/module/talento/TalentoEscalafon.vue";
 import TalentoEmbajadores from "./components/module/talento/TalentoEmbajadores.vue";
@@ -204,7 +206,6 @@ import TalentoVentas from "./components/module/talento/TalentoVentas.vue";
 import TalentoVentasRanking from "./components/module/talento/TalentoVentasRanking.vue";
 import TalentoEvidenciaConfig from "./components/module/talento/TalentoEvidenciaConfig.vue";
 import TalentoPaqueteDocumentos from "./components/module/talento/TalentoPaqueteDocumentos.vue";
-import TalentoPuestos from "./components/module/talento/TalentoPuestos.vue";
 import TalentoExpedienteDocumentos from "./components/module/talento/TalentoExpedienteDocumentos.vue";
 import TalentoArticulosVendedor from "./components/module/talento/TalentoArticulosVendedor.vue";
 import TalentoCajaVendedor from "./components/module/talento/TalentoCajaVendedor.vue";
@@ -545,6 +546,7 @@ const app = createApp({
         MapaRedCatalogos,
 
         CatalogoApiPanel,
+        MonitoreoDedicadosConfig,
         EnviosAutomaticos,
         EnviosColaDetalle,
         TicketCaja,
@@ -648,15 +650,15 @@ const app = createApp({
         'mikrotik-sync-dashboard': MikrotikSyncDashboard,
         'discrepancias-sn-report': DiscrepanciasSnReport,
         'fleet-rule-list': FleetRuleList,
+        'crme-servicios': CrmeServicios,
         'fleet-expense-comparison': FleetExpenseComparison,
         'fleet-documents-dashboard': FleetDocumentsDashboard,
-        'FleetClientPlanTab': FleetClientPlanTab,
         'fleet-subscription-dashboard': FleetSubscriptionDashboard,
+        'fleet-clients-admin': FleetClientsAdmin,
         'talento-colaboradores': TalentoColaboradores,
         'talento-colaborador-ficha': TalentoColaboradorFicha,
         'talento-custodia': TalentoCustodia,
         'talento-dispositivos': TalentoDispositivos,
-        'talento-roadmap': TalentoRoadmap,
         'talento-ordenes': TalentoOrdenes,
         'talento-compensacion': TalentoCompensacion,
         'talento-liquidaciones': TalentoLiquidaciones,
@@ -673,7 +675,6 @@ const app = createApp({
         'talento-credenciales': TalentoCredenciales,
         'talento-finiquito': TalentoFiniquito,
         'talento-academia': TalentoAcademia,
-        'talento-niveles': TalentoNiveles,
         'talento-dashboard': TalentoDashboard,
         'talento-escalafon': TalentoEscalafon,
         'talento-embajadores': TalentoEmbajadores,
@@ -681,7 +682,6 @@ const app = createApp({
         'talento-ventas-ranking': TalentoVentasRanking,
         'talento-evidencia-config': TalentoEvidenciaConfig,
         'talento-paquete-documentos': TalentoPaqueteDocumentos,
-        'talento-puestos': TalentoPuestos,
         'talento-articulos-vendedor': TalentoArticulosVendedor,
         'talento-caja-vendedor': TalentoCajaVendedor,
         'talento-comisiones': TalentoComisiones,
@@ -986,6 +986,9 @@ app.component("MegaFamiliaClientTab", MegaFamiliaClientTab);
 app.component("DomiciliacionClientTab", DomiciliacionClientTab);
 app.component("ContratablesClientTab", ContratablesClientTab);
 app.component("EmbajadoresClientTab", EmbajadoresClientTab);
+app.component("FleetClientPlanTab", FleetClientPlanTab);
+// Pestaña Expediente de la ficha CRM (crm_tab de CrmEmpresarial, item #963).
+app.component("CrmExpedienteTab", CrmExpedienteTab);
 
 // Item #9990358: TalentoExpedienteDocumentos es global porque lo usa TalentoColaboradores.vue
 // (descendiente) dentro de su modal de Documentos.

@@ -2,6 +2,8 @@ import axios from "axios";
 
 export const listInstallations = async (id) => {
     let result = null;
+    // I3: la sincronización es una acción explícita e idempotente; listar ya no escribe.
+    await axios.post(`/sellers/cuts/installations-sync/${id}`).catch(() => {});
     await axios
         .post(`/sellers/cuts/installations-list/${id}`)
         .then((res) => {

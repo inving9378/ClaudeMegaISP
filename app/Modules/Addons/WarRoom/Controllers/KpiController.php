@@ -486,7 +486,9 @@ class KpiController extends Controller
         return [
             'period_current'       => $current,
             'period_previous'      => $previous,
-            'clientes_activos'     => DB::table('clients')->whereNull('deleted_at')->count(),
+            'clientes_activos'     => DB::table('clients')->whereNull('clients.deleted_at')
+                ->whereExists(fn ($q) => $q->select(DB::raw(1))->from('client_main_information as cmi')
+                    ->whereColumn('cmi.client_id', 'clients.id')->where('cmi.estado', 'Activo'))->count(),
             'tickets_sin_internet' => $ticketsSinInternet,
             'ppoe_activos'         => $ppoeActivos,
             'olt_uso'              => $oltUso,
@@ -644,7 +646,7 @@ class KpiController extends Controller
         [$cy, $cm] = explode('-', $current);
         $today = now()->toDateString();
 
-        $activeColabs = TalentoColaborador::where('status', 'active')->count();
+        $activeColabs = TalentoColaborador::activos()->count();
 
         $checkedInToday = TalentoAttendance::whereDate('check_in_at', $today)
             ->whereNull('check_out_at')

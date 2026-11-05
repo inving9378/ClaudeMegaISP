@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Talento\Services;
 
+use App\Modules\Addons\Talento\Models\TalentoCompensationRule;
 use App\Modules\Addons\Talento\Models\TalentoAttendance;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoCompensationRuleHistory;
@@ -9,6 +10,7 @@ use App\Modules\Addons\Talento\Models\TalentoCredential;
 use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
 use App\Modules\Addons\Talento\Models\TalentoRouteDeviation;
 use App\Modules\Addons\Talento\Models\TalentoWeeklyRuleEvaluation;
+use App\Models\Task;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -27,13 +29,15 @@ class DashboardService
     {
         $today = now()->toDateString();
 
-        $activeColaboradores = TalentoColaborador::where('status', 'active')->count();
+        $activeColaboradores = TalentoColaborador::activos()->count();
 
         $checkedInToday = TalentoAttendance::whereDate('check_in_at', $today)
             ->whereNull('check_out_at')
             ->count();
 
-        $ordersToday = TalentoWorkOrder::whereDate('created_at', $today)->count();
+        // Las de la tabla vieja y las de tasks (donde se crean desde 2026-09).
+        $ordersToday = TalentoWorkOrder::whereDate('created_at', $today)->count()
+            + Task::whereNotNull('talento_type_id')->whereDate('created_at', $today)->count();
 
         // Alertas: credenciales expiring/expired
         $credAlerts = TalentoCredential::whereIn('status', ['expiring', 'expired'])->count();
@@ -85,6 +89,29 @@ class DashboardService
         }
 
         $rows = $q->get();
+
+        // 2026-10-27: las órdenes de Talento que viven en tasks (las que se crean hoy) no se
+        // contaban. Mismo criterio de "validada" que el pago (LiquidationService::countBillableUnits).
+        $tq = Task::query()
+            ->whereNotNull('tasks.talento_type_id')
+            ->where('tasks.status', 'Done')
+            ->whereBetween('tasks.validated_at', [$from, $to])
+            ->join('talento_work_order_types as t', 't.id', '=', 'tasks.talento_type_id')
+            ->select(
+                DB::raw('DATE(tasks.validated_at) as day'),
+                't.category',
+                't.name as type_name',
+                'tasks.is_billable',
+                DB::raw('COUNT(*) as total')
+            )
+            ->groupBy('day', 't.category', 't.name', 'tasks.is_billable');
+
+        if ($colaboradorId) {
+            $userId = TalentoColaborador::whereKey($colaboradorId)->value('user_id');
+            $tq->whereHas('users', fn ($u) => $u->where('users.id', $userId ?: 0));
+        }
+
+        $rows = $rows->concat($tq->get());
 
         // Build date range
         $dates = [];
@@ -168,6 +195,9 @@ class DashboardService
             'period_days'            => $dias,
             'trabajos_asignados'     => $trabajosAsignados,
             'completados'            => $completados,
+            // Avance operativo = completados; unidades reconocidas = solo las validadas (las que se pagan).
+            'avance_operativo'       => $completados,
+            'unidades_reconocidas'   => array_sum($serie['instalaciones']) + $garantiasBillable,
             'garantias_billable'     => $garantiasBillable,
             'garantias_non_billable' => $garantiasNonBillable,
             'calidad_pct'            => $calidadPct,
@@ -267,8 +297,9 @@ class DashboardService
         $reglas = $evaluaciones->map(fn ($e) => [
             'metric_type'          => $e->rule?->metric_type,
             'regla_nombre'         => $e->rule?->name,
-            'week_start'           => $e->week_start,
-            'week_end'             => $e->week_end,
+            // Solo la fecha: el cast 'date' se serializaba como "2026-10-10T06:00:00.000000Z".
+            'week_start'           => $e->week_start?->toDateString(),
+            'week_end'             => $e->week_end?->toDateString(),
             'outcome'              => $e->outcome,
             'prospects_count'      => $e->prospects_count,
             'sales_count'          => $e->sales_count,
@@ -386,11 +417,15 @@ class DashboardService
      * tiene supervisor_id poblado — el nivel "mi equipo" saldrá vacío hasta que se asignen
      * supervisores en el organigrama real; es honesto reflejar eso, no inventar datos.
      */
-    public function equipoProgreso(int $supervisorColaboradorId, bool $verTodo, int $dias = 30): array
+    public function equipoProgreso(?int $supervisorColaboradorId, bool $verTodo, int $dias = 30): array
     {
-        $query = TalentoColaborador::with('user')->where('status', 'active');
+        $query = TalentoColaborador::with('user')->activos()
+            // MEGAISP (usuario de sistema) tiene ficha solo para firmar penalizaciones que
+            // confirma un admin sin ficha; no es parte de ningún equipo.
+            ->whereDoesntHave('user', fn ($q) => $q->where('is_system', true));
         if ($verTodo) {
-            $query->where('id', '!=', $supervisorColaboradorId);
+            // null = super admin sin ficha propia: no hay a quién excluir.
+            $query->when($supervisorColaboradorId, fn ($q, $id) => $q->where('id', '!=', $id));
         } else {
             $query->where('supervisor_id', $supervisorColaboradorId);
         }
@@ -444,7 +479,7 @@ class DashboardService
 
     public function tecnicoPreview(int $colaboradorId, ?string $periodStart = null, ?string $periodEnd = null): array
     {
-        $colaborador = TalentoColaborador::with('level')->findOrFail($colaboradorId);
+        $colaborador = TalentoColaborador::findOrFail($colaboradorId);
 
         // Ventana de pago (PayWeek): semana completa alineada al motor (corte 18:00).
         $w           = $periodStart
@@ -461,20 +496,28 @@ class DashboardService
             ->value('data');
 
         $baseSalary  = $ruleSnapshot ? (float)($ruleSnapshot['base_salary']        ?? 0) : 0.0;
-        $weeklyQuota = $ruleSnapshot ? (int)($ruleSnapshot['weekly_quota_units']   ?? 0) : 0;
+        $weeklyQuota = $ruleSnapshot ? TalentoCompensationRule::cuotaSemanal($ruleSnapshot) : 0;
 
-        $internalUnits = (int) TalentoWorkOrder::where('colaborador_id', $colaboradorId)
-            ->validatedBillable()
-            ->whereBetween('validated_at', [$filterStart, $filterEnd])
-            ->sum('points');
+        if (config('unificacion.interruptores.unidades_unicas')) {
+            // Mismo conteo que la liquidación y el desglose (órdenes viejas + tasks + proyecto).
+            $u              = app(LiquidationService::class)->countBillableUnits($colaboradorId, $w);
+            $internalUnits  = $u['wo'] + $u['task'];
+            $externalPoints = $u['external'];
+            $totalUnits     = $u['total'];
+        } else {
+            $internalUnits = (int) TalentoWorkOrder::where('colaborador_id', $colaboradorId)
+                ->validatedBillable()
+                ->whereBetween('validated_at', [$filterStart, $filterEnd])
+                ->sum('points');
 
-        $externalPoints = $this->projectSvc->pointsForColaboradorInPeriod(
-            $colaboradorId,
-            $start->toDateString(),
-            $end->toDateString()
-        );
+            $externalPoints = $this->projectSvc->pointsForColaboradorInPeriod(
+                $colaboradorId,
+                $start->toDateString(),
+                $end->toDateString()
+            );
 
-        $totalUnits = (int) round($internalUnits + $externalPoints);
+            $totalUnits = (int) round($internalUnits + $externalPoints);
+        }
 
         $periodDays = (int) round($filterStart->diffInHours($filterEnd) / 24); // 7 (legacy y nueva)
         $absentDays = TalentoAttendance::where('colaborador_id', $colaboradorId)
@@ -539,7 +582,6 @@ class DashboardService
                 'loan_deductions'    => round($loanTotal, 2),
             ],
             'gross_pay'        => $grossPay,
-            'level'            => $colaborador->level ? ['name' => $colaborador->level->name, 'rank' => $colaborador->level->rank] : null,
             'recent_orders'    => $recentOrders,
         ];
     }
@@ -557,7 +599,7 @@ class DashboardService
             ->value('data');
 
         $baseSalary  = $ruleSnapshot ? (float)($ruleSnapshot['base_salary']        ?? 0) : 0.0;
-        $weeklyQuota = $ruleSnapshot ? (int)($ruleSnapshot['weekly_quota_units']   ?? 0) : 0;
+        $weeklyQuota = $ruleSnapshot ? TalentoCompensationRule::cuotaSemanal($ruleSnapshot) : 0;
 
         $overproductionPaid = 0.0;
         $valuePerUnit       = $weeklyQuota > 0 ? round($baseSalary / $weeklyQuota, 4) : 0.0;
@@ -593,9 +635,9 @@ class DashboardService
     {
         $colaborador = TalentoColaborador::findOrFail($supervisorColaboradorId);
 
-        $equipo = TalentoColaborador::with(['user', 'level'])
+        $equipo = TalentoColaborador::with('user')
             ->where('supervisor_id', $colaborador->id)
-            ->where('status', 'active')
+            ->activos()
             ->get();
 
         $w           = \App\Modules\Addons\Talento\Support\PayWeek::current();
@@ -604,7 +646,7 @@ class DashboardService
         $filterStart = $w['start_instant'];
         $filterEnd   = $w['end_instant'];
 
-        $members = $equipo->map(function ($member) use ($start, $end, $filterStart, $filterEnd) {
+        $members = $equipo->map(function ($member) use ($start, $end, $filterStart, $filterEnd, $w) {
             // Lightweight: only units + pay, no full desglose
             $ruleSnapshot = TalentoCompensationRuleHistory::where('colaborador_id', $member->id)
                 ->where('assigned_at', '<=', $end)
@@ -612,12 +654,14 @@ class DashboardService
                 ->value('data');
 
             $baseSalary  = $ruleSnapshot ? (float)($ruleSnapshot['base_salary']        ?? 0) : 0.0;
-            $weeklyQuota = $ruleSnapshot ? (int)($ruleSnapshot['weekly_quota_units']   ?? 0) : 0;
+            $weeklyQuota = $ruleSnapshot ? TalentoCompensationRule::cuotaSemanal($ruleSnapshot) : 0;
 
-            $units = (int) TalentoWorkOrder::where('colaborador_id', $member->id)
-                ->validatedBillable()
-                ->whereBetween('validated_at', [$filterStart, $filterEnd])
-                ->sum('points');
+            $units = config('unificacion.interruptores.unidades_unicas')
+                ? app(LiquidationService::class)->countBillableUnits($member->id, $w)['total']
+                : (int) TalentoWorkOrder::where('colaborador_id', $member->id)
+                    ->validatedBillable()
+                    ->whereBetween('validated_at', [$filterStart, $filterEnd])
+                    ->sum('points');
 
             $quotaPct = $weeklyQuota > 0 ? round(($units / $weeklyQuota) * 100, 1) : null;
 
@@ -627,7 +671,6 @@ class DashboardService
             return [
                 'id'           => $member->id,
                 'name'         => $member->user?->name ?? '—',
-                'level'        => $member->level?->name,
                 'units'        => $units,
                 'quota'        => $weeklyQuota,
                 'quota_pct'    => $quotaPct,

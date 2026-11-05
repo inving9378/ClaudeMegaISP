@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Talento\Controllers;
 
+use App\Support\AccesoSellerPropio;
 use App\Http\Controllers\Controller;
 use App\Http\Traits\PaymentsTrait;
 use App\Models\CompanyInformation as LegacyCompanyInformation;
@@ -50,6 +51,7 @@ class TalentoComisionSellerController extends Controller
 
     private function resolveSeller(int $colaboradorId): Seller|JsonResponse
     {
+        AccesoSellerPropio::colaborador($colaboradorId);
         $seller = SellerResolver::forColaborador($colaboradorId);
         if (! $seller) {
             return response()->json([
@@ -78,6 +80,19 @@ class TalentoComisionSellerController extends Controller
                 'commissions_rules.period',
             ]);
 
+        if (config('unificacion.interruptores.regla_efectiva_i2')) {
+            // UNI-T I2 (#894): la regla que el pago realmente aplica es la última de
+            // history_sellers_rules; se señala si difiere de las asignadas que se muestran.
+            $hist = \App\Models\HistorySellerRule::where('seller_id', $seller->id)->latest()->first();
+            $efectiva = $hist ? \App\Models\CommissionRule::find($hist->rule_id) : null;
+            $diverge = $hist ? ! $rules->contains('id', $hist->rule_id) || $rules->count() > 1 : $rules->isNotEmpty();
+            return response()->json([
+                'data'            => $rules,
+                'regla_efectiva'  => $efectiva ? $efectiva->only(['id', 'name', 'commission_percentage', 'fixed_salary', 'is_fixed_salary', 'period']) : null,
+                'diverge'         => $diverge,
+            ]);
+        }
+
         return response()->json($rules);
     }
 
@@ -88,49 +103,7 @@ class TalentoComisionSellerController extends Controller
         $seller = $this->resolveSeller($colaboradorId);
         if ($seller instanceof JsonResponse) return $seller;
 
-        $user = $seller->user;
-        $service = new CalculateBalanceSellerService();
-        $contracts = DurationContract::all();
-        $fromDate = $seller->created_at;
-        $itemsOfPeriod = $service->getPeriodFromType('week', $fromDate);
-        $appliedCommisions = ['fixed_salary', 'sales_commission', 'additional_sales_commissions', 'distributors_commission'];
-
-        $currentBalance = 0;
-        foreach ($itemsOfPeriod as $p) {
-            foreach ($appliedCommisions as $commission) {
-                $details = $service->getSalaryFromRange('week', $user, $p['from'], $p['to'], null, $contracts, $commission);
-                if ($details['salary'] > 0) {
-                    $currentBalance += $details['salary'];
-                }
-            }
-        }
-
-        $years = range(2024, Carbon::now()->year);
-        foreach ($years as $y) {
-            $itemsOfPeriod = $service->getPeriodFromType('month', $fromDate, $y);
-            foreach ($itemsOfPeriod as $p) {
-                $from = $p['from'];
-                $to = Carbon::createFromFormat('Y-m-d', $p['to']);
-                if (Carbon::createFromFormat('Y-m-d', $from)->gte(Carbon::createFromFormat('Y-m-d', '2024-06-01')) && $to->lte(Carbon::now())) {
-                    $details = $service->getMonthlyBonusFromRange($user, $from, $p['to']);
-                    if ($details['salary'] > 0) {
-                        $currentBalance += $details['salary'];
-                    }
-                }
-            }
-        }
-
-        $expenses = PaymentByRuleDetails::whereHas('payment', fn($q) => $q->where('seller_id', $seller->id))->sum('amount');
-        $debt = $seller->getTotalDebtBySales();
-        $discountBySales = $seller->getTotalDiscountBySales();
-
-        return response()->json([
-            'income'          => number_format($currentBalance + $expenses, 2, '.', ''),
-            'expenses'        => number_format($expenses + $discountBySales, 2, '.', ''),
-            'debt'            => number_format($debt, 2, '.', ''),
-            'current_balance' => number_format($currentBalance - $discountBySales, 2, '.', ''),
-            'discount'        => $discountBySales,
-        ]);
+        return response()->json(app(\App\Modules\Addons\Talento\Services\SellerStatementService::class)->resumen($seller));
     }
 
     // ── Comisiones pendientes de cobrar (por periodo) ────────────────────────
@@ -198,6 +171,10 @@ class TalentoComisionSellerController extends Controller
 
     public function registerPayment(Request $request, int $colaboradorId)
     {
+        if (config('unificacion.interruptores.comisiones_pago_b3a')) {
+            abort_unless(auth()->user()?->can('talento.comisiones.registrar_pago'), 403, 'No tienes permiso para registrar pagos de comisión.');
+        }
+
         $seller = $this->resolveSeller($colaboradorId);
         if ($seller instanceof JsonResponse) return $seller;
 
@@ -301,6 +278,7 @@ class TalentoComisionSellerController extends Controller
 
     public function paymentReceiptPdf(int $paymentId)
     {
+        AccesoSellerPropio::vendedor(PaymentByRule::whereKey($paymentId)->value('seller_id'));
         $payment = PaymentByRule::findOrFail($paymentId);
         $user = $payment->user->getClientNameWithFathersNamesAttribute();
         $seller = $payment->seller->user->getClientNameWithFathersNamesAttribute();
@@ -354,6 +332,10 @@ class TalentoComisionSellerController extends Controller
 
     public function collectDebt(Request $request, int $colaboradorId)
     {
+        if (config('unificacion.interruptores.comisiones_pago_b3a')) {
+            abort_unless(auth()->user()?->can('talento.comisiones.registrar_pago'), 403, 'No tienes permiso para registrar pagos de comisión.');
+        }
+
         $seller = $this->resolveSeller($colaboradorId);
         if ($seller instanceof JsonResponse) return $seller;
 
@@ -388,6 +370,7 @@ class TalentoComisionSellerController extends Controller
 
     public function discountReceiptPdf(int $discountId)
     {
+        AccesoSellerPropio::vendedor(Discount::whereKey($discountId)->value('seller_id'));
         $discount = Discount::findOrFail($discountId);
         $seller = $discount->seller;
         $discount->loadMissing('sales', 'sales.sale');

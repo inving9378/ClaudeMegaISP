@@ -22,6 +22,7 @@ use App\Models\PaymentDetail;
 use App\Models\Seller;
 use App\Models\User;
 use App\Services\CalculateBalanceSellerService;
+use App\Support\AccesoSellerPropio;
 use Barryvdh\DomPDF\Facade\Pdf as PDF;
 use Carbon\Carbon;
 use Dompdf\Dompdf;
@@ -543,6 +544,7 @@ class PaymentSellerController extends Controller
 
     public function paymentReceiptByTypePDF($id)
     {
+        AccesoSellerPropio::vendedor(PaymentByRule::whereKey($id)->value('seller_id'));
         $payment = PaymentByRule::find($id);
         $user = $payment->user->getClientNameWithFathersNamesAttribute();
         $seller = $payment->seller;
@@ -576,6 +578,7 @@ class PaymentSellerController extends Controller
 
     public function paymentReceiptPDF($id)
     {
+        AccesoSellerPropio::vendedor(PaymentByRule::whereKey($id)->value('seller_id'));
         $payment = PaymentByRule::find($id);
         $user = $payment->user->getClientNameWithFathersNamesAttribute();
         $seller = $payment->seller->user->getClientNameWithFathersNamesAttribute();
@@ -603,6 +606,7 @@ class PaymentSellerController extends Controller
 
     public function discountReceiptPDF($id)
     {
+        AccesoSellerPropio::vendedor(Discount::whereKey($id)->value('seller_id'));
         $discount = Discount::find($id);
         $seller = $discount->seller;
         $discount->loadMissing('sales', 'sales.sale');
@@ -625,6 +629,7 @@ class PaymentSellerController extends Controller
 
     public function statementAccount($id)
     {
+        AccesoSellerPropio::usuario((int) $id);
         $user = User::find($id);
         $service = new CalculateBalanceSellerService();
         $contracts = DurationContract::all();
@@ -681,6 +686,7 @@ class PaymentSellerController extends Controller
 
     public function debtAccount($id)
     {
+        AccesoSellerPropio::usuario((int) $id);
         $user = User::find($id);
         $debt = $user->seller->getTotalDebtBySales();
         return response()->json($debt);
@@ -688,6 +694,7 @@ class PaymentSellerController extends Controller
 
     public function discountAccount($id)
     {
+        AccesoSellerPropio::usuario((int) $id);
         $user = User::find($id);
         $discountBySales = $user->seller->getTotalDiscountBySales();
         return response()->json($discountBySales);
@@ -695,6 +702,7 @@ class PaymentSellerController extends Controller
 
     public function expensesAccount($id)
     {
+        AccesoSellerPropio::usuario((int) $id);
         $user = User::find($id);
         $expenses = PaymentByRuleDetails::whereHas('payment', function ($query) use ($user) {
             $query->where('seller_id', $user->seller->id);
@@ -706,6 +714,7 @@ class PaymentSellerController extends Controller
 
     public function incomesAccount($id)
     {
+        AccesoSellerPropio::usuario((int) $id);
         $user = User::find($id);
         $service = new CalculateBalanceSellerService();
         $contracts = DurationContract::all();
@@ -775,6 +784,7 @@ class PaymentSellerController extends Controller
 
     public function paymentsBySeller(Request $request, $id)
     {
+        AccesoSellerPropio::usuario((int) $id);
         $user = User::find($id);
         $seller = $user->seller;
         $payments = PaymentByRule::whereHas('commissions', function ($query) use ($request) {
@@ -815,6 +825,7 @@ class PaymentSellerController extends Controller
 
     public function pendingPaymentsBySeller(Request $request, $id)
     {
+        AccesoSellerPropio::usuario((int) $id);
         $seller = Seller::find($id);
         $user = $seller->user;
         $service = new CalculateBalanceSellerService();
@@ -890,6 +901,7 @@ class PaymentSellerController extends Controller
 
     public function discountsBySeller(Request $request, $id)
     {
+        AccesoSellerPropio::usuario((int) $id);
         $seller = Seller::find($id);
         $discount = Discount::with('sales')->where('seller_id', $seller->id);
         if (isset($request->search)) {
@@ -910,6 +922,7 @@ class PaymentSellerController extends Controller
 
     public function pendingDiscountsBySeller($id)
     {
+        AccesoSellerPropio::usuario((int) $id);
         $user = User::find($id);
         return response()->json($user->seller->getDebtBySales());
     }

@@ -187,7 +187,7 @@
                 <label class="form-label">Qué mide esta regla <span class="text-danger">*</span></label>
                 <select v-model="ruleModal.metric_type" class="form-select tc-select">
                   <option value="ventas">Ventas — prospectos y ventas activadas (vendedor)</option>
-                  <option value="tecnico">Técnico — órdenes de trabajo completadas/validadas</option>
+                  <option value="tecnico">Técnico — puntos de trabajos validados (lo mismo que cuenta el pago)</option>
                   <option value="mostrador">Mostrador — pagos capturados</option>
                   <option value="calidad_senal">Calidad de señal — instalaciones fuera de rango (dBm)</option>
                 </select>
@@ -343,7 +343,7 @@ export default {
       return { ventas: 'Ventas', tecnico: 'Técnico', mostrador: 'Mostrador', calidad_senal: 'Calidad de señal' }[metricType] ?? 'Ventas';
     },
     unitLabel(metricType) {
-      return { tecnico: 'completados', mostrador: 'pagos capturados', ventas: 'ventas', calidad_senal: 'instalaciones fuera de rango' }[metricType] ?? 'unidades';
+      return { tecnico: 'puntos', mostrador: 'pagos capturados', ventas: 'ventas', calidad_senal: 'instalaciones fuera de rango' }[metricType] ?? 'unidades';
     },
 
     async loadRoles() {

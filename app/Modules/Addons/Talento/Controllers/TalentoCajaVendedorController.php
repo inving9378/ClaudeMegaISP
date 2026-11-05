@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Talento\Controllers;
 
+use App\Support\AccesoSellerPropio;
 use App\Http\Controllers\Controller;
 use App\Http\Repository\ClientRepository;
 use App\Models\Client;
@@ -67,6 +68,7 @@ class TalentoCajaVendedorController extends Controller
     public function cuts(Request $request, int $colaboradorId)
     {
         $userId = TalentoColaborador::findOrFail($colaboradorId)->user_id;
+        AccesoSellerPropio::usuario($userId, AccesoSellerPropio::ALCANCE_CAJA);
 
         $data = CutBox::query()->where('user_id', $userId);
         if ($request->filled('search')) {
@@ -92,11 +94,13 @@ class TalentoCajaVendedorController extends Controller
 
     public function box(int $boxId)
     {
+        AccesoSellerPropio::usuario((int) CutBox::whereKey($boxId)->value('user_id') ?: null, AccesoSellerPropio::ALCANCE_CAJA);
         return response()->json(CutBox::findOrFail($boxId));
     }
 
     public function receivedPayments(int $boxId)
     {
+        AccesoSellerPropio::usuario((int) CutBox::whereKey($boxId)->value('user_id') ?: null, AccesoSellerPropio::ALCANCE_CAJA);
         $box = CutBox::findOrFail($boxId);
         return response()->json($box->getReceivedPayments());
     }
@@ -107,7 +111,9 @@ class TalentoCajaVendedorController extends Controller
      */
     public function close(int $boxId)
     {
+        AccesoSellerPropio::usuario((int) CutBox::whereKey($boxId)->value('user_id') ?: null, AccesoSellerPropio::ALCANCE_CAJA);
         $box = CutBox::findOrFail($boxId);
+        abort_if(AccesoSellerPropio::activo() && $box->end_at !== null, 409, 'La caja ya está cerrada.');
         $received = $box->getReceivedPaymentsAmount();
         $installations = $box->getInstallationsAmount();
         $extras = $box->getExtrasAmount();
@@ -128,6 +134,7 @@ class TalentoCajaVendedorController extends Controller
      */
     public function pdf(int $boxId)
     {
+        AccesoSellerPropio::usuario((int) CutBox::whereKey($boxId)->value('user_id') ?: null, AccesoSellerPropio::ALCANCE_CAJA);
         $box = CutBox::findOrFail($boxId);
         $options = new Options();
         $options->set('isHtml5ParserEnabled', true);
@@ -149,13 +156,14 @@ class TalentoCajaVendedorController extends Controller
 
     public function technicals()
     {
-        return response()->json(User::technicalRole()->get());
+        return response()->json(User::technicalRole()->activo()->get());
     }
 
     // ── Ingresos extra ─────────────────────────────────────────────────────
 
     public function extrasIndex(int $boxId)
     {
+        AccesoSellerPropio::usuario((int) CutBox::whereKey($boxId)->value('user_id') ?: null, AccesoSellerPropio::ALCANCE_CAJA);
         return response()->json($this->extraRepo->getByColumns(['box_id' => $boxId]));
     }
 
@@ -183,6 +191,7 @@ class TalentoCajaVendedorController extends Controller
 
     public function observationsIndex(int $boxId)
     {
+        AccesoSellerPropio::usuario((int) CutBox::whereKey($boxId)->value('user_id') ?: null, AccesoSellerPropio::ALCANCE_CAJA);
         return response()->json($this->observationRepo->getByColumns(['box_id' => $boxId]));
     }
 
@@ -208,6 +217,7 @@ class TalentoCajaVendedorController extends Controller
 
     public function suppliersIndex(int $boxId)
     {
+        AccesoSellerPropio::usuario((int) CutBox::whereKey($boxId)->value('user_id') ?: null, AccesoSellerPropio::ALCANCE_CAJA);
         return response()->json($this->supplierRepo->getByColumns(['box_id' => $boxId]));
     }
 
@@ -234,56 +244,27 @@ class TalentoCajaVendedorController extends Controller
     // ── Instalaciones / servicios técnicos ─────────────────────────────────
 
     /**
-     * Copia literal de InstallationController::index() (Vendedores): antes de
+     * Comparte con InstallationController::index() (Vendedores) CajaInstalacionesService: antes de
      * listar, auto-crea filas CutInstallation para altas activadas ese mismo
      * día por este colaborador que todavía no tengan fila — mismo criterio de
      * negocio, no se toca.
      */
     public function installationsIndex(int $boxId)
     {
-        $box = CutBox::find($boxId);
-        if (isset($box)) {
-            $installations = $box->installations->pluck('client_id');
-            $news = ClientMainInformation::where('seller_id', $box->user_id)
-                ->whereDate('activation_date', $box->created_at->format('Y-m-d'))
-                ->whereNotIn('id', $installations)
-                ->get();
-            $data = [];
-            $userId = auth()->user()?->id;
-            $now = now();
-            $branchId = $box->user->sucursal_id;
-            $clientRepository = new ClientRepository();
-            foreach ($news as $c) {
-                $installationCost = $clientRepository->getPriceInstalationCost($c->client_id);
-                $service = $clientRepository->getCostAllService($c->client_id);
-                $payment = Payment::where('add_by', $box->user_id)
-                    ->where('is_first_payment', true)
-                    ->where('paymentable_id', $c->client_id)
-                    ->where('paymentable_type', Client::class)
-                    ->whereDate('date', $box->created_at->format('Y-m-d'))
-                    ->first();
-                $data[] = [
-                    'service_amount' => $service,
-                    'installation_cost' => $installationCost,
-                    'warranty_cost' => null,
-                    'constance' => null,
-                    'activated' => $payment !== null,
-                    'box_id' => $boxId,
-                    'client_id' => $c->id,
-                    'technical_id' => null,
-                    'branch_id' => $branchId,
-                    'comments' => null,
-                    'created_by' => $userId,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-            }
-            if (!empty($data)) {
-                CutInstallation::insert($data);
-            }
+        // I3: con el interruptor, listar no escribe; la sincronización es installationsSync().
+        if (!config('unificacion.interruptores.vendedores_i3')) {
+            app(\App\Modules\Addons\Talento\Services\CajaInstalacionesService::class)->sincronizar($boxId);
         }
 
         return response()->json($this->installationRepo->getByColumns(['box_id' => $boxId]));
+    }
+
+    /** Acción explícita e idempotente: crea las filas del corte que falten. */
+    public function installationsSync(int $boxId)
+    {
+        app(\App\Modules\Addons\Talento\Services\CajaInstalacionesService::class)->sincronizar($boxId);
+
+        return response()->json(['ok' => true]);
     }
 
     public function installationsStore(Request $request)

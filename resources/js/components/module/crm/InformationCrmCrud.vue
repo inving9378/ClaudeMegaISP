@@ -15,6 +15,11 @@
                             >
                                 <div></div>
                                 <div>
+                                    <AsignarTrabajo
+                                        v-if="hasPermission.data.canView('talento.work_orders.manage')"
+                                        :crm-id="id"
+                                        boton-class="btn btn-outline-info me-2"
+                                    />
                                     <button
                                         v-if="
                                             hasPermission.data.canView(
@@ -230,6 +235,7 @@ import CrmRecentActivity from "./components/CrmRecentActivity";
 import { allViewHasPermission } from "../../../helpers/Request";
 import { updateLastContacted } from "./helpers/helper";
 import ConvertToClient from "./components/ConvertToClient.vue";
+import AsignarTrabajo from "../talento/AsignarTrabajo.vue";
 
 defineOptions({ name: "InformationCrmCrud" });
 

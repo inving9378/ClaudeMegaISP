@@ -50,6 +50,20 @@ class RamaItemCommand extends Command
         // como "la rama del item" sin importar su slug.
         $existentes = $this->ramasDelItem((int) $item->id);
 
+        // 2026-10-26 — los ids de items se reusaron (reinicio del autoincremento), así que una rama
+        // circuito/item-<id>-* puede ser de OTRO trabajo viejo con el mismo número. Reusarla metía
+        // ese trabajo ajeno al merge del item nuevo (pasó con #585 y #939, y frenó 7 items de UNI-T).
+        // Una rama cuyos commits propios son TODOS anteriores al alta del item no es suya: se ignora
+        // (no se borra) y el item recibe una rama nueva desde main.
+        $heredadas = array_values(array_filter($existentes, fn ($r) => $this->esRamaHeredada($r, $item)));
+        if ($heredadas !== []) {
+            $this->registrarRamasHeredadas($item, $heredadas);
+            $existentes = array_values(array_diff($existentes, $heredadas));
+            if (in_array($branchDeseada, $heredadas, true)) {
+                $branchDeseada .= '-' . now()->format('ymdHi');
+            }
+        }
+
         if (count($existentes) > 1) {
             $elegida = $this->elegirRamaConMasTrabajo($existentes);
             $this->registrarRamasMultiples($item, $existentes, $elegida);
@@ -104,6 +118,43 @@ class RamaItemCommand extends Command
         $this->registrar($item, $branch);
         $this->info("Rama {$branch} ya existía; checkout hecho. Registrada en el item #{$item->id}.");
         return self::SUCCESS;
+    }
+
+    /**
+     * ¿La rama es de un trabajo VIEJO que tuvo el mismo id? Sí cuando tiene commits fuera de main y
+     * TODOS son anteriores al alta del item (fecha de autor, que sobrevive a rebase y cherry-pick).
+     * Una rama sin commits propios no es heredada (reusarla solo la adelanta a main), y una con al
+     * menos un commit posterior al alta ya tiene trabajo de este item (p. ej. B1 de UNI-T, que
+     * integró commits más viejos a propósito).
+     */
+    private function esRamaHeredada(string $rama, RoadmapItem $item): bool
+    {
+        if (! $item->created_at) {
+            return false;
+        }
+        $p = $this->git(['log', '--format=%at', "main..{$rama}"]);
+        if (! $p->isSuccessful()) {
+            return false;
+        }
+        $fechas = array_map('intval', array_filter(explode("\n", trim($p->getOutput()))));
+
+        return $fechas !== [] && max($fechas) < $item->created_at->getTimestamp();
+    }
+
+    /** Deja rastro en el log del item de las ramas viejas que se ignoraron (no se borran). */
+    private function registrarRamasHeredadas(RoadmapItem $item, array $ramas): void
+    {
+        $item->log = array_merge($item->log ?: [], [[
+            'ts' => now()->toIso8601String(), 'por' => 'circuito:rama', 'evento' => 'ramas_heredadas_ignoradas',
+            'ramas' => $ramas,
+            'nota' => 'Ramas con el mismo número pero de un trabajo anterior al alta del item: no se reusan ni se borran.',
+        ]]);
+        if ($item->branch && in_array($item->branch, $ramas, true)) {
+            $item->branch = null;
+        }
+        $item->save();
+
+        $this->warn('Ramas de un trabajo anterior con el mismo número, ignoradas: ' . implode(', ', $ramas));
     }
 
     /** Ramas locales `circuito/item-<id>-*` existentes (orden de git, típicamente alfabético). */
@@ -178,15 +229,21 @@ class RamaItemCommand extends Command
         return null;
     }
 
+    protected function repoDir(): string
+    {
+        return base_path();
+    }
+
     private function registrar(RoadmapItem $item, string $branch): void
     {
         $item->branch = $branch;
         $item->save();
     }
 
-    private function git(array $args): Process
+    /** Protegido solo como costura de prueba (RamaItemHeredadaTest corre contra un repo temporal). */
+    protected function git(array $args): Process
     {
-        $p = new Process(array_merge(['git'], $args), base_path());
+        $p = new Process(array_merge(['git'], $args), $this->repoDir());
         $p->run();
         return $p;
     }

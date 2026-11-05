@@ -36,6 +36,18 @@ class FleetNotificationDispatcher
         }
         $vehicleClient = $vehicle->client_id;
 
+        // Reglas de alerta del cliente (portal): destinatario propio, aparte de las prefs del panel.
+        try {
+            app(ClientRuleEngine::class)->onGeofenceEvent($event);
+        } catch (\Throwable $e) {
+            Log::warning('Flotas: reglas de cliente (geocerca) fallaron: ' . $e->getMessage());
+        }
+
+        // Unidades de cliente: solo los contactos de alerta del cliente (ClientRuleEngine); jamás el personal.
+        if ($vehicleClient) {
+            return [];
+        }
+
         $prefs = FleetNotificationPreference::active()
             ->where(fn ($q) => $q->whereNull('vehicle_id')->orWhere('vehicle_id', $event->vehicle_id))
             ->where(fn ($q) => $q->whereNull('geofence_id')->orWhere('geofence_id', $event->geofence_id))

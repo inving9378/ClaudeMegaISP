@@ -130,6 +130,50 @@ class HistoricoMinutosTest extends TestCase
         $this->assertSame(1, $ind['minutos_sin_datos']);
     }
 
+    public function test_los_minutos_degradados_se_informan_sin_bajar_la_disponibilidad(): void
+    {
+        $filas = $pings = [];
+        for ($m = 0; $m < 6; $m++) {
+            $filas[$this->t($m)] = $this->fila('en_linea', loss: 33.33);
+            $pings[$this->t($m)] = ['192.0.2.10' => $this->ping(2), '192.0.2.11' => $this->ping(2)];
+        }
+        foreach ([6, 7] as $m) {
+            $filas[$this->t($m)] = $this->fila('degradado', loss: 50.0, responden: 1);
+            $pings[$this->t($m)] = ['192.0.2.10' => $this->ping(3), '192.0.2.11' => $this->ping(0)];
+        }
+
+        $ind = $this->historico(8, $filas, $pings)->indicadores();
+
+        $this->assertSame(8, $ind['minutos_degradado']);
+        $this->assertSame(100.0, $ind['disponibilidad_pct'], 'solo «sin respuesta» baja la disponibilidad');
+    }
+
+    public function test_el_tiempo_en_pausa_no_es_caida_ni_hueco_y_no_cuenta_en_la_disponibilidad(): void
+    {
+        // Minutos 0-3 en línea, 4-5 sin respuesta, 6-9 sin lectura pero en pausa.
+        $filas = [];
+        foreach ([0, 1, 2, 3] as $m) {
+            $filas[$this->t($m)] = $this->fila('en_linea');
+        }
+        foreach ([4, 5] as $m) {
+            $filas[$this->t($m)] = $this->fila('sin_respuesta', lat: null, loss: 100.0, responden: 0);
+        }
+        $pausas = [['desde' => $this->t(6), 'hasta' => null, 'motivo' => 'cliente bloqueado']];
+
+        $calculo = new HistoricoMinutos($this->t0, $this->t(10), $filas, [], [], [], $pausas);
+        $ind = $calculo->indicadores();
+        $eventos = $calculo->eventos();
+
+        $this->assertSame(6, $ind['minutos_medidos']);
+        $this->assertSame(4, $ind['minutos_pausado']);
+        $this->assertSame(0, $ind['minutos_sin_datos'], 'la pausa no es un hueco del colector');
+        $this->assertEqualsWithDelta(66.67, $ind['disponibilidad_pct'], 0.01, 'la pausa no baja la disponibilidad');
+        $this->assertSame([HistoricoMinutos::PAUSADO, HistoricoMinutos::SIN_RESPUESTA], array_column($eventos, 'tipo'));
+        $this->assertSame('Monitoreo pausado: cliente bloqueado', $eventos[0]['detalle']);
+        $this->assertSame(4, $eventos[0]['minutos']);
+        $this->assertCount(1, HistoricoMinutos::bandas($eventos)[HistoricoMinutos::PAUSADO]);
+    }
+
     public function test_bandas_de_sin_respuesta_y_sin_datos_en_milisegundos(): void
     {
         $b = HistoricoMinutos::bandas($this->historico(10, $this->caidaYHueco())->eventos());

@@ -6,6 +6,7 @@ use App\Models\Task;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderType;
+use App\Modules\Addons\Talento\Support\OrdenReferencia;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -47,7 +48,6 @@ class OrdenTrabajoUnifiedService
         }
 
         return Task::where('id', $taskId)
-            ->where('tipo', 'campo')
             ->whereNotNull('talento_type_id')
             ->whereHas('users', fn($q) => $q->where('users.id', $userId))
             ->first();
@@ -126,16 +126,22 @@ class OrdenTrabajoUnifiedService
 
     private function summaryFromTask(Task $task): array
     {
-        $client = $this->clientByInfoId($task->client_main_information_id);
+        // Una orden asignada desde la ficha de un prospecto no tiene cliente: el técnico (Mi día y
+        // la app, que leen estas mismas llaves) recibe los datos del prospecto (2026-10-27).
+        $esProspecto = ! $task->client_main_information_id && $task->crm_lead_id;
+        $client = $esProspecto
+            ? $this->prospectoContacto($task->crm_lead_id)
+            : $this->clientByInfoId($task->client_main_information_id);
         return [
-            'id'        => $task->id,
-            'folio'     => $task->id,
-            'origen'    => 'task',         // discriminador de origen (tabla tasks)
-            'tipo'      => $task->talentoType?->name ?? '—',
-            'status'    => self::TASK_STATUS_MAP[$task->status] ?? $task->status,
-            'cliente'   => $client['name'],
-            'direccion' => $client['address'],
-            'telefono'  => $client['phone'],
+            'id'           => $task->id,
+            'folio'        => $task->id,
+            'origen'       => 'task',         // discriminador de origen (tabla tasks)
+            'tipo'         => $task->talentoType?->name ?? '—',
+            'status'       => self::TASK_STATUS_MAP[$task->status] ?? $task->status,
+            'cliente'      => $client['name'],
+            'direccion'    => $client['address'],
+            'telefono'     => $client['phone'],
+            'es_prospecto' => (bool) $esProspecto,
         ];
     }
 
@@ -198,9 +204,8 @@ class OrdenTrabajoUnifiedService
 
         $scheduledAt = null;
         if ($task->start_date) {
-            $scheduledAt = $task->start_time
-                ? $task->start_date . 'T' . $task->start_time . ':00.000000Z'
-                : $task->start_date . 'T00:00:00.000000Z';
+            $scheduledAt = \App\Services\TaskScheduleService::start($task->start_date, $task->start_time)
+                ->format('Y-m-d\\TH:i:s.000000\\Z');
         }
 
         return array_merge($this->summaryFromTask($task), [
@@ -230,14 +235,152 @@ class OrdenTrabajoUnifiedService
             ->get()
             ->map(fn($o) => $this->summaryFromWorkOrder($o))->toBase();
 
+        $incluyeGenerales = (bool) config('unificacion.interruptores.mi_dia_tareas', false);
+
+        $fromTasks = ($userId)
+            ? Task::with(['talentoType'])
+                ->when(! $incluyeGenerales, fn($q) => $q->whereNotNull('talento_type_id'))
+                ->whereHas('users', fn($q) => $q->where('users.id', $userId))
+                ->whereDate('start_date', $today)
+                ->orderBy('start_date')
+                ->orderBy('start_time')
+                ->get()
+                ->map(function ($t) use ($incluyeGenerales) {
+                    $resumen = $this->summaryFromTask($t);
+                    if (! $incluyeGenerales) {
+                        return $resumen;
+                    }
+                    $inicio = \App\Services\TaskScheduleService::start($t->start_date, $t->start_time);
+                    $resumen['scheduled_at']     = $inicio?->format('Y-m-d\\TH:i:s.000000\\Z');
+                    $resumen['hora']             = $t->start_time ? $inicio?->format('H:i') : null;
+                    $resumen['es_tarea_general'] = ! $t->talento_type_id;
+                    if (! $t->talento_type_id) {
+                        $resumen['tipo'] = 'Tarea';
+                    }
+                    return $resumen;
+                })
+            : collect();
+
+        // Item #1158: lo que no se hizo en su día no se queda atrás — sigue arriba, en rojo
+        // (`atrasada`), hasta que se termine o se reprograme con un motivo.
+        $atrasadas = ($userId && config('talento.ordenes_atrasadas_en_mi_dia', true))
+            ? app(AgendaOrdenesService::class)->atrasadasDe($userId, fn (Task $t) => $this->summaryFromTask($t))
+            : collect();
+
+        return $atrasadas->merge($fromWorkOrders)->merge($fromTasks)->values()->all();
+    }
+
+    /**
+     * Calendario de la app (2026-11-05): órdenes y tareas de la persona que tocan los días entre
+     * $desde y $hasta, con las mismas reglas que Scheduling › Calendario. Una tarea de varios días
+     * sale aunque haya empezado antes del rango.
+     */
+    public function calendarioDe(int $colaboradorId, string $desde, string $hasta): array
+    {
+        $userId = $this->getUserId($colaboradorId);
+
+        $tareas = ($userId)
+            ? Task::with(['talentoType'])
+                ->whereHas('users', fn($q) => $q->where('users.id', $userId))
+                ->where(fn($q) => $q->whereNull('archived')->orWhere('archived', false))
+                ->whereNotIn('status', ['Archivado', 'Cancelled', 'Canceled', 'Cancelado', 'Cancelada'])
+                ->whereDate('start_date', '<=', $hasta)
+                ->where(fn($q) => $q->whereDate('start_date', '>=', $desde)->orWhere('end_time', '>=', $desde))
+                ->get()
+                ->map(function (Task $t) use ($desde) {
+                    [$inicio, $fin] = \App\Services\TaskScheduleService::ventana($t->start_date, $t->start_time, $t->end_time);
+                    if (! $inicio || $fin->toDateString() < $desde) {
+                        return null;
+                    }
+                    $resumen = $this->summaryFromTask($t);
+
+                    return [
+                        'id'        => $t->id,
+                        'origen'    => 'task',
+                        'es_orden'  => (bool) $t->talento_type_id,
+                        'titulo'    => $t->title ?: ($t->talentoType?->name ?? 'Tarea'),
+                        'prioridad' => $t->priority,
+                        'estado'    => $t->status,
+                        'atrasada'  => in_array($t->status, AgendaOrdenesService::ESTADOS_ABIERTOS, true) && $fin->lt(now()),
+                        'inicio'    => $inicio->format('Y-m-d\\TH:i:s'),
+                        'fin'       => $fin->format('Y-m-d\\TH:i:s'),
+                        'cliente'   => $resumen['cliente'],
+                        'direccion' => $resumen['direccion'] ?: $t->address,
+                    ];
+                })
+                ->filter()
+                ->toBase()
+            : collect();
+
+        // Tabla vieja de órdenes (en producción vacía): como en la agenda, no cuentan como atrasadas.
+        $estadoAntigua = ['pending' => 'ToDo', 'in_progress' => 'InProgress', 'completed' => 'Done', 'validated' => 'Done', 'active' => 'Done'];
+        $antiguas = TalentoWorkOrder::with(['type'])
+            ->where('colaborador_id', $colaboradorId)
+            ->where('status', '!=', 'cancelled')
+            ->whereNotNull('scheduled_at')
+            ->whereDate('scheduled_at', '>=', $desde)
+            ->whereDate('scheduled_at', '<=', $hasta)
+            ->get()
+            ->map(function (TalentoWorkOrder $o) use ($estadoAntigua) {
+                $resumen = $this->summaryFromWorkOrder($o);
+                $inicio = \Carbon\Carbon::parse($o->scheduled_at)->format('Y-m-d\\TH:i:s');
+
+                return [
+                    'id'        => $o->id,
+                    'origen'    => 'work_order',
+                    'es_orden'  => true,
+                    'titulo'    => $resumen['tipo'],
+                    'prioridad' => null,
+                    'estado'    => $estadoAntigua[$o->status] ?? 'ToDo',
+                    'atrasada'  => false,
+                    'inicio'    => $inicio,
+                    'fin'       => $inicio,
+                    'cliente'   => $resumen['cliente'],
+                    'direccion' => $resumen['direccion'],
+                ];
+            })
+            ->toBase();
+
+        return $tareas->merge($antiguas)->sortBy('inicio')->values()->all();
+    }
+
+    /**
+     * Reprogramar una orden propia desde «Mi día» (item #1158): solo órdenes asignadas a la persona.
+     */
+    public function reprogramarPropia(int $id, int $colaboradorId, string $fecha, string $motivo, ?int $actorId): array
+    {
+        $task = $this->resolveTask($id, $colaboradorId);
+        if (! $task) {
+            return ['ok' => false, 'mensaje' => 'Orden no encontrada.', 'codigo' => 404];
+        }
+
+        return app(AgendaOrdenesService::class)->reprogramar($task, $fecha, $motivo, $actorId);
+    }
+
+    /**
+     * Delta de OTs (work orders + tasks de campo) modificadas desde $since, solo del colaborador.
+     * Base del polling `GET /talento/api/cambios?since=` de la APK.
+     */
+    public function cambiosDesde(int $colaboradorId, \Carbon\Carbon $since): array
+    {
+        $userId = $this->getUserId($colaboradorId);
+
+        $fromWorkOrders = TalentoWorkOrder::with(['type'])
+            ->where('colaborador_id', $colaboradorId)
+            ->where('updated_at', '>', $since)
+            ->orderBy('updated_at')
+            ->limit(200)
+            ->get()
+            ->map(fn($o) => $this->summaryFromWorkOrder($o))->toBase();
+
         $fromTasks = ($userId)
             ? Task::with(['talentoType'])
                 ->where('tipo', 'campo')
                 ->whereNotNull('talento_type_id')
                 ->whereHas('users', fn($q) => $q->where('users.id', $userId))
-                ->whereDate('start_date', $today)
-                ->orderBy('start_date')
-                ->orderBy('start_time')
+                ->where('updated_at', '>', $since)
+                ->orderBy('updated_at')
+                ->limit(200)
                 ->get()
                 ->map(fn($t) => $this->summaryFromTask($t))
             : collect();
@@ -269,7 +412,6 @@ class OrdenTrabajoUnifiedService
         $tasks = collect();
         if ($userId) {
             $taskQuery = Task::with(['talentoType'])
-                ->where('tipo', 'campo')
                 ->whereHas('users', fn($q) => $q->where('users.id', $userId));
             if ($estado) {
                 $taskStatus = array_search($estado, self::TASK_STATUS_MAP);
@@ -356,6 +498,28 @@ class OrdenTrabajoUnifiedService
         return null;
     }
 
+    /**
+     * UNI-T D2 — punto único de registro de transiciones de orden: evento (E2) + quién la hizo.
+     * Detrás de unificacion.interruptores.transiciones_d2; apagado no hace nada.
+     * $origen: 'task' | 'work_order'. $columnas: columnas de actor a llenar (assigned_by|completed_by|validated_by).
+     */
+    public function transicionar(string $origen, int $id, string $evento, ?string $de, ?string $a, ?int $actorId, ?string $motivo = null, array $columnas = [], ?array $datos = null): void
+    {
+        if (! config('unificacion.interruptores.transiciones_d2')) {
+            return;
+        }
+        try {
+            if ($columnas && $actorId) {
+                $permitidas = array_intersect($columnas, ['assigned_by', 'completed_by', 'validated_by']);
+                $tabla = $origen === 'task' ? 'tasks' : 'talento_work_orders';
+                DB::table($tabla)->where('id', $id)->update(array_fill_keys($permitidas, $actorId));
+            }
+            \App\Modules\Addons\Talento\Services\TalentoOrderEventRecorder::registrar($origen, $id, $evento, $de, $a, $actorId, $motivo, $datos);
+        } catch (\Throwable $e) {
+            Log::warning('transicionar falló', ['origen' => $origen, 'id' => $id, 'evento' => $evento, 'err' => $e->getMessage()]);
+        }
+    }
+
     // ── API pública WRITE (Capa 4.3) ─────────────────────────────────────────
 
     /**
@@ -372,6 +536,7 @@ class OrdenTrabajoUnifiedService
                 return ['success' => false, 'message' => "La OT ya está en estado '{$wo->status}'.", 'status_code' => 422];
             }
             $wo->update(['status' => 'in_progress', 'started_at' => now()]);
+            $this->transicionar('work_order', $wo->id, 'order.started', 'pending', 'in_progress', auth()->id());
             return ['success' => true, 'status' => $wo->status, 'started_at' => $wo->started_at];
         }
 
@@ -382,6 +547,7 @@ class OrdenTrabajoUnifiedService
                 return ['success' => false, 'message' => "La OT ya está en estado '{$mapped}'.", 'status_code' => 422];
             }
             $task->update(['status' => 'InProgress']);
+            $this->transicionar('task', $task->id, 'order.started', 'pending', 'in_progress', auth()->id());
             return ['success' => true, 'status' => 'in_progress', 'started_at' => null];
         }
 
@@ -440,7 +606,9 @@ class OrdenTrabajoUnifiedService
                 'created_at'    => now(),
                 'updated_at'    => now(),
             ]);
+            $estadoPrevio = $wo->status;
             $wo->update(['status' => 'incidencia']);
+            $this->transicionar('work_order', $wo->id, 'order.incident', $estadoPrevio, 'incidencia', $userId, $data['motivo'] ?? null);
             return ['success' => true, 'incident_id' => $incidentId, 'status' => 'incidencia'];
         }
 
@@ -463,6 +631,7 @@ class OrdenTrabajoUnifiedService
                 'created_at'    => now(),
                 'updated_at'    => now(),
             ]);
+            $this->transicionar('task', $task->id, 'order.incident', $mappedStatus, $mappedStatus, $userId, $data['motivo'] ?? null);
             return ['success' => true, 'incident_id' => $incidentId, 'status' => 'incidencia'];
         }
 
@@ -492,6 +661,19 @@ class OrdenTrabajoUnifiedService
 
         $evTypeId = (int)$data['evidence_type_id'];
         $evType   = DB::table('talento_evidence_types')->where('id', $evTypeId)->first();
+
+        if (config('unificacion.interruptores.evidencias_d6')) {
+            $estado = $isTask ? (self::TASK_STATUS_MAP[$task->status] ?? $task->status) : $wo->status;
+            if (! in_array($estado, ['pending', 'in_progress'], true)) {
+                return ['success' => false, 'message' => "No se puede subir evidencia en estado '{$estado}'.", 'code' => 'ESTADO_INVALIDO', 'status_code' => 422];
+            }
+            $typeId = $isTask ? $task->talento_type_id : $wo->type_id;
+            $enMatriz = DB::table('talento_ot_type_evidence_requirements')
+                ->where('ot_type_id', $typeId)->where('evidence_type_id', $evTypeId)->exists();
+            if (! $enMatriz && $evTypeId !== 15) {
+                return ['success' => false, 'message' => 'Este tipo de evidencia no corresponde a este tipo de orden.', 'code' => 'TIPO_NO_EN_MATRIZ', 'status_code' => 422];
+            }
+        }
 
         if ($evType->requiere_justificacion && empty(trim($data['justificacion'] ?? ''))) {
             return [
@@ -541,7 +723,7 @@ class OrdenTrabajoUnifiedService
         $dirPrefix = $isTask ? 't_' : '';
         $entityId  = $isTask ? $task->id : $wo->id;
         $dir       = "talento/media/{$dirPrefix}{$entityId}";
-        $name      = Str::uuid() . '.jpg';
+        $name      = Str::uuid() . ($file->guessExtension() === 'png' ? '.png' : '.jpg');
         $path      = $file->storeAs($dir, $name, 'local');
 
         $mediaId = DB::table('talento_work_order_media')->insertGetId([
@@ -610,6 +792,7 @@ class OrdenTrabajoUnifiedService
                 $updates['nota_tecnico'] = $data['nota_tecnico'];
             }
             $wo->update($updates);
+            $this->transicionar('work_order', $wo->id, 'order.completed', 'in_progress', 'completed', auth()->id(), null, ['completed_by']);
 
             return [
                 'success'      => true,
@@ -631,12 +814,20 @@ class OrdenTrabajoUnifiedService
             $dbm = $this->verificarGateDbm($task->talento_type_id, 'tarea_id', $task->id);
             if (isset($dbm['error'])) return $dbm['error'];
 
-            $updates = ['status' => 'Done', 'validated_at' => now()];
+            $updates = ['status' => 'Done'];
+            if (! config('unificacion.interruptores.validacion_separada')) {
+                $updates['validated_at'] = now();
+            }
             if (! empty($data['nota_tecnico'])) {
                 $updates['nota_tecnico'] = $data['nota_tecnico'];
             }
             $task->update($updates);
             $task->refresh();
+            $this->transicionar('task', $task->id, 'order.completed', 'in_progress', 'completed', auth()->id(), null, ['completed_by']);
+            $this->cerrarTicketSiCorresponde($task);
+            if ((int) $task->talento_type_id === 3) { // 3 = Cambio de equipo
+                app(\App\Services\PppoeCsidReaprenderService::class)->alCerrarOtCambioEquipo($task);
+            }
 
             return [
                 'success'      => true,
@@ -647,6 +838,28 @@ class OrdenTrabajoUnifiedService
         }
 
         return ['success' => false, 'message' => 'OT no encontrada.', 'status_code' => 404];
+    }
+
+    /**
+     * G3b — Regla explícita (apagada por defecto): al completar la última orden abierta de un ticket,
+     * el ticket pasa a «Cerrado». Con el interruptor apagado los estados son independientes.
+     */
+    private function cerrarTicketSiCorresponde($task): void
+    {
+        if (! config('unificacion.interruptores.cierre_orden_cierra_ticket_g3b') || ! $task->ticket_id) {
+            return;
+        }
+        $abiertas = \App\Models\Task::where('ticket_id', $task->ticket_id)
+            ->where('id', '!=', $task->id)
+            ->whereNotIn('status', ['Done', 'Cancelled'])
+            ->exists();
+        if ($abiertas) {
+            return;
+        }
+        $ticket = \App\Models\Ticket::find($task->ticket_id);
+        if ($ticket && $ticket->estado !== 'Cerrado') {
+            $ticket->update(['estado' => 'Cerrado']);
+        }
     }
 
     // ── Admin SPA — LIST + SHOW ───────────────────────────────────────────────
@@ -670,6 +883,52 @@ class OrdenTrabajoUnifiedService
             $info->mother_last_name,
         ])));
         return ['id' => $crmLeadId, 'nombre' => $nombre ?: null];
+    }
+
+    /**
+     * Nombre, dirección y teléfono del prospecto CRM con la misma forma que clientByInfoId().
+     * Casi ningún prospecto tiene `address` armada: se compone de calle, números, colonia y municipio.
+     */
+    private function prospectoContacto(?int $crmLeadId): array
+    {
+        $vacio = ['name' => null, 'address' => null, 'phone' => null];
+        if (! $crmLeadId) {
+            return $vacio;
+        }
+        $info = DB::table('crm_lead_information as l')
+            ->join('crm_main_information as m', 'm.crm_id', '=', 'l.crm_id')
+            ->leftJoin('colonies as c', 'c.id', '=', 'm.colony_id')
+            ->leftJoin('municipalities as mu', 'mu.id', '=', 'm.municipality_id')
+            ->where('l.id', $crmLeadId)
+            ->first([
+                'm.name', 'm.father_last_name', 'm.mother_last_name', 'm.address', 'm.street',
+                'm.external_number', 'm.internal_number', 'm.phone', 'm.phone2',
+                'c.name as colonia', 'mu.name as municipio',
+            ]);
+        if (! $info) {
+            return $vacio;
+        }
+        $calle = trim(implode(' ', array_filter([$info->street, $info->external_number, $info->internal_number])));
+        return [
+            'name'    => trim(implode(' ', array_filter([
+                $info->name,
+                $info->father_last_name,
+                $info->mother_last_name,
+            ]))) ?: null,
+            'address' => $info->address ?: (implode(', ', array_filter([$calle, $info->colonia, $info->municipio])) ?: null),
+            'phone'   => $info->phone ?: ($info->phone2 ?: null),
+        ];
+    }
+
+    /** Cliente de la orden para Talento › Órdenes: id (para abrir su ficha) y nombre. */
+    private function clienteResumen(?int $clientId): ?array
+    {
+        if (! $clientId) {
+            return null;
+        }
+        $nombre = $this->clientByClientId($clientId)['name'];
+
+        return ['id' => $clientId, 'nombre' => $nombre ?: "Cliente #{$clientId}"];
     }
 
     /**
@@ -743,7 +1002,8 @@ class OrdenTrabajoUnifiedService
 
         $scheduledAt = null;
         if ($task->start_date) {
-            $scheduledAt = $task->start_date . ($task->start_time ? ' ' . $task->start_time : ' 00:00:00');
+            $scheduledAt = \App\Services\TaskScheduleService::start($task->start_date, $task->start_time)
+                ->format('Y-m-d H:i:s');
         }
 
         $type = $task->talentoType;
@@ -756,6 +1016,10 @@ class OrdenTrabajoUnifiedService
             'is_billable'    => (bool) $task->is_billable,
             'status'         => self::TASK_STATUS_MAP[$task->status] ?? $task->status,
             'scheduled_at'   => $scheduledAt,
+            // Item #1158: abierta y con su día ya pasado.
+            'atrasada'       => $scheduledAt !== null
+                && in_array($task->status, AgendaOrdenesService::ESTADOS_ABIERTOS, true)
+                && substr($scheduledAt, 0, 10) < now()->toDateString(),
             'notes'          => $task->description,
             'nota_tecnico'   => $task->nota_tecnico,
             'validated_at'   => $task->validated_at,
@@ -783,6 +1047,9 @@ class OrdenTrabajoUnifiedService
             ] : null,
             'assigned_by'    => null,
             'work_activities' => [],
+            'cliente'        => $this->clienteResumen($task->client_main_information_id
+                ? DB::table('client_main_information')->where('id', $task->client_main_information_id)->value('client_id')
+                : null),
             'prospecto'      => $this->prospectoByCrmLeadId($task->crm_lead_id),
             '_source'        => 'task',
         ];
@@ -835,11 +1102,11 @@ class OrdenTrabajoUnifiedService
             ->get()
             ->map(fn($o) => array_merge($o->toArray(), [
                 '_source'  => 'work_order',
-                '_sort_ts' => $o->scheduled_at ? $o->scheduled_at->timestamp : 0,
+                // Sin fecha va por cuándo se creó: antes caía al final de la lista (2026-10-27).
+                '_sort_ts' => $o->scheduled_at ? $o->scheduled_at->timestamp : (strtotime((string) $o->created_at) ?: 0),
             ]))->toBase();
 
         $taskQuery = Task::with(['talentoType', 'users'])
-            ->where('tipo', 'campo')
             ->whereNotNull('talento_type_id')
             ->when($typeId, fn($q, $v) => $q->where('talento_type_id', $v))
             ->when($from,   fn($q, $v) => $q->whereDate('start_date', '>=', $v))
@@ -847,7 +1114,11 @@ class OrdenTrabajoUnifiedService
             ->when($search, fn($q, $s) => $q->whereHas('users', fn($u) => $u->where('name', 'like', "%$s%")))
             ->when($prospectoLeadIds !== null, fn($q) => $q->whereIn('crm_lead_id', $prospectoLeadIds ?: [-1]));
 
-        if ($status) {
+        if ($status === 'atrasadas') {
+            // Item #1158: pendientes o en curso cuyo día ya pasó (la tabla vieja no tiene filas).
+            $workOrders = collect();
+            app(AgendaOrdenesService::class)->scopeAtrasadas($taskQuery, now()->toDateString());
+        } elseif ($status) {
             $taskStatus = array_search($status, self::TASK_STATUS_MAP);
             $taskQuery->when(
                 $taskStatus !== false,
@@ -868,7 +1139,7 @@ class OrdenTrabajoUnifiedService
         $tasks = $taskQuery->orderByDesc('start_date')->orderByDesc('start_time')
             ->get()
             ->map(fn($t) => array_merge($this->adminItemFromTask($t), [
-                '_sort_ts' => $t->start_date ? strtotime($t->start_date) : 0,
+                '_sort_ts' => $t->start_date ? strtotime($t->start_date) : (strtotime((string) $t->created_at) ?: 0),
             ]));
 
         $all = $workOrders->merge($tasks)
@@ -884,6 +1155,11 @@ class OrdenTrabajoUnifiedService
         $page     = min(max(1, $page), $lastPage);
         $data     = $all->slice(($page - 1) * $perPage, $perPage)->values()->all();
 
+        // Las órdenes de la tabla vieja solo traen client_id: el nombre se resuelve solo para esta página.
+        $data = array_map(fn ($item) => ($item['_source'] ?? null) === 'work_order'
+            ? $item + ['cliente' => $this->clienteResumen($item['client_id'] ?? null)]
+            : $item, $data);
+
         return [
             'data'         => $data,
             'current_page' => $page,
@@ -893,21 +1169,28 @@ class OrdenTrabajoUnifiedService
         ];
     }
 
-    public function showForAdmin(int $id): ?array
+    public function showForAdmin(int $id, ?string $origen = null): ?array
     {
-        $ot = TalentoWorkOrder::with(['colaborador.user', 'type', 'assignedBy', 'validatedBy', 'workActivities.recordedBy'])
+        $ot = $origen === OrdenReferencia::ORIGEN_TAREA ? null : TalentoWorkOrder::with(['colaborador.user', 'type', 'assignedBy', 'validatedBy', 'workActivities.recordedBy'])
             ->find($id);
         if ($ot) {
-            return $ot->toArray();
+            $res = $ot->toArray() + ['cliente' => $this->clienteResumen($ot->client_id)];
+            if (app(OrderParticipantsService::class)->activo()) {
+                $res['participantes'] = app(OrderParticipantsService::class)->listar('work_order', $ot->id);
+            }
+            return $res;
         }
 
-        $task = Task::with(['talentoType', 'users'])
-            ->where('tipo', 'campo')
+        $task = $origen === OrdenReferencia::ORIGEN_ANTIGUA ? null : Task::with(['talentoType', 'users'])
             ->whereNotNull('talento_type_id')
             ->find($id);
         if ($task) {
             $item = $this->adminItemFromTask($task);
             $item['_source'] = 'task';
+            $item['reprogramaciones'] = app(AgendaOrdenesService::class)->reprogramacionesDe($task->id);
+            if (app(OrderParticipantsService::class)->activo()) {
+                $item['participantes'] = app(OrderParticipantsService::class)->listar('task', $task->id);
+            }
             return $item;
         }
 
@@ -916,13 +1199,27 @@ class OrdenTrabajoUnifiedService
 
     // ── Admin SPA — WRITE ────────────────────────────────────────────────────────
 
-    public function actualizarAdmin(int $id, array $data): array
+    /** E1 Fase 3: con el interruptor encendido, las órdenes antiguas (L-) son de solo lectura. */
+    private function ordenAntiguaBloqueada(): ?array
     {
-        $task = Task::where('id', $id)->where('tipo', 'campo')->whereNotNull('talento_type_id')->first();
+        if (! config('unificacion.interruptores.ordenes_antiguas_solo_lectura')) {
+            return null;
+        }
+        return ['success' => false, 'message' => 'Las órdenes antiguas son de solo lectura.', 'status_code' => 422];
+    }
+
+    public function actualizarAdmin(int $id, array $data, ?string $origen = null): array
+    {
+        $task = $origen === OrdenReferencia::ORIGEN_ANTIGUA ? null : Task::where('id', $id)->whereNotNull('talento_type_id')->first();
         if ($task) {
             $currentOtStatus = self::TASK_STATUS_MAP[$task->status] ?? $task->status;
             if (in_array($currentOtStatus, ['validated', 'cancelled'])) {
                 return ['success' => false, 'message' => 'No se puede editar una orden validada o cancelada.', 'status_code' => 422];
+            }
+
+            if (config('unificacion.interruptores.ordenes_d5b') && $task->validated_at !== null
+                && (isset($data['type_id']) || isset($data['colaborador_id']))) {
+                return ['success' => false, 'message' => 'Una orden validada no cambia de tipo ni de responsable fuera del procedimiento de corrección.', 'status_code' => 422];
             }
 
             $updates = ['updated_by' => auth()->id() ?? 0, 'updated_at' => now()];
@@ -937,8 +1234,7 @@ class OrdenTrabajoUnifiedService
             }
             if (isset($data['scheduled_at'])) {
                 $dt = \Carbon\Carbon::parse($data['scheduled_at']);
-                $updates['start_date'] = $dt->toDateString();
-                $updates['start_time'] = $dt->format('H:i:s');
+                $updates = array_merge($updates, \App\Services\TaskScheduleService::fields($dt, $dt->copy()->addHour()));
             }
             if (array_key_exists('notes', $data)) {
                 $updates['description'] = $data['notes'];
@@ -954,15 +1250,20 @@ class OrdenTrabajoUnifiedService
                 $userId = $this->getUserId((int) $data['colaborador_id']);
                 if ($userId) {
                     $task->users()->sync([$userId]);
+                    app(OrderParticipantsService::class)->fijar('task', $id, $userId);
+                    $this->transicionar('task', $id, 'order.reassigned', null, null, auth()->id(), null, ['assigned_by'], ['colaborador_id' => (int) $data['colaborador_id']]);
                 }
             }
 
             DB::table('tasks')->where('id', $id)->update($updates);
-            return ['success' => true, 'data' => $this->showForAdmin($id)];
+            return ['success' => true, 'data' => $this->showForAdmin($id, $origen)];
         }
 
-        $wo = TalentoWorkOrder::find($id);
+        $wo = $origen === OrdenReferencia::ORIGEN_TAREA ? null : TalentoWorkOrder::find($id);
         if ($wo && !$wo->trashed()) {
+            if ($bloq = $this->ordenAntiguaBloqueada()) {
+                return $bloq;
+            }
             if (in_array($wo->status, ['validated', 'cancelled'])) {
                 return ['success' => false, 'message' => 'No se puede editar una orden validada o cancelada.', 'status_code' => 422];
             }
@@ -980,7 +1281,7 @@ class OrdenTrabajoUnifiedService
         return ['success' => false, 'message' => 'OT no encontrada.', 'status_code' => 404];
     }
 
-    public function cambiarEstadoAdmin(int $id, string $newOtStatus): array
+    public function cambiarEstadoAdmin(int $id, string $newOtStatus, ?string $origen = null, ?string $motivo = null): array
     {
         $transitions = [
             'pending'     => ['in_progress', 'cancelled'],
@@ -997,11 +1298,18 @@ class OrdenTrabajoUnifiedService
             'cancelled'   => 'Archivado',
         ];
 
-        $task = Task::where('id', $id)->where('tipo', 'campo')->whereNotNull('talento_type_id')->first();
+        $task = $origen === OrdenReferencia::ORIGEN_ANTIGUA ? null : Task::where('id', $id)->whereNotNull('talento_type_id')->first();
         if ($task) {
             $currentOtStatus = self::TASK_STATUS_MAP[$task->status] ?? 'cancelled';
             if (!in_array($newOtStatus, $transitions[$currentOtStatus] ?? [])) {
                 return ['success' => false, 'message' => "Transición inválida: {$currentOtStatus} → {$newOtStatus}", 'status_code' => 422];
+            }
+
+            $excepcion = false;
+            if ($newOtStatus === 'completed' && config('unificacion.interruptores.ordenes_d5b')) {
+                $gate = $this->compuertaCierreAdmin((int) $task->talento_type_id, 'tarea_id', $id, $motivo);
+                if (isset($gate['error'])) return $gate['error'];
+                $excepcion = $gate['excepcion'];
             }
 
             $newTaskStatus = $otToTask[$newOtStatus] ?? 'ToDo';
@@ -1013,49 +1321,171 @@ class OrdenTrabajoUnifiedService
             if ($newTaskStatus === 'Done') {
                 $updates['finish_at'] = now()->toDateTimeString();
             }
+            if ($newOtStatus === 'cancelled' && config('unificacion.interruptores.ordenes_d5b')) {
+                $updates += ['archived' => 1, 'archived_at' => now(), 'archived_by' => auth()->id() ?? 0];
+            }
 
             DB::table('tasks')->where('id', $id)->update($updates);
-            return ['success' => true, 'data' => $this->showForAdmin($id)];
+            $this->transicionar('task', $id, $this->eventoDeEstado($newOtStatus), $currentOtStatus, $newOtStatus, auth()->id(), $excepcion ? $motivo : null, $newOtStatus === 'completed' ? ['completed_by'] : [], $excepcion ? ['cierre_excepcion' => true] : null);
+            return ['success' => true, 'data' => $this->showForAdmin($id, $origen)];
         }
 
-        $wo = TalentoWorkOrder::find($id);
+        $wo = $origen === OrdenReferencia::ORIGEN_TAREA ? null : TalentoWorkOrder::find($id);
         if ($wo && !$wo->trashed()) {
+            if ($bloq = $this->ordenAntiguaBloqueada()) {
+                return $bloq;
+            }
             if (!in_array($newOtStatus, $transitions[$wo->status] ?? [])) {
                 return ['success' => false, 'message' => "Transición inválida: {$wo->status} → {$newOtStatus}", 'status_code' => 422];
+            }
+            $excepcion = false;
+            if ($newOtStatus === 'completed' && config('unificacion.interruptores.ordenes_d5b')) {
+                $gate = $this->compuertaCierreAdmin((int) $wo->type_id, 'work_order_id', (int) $wo->id, $motivo);
+                if (isset($gate['error'])) return $gate['error'];
+                $excepcion = $gate['excepcion'];
             }
             $timestamps = [
                 'in_progress' => ['started_at'   => now()],
                 'completed'   => ['completed_at' => now()],
             ];
+            $estadoPrevio = $wo->status;
             $wo->update(array_merge(['status' => $newOtStatus], $timestamps[$newOtStatus] ?? []));
+            $this->transicionar('work_order', $wo->id, $this->eventoDeEstado($newOtStatus), $estadoPrevio, $newOtStatus, auth()->id(), $excepcion ? $motivo : null, $newOtStatus === 'completed' ? ['completed_by'] : [], $excepcion ? ['cierre_excepcion' => true] : null);
             return ['success' => true, 'data' => $wo->fresh()];
         }
 
         return ['success' => false, 'message' => 'OT no encontrada.', 'status_code' => 404];
     }
 
-    public function validarAdmin(int $id): array
+    /**
+     * D5b — Compuerta del cierre desde administración: evidencias y dBm como en completar(). Con el permiso
+     * de excepción y un motivo se puede cerrar sin ellas (el evento queda con el motivo).
+     * @return array{excepcion:bool}|array{error:array}
+     */
+    private function compuertaCierreAdmin(int $typeId, string $fkCol, int $entityId, ?string $motivo): array
     {
-        $task = Task::where('id', $id)->where('tipo', 'campo')->whereNotNull('talento_type_id')->first();
+        $fallo = $this->validarEvidencias($typeId, $fkCol, $entityId);
+        if ($fallo === null) {
+            $dbm = $this->verificarGateDbm($typeId, $fkCol, $entityId);
+            $fallo = $dbm['error'] ?? null;
+        }
+        if ($fallo === null) {
+            return ['excepcion' => false];
+        }
+        $motivo = trim((string) $motivo);
+        if ($motivo !== '' && auth()->user()?->can('talento.ordenes.cierre_excepcion')) {
+            return ['excepcion' => true];
+        }
+        $fallo['message'] = ($fallo['message'] ?? 'Faltan evidencias.') . ' Cerrar sin ellas exige el permiso de excepción y un motivo.';
+        return ['error' => $fallo];
+    }
+
+    private function eventoDeEstado(string $estado): string
+    {
+        return ['in_progress' => 'order.started', 'completed' => 'order.completed', 'cancelled' => 'order.cancelled', 'validated' => 'order.validated'][$estado] ?? 'order.status_changed';
+    }
+
+    /**
+     * UNI-T D4b — ¿el usuario autenticado puede validar a estos ejecutores? Administración global
+     * (super admin) siempre; el resto solo si supervisa (supervisor_id) a alguno. Apagado = sí.
+     */
+    private function puedeValidarEquipo(array $userIds): bool
+    {
+        if (! config('unificacion.interruptores.validacion_equipo_d4b')) {
+            return true;
+        }
+        $user = auth()->user();
+        if (! $user) {
+            return false;
+        }
+        if ($user->hasAnyRole(['super-administrator', 'Super Administrador', 'DESARROLLADOR'])) {
+            return true;
+        }
+        $miColab = TalentoColaborador::where('user_id', $user->id)->value('id');
+        if (! $miColab || empty($userIds)) {
+            return false;
+        }
+
+        return TalentoColaborador::whereIn('user_id', $userIds)->where('supervisor_id', $miColab)->exists();
+    }
+
+    /** UNI-T D4a — ¿quien valida es asignado, participante o ejecutor de la orden? Apagado = nunca. */
+    private function esValidadorPropio(string $origen, int $id, array $userIds): bool
+    {
+        $yo = auth()->id();
+        if (! $yo || ! config('unificacion.interruptores.validacion_no_propia_d4a')) {
+            return false;
+        }
+        $ids = array_map('intval', $userIds);
+        try {
+            foreach (app(OrderParticipantsService::class)->listar($origen, $id) as $p) {
+                $ids[] = (int) $p['user_id'];
+            }
+        } catch (\Throwable $e) {
+            // participantes es solo un complemento; asignados/ejecutor ya cubren lo esencial
+        }
+        return in_array((int) $yo, $ids, true);
+    }
+
+    private function rechazoValidacionPropia(): array
+    {
+        return ['success' => false, 'message' => 'No puedes validar una orden en la que participas; la validación la hace otra persona (o una excepción administrativa con motivo).', 'status_code' => 422];
+    }
+
+    /**
+     * UNI-T D4c — excepción administrativa a D4a: quien participa puede validar solo con el permiso
+     * 'talento.excepcion_administrativa' y un motivo; queda en el historial. Devuelve el rechazo, o null si procede.
+     */
+    private function excepcionValidacionPropia(object $orden, ?string $motivo): ?array
+    {
+        $motivo = trim((string) $motivo);
+        if ($motivo === '' || ! auth()->user()?->can('talento.excepcion_administrativa')) {
+            return $this->rechazoValidacionPropia();
+        }
+        activity('talento')->performedOn($orden)->causedBy(auth()->user())
+            ->withProperties(['motivo' => $motivo])
+            ->log('Orden validada por un participante (excepción administrativa)');
+        return null;
+    }
+
+    public function validarAdmin(int $id, ?string $origen = null, ?string $motivoExcepcion = null): array
+    {
+        $task = $origen === OrdenReferencia::ORIGEN_ANTIGUA ? null : Task::where('id', $id)->whereNotNull('talento_type_id')->first();
         if ($task) {
             // Idempotencia: validated_at ya seteado → no re-acreditar
             if ($task->validated_at !== null) {
                 return ['success' => false, 'message' => 'OT ya validada.', 'status_code' => 422];
             }
 
-            // Acepta InProgress o Done (Done = completada en términos de OT)
-            if (!in_array($task->status, ['InProgress', 'Done'])) {
+            if ($this->esValidadorPropio('task', $id, $task->users->pluck('id')->all())
+                && ($rechazo = $this->excepcionValidacionPropia($task, $motivoExcepcion))) {
+                return $rechazo;
+            }
+
+            // Acepta InProgress o Done (Done = completada en términos de OT).
+            // UNI-T D3b: con validacion_separada ON solo se valida lo ya completado (Done).
+            $estadosValidables = config('unificacion.interruptores.validacion_separada') ? ['Done'] : ['InProgress', 'Done'];
+            if (!in_array($task->status, $estadosValidables)) {
                 return ['success' => false, 'message' => 'Solo se pueden validar órdenes completadas.', 'status_code' => 422];
             }
 
+            if (! $this->puedeValidarEquipo($task->users->pluck('id')->all())) {
+                return ['success' => false, 'message' => 'Solo puedes validar órdenes de tu equipo.', 'status_code' => 403];
+            }
+
             $now = now();
+            $colabTarea = $task->users->first() ? TalentoColaborador::where('user_id', $task->users->first()->id)->value('id') : null;
+            $validatedAt = $colabTarea
+                ? app(LiquidationService::class)->instantForLateWrite((int) $colabTarea, $now->copy(), 'task', (int) $task->id, (float) ($task->points ?? 0), auth()->id())
+                : $now;
             DB::table('tasks')->where('id', $id)->update([
                 'status'       => 'Done',
-                'validated_at' => $now,
+                'validated_at' => $validatedAt,
                 'finish_at'    => $task->finish_at ?? $now->toDateTimeString(),
                 'updated_at'   => $now,
                 'updated_by'   => auth()->id() ?? 0,
             ]);
+            $this->transicionar('task', $id, 'order.validated', 'completed', 'validated', auth()->id(), null, ['validated_by']);
 
             try {
                 app(\App\Modules\Addons\Talento\Services\HealthBonusService::class)->evaluateTask($task->fresh());
@@ -1071,7 +1501,9 @@ class OrdenTrabajoUnifiedService
                     : null;
                 if ($clientId) {
                     try {
-                        $firstUser = $task->users->first();
+                        // UNI-T D8b-3: con el interruptor encendido la garantía sigue al responsable principal.
+                        $principalUid = app(\App\Modules\Addons\Talento\Services\ReconocimientoPorRolService::class)->responsablePrincipalUserId('task', (int) $id);
+                        $firstUser = $principalUid ? (object) ['id' => $principalUid] : $task->users->first();
                         $colaboradorId = $firstUser ? TalentoColaborador::where('user_id', $firstUser->id)->value('id') : null;
                         if ($colaboradorId) {
                             app(\App\Modules\Addons\Talento\Services\WarrantyWindowService::class)
@@ -1083,19 +1515,34 @@ class OrdenTrabajoUnifiedService
                 }
             }
 
-            return ['success' => true, 'data' => $this->showForAdmin($id)];
+            return ['success' => true, 'data' => $this->showForAdmin($id, $origen)];
         }
 
-        $wo = TalentoWorkOrder::find($id);
+        $wo = $origen === OrdenReferencia::ORIGEN_TAREA ? null : TalentoWorkOrder::find($id);
         if ($wo && !$wo->trashed()) {
+            if ($bloq = $this->ordenAntiguaBloqueada()) {
+                return $bloq;
+            }
+            $wUid = TalentoColaborador::where('id', $wo->colaborador_id)->value('user_id');
+            if ($this->esValidadorPropio('work_order', (int) $wo->id, array_filter([$wUid]))
+                && ($rechazo = $this->excepcionValidacionPropia($wo, $motivoExcepcion))) {
+                return $rechazo;
+            }
             if ($wo->status !== 'completed') {
                 return ['success' => false, 'message' => 'Solo se pueden validar órdenes con estado completada.', 'status_code' => 422];
             }
+            $woUid = TalentoColaborador::where('id', $wo->colaborador_id)->value('user_id');
+            if (! $this->puedeValidarEquipo($woUid ? [(int) $woUid] : [])) {
+                return ['success' => false, 'message' => 'Solo puedes validar órdenes de tu equipo.', 'status_code' => 403];
+            }
             $wo->update([
                 'status'       => 'validated',
-                'validated_at' => now(),
+                'validated_at' => app(LiquidationService::class)->instantForLateWrite(
+                    (int) $wo->colaborador_id, now(), 'work_order', (int) $wo->id, (float) $wo->points, auth()->id()
+                ),
                 'validated_by' => auth()->id(),
             ]);
+            $this->transicionar('work_order', $wo->id, 'order.validated', 'completed', 'validated', auth()->id(), null, ['validated_by']);
             try {
                 app(\App\Modules\Addons\Talento\Services\HealthBonusService::class)->evaluate($wo->id);
             } catch (\Throwable $e) {
@@ -1114,9 +1561,39 @@ class OrdenTrabajoUnifiedService
         return ['success' => false, 'message' => 'OT no encontrada.', 'status_code' => 404];
     }
 
+    /**
+     * UNI-T D3b — devolver una orden completada sin validar a "en curso", con motivo obligatorio.
+     * Solo con validacion_separada ON; apagado no hace nada (comportamiento actual).
+     */
+    public function devolver(int $id, ?string $motivo, ?string $origen = null): array
+    {
+        if (! config('unificacion.interruptores.validacion_separada')) {
+            return ['success' => false, 'message' => 'Devolver no está habilitado.', 'status_code' => 422];
+        }
+        $motivo = trim((string) $motivo);
+        if ($motivo === '') {
+            return ['success' => false, 'message' => 'El motivo es obligatorio.', 'status_code' => 422];
+        }
+        $task = $origen === OrdenReferencia::ORIGEN_ANTIGUA ? null : Task::where('id', $id)->whereNotNull('talento_type_id')->first();
+        if (! $task) {
+            return ['success' => false, 'message' => 'OT no encontrada.', 'status_code' => 404];
+        }
+        if ($task->validated_at !== null || $task->status !== 'Done') {
+            return ['success' => false, 'message' => 'Solo se pueden devolver órdenes completadas sin validar.', 'status_code' => 422];
+        }
+        DB::table('tasks')->where('id', $id)->update([
+            'status'     => 'InProgress',
+            'updated_at' => now(),
+            'updated_by' => auth()->id() ?? 0,
+        ]);
+        $this->transicionar('task', $id, 'order.returned', 'completed', 'in_progress', auth()->id(), $motivo);
+
+        return ['success' => true, 'data' => $this->showForAdmin($id, $origen)];
+    }
+
     public function agregarActividadAdmin(int $id, array $data): array
     {
-        $task = Task::where('id', $id)->where('tipo', 'campo')->whereNotNull('talento_type_id')->first();
+        $task = Task::where('id', $id)->whereNotNull('talento_type_id')->first();
         if ($task) {
             // TalentoWorkOrderActivity.fillable no incluye tarea_id → usar DB::table
             $activityId = DB::table('talento_work_order_activities')->insertGetId([
@@ -1231,6 +1708,17 @@ class OrdenTrabajoUnifiedService
             ->value('potencia_dbm');
 
         if ($ultimoDbm === null) {
+            // D6: la medición es obligatoria cuando el tipo de orden la exige.
+            if (config('unificacion.interruptores.evidencias_d6')) {
+                return [
+                    'error' => [
+                        'success'     => false,
+                        'message'     => 'Falta la lectura de potencia (dBm) obligatoria para completar la OT.',
+                        'code'        => 'DBM_FALTANTE',
+                        'status_code' => 422,
+                    ],
+                ];
+            }
             return ['tier' => null];
         }
 

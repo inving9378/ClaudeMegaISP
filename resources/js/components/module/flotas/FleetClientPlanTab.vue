@@ -16,40 +16,36 @@
     <template v-else>
       <!-- ── Sin suscripción ──────────────────────────────────────── -->
       <template v-if="!subscription">
-        <p class="text-subtitle1 text-weight-medium q-mb-md">Selecciona un plan para iniciar el periodo de prueba:</p>
-        <div class="row q-col-gutter-md">
-          <div v-for="plan in plans" :key="plan.key" class="col-12 col-md-4">
-            <q-card bordered flat class="full-height">
-              <q-card-section>
-                <div class="text-h6">{{ plan.name }}</div>
-                <div class="text-caption text-grey q-mb-sm">{{ plan.tagline }}</div>
-                <div class="text-h5 text-primary text-weight-bold">
-                  ${{ plan.base_price }}<span class="text-caption text-grey">/mes</span>
-                </div>
-                <div class="text-caption text-grey q-mb-sm">
-                  Hasta {{ plan.included_units }} vehículos · excedente ${{ plan.overage_unit_price }}/veh
-                </div>
-                <div class="text-caption text-grey q-mb-md">Prueba gratis {{ plan.trial_days }} días</div>
-                <q-list dense>
-                  <q-item v-for="f in plan.features" :key="f" class="q-pa-none">
-                    <q-item-section avatar style="min-width:24px">
-                      <q-icon name="check_circle" color="positive" size="16px" />
-                    </q-item-section>
-                    <q-item-section class="text-caption">{{ f }}</q-item-section>
-                  </q-item>
-                </q-list>
-              </q-card-section>
-              <q-card-actions>
-                <q-btn
-                  color="primary" unelevated class="full-width"
-                  :label="`Iniciar prueba ${plan.trial_days}d`"
-                  :loading="saving === plan.key"
-                  @click="startTrial(plan.key)"
-                />
-              </q-card-actions>
-            </q-card>
-          </div>
-        </div>
+        <p class="text-subtitle1 text-weight-medium q-mb-sm">El bloque se calcula solo con las unidades registradas:</p>
+        <q-card bordered flat class="q-mb-md">
+          <q-card-section>
+            <div class="text-caption text-grey">{{ units.length }} unidad(es) registrada(s)</div>
+            <div class="text-h6">Bloque {{ bloqueActual.name }}</div>
+            <div class="text-h5 text-primary text-weight-bold">
+              ${{ bloqueActual.price }}<span class="text-caption text-grey">/mes</span>
+            </div>
+            <div class="text-caption text-grey q-mt-xs">
+              <span v-for="(p, idx) in plansOrdenados" :key="p.key">
+                {{ rangoTexto(idx) }} = {{ p.name }} ${{ p.base_price }}<span v-if="idx < plansOrdenados.length - 1"> · </span>
+              </span>
+              · arriba de {{ topeMaximo }}: ${{ plansOrdenados[0]?.overage_unit_price }} por unidad extra
+            </div>
+          </q-card-section>
+          <q-card-actions>
+            <q-btn
+              color="primary" unelevated
+              :label="`Iniciar prueba ${bloqueActual.trial_days} días`"
+              :loading="saving === 'trial'"
+              @click="startTrial(false)"
+            />
+            <q-btn
+              color="positive" unelevated
+              label="Promoción 3 meses gratis"
+              :loading="saving === 'promo'"
+              @click="startTrial(true)"
+            />
+          </q-card-actions>
+        </q-card>
       </template>
 
       <!-- ── Con suscripción ─────────────────────────────────────── -->
@@ -120,21 +116,8 @@
         <!-- Acciones -->
         <template v-if="['trial','active'].includes(subscription.status)">
           <div class="row q-col-gutter-sm q-mb-lg">
-            <div class="col-auto">
-              <q-btn-dropdown outline color="primary" label="Cambiar plan" :loading="saving === 'plan'">
-                <q-list>
-                  <q-item
-                    v-for="p in plans" :key="p.key" clickable v-close-popup
-                    :active="p.key === subscription.plan"
-                    @click="changePlan(p.key)"
-                  >
-                    <q-item-section>
-                      <q-item-label>{{ p.name }}</q-item-label>
-                      <q-item-label caption>${{ p.base_price }}/mes · hasta {{ p.included_units }} veh</q-item-label>
-                    </q-item-section>
-                  </q-item>
-                </q-list>
-              </q-btn-dropdown>
+            <div class="col-auto self-center text-caption text-grey">
+              El bloque se ajusta solo según las unidades registradas.
             </div>
             <div class="col-auto">
               <q-btn
@@ -148,19 +131,14 @@
 
         <!-- Reactivar si cancelada/expirada -->
         <template v-if="['cancelled','expired'].includes(subscription.status)">
-          <q-btn-dropdown unelevated color="positive" label="Reactivar" :loading="saving === 'reactivate'">
-            <q-list>
-              <q-item
-                v-for="p in plans" :key="p.key" clickable v-close-popup
-                @click="startTrial(p.key)"
-              >
-                <q-item-section>
-                  <q-item-label>{{ p.name }}</q-item-label>
-                  <q-item-label caption>Prueba {{ p.trial_days }} días gratis</q-item-label>
-                </q-item-section>
-              </q-item>
-            </q-list>
-          </q-btn-dropdown>
+          <div class="row q-col-gutter-sm">
+            <div class="col-auto">
+              <q-btn unelevated color="positive" :label="`Reactivar con prueba de ${bloqueActual.trial_days} días`" :loading="saving === 'trial'" @click="startTrial(false)" />
+            </div>
+            <div class="col-auto">
+              <q-btn outline color="positive" label="Reactivar con promoción 3 meses" :loading="saving === 'promo'" @click="startTrial(true)" />
+            </div>
+          </div>
         </template>
 
         <!-- Historial de eventos -->
@@ -181,6 +159,80 @@
           </q-timeline>
         </q-expansion-item>
       </template>
+
+      <!-- ── Unidades del cliente ────────────────────────────────── -->
+      <q-separator class="q-my-lg" />
+      <div class="row items-center q-mb-sm">
+        <div class="text-subtitle1 text-weight-medium col">Unidades del cliente</div>
+        <q-btn color="primary" unelevated dense icon="add" label="Agregar unidad" @click="openUnit()" />
+      </div>
+      <q-banner v-if="avisoBloque" class="bg-amber-2 text-amber-10 rounded-borders q-mb-sm" dense>
+        {{ avisoBloque }}
+      </q-banner>
+      <q-markup-table flat bordered dense v-if="units.length">
+        <thead>
+          <tr><th class="text-left">Unidad</th><th class="text-left">Placas</th><th class="text-left">Estado</th><th class="text-left">GPS</th><th></th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="u in units" :key="u.id">
+            <td>{{ u.brand }} {{ u.model }} {{ u.year || '' }}</td>
+            <td>{{ u.plates || '—' }}</td>
+            <td>{{ u.status }}</td>
+            <td>
+              <template v-if="u.gps">
+                {{ u.gps.imei }} · {{ u.gps.esperando_conexion ? 'esperando primera conexión' : u.gps.status }}
+                <q-btn flat dense round size="sm" icon="link_off" color="negative" @click="removeGps(u)"><q-tooltip>Quitar GPS</q-tooltip></q-btn>
+              </template>
+              <q-btn v-else flat dense size="sm" icon="gps_fixed" label="Agregar GPS" @click="openGps(u)" />
+            </td>
+            <td class="text-right">
+              <q-btn flat dense round icon="edit" @click="openUnit(u)" />
+              <q-btn flat dense round icon="delete" color="negative" @click="removeUnit(u)" />
+            </td>
+          </tr>
+        </tbody>
+      </q-markup-table>
+      <div v-else class="text-grey text-caption">Este cliente aún no tiene unidades registradas.</div>
+
+      <q-dialog v-model="unitDialog" persistent>
+        <q-card style="min-width:360px">
+          <q-card-section class="text-h6">{{ unitForm.id ? 'Editar unidad' : 'Agregar unidad' }}</q-card-section>
+          <q-card-section class="q-gutter-sm">
+            <q-input v-model="unitForm.brand" label="Marca *" dense outlined />
+            <q-input v-model="unitForm.model" label="Modelo *" dense outlined />
+            <q-input v-model="unitForm.year" label="Año" type="number" dense outlined />
+            <q-input v-model="unitForm.plates" label="Placas" dense outlined />
+            <q-input v-model="unitForm.color" label="Color" dense outlined />
+            <q-select v-model="unitForm.status" :options="['active','in_workshop','inactive']" label="Estado" dense outlined />
+            <div v-if="unitError" class="text-negative text-caption">{{ unitError }}</div>
+          </q-card-section>
+          <q-card-actions align="right">
+            <q-btn flat label="Cancelar" v-close-popup />
+            <q-btn color="primary" unelevated label="Guardar" :loading="saving === 'unit'" @click="saveUnit" />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
+
+      <q-dialog v-model="gpsDialog" persistent>
+        <q-card style="min-width:360px">
+          <q-card-section class="text-h6">Agregar GPS</q-card-section>
+          <q-card-section class="q-gutter-sm">
+            <q-select v-model="gpsForm.brand" :options="['ruptela']" label="Marca *" dense outlined />
+            <q-input v-model="gpsForm.imei" label="IMEI *" dense outlined maxlength="20" />
+            <q-input v-model="gpsForm.sim_number" label="Número del chip" dense outlined maxlength="20" />
+            <q-input v-model="gpsForm.sim_carrier" label="Compañía del chip" dense outlined maxlength="50" />
+            <div v-if="gpsError" class="text-negative text-caption">{{ gpsError }}</div>
+            <div v-if="gpsListener" class="text-caption bg-blue-1 q-pa-sm rounded-borders">
+              GPS agregado. Configura el equipo para enviar a la IP <b>{{ gpsListener.ip || '(pendiente de asignar)' }}</b>,
+              puerto <b>{{ gpsListener.port }}</b>, protocolo {{ gpsListener.protocol }}. Estado: esperando primera conexión.
+            </div>
+          </q-card-section>
+          <q-card-actions align="right">
+            <q-btn flat :label="gpsListener ? 'Cerrar' : 'Cancelar'" v-close-popup />
+            <q-btn v-if="!gpsListener" color="primary" unelevated label="Guardar" :loading="saving === 'gps'" @click="saveGps" />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
     </template>
   </div>
 </template>
@@ -200,10 +252,36 @@ export default {
       error: null,
       subscription: null,
       plans: [],
+      units: [],
+      unitDialog: false,
+      unitForm: {},
+      unitError: null,
+      gpsDialog: false,
+      gpsForm: {},
+      gpsError: null,
+      gpsListener: null,
+      gpsUnit: null,
+      avisoBloque: null,
     };
   },
 
   computed: {
+    // Mismo criterio que FleetPlans::keyForUnits()/priceForUnits(): el menor bloque que incluye las
+    // unidades; arriba del tope, el mayor + excedente. Solo para mostrar: el servidor recalcula.
+    plansOrdenados() {
+      return [...this.plans].sort((a, b) => a.included_units - b.included_units);
+    },
+    topeMaximo() {
+      return this.plansOrdenados[this.plansOrdenados.length - 1]?.included_units ?? 0;
+    },
+    bloqueActual() {
+      const n = this.units.length;
+      const lista = this.plansOrdenados;
+      const p = lista.find(x => n <= x.included_units) ?? lista[lista.length - 1];
+      if (!p) return { key: null, name: '—', price: 0, trial_days: 0 };
+      const extra = Math.max(0, n - p.included_units);
+      return { key: p.key, name: p.name, price: (Number(p.base_price) + extra * Number(p.overage_unit_price)).toFixed(2), trial_days: p.trial_days };
+    },
     daysLeft() {
       if (!this.subscription?.trial_ends_at) return 0;
       const diff = new Date(this.subscription.trial_ends_at) - new Date();
@@ -224,7 +302,7 @@ export default {
     },
     statusLabel() {
       const map = {
-        trial: `En periodo de prueba — ${this.daysLeft} días restantes`,
+        trial: `${this.subscription?.is_promo ? 'En promoción (3 meses gratis)' : 'En periodo de prueba'} — ${this.daysLeft} días restantes`,
         active: 'Suscripción activa',
         cancelled: 'Suscripción cancelada',
         expired: 'Prueba vencida sin pago',
@@ -243,6 +321,11 @@ export default {
   },
 
   methods: {
+    rangoTexto(idx) {
+      const lista = this.plansOrdenados;
+      const desde = idx === 0 ? 1 : lista[idx - 1].included_units + 1;
+      return `${desde}–${lista[idx].included_units}`;
+    },
     async load() {
       this.loading = true;
       this.error = null;
@@ -250,6 +333,7 @@ export default {
         const { data } = await axios.get(`/flotas/api/suscripciones/client/${this.clientId}`);
         this.subscription = data?.subscription ?? null;
         this.plans = data?.plans ?? [];
+        await this.loadUnits();
       } catch (e) {
         this.error = e.response?.data?.message ?? 'Error al cargar plan de flotas';
       } finally {
@@ -257,32 +341,94 @@ export default {
       }
     },
 
-    async startTrial(plan) {
-      this.saving = plan;
+    async loadUnits() {
+      const { data } = await axios.get(`/flotas/api/suscripciones/client/${this.clientId}/vehiculos`);
+      this.units = data?.vehicles ?? [];
+    },
+
+    openUnit(u = null) {
+      this.unitError = null;
+      this.unitForm = u ? { ...u } : { status: 'active' };
+      this.unitDialog = true;
+    },
+
+    async saveUnit() {
+      this.saving = 'unit';
+      this.unitError = null;
+      const base = `/flotas/api/suscripciones/client/${this.clientId}/vehiculos`;
+      const f = this.unitForm;
+      const body = { brand: f.brand, model: f.model, year: f.year || null, plates: f.plates || null, color: f.color || null, status: f.status };
       try {
-        const { data } = await axios.post(
-          `/flotas/api/suscripciones/client/${this.clientId}/start-trial`,
-          { plan }
-        );
-        this.subscription = data.subscription;
-        this.$q.notify({ type: 'positive', message: 'Periodo de prueba iniciado.' });
+        const { data } = f.id ? await axios.put(`${base}/${f.id}`, body) : await axios.post(base, body);
+        this.avisoBloque = data?.aviso_bloque?.mensaje ?? null;
+        this.unitDialog = false;
         await this.load();
       } catch (e) {
-        this.$q.notify({ type: 'negative', message: e.response?.data?.message ?? 'Error al iniciar prueba' });
+        this.unitError = e.response?.data?.message ?? 'Error al guardar la unidad';
       } finally {
         this.saving = null;
       }
     },
 
-    async changePlan(plan) {
-      if (plan === this.subscription?.plan) return;
-      this.saving = 'plan';
+    openGps(u) {
+      this.gpsUnit = u;
+      this.gpsError = null;
+      this.gpsListener = null;
+      this.gpsForm = { brand: 'ruptela' };
+      this.gpsDialog = true;
+    },
+
+    async saveGps() {
+      this.saving = 'gps';
+      this.gpsError = null;
       try {
-        await axios.post(`/flotas/api/suscripciones/client/${this.clientId}/change-plan`, { plan });
-        this.$q.notify({ type: 'positive', message: 'Plan actualizado.' });
+        const { data } = await axios.post(`/flotas/api/suscripciones/client/${this.clientId}/vehiculos/${this.gpsUnit.id}/gps`, this.gpsForm);
+        this.gpsListener = data.listener;
+        await this.loadUnits();
+      } catch (e) {
+        this.gpsError = e.response?.data?.errors?.imei?.[0] ?? e.response?.data?.message ?? 'Error al agregar el GPS';
+      } finally {
+        this.saving = null;
+      }
+    },
+
+    removeGps(u) {
+      this.$q.dialog({ title: 'Quitar GPS', message: `¿Quitar el GPS de ${u.brand} ${u.model}?`, cancel: true, persistent: true }).onOk(async () => {
+        try {
+          await axios.delete(`/flotas/api/suscripciones/client/${this.clientId}/vehiculos/${u.id}/gps`);
+          await this.loadUnits();
+        } catch (e) {
+          this.$q.notify({ type: 'negative', message: e.response?.data?.message ?? 'Error al quitar el GPS' });
+        }
+      });
+    },
+
+    removeUnit(u) {
+      this.$q.dialog({ title: 'Dar de baja', message: `¿Dar de baja ${u.brand} ${u.model}?`, cancel: true, persistent: true }).onOk(async () => {
+        try {
+          const { data } = await axios.delete(`/flotas/api/suscripciones/client/${this.clientId}/vehiculos/${u.id}`);
+          this.avisoBloque = data?.aviso_bloque?.mensaje ?? null;
+          await this.load();
+        } catch (e) {
+          this.$q.notify({ type: 'negative', message: e.response?.data?.message ?? 'Error al dar de baja' });
+        }
+      });
+    },
+
+    async startTrial(promo = false) {
+      const plan = this.bloqueActual.key;
+      if (!plan) return;
+      this.saving = promo ? 'promo' : 'trial';
+      try {
+        const { data } = await axios.post(
+          `/flotas/api/suscripciones/client/${this.clientId}/start-trial`,
+          { plan, promo }
+        );
+        this.subscription = data.subscription;
+        this.$q.notify({ type: 'positive', message: promo ? 'Promoción de 3 meses iniciada.' : 'Periodo de prueba iniciado.' });
         await this.load();
       } catch (e) {
-        this.$q.notify({ type: 'negative', message: e.response?.data?.message ?? 'Error al cambiar plan' });
+        this.$q.notify({ type: 'negative', message: e.response?.data?.message ?? 'Error al iniciar prueba' });
       } finally {
         this.saving = null;
       }
@@ -311,7 +457,7 @@ export default {
 
     eventLabel(type) {
       const map = {
-        created: 'Suscripción creada', trial_started: 'Prueba iniciada',
+        created: 'Suscripción creada', trial_started: 'Prueba iniciada', promo_started: 'Promoción 3 meses iniciada', promo_converted: 'Promoción terminada: pasó a cobro', block_change_notice: 'Cambio de bloque',
         trial_reminder: 'Recordatorio enviado', trial_expiring: 'Prueba por vencer',
         activated: 'Activada (pagada)', billed: 'Ciclo facturado',
         payment_failed: 'Pago fallido', vehicles_changed: 'Vehículos actualizados',

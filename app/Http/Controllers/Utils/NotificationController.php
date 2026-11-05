@@ -44,8 +44,12 @@ class NotificationController extends Controller
     public function readNotification($id)
     {
         $user = $this->userAutenticated();
-        $notification = $user->unreadNotifications->firstWhere('id', $id);
-        $notification->markAsRead();
+        // Solo entre las notificaciones del propio usuario: inexistente y ajena dan el mismo 404.
+        $notification = $user->notifications()->where('id', $id)->first();
+        abort_if(!$notification, 404);
+        if ($notification->read_at === null) {
+            $notification->markAsRead();
+        }
         return redirect()->back();
     }
 

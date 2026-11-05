@@ -104,6 +104,11 @@
           <template v-else>
             <!-- REGLAS -->
             <div v-if="tab === 'reglas'" class="table-responsive">
+              <div v-if="reglaEfectiva" class="alert py-2 small" :class="reglaDiverge ? 'alert-warning' : 'alert-info'">
+                Regla que se aplica al pago: <strong>{{ reglaEfectiva.name }}</strong>
+                ({{ reglaEfectiva.is_fixed_salary ? 'salario fijo ' + fmt2(reglaEfectiva.fixed_salary) : (reglaEfectiva.commission_percentage ?? '—') + ' %' }}).
+                <span v-if="reglaDiverge">Difiere de las reglas asignadas de la lista.</span>
+              </div>
               <table class="table table-sm table-hover align-middle">
                 <thead class="table-light">
                   <tr><th>Regla</th><th>%  comisión</th><th>Salario fijo</th><th>Periodo</th></tr>
@@ -322,6 +327,8 @@ export default {
       statement: null,
       loadingStatement: false,
       rules: [],
+      reglaEfectiva: null,
+      reglaDiverge: false,
       pending: [],
       payments: [],
       debtSales: [],
@@ -381,7 +388,7 @@ export default {
       this.loadingSeller = true;
       try {
         const { data } = await axios.get(`/talento/api/colaboradores/${this.selectedColId}/comisiones/reglas`);
-        this.rules = data ?? [];
+        this.setRules(data);
         this.tab = "reglas";
         this.loadStatement();
       } catch (e) {
@@ -407,12 +414,23 @@ export default {
       }
     },
 
+    setRules(data) {
+      if (data && !Array.isArray(data) && Array.isArray(data.data)) {
+        this.rules = data.data;
+        this.reglaEfectiva = data.regla_efectiva ?? null;
+        this.reglaDiverge = !!data.diverge;
+      } else {
+        this.rules = data ?? [];
+        this.reglaEfectiva = null;
+        this.reglaDiverge = false;
+      }
+    },
     async loadTabData(tab) {
       this.loadingTab = true;
       try {
         if (tab === "reglas") {
           const { data } = await axios.get(`/talento/api/colaboradores/${this.selectedColId}/comisiones/reglas`);
-          this.rules = data ?? [];
+          this.setRules(data);
         } else if (tab === "pendientes") {
           const { data } = await axios.get(`/talento/api/colaboradores/${this.selectedColId}/comisiones/pendientes`);
           this.pending = data ?? [];

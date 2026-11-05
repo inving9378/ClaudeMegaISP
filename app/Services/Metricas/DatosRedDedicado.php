@@ -3,6 +3,7 @@
 namespace App\Services\Metricas;
 
 use App\Models\ServicioMonitoreo;
+use App\Services\Clientes\TipoCliente;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -15,7 +16,7 @@ use Illuminate\Validation\ValidationException;
  * servicio_monitoreo_ips. Nunca guarda client_internet_services: eso dispara trabajos al router.
  * Reglas de Irving: las IPs a monitorear son SOLO del bloque, el bloque se puede capturar o
  * corregir a mano en CIDR (el inventario puede no coincidir con el real) y la IP del router no
- * se monitorea (#999).
+ * se monitorea (#999). Si se mide o no lo decide PoliticaMonitoreo, no esta ventana; aquí se muestra.
  */
 class DatosRedDedicado
 {
@@ -33,6 +34,8 @@ class DatosRedDedicado
         $avisos = [];
         if ($config === null) {
             $avisos[] = 'Todavía no se ha guardado: lo que ves está propuesto desde el servicio. Revísalo y guarda.';
+        } elseif ($config->automatica) {
+            $avisos[] = 'Configuración automática, sin revisar: se tomó del servicio. Si la IP registrada es la del router, el ping mide al router y no al cliente; marca los equipos correctos y guarda.';
         }
         if ($ipRegistrada) {
             $avisos[] = sprintf('El servicio tiene registrada la IP %s%s. Si esa es la del router o el bloque real es otro, captura el bloque a mano: no se corrige el servicio desde aquí.',
@@ -46,7 +49,6 @@ class DatosRedDedicado
                 'vlan_id'       => $config->vlan_id,
                 'bloque_cidr'   => $config->bloque_cidr,
                 'ip_router'     => $config->ip_router,
-                'activo'        => $config->activo,
                 'ips'           => $config->ips->map(fn ($i) => ['ip' => $i->ip, 'etiqueta' => $i->etiqueta, 'monitorear' => $i->monitorear])->values()->all(),
             ]
             : [
@@ -55,7 +57,6 @@ class DatosRedDedicado
                 'vlan_id'       => null,
                 'bloque_cidr'   => $redPool ? "{$redPool->network}/{$redPool->bm}" : null,
                 'ip_router'     => null,
-                'activo'        => true,
                 'ips'           => [],
             ];
 
@@ -70,6 +71,11 @@ class DatosRedDedicado
                 'bloque_pool'  => $redPool ? "{$redPool->network}/{$redPool->bm}" : null,
             ],
             'datos'          => $datos,
+            'monitoreo'      => [
+                'activo'     => $config ? (bool) $config->activo : null,
+                'motivo'     => $config?->motivo_pausa ? PoliticaMonitoreo::texto($config->motivo_pausa) : null,
+                'automatica' => (bool) $config?->automatica,
+            ],
             'propuesto'      => $config === null,
             'avisos'         => $avisos,
             'routers'        => DB::table('routers')->orderBy('title')->get(['id', 'title'])->map(fn ($r) => ['id' => (int) $r->id, 'title' => $r->title])->all(),
@@ -78,11 +84,11 @@ class DatosRedDedicado
     }
 
     /** @throws ValidationException */
-    public function guardar(int $servicioId, array $entrada): array
+    public function guardar(int $servicioId, array $entrada, ?int $usuarioId = null): array
     {
         $servicio = $this->servicio($servicioId);
         if (! $this->esDedicado((int) $servicio->client_id)) {
-            throw ValidationException::withMessages(['servicio' => 'El cliente no está marcado como dedicado.']);
+            throw ValidationException::withMessages(['servicio' => 'El cliente no es de tipo Dedicado.']);
         }
 
         $minimo = (int) config('metricas.bloque_prefijo_minimo', 24);
@@ -92,7 +98,6 @@ class DatosRedDedicado
             'vlan_id'          => ['nullable', 'integer', 'between:1,4094'],
             'bloque_cidr'      => ['nullable', 'string', 'max:43'],
             'ip_router'        => ['nullable', 'ipv4'],
-            'activo'           => ['boolean'],
             'ips'              => ['array', 'max:254'],
             'ips.*.ip'         => ['required', 'ipv4'],
             'ips.*.etiqueta'   => ['nullable', 'string', 'max:100'],
@@ -148,7 +153,7 @@ class DatosRedDedicado
         $datos = $validador->validate();
         $bloque = BloqueIpv4::desde((string) ($datos['bloque_cidr'] ?? ''));
 
-        DB::transaction(function () use ($servicioId, $servicio, $datos, $bloque) {
+        DB::transaction(function () use ($servicioId, $servicio, $datos, $bloque, $usuarioId) {
             $config = ServicioMonitoreo::updateOrCreate(['servicio_id' => $servicioId], [
                 'cliente_id'    => (int) $servicio->client_id,
                 'router_id'     => (int) $datos['router_id'],
@@ -156,7 +161,9 @@ class DatosRedDedicado
                 'vlan_id'       => $datos['vlan_id'] ?? null,
                 'bloque_cidr'   => $bloque?->cidr(),
                 'ip_router'     => ! empty($datos['ip_router']) ? $datos['ip_router'] : null,
-                'activo'        => (bool) ($datos['activo'] ?? true),
+                'automatica'    => false,
+                'revisado_por'  => $usuarioId,
+                'revisado_at'   => now(),
             ]);
 
             // Se guardan las IPs marcadas o con etiqueta; las demás del bloque no necesitan fila.
@@ -171,6 +178,8 @@ class DatosRedDedicado
                 ]);
             }
         });
+
+        app(AsegurarMonitoreoDedicados::class)->cliente((int) $servicio->client_id);
 
         return $this->para($servicioId);
     }
@@ -188,7 +197,7 @@ class DatosRedDedicado
 
     private function esDedicado(int $clienteId): bool
     {
-        return (bool) DB::table('client_additional_information')->where('client_id', $clienteId)
-            ->whereNull('deleted_at')->value('is_dedicated');
+        return DB::table('client_additional_information')->where('client_id', $clienteId)
+            ->whereNull('deleted_at')->value('tipo_cliente') === TipoCliente::DEDICADO;
     }
 }

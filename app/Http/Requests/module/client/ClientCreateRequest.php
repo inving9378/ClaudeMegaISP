@@ -30,7 +30,12 @@ class ClientCreateRequest extends FormRequest
             'father_last_name' => 'required',
             'mother_last_name' => 'required',
             'colony_id' => 'required',
-            'user' => 'required|unique:client_main_information,user,' . $request->route()->id,
+            'user' => [
+                'required',
+                'unique:client_main_information,user,' . $request->route()->id,
+                // En una importación la cuenta del cliente puede existir ya con su número.
+                new \App\Rules\UsuarioWebLibre($request->import ? (int) $request->client_id_old : null),
+            ],
             'email' => 'required|unique:client_main_information,email,' . $request->route()->id,
             'power_dbm' => 'numeric',
             'nif_pasaport' => 'required',

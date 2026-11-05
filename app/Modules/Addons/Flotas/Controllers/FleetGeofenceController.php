@@ -14,7 +14,7 @@ class FleetGeofenceController extends FleetBaseController
     // GET /flotas/api/geocercas — lista con filtros (type, active, vehicle_id)
     public function index(Request $request): JsonResponse
     {
-        $this->authorize('fleet.geofences.view');
+        $this->autorizar('fleet.geofences.view');
 
         $q = FleetGeofence::withCount('vehicles')
             ->forClient($this->clientId())
@@ -51,7 +51,7 @@ class FleetGeofenceController extends FleetBaseController
     // GET /flotas/api/geocercas/{id} — detalle (incluye vehículos asignados)
     public function show(int $id): JsonResponse
     {
-        $this->authorize('fleet.geofences.view');
+        $this->autorizar('fleet.geofences.view');
 
         $geofence = FleetGeofence::with(['vehicles:id,plates,brand,model,year,status'])
             ->withCount('vehicles')
@@ -73,7 +73,7 @@ class FleetGeofenceController extends FleetBaseController
     // POST /flotas/api/geocercas — crear
     public function store(Request $request): JsonResponse
     {
-        $this->authorize('fleet.geofences.manage');
+        $this->autorizar('fleet.geofences.manage');
 
         $data = $this->validateData($request);
 
@@ -93,7 +93,7 @@ class FleetGeofenceController extends FleetBaseController
     // PUT/PATCH /flotas/api/geocercas/{id} — actualizar
     public function update(Request $request, int $id): JsonResponse
     {
-        $this->authorize('fleet.geofences.manage');
+        $this->autorizar('fleet.geofences.manage');
 
         $geofence = FleetGeofence::forClient($this->clientId())->findOrFail($id);
         $data = $this->validateData($request);
@@ -112,7 +112,7 @@ class FleetGeofenceController extends FleetBaseController
     // POST /flotas/api/geocercas/{id}/vehiculos — actualizar solo el pivot de vehículos
     public function assignVehicles(Request $request, int $id): JsonResponse
     {
-        $this->authorize('fleet.geofences.manage');
+        $this->autorizar('fleet.geofences.manage');
 
         $geofence = FleetGeofence::forClient($this->clientId())->findOrFail($id);
         $vehicleIds = $this->sanitizeVehicleIds($request->input('vehicle_ids', []));
@@ -127,7 +127,7 @@ class FleetGeofenceController extends FleetBaseController
     // DELETE /flotas/api/geocercas/{id} — soft delete
     public function destroy(int $id): JsonResponse
     {
-        $this->authorize('fleet.geofences.manage');
+        $this->autorizar('fleet.geofences.manage');
 
         $geofence = FleetGeofence::forClient($this->clientId())->findOrFail($id);
         $geofence->delete();

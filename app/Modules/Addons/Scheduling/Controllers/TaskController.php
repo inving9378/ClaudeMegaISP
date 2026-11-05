@@ -55,6 +55,23 @@ class TaskController extends Controller
         return view($this->data['url'] . '.index', $this->data);
     }
 
+    /** B3c: con el interruptor encendido, escribir exige el permiso propio de la acción o gestionar órdenes. */
+    private function exigirEscritura(string $permiso): void
+    {
+        if (!config('unificacion.interruptores.permisos_tareas_b3c')) {
+            return;
+        }
+        $user = auth()->user();
+        if (!$user || (!$user->isAdmin() && !$user->isSuperAdmin() && !$user->can($permiso) && !$user->can('tareas.gestionar_ordenes'))) {
+            abort(403, 'No tienes permiso para modificar tareas.');
+        }
+    }
+
+    private function tareaAutorizada($id): Task
+    {
+        return \App\Services\TaskService::tareaAutorizada($id);
+    }
+
     public function getModuleId()
     {
         $moduleRepository = new ModuleRepository();
@@ -119,12 +136,14 @@ class TaskController extends Controller
      */
     public function store(TaskCreateRequest $request)
     {
+        $this->exigirEscritura('task_add_task');
         $input = defined($this->data['model'] . '::MULTIPLE_RELATIONS') ?
             $request->except(collect($this->data['model']::MULTIPLE_RELATIONS)->keys()->toArray()) :
             $request->except('checks');
 
         unset($input['checks']);
         unset($input['assigned_to']);
+        $input = $this->quitarCamposInternos($input);
 
         $documentTemplateService = new DocumentTemplateService();
         $validation = $documentTemplateService->validateAndReplaceTemplate($input['description']);
@@ -148,11 +167,34 @@ class TaskController extends Controller
         return $model;
     }
 
+    /**
+     * B4 (UNI-T): campos que Scheduling no acepta del request (son de órdenes de Talento).
+     */
+    private const CAMPOS_INTERNOS = ['talento_type_id', 'points', 'is_billable', 'validated_at'];
+
+    private function b4(): bool
+    {
+        return (bool) config('unificacion.interruptores.scheduling_b4');
+    }
+
+    private function quitarCamposInternos(array $input): array
+    {
+        return $this->b4() ? array_diff_key($input, array_flip(self::CAMPOS_INTERNOS)) : $input;
+    }
+
     public function getStartAndEndTime($input, $isEdit = null)
     {
-        $estimatedTime = $input['estimated_time'];
+        $unica = config('unificacion.interruptores.programacion_unica');
+        $estimatedTime = $input['estimated_time'] ?? null;
 
-        $estimated = FrequencyEstimatedDedicatedTime::where('id', $estimatedTime)->first();
+        $estimated = $estimatedTime ? FrequencyEstimatedDedicatedTime::where('id', $estimatedTime)->first() : null;
+        if ($unica && $estimated) {
+            return \App\Services\TaskScheduleService::conDuracion($input, $estimated->value, (bool) $isEdit);
+        }
+        if ($unica) {
+            // Sin duración (p. ej. CrearTareaModal desde ticket: start_date + HH:MM): misma forma oficial.
+            return \App\Services\TaskScheduleService::normalizar($input);
+        }
         if ($estimated && !$isEdit) {
             $arrayHurMinutes = explode(':', $estimated->value);
 
@@ -219,6 +261,7 @@ class TaskController extends Controller
      */
     public function edit($id)
     {
+        $this->tareaAutorizada($id);
         $this->data['notifications'] = $this->userNotification();
         $this->includeLibraryDinamic($this->data['model']);
         $this->data['id'] = $id;
@@ -231,6 +274,7 @@ class TaskController extends Controller
 
     public function getData($id)
     {
+        $this->tareaAutorizada($id);
         $model = $this->data['model']::find($id);
         $logService = new LogService();
         $logs = $logService->getLogs($model);
@@ -265,7 +309,11 @@ class TaskController extends Controller
      */
     public function update(TaskCreateRequest $request, $id)
     {
+        $this->exigirEscritura('task_edit_task');
+        $this->tareaAutorizada($id);
         $model = $this->data['model']::find($id);
+
+        $esOrden = $this->b4() && $model->talento_type_id;
 
         try {
             DB::beginTransaction();
@@ -281,6 +329,11 @@ class TaskController extends Controller
             unset($input['assigned_to']);
             unset($input['observation']);
             unset($input['file']);
+            $input = $this->quitarCamposInternos($input);
+            if ($esOrden) {
+                // El estado de una orden lo gobierna el servicio de órdenes (D5a), no Scheduling.
+                unset($input['status']);
+            }
 
             $this->saveChecksListVerification($request, $model->id);
 
@@ -290,8 +343,18 @@ class TaskController extends Controller
             if (is_string($usersAssigned)) {
                 $usersAssigned = explode(',', $usersAssigned);
             }
-            $model->users()->sync($usersAssigned);
-            $model->sendNotifications();
+            if ($esOrden) {
+                $nuevos = collect();
+            } elseif ($this->b4()) {
+                $cambios = $model->users()->sync($usersAssigned);
+                $nuevos = $model->users()->whereIn('users.id', $cambios['attached'])->get();
+            } else {
+                $model->users()->sync($usersAssigned);
+                $nuevos = null;
+            }
+            if ($nuevos === null || $nuevos->isNotEmpty()) {
+                $model->sendNotifications(null, $nuevos);
+            }
 
             $unreadNotificationService = new UnreadNotificationService();
             $unreadNotificationService->unreadTask($id);
@@ -347,7 +410,11 @@ class TaskController extends Controller
      */
     public function destroy($id)
     {
-        $this->data['model']::findOrFail($id)->delete();
+        $this->exigirEscritura('task_delete_task');
+        $this->tareaAutorizada($id);
+        $tarea = $this->data['model']::findOrFail($id);
+        // E3: con el interruptor encendido se archiva (recuperable); apagado conserva el borrado duro.
+        config('unificacion.interruptores.tareas_recuperables_e3') ? $tarea->delete() : $tarea->forceDelete();
         return redirect()->back()->with('message', $this->data['module'] . ' Eliminado Correctamente');
     }
 
@@ -359,6 +426,7 @@ class TaskController extends Controller
 
     public function getListTemplateVerification($id)
     {
+        $this->tareaAutorizada($id);
         $data = [];
         $model = $this->data['model']::findOrFail($id);
         $listTemplateVerificationRepository = new ListTemplateVerificationRepository();
@@ -385,6 +453,7 @@ class TaskController extends Controller
 
     public function updatetaskToCalenddar(Request $request)
     {
+        // Alcance de la tarea ajena: lo resuelve más abajo el 403 de #697 (compatibilidad con #698).
         // Parsear el inicio sin la hora del valor original
         $startDateTime = \Carbon\Carbon::parse($request->data['start']);
 
@@ -397,11 +466,20 @@ class TaskController extends Controller
         // Buscar la tarea
         $task = $this->data['model']::find($request->data['id']);
         if ($task) {
-            // Actualizar los tiempos de la tarea con la hora del request
+            // Mismo alcance que el calendario/listado (#697): solo asignados, admins o task_view_full_task
+            $user = auth()->user();
+            if (!$user || (!$user->isAdmin() && !$user->isSuperAdmin() && !$user->can('task_view_full_task')
+                && !$task->users()->where('user_id', $user->id)->exists())) {
+                abort(403, 'No puedes mover una tarea que no tienes asignada.');
+            }
+            $antes = ($task->start_time ?: '-') . ' (fecha ' . ($task->start_date ?: '-') . ')';
+            // start_date también: es lo que leen «Mi día» y Órdenes (#691)
             $task->update([
-                'start_time' => $startDateTime,
-                'end_time' => $endDateTime,
+                'start_date' => $startDateTime->toDateString(),
+                'start_time' => $startDateTime->format('Y-m-d H:i:s'),
+                'end_time' => $endDateTime?->format('Y-m-d H:i:s'),
             ]);
+            (new LogService())->log($task, 'Reprogramada desde el calendario #' . $task->id . ': ' . $antes . ' → ' . $task->start_time);
         }
 
         return $task;
@@ -409,6 +487,7 @@ class TaskController extends Controller
 
     public function archive($id)
     {
+        $this->tareaAutorizada($id);
         $this->data['model']::findOrFail($id)->update([
             'archived' => true,
             'archived_at' => now(),
@@ -424,6 +503,7 @@ class TaskController extends Controller
 
     public function unArchive($id)
     {
+        $this->tareaAutorizada($id);
         $this->data['model']::find($id)->update([
             'archived' => false,
             'archived_by' => null,
@@ -436,6 +516,7 @@ class TaskController extends Controller
 
     public function addNote(Request $request, $id)
     {
+        $this->tareaAutorizada($id);
         $newObservation = [
             'observation' => $request->observation,
             'task_id' => $id,
@@ -447,6 +528,7 @@ class TaskController extends Controller
 
     public function getNotesByTask($id)
     {
+        $this->tareaAutorizada($id);
         $observations = ObservationTask::with('user')->where('task_id', $id)->orderBy('id', 'desc')->get();
         return response()->json([
             'observations' => $observations
@@ -463,6 +545,13 @@ class TaskController extends Controller
             if ($data && $data['task_id']) {
                 $task = Task::find($data['task_id']);
                 if ($task) {
+                    // Orden de Talento asignada a quien abre el aviso: se abre en su «Mi día» (2026-10-27).
+                    $miDia = class_exists(\App\Modules\Addons\Talento\Support\Actor::class)
+                        ? \App\Modules\Addons\Talento\Support\Actor::for($user)->urlOrdenEnMiDia($task)
+                        : null;
+                    if ($miDia) {
+                        return redirect($miDia);
+                    }
                     return $this->edit($data['task_id']);
                 }
             }
@@ -477,6 +566,7 @@ class TaskController extends Controller
     }
     public function download(Request $request, $taskId)
     {
+        $this->tareaAutorizada($taskId);
         try {
             // Buscar la tarea y el archivo
             $model = $this->data['model']::findOrFail($taskId);
@@ -571,6 +661,8 @@ class TaskController extends Controller
 
     public function uploadFile(Request $request, $id)
     {
+        $this->exigirEscritura('task_edit_task');
+        $this->tareaAutorizada($id);
         $model = $this->data['model']::find($id);
         if (!$model) {
             return response()->json(['error' => 'Task not found'], 404);
@@ -627,6 +719,8 @@ class TaskController extends Controller
 
     public function removeFile(Request $request, $id)
     {
+        $this->exigirEscritura('task_edit_task');
+        $this->tareaAutorizada($id);
         $model = $this->data['model']::find($id);
         if (!$model) {
             return response()->json(['error' => 'Task not found'], 404);

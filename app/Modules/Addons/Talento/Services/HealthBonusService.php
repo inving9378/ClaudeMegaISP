@@ -30,6 +30,10 @@ class HealthBonusService
     {
         $order = TalentoWorkOrder::with('colaborador')->findOrFail($workOrderId);
 
+        if ($previo = $this->bonoYaRegistrado(TalentoWorkOrder::class, $order->id, $order->colaborador_id, 'work_order_id')) {
+            return $previo;
+        }
+
         $bonusAmount = (float) (DB::table('settings')->where('key', 'talento_health_bonus_amount')->value('value') ?? 30);
         $maxLossDb   = (float) (DB::table('settings')->where('key', 'talento_health_bonus_max_loss_db')->value('value') ?? 1.0);
 
@@ -69,7 +73,7 @@ class HealthBonusService
             $periodStart = $w['period_start'];
             $periodEnd   = $w['period_end'];
 
-            TalentoLedgerEntry::create([
+            TalentoLedgerEntry::registrar([
                 'colaborador_id' => $order->colaborador_id,
                 'type'           => 'credit',
                 'concept'        => 'bonus',
@@ -100,8 +104,15 @@ class HealthBonusService
             throw new \RuntimeException("Task {$task->id} sin colaborador vinculado; bono salud omitido.");
         }
 
+        if ($previo = $this->bonoYaRegistrado(Task::class, $task->id, $colaborador->id, 'tarea_id')) {
+            return $previo;
+        }
+
         $bonusAmount = (float) (DB::table('settings')->where('key', 'talento_health_bonus_amount')->value('value') ?? 30);
         $maxLossDb   = (float) (DB::table('settings')->where('key', 'talento_health_bonus_max_loss_db')->value('value') ?? 1.0);
+
+        // UNI-T D8b-2: mismo reconocimiento por rol que el pago (apagado = factor 1.0, sin cambio).
+        $bonusAmount = round($bonusAmount * app(ReconocimientoPorRolService::class)->factor('task', (int) $task->id, (int) $userId), 2);
 
         // Resolve client_id via client_main_information
         $clientId = $task->client_main_information_id
@@ -195,7 +206,7 @@ class HealthBonusService
             $periodStart = $w['period_start'];
             $periodEnd   = $w['period_end'];
 
-            TalentoLedgerEntry::create([
+            TalentoLedgerEntry::registrar([
                 'colaborador_id' => $colaborador->id,
                 'type'           => 'credit',
                 'concept'        => 'bonus',
@@ -213,6 +224,30 @@ class HealthBonusService
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
+
+    /**
+     * J2a: con el interruptor encendido, si ya hay un movimiento 'bonus' de ese origen y colaborador
+     * devuelve el log existente (marcado con ya_existia) en vez de evaluar/pagar otra vez.
+     */
+    private function bonoYaRegistrado(string $refType, int $refId, $colaboradorId, string $logCol): ?TalentoHealthBonusLog
+    {
+        if (! config('unificacion.interruptores.bono_salud_idempotente')) {
+            return null;
+        }
+        $existe = TalentoLedgerEntry::where('concept', 'bonus')
+            ->where('reference_type', $refType)->where('reference_id', $refId)
+            ->where('colaborador_id', $colaboradorId)->exists();
+        if (! $existe) {
+            return null;
+        }
+        $log = TalentoHealthBonusLog::where($logCol, $refId)->where('bonus_awarded', true)->latest('id')->first()
+            ?? TalentoHealthBonusLog::where($logCol, $refId)->latest('id')->first();
+        if (! $log) {
+            return null;
+        }
+        $log->ya_existia = true;
+        return $log;
+    }
 
     private function resolveCajaRef(TalentoWorkOrder $order): ?string
     {

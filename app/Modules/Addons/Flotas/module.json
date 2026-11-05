@@ -41,6 +41,14 @@
             "description": "Gestionar proveedores y talleres"
         },
         {
+            "name": "fleet.clients.view",
+            "description": "Ver Flotas de clientes (servicio de flotas de los clientes)"
+        },
+        {
+            "name": "fleet.clients.manage",
+            "description": "Acciones de soporte sobre las flotas de los clientes"
+        },
+        {
             "name": "fleet.gps.view",
             "description": "Ver tracking GPS y mapa de flota"
         },
@@ -95,11 +103,6 @@
                     "permission": "fleet.view"
                 },
                 {
-                    "label": "Mantenimientos",
-                    "url": "/flotas/mantenimientos",
-                    "permission": "fleet.maintenance.manage"
-                },
-                {
                     "label": "Documentos",
                     "url": "/flotas/documentos",
                     "permission": "fleet.documents.manage"
@@ -113,6 +116,11 @@
                     "label": "Geocercas",
                     "url": "/flotas/geocercas",
                     "permission": "fleet.geofences.view"
+                },
+                {
+                    "label": "Flotas de clientes",
+                    "url": "/flotas/clientes",
+                    "permission": "fleet.clients.view"
                 }
             ]
         }

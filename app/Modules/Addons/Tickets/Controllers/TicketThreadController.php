@@ -53,7 +53,8 @@ class TicketThreadController extends Controller
             $request->all();
         $this->saveRelationMultipleIfExist($this->data['model'], $model, $request, 'sync');
 
-        $ticket = Ticket::find($id);
+        // G1: $id es el id del HILO; el ticket se obtiene del hilo.
+        $ticket = config('unificacion.interruptores.tickets_g1') ? Ticket::find($model->ticket_id) : Ticket::find($id);
         SendTicketNotificationJob::dispatchAfterResponse($ticket, $model);
 
         return $model->update($input);
@@ -79,14 +80,23 @@ class TicketThreadController extends Controller
         $reporter = $this->userAutenticated();
         $input['edited_by'] = $reporter->id;
         $input['ticket_id'] = $id;
-        $input['ticket_thread_id'] = $ticketThreadParent->id;
-        $input['client_id'] = Ticket::find($id)->client_id;
+        if (config('unificacion.interruptores.tickets_g1')) {
+            // Ticket sin hilo padre: se crea este mensaje como raíz en vez de tronar.
+            $input['ticket_thread_id'] = $ticketThreadParent?->id;
+            $input['client_id'] = Ticket::find($id)?->customer_lead;
+        } else {
+            $input['ticket_thread_id'] = $ticketThreadParent->id;
+            $input['client_id'] = Ticket::find($id)->client_id;
+        }
 
         $model = $this->data['model']::create($input)
             ->uploadFile($file);
         $this->saveRelationMultipleIfExist($this->data['model'], $model, $request);
 
         $ticket = Ticket::find($id);
+        if (config('unificacion.interruptores.tickets_fechas_g3a') && $ticket && !$ticket->first_responded_at) {
+            Ticket::where('id', $id)->whereNull('first_responded_at')->update(['first_responded_at' => now()]);
+        }
         SendTicketNotificationJob::dispatchAfterResponse($ticket, $model);
         return $model;
     }

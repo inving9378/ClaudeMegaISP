@@ -12,7 +12,7 @@ class TalentoLiquidation extends BaseModel
         'colaborador_id', 'period_start', 'period_end',
         'total_units', 'base_paid', 'overproduction_paid',
         'other_credits', 'other_debits', 'gross_pay',
-        'status', 'closed_at',
+        'status', 'closed_at', 'paid_at', 'paid_by', 'payment_reference',
     ];
 
     protected $casts = [
@@ -24,6 +24,7 @@ class TalentoLiquidation extends BaseModel
         'other_debits'        => 'decimal:2',
         'gross_pay'           => 'decimal:2',
         'closed_at'           => 'datetime',
+        'paid_at'             => 'datetime',
         'total_units'         => 'integer',
     ];
 

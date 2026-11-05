@@ -20,6 +20,7 @@ use App\Models\ClientAdditionalInformation;
 use App\Models\MikrotikClientHostpotUser;
 use App\Services\NetworkIpService;
 use Illuminate\Support\Facades\Log;
+use App\Models\MikrotikSyncAttempt;
 
 class CreateClientWithServiceJob implements ShouldQueue
 {
@@ -70,6 +71,45 @@ class CreateClientWithServiceJob implements ShouldQueue
      * @return void
      */
     public function handle(MikrotikService $mikrotikService)
+    {
+        try {
+            $this->sincronizar($mikrotikService);
+            $this->registrarIntento('synced');
+        } catch (\Throwable $e) {
+            $this->registrarIntento('failed', $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Item #595 F1: marca el estado y deja bitácora. Nunca altera el flujo:
+     * un fallo al registrar se traga.
+     */
+    protected function registrarIntento(string $estado, ?string $razon = null): void
+    {
+        try {
+            $svc = $this->clientInternetService;
+            if (!$svc || !$svc->getKey()) {
+                return;
+            }
+            MikrotikSyncAttempt::create([
+                'service_type' => get_class($svc),
+                'service_id' => $svc->getKey(),
+                'resultado' => $estado === 'synced' ? 'ok' : 'error',
+                'razon' => $razon ? mb_substr($razon, 0, 1000) : null,
+                'created_at' => now(),
+            ]);
+            $svc->newQuery()->whereKey($svc->getKey())->toBase()->update([
+                'mikrotik_sync_status' => $estado,
+                'mikrotik_sync_error' => $razon ? mb_substr($razon, 0, 1000) : null,
+                'mikrotik_synced_at' => $estado === 'synced' ? now() : null,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('mikrotik_sync: no se pudo registrar el intento: ' . $e->getMessage());
+        }
+    }
+
+    protected function sincronizar(MikrotikService $mikrotikService)
     {
         $routerRepository = new RouterRepository();
         $router = $routerRepository->getRouterById($this->clientInternetService->router_id);

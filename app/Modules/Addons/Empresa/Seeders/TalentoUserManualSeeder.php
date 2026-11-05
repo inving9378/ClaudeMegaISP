@@ -21,8 +21,8 @@ use Illuminate\Database\Seeder;
  * - La navegación del menú es una lista FIJA en ManualIndex.vue (MENU); cada
  *   `search` ahí debe calzar exacto con el `module_slug` de una fila de este
  *   seeder, o esa entrada del menú no encuentra contenido.
- * - Reusa las MISMAS 29 capturas de pantalla que ya existen en
- *   public/images/manual/talento/*.png (no se retomaron).
+ * - Capturas en public/images/manual/talento/*.png; las de las pestañas de la
+ *   ficha propia (ficha-*.png) se tomaron el 2026-10-23 al retirarse el Portal.
  * - visible_roles (vía App\Support\Manual\HasManualRoleVisibility, misma
  *   lógica que el otro manual) — idéntico mapeo rol↔pantalla que antes.
  *
@@ -36,10 +36,18 @@ use Illuminate\Database\Seeder;
 class TalentoUserManualSeeder extends Seeder
 {
     private const TECNICOS = ['TECNICO', 'TECNICO_INSTALADOR', 'TECNICO_PLANTA'];
+    private const COLABORADORES = ['TECNICO', 'TECNICO_INSTALADOR', 'TECNICO_PLANTA', 'Vendedor', 'conductor', 'Mostrador', 'SUPERVISOR_MOSTRADOR'];
+    // Páginas del Portal de Colaborador, que se retiró el 2026-10-23: se borran del manual al sembrar.
+    private const RETIRADAS = [
+        'talento-portal-mi-dia', 'talento-portal-mi-dinero', 'talento-portal-mi-material',
+        'talento-portal-mis-prospectos', 'talento-portal-mis-documentos', 'talento-portal-perfil',
+    ];
     private const SHOT_BASE = '/images/manual/talento/';
 
     public function run(): void
     {
+        ManualSection::whereIn('module_slug', self::RETIRADAS)->delete();
+
         foreach ($this->sections() as $s) {
             $content = $s['content'] . $this->figure($s['shot'] ?? null, $s['title']);
 
@@ -79,10 +87,11 @@ class TalentoUserManualSeeder extends Seeder
                     . 'vendedores, mostrador, y cualquier otro colaborador. Junta en un solo lugar su ficha, sus órdenes '
                     . 'de trabajo en campo, cuánto se les paga y por qué, su material asignado, su capacitación y su '
                     . "documentación laboral.\n\n"
-                    . 'Tiene dos caras: el **panel de administración** (lo que ve quien gestiona al personal) y el '
-                    . '**Portal de Colaborador** (`/talento/portal`, lo que ve cada quien de sí mismo: su día, su '
-                    . "dinero, su material). Cada pantalla de este capítulo explica qué hace cada botón, no solo para "
-                    . 'qué sirve la pantalla en general.',
+                    . 'Tiene dos caras: el **panel de administración** (lo que ve quien gestiona al personal) y la '
+                    . '**ficha propia** de cada colaborador (al entrar a Talento cada quien cae en la suya: su tablero, '
+                    . 'su día, su dinero, sus prospectos y, si tiene gente a su cargo, su equipo). Todo está en un solo '
+                    . "lugar: el antiguo Portal de Colaborador se retiró el 23 de octubre de 2026.\n\n"
+                    . 'Cada pantalla de este capítulo explica qué hace cada botón, no solo para qué sirve la pantalla en general.',
             ],
             [
                 'slug' => 'talento-colaboradores',
@@ -128,12 +137,12 @@ class TalentoUserManualSeeder extends Seeder
             [
                 'slug' => 'talento-custodia',
                 'title' => 'Custodia',
-                'roles' => self::TECNICOS,
+                'roles' => self::COLABORADORES,
                 'shot' => 'custodia',
                 'content' => "**Ruta:** `/talento/custodia` — qué herramienta y material tiene cada colaborador bajo su resguardo ahora mismo.\n\n"
                     . "- Es de **solo lectura** (el dato real vive en Inventario) — aquí no se asigna ni se quita material, solo se consulta.\n"
                     . "- El buscador filtra por nombre de colaborador; cada tarjeta muestra su nombre, correo y tipo; al abrir una tarjeta se ve el detalle de lo que tiene asignado.\n"
-                    . "- Cada colaborador ve exactamente lo mismo, de sí mismo, en \"Mi material\" dentro de su propio Portal.",
+                    . "- Cada colaborador ve lo suyo en la pestaña **Custodia** de su propia ficha.",
             ],
             [
                 'slug' => 'talento-dispositivos',
@@ -144,13 +153,6 @@ class TalentoUserManualSeeder extends Seeder
                     . "- Arriba: la versión vigente de la app, con su código QR y los botones **\"Descargar APK\"** y **\"Copiar enlace\"** para instalarla en el celular del colaborador.\n"
                     . "- Abajo, la tabla de \"Dispositivos vinculados\": colaborador, dispositivo, plataforma, último acceso y estado; el buscador filtra por colaborador.\n"
                     . "- Cada colaborador solo puede tener **un** dispositivo activo a la vez — vincular uno nuevo revoca automáticamente el anterior (una re-vinculación puede pedir aprobación manual).",
-            ],
-            [
-                'slug' => 'talento-roadmap',
-                'title' => 'Roadmap',
-                'roles' => [ManualSection::ROLE_ADMIN_ONLY],
-                'shot' => 'roadmap',
-                'content' => "**Ruta:** `/talento/roadmap` — **ojo:** esta pantalla no es la ruta de crecimiento de un colaborador (eso vive en \"Niveles\"/\"Escalafón\"). Es la bitácora de construcción del propio módulo Talento: por fases (Fase 0, Fase 1…), qué se construyó en cada una y cuándo se completó. Sirve para saber qué tan avanzado está el sistema, no para gestionar personal.",
             ],
             [
                 'slug' => 'talento-proyectos',
@@ -196,7 +198,7 @@ class TalentoUserManualSeeder extends Seeder
                 'roles' => [ManualSection::ROLE_ADMIN_ONLY],
                 'shot' => 'paquetes-de-documentos',
                 'content' => "**Ruta:** `/talento/expediente/paquetes` — qué documentos (contrato, responsivas, reglamentos) le corresponden a cada puesto.\n\n"
-                    . "- El desplegable **\"Puesto\"** elige el puesto a configurar.\n"
+                    . "- El desplegable **\"Puesto\"** elige el puesto a configurar: son los roles de Administración, y quien tiene varios roles recibe los documentos de todos.\n"
                     . "- Al elegirlo aparece la lista de plantillas del expediente con una casilla cada una — se marcan las que aplican a ese puesto (un técnico recibe el paquete completo, un puesto de oficina solo el suyo) y se guarda. Ese paquete es lo que se genera automáticamente cuando se da de alta a alguien nuevo en ese puesto.",
             ],
             [
@@ -211,21 +213,12 @@ class TalentoUserManualSeeder extends Seeder
             [
                 'slug' => 'talento-academia',
                 'title' => 'Academia',
-                'roles' => self::TECNICOS,
+                'roles' => self::COLABORADORES,
                 'shot' => 'academia',
                 'content' => "**Ruta:** `/talento/academia` — cursos de capacitación.\n\n"
-                    . "- Pestaña **\"Catálogo de cursos\"** (la que abre por default): tarjetas por curso, cada una con una etiqueta de a quién le corresponde (\"técnicos\" o \"general\") y un botón **\"Ver curso\"** para entrar a tomarlo; el filtro de arriba acota por departamento.\n"
+                    . "- Pestaña **\"Catálogo de cursos\"** (la que abre por default): solo los cursos generales y los de su puesto. Cada tarjeta dice para quién es (**\"general\"** si es para todos, o el puesto, por ejemplo **\"Para: Técnico\"**) y tiene **\"Ver curso\"** para entrar a tomarlo.\n"
+                    . "- Quien administra la Academia, en la pestaña **\"Admin\"**, ve todos los cursos; al crear o editar uno elige en **\"Para quién\"**: **\"General (para todos)\"** o **\"Solo estos roles\"** marcando los puestos.\n"
                     . "- Pestaña **\"Mis certificaciones\"**: los cursos que el colaborador que mira ya completó y certificó.",
-            ],
-            [
-                'slug' => 'talento-niveles',
-                'title' => 'Niveles',
-                'roles' => self::TECNICOS,
-                'shot' => 'niveles',
-                'content' => "**Ruta:** `/talento/niveles` — la escala de experiencia (junior, senior, etc.) y qué se necesita para subir de un nivel a otro.\n\n"
-                    . "- Pestaña **\"Colaboradores\"** (la que abre por default): se elige un colaborador del desplegable para ver su nivel actual y su avance hacia el siguiente.\n"
-                    . "- Pestaña **\"Definición de niveles\"**: la lista de niveles que existen y sus requisitos.\n"
-                    . "- Pestaña **\"Gating\"**: qué le queda bloqueado a un colaborador hasta que alcance cierto nivel.",
             ],
             [
                 'slug' => 'talento-dashboard',
@@ -244,7 +237,7 @@ class TalentoUserManualSeeder extends Seeder
                 'shot' => 'escalafon',
                 'content' => "**Ruta:** `/talento/escalafon` — el ranking de colaboradores por desempeño.\n\n"
                     . "- El selector **\"Semanas\"** (arriba a la derecha) cambia la ventana de tiempo que se está midiendo.\n"
-                    . "- Pestaña **\"Posiciones\"** (la que abre por default): tabla con posición, colaborador, nivel, estrellas, puntaje total y el desglose por categoría (cuota, calidad, salud de red, apego a normas, asistencia) — los primeros 3 lugares llevan medalla.\n"
+                    . "- Pestaña **\"Posiciones\"** (la que abre por default): tabla con posición, colaborador, estrellas, puntaje total y el desglose por categoría (cuota, calidad, salud de red, apego a normas, asistencia) — los primeros 3 lugares llevan medalla.\n"
                     . "- Pestaña **\"Más mejorado\"**: quién subió más posiciones respecto al periodo anterior.",
             ],
             [
@@ -300,53 +293,56 @@ class TalentoUserManualSeeder extends Seeder
                     . "- La tabla agrupa los documentos por colaborador, con días pendientes y última acción. La única acción disponible por fila es **\"Recordar\"**, que le manda un recordatorio por WhatsApp — esta pantalla no firma ni edita nada, solo avisa.",
             ],
             [
-                'slug' => 'talento-portal-mi-dia',
-                'title' => 'Portal de Colaborador — Mi día',
-                'roles' => array_merge(self::TECNICOS, ['Vendedor', 'conductor']),
-                'shot' => 'portal-mi-dia',
-                'content' => "**Ruta:** `/talento/portal` — lo primero que ve el colaborador al entrar a su propio portal.\n\n"
-                    . "- **\"Registrar entrada\"** marca su asistencia del día usando su ubicación para validar que esté dentro de la geocerca configurada.\n"
-                    . '- Abajo, "Órdenes de hoy": sus órdenes de trabajo agendadas para hoy, con cliente, dirección y estado; tocar una la abre para completar su checklist de evidencias.',
+                'slug' => 'talento-mi-ficha',
+                'title' => 'Tu ficha de Talento',
+                'roles' => null,
+                'shot' => null,
+                'content' => "**Ruta:** `/talento` — al entrar, cada colaborador cae directo en su propia ficha (quien administra al personal ve la lista de colaboradores).\n\n"
+                    . "- Arriba sale su nombre y, debajo, sus pestañas. **Información** trae sus datos, su credencial (el carnet, con el botón **\"Editar foto y datos\"**) y su tablero **\"Mi progreso\"** (técnicos y mostrador: trabajos y calidad; vendedores: ventas y prospectos).\n"
+                    . "- Las pestañas **Mi día**, **Mi dinero**, **Mis prospectos** (si vende) y **Mi equipo** (si tiene gente a su cargo) solo le salen a la persona en su propia ficha: un supervisor o administrador que abre la ficha de otro no las ve, porque marcar asistencia, subir evidencia o firmar solo lo hace uno mismo.\n"
+                    . "- Desde cualquier pantalla, el menú de usuario (arriba a la derecha, con su nombre) tiene el atajo **\"Mi día\"**, que abre su ficha en esa pestaña.\n"
+                    . "- Lo que antes estaba en el Portal y ya existía en la ficha sigue ahí: su material está en **Custodia**, sus documentos para firmar en **Paquetes de documentos**, y el modo oscuro y cerrar sesión en el menú de usuario.",
             ],
             [
-                'slug' => 'talento-portal-mi-dinero',
-                'title' => 'Portal de Colaborador — Mi dinero',
-                'roles' => array_merge(self::TECNICOS, ['Vendedor', 'conductor']),
-                'shot' => 'portal-mi-dinero',
-                'content' => "Dentro del Portal de Colaborador — su propia compensación, con 4 pestañas.\n\n"
-                    . "- **\"Cuenta\"** (la que abre por default): neto, abonos y descuentos del período de pago actual. Mientras la semana sigue abierta se ve en \$0.00 con el aviso \"la cuenta se llena cuando se cierra la semana de pago\" — no es un error, es que todavía no se ha calculado esa semana.\n"
-                    . "- **\"Desglose\"**: la producción del período en tiempo real (antes de que cierre la semana), unidad por unidad.\n"
-                    . "- **\"Fondo\"**: su fondo de ahorro acumulado.\n"
-                    . "- **\"Préstamos\"**: sus préstamos activos y su descuento semanal.\n\n"
-                    . 'Son los mismos números exactos que ve Recursos Humanos desde Liquidaciones — nunca un cálculo aparte.',
+                'slug' => 'talento-mi-dia',
+                'title' => 'Tu ficha — Mi día',
+                'roles' => self::COLABORADORES,
+                'shot' => 'ficha-mi-dia',
+                'content' => "Pestaña **Mi día** de su propia ficha — lo del día a día.\n\n"
+                    . "- **\"Registro de hoy\"**: a qué hora registró su entrada (y dónde) y su salida. Aquí solo se consulta: la entrada y la salida se registran en la pestaña **Asistencia**, con **\"Registrar entrada\"** y **\"Registrar salida\"**. Se usa su ubicación para revisar que esté en su lugar de trabajo; si está fuera, la entrada se registra igual pero queda marcada para revisión.\n"
+                    . "- **\"Órdenes de hoy\"**: sus órdenes de trabajo agendadas para hoy, con cliente, dirección y estado. Al abrir una: **\"Iniciar orden\"**; luego **\"Capturar evidencia\"** (foto con la cámara en vivo, sin galería; algunas piden la lectura dBm o una justificación), las firmas del técnico y del cliente, y **\"Completar orden\"**, que avisa qué evidencia falta si la hay. Con las dos firmas, **\"Aceptar orden\"** la pasa a espera de activación.\n"
+                    . "- La cámara y la ubicación solo funcionan entrando al sistema por https (la dirección con nombre, no la IP).",
             ],
             [
-                'slug' => 'talento-portal-mi-material',
-                'title' => 'Portal de Colaborador — Mi material',
-                'roles' => array_merge(self::TECNICOS, ['Vendedor', 'conductor']),
-                'shot' => 'portal-mi-material',
-                'content' => 'Dentro del Portal de Colaborador — de **solo lectura**: qué tiene el colaborador en resguardo ahora mismo, en dos pestañas, **"Herramienta"** y **"Material"**, cada artículo con su cantidad. Tocar uno despliega el detalle. Es el mismo dato que Custodia en el panel de administración, visto desde su propio lado.',
+                'slug' => 'talento-mi-dinero',
+                'title' => 'Tu ficha — Mi dinero',
+                'roles' => self::COLABORADORES,
+                'shot' => 'ficha-mi-dinero',
+                'content' => "Pestaña **Mi dinero** de su propia ficha — su propia compensación de la semana de pago, solo para consultar, en 4 partes:\n\n"
+                    . "- **\"Cuenta\"** (la que abre primero): neto, abonos y descuentos de la semana. Mientras la semana sigue abierta se ve vacía con el aviso \"Tu cuenta se llena cuando se cierra la semana de pago\" — no es un error, todavía no se cierra.\n"
+                    . "- **\"Desglose\"**: lo que lleva producido en la semana — pago proyectado, unidades contra su cuota y sobreproducción.\n"
+                    . "- **\"Fondo\"**: su fondo de ahorro (lo acumulado, la meta y el aporte semanal). Es ahorro que recupera, no un descuento por penalización.\n"
+                    . "- **\"Préstamos\"**: lo que le falta pagar de cada préstamo y su abono semanal.\n\n"
+                    . 'Son los mismos números que ve Recursos Humanos en Liquidaciones — nunca un cálculo aparte.',
             ],
             [
-                'slug' => 'talento-portal-mis-prospectos',
-                'title' => 'Portal de Colaborador — Mis prospectos',
-                'roles' => array_merge(self::TECNICOS, ['Vendedor', 'conductor']),
-                'shot' => 'portal-mis-prospectos',
-                'content' => 'Dentro del Portal de Colaborador — para quien también vende: sus prospectos de CRM asignados, con su estado de seguimiento. Si no tiene ninguno asignado, la pantalla lo dice claramente ("No tienes prospectos asignados") en vez de quedar en blanco.',
+                'slug' => 'talento-mis-prospectos',
+                'title' => 'Tu ficha — Mis prospectos',
+                'roles' => ['Vendedor'],
+                'shot' => 'ficha-mis-prospectos',
+                'content' => "Pestaña **Mis prospectos** de su propia ficha — solo para quien vende: sus prospectos del CRM con teléfono, correo, estado y desde cuándo.\n\n"
+                    . "- El buscador filtra por nombre o teléfono y el desplegable por estado (con cuántos hay en cada uno).\n"
+                    . "- Si puede editar prospectos en el CRM, el nombre abre la ficha del prospecto.\n"
+                    . '- Si no tiene ninguno asignado, la pantalla lo dice ("No tienes prospectos asignados") en vez de quedar en blanco.',
             ],
             [
-                'slug' => 'talento-portal-mis-documentos',
-                'title' => 'Portal de Colaborador — Mis documentos',
-                'roles' => array_merge(self::TECNICOS, ['Vendedor', 'conductor']),
-                'shot' => 'portal-mis-documentos',
-                'content' => 'Dentro del Portal de Colaborador — sus propios documentos laborales (contratos, acuses, reglamentos): los pendientes de firmar (se firman directamente ahí) y los ya firmados. Si no tiene ninguno todavía, lo dice claramente en vez de quedar en blanco.',
-            ],
-            [
-                'slug' => 'talento-portal-perfil',
-                'title' => 'Portal de Colaborador — Perfil',
-                'roles' => array_merge(self::TECNICOS, ['Vendedor', 'conductor']),
-                'shot' => 'portal-perfil',
-                'content' => 'Dentro del Portal de Colaborador — nombre, puesto y correo del colaborador; el interruptor **"Modo oscuro"** cambia el tema de toda su sesión del portal; el botón **"Cerrar sesión"** (en rojo) sale de la cuenta.',
+                'slug' => 'talento-mi-equipo',
+                'title' => 'Tu ficha — Mi equipo',
+                'roles' => null,
+                'shot' => 'ficha-mi-equipo',
+                'content' => "Pestaña **Mi equipo** de su propia ficha — solo para quien tiene colaboradores a su cargo (su equipo directo; el súper administrador de Talento ve a todos).\n\n"
+                    . "- **\"Cómo va mi equipo\"**: cada persona con su tipo de trabajo y su avance de los últimos 30 días; el nombre abre su ficha.\n"
+                    . "- **\"Penalizaciones\"**: las que proponen las reglas semanales, **por confirmar** (el número rojo dice cuántas hay). El descuento solo se aplica cuando el supervisor pulsa **\"Confirmar\"** y acepta el aviso con el monto. Debajo, las aplicadas en los últimos 60 días con su estado (aplicada, en apelación, revocada o mantenida).",
             ],
         ];
     }

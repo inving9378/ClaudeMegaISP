@@ -410,7 +410,7 @@ class NomenclatureController extends CrudModalController
         $clientOld = (new ClientRepository())->getClientById($nomenclature->client_id);
         $logService = new LogService();
         if ($clientOld) {
-            $logService->log($clientOld, 'Se le elimina la nomenclatura ' . $nomenclature->name . ' por ' . auth()->user()->name . ' desde el NomenclatureController::changeClient');
+            $logService->log($clientOld, 'Se le elimina la nomenclatura ' . $nomenclature->name . ' por ' . auth()->user()?->name . ' desde el NomenclatureController::changeClient');
             $clientAditionalInformationRepository = new ClientAdditionalInformationRepository();
             $clientAditionalInformationRepository->setNomenclatureByClient($clientOld->id, null);
         }
@@ -421,7 +421,7 @@ class NomenclatureController extends CrudModalController
         $clientNew = (new ClientRepository())->getClientById($request->id_client_new);
         $nomenclature->refresh();
         $logService = new LogService();
-        $logService->log($clientNew, 'Se le agrega la nomenclatura ' . $nomenclature->name . ' por ' . auth()->user()->name . ' desde el NomenclatureController::changeClient');
+        $logService->log($clientNew, 'Se le agrega la nomenclatura ' . $nomenclature->name . ' por ' . auth()->user()?->name . ' desde el NomenclatureController::changeClient');
 
         $clientAditionalInformationRepository = new ClientAdditionalInformationRepository();
         $clientAditionalInformationRepository->setNomenclatureByClient($clientNew->id, $nomenclature->id);

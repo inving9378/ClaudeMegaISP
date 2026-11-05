@@ -80,7 +80,30 @@ class SupervisorService
             'terminales_ociosas_ahora'   => $terminalesOciosasAhora = $this->terminalesOciosasAhora(),
             'elegibles_reales'           => $elegiblesReales = $this->elegiblesReales(),
             'alerta_contradictoria'      => count($terminalesOciosasAhora) > 0 && $elegiblesReales > 0,
+            'motivos_ociosas_ahora'      => $this->motivosOciosasAhora(),
         ];
+    }
+
+    /**
+     * Por qué está ociosa cada terminal AHORA: el último «wt-K ociosa: …» del despacho de los
+     * últimos 3 minutos (el programador lo escribe en cada ciclo), solo de las terminales que
+     * siguen ociosas según {@see terminalesOciosasAhora()} (la BD manda sobre el log). Sin esto la
+     * Torre decía cuántos minutos llevaba ociosa una terminal, pero no qué la frenaba.
+     *
+     * @return array<int,array{sid:string,motivo:string,hora:string}>
+     */
+    public function motivosOciosasAhora(): array
+    {
+        $ociosas = $this->terminalesOciosasAhora();
+        $ultimo = [];
+        foreach ($this->ociosidadHoyRaw() as $e) {
+            if (($e['motivo'] ?? '') !== '' && in_array($e['sid'], $ociosas, true) && $e['ts']->gte(now()->subMinutes(3))) {
+                $ultimo[$e['sid']] = ['sid' => $e['sid'], 'motivo' => $e['motivo'], 'hora' => $e['ts']->format('H:i')];
+            }
+        }
+        ksort($ultimo, SORT_NATURAL);
+
+        return array_values($ultimo);
     }
 
     /**
@@ -134,11 +157,16 @@ class SupervisorService
 
             $entradas = [];
             foreach (file($path, FILE_IGNORE_NEW_LINES) ?: [] as $linea) {
-                if (! preg_match('/^\[(?<fecha>[\d-]+ [\d:]+)].*\bwt-(?<slot>\d+) ociosa:/', $linea, $m)) {
+                if (! preg_match('/^\[(?<fecha>[\d-]+ [\d:]+)].*\bwt-(?<slot>\d+) ociosa:(?<resto>.*)$/', $linea, $m)) {
                     continue;
                 }
+                // «#19 (modulo=X) — dependencia_sin_cerrar: Esperando a #703 (…)» → «#19 · Esperando a #703 (…)»
+                $motivo = trim($m['resto']);
+                if (preg_match('/^(?<item>#\d+)[^—]*—\s*(?:[a-z_]+:\s*)?(?<texto>.+)$/u', $motivo, $p)) {
+                    $motivo = $p['item'] . ' · ' . trim($p['texto']);
+                }
                 try {
-                    $entradas[] = ['sid' => "wt-{$m['slot']}", 'ts' => Carbon::parse($m['fecha'])];
+                    $entradas[] = ['sid' => "wt-{$m['slot']}", 'ts' => Carbon::parse($m['fecha']), 'motivo' => $motivo];
                 } catch (\Throwable $e) {
                     continue; // línea con fecha corrupta: se ignora, no tumba el resto del parseo.
                 }
@@ -209,10 +237,16 @@ class SupervisorService
         return $resultado;
     }
 
-    /** #9990977.3 — cuántos items puede tomar el pool AHORA (mismo predicado que gobierna el despacho real). */
+    /**
+     * #9990977.3 — cuántos items puede tomar el pool AHORA.
+     *
+     * #1030 paso B — antes era `despachable()->count()`, que solo mira la regla del item (no las
+     * dependencias ni las fases de la ronda): marcaba 34 con el despachador en 0 y disparaba la
+     * «alerta contradictoria» (terminal ociosa + trabajo elegible) sin que hubiera nada que tomar.
+     */
     public function elegiblesReales(): int
     {
-        return RoadmapItem::despachable()->count();
+        return $this->circuito->queSigueTotal();
     }
 
     /** #475: últimos items COMPLETADOS — alimenta la lista "Recién resueltos" del escritorio. */
@@ -239,38 +273,25 @@ class SupervisorService
     }
 
     /**
-     * #475: items ya triados/ejecutables (estación "listo" — ver RoadmapItem::getEstacionAttribute)
-     * esperando que un worker los reclame. Alimenta "Listos para terminal" del escritorio.
+     * #475: items listos esperando que un worker los reclame. Alimenta "Listos para terminal".
+     *
+     * #1030 paso B — sale del MISMO cálculo que el despachador (`RoadmapCircuitoService::queSigue()`):
+     * primero lo que toma en su próxima ronda (`sale_ahora`), luego lo listo que espera el turno de
+     * su módulo. Antes tenía reglas propias (`autoEjecutable()` sin rama ni motivo de espera) y la
+     * lista mostraba items que el despachador no podía tomar (revisor apagado, fase, dependencias).
+     *
+     * #9990924 — la heurística de bloqueo escrito en el texto ya NO oculta el item (el despachador sí
+     * lo toma): lo MARCA con `bloqueo_declarado`, igual que la Hoja de ruta (marcarBloqueoHeuristico).
      */
     public function listosParaTerminal(int $limite = 10): array
     {
-        // FASE 2A.5 — se quitaron dos `not like` del rótulo que estaban copiados aquí a mano:
-        // `autoEjecutable()` ya pasa por `elegibleParaPool()` → `RoadmapItem::sqlElegibleParaPool()`,
-        // que además honra `origen_bloqueo='humano'` (la copia de aquí NO lo hacía) y se retira sola
-        // el día que el fallback legacy del rótulo se elimine. Candado: PoolGuardCoherenceTest.
-        $q = RoadmapItem::autoEjecutable()
-            ->whereNull('archivado_at')
-            ->whereNull('branch')
-            ->whereNull('motivo_espera')
-            ->ordered();
-
+        $heuristica = config('circuito.supervisor.hide_blocked_heuristic', true);
         $columnas = ['id', 'title', 'nivel_riesgo', 'reap_count', 'veces_timeouteo', 'reanudaciones_timeout'];
-
-        // #9990924 (Fase 3b) — heurística de TEXTO LIBRE (prompt/description) para bloqueos SIN
-        // rótulo formal, gateada por feature flag (SUPERVISOR_HIDE_BLOCKED, default ON). Filtro
-        // POST-fetch (regex no expresable en SQL): se amplía el tramo antes de filtrar para no
-        // sub-reportar items elegibles que hubieran caído en el corte original (mismo patrón que
-        // el filtro de dependencias cerradas).
-        if (config('circuito.supervisor.hide_blocked_heuristic', true)) {
-            $filas = $q->limit($limite * 3)
-                ->get([...$columnas, 'prompt', 'description'])
-                ->reject(fn ($r) => $r->tieneBloqueoDeclaradoEnTexto())
-                ->values();
-        } else {
-            $filas = $q->limit($limite)->get($columnas);
+        if ($heuristica) {
+            $columnas = [...$columnas, 'prompt', 'description'];
         }
 
-        return $filas->take($limite)->map(fn ($r) => [
+        return $this->circuito->queSigueItems($limite, $columnas)->map(fn (RoadmapItem $r) => [
             'id'                     => (int) $r->id,
             'title'                  => $r->title,
             'nivel'                  => $r->nivel_riesgo,
@@ -279,31 +300,15 @@ class SupervisorService
             'reap_count'             => (int) $r->reap_count,
             'veces_timeouteo'        => (int) $r->veces_timeouteo,
             'reanudaciones_timeout'  => (int) $r->reanudaciones_timeout,
+            'sale_ahora'             => (bool) $r->sale_ahora,
+            'bloqueo_declarado'      => $heuristica && $r->tieneBloqueoDeclaradoEnTexto(),
         ])->values()->all();
     }
 
     /** #934: total real detrás de {@see listosParaTerminal()}, para el pie "+N más" (nunca cortar en silencio). */
     public function listosParaTerminalTotal(): int
     {
-        $q = RoadmapItem::autoEjecutable()
-            ->whereNull('archivado_at')
-            ->whereNull('branch')
-            ->whereNull('motivo_espera');
-
-        // #9990957 (Fase B2) — mismo criterio de MR-36 (#9990943) que listosParaTerminal(): no
-        // CONTAR items con depende_de sin resolver (antes el "+N más" del pie sí los sumaba).
-        // #9990924 — mismo filtro de texto libre que listosParaTerminal(), para que el "+N más"
-        // del pie no cuente items que la lista de arriba ya oculta por bloqueo heurístico.
-        if (config('circuito.supervisor.hide_blocked_heuristic', true)) {
-            return $this->circuito
-                ->filtrarConDependenciasCerradas($q->get(['id', 'prompt', 'description', 'depende_de']))
-                ->reject(fn ($r) => $r->tieneBloqueoDeclaradoEnTexto())
-                ->count();
-        }
-
-        return $this->circuito
-            ->filtrarConDependenciasCerradas($q->get(['id', 'depende_de']))
-            ->count();
+        return $this->circuito->queSigueTotal();   // #1030 paso B — mismo total que el despachador
     }
 
     /** El PROTOCOLO DE COORDINACIÓN que Jarvis T arbitra (para la identidad/UI del supervisor). */

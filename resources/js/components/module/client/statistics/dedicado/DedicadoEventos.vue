@@ -58,6 +58,7 @@ const TIPOS = {
     perdida_alta: "Pérdida alta",
     latencia_alta: "Latencia alta",
     sin_datos: "Sin datos del colector",
+    pausado: "Monitoreo pausado",
 };
 const INICIALES = 15;
 
@@ -84,6 +85,8 @@ export default {
     --de-rojo: #991b1b;
     --de-ambar-fondo: #fef3c7;
     --de-ambar: #92400e;
+    --de-pausado-fondo: #ccfbf1;
+    --de-pausado: #115e59;
     --de-gris-fondo: #f3f4f6;
     --de-gris: #374151;
     --de-borde: rgba(0, 0, 0, 0.08);
@@ -93,6 +96,8 @@ export default {
     --de-rojo: #fca5a5;
     --de-ambar-fondo: rgba(251, 191, 36, 0.16);
     --de-ambar: #fcd34d;
+    --de-pausado-fondo: rgba(45, 212, 191, 0.16);
+    --de-pausado: #5eead4;
     --de-gris-fondo: rgba(156, 163, 175, 0.16);
     --de-gris: #d1d5db;
     --de-borde: rgba(255, 255, 255, 0.12);
@@ -156,6 +161,10 @@ export default {
 .de-latencia_alta {
     background: var(--de-ambar-fondo);
     color: var(--de-ambar);
+}
+.de-pausado {
+    background: var(--de-pausado-fondo);
+    color: var(--de-pausado);
 }
 .de-sin_datos {
     background: var(--de-gris-fondo);

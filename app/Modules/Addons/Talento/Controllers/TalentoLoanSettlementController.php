@@ -121,10 +121,30 @@ class TalentoLoanSettlementController extends Controller
         return response()->json($loan->load('colaborador.user'), 201);
     }
 
-    public function authorizeLoan(int $id)
+    /** Registrar ≠ autorizar (B3d): permiso propio y, si es el mismo usuario, excepción con motivo. */
+    private function verificarAutorizacionDePrestamo(TalentoLoan $loan, Request $request): void
+    {
+        $user = auth()->user();
+        abort_unless($user->can('talento.prestamos.autorizar'), 403);
+
+        if ((int) $loan->created_by !== (int) $user->id) return;
+
+        abort_unless($user->can('talento.prestamos.autorizar_propio'), 403, 'Quien registra un préstamo no puede autorizarlo.');
+        $motivo = trim((string) $request->input('motivo'));
+        abort_if($motivo === '', 422, 'Indica el motivo de la excepción para autorizar tu propio registro.');
+
+        activity('talento')->performedOn($loan)->causedBy($user)
+            ->withProperties(['motivo' => $motivo])
+            ->log('Préstamo autorizado por quien lo registró (excepción)');
+    }
+
+    public function authorizeLoan(Request $request, int $id)
     {
         $loan = TalentoLoan::findOrFail($id);
         abort_unless($this->esGestorDePrestamosDe($loan->colaborador_id), 403);
+        if (config('unificacion.interruptores.prestamos_autorizar_b3d')) {
+            $this->verificarAutorizacionDePrestamo($loan, $request);
+        }
         $resolved = $this->loanSvc->authorize($loan, auth()->id());
         return response()->json($resolved->load('colaborador.user'));
     }

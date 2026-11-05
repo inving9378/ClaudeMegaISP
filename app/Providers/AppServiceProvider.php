@@ -33,10 +33,12 @@ class AppServiceProvider extends ServiceProvider
             fn ($app) => new \App\Services\MigrationGuardService($app['migrator'])
         );
 
-        // Timbrado CFDI 4.0 — stub hasta que se integre un PAC real
+        // Timbrado CFDI 4.0 — Facturama solo si está habilitado (#117); si no, stub nulo
         $this->app->singleton(
             \App\Services\Finance\Timbrado\TimbradoServiceInterface::class,
-            \App\Services\Finance\Timbrado\NullTimbradoService::class
+            fn () => config('services.facturama.enabled')
+                ? new \App\Services\Finance\Timbrado\FacturamaTimbradoService()
+                : new \App\Services\Finance\Timbrado\NullTimbradoService()
         );
 
         // ── OLT drivers (B1b-4) ──────────────────────────────────────────────

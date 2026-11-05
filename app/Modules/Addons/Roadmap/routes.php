@@ -5,7 +5,12 @@ use App\Modules\Addons\Roadmap\Controllers\RoadmapController;
 use App\Modules\Addons\Roadmap\Controllers\TorreCompuertasController;
 use App\Modules\Addons\Roadmap\Controllers\JarvisIdentidadController;
 use App\Modules\Addons\Roadmap\Controllers\JarvisChatController;
+use App\Modules\Addons\Roadmap\Controllers\JarvisPropuestasController;
+use App\Modules\Addons\Roadmap\Controllers\TorreColaController;
+use App\Modules\Addons\Roadmap\Controllers\TorreCuotaPlanController;
+use App\Modules\Addons\Roadmap\Controllers\TorreInterruptoresSistemaController;
 use App\Modules\Addons\Roadmap\Controllers\TorreFronterasController;
+use App\Modules\Addons\Roadmap\Controllers\TorreIaModosController;
 use App\Modules\Addons\Roadmap\Controllers\RoadmapExternalController;
 use App\Modules\Addons\Roadmap\Controllers\RoadmapMcpController;
 use App\Modules\Addons\Roadmap\Controllers\RoadmapMemoryController;
@@ -147,12 +152,30 @@ Route::middleware(['web', 'auth'])
         // abajo (misma ruta que el botón "Agregar item"), este bloque solo abre/sostiene el
         // hilo y lo liga al item resultante.
         Route::get('/jarvis-chat/sugerencias',    [JarvisChatController::class, 'sugerencias']);
+        // #1068 — conversación libre: resumen desde la última visita + preguntas sobre el circuito.
+        Route::post('/jarvis-chat/conversar',     [JarvisChatController::class, 'conversar']);
+        // #1113 — retomar la última conversación (sin crear nada) y listar las recientes con título.
+        Route::get('/jarvis-chat/ultima',         [JarvisChatController::class, 'ultima']);
+        Route::get('/jarvis-chat/recientes',      [JarvisChatController::class, 'recientes']);
         Route::post('/jarvis-chat/conversaciones', [JarvisChatController::class, 'abrir']);
         Route::get('/jarvis-chat/conversaciones/{id}', [JarvisChatController::class, 'mostrar'])->whereNumber('id');
         Route::post('/jarvis-chat/conversaciones/{id}/mensajes', [JarvisChatController::class, 'mensaje'])->whereNumber('id');
         Route::post('/jarvis-chat/conversaciones/{id}/vincular-item', [JarvisChatController::class, 'vincularItem'])->whereNumber('id');
+        // #1110 — Fase 2: Jarvis propone, el backend crea solo al pulsar el botón (huella + permiso propio).
+        Route::post('/jarvis-chat/propuestas/{id}/editar',    [JarvisPropuestasController::class, 'editar'])->whereNumber('id');
+        Route::post('/jarvis-chat/propuestas/{id}/crear',     [JarvisPropuestasController::class, 'crear'])->whereNumber('id');
+        Route::post('/jarvis-chat/propuestas/{id}/descartar', [JarvisPropuestasController::class, 'descartar'])->whereNumber('id');
+        Route::post('/jarvis-chat/items/{itemId}/deshacer',   [JarvisPropuestasController::class, 'deshacer'])->whereNumber('itemId');
 
         Route::get('/torre/fronteras',                    [TorreFronterasController::class, 'index']);
+        Route::get('/torre/ia-modos',                     [TorreIaModosController::class, 'index']);          // #1115
+        Route::post('/torre/ia-modos/modo',               [TorreIaModosController::class, 'modo']);
+        Route::post('/torre/ia-modos/potente',            [TorreIaModosController::class, 'potente']);
+        Route::post('/torre/ia-modos/pieza',              [TorreIaModosController::class, 'pieza']);
+        Route::post('/torre/ia-modos/verificar',          [TorreIaModosController::class, 'verificar']);
+        Route::get('/torre/cuota-plan',                   TorreCuotaPlanController::class);   // #1068
+        Route::get('/torre/cola',                         TorreColaController::class);        // limpieza de la Hoja de ruta
+        Route::get('/torre/interruptores-sistema',        TorreInterruptoresSistemaController::class);   // #1070
         Route::post('/torre/fronteras/categoria',         [TorreFronterasController::class, 'categoria']);
         Route::post('/torre/fronteras/termino',           [TorreFronterasController::class, 'termino']);
         Route::post('/torre/fronteras/valvula',           [TorreFronterasController::class, 'valvula']);
@@ -181,10 +204,15 @@ Route::middleware(['web', 'auth'])
         // con lazy-load: un solo endpoint parametrizado por `nivel` (modulo|epica|item), nunca el
         // árbol completo. Solo lectura (`roadmap_view`, self-authorized dentro del controller).
         Route::get('/torre/panorama-jerarquia', [RoadmapController::class, 'panoramaJerarquia']);
+        Route::get('/torre/modulos/funcionamiento',  [\App\Modules\Addons\Roadmap\Controllers\ModuloFuncionamientoController::class, 'mostrar']);   // #1145
+        Route::post('/torre/modulos/funcionamiento', [\App\Modules\Addons\Roadmap\Controllers\ModuloFuncionamientoController::class, 'guardar']);
         // #9990971 (CIRC-09 Fase 4) — paneles desplegables de lectura del árbol: "Trabajando" (pipeline
         // de fases + rama + log) y "Decidido sin ti" (qué/confianza/reversible del log del item).
         Route::get('/torre/panorama-jerarquia/{id}/trabajando', [RoadmapController::class, 'panoramaTrabajando'])->whereNumber('id');
         Route::get('/torre/panorama-jerarquia/{id}/decidido-sin-ti', [RoadmapController::class, 'panoramaDecididoSinTi'])->whereNumber('id');
+        // 2026-10-26 (Irving) — botón «Seguimiento» del árbol: por qué no avanza + «Meter al circuito».
+        Route::get('/torre/panorama-jerarquia/{id}/seguimiento', [RoadmapController::class, 'panoramaSeguimiento'])->whereNumber('id');
+        Route::post('/items/{id}/meter-al-circuito', [RoadmapController::class, 'meterAlCircuito'])->whereNumber('id');
         Route::post('/item/{id}/override', [RoadmapController::class, 'itemOverride'])->whereNumber('id');
         // Estado en vivo ligero para el polling de la Torre (#335).
         Route::get('/circuito/estado',     [RoadmapController::class, 'estado']);

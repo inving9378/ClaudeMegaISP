@@ -131,9 +131,11 @@ class DistributorsCommissionPayment
     {
         $duration = $s->contract_months_number;
         $total_amount = $s->service * $percent / 100;
-        $total_amount_per_week = ($total_amount - $initialCommission) / ($duration - 1);
         $total_discount = $total_amount * $iva / 100;
-        $discount_per_week = $total_discount / ($duration - 1);
+        // Guard: plazo de 1 mes (o menos) no tiene semanas restantes; evita división entre cero.
+        $weeks = $duration - 1;
+        $total_amount_per_week = $weeks > 0 ? ($total_amount - $initialCommission) / $weeks : 0;
+        $discount_per_week = $weeks > 0 ? $total_discount / $weeks : 0;
         return [
             'sale_id' => $s->id,
             'date' => $s->activation_date,

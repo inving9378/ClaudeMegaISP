@@ -185,7 +185,7 @@ class TorreCompuertasController extends Controller
         if (! $datos['confirmado']) {
             return response()->json(['ok' => false, 'mensaje' => 'Esta acción necesita confirmación explícita.'], 422);
         }
-        if (! auth()->user()->can('torre.config.edit')) {
+        if (! auth()->user()?->can('torre.config.edit')) {
             return $this->sinPermiso('torre.config.edit');
         }
         if (! array_key_exists($datos['permiso'], CatalogoPermisosCircuito::PERMISOS)

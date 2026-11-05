@@ -2,9 +2,10 @@
 
 namespace App\Console\Commands\Active;
 
+use App\Models\ClientMainInformation;
 use App\Models\User;
-use App\Modules\Core\Clientes\Models\ClientMainInformation;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Item roadmap #155 — normaliza client_main_information.user quitando el
@@ -15,6 +16,10 @@ use Illuminate\Console\Command;
  * (ClientMainInformationObserver::updateUserIfIsDifferent) sincronice el
  * espejo users.login_user en el mismo movimiento — así no se rompe el
  * vínculo que usan MegaFamilia y los accesos internos.
+ *
+ * 2026-10-23: el observer está registrado en App\Models\ClientMainInformation, no en la clase
+ * base del módulo que usaba este comando; con ella la ficha quedaba normalizada y la cuenta con
+ * el usuario anterior. El reporte final cuenta las cuentas que quedaron así.
  */
 class NormalizarUsuarioWebCommand extends Command
 {
@@ -82,6 +87,16 @@ class NormalizarUsuarioWebCommand extends Command
         } else {
             $this->info('Nada escrito (dry-run). Corre con --apply para aplicar.');
         }
+
+        // Fichas ya normalizadas cuya cuenta sigue con ceros a la izquierda (lo que dejaba una
+        // corrida anterior de este comando).
+        $desfasadas = DB::table('client_main_information as c')
+            ->join('users as u', 'u.client_id', '=', 'c.client_id')
+            ->whereNull('c.deleted_at')
+            ->whereColumn('u.login_user', '<>', 'c.user')
+            ->whereRaw("TRIM(LEADING '0' FROM u.login_user) = c.user")
+            ->count();
+        $this->info("Cuentas cuyo usuario difiere de su ficha solo por ceros a la izquierda: {$desfasadas}");
 
         return 0;
     }

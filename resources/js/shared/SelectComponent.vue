@@ -48,6 +48,7 @@ import { reactive, ref, watch, onMounted, onBeforeUnmount, nextTick } from "vue"
 import {
     selectTransform,
     getOptions,
+    conGuardado,
     convertToSelect2,
 } from "../helpers/Transform";
 import {
@@ -119,7 +120,30 @@ export default {
             choiceInstance = null;
         };
 
+        // Un valor de texto guardado que no esta en el catalogo (p. ej. estado
+        // "Cancelado") se agrega como opcion para que Choices lo muestre y el
+        // v-model no lo sobrescriba con otra opcion (#499). Ids numericos no.
+        const keepValueOutsideCatalog = () => {
+            const current = val.value;
+            if (
+                current === null ||
+                current === undefined ||
+                current === "" ||
+                current === "null" ||
+                /^\d+$/.test(String(current))
+            ) {
+                return;
+            }
+            if (!options.value.some((o) => o.value == current)) {
+                options.value = [
+                    ...options.value,
+                    { value: current, text: String(current) },
+                ];
+            }
+        };
+
         const renderChoices = async () => {
+            keepValueOutsideCatalog();
             destroyChoices();
             choiceInstance = await convertToSelect2(uniqueId.value, options, val);
         };
@@ -140,7 +164,9 @@ export default {
 
             options.value = props.property.options
                 ? selectTransform(props.property.options)
-                : await getOptions(props.property.search);
+                : await getOptions(conGuardado(props.property.search, val.value));
+
+            keepValueOutsideCatalog();
 
             await nextTick();
             await renderChoices();
@@ -157,7 +183,7 @@ export default {
         // a veces sin su wrapper y con pinta de deshabilitado) hasta recargar.
         watch(
             () => props.modelValue,
-            (newValue) => {
+            async (newValue) => {
                 if (!isInitialized.value) {
                     return;
                 }
@@ -171,6 +197,17 @@ export default {
                 syncingFromProp = true;
                 val.value = nextVal;
                 syncingFromProp = false;
+                // Lista de personal activo: si el registro trae a alguien que no está, se pide
+                // otra vez con esa persona para mostrarla.
+                if (
+                    props.property.search?.solo_activos &&
+                    /^\d+$/.test(String(nextVal)) &&
+                    !options.value.some((o) => o.value == nextVal)
+                ) {
+                    options.value = await getOptions(
+                        conGuardado(props.property.search, nextVal)
+                    );
+                }
                 renderChoices();
             }
         );

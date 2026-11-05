@@ -56,7 +56,7 @@ class ProponerOpcionesJob implements ShouldQueue
             return;
         }
 
-        $revisor->aplicarPreguntas($fresh, $pregs, 'revisor:brief-async(#437)');
+        $revisor->aplicarPreguntas($fresh, $pregs, 'revisor:brief-async(#437)', $r['escalado'] ?? null);
         Log::channel('roadmap_externo')->info('proponer-opciones-async: brief escrito', [
             'item' => $this->itemId, 'n' => count($pregs), 'modelo' => $r['modelo'] ?? null,
         ]);

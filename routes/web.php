@@ -159,6 +159,7 @@ Route::group(['middleware' => ['auth']], function () {
     Route::post('/request-generate-user-exist', 'HelperController@getGenerateUserExist');
 
     Route::post('/get-options-team', 'HelperController@getOptionsTeam');
+    Route::post('/get-options-rol-usuario', 'HelperController@getOptionsRolUsuario');
 
     Route::post('/get-options-select', 'SearchModelController@search');
     Route::post('/get-options-select/{id}', 'SearchModelController@searchWithoutId');

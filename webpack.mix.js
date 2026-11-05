@@ -32,6 +32,7 @@ const jsStage = process.env.MIX_JS_STAGE_DIR;
 const jsOut = jsStage ? `public/${jsStage}/js` : "public/js";
 
 mix.js("resources/js/app.js", jsOut)
+    .js("resources/js/portal-flotas.js", jsOut) // #652: paquete ligero del portal (Mis vehículos), sin app.js
     .vue()
     .sass("resources/sass/app.scss", "public/css")
     .version();

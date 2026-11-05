@@ -98,12 +98,12 @@ class HomeController extends Controller
         ];
 
         $client_online_info = ClientMainInformation::groupBy('estado')->select('estado', DB::raw('count(*) as total'))->where('estado', 'Online')->get();
-        $clientCount = DB::table('client_main_information')->groupBy('estado')->count();
+        $clientCount = max(1, DB::table('client_main_information')->count());
 
         $client_nuevo_info = ClientMainInformation::groupBy('estado')->select('estado', DB::raw('count(*) as total'))->where('estado', 'Nuevo')->get();
 
         $ticket_info = Ticket::groupBy('estado')->select('estado', DB::raw('count(*) as total'))->where('estado', 'Nuevo')->get();
-        $ticketCount = DB::table('tickets')->groupBy('estado')->count();
+        $ticketCount = max(1, DB::table('tickets')->count());
 
         if (isset($client_online_info[0])) {
             $array['Online']['total'] = $client_online_info[0]['total'];
@@ -202,7 +202,12 @@ class HomeController extends Controller
         $client_year = ClientMainInformation::where('created_at', '>=', Carbon::now()->subYear()->toDateString())->count();
 
         foreach ($client_status_infos as $key => $client_status_info) {
-            $array[$client_status_info['estado']]['total'] = $client_status_info['total'];
+            $estadoCliente = $client_status_info['estado'];
+            if (!isset($array[$estadoCliente])) {
+                // Estado sin tarjeta predefinida (Cancelado, Desinstalado…): se lista filtrando la tabla.
+                $array[$estadoCliente] = ['estado' => $estadoCliente, 'total' => 0, 'link' => 'listar'];
+            }
+            $array[$estadoCliente]['total'] = $client_status_info['total'];
         }
 
 

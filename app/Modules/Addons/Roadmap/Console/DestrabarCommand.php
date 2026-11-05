@@ -75,6 +75,10 @@ class DestrabarCommand extends Command
         // marcado `requiere_sesion_supervisada=true` a mano y este comando lo re-aprobaba solo
         // (carril `aprobarYaDecidido`) unos minutos después, una y otra vez.
         'requiere_sesion_supervisada',
+        // Regla d de la limpieza (2026-10-31) — `TorreAutomationPolicy::estadoInicial()` frena lo que
+        // salió vacío dos veces (`RoadmapItem::agotoVueltasVacias()`). Sin esta columna el contador
+        // llegaba `null` y el carril mecánico re-aprobaba #1000 cada 6 minutos, igual que #893.
+        'vueltas_vacias',
     ];
 
     public function handle(JarvisService $jarvis): int

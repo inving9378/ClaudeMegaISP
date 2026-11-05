@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Modules\Addons\Roadmap\Models\CircuitoEjecucion;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Addons\Roadmap\Services\MergesPendientesService;
 use App\Modules\Addons\Roadmap\Services\AutopilotService;
 use App\Modules\Addons\Roadmap\Services\FronterasService;
 use App\Modules\Addons\Roadmap\Services\RespuestasWatchdogService;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
+use App\Modules\Addons\Roadmap\Services\SeguimientoItemService;
 use App\Modules\Addons\Roadmap\Services\SessionTreeService;
 use App\Modules\Addons\Roadmap\Services\SupervisorService;
 use App\Modules\Addons\Roadmap\Services\JarvisService;
@@ -41,7 +43,7 @@ class RoadmapController extends Controller
         'archivado_at', 'origen_bloqueo', 'motivo_bloqueo', 'branch', 'worker_sid', 'origen_item_id',
         'consulta_supervisor_at', 'consulta_resuelta_at', 'comentarios_claude', 'opciones',
         'preguntas', 'reporte_coloquial', 'enlace_revision', 'alcance_autorizado', 'fuera_de_alcance',
-        'prompt', 'reanudaciones_timeout', 'frontera_valvula', 'motivo_espera',
+        'prompt', 'reanudaciones_timeout', 'frontera_valvula', 'motivo_espera', 'tipo',
         // #652 — el resumen en llano que la bandeja pinta como línea principal.
         'resumen_natural',
     ];
@@ -311,7 +313,9 @@ class RoadmapController extends Controller
             $rows = DB::table('roadmap_items as child')
                 ->whereRaw($this->sqlVivo('child'))
                 ->whereNotNull('child.modulo')->where('child.modulo', '!=', '')
-                ->whereNull('child.origen_item_id') // hijos directos de un módulo = épicas (raíz)
+                // 2026-10-26 (Irving): el módulo cuenta TODOS sus items vivos, no solo los que nacieron
+                // como raíz — un sub-item de Scheduling colgado de un proyecto de Talento también es
+                // trabajo de Scheduling, y antes ese módulo ni aparecía en el árbol.
                 ->selectRaw(
                     'child.modulo as id, child.modulo as titulo, '
                     . 'SUM(CASE WHEN ' . $this->sqlActivos('child') . ' THEN 1 ELSE 0 END) as activos, '
@@ -341,10 +345,20 @@ class RoadmapController extends Controller
                 $j->on('child.origen_item_id', '=', 'parent.id')
                   ->whereRaw($this->sqlVivo('child'));
             })
+            ->leftJoin('roadmap_items as origen', 'origen.id', '=', 'parent.origen_item_id')
             ->whereRaw($this->sqlVivo('parent'));
 
         if ($nivel === 'epica') {
-            $base->where('parent.modulo', (string) $parentId)->whereNull('parent.origen_item_id');
+            // 2026-10-26 (Irving): bajo un módulo salen sus raíces Y los items del módulo que cuelgan
+            // de un proyecto de OTRO módulo (o de uno ya cerrado), para que cada módulo muestre todo
+            // su trabajo. Los que cuelgan de un padre vivo del mismo módulo siguen anidados en él.
+            $base->where('parent.modulo', (string) $parentId)
+                ->where(function ($w) {
+                    $w->whereNull('parent.origen_item_id')
+                      ->orWhereNull('origen.id')
+                      ->orWhereRaw('NOT (' . $this->sqlVivo('origen') . ')')
+                      ->orWhereRaw("COALESCE(origen.modulo, '') <> parent.modulo");
+                });
         } else { // item — recursivo: hijos directos de CUALQUIER item, épica o no
             $base->where('parent.origen_item_id', (int) $parentId);
         }
@@ -355,14 +369,18 @@ class RoadmapController extends Controller
             ->selectRaw(
                 'parent.id as id, parent.title as titulo, parent.estado_aprobacion as estado, '
                 . 'parent.aprobado_por as aprobado_por, parent.worker_sid as worker_sid, '
+                . 'parent.modulo as modulo, origen.id as origen_id, origen.title as origen_titulo, '
                 . '(SELECT COUNT(*) FROM roadmap_adjunto_item rai WHERE rai.item_id = parent.id) as adjuntos_n, ' // #9991165
-                . '(CASE WHEN ' . $this->sqlActivos('parent') . ' THEN "activo" '
+                // 2026-10-26 — "humano" aparte: marcado como trabajo de una persona, ninguna terminal lo corre.
+                . '(CASE WHEN parent.en_desarrollo_humano = 1 THEN "humano" '
+                . 'WHEN ' . $this->sqlActivos('parent') . ' THEN "activo" '
                 . 'WHEN ' . $this->sqlDetenidos('parent') . ' THEN "detenido" ELSE "en_cola" END) as bucket, '
                 . 'SUM(CASE WHEN ' . $this->sqlActivos('child') . ' THEN 1 ELSE 0 END) as activos, '
                 . 'SUM(CASE WHEN ' . $this->sqlDetenidos('child') . ' THEN 1 ELSE 0 END) as detenidos, '
                 . 'SUM(CASE WHEN child.id IS NOT NULL AND NOT ' . $this->sqlActivos('child') . ' AND NOT ' . $this->sqlDetenidos('child') . ' THEN 1 ELSE 0 END) as en_cola'
             )
-            ->groupBy('parent.id', 'parent.title', 'parent.estado_aprobacion', 'parent.aprobado_por', 'parent.worker_sid', 'parent.position')
+            ->groupBy('parent.id', 'parent.title', 'parent.estado_aprobacion', 'parent.aprobado_por', 'parent.worker_sid', 'parent.position',
+                'parent.modulo', 'origen.id', 'origen.title')
             ->orderBy('parent.position')->orderBy('parent.id')
             ->forPage($page, $perPage)
             ->get();
@@ -370,7 +388,8 @@ class RoadmapController extends Controller
         $nodos = $rows->map(fn ($r) => $this->nodoJerarquia(
             (int) $r->id, (string) $r->titulo, $nivel, (string) $r->estado,
             (int) $r->activos, (int) $r->en_cola, (int) $r->detenidos,
-            (string) $r->bucket, $r->aprobado_por, $r->worker_sid, (int) ($r->adjuntos_n ?? 0)
+            (string) $r->bucket, $r->aprobado_por, $r->worker_sid, (int) ($r->adjuntos_n ?? 0),
+            ['modulo' => $r->modulo, 'origen_id' => $r->origen_id, 'origen_titulo' => $r->origen_titulo]
         ))->values();
 
         return response()->json([
@@ -415,9 +434,10 @@ class RoadmapController extends Controller
      */
     private function nodoJerarquia(
         $id, string $titulo, string $nivel, ?string $estado, int $activos, int $enCola, int $detenidos,
-        ?string $bucket = null, ?string $aprobadoPor = null, ?string $workerSid = null, int $adjuntosN = 0
+        ?string $bucket = null, ?string $aprobadoPor = null, ?string $workerSid = null, int $adjuntosN = 0,
+        array $extra = []
     ): array {
-        return [
+        return $extra + [
             'adjuntos_n'     => $adjuntosN, // #9991165 — indicador 📎 en la fila del árbol
             'id'             => $id,
             'titulo'         => $titulo,
@@ -1075,6 +1095,10 @@ class RoadmapController extends Controller
         $cola = $this->bloque('bandeja', fn () => RoadmapItem::bandejaDecision()
             ->ordered()->limit(100)->get(self::COLUMNAS_BANDEJA)
             ->map(fn (RoadmapItem $i) => array_merge($this->svc->compact($i), [
+                // #1035 — tipo explícito de la fila (decision|insumo|respuesta): el front deja de leer el
+                // prefijo [RESPUESTA] del título. `tipo` de la BD (manual|hallazgo|respuesta) manda; el resto = decisión.
+                'tipo_bandeja'  => $i->tipo === 'respuesta' ? 'respuesta' : 'decision',
+                'motivo_espera' => $i->motivo_espera,
                 'recomendacion' => $i->comentarios_claude,   // texto completo del decisor (pregunta + recomendación)
                 'opciones'      => $i->opcionesDetalladas(),  // [{clave,texto,recomendada}] — legacy/fallback (#431)
                 'opcion_elegida' => $i->opcion_elegida,       // clave estable de la opción marcada (o null)
@@ -1125,6 +1149,7 @@ class RoadmapController extends Controller
                     'title'         => $i->title,
                     'modulo'        => $i->modulo,
                     'motivo_espera' => $i->motivo_espera,
+                    'tipo_bandeja'  => 'insumo',   // #1035
                     'que_falta'     => mb_strimwidth((string) ($i->comentarios_claude ?: $i->description), 0, 220, '…'),
                 ])->values(),
             ])->values(), collect());
@@ -1134,23 +1159,29 @@ class RoadmapController extends Controller
         // Ya ordenada 🔥→prioridad→antigüedad; aquí el 🔥 salta la fila y dispara vuelta.
         // #878 — `compact()` sólo lee campos ligeros: proyección explícita, nunca `SELECT *`
         // sobre una consulta ordenada (ver COLUMNAS_BANDEJA arriba).
-        $colaEjecutable = $this->bloque('cola_ejecutable', fn () => RoadmapItem::autoEjecutable()
-            ->ordered()->limit(25)->get(RoadmapItem::COLUMNAS_COMPACT)
-            ->map(fn (RoadmapItem $i) => $this->svc->compact($i)), collect());
+        // #1030 paso B — la cola sale del MISMO cálculo que el despachador (`queSigue()`): primero lo
+        // que toma en su próxima ronda, luego lo listo que espera turno de su módulo. `sale_ahora`
+        // distingue las dos. Antes era `autoEjecutable()`, que no miraba dependencias ni el revisor.
+        $colaEjecutable = $this->bloque('cola_ejecutable', fn () => $this->svc
+            ->queSigueItems(25, RoadmapItem::COLUMNAS_COMPACT)
+            ->map(fn (RoadmapItem $i) => $this->svc->compact($i) + ['sale_ahora' => (bool) $i->sale_ahora]), collect());
 
         // #348: resumen de la cola — cuántos auto-corre el circuito vs cuántos esperan tu decisión
         // (+ los sin clasificar que el circuito aún triará). Cuentan sobre TODA la cola, no el limit.
         // #878 — el fallback es `null` por contador, NO `0`: un cero aquí se lee como "no hay
         // trabajo" y es justo la mentira que ocultó el 1038 durante 20 días.
         $resumenCola = $this->bloque('resumen_cola', fn () => [
-            'auto_ejecutables' => RoadmapItem::autoEjecutable()->count(),
+            // #1030 paso B — mismo cálculo que el despachador; `frenados` dice por qué no sale el resto.
+            'auto_ejecutables' => $this->svc->queSigueTotal(),
+            'sale_ahora'       => count($this->svc->queSigue()['ronda']),
+            'frenados'         => $this->svc->queSigue()['frenados'],
             // #9990906: antes contaba TODA bandeja(); ahora solo lo que de verdad espera una
             // decisión — los de insumo material ya no cuentan como "pendiente de Irving" aquí.
             'espera_decision'  => RoadmapItem::bandejaDecision()->count(),
             'espera_insumo'    => RoadmapItem::bandejaInsumo()->count(),   // #9990906: nuevo
             'sin_clasificar'   => RoadmapItem::backlog()->count(),       // #432: intake = lo que vive en la Hoja de ruta
             'intake'           => RoadmapItem::backlog()->count(),
-        ], ['auto_ejecutables' => null, 'espera_decision' => null, 'espera_insumo' => null, 'sin_clasificar' => null, 'intake' => null]);
+        ], ['auto_ejecutables' => null, 'sale_ahora' => null, 'frenados' => null, 'espera_decision' => null, 'espera_insumo' => null, 'sin_clasificar' => null, 'intake' => null]);
 
         // #958 (Fase 3 de #921) — "N items agendados" con su LISTA (título + fecha), para que dejen
         // de vivir invisibles en la BD. Usa `scopeAgendados()` (el mismo predicado que ya excluye
@@ -1258,6 +1289,11 @@ class RoadmapController extends Controller
             // FASE 1 — "Cambios para que Irving pruebe": cambios seguros integrados esperando validación funcional.
             'cambios_validacion'   => $this->bloque('cambios_validacion', fn () => RoadmapItem::pendienteValidacion()->limit(30)->get()
                 ->map(fn (RoadmapItem $i) => $this->validacionPayload($i)), collect()),
+            // #1136 — «Aprobados para la siguiente versión»: marcado_version=true, ya validados (no en
+            // espera de prueba). Solo lectura; la UI los muestra colapsados.
+            'aprobados_version'    => $this->bloque('aprobados_version', fn () => RoadmapItem::where('marcado_version', true)
+                ->where('pendiente_validacion_irving', false)->orderByDesc('updated_at')->limit(50)
+                ->get(['id', 'title', 'modulo', 'nivel_riesgo', 'merge_commit', 'validado_at'])->values(), collect()),
             'riesgos_auditoria'    => $riesgos,
             'auditoria_item_id'    => $audit?->id,
             'ejecuciones'          => $ejecuciones,
@@ -1273,12 +1309,14 @@ class RoadmapController extends Controller
             // trabajo seguro (evita el falso "cron detenido"). + cuántos auto-ejecutables hay en cola.
             'scheduler_beat_secs'  => $this->svc->schedulerBeatSecs(),
             'cron_vivo'            => ($s = $this->svc->schedulerBeatSecs()) !== null && $s < 180,
-            'auto_ejecutables'     => $this->bloque('auto_ejecutables', fn () => RoadmapItem::autoEjecutable()->count(), null),
+            'auto_ejecutables'     => $this->bloque('auto_ejecutables', fn () => $this->svc->queSigueTotal(), null),   // #1030 paso B
             // #507 sub-paso 4 — banner del autopilot: política vigente + qué decidió hoy.
             'autopilot'            => $this->bloque('autopilot', fn () => $this->autopilot->resumen(), null),
             // #791 — foto del último `circuito:digest` (mudas 7d / prod 24h / fallback), con la
             // referencia del "antes" para leer la tendencia sin repetir el barrido a mano.
             'digest'               => $this->bloque('digest', fn () => $this->svc->digestSnapshot(), null),
+            // «Esperan tu merge» EN VIVO (antes la tarjeta leía la foto diaria del digest).
+            'merges_pendientes'    => $this->bloque('merges_pendientes', fn () => app(MergesPendientesService::class)->listar(15), null),
             // Watchdog del equipo (#334): salud por slot + alertas escaladas + bitácora de recuperación.
             'watchdog'             => $this->watchdog->estado(),
             'watchdog_bitacora'    => $this->watchdog->bitacora(15),
@@ -1391,6 +1429,70 @@ class RoadmapController extends Controller
         }
 
         return response()->json(['ok' => true, 'decidido' => true, 'decision' => $this->formatearDecisionAutomatica($item)]);
+    }
+
+    /**
+     * GET /torre/panorama-jerarquia/{id}/seguimiento (2026-10-26, pedido de Irving) — botón
+     * «Seguimiento» del árbol: por qué no avanza el item, quién lo tiene que mover, sus preguntas con
+     * la opción recomendada y si se puede meter al circuito. Solo lectura (`roadmap_view`); la
+     * regla vive en SeguimientoItemService, que reusa la del despachador.
+     */
+    public function panoramaSeguimiento(int $id): JsonResponse
+    {
+        $this->authorize('roadmap_view');
+
+        $item = RoadmapItem::find($id);
+        if (! $item) {
+            return response()->json(['ok' => false, 'mensaje' => 'Item no encontrado.'], 404);
+        }
+
+        $diag = app(SeguimientoItemService::class)->diagnostico($item);
+        $diag['puede_actuar'] = (bool) auth()->user()?->can('circuito.decidir');
+
+        return response()->json(['ok' => true] + $diag);
+    }
+
+    /**
+     * POST /api/roadmap/items/{id}/meter-al-circuito (2026-10-26) — «Meter al circuito» del árbol:
+     * aprueba con las respuestas elegidas, quita los frenos que lo dejan fuera de la cola, lo marca
+     * urgente y pide una vuelta. Mismo gate que `decidir` (`circuito.decidir`); el disparo solo si
+     * además hay `circuito.disparar`. Lo que espera merge o a sus sub-items responde 422 con la
+     * explicación; lo que espera a otro item solo entra con `ignorar_dependencias`.
+     */
+    public function meterAlCircuito(Request $request, int $id): JsonResponse
+    {
+        $this->authorize('circuito.decidir');
+
+        $data = $request->validate([
+            'respuestas'   => ['sometimes', 'array'],
+            'respuestas.*' => ['nullable', 'string', 'max:2000'],
+            // «Iniciar sin esperar»: quita la dependencia (queda en el log) y lo mete igual.
+            'ignorar_dependencias' => ['sometimes', 'boolean'],
+        ]);
+
+        $item = RoadmapItem::find($id);
+        if (! $item) {
+            return response()->json(['ok' => false, 'mensaje' => 'Item no encontrado.'], 404);
+        }
+
+        $autor = $this->actorLabel();
+        $r = app(SeguimientoItemService::class)->meterAlCircuito(
+            $item, $data['respuestas'] ?? [], $autor, (bool) ($data['ignorar_dependencias'] ?? false)
+        );
+
+        Log::channel('roadmap_externo')->info('meter-al-circuito', [
+            'item' => $item->id, 'por' => $autor, 'ok' => $r['ok'], 'code' => $r['code'],
+        ]);
+
+        if (! $r['ok']) {
+            return response()->json($r, 422);
+        }
+
+        $r['disparo'] = auth()->user()->can('circuito.disparar')
+            ? $this->svc->requestDisparo($autor, 'urgente', $item->id)
+            : null;
+
+        return response()->json($r);
     }
 
     /** Ficha legible de "qué decidió la máquina sola" sobre UN item — usada por la lista y el panel del árbol. */
@@ -2153,10 +2255,36 @@ class RoadmapController extends Controller
             'pregunta_id' => ['sometimes', 'nullable', 'string', 'max:64'],
             // #431 — sin cap de 255; se persiste la clave estable resuelta, nunca la prosa.
             'opcion'      => ['nullable', 'string', 'max:2000'],
+            // #1069 — «otra respuesta»: texto libre; tiene prioridad sobre `opcion`.
+            'texto_libre' => ['sometimes', 'nullable', 'string', 'max:5000'],
         ]);
         $item = RoadmapItem::find($data['id']);
         if (! $item) {
             return response()->json(['error' => 'Item no encontrado'], 404);
+        }
+        if (! empty($data['texto_libre'])) {
+            $pidL = $data['pregunta_id'] ?? ($item->preguntasNormalizadas()[0]['id'] ?? 'q1');
+            if (! $item->responderPreguntaLibre((string) $pidL, $data['texto_libre'])) {
+                return response()->json(['error' => 'No se pudo guardar la respuesta libre'], 422);
+            }
+            $item->save();
+            // La respuesta llega a la terminal por el mismo canal que un comentario de Irving.
+            \App\Modules\Addons\Roadmap\Models\RoadmapItemRespuesta::create([
+                'item_id'      => $item->id,
+                'autor'        => $this->actor(),
+                'canal'        => 'torre',
+                'cuerpo'       => 'Otra respuesta a la pregunta ' . $pidL . ': ' . trim($data['texto_libre']),
+                'ejecutar'     => false,   // se ejecuta al aprobar, no al guardar
+                'consumida_at' => null,
+            ]);
+            Log::channel('roadmap_externo')->info('elegir-opcion-libre', ['item' => $item->id, 'pregunta' => $pidL, 'por' => $this->actor()]);
+
+            return response()->json(['ok' => true, 'item' => [
+                'id'             => $item->id,
+                'pregunta_id'    => $pidL,
+                'opcion_elegida' => $item->opcion_elegida,
+                'preguntas'      => $item->preguntasNormalizadas(),
+            ]]);
         }
         // #432 — responde LA pregunta indicada (o la primera): resuelve clave/prosa/índice → clave
         // estable de esa pregunta; null deselecciona. Persiste en `preguntas` (+ espejo legacy).
@@ -2249,7 +2377,14 @@ class RoadmapController extends Controller
         // Radar ACTIVO (#334): solo NO-archivados. Lo backend/interno ya integrado se auto-archivó
         // en el merge → sale del radar (queda en Historial). Aquí quedan: lo UI-verificable (aunque
         // ya mergeado, esperando la revisión visual de Irving) + lo pendiente (en cola/escalado).
-        $ramas = RoadmapItem::whereNotNull('branch')->noArchivado()->orderByDesc('id')->limit(80)->get()
+        // #696: los que esperan el merge de Irving entran SIEMPRE (sin límite) + las 80 más recientes.
+        // Un solo conteo en toda la Torre (#1114): el número sale de MergesPendientesService, igual que la
+        // tarjeta de la Panorama, el digest y Jarvis. Las filas son los ids del servicio que tienen rama.
+        $pendientes = app(\App\Modules\Addons\Roadmap\Services\MergesPendientesService::class)->listar();
+        $idsPendientes = array_column($pendientes['items'], 'id');
+        $esperan = RoadmapItem::whereNotNull('branch')->whereIn('id', $idsPendientes)->get();
+        $recientes = RoadmapItem::whereNotNull('branch')->noArchivado()->orderByDesc('id')->limit(80)->get();
+        $ramas = $esperan->concat($recientes)->unique('id')->sortByDesc('id')->values()
             ->map(fn (RoadmapItem $i) => $this->ramaPayload($i));
 
         return response()->json([
@@ -2259,6 +2394,8 @@ class RoadmapController extends Controller
             'voz_tts'          => $this->svc->getVozTts(),      // voz elegida para 🔊 Escuchar (#424, null = automática)
             'rate_tts'         => $this->svc->getRateTts(),     // velocidad de 🔊 Escuchar (#424)
             'ramas'            => $ramas,
+            'esperan_merge_count' => $pendientes['total'],
+            'esperan_sin_rama_count' => max(0, $pendientes['total'] - $esperan->count()),
             'archivadas_count' => RoadmapItem::whereNotNull('branch')->archivado()->count(),
         ]);
     }
@@ -3021,6 +3158,12 @@ class RoadmapController extends Controller
         $item->archivado_por = 'validacion-irving';
         $log = $item->log ?: [];
         $log[] = ['ts' => now()->toIso8601String(), 'por' => $this->actor(), 'evento' => 'validacion_funcional_ok', 'merge_commit' => $item->merge_commit];
+        // #1066 — «Ya lo vi»: validado por Irving = aprobado para la siguiente versión. Solo si ya hay
+        // merge (si no, no hay nada que cherry-pickear); se deshace con el toggle de «Marcar para versión».
+        if ($item->merge_commit && ! $item->marcado_version) {
+            $item->marcado_version = true;
+            $log[] = ['ts' => now()->toIso8601String(), 'por' => $this->actor(), 'evento' => 'marcado_para_version', 'motivo' => 'ya_lo_vi'];
+        }
         $item->log = $log;
         $item->save();
 

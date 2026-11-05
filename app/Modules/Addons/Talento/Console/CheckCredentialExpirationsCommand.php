@@ -6,6 +6,7 @@ use App\Modules\Addons\Hub\Services\Correo;
 use App\Modules\Addons\Talento\Models\TalentoCredential;
 use App\Modules\Addons\Talento\Models\TalentoFund;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class CheckCredentialExpirationsCommand extends Command
@@ -76,8 +77,8 @@ class CheckCredentialExpirationsCommand extends Command
         if ($existing) return 0;
 
         // Monto configurable desde settings, fallback 800
-        $target    = (float) (setting('talento_license_renewal_cost') ?? 800);
-        $weekly    = (float) (setting('talento_license_weekly_deduction') ?? 100);
+        $target    = (float) (DB::table('settings')->where('key', 'talento_license_renewal_cost')->value('value') ?? 800);
+        $weekly    = (float) (DB::table('settings')->where('key', 'talento_license_weekly_deduction')->value('value') ?? 100);
 
         TalentoFund::create([
             'colaborador_id'   => $cred->colaborador_id,

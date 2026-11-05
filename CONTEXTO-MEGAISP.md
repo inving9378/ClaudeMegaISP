@@ -53,6 +53,10 @@
   usar `COALESCE(STR_TO_DATE(col,'%d/%m/%Y'), ...)`, nunca comparar como string.
 - Frontend: Vue 3 + Quasar UMD sobre Blade (excepción: Flotas usa Bootstrap 5).
   SPA vía `spa-nav.js` (fetch-then-swap); respetar `data-spa-skip` y la blacklist.
+  Vue monta ANTES del `pushState`: al leer estado de la página usar `currentSearch()` y
+  `currentHistoryState()` (`hook/comunValues.js`), nunca `location.search`/`history.state` directo.
+  Estado de un listado que sobrevive a atrás y F5: `hook/useTableUrlState.js` (el término de
+  búsqueda nunca en la URL, #9990815).
 - No compilar APKs ni builds pesados en el servidor (disco cerca de capacidad).
 - **La suite de pruebas corre SÓLO contra `megaisp_test`** (o `:memory:`). `Tests\TestCase::setUp()`
   hace `migrate:fresh --seed`, así que apuntarla a la base de la app la vacía — pasó el 22-ago y

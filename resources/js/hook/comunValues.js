@@ -100,10 +100,57 @@ export const uncheck = (field, module_id) => {
  * en cada navegación, para que los componentes que se monten ya vean el
  * valor correcto desde su primer render.
  */
-export const isEdit = ref(window.location.href.includes('editar'));
+const rutaDe = (url) => {
+    try {
+        return new URL(url, window.location.origin).pathname;
+    } catch (e) {
+        return String(url);
+    }
+};
+
+export const isEdit = ref(rutaDe(window.location.href).includes('editar'));
+
+// URL destino de la navegación SPA en curso (item #708). spa-nav monta Vue
+// antes de hacer pushState, así que window.location aún es la página anterior
+// durante el montaje; los componentes que lean ?tab= etc. al montar deben usar
+// currentSearch() en vez de window.location.search.
+let spaTargetUrl = null;
+
+// Solo un popstate distingue "volver a esta entrada" de "navegar a la misma URL": clic en el
+// menú estando ya en /cliente/listar da la misma URL que volver atrás, y solo el segundo caso
+// debe leer history.state. spa-nav consume esta marca al llamar a setSpaTargetUrl.
+let popstatePendiente = false;
+let navegandoPorHistorial = false;
+
+window.addEventListener('popstate', () => {
+    popstatePendiente = true;
+});
+
+export const setSpaTargetUrl = (url) => {
+    spaTargetUrl = url ?? null;
+    navegandoPorHistorial = Boolean(url) && popstatePendiente && url === window.location.href;
+    popstatePendiente = false;
+};
+
+export const currentSearch = () => {
+    if (!spaTargetUrl) return window.location.search;
+    try {
+        return new URL(spaTargetUrl, window.location.origin).search;
+    } catch (e) {
+        return window.location.search;
+    }
+};
+
+// Igual que currentSearch(), para history.state: al navegar hacia adelante spa-nav monta Vue antes
+// del pushState, así que history.state aún es el de la página anterior y la pantalla nueva debe
+// arrancar sin estado. En popstate, F5 o carga completa, history.state ya es el de esta entrada.
+export const currentHistoryState = () => {
+    if (spaTargetUrl && !navegandoPorHistorial) return null;
+    return window.history.state;
+};
 
 export const refreshIsEdit = (url) => {
     const target = url ?? window.location.href;
-    isEdit.value = target.includes('editar');
+    isEdit.value = rutaDe(target).includes('editar');
 };
 

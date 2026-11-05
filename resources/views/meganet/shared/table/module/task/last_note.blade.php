@@ -1,7 +1,8 @@
 <td>
-    <span data-id="{{ $id }}" class="note-class cursor-pointer" data-bs-toggle="modal"
-        data-bs-target="#note_{{ $id }}">
-        {!! $note !!}
+    {{-- Vista corta (2 líneas); la nota completa se abre en el modal. --}}
+    <span data-id="{{ $id }}" class="note-class task-nota-corta cursor-pointer" data-bs-toggle="modal"
+        data-bs-target="#note_{{ $id }}" title="Ver nota completa">
+        {{ \Illuminate\Support\Str::limit(trim(preg_replace('/\s+/u', ' ', html_entity_decode(strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>'], ' ', (string) $note))))), 140) }}
     </span>
 
     <div class="modal fade" id="note_{{ $id }}" data-backdrop="static" data-keyboard="false">

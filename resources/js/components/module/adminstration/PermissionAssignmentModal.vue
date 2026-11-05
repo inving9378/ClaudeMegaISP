@@ -20,6 +20,13 @@
                     {{ textButtonAll }}
                 </button>
             </div>
+            <div
+                v-if="props.entityType === 'role' && catalogFailed"
+                class="alert alert-warning py-2 small mb-2"
+            >
+                No se pudo cargar la pestaña «Otros / Sin categorizar». Puedes guardar lo
+                demás: los permisos de esa pestaña se quedan como están.
+            </div>
 
             <div class="row g-3 perm-two-col">
                 <!-- ===================== COLUMNA: PANEL ADMINISTRADOR ===================== -->
@@ -248,8 +255,12 @@
                 <strong>{{ panelCount }}</strong> admin ·
                 <strong>{{ portalCount }}</strong> colaborador
             </div>
-            <button class="btn btn-primary" @click="updatePermissions">
-                Guardar
+            <button
+                class="btn btn-primary"
+                :disabled="!canSave || saving"
+                @click="updatePermissions"
+            >
+                {{ canSave ? "Guardar" : "Cargando…" }}
             </button>
         </template>
     </modal>
@@ -414,34 +425,52 @@ const countChecked = (ctx) => {
 const panelCount = computed(() => countChecked("panel"));
 const portalCount = computed(() => countChecked("portal"));
 
-watch(
-    () => props.entityId,
-    (newId, oldId) => {
-        if (newId && newId !== oldId) {
-            getPermissions();
-        }
-    },
-    { immediate: false }
+// 2026-11-02: los permisos se vuelven a pedir cada vez que se abre la ventana (antes solo al
+// cambiar de rol, y reabrir el mismo mostraba lo de la vez anterior). Hasta tenerlos no se
+// puede guardar: con la carga a medias, las casillas no reflejan el rol y guardar le quitaría
+// lo que no salió marcado.
+const loadedFor = ref(0);
+const saving = ref(false);
+const catalogFailed = ref(false);
+const canSave = computed(
+    () => !!props.entityId && loadedFor.value === props.entityId
 );
+let loadSeq = 0;
 
 const getPermissions = async () => {
+    const seq = ++loadSeq;
+    loadedFor.value = 0;
     try {
         if (props.entityType === "user") {
             const response = await getPermissionsForUser(props.entityId);
+            if (seq !== loadSeq) return;
             permissions.value = response.permissions;
             allPromotions.value = response.all_promotions;
             avaiablesPromotions.value = response.avaiables_promotions;
         } else {
             const response = await getPermissionsForRole(props.entityId);
+            if (seq !== loadSeq) return;
             permissions.value = response.permissions;
             roleScopes.value = response.scopes || {};
         }
         applyPermissions();
         applyScopes();
+        loadedFor.value = props.entityId;
     } catch (error) {
         console.log(error);
     }
 };
+
+watch(
+    () => [props.showModal, props.entityId],
+    ([show, id]) => {
+        if (show && id) {
+            getPermissions();
+            if (catalogFailed.value) loadCatalog();
+        }
+    },
+    { immediate: true }
+);
 
 /**
  * Recorre los campos una sola vez (versión robusta del PermissionUser original):
@@ -465,8 +494,10 @@ const applyPermissions = () => {
 
 // Pestaña dinámica "Otros": expone cualquier permiso de BD no curado (item #71)
 const loadCatalog = async () => {
-    const { permissions: catalog, contexts, descriptions, scopeable } =
+    const { permissions: catalog, contexts, descriptions, scopeable, failed } =
         await getPermissionsCatalog();
+    catalogFailed.value = !!failed;
+    if (failed) return;
     contextByName.value = contexts || {};
     scopeableByName.value = scopeable || {};
     const { fields, accordions: accs } = buildUncategorizedTab(catalog, descriptions);
@@ -513,6 +544,67 @@ const prepareScopesData = () => {
     return scopesData;
 };
 
+// Todos los permisos que muestra la ventana: el servidor solo quita de estos
+// (PermissionController::update), así lo que no llegó a cargarse se queda como está.
+const prepareShownData = () => {
+    const shown = [];
+    for (const tabKey in fieldsJson.value) {
+        fieldsJson.value[tabKey].forEach((field) => shown.push(field.field));
+    }
+    return shown;
+};
+
+const escapeHtml = (text) =>
+    String(text).replace(
+        /[&<>"']/g,
+        (c) =>
+            ({
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#39;",
+            }[c])
+    );
+
+// 2026-11-02: antes de quitarle permisos al rol se dice cuáles y se pide confirmarlo.
+const confirmRemovals = async (checkedNames, shownNames) => {
+    const checked = new Set(checkedNames);
+    const shown = new Set(shownNames);
+    const removed = permissions.value.filter(
+        (name) => shown.has(name) && !checked.has(name)
+    );
+    if (!removed.length) return true;
+
+    const labels = {};
+    for (const tabKey in fieldsJson.value) {
+        fieldsJson.value[tabKey].forEach((field) => {
+            labels[field.field] = field.label || field.field;
+        });
+    }
+    const items = removed
+        .map(
+            (name) =>
+                `<li>${escapeHtml(labels[name] || name)} <small class="text-muted">(${escapeHtml(name)})</small></li>`
+        )
+        .join("");
+
+    const result = await Swal.fire({
+        icon: "warning",
+        title:
+            removed.length === 1
+                ? "Se va a quitar 1 permiso"
+                : `Se van a quitar ${removed.length} permisos`,
+        html:
+            `<p>Al guardar, el rol ${escapeHtml(props.entityName)} deja de tener:</p>` +
+            `<ul style="text-align:left;max-height:260px;overflow:auto">${items}</ul>`,
+        showCancelButton: true,
+        confirmButtonText: "Sí, quitarlos",
+        cancelButtonText: "Cancelar",
+    });
+    return result.isConfirmed;
+};
+
 const textButtonAll = ref("Agregar Todos");
 const addAll = ref(false);
 
@@ -531,21 +623,36 @@ watch(addAll, (n) => {
 });
 
 const updatePermissions = async () => {
+    if (!canSave.value || saving.value) return;
     const permissionsToUpdate = preparePermissionsData();
 
     let response;
     if (props.entityType === "user") {
-        response = await updatePermissionByUser(props.entityId, {
-            permissions: permissionsToUpdate,
-            promotions: allPromotions.value
-                .filter((p) => p.value)
-                .map((p) => p.id),
-        });
+        saving.value = true;
+        try {
+            response = await updatePermissionByUser(props.entityId, {
+                permissions: permissionsToUpdate,
+                promotions: allPromotions.value
+                    .filter((p) => p.value)
+                    .map((p) => p.id),
+            });
+        } finally {
+            saving.value = false;
+        }
     } else {
-        response = await updatePermissionByRole(props.entityId, {
-            permissions: permissionsToUpdate,
-            scopes: prepareScopesData(),
-        });
+        const shown = prepareShownData();
+        if (!(await confirmRemovals(permissionsToUpdate, shown))) return;
+        saving.value = true;
+        try {
+            response = await updatePermissionByRole(props.entityId, {
+                permissions: permissionsToUpdate,
+                scopes: prepareScopesData(),
+                shown,
+                loaded: permissions.value,
+            });
+        } finally {
+            saving.value = false;
+        }
     }
 
     if (response.status == 200) {
@@ -554,7 +661,7 @@ const updatePermissions = async () => {
     } else {
         Swal.fire(
             "¡Error!",
-            "Hubo un error al actulizar los permisos",
+            response.message || "Hubo un error al actualizar los permisos",
             "error"
         );
     }

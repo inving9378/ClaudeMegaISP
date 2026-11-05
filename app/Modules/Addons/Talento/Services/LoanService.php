@@ -59,7 +59,7 @@ class LoanService
                 ->where('period_end', $periodEnd->toDateString())
                 ->delete();
 
-            TalentoLedgerEntry::create([
+            TalentoLedgerEntry::registrar([
                 'colaborador_id' => $colaboradorId,
                 'type'           => 'debit',
                 'concept'        => 'loan_repayment',
@@ -82,6 +82,30 @@ class LoanService
         }
 
         return round($total, 2);
+    }
+
+    /**
+     * Deshace los abonos que un cálculo anterior de la liquidación aplicó en este período
+     * (2026-10-23): al recalcular, el préstamo se volvía a cobrar y el asiento viejo se sumaba al
+     * nuevo en el monto a pagar.
+     */
+    public function revertirDeducciones(int $colaboradorId, Carbon $periodStart, Carbon $periodEnd): void
+    {
+        $asientos = TalentoLedgerEntry::where('colaborador_id', $colaboradorId)
+            ->where('concept', 'loan_repayment')
+            ->where('reference_type', TalentoLoan::class)
+            ->where('period_start', $periodStart->toDateString())
+            ->where('period_end', $periodEnd->toDateString())
+            ->get();
+
+        foreach ($asientos as $asiento) {
+            $loan = TalentoLoan::find($asiento->reference_id);
+            if ($loan) {
+                $balance = round(min((float) $loan->amount, (float) $loan->balance + (float) $asiento->amount), 2);
+                $loan->update(['balance' => $balance, 'status' => $balance > 0 ? 'active' : 'paid']);
+            }
+            $asiento->delete();
+        }
     }
 
     public function authorize(TalentoLoan $loan, int $authorizedBy): TalentoLoan

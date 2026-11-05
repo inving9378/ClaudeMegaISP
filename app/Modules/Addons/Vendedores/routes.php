@@ -47,6 +47,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('sellers')-
         Route::post('/extras-incomes-list/{id}', [ExtraIncomeController::class, 'index']);
         Route::resource('/installations', InstallationController::class)->except('index');
         Route::post('/installations-list/{id}', [InstallationController::class, 'index']);
+        Route::post('/installations-sync/{id}', [InstallationController::class, 'sync']);
         Route::resource('/suppliers-expenses', SuppliersExpensesController::class)->except('index');
         Route::post('/suppliers-expenses-list/{id}', [SuppliersExpensesController::class, 'index']);
         Route::resource('/observations', ObservationsController::class)->except('index');

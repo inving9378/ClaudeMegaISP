@@ -14,6 +14,15 @@
            autoservicio; quedan ocultas para quien no gestiona/supervisa
            (apelar TU PROPIA penalización sigue disponible en el modal
            "Ver", eso no es esto). -->
+      <!-- 2026-10-20: las penalizaciones que proponen las reglas semanales se confirman
+           aquí (antes solo desde Reglas de desempeño). El supervisor tiene la suya en el
+           portal, sección Penalizaciones. -->
+      <li v-if="puedeGestionarResuelto && !colaboradorId" class="nav-item">
+        <a class="nav-link" :class="{ active: tab === 'pending' }" href="#" @click.prevent="tab='pending'">
+          <i class="fa fa-hourglass-half me-1"></i>Por confirmar
+          <span v-if="pendientes.length" class="tc-status is-warn ms-1">{{ pendientes.length }}</span>
+        </a>
+      </li>
       <li v-if="puedeGestionarResuelto" class="nav-item">
         <a class="nav-link" :class="{ active: tab === 'appeals' }" href="#" @click.prevent="tab='appeals'">
           <i class="fa fa-balance-scale me-1"></i>Apelaciones
@@ -30,7 +39,7 @@
     <div v-if="tab === 'penalties'">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
         <div class="d-flex gap-2 flex-wrap">
-          <select v-model="pFilters.colaborador_id" @change="loadPenalties" class="form-select form-select-sm tc-select" style="width:200px">
+          <select v-if="!colaboradorId" v-model="pFilters.colaborador_id" @change="loadPenalties" class="form-select form-select-sm tc-select" style="width:200px">
             <option value="">Todos los técnicos</option>
             <option v-for="c in colaboradores" :key="c.id" :value="c.id">{{ c.user?.name }}</option>
           </select>
@@ -89,6 +98,40 @@
       </div>
     </div>
 
+    <!-- ── TAB POR CONFIRMAR ── -->
+    <div v-if="tab === 'pending'">
+      <p class="small text-muted mb-3">
+        Las reglas de desempeño semanal proponen estas penalizaciones; el descuento se aplica cuando alguien la confirma.
+      </p>
+      <div v-if="loadingPend" class="text-center py-5"><div class="spinner-border text-warning"></div></div>
+      <div v-else class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+          <thead class="table-light">
+            <tr><th>Colaborador</th><th>Regla</th><th>Semana</th><th>Resultado</th><th>Monto</th><th></th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="e in pendientes" :key="e.id">
+              <td class="fw-semibold small">{{ e.colaborador?.user?.name ?? '—' }}</td>
+              <td class="small">{{ e.rule?.name ?? '—' }}</td>
+              <td class="small">{{ fmtDia(e.week_start) }} – {{ fmtDia(e.week_end) }}</td>
+              <td class="small text-muted">{{ e.sales_count }}<span v-if="e.rule?.min_sales != null"> (mínimo {{ e.rule.min_sales }})</span></td>
+              <td class="small fw-bold text-danger">{{ fmtMXN(e.penalty_amount) }}</td>
+              <td>
+                <button @click="confirmarPendiente(e)" class="tc-btn tc-btn-bad-solid btn-xs" :disabled="confirmandoId === e.id">
+                  <span v-if="confirmandoId === e.id" class="spinner-border spinner-border-sm"></span>
+                  <span v-else>Confirmar</span>
+                </button>
+              </td>
+            </tr>
+            <tr v-if="!pendientes.length">
+              <td colspan="6" class="text-center text-muted py-4">No hay penalizaciones por confirmar.</td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-if="pendError" class="alert alert-danger py-2 small">{{ pendError }}</div>
+      </div>
+    </div>
+
     <!-- ── TAB APELACIONES ── -->
     <div v-if="tab === 'appeals'">
       <div class="d-flex align-items-center gap-3 mb-3">
@@ -119,8 +162,8 @@
                 <span v-else class="tc-status is-bad">❌ Mantenida</span>
               </td>
               <td>
-                <button @click="openResolve(ap)" class="tc-btn tc-btn-warn btn-xs"
-                        :disabled="ap.decision !== null">
+                <button @click="openResolve(ap)" class="tc-btn btn-xs"
+                        :class="ap.decision !== null ? 'tc-btn-seg' : 'tc-btn-warn'">
                   {{ ap.decision !== null ? 'Ver' : 'Resolver' }}
                 </button>
               </td>
@@ -458,6 +501,10 @@
                   {{ resolveModal.appeal.decision_notes }}
                 </span>
               </div>
+              <div v-if="resolvioNombre(resolveModal.appeal)" class="small text-muted mt-2">
+                Resolvió: <span class="fw-semibold">{{ resolvioNombre(resolveModal.appeal) }}</span>
+                <span v-if="resolveModal.appeal.resolved_at"> · {{ fmtDate(resolveModal.appeal.resolved_at) }}</span>
+              </div>
             </template>
           </div>
           <div class="modal-footer">
@@ -570,6 +617,7 @@ export default {
     // admin/DESARROLLADOR o supervisor DIRECTO de este colaborador —
     // David, 28-sep: "el superior es el que penaliza, no ellos mismos".
     puedeGestionar: { type: Boolean, default: false },
+    colaboradorNombre: { type: String, default: '' },
   },
   setup() {
     return { darkMode };
@@ -582,6 +630,9 @@ export default {
       penalties: [], loadingP: true,
       pFilters: { colaborador_id: '', category: '', status: '' },
       pPagination: { current_page: 1, last_page: 1 },
+
+      // Por confirmar (evaluaciones semanales en penalty_pending)
+      pendientes: [], loadingPend: true, confirmandoId: null, pendError: '',
 
       // Apelaciones
       appeals: [], loadingA: true,
@@ -680,10 +731,38 @@ export default {
       // ni se muestran ni se piden para quien solo ve sus propias
       // penalizaciones (evita 403 innecesarios, mismo criterio que las
       // pestañas ocultas arriba).
+      // En la ficha, el catálogo sí (lo pide «Aplicar penalización»); la cola de apelaciones no:
+      // su pestaña no sale en la ficha y es solo para quien ve a todos.
       if (this.puedeGestionarResuelto) {
-        calls.push(this.loadTypes(), this.loadAppeals());
+        calls.push(this.loadTypes());
+        if (!this.colaboradorId) calls.push(this.loadAppeals(), this.loadPendientes());
       }
       await Promise.all(calls);
+    },
+    async loadPendientes() {
+      this.loadingPend = true;
+      try {
+        const { data } = await axios.get('/talento/api/reglas-desempeno/evaluaciones', { params: { outcome: 'penalty_pending' } });
+        this.pendientes = data?.data ?? [];
+      } finally { this.loadingPend = false; }
+    },
+    async confirmarPendiente(e) {
+      const nombre = e.colaborador?.user?.name ?? 'el colaborador';
+      if (!confirm(`Se descontarán ${this.fmtMXN(e.penalty_amount)} a ${nombre} en la semana del ${this.fmtDia(e.week_start)}. ¿Confirmas?`)) return;
+      this.pendError = '';
+      this.confirmandoId = e.id;
+      try {
+        await axios.post(`/talento/api/reglas-desempeno/evaluaciones/${e.id}/confirmar-penalizacion`);
+        await Promise.all([this.loadPendientes(), this.loadPenalties()]);
+      } catch (err) {
+        this.pendError = err.response?.data?.message ?? err.response?.data?.error ?? 'No se pudo confirmar.';
+      } finally { this.confirmandoId = null; }
+    },
+    // Fechas de semana (date sin hora): se toma el día tal cual, sin pasar por la zona horaria.
+    fmtDia(d) {
+      const m = String(d ?? '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!m) return '—';
+      return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
     },
     async loadMyProfile() {
       try {
@@ -699,6 +778,12 @@ export default {
       } catch { /* graceful: admin/Mostrador sin colaborador propio */ }
     },
     async loadColaboradores() {
+      // En la ficha todo es de esta persona; la lista completa solo la ve quien ve a todos
+      // (un supervisor o un técnico recibía 403 y el selector de «Aplicar» quedaba vacío).
+      if (this.colaboradorId) {
+        this.colaboradores = [{ id: Number(this.colaboradorId), user: { name: this.colaboradorNombre } }];
+        return;
+      }
       const { data } = await axios.get('/talento/api/colaboradores', { params: { per_page: 300, status: 'active' } });
       this.colaboradores = data?.data ?? [];
     },
@@ -734,7 +819,7 @@ export default {
     // ── Apply ──────────────────────────────────────────────────────────────
     openApply() {
       this.applyModal = {
-        show: true, colaborador_id: null, penalty_type_id: null, amount: 0,
+        show: true, colaborador_id: this.colaboradorId ? Number(this.colaboradorId) : null, penalty_type_id: null, amount: 0,
         evidenceFile: null, captured_lat: null, captured_lng: null,
         notes: '', saving: false, error: '',
       };
@@ -795,13 +880,20 @@ export default {
           { headers: { 'Content-Type': 'multipart/form-data' } });
         this.viewModal.show = false;
         this.loadPenalties();
-        this.loadAppeals();
+        if (!this.colaboradorId) this.loadAppeals();
       } catch (e) {
         this.viewModal.appealError = e.response?.data?.error ?? 'Error al enviar apelación.';
       } finally { this.viewModal.submittingAppeal = false; }
     },
 
     // ── Resolve ────────────────────────────────────────────────────────────
+    // Un admin sin ficha resuelve firmando como MEGAISP: el nombre real es el de
+    // la persona (reviewed_by_user), no el de la ficha de sistema.
+    resolvioNombre(ap) {
+      const u = ap?.reviewed_by_user;
+      if (u) return [u.name, u.father_last_name].filter(Boolean).join(' ');
+      return ap?.reviewed_by_colaborador?.user?.name ?? '';
+    },
     openResolve(ap) {
       const appliedByColId = ap.penalty?.applied_by_colaborador?.id
                           ?? ap.penalty?.applied_by;

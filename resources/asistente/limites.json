@@ -18,6 +18,7 @@
         "listar_tickets": "permitida",
         "resumen_pagos_del_dia": "permitida",
         "listar_pagos": "permitida",
+        "consultar_flota": "permitida",
         "recordar": "permitida",
         "anotar_pendiente": "permitida",
         "actualizar_contacto_cliente": "confirmar",

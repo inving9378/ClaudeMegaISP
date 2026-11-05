@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Talento\Services;
 
+use App\Modules\Addons\Talento\Models\TalentoCompensationRule;
 use App\Modules\Addons\Talento\Models\TalentoAttendance;
 use App\Modules\Addons\Talento\Models\TalentoCajaInspection;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
@@ -28,8 +29,8 @@ class CompositeScoreService
     public function scoreAll(array $weights = [], int $weeksBack = 4): array
     {
         $weights = $this->mergeWeights($weights);
-        $colaboradores = TalentoColaborador::with(['user', 'level'])
-            ->where('status', 'active')
+        $colaboradores = TalentoColaborador::with('user')
+            ->activos()
             ->get();
 
         $scores = $colaboradores->map(fn($c) => $this->scoreOne($c, $weights, $weeksBack))->values();
@@ -74,7 +75,6 @@ class CompositeScoreService
         return [
             'colaborador_id' => $col->id,
             'name'           => $col->user?->name ?? '—',
-            'level'          => $col->level?->name,
             'total_score'    => $totalScore,
             'stars'          => $this->starsFromScore($totalScore),
             'components'     => array_map(fn($v) => round($v, 1), $components),
@@ -87,12 +87,19 @@ class CompositeScoreService
     {
         $ruleSnapshot = TalentoCompensationRuleHistory::where('colaborador_id', $colId)
             ->orderByDesc('assigned_at')->value('data');
-        $weeklyQuota = $ruleSnapshot ? (int)($ruleSnapshot['weekly_quota_units'] ?? 0) : 0;
+        $weeklyQuota = $ruleSnapshot ? TalentoCompensationRule::cuotaSemanal($ruleSnapshot) : 0;
 
         if ($weeklyQuota === 0) return 0.0;
 
         $pcts = [];
+        $unico = config('unificacion.interruptores.unidades_unicas');
         for ($i = 0; $i < $weeksBack; $i++) {
+            if ($unico) {
+                // Semanas de pago reales (PayWeek) y el conteo único de unidades.
+                $w = \App\Modules\Addons\Talento\Support\PayWeek::boundsFor(Carbon::now()->subWeeks($i + 1));
+                $pcts[] = min(app(LiquidationService::class)->countBillableUnits($colId, $w)['total'] / $weeklyQuota, 1.0);
+                continue;
+            }
             $wStart = Carbon::now()->subWeeks($i + 1)->startOfDay();
             $wEnd   = Carbon::now()->subWeeks($i)->endOfDay();
 
@@ -174,7 +181,7 @@ class CompositeScoreService
 
         $result = [];
         foreach ($colIds as $id) {
-            $col = TalentoColaborador::with(['user', 'level'])->find($id);
+            $col = TalentoColaborador::with('user')->find($id);
             if (!$col) continue;
 
             $recent = $this->scoreOne($col, $weights, 2)['total_score'];

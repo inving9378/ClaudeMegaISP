@@ -34,6 +34,10 @@ class ClientInformationRequest extends FormRequest
             'mother_last_name' => 'required',
             'colony_id' => 'required',
             'password' => 'required',
+            'user' => [new \App\Rules\UsuarioWebLibre(
+                (int) $client_id,
+                \App\Models\ClientMainInformation::where('client_id', $client_id)->value('user')
+            )],
             'duration_contract_id' => 'required',
             // FR-03 (#537): meses obligatorios (1-120) solo si el plazo es «Especial».
             'plazo_especial_meses' => \App\Support\PlazoContrato::reglaMeses($request->input('duration_contract_id')),

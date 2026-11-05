@@ -23,6 +23,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 // paraguas ya listos para cerrar pero atascados por falta de un save() posterior.
                 \App\Modules\Addons\Roadmap\Console\RecerrarParaguasCommand::class,
                 \App\Modules\Addons\Roadmap\Console\RamaItemCommand::class,
+                // #1050 (paso A de #1030) — etiqueta de módulo → módulo del registro.
+                \App\Modules\Addons\Roadmap\Console\MapearModulosCommand::class,
                 \App\Modules\Addons\Roadmap\Console\IntegrarItemCommand::class,
                 \App\Modules\Addons\Roadmap\Console\FlagsCommand::class,
                 // #170 — el freno de mano fuera de la base. Van juntos y al lado de FlagsCommand
@@ -48,6 +50,10 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\RevisarItemCommand::class,
                 \App\Modules\Addons\Roadmap\Console\RevisarBacklogCommand::class,
                 \App\Modules\Addons\Roadmap\Console\RevisorFlagCommand::class,
+                // IA económica del supervisor (#1076): gasto por pieza y comparación de modelos
+                \App\Modules\Addons\Roadmap\Console\GastoIaCommand::class,
+                \App\Modules\Addons\Roadmap\Console\ModoIaCommand::class,
+                \App\Modules\Addons\Roadmap\Console\CompararModelosIaCommand::class,
                 \App\Modules\Addons\Roadmap\Console\BriefCCommand::class,
                 \App\Modules\Addons\Roadmap\Console\ProponerOpcionesCommand::class,
                 \App\Modules\Addons\Roadmap\Console\DestrabeCommand::class,
@@ -72,6 +78,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 \App\Modules\Addons\Roadmap\Console\AutopilotCommand::class,
                 \App\Modules\Addons\Roadmap\Console\ParquearTimeoutCommand::class,
                 \App\Modules\Addons\Roadmap\Console\SoltarClaimCommand::class,
+                \App\Modules\Addons\Roadmap\Console\CerrarVueltaCommand::class,
                 // FASE 4b (#9990418): freno-con-expiración cuando causa=limite_cuenta
                 \App\Modules\Addons\Roadmap\Console\FrenoPorLimiteCommand::class,
                 // Backfill de briefs de la bandeja para poblar confianza/reversible (#507)

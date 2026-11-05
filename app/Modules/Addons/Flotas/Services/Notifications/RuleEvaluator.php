@@ -47,7 +47,7 @@ class RuleEvaluator
         return ['allowed' => false, 'matched_rule_id' => null, 'channels' => null];
     }
 
-    private function ruleMatches(FleetGeofenceRule $rule, FleetGeofenceEvent $event): bool
+    public function ruleMatches(FleetGeofenceRule $rule, FleetGeofenceEvent $event): bool
     {
         // Vehículos ([] = todos)
         if (!empty($rule->vehicle_ids) && !in_array($event->vehicle_id, $rule->vehicle_ids)) {

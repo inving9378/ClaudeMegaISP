@@ -18,6 +18,10 @@ class RegistrarEjecucionCommand extends Command
         {--finished= : epoch de fin}
         {--modo=aviso_previo}
         {--modelo= : alias del modelo CLI usado en esta vuelta (#336, ej. sonnet|opus)}
+        {--cobro= : cómo se cobró la vuelta (suscripcion|api|desconocido, #1077)}
+        {--api-key-source= : apiKeySource del evento init de claude -p (#1117)}
+        {--num-turns= : turnos usados (#1117)}
+        {--costo-usd= : total_cost_usd de la vuelta (#1117)}
         {--pausado=0}
         {--rc= : código de salida}
         {--log= : ruta del log}
@@ -43,6 +47,11 @@ class RegistrarEjecucionCommand extends Command
             'modo'         => (string) ($this->option('modo') ?: 'aviso_previo'),
             'modelo'       => $this->option('modelo') !== null && $this->option('modelo') !== ''
                 ? mb_substr((string) $this->option('modelo'), 0, 40) : null,
+            'cobro'        => in_array($this->option('cobro'), ['suscripcion', 'api', 'desconocido'], true)
+                ? $this->option('cobro') : null,
+            'api_key_source' => $this->option('api-key-source') ? mb_substr((string) $this->option('api-key-source'), 0, 40) : null,
+            'num_turns'    => is_numeric($this->option('num-turns')) ? (int) $this->option('num-turns') : null,
+            'costo_usd'    => is_numeric($this->option('costo-usd')) ? (float) $this->option('costo-usd') : null,
             'pausado'      => $this->option('pausado') === '1',
             'rc'           => $this->option('rc') !== null ? (int) $this->option('rc') : null,
             'items_tocados' => $meta['items_tocados'] ?? null,

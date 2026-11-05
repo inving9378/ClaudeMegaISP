@@ -73,7 +73,6 @@ class ClientInformationController extends Controller
 
             $client->billing_configuration->type_billing_id = $input['type_of_billing_id'];
 
-            //TODO Refactorizar
             $client->billing_configuration->save();
             if (!empty($input['box_nomenclator'])) {
                 $nomenclature = Nomenclature::find($input['box_nomenclator']);
@@ -112,14 +111,25 @@ class ClientInformationController extends Controller
                 fn () => $this->saveSingleRelationIfExist('App\Models\Client', $client, collect($input))
             );
 
-            // Sincronizar users.password al cambiar la password del cliente
+            // Sincronizar users.password al cambiar la password del cliente. Solo la cuenta de este
+            // cliente: el Usuario WEB de la ficha puede coincidir con el usuario de una cuenta de
+            // personal u otro cliente, y esto le cambiaba la contraseña (2026-10-23).
             if (! empty($newPassword)) {
-                User::where('login_user', optional($client->client_main_information)->user)
-                    ->update(['password' => \App\Services\Security\PasswordService::make($newPassword)]);
+                $cuentas = User::where('login_user', optional($client->client_main_information)->user)->get()
+                    ->filter(fn (User $cuenta) => $cuenta->esCuentaDelCliente((int) $client->id))
+                    ->modelKeys();
+                if ($cuentas) {
+                    User::whereKey($cuentas)
+                        ->update(['password' => \App\Services\Security\PasswordService::make($newPassword)]);
+                }
             }
 
             DB::commit();
             return redirect()->back()->with('message', 'Información Actualizada Correctamente');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // Un 422 deja el aviso en su campo del formulario (p. ej. Usuario WEB ocupado).
+            DB::rollBack();
+            throw $e;
         } catch (Exception $e) {
             DB::rollBack();
             Log::info($e->getMessage());
@@ -162,7 +172,7 @@ class ClientInformationController extends Controller
     {
         $input = $request->all();
         // FR-02 (#536): Cancelado (baja definitiva) también deja el servicio cortado.
-        return in_array($input['estado'] ?? null, ['Bloqueado', 'Cancelado'], true);
+        return in_array($input['estado'] ?? null, ['Bloqueado', 'Cancelado', 'Desinstalado'], true);
     }
 
     public function ifEstadoChangeToActive($request)

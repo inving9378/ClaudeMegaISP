@@ -303,7 +303,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, reactive, nextTick, onBeforeMount } from "vue";
+import { ref, onMounted, onBeforeUnmount, watch, reactive, nextTick, onBeforeMount } from "vue";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "leaflet-minimap/dist/Control.MiniMap.min.css";
@@ -1014,6 +1014,12 @@ const initMap = async () => {
 
     reloadProjects.value = true;
 };
+
+// SPA: al desmontar la vista se quitan los listeners globales (si no, se duplican al volver).
+onBeforeUnmount(() => {
+    ["fullscreenchange", "webkitfullscreenchange", "mozfullscreenchange", "MSFullscreenChange"]
+        .forEach((ev) => document.removeEventListener(ev, handleFullscreenChange));
+});
 
 const handleFullscreenChange = () => {
     if (

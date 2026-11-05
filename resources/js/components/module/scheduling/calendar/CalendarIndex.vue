@@ -1,152 +1,119 @@
 <template>
-    <div class="d-flex flex-wrap gap-2 mb-2">
-        <SelectComponentWithCheckbox
-            v-if="hasPermission.data.canView('calendar_filter_project')"
-            :property="{
-                field: 'project_id',
-                label: 'Proyecto',
-                class_col: '',
-                search: {
-                    model: 'App\\Models\\Project',
-                    id: `id`,
-                    text: 'title',
-                },
-                module_id: module_id,
-            }"
-            @change="clearError('project_id')"
-            :modelValue="[]"
-            :errors="dataForm.data.errors"
-            @update-field="setFilter"
-        />
-        <SelectComponentTeam
-            v-if="hasPermission.data.canView('calendar_filter_assigned_to')"
-            :property="{
-                field: 'assignuser_filter',
-                label: 'Asignado a',
-                class_col: '',
-                search: {
-                    model: 'App\\Models\\User',
-                    id: `id`,
-                    text: 'name',
-                    scope: 'notClientRole',
-                },
-                module_id: module_id,
-                class_label:
-                    'col-sm-12 col-md-3 col-form-label text-md-end pr-2 text-sm-center',
-                class_field: 'col-sm-12 col-md-9',
-            }"
-            @change="clearError('assignuser_filter')"
-            :modelValue="[]"
-            :errors="dataForm.data.errors"
-            @update-field="setFilter"
-        />
-
-        <SelectComponentWithCheckbox
-            v-if="hasPermission.data.canView('calendar_filter_partner')"
-            :property="{
-                field: 'partner_id',
-                label: 'Socios',
-                class_col: '',
-                search: {
-                    model: 'App\\Models\\Partner',
-                    id: `id`,
-                    text: 'name',
-                },
-                module_id: module_id,
-            }"
-            @change="clearError('partner_id')"
-            :modelValue="[]"
-            :errors="dataForm.data.errors"
-            @update-field="setFilter"
-        />
-        <SelectComponentWithCheckbox
-            v-if="hasPermission.data.canView('calendar_filter_status')"
-            :property="{
-                field: 'status',
-                label: 'Estado',
-                class_col: '',
-                options: {
-                    ToDo: 'Por Hacer',
-                    InProgress: 'En Progreso',
-                    Done: 'Terminado',
-                },
-                module_id: module_id,
-            }"
-            @change="clearError('partner_id')"
-            :modelValue="[]"
-            :errors="dataForm.data.errors"
-            @update-field="setFilter"
-        />
-        <div class="multiple-filters-datatable">
-            <button
-                v-if="hasPermission.data.canView('calendar_filter_filter')"
-                type="button"
-                class="btn btn-outline-primary waves-effect waves-light ms-3"
-                data-bs-toggle="modal"
-                :data-bs-target="`#multipleFilers_calendar`"
-            >
-                Filtros
-            </button>
-        </div>
-        <div>
-            <button
-                type="button"
-                class="btn btn-outline-info waves-effect waves-light ms-3 me-3"
-                data-bs-target="#crudTask"
-                data-bs-toggle="modal"
-                @click="reloadCrudd"
-            >
-                <span>Agregar Tarea</span>
-            </button>
-        </div>
-    </div>
-    <div class="legend-task-calendar p-3">
-        <h5 class="mb-3">Leyenda de Tareas</h5>
-        <div class="d-flex">
-            <!-- Prioridad de la tarea -->
-            <div class="mb-2">
-                <strong>Prioridad:</strong>
-                <div class="d-flex align-items-center">
-                    <span class="badge priority-high me-2">Alta</span>
-                    <span class="badge priority-medium text-dark me-2"
-                        >Media</span
-                    >
-                    <span class="badge priority-low">Baja</span>
-                </div>
-            </div>
-
-            <!-- Estado de la tarea -->
-            <div class="ms-4 mb-2">
-                <strong>Estado:</strong>
-                <div class="d-flex align-items-center">
-                    <span class="badge status-task-new me-2">Por Hacer</span>
-                    <span class="badge status-task-in-progress text-dark me-2"
-                        >En Progreso</span
-                    >
-                    <span class="badge status-task-done">Terminada</span>
-                </div>
-            </div>
-
-            <div class="ms-4">
-                <span style="display: block; width: 250px">
-                    <img
-                        :src="`${imgbase}images/leyenda_tareas.png`"
-                        class="img_legend_task"
+    <!-- Scheduling › Calendario con aspecto de Google Calendar (2026-11-04): barra única, filtros plegables. -->
+    <div class="gcp">
+        <QCalendar :module_id="module_id">
+            <template #acciones>
+                <button type="button" class="gcp-btn" :class="{ activo: verFiltros }" @click="verFiltros = !verFiltros">
+                    <i class="fas fa-filter"></i> Filtros
+                    <span v-if="nFiltros" class="gcp-n">{{ nFiltros }}</span>
+                </button>
+                <a class="gcp-btn" href="/scheduling/task" title="Ver la lista de tareas"><i class="fas fa-tasks"></i> Tareas</a>
+                <button type="button" class="gcp-crear" data-bs-target="#crudTask" data-bs-toggle="modal" @click="reloadCrudd">
+                    <i class="fas fa-plus"></i> Crear
+                </button>
+            </template>
+            <template #debajo>
+                <div v-show="verFiltros" class="gcp-filtros">
+                    <SelectComponentWithCheckbox
+                        v-if="hasPermission.data.canView('calendar_filter_project')"
+                        :property="{
+                            field: 'project_id',
+                            label: 'Proyecto',
+                            class_col: '',
+                            class_label: 'gcp-flabel',
+                            class_field: 'gcp-ffield',
+                            search: {
+                                model: 'App\\Models\\Project',
+                                id: `id`,
+                                text: 'title',
+                            },
+                            module_id: module_id,
+                        }"
+                        @change="clearError('project_id')"
+                        :modelValue="[]"
+                        :errors="dataForm.data.errors"
+                        @update-field="setFilter"
                     />
-                </span>
-            </div>
-        </div>
+                    <SelectComponentTeam
+                        v-if="hasPermission.data.canView('calendar_filter_assigned_to')"
+                        :property="{
+                            field: 'assignuser_filter',
+                            label: 'Asignado a',
+                            class_col: '',
+                            search: {
+                                model: 'App\\Models\\User',
+                                id: `id`,
+                                text: 'name',
+                                scope: 'notClientRole',
+                            },
+                            module_id: module_id,
+                            class_label: 'gcp-flabel',
+                            class_field: 'gcp-ffield',
+                        }"
+                        @change="clearError('assignuser_filter')"
+                        :modelValue="[]"
+                        :errors="dataForm.data.errors"
+                        @update-field="setFilter"
+                    />
+                    <SelectComponentWithCheckbox
+                        v-if="hasPermission.data.canView('calendar_filter_partner')"
+                        :property="{
+                            field: 'partner_id',
+                            label: 'Socios',
+                            class_col: '',
+                            class_label: 'gcp-flabel',
+                            class_field: 'gcp-ffield',
+                            search: {
+                                model: 'App\\Models\\Partner',
+                                id: `id`,
+                                text: 'name',
+                            },
+                            module_id: module_id,
+                        }"
+                        @change="clearError('partner_id')"
+                        :modelValue="[]"
+                        :errors="dataForm.data.errors"
+                        @update-field="setFilter"
+                    />
+                    <SelectComponentWithCheckbox
+                        v-if="hasPermission.data.canView('calendar_filter_status')"
+                        :property="{
+                            field: 'status',
+                            label: 'Estado',
+                            class_col: '',
+                            class_label: 'gcp-flabel',
+                            class_field: 'gcp-ffield',
+                            options: {
+                                ToDo: 'Por Hacer',
+                                InProgress: 'En Progreso',
+                                Done: 'Terminado',
+                            },
+                            module_id: module_id,
+                        }"
+                        @change="clearError('partner_id')"
+                        :modelValue="[]"
+                        :errors="dataForm.data.errors"
+                        @update-field="setFilter"
+                    />
+                    <div v-if="hasPermission.data.canView('calendar_filter_filter')" class="gcp-mas">
+                        <button type="button" class="gcp-btn" data-bs-toggle="modal" :data-bs-target="`#multipleFilers_calendar`">
+                            <i class="fas fa-sliders-h"></i> Más filtros
+                        </button>
+                    </div>
+                </div>
+            </template>
+        </QCalendar>
     </div>
+
     <FilterDataTable
         :filters="getFilters()"
         :id="`multipleFilers_calendar`"
-        title="Filters"
+        title="Más filtros"
         :key="filtersM"
         @resetFilters="resetFilters"
     >
     </FilterDataTable>
 
-    <QCalendar :module_id="module_id"> </QCalendar>
     <div
         class="modal fade"
         id="crudTask"
@@ -170,7 +137,7 @@
 </template>
 
 <script>
-import { onMounted, reactive, ref, watch, onUnmounted, getCurrentInstance } from "vue";
+import { computed, onMounted, reactive, ref, watch, onUnmounted, getCurrentInstance } from "vue";
 import TaskCrud from "../task/TaskCrud.vue";
 import QCalendar from "../../../../shared/QCalendar.vue";
 import { filters } from "../../../../helpers/filters";
@@ -210,6 +177,13 @@ export default {
             data: new Form({}),
         });
         const filtersM = ref(true);
+        const verFiltros = ref(false);
+        // Cuántos filtros están aplicando (para el número junto a «Filtros»).
+        const nFiltros = computed(() =>
+            Object.values(filters.value || {}).filter((v) =>
+                Array.isArray(v) ? v.length > 0 : v !== null && v !== undefined && v !== "" && v !== false
+            ).length
+        );
         const showButtonFiltersArchived = ref(true);
 
         const hasPermission = reactive({
@@ -387,9 +361,153 @@ export default {
             addFilterStatusArchived,
             showButtonFiltersArchived,
             hasPermission,
+            verFiltros,
+            nFiltros,
         };
     },
 };
 </script>
 
-<style scoped></style>
+<style scoped>
+.gcp {
+    --gcp-borde: #e0e3e7;
+    --gcp-texto: #3c4043;
+    --gcp-suave: #70757a;
+    --gcp-fondo: #fff;
+    --gcp-hover: #f1f3f4;
+    --gcp-acento: #1a73e8;
+    --gcp-acento-suave: #e8f0fe;
+    background: var(--gcp-fondo);
+    border: 1px solid var(--gcp-borde);
+    border-radius: 12px;
+    padding: 16px 18px;
+}
+:global(body[data-layout-mode="dark"] .gcp) {
+    --gcp-borde: #3c4043;
+    --gcp-texto: #e8eaed;
+    --gcp-suave: #9aa0a6;
+    --gcp-fondo: #202124;
+    --gcp-hover: #2d2e31;
+    --gcp-acento: #8ab4f8;
+    --gcp-acento-suave: rgba(138, 180, 248, 0.16);
+}
+.gcp-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid var(--gcp-borde);
+    border-radius: 18px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gcp-texto);
+    background: transparent;
+    text-decoration: none;
+}
+.gcp-btn:hover {
+    background: var(--gcp-hover);
+    color: var(--gcp-texto);
+}
+.gcp-btn.activo {
+    background: var(--gcp-acento-suave);
+    color: var(--gcp-acento);
+    border-color: transparent;
+}
+.gcp-n {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--gcp-acento);
+    color: var(--gcp-fondo);
+    font-size: 11px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+/* Botón «Crear» como el de Google Calendar: píldora con sombra. */
+.gcp-crear {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    border-radius: 18px;
+    padding: 7px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--gcp-texto);
+    background: var(--gcp-fondo);
+    box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+}
+.gcp-crear i {
+    color: var(--gcp-acento);
+}
+.gcp-crear:hover {
+    background: var(--gcp-hover);
+}
+
+.gcp-filtros {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px 16px;
+    align-items: end;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    border-radius: 10px;
+    background: var(--gcp-hover);
+}
+.gcp-filtros > :deep(.row) {
+    width: auto;
+    max-width: none;
+    margin: 0 !important;
+    padding: 0;
+    flex-direction: column;
+    flex-wrap: nowrap;
+}
+.gcp-filtros :deep(.gcp-flabel) {
+    width: 100%;
+    padding: 0;
+    margin: 0 0 5px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gcp-suave);
+    text-align: left;
+}
+.gcp-filtros :deep(.gcp-ffield) {
+    width: 100%;
+    padding: 0 !important;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.gcp-filtros :deep(.multiselect-native-select),
+.gcp-filtros :deep(.btn-group) {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
+}
+.gcp-filtros :deep(button.multiselect) {
+    width: 100%;
+    height: 36px;
+    text-align: left !important;
+    font-size: 13px;
+    color: var(--gcp-texto);
+    background-color: var(--gcp-fondo);
+    border: 1px solid var(--gcp-borde);
+    border-radius: 8px;
+    padding: 0 30px 0 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.gcp-filtros :deep(.form-check-input) {
+    flex: 0 0 auto;
+    margin: 0;
+}
+.gcp-mas {
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: 8px;
+}
+</style>

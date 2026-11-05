@@ -66,7 +66,7 @@ class InvoiceController extends CrudModalController
             }
             $invoiceService = new InvoiceService();
             $clientRepository = new ClientRepository();
-            $montos = $clientRepository->calculateAmounts($client);
+            $montos = $clientRepository->calculateAmounts($client, $period);
             $data = [
                 'number' => $invoiceService->generateInvoiceNumber(),
                 'client_id' => $client->id,

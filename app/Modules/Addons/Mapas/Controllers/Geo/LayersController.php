@@ -43,9 +43,9 @@ class LayersController extends Controller
         $processedResults = array_map(function ($item) {
             $data = json_decode($item->data);
             $properties = &$data;
-            if ($item->dialog == 'client') {
-                $client = ClientMainInformation::find($data->client_id);
-                $properties->name = $client->client_name_with_fathers_names;
+            if ($item->dialog == 'client' && $data !== null) {
+                $client = ClientMainInformation::find($data->client_id ?? null);
+                $properties->name = $client?->client_name_with_fathers_names;
             }
             return [
                 'id' => $item->id,

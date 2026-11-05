@@ -379,6 +379,15 @@
         @update-field="updateThisField"
     />
 
+    <SelectRolUsuario
+        v-if="json.type == 'select-rol-usuario' && json.include"
+        :property="json"
+        :errors="errors"
+        :modelValue="modelValue"
+        @update:modelValue="modelValue = $event"
+        @update-field="updateThisField"
+    />
+
     <SelectComponentTeam
         v-if="json.type == 'select-group-team' && json.include"
         :id="id"
@@ -530,6 +539,7 @@ import InputVuePickerMultiple from "../shared/InputVuePickerMultiple.vue";
 import SelectTemplateListVerificationComponent from "../shared/SelectTemplateListVerificationComponent.vue";
 import QColorPicker from "../shared/QColorPicker.vue";
 import SelectComponentTeam from "../shared/SelectComponentTeam.vue";
+import SelectRolUsuario from "../shared/SelectRolUsuario.vue";
 import InputEditor from "../shared/InputEditor.vue";
 import SpanInput from "../shared/SpanInput.vue";
 import InputScanner from "../shared/InputScanner.vue";
@@ -555,6 +565,7 @@ export default {
     emits: ["update-field", "clear-error", "clear-depend-error"],
     components: {
         SelectComponentTeam,
+        SelectRolUsuario,
         Select2TypeTemplateSelectComponent,
         Select2EstadoMunicipioColoniaComponent,
         InputInformation,

@@ -1,8 +1,18 @@
 <template>
   <div class="talento-credenciales tc-wrap" :class="{ 'tc-dark': darkMode }">
 
-    <!-- Tabs -->
-    <ul class="nav nav-tabs mb-3">
+    <!-- Ficha del colaborador: arriba su credencial estilo carnet, la misma de
+         Vendedores (2026-10-20: "lo que va es el estilo carnet de cada cual").
+         Las listas de abajo son gestión: solo para quien puede gestionar. -->
+    <template v-if="colaborador">
+      <h6 class="text-uppercase text-muted small mb-3">Credencial</h6>
+      <talento-carnet :colaborador="colaborador" :puede-editar="puedeEditarCarnet" :puede-diseno="puedeDisenoCarnet" />
+      <hr v-if="mostrarGestion" class="my-4">
+    </template>
+
+    <template v-if="mostrarGestion">
+    <!-- Tabs (en la ficha, «compacto», solo va lo de esta persona: sin pestañas ni selector) -->
+    <ul v-if="!compacto" class="nav nav-tabs mb-3">
       <li class="nav-item">
         <a class="nav-link" :class="{ active: tab === 'alerts' }" href="#" @click.prevent="tab='alerts'">
           <i class="fa fa-bell me-1"></i>Alertas de vencimiento
@@ -75,7 +85,7 @@
 
     <!-- ── TAB POR COLABORADOR ── -->
     <div v-if="tab === 'by_col'">
-      <div class="row g-3 mb-3">
+      <div v-if="!compacto" class="row g-3 mb-3">
         <div class="col-md-5">
           <label class="form-label small text-muted">Colaborador</label>
           <select v-model="selectedColId" @change="loadColData" class="form-select tc-select">
@@ -233,6 +243,8 @@
         </div>
       </div>
     </div>
+
+    </template>
 
     <!-- ── MODAL CREDENCIAL (nueva / editar) ── -->
     <div v-if="credModal.show" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5);z-index:9999">
@@ -423,15 +435,26 @@
 import { darkMode } from "../../../hook/appConfig.js";
 import Permission from "../../../helpers/Permission.js";
 import { allViewHasPermission } from "../../../helpers/Request.js";
+import TalentoCarnet from "./TalentoCarnet.vue";
 
 export default {
   name: 'TalentoCredenciales',
+  components: { TalentoCarnet },
   props: {
     colaboradorId: { type: [Number, String], default: null },
+    // Dentro de la ficha: el colaborador ya cargado, para pintar su carnet.
+    colaborador: { type: Object, default: null },
     // Resuelto server-side por la ficha (permisos.credenciales_manage):
     // admin/DESARROLLADOR/staff o CUALQUIER supervisor — a propósito SIN
     // excepción de autoservicio (David, 28-sep).
     puedeGestionar: { type: Boolean, default: false },
+    // Carnet: la persona o un administrador cambian sus datos; el diseño, quien entra a Configuración › Ventas.
+    puedeEditarCarnet: { type: Boolean, default: false },
+    puedeDisenoCarnet: { type: Boolean, default: false },
+    // Dentro de Información › Datos generales (2026-10-24: "las credenciales deben estar dentro de
+    // información, no en una pestaña aparte"): el carnet y las credenciales y fondos de esta persona.
+    // Las alertas de todos y los fondos pendientes de todos siguen en Talento › Credenciales.
+    compacto: { type: Boolean, default: false },
   },
   setup() {
     return { darkMode };
@@ -479,6 +502,11 @@ export default {
         ? this.puedeGestionar
         : new Permission(this.permisosGlobales).canDo('talento.credentials.view');
     },
+    // En la ficha, quien no gestiona (uno mismo) solo ve su carnet: las alertas
+    // y los fondos son listas globales de gestión y le salían vacías.
+    mostrarGestion() {
+      return !this.colaborador || this.puedeGestionarResuelto;
+    },
     alertCount() {
       return this.expiredCount || null;
     },
@@ -488,6 +516,7 @@ export default {
   },
   async mounted() {
     if (!this.colaboradorId) this.permisosGlobales = await allViewHasPermission();
+    if (!this.mostrarGestion) return;
     // "Por colaborador" es gestión (David, 28-sep) — sin puedeGestionar no
     // hay nada que autoseleccionar ni cargar ahí.
     if (this.colaboradorId && this.puedeGestionarResuelto) {
@@ -495,6 +524,7 @@ export default {
       this.selectedColId = this.colaboradorId;
       this.loadColData();
     }
+    if (this.compacto) return;
     this.loadAlerts();
     this.loadExpiredCount();
     if (this.puedeGestionarResuelto) this.loadColaboradores();
@@ -562,8 +592,9 @@ export default {
         show: true, id: cred.id,
         colaborador_id: cred.colaborador_id, type: cred.type,
         document_number: cred.document_number ?? '',
-        issued_at: cred.issued_at ?? '',
-        expires_at: cred.expires_at ?? '',
+        // El campo de fecha solo acepta "AAAA-MM-DD"; sin el recorte abría en blanco.
+        issued_at: cred.issued_at ? String(cred.issued_at).slice(0, 10) : '',
+        expires_at: cred.expires_at ? String(cred.expires_at).slice(0, 10) : '',
         alert_weeks_before: cred.alert_weeks_before ?? 8,
         notes: cred.notes ?? '',
         docFile: null, saving: false, error: '',
@@ -589,7 +620,10 @@ export default {
         if (this.credModal.docFile) fd.append('document_file', this.credModal.docFile);
 
         if (this.credModal.id) {
-          await axios.put(`/talento/api/credentials/${this.credModal.id}`, fd,
+          // PHP no lee el cuerpo multipart de un PUT: va como POST con _method=PUT (si no, la
+          // edición llegaba vacía y no se guardaba nada).
+          fd.append('_method', 'PUT');
+          await axios.post(`/talento/api/credentials/${this.credModal.id}`, fd,
             { headers: { 'Content-Type': 'multipart/form-data' } });
         } else {
           await axios.post('/talento/api/credentials', fd,
@@ -671,7 +705,8 @@ export default {
     purposeLabel: p => ({ license:'Renovación de licencia', other:'Otro' }[p] ?? p),
     fmtDate(d) {
       if (!d) return '—';
-      return new Date(d + 'T12:00:00').toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' });
+      // Llega como "2027-01-15" o "2027-01-15T06:00:00.000000Z" (cast date de Laravel): solo el día.
+      return new Date(String(d).slice(0, 10) + 'T12:00:00').toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' });
     },
     fmt2: n => Number(n ?? 0).toLocaleString('es-MX', { minimumFractionDigits:2, maximumFractionDigits:2 }),
   },

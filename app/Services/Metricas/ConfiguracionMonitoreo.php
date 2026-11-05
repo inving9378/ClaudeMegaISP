@@ -2,12 +2,13 @@
 
 namespace App\Services\Metricas;
 
+use App\Services\Clientes\TipoCliente;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Qué medir de cada servicio dedicado y desde qué router (item #988). Es la ÚNICA puerta por la
  * que el colector lee esa configuración: sale de los «Datos de red del dedicado» de cada servicio
- * (servicio_monitoreo + servicio_monitoreo_ips), solo de clientes con el interruptor de dedicado.
+ * (servicio_monitoreo + servicio_monitoreo_ips), solo de clientes de tipo Dedicado.
  */
 class ConfiguracionMonitoreo
 {
@@ -26,7 +27,7 @@ class ConfiguracionMonitoreo
     {
         $dedicados = DB::table('client_additional_information as cai')
             ->join('clients as c', 'c.id', '=', 'cai.client_id')
-            ->where('cai.is_dedicated', true)
+            ->where('cai.tipo_cliente', TipoCliente::DEDICADO)
             ->whereNull('cai.deleted_at')
             ->whereNull('c.deleted_at')
             ->when($soloClientes !== [], fn ($q) => $q->whereIn('cai.client_id', $soloClientes))

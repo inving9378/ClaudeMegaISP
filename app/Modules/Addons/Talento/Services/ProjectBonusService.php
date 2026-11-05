@@ -25,6 +25,15 @@ class ProjectBonusService
     {
         $project = TalentoProject::with('projectActivities.reports.participants')->findOrFail($projectId);
 
+        if (config('unificacion.interruptores.bono_proyecto_idempotente') && (
+            $project->status === 'done'
+            || TalentoLedgerEntry::where('concept', 'bonus')
+                ->where('reference_type', TalentoProject::class)
+                ->where('reference_id', $project->id)->exists()
+        )) {
+            return ['progress_pct' => 0.0, 'bonus_total' => 0.0, 'entries_written' => 0, 'already_awarded' => true];
+        }
+
         // 1. Compute overall progress
         $totalPlanned  = 0.0;
         $totalApproved = 0.0;
@@ -103,7 +112,7 @@ class ProjectBonusService
                 $share = round(($salaries[$colId] / $salarySum) * $bonusTotal, 2);
                 if ($share <= 0) continue;
 
-                TalentoLedgerEntry::create([
+                TalentoLedgerEntry::registrar([
                     'colaborador_id' => $colId,
                     'type'           => 'credit',
                     'concept'        => 'bonus',

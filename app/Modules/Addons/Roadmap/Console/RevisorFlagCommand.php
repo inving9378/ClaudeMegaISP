@@ -33,7 +33,8 @@ class RevisorFlagCommand extends Command
         $on = $svc->revisorEnabled();
         $this->line('circuito_revisor=' . ($on ? 'on' : 'off'));
         $this->line('alcance_denylist=' . count((array) config('circuito.revisor.alcance.denylist', [])) . ' términos');
-        $this->line('modelo=' . config('circuito.revisor.model'));
+        // #1076 — el que de verdad usa (Integraciones → Módulos IA o el ahorro por defecto).
+        $this->line('modelo=' . \App\Modules\Addons\Roadmap\Support\IaSupervisor::modelo(\App\Modules\Addons\Roadmap\Support\IaSupervisor::REVISOR));
 
         return self::SUCCESS;
     }

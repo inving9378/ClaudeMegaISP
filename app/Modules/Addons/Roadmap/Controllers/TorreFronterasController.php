@@ -9,6 +9,7 @@ use App\Modules\Addons\Roadmap\Models\TorreConfig;
 use App\Modules\Addons\Roadmap\Services\AutopilotService;
 use App\Modules\Addons\Roadmap\Services\FronterasService;
 use App\Modules\Addons\Roadmap\Services\TorreConfigService;
+use App\Modules\Addons\Roadmap\Support\IaSupervisor;
 use App\Modules\Addons\Roadmap\Support\MencionFrontera;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -123,10 +124,8 @@ class TorreFronterasController extends Controller
                 // El interruptor de código sigue existiendo y manda si está apagado: se muestra
                 // para que un «activa: sí» en pantalla no mienta cuando la config la tiene apagada.
                 'config_enabled' => (bool) config('circuito.valvula_contexto.enabled', true),
-                'modelo'         => (string) config(
-                    'circuito.valvula_contexto.model',
-                    config('circuito.revisor.model_routine', 'claude-sonnet-4-6')
-                ),
+                // #1076 — el que de verdad usa: Integraciones → Módulos IA o el ahorro por defecto.
+                'modelo'         => IaSupervisor::modelo(IaSupervisor::VALVULA),
                 'resumen'        => $metricas['valvula'] ?? [],
             ],
             // #9990256 — qué categorías siguen reteniendo un item aunque la válvula lo haya

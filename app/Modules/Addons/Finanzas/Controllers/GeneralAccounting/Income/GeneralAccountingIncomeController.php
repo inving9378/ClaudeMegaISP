@@ -41,7 +41,7 @@ class GeneralAccountingIncomeController extends Controller
             $data = [
                 'amount' => $request->amount,
                 'description' => $request->description,
-                'created_by' => auth()->user()->id,
+                'created_by' => auth()->user()?->id,
                 'category' => 'Ingreso Manual',
                 'reference_number' => $generalAccountingService->generateReferenceNumber(),
             ];

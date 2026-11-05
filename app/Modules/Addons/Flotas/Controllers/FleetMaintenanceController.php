@@ -4,7 +4,10 @@ namespace App\Modules\Addons\Flotas\Controllers;
 
 use App\Modules\Addons\Flotas\Models\FleetMaintenance;
 use App\Modules\Addons\Flotas\Models\FleetMaintenanceFile;
+use App\Modules\Addons\Flotas\Models\FleetVehicle;
+use App\Modules\Addons\Flotas\Services\ServicePredictionService;
 use Illuminate\Http\JsonResponse;
+use App\Modules\Addons\Flotas\Support\FleetVehicleRules;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -12,7 +15,7 @@ class FleetMaintenanceController extends FleetBaseController
 {
     public function index(Request $request): JsonResponse
     {
-        $this->authorize('fleet.view');
+        $this->autorizar('fleet.view');
 
         $q = FleetMaintenance::with(['vehicle', 'provider', 'files'])
             ->forClient($this->clientId())
@@ -28,27 +31,20 @@ class FleetMaintenanceController extends FleetBaseController
         return response()->json(['maintenances' => $q->get()]);
     }
 
+    public function prediction(int $id, ServicePredictionService $service): JsonResponse
+    {
+        $this->autorizar('fleet.view');
+
+        $vehicle = FleetVehicle::forClient($this->clientId())->findOrFail($id);
+
+        return response()->json(['predictions' => $service->predict($vehicle)]);
+    }
+
     public function store(Request $request): JsonResponse
     {
-        $this->authorize('fleet.maintenance.manage');
+        $this->autorizar('fleet.maintenance.manage');
 
-        $data = $request->validate([
-            'vehicle_id'        => 'required|integer',
-            'type'              => 'required|in:preventive,corrective,emergency,verification',
-            'service_date'      => 'required|date',
-            'service_km'        => 'nullable|integer|min:0',
-            'works'             => 'nullable|array',
-            'works.*'           => 'string',
-            'description'       => 'nullable|string',
-            'provider_id'       => 'nullable|integer',
-            'mechanic_name'     => 'nullable|string|max:150',
-            'labor_cost'        => 'nullable|numeric|min:0',
-            'parts_cost'        => 'nullable|numeric|min:0',
-            'other_cost'        => 'nullable|numeric|min:0',
-            'next_service_date' => 'nullable|date',
-            'next_service_km'   => 'nullable|integer|min:0',
-            'is_draft'          => 'boolean',
-        ]);
+        $data = $request->validate(['vehicle_id' => 'required|integer'] + FleetVehicleRules::maintenance());
 
         $this->vehicleForClient($data['vehicle_id']);
 
@@ -59,7 +55,7 @@ class FleetMaintenanceController extends FleetBaseController
 
     public function show(int $id): JsonResponse
     {
-        $this->authorize('fleet.view');
+        $this->autorizar('fleet.view');
 
         $m = FleetMaintenance::with(['vehicle', 'provider', 'files'])
             ->forClient($this->clientId())
@@ -70,7 +66,7 @@ class FleetMaintenanceController extends FleetBaseController
 
     public function update(Request $request, int $id): JsonResponse
     {
-        $this->authorize('fleet.maintenance.manage');
+        $this->autorizar('fleet.maintenance.manage');
 
         $m = FleetMaintenance::forClient($this->clientId())->findOrFail($id);
         $m->update($request->except(['vehicle_id']));
@@ -80,7 +76,7 @@ class FleetMaintenanceController extends FleetBaseController
 
     public function destroy(int $id): JsonResponse
     {
-        $this->authorize('fleet.maintenance.manage');
+        $this->autorizar('fleet.maintenance.manage');
 
         FleetMaintenance::forClient($this->clientId())->findOrFail($id)->delete();
 
@@ -89,7 +85,7 @@ class FleetMaintenanceController extends FleetBaseController
 
     public function uploadFile(Request $request, int $id): JsonResponse
     {
-        $this->authorize('fleet.maintenance.manage');
+        $this->autorizar('fleet.maintenance.manage');
 
         $request->validate(['file' => 'required|file|max:10240']);
 

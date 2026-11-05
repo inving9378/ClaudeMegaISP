@@ -2,23 +2,20 @@
 //
 // ROLLBACK: cambia SPA_ENABLED a false para volver a recarga completa al instante.
 
-import { refreshIsEdit } from "./hook/comunValues";
+import { refreshIsEdit, setSpaTargetUrl } from "./hook/comunValues";
 
 const SPA_ENABLED = true;
 
 // Vistas con @push('scripts') propios: entrar O salir → recarga completa.
 // Usar prefijos; startsWith() cubre sub-rutas dinámicas (/{id}, etc.).
-// Item #137: /embajadores/video migrada a @push('scripts-spa') (piloto de
-// re-ejecución controlada) → ya no necesita blacklist. Las 3 restantes
-// (mapas, embajadores/metrics, administracion/documentation/documentation_content)
-// quedan pendientes de migrar en un siguiente item — no tocadas aquí.
+// Item #137: /embajadores/video y /embajadores/metrics migradas a
+// @push('scripts-spa') (re-ejecución controlada) → ya no necesitan blacklist.
+// Las 2 restantes (mapas, administracion/documentation/documentation_content)
+// quedan pendientes de migrar por separado (scripts con librerías/estado global).
 const SPA_BLACKLIST = [
     '/logout',
     '/talento/portal',
-    '/mapas',
     '/olts/mapa-red',
-    '/embajadores/metrics',
-    '/administracion/documentation/documentation_content',
     // Interruptores de conciliación: usa @push('scripts') propio (fuera de #init-vue)
     // que spa-nav no re-ejecuta al intercambiar → full-load para que los toggles monten.
     '/finanzas/conciliacion-config',
@@ -333,6 +330,7 @@ async function spaNavigate(url, pushState) {
         // los componentes que se monten en el paso 6 ya ven el valor correcto
         // desde su primer render (ver hook/comunValues.js).
         refreshIsEdit(url);
+        setSpaTargetUrl(url);
 
         // 6. Re-montar app de contenido
         if (typeof window.createMainApp === 'function') {
@@ -363,11 +361,14 @@ async function spaNavigate(url, pushState) {
         if (pushState) {
             history.pushState({ spa: true, url }, '', url);
         }
+        // La URL ya es la real: los lectores vuelven a window.location.
+        setSpaTargetUrl(null);
 
         // 10. Reset de scroll
         window.scrollTo(0, 0);
 
     } catch (err) {
+        setSpaTargetUrl(null);
         undimContainer(container);
         console.warn('[spa-nav] fallback a recarga completa:', err.message);
         window.location.href = url;

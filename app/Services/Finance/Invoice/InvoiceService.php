@@ -23,7 +23,10 @@ class InvoiceService
                 PaymentReferenceService::ensureFor($invoice->client_id);
             }
             $clientRepository = new ClientRepository();
-            $dataServices = $clientRepository->calculateAmounts($invoice->client);
+            // Las proformas retroactivas (invoice:create-proformas-atrasadas-clientes-activos) nacen
+            // pagadas: no llevan cargos de Flotas ni los registran (#622).
+            $conFlotas = ($invoice->payment_method ?? null) !== 'retroactive';
+            $dataServices = $clientRepository->calculateAmounts($invoice->client, $invoice->period, $conFlotas);
             $dataInvoice = [];
             foreach ($dataServices['services'] as $key => $value) {
                 $dataInvoice[] = [
@@ -42,9 +45,41 @@ class InvoiceService
                     $this->createItemInvoice($dataItem);
                 }
             }
+            if ($conFlotas) {
+                $this->registrarCargosFlotas($invoice, $dataServices['services']);
+            }
 
             return $invoice;
         });
+    }
+
+    /**
+     * Flotas (#622): guarda lo cobrado por adelantado del período de la factura y el ajuste que lleva
+     * (eventos 'billed'), base de los ajustes siguientes. Idempotente por (suscripción, período, factura).
+     */
+    private function registrarCargosFlotas(Invoice $invoice, array $services): void
+    {
+        $svc = new \App\Modules\Addons\Flotas\Services\FleetSubscriptionService();
+        foreach ($services as $line) {
+            $tipo = $line['flotas_tipo'] ?? null;
+            if (! in_array($tipo, ['adelanto', 'ajuste'], true)) {
+                continue;
+            }
+            $sub = \App\Modules\Addons\Flotas\Models\FleetSubscription::find($line['service_id']);
+            if (! $sub) {
+                continue;
+            }
+            if ($tipo === 'adelanto') {
+                $svc->markBilled($sub, [
+                    'periodo'          => $line['flotas_periodo'],
+                    'unidades'         => $line['flotas_unidades'],
+                    'monto_adelantado' => $line['flotas_monto_adelantado'],
+                    'invoice_id'       => $invoice->id,
+                ]);
+            } else {
+                $svc->registrarAjuste($sub, $line['flotas_ajuste_de'], (float) $line['flotas_monto_ajuste'], $invoice->id);
+            }
+        }
     }
 
     public function generateInvoiceNumber(): string
@@ -376,7 +411,7 @@ class InvoiceService
     {
         $client->refresh();
         $clientRepository = new ClientRepository();
-        $montos = $clientRepository->calculateAmounts($client);
+        $montos = $clientRepository->calculateAmounts($client, $period ? (string) $period : null);
 
         $data = [
             'number' => $this->generateInvoiceNumber(),

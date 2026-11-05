@@ -1,0 +1,23 @@
+{
+    "slug": "addon-firma-electronica",
+    "name": "Firma Electrónica",
+    "version": "0.1.0",
+    "description": "Solicitudes de firma electrónica independientes del proveedor: firmantes externos, enlaces seguros con caducidad, OTP, evidencia y eventos idempotentes. Driver sandbox por defecto.",
+    "type": "addon",
+    "dependencies": [],
+    "active": true,
+    "keep_data": true,
+
+    "permissions": [
+        { "name": "firma-electronica.solicitudes.view",   "description": "Ver solicitudes de firma electrónica" },
+        { "name": "firma-electronica.solicitudes.manage", "description": "Crear, cancelar y reenviar solicitudes de firma electrónica" }
+    ],
+
+    "menu": [],
+    "admin_cards": [],
+    "sidebar": { "location": "main" },
+    "config_sections": [],
+    "api_endpoints": [],
+    "client_tab": null,
+    "service_type": null
+}

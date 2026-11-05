@@ -17,6 +17,13 @@ class ClientFiscalDataController extends Controller
     // llamada respondía 500 (la API no tenía pantalla hasta el item #480).
     use AuthorizesRequests;
 
+    private const CAMPOS_EMPRESARIALES = [
+        'num_exterior', 'num_interior', 'colonia', 'municipio', 'estado', 'pais',
+        'forma_pago_cfdi', 'metodo_pago_cfdi', 'requiere_orden_compra', 'dia_recepcion_facturas',
+        'dias_credito', 'condiciones_credito', 'contacto_facturacion_nombre', 'contacto_facturacion_cargo',
+        'contacto_facturacion_telefono', 'contacto_facturacion_extension', 'contacto_facturacion_celular',
+    ];
+
     private TimbradoServiceInterface $timbradoService;
 
     public function __construct(TimbradoServiceInterface $timbradoService)
@@ -30,7 +37,7 @@ class ClientFiscalDataController extends Controller
      */
     public function show(int $clientId): JsonResponse
     {
-        $this->authorize('facturacion.ver');
+        $this->authorize('facturacion.datos.ver');
 
         $data = ClientFiscalData::where('client_id', $clientId)->first();
 
@@ -39,6 +46,8 @@ class ClientFiscalDataController extends Controller
             'catalogos'         => [
                 'regimenes_fiscales' => ClientFiscalData::catalogoRegimenFiscal(),
                 'usos_cfdi'          => ClientFiscalData::catalogoUsoCFDI(),
+                'formas_pago'        => ClientFiscalData::catalogoFormaPago(),
+                'metodos_pago'       => ClientFiscalData::catalogoMetodoPago(),
             ],
             'pac_disponible'    => $this->timbradoService->isDisponible(),
             'pac_proveedor'     => $this->timbradoService->nombreProveedor(),
@@ -51,7 +60,7 @@ class ClientFiscalDataController extends Controller
      */
     public function upsert(Request $request, int $clientId): JsonResponse
     {
-        $this->authorize('facturacion.fiscal.editar');
+        $this->authorize('facturacion.datos.editar');
 
         $v = Validator::make($request->all(), [
             'facturacion_fiscal'    => 'required|boolean',
@@ -66,6 +75,24 @@ class ClientFiscalDataController extends Controller
             'calle'                 => 'nullable|string|max:255',
             'ciudad'                => 'nullable|string|max:150',
             'constancia'            => 'nullable|file|mimes:pdf|max:5120',
+            // Campos empresariales opcionales (CRM-E 02): solo se escriben si el cliente los manda.
+            'num_exterior'          => 'nullable|string|max:30',
+            'num_interior'          => 'nullable|string|max:30',
+            'colonia'               => 'nullable|string|max:150',
+            'municipio'             => 'nullable|string|max:150',
+            'estado'                => 'nullable|string|max:100',
+            'pais'                  => 'nullable|string|max:100',
+            'forma_pago_cfdi'       => ['nullable', 'in:' . implode(',', array_keys(ClientFiscalData::catalogoFormaPago()))],
+            'metodo_pago_cfdi'      => ['nullable', 'in:' . implode(',', array_keys(ClientFiscalData::catalogoMetodoPago()))],
+            'requiere_orden_compra' => 'nullable|boolean',
+            'dia_recepcion_facturas' => 'nullable|string|max:100',
+            'dias_credito'          => 'nullable|integer|min:0|max:365',
+            'condiciones_credito'   => 'nullable|string|max:500',
+            'contacto_facturacion_nombre'    => 'nullable|string|max:200',
+            'contacto_facturacion_cargo'     => 'nullable|string|max:150',
+            'contacto_facturacion_telefono'  => 'nullable|string|max:40',
+            'contacto_facturacion_extension' => 'nullable|string|max:20',
+            'contacto_facturacion_celular'   => 'nullable|string|max:40',
         ]);
 
         if ($v->fails()) {
@@ -100,6 +127,15 @@ class ClientFiscalDataController extends Controller
             'updated_by'            => $userId,
         ]);
 
+        // Opcionales empresariales: solo los que llegan en la petición (no pisa lo ya guardado).
+        foreach (self::CAMPOS_EMPRESARIALES as $campo) {
+            if ($request->has($campo)) {
+                $fiscal->{$campo} = $campo === 'requiere_orden_compra'
+                    ? $request->boolean($campo)
+                    : $this->opcional($request->input($campo));
+            }
+        }
+
         if (! $fiscal->exists) {
             $fiscal->created_by = $userId;
         }
@@ -131,7 +167,7 @@ class ClientFiscalDataController extends Controller
      */
     public function downloadConstancia(int $clientId): mixed
     {
-        $this->authorize('facturacion.fiscal.editar');
+        $this->authorize('facturacion.datos.editar');
 
         $fiscal = ClientFiscalData::where('client_id', $clientId)->firstOrFail();
 

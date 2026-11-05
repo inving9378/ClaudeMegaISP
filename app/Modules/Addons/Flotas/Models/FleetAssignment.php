@@ -10,7 +10,7 @@ class FleetAssignment extends BaseModel
     protected $table = 'fleet_assignments';
 
     protected $fillable = [
-        'vehicle_id', 'user_id', 'department', 'since', 'until', 'notes',
+        'vehicle_id', 'user_id', 'operator_name', 'client_operator_id', 'department', 'since', 'until', 'notes',
     ];
 
     protected $casts = [
@@ -26,6 +26,17 @@ class FleetAssignment extends BaseModel
     public function operator()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function clientOperator()
+    {
+        return $this->belongsTo(FleetClientOperator::class, 'client_operator_id');
+    }
+
+    /** Nombre a mostrar: operador de cliente (operator_name) o, si no, el usuario del sistema. */
+    public function getDisplayNameAttribute(): ?string
+    {
+        return $this->operator_name ?? $this->operator?->name;
     }
 
     public function getIsActiveAttribute(): bool

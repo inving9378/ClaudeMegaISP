@@ -37,13 +37,15 @@ class AttendanceService
      * - Validates proximity to nearest active work site OR to the assigned work-order location.
      * - If outside radius OR accuracy_m > 100: allows check-in but marks flagged=true.
      * - expected_end_at computed from shift_end (today) or NULL if shift not configured.
+     * - $fuenteUbicacion: 'gps', o 'manual_address' si el GPS falló y la persona escribió dónde está.
      */
     public function checkIn(
         int    $colaboradorId,
         float  $lat,
         float  $lng,
         ?float $accuracyM      = null,
-        ?int   $workOrderId    = null
+        ?int   $workOrderId    = null,
+        string $fuenteUbicacion = 'gps'
     ): array {
         $colaborador = TalentoColaborador::findOrFail($colaboradorId);
 
@@ -53,9 +55,9 @@ class AttendanceService
             return ['status' => 'already_open', 'attendance' => $existing];
         }
 
-        $defaultRadius = (int) DB::table('settings')
+        $defaultRadius = (int) (DB::table('settings')
             ->where('key', 'talento_checkin_default_radius_m')
-            ->value('value') ?? self::DEFAULT_RADIUS_M;
+            ->value('value') ?? self::DEFAULT_RADIUS_M);
 
         $withinGeofence = false;
         $flagged        = false;
@@ -112,6 +114,7 @@ class AttendanceService
             'check_in_within_geofence' => $withinGeofence,
             'check_in_flagged'         => $flagged,
             'check_in_flag_reason'     => $flagReason,
+            'check_in_location_source' => $fuenteUbicacion,
             'expected_end_at'          => $expectedEnd,
             'status'                   => $flagged ? 'flagged' : 'open',
             'day_type'                 => 'worked',

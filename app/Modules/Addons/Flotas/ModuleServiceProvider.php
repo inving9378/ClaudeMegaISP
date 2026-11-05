@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Flotas;
 
 use App\Modules\Addons\Flotas\Console\CheckDocumentExpirationsCommand;
+use App\Modules\Addons\Flotas\Console\CheckClientRulesCommand;
 use App\Modules\Addons\Flotas\Console\CheckSubscriptionsCommand;
 use App\Modules\Addons\Flotas\Console\GpsListenCommand;
 use App\Modules\Addons\Flotas\Console\ReprocessGeofencesCommand;
@@ -22,9 +23,13 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
     {
         parent::boot();
 
+        // #652: contexto "portal" de Flotas (solo el grupo /portal/flotas/api lo usa).
+        $this->app['router']->aliasMiddleware('flotas.portal', \App\Modules\Addons\Flotas\Http\Middleware\FlotasPortalContext::class);
+
         if ($this->app->runningInConsole()) {
             $this->commands([
                 CheckDocumentExpirationsCommand::class,
+                CheckClientRulesCommand::class,
                 CheckSubscriptionsCommand::class,
                 GpsListenCommand::class,
                 ReprocessGeofencesCommand::class,

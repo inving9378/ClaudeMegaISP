@@ -25,16 +25,26 @@ class CrmCreateRequest extends FormRequest
      *
      * @return array
      */
+    /** CRM-E 03 (#557): vacío = sin tipo de persona / sin segmento (residencial de siempre). */
+    protected function prepareForValidation()
+    {
+        foreach (['tipo_persona', 'segmento_id'] as $campo) {
+            if ($this->has($campo) && $this->input($campo) === '') {
+                $this->merge([$campo => null]);
+            }
+        }
+    }
+
     public function rules(Request $request)
     {
         return [
             'name'=> [
                 new ValidateSameNameInCrmOrClientTable($request),
                 'required',
-                'regex:/^[a-zA-ZÁÉÍÓÚáéíóúÑñ\s]+$/u'
+                'regex:' . \App\Support\PersonaMoralCrm::regexNombre($request)
             ],
-            'father_last_name'=>'required',
-            'mother_last_name'=>'required',
+            'father_last_name' => \App\Support\PersonaMoralCrm::reglaApellido($request),
+            'mother_last_name' => \App\Support\PersonaMoralCrm::reglaApellido($request),
             'email'=> [new ValidateUniqueEmailForClientAndCrm($request)],
             'phone'=>'required',
             'crm_status'=>'required',

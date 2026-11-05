@@ -20,6 +20,11 @@ export const selectTransform = (val, orderByAlfabetic) => {
     return opts;
 };
 
+// Listas de personal con "solo_activos" (2026-10-29): se manda a quién tiene guardado el registro
+// para que siga en la lista aunque ya no esté activo.
+export const conGuardado = (search, actual) =>
+    search?.solo_activos ? { ...search, actual } : search;
+
 export const getOptions = async (
     val,
     idModel = null,
@@ -49,7 +54,11 @@ export const convertToBoostrapSelect = async (id, selected, allOptions) => {
         includeSelectAllOption: true,
         triggerOnChange: true,
         enableFiltering: true,
-        filterPlaceholder: "Search...",
+        filterPlaceholder: "Buscar…",
+        nonSelectedText: "Seleccionar…",
+        nSelectedText: "seleccionados",
+        allSelectedText: "Todos",
+        selectAllText: " Seleccionar todos",
         select: function (values) {},
         deselect: function (values) {
             selected.value = $(`#${id}`).val() || [];
@@ -84,11 +93,11 @@ export const convertToBoostrapSelectTeam = async (id, selected, allOptions) => {
         $(`#${id}`).multiselect({
             includeSelectAllOption: true,
             enableFiltering: true,
-            filterPlaceholder: "Search...",
-            nonSelectedText: "Select options",
-            nSelectedText: "selected",
-            allSelectedText: "All selected",
-            selectAllText: "Select all",
+            filterPlaceholder: "Buscar…",
+            nonSelectedText: "Seleccionar…",
+            nSelectedText: "seleccionados",
+            allSelectedText: "Todos",
+            selectAllText: " Seleccionar todos",
             triggerOnChange: true,
             onChange: function (option, checked) {
                 const value = $(option).val();
@@ -222,7 +231,11 @@ export const convertToSelect2 = async (
             shouldSort: false,
             choices: defaultOpt,
         });
-        choice.setChoices(options, "value", "label", true);
+        // #988: al reemplazar las opciones, Choices conserva la que ya estaba elegida y la lista la vuelve
+        // a traer: salía dos veces. Se reemplaza también lo elegido cuando está en la lista y se vuelve
+        // a elegir abajo; si no está en la lista, o no hay valor (el «Seleccionar…»), se deja.
+        const elegidaEnLista = !!valToUse && valToUse !== "null" && options.some((o) => o.value == valToUse);
+        choice.setChoices(options, "value", "label", true, true, elegidaEnLista);
         if (valToUse && valToUse !== "null") {
             choice.setChoiceByValue(valToUse.toString());
         }
@@ -267,7 +280,8 @@ export const convertToSelect2WithSearch = async (
     });
 
     // Set initial choices, including the selected one
-    choice.setChoices(options, "value", "label", true);
+    const elegidaEnLista = !!valToUse && valToUse !== "null" && options.some((o) => o.value == valToUse);
+    choice.setChoices(options, "value", "label", true, true, elegidaEnLista);
     if (valToUse && valToUse !== "null") {
         choice.setChoiceByValue(valToUse.toString());
     }

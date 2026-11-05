@@ -78,6 +78,8 @@ function onVisibilityChange() {
 
 onMounted(() => {
     parseInitial();
+    // Páginas que no traen los avisos del servidor (p. ej. Talento): pedirlos ya, sin esperar 30 s.
+    if (!notifications.value.length) poll();
     iniciarPolling();
     document.addEventListener("visibilitychange", onVisibilityChange);
 });

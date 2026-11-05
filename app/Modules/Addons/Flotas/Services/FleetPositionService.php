@@ -7,6 +7,7 @@ use App\Modules\Addons\Flotas\Models\FleetPosition;
 use App\Modules\Addons\Flotas\Models\FleetVehicle;
 use App\Modules\Addons\Flotas\Services\Gps\Position;
 use App\Modules\Addons\Flotas\Services\GeofenceDetectionService;
+use App\Modules\Addons\Flotas\Services\Notifications\ClientRuleEngine;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -60,6 +61,15 @@ class FleetPositionService
             }
         } catch (\Throwable $e) {
             Log::warning('Flotas: detección de geocercas falló en saveBatch: ' . $e->getMessage());
+        }
+
+        // Reglas de alerta del cliente (velocidad/horario) — mismo criterio: nunca tumba la ingestión.
+        try {
+            if (isset($inserted) && $inserted->isNotEmpty()) {
+                app(ClientRuleEngine::class)->onPositions($vehicleId, $inserted);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Flotas: reglas de cliente fallaron en saveBatch: ' . $e->getMessage());
         }
 
         return count($rows);

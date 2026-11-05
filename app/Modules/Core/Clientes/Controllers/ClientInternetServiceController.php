@@ -59,6 +59,20 @@ class ClientInternetServiceController extends Controller
      * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\Response
      */
+    /** Fase 1b #576: MACs aprendidas (solo lectura) por servicio de internet del cliente; avisa si hay más de una. */
+    public function macs($id)
+    {
+        $servicios = ClientInternetService::where('client_id', $id)->get();
+        $res = [];
+        foreach ($servicios as $svc) {
+            $user = $svc->getNameClient();
+            $macs = DB::table('pppoe_mac_aprendidas')->where('username', $user)
+                ->orderByDesc('ultima_vez')->get(['mac', 'origen', 'primera_vez', 'ultima_vez']);
+            $res[] = ['service_id' => $svc->id, 'username' => $user, 'macs' => $macs, 'multiple' => $macs->count() > 1];
+        }
+        return response()->json($res);
+    }
+
     public function store(ClientInternetServiceCreateRequest $request, $id)
     {
         $this->validateFieldByRulesInTableFiledModules($this->data['module'], $request);

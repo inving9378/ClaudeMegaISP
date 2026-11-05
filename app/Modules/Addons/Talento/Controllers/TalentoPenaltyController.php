@@ -107,7 +107,9 @@ class TalentoPenaltyController extends Controller
             $this->authorize('talento.penalties.view');
         }
 
-        $q = TalentoPenalty::with(['colaborador.user', 'penaltyType', 'appeal'])
+        // appliedByColaborador.user: la columna "Aplicado por" de la lista salía "—" porque solo el
+        // detalle (showPenalty) cargaba quién la aplicó.
+        $q = TalentoPenalty::with(['colaborador.user', 'penaltyType', 'appliedByColaborador.user', 'appeal'])
             ->orderByDesc('created_at');
 
         if ($request->filled('colaborador_id')) $q->where('colaborador_id', $request->colaborador_id);
@@ -160,7 +162,8 @@ class TalentoPenaltyController extends Controller
             abort_unless($esSuSupervisor, 403, 'No tienes permiso para penalizar a este colaborador.');
         }
 
-        $applierColaborador = TalentoColaborador::where('user_id', auth()->id())->first();
+        // Un admin sin ficha firma como MEGAISP (ver PenaltyService::firmanteDe()).
+        $applierColaborador = $this->svc->firmanteDe(auth()->user());
         if (!$applierColaborador) {
             return response()->json(['error' => 'No tienes perfil de colaborador.'], 422);
         }
@@ -202,6 +205,7 @@ class TalentoPenaltyController extends Controller
                 'penalty.appliedByColaborador.user',
                 'appealedByColaborador.user',
                 'reviewedByColaborador.user',
+                'reviewedByUser:id,name,father_last_name',
             ])
             ->orderByDesc('created_at');
 
@@ -274,7 +278,10 @@ class TalentoPenaltyController extends Controller
             'decision_notes' => 'nullable|string|max:2000',
         ]);
 
-        $reviewerColaborador = TalentoColaborador::where('user_id', auth()->id())->first();
+        // Antes exigía ficha propia y ningún admin la tiene: nadie podía resolver
+        // una apelación (2026-10-19). Ahora el admin sin ficha firma como MEGAISP y
+        // se guarda quién fue de verdad (reviewed_by_user_id).
+        $reviewerColaborador = $this->svc->firmanteDe(auth()->user());
         if (!$reviewerColaborador) {
             return response()->json(['error' => 'No tienes perfil de colaborador.'], 422);
         }
@@ -284,7 +291,8 @@ class TalentoPenaltyController extends Controller
                 $appeal,
                 $reviewerColaborador->id,
                 $data['decision'],
-                $data['decision_notes'] ?? null
+                $data['decision_notes'] ?? null,
+                auth()->id()
             );
         } catch (\InvalidArgumentException $e) {
             return response()->json(['error' => $e->getMessage()], 422);

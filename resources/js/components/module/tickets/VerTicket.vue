@@ -35,6 +35,17 @@
                                     administrador {{ fieldsJson.time_human
                                     }}<br />
                                     Cualquier / Main Admin (admin)
+                                    <span
+                                        v-if="plazo"
+                                        class="badge ms-1"
+                                        :class="{
+                                            'bg-success': plazo.estado === 'en_tiempo',
+                                            'bg-warning': plazo.estado === 'por_vencer',
+                                            'bg-danger': plazo.estado === 'vencido',
+                                        }"
+                                    >
+                                        {{ plazo.horas_transcurridas }} h de {{ plazo.horas_plazo }} h
+                                    </span>
                                 </small>
                             </div>
                             <div class="col-sm-12 col-md-6 gap-2">
@@ -159,6 +170,24 @@
         @cleanModal="cleanModal"
     />
 
+    <!-- G2: órdenes de trabajo del ticket (el endpoint responde 404 con el interruptor apagado) -->
+    <div v-if="ordenesDisponibles" class="card mt-3">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="mb-0">Órdenes de trabajo de este ticket</h6>
+                <AsignarTrabajo :ticket-id="id" boton-class="btn btn-sm btn-outline-info" />
+            </div>
+            <div v-if="!ordenesTicket.length" class="text-muted small">Sin órdenes todavía.</div>
+            <ul v-else class="list-unstyled mb-0 small">
+                <li v-for="o in ordenesTicket" :key="o.id">
+                    <a :href="`/talento/ordenes?ref=${o.ref}`">{{ o.ref }}</a>
+                    · {{ o.tipo || 'Orden' }} · {{ o.estado }}
+                    <span v-if="o.asignado"> · {{ o.asignado }}</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+
     <CrearTareaModal
         v-model="showCrearTarea"
         :ticket="fieldsJson"
@@ -189,12 +218,14 @@
 
 <script>
 import { ref, onMounted, reactive, watch } from "vue";
+import axios from "axios";
 import Ticket from "./component/Ticket.vue";
 import TicketDetails from "./component/TicketDetails";
 import TicketModalEdit from "./component/TicketModalEdit";
 import TicketNewThread from "./component/TicketNewThread.vue";
 import TicketSatisfactionModal from "./component/TicketSatisfactionModal.vue"; // Importar el nuevo componente
 import CrearTareaModal from "../scheduling/CrearTareaModal.vue";
+import AsignarTrabajo from "../talento/AsignarTrabajo.vue";
 import Modal from "../../../helpers/modal";
 import {
     requestTicketData,
@@ -221,6 +252,7 @@ export default {
         TicketNewThread,
         TicketSatisfactionModal,
         CrearTareaModal,
+        AsignarTrabajo,
     },
     setup(props) {
         const fieldsJson = ref({});
@@ -232,6 +264,26 @@ export default {
         const file = ref();
         const satisfactionModal = ref();
         const showCrearTarea = ref(false);
+        const ordenesDisponibles = ref(false);
+        const ordenesTicket = ref([]);
+        const plazo = ref(null);
+        const cargarPlazo = async () => {
+            try {
+                const { data } = await axios.post(`/tickets/get-time-lapsed/${props.id}`);
+                plazo.value = data.plazo || null;
+            } catch (e) {
+                plazo.value = null;
+            }
+        };
+        const cargarOrdenes = async () => {
+            try {
+                const { data } = await axios.get(`/talento/api/ordenes/ticket/${props.id}`);
+                ordenesTicket.value = data || [];
+                ordenesDisponibles.value = true;
+            } catch (e) {
+                ordenesDisponibles.value = false;
+            }
+        };
         const tareaCreada = ref(null);
         const dataForm = reactive({
             data: new Form({ file, message }),
@@ -250,6 +302,8 @@ export default {
 
         onMounted(() => {
             initComponent();
+            cargarOrdenes();
+            cargarPlazo();
             modal.value = new Modal("modalTicketEdit");
             setAnswer.value = false;
         });
@@ -350,6 +404,7 @@ export default {
         };
 
         return {
+            plazo,
             fieldsJson,
             fieldsJsonThread,
             getTicketId,
@@ -374,6 +429,9 @@ export default {
             satisfactionModal,
             status,
             showCrearTarea,
+            ordenesDisponibles,
+            ordenesTicket,
+            cargarOrdenes,
             tareaCreada,
             onTareaCreada,
         };

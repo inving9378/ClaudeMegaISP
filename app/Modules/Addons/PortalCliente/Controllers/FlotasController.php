@@ -3,16 +3,15 @@
 namespace App\Modules\Addons\PortalCliente\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Modules\Addons\Flotas\Models\FleetGeofence;
-use App\Modules\Addons\Flotas\Models\FleetMaintenance;
 use App\Modules\Addons\Flotas\Models\FleetVehicle;
-use App\Modules\Addons\Flotas\Services\FleetPositionService;
 use App\Modules\Addons\Flotas\Services\FleetSubscriptionService;
 use App\Services\Tenant\CurrentClientResolver;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 /**
- * Panel "Mi Flota" en el portal de cliente (guard `cliente`). Solo lectura.
+ * Panel "Mi Flota" en el portal de cliente (guard `cliente`). Lectura aquí; las escrituras viven en FlotasGestionController (#621).
  *
  * client_id viene de CurrentClientResolver::resolve() (rama guard cliente) y TODA
  * consulta se scopea con ->forClient($clientId). Los vehículos internos de Meganet
@@ -21,7 +20,7 @@ use Illuminate\Support\Facades\Auth;
  */
 class FlotasController extends Controller
 {
-    public function index(CurrentClientResolver $resolver, FleetSubscriptionService $subs, FleetPositionService $positions)
+    public function index(CurrentClientResolver $resolver, FleetSubscriptionService $subs)
     {
         $clientId = $resolver->resolve();
         $cmi      = Auth::guard('cliente')->user();
@@ -34,58 +33,81 @@ class FlotasController extends Controller
                 ->get(['id', 'plates', 'brand', 'model', 'year', 'vehicle_type', 'status'])
             : collect();
 
-        // Sin flota (ni vehículos ni suscripción) → estado vacío con CTA, NO error.
-        if ($vehicles->isEmpty() && ! $subscription) {
+        // Sin flota, o con su servicio de Flotas cancelado/vencido → estado vacío con CTA, NO un tablero
+        // que falla (las APIs del portal exigen suscripción usable: middleware flotas.portal) (#657).
+        if (! $subscription?->isUsable()) {
             return view('addon-portal-cliente::flotas', [
                 'cmi'    => $cmi,
                 'active' => false,
             ]);
         }
 
-        $vehicleIds = $vehicles->pluck('id');
+        return $this->vistaVue('dashboard', null, $clientId);
+    }
 
-        // Mantenimientos próximos 30 días, scopeados por los vehículos del cliente.
-        $upcomingMaint = $vehicleIds->isEmpty() ? 0 : FleetMaintenance::whereIn('vehicle_id', $vehicleIds)
-            ->where('is_draft', false)
-            ->whereNotNull('next_service_date')
-            ->whereBetween('next_service_date', [now()->toDateString(), now()->addDays(30)->toDateString()])
-            ->count();
+    /** Alta de vehículo: monta el formulario Vue del panel (#657). */
+    public function nuevo(CurrentClientResolver $resolver)
+    {
+        return $this->vistaVue('nuevo', null, $resolver->resolve());
+    }
 
-        $standing = [
-            'total'          => $vehicles->count(),
-            'activos'        => $vehicles->where('status', 'active')->count(),
-            'mant_proximos'  => $upcomingMaint,
-            'geocercas'      => $clientId ? FleetGeofence::forClient($clientId)->where('active', true)->count() : 0,
-        ];
+    /** Ficha del vehículo: el id lo pasa el blade; 404 si no es del cliente (fail-closed). */
+    public function ficha(int $id, CurrentClientResolver $resolver)
+    {
+        $clientId = $resolver->resolve();
+        abort_unless($clientId && FleetVehicle::forClient($clientId)->whereKey($id)->exists(), 404);
 
-        // Rastreo (solo lectura): última posición conocida por vehículo con GPS activo.
-        // getCurrentPositions() ya scopea por forClient($clientId) — mismo candado fail-closed.
-        $tracking = $positions->getCurrentPositions($clientId)->keyBy('vehicle_id');
+        return $this->vistaVue('ficha', $id, $clientId);
+    }
 
-        return view('addon-portal-cliente::flotas', [
-            'cmi'          => $cmi,
-            'active'       => true,
-            'subscription' => $subscription,
-            'vehicles'     => $vehicles,
-            'standing'     => $standing,
-            'tracking'     => $tracking,
+    private function vistaVue(string $vista, ?int $vehicleId, $clientId)
+    {
+        return view('addon-portal-cliente::flotas_app', [
+            'vista'      => $vista,
+            'vehicleId'  => $vehicleId,
+            'privacidad' => [
+                'aceptada' => $this->privacidadAceptada($clientId),
+                'texto'    => config('portalcliente.flotas_privacidad.texto'),
+            ],
         ]);
     }
 
-    /**
-     * JSON de última posición por vehículo, para el polling del mapa overview (item #102).
-     * Mismo candado fail-closed que index(): sin client_id resuelto, arreglo vacío.
-     */
-    public function tracking(CurrentClientResolver $resolver, FleetPositionService $positions)
+    /** Bitácora de notificaciones (#664): mismo componente del panel, datos por /portal/flotas/api/notificaciones-log. */
+    public function notificaciones(CurrentClientResolver $resolver, FleetSubscriptionService $subs)
     {
         $clientId = $resolver->resolve();
+        abort_unless($clientId, 403, 'Sesión sin cliente.');
+        abort_unless($subs->clientHasAccess($clientId), 403, 'Tu servicio de Flotas no está activo. Solicita su activación.');
 
-        $vehicles = $clientId
-            ? $positions->getCurrentPositions($clientId)
-                ->filter(fn (array $v) => $v['position'] !== null)
-                ->values()
-            : collect();
+        return view('addon-portal-cliente::flotas_notificaciones');
+    }
 
-        return response()->json(['vehicles' => $vehicles]);
+    /** Registra la aceptación del aviso de privacidad del rastreo (cliente, usuario, fecha, versión del texto). */
+    public function aceptarPrivacidad(Request $request, CurrentClientResolver $resolver)
+    {
+        $clientId = $resolver->resolve();
+        abort_unless($clientId, 403);
+
+        if (! $this->privacidadAceptada($clientId)) {
+            DB::table('portal_flotas_privacidad_aceptaciones')->insert([
+                'client_id'  => $clientId,
+                'usuario_id' => Auth::guard('cliente')->id(),
+                'version'    => (string) config('portalcliente.flotas_privacidad.version'),
+                'aceptado_at' => now(),
+                'ip'         => $request->ip(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    private function privacidadAceptada(?int $clientId): bool
+    {
+        return $clientId && DB::table('portal_flotas_privacidad_aceptaciones')
+            ->where('client_id', $clientId)
+            ->where('version', (string) config('portalcliente.flotas_privacidad.version'))
+            ->exists();
     }
 }

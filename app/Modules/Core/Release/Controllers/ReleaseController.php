@@ -171,10 +171,18 @@ class ReleaseController extends Controller
                 ]);
             }
 
+            // Excepción al candado UNI-T (item #863): solo con el permiso específico y un motivo.
+            $motivoUni = trim((string) $request->input('excepcion_proyecto_uni_motivo', ''));
+            $payload   = null;
+            if ($motivoUni !== '' && auth()->user()?->can(config('unificacion.candado_publicacion.permiso_excepcion'))) {
+                $payload = ['excepcion_proyecto_uni' => ['motivo' => $motivoUni, 'user_id' => auth()->id(), 'at' => now()->toIso8601String()]];
+            }
+
             $deployLog = DeploymentLog::create([
                 'release_id'   => $release->id,
                 'triggered_by' => auth()->user()?->id,
                 'status'       => 'pending',
+                'payload'      => $payload,
             ]);
 
             $this->dispatchDeploy($deployLog, $release->version, $release->title ?? '');

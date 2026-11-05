@@ -147,10 +147,10 @@
             @endif
 
             {{-- #9990615 — la campana se auto-refresca por polling (ver NotificationBell.vue);
-                 la carga inicial sigue viniendo server-side, sin esperar al primer poll. --}}
-            @isset($notifications)
-                <notification-bell initial="{{ json_encode($notifications) }}"></notification-bell>
-            @endisset
+                 la carga inicial sigue viniendo server-side, sin esperar al primer poll.
+                 2026-10-27: se dibuja siempre. Solo salía donde el controlador pasaba $notifications
+                 y en Talento (donde vive el técnico) no salía; ahí pide los avisos al cargar. --}}
+            <notification-bell initial="{{ json_encode($notifications ?? []) }}"></notification-bell>
 
             <div class="dropdown d-inline-block">
                 <button type="button" class="btn header-item bg-soft-light border-start border-end"
@@ -163,11 +163,16 @@
                     <i class="mdi mdi-chevron-down d-none d-xl-inline-block"></i>
                 </button>
                 <div class="dropdown-menu dropdown-menu-end">
-                    {{-- Mi portal — atajo al Portal de Colaborador. Gate: portal.colaborador
-                         (@can no funciona en Blade). data-spa-skip: el portal es un SPA aparte. --}}
-                    @if(auth()->user()->can('portal.colaborador'))
-                        <a class="dropdown-item" href="{{ url('/talento/portal') }}" data-spa-skip>
-                            <i class="mdi mdi-account-hard-hat font-size-16 align-middle me-1"></i> Mi portal
+                    {{-- Mi día — atajo a la propia ficha de Talento, donde quedó lo que tenía el Portal
+                         (2026-10-23). Solo para quien tiene ficha; @can no funciona en Blade. --}}
+                    @php
+                        $miFichaTalento = auth()->user()->can('portal.colaborador')
+                            ? \App\Modules\Addons\Talento\Support\Actor::for(auth()->user())->talento()
+                            : null;
+                    @endphp
+                    @if($miFichaTalento)
+                        <a class="dropdown-item" href="{{ url('/talento/colaborador/' . $miFichaTalento->id . '?tab=mi_dia') }}">
+                            <i class="mdi mdi-account-hard-hat font-size-16 align-middle me-1"></i> Mi día
                         </a>
                         <div class="dropdown-divider"></div>
                     @endif

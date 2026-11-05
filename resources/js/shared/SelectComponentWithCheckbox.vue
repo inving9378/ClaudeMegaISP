@@ -46,6 +46,7 @@ import { onMounted, reactive, ref, watch, nextTick } from "vue";
 import {
     getOptions,
     getOptionsWithoutId,
+    conGuardado,
     selectTransform,
     convertToBoostrapSelect,
 } from "../helpers/Transform";
@@ -136,7 +137,7 @@ export default {
                 ? selectTransform(props.property.options)
                 : props.id
                 ? await getOptionsWithoutId(props.property.search, props.id)
-                : await getOptions(props.property.search);
+                : await getOptions(conGuardado(props.property.search, val.value));
 
             if (Object.keys(options.val).length) {
                 // Espera a que el DOM esté completamente actualizado

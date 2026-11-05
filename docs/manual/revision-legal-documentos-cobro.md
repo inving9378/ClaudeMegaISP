@@ -61,13 +61,27 @@ Se guarda copia exacta de cada PDF enviado (FAC-05) y el envío por WhatsApp pas
 11. ¿Es correcto desglosar «IVA trasladado 16 %» en un documento sin valor fiscal?
 12. Pagos parciales: el documento muestra «Abonado $X de $Y». ¿Algún requisito para documentar abonos?
 
+**E. Cargos durante la suspensión y autorrenovación (reglas de #534, FR-06/FR-07)**
+13. Un cliente «Bloqueado» (servicio suspendido) ¿puede seguir generando cargos mensuales? ¿Hasta
+    cuándo y con qué aviso previo? El sistema hoy le manda un estado de cuenta mensual (apagado por
+    `BILLING_ESTADO_CUENTA_MENSUAL`). Ver NOM-184-SCFI-2018 y LMTR **[pendiente de verificación]**.
+14. Contrato cumplido sin autorrenovación: el sistema sigue facturando hasta 3 «facturas máximas sin
+    pago» y luego pasa a Inactivo. ¿Es válido cobrar tras vencer el plazo forzoso si el cliente sigue
+    usando el servicio? ¿Qué debe decir el contrato? (apagado por `BILLING_CAPA_CONTRATO`).
+15. Autorrenovación: ¿qué consentimiento expreso se necesita, cómo debe avisarse antes de renovar y
+    cómo puede el cliente cancelarla sin penalización? ¿Aplica la prohibición de cláusulas abusivas
+    (Ley Federal de Protección al Consumidor, contratos de adhesión) **[pendiente de verificación]**?
+16. Inactivos con adeudo: estado de cuenta solo hasta 12 meses. ¿Existe plazo legal de cobro o
+    prescripción que lo justifique o limite? **[pendiente de verificación]**.
+17. Baja definitiva «Cancelado»: estado de cuenta final y conservación de datos (ver pregunta 9).
+
 ## 3. Observaciones (para dar contexto al abogado)
 - Todos los PDF dicen «sin valor fiscal»; la factura fiscal se pide a facturacion@meganett.com.mx.
 - El envío automático está **pausado** y su reactivación será por etapas (FAC-08).
 - La CFDI 4.0 propia (FAC-15) está en especificación: hasta entonces los CFDI se hacen fuera del sistema.
 
 ## 4. Decisiones que quedan en Irving
-- Contratar la revisión y con quién; prioridad sugerida: A1–A2, C7–C9, B4–B6.
+- Contratar la revisión y con quién; prioridad sugerida: A1–A2, C7–C9, B4–B6, E13–E15 (antes de encender `BILLING_CAPA_CONTRATO`).
 - Según la respuesta: nombre del documento pagado, texto del aviso de privacidad y de los correos,
   plazos de retención.
 

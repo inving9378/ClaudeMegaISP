@@ -9,10 +9,38 @@ class TalentoCourse extends BaseModel
     protected $table = 'talento_courses';
 
     protected $fillable = [
-        'title', 'description', 'department', 'order', 'active',
+        'title', 'description', 'department', 'roles', 'order', 'active',
     ];
 
-    protected $casts = ['active' => 'boolean'];
+    protected $casts = ['active' => 'boolean', 'roles' => 'array'];
+
+    protected $appends = ['para'];
+
+    // Para quién es el curso (2026-10-24): `roles` vacío = general, para todos; si trae roles, solo
+    // para quien tenga alguno de ellos.
+    public function scopeParaRoles($query, iterable $roles)
+    {
+        $roles = collect($roles)->values();
+
+        return $query->where(function ($q) use ($roles) {
+            $q->whereNull('roles')->orWhereJsonLength('roles', 0);
+            foreach ($roles as $rol) {
+                $q->orWhereJsonContains('roles', $rol);
+            }
+        });
+    }
+
+    public function esParaRoles(iterable $roles): bool
+    {
+        return empty($this->roles) || collect($roles)->intersect($this->roles)->isNotEmpty();
+    }
+
+    public function getParaAttribute(): string
+    {
+        return empty($this->roles)
+            ? 'general'
+            : collect($this->roles)->map(fn ($r) => TalentoColaborador::nombrePuesto($r))->join(', ');
+    }
 
     public function materials()
     {

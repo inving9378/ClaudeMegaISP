@@ -7,6 +7,8 @@
     "permissions": [
         { "name": "facturacion.ver",           "description": "Ver los datos fiscales del cliente" },
         { "name": "facturacion.fiscal.editar", "description": "Editar los datos fiscales del cliente (no timbra)" },
+        { "name": "facturacion.datos.ver",    "description": "Ver la tarjeta Datos de facturación del cliente" },
+        { "name": "facturacion.datos.editar", "description": "Editar la tarjeta Datos de facturación del cliente" },
         { "name": "clientes.datos_red.editar", "description": "Editar los datos de red de un servicio dedicado (router, interfaz VLAN, bloque e IPs a monitorear)" }
     ],
     "dependencies":[],
@@ -36,13 +38,15 @@
         { "method": "POST", "path": "/cliente/billing/invoice/update/{id}",                   "description": "Edita una factura del cliente",                      "scope": "billing.facturas",     "permission": "client_billing_invoice_edit" },
         { "method": "POST", "path": "/cliente/billing/invoice/destroy/{id}",                  "description": "Elimina una factura del cliente",                    "scope": "billing.facturas",     "permission": "client_billing_invoice_delete" },
         { "method": "POST", "path": "/cliente/billing/transaction/crear/{id}",                "description": "Registra una transacción del cliente",               "scope": "billing.transacciones","permission": "client_billing_transaction_add" },
-        { "method": "GET",  "path": "/cliente/billing/datos-fiscales/{clientId}",             "description": "Consulta los datos fiscales CFDI 4.0 del cliente",   "scope": "billing.fiscal",       "permission": "facturacion.ver" },
-        { "method": "POST", "path": "/cliente/billing/datos-fiscales/{clientId}",             "description": "Guarda los datos fiscales CFDI 4.0 del cliente",     "scope": "billing.fiscal",       "permission": "facturacion.fiscal.editar" },
+        { "method": "GET",  "path": "/cliente/billing/datos-fiscales/{clientId}",             "description": "Consulta los datos fiscales CFDI 4.0 del cliente",   "scope": "billing.fiscal",       "permission": "facturacion.datos.ver" },
+        { "method": "POST", "path": "/cliente/billing/datos-fiscales/{clientId}",             "description": "Guarda los datos fiscales CFDI 4.0 del cliente",     "scope": "billing.fiscal",       "permission": "facturacion.datos.editar" },
         { "method": "POST", "path": "/cliente/billing/datos-fiscales/{clientId}/timbrar",     "description": "Timbra la constancia fiscal del cliente",            "scope": "billing.fiscal",       "permission": "facturacion.fiscal.timbrar" },
         { "method": "POST", "path": "/cliente/clientinternetservice/crear/{id}",              "description": "Contrata un servicio de internet para el cliente",   "scope": "servicios",            "permission": "client_service_internet_add_client" },
         { "method": "POST", "path": "/cliente/clientinternetservice/change-internet/{id}",    "description": "Cambia el servicio de internet contratado",          "scope": "servicios",            "permission": "client_service_internet_edit_client" },
         { "method": "GET",  "path": "/cliente/servicio-internet/{servicioId}/datos-red",      "description": "Datos de red de un servicio dedicado (monitoreo)",   "scope": "servicios",            "permission": "client_view_client" },
         { "method": "POST", "path": "/cliente/servicio-internet/{servicioId}/datos-red",      "description": "Guarda los datos de red de un servicio dedicado",    "scope": "servicios",            "permission": "clientes.datos_red.editar" },
+        { "method": "POST", "path": "/cliente/servicio-internet/{servicioId}/datos-red/probar", "description": "Prueba la lectura de un servicio dedicado, sin guardar", "scope": "servicios", "permission": "clientes.datos_red.editar" },
+        { "method": "POST", "path": "/cliente/servicio-internet/{servicioId}/datos-red/identidad", "description": "Confirma la identidad del router que contestó la prueba", "scope": "servicios", "permission": "clientes.datos_red.editar" },
         { "method": "GET",  "path": "/cliente/statistics/dedicado/{id}",                      "description": "Servicios dedicados del cliente para Estadísticas",  "scope": "estadisticas",         "permission": "client_view_client" },
         { "method": "GET",  "path": "/cliente/statistics/dedicado/servicio/{servicioId}/estado", "description": "Estado en tiempo real de un servicio dedicado", "scope": "estadisticas",         "permission": "client_view_client" },
         { "method": "POST", "path": "/cliente/clientbundleservice/crear/{id}",                "description": "Contrata un paquete (bundle) para el cliente",       "scope": "servicios",            "permission": "client_service_bundle_add_client" },
@@ -54,7 +58,15 @@
         { "method": "GET",  "path": "/cliente/actives",                                       "description": "Lista los clientes activos",                         "scope": "cliente",              "permission": "client_billing_invoice_edit" },
         { "method": "GET",  "path": "/cliente/billing/invoice/pdf/{id}",                      "description": "Descarga el PDF de una factura del cliente",         "scope": "billing.facturas",     "permission": "client_billing_invoice_client" },
         { "method": "GET",  "path": "/cliente/billing/payment/pdf/{id}",                      "description": "Descarga el PDF de un pago del cliente",             "scope": "billing.pagos",        "permission": "finance_view_payments" },
-        { "method": "GET",  "path": "/cliente/billing/invoice/create-new-client-invoice/{id}","description": "Genera manualmente una nueva factura para el cliente","scope": "billing.facturas",     "permission": "client_billing_invoice_add" }
+        { "method": "GET",  "path": "/cliente/billing/invoice/create-new-client-invoice/{id}","description": "Genera manualmente una nueva factura para el cliente","scope": "billing.facturas",     "permission": "client_billing_invoice_add" },
+        { "method": "GET", "path": "/cliente/historial-cambios/{id}", "description": "Historial de cambios de estado y contrato del cliente", "scope": "cliente", "permission": "client_view_client" },
+        { "method": "GET", "path": "/cliente/contrato/{id}", "description": "Consulta el contrato del cliente (solo lectura)", "scope": "documentos", "permission": "client_view_client" },
+        { "method": "GET", "path": "/cliente/statistics/get-consumption-summary/{id}", "description": "Resumen de consumo del cliente", "scope": "estadisticas", "permission": "client_view_client" },
+        { "method": "GET", "path": "/cliente/statistics/get-daily-usage/{id}", "description": "Uso diario de datos del cliente", "scope": "estadisticas", "permission": "client_view_client" },
+        { "method": "GET", "path": "/cliente/statistics/get-ping-status/{id}", "description": "Estado actual de ping del cliente", "scope": "estadisticas", "permission": "client_view_client" },
+        { "method": "GET", "path": "/cliente/statistics/get-history/{id}", "description": "Historial de sesiones del cliente", "scope": "estadisticas", "permission": "client_view_client" },
+        { "method": "GET", "path": "/cliente/billing/estados-cuenta/{clientId}", "description": "Estados de cuenta generados del cliente", "scope": "billing.fiscal", "permission": "facturacion.ver" },
+        { "method": "GET", "path": "/cliente/billing/estados-cuenta/{clientId}/{id}/pdf", "description": "Descarga el PDF de un estado de cuenta", "scope": "billing.fiscal", "permission": "facturacion.ver" }
     ],
     "ai": [],
     "screens": [

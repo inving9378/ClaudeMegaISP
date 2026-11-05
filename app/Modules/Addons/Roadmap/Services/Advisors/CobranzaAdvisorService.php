@@ -2,8 +2,8 @@
 
 namespace App\Modules\Addons\Roadmap\Services\Advisors;
 
-use App\Modules\Addons\Marketing\Services\ClaudeApiClient;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
+use App\Modules\Addons\Roadmap\Support\IaSupervisor;
 use App\Services\Cobranza\InvoiceAgingService;
 
 /**
@@ -36,11 +36,9 @@ class CobranzaAdvisorService
     public function run(): array
     {
         $metricas = $this->metricas();
-        $modelo = (string) config('circuito.revisor.model_routine', 'claude-sonnet-4-6');
-
+        // #1076 — el modelo lo elige Integraciones → Módulos IA («circuito.asesor_cobranza»).
         try {
-            $resp = (new ClaudeApiClient())->messages([
-                'model'      => $modelo,
+            $r = IaSupervisor::llamar(IaSupervisor::ASESOR, [
                 'max_tokens' => 1400,
                 'system'     => $this->systemPrompt(),
                 'messages'   => [['role' => 'user', 'content' => "Datos agregados de cobranza (solo lectura, sin PII):\n\n" . json_encode($metricas, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)]],
@@ -49,12 +47,8 @@ class CobranzaAdvisorService
             return ['ok' => false, 'error' => mb_strimwidth($e->getMessage(), 0, 200, '…'), 'creados' => []];
         }
 
-        $texto = '';
-        foreach ((array) ($resp['content'] ?? []) as $blk) {
-            if (($blk['type'] ?? '') === 'text') {
-                $texto .= $blk['text'] ?? '';
-            }
-        }
+        $modelo = $r['modelo'];
+        $texto  = $r['texto'];
 
         $propuestas = $this->parsePropuestas($texto);
         if (empty($propuestas)) {

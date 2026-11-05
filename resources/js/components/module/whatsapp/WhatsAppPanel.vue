@@ -402,7 +402,7 @@ export default {
         clientStatusClass() {
             const s = (this.activeConversation?.client?.client_main_information?.estado || '').toLowerCase();
             if (s === 'activo') return 'ok';
-            if (s === 'bloqueado' || s === 'inactivo') return 'bad';
+            if (s === 'bloqueado' || s === 'inactivo' || s === 'desinstalado') return 'bad';
             return 'warn';
         },
     },

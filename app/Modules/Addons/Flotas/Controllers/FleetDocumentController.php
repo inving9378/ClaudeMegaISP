@@ -6,6 +6,7 @@ use App\Modules\Addons\Flotas\Models\FleetDocument;
 use App\Modules\Addons\Flotas\Models\FleetDocumentOcrRun;
 use App\Modules\Addons\Flotas\Services\Ocr\FleetDocumentOcrService;
 use App\Modules\Addons\Flotas\Services\Ocr\VehicleDocumentProfile;
+use App\Modules\Addons\Flotas\Support\FleetVehicleRules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -36,23 +37,16 @@ class FleetDocumentController extends FleetBaseController
 
     public function store(Request $request): JsonResponse
     {
-        $this->authorize('fleet.documents.manage');
+        $this->autorizar('fleet.documents.manage');
 
         // multipart/form-data serializa cada campo como string; decodificar antes de validar
         $this->preprocessMultipart($request);
 
-        $data = $request->validate([
+        $data = $request->validate(FleetVehicleRules::document() + [
             // #177 — vehicle_id ya no es obligatorio: un documento de conductor (licencia) puede
             // no tener vehículo. required_without garantiza que al menos uno de los dos venga.
             'vehicle_id'       => 'nullable|required_without:driver_id|integer',
             'driver_id'        => 'nullable|required_without:vehicle_id|integer|exists:users,id',
-            'document_type'    => 'required|in:circulation_card,insurance_policy,tenencia,verification,operator_license,special_permit,other',
-            'folio_number'     => 'nullable|string|max:100',
-            'issued_by'        => 'nullable|string|max:200',
-            'issue_date'       => 'nullable|date',
-            'expiration_date'  => 'nullable|date',
-            'cost'             => 'nullable|numeric|min:0',
-            'notes'            => 'nullable|string',
             'alert_30_days'    => 'boolean',
             'alert_7_days'     => 'boolean',
             'alert_1_day'      => 'boolean',
@@ -108,7 +102,7 @@ class FleetDocumentController extends FleetBaseController
      */
     public function ocr(Request $request, FleetDocumentOcrService $ocr): JsonResponse
     {
-        $this->authorize('fleet.documents.manage');
+        $this->autorizar('fleet.documents.manage');
 
         $request->validate([
             'vehicle_id' => 'nullable|integer',
@@ -158,7 +152,7 @@ class FleetDocumentController extends FleetBaseController
      */
     public function markOcrReviewed(int $id): JsonResponse
     {
-        $this->authorize('fleet.documents.manage');
+        $this->autorizar('fleet.documents.manage');
 
         $doc = FleetDocument::forClient($this->clientId())->findOrFail($id);
 
@@ -212,7 +206,7 @@ class FleetDocumentController extends FleetBaseController
 
     public function update(Request $request, int $id): JsonResponse
     {
-        $this->authorize('fleet.documents.manage');
+        $this->autorizar('fleet.documents.manage');
 
         $this->preprocessMultipart($request);
 
@@ -241,7 +235,7 @@ class FleetDocumentController extends FleetBaseController
 
     public function destroy(int $id): JsonResponse
     {
-        $this->authorize('fleet.documents.manage');
+        $this->autorizar('fleet.documents.manage');
 
         $doc = FleetDocument::forClient($this->clientId())->findOrFail($id);
 
@@ -305,7 +299,7 @@ class FleetDocumentController extends FleetBaseController
 
     public function renew(int $id): JsonResponse
     {
-        $this->authorize('fleet.documents.manage');
+        $this->autorizar('fleet.documents.manage');
 
         $prev = FleetDocument::forClient($this->clientId())->findOrFail($id);
 
@@ -333,7 +327,7 @@ class FleetDocumentController extends FleetBaseController
 
     public function proximos(): JsonResponse
     {
-        $this->authorize('fleet.documents.manage');
+        $this->autorizar('fleet.documents.manage');
 
         $docs = FleetDocument::with('vehicle')
             ->forClient($this->clientId())
@@ -350,6 +344,9 @@ class FleetDocumentController extends FleetBaseController
 
     private function authorizeDocumentView(): void
     {
+        if ($this->enPortal()) {
+            return;
+        }
         if (!auth()->user()?->can('fleet.documents.view') && !auth()->user()?->can('fleet.documents.manage')) {
             abort(403);
         }

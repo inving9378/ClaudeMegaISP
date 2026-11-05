@@ -1,6 +1,14 @@
 <template>
     <div class="col-12" v-if="loadDatatable && allService.Internet">
         <div class="card">
+            <div v-if="macsPorServicio.length" class="px-3 pt-2 small">
+                <div v-for="m in macsPorServicio" :key="m.service_id">
+                    <strong>{{ m.username }}</strong>: MAC
+                    <span v-if="!m.macs.length" class="text-muted">sin aprender todavía</span>
+                    <span v-for="x in m.macs" :key="x.mac" class="badge bg-light text-dark border me-1" :title="'Última vez: ' + (x.ultima_vez || '-')">{{ x.mac }}</span>
+                    <span v-if="m.multiple" class="badge bg-warning text-dark">Más de una MAC en este servicio</span>
+                </div>
+            </div>
             <Datatable
                 idTable="internetservicetable"
                 module="cliente/clientinternetservice"
@@ -77,6 +85,15 @@ export default {
         const modal = ref();
         const actionCrudInternetService = ref(`crear/${props.idClient}`);
         const render = ref(1);
+
+        const macsPorServicio = ref([]);
+        const cargarMacs = () =>
+            axios
+                .get(`/cliente/clientinternetservice/macs/${props.idClient}`)
+                .then((r) => (macsPorServicio.value = r.data || []))
+                .catch(() => (macsPorServicio.value = []));
+        onMounted(cargarMacs);
+        watch(() => props.idClient, cargarMacs);
 
         const loadDatatable = ref(false);
         const hasPermission = reactive({
@@ -227,6 +244,7 @@ export default {
             hasPermission,
             loadDatatable,
             allService,
+            macsPorServicio,
             datosRed,
         };
     },

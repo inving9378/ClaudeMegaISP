@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Talento\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoCertification;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoCourse;
@@ -14,6 +15,7 @@ use App\Modules\Addons\Talento\Services\CertificationService;
 use App\Modules\Addons\Talento\Services\ExamService;
 use App\Modules\Addons\Talento\Support\Actor;
 use Illuminate\Http\Request;
+use Spatie\Permission\Models\Role;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -48,7 +50,7 @@ class TalentoAcademyController extends Controller
      */
     private function puedeVerAcademiaDe($colaboradorId): bool
     {
-        if (auth()->user()->can('talento.employees.view')) {
+        if (auth()->user()?->can('talento.employees.view')) {
             return true;
         }
         $miPropioColaborador = Actor::for(auth()->user())->talento();
@@ -58,6 +60,21 @@ class TalentoAcademyController extends Controller
 
         return (string) $miPropioColaborador->id === (string) $colaboradorId
             || $miPropioColaborador->subordinados()->where('id', $colaboradorId)->exists();
+    }
+
+    /**
+     * Los cursos van por rol (2026-10-24): cada quien ve los generales y los de sus roles. Quien
+     * administra la Academia ve todos donde los administra (pestaña Admin) y puede abrir cualquiera.
+     */
+    private function rolesDe(?int $userId): array
+    {
+        return $userId ? (User::find($userId)?->getRoleNames()->all() ?? []) : [];
+    }
+
+    private function puedeVerCurso(TalentoCourse $course): bool
+    {
+        return auth()->user()?->can('talento.academy.manage')
+            || $course->esParaRoles($this->rolesDe(auth()->id()));
     }
 
     // ── Web view ───────────────────────────────────────────────────────────
@@ -74,7 +91,23 @@ class TalentoAcademyController extends Controller
         $q = TalentoCourse::query();
         if ($request->boolean('active_only', false)) $q->where('active', true);
         if ($request->filled('department'))           $q->where('department', $request->department);
+        if (! ($request->boolean('todos') && auth()->user()->can('talento.academy.manage'))) {
+            $q->paraRoles($this->rolesDe(auth()->id()));
+        }
         return response()->json($q->orderBy('order')->orderBy('title')->get());
+    }
+
+    /** Roles que se pueden elegir en «Para quién» del curso (los puestos; no los de sistema). */
+    public function rolesParaCursos()
+    {
+        $this->authorize('talento.academy.manage');
+
+        return response()->json(Role::whereNotIn('name', TalentoColaborador::ROLES_QUE_NO_SON_PUESTO)
+            ->orderBy('name')
+            ->pluck('name')
+            ->map(fn ($r) => ['rol' => $r, 'etiqueta' => TalentoColaborador::nombrePuesto($r)])
+            ->sortBy('etiqueta', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values());
     }
 
     public function showCourse(int $id)
@@ -84,6 +117,7 @@ class TalentoAcademyController extends Controller
             'materials.referencePenaltyType',
             'exams' => fn($q) => $q->where('active', true),
         ])->findOrFail($id);
+        abort_unless($this->puedeVerCurso($course), 404);
 
         return response()->json($course);
     }
@@ -96,9 +130,12 @@ class TalentoAcademyController extends Controller
             'title'       => 'required|string|max:200',
             'description' => 'nullable|string',
             'department'  => 'nullable|string|max:80',
+            'roles'       => 'nullable|array',
+            'roles.*'     => 'string|exists:roles,name',
             'order'       => 'integer|min:0',
             'active'      => 'boolean',
         ]);
+        if (array_key_exists('roles', $data)) $data['roles'] = $data['roles'] ? array_values($data['roles']) : null;
         return response()->json(TalentoCourse::create($data), 201);
     }
 
@@ -111,9 +148,12 @@ class TalentoAcademyController extends Controller
             'title'       => 'sometimes|string|max:200',
             'description' => 'nullable|string',
             'department'  => 'nullable|string|max:80',
+            'roles'       => 'nullable|array',
+            'roles.*'     => 'string|exists:roles,name',
             'order'       => 'integer|min:0',
             'active'      => 'boolean',
         ]);
+        if (array_key_exists('roles', $data)) $data['roles'] = $data['roles'] ? array_values($data['roles']) : null;
         $course->update($data);
         return response()->json($course);
     }
@@ -200,12 +240,15 @@ class TalentoAcademyController extends Controller
     {
         // Returns exam WITH questions but WITHOUT correct_answer
         $exam = TalentoExam::with('questions')->findOrFail($examId);
+        abort_unless($exam->course && $this->puedeVerCurso($exam->course), 404);
         return response()->json($exam);
     }
 
     public function submitExam(Request $request, int $examId)
     {
         $data = $request->validate(['answers' => 'required|array']);
+        $examen = TalentoExam::with('course')->findOrFail($examId);
+        abort_unless($examen->course && $this->puedeVerCurso($examen->course), 404);
 
         $colaborador = TalentoColaborador::where('user_id', auth()->id())->first();
         if (!$colaborador) {
@@ -300,6 +343,9 @@ class TalentoAcademyController extends Controller
     {
         $this->authorize('talento.academy.view');
         $eval = TalentoPracticalEvaluation::findOrFail($id);
+        if (config('unificacion.interruptores.acceso_registro_b5a')) {
+            abort_unless($this->puedeVerAcademiaDe($eval->colaborador_id), 404);
+        }
         if (!$eval->evidence_path || !Storage::disk('local')->exists($eval->evidence_path)) abort(404);
         return response()->file(Storage::disk('local')->path($eval->evidence_path));
     }
@@ -338,10 +384,14 @@ class TalentoAcademyController extends Controller
     {
         abort_unless($this->puedeVerAcademiaDe($colaboradorId), 403);
 
-        $certs  = TalentoCertification::where('colaborador_id', $colaboradorId)->where('status', 'active')->count();
-        $total  = TalentoCourse::where('active', true)->count();
+        // Solo los cursos que le tocan a esa persona por sus roles (2026-10-24).
+        $roles  = $this->rolesDe(TalentoColaborador::whereKey($colaboradorId)->value('user_id'));
+        $ids    = TalentoCourse::where('active', true)->paraRoles($roles)->pluck('id');
+        $certs  = TalentoCertification::where('colaborador_id', $colaboradorId)->where('status', 'active')
+            ->whereIn('course_id', $ids)->distinct()->count('course_id');
+        $total  = $ids->count();
         $courses = TalentoCourse::with(['exams' => fn($q) => $q->where('active', true)])
-            ->where('active', true)
+            ->whereIn('id', $ids)
             ->get()
             ->map(function ($c) use ($colaboradorId) {
                 $examPassed = $c->exams->first()

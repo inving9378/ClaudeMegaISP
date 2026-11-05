@@ -47,6 +47,13 @@ class TalentoDashboardController extends Controller
         $this->authorize('talento.dashboard.view');
         $days = (int)($request->days ?? 30);
         $colId = $request->colaborador_id ? (int)$request->colaborador_id : null;
+        if (config('unificacion.interruptores.acceso_registro_b5a') && ! auth()->user()->can('talento.employees.view')) {
+            // Sin permiso de supervisión: solo la propia producción (o la de su equipo si la pide); nunca la global.
+            $mio = Actor::for(auth()->user())->talento();
+            abort_unless($mio, 404);
+            $colId = $colId ?? $mio->id;
+            abort_unless($this->puedeVerPreviewDe($colId), 404);
+        }
         return response()->json($this->service->dailyProduction($days, $colId));
     }
 

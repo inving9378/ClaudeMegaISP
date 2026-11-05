@@ -58,6 +58,7 @@ class SoltarClaimCommand extends Command
         $destino = in_array($item->estado_previo_claim, ['aprobado_irving', 'aprobado_revisor', 'aprobado_claude'], true)
             ? $item->estado_previo_claim
             : 'aprobado_revisor';
+        $sinPrevio = $destino === 'aprobado_revisor' && $item->estado_previo_claim !== 'aprobado_revisor';
 
         $log   = $item->log ?: [];
         $log[] = [
@@ -68,7 +69,8 @@ class SoltarClaimCommand extends Command
             'sid'    => $sid,
             'motivo' => "La vuelta de {$sid} terminó sin cerrar el item (muerte del proceso: kill, OOM o "
                       . 'freno a media vuelta). Se libera el reclamo y vuelve a la cola como ' . $destino
-                      . ' en vez de quedarse en_progreso ocupando un slot sin nadie detrás.',
+                      . ' en vez de quedarse en_progreso ocupando un slot sin nadie detrás.'
+                      . ($sinPrevio ? ' (sin estado previo, se devuelve a aprobado_revisor)' : ''),
         ];
 
         $item->log               = $log;

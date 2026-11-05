@@ -17,7 +17,7 @@ class FleetNotificationController extends FleetBaseController
     // GET /flotas/api/vehiculos/{id}/notification-preference — preferencia del usuario actual para este vehículo
     public function myPreference(int $id): JsonResponse
     {
-        $this->authorize('fleet.view');
+        $this->autorizar('fleet.view');
 
         $vehicle = FleetVehicle::forClient($this->clientId())->findOrFail($id);
         $user = auth()->user();
@@ -49,7 +49,7 @@ class FleetNotificationController extends FleetBaseController
     // POST /flotas/api/vehiculos/{id}/notification-preference — guarda la preferencia del usuario
     public function savePreference(Request $request, int $id): JsonResponse
     {
-        $this->authorize('fleet.view');
+        $this->autorizar('fleet.view');
 
         $vehicle = FleetVehicle::forClient($this->clientId())->findOrFail($id);
         $user = auth()->user();
@@ -101,7 +101,7 @@ class FleetNotificationController extends FleetBaseController
     // GET /flotas/api/notificaciones-log — log paginado (admin)
     public function log(Request $request): JsonResponse
     {
-        $this->authorize('fleet.notifications.view');
+        $this->autorizar('fleet.notifications.view');
 
         $logs = FleetNotificationLog::with(['event.vehicle', 'event.geofence', 'user'])
             ->whereHas('event.vehicle', fn ($v) => $v->forClient($this->clientId()))
@@ -109,6 +109,9 @@ class FleetNotificationController extends FleetBaseController
             ->orderByDesc('id')
             ->paginate(30);
 
+        // En el portal (#664) no se expone a quién se mandó (personal de Meganet: nombre, correo o
+        // teléfono) ni el error interno del envío; el cliente ve vehículo, evento, canal, estado y fecha.
+        $portal = $this->enPortal();
         $items = collect($logs->items())->map(fn ($l) => [
             'id'            => $l->id,
             'created_at'    => $l->created_at?->toIso8601String(),
@@ -116,11 +119,11 @@ class FleetNotificationController extends FleetBaseController
             'vehicle_id'    => $l->event?->vehicle_id,
             'geofence'      => $l->event?->geofence?->name ?? '—',
             'event_type'    => $l->event?->event_type,
-            'user'          => trim(($l->user?->name ?? '') . ' ' . ($l->user?->father_last_name ?? '')) ?: ($l->user?->login_user ?? ('#' . $l->user_id)),
+            'user'          => $portal ? null : (trim(($l->user?->name ?? '') . ' ' . ($l->user?->father_last_name ?? '')) ?: ($l->user?->login_user ?? ('#' . $l->user_id))),
             'channel'       => $l->channel,
-            'destination'   => $l->destination,
+            'destination'   => $portal ? null : $l->destination,
             'status'        => $l->status,
-            'error_message' => $l->error_message,
+            'error_message' => $portal ? null : $l->error_message,
         ]);
 
         return response()->json([
@@ -134,7 +137,7 @@ class FleetNotificationController extends FleetBaseController
     // POST /flotas/api/notificaciones-log/{id}/resend — reintenta el evento de un log fallido
     public function resend(int $id, FleetNotificationDispatcher $dispatcher): JsonResponse
     {
-        $this->authorize('fleet.notifications.manage');
+        $this->autorizar('fleet.notifications.manage');
 
         $log = FleetNotificationLog::with('event.vehicle')->findOrFail($id);
         // Tenant check

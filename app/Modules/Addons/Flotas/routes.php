@@ -12,7 +12,9 @@ use App\Modules\Addons\Flotas\Controllers\FleetGeofenceController;
 use App\Modules\Addons\Flotas\Controllers\FleetNotificationController;
 use App\Modules\Addons\Flotas\Controllers\FleetRuleController;
 use App\Modules\Addons\Flotas\Controllers\FleetSubscriptionController;
+use App\Modules\Addons\Flotas\Controllers\FleetClientVehicleController;
 use App\Modules\Addons\Flotas\Controllers\FleetPushTokenController;
+use App\Modules\Addons\Flotas\Controllers\FleetClientsAdminController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -44,6 +46,16 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         // Análisis comparativo de gastos (item #688) — antes de /{id}.
         Route::get('/comparativo',            fn() => view('addon-flotas::flotas.comparativo'));
 
+        // Flotas de clientes (#635) — antes de /{id}.
+        Route::get('/clientes',        fn() => view('addon-flotas::flotas.clientes.index'))->middleware('permission:fleet.clients.view');
+        Route::get('/clientes/{id}',   fn() => view('addon-flotas::flotas.clientes.show'))->whereNumber('id')->middleware('permission:fleet.clients.view');
+        Route::prefix('api/clientes-flota')->group(function () {
+            Route::get('/',                        [FleetClientsAdminController::class, 'index']);
+            Route::get('/{clientId}',              [FleetClientsAdminController::class, 'show'])->whereNumber('clientId');
+            Route::post('/{clientId}/vehiculos/{id}/gps',   [FleetClientsAdminController::class, 'storeGps'])->whereNumber(['clientId', 'id']);
+            Route::delete('/{clientId}/vehiculos/{id}/gps', [FleetClientsAdminController::class, 'destroyGps'])->whereNumber(['clientId', 'id']);
+        });
+
         Route::get('/{id}',       fn() => view('addon-flotas::flotas.show'))->whereNumber('id');
 
         // ── API: Vehículos ─────────────────────────────────────────────────────
@@ -53,12 +65,15 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
             // Datos auxiliares (segmentos /data/* → no chocan con /{id})
             Route::get('/data/dashboard',  [FleetVehicleController::class, 'dashboard']);
+            Route::get('/data/costo-km',   [FleetVehicleController::class, 'costoKm']);
             Route::get('/data/alertas',    [FleetVehicleController::class, 'alertas']);
             Route::get('/data/operadores', [FleetVehicleController::class, 'operators']);
 
             // Asignaciones del vehículo
             Route::get('/{id}/asignaciones',  [FleetAssignmentController::class, 'index'])->whereNumber('id');
             Route::post('/{id}/asignaciones', [FleetAssignmentController::class, 'store'])->whereNumber('id');
+
+            Route::get('/{id}/prediccion-servicios', [FleetMaintenanceController::class, 'prediction'])->whereNumber('id');
 
             // Tracking GPS del vehículo (Fase 2)
             Route::get('/{id}/gps',          [FleetGpsController::class, 'status'])->whereNumber('id');
@@ -175,6 +190,13 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
                 Route::post('client/{clientId}/start-trial',    [FleetSubscriptionController::class, 'startTrial'])->whereNumber('clientId');
                 Route::post('client/{clientId}/change-plan',    [FleetSubscriptionController::class, 'changePlan'])->whereNumber('clientId');
                 Route::post('client/{clientId}/cancel',         [FleetSubscriptionController::class, 'cancel'])->whereNumber('clientId');
+                // Unidades a nombre del cliente (alta por el personal desde la ficha)
+                Route::get('client/{clientId}/vehiculos',                [FleetClientVehicleController::class, 'index'])->whereNumber('clientId');
+                Route::post('client/{clientId}/vehiculos',               [FleetClientVehicleController::class, 'store'])->whereNumber('clientId');
+                Route::put('client/{clientId}/vehiculos/{id}',           [FleetClientVehicleController::class, 'update'])->whereNumber(['clientId', 'id']);
+                Route::delete('client/{clientId}/vehiculos/{id}',        [FleetClientVehicleController::class, 'destroy'])->whereNumber(['clientId', 'id']);
+                Route::post('client/{clientId}/vehiculos/{id}/gps',      [FleetClientVehicleController::class, 'storeGps'])->whereNumber(['clientId', 'id']);
+                Route::delete('client/{clientId}/vehiculos/{id}/gps',    [FleetClientVehicleController::class, 'destroyGps'])->whereNumber(['clientId', 'id']);
                 // confirmPayment → NO routeado hasta Fase 6.2 (integración con módulo Pagos)
             });
     });

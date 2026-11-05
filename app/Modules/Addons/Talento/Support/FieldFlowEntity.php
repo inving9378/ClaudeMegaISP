@@ -32,7 +32,6 @@ class FieldFlowEntity
         }
 
         $task = Task::where('id', $id)
-            ->where('tipo', 'campo')
             ->whereNotNull('talento_type_id')
             ->first();
         if ($task) {
@@ -40,6 +39,25 @@ class FieldFlowEntity
         }
 
         return null;
+    }
+
+    /**
+     * Igual que resolve() pero acepta una referencia con origen (T-<id>/L-<id>) cuando
+     * unificacion.referencia_orden está ON; OFF = orden de búsqueda actual, solo numérica.
+     * Ambigua/inválida/no encontrada → null (el llamador decide el 409/404 con OrdenReferencia::resolve).
+     */
+    public static function resolveRef(string|int $ref): ?array
+    {
+        if (! config('unificacion.interruptores.referencia_orden')) {
+            return ctype_digit((string) $ref) ? self::resolve((int) $ref) : null;
+        }
+        $r = OrdenReferencia::resolve($ref);
+        if ($r['estado'] !== OrdenReferencia::OK) {
+            return null;
+        }
+        return $r['origen'] === OrdenReferencia::ORIGEN_ANTIGUA
+            ? ['origen' => 'work_order', 'model' => $r['model'], 'fk' => 'work_order_id']
+            : ['origen' => 'task', 'model' => $r['model'], 'fk' => 'tarea_id'];
     }
 
     /** 'work_order_id' si $id es una OT real; 'tarea_id' en cualquier otro caso. */

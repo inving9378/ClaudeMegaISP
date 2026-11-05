@@ -40,10 +40,33 @@ final class Actor
         return $this->user;
     }
 
+    /**
+     * Dónde abrir una orden de Talento que se le asignó a esta persona (campanita de «Nueva tarea
+     * asignada», 2026-10-27): su ficha en «Mi día» con la orden abierta. Null si la tarea no es una
+     * orden de Talento, no está asignada a esta persona o no tiene ficha activa; entonces el aviso
+     * sigue abriendo la tarea en Scheduling.
+     */
+    public function urlOrdenEnMiDia(\App\Models\Task $task): ?string
+    {
+        if (! $task->talento_type_id || ! $this->talento()) {
+            return null;
+        }
+        if (! $task->users()->where('users.id', $this->user->id)->exists()) {
+            return null;
+        }
+
+        return "/talento/colaborador/{$this->talento()->id}?tab=mi_dia&ot={$task->id}";
+    }
+
     /** Talento: colaborador ACTIVO por user_id. Molde generalizado — los Bloques 1-2 cuelgan de acá. */
     public function talento(): ?TalentoColaborador
     {
         if (! $this->talentoLoaded) {
+            if (config('unificacion.interruptores.cuenta_activa') && $this->user->isNotActive()) {
+                $this->talentoLoaded = true;
+
+                return $this->talento = null;
+            }
             $this->talento = TalentoColaborador::with('user')
                 ->where('user_id', $this->user->id)
                 ->where('status', 'active')
@@ -99,7 +122,29 @@ final class Actor
      */
     public function trackPrincipal(): string
     {
-        $roles = $this->user->getRoleNames();
+        return self::trackDeRoles($this->user->getRoleNames());
+    }
+
+    /**
+     * Roles que definen el track, del más prioritario al menos. Es la única lista: el puesto
+     * (TalentoColaborador::rolesDePuesto) y el tablero de la ficha leen de aquí. Vendedor va aparte,
+     * al final, porque es una función que se suma a otro puesto.
+     */
+    public const ROLES_POR_PRIORIDAD = ['TECNICO_PLANTA', 'TECNICO_INSTALADOR', 'TECNICO', 'SUPERVISOR_MOSTRADOR', 'Mostrador'];
+
+    public const ROLES_MOSTRADOR = ['Mostrador', 'SUPERVISOR_MOSTRADOR'];
+
+    /**
+     * Único criterio para deducir el track desde una lista de roles. Con el interruptor
+     * `unificacion.interruptores.track_unico` apagado, SUPERVISOR_MOSTRADOR sigue sin ser mostrador
+     * aquí (comportamiento anterior); encendido, lo es, igual que en la ficha.
+     * Secciones de Actor::sections() que dependen del track: ver docs/modulos/talento.md (Track).
+     */
+    public static function trackDeRoles(iterable $roles): string
+    {
+        $roles = collect($roles);
+        $mostrador = config('unificacion.interruptores.track_unico', false)
+            ? self::ROLES_MOSTRADOR : ['Mostrador'];
 
         if ($roles->contains('TECNICO_PLANTA')) {
             return 'tecnico_planta_interna';
@@ -107,7 +152,7 @@ final class Actor
         if ($roles->contains('TECNICO_INSTALADOR') || $roles->contains('TECNICO')) {
             return 'tecnico_planta_externa';
         }
-        if ($roles->contains('Mostrador')) {
+        if ($roles->intersect($mostrador)->isNotEmpty()) {
             return 'mostrador';
         }
         if ($roles->contains('Vendedor')) {
@@ -210,6 +255,7 @@ final class Actor
             ['prospectos', 'Mi trabajo',  'Mis prospectos', 'groups',       'prospectos',  fn () => (bool) $this->seller(),                       true],   // Fase C
             ['panel',      'Mi trabajo',  'Mi panel',       'insights',     'panel',       fn () => (bool) ($this->seller() || $this->embajador()), false], // Fases D/E
             ['equipo',     'Supervisión', 'Mi equipo',      'groups',       'mi_equipo',   fn () => $this->esSuperAdminTalento() || $this->tieneEquipo(), true], // Fase 5 del dashboard por rol (2026-10-08) — pedido directo de Irving: admin ve a su equipo, super admin ve todo
+            ['penalizaciones', 'Supervisión', 'Penalizaciones', 'gavel',  'penalizaciones_equipo', fn () => $this->esSuperAdminTalento() || $this->tieneEquipo(), true], // 2026-10-20: confirmar las penalizaciones del equipo
             ['documentos', 'Cuenta',      'Mis documentos', 'description',  'documentos',  fn () => $this->user->can('talento.documentos.ver-propios'), true], // Item #9990814
             ['perfil',     'Cuenta',      'Perfil',         'person',       'perfil',      fn (): bool => true,                                  true],
         ];

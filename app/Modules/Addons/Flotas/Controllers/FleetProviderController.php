@@ -10,7 +10,7 @@ class FleetProviderController extends FleetBaseController
 {
     public function index(): JsonResponse
     {
-        $this->authorize('fleet.view');
+        $this->autorizar('fleet.view');
 
         return response()->json([
             'providers' => FleetProvider::forClient($this->clientId())->orderBy('name')->get(),
@@ -19,7 +19,7 @@ class FleetProviderController extends FleetBaseController
 
     public function store(Request $request): JsonResponse
     {
-        $this->authorize('fleet.providers.manage');
+        $this->autorizar('fleet.providers.manage');
 
         $data = $request->validate([
             'name'         => 'required|string|max:200',
@@ -39,7 +39,7 @@ class FleetProviderController extends FleetBaseController
 
     public function update(Request $request, int $id): JsonResponse
     {
-        $this->authorize('fleet.providers.manage');
+        $this->autorizar('fleet.providers.manage');
 
         $provider = FleetProvider::forClient($this->clientId())->findOrFail($id);
         $provider->update($request->except(['client_id']));
@@ -49,7 +49,7 @@ class FleetProviderController extends FleetBaseController
 
     public function destroy(int $id): JsonResponse
     {
-        $this->authorize('fleet.providers.manage');
+        $this->autorizar('fleet.providers.manage');
 
         FleetProvider::forClient($this->clientId())->findOrFail($id)->delete();
 

@@ -42,4 +42,27 @@ return [
         'max_tokens' => 1024,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Límites anti-abuso del portal del cliente (item #637)
+    |--------------------------------------------------------------------------
+    */
+    'portal' => [
+        'max_geocercas' => (int) env('FLOTAS_PORTAL_MAX_GEOCERCAS', 50),
+        'max_reglas'    => (int) env('FLOTAS_PORTAL_MAX_REGLAS', 50),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Alertas al cliente (item #638 P5 / #670)
+    |--------------------------------------------------------------------------
+    */
+    'alertas_cliente' => [
+        'max_contactos'          => (int) env('FLOTAS_ALERTAS_MAX_CONTACTOS', 5),
+        // WhatsApp por cliente y mes; al llegar al tope cae a correo y avisa UNA vez.
+        'whatsapp_tope_mensual'  => (int) env('FLOTAS_ALERTAS_WHATSAPP_TOPE', 100),
+        // Misma regla + misma unidad no se repite antes de N minutos.
+        'ventana_antirepeticion_min' => (int) env('FLOTAS_ALERTAS_ANTIREPETICION_MIN', 15),
+    ],
+
 ];

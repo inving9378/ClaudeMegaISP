@@ -177,6 +177,17 @@ class ProcessReferralCommissions implements ShouldQueue
                 continue;
             }
 
+            // UNI-T I5: apagado (default) = siempre aplica. Solo afecta comisiones nuevas.
+            $compat = app(\App\Services\IncentiveCompatibilityService::class);
+            if (!$compat->aplicable('embajador', $compat->otorgadosPrevios(
+                'embajador',
+                $compat->userIdDeCliente((int) $beneficiaryClientId),
+                now()->startOfMonth()->toDateString(),
+                now()->endOfMonth()->toDateString()
+            ))) {
+                continue;
+            }
+
             $baseAmount       = (float) $this->invoice->total;
             $commissionAmount = round($baseAmount * $rate / 100, 2);
 

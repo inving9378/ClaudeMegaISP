@@ -8,6 +8,10 @@
     "active": true,
     "permissions": [
         {
+            "name": "metricas.monitoreo.configurar",
+            "description": "Encender o apagar el monitoreo de servicios dedicados en Configuración"
+        },
+        {
             "name": "config_view_system",
             "description": "Ver sección Sistema en Configuración"
         },
@@ -164,6 +168,28 @@
         }
     ],
     "config_sections": [
+        {
+            "key": "monitoreo_dedicados",
+            "label": "Monitoreo de dedicados",
+            "type": "general",
+            "category": "Red",
+            "icon": "wifi",
+            "url": "/configuracion/monitoreo-dedicados",
+            "permission": "metricas.monitoreo.configurar",
+            "description": "Freno de emergencia del monitoreo de servicios dedicados y cómo va el colector.",
+            "doc": {
+                "terms": [
+                    {
+                        "term": "Freno de emergencia",
+                        "definition": "Apagado, no se toman lecturas de ningún servicio dedicado. Cada servicio se mide o se pausa solo, según el estado del cliente y del servicio."
+                    }
+                ],
+                "steps": [
+                    "Ve a Configuración → Monitoreo de dedicados.",
+                    "Apaga o enciende el interruptor. Queda registrado quién lo cambió y cuándo."
+                ]
+            }
+        },
         {
             "key": "empresa_info",
             "label": "Información de la Empresa",
@@ -876,6 +902,20 @@
             "description": "Panel principal de Configuración",
             "scope": "config_view_module",
             "permission": "config_view_module"
+        },
+        {
+            "method": "GET",
+            "path": "/configuracion/monitoreo-dedicados/estado",
+            "description": "Estado del monitoreo de servicios dedicados",
+            "scope": "config_view_system",
+            "permission": "metricas.monitoreo.configurar"
+        },
+        {
+            "method": "POST",
+            "path": "/configuracion/monitoreo-dedicados",
+            "description": "Enciende o apaga el monitoreo de servicios dedicados",
+            "scope": "config_view_system",
+            "permission": "metricas.monitoreo.configurar"
         },
         {
             "method": "GET",

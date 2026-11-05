@@ -512,6 +512,8 @@ export default {
     },
 
     async loadBoxData(boxId) {
+      // I3: sincronización explícita e idempotente de instalaciones; listar ya no escribe.
+      await axios.post(`/talento/api/caja/instalaciones/${boxId}/sincronizar`).catch(() => {});
       const [received, extras, suppliers, installations, observations] = await Promise.all([
         axios.get(`/talento/api/caja/box/${boxId}/pagos-recibidos`),
         axios.get(`/talento/api/caja/extras/${boxId}`),

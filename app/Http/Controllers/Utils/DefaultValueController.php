@@ -50,7 +50,7 @@ class DefaultValueController extends Controller
         $clientId = Str::afterLast($from, '/');
         $client = Client::find($clientId);
         return $client ?
-            Carbon::parse($client->create_at)->day :
+            Carbon::parse($client->created_at)->day :
             null;
     }
 }

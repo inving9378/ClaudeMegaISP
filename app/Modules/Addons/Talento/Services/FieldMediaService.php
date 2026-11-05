@@ -15,6 +15,9 @@ class FieldMediaService
 {
     private const SENSITIVE_TYPES = ['ine_front', 'ine_back', 'proof_address'];
 
+    /** type de FieldMediaService -> talento_evidence_types.id (Foto antes, Foto después, Serial). */
+    private const TYPE_TO_EVIDENCE = ['presentation' => 11, 'completion' => 12, 'modem_sn' => 5];
+
     private function flaggedRadius(): float
     {
         return (float) (DB::table('settings')->where('key', 'talento_media_flagged_radius_m')->value('value') ?? 500);
@@ -110,6 +113,9 @@ class FieldMediaService
         return TalentoWorkOrderMedia::create([
             $fkCol                => $entityId,
             'type'               => $type,
+            // D6: mismo clasificador que la matriz de evidencias (null = sin equivalente).
+            'evidence_type_id'   => config('unificacion.interruptores.evidencias_d6')
+                ? (self::TYPE_TO_EVIDENCE[$type] ?? null) : null,
             'file_path'          => $storedPath,
             'captured_lat'       => $capturedLat,
             'captured_lng'       => $capturedLng,

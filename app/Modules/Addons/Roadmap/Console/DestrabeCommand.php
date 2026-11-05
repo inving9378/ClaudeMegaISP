@@ -24,13 +24,14 @@ class DestrabeCommand extends Command
 
         // Items de la bandeja SIN des-trabar aún (sin el sello DES-TRABE en comentarios).
         $items = RoadmapItem::where('estado_aprobacion', 'requiere_irving')
-            ->whereNotIn('status', ['done', 'cancelado'])
+            ->whereNotIn('status', ['done', 'cancelled', 'cancelado'])
+            ->whereNotIn('estado_aprobacion', ['completado', 'cancelado', 'rechazado'])
             ->where('en_desarrollo_humano', false)
             // #507 — NUNCA re-aprobar al pool un item parqueado (espera-merge / anti-bucle) ni uno
             // rotulado: eso era una de las puertas por las que el churn volvía a arrancar.
             ->elegibleParaPool()
             ->where(function ($q) {
-                $q->whereNull('comentarios_claude')->orWhere('comentarios_claude', 'not like', '%DES-TRABE (Opus)%');
+                $q->whereNull('comentarios_claude')->orWhere('comentarios_claude', 'not like', '%--- DES-TRABE (%');
             })
             ->orderByDesc('id')
             ->limit($limit)

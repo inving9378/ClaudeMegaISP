@@ -7,6 +7,8 @@ use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Services\RoadmapAdjuntoService;
 use App\Modules\Addons\Roadmap\Support\FrenoCircuito;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -1048,6 +1050,7 @@ class RoadmapCircuitoService
             // TORRE V2 — el reparto, visible ya en la LISTA (no hay que abrir item por item para
             // saber qué está en manos de quién).
             'estado_cola'       => $i->estado_cola,
+            'espera_motivo'     => $i->motivoEsperaCola(),   // #1122: por qué NO está tomable (null = tomable)
             'terminal_asignada' => $i->worker_sid,
             'item_padre'        => $i->origen_item_id ? (int) $i->origen_item_id : null,
             'consulta_viva'     => $i->tieneConsultaViva(),
@@ -1073,6 +1076,7 @@ class RoadmapCircuitoService
             // fuera no puede saber si un item ya está en manos de una terminal, terminado y
             // esperando merge, o parado esperando a Irving — y volvía a preguntar por chat.
             'estado_cola'        => $i->estado_cola,
+            'espera_motivo'      => $i->motivoEsperaCola(),   // #1122
             'terminal_asignada'  => $i->worker_sid,
             'asignado_at'        => optional($i->claimed_at)->toIso8601String(),
             'rama'               => $i->branch,
@@ -2340,6 +2344,18 @@ class RoadmapCircuitoService
             $row = RoadmapItem::where('id', $itemId)->first(['id', 'modulo']);
             $items = $row ? [['id' => $row->id, 'modulo' => $row->modulo]] : [];
         } else {
+            // Limpieza de la Hoja de ruta — RITMO: el pool continuo (la terminal que acaba de cerrar
+            // pide la siguiente) respeta el mismo tope que el scheduler: 6 como máximo, 4 sin medición
+            // de la cuota y 0 si la cuota semanal pasó del umbral. El reclamo DIRIGIDO no se frena.
+            $ritmo   = app(RitmoCircuitoService::class)->limite();
+            $enVuelo = DB::table('roadmap_items')->where('estado_aprobacion', 'en_progreso')->whereNotNull('worker_sid')->count();
+            if ($enVuelo >= $ritmo['max']) {
+                Log::channel('roadmap_externo')->info('claim-frenado-por-ritmo', [
+                    'sid' => $workerSid, 'en_vuelo' => $enVuelo, 'max' => $ritmo['max'], 'motivo' => $ritmo['motivo'],
+                ]);
+
+                return null;
+            }
             $items = $this->ejecutablesParalelo($this->modulosEnVuelo(), 1);
         }
         if (! $items) {
@@ -2578,6 +2594,8 @@ class RoadmapCircuitoService
     {
         return DB::table('roadmap_items')
             ->where('estado_aprobacion', 'en_progreso')
+            // #625 — un reclamo fantasma (sin worker_sid) marcado humano no ocupa módulo.
+            ->where(fn ($q) => $q->whereNotNull('worker_sid')->orWhere('en_desarrollo_humano', false))
             ->whereNotNull('modulo')
             ->where('modulo', '!=', '')
             ->where('modulo', '!=', self::MODULO_DESCONOCIDO)   // #432 B2 — 'Sin clasificar' NO es módulo conocido
@@ -2614,8 +2632,13 @@ class RoadmapCircuitoService
         if (! empty($d->merge_commit)) {
             return true;
         }
-
+        // (c) cierre justificado SIN código (`sin_merge_esperado` + motivo, el campo que exige
+        // `verificarCierre`): no hay rama que esperar. Sin esto sus dependientes esperaban para
+        // siempre (caso real: #647 «sustituido», con #648 detrás).
         $item = RoadmapItem::find((int) $d->id);
+        if ($item !== null && $item->sin_merge_esperado && trim((string) $item->cierre_sin_codigo_motivo) !== '') {
+            return true;
+        }
 
         return $item !== null && $item->yaFueDescompuesto() && ! $item->tieneSubItemsAbiertos();
     }
@@ -2873,6 +2896,70 @@ class RoadmapCircuitoService
         }
 
         return $out;
+    }
+
+    /**
+     * #1030 paso B — «QUÉ SIGUE»: UN solo cálculo, el del despachador.
+     *
+     * Antes Panorama («Cola ejecutable», `RoadmapItem::autoEjecutable()`) y Terminales («Listos para
+     * terminal», `SupervisorService`) contaban con reglas propias —estado, nivel y cola, sin
+     * dependencias, sin el interruptor del revisor ni las secciones de fase— y llegaron a decir 45 y
+     * 11 mientras el despachador no podía sacar ninguno. Ahora las dos pantallas leen esto, armado
+     * con las MISMAS funciones que usa `SchedulerCommand`:
+     *  - `ronda`:    lo que el despachador toma en su próxima ronda si hay terminal libre, en su orden
+     *                (`ejecutablesParalelo()`, que saca como mucho N por módulo y por ronda).
+     *  - `en_turno`: ya listo, pero espera el turno de su módulo (tope por módulo o footprint
+     *                desconocido): sale en una ronda posterior sin que nadie haga nada.
+     *  - `frenados`: cuántos candidatos frena cada motivo (`diagnosticoCeroDespacho()`).
+     * Cacheado 10 s: lo consultan los sondeos de Panorama y Terminales cada pocos segundos, y el
+     * despachador corre cada minuto, así que nunca esconde una ronda.
+     *
+     * @return array{ronda:int[], en_turno:int[], frenados:array<string,int>}
+     */
+    public function queSigue(): array
+    {
+        return Cache::remember('circuito.que_sigue', 10, function () {
+            $enVuelo = $this->modulosEnVuelo();
+            $ronda   = array_map(fn ($f) => (int) $f['id'], $this->ejecutablesParalelo($enVuelo, 200));
+            $enTurno = [];
+            $frenados = [];
+            foreach ($this->diagnosticoCeroDespacho($enVuelo)['descartados'] as $d) {
+                if (in_array($d['codigo'], ['tope_modulo', 'footprint_desconocido'], true)) {
+                    $enTurno[] = (int) $d['id'];
+                } else {
+                    $frenados[$d['codigo']] = ($frenados[$d['codigo']] ?? 0) + 1;
+                }
+            }
+
+            return ['ronda' => $ronda, 'en_turno' => $enTurno, 'frenados' => $frenados];
+        });
+    }
+
+    /** Total de `queSigue()`: lo que sale en la próxima ronda más lo que espera turno de su módulo. */
+    public function queSigueTotal(): int
+    {
+        $q = $this->queSigue();
+
+        return count($q['ronda']) + count($q['en_turno']);
+    }
+
+    /**
+     * Los items de `queSigue()` para pintarlos: primero la ronda en el orden del despachador, luego
+     * los que esperan turno por prioridad. Cada uno lleva `sale_ahora` (true si está en la ronda).
+     */
+    public function queSigueItems(int $limite, array $columnas): Collection
+    {
+        $q = $this->queSigue();
+        $ronda = collect($q['ronda']);
+        $porId = RoadmapItem::whereIn('id', $ronda->all())->get($columnas)->keyBy('id');
+        $items = $ronda->map(fn ($id) => $porId->get($id))->filter();
+        if ($items->count() < $limite && $q['en_turno']) {
+            $items = $items->concat(RoadmapItem::whereIn('id', $q['en_turno'])->ordered()
+                ->limit($limite - $items->count())->get($columnas));
+        }
+
+        return $items->take($limite)->values()
+            ->each(fn (RoadmapItem $i) => $i->setAttribute('sale_ahora', $ronda->contains((int) $i->id)));
     }
 
     /**
@@ -3305,7 +3392,7 @@ class RoadmapCircuitoService
         }
 
         $ganadorIds = $pausados->pluck('colision_pausada_por')->unique()->all();
-        $ganadores = DB::table('roadmap_items')->whereIn('id', $ganadorIds)->get(['id', 'estado_aprobacion', 'merge_commit'])->keyBy('id');
+        $ganadores = DB::table('roadmap_items')->whereIn('id', $ganadorIds)->get(['id', 'estado_aprobacion', 'merge_commit', 'excluir_pool_automatico'])->keyBy('id');
 
         $reanudados = [];
         foreach ($pausados as $p) {
@@ -3317,7 +3404,11 @@ class RoadmapCircuitoService
             // TODOS sus sub-items cierren.
             $resuelto = ! $ganador
                 || in_array($ganador->estado_aprobacion, ['completado', 'cancelado', 'rechazado'], true)
-                || ! empty($ganador->merge_commit);
+                || ! empty($ganador->merge_commit)
+                // #983 — ganador que ya no está en vuelo (cualquier estado distinto de en_progreso)
+                // o congelado fuera del pool: nadie lo está trabajando, no bloquea al perdedor.
+                || $ganador->estado_aprobacion !== 'en_progreso'
+                || (bool) $ganador->excluir_pool_automatico;
             if (! $resuelto) {
                 continue;
             }

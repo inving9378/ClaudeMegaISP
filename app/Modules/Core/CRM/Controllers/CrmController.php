@@ -111,6 +111,7 @@ class CrmController extends Controller
         $this->includeLibraryDinamic($this->data['model']);
         $this->data['id'] = $id;
         $this->data['tabs'] = $this->getTabs();
+        $this->data['moduleTabs'] = $this->getModuleTabs();
         $crmLeadInformation = CrmLeadInformation::where('crm_id', $id)->first();
         if ($crmLeadInformation) {
             // No inflar el score al abrir/refrescar la ficha: abrir el form es render, no
@@ -127,6 +128,48 @@ class CrmController extends Controller
         if ($this->userAutenticated()->hasPermissionTo('crm_information_view_tab_crm') || $this->userAutenticated()->isAdmin()) $tabs[] = 'information';
         if ($this->userAutenticated()->hasPermissionTo('crm_document_view_tab_crm') || $this->userAutenticated()->isAdmin()) $tabs[] = 'documents';
         return json_encode($tabs);
+    }
+
+    /**
+     * Pestañas de la ficha del CRM aportadas por módulos addon (`crm_tab` en
+     * module.json), filtradas por permiso. Mismo patrón que
+     * ClientController::getModuleTabs.
+     *
+     * @return string JSON: [{label, component, permission, module}]
+     */
+    public function getModuleTabs()
+    {
+        $registry = app(\App\Modules\Core\ModuleManager\Services\ModuleRegistry::class);
+        $user     = $this->userAutenticated();
+        $isAdmin  = $user->isAdmin();
+        $out      = [];
+
+        foreach ($registry->getCrmTabs() as $tab) {
+            $component = $tab['component'] ?? null;
+            if (empty($component)) {
+                continue;
+            }
+
+            $perm = $tab['permission'] ?? null;
+            if (! $isAdmin && ! empty($perm)) {
+                try {
+                    if (! $user->hasPermissionTo($perm)) {
+                        continue;
+                    }
+                } catch (\Throwable $e) {
+                    continue; // permiso aún inexistente: ocultar a no-admins
+                }
+            }
+
+            $out[] = [
+                'label'      => $tab['label'] ?? ($tab['_module'] ?? 'Módulo'),
+                'component'  => $component,
+                'permission' => $perm,
+                'module'     => $tab['_module'] ?? null,
+            ];
+        }
+
+        return json_encode($out);
     }
 
 

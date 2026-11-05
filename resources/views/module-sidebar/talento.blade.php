@@ -1,4 +1,4 @@
-@if(auth()->user()->canAny(['talento.view','talento.work_orders.view','talento.compensation.view','talento.liquidation.view','talento.attendance.view','talento.location.view','talento.work_sites.view','talento.custody.view','talento.devices.view','talento.roadmap.view','talento.caja.view','talento.routes.view','talento.projects.view','talento.quality.view','talento.penalties.view','talento.credentials.view','talento.loans.view','talento.academy.view','talento.levels.view','talento.dashboard.view','talento.escalafon.view','talento.embajadores.view']))
+@if(auth()->user()->canAny(['talento.view','talento.work_orders.view','talento.compensation.view','talento.liquidation.view','talento.attendance.view','talento.location.view','talento.work_sites.view','talento.custody.view','talento.devices.view','talento.caja.view','talento.routes.view','talento.projects.view','talento.quality.view','talento.penalties.view','talento.credentials.view','talento.loans.view','talento.academy.view','talento.dashboard.view','talento.escalafon.view','talento.embajadores.view']))
 <li>
     <a href="javascript: void(0);" class="has-arrow">
         <i data-feather="users"></i>
@@ -27,14 +27,40 @@
         @if(auth()->user()->can('talento.view'))
             <li><a href="{{ url('/talento') }}"><span><small><i class="fa fa-fw fa-id-badge"></i></small> {{ $rosterCompleto ? 'Colaboradores' : 'Dashboard' }}</span></a></li>
         @endif
+        {{-- 2026-10-22: el Mostrador ya no ve la lista de colaboradores (entra a su dashboard, como un
+             técnico); desde aquí sigue creando órdenes y ve cuánto cobra cada quien. --}}
+        @if(auth()->user()->can('talento.work_orders.manage'))
+            <li><a href="{{ url('/talento/ordenes') }}"><span><small><i class="fa fa-fw fa-clipboard-list"></i></small> Órdenes de trabajo</span></a></li>
+        @endif
+        @if(auth()->user()->can('talento.liquidation.totales'))
+            <li><a href="{{ url('/talento/liquidaciones') }}"><span><small><i class="fa fa-fw fa-file-invoice-dollar"></i></small> Liquidaciones</span></a></li>
+        @endif
         {{-- Catálogos/vistas globales — NUNCA son "de una persona", no tienen
              equivalente en ninguna pestaña, se quedan para quien tenga el
              permiso puntual de cada una sin importar si tiene roster completo. --}}
-        @if(auth()->user()->can('talento.puestos.manage'))
-            <li><a href="{{ url('/talento/puestos') }}"><span><small><i class="fa fa-fw fa-briefcase"></i></small> Catálogo de puestos</span></a></li>
+        {{-- 2026-10-27: las pantallas de gestión general que el recorte del 30-sep dejó solo por
+             dirección. Academia va con .manage: el .view lo tienen técnicos y Mostrador, que ya
+             tienen su Academia en la ficha. --}}
+        @if(auth()->user()->can('talento.academy.manage'))
+            <li><a href="{{ url('/talento/academia') }}"><span><small><i class="fa fa-fw fa-graduation-cap"></i></small> Academia</span></a></li>
         @endif
-        @if(auth()->user()->can('talento.levels.view'))
-            <li><a href="{{ url('/talento/niveles') }}"><span><small><i class="fa fa-fw fa-layer-group"></i></small> Niveles</span></a></li>
+        @if(auth()->user()->can('talento.credentials.view'))
+            <li><a href="{{ url('/talento/credenciales') }}"><span><small><i class="fa fa-fw fa-id-card"></i></small> Credenciales</span></a></li>
+        @endif
+        @if(auth()->user()->can('talento.penalties.view'))
+            <li><a href="{{ url('/talento/penalizaciones') }}"><span><small><i class="fa fa-fw fa-gavel"></i></small> Penalizaciones</span></a></li>
+        @endif
+        @if(auth()->user()->can('talento.reglas_desempeno.view'))
+            <li><a href="{{ url('/talento/reglas-desempeno') }}"><span><small><i class="fa fa-fw fa-balance-scale"></i></small> Reglas de desempeño</span></a></li>
+        @endif
+        @if(auth()->user()->can('talento.documentos.ver-todos'))
+            <li><a href="{{ url('/talento/documentos-pendientes') }}"><span><small><i class="fa fa-fw fa-file-signature"></i></small> Documentos pendientes</span></a></li>
+        @endif
+        @if(auth()->user()->can('talento.expediente.paquetes.manage'))
+            <li><a href="{{ url('/talento/expediente/paquetes') }}"><span><small><i class="fa fa-fw fa-folder-open"></i></small> Paquetes de documentos</span></a></li>
+        @endif
+        @if(auth()->user()->can('talento.config.evidencias'))
+            <li><a href="{{ url('/talento/config/evidencias') }}"><span><small><i class="fa fa-fw fa-camera"></i></small> Configuración de evidencias</span></a></li>
         @endif
         @if(auth()->user()->can('talento.escalafon.view'))
             <li><a href="{{ url('/talento/escalafon') }}"><span><small><i class="fa fa-fw fa-trophy"></i></small> Escalafón</span></a></li>
@@ -44,9 +70,6 @@
         @endif
         @if(auth()->user()->can('talento.work_sites.view'))
             <li><a href="{{ url('/talento/sitios') }}"><span><small><i class="fa fa-fw fa-map-pin"></i></small> Sitios de checada</span></a></li>
-        @endif
-        @if(auth()->user()->can('talento.roadmap.view'))
-            <li><a href="{{ url('/talento/roadmap') }}"><span><small><i class="fa fa-fw fa-road"></i></small> Roadmap</span></a></li>
         @endif
 
         {{-- Hijos dinámicos desde module_sidebar_config (Fase 2.3/3.5) --}}

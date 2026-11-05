@@ -21,6 +21,7 @@ class JarvisConversacion extends Model
         'citas',
         'item_id',
         'estado',
+        'titulo',
         'created_by',
     ];
 
@@ -30,7 +31,7 @@ class JarvisConversacion extends Model
 
     public function mensajes(): HasMany
     {
-        return $this->hasMany(JarvisMensaje::class, 'jarvis_conversacion_id')->orderBy('created_at');
+        return $this->hasMany(JarvisMensaje::class, 'jarvis_conversacion_id')->orderBy('created_at')->orderBy('id');
     }
 
     /** Clave estable de una sugerencia (no tiene id propio: se recalcula cada corrida del detector). */

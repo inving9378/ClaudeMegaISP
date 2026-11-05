@@ -43,6 +43,7 @@ abstract class ModuleDefinition
     public function apiEndpoints(): array      { return $this->manifest()['api_endpoints'] ?? []; }
     public function ai(): array                { return $this->manifest()['ai'] ?? []; }
     public function clientTab(): ?array        { return $this->manifest()['client_tab'] ?? null; }
+    public function crmTab(): ?array           { return $this->manifest()['crm_tab'] ?? null; }
     public function serviceType(): ?array      { return $this->manifest()['service_type'] ?? null; }
 
     // ── Hooks de ciclo de vida ───────────────────────────────────────────────

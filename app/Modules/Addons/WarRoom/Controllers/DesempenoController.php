@@ -29,7 +29,7 @@ class DesempenoController extends Controller
         $department = $request->input('department');
 
         $colaboradores = TalentoColaborador::with('user')
-            ->where('status', 'active')
+            ->activos()
             ->when($colIds, fn($q) => $q->whereIn('id', $colIds))
             ->when($department, fn($q) => $q->where('department', $department))
             ->get();
@@ -39,7 +39,7 @@ class DesempenoController extends Controller
         $data = $colaboradores->map(fn($col) => $this->metricsForColaborador($col, $from, $to, $weights));
 
         // Lista de departments activos para el selector de equipo en el frontend
-        $allDepartments = TalentoColaborador::where('status', 'active')
+        $allDepartments = TalentoColaborador::activos()
             ->whereNotNull('department')
             ->distinct()
             ->pluck('department')
@@ -149,7 +149,6 @@ class DesempenoController extends Controller
             'colaborador_id' => $id,
             'name'           => $col->user?->name ?? '—',
             'department'     => $col->department,
-            'level'          => DB::table('talento_levels')->find($col->level_id)?->name,
             'metrics'        => [
                 'ots_validadas'      => ['count' => (int)($ots->cnt ?? 0),          'pts'      => (float)($ots->pts ?? 0)],
                 'ots_billables'      => ['count' => (int)($ots->billable_cnt ?? 0), 'pts'      => (float)($ots->billable_pts ?? 0)],

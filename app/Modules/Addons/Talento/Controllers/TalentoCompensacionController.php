@@ -6,6 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoCompensationRule;
 use App\Modules\Addons\Talento\Models\TalentoCompensationRuleHistory;
+use App\Models\Task;
+use App\Modules\Addons\Talento\Models\TalentoMeta;
+use App\Modules\Addons\Talento\Models\TalentoWeeklyRuleEvaluation;
+use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
+use App\Modules\Addons\Talento\Services\MetaService;
 use App\Modules\Addons\Talento\Support\Actor;
 use Illuminate\Http\Request;
 
@@ -192,5 +197,74 @@ class TalentoCompensacionController extends Controller
             ->first();
 
         return response()->json($latest);
+    }
+
+    /** UNI-T M2d: metas vigentes hoy para el colaborador (solo lectura; informativo). Apagado = lista vacía. */
+    public function metasVigentes($colaboradorId)
+    {
+        abort_unless($this->puedeVerCompensacionDe($colaboradorId), 403);
+
+        $col = TalentoColaborador::findOrFail($colaboradorId);
+        if (! config('unificacion.metas_m2')) {
+            return response()->json(['enabled' => false, 'metas' => []]);
+        }
+
+        $roles = $col->user ? $col->user->getRoleNames()->all() : [];
+        $svc = app(MetaService::class);
+        $metas = [];
+        foreach (TalentoMeta::query()->distinct()->pluck('concepto') as $concepto) {
+            $m = null;
+            foreach ($roles ?: [null] as $rol) {
+                $m = $svc->resolver($concepto, array_filter(['persona' => $col->id, 'rol' => $rol]));
+                if ($m && $m->alcance_tipo !== 'global') {
+                    break;
+                }
+            }
+            if ($m) {
+                $metas[] = $m->only(['id', 'concepto', 'alcance_tipo', 'alcance_clave', 'periodo', 'valor', 'unidad', 'afecta_pago', 'version', 'vigente_desde', 'vigente_hasta'])
+                    + $this->resultadoYEvidencia($col, $m);
+            }
+        }
+
+        return response()->json(['enabled' => true, 'metas' => $metas]);
+    }
+
+    /**
+     * UNI-T M3: resultado de la última evaluación semanal que usó esta meta y los registros que lo respaldan
+     * (órdenes validadas de la misma ventana). Solo lectura; sin evaluación → resultado null.
+     */
+    private function resultadoYEvidencia(TalentoColaborador $col, TalentoMeta $meta): array
+    {
+        $ev = TalentoWeeklyRuleEvaluation::where('colaborador_id', $col->id)
+            ->where('meta_id', $meta->id)
+            ->orderByDesc('week_end')
+            ->first();
+        if (! $ev) {
+            return ['resultado' => null, 'evidencia' => []];
+        }
+
+        $ini = $ev->week_start->copy()->startOfDay();
+        $fin = $ev->week_end->copy()->endOfDay();
+        $ordenes = TalentoWorkOrder::where('colaborador_id', $col->id)->validatedBillable()
+            ->whereBetween('validated_at', [$ini, $fin])->get(['id', 'points', 'validated_at'])
+            ->map(fn ($o) => ['tipo' => 'orden', 'id' => $o->id, 'puntos' => $o->points, 'validada' => (string) $o->validated_at, 'url' => '/talento/api/ordenes/'.$o->id])->all();
+        $tareas = $col->user_id
+            ? Task::whereNotNull('talento_type_id')->where('is_billable', true)->where('points', '>', 0)
+                ->where('status', 'Done')->whereBetween('validated_at', [$ini, $fin])
+                ->whereHas('users', fn ($q) => $q->where('users.id', $col->user_id))->get(['id', 'points', 'validated_at'])
+                ->map(fn ($t) => ['tipo' => 'tarea', 'id' => $t->id, 'puntos' => $t->points, 'validada' => (string) $t->validated_at, 'url' => '/tasks/'.$t->id])->all()
+            : [];
+
+        return [
+            'resultado' => [
+                'semana_inicio' => $ev->week_start->toDateString(),
+                'semana_fin'    => $ev->week_end->toDateString(),
+                'prospectos'    => $ev->prospects_count,
+                'ventas'        => $ev->sales_count,
+                'resultado'     => $ev->outcome,
+                'meta_version'  => $ev->meta_version,
+            ],
+            'evidencia' => array_merge($ordenes, $tareas),
+        ];
     }
 }

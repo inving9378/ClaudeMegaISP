@@ -45,6 +45,13 @@ class TrackLastVisitedRoute
         if ($status < 200 || $status >= 300) {
             return $response;
         }
+        // Una descarga sin extensión en la ruta (p. ej. /talento/mi-ficha/{id}/pdf o
+        // /vendedores/{id}/pdf) se guardaba como "última ruta" y al volver a entrar el
+        // login mandaba directo al PDF en vez de a una pantalla (2026-10-20).
+        $contentType = (string) $response->headers->get('Content-Type', '');
+        if ($contentType !== '' && ! str_contains($contentType, 'text/html')) {
+            return $response;
+        }
 
         // Ignorar AJAX / peticiones que esperan JSON
         if ($request->ajax() || $request->expectsJson()) {

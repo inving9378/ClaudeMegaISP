@@ -25,6 +25,8 @@ use Illuminate\Support\Facades\Schema;
 final class ReglasFacturacion
 {
     public const CANCELADO = 'Cancelado';
+    /** #489: baja de servicio (equipo retirado); no genera cargos ni se reactiva con un pago. */
+    public const DESINSTALADO = 'Desinstalado';
     public const ACTIVO = 'Activo';
     public const BLOQUEADO = 'Bloqueado';
     public const INACTIVO = 'Inactivo';
@@ -50,7 +52,7 @@ final class ReglasFacturacion
             $info = $client->client_main_information()->first();
         }
 
-        return $info !== null && $info->estado === self::CANCELADO;
+        return $info !== null && in_array($info->estado, [self::CANCELADO, self::DESINSTALADO], true);
     }
 
     public static function generaCargos($client): bool

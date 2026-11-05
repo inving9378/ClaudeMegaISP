@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Roadmap\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\Roadmap\Models\JarvisConversacion;
 use App\Modules\Addons\Roadmap\Services\JarvisChatService;
+use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -30,6 +31,53 @@ class JarvisChatController extends Controller
         $this->authorize('roadmap_manage');
 
         return response()->json(['ok' => true] + $this->chat->sugerenciasConHilo());
+    }
+
+    /**
+     * POST — #1068 «¿En qué nos quedamos?»: abre una conversación libre cuyo primer mensaje es el
+     * resumen desde la última visita, y devuelve también las conversaciones anteriores (historial).
+     */
+    public function conversar(): JsonResponse
+    {
+        $this->authorize('roadmap_manage');
+        $uid = (int) auth()->id();
+        $r = $this->chat->abrirConversacionLibre($uid);
+
+        return response()->json([
+            'ok'           => true,
+            'puede_crear_items' => $this->chat->puedeCrearItems(),
+            'conversacion' => $this->presentar($r['conversacion']),
+            'resumen'      => $r['resumen'],
+            'desde'        => $r['desde'],
+            // «Escuchar» usa la misma voz y velocidad que Irving eligió para la Torre (#424).
+            'voz_tts'      => app(RoadmapCircuitoService::class)->getVozTts(),
+            'rate_tts'     => app(RoadmapCircuitoService::class)->getRateTts(),
+            'anteriores'   => array_values(array_filter(
+                $this->chat->conversacionesRecientes($uid),
+                fn ($c) => $c['id'] !== $r['conversacion']->id
+            )),
+        ]);
+    }
+
+    /** GET — #1113: la última conversación libre del usuario, sin crear nada. */
+    public function ultima(): JsonResponse
+    {
+        $this->authorize('roadmap_manage');
+        $c = $this->chat->ultimaConversacion((int) auth()->id());
+
+        return response()->json([
+            'ok'           => true,
+            'conversacion' => $c ? $this->presentar($c) : null,
+            'pendiente'    => $c ? $this->chat->tienePendiente($c) : false,
+        ]);
+    }
+
+    /** GET — #1113: sus últimas 10 conversaciones con título. */
+    public function recientes(): JsonResponse
+    {
+        $this->authorize('roadmap_manage');
+
+        return response()->json(['ok' => true, 'conversaciones' => $this->chat->recientesConTitulo((int) auth()->id())]);
     }
 
     /** POST — abre (o retoma) el hilo de una sugerencia. Idempotente por `sugerencia_clave`. */
@@ -61,7 +109,7 @@ class JarvisChatController extends Controller
 
         $conversacion = JarvisConversacion::findOrFail($id);
 
-        return response()->json(['ok' => true, 'conversacion' => $this->presentar($conversacion)]);
+        return response()->json(['ok' => true, 'puede_crear_items' => $this->chat->puedeCrearItems(), 'conversacion' => $this->presentar($conversacion), 'pendiente' => $this->chat->tienePendiente($conversacion)]);
     }
 
     /** POST — manda un mensaje de Irving y devuelve la respuesta de Jarvis. */
@@ -69,11 +117,15 @@ class JarvisChatController extends Controller
     {
         $this->authorize('roadmap_manage');
 
+        // #1113 — la respuesta se guarda aunque el navegador se desconecte a media llamada.
+        ignore_user_abort(true);
+
         $datos        = $request->validate(['mensaje' => ['required', 'string', 'max:4000']]);
         $conversacion = JarvisConversacion::findOrFail($id);
+        $contexto     = $this->chat->contextoValido($request->input('contexto'));
 
         try {
-            $resultado = $this->chat->enviarMensaje($conversacion, $datos['mensaje']);
+            $resultado = $this->chat->enviarMensaje($conversacion, $datos['mensaje'], $contexto);
         } catch (\Throwable $e) {
             return response()->json(['ok' => false, 'mensaje' => $e->getMessage()], 422);
         }
@@ -82,6 +134,8 @@ class JarvisChatController extends Controller
             'ok'        => true,
             'user'      => ['rol' => 'irving', 'contenido' => $resultado['user']->contenido, 'created_at' => $resultado['user']->created_at],
             'assistant' => ['rol' => 'jarvis', 'contenido' => $resultado['assistant']->contenido, 'created_at' => $resultado['assistant']->created_at],
+            'propuesta' => $resultado['propuesta'],
+            'puede_crear_items' => $this->chat->puedeCrearItems(),
         ]);
     }
 

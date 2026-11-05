@@ -4,7 +4,6 @@ namespace App\Modules\Addons\Talento\Services;
 
 use App\Models\Client;
 use App\Models\Task;
-use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoInstallationSurvey;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderActivation;
@@ -13,7 +12,6 @@ use App\Services\OLTsService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 /**
  * Roadmap interno de Talento, Fase 10 (dual-source): los sub-pasos 4 (aceptar),
@@ -255,8 +253,7 @@ class FieldFlowService
     // ── Sub-paso 6: Onboarding + encuesta ────────────────────────────────────
 
     /**
-     * Sub-paso 6: Generate client credentials + create survey.
-     * Password is temporary — forced change on first login.
+     * Sub-paso 6: acceso del cliente al portal + crea la encuesta.
      */
     public function onboard(int $id): array
     {
@@ -273,7 +270,7 @@ class FieldFlowService
             throw new \RuntimeException("La orden debe estar activa para hacer onboarding.");
         }
 
-        [$clientUser, $tempPassword] = $this->generateClientCredentials($order->client_id);
+        $acceso = $this->portalCredentials($order->client_id);
 
         $survey = TalentoInstallationSurvey::firstOrCreate(
             ['work_order_id' => $order->id],
@@ -286,11 +283,7 @@ class FieldFlowService
 
         $order->update(['status' => 'survey_pending']);
 
-        return [
-            'survey'        => $survey,
-            'login_user'    => $clientUser?->login_user,
-            'temp_password' => $tempPassword,
-        ];
+        return ['survey' => $survey] + $acceso;
     }
 
     private function onboardTask(Task $task): array
@@ -303,7 +296,7 @@ class FieldFlowService
         }
 
         $clientId = $this->clientIdForTask($task);
-        [$clientUser, $tempPassword] = $this->generateClientCredentials($clientId);
+        $acceso = $this->portalCredentials($clientId);
 
         $survey = TalentoInstallationSurvey::firstOrCreate(
             ['tarea_id' => $task->id],
@@ -314,36 +307,59 @@ class FieldFlowService
             ]
         );
 
-        return [
-            'survey'        => $survey,
-            'login_user'    => $clientUser?->login_user,
-            'temp_password' => $tempPassword,
-        ];
+        return ['survey' => $survey] + $acceso;
     }
 
-    /** @return array{0:?User,1:?string} [clientUser, tempPassword] */
-    private function generateClientCredentials(?int $clientId): array
+    /**
+     * Con qué entra el cliente al portal (/portal): Usuario WEB, correo o número de cliente, y la
+     * Contraseña WEB (client_main_information.password, texto plano: es lo único que compara el
+     * portal). Si ya la tiene (casi todos la traen desde la venta) se le muestra la misma al
+     * técnico; si no, se genera una y se guarda ahí.
+     *
+     * No toca la cuenta de usuario ligada al número de cliente (puede ser de personal) ni la
+     * "Contraseña Original" de la ficha, y escribe sin el observer de la ficha por lo mismo:
+     * antes se cambiaba la contraseña de esa cuenta y el portal no aceptaba la que se dictaba.
+     *
+     * @return array{login_user:?string, temp_password:?string, password_generada:bool, portal_url:string}
+     */
+    private function portalCredentials(?int $clientId): array
     {
-        if (! $clientId) {
-            return [null, null];
+        $acceso = ['login_user' => null, 'temp_password' => null, 'password_generada' => false, 'portal_url' => route('portal.login')];
+
+        $cmi = $clientId
+            ? DB::table('client_main_information')->where('client_id', $clientId)->first(['user', 'password'])
+            : null;
+        if (! $cmi) {
+            return $acceso;
         }
 
-        $clientUser = User::where('client_id', $clientId)->first();
-        if (! $clientUser) {
-            return [null, null];
+        $acceso['login_user'] = filled($cmi->user) ? (string) $cmi->user : (string) $clientId;
+
+        if (filled($cmi->password)) {
+            $acceso['temp_password'] = (string) $cmi->password;
+            return $acceso;
         }
 
-        // Generate temporary password — technician sees it once and never again
-        $tempPassword = Str::random(10);
-        $clientUser->update([
-            'password' => base64_encode($tempPassword), // project convention
-            'active'   => true,
+        // Fácil de dictar: sin 0/O ni 1/l/I. 10 caracteres (el portal pide al menos 8).
+        $alfabeto = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+        $nueva = '';
+        for ($i = 0; $i < 10; $i++) {
+            $nueva .= $alfabeto[random_int(0, strlen($alfabeto) - 1)];
+        }
+
+        DB::table('client_main_information')->where('client_id', $clientId)->update([
+            'password'   => $nueva,
+            'updated_at' => now(),
         ]);
-        DB::table('client_additional_information')
-            ->where('client_id', $clientId)
-            ->update(['original_password' => $tempPassword]);
+        activity('talento')
+            ->causedBy(auth()->user())
+            ->withProperties(['client_id' => $clientId])
+            ->log('Alta de campo: se generó la Contraseña WEB del cliente (no tenía)');
 
-        return [$clientUser, $tempPassword];
+        $acceso['temp_password'] = $nueva;
+        $acceso['password_generada'] = true;
+
+        return $acceso;
     }
 
     /**
@@ -366,30 +382,18 @@ class FieldFlowService
             'submitted_at'        => now(),
         ]);
 
-        if ($survey->work_order_id) {
-            TalentoWorkOrder::where('id', $survey->work_order_id)->update([
-                'status'           => 'validated',
-                'survey_completed' => true,
-                'validated_at'     => now(),
-                'validated_by'     => auth()->id(),
-            ]);
-        } elseif ($survey->tarea_id) {
-            DB::table('tasks')->where('id', $survey->tarea_id)->update([
-                'status'       => 'Done',
-                'validated_at' => now(),
-                'updated_at'   => now(),
-                'updated_by'   => auth()->id() ?? 0,
-            ]);
-        }
+        $this->validateAfterSurvey($survey, auth()->id());
 
         return $survey->fresh();
     }
 
     /**
      * Auto-close survey after configured days without response.
-     * Called by a scheduled command / cron.
+     * Lo corre a diario talento:cerrar-encuestas. Con $dryRun solo dice qué pasaría.
+     *
+     * @return array<int, array{encuesta:int, creada:string, efecto:string}>
      */
-    public function autoCloseSurveys(): int
+    public function autoCloseSurveys(bool $dryRun = false): array
     {
         $days = (int) (DB::table('settings')->where('key', 'talento_survey_autoclose_days')->value('value') ?? 7);
         $cutoff = now()->subDays($days);
@@ -397,28 +401,68 @@ class FieldFlowService
         $pending = TalentoInstallationSurvey::whereNull('submitted_at')
             ->where('auto_closed', false)
             ->where('created_at', '<=', $cutoff)
+            ->orderBy('id')
             ->get();
 
+        $resultado = [];
         foreach ($pending as $survey) {
-            $survey->update(['auto_closed' => true]);
+            if (! $dryRun) {
+                $survey->update(['auto_closed' => true]);
+            }
+            $resultado[] = [
+                'encuesta' => $survey->id,
+                'creada'   => (string) $survey->created_at,
+                'efecto'   => $this->validateAfterSurvey($survey, null, $dryRun),
+            ];
+        }
 
-            if ($survey->work_order_id) {
-                TalentoWorkOrder::where('id', $survey->work_order_id)->update([
+        return $resultado;
+    }
+
+    /**
+     * Valida la orden que esperaba su encuesta (contestada o cerrada sola). Nunca vuelve a
+     * validar: mover validated_at pasaría la orden a otra semana de pago y se pagaría dos veces
+     * (mismo candado que la validación del administrador). Devuelve qué hizo, para el log.
+     */
+    private function validateAfterSurvey(TalentoInstallationSurvey $survey, ?int $userId, bool $dryRun = false): string
+    {
+        if ($survey->work_order_id) {
+            $order = TalentoWorkOrder::whereKey($survey->work_order_id)->first(['id', 'status', 'validated_at', 'validated_by', 'colaborador_id', 'points']);
+            if (! $order || $order->status !== 'survey_pending') {
+                return "orden #{$survey->work_order_id} no espera encuesta (" . ($order->status ?? 'no existe') . '): no se valida';
+            }
+            if (! $dryRun) {
+                TalentoWorkOrder::whereKey($order->id)->update([
                     'status'           => 'validated',
                     'survey_completed' => true,
-                    'validated_at'     => now(),
-                    'validated_by'     => null,
+                    'validated_at'     => $order->validated_at ?? app(LiquidationService::class)->instantForLateWrite(
+                        (int) $order->colaborador_id, now(), 'work_order', (int) $order->id, (float) $order->points, $userId
+                    ),
+                    'validated_by'     => $order->validated_by ?? $userId,
                 ]);
-            } elseif ($survey->tarea_id) {
-                DB::table('tasks')->where('id', $survey->tarea_id)->update([
+            }
+            return $order->validated_at
+                ? "orden #{$order->id} ya estaba validada el {$order->validated_at}: conserva esa fecha"
+                : "valida la orden #{$order->id}";
+        }
+
+        if ($survey->tarea_id) {
+            $validada = DB::table('tasks')->where('id', $survey->tarea_id)->value('validated_at');
+            if ($validada) {
+                return "tarea #{$survey->tarea_id} ya estaba validada el {$validada}: no se toca";
+            }
+            if (! $dryRun) {
+                DB::table('tasks')->where('id', $survey->tarea_id)->whereNull('validated_at')->update([
                     'status'       => 'Done',
                     'validated_at' => now(),
                     'updated_at'   => now(),
+                    'updated_by'   => $userId ?? 0,
                 ]);
             }
+            return "valida la tarea #{$survey->tarea_id}";
         }
 
-        return $pending->count();
+        return 'sin orden ligada';
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

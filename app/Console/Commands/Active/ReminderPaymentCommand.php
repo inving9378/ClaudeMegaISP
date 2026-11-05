@@ -112,7 +112,7 @@ class ReminderPaymentCommand extends Command
                     'error_message' => null,
                     'email_if_error' => null,
                     'recipient_email' => $client->client_main_information->email,
-                    'cc_email' => "inving9378@hotmail.com,cr584136@gmail.com",
+                    'cc_email' => config('billing.reminder_cc_fallback') ?: null,
                     'recipient_phone' => null,
                     'subject' => $data['subject'],
                     'html' => $html

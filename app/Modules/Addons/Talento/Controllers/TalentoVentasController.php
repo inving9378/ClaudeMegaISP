@@ -28,7 +28,7 @@ class TalentoVentasController extends Controller
 
     public function indexRanking()
     {
-        $this->authorize('talento.ventas.view');
+        $this->authorize('talento.employees.view');
 
         return view('addon-talento::talento.ventas_ranking');
     }
@@ -50,11 +50,16 @@ class TalentoVentasController extends Controller
         // Comisión real (2026-10-10, pedido de Irving): mismo campo que ya usa el
         // admin de Vendedores (Commission.account_balance, PaymentSellerController
         // línea 246: Commission::where('seller_id', ...)->sum('account_balance')).
-        // commissions.seller_id guarda sellers.id (NO users.id) — confirmado contra
-        // CalculateClientCommission::handle(), que es el único INSERT real del
-        // modelo. Hoy la tabla está vacía en dev (ver item #9990471) → esto
+        // commissions.seller_id guarda sellers.id (NO users.id) — (el listener CalculateClientCommission que lo insertaba se retiró en
+        // UNI-T I6 #897: nunca se disparaba). Hoy la tabla está vacía en dev (ver item #9990471) → esto
         // devuelve 0 honestamente; el día que se repueble, funciona solo.
-        $comisionTotal = (float) \App\Models\Commission::where('seller_id', $seller->id)->sum('account_balance');
+        if (config('unificacion.interruptores.mi_progreso_estado_cuenta')) {
+            // UNI-T I1 (#893): misma cifra que el estado de cuenta de Vendedores.
+            $comisionTotal = (float) app(\App\Modules\Addons\Talento\Services\SellerStatementService::class)
+                ->resumen($seller)['current_balance'];
+        } else {
+            $comisionTotal = (float) \App\Models\Commission::where('seller_id', $seller->id)->sum('account_balance');
+        }
 
         // "Regla de desempeño semanal" — misma fuente que el técnico, self-scoped
         // por el colaborador (no por el seller). Puede no existir un
@@ -87,9 +92,15 @@ class TalentoVentasController extends Controller
      */
     public function rankingAdmin(Request $request)
     {
-        $this->authorize('talento.ventas.view');
+        $this->authorize('talento.employees.view');
 
         $range = $request->range;
+        if (config('unificacion.interruptores.ranking_ventas_i2')) {
+            // UNI-T I2 (#894): criterio único compartido con Vendedores.
+            $ok = is_array($range) && isset($range[0], $range[1]);
+            return response()->json(['ranking' => app(\App\Services\RankingVentasService::class)
+                ->ranking($ok ? $range[0] : null, $ok ? $range[1] : null)]);
+        }
         // DB::table() (no el modelo Eloquent) a propósito: ClientMainInformation
         // agrega varios accessors pesados vía $appends (client_name_with_fathers_names,
         // partner_name, contract_months, etc.) que se recalculan por fila y no aplican
@@ -119,7 +130,7 @@ class TalentoVentasController extends Controller
      */
     public function prospectosAdmin(Request $request)
     {
-        $this->authorize('talento.ventas.view');
+        $this->authorize('talento.employees.view');
 
         $query = DB::table('crm_main_information')
             ->join('crm_lead_information', 'crm_main_information.crm_id', '=', 'crm_lead_information.crm_id')

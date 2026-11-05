@@ -1,6 +1,6 @@
 {
     "_descripcion": "Cómo se arman las guías por módulo de JARVIS (php artisan asistente:aprender). Las guías se generan con IA a partir de docs/modulos/*.md, el menú lateral real, las pantallas de alta y el manual. Para corregir una guía: arreglar su documentación o agregar una nota aquí, y volver a correr el comando.",
-    "usuario_menu": "circuito_test_126",
+    "usuario_menu": "admin",
     "excluir": [
         "auth",
         "devtools",
@@ -13,7 +13,8 @@
     "segmentos": {},
     "notas": {
         "clientes": "JARVIS ya puede dar de alta clientes, buscarlos, listarlos y consultar su ficha, pagos, facturas y tickets.",
-        "crm": "JARVIS ya puede registrar prospectos y listarlos. En el menú esta sección se llama 'Clientes potenciales'."
+        "crm": "JARVIS ya puede registrar prospectos y listarlos. En el menú esta sección se llama 'Clientes potenciales'.",
+        "talento": "Al entrar a Talento, cada colaborador cae en su propia ficha. Ahí, solo para él, están las pestañas Mi día (lo registrado en el día: a qué hora entró y salió; sus órdenes de hoy: iniciarlas, capturar evidencia con la cámara, firmas del técnico y del cliente, completar y aceptar), Mi dinero (cuenta, desglose, fondo y préstamos de la semana de pago), Mis prospectos (si vende) y Mi equipo (si tiene gente a su cargo: cómo va cada quien y las penalizaciones por confirmar). La entrada y la salida (con su ubicación) se registran en su pestaña Asistencia, no en Mi día. El menú de usuario tiene el atajo «Mi día». El Portal de Colaborador (/talento/portal) ya no existe: nunca mandes a nadie ahí. Su material está en la pestaña Custodia y sus documentos para firmar en Paquetes de documentos. Los niveles, el catálogo de puestos y el roadmap de Talento ya no existen: el puesto de cada persona es su rol en Administración."
     },
     "guias_del_equipo": {
         "_": "Guías escritas y revisadas a mano (resources/asistente/guia/<nombre>.md): se le dan a la IA como verdad al escribir la guía de ese módulo.",

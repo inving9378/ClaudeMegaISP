@@ -140,7 +140,11 @@ export default {
             messages.value.push({ role: 'user', content: text, timestamp: new Date() });
             inputText.value = ''; isTyping.value = true; pendingAction.value = null; scroll();
             try {
-                const res = await axios.post(`${props.url}/ia/chat`, { message: text, context: window.location.pathname + window.location.search });
+                // El término buscado en un listado no se comparte con el asistente (#9990815).
+                const query = new URLSearchParams(window.location.search);
+                query.delete('search');
+                const context = window.location.pathname + (query.toString() ? `?${query}` : '');
+                const res = await axios.post(`${props.url}/ia/chat`, { message: text, context });
                 if (res.data.success) {
                     say(res.data.message);
                     pendingAction.value = res.data.accion_pendiente || null;

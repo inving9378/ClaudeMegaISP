@@ -26,6 +26,11 @@
         <i class="bi bi-exclamation-triangle-fill"></i>
         ⚠ {{ supervisor.terminales_ociosas_ahora.length }} terminal(es) ociosa(s) con trabajo pendiente
       </span>
+      <div v-if="supervisor.motivos_ociosas_ahora && supervisor.motivos_ociosas_ahora.length" class="tt-ocio-motivos">
+        <div v-for="o in supervisor.motivos_ociosas_ahora" :key="'mo' + o.sid" class="tt-ocio-motivo">
+          <b>{{ o.sid }}</b> ociosa ({{ o.hora }}): {{ o.motivo }}
+        </div>
+      </div>
     </div>
 
     <!-- Empty state honesto: el paralelo (#334) YA existe; 0 sesiones = ninguna vuelta corriendo. -->
@@ -82,6 +87,10 @@
               <li v-for="r in listosParaTerminal" :key="'lp' + r.id" :title="r.title">
                 <b class="tt-sup-list-num">#{{ r.id }}</b>
                 <span class="tt-sup-list-txt">{{ r.title }}</span>
+                <!-- #1030 paso B — misma lista que el despachador: si sale en su próxima ronda o
+                     espera turno de su módulo, y si el texto del item dice que está bloqueado. -->
+                <span v-if="r.sale_ahora === false" class="tt-sup-turno" title="Listo, pero el despachador lo toma cuando termine el trabajo de su módulo">espera turno</span>
+                <span v-if="r.bloqueo_declarado" class="tt-sup-bloq" title="El texto del item dice que está bloqueado o que espera algo; el despachador igual lo toma">⚠ dice estar bloqueado</span>
                 <span
                   v-if="vueltasQuemadas(r)"
                   class="tt-sup-reap-badge"
@@ -609,6 +618,8 @@ export default {
   font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px;
   background:rgba(100,116,139,.12); color:var(--tt-muted); white-space:nowrap;
 }
+.tt-ocio-motivos{ flex-basis:100%; display:flex; flex-direction:column; gap:2px; font-size:12px; color:var(--tt-muted); }
+.tt-ocio-motivo{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .tt-ocio-elegibles{ font-weight:700; color:var(--tt-accent); display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
 .tt-ocio-warn{
   font-weight:800; color:var(--tt-danger); background:rgba(220,38,38,.12);
@@ -886,4 +897,9 @@ export default {
    la rejilla las reacomoda sola. Consola más alta para leer más historial de un vistazo. */
 .tt-term-expanded{ grid-column:1 / -1; }
 .tt-term-expanded .tt-pre{ height:480px; }
+/* #1030 paso B — marcas de «Listos para terminal» */
+.tt-sup-turno{font-size:10.5px;font-weight:600;color:#64748b;white-space:nowrap;margin-left:6px;}
+.tt-sup-bloq{font-size:10.5px;font-weight:600;color:#b45309;white-space:nowrap;margin-left:6px;}
+.tt-dark .tt-sup-turno{color:#94a3b8;}
+.tt-dark .tt-sup-bloq{color:#fbbf24;}
 </style>

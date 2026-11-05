@@ -160,6 +160,11 @@ class User extends Authenticatable
             return \Illuminate\Support\Facades\Storage::url($this->photography);
         }
 
+        // Foto guardada por la edición de usuario de Administración (public/perfiles/{nombre}).
+        if (is_file(public_path('perfiles/' . $this->photography))) {
+            return url('perfiles/' . $this->photography);
+        }
+
         // Imagen por defecto si no existe el archivo
         return url('assets/images/users/avatar-1.jpg');
     }
@@ -308,6 +313,35 @@ class User extends Authenticatable
         });
     }
 
+    /**
+     * Cuentas de cliente (2026-10-23): rol client o sin rol, que es como quedaron las importadas;
+     * nunca una de personal ni la del sistema.
+     */
+    public function scopeCuentasDeCliente($query)
+    {
+        return $query->where('is_system', false)
+            ->whereDoesntHave('roles', function ($query) {
+                $query->where('name', '<>', ComunConstantsController::CLIENT_ROLE);
+            });
+    }
+
+    /**
+     * La cuenta es de ese cliente: cuenta de cliente con su número, o con rol client si no tiene
+     * número (una sin rol y sin número es de personal sin rol todavía). Para lo que encuentra la
+     * cuenta por el Usuario WEB de la ficha: app MegaFamilia, Marketplace del portal.
+     */
+    public function esCuentaDelCliente(int $clientId): bool
+    {
+        if ($this->is_system || $this->roles->contains(fn ($rol) => $rol->name !== ComunConstantsController::CLIENT_ROLE)) {
+            return false;
+        }
+        if (filled($this->client_id) && (string) $this->client_id !== '0') {
+            return (int) $this->client_id === $clientId;
+        }
+
+        return $this->isClient();
+    }
+
     public function scopeLeadProject($query)
     {
         return $query->whereHas('roles', function ($query) {
@@ -320,6 +354,16 @@ class User extends Authenticatable
         return $query->whereHas('roles', function ($query) {
             $query->where('name', ComunConstantsController::TECHNICAL_ROLE);
         });
+    }
+
+    /**
+     * Personal al que se le puede asignar algo (2026-10-29): cuenta activa y no la del sistema. A
+     * quien deja de trabajar se le marca inactivo y no se borra, para conservar su historial.
+     */
+    public function scopeActivo($query)
+    {
+        return $query->where('estado', 'activo')
+            ->where(fn ($q) => $q->where('is_system', false)->orWhereNull('is_system'));
     }
 
     public function scopeAdmin($query)

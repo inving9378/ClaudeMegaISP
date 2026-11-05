@@ -15,6 +15,20 @@ use App\Modules\Addons\PortalCliente\Controllers\ConsumoController;
 use App\Modules\Addons\PortalCliente\Controllers\MarketplaceController;
 use App\Modules\Addons\PortalCliente\Controllers\EmbajadoresController;
 use App\Modules\Addons\PortalCliente\Controllers\FlotasController;
+use App\Modules\Addons\PortalCliente\Controllers\FlotasGeocercasController;
+use App\Modules\Addons\PortalCliente\Controllers\FlotasPanelController;
+use App\Modules\Addons\PortalCliente\Controllers\FlotasReglasController;
+use App\Modules\Addons\PortalCliente\Controllers\FlotasOperadoresController;
+use App\Modules\Addons\PortalCliente\Controllers\FlotasAlertasController;
+use App\Modules\Addons\PortalCliente\Controllers\FlotasContactosController;
+use App\Modules\Addons\Flotas\Controllers\FleetVehicleController as PFleetVehicle;
+use App\Modules\Addons\Flotas\Controllers\FleetMaintenanceController as PFleetMaintenance;
+use App\Modules\Addons\Flotas\Controllers\FleetDocumentController as PFleetDocument;
+use App\Modules\Addons\Flotas\Controllers\FleetFuelLogController as PFleetFuel;
+use App\Modules\Addons\Flotas\Controllers\FleetPhotoController as PFleetPhoto;
+use App\Modules\Addons\Flotas\Controllers\FleetGpsController as PFleetGps;
+use App\Modules\Addons\Flotas\Controllers\FleetGeofenceController as PFleetGeofence;
+use App\Modules\Addons\Flotas\Controllers\FleetNotificationController as PFleetNotification;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaController;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaPerfilesController;
 use App\Modules\Addons\PortalCliente\Controllers\MegaFamiliaDispositivosController;
@@ -114,7 +128,118 @@ $portalRoutes = function () {
 
         // Mi Flota — panel del cliente (solo lectura, scopeado ->forClient)
         Route::get('/flotas', [FlotasController::class, 'index'])->name('flotas');
-        Route::get('/flotas/tracking', [FlotasController::class, 'tracking'])->name('flotas.tracking');
+        Route::get('/flotas/nuevo', [FlotasController::class, 'nuevo'])->middleware('flotas.portal')->name('flotas.nuevo');
+        Route::get('/flotas/{id}', [FlotasController::class, 'ficha'])->whereNumber('id')->middleware('flotas.portal')->name('flotas.ficha');
+        Route::get('/flotas/notificaciones', [FlotasController::class, 'notificaciones'])->name('flotas.notificaciones');
+        Route::post('/flotas/privacidad', [FlotasController::class, 'aceptarPrivacidad'])->name('flotas.privacidad');
+
+        // Geocercas propias del cliente (item #637) — scopeadas por forClient
+        Route::get('/flotas/geocercas',                          [FlotasPanelController::class, 'geocercas'])->name('flotas.geocercas.index');
+        // Páginas del panel de Flotas en el portal (#654 F3): mismas pantallas Vue
+        Route::get('/flotas/mapa',                               [FlotasPanelController::class, 'mapa'])->middleware('flotas.portal')->name('flotas.mapa');
+        Route::get('/flotas/geocercas/nueva',                    [FlotasPanelController::class, 'geocercaForm'])->middleware('flotas.portal')->name('flotas.geocercas.nueva');
+        Route::get('/flotas/geocercas/{id}/editar',              [FlotasPanelController::class, 'geocercaForm'])->whereNumber('id')->middleware('flotas.portal')->name('flotas.geocercas.editar');
+        Route::get('/flotas/geocercas/{id}',                     [FlotasPanelController::class, 'geocercaShow'])->whereNumber('id')->middleware('flotas.portal')->name('flotas.geocercas.show');
+        Route::post('/flotas/geocercas',                         [FlotasGeocercasController::class, 'store'])->name('flotas.geocercas.store');
+        Route::put('/flotas/geocercas/{id}',                     [FlotasGeocercasController::class, 'update'])->whereNumber('id')->name('flotas.geocercas.update');
+        Route::delete('/flotas/geocercas/{id}',                  [FlotasGeocercasController::class, 'destroy'])->whereNumber('id')->name('flotas.geocercas.destroy');
+
+        // Reglas de alerta propias del cliente (item #644) — origen='cliente', scopeadas por client_id
+        Route::get('/flotas/reglas',                             [FlotasReglasController::class, 'pagina'])->name('flotas.reglas.index'); // HTML = pantalla (#663); JSON = lista (#644)
+        Route::post('/flotas/reglas',                            [FlotasReglasController::class, 'store'])->name('flotas.reglas.store');
+        Route::put('/flotas/reglas/{id}',                        [FlotasReglasController::class, 'update'])->whereNumber('id')->name('flotas.reglas.update');
+        Route::delete('/flotas/reglas/{id}',                     [FlotasReglasController::class, 'destroy'])->whereNumber('id')->name('flotas.reglas.destroy');
+        Route::post('/flotas/reglas/{id}/toggle',                [FlotasReglasController::class, 'toggle'])->whereNumber('id')->name('flotas.reglas.toggle');
+
+        // Contactos de alerta + bitácora de envíos del cliente (#672, P5c)
+        Route::get('/flotas/contactos',                          [FlotasContactosController::class, 'pagina'])->name('flotas.contactos.index');
+        Route::post('/flotas/contactos',                         [FlotasContactosController::class, 'store'])->name('flotas.contactos.store');
+        Route::put('/flotas/contactos/{id}',                     [FlotasContactosController::class, 'update'])->whereNumber('id')->name('flotas.contactos.update');
+        Route::delete('/flotas/contactos/{id}',                  [FlotasContactosController::class, 'destroy'])->whereNumber('id')->name('flotas.contactos.destroy');
+
+        // Historial de alertas (#645)
+        Route::get('/flotas/alertas',                            [FlotasAlertasController::class, 'index'])->name('flotas.alertas.index');
+        Route::post('/flotas/alertas/vista',                     [FlotasAlertasController::class, 'marcarVista'])->name('flotas.alertas.vista');
+        Route::post('/flotas/alertas/{id}/vista',                [FlotasAlertasController::class, 'marcarVista'])->whereNumber('id')->name('flotas.alertas.vista.una');
+
+        // Mi Flota = panel de Flotas (#652 F1): espejo de las APIs del panel, MISMOS controladores, en
+        // contexto portal ('flotas.portal': guard cliente + suscripción usable). Sin proveedores,
+        // comparativo, suscripción, asignaciones, OCR, reglas ni notificaciones (F4/F5).
+        Route::prefix('flotas/api')->middleware('flotas.portal')->group(function () {
+            Route::prefix('vehiculos')->group(function () {
+                Route::get('/',                [PFleetVehicle::class, 'index']);
+                Route::post('/',               [PFleetVehicle::class, 'store']);
+                Route::get('/data/dashboard',  [PFleetVehicle::class, 'dashboard']);
+                Route::get('/data/costo-km',   [PFleetVehicle::class, 'costoKm']);
+                Route::get('/data/alertas',    [PFleetVehicle::class, 'alertas']);
+                Route::get('/{id}/prediccion-servicios', [PFleetMaintenance::class, 'prediction'])->whereNumber('id');
+                Route::get('/{id}/gps',          [PFleetGps::class, 'status'])->whereNumber('id');
+                Route::get('/{id}/gps/history',  [PFleetGps::class, 'history'])->whereNumber('id');
+                Route::get('/{id}/geofence-events', [PFleetGps::class, 'geofenceEvents'])->whereNumber('id');
+                Route::get('/{id}',    [PFleetVehicle::class, 'show'])->whereNumber('id');
+                Route::patch('/{id}',  [PFleetVehicle::class, 'update'])->whereNumber('id');
+                Route::delete('/{id}', [PFleetVehicle::class, 'destroy'])->whereNumber('id');
+            });
+            Route::get('gps/flota', [PFleetGps::class, 'fleet']);
+            // Mis operadores + asignaciones del cliente (#676 F6b): scopeado por client_id del guard cliente.
+            Route::prefix('operadores')->group(function () {
+                Route::get('/',        [FlotasOperadoresController::class, 'index']);
+                Route::post('/',       [FlotasOperadoresController::class, 'store']);
+                Route::put('/{id}',    [FlotasOperadoresController::class, 'update'])->whereNumber('id');
+                Route::delete('/{id}', [FlotasOperadoresController::class, 'destroy'])->whereNumber('id');
+            });
+            Route::get('vehiculos/{id}/asignaciones',  [FlotasOperadoresController::class, 'asignaciones'])->whereNumber('id');
+            Route::post('vehiculos/{id}/asignaciones', [FlotasOperadoresController::class, 'asignar'])->whereNumber('id');
+            Route::get('plan', [\App\Modules\Addons\PortalCliente\Controllers\FlotasPlanController::class, 'show']);
+            Route::prefix('geocercas')->group(function () {
+                Route::get('/',        [PFleetGeofence::class, 'index']);
+                Route::post('/',       [PFleetGeofence::class, 'store']);
+                Route::get('/{id}',    [PFleetGeofence::class, 'show'])->whereNumber('id');
+                Route::put('/{id}',    [PFleetGeofence::class, 'update'])->whereNumber('id');
+                Route::patch('/{id}',  [PFleetGeofence::class, 'update'])->whereNumber('id');
+                Route::delete('/{id}', [PFleetGeofence::class, 'destroy'])->whereNumber('id');
+                Route::post('/{id}/vehiculos', [PFleetGeofence::class, 'assignVehicles'])->whereNumber('id');
+            });
+            // Reglas de alerta del cliente (#663 F4a): MISMO controlador del portal (#644), sin duplicar validaciones.
+            Route::prefix('reglas')->group(function () {
+                Route::get('/',              [FlotasReglasController::class, 'index']);
+                Route::post('/',             [FlotasReglasController::class, 'store']);
+                Route::put('/{id}',          [FlotasReglasController::class, 'update'])->whereNumber('id');
+                Route::delete('/{id}',       [FlotasReglasController::class, 'destroy'])->whereNumber('id');
+                Route::post('/{id}/toggle',  [FlotasReglasController::class, 'toggle'])->whereNumber('id');
+            });
+            Route::prefix('mantenimientos')->group(function () {
+                Route::get('/',        [PFleetMaintenance::class, 'index']);
+                Route::post('/',       [PFleetMaintenance::class, 'store']);
+                Route::get('/{id}',    [PFleetMaintenance::class, 'show'])->whereNumber('id');
+                Route::patch('/{id}',  [PFleetMaintenance::class, 'update'])->whereNumber('id');
+                Route::delete('/{id}', [PFleetMaintenance::class, 'destroy'])->whereNumber('id');
+                Route::post('/{id}/files', [PFleetMaintenance::class, 'uploadFile'])->whereNumber('id');
+            });
+            Route::prefix('documentos')->group(function () {
+                Route::get('/',                 [PFleetDocument::class, 'index']);
+                Route::post('/',                [PFleetDocument::class, 'store']);
+                Route::get('/alertas/proximos', [PFleetDocument::class, 'proximos']);
+                Route::get('/dashboard/all',    [PFleetDocument::class, 'dashboard']);
+                Route::get('/{id}',             [PFleetDocument::class, 'show'])->whereNumber('id');
+                Route::post('/{id}',            [PFleetDocument::class, 'update'])->whereNumber('id');
+                Route::patch('/{id}',           [PFleetDocument::class, 'update'])->whereNumber('id');
+                Route::delete('/{id}',          [PFleetDocument::class, 'destroy'])->whereNumber('id');
+                Route::get('/{id}/descargar',   [PFleetDocument::class, 'download'])->whereNumber('id');
+                Route::get('/{id}/renovar/prefill', [PFleetDocument::class, 'renew'])->whereNumber('id');
+            });
+            Route::prefix('combustible')->group(function () {
+                Route::get('/',        [PFleetFuel::class, 'index']);
+                Route::post('/',       [PFleetFuel::class, 'store']);
+                Route::delete('/{id}', [PFleetFuel::class, 'destroy'])->whereNumber('id');
+            });
+            // Bitácora de notificaciones (#664): solo lectura; el reenvío es del panel (no hay ruta resend aquí).
+            Route::get('notificaciones-log', [PFleetNotification::class, 'log']);
+            Route::prefix('fotos')->group(function () {
+                Route::post('/',       [PFleetPhoto::class, 'store']);
+                Route::delete('/{id}', [PFleetPhoto::class, 'destroy'])->whereNumber('id');
+            });
+        });
 
         // MegaFamilia — panel del cliente (solo lectura, scopeado por client_isp_id)
         Route::get('/megafamilia', [MegaFamiliaController::class, 'index'])->name('megafamilia');

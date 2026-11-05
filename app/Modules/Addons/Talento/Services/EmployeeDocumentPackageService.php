@@ -119,12 +119,13 @@ class EmployeeDocumentPackageService
      */
     public function generateForColaborador(TalentoColaborador $colaborador, bool $mostrarFaltantes = false): array
     {
-        $puesto = $colaborador->job_title;
-        if (!$puesto) {
+        // El paquete se arma con los roles de Administración del colaborador (columna `puesto` = nombre del rol).
+        $roles = $colaborador->rolesDePuesto();
+        if (!$roles) {
             return [];
         }
 
-        $templateIds = TalentoPuestoDocumentTemplate::where('puesto', $puesto)->pluck('template_id');
+        $templateIds = TalentoPuestoDocumentTemplate::whereIn('puesto', $roles)->pluck('template_id')->unique();
         if ($templateIds->isEmpty()) {
             return [];
         }
@@ -517,7 +518,7 @@ class EmployeeDocumentPackageService
 
         return [
             'nombre_completo' => trim(($user->name ?? '') . ' ' . ($user->father_last_name ?? '') . ' ' . ($user->mother_last_name ?? '')),
-            'puesto' => $colaborador->job_title,
+            'puesto' => $colaborador->puestoNombre(),
             'curp' => $colaborador->curp,
             'nss' => $colaborador->nss,
             'rfc' => $user->rfc ?? null,

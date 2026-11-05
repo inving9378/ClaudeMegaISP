@@ -14,7 +14,7 @@ class FleetPushTokenController extends FleetBaseController
     // POST /flotas/api/push-tokens — registra o actualiza el token del dispositivo propio
     public function store(Request $request): JsonResponse
     {
-        $this->authorize('fleet.push.manage');
+        $this->autorizar('fleet.push.manage');
 
         $data = $request->validate([
             'token'    => 'required|string|max:500',
@@ -36,7 +36,7 @@ class FleetPushTokenController extends FleetBaseController
     // DELETE /flotas/api/push-tokens/{id} — elimina un token del dispositivo propio (ej. logout)
     public function destroy(int $id): JsonResponse
     {
-        $this->authorize('fleet.push.manage');
+        $this->autorizar('fleet.push.manage');
 
         FleetDriverPushToken::where('user_id', auth()->id())->findOrFail($id)->delete();
 

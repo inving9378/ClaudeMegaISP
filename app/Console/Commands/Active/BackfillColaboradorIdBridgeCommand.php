@@ -25,9 +25,12 @@ use Illuminate\Support\Facades\DB;
  */
 class BackfillColaboradorIdBridgeCommand extends Command
 {
-    protected $signature = 'identidad:backfill-colaborador-id {--dry-run : Solo reporta, no escribe}';
+    protected $signature = 'identidad:backfill-colaborador-id {--dry-run : Solo reporta, no escribe} {--revertir= : Archivo JSON de una corrida previa; devuelve colaborador_id a NULL en esas filas}';
 
     protected $description = 'Puebla colaborador_id en client_main_information y whatsapp_conversations vía seller_id=users.id (#9990778 Fase 2)';
+
+    /** @var array<string,array<int,int>> tabla => [id => colaborador_id asignado] (para revertir) */
+    private array $cambios = [];
 
     /** @var array<int,string> */
     private array $tablas = ['client_main_information', 'whatsapp_conversations'];
@@ -35,10 +38,21 @@ class BackfillColaboradorIdBridgeCommand extends Command
     public function handle(): int
     {
         $dry = (bool) $this->option('dry-run');
+        if ($this->option('revertir')) {
+            return $this->revertir((string) $this->option('revertir'), $dry);
+        }
         $colaboradorPorUserId = TalentoColaborador::pluck('id', 'user_id');
 
         foreach ($this->tablas as $tabla) {
             $this->procesarTabla($tabla, $colaboradorPorUserId, $dry);
+        }
+
+        if (!$dry && $this->cambios) {
+            $dir = storage_path('app/uni/identidad');
+            @mkdir($dir, 0775, true);
+            $archivo = $dir . '/backfill-colaborador-id-' . date('Ymd-His') . '.json';
+            file_put_contents($archivo, json_encode($this->cambios));
+            $this->info("Archivo de reversión: {$archivo}");
         }
 
         if ($dry) {
@@ -73,6 +87,8 @@ class BackfillColaboradorIdBridgeCommand extends Command
             $matched++;
             if (!$dry) {
                 DB::table($tabla)->where('id', $fila->id)->update(['colaborador_id' => $colaboradorId]);
+                $this->cambios[$tabla][$fila->id] = $colaboradorId;
+                $this->historial($tabla, $fila->id, null, $colaboradorId, 'backfill');
             }
         }
 
@@ -85,5 +101,44 @@ class BackfillColaboradorIdBridgeCommand extends Command
                 $this->line("  users.id={$userId} → {$count} fila(s)");
             }
         }
+    }
+
+    private function historial(string $tabla, int $id, ?int $antes, ?int $despues, string $origen): void
+    {
+        DB::table('identidad_cambios_historial')->insert([
+            'tabla' => $tabla, 'registro_id' => $id, 'campo' => 'colaborador_id',
+            'valor_anterior' => $antes, 'valor_nuevo' => $despues, 'origen' => $origen,
+            'user_id' => null, 'created_at' => now(),
+        ]);
+    }
+
+    private function revertir(string $archivo, bool $dry): int
+    {
+        if (!is_file($archivo)) {
+            $this->error("No existe {$archivo}");
+            return self::FAILURE;
+        }
+        $cambios = json_decode(file_get_contents($archivo), true) ?: [];
+        foreach ($cambios as $tabla => $filas) {
+            if (!in_array($tabla, $this->tablas, true)) {
+                continue;
+            }
+            $n = 0;
+            foreach ($filas as $id => $colaboradorId) {
+                // Solo revierte si sigue valiendo lo que puso el backfill.
+                $q = DB::table($tabla)->where('id', $id)->where('colaborador_id', $colaboradorId);
+                if ($dry) {
+                    $n += $q->count();
+                    continue;
+                }
+                $afectadas = $q->update(['colaborador_id' => null]);
+                if ($afectadas) {
+                    $this->historial($tabla, (int) $id, (int) $colaboradorId, null, 'reversion');
+                    $n += $afectadas;
+                }
+            }
+            $this->info(($dry ? '[DRY-RUN] ' : '') . "[{$tabla}] filas revertidas: {$n}");
+        }
+        return self::SUCCESS;
     }
 }

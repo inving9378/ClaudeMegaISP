@@ -233,6 +233,8 @@ class MapaRedProyectRepository extends BaseRepository
             $color = '#b52b2b';
         } elseif ($state == 'Cancelado') {
             $color = '#808080';
+        } elseif ($state == 'Desinstalado') {
+            $color = '#a39485';
         } elseif ($state == 'Inactivo') {
             $color = '#f0ad4e';
         }

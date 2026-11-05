@@ -6,7 +6,7 @@
         estado en tiempo real va el «Histórico del servicio» (periodo, indicadores, gráficas,
         eventos y origen de los datos).
     -->
-    <div v-if="dedicado && dedicado.is_dedicated && servicios.length" class="cps q-mt-md">
+    <div v-if="dedicado && (dedicado.is_dedicated || dedicado.solo_consulta) && servicios.length" class="cps q-mt-md">
         <q-tabs
             v-if="servicios.length >= 2"
             v-model="servicioId"
@@ -20,6 +20,19 @@
         >
             <q-tab v-for="s in servicios" :key="s.id" :name="s.id" :label="s.etiqueta" />
         </q-tabs>
+
+        <q-banner v-if="dedicado.solo_consulta" dense rounded class="cps-consulta q-mb-sm" role="status">
+            <template #avatar><q-icon name="history" /></template>
+            Monitoreo pausado: ya no es cliente dedicado. Este es su historial, solo para consulta; ya no se toman lecturas.
+        </q-banner>
+
+        <q-banner v-if="dedicado.monitoreo_apagado" dense rounded class="cps-apagado q-mb-sm" role="alert">
+            <template #avatar><q-icon name="power_off" color="negative" /></template>
+            El monitoreo está apagado en Configuración: no se toman lecturas de ningún servicio dedicado.
+            <template v-if="dedicado.puede_configurar_monitoreo" #action>
+                <q-btn flat no-caps dense color="primary" label="Ir a Configuración" href="/configuracion/monitoreo-dedicados" />
+            </template>
+        </q-banner>
 
         <q-banner v-if="simulado" dense rounded class="cps-simulado q-mb-sm">
             <template #avatar><q-icon name="science" /></template>
@@ -45,15 +58,23 @@
         </q-card>
 
         <template v-else-if="servicioActual">
-            <DedicadoEstadoTiempoReal :servicio-id="servicioActual.id" @cargado="(e) => (simulado = !!e.simulado)" />
-            <DedicadoHistorico
+            <DedicadoEstadoTiempoReal
+                :key="`estado-${servicioActual.id}-${recargas}`"
                 :servicio-id="servicioActual.id"
-                :puede-editar="!!dedicado.puede_editar_red"
+                :puede-editar="puedeEditarRed"
+                :solo-consulta="!!dedicado.solo_consulta"
+                @cargado="(e) => (simulado = !!e.simulado)"
+                @configurar="ventanaRed = true"
+            />
+            <DedicadoHistorico
+                :key="`historico-${servicioActual.id}-${recargas}`"
+                :servicio-id="servicioActual.id"
+                :puede-editar="puedeEditarRed"
                 @configurar="ventanaRed = true"
             />
         </template>
 
-        <DatosRedDedicado v-model="ventanaRed" :servicio-id="servicioActual?.id" @guardado="$emit('actualizar')" />
+        <DatosRedDedicado v-model="ventanaRed" :servicio-id="servicioActual?.id" @guardado="alGuardar" />
     </div>
 </template>
 
@@ -73,11 +94,16 @@ export default {
         dedicado: { type: Object, default: null },
     },
     emits: ["actualizar"],
-    setup(props) {
+    setup(props, { emit }) {
         const servicios = computed(() => props.dedicado?.servicios || []);
         const servicioId = ref(null);
         const simulado = ref(false);
         const ventanaRed = ref(false);
+        const recargas = ref(0);
+        const alGuardar = () => {
+            recargas.value++;
+            emit("actualizar");
+        };
 
         // Por default el primer servicio con datos de red; si ninguno tiene, el primero.
         watch(servicios, (lista) => {
@@ -87,9 +113,10 @@ export default {
         }, { immediate: true });
         watch(servicioId, () => (simulado.value = false));
 
+        const puedeEditarRed = computed(() => !!props.dedicado?.puede_editar_red && !props.dedicado?.solo_consulta);
         const servicioActual = computed(() => servicios.value.find((s) => s.id === servicioId.value) || null);
 
-        return { darkMode, servicios, servicioId, servicioActual, simulado, ventanaRed };
+        return { darkMode, servicios, servicioId, servicioActual, simulado, ventanaRed, recargas, alGuardar, puedeEditarRed };
     },
 };
 </script>
@@ -98,6 +125,14 @@ export default {
 .cps-simulado {
     background: rgba(217, 119, 6, 0.12);
     border: 1px solid rgba(217, 119, 6, 0.35);
+}
+.cps-consulta {
+    background: rgba(20, 184, 166, 0.12);
+    border: 1px solid rgba(20, 184, 166, 0.4);
+}
+.cps-apagado {
+    background: rgba(220, 38, 38, 0.1);
+    border: 1px solid rgba(220, 38, 38, 0.35);
 }
 .cps-vacio-cuerpo {
     display: flex;
