@@ -124,7 +124,7 @@ class CheckRoutePermission
      * legado config_view_system (el usuario no trae el granular documentos.*
      * equivalente), lo deja registrado. Ver DOCUMENTOS_LEGACY_FALLBACK / #978.
      */
-    protected function logDocumentosLegacyFallbackIfUsed(string $requestPath, array $permissions): void
+    protected function logDocumentosLegacyFallbackIfUsed(string $requestPath, \ArrayAccess|array $permissions): void
     {
         foreach (self::DOCUMENTOS_LEGACY_FALLBACK as $pattern => $granularPermission) {
             $regex = $this->convertRouteToRegex($pattern);
