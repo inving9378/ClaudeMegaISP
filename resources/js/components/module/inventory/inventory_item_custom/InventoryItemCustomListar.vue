@@ -24,7 +24,7 @@
             </button>
         </div>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         v-if="isReady"
         module="inventory/inventory_item_stock"
         model="InventoryItemStock"

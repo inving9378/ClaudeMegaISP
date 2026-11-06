@@ -30,6 +30,7 @@ class Release extends Model
         'origin',
         // Candado BD F4 (item roadmap #9990675, épica #9990668) — los llenan F3/F6
         'github_release_id',
+        'published_at',
         'estado_publicacion',
     ];
 
@@ -38,5 +39,6 @@ class Release extends Model
         'aplicada_en_dev_at'  => 'datetime',
         'aplicada_en_prod_at' => 'datetime',
         'reversible'          => 'boolean',
+        'published_at'        => 'datetime',
     ];
 }

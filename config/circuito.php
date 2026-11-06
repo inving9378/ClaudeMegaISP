@@ -112,6 +112,30 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Whitelist de hosts para roadmap-externo (CIRC-05 PASO 6, #9991016)
+    |--------------------------------------------------------------------------
+    |
+    | Segunda mitad del guardrail de entorno de `app/Modules/Addons/Roadmap/routes.php`: además
+    | de que las rutas ni se registran fuera de `local`/`dev` (`app()->environment()`), el
+    | middleware `ValidateRoadmapExternoHost` rechaza cualquier petición cuyo `Host:` no esté en
+    | esta lista — mitiga host-header-spoofing o un proxy mal configurado que reenvíe con un Host
+    | falso hacia esta caja.
+    |
+    | `dev.meganett.com.mx` es el dominio real por el que Claude Cowork llega desde internet (ver
+    | `config/torre_salud.php:cert_host` y `JarvisVigilarCommand`, mismo dominio). El resto son
+    | accesos locales de la propia caja de dev (curl manual, tests, LAN).
+    |
+    */
+    'roadmap_externo_hosts' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env(
+            'ROADMAP_EXTERNO_HOSTS',
+            'dev.meganett.com.mx,192.168.105.11,localhost,127.0.0.1'
+        ))
+    ))),
+
+    /*
+    |--------------------------------------------------------------------------
     | DependenciaGate — cablear el gate de dependencias entre sub-items (#9990274)
     |--------------------------------------------------------------------------
     |

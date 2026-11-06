@@ -8,6 +8,8 @@ use App\Modules\Addons\Roadmap\Models\CircuitoEjecucion;
 use App\Modules\Addons\Roadmap\Models\RoadmapItem;
 use App\Modules\Addons\Roadmap\Services\MergesPendientesService;
 use App\Modules\Addons\Roadmap\Services\AutopilotService;
+use App\Modules\Addons\Roadmap\Services\ConsolaAcciones\ConsolaAccionCatalogo;
+use App\Modules\Addons\Roadmap\Services\ConsolaAcciones\ConsolaAccionExecutor;
 use App\Modules\Addons\Roadmap\Services\FronterasService;
 use App\Modules\Addons\Roadmap\Services\RespuestasWatchdogService;
 use App\Modules\Addons\Roadmap\Services\RoadmapCircuitoService;
@@ -46,6 +48,8 @@ class RoadmapController extends Controller
         'prompt', 'reanudaciones_timeout', 'frontera_valvula', 'motivo_espera', 'tipo',
         // #652 — el resumen en llano que la bandeja pinta como línea principal.
         'resumen_natural',
+        // #652 p2 — la traducción de las preguntas, indexada por la CLAVE ORIGINAL de cada opción.
+        'preguntas_natural',
     ];
 
     // #9990906 (CIRC-03 Fase C) — label legible + emoji por tipo de insumo para "Esperan un
@@ -139,7 +143,9 @@ class RoadmapController extends Controller
         private WatchdogService $watchdog,
         private SupervisorService $supervisor,
         private SessionTreeService $sessionTree,
-        private AutopilotService $autopilot
+        private AutopilotService $autopilot,
+        private ConsolaAccionCatalogo $consolaAcciones,
+        private ConsolaAccionExecutor $consolaExecutor
     ) {
     }
 
@@ -1093,6 +1099,9 @@ class RoadmapController extends Controller
         // contrato JSON de 'cola_requiere_irving' no cambia (mismo shape por item); solo baja
         // el conteo — los de insumo se mudan a 'cola_espera_insumo' más abajo.
         $cola = $this->bloque('bandeja', fn () => RoadmapItem::bandejaDecision()
+            // CIRC-02c Fase 2 (#9991140) — el hilo de respuestas viaja con cada item de la
+            // bandeja (una sola consulta extra vía with(), no N+1) para pintarlo en su tarjeta.
+            ->with(['respuestas' => fn ($q) => $q->orderBy('created_at')])
             ->ordered()->limit(100)->get(self::COLUMNAS_BANDEJA)
             ->map(fn (RoadmapItem $i) => array_merge($this->svc->compact($i), [
                 // #1035 — tipo explícito de la fila (decision|insumo|respuesta): el front deja de leer el
@@ -1103,6 +1112,15 @@ class RoadmapController extends Controller
                 'opciones'      => $i->opcionesDetalladas(),  // [{clave,texto,recomendada}] — legacy/fallback (#431)
                 'opcion_elegida' => $i->opcion_elegida,       // clave estable de la opción marcada (o null)
                 'preguntas'     => $i->preguntasNormalizadas(), // #432 Fase 3 — todas las preguntas juntas (multi o 1 fallback)
+                'preguntas_natural' => $i->preguntas_natural,    // #652 p2 — lente de lectura; la clave de cada opción sigue siendo la original
+                'respuestas'    => $i->respuestas->map(fn ($r) => [
+                    'id'           => $r->id,
+                    'autor'        => $r->autor,
+                    'cuerpo'       => $r->cuerpo,
+                    'created_at'   => optional($r->created_at)->toIso8601String(),
+                    'ejecutar'     => (bool) $r->ejecutar,
+                    'consumida_at' => optional($r->consumida_at)->toIso8601String(),
+                ])->values(),
                 'resumen'       => $this->resumenItem($i),        // resumen corto para 🔊 Escuchar / tarjeta (mismo que Integración)
                 'modulo_url'    => $this->moduloUrl($i->modulo),  // 🔎 Ver más → pantalla del módulo (fallback)
                 'enlace_revision' => $i->enlace_revision,          // #432 ADENDA B — deep-link REAL del cambio (preferente en "Ver")
@@ -1785,6 +1803,7 @@ class RoadmapController extends Controller
                 }
 
                 $base  = trim(explode('/', $modulo)[0]);   // "Roadmap / Torre de control" → "Roadmap"
+                $base  = $this->aliasCanonico($base);      // #526 — colapsa duplicados conocidos (Auth→Autenticación, Circuito→Roadmap)
                 $clave = $this->normalizeModulo($base);
                 if ($clave === '') {
                     $sinClasificar++;
@@ -2308,8 +2327,11 @@ class RoadmapController extends Controller
      */
     public function seguimiento(Request $request): JsonResponse
     {
-        $this->authorize('circuito.decidir');
-
+        // #876 — primer botón migrado al Catálogo de Acciones de la Consola. Antes: solo
+        // `$this->authorize('circuito.decidir')` inline. Ahora: el ejecutor central resuelve el
+        // MISMO permiso (Gate::forUser()->authorize() es lo que Controller::authorize() usa por
+        // dentro — misma semántica, mismo 403), y además registra la ejecución en
+        // `consola_acciones_ejecuciones`. Sin cambio de comportamiento ni de permiso.
         $data = $request->validate([
             'origen_item_id' => ['required', 'integer', 'min:1'],
             'titulo'         => ['required', 'string', 'max:255'],
@@ -2324,45 +2346,57 @@ class RoadmapController extends Controller
             return response()->json(['error' => 'Item de origen no encontrado'], 404);
         }
 
-        $autor = $this->actor();
+        $accion = $this->consolaAcciones->obtener('torre.seguimiento.crear');
+        abort_if(! $accion, 500, "ConsolaAccion 'torre.seguimiento.crear' no está declarada en el catálogo.");
 
-        $nuevo = RoadmapItem::create([
-            'title'             => $data['titulo'],
-            'modulo'            => $origen->modulo,
-            'description'       => $data['descripcion'] ?? null,
-            'status'            => 'pending',
-            'priority'          => $origen->priority ?: 'media',
-            'nivel_riesgo'      => $data['nivel_riesgo'] ?? null,
-            'estado_aprobacion' => 'pendiente_revision',
-            'origen_item_id'    => $origen->id,
-            'log'               => [[
-                'ts' => now()->toIso8601String(), 'por' => $autor,
-                'evento' => 'creado_como_seguimiento', 'origen' => $origen->id,
-            ]],
-        ]);
+        $resultado = $this->consolaExecutor->ejecutar(
+            $accion,
+            auth()->user(),
+            function () use ($data, $origen) {
+                $autor = $this->actor();
 
-        if (! empty($data['cerrar_origen'])) {
-            $origen->estado_aprobacion = 'completado';
-            $origen->status = 'done';
-            $origen->completed_at = now();
-            $origen->aprobado_por = $autor;
-            $origen->revisado_at = now();
-            if (! empty($data['comentario'])) {
-                $origen->comentarios_claude = $data['comentario'];
-            }
-            $log = $origen->log ?: [];
-            $log[] = ['ts' => now()->toIso8601String(), 'por' => $autor, 'evento' => 'cerrado_con_seguimiento', 'seguimiento' => $nuevo->id, 'comentario' => $data['comentario'] ?? null];
-            $origen->log = $log;
-            $origen->save();
-        }
+                $nuevo = RoadmapItem::create([
+                    'title'             => $data['titulo'],
+                    'modulo'            => $origen->modulo,
+                    'description'       => $data['descripcion'] ?? null,
+                    'status'            => 'pending',
+                    'priority'          => $origen->priority ?: 'media',
+                    'nivel_riesgo'      => $data['nivel_riesgo'] ?? null,
+                    'estado_aprobacion' => 'pendiente_revision',
+                    'origen_item_id'    => $origen->id,
+                    'log'               => [[
+                        'ts' => now()->toIso8601String(), 'por' => $autor,
+                        'evento' => 'creado_como_seguimiento', 'origen' => $origen->id,
+                    ]],
+                ]);
 
-        Log::channel('roadmap_externo')->info('seguimiento-creado', ['origen' => $origen->id, 'nuevo' => $nuevo->id, 'por' => $autor, 'cerro_origen' => (bool) ($data['cerrar_origen'] ?? false)]);
+                if (! empty($data['cerrar_origen'])) {
+                    $origen->estado_aprobacion = 'completado';
+                    $origen->status = 'done';
+                    $origen->completed_at = now();
+                    $origen->aprobado_por = $autor;
+                    $origen->revisado_at = now();
+                    if (! empty($data['comentario'])) {
+                        $origen->comentarios_claude = $data['comentario'];
+                    }
+                    $log = $origen->log ?: [];
+                    $log[] = ['ts' => now()->toIso8601String(), 'por' => $autor, 'evento' => 'cerrado_con_seguimiento', 'seguimiento' => $nuevo->id, 'comentario' => $data['comentario'] ?? null];
+                    $origen->log = $log;
+                    $origen->save();
+                }
 
-        return response()->json([
-            'ok'             => true,
-            'nuevo'          => ['id' => $nuevo->id, 'title' => $nuevo->title],
-            'origen_cerrado' => (bool) ($data['cerrar_origen'] ?? false),
-        ]);
+                Log::channel('roadmap_externo')->info('seguimiento-creado', ['origen' => $origen->id, 'nuevo' => $nuevo->id, 'por' => $autor, 'cerro_origen' => (bool) ($data['cerrar_origen'] ?? false)]);
+
+                return [
+                    'ok'             => true,
+                    'nuevo'          => ['id' => $nuevo->id, 'title' => $nuevo->title],
+                    'origen_cerrado' => (bool) ($data['cerrar_origen'] ?? false),
+                ];
+            },
+            ['origen_item_id' => $origen->id, 'titulo' => $data['titulo'], 'cerrar_origen' => (bool) ($data['cerrar_origen'] ?? false)]
+        );
+
+        return response()->json($resultado);
     }
 
     /**
@@ -2565,8 +2599,32 @@ class RoadmapController extends Controller
             }
         }
         $base = trim(explode('/', $modulo)[0]);   // "Roadmap / Torre de control" → "Roadmap"
+        $base = $this->aliasCanonico($base);      // #526 — colapsa duplicados conocidos antes de casar contra el sidebar
 
         return $this->moduloUrlMap[$this->normalizeModulo($base)] ?? null;
+    }
+
+    /** Mapa alias_normalizado→modulo_canonico de `module_aliases` (memoizado por request). */
+    private ?array $moduloAliasMap = null;
+
+    /**
+     * #526 — resuelve el drift de `roadmap_items.modulo` (texto libre) contra `module_aliases`
+     * (opción B aprobada por Irving: aditiva, resuelve SOLO al leer/agrupar, no reescribe el dato
+     * original). Si `$base` no tiene alias registrado, se devuelve tal cual (comportamiento
+     * idéntico al de antes de este item).
+     */
+    private function aliasCanonico(string $base): string
+    {
+        $base = trim($base);
+        if ($base === '') {
+            return $base;
+        }
+        if ($this->moduloAliasMap === null) {
+            $this->moduloAliasMap = \Illuminate\Support\Facades\DB::table('module_aliases')
+                ->pluck('modulo_canonico', 'alias_normalizado')->all();
+        }
+
+        return $this->moduloAliasMap[$this->normalizeModulo($base)] ?? $base;
     }
 
     private function normalizeModulo(string $s): string

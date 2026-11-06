@@ -107,6 +107,7 @@ final class ColectorMetricas
                 $info['solo_lectura'] = $sesion->soloLectura();
                 $info['redirigido'] = $sesion->redirigido();
                 $info['identidad'] = $sesion->identidad();
+                $this->seguirDisponibilidad($router, true, $dryRun);
 
                 $evaluacion = IdentidadRouter::evaluar($info['identidad'], $info['esperada'], $router->title);
                 if ($evaluacion === IdentidadRouter::POR_TITULO && ! $sesion->redirigido()) {
@@ -159,6 +160,9 @@ final class ColectorMetricas
             } catch (Throwable $e) {
                 $info['host'] ??= $e instanceof SinConexionRouter ? $e->host : null;
                 $info['estado'] = 'sin_conexion';
+                if ($e instanceof SinConexionRouter && $router) {
+                    $this->seguirDisponibilidad($router, false, $dryRun);
+                }
                 $info['error'] = mb_substr($e->getMessage(), 0, 300);
                 $latido['routers_error']++;
                 Log::warning("metricas:colectar: sin lectura del router {$routerId}: " . $e->getMessage());
@@ -201,6 +205,19 @@ final class ColectorMetricas
         }
 
         return ['latido' => $latido, 'routers' => $infoRouters, 'filas' => $filas, 'pings' => $pings, 'abortado' => $abortado];
+    }
+
+    /** #1171: up/down del router (antes en mikrotik:sync-ping); solo con el interruptor y sin dry-run. */
+    private function seguirDisponibilidad(Router $router, bool $arriba, bool $dryRun): void
+    {
+        if ($dryRun || ! SeguimientoDisponibilidadRouter::colectorLoLleva()) {
+            return;
+        }
+        try {
+            SeguimientoDisponibilidadRouter::registrar($router, $arriba, 'ColectorMetricas');
+        } catch (Throwable $e) {
+            Log::warning("metricas:colectar: seguimiento de disponibilidad del router {$router->id}: " . $e->getMessage());
+        }
     }
 
     /** Lectura de un router ya verificado: contadores de todas sus interfaces y ping a cada IP. */

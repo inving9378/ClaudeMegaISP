@@ -5,7 +5,7 @@
                 data-bs-toggle="modal" data-bs-target="#crudstate">Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="administracion/estado"
         model="State"
         list="Listado de Estados"

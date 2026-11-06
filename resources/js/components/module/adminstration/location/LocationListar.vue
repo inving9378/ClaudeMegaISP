@@ -5,7 +5,7 @@
                 data-bs-toggle="modal" data-bs-target="#crudlocation">Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="administracion/ubicacion"
         model="Location"
         list="Listado de Ubicaciones"

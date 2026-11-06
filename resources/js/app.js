@@ -14,6 +14,9 @@ import QTableResizable from "./directives/QTableResizable";
 //Dashboard
 import Dashboard from "./components/module/dashboard/Dashboard";
 
+//Auditoria
+import AuditoriaPermisosMatriz from "./components/module/auditoria/AuditoriaPermisosMatriz.vue";
+
 //Planes
 import InternetCrud from "./components/module/planes/InternetCrud";
 import VozCrud from "./components/module/planes/VozCrud";
@@ -509,6 +512,9 @@ const app = createApp({
     components: {
         //Dashboard
         Dashboard,
+
+        // Auditoria
+        'auditoria-permisos-matriz': AuditoriaPermisosMatriz,
 
         // Planes
         InternetCrud,

@@ -119,6 +119,7 @@
         :excludeDefaultColumns="['type/datatabletable']"
         :exportExtraColumns="['type']"
         list="Listado"
+        :urlState="true"
     ></Datatable>
 
     <ClientCrudPayment

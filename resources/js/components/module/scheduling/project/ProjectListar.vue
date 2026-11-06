@@ -16,7 +16,7 @@
             Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="scheduling/project"
         model="Project"
         list="Proyectos"

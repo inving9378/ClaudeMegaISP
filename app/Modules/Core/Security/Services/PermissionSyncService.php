@@ -176,6 +176,8 @@ class PermissionSyncService
     /**
      * Asigna el permiso a todos los roles que NO son full-access ni están en la lista de exclusión.
      * La lista de exclusión se configura en config/permission_sync.php (view_excluded_roles).
+     * Respeta la marca de override manual (item #542): si el permiso fue revocado a mano
+     * desde la pantalla de edición de rol, el sync NO lo vuelve a otorgar.
      * @return int número de asignaciones nuevas
      */
     private function giveToAllOtherRoles(Permission $perm): int
@@ -184,12 +186,24 @@ class PermissionSyncService
         $skip  = array_merge(self::FULL_ACCESS_ROLES, $this->getViewExcludedRoles());
         $others = Role::whereNotIn('name', $skip)->get();
         foreach ($others as $role) {
-            if (!$role->hasPermissionTo($perm)) {
+            if (!$role->hasPermissionTo($perm) && !$this->hasManualOverride($role->id, $perm->id)) {
                 $role->givePermissionTo($perm);
                 $count++;
             }
         }
         return $count;
+    }
+
+    /**
+     * ¿Este rol tuvo este permiso revocado a mano desde la edición de rol?
+     * Ver `role_permission_overrides` (item #542).
+     */
+    private function hasManualOverride(int $roleId, int $permissionId): bool
+    {
+        return DB::table('role_permission_overrides')
+            ->where('role_id', $roleId)
+            ->where('permission_id', $permissionId)
+            ->exists();
     }
 
     /** Lee la lista de roles excluidos del reparto automático de .view desde config. */

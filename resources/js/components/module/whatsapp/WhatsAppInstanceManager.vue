@@ -136,6 +136,16 @@
                     </button>
                     <button
                         v-if="ins.status === 'connected'"
+                        class="tc-btn"
+                        @click="askRestart(ins)"
+                        :disabled="restarting[ins.id]"
+                        title="Reiniciar la conexión en Evolution (restart). NO cierra sesión, se reconecta sola."
+                    >
+                        <i class="bi bi-arrow-repeat" :class="{ 'wim-spin': restarting[ins.id] }"></i>
+                        {{ restarting[ins.id] ? 'Reiniciando…' : 'Reiniciar' }}
+                    </button>
+                    <button
+                        v-if="ins.status === 'connected'"
                         class="tc-btn tc-btn-warn"
                         @click="askDisconnect(ins)"
                         title="Cerrar la sesión de WhatsApp en Evolution (logout). Se reconecta por QR."
@@ -341,6 +351,7 @@ export default {
             warnDeleteModal: null, // { ins, functions:[names] } — aviso, NO bloqueo
             disconnectModal: null, // { ins, typed } — logout real (producción exige teclear nombre)
             disconnectError: '',
+            restarting: {}, // { instanceId: true } mientras Reiniciar está en curso
             funcToast: null,
             salud: null,          // #9991240 — {ok, estado, url, detalle} de /whatsapp/api/evolution/salud
             saludCargando: false,
@@ -596,6 +607,28 @@ export default {
                 if (!this.disconnectModal) this.showFuncToast(this.funcErr(e), 'error');
             } finally {
                 this.funcBusy = false;
+            }
+        },
+
+        // Reiniciar (restart en Evolution) — NO cierra sesión, se reconecta sola.
+        // Confirmación simple (patrón Fase 1): es reversible y de menor impacto que
+        // Desconectar, que exige teclear el nombre en producción.
+        askRestart(ins) {
+            const msg = this.isProduction(ins)
+                ? `⚠️ Esto afecta el WhatsApp que usan conciliación y el bot.\n\n¿Reiniciar la conexión de "${ins.name}"? No cierra sesión; se reconecta sola en unos segundos.`
+                : `¿Reiniciar la conexión de "${ins.name}"?`;
+            if (!confirm(msg)) return;
+            this.doRestart(ins);
+        },
+        async doRestart(ins) {
+            this.restarting = { ...this.restarting, [ins.id]: true };
+            try {
+                await axios.post(`/whatsapp/api/instances/${ins.id}/restart`);
+                this.showFuncToast(`«${ins.name}» reiniciada`, 'ok');
+            } catch (e) {
+                this.showFuncToast(this.funcErr(e), 'error');
+            } finally {
+                this.restarting = { ...this.restarting, [ins.id]: false };
             }
         },
 

@@ -554,8 +554,10 @@ export default {
 
       // Se guarda el instante exacto: el servidor interpreta estas fechas en UTC, así que rehacerlas
       // solo con el día podría cambiar el resultado del filtro.
-      const fechas = (url.fechaCorte ?? "").split(",").map((f) => new Date(f));
-      const fechaCorte = fechas.length === 2 && fechas.every((f) => !isNaN(f)) ? fechas : "";
+      // Un solo día elegido con un clic llega como una fecha: el selector lo maneja como [día, null].
+      const fechas = (url.fechaCorte ?? "").split(",").filter(Boolean).map((f) => new Date(f));
+      const fechasValidas = fechas.length <= 2 && fechas.length > 0 && fechas.every((f) => !isNaN(f));
+      const fechaCorte = fechasValidas ? (fechas.length === 1 ? [fechas[0], null] : fechas) : "";
 
       const filtros = {};
       if (estado.length > 0) filtros[CAMPO_ESTADO] = estado;
@@ -938,8 +940,7 @@ export default {
       const { page, rowsPerPage, sortBy, descending } = pagination.value;
       const estado = ffilters.value[CAMPO_ESTADO] ?? [];
       const tipo = ffilters.value[CAMPO_TIPO] ?? [];
-      const fechas = fechaCorte.value;
-      const hayFechas = Array.isArray(fechas) && fechas.length === 2 && fechas.every(Boolean);
+      const fechas = Array.isArray(fechaCorte.value) ? fechaCorte.value.filter(Boolean) : [];
 
       tablaUrl.guardar(
         {
@@ -949,7 +950,7 @@ export default {
           descending: descending === false ? "0" : null,
           estado: estado.length > 0 ? estado.join(",") : null,
           tipo: tipo.length > 0 ? tipo.join(",") : null,
-          fechaCorte: hayFechas ? fechas.map((f) => new Date(f).toISOString()).join(",") : null,
+          fechaCorte: fechas.length > 0 ? fechas.map((f) => new Date(f).toISOString()).join(",") : null,
           ampliada: ampliadaActiva.value ? "1" : null,
         },
         search.value !== "" ? { search: search.value } : {}

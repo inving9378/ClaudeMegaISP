@@ -16,7 +16,7 @@
             Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="administracion/colonia"
         model="Colony"
         list="Listado de Colonia"

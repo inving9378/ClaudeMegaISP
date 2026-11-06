@@ -401,6 +401,7 @@ import FilterDataTable from "../../base/shared/FilterDataTable.vue";
 import Swal from "sweetalert2";
 import { darkMode, rowStatusStyle, setRowStatusStyle } from "../../../hook/appConfig";
 import { useDataTable } from "../../../composables/useDataTable";
+import { useTableUrlState } from "../../../hook/useTableUrlState";
 import { cloneDeep } from "lodash";
 
 const ns = `.leak983-crmDatatable-${getCurrentInstance().uid}`;
@@ -465,6 +466,16 @@ const props = defineProps({
     persistentFilters: {
         type: Object,
         default: {},
+    },
+    // Opt-in (#1175, patrón de #1162): conserva búsqueda, página, orden y filas por página al
+    // entrar a un registro y volver. La búsqueda va en history.state, nunca en la URL.
+    urlState: {
+        type: Boolean,
+        default: false,
+    },
+    urlStatePrefix: {
+        type: String,
+        default: "",
     },
     status: {
         type: String,
@@ -634,7 +645,21 @@ const resetFieldJson = () => {
 onMounted(async () => {
     columns.value = await requestColumnsDatatableByModule(props.model);
     await getColumnsTable();
-    await getRowsByModule(columns.value, filters.value);
+    // La URL puede editarse o quedar vieja: ordenar por una columna inexistente daría error.
+    const ordenValido =
+        ordenGuardado &&
+        columns.value.some((c) => c.name === ordenGuardado.sortBy && c.name !== "action");
+    if (ordenValido) {
+        currentSortColumn.value = ordenGuardado.sortBy;
+        pagination.value.sortBy = ordenGuardado.sortBy;
+        pagination.value.descending = ordenGuardado.descending;
+    }
+    await getRowsByModule(
+        columns.value,
+        filters.value,
+        ordenValido ? ordenGuardado.sortBy : undefined,
+        ordenValido ? ordenGuardado.descending : undefined
+    );
     $(document).on("click" + ns, `#${props.idTable} .fa-trash`, function (e) {
         Swal.fire({
             title: "Esta seguro que desea eliminar?",
@@ -808,6 +833,51 @@ const pagination = ref({
     rowsNumber: 1,
 });
 const startPagination = ref(0);
+
+// #1175: estado guardado. Se lee en el setup (antes de montar) para que q-table no vea cambiar el
+// filtro después y reinicie la página; el orden se valida en onMounted, cuando ya hay columnas.
+const PAGINACION_URL = { page: 1, rowsPerPage: 50 };
+const tablaUrl = props.urlState
+    ? useTableUrlState({
+          parametros: ["page", "rowsPerPage", "sortBy", "descending"],
+          prefijo: props.urlStatePrefix,
+      })
+    : null;
+let ordenGuardado = null;
+if (tablaUrl) {
+    const { url, privado } = tablaUrl.leer();
+    if (/^\d+$/.test(url.rowsPerPage ?? "") && rowPerPageOptions.value.includes(Number(url.rowsPerPage))) {
+        pagination.value.rowsPerPage = Number(url.rowsPerPage);
+    }
+    if (/^[1-9]\d*$/.test(url.page ?? "") && pagination.value.rowsPerPage !== 0) {
+        pagination.value.page = Number(url.page);
+        startPagination.value = (pagination.value.page - 1) * pagination.value.rowsPerPage;
+    }
+    if (url.sortBy) ordenGuardado = { sortBy: url.sortBy, descending: url.descending !== "0" };
+    if (typeof privado.search === "string") search.value = privado.search;
+
+    watch(
+        [
+            search,
+            () => pagination.value.page,
+            () => pagination.value.rowsPerPage,
+            () => pagination.value.sortBy,
+            () => pagination.value.descending,
+        ],
+        () => {
+            const { page, rowsPerPage, sortBy, descending } = pagination.value;
+            tablaUrl.guardar(
+                {
+                    page: page !== PAGINACION_URL.page ? String(page) : null,
+                    rowsPerPage: rowsPerPage !== PAGINACION_URL.rowsPerPage ? String(rowsPerPage) : null,
+                    sortBy: sortBy || null,
+                    descending: sortBy ? (descending ? "1" : "0") : null,
+                },
+                search.value !== "" ? { search: search.value } : {}
+            );
+        }
+    );
+}
 
 const paginationText = computed(() => {
     const startItem = startPagination.value + 1;

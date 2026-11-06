@@ -26,9 +26,13 @@ class ParentalProfile extends BaseModel
         'photo', 'active',
     ];
 
+    protected $hidden = ['pin_hash'];
+
     protected $casts = [
         'age' => 'integer',
         'active' => 'boolean',
+        'pin_attempts' => 'integer',
+        'pin_locked_at' => 'datetime',
     ];
 
     public function account(): BelongsTo

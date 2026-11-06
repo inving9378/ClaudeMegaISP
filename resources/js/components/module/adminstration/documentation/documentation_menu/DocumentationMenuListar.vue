@@ -16,7 +16,7 @@
             Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="administracion/documentation/documentation_menu"
         model="DocumentationMenu"
         list="Listado de Menús de Documentación"

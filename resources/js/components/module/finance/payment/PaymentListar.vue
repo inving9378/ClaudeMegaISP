@@ -45,6 +45,7 @@
         module="finanzas/pagos"
         model="FinancePayment"
         list="Listado Pagos"
+        :urlState="true"
     ></Datatable>
 </template>
 

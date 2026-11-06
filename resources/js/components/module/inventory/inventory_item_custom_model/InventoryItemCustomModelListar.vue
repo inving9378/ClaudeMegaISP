@@ -11,7 +11,7 @@
             </button>
         </div>
     </div>
-    <Datatable module="inventory/inventory_item_custom_model" model="InventoryItemCustomModel"
+    <Datatable :urlState="true" module="inventory/inventory_item_custom_model" model="InventoryItemCustomModel"
         list="Listado de Articulos" @table="table"></Datatable>
 
     <div class="modal fade" id="crudInventoryItemCustomModel" data-backdrop="static" data-keyboard="false">

@@ -15,6 +15,7 @@ use App\Modules\Addons\Flotas\Controllers\FleetSubscriptionController;
 use App\Modules\Addons\Flotas\Controllers\FleetClientVehicleController;
 use App\Modules\Addons\Flotas\Controllers\FleetPushTokenController;
 use App\Modules\Addons\Flotas\Controllers\FleetClientsAdminController;
+use App\Modules\Addons\Flotas\Controllers\FleetDriverController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth', 'check_route_permission'])
@@ -89,6 +90,11 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::patch('/{id}',    [FleetVehicleController::class, 'update'])->whereNumber('id');
             Route::delete('/{id}',   [FleetVehicleController::class, 'destroy'])->whereNumber('id');
             Route::post('/{id}/restore', [FleetVehicleController::class, 'restore'])->whereNumber('id');
+        });
+
+        // ── API: Conductores (item #920 — ficha del conductor) ─────────────────
+        Route::prefix('api/conductores')->group(function () {
+            Route::get('/{id}', [FleetDriverController::class, 'show'])->whereNumber('id');
         });
 
         // ── API: GPS / Flota en mapa ───────────────────────────────────────────

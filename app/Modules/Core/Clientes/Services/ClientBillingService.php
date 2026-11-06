@@ -185,6 +185,12 @@ class ClientBillingService
             // FR-07 (#541, decisión de Irving 2026-10-17): con BILLING_CAPA_CONTRATO encendido y para
             // ciclos desde la fecha de las reglas, la capa de contrato decide (vigente / cumplido con
             // tope de facturas sin pago / renovado). Apagada o ciclo anterior → la regla de siempre.
+            // #1090: con el interruptor encendido, un cliente Bloqueado no acumula el mes de servicio.
+            if (ReglasFacturacion::omiteCargoPorBloqueo($client)) {
+                $this->logService->log($client, 'Cliente #' . $client->id . ' está Bloqueado — no se le carga el mes de servicio (BILLING_NO_CARGAR_MES_BLOQUEADO).');
+                return false;
+            }
+
             $ciclo = ProformaAnticipada::corte($client->fecha_pago) ?? Carbon::today();
             $decision = CapaContrato::decidirCargoSinSaldo($client, $ciclo);
             if ($decision === null) {

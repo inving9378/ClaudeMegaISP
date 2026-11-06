@@ -6,7 +6,8 @@
         <manual-payment-capture
             :methods="{{ json_encode($methods) }}"
             :accounts="{{ json_encode($accounts) }}"
-            :default-method-id="{{ (int) $defaultMethodId }}">
+            :default-method-id="{{ (int) $defaultMethodId }}"
+            :idem-token="@js($idemToken)">
         </manual-payment-capture>
     @endif
 @endsection

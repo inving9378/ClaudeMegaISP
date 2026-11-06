@@ -1,5 +1,5 @@
 <template>
-    <Datatable
+    <Datatable :urlState="true"
         module="configuracion/tools-import"
         model="SettingToolsImport"
         list="Listado"

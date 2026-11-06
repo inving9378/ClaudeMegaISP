@@ -5,7 +5,7 @@
                 data-bs-toggle="modal" data-bs-target="#cruddebitcustom">Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="configuracion/debitcustom"
         model="SettingDebtPaymentClientCustom"
         list="Listado"

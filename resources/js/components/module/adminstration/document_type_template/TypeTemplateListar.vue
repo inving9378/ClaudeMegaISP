@@ -16,7 +16,7 @@
             Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="administracion/document_type_template"
         model="DocumentTypeTemplate"
         list="Listado de Tipos de Plantilla"

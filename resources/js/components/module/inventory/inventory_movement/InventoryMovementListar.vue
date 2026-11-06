@@ -65,6 +65,7 @@
         module="inventory/inventory_movement"
         model="InventoryMovement"
         list="Listado de Movimientos"
+        :urlState="true"
         @table="table"
         :editButton="{ modal: 'crudinventorymovement' }"
     ></Datatable>

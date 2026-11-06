@@ -135,6 +135,10 @@ class PromisePaymentClientService
     public function deployServiceAndActiveClient()
     {
         //despliega los servicios y activo el cliente
+        // #1126: Cancelado/Desinstalado no se reactivan por pago (ni promesa).
+        if (! \App\Services\Finance\Billing\ReglasFacturacion::reactivaConPago($this->client)) {
+            return;
+        }
         $clientRepository = new ClientRepository();
         $clientWithServices = $clientRepository->getServicesForClient($this->client->id);
         //Servicios Activa y despliega servicios y ponlo en pa

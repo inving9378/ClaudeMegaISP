@@ -38,9 +38,11 @@ abstract class PortalTestCase extends TestCase
     protected function crearClientePortal(array $overrides = []): PortalClient
     {
         // Insertamos el cliente base (campos mínimos NOT NULL)
+        // El id 1 no siempre existe en la base de pruebas: la FK de clients exige un usuario real.
+        $usuarioBase = DB::table('users')->min('id');
         $clientId = DB::table('clients')->insertGetId([
-            'created_by' => 1,
-            'updated_by' => 1,
+            'created_by' => $usuarioBase,
+            'updated_by' => $usuarioBase,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -142,8 +144,8 @@ abstract class PortalTestCase extends TestCase
             'client_id'  => $clientId,
             'clabe'      => $clabe,
             'is_active'  => 1,
-            'created_by' => 1,
-            'updated_by' => 1,
+            'created_by' => $usuarioBase,
+            'updated_by' => $usuarioBase,
             'created_at' => now(),
             'updated_at' => now(),
         ]);

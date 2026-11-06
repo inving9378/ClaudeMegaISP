@@ -9,7 +9,7 @@
                         Agregar Vendedor
                     </a>
         </div>
-        <Datatable
+        <Datatable :urlState="true"
             module="sellers/seller"
             model="Seller"
             list="Listado de Vendedores"

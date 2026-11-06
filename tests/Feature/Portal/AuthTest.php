@@ -72,6 +72,43 @@ class AuthTest extends PortalTestCase
         $this->assertNotNull($updatedAt);
     }
 
+    public function test_1155_login_con_legacy_guarda_el_hash(): void
+    {
+        $cliente = $this->crearClientePortal(['password' => 'Legacy-1155-a']);
+
+        $this->post('/portal/login', ['identificador' => (string) $cliente->client_id, 'contrasena' => 'Legacy-1155-a'])
+            ->assertRedirect('/portal');
+
+        $hash = DB::table('client_main_information')->where('client_id', $cliente->client_id)->value('web_password_hash');
+        $this->assertNotEmpty($hash);
+        $this->assertTrue(Hash::check('Legacy-1155-a', $hash));
+    }
+
+    public function test_1155_contrasena_anterior_no_entra_si_la_legacy_cambio(): void
+    {
+        $cliente = $this->crearClientePortal(['password' => 'Nueva-1155-b']);
+        DB::table('client_main_information')->where('client_id', $cliente->client_id)
+            ->update(['web_password_hash' => Hash::make('Anterior-1155-b')]);
+
+        $this->post('/portal/login', ['identificador' => (string) $cliente->client_id, 'contrasena' => 'Anterior-1155-b']);
+        $this->assertGuest('cliente');
+
+        $this->post('/portal/login', ['identificador' => (string) $cliente->client_id, 'contrasena' => 'Nueva-1155-b'])
+            ->assertRedirect('/portal');
+        $hash = DB::table('client_main_information')->where('client_id', $cliente->client_id)->value('web_password_hash');
+        $this->assertTrue(Hash::check('Nueva-1155-b', $hash));
+    }
+
+    public function test_1155_sin_legacy_entra_con_el_hash(): void
+    {
+        $cliente = $this->crearClientePortal(['password' => null]);
+        DB::table('client_main_information')->where('client_id', $cliente->client_id)
+            ->update(['web_password_hash' => Hash::make('Solo-Hash-1155-c')]);
+
+        $this->post('/portal/login', ['identificador' => (string) $cliente->client_id, 'contrasena' => 'Solo-Hash-1155-c'])
+            ->assertRedirect('/portal');
+    }
+
     public function test_login_contrasena_incorrecta(): void
     {
         $cliente = $this->crearClientePortal();

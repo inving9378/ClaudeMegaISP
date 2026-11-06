@@ -1,0 +1,3 @@
+# Commits que no pueden salir a producción hasta validarlos.
+# Formato: <hash completo> <item> <motivo>
+# Para liberar uno: borrar su línea y commitear. Lo revisan el pipeline y releases:publish-github.

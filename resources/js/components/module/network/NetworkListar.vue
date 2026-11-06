@@ -1,5 +1,5 @@
 <template>
-    <Datatable
+    <Datatable :urlState="true"
         module="red/ipv4"
         model="Network"
         add="Agregar de red"

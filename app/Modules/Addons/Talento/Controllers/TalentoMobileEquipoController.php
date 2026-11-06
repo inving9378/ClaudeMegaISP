@@ -230,6 +230,7 @@ class TalentoMobileEquipoController extends Controller
             'period_end' => $w['period_end'],
         ], $cuenta, [
             'desglose' => app(LiquidationService::class)->breakdown($col->id, $w),
+        ], ($etapas = app(\App\Modules\Addons\Talento\Services\CompensacionService::class)->etapas($col->id, $w)) ? ['etapas' => $etapas] : [], [
             // 30-oct-2026: lo demás que muestra la web (Mi dinero y la pestaña Compensación).
             'fondo' => PortalTecnicoController::fondoDe($col->id, $w),
             'prestamos' => PortalTecnicoController::prestamosDe($col->id, $w),
@@ -911,13 +912,55 @@ class TalentoMobileEquipoController extends Controller
         $release = DB::table('talento_app_releases')->where('active', true)->orderByDesc('version_code')->first();
         abort_if(! $release, 404, 'No hay una version publicada.');
 
+        // El QR ya NO apunta directo al .apk -- apunta a la pagina publica
+        // descargarApp(), que detecta Android/iPhone/escritorio y manda a cada
+        // quien por el camino correcto (ver nota en ese metodo). El host se
+        // deriva del propio apk_url (NO de url()/APP_URL, que aqui vale la IP
+        // LAN) para que quede en el mismo dominio publico alcanzable desde
+        // fuera de la red -- ver memoria "APK de Talento vía DNS, no IP".
+        $host = parse_url($release->apk_url, PHP_URL_HOST);
+        $scheme = parse_url($release->apk_url, PHP_URL_SCHEME) ?: 'https';
+        $landingUrl = "{$scheme}://{$host}/app/descargar";
+
         $opts = new QROptions(['outputInterface' => QRGdImagePNG::class, 'scale' => 8]);
-        $dataUri = (new QRCode($opts))->render($release->apk_url);
+        $dataUri = (new QRCode($opts))->render($landingUrl);
 
         return response()->json([
             'apk_url' => $release->apk_url,
+            'landing_url' => $landingUrl,
             'version_name' => $release->version_name,
             'qr_data_uri' => $dataUri,
+        ]);
+    }
+
+    /**
+     * Pagina publica (sin auth) a la que apunta el QR y que se puede compartir
+     * como link suelto. Detecta el User-Agent para mandar a cada quien por el
+     * camino correcto: Android descarga directo, iPhone ve un aviso honesto de
+     * "aun no disponible" (no existe build de iOS todavia -- requeriria Mac +
+     * cuenta de Apple Developer, fuera de alcance de este cambio), y
+     * escritorio/desconocido ve ambas opciones.
+     */
+    public function descargarApp(Request $request)
+    {
+        $release = DB::table('talento_app_releases')->where('active', true)->orderByDesc('version_code')->first();
+        abort_if(! $release, 404, 'No hay una version publicada.');
+
+        $ua = (string) $request->userAgent();
+        $esIos = (bool) preg_match('/iPhone|iPad|iPod/i', $ua);
+        $esAndroid = ! $esIos && (bool) preg_match('/Android/i', $ua);
+
+        // Android: salta directo a la descarga real (un solo toque, igual que antes).
+        if ($esAndroid) {
+            return redirect()->away($release->apk_url);
+        }
+
+        $plataforma = $esIos ? 'ios' : 'desconocido';
+
+        return view('addon-talento::talento.descargar-app', [
+            'plataforma' => $plataforma,
+            'apkUrl' => $release->apk_url,
+            'versionName' => $release->version_name,
         ]);
     }
 }

@@ -3,15 +3,19 @@
 namespace App\Modules\Addons\PortalCliente\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Addons\PortalCliente\Controllers\Concerns\PortalAccountRateLimiting;
 use App\Modules\Addons\PortalCliente\Models\PortalClient;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
+    use PortalAccountRateLimiting;
+
     // ── LOGIN ─────────────────────────────────────────────────────────────
 
     public function showLogin(Request $request)
@@ -80,9 +84,21 @@ class AuthController extends Controller
 
         // Credencial = "Contraseña WEB" (columna `password`, texto plano).
         // hash_equals evita timing attacks aunque la comparación sea en claro.
-        $passwordOk = $cmi
-            && filled($cmi->password)
-            && hash_equals((string) $cmi->password, (string) $data['contrasena']);
+        // #1155: login híbrido. La columna legacy manda mientras exista: la ficha del admin y el perfil
+        // del portal la cambian sin tocar el hash, y una contraseña anterior no debe seguir entrando.
+        // El hash solo decide si no hay legacy; si la legacy coincide, se (re)hashea tras el login.
+        $passwordOk = false;
+        $needsRehash = false;
+        if ($cmi) {
+            $contrasena = (string) $data['contrasena'];
+            if (filled($cmi->password)) {
+                $passwordOk = hash_equals((string) $cmi->password, $contrasena);
+                $needsRehash = $passwordOk
+                    && ! (filled($cmi->web_password_hash) && Hash::check($contrasena, $cmi->web_password_hash));
+            } elseif (filled($cmi->web_password_hash)) {
+                $passwordOk = Hash::check($contrasena, $cmi->web_password_hash);
+            }
+        }
 
         if (! $passwordOk) {
             RateLimiter::hit($key, 60);
@@ -97,6 +113,16 @@ class AuthController extends Controller
         Auth::guard('cliente')->login($cmi);
 
         $cmi->update(['portal_last_login_at' => now()]);
+        if ($needsRehash) {
+            // El deploy no entra en mantenimiento: mientras corre la migración la columna aún no existe,
+            // y eso no debe tumbar un login que ya fue correcto.
+            try {
+                $cmi->web_password_hash = Hash::make((string) $data['contrasena']);
+                $cmi->save();
+            } catch (\Throwable $e) {
+                Log::warning('Portal: no se pudo guardar web_password_hash', ['client_id' => $cmi->client_id, 'error' => $e->getMessage()]);
+            }
+        }
 
         return redirect()->route('portal.dashboard');
     }
@@ -143,11 +169,7 @@ class AuthController extends Controller
         }
 
         // Verificación: número de cliente + teléfono coinciden
-        $telefonoOk = $cmi && (
-            $this->normalizeTel($cmi->phone)  === $this->normalizeTel($data['telefono']) ||
-            $this->normalizeTel($cmi->phone2) === $this->normalizeTel($data['telefono']) ||
-            $this->normalizeTel($cmi->phone3) === $this->normalizeTel($data['telefono'])
-        );
+        $telefonoOk = $this->telefonoCoincide($cmi, $data['telefono']);
 
         if (! $telefonoOk) {
             RateLimiter::hit($key, 300);
@@ -158,11 +180,19 @@ class AuthController extends Controller
             ]);
         }
 
+        // #473: con el flujo por código encendido, registro no puede ser la vía para cambiar la contraseña
+        // de una cuenta ya registrada sin pasar por el código.
+        if (config('portalcliente.recuperar_otp') && filled($cmi->portal_registered_at)) {
+            return redirect()->route('portal.recuperar')
+                ->with('info', 'Este número de cliente ya tiene cuenta. Recupera tu contraseña con un código por WhatsApp.');
+        }
+
         RateLimiter::clear($key);
         RateLimiter::clear($accountKey);
         // Reapuntado a la columna `password` (Contraseña WEB, texto plano) — unificado con el login.
         // Asignación directa para no ampliar el $fillable del modelo.
         $cmi->password             = $data['contrasena'];
+        $cmi->web_password_hash    = Hash::make($data['contrasena']);
         $cmi->portal_registered_at = now();
         $cmi->portal_last_login_at = now();
         $cmi->save();
@@ -174,6 +204,26 @@ class AuthController extends Controller
 
     // ── RECUPERAR CONTRASEÑA ──────────────────────────────────────────────
 
+    /**
+     * Un teléfono sin dígitos se normaliza a '' y coincidiría con cualquier phone2/phone3 vacío, así que
+     * nunca cuenta como prueba de identidad.
+     */
+    private function telefonoCoincide(?PortalClient $cmi, string $capturado): bool
+    {
+        $capturado = $this->normalizeTel($capturado);
+        if (! $cmi || $capturado === '') {
+            return false;
+        }
+
+        foreach ([$cmi->phone, $cmi->phone2, $cmi->phone3] as $registrado) {
+            if ($this->normalizeTel($registrado) === $capturado) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function showRecuperar()
     {
         if (Auth::guard('cliente')->check()) {
@@ -184,6 +234,13 @@ class AuthController extends Controller
 
     public function recuperar(Request $request)
     {
+        // #473: con el flujo por código encendido este POST ya no cambia contraseñas. Corta antes de
+        // validar o buscar la cuenta para no responder distinto según los datos (formularios abiertos de antes).
+        if (config('portalcliente.recuperar_otp')) {
+            return redirect()->route('portal.recuperar')
+                ->with('info', 'Para proteger tu cuenta, ahora te enviamos un código por WhatsApp. Solicítalo aquí.');
+        }
+
         $data = $request->validate([
             'numero_cliente' => 'required|integer|min:1',
             'telefono'       => 'required|string|max:30',
@@ -205,11 +262,7 @@ class AuthController extends Controller
             return back()->withErrors(['numero_cliente' => "Demasiados intentos para esta cuenta. Intenta en {$seconds} segundos."]);
         }
 
-        $telefonoOk = $cmi && (
-            $this->normalizeTel($cmi->phone)  === $this->normalizeTel($data['telefono']) ||
-            $this->normalizeTel($cmi->phone2) === $this->normalizeTel($data['telefono']) ||
-            $this->normalizeTel($cmi->phone3) === $this->normalizeTel($data['telefono'])
-        );
+        $telefonoOk = $this->telefonoCoincide($cmi, $data['telefono']);
 
         if (! $telefonoOk) {
             RateLimiter::hit($key, 300);
@@ -223,45 +276,10 @@ class AuthController extends Controller
         RateLimiter::clear($accountKey);
         // Reapuntado a la columna `password` (Contraseña WEB, texto plano) — unificado con el login.
         $cmi->password = $data['contrasena'];
+        $cmi->web_password_hash = Hash::make($data['contrasena']);
         $cmi->save();
 
         return redirect()->route('portal.login')
             ->with('success', 'Contraseña actualizada. Ahora puedes iniciar sesión.');
-    }
-
-    // ── Helpers ──────────────────────────────────────────────────────────
-
-    private function normalizeTel(?string $tel): string
-    {
-        if (! $tel) return '';
-        return preg_replace('/[^0-9]/', '', $tel);
-    }
-
-    /**
-     * #256 FASE 1: llave del limitador POR CUENTA (independiente de la IP), keyed por el id
-     * ya resuelto del cliente (así variantes de formato del mismo identificador comparten
-     * contador) o, si no resolvió a ninguna cuenta, por el identificador crudo normalizado.
-     */
-    private function accountRateLimitKey(string $prefix, ?PortalClient $cmi, string $rawIdentifier): string
-    {
-        $identity = $cmi ? 'id:' . $cmi->id : 'raw:' . mb_strtolower(trim($rawIdentifier));
-        return $prefix . ':' . $identity;
-    }
-
-    /**
-     * #256 FASE 1: ventana fija de 15 min (900s) por cuenta — umbral 10 intentos (recomendación
-     * de Irving en el item: "10 fallos/15min por cuenta"). Se auto-expira sola (no es lockout
-     * duro/permanente: no requiere intervención de un admin para desbloquear).
-     * #256 FASE 0: deja rastro en log para medir el patrón real de fallos por cuenta.
-     */
-    private function hitAccountRateLimiter(string $key, string $contexto): void
-    {
-        $attempts = RateLimiter::hit($key, 900);
-
-        Log::warning('portal-auth: fallo con rate-limit por cuenta', [
-            'contexto' => $contexto,
-            'key'      => $key,
-            'attempts' => $attempts,
-        ]);
     }
 }

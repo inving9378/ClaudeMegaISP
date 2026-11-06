@@ -80,6 +80,41 @@ class MapaRedPuerto extends Model
     }
 
     /**
+     * Versión batch de ocupacionDe() para varios dueños del MISMO tipo en UNA sola query
+     * (evita el N+1 de llamar ocupacionDe() por cada NAP al pintar el mapa completo,
+     * MR-20/#9990432).
+     *
+     * @return array<int, array{libre:int,ocupado:int,reservado:int,dañado:int}> keyBy puertable_id
+     */
+    public static function ocupacionDeVarios(string $puertableType, array $puertableIds): array
+    {
+        if (empty($puertableIds)) {
+            return [];
+        }
+
+        $base = array_fill_keys(
+            [self::ESTADO_LIBRE, self::ESTADO_OCUPADO, self::ESTADO_RESERVADO, self::ESTADO_DANADO],
+            0
+        );
+
+        $filas = self::query()
+            ->where('puertable_type', $puertableType)
+            ->whereIn('puertable_id', $puertableIds)
+            ->selectRaw('puertable_id, estado, count(*) as total')
+            ->groupBy('puertable_id', 'estado')
+            ->get();
+
+        $resultado = [];
+        foreach ($filas as $fila) {
+            $id = (int) $fila->puertable_id;
+            $resultado[$id] = $resultado[$id] ?? $base;
+            $resultado[$id][$fila->estado] = (int) $fila->total;
+        }
+
+        return $resultado;
+    }
+
+    /**
      * Genera automáticamente los puertos de un splitter N:M (DoD #946: splitter 1:8 en una
      * NAP -> 8 puertos de salida + 1 de entrada). `$rolEntrada`/`$rolSalida` se dejan
      * configurables porque un splitter puede ser un objeto propio (`splitter_in`/`splitter_out`,

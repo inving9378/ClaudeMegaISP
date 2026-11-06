@@ -145,6 +145,7 @@ import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick } from 'v
 import axios from 'axios';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { initBaseLeafletMap } from '../maps/helper/sharedMapInit';
 
 export default {
     name: 'FleetGeofenceForm',
@@ -323,11 +324,7 @@ export default {
             await nextTick();
             if (!mapEl.value) return;
 
-            map = L.map(mapEl.value).setView([19.4326, -99.1332], 12);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-            }).addTo(map);
+            map = await initBaseLeafletMap(mapEl.value, { zoom: 12 });
             map.doubleClickZoom.disable();
 
             // Click con debounce para no duplicar vértices al hacer doble clic.

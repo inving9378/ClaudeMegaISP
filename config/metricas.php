@@ -9,6 +9,12 @@
 
 return [
 
+    // Item #1172 (Fase 2 de #995): interruptor del ping VIEJO (mikrotik:sync-ping -> ping_statistics).
+    // Default true = comportamiento actual. Se apaga con METRICAS_PING_LEGACY=false SOLO cuando los
+    // consumidores de ping_statistics (ClientPingController, Dedicado*, alertas) ya esten repuntados a
+    // cliente_metricas_ping y verificados. La tabla y su historico no se tocan.
+    'ping_legacy_activo' => (bool) env('METRICAS_PING_LEGACY', true),
+
     // Override opcional. El interruptor es «Monitoreo de dedicados» en Configuración (encendido de
     // inicio); METRICAS_ACTIVO solo se define para forzarlo en el .env (ver AjusteMonitoreo).
     'activo' => env('METRICAS_ACTIVO'),
@@ -97,5 +103,11 @@ return [
     // Bases de datos que son producción, aunque APP_ENV diga otra cosa (ver EntornoMetricas): con
     // ellas el colector va al router registrado y el driver simulado se niega a correr.
     'bases_produccion' => ['meganet_prod_claude', 'meganet_prod'],
+
+    // Item #1171 (Fase 1 de #995): quién lleva el seguimiento up/down del router
+    // (mikrotik_last_status / mikrotik_status_changed_at + sync masivo al pasar down→up).
+    // false = lo sigue haciendo mikrotik:sync-ping (comportamiento de siempre);
+    // true  = lo hace el colector con la conexión que ya abre por router, y sync-ping lo omite.
+    'disponibilidad_router_en_colector' => (bool) env('METRICAS_DISPONIBILIDAD_ROUTER_EN_COLECTOR', false),
 
 ];

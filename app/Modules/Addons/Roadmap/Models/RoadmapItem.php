@@ -75,7 +75,7 @@ class RoadmapItem extends Model
         // lo hace un humano aparte, o el item no requería merge)
         'sin_merge_esperado', 'sin_merge_esperado_motivo',
         // Bandeja de decisiones interactiva (#313) + brief multi-pregunta (#432 Fase 3)
-        'opciones', 'opcion_elegida', 'preguntas', 'huecos_spec', 'huecos_medidos_at',
+        'opciones', 'opcion_elegida', 'preguntas', 'preguntas_natural', 'preguntas_natural_at', 'huecos_spec', 'huecos_medidos_at',
         // Aislamiento por rama (#311)
         'branch', 'merge_commit',
         // Acciones avanzadas de la bandeja (#320)
@@ -144,6 +144,8 @@ class RoadmapItem extends Model
         'log'          => 'array',
         'opciones'     => 'array',
         'preguntas'    => 'array',
+        'preguntas_natural'    => 'array',   // #652 p2: traduccion indexada por la CLAVE ORIGINAL de cada opcion
+        'preguntas_natural_at' => 'datetime',
         'huecos_spec'  => 'array',
         'huecos_medidos_at' => 'datetime',
         'marcado_version' => 'boolean',

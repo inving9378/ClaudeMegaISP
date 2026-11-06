@@ -1,5 +1,5 @@
 <template>
-    <Datatable
+    <Datatable :urlState="true"
         module="administracion/document_template"
         model="DocumentTemplate"
         list="Listado de Plantillas"

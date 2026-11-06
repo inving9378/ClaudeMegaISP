@@ -5,7 +5,7 @@
 
 @section('content')
     <Breadcrumb :list=[{title:"Pagina"},{title:"Crm",active:"active"}]></Breadcrumb>
-    <Crm-Datatable module="crm" model="Crm" @if(auth()->user() && auth()->user()->can($group . '_add_' . $module))
+    <Crm-Datatable :url-state="true" module="crm" model="Crm" @if(auth()->user() && auth()->user()->can($group . '_add_' . $module))
         add="Agregar Crm"
         @endif
         list="Listado de Crm">

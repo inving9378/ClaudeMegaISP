@@ -297,6 +297,7 @@ import {
     requestAllColumnsDatatableByModule,
 } from "../../../helpers/Request";
 import { deleteRowDatatable } from "../../../hook/datatableHook";
+import { useTableUrlState } from "../../../hook/useTableUrlState";
 import ComponentFormDefault from "../../../components/ComponentFormDefault";
 import Form from "../../../helpers/Form";
 import ModalCentrado from "../../../shared/ModalCentrado.vue";
@@ -365,6 +366,18 @@ const props = defineProps({
     persistentFilters: {
         type: Object,
         default: {},
+    },
+    // Opt-in (#1162): conserva búsqueda, página, orden y filas por página al entrar a un registro y
+    // volver (atrás/adelante/F5). Distinto de `persistentFilters` (filtro fijo de servidor). La
+    // búsqueda va en history.state, nunca en la URL (#9990815). Apagado por defecto: las tablas
+    // incrustadas no lo activan. Con varias tablas en la misma vista, dar `urlStatePrefix` a cada una.
+    urlState: {
+        type: Boolean,
+        default: false,
+    },
+    urlStatePrefix: {
+        type: String,
+        default: "",
     },
     status: {
         type: String,
@@ -623,10 +636,22 @@ onMounted(async () => {
     showInHeaderF.value = showInHedaer;
 
     if (headers.value) {
+        // La URL puede editarse o quedar vieja: ordenar por una columna que no existe daría error.
+        const ordenValido =
+            ordenGuardado &&
+            headers.value.some((h) => h.name === ordenGuardado.sortBy && h.name !== "action");
+        if (ordenValido) {
+            currentSortColumn.value = ordenGuardado.sortBy;
+            pagination.value.sortBy = ordenGuardado.sortBy;
+            pagination.value.descending = ordenGuardado.descending;
+        }
         await getRowsByModule(
             _.map(headers.value, (v) => v.name),
             showInHedaer,
-            props.filters
+            props.filters,
+            ordenValido ? ordenGuardado.sortBy : undefined,
+            ordenValido ? ordenGuardado.descending : undefined,
+            tablaUrl ? search.value : undefined
         );
     }
     let temp = getTemp();
@@ -749,6 +774,52 @@ const pagination = ref({
     rowsNumber: 1,
 });
 const startPagination = ref(0);
+
+// #1162: estado guardado. Se lee en el setup (antes de montar) para que q-table no vea cambiar el
+// filtro después y reinicie la página; el orden se valida en onMounted, cuando ya hay columnas.
+const PAGINACION_URL = { page: 1, rowsPerPage: 50 };
+const tablaUrl = props.urlState
+    ? useTableUrlState({
+          parametros: ["page", "rowsPerPage", "sortBy", "descending"],
+          prefijo: props.urlStatePrefix,
+      })
+    : null;
+let ordenGuardado = null;
+if (tablaUrl) {
+    const { url, privado } = tablaUrl.leer();
+    if (/^\d+$/.test(url.rowsPerPage ?? "") && rowPerPageOptions.value.includes(Number(url.rowsPerPage))) {
+        pagination.value.rowsPerPage = Number(url.rowsPerPage);
+    }
+    if (/^[1-9]\d*$/.test(url.page ?? "") && pagination.value.rowsPerPage !== 0) {
+        pagination.value.page = Number(url.page);
+        startPagination.value = (pagination.value.page - 1) * pagination.value.rowsPerPage;
+    }
+    if (url.sortBy) ordenGuardado = { sortBy: url.sortBy, descending: url.descending !== "0" };
+    if (typeof privado.search === "string") search.value = privado.search;
+
+    const guardarEstadoTabla = () => {
+        const { page, rowsPerPage, sortBy, descending } = pagination.value;
+        tablaUrl.guardar(
+            {
+                page: page !== PAGINACION_URL.page ? String(page) : null,
+                rowsPerPage: rowsPerPage !== PAGINACION_URL.rowsPerPage ? String(rowsPerPage) : null,
+                sortBy: sortBy || null,
+                descending: sortBy ? (descending ? "1" : "0") : null,
+            },
+            search.value !== "" ? { search: search.value } : {}
+        );
+    };
+    watch(
+        [
+            search,
+            () => pagination.value.page,
+            () => pagination.value.rowsPerPage,
+            () => pagination.value.sortBy,
+            () => pagination.value.descending,
+        ],
+        guardarEstadoTabla
+    );
+}
 
 const paginationText = computed(() => {
     const startItem = startPagination.value + 1;

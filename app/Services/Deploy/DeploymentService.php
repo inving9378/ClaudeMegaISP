@@ -35,13 +35,33 @@ class DeploymentService
             return;
         }
 
+        // Commits retenidos a pedido de quien debe validarlos: esta puerta publica main completo.
+        if ($bloqueo = $this->candadoCommitsRetenidos()) {
+            $log->update([
+                'status'        => 'failed',
+                'steps'         => [$configRefresh, $bloqueo],
+                'error_message' => $bloqueo['output'],
+                'started_at'    => now(),
+                'finished_at'   => now(),
+            ]);
+            return;
+        }
+
         // Preflight de release (item #9990682, F2c de la épica #9990668) — paso de REPORTE, no
         // bloqueante: corre justo al emitir la versión y su veredicto va en 'output', nunca en
         // 'status' (siempre 'success'). Ver runReleasePreflight().
         $preflightStep = $this->runReleasePreflight($version);
 
+        // ReleasePublisher atómico (item #9990674, F3 de la épica #9990668) — OFF por default.
+        // Con el flag apagado, `$configSteps` sale exactamente igual que antes. Encendido,
+        // sustituye git_tag/git_push/github_release (3 pasos independientes, sin compensación)
+        // por un solo paso atómico con compensación (ver executeReleasePublishAtomic()).
+        $emisionAtomica = (bool) config('releases.emision_atomica', false);
+        $pasosReemplazados = ['git_tag', 'git_push', 'github_release'];
+
         $configSteps = collect(config('deployment.steps'))
             ->filter(fn($s) => $s['enabled'] ?? true)
+            ->reject(fn($s) => $emisionAtomica && in_array($s['key'], $pasosReemplazados, true))
             ->map(function ($s) use ($version, $title, $commitMessage) {
                 $s['name'] = $this->interpolate($s['name'], $version, $title, $commitMessage);
                 if (isset($s['command'])) {
@@ -51,6 +71,23 @@ class DeploymentService
             })
             ->values()
             ->all();
+
+        if ($emisionAtomica) {
+            // Se inserta donde iba 'git_tag' (justo después de 'git_commit'), o al final si por
+            // alguna razón git_commit no está habilitado. Mismo gate 'skip_if_not_publisher' que
+            // los pasos que sustituye (item #530): en una instancia no-publicadora se omite igual.
+            $insertAt = collect($configSteps)->search(fn($s) => $s['key'] === 'remote_deploy');
+            $insertAt = $insertAt === false ? count($configSteps) : $insertAt;
+            array_splice($configSteps, $insertAt, 0, [[
+                'key'                    => 'release_publish_atomic',
+                'name'                   => $this->interpolate('Publicar versión atómica ({version}) — push + tag + GitHub Release', $version, $title, $commitMessage),
+                'type'                   => 'release_publish_atomic',
+                'timeout'                => 240,
+                'critical'               => true,
+                'enabled'                => true,
+                'skip_if_not_publisher'  => true,
+            ]]);
+        }
 
         $initialSteps = array_map(fn($s) => [
             'key'         => $s['key'],
@@ -108,6 +145,19 @@ class DeploymentService
                 continue;
             }
 
+            // Item #1170: repo público — no empujar main ni tags de main (suben todo el historial).
+            if (($step['skip_if_public_repo'] ?? false) && config('deployment.push_main_enabled', false) !== true) {
+                $log->updateStep($step['key'], [
+                    'status'      => 'skipped',
+                    'by_design'   => true,
+                    'output'      => 'Repo público: el pipeline no empuja main (DEPLOY_PUSH_MAIN=false). Publicar con rama release (docs/unificacion/07-entorno-y-promocion.md).',
+                    'exit_code'   => 0,
+                    'duration_ms' => 0,
+                    'ran_at'      => now()->toIso8601String(),
+                ]);
+                continue;
+            }
+
             // Skip fuera de producción (item roadmap #245): impide que crear una Release en
             // dev dispare deploy remoto real.
             if (($step['skip_if_not_production'] ?? false) && !app()->environment('production')) {
@@ -157,12 +207,13 @@ class DeploymentService
             ]);
 
             [$exitCode, $output, $durationMs] = match ($step['type'] ?? 'shell') {
-                'http'           => $this->executeHttpDeploy($step, $version, $title, $log),
-                'secret_check'   => $this->executeSecretCheck(),
-                'staging_gate'   => $this->executeStagingGate(),
-                'github_release' => $this->executeGithubRelease($step, $version, $log),
-                'backup'         => $this->executeBackup($version),
-                default          => $this->executeStep($step),
+                'http'                   => $this->executeHttpDeploy($step, $version, $title, $log),
+                'secret_check'           => $this->executeSecretCheck(),
+                'staging_gate'           => $this->executeStagingGate(),
+                'github_release'         => $this->executeGithubRelease($step, $version, $log),
+                'backup'                 => $this->executeBackup($version),
+                'release_publish_atomic' => $this->executeReleasePublishAtomic($version, $log),
+                default                  => $this->executeStep($step),
             };
 
             $success = $exitCode === 0;
@@ -176,8 +227,10 @@ class DeploymentService
 
             Log::channel('single')->info("Deploy #{$log->id} — '{$step['key']}': " . ($success ? 'OK' : "FAILED (exit {$exitCode})"));
 
-            if ($success && in_array($step['key'], ['db_backup', 'git_tag'], true)) {
-                $this->syncReleaseTechnicalLink($log, $step['key'], $version);
+            // 'release_publish_atomic' reemplaza a 'git_tag' cuando el flag está encendido —
+            // debe disparar el mismo vínculo técnico (item #1017) que 'git_tag' disparaba.
+            if ($success && in_array($step['key'], ['db_backup', 'git_tag', 'release_publish_atomic'], true)) {
+                $this->syncReleaseTechnicalLink($log, $step['key'] === 'release_publish_atomic' ? 'git_tag' : $step['key'], $version);
             }
 
             if (!$success && ($step['critical'] ?? true)) {
@@ -259,6 +312,28 @@ class DeploymentService
     }
 
     /**
+     * Devuelve el registro de paso fallido si HEAD contiene commits retenidos; null si puede seguir.
+     */
+    public function candadoCommitsRetenidos(): ?array
+    {
+        $repo = base_path();
+        $encontrados = CommitsRetenidos::en($repo, 'HEAD', CommitsRetenidos::lista($repo . '/' . CommitsRetenidos::ARCHIVO));
+        if ($encontrados === []) {
+            return null;
+        }
+
+        return [
+            'key'         => 'candado_commits_retenidos',
+            'name'        => 'Candado de commits retenidos',
+            'status'      => 'failed',
+            'output'      => 'Emisión detenida. ' . CommitsRetenidos::mensaje('HEAD', $encontrados),
+            'exit_code'   => 1,
+            'duration_ms' => 0,
+            'ran_at'      => now()->toIso8601String(),
+        ];
+    }
+
+    /**
      * Candado UNI-T. Devuelve el registro de paso fallido si hay que detener la emisión; null si
      * puede seguir (sin commits del proyecto, candado apagado, o excepción autorizada — que queda
      * en el historial del log y en el log de aplicación).
@@ -276,7 +351,16 @@ class DeploymentService
             );
         } catch (\Throwable $e) {
             Log::warning('Candado UNI-T: no se pudo evaluar: ' . $e->getMessage());
-            return null;
+            // Item #1170: falla cerrado — si no puede evaluar, no se emite.
+            return [
+                'key'         => 'candado_proyecto_uni',
+                'name'        => 'Candado del proyecto de unificación',
+                'status'      => 'failed',
+                'output'      => 'Emisión detenida: el candado no pudo evaluar el historial (' . $e->getMessage() . ').',
+                'exit_code'   => 1,
+                'duration_ms' => 0,
+                'ran_at'      => now()->toIso8601String(),
+            ];
         }
         if ($n === 0) {
             return null;
@@ -498,7 +582,10 @@ class DeploymentService
 
     private function tagExists(string $version): bool
     {
-        $process = Process::fromShellCommandline("git tag -l {$version}", base_path(), $this->buildEnv());
+        // Anti-RCE (#244) — defensa en profundidad: la validación fail-closed en
+        // ReleaseController/DeployWebhookController ya restringe el charset de
+        // $version, pero se escapa igual antes de tocar el shell.
+        $process = Process::fromShellCommandline('git tag -l ' . escapeshellarg($version), base_path(), $this->buildEnv());
         $process->run();
         return trim($process->getOutput()) === $version;
     }
@@ -768,6 +855,32 @@ class DeploymentService
         }
 
         return trim(strip_tags($texto));
+    }
+
+    /**
+     * Paso 'release_publish_atomic' (item #9990674, F3) — reemplaza a git_tag+git_push+
+     * github_release cuando `releases.emision_atomica` está encendido. Delega TODO en
+     * ReleasePublisherService::publish(), que ya trae su propia compensación; aquí sólo se
+     * traduce su resultado al formato [exitCode, output, durationMs] que espera el loop.
+     */
+    private function executeReleasePublishAtomic(string $version, DeploymentLog $log): array
+    {
+        $startedAt = microtime(true);
+        $release   = $log->release ?? \App\Models\Release::where('version', $version)->first();
+
+        if (!$release) {
+            $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+            return [1, "No existe la fila releases para {$version} — no se puede publicar.", $durationMs];
+        }
+
+        $resultado  = app(ReleasePublisherService::class)->publish($release);
+        $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+
+        if ($resultado['ok']) {
+            return [0, "Publicado atómicamente: {$resultado['html_url']} (github_release_id={$resultado['github_release_id']}).", $durationMs];
+        }
+
+        return [1, "Falló en el paso «{$resultado['failed_at']}» (compensado): {$resultado['message']}", $durationMs];
     }
 
     private function executeGithubRelease(array $step, string $version, DeploymentLog $log): array

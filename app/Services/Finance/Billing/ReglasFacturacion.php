@@ -55,6 +55,24 @@ final class ReglasFacturacion
         return $info !== null && in_array($info->estado, [self::CANCELADO, self::DESINSTALADO], true);
     }
 
+    /** #1090: ¿el cliente está Bloqueado ahora mismo? (lee la BD, no la relación cacheada). */
+    public static function estaBloqueado($client): bool
+    {
+        $estado = DB::table('client_main_information')->where('client_id', $client->id)->value('estado');
+
+        return $estado === self::BLOQUEADO;
+    }
+
+    /**
+     * #1090 (decisión de Irving en #573 q4): con BILLING_NO_CARGAR_MES_BLOQUEADO encendido, el cargo
+     * automático del mes sin saldo no se carga mientras el cliente esté Bloqueado. El mes en que se
+     * bloquea sí se cobró (ya ocurrió antes del bloqueo). Apagado (default) = comportamiento de siempre.
+     */
+    public static function omiteCargoPorBloqueo($client): bool
+    {
+        return (bool) config('billing.no_cargar_mes_bloqueado') && self::estaBloqueado($client);
+    }
+
     public static function generaCargos($client): bool
     {
         return ! self::estaCancelado($client);

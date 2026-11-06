@@ -29,4 +29,26 @@ return [
         'Mercado Pago' => env('MERCADOPAGO_TOKEN'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Tool-calling del Chat IA (item #171, #9 Fase 2)
+    |--------------------------------------------------------------------------
+    |
+    | Kill-switch de la ejecución de acciones reales desde el Chat IA flotante
+    | (IAChatController@chat, app/Http/Controllers/IA). Decisión de Irving
+    | (item #171, pregunta q6): OFF por default, ON manual en dev.
+    |
+    | false → el chat sigue en modo Fase 1: solo informa/orienta, nunca
+    |         ejecuta (comportamiento actual, sin cambio).
+    | true  → habilita el compilador de tools + flujo de confirmación humana
+    |         (Fase 2b, todavía sin implementar — este flag hoy no tiene
+    |         ningún lector; queda listo para cuando exista).
+    |
+    | Flip a true SOLO por decisión explícita de Irving.
+    |
+    */
+    'tool_calling' => [
+        'enabled' => (bool) env('IA_TOOL_CALLING_ENABLED', false),
+    ],
+
 ];

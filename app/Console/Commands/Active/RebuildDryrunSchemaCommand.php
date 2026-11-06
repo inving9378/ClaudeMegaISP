@@ -117,7 +117,12 @@ class RebuildDryrunSchemaCommand extends Command
             if (!$migrator->repositoryExists()) {
                 $migrator->getRepository()->createRepository();
             }
-            $ran = $migrator->run([database_path('migrations')]);
+            // Igual que BaseCommand::getMigrationPaths() del `migrate` real: suma las
+            // rutas de módulo registradas vía loadMigrationsFrom() (BaseModuleServiceProvider)
+            // a database/migrations. Sin esto, el dry-run no ve migraciones de módulo que
+            // asumen tablas creadas por otras migraciones de módulo (drift falso: la migración
+            // "culpable" está fuera del set que el comando escaneaba).
+            $ran = $migrator->run(array_merge($migrator->paths(), [database_path('migrations')]));
         } catch (\Throwable $e) {
             $error = $e->getMessage();
         } finally {

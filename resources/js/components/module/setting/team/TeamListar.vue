@@ -16,7 +16,7 @@
             Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="configuracion/team"
         model="Team"
         list="Listado de Equipo"

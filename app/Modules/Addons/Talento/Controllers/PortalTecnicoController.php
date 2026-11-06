@@ -744,11 +744,13 @@ JS;
 
         $cuenta = app(CompensacionService::class)->cuentaCorriente($col->id, $w);
 
+        $etapas = app(CompensacionService::class)->etapas($col->id, $w);
+
         return response()->json(array_merge([
             'period_start'  => $w['period_start'],
             'period_end'    => $w['period_end'],
             'regime'        => $w['regime'],
-        ], $cuenta));
+        ], $cuenta, $etapas ? ['etapas' => $etapas] : []));
     }
 
     /** 2. Desglose: cuota, valor por unidad, unidades, sobreproducción (reusa LiquidationService::breakdown). */

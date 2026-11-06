@@ -285,6 +285,9 @@ return [
         '/cliente/billing/estados-cuenta/{clientId}',
         '/cliente/billing/estados-cuenta/{clientId}/{id}/pdf',
     ],
+    'facturacion.auditoria.ver' => [
+        '/cliente/billing/datos-fiscales/{clientId}/historial',
+    ],
     'facturacion.fiscal.timbrar' => [
         '/cliente/billing/datos-fiscales/{clientId}/timbrar',
     ],
@@ -1376,6 +1379,12 @@ return [
         '/administracion/auditoria-senales',
     ],
 
+    // Matriz de permisos por rol — asignados vs. efectivos (item #9990765/#9990766).
+    'auditoria.permisos.ver' => [
+        '/administracion/auditoria-permisos-matriz',
+        '/administracion/auditoria-permisos-matriz/data',
+    ],
+
     'admin_view_scripts' => [
         '/administracion/show_scripts'
     ],
@@ -1526,7 +1535,10 @@ return [
     // core-documentos (item #839) — granulares nuevos, en paralelo al legado
     // config_view_system de arriba (fallback OR: cualquiera de los dos abre la
     // ruta). Mismos paths de document_template/document_type_template, partidos
-    // por acción CRUD. NO quitar config_view_system de esos paths todavía.
+    // por acción CRUD. NO quitar config_view_system de esos paths todavía:
+    // decisión de Irving (#978, opción 2) fue marcarlo deprecated con log de
+    // advertencia (CheckRoutePermission::logDocumentosLegacyFallbackIfUsed)
+    // en vez de retirarlo ya; se revisa el log en 1-2 ciclos antes de retirarlo.
     'documentos.view' => [
         '/administracion/document_template',
         '/administracion/document_template/table',
@@ -1943,6 +1955,7 @@ return [
         '/flotas',
         '/flotas/nuevo',
         '/flotas/{id}',
+        '/flotas/api/conductores/{id}', // #920 — ficha del conductor (solo API)
         '/flotas/api/**',           // todos los GET de API de flotas
     ],
     'fleet.clients.view' => [
@@ -2985,6 +2998,77 @@ return [
     'mapa_red_view' => [
         '/mapa-red',
         '/mapa-red/**',
+    ],
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Catálogos del motor de ventas (item #9990808, Fase 1 de #9990781)
+    // ══════════════════════════════════════════════════════════════════════════
+    // Este middleware solo compara PATH, no verbo HTTP: el path de índice(GET)/
+    // alta(POST) es el mismo, y el de edición(PUT)/baja(DELETE) también — por eso
+    // aparecen repetidos entre ver/crear/editar/eliminar (mismo patrón que
+    // fleet.geofences.view/manage). El verbo real lo valida el controller
+    // (CatalogosVentasController) con `$request->user()->can(...)` por acción.
+    'ventas_talento_catalogo_modalidades_ver' => [
+        '/ventas/catalogos/modalidades',
+        '/ventas/catalogos/modalidades/{id}',
+    ],
+    'ventas_talento_catalogo_modalidades_crear' => [
+        '/ventas/catalogos/modalidades',
+    ],
+    'ventas_talento_catalogo_modalidades_editar' => [
+        '/ventas/catalogos/modalidades/{id}',
+    ],
+    'ventas_talento_catalogo_modalidades_eliminar' => [
+        '/ventas/catalogos/modalidades/{id}',
+    ],
+    'ventas_talento_catalogo_modos_pago_ver' => [
+        '/ventas/catalogos/modos-pago',
+        '/ventas/catalogos/modos-pago/{id}',
+    ],
+    'ventas_talento_catalogo_modos_pago_crear' => [
+        '/ventas/catalogos/modos-pago',
+    ],
+    'ventas_talento_catalogo_modos_pago_editar' => [
+        '/ventas/catalogos/modos-pago/{id}',
+    ],
+    'ventas_talento_catalogo_modos_pago_eliminar' => [
+        '/ventas/catalogos/modos-pago/{id}',
+    ],
+    'ventas_talento_catalogo_parametros_reglamento_ver' => [
+        '/ventas/catalogos/parametros-reglamento',
+        '/ventas/catalogos/parametros-reglamento/{id}',
+    ],
+    'ventas_talento_catalogo_parametros_reglamento_crear' => [
+        '/ventas/catalogos/parametros-reglamento',
+    ],
+    'ventas_talento_catalogo_parametros_reglamento_editar' => [
+        '/ventas/catalogos/parametros-reglamento/{id}',
+    ],
+    'ventas_talento_catalogo_parametros_reglamento_eliminar' => [
+        '/ventas/catalogos/parametros-reglamento/{id}',
+    ],
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // TestScriptController — utilería de debug (item roadmap #9991145, Fase 1 de
+    // #9991116). Rutas CRÍTICAS confirmadas: DROP/CREATE TRIGGER sobre payments,
+    // dump sin paginar de datos de clientes, password PPP de MikroTik en texto
+    // plano, liberación de IP sin validar pertenencia. 'log-client' (MEDIO) queda
+    // fuera de alcance, sigue solo con 'auth'.
+    // ══════════════════════════════════════════════════════════════════════════
+    'sistema_test_script_manage' => [
+        '/script',
+        '/information-dev',
+        '/data-client-mikrotik/{id}',
+        '/data-client-mikrotik-by-ip',
+        '/libera-ip/{id}',
+    ],
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // TestScriptController (item #505): solo /log-client. Las otras 5 rutas las cubre
+    // sistema_test_script_manage (#9991145), decisión posterior y más restrictiva.
+    // ══════════════════════════════════════════════════════════════════════════
+    'test.script.ejecutar' => [
+        '/log-client',
     ],
 
 ];

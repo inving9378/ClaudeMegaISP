@@ -91,7 +91,7 @@
                 </div>
 
                 <div class="d-flex justify-content-end mt-4">
-                    <button type="button" class="btn btn-primary px-4" :disabled="!canSubmit || saving" @click="submit">
+                    <button type="button" class="btn btn-primary px-4" :disabled="!canSubmit || saving" @click="submit(false)">
                         <span v-if="saving" class="spinner-border spinner-border-sm me-1"></span>
                         <i v-else class="mdi mdi-check me-1"></i>
                         {{ saving ? 'Guardando…' : 'Aplicar y registrar pago' }}
@@ -113,9 +113,11 @@ export default {
         methods: { type: Array, default: () => [] },
         accounts: { type: Array, default: () => [] },
         defaultMethodId: { type: [Number, String], default: 2 },
+        idemToken: { type: String, default: "" },
     },
     setup(props) {
         const todayIso = () => new Date().toISOString().slice(0, 10);
+        const currentIdemToken = ref(props.idemToken);
 
         const search = ref("");
         const results = ref([]);
@@ -160,7 +162,7 @@ export default {
             selectedClient.value && Number(form.amount) > 0 && form.fecha_pago && form.method_of_payment_id
         );
 
-        const submit = async () => {
+        const submit = async (confirmarDuplicado = false) => {
             if (!canSubmit.value || saving.value) return;
             saving.value = true;
             try {
@@ -174,6 +176,8 @@ export default {
                 if (form.banco_origen) fd.append("banco_origen", form.banco_origen);
                 if (form.receiver_account_id) fd.append("receiver_account_id", form.receiver_account_id);
                 if (form.comprobante) fd.append("comprobante", form.comprobante);
+                fd.append("idem_token", currentIdemToken.value);
+                if (confirmarDuplicado) fd.append("confirmar_duplicado", "1");
 
                 const { data } = await axios.post("/finanzas/captura-pago", fd, {
                     headers: { "Content-Type": "multipart/form-data" },
@@ -181,12 +185,32 @@ export default {
                 if (data.ok) {
                     Swal.fire({ icon: "success", title: "Pago registrado", text: data.message, timer: 2200, showConfirmButton: false });
                     resetForm();
+                    if (data.idem_token) currentIdemToken.value = data.idem_token;
                 } else {
                     Swal.fire("Error", data.message || "No se pudo registrar el pago.", "error");
                 }
             } catch (e) {
-                const msg = e.response?.data?.message
-                    || (e.response?.data?.errors ? Object.values(e.response.data.errors).flat().join("\n") : null)
+                const body = e.response?.data;
+                if (body?.idem_token) currentIdemToken.value = body.idem_token;
+
+                if (body?.needs_confirmation) {
+                    saving.value = false;
+                    const result = await Swal.fire({
+                        icon: "warning",
+                        title: "Posible pago duplicado",
+                        text: body.message,
+                        showCancelButton: true,
+                        confirmButtonText: "Sí, aplicar de todos modos",
+                        cancelButtonText: "Cancelar",
+                    });
+                    if (result.isConfirmed) {
+                        await submit(true);
+                    }
+                    return;
+                }
+
+                const msg = body?.message
+                    || (body?.errors ? Object.values(body.errors).flat().join("\n") : null)
                     || "No se pudo registrar el pago.";
                 Swal.fire("Error", msg, "error");
             } finally {

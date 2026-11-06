@@ -22,12 +22,17 @@ class FleetDocumentController extends FleetBaseController
     {
         $this->authorizeDocumentView();
 
-        $q = FleetDocument::with('vehicle')
+        $q = FleetDocument::with(array_merge(['vehicle'], $this->driverRelation()))
             ->forClient($this->clientId())
             ->orderBy('expiration_date');
 
         if ($request->filled('vehicle_id')) {
             $q->where('vehicle_id', $request->vehicle_id);
+        }
+
+        // #920 — documentos del conductor (ficha propia, sin vehículo).
+        if ($request->filled('driver_id')) {
+            $q->where('driver_id', $request->driver_id);
         }
 
         return response()->json([
@@ -265,7 +270,7 @@ class FleetDocumentController extends FleetBaseController
     {
         $this->authorizeDocumentView();
 
-        $q = FleetDocument::with('vehicle:id,plates,model,brand,client_id')
+        $q = FleetDocument::with(array_merge(['vehicle:id,plates,model,brand,client_id'], $this->driverRelation()))
             ->forClient($this->clientId())
             ->orderBy('expiration_date');
 
@@ -360,7 +365,23 @@ class FleetDocumentController extends FleetBaseController
             'has_file'              => (bool) $d->file_path,
             'ocr_needs_review'      => (bool) $d->ocr_needs_review,   // #580 "revisar manualmente"
             'ocr_status'            => $d->ocr_status,
+            // #920 — nombre ya armado para la columna "Asociado a" y la ficha del conductor.
+            'driver_name'           => $d->relationLoaded('driver') && $d->driver
+                ? trim("{$d->driver->name} {$d->driver->father_last_name} {$d->driver->mother_last_name}")
+                : null,
         ]);
+    }
+
+    /**
+     * #920 — el conductor es un `users` interno sin client_id: su nombre solo se carga en el
+     * scope interno (clientId() === null). Un cliente o el portal que ve un documento de su
+     * vehículo con driver_id no debe recibir datos de un usuario interno.
+     */
+    private function driverRelation(): array
+    {
+        return $this->clientId() === null
+            ? ['driver:id,name,father_last_name,mother_last_name']
+            : [];
     }
 
     private function preprocessMultipart(Request $request): void

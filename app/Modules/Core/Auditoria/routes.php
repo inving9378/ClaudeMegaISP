@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Core\Auditoria\Controllers\ActivityLogController;
+use App\Modules\Core\Auditoria\Controllers\AuditoriaPermisosMatrizController;
 use App\Modules\Core\Auditoria\Controllers\AuditoriaSenalController;
 use Illuminate\Support\Facades\Route;
 
@@ -24,3 +25,12 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 // Listado read-only de señales minadas de la bitácora (item #1016).
 Route::middleware(['web', 'auth', 'check_route_permission'])
     ->get('administracion/auditoria-senales', [AuditoriaSenalController::class, 'index']);
+
+// Matriz de permisos por rol — asignados vs. efectivos (Fase 4c, item #9990765/#9990766).
+// Solo lectura: no crea rutas de escritura sobre roles/permisos.
+Route::middleware(['web', 'auth', 'check_route_permission'])
+    ->prefix('administracion/auditoria-permisos-matriz')
+    ->group(function () {
+        Route::get('/', [AuditoriaPermisosMatrizController::class, 'index']);
+        Route::get('/data', [AuditoriaPermisosMatrizController::class, 'data']);
+    });

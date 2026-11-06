@@ -168,6 +168,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/datos-fiscales/{clientId}', [ClientFiscalDataController::class, 'show']);
             Route::post('/datos-fiscales/{clientId}', [ClientFiscalDataController::class, 'upsert']);
             Route::get('/datos-fiscales/{clientId}/constancia', [ClientFiscalDataController::class, 'downloadConstancia']);
+            Route::get('/datos-fiscales/{clientId}/historial', [ClientFiscalDataController::class, 'historial']);
             Route::post('/datos-fiscales/{clientId}/timbrar', [ClientFiscalDataController::class, 'timbrar']);
 
             // Estados de cuenta generados (FR-02 #536): solo lectura

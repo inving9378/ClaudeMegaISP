@@ -3,7 +3,15 @@
 return [
     // Dominio dedicado del Portal Cliente (item roadmap #144). En DEV se prueba
     // vía /etc/hosts (sin DNS público); en PROD será el registro A real.
+    // Item #553: minutos que dura «Entrar como este cliente» antes de caducar.
+    'impersonacion_minutos' => (int) env('PORTAL_IMPERSONACION_MINUTOS', 30),
+
     'domain' => env('PORTAL_CLIENTE_DOMAIN', 'portal.meganet.mx'),
+
+    // Item #473: recuperar contraseña con código por WhatsApp. Apagado, sigue el flujo por teléfono de
+    // siempre. Encender solo con WhatsApp confirmado en producción (línea activa y WHATSAPP_SENDER_ENABLED):
+    // el POST de un solo paso deja de cambiar contraseñas y, sin envío real, nadie podría recuperarla.
+    'recuperar_otp' => env('PORTAL_RECUPERAR_OTP', false),
 
     // Configuración → Portal Cliente (presentación administrable de las pantallas de acceso).
     // Aviso de privacidad del rastreo en Mis Vehículos (#636). TEXTO PROVISIONAL: debe revisarlo un abogado.

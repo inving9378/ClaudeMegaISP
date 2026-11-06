@@ -222,7 +222,7 @@ export default {
         });
 
         const hasShowArchived = () => {
-            return window.location.href.includes("show-archived");
+            return new URLSearchParams(window.location.search).has("show-archived");
         };
 
         const closeModal = () => {

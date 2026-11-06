@@ -16,7 +16,7 @@
             Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="inventory/store_zone"
         model="StoreZone"
         list="Listado de Zonas"

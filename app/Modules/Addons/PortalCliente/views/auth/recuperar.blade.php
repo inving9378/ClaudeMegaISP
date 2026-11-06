@@ -1,13 +1,22 @@
-{{-- Recuperar contraseña. Misma ruta, mismos campos y mismas reglas que siempre: solo cambia la presentación (auth/layout). --}}
+{{-- Recuperar contraseña. Apagado portalcliente.recuperar_otp: misma ruta, mismos campos y mismas reglas que siempre. Encendido: paso 1 del flujo por código. --}}
 @php
     $ap = $apariencia ?? app(\App\Modules\Addons\PortalCliente\Services\AparienciaService::class)->vistaPublica('recuperar');
+    $conCodigo = (bool) config('portalcliente.recuperar_otp');
 @endphp
 @extends('addon-portal-cliente::auth.layout')
 
 @section('titulo_pagina', 'Recuperar Contraseña')
 
+@if($conCodigo)
+    @section('nota')
+        <div class="pl-nota">
+            Escribe tu <strong>número de cliente</strong> y el <strong>teléfono registrado</strong> en tu contrato. Si coinciden, te enviaremos un código por WhatsApp a ese teléfono.
+        </div>
+    @endsection
+@endif
+
 @section('formulario')
-    <form class="pl-form" data-pl-form data-texto-enviando="Guardando…" method="POST" action="{{ route('portal.recuperar.post') }}">
+    <form class="pl-form" data-pl-form data-texto-enviando="{{ $conCodigo ? 'Enviando…' : 'Guardando…' }}" method="POST" action="{{ $conCodigo ? route('portal.password.solicitar-otp') : route('portal.recuperar.post') }}">
         @csrf
         <div class="pl-campo">
             <label for="pl-numero">Número de cliente</label>
@@ -23,30 +32,32 @@
             <div class="pl-control">
                 <svg class="pl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                 <input type="text" id="pl-telefono" name="telefono" value="{{ old('telefono') }}"
-                    placeholder="Ej: 5512345678" autocomplete="tel"
+                    placeholder="Ej: 5512345678" autocomplete="tel" @if($conCodigo) required @endif
                     @if($errors->has('telefono')) aria-invalid="true" aria-describedby="pl-errores" @endif>
             </div>
         </div>
-        <div class="pl-campo">
-            <label for="pl-contrasena">Nueva contraseña</label>
-            <div class="pl-control pl-control--pass">
-                <svg class="pl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                <input type="password" id="pl-contrasena" name="contrasena" placeholder="Mínimo 8 caracteres"
-                    autocomplete="new-password" required data-pl-pass
-                    @if($errors->has('contrasena')) aria-invalid="true" aria-describedby="pl-errores" @endif>
-                @include('addon-portal-cliente::auth.partials.ojo', ['campo' => 'pl-contrasena'])
+        @unless($conCodigo)
+            <div class="pl-campo">
+                <label for="pl-contrasena">Nueva contraseña</label>
+                <div class="pl-control pl-control--pass">
+                    <svg class="pl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    <input type="password" id="pl-contrasena" name="contrasena" placeholder="Mínimo 8 caracteres"
+                        autocomplete="new-password" required data-pl-pass
+                        @if($errors->has('contrasena')) aria-invalid="true" aria-describedby="pl-errores" @endif>
+                    @include('addon-portal-cliente::auth.partials.ojo', ['campo' => 'pl-contrasena'])
+                </div>
             </div>
-        </div>
-        <div class="pl-campo">
-            <label for="pl-confirmacion">Confirmar contraseña</label>
-            <div class="pl-control pl-control--pass">
-                <svg class="pl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                <input type="password" id="pl-confirmacion" name="contrasena_confirmation"
-                    autocomplete="new-password" required data-pl-pass>
-                @include('addon-portal-cliente::auth.partials.ojo', ['campo' => 'pl-confirmacion'])
+            <div class="pl-campo">
+                <label for="pl-confirmacion">Confirmar contraseña</label>
+                <div class="pl-control pl-control--pass">
+                    <svg class="pl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    <input type="password" id="pl-confirmacion" name="contrasena_confirmation"
+                        autocomplete="new-password" required data-pl-pass>
+                    @include('addon-portal-cliente::auth.partials.ojo', ['campo' => 'pl-confirmacion'])
+                </div>
             </div>
-        </div>
-        @include('addon-portal-cliente::auth.partials.boton', ['texto' => 'Establecer nueva contraseña'])
+        @endunless
+        @include('addon-portal-cliente::auth.partials.boton', ['texto' => $conCodigo ? 'Enviarme un código por WhatsApp' : 'Establecer nueva contraseña'])
     </form>
 
     <nav class="pl-enlaces" aria-label="Otras opciones de acceso">

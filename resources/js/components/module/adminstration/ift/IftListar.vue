@@ -5,7 +5,7 @@
                 data-bs-toggle="modal" data-bs-target="#crudift">Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="administracion/ift"
         model="Ift"
         list="Listado de Ift"

@@ -117,7 +117,11 @@ class InventoryItemStockController extends CrudModalController
         if (!$user || !$model) {
             return false;
         }
-        if ($model->movementable_to_type === User::class && (int) $model->movementable_to_id === (int) $user->id) {
+        if (
+            !$model->requested_by_user_id
+            && $model->movementable_to_type === User::class
+            && (int) $model->movementable_to_id === (int) $user->id
+        ) {
             return true;
         }
         return $user->can('inventory_movement_edit_inventory_movement');

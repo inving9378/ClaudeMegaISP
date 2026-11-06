@@ -31,6 +31,7 @@
                 <option value="">Todos</option>
                 <option value="draft">Borrador</option>
                 <option value="closed">Cerrada</option>
+                <option value="paid">Pagada</option>
               </select>
             </div>
             <div class="col-md-2">
@@ -254,6 +255,27 @@
             <div v-if="detail.liq.other_credits > 0 || detail.liq.other_debits > 0" class="mt-2 small text-muted">
               Otros créditos: {{ money(detail.liq.other_credits) }} · Otros débitos: {{ money(detail.liq.other_debits) }}
             </div>
+
+            <!-- UNI-T J4 F2b: estado e historial (solo llega con el interruptor encendido) -->
+            <div v-if="detail.liq.eventos" class="mt-3">
+              <h6 class="mb-2">Estado: <span class="tc-status" :class="estado(detail.liq.status).clase">{{ estado(detail.liq.status).texto }}</span></h6>
+              <div v-if="detail.liq.status === 'paid'" class="small text-muted mb-1">
+                Pagada el {{ formatDatetime(detail.liq.paid_at) }}<span v-if="detail.liq.payment_reference"> · Ref. {{ detail.liq.payment_reference }}</span>
+              </div>
+              <div v-if="!detail.liq.eventos.length" class="text-muted small fst-italic">Sin eventos registrados.</div>
+              <ul v-else class="list-group list-group-flush">
+                <li v-for="ev in detail.liq.eventos" :key="ev.id" class="list-group-item px-0 py-1 small">
+                  {{ formatDatetime(ev.created_at) }} · {{ ev.tipo === 'pago' ? 'Pago confirmado' : ev.tipo === 'cierre' ? 'Cierre' : ev.tipo }}
+                  <span v-if="ev.referencia" class="text-muted">· Ref. {{ ev.referencia }}</span>
+                </li>
+              </ul>
+              <div v-if="detail.liq.puede_pagar" class="input-group input-group-sm mt-2">
+                <input v-model="pagarModal.referencia" type="text" maxlength="191" class="form-control" placeholder="Referencia del pago (opcional)">
+                <button @click="confirmPagar" class="btn btn-success" :disabled="pagarModal.saving">
+                  <i class="fa fa-check me-1"></i>Confirmar pago
+                </button>
+              </div>
+            </div>
           </div>
           <div class="modal-footer">
             <button @click="detail.show=false" class="btn btn-secondary">Cerrar</button>
@@ -347,6 +369,7 @@ export default {
       calcSearchTimeout: null,
       detail: { show: false, liq: null },
       cerrarModal: { show: false, liq: null, saving: false },
+      pagarModal: { referencia: '', saving: false },
       puedeComprobante: false,
       comprobante: { show: false, url: '', nombre: '', archivo: '' },
     };
@@ -471,6 +494,18 @@ export default {
         alert(e.response?.data?.error ?? 'Error al cerrar.');
       } finally { this.cerrarModal.saving = false; }
     },
+    async confirmPagar() {
+      this.pagarModal.saving = true;
+      try {
+        const id = this.detail.liq.id;
+        await axios.post(`/talento/api/liquidaciones/${id}/pagar`, { referencia: this.pagarModal.referencia || null });
+        this.pagarModal.referencia = '';
+        await this.viewLiqById(id);
+        this.load();
+      } catch (e) {
+        alert(e.response?.data?.error ?? 'Error al confirmar el pago.');
+      } finally { this.pagarModal.saving = false; }
+    },
     conceptLabel(c) {
       return { salary_base: 'Sueldo base', overproduction: 'Sobreproducción', bonus: 'Bono',
                penalty: 'Penalización', advance: 'Adelanto', fund: 'Fondo', adjustment: 'Ajuste',
@@ -486,6 +521,7 @@ export default {
     estado(status) {
       return {
         closed:     { texto: 'Cerrada',    clase: 'is-ok' },
+        paid:       { texto: 'Pagada',     clase: 'is-ok' },
         draft:      { texto: 'Borrador',   clase: 'is-warn' },
         por_cerrar: { texto: 'Por cerrar', clase: 'is-warn' },
         en_curso:   { texto: 'En curso',   clase: 'is-info' },

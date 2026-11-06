@@ -50,6 +50,16 @@ return [
     // techo de Supervisor). NO tiene relación con el --timeout del worker local del .conf.
     'migrate_timeout' => env('DEPLOY_MIGRATE_TIMEOUT', 600),
 
+    // Techo (segundos) del paso npm_build del pipeline REMOTO (RemoteDeployCommand). Antes era un
+    // 600 fijo en el código: la V1.59 falló en prod (2026-10-14) porque `npm ci` + `npm run prod`
+    // no cabían — solo la compilación tarda ~8-9 min en el box de dev. Al vencer, `timeout` mata
+    // al grupo entero (npm + node) para que no quede un webpack huérfano escribiendo assets.
+    'npm_timeout' => env('DEPLOY_NPM_TIMEOUT', 1800),
+
+    // Memoria (MB) para node durante npm_build (NODE_OPTIONS=--max-old-space-size). 0 = no tocar
+    // (usa el default de node). En dev el build de producción necesita más del default.
+    'npm_max_old_space_mb' => env('DEPLOY_NPM_MAX_OLD_SPACE_MB', 4096),
+
     'steps' => [
         [
             'key'      => 'db_backup',
@@ -119,6 +129,9 @@ return [
             // V1.25 y los tags de V1.26-V1.29 apuntaban a commits inalcanzables desde la rama
             // → el `git fetch origin && git checkout tags/{v}` de prod fallaba con exit 1.
             'skip_if_not_publisher' => true,
+            // Item #1170: el repo de GitHub es PÚBLICO; empujar main (o un tag de main) sube
+            // todo el historial. Apagado por default: se publica con rama release (docs/unificacion/07).
+            'skip_if_public_repo' => true,
         ],
         [
             'key'      => 'github_release',
@@ -129,6 +142,7 @@ return [
             'enabled'  => true,
             // Mismo gate que git_push: publicar el Release es trabajo del publicador.
             'skip_if_not_publisher' => true,
+            'skip_if_public_repo' => true, // sin tag en origin no hay Release (item #1170)
         ],
         [
             'key'               => 'remote_deploy',
@@ -175,6 +189,9 @@ return [
     // item #245): publicar es un acto explícito y manual, nunca un efecto secundario de
     // crear una versión. Default false ⇒ producción no puede publicar aunque se corra ahí.
     'publisher' => (bool) env('DEPLOY_IS_PUBLISHER', false),
+
+    // Item #1170: permitir que el pipeline empuje main/tags al remoto. Default false mientras el repo sea público.
+    'push_main_enabled' => (bool) env('DEPLOY_PUSH_MAIN', false),
 
     // URL base del servidor remoto donde se desplegará (ej: http://192.168.105.11)
     // Dejar vacío para omitir el paso remote_deploy

@@ -52,7 +52,11 @@ class Kernel extends ConsoleKernel
         $schedule->command('auditoria:minar-bitacora')->everyFifteenMinutes()->withoutOverlapping();
         $schedule->command('app:mikrotik-sync-command')->everyFiveMinutes()->withoutOverlapping();
         $schedule->command('mikrotik:sync-consumption')->everyTenMinutes()->withoutOverlapping();
-        $schedule->command('mikrotik:sync-ping')->everyFiveMinutes()->withoutOverlapping();
+        // Item #1172: apagable con METRICAS_PING_LEGACY=false (config/metricas.php) cuando el colector
+        // cubra los mismos clientes; encendido por default.
+        if (config('metricas.ping_legacy_activo', true)) {
+            $schedule->command('mikrotik:sync-ping')->everyFiveMinutes()->withoutOverlapping();
+        }
         if (config('ping_externo.enabled')) {
             $schedule->command('mikrotik:sync-ping-externo')->everyFiveMinutes()->withoutOverlapping();
         }

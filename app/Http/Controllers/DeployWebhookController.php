@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\DeploymentLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 class DeployWebhookController extends Controller
 {
@@ -27,6 +28,20 @@ class DeployWebhookController extends Controller
         if (empty($secret) || $request->header('X-Deploy-Token') !== $secret) {
             Log::warning('DeployWebhook: token inválido desde ' . $request->ip());
             return response()->json(['success' => false, 'message' => 'No autorizado.'], 401);
+        }
+
+        // Anti-RCE (#244): la version fluye sin escapar hacia comandos de shell del
+        // pipeline (git tag/checkout). Fail-closed: charset restringido ANTES de crear
+        // el DeploymentLog. Vacío se permite (RemoteDeployCommand cae a origin/main).
+        $validator = Validator::make($request->all(), [
+            // '*' (no '+'): esta ruta permite version vacía a propósito — sin tag,
+            // RemoteDeployCommand cae a `origin/main` (comando fijo, sin interpolación).
+            'version' => ['nullable', 'string', 'max:50', 'regex:/^[A-Za-z0-9._-]*$/'],
+        ]);
+
+        if ($validator->fails()) {
+            Log::warning('DeployWebhook: version rechazada por charset inválido desde ' . $request->ip());
+            return response()->json(['success' => false, 'message' => 'Version invalida.'], 422);
         }
 
         $log = DeploymentLog::create([

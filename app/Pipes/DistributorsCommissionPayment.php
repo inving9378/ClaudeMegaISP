@@ -33,6 +33,10 @@ class DistributorsCommissionPayment
             $rules = [];
             $sales_amount = [];
             foreach ($applied as $r) {
+                // FR-H6 F2 (#1150): «Especial» NO usa la tabla; su % viene del contrato (más abajo).
+                if (\App\Support\PlazoContrato::esEspecial($r['contract'])) {
+                    continue;
+                }
                 $filtered = $sales->where('duration_contract_id', $r['contract']);
                 if (count($filtered) > 0) {
                     $rules[] = [
@@ -53,6 +57,24 @@ class DistributorsCommissionPayment
                             $payment += $commission['initial'];
                         }
                     }
+                }
+            }
+            // FR-H6 F2 (#1150): plazo «Especial» con % propio capturado en el contrato; solo ventas nuevas
+            // (setDistributionCommission no recalcula las que ya tienen comisión). Sin % o con ≤1 mes: sin comisión.
+            $especiales = $sales->filter(fn ($s) => \App\Support\PlazoContrato::esEspecial($s->duration_contract_id)
+                && (float) $s->porcentaje_comision_especial > 0 && $s->contract_months_number > 1);
+            foreach ($especiales as $s) {
+                $config = $this->getConfigDistributorsCommissions($s, $commission['initial'], (float) $s->porcentaje_comision_especial, $commission['iva'] ? $rule['iva'] : 0);
+                $s->setDistributionCommission($config);
+                $rules[] = [
+                    'name' => $s->porcentaje_comision_especial . '% si contrato Especial (' . $s->contract_months_number . ' meses)',
+                    'sales' => 1,
+                ];
+                if ($this->hasFirstPaymentInRange($data, $s->client_id)) {
+                    $sales_amount[] = ['client' => $s->client_id, 'initial' => true, 'amount' => $commission['initial']];
+                    $data = $this->setValue($data, 'Ventas por concepto de pago inicial', 1);
+                    $data = $this->setValue($data, 'Comisión por concepto de pago inicial', $commission['initial']);
+                    $payment += $commission['initial'];
                 }
             }
             $othersPayments = $this->getSecuentialPaymentsInRange($data);

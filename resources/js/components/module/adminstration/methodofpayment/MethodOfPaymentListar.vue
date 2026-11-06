@@ -5,7 +5,7 @@
                 data-bs-toggle="modal" data-bs-target="#crudmethodofpayment">Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="administracion/metotdo-de-pago"
         model="MethodOfPayment"
         list="Listado de Metodos de Pago"

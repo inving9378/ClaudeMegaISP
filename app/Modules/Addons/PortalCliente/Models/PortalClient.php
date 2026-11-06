@@ -27,7 +27,7 @@ class PortalClient extends Model implements AuthenticatableContract
         'portal_last_login_at',
     ];
 
-    protected $hidden = ['portal_password', 'password'];
+    protected $hidden = ['portal_password', 'password', 'web_password_hash'];
 
     protected $casts = [
         'portal_registered_at' => 'datetime',

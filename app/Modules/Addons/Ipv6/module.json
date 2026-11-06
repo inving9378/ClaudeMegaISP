@@ -1,0 +1,66 @@
+{
+    "slug": "addon-ipv6",
+    "name": "IPv6",
+    "version": "0.1.0",
+    "description": "Direccionamiento y gestión de IPv6 para routers MikroTik y clientes",
+    "type": "addon",
+    "dependencies": [
+        {
+            "slug": "addon-gestion-red",
+            "min_version": "0.1.0"
+        }
+    ],
+    "active": true,
+    "permissions": [
+        {
+            "name": "ipv6.configuracion.view",
+            "description": "Ver configuración IPv6"
+        },
+        {
+            "name": "ipv6.configuracion.create",
+            "description": "Crear configuración IPv6"
+        },
+        {
+            "name": "ipv6.configuracion.apply",
+            "description": "Aplicar configuración IPv6 al router"
+        },
+        {
+            "name": "ipv6.clientes.asignar",
+            "description": "Asignar delegación IPv6 a un cliente"
+        },
+        {
+            "name": "ipv6.clientes.liberar",
+            "description": "Liberar delegación IPv6 de un cliente"
+        },
+        {
+            "name": "ipv6.clientes.excepciones",
+            "description": "Gestionar excepciones de clientes en IPv6"
+        },
+        {
+            "name": "ipv6.consultar",
+            "description": "Consultar direccionamiento IPv6"
+        },
+        {
+            "name": "ipv6.busqueda-inversa",
+            "description": "Búsqueda inversa de direcciones IPv6"
+        }
+    ],
+    "menu": [],
+    "admin_cards": [],
+    "config_sections": [],
+    "api_endpoints": [],
+    "ai": {
+        "knowledge": "IPv6 gestiona el direccionamiento IPv6 delegado a routers MikroTik y su asignación a clientes: planeación de prefijos, aplicación de configuración en el router, asignación/liberación por cliente y consulta/búsqueda inversa de direcciones.",
+        "example_intents": [
+            "asignar IPv6 a un cliente",
+            "consultar la delegación IPv6 de un cliente",
+            "aplicar la configuración IPv6 al router"
+        ],
+        "sensitive_actions": [
+            "ipv6.configuracion.apply",
+            "ipv6.clientes.liberar"
+        ]
+    },
+    "client_tab": null,
+    "service_type": null
+}

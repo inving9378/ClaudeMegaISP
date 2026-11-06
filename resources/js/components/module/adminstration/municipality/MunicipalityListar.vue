@@ -16,7 +16,7 @@
             Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="administracion/municipio"
         model="Municipality"
         list="Listado de Municipio"

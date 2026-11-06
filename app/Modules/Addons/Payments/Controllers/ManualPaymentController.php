@@ -11,9 +11,11 @@ use App\Modules\Addons\PortalPago\Models\PortalPagoAccount;
 use App\Modules\Core\Clientes\Models\Client;
 use App\Modules\Core\Security\Traits\ChecksActionPermission;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /**
  * Captura interna de "pago reportado" por mostrador (Paso 2 · FASE PAGOS).
@@ -29,6 +31,9 @@ class ManualPaymentController extends Controller
 
     private const PERM = 'payments_capture_manage';
 
+    /** Prefijo de cache para el token de un solo uso (item #224 — idempotencia). */
+    private const IDEM_CACHE_PREFIX = 'payments:mostrador:idem:';
+
     public function create()
     {
         abort_unless(auth()->user()?->can(self::PERM), 403);
@@ -37,6 +42,7 @@ class ManualPaymentController extends Controller
             'methods'         => MethodOfPayment::orderBy('id')->get(['id', 'type']),
             'accounts'        => PortalPagoAccount::activas()->get(['id', 'nombre', 'banco', 'clabe']),
             'defaultMethodId' => 2, // Transferencia Bancaria
+            'idemToken'       => (string) Str::uuid(),
         ]);
     }
 
@@ -83,6 +89,12 @@ class ManualPaymentController extends Controller
     /**
      * Aplica el pago (primero) y luego registra la metadata (si falla el
      * registro, el pago YA quedó aplicado → se loguea, no se rompe).
+     *
+     * Idempotencia (#224): (1) token de un solo uso por envío — un doble-clic/
+     * doble-POST con el MISMO token se rechaza (409) antes de tocar dinero;
+     * (2) guard de duplicado de negocio ANTES de applyPayment — clave_rastreo
+     * repetida NO se aplica (se encola a Tere); efectivo/sin clave con mismo
+     * cliente+monto reciente exige confirmación explícita del cajero.
      */
     public function store(Request $request)
     {
@@ -99,29 +111,79 @@ class ManualPaymentController extends Controller
             'banco_origen'         => ['nullable', 'string', 'max:255'],
             'receiver_account_id'  => ['nullable', 'integer', 'exists:portal_pago_accounts,id'],
             'comprobante'          => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:8192'],
+            'idem_token'           => ['required', 'string', 'max:64'],
+            'confirmar_duplicado'  => ['sometimes', 'boolean'],
         ]);
 
-        // 1) Comprobante (disco local, privado).
+        // 1) Token de un solo uso: Cache::add es atómico (falla si ya existe).
+        //    Un doble-submit con el mismo token pierde la carrera → 409, nunca
+        //    llega a applyPayment.
+        $claimed = Cache::add(self::IDEM_CACHE_PREFIX . $data['idem_token'], true, now()->addMinutes(20));
+        if (!$claimed) {
+            return response()->json([
+                'ok'         => false,
+                'message'    => 'Este envío ya fue procesado (doble clic o reintento detectado). Si el pago no aparece, recarga la pantalla.',
+                'idem_token' => (string) Str::uuid(),
+            ], 409);
+        }
+
+        // 2) Guard de negocio ANTES de aplicar dinero.
+        $claveRastreo = $data['clave_rastreo'] ?? null;
+        if ($claveRastreo) {
+            $claveDuplicada = ReportedPayment::where('clave_rastreo', $claveRastreo)->exists()
+                || DB::table('payments')->where('number', $claveRastreo)->whereNull('deleted_at')->exists();
+            if ($claveDuplicada) {
+                ReconciliationService::raise(
+                    'duplicate',
+                    "Clave de rastreo {$claveRastreo} ya estaba registrada; captura en mostrador RECHAZADA (no se aplicó de nuevo).",
+                    (float) $data['amount'],
+                    (int) $data['client_id']
+                );
+
+                return response()->json([
+                    'ok'        => false,
+                    'duplicate' => true,
+                    'message'   => 'Esta clave de rastreo ya fue registrada antes. El pago NO se aplicó; se envió a revisión de conciliación.',
+                    'idem_token'=> (string) Str::uuid(),
+                ], 409);
+            }
+        } elseif (empty($data['confirmar_duplicado'])) {
+            $reciente = ReportedPayment::where('client_id', (int) $data['client_id'])
+                ->where('amount', $data['amount'])
+                ->whereNull('clave_rastreo')
+                ->where('created_at', '>=', now()->subMinutes(10))
+                ->exists();
+            if ($reciente) {
+                return response()->json([
+                    'ok'                => false,
+                    'needs_confirmation'=> true,
+                    'message'           => 'Ya se capturó un pago con el mismo cliente y monto hace menos de 10 minutos. Confirma si es intencional.',
+                    'idem_token'        => (string) Str::uuid(),
+                ], 409);
+            }
+        }
+
+        // 3) Comprobante (disco local, privado).
         $comprobantePath = null;
         if ($request->hasFile('comprobante')) {
             $comprobantePath = $request->file('comprobante')
                 ->store('private/payments/mostrador/comprobantes', 'local');
         }
 
-        // 2) APLICAR el pago PRIMERO (dinero correcto) — mismo flujo que el webhook.
+        // 4) APLICAR el pago (dinero correcto) — mismo flujo que el webhook.
         $payment = app(PaymentApplicationService::class)->applyPayment([
             'client_id'   => (int) $data['client_id'],
             'amount'      => (float) $data['amount'],
             'method_id'   => (int) $data['method_of_payment_id'],
             'add_by'      => auth()->id(),
             'date'        => $data['fecha_pago'],
-            'external_id' => $data['clave_rastreo'] ?? null,
+            'external_id' => $claveRastreo,
             'provider'    => 'mostrador',
             'comment'     => 'Pago capturado en mostrador'
-                . (!empty($data['clave_rastreo']) ? " (clave: {$data['clave_rastreo']})" : ''),
+                . ($claveRastreo ? " (clave: {$claveRastreo})" : ''),
         ]);
 
-        // 3) Registrar metadata del pago reportado. Si falla, el pago ya está
+        // 5) Registrar metadata del pago reportado. Si falla, el pago ya está
         //    aplicado → log y seguimos (filosofía del webhook, no perder el pago).
         $report = null;
         try {
@@ -132,7 +194,7 @@ class ManualPaymentController extends Controller
                 'method_of_payment_id' => (int) $data['method_of_payment_id'],
                 'amount'               => $data['amount'],
                 'fecha_pago'           => $data['fecha_pago'],
-                'clave_rastreo'        => $data['clave_rastreo'] ?? null,
+                'clave_rastreo'        => $claveRastreo,
                 'titular'              => $data['titular'] ?? null,
                 'banco_origen'         => $data['banco_origen'] ?? null,
                 'comprobante_path'     => $comprobantePath,
@@ -146,28 +208,12 @@ class ManualPaymentController extends Controller
             ]);
         }
 
-        // 4) R1: raise() SOLO ante discrepancia real. Aquí: clave de rastreo
-        //    duplicada (mismo SPEI capturado dos veces) → a la cola de Tere.
-        if (!empty($data['clave_rastreo'])) {
-            $dup = ReportedPayment::where('clave_rastreo', $data['clave_rastreo'])
-                ->when($report, fn ($q) => $q->where('id', '!=', $report->id))
-                ->exists();
-            if ($dup) {
-                ReconciliationService::raise(
-                    'duplicate',
-                    "Clave de rastreo {$data['clave_rastreo']} capturada más de una vez en mostrador.",
-                    (float) $data['amount'],
-                    (int) $data['client_id'],
-                    $payment->id
-                );
-            }
-        }
-
         return response()->json([
             'ok'                  => true,
             'payment_id'          => $payment->id,
             'reported_payment_id' => $report?->id,
             'message'             => 'Pago aplicado y registrado correctamente.',
+            'idem_token'          => (string) Str::uuid(),
         ]);
     }
 

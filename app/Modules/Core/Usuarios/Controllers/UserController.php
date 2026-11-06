@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\UserRoleChangeAudit;
 use App\Modules\Addons\Talento\Support\Actor;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
+use App\Modules\Addons\Talento\Services\TalentoColaboradorSyncService;
 
 
 class UserController extends Controller
@@ -234,6 +235,24 @@ class UserController extends Controller
             // así que un admin nuevo queda solo con assignRole y CERO directos.
 
             DB::commit();
+
+            // Conexión automática Administradores → Talento: si el rol
+            // asignado es de puesto de campo, crea/actualiza su fila en
+            // talento_colaboradores (dispara en cascada permisos/documentos/
+            // extensión SIP vía TalentoColaboradorObserver). Best-effort: un
+            // fallo aquí JAMÁS debe impedir que el alta del usuario responda
+            // éxito — el usuario ya quedó creado y confirmado arriba.
+            try {
+                if (config('talento.autosync_usuarios')) {
+                    app(TalentoColaboradorSyncService::class)->sync($user);
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('Talento: fallo al auto-sincronizar colaborador tras alta de usuario', [
+                    'user_id' => $user->id,
+                    'error'   => $e->getMessage(),
+                ]);
+            }
+
             return response()->json(['status' => 200, 'message' => 'Administrador creado con éxito!']);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -424,6 +443,21 @@ class UserController extends Controller
             }
 
             DB::commit();
+
+            // Conexión automática Administradores → Talento (ver store()) —
+            // cubre promover a un usuario existente a un rol de puesto de
+            // campo. Best-effort, nunca bloquea la respuesta de éxito.
+            try {
+                if (config('talento.autosync_usuarios')) {
+                    app(TalentoColaboradorSyncService::class)->sync($user);
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('Talento: fallo al auto-sincronizar colaborador tras editar usuario', [
+                    'user_id' => $user->id,
+                    'error'   => $e->getMessage(),
+                ]);
+            }
+
             return response()->json(['status' => 200, 'message' => 'Administrador actualizado correctamente']);
         } catch (\Throwable $e) {
             DB::rollBack();

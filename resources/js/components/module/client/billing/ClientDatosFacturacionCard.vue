@@ -199,6 +199,26 @@
                 </div>
             </div>
 
+            <div class="fdc-historial mt-3">
+                <button type="button" class="btn btn-sm btn-outline-secondary" @click="toggleHistorial">
+                    {{ verHistorial ? "Ocultar historial de cambios" : "Historial de cambios" }}
+                </button>
+                <div v-if="verHistorial" class="mt-2">
+                    <div v-if="historialMsg" class="fdc-nota">{{ historialMsg }}</div>
+                    <div v-else class="table-responsive">
+                        <table class="table table-sm">
+                            <thead><tr><th>Fecha</th><th>Usuario</th><th>Campo</th><th>Anterior</th><th>Nuevo</th></tr></thead>
+                            <tbody>
+                                <tr v-for="h in historial" :key="h.id">
+                                    <td>{{ h.fecha }}</td><td>{{ h.usuario }}</td><td>{{ h.campo }}</td>
+                                    <td>{{ h.valor_anterior ?? "—" }}</td><td>{{ h.valor_nuevo ?? "—" }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <div class="fdc-foot">
                 <span class="fdc-nota">
                     La prefactura, la factura y el portal toman estos datos. Guardarlos no emite ninguna factura fiscal.
@@ -267,6 +287,26 @@ let token = 0;
 
 const limpiar = (campo) => {
     delete errores[campo];
+};
+
+const verHistorial = ref(false);
+const historial = ref([]);
+const historialMsg = ref("");
+const toggleHistorial = async () => {
+    verHistorial.value = !verHistorial.value;
+    if (!verHistorial.value) {
+        return;
+    }
+    historialMsg.value = "";
+    try {
+        const { data } = await axios.get(`/cliente/billing/datos-fiscales/${props.clientId}/historial`);
+        historial.value = data.data || [];
+        if (!historial.value.length) {
+            historialMsg.value = "Aún no hay cambios registrados.";
+        }
+    } catch (e) {
+        historialMsg.value = e?.response?.status === 403 ? "No tienes permiso para ver el historial." : "No se pudo cargar el historial.";
+    }
 };
 
 const cargar = async () => {

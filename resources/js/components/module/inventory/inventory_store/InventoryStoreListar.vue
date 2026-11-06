@@ -23,7 +23,7 @@
             Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         v-if="!noOwnStores"
         module="inventory/inventory_store"
         model="InventoryStore"

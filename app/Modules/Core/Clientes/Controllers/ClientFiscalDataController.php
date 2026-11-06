@@ -3,6 +3,7 @@
 namespace App\Modules\Core\Clientes\Controllers;
 
 use App\Models\ClientFiscalData;
+use App\Models\ClientFiscalDataAudit;
 use App\Services\Finance\Timbrado\TimbradoServiceInterface;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
@@ -149,9 +150,67 @@ class ClientFiscalDataController extends Controller
             $fiscal->constancia_path = $path;
         }
 
+        // #1152: diff anterior/nuevo (se calcula antes de guardar; la bitácora nunca rompe el guardado).
+        $cambios = $fiscal->exists ? $fiscal->getDirty() : $fiscal->getAttributes();
+        $anteriores = $fiscal->exists ? $fiscal->getOriginal() : [];
+
         $fiscal->save();
 
+        $this->registrarAuditoria($request, $clientId, $userId, $cambios, $anteriores);
+
         return response()->json(['data' => $fiscal, 'message' => 'Datos fiscales guardados.']);
+    }
+
+    private function registrarAuditoria(Request $request, int $clientId, int $userId, array $cambios, array $anteriores): void
+    {
+        try {
+            $omitir = ['id', 'client_id', 'created_by', 'updated_by', 'created_at', 'updated_at', 'constancia_path'];
+            foreach ($cambios as $campo => $nuevo) {
+                if (in_array($campo, $omitir, true)) {
+                    continue;
+                }
+                $antes = $anteriores[$campo] ?? null;
+                if ((string) $antes === (string) $nuevo) {
+                    continue;
+                }
+                ClientFiscalDataAudit::create([
+                    'client_id'      => $clientId,
+                    'user_id'        => $userId ?: null,
+                    'campo'          => $campo,
+                    'valor_anterior' => $antes === null ? null : (string) $antes,
+                    'valor_nuevo'    => $nuevo === null ? null : (string) $nuevo,
+                    'ip'             => $request->ip(),
+                    'created_at'     => now(),
+                ]);
+            }
+            if ($request->hasFile('constancia')) {
+                ClientFiscalDataAudit::create([
+                    'client_id' => $clientId, 'user_id' => $userId ?: null, 'campo' => 'constancia',
+                    'valor_anterior' => null, 'valor_nuevo' => '(archivo actualizado)',
+                    'ip' => $request->ip(), 'created_at' => now(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('Auditoría datos de facturación no registrada: ' . $e->getMessage(), ['client_id' => $clientId]);
+        }
+    }
+
+    /**
+     * GET /cliente/billing/datos-fiscales/{clientId}/historial — solo lectura (#1152).
+     */
+    public function historial(int $clientId): JsonResponse
+    {
+        $this->authorize('facturacion.auditoria.ver');
+
+        $filas = ClientFiscalDataAudit::with('user:id,name')
+            ->where('client_id', $clientId)->orderByDesc('id')->limit(200)->get()
+            ->map(fn ($a) => [
+                'id' => $a->id, 'campo' => $a->campo, 'usuario' => $a->user->name ?? 'Sistema',
+                'valor_anterior' => $a->valor_anterior, 'valor_nuevo' => $a->valor_nuevo,
+                'fecha' => optional($a->created_at)->format('Y-m-d H:i'),
+            ]);
+
+        return response()->json(['data' => $filas]);
     }
 
     private function opcional($valor): ?string

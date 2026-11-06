@@ -16,7 +16,7 @@
             Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="configuracion/work-flow"
         model="WorkFlow"
         list="Listado Flujo de Trabajo"

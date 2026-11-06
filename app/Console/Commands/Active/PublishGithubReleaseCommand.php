@@ -4,6 +4,7 @@ namespace App\Console\Commands\Active;
 
 use App\Models\DeploymentLog;
 use App\Models\Release;
+use App\Services\Deploy\CommitsRetenidos;
 use App\Services\Deploy\DeploymentService;
 use App\Services\Updates\GitHubUpdateService;
 use Illuminate\Console\Command;
@@ -67,6 +68,18 @@ class PublishGithubReleaseCommand extends Command
             $this->error('ABORTADO — esta instancia no es la publicadora de releases.');
             $this->line('  Solo el publicador (dev) puede crear GitHub Releases.');
             $this->line('  Si esta ES la instancia publicadora: DEPLOY_IS_PUBLISHER=true en su .env.');
+            return self::FAILURE;
+        }
+
+        // Candado de commits retenidos: --force NO lo salta. Ese flag es para tags fuera de origin/main;
+        // esto es una decisión de quien debe validarlos. Se libera en deploy/release-retenidos.txt.
+        $retenidos = CommitsRetenidos::en(
+            base_path(),
+            $version,
+            CommitsRetenidos::lista(base_path(CommitsRetenidos::ARCHIVO))
+        );
+        if ($retenidos !== []) {
+            $this->error('ABORTADO — ' . CommitsRetenidos::mensaje($version, $retenidos));
             return self::FAILURE;
         }
 

@@ -71,6 +71,7 @@
 import { ref, onMounted, onBeforeUnmount, computed, nextTick } from "vue";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { initBaseLeafletMap } from "../maps/helper/sharedMapInit";
 
 defineOptions({ name: "OltRedMap" });
 
@@ -124,19 +125,14 @@ function odbMarker(lat, lng, name, zone) {
 }
 
 // ── Inicialización del mapa ───────────────────────────────────────────────
-function initMap() {
+async function initMap() {
     if (!mapEl.value) return;
 
-    map = L.map(mapEl.value, {
-        center: [19.74, -99.09],
+    map = await initBaseLeafletMap(mapEl.value, {
         zoom: 13,
-        zoomControl: false,
+        mapOptions: { zoomControl: false },
+        tileOptions: { maxZoom: 20, attribution: '&copy; OpenStreetMap contributors' },
     });
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 20,
-        attribution: '&copy; OpenStreetMap contributors',
-    }).addTo(map);
 
     L.control.zoom({ position: 'topleft', zoomInText: '+', zoomOutText: '−' }).addTo(map);
 
@@ -235,7 +231,7 @@ function popupHtml(o) {
 // ── Lifecycle ─────────────────────────────────────────────────────────────
 onMounted(async () => {
     await nextTick();
-    initMap();
+    await initMap();
     await loadData();
 });
 

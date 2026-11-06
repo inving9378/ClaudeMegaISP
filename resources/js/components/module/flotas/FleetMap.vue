@@ -60,6 +60,7 @@ import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick } from 'v
 import axios from 'axios';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { initBaseLeafletMap } from '../maps/helper/sharedMapInit';
 
 const COLORS = { moving: '#22c55e', stopped: '#f59e0b', idle: '#9ca3af', offline: '#ef4444' };
 const LABELS = { moving: 'En movimiento', stopped: 'Detenido', idle: 'Inactivo', offline: 'Sin señal' };
@@ -200,11 +201,7 @@ export default {
 
         onMounted(async () => {
             await nextTick();
-            map = L.map(mapEl.value).setView([19.4326, -99.1332], 11);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-            }).addTo(map);
+            map = await initBaseLeafletMap(mapEl.value, { zoom: 11 });
             await load(true);
             startPolling();
         });

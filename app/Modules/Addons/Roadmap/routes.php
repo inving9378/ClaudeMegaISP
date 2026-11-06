@@ -20,83 +20,99 @@ use Illuminate\Support\Facades\Route;
 | ACCESO EXTERNO SIN LOGIN (Circuito de Mejora Continua) — Claude Cowork.
 | SIN middleware `web`/`auth` → sin sesión ni cookies. Protegido por token en
 | el path + rate limit. Fuera de menús y sitemap.
+|
+| GUARDRAIL DE ENTORNO (CIRC-05 PASO 6, #9991016): las rutas de esta superficie NI SE
+| REGISTRAN fuera de dev — no basta con que en prod los tokens estén vacíos (aunque
+| RoadmapExternalController::tokenOk() YA rechaza explícitamente un token esperado vacío,
+| ver `$expected !== '' && hash_equals(...)`, esto es una SEGUNDA capa de defensa en
+| profundidad). Whitelist positiva (no negativa) a propósito: si algún día se agrega un
+| entorno nuevo, hay que sumarlo aquí a mano en vez de que quede expuesto por default.
 */
-Route::prefix('api/roadmap-externo')
-    ->middleware('throttle:' . config('roadmap_externo.rate_read', 60) . ',1')
-    ->group(function () {
-        Route::get('/{token}', [RoadmapExternalController::class, 'index']);
+if (app()->environment(['local', 'dev'])) {
+    Route::prefix('api/roadmap-externo')
+        ->middleware([
+            'throttle:' . config('roadmap_externo.rate_read', 60) . ',1',
+            \App\Modules\Addons\Roadmap\Http\Middleware\ValidateRoadmapExternoHost::class,
+        ])
+        ->group(function () {
+            Route::get('/{token}', [RoadmapExternalController::class, 'index']);
 
-        // Variantes PATH-BASED (el fetcher de Cowork descarta el query string).
-        //   Detalle:  GET /{token}/item/{id}
-        //   Lista:    GET /{token}/q/{estado}/{nivel}/{page}/{perpage}  ("-" = comodín)
-        Route::get('/{token}/item/{id}', [RoadmapExternalController::class, 'showItem'])
-            ->whereNumber('id');
-        Route::get('/{token}/q/{estado}/{nivel}/{page}/{perpage}', [RoadmapExternalController::class, 'queryPath'])
-            ->whereNumber('page')->whereNumber('perpage');
+            // Variantes PATH-BASED (el fetcher de Cowork descarta el query string).
+            //   Detalle:  GET /{token}/item/{id}
+            //   Lista:    GET /{token}/q/{estado}/{nivel}/{page}/{perpage}  ("-" = comodín)
+            Route::get('/{token}/item/{id}', [RoadmapExternalController::class, 'showItem'])
+                ->whereNumber('id');
+            Route::get('/{token}/q/{estado}/{nivel}/{page}/{perpage}', [RoadmapExternalController::class, 'queryPath'])
+                ->whereNumber('page')->whereNumber('perpage');
 
-        // TORRE V2 — historial append-only de reportes del item (lectura).
-        Route::get('/{token}/item/{id}/historial', [RoadmapExternalController::class, 'itemHistorial'])
-            ->whereNumber('id');
-    });
+            // TORRE V2 — historial append-only de reportes del item (lectura).
+            Route::get('/{token}/item/{id}/historial', [RoadmapExternalController::class, 'itemHistorial'])
+                ->whereNumber('id');
+        });
 
-Route::prefix('api/roadmap-externo')
-    ->middleware('throttle:' . config('roadmap_externo.rate_write', 30) . ',1')
-    ->group(function () {
-        Route::post('/{token}/item/{id}', [RoadmapExternalController::class, 'updateItem'])
-            ->whereNumber('id');
+    Route::prefix('api/roadmap-externo')
+        ->middleware([
+            'throttle:' . config('roadmap_externo.rate_write', 30) . ',1',
+            \App\Modules\Addons\Roadmap\Http\Middleware\ValidateRoadmapExternoHost::class,
+        ])
+        ->group(function () {
+            Route::post('/{token}/item/{id}', [RoadmapExternalController::class, 'updateItem'])
+                ->whereNumber('id');
 
-        // Variante de escritura por GET (query params) — el fetcher de Claude Cowork
-        // solo hace GET. Misma allowlist de 3 campos, mismas validaciones de enum,
-        // mismos guards y mismo log que el POST (delegan en el mismo writeItem()).
-        //   GET /{token}/item/{id}/set?estado_aprobacion=..&nivel_riesgo=..&comentarios_claude=..
-        Route::get('/{token}/item/{id}/set', [RoadmapExternalController::class, 'setItem'])
-            ->whereNumber('id');
+            // Variante de escritura por GET (query params) — el fetcher de Claude Cowork
+            // solo hace GET. Misma allowlist de 3 campos, mismas validaciones de enum,
+            // mismos guards y mismo log que el POST (delegan en el mismo writeItem()).
+            //   GET /{token}/item/{id}/set?estado_aprobacion=..&nivel_riesgo=..&comentarios_claude=..
+            Route::get('/{token}/item/{id}/set', [RoadmapExternalController::class, 'setItem'])
+                ->whereNumber('id');
 
-        // Variante de ESCRITURA por PATH (el fetcher de Cowork descarta el query string).
-        //   GET /{token}/item/{id}/set/{estado}/{nivel}/{comentario?}   ("-" = no cambiar)
-        // `comentario` (opcional) URL-encoded; ->where('.+') admite el texto codificado.
-        Route::get('/{token}/item/{id}/set/{estado}/{nivel}/{comentario?}', [RoadmapExternalController::class, 'setItemPath'])
-            ->whereNumber('id')
-            ->where('comentario', '.+');
+            // Variante de ESCRITURA por PATH (el fetcher de Cowork descarta el query string).
+            //   GET /{token}/item/{id}/set/{estado}/{nivel}/{comentario?}   ("-" = no cambiar)
+            // `comentario` (opcional) URL-encoded; ->where('.+') admite el texto codificado.
+            Route::get('/{token}/item/{id}/set/{estado}/{nivel}/{comentario?}', [RoadmapExternalController::class, 'setItemPath'])
+                ->whereNumber('id')
+                ->where('comentario', '.+');
 
-        // Variante de ESCRITURA por PATH con comentario en BASE64URL (ver #317): evita el
-        // 403 de nginx cuando el comentario trae '/' (nginx bloquea %2F antes de Laravel).
-        //   GET /{token}/item/{id}/setb64/{estado}/{nivel}/{comentario_b64?}
-        Route::get('/{token}/item/{id}/setb64/{estado}/{nivel}/{comentarioB64?}', [RoadmapExternalController::class, 'setItemPathB64'])
-            ->whereNumber('id')
-            ->where('comentarioB64', '[A-Za-z0-9_-]+');
-    });
+            // Variante de ESCRITURA por PATH con comentario en BASE64URL (ver #317): evita el
+            // 403 de nginx cuando el comentario trae '/' (nginx bloquea %2F antes de Laravel).
+            //   GET /{token}/item/{id}/setb64/{estado}/{nivel}/{comentario_b64?}
+            Route::get('/{token}/item/{id}/setb64/{estado}/{nivel}/{comentarioB64?}', [RoadmapExternalController::class, 'setItemPathB64'])
+                ->whereNumber('id')
+                ->where('comentarioB64', '[A-Za-z0-9_-]+');
+        });
 
-/*
-| CIRC-05 PASO 2 (#9990871/#9990888, #9991015) — rate limit PROPIO y más estricto para las
-| rutas de CREACIÓN, separado del rate_write compartido de arriba (updateItem/setItem* siguen
-| con ese límite sin cambio). Dos middlewares throttle encadenados con prefijo distinto cada
-| uno (3er parámetro de ThrottleRequests::handle()) → cada ventana usa su PROPIO bucket de
-| caché, aunque ambos throttles vean el mismo request.
-*/
-Route::prefix('api/roadmap-externo')
-    ->middleware([
-        'throttle:' . config('roadmap_externo.rate_create_min', 10) . ',1,roadmap-externo-crea-min',
-        'throttle:' . config('roadmap_externo.rate_create_hora', 60) . ',60,roadmap-externo-crea-hora',
-    ])
-    ->group(function () {
-        /*
-        | TORRE V2 — ESCRITURA EXTENDIDA (token `create_token`, cae al write_token si no se define).
-        | Crear items alimenta la cola de trabajo del circuito, por eso es un scope aparte del
-        | write acotado de 3 campos. El item creado nace SIEMPRE en pendiente_revision.
-        */
-        Route::post('/{token}/item', [RoadmapExternalController::class, 'createItem']);
+    /*
+    | CIRC-05 PASO 2 (#9990871/#9990888, #9991015) — rate limit PROPIO y más estricto para las
+    | rutas de CREACIÓN, separado del rate_write compartido de arriba (updateItem/setItem* siguen
+    | con ese límite sin cambio). Dos middlewares throttle encadenados con prefijo distinto cada
+    | uno (3er parámetro de ThrottleRequests::handle()) → cada ventana usa su PROPIO bucket de
+    | caché, aunque ambos throttles vean el mismo request.
+    */
+    Route::prefix('api/roadmap-externo')
+        ->middleware([
+            'throttle:' . config('roadmap_externo.rate_create_min', 10) . ',1,roadmap-externo-crea-min',
+            'throttle:' . config('roadmap_externo.rate_create_hora', 60) . ',60,roadmap-externo-crea-hora',
+            \App\Modules\Addons\Roadmap\Http\Middleware\ValidateRoadmapExternoHost::class,
+        ])
+        ->group(function () {
+            /*
+            | TORRE V2 — ESCRITURA EXTENDIDA (token `create_token`, cae al write_token si no se define).
+            | Crear items alimenta la cola de trabajo del circuito, por eso es un scope aparte del
+            | write acotado de 3 campos. El item creado nace SIEMPRE en pendiente_revision.
+            */
+            Route::post('/{token}/item', [RoadmapExternalController::class, 'createItem']);
 
-        // Alta por PATH + BASE64URL para el fetcher de Cowork (solo GET, descarta query string).
-        //   GET /{token}/crear/{modulo}/{titulo_b64}/{spec_b64?}   ("-" = sin módulo)
-        Route::get('/{token}/crear/{modulo}/{tituloB64}/{specB64?}', [RoadmapExternalController::class, 'createItemPathB64'])
-            ->where('tituloB64', '[A-Za-z0-9_-]+')
-            ->where('specB64', '[A-Za-z0-9_-]+');
+            // Alta por PATH + BASE64URL para el fetcher de Cowork (solo GET, descarta query string).
+            //   GET /{token}/crear/{modulo}/{titulo_b64}/{spec_b64?}   ("-" = sin módulo)
+            Route::get('/{token}/crear/{modulo}/{tituloB64}/{specB64?}', [RoadmapExternalController::class, 'createItemPathB64'])
+                ->where('tituloB64', '[A-Za-z0-9_-]+')
+                ->where('specB64', '[A-Za-z0-9_-]+');
 
-        // Reporte nuevo al historial del item (se ACUMULA, no pisa el anterior).
-        Route::post('/{token}/item/{id}/reporte', [RoadmapExternalController::class, 'addReport'])
-            ->whereNumber('id');
-    });
+            // Reporte nuevo al historial del item (se ACUMULA, no pisa el anterior).
+            Route::post('/{token}/item/{id}/reporte', [RoadmapExternalController::class, 'addReport'])
+                ->whereNumber('id');
+        });
+}
 
 /*
 | CONECTOR MCP de la Hoja de Ruta (Circuito CC) — Streamable HTTP / JSON-RPC 2.0.

@@ -5,6 +5,7 @@ namespace App\Modules\Addons\Talento\Console;
 use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoRoleDepartment;
+use App\Modules\Addons\Talento\Services\TalentoColaboradorSyncService;
 use Illuminate\Console\Command;
 
 class SyncColaboradoresCommand extends Command
@@ -12,18 +13,23 @@ class SyncColaboradoresCommand extends Command
     protected $signature   = 'talento:sync-colaboradores';
     protected $description = 'Sincroniza colaboradores a partir del rol de puesto → department. Idempotente.';
 
-    private const SYSTEM_ROLES = ['super-administrator', 'ADMINISTRADOR_COMPLETO', 'DESARROLLADOR'];
-
     // Solo roles de PUESTO (no capacidades transversales como Vendedor).
+    // Usada únicamente aquí para la nota diagnóstica de "conflicto entre puestos"
+    // en el reporte (la decisión real de prioridad vive en el servicio compartido).
     private const PRIORITY = ['TECNICO_PLANTA', 'TECNICO_INSTALADOR', 'TECNICO', 'Mostrador'];
 
     /**
-     * Colaborador de prueba a proteger de la sincronización.
+     * Colaborador de prueba a proteger de la sincronización (Fase 2, abajo).
      * PORTABLE entre entornos: se resuelve por login_user (estable), NO por id
      * hardcodeado (los ids de dev y prod divergen — un id de dev es otra persona
      * en prod). En prod este login no existe → protectedId=null → no protege a nadie.
      */
     private const PROTECTED_TEST_LOGIN = 'Meganet6503bee0';
+
+    public function __construct(private TalentoColaboradorSyncService $syncService)
+    {
+        parent::__construct();
+    }
 
     public function handle(): int
     {
@@ -55,60 +61,33 @@ class SyncColaboradoresCommand extends Command
         foreach ($usersWithPuestoRole as $user) {
             $roleNames = $user->roles->pluck('name')->all();
 
-            if (!empty(array_intersect($roleNames, self::SYSTEM_ROLES))) {
-                $totalSkipped++;
-                $rows[] = [$user->id, $user->name, implode(',', $roleNames), 'omitido', '—', 'Tiene rol de sistema'];
-                continue;
-            }
+            $sync = $this->syncService->sync($user);
 
-            if ($protectedId !== null && $user->id === $protectedId) {
-                $totalSkipped++;
-                $rows[] = [$user->id, $user->name, implode(',', $roleNames), 'omitido', '—', 'Colaborador de prueba protegido'];
-                continue;
-            }
+            $department = $sync['department'];
 
-            $department = $this->resolveDepartment($roleNames, $mappings);
-            if ($department === null) {
-                $totalSkipped++;
-                $rows[] = [$user->id, $user->name, implode(',', $roleNames), 'omitido', '—', 'Sin rol de puesto mapeado'];
-                continue;
-            }
-
-            // Nota de conflicto entre puestos (raro, pero posible)
+            // Nota de conflicto entre puestos (raro, pero posible) — puramente
+            // diagnóstica para el reporte, no afecta la decisión del servicio.
             $puestoRoles  = array_filter($roleNames, fn($r) => isset($mappings[$r]));
             $puestoDepts  = array_unique(array_map(fn($r) => $mappings[$r], $puestoRoles));
             $conflict     = count($puestoDepts) > 1
                 ? 'Conflicto resuelto por prioridad: ' . implode(' vs ', $puestoDepts)
                 : '';
 
-            $existing = TalentoColaborador::withTrashed()->where('user_id', $user->id)->first();
+            if ($sync['action'] === 'skipped') {
+                $totalSkipped++;
+                $rows[] = [$user->id, $user->name, implode(',', $roleNames), 'omitido', $department ?? '—', $sync['reason'] ?? ''];
+                continue;
+            }
 
-            if ($existing) {
-                if ($existing->trashed()) {
-                    $totalSkipped++;
-                    $rows[] = [$user->id, $user->name, implode(',', $roleNames), 'omitido', '—', 'Soft-deleted manualmente'];
-                    continue;
-                }
-                $changed = $existing->department !== $department;
-                if ($changed) {
-                    $existing->update(['department' => $department]);
-                    $result = in_array($existing->status, ['inactive', 'suspended'])
-                        ? 'department actualizado (status conservado)'
-                        : 'department actualizado';
-                    $totalUpdates++;
-                } else {
-                    $result = 'sin cambios';
-                    $totalSkipped++;
-                }
-            } else {
-                TalentoColaborador::create([
-                    'user_id'    => $user->id,
-                    'type'       => 'interno',
-                    'department' => $department,
-                    'status'     => 'active',
-                ]);
-                $result = 'alta nueva';
+            if ($sync['action'] === 'updated') {
+                $totalUpdates++;
+                $existing = $sync['colaborador'];
+                $result = in_array($existing->status, ['inactive', 'suspended'])
+                    ? 'department actualizado (status conservado)'
+                    : 'department actualizado';
+            } else { // created
                 $totalAltas++;
+                $result = 'alta nueva';
             }
 
             $rows[] = [$user->id, $user->name, implode(',', $roleNames), $result, $department, $conflict];
@@ -147,20 +126,5 @@ class SyncColaboradoresCommand extends Command
         $this->info("Fase 2 — Inactivados: {$totalInactivados}");
 
         return self::SUCCESS;
-    }
-
-    private function resolveDepartment(array $roleNames, array $mappings): ?string
-    {
-        foreach (self::PRIORITY as $priorityRole) {
-            if (in_array($priorityRole, $roleNames) && isset($mappings[$priorityRole])) {
-                return $mappings[$priorityRole];
-            }
-        }
-        foreach ($roleNames as $role) {
-            if (isset($mappings[$role])) {
-                return $mappings[$role];
-            }
-        }
-        return null;
     }
 }

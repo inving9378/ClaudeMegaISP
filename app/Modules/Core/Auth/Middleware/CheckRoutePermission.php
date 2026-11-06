@@ -6,10 +6,34 @@ use App\Http\Traits\PermissionTrait;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class CheckRoutePermission
 {
     use PermissionTrait;
+
+    /**
+     * core-documentos (item #839 → #978): paths legado que hoy abren por el
+     * permiso legado config_view_system EN PARALELO al granular documentos.*.
+     * Mapea cada path al granular que YA lo cubre, para loguear cuándo el
+     * acceso real dependió SOLO del fallback legado. Decisión de Irving
+     * (#978, opción 2): no retirar el fallback todavía — dejarlo 1-2 ciclos
+     * con este log de advertencia y retirarlo después si queda mudo.
+     */
+    const DOCUMENTOS_LEGACY_FALLBACK = [
+        '/administracion/document_template' => 'documentos.view',
+        '/administracion/document_template/table' => 'documentos.view',
+        '/administracion/document_template/get_data_template/{id}' => 'documentos.view',
+        '/administracion/document_type_template' => 'documentos.view',
+        '/administracion/document_type_template/table' => 'documentos.view',
+        '/administracion/document_template/add' => 'documentos.create',
+        '/administracion/document_type_template/add' => 'documentos.create',
+        '/administracion/document_template/update/{id}' => 'documentos.edit',
+        '/administracion/document_type_template/editar/{id}' => 'documentos.edit',
+        '/administracion/document_type_template/update/{id}' => 'documentos.edit',
+        '/administracion/document_template/destroy/{id}' => 'documentos.delete',
+        '/administracion/document_type_template/destroy/{id}' => 'documentos.delete',
+    ];
 
     const PUBLIC_ROUTES = [
         '/administracion/document_template/get_variables',
@@ -77,6 +101,7 @@ class CheckRoutePermission
             });
 
         if ($has_permission->isNotEmpty()) {
+            $this->logDocumentosLegacyFallbackIfUsed($requestPath, $permissions);
             return $next($request);
         }
 
@@ -92,6 +117,30 @@ class CheckRoutePermission
         }
 
         return response(view('meganet.pages.403'), 403);
+    }
+
+    /**
+     * Si el acceso a un path de core-documentos dependió SOLO del permiso
+     * legado config_view_system (el usuario no trae el granular documentos.*
+     * equivalente), lo deja registrado. Ver DOCUMENTOS_LEGACY_FALLBACK / #978.
+     */
+    protected function logDocumentosLegacyFallbackIfUsed(string $requestPath, array $permissions): void
+    {
+        foreach (self::DOCUMENTOS_LEGACY_FALLBACK as $pattern => $granularPermission) {
+            $regex = $this->convertRouteToRegex($pattern);
+            if (!preg_match($regex, $requestPath)) {
+                continue;
+            }
+
+            if (isset($permissions['config_view_system']) && !isset($permissions[$granularPermission])) {
+                Log::warning(
+                    "[core-documentos][fallback-legado] Acceso a {$requestPath} otorgado solo por config_view_system (falta {$granularPermission}). Ver item roadmap #978.",
+                    ['user_id' => Auth::id(), 'path' => $requestPath, 'granular_esperado' => $granularPermission]
+                );
+            }
+
+            return;
+        }
     }
 
     /** ¿Aplica la denegación silenciosa a esta petición? Solo navegación de página completa. */

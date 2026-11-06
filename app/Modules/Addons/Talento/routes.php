@@ -533,6 +533,10 @@ Route::get('/legal/privacidad-talento', function () {
     ]);
 })->middleware([]);
 
+// Página pública a la que apunta el QR de descarga -- detecta Android/iPhone/
+// escritorio (sin auth, cualquiera la puede abrir desde un link compartido).
+Route::get('/app/descargar', [TalentoMobileEquipoController::class, 'descargarApp'])->middleware([]);
+
 // Rutas protegidas con Sanctum
 Route::middleware(['auth:sanctum', 'talento.cuenta_activa'])
     ->prefix('talento/api')

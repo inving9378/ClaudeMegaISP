@@ -399,6 +399,17 @@
 </head>
 <body>
 
+@if(session('portal_impersonacion'))
+    <div style="background:#b45309;color:#fff;padding:.55rem 1rem;text-align:center;font-size:.9rem;position:sticky;top:0;z-index:2000">
+        Estás viendo el portal COMO este cliente (solo personal autorizado; no se puede pagar ni cambiar contraseña).
+        Caduca a las {{ \Carbon\Carbon::createFromTimestamp(session('portal_impersonacion')['hasta'])->format('H:i') }}.
+        <form method="POST" action="{{ route('portal.impersonacion.salir') }}" style="display:inline">
+            @csrf
+            <button type="submit" style="margin-left:.75rem;border:0;border-radius:4px;padding:.15rem .7rem;cursor:pointer">Volver al admin</button>
+        </form>
+    </div>
+@endif
+
 {{-- Top bar --}}
 <div class="portal-topbar" x-data="{ dark: window.localStorage.getItem('portalDark')==='1' }">
     <a href="{{ route('portal.dashboard') }}" class="logo">

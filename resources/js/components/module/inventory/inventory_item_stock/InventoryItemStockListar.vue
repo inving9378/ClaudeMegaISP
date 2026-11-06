@@ -82,6 +82,7 @@
         module="inventory/inventory_item_stock"
         model="InventoryItemStock"
         list="Listado de Articulos"
+        :urlState="true"
         @table="table"
         :editButton="{ modal: 'crudinventoryitem' }"
         :filters="filters"

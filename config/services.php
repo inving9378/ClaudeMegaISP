@@ -75,6 +75,13 @@ return [
         'server_key'       => env('FCM_SERVER_KEY'),
     ],
 
+    // Twilio SMS — OTP MegaFamilia (#496). Sin llaves, el envío falla limpio (ver TwilioSmsChannel).
+    'twilio' => [
+        'sid'   => env('TWILIO_SID'),
+        'token' => env('TWILIO_AUTH_TOKEN'),
+        'from'  => env('TWILIO_FROM_NUMBER'),
+    ],
+
     // Huawei OLT (motor propio — B1b-4). Sin valores hasta validar B1c.
     'huawei_olt' => [
         'host'            => env('OLT_HUAWEI_HOST', ''),

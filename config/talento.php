@@ -4,6 +4,16 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Conexión automática Administradores → Talento
+    |--------------------------------------------------------------------------
+    | Encendido: guardar un usuario con rol de puesto crea o actualiza su colaborador, y el observer
+    | dispara permisos, documentos de RH y extensión SIP. Apagado (default): sigue siendo manual con
+    | talento:sync-colaboradores.
+    */
+    'autosync_usuarios' => (bool) env('TALENTO_AUTOSYNC_USUARIOS', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Sesión de la app móvil (item #693)
     |--------------------------------------------------------------------------
     | token_ttl_minutes: vigencia del token Sanctum 'talento-mobile' (por token, NO global:

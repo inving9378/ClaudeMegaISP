@@ -108,7 +108,10 @@ ok "Snippet nginx en $SNIPPET"
 
 # vhost :80 — reemplaza el bloque viejo `location /ttyd/ { ... }` (sin auth).
 if ! grep -qF "$INCLUDE" "$VHOST80"; then
-    perl -0pi -e 's{^[ \t]*location /ttyd/ \{[^}]*\}[ \t]*\n}{    include /etc/nginx/snippets/megaisp-ttyd.conf;\n}m' "$VHOST80"
+    # Delimitador '#', no '{}': con s{...}{...} la '}' de la clase [^}] cierra el
+    # patrón antes de tiempo ("Unmatched [ in regex") y set -e corta el script a
+    # la mitad, con el snippet ya escrito y nada más aplicado (pasó el 2026-10-16).
+    perl -0pi -e 's#^[ \t]*location /ttyd/ \{[^}]*\}[ \t]*\n#    include /etc/nginx/snippets/megaisp-ttyd.conf;\n#m' "$VHOST80"
     grep -qF "$INCLUDE" "$VHOST80" || { restaurar_nginx; die "No se encontró el bloque location /ttyd/ en $VHOST80 — no se tocó nada."; }
 fi
 grep -q 'proxy_pass[[:space:]]*http://127.0.0.1:7681' "$VHOST80" && { restaurar_nginx; die "Quedó un proxy a 7681 sin auth en $VHOST80 — revertido."; }
@@ -117,7 +120,7 @@ ok "vhost :80 usa el bloque con auth"
 # vhost TLS (dev.meganett.com.mx) — hoy no tiene /ttyd/; se agrega para usar la
 # terminal por HTTPS (cifrada) en vez de HTTP plano.
 if [ -e "$VHOSTTLS" ] && ! grep -qF "$INCLUDE" "$VHOSTTLS"; then
-    perl -0pi -e 's{\n([ \t]*)location / \{}{\n$1include /etc/nginx/snippets/megaisp-ttyd.conf;\n\n$1location / \{}' "$VHOSTTLS"
+    perl -0pi -e 's#\n([ \t]*)location / \{#\n$1include /etc/nginx/snippets/megaisp-ttyd.conf;\n\n$1location / {#' "$VHOSTTLS"
     grep -qF "$INCLUDE" "$VHOSTTLS" || { restaurar_nginx; die "No se pudo agregar el include en $VHOSTTLS — revertido."; }
     ok "vhost TLS (dev.meganett.com.mx) también sirve /ttyd/ con auth"
 fi

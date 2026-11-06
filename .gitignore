@@ -104,3 +104,6 @@ package-lock.json
 !/storage/schema/reference.sql
 
 !/database/schema/mysql-schema.sql
+
+# Matriz de permisos generada por auditoria:permisos-matriz-roles: no se versiona, el repo es público.
+/docs/auditoria/permisos-matriz-roles.csv

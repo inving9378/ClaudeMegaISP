@@ -9,6 +9,23 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
     protected string $moduleSlug = 'addon-roadmap';
     protected string $moduleType = 'addon';
 
+    public function register(): void
+    {
+        parent::register();
+
+        // Item #876 — el catálogo de acciones de la Consola se puebla UNA vez por request y se
+        // comparte como singleton (evita re-declarar en cada inyección).
+        $this->app->singleton(
+            \App\Modules\Addons\Roadmap\Services\ConsolaAcciones\ConsolaAccionCatalogo::class,
+            function () {
+                $catalogo = new \App\Modules\Addons\Roadmap\Services\ConsolaAcciones\ConsolaAccionCatalogo();
+                \App\Modules\Addons\Roadmap\Services\ConsolaAcciones\TorreAccionesCatalogo::declarar($catalogo);
+
+                return $catalogo;
+            }
+        );
+    }
+
     public function boot(): void
     {
         parent::boot();

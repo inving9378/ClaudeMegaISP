@@ -13,7 +13,7 @@
             Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="configuracion/additional-fields"
         model="FieldModule"
         list="Listado"

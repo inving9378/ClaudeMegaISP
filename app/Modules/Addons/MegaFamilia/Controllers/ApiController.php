@@ -25,6 +25,7 @@ use App\Modules\Addons\MegaFamilia\Models\ParentalRequest;
 use App\Modules\Addons\MegaFamilia\Models\ParentalReward;
 use App\Modules\Addons\MegaFamilia\Models\ParentalRule;
 use App\Modules\Addons\MegaFamilia\Models\ParentalTask;
+use App\Modules\Addons\MegaFamilia\Services\OtpService;
 use App\Modules\Addons\Payments\Models\ReportedPayment;
 use App\Modules\Addons\Payments\Services\PaymentReferenceService;
 use App\Modules\Addons\PortalPago\Models\PortalPagoAccount;
@@ -44,6 +45,8 @@ use Illuminate\Support\Str;
  */
 class ApiController extends Controller
 {
+    private const PIN_MAX_INTENTOS = 3;
+
     // ---- OTA --------------------------------------------------------------
 
     /**
@@ -171,19 +174,24 @@ class ApiController extends Controller
 
         if ($user) {
             // Cliente con users row: verifica bcrypt/base64 (creados por seeder o migración).
-            // Fallback a plain de CMI para clientes cuyo bcrypt no coincide pero sí su web password.
-            $passwordOk = \App\Services\Security\PasswordService::check($data['password'], $user->password)
-                || ($data['password'] === $cmi->password);
+            // Fallback a la Contraseña WEB de la ficha para clientes cuyo bcrypt no coincide.
+            $contrasenaWebOk = $this->contrasenaWebValida($cmi, $data['password']);
+            $passwordOk = $contrasenaWebOk
+                || \App\Services\Security\PasswordService::check($data['password'], $user->password);
 
             if (! $passwordOk) {
                 return response()->json(['success' => false, 'error' => 'Credenciales inválidas'], 401);
             }
 
+            if ($contrasenaWebOk) {
+                $this->guardarHashContrasenaWeb($cmi, $data['password']);
+            }
+
             return $this->issueToken($user, $cmi, $data['device_name'] ?? 'mobile');
         }
 
-        // Sin users row: verificar plain antes de auto-crear (evita crear filas con password incorrecto).
-        if (empty($cmi->password) || $data['password'] !== $cmi->password) {
+        // Sin users row: verificar la Contraseña WEB antes de auto-crear (evita crear filas con password incorrecto).
+        if (! $this->contrasenaWebValida($cmi, $data['password'])) {
             return response()->json(['success' => false, 'error' => 'Credenciales inválidas'], 401);
         }
 
@@ -199,7 +207,42 @@ class ApiController extends Controller
             ], 500);
         }
 
+        $this->guardarHashContrasenaWeb($cmi, $data['password']);
+
         return $this->issueToken($user, $cmi, $data['device_name'] ?? 'mobile');
+    }
+
+    /**
+     * Misma regla que el login del portal (#1155): la columna legacy manda mientras exista, porque
+     * la ficha del admin y el perfil del portal la cambian sin tocar el hash y una contraseña
+     * anterior no debe seguir entrando. El hash solo decide si no hay legacy.
+     */
+    private function contrasenaWebValida(ClientMainInformation $cmi, string $contrasena): bool
+    {
+        if (filled($cmi->password)) {
+            return hash_equals((string) $cmi->password, $contrasena);
+        }
+
+        return filled($cmi->web_password_hash) && Hash::check($contrasena, $cmi->web_password_hash);
+    }
+
+    /** Se llama con la Contraseña WEB ya validada; un fallo aquí no debe tumbar ese login. */
+    private function guardarHashContrasenaWeb(ClientMainInformation $cmi, string $contrasena): void
+    {
+        try {
+            if (blank($cmi->password)
+                || (filled($cmi->web_password_hash) && Hash::check($contrasena, $cmi->web_password_hash))) {
+                return;
+            }
+
+            $cmi->web_password_hash = Hash::make($contrasena);
+            // Quietly: los observers de la ficha recalculan dirección y estado del cliente, y aquí
+            // no cambió nada de eso.
+            $cmi->saveQuietly();
+        } catch (\Throwable $e) {
+            // Sin getMessage(): el de una QueryException trae el SQL con el hash.
+            \Log::warning('megafamilia_login_hash_no_guardado', ['cmi_id' => $cmi->id, 'tipo' => get_class($e), 'codigo' => $e->getCode()]);
+        }
     }
 
     private function autoCreateUserFromCmi(ClientMainInformation $cmi, string $plainPassword): User
@@ -273,6 +316,99 @@ class ApiController extends Controller
             }
         }
         return 'cliente';
+    }
+
+    // ---- AUTH OTP (2FA por SMS, roadmap #496) ------------------------------
+    //
+    // Infraestructura para un segundo factor: la app aún no lo usa y /auth/login sigue entrando sin
+    // él. Solo cubre la ruta del cliente final, no la de staff.
+
+    public function otpEnviar(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'email'    => 'required|string',
+            'password' => 'required|string',
+        ]);
+
+        $cmi = $this->resolveParentCmi($data['email'], $data['password']);
+        if (! $cmi) {
+            return response()->json(['success' => false, 'error' => 'Credenciales inválidas'], 401);
+        }
+
+        $resultado = app(OtpService::class)->enviar($cmi, 'login');
+
+        if (! $resultado['success']) {
+            return response()->json(['success' => false, 'error' => $resultado['error']], 422);
+        }
+
+        return response()->json([
+            'success'        => true,
+            'expira_en'      => $resultado['expira_en'],
+            'destino_oculto' => $resultado['destino_oculto'],
+        ]);
+    }
+
+    public function otpVerificar(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'email'       => 'required|string',
+            'password'    => 'required|string',
+            'codigo'      => 'required|string',
+            'device_name' => 'sometimes|string',
+        ]);
+
+        $cmi = $this->resolveParentCmi($data['email'], $data['password']);
+        if (! $cmi) {
+            return response()->json(['success' => false, 'error' => 'Credenciales inválidas'], 401);
+        }
+
+        $resultado = app(OtpService::class)->verificar($cmi, $data['codigo'], 'login');
+        if (! $resultado['success']) {
+            return response()->json(['success' => false, 'error' => $resultado['error']], 422);
+        }
+
+        $user = User::where('login_user', $cmi->user)->first();
+        if (! $user) {
+            try {
+                $user = $this->autoCreateUserFromCmi($cmi, $data['password']);
+            } catch (\Throwable $e) {
+                \Log::error('megafamilia_otp_auto_create_failed', ['cmi_id' => $cmi->id, 'error' => $e->getMessage()]);
+
+                return response()->json(['success' => false, 'error' => 'No se pudo crear el usuario. Contacte al administrador.'], 500);
+            }
+        }
+
+        return $this->issueToken($user, $cmi, $data['device_name'] ?? 'mobile');
+    }
+
+    /**
+     * Credenciales de la ruta del cliente final, con las mismas reglas que login(): la guarda de
+     * cuenta ajena es la que impide que este camino, el de emitir token tras el SMS, entre a una
+     * cuenta de personal o de otro cliente con el mismo usuario que el Usuario WEB de la ficha.
+     */
+    private function resolveParentCmi(string $emailOrUser, string $password): ?ClientMainInformation
+    {
+        $cmi = ClientMainInformation::where('email', $emailOrUser)
+            ->orWhere('user', $emailOrUser)
+            ->first();
+
+        if (! $cmi) {
+            return null;
+        }
+
+        $user = User::where('login_user', $cmi->user)->first();
+
+        if ($user && ! $user->esCuentaDelCliente((int) $cmi->client_id)) {
+            \Log::warning('megafamilia_otp_cuenta_ajena', ['cmi_id' => $cmi->id, 'user_id' => $user->id]);
+
+            return null;
+        }
+
+        if ($this->contrasenaWebValida($cmi, $password)) {
+            return $cmi;
+        }
+
+        return $user && \App\Services\Security\PasswordService::check($password, $user->password) ? $cmi : null;
     }
 
     // ---- CLIENT DASHBOARD (mobile home) ----------------------------------
@@ -973,6 +1109,18 @@ class ApiController extends Controller
     public function storeProfile(Request $request): JsonResponse
     {
         $account = $this->requireAccount();
+
+        // Convención de ParentalPlansSeeder: 0 = ilimitado. Sin límite definido no se rechaza.
+        $maxChildren = (int) ($account->plan?->max_children ?? 0);
+        if ($maxChildren > 0 && $account->profiles()->where('active', true)->count() >= $maxChildren) {
+            return response()->json([
+                'success'      => false,
+                'error'        => "Tu plan permite hasta {$maxChildren} hijo(s) registrado(s).",
+                'code'         => 'max_children_reached',
+                'max_children' => $maxChildren,
+            ], 422);
+        }
+
         $data = $request->validate([
             'name' => 'required|string',
             'age' => 'nullable|integer|min:0|max:25',
@@ -981,6 +1129,37 @@ class ApiController extends Controller
         ]);
         $data['account_id'] = $account->id;
         return response()->json(ParentalProfile::create($data), 201);
+    }
+
+    /**
+     * Padre: fija o restablece el PIN del hijo (#499: 6 dígitos). También es el desbloqueo manual,
+     * porque limpia los intentos.
+     */
+    public function setProfilePin(Request $request, int $id): JsonResponse
+    {
+        $profile = $this->requireProfile($id);
+        abort_if($this->esTokenDeHijo($request), 403);
+
+        $data = $request->validate([
+            'pin' => 'required|digits:6',
+        ]);
+
+        $profile->pin_hash = Hash::make((string) $data['pin']);
+        $profile->pin_attempts = 0;
+        $profile->pin_locked_at = null;
+        $profile->save();
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * El token que emite linkDevice() vive sobre el User del padre, así que requireProfile() y
+     * requireDevice() lo dejan pasar. Solo sus abilities lo distinguen del token del padre, que
+     * tiene `*`; sin esto el hijo podría cambiarse el PIN o desbloquearlo.
+     */
+    private function esTokenDeHijo(Request $request): bool
+    {
+        return $request->user()->tokenCan('hijo') && ! $request->user()->tokenCan('*');
     }
 
     // ---- DEVICES ---------------------------------------------------------
@@ -1092,6 +1271,68 @@ class ApiController extends Controller
             'token'   => $apiToken,
             'role'    => 'hijo',
         ]);
+    }
+
+    /**
+     * Hijo: verifica el PIN de su perfil (#499: 3 intentos y bloqueo hasta que el padre lo
+     * restablezca). Solo responde si es correcto: no emite credenciales, porque el dispositivo ya
+     * trae el token de linkDevice().
+     */
+    public function verifyDevicePin(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate(['pin' => 'required|string']);
+
+        $device = $this->requireDevice($id);
+        $dispositivoDeOtroHijo = $this->esTokenDeHijo($request) && ! $request->user()->tokenCan('device:' . $device->id);
+        abort_if($dispositivoDeOtroHijo || ! $device->linked_at || $device->status === 'unlinked', 404);
+
+        // Con la fila bloqueada, peticiones simultáneas no pierden intentos fallidos.
+        return DB::transaction(function () use ($device, $data) {
+            $profile = ParentalProfile::whereKey($device->profile_id)->lockForUpdate()->first();
+
+            if (! $profile || ! $profile->pin_hash) {
+                return response()->json([
+                    'success' => false,
+                    'error'   => 'Este perfil aún no tiene PIN configurado. Pide a tu papá/mamá que lo configure.',
+                    'code'    => 'pin_not_set',
+                ], 422);
+            }
+
+            if ($profile->pin_locked_at) {
+                return response()->json([
+                    'success' => false,
+                    'error'   => 'PIN bloqueado por intentos fallidos. Pide a tu papá/mamá que lo desbloquee desde su app.',
+                    'code'    => 'pin_locked',
+                ], 423);
+            }
+
+            if (! Hash::check($data['pin'], $profile->pin_hash)) {
+                $profile->pin_attempts = (int) $profile->pin_attempts + 1;
+                if ($profile->pin_attempts >= self::PIN_MAX_INTENTOS) {
+                    $profile->pin_locked_at = now();
+                }
+                $profile->save();
+
+                // 422 y no 401: la sesión sigue siendo válida y la app no debe cerrarla.
+                return response()->json([
+                    'success'            => false,
+                    'error'              => 'PIN incorrecto.',
+                    'code'               => 'invalid_pin',
+                    'attempts_remaining' => max(0, self::PIN_MAX_INTENTOS - $profile->pin_attempts),
+                ], 422);
+            }
+
+            $profile->pin_attempts = 0;
+            $profile->save();
+
+            $device->update(['status' => 'online', 'last_seen_at' => now()]);
+
+            return response()->json([
+                'success'   => true,
+                'device_id' => $device->id,
+                'profile'   => ['id' => $profile->id, 'name' => $profile->name],
+            ]);
+        });
     }
 
     public function deviceRules(int $id): JsonResponse

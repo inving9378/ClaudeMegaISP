@@ -21,6 +21,13 @@
             "icon": "search",
             "url": "/administracion/auditoria-senales",
             "permission": "auditoria.senales.view"
+        },
+        {
+            "title": "Matriz de permisos por rol",
+            "description": "Permisos asignados por rol vs. cuáles realmente surten efecto (huérfanos vs. efectivos).",
+            "icon": "rule",
+            "url": "/administracion/auditoria-permisos-matriz",
+            "permission": "auditoria.permisos.ver"
         }
     ],
     "config_sections": [],

@@ -8,6 +8,7 @@
 // Sellers controllers migrados a App\Modules\Addons\Vendedores\Controllers\Sellers (rutas en módulo)
 // Imports de Module/Setting movidos a app/Modules/Core/Configuracion/routes.php
 use App\Http\Controllers\RegisterVendorController;
+use App\Http\Controllers\Module\Ventas\CatalogosVentasController;
 use App\Models\TaskNotification;
 use App\Notifications\StandardNotification;
 use Illuminate\Support\Facades\Auth;
@@ -56,12 +57,6 @@ Route::middleware(['web', 'throttle:60,1'])->get('/csrf-refresh', function () {
 })->name('csrf.refresh');
 
 Route::group(['middleware' => ['auth']], function () {
-    Route::get('script', 'TestScriptController@script');
-    Route::get('log-client', 'TestScriptController@logClient');
-    Route::get('information-dev', 'TestScriptController@getInformationDevelopment');
-    Route::get('data-client-mikrotik/{id}', 'TestScriptController@getDataToMikrotikByClientId');
-    Route::get('data-client-mikrotik-by-ip', 'TestScriptController@getDataToMikrotikByIp');
-    Route::get('libera-ip/{id}', 'TestScriptController@liberaIp');
     Route::prefix('admin/consumo')->group(function () {
         Route::get('/', [InternetConsumptionRadiusController::class, 'index'])
             ->name('consumption.index');
@@ -69,6 +64,18 @@ Route::group(['middleware' => ['auth']], function () {
             ->name('consumption.show');
     });
     Route::group(['middleware' => ['check_route_permission']], function () {
+        // TestScriptController — utilería de debug, 5 rutas CRÍTICAS (item #9991145,
+        // Fase 1 de #9991116). Gate: permiso 'sistema.test_script.manage', asignado
+        // solo a super-administrator+DESARROLLADOR. 'log-client' (MEDIO) queda fuera
+        // de alcance, arriba, sin más gate que 'auth'.
+        // #505: log-client también exige permiso (test.script.ejecutar), no solo sesión.
+        Route::get('log-client', 'TestScriptController@logClient');
+        Route::get('script', 'TestScriptController@script');
+        Route::get('information-dev', 'TestScriptController@getInformationDevelopment');
+        Route::get('data-client-mikrotik/{id}', 'TestScriptController@getDataToMikrotikByClientId');
+        Route::get('data-client-mikrotik-by-ip', 'TestScriptController@getDataToMikrotikByIp');
+        Route::get('libera-ip/{id}', 'TestScriptController@liberaIp');
+
         Route::group(['namespace' => 'Module'], function () {
             // Module Configuracion migrado a app/Modules/Core/Configuracion/routes.php
 
@@ -109,6 +116,22 @@ Route::group(['middleware' => ['auth']], function () {
             Route::group(['prefix' => 'red'], function () {
 
                 // Rutas `red/ipv4` y `red/router` migradas a app/Modules/Addons/GestionRed/routes.php
+            });
+
+            // Catálogos del motor de ventas (item #9990808, Fase 1 de #9990781).
+            // CRUD API por catálogo (modalidades, modos-pago, parametros-reglamento);
+            // el slug viaja como default de ruta y resuelve modelo/permisos en el controller.
+            Route::prefix('ventas/catalogos')->group(function () {
+                foreach (['modalidades', 'modos-pago', 'parametros-reglamento'] as $catalogoVentas) {
+                    Route::get("/{$catalogoVentas}", [CatalogosVentasController::class, 'index'])
+                        ->defaults('catalogo', $catalogoVentas);
+                    Route::post("/{$catalogoVentas}", [CatalogosVentasController::class, 'store'])
+                        ->defaults('catalogo', $catalogoVentas);
+                    Route::put("/{$catalogoVentas}/{id}", [CatalogosVentasController::class, 'update'])
+                        ->defaults('catalogo', $catalogoVentas);
+                    Route::delete("/{$catalogoVentas}/{id}", [CatalogosVentasController::class, 'destroy'])
+                        ->defaults('catalogo', $catalogoVentas);
+                }
             });
 
             // Rutas `finanzas/*` migradas a app/Modules/Addons/Finanzas/routes.php

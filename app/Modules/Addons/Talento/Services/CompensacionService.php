@@ -73,4 +73,60 @@ class CompensacionService
 
         return $avg === null ? null : (float) $avg;
     }
+
+    /**
+     * UNI-T H3: las cuatro etapas del dinero de una semana. El importe de la semana (a pagar) cae en
+     * UNA sola: validado (sin liquidar), liquidado (cerrada) o pagado; así la suma cuadra con la
+     * liquidación. «Pendiente» son las órdenes terminadas que aún nadie valida: cuenta unidades y un
+     * estimado (unidades × valor por unidad) que NO entra en la suma. Interruptor apagado = null.
+     */
+    public function etapas(int $colaboradorId, array $w): ?array
+    {
+        if (! config('unificacion.interruptores.mi_dinero_etapas_h3', false)) {
+            return null;
+        }
+
+        $liq = TalentoLiquidation::where('colaborador_id', $colaboradorId)
+            ->where('period_start', $w['period_start'])
+            ->where('period_end', $w['period_end'])
+            ->whereIn('status', ['closed', 'paid'])
+            ->first();
+
+        $ls = app(LiquidationService::class);
+        $pago = $liq ? (float) $liq->gross_pay : (float) $ls->pagoDeLaSemana($colaboradorId, $w)['a_pagar'];
+        $estado = $liq ? ($liq->status === 'paid' ? 'pagado' : 'liquidado') : 'validado';
+
+        $userId = TalentoColaborador::where('id', $colaboradorId)->value('user_id');
+        $wo = \App\Modules\Addons\Talento\Models\TalentoWorkOrder::where('colaborador_id', $colaboradorId)
+            ->where('status', 'completed')->where('is_billable', true)->where('points', '>', 0);
+        $unidadesPend = (int) $wo->sum('points');
+        $ordenesPend = (int) $wo->count();
+        if ($userId) {
+            $tasks = \App\Models\Task::whereNotNull('talento_type_id')->where('is_billable', true)
+                ->where('points', '>', 0)->where('status', 'Done')->whereNull('validated_at')
+                ->whereHas('users', fn ($q) => $q->where('users.id', $userId));
+            $unidadesPend += (int) $tasks->sum('points');
+            $ordenesPend += (int) $tasks->count();
+        }
+        $valorUnidad = (float) ($ls->breakdown($colaboradorId, $w)['value_per_unit'] ?? 0);
+
+        $monto = fn (string $e) => $estado === $e ? round($pago, 2) : 0.0;
+
+        return [
+            'estado_semana' => $estado,
+            'pendiente' => [
+                'ordenes' => $ordenesPend,
+                'unidades' => $unidadesPend,
+                'importe_estimado' => round($unidadesPend * $valorUnidad, 2),
+            ],
+            'validado' => ['importe' => $monto('validado')],
+            'liquidado' => ['importe' => $monto('liquidado'), 'liquidacion_id' => $liq?->id],
+            'pagado' => [
+                'importe' => $monto('pagado'),
+                'pagado_el' => $liq?->paid_at?->toDateTimeString(),
+                'referencia' => $liq?->payment_reference,
+            ],
+            'total_semana' => round($pago, 2),
+        ];
+    }
 }

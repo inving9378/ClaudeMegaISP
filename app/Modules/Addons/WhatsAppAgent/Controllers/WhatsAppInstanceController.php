@@ -207,6 +207,20 @@ class WhatsAppInstanceController extends Controller
         return response()->json(['status' => 'disconnected', 'raw' => $result]);
     }
 
+    /**
+     * POST /whatsapp/api/instances/{id}/restart — reinicia la conexión en Evolution
+     * (restart). NO cierra sesión: se reconecta sola, sin volver a escanear QR.
+     */
+    public function restart(Request $request, int $id): JsonResponse
+    {
+        abort_unless((bool) $request->user()?->can('whatsapp_manage_instances'), 403);
+
+        $instance = WhatsAppInstance::findOrFail($id);
+        $result   = app(EvolutionApiService::class)->restart($instance);
+
+        return response()->json(['success' => true, 'raw' => $result]);
+    }
+
     // ── Funciones por línea (Fase 3) — gate whatsapp_manage_instances ────────────
 
     /** GET /whatsapp/api/instances/functions-catalog — funciones activas para los checks. */

@@ -304,6 +304,23 @@ class EvolutionApiService
     }
 
     /**
+     * Reinicia la conexión de la instancia en Evolution (restart), SIN cerrar sesión: la
+     * instancia se re-conecta sola, no requiere volver a escanear el QR. Evolution v2.3.7:
+     * PUT /instance/restart/{instance}. No-op en fakeMode.
+     */
+    public function restart(WhatsAppInstance $instance): array
+    {
+        if ($this->fakeMode) {
+            return ['fake' => true, 'restarted' => true];
+        }
+
+        $response = Http::withHeaders(['apikey' => $this->apiKey])
+            ->put("{$this->baseUrl}/instance/restart/{$this->evolutionName($instance)}");
+
+        return $response->json() ?? [];
+    }
+
+    /**
      * Descarga el binario (base64) de un mensaje con media desde Evolution.
      * ⚠️ Evolution v2 exige el mensaje COMPLETO (`key` + `message`), no sólo
      * `key.id` (internamente lee `message.ephemeralMessage`) → 400 sin él.

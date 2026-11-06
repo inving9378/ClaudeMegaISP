@@ -8,7 +8,7 @@
             Refrescar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="configuracion/service_in_address_list"
         model="ServiceInAddressList"
         list="Listado de Servicios en el Address List"

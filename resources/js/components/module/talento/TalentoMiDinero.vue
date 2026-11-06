@@ -18,6 +18,13 @@
     <template v-else>
       <!-- Cuenta: lo ya registrado en la semana, agrupado por concepto -->
       <div v-if="tab === 'cuenta'">
+        <!-- UNI-T H3: etapas del dinero de la semana (solo si el backend las manda) -->
+        <div v-if="cuenta && cuenta.etapas" class="row g-2 mb-3 text-center small">
+          <div class="col-6 col-md-3"><div class="tc-l">Pendiente de validar</div><div>{{ cuenta.etapas.pendiente.unidades }} u. · ~{{ money(cuenta.etapas.pendiente.importe_estimado) }}</div></div>
+          <div class="col-6 col-md-3"><div class="tc-l">Validado</div><div>{{ money(cuenta.etapas.validado.importe) }}</div></div>
+          <div class="col-6 col-md-3"><div class="tc-l">Liquidado</div><div>{{ money(cuenta.etapas.liquidado.importe) }}</div></div>
+          <div class="col-6 col-md-3"><div class="tc-l">Pagado</div><div>{{ money(cuenta.etapas.pagado.importe) }}</div></div>
+        </div>
         <template v-if="cuenta && cuenta.conceptos && cuenta.conceptos.length">
           <div class="tc-kpi mb-3">
             <!-- Sin calcular la semana, aquí solo hay bonos y descuentos: el sueldo entra al calcularla. -->

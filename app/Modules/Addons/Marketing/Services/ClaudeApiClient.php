@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Marketing\Services;
 
 use App\Models\Marketing\Setting;
+use App\Services\Core\ApiIntegrationService;
 use App\Services\Core\SaludIA;
 use App\Services\Core\UsesApiIntegration;
 use Illuminate\Support\Facades\Http;
@@ -59,6 +60,27 @@ class ClaudeApiClient
     public function __construct(int $companyId = 1)
     {
         $this->apiKey = $this->resolveApiKey('anthropic', 'CLAUDE_API_KEY', 'claude_api_key', $companyId) ?? '';
+        $this->apiKeySource = $this->detectarFuenteLlave($companyId);
+    }
+
+    /** De dónde salió la llave (Hub / config-env / marketing_settings), solo para mensajes de error. */
+    private string $apiKeySource = 'desconocida';
+
+    private function detectarFuenteLlave(int $companyId): string
+    {
+        if ($this->apiKey === '') {
+            return 'ninguna (sin llave configurada)';
+        }
+        try {
+            if (ApiIntegrationService::instance()->getKey('anthropic', $companyId)) {
+                return 'Integration Hub (api_integrations, fila anthropic)';
+            }
+        } catch (\Throwable) {
+        }
+        if (config('services.anthropic.key') === $this->apiKey) {
+            return 'config/.env (CLAUDE_API_KEY)';
+        }
+        return 'marketing_settings (claude_api_key)';
     }
 
     /**
@@ -124,7 +146,7 @@ class ClaudeApiClient
 
             if ($status === 401) {
                 Log::channel('claude')->critical('Claude API key invalid');
-                throw new \RuntimeException('Claude API key inválida. Configura claude_api_key en marketing_settings.');
+                throw new \RuntimeException("Claude API key inválida (401). La llave salió de: {$this->apiKeySource}. Corrígela en esa fuente (normalmente Integraciones → Hub).");
             }
 
             if ($status === 429) {

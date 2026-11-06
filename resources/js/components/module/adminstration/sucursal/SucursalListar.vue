@@ -16,7 +16,7 @@
             Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="administracion/sucursal"
         model="Sucursal"
         list="Listado de sucursales"

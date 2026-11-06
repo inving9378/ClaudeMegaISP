@@ -44,6 +44,15 @@ escribir hacia `192.168.105.108` / `v1megaisp.com.mx` ni su BD. `192.168.105.11`
 es la IP local de dev (no es prod); un error común es confundir un vhost del
 propio server de dev con prod.
 
+**Guardrail de la propia API (código, #9991016):** las rutas de
+`api/roadmap-externo/*` sólo se registran si `app()->environment('local','dev')`
+(`app/Modules/Addons/Roadmap/routes.php`) y un middleware
+(`ValidateRoadmapExternoHost`) rechaza con 403 cualquier request cuyo `Host:`
+no esté en `config('circuito.roadmap_externo_hosts')` — mitiga que quede
+montada en prod por error o que un proxy reenvíe con un Host falso. Detalle y
+prueba manual en
+`docs/roadmap-externo-guardrail-entorno-item-9991016-verificacion.md`.
+
 ## La API externa de la Hoja de Ruta
 
 - **Base URL:** `https://dev.meganett.com.mx/api/roadmap-externo`

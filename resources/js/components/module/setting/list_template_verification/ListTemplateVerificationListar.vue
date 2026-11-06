@@ -16,7 +16,7 @@
             Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="configuracion/list-template-verification"
         model="ListTemplateVerification"
         list="Listado Plantillas de verificacion"

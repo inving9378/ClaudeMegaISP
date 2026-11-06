@@ -38,6 +38,23 @@ class ClientInformationController extends Controller
             DB::beginTransaction();
             $client = \App\Models\Client::with('internet_service.router.mikrotik')->findOrFail($id);
             $input = $request->all();
+
+            // #1127: cambiar el estado exige client_update_status también en el servidor
+            // (antes solo lo revisaba la UI). Editar otros campos sin tocar el estado sigue igual.
+            if (array_key_exists('estado', $input)
+                && (string) $input['estado'] !== (string) optional($client->client_main_information)->estado
+                && !$this->userAutenticated()->can('client_update_status')) {
+                DB::rollBack();
+                Log::warning('Cambio de estado de cliente denegado: sin client_update_status', [
+                    'client_id' => $client->id,
+                    'user_id' => auth()->id(),
+                    'estado_enviado' => $input['estado'],
+                ]);
+                return response()->json([
+                    'message' => 'No tienes permiso para cambiar el estado del cliente.',
+                    'errors' => ['estado' => ['No tienes permiso para cambiar el estado del cliente.']],
+                ], 403);
+            }
             // Eliminando la fecha de alta del request para que en el actualizar no cambie el campo
             unset($input['discharge_date']);
 

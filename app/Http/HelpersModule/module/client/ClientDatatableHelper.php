@@ -954,8 +954,9 @@ class ClientDatatableHelper
                 }
                 if ($keyV === 'fecha_corte') {
                     if (is_array($val) && count($val) == 2) {
-                        $query->whereDate('clients.fecha_corte', '>=', Carbon::parse($val[0])->setTimezone(config('app.timezone'))->subDay()->format('Y-m-d'))
-                            ->whereDate('clients.fecha_corte', '<', Carbon::parse($val[1])->setTimezone(config('app.timezone'))->format('Y-m-d'));
+                        [$desde, $hasta] = Client::rangoFechaCorte($val);
+                        $query->whereDate('clients.fecha_corte', '>=', $desde)
+                            ->whereDate('clients.fecha_corte', '<=', $hasta);
                     }
                 } elseif ($keyV === 'fecha_pago_today') {
                     $query->whereDate('clients.fecha_pago', Carbon::parse($val)->format('Y-m-d'));

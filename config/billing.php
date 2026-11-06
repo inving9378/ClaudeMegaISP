@@ -79,6 +79,17 @@ return [
     */
     'capa_contrato' => (bool) env('BILLING_CAPA_CONTRATO', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | No cargar el mes de servicio a un cliente Bloqueado (item #1090, de #573 q4)
+    |--------------------------------------------------------------------------
+    | Apagado (default): el cobro automático del mes sin saldo corre como siempre. Encendido: mientras
+    | el cliente de pago recurrente esté Bloqueado, el cron ya no le carga el mes (el mes en que se
+    | bloquea sí se cobró). Solo hacia adelante: no toca facturas emitidas ni saldos existentes.
+    | Es dinero: encenderlo es decisión exclusiva de Irving.
+    */
+    'no_cargar_mes_bloqueado' => (bool) env('BILLING_NO_CARGAR_MES_BLOQUEADO', false),
+
     // #520: folio corto «MN-AAAA-NNNNNN» para cada factura nueva (decisión de Irving 2026-10-16).
     'folio_corto' => (bool) env('BILLING_FOLIO_CORTO', true),
 

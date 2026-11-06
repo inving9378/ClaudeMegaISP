@@ -73,6 +73,10 @@ class MarketingConversationController extends Controller
     // POST /api/marketing/conversations/{id}/send-message
     public function sendMessage(Request $request, int $id)
     {
+        if ($denegado = $this->denegarSinPermiso('marketing.conversation.send', 'No tienes permiso para enviar mensajes en conversaciones de Marketing.')) {
+            return $denegado;
+        }
+
         $request->validate(['text' => 'required|string|max:4096']);
         $conv = Conversation::findOrFail($id);
 
@@ -89,6 +93,10 @@ class MarketingConversationController extends Controller
     // POST /api/marketing/conversations/{id}/toggle-ai
     public function toggleAi(int $id)
     {
+        if ($denegado = $this->denegarSinPermiso('marketing.conversation.toggle-ai', 'No tienes permiso para activar/desactivar la IA de esta conversación.')) {
+            return $denegado;
+        }
+
         $conv = Conversation::findOrFail($id);
         $conv->update(['ai_handled' => !$conv->ai_handled]);
         return response()->json(['ai_handled' => $conv->fresh()->ai_handled]);
@@ -97,6 +105,10 @@ class MarketingConversationController extends Controller
     // POST /api/marketing/conversations/{id}/assign
     public function assign(Request $request, int $id)
     {
+        if ($denegado = $this->denegarSinPermiso('marketing.conversation.assign', 'No tienes permiso para reasignar esta conversación.')) {
+            return $denegado;
+        }
+
         $request->validate(['user_id' => 'nullable|integer']);
         $conv = Conversation::findOrFail($id);
         $conv->update([
@@ -110,9 +122,29 @@ class MarketingConversationController extends Controller
     // POST /api/marketing/conversations/{id}/close
     public function close(int $id)
     {
+        if ($denegado = $this->denegarSinPermiso('marketing.conversation.close', 'No tienes permiso para cerrar esta conversación.')) {
+            return $denegado;
+        }
+
         $conv = Conversation::findOrFail($id);
         $conv->update(['status' => 'closed']);
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Item #9991147: las 4 acciones críticas (send/toggle-ai/assign/close) no tenían ningún
+     * guard de permiso más allá de 'auth'. super-administrator/DESARROLLADOR siguen intactos
+     * porque la migración les asigna estos permisos por defecto (PermissionSyncService::
+     * syncPermissionToBaseRoles), no por un bypass — el resto de roles queda fuera hasta
+     * que Irving los redistribuya.
+     */
+    private function denegarSinPermiso(string $permiso, string $mensaje): ?\Illuminate\Http\JsonResponse
+    {
+        if (auth()->user()?->can($permiso)) {
+            return null;
+        }
+
+        return response()->json(['ok' => false, 'error' => 'sin_permiso', 'mensaje' => $mensaje], 403);
     }
 
     // POST /api/marketing/conversations/{id}/mark-as-read

@@ -3,6 +3,7 @@
 use App\Modules\Addons\PortalCliente\Controllers\Admin\AparienciaController;
 use App\Modules\Addons\PortalCliente\Controllers\AparienciaImagenController;
 use App\Modules\Addons\PortalCliente\Controllers\AuthController;
+use App\Modules\Addons\PortalCliente\Controllers\PasswordOtpController;
 use App\Modules\Addons\PortalCliente\Controllers\OpenpayWebhookController;
 use App\Modules\Addons\PortalCliente\Controllers\DashboardController;
 use App\Modules\Addons\PortalCliente\Controllers\FacturasController;
@@ -70,6 +71,19 @@ $portalRoutes = function () {
     Route::get('/recuperar',  [AuthController::class, 'showRecuperar'])->name('recuperar');
     Route::post('/recuperar', [AuthController::class, 'recuperar'])->name('recuperar.post');
 
+    // Item #473: recuperar con código por WhatsApp (404 con portalcliente.recuperar_otp apagado).
+    // El throttle lleva prefijo propio: sin él, todas las rutas de una misma IP comparten contador.
+    Route::post('/password/solicitar-otp', [PasswordOtpController::class, 'solicitarOtp'])
+        ->middleware('throttle:5,1,portal-otp-solicitar')->name('password.solicitar-otp');
+    Route::get('/recuperar/verificar', [PasswordOtpController::class, 'showVerificar'])
+        ->middleware('throttle:30,1,portal-otp-pantallas')->name('recuperar.verificar');
+    Route::post('/password/verificar-otp', [PasswordOtpController::class, 'verificarOtp'])
+        ->middleware('throttle:10,1,portal-otp-verificar')->name('password.verificar-otp');
+    Route::get('/recuperar/nueva', [PasswordOtpController::class, 'showNueva'])
+        ->middleware('throttle:30,1,portal-otp-pantallas')->name('recuperar.nueva');
+    Route::post('/password/restablecer', [PasswordOtpController::class, 'restablecer'])
+        ->middleware('throttle:10,1,portal-otp-restablecer')->name('password.restablecer');
+
     // Imágenes de las pantallas de acceso: solo las de la versión publicada (Configuración → Portal Cliente).
     Route::get('/apariencia/imagen/{uuid}', [AparienciaImagenController::class, 'mostrar'])
         ->name('apariencia.imagen');
@@ -78,6 +92,7 @@ $portalRoutes = function () {
     Route::middleware(['auth.portal'])->group(function () {
 
         Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+        Route::post('/impersonacion/salir', [\App\Modules\Addons\PortalCliente\Controllers\Admin\ImpersonacionController::class, 'salir'])->name('impersonacion.salir');
 
         // Dashboard
         Route::get('/',          [DashboardController::class, 'index'])->name('dashboard');
@@ -296,10 +311,10 @@ $portalRoutes = function () {
 };
 
 // (1) Mount canónico — /portal/* (sin cambios de comportamiento ni de nombres)
-Route::prefix('portal')->name('portal.')->middleware(['web'])->group($portalRoutes);
+Route::prefix('portal')->name('portal.')->middleware(['web', 'portal.impersonacion'])->group($portalRoutes);
 
 // (2) Mount por dominio dedicado — item #144, DEV primero (ver deploy/README-portal-dev.md)
-Route::domain(config('portalcliente.domain'))->name('portal_domain.')->middleware(['web'])->group($portalRoutes);
+Route::domain(config('portalcliente.domain'))->name('portal_domain.')->middleware(['web', 'portal.impersonacion'])->group($portalRoutes);
 
 // ── Configuración → Portal Cliente (panel administrativo, guard web) ─────────
 // Presentación administrable de las pantallas de acceso: borrador, vista previa, publicación e
@@ -333,3 +348,8 @@ Route::middleware(['web', 'auth'])
             ->middleware('can:portal-cliente.apariencia.publicar')
             ->name('publicar');
     });
+
+// Item #553 — «Entrar como este cliente» (admin con permiso portal.impersonar)
+Route::middleware(['web', 'auth', 'can:portal.impersonar'])
+    ->post('/portal-impersonar/{clientId}', [\App\Modules\Addons\PortalCliente\Controllers\Admin\ImpersonacionController::class, 'entrar'])
+    ->whereNumber('clientId')->name('portal.impersonar');

@@ -23,6 +23,10 @@
                             <span v-if="dischargeDateFmt"><i class="mdi mdi-calendar me-1"></i>Alta {{ dischargeDateFmt }}</span>
                             <a class="cic-portal-link" :href="`/portal/login?cliente=${id}`" target="_blank" rel="noopener" data-spa-skip
                                title="Abrir el portal de este cliente en otra pestaña"><i class="mdi mdi-open-in-new me-1"></i>Portal del cliente</a>
+                            <form v-if="$store.getters.hasPermission('portal.impersonar')" method="POST" :action="`/portal-impersonar/${id}`" target="_blank" class="d-inline" data-spa-skip>
+                                <input type="hidden" name="_token" :value="csrfToken">
+                                <button type="submit" class="cic-portal-link" style="background:none;border:0;padding:0" title="Abrir el portal ya logueado como este cliente (solo lectura, 30 min, queda en bitácora)"><i class="mdi mdi-account-switch me-1"></i>Entrar como este cliente</button>
+                            </form>
                         </div>
                     </div>
                     <div class="cic-header-actions">
@@ -388,6 +392,8 @@ defineOptions({
 
 const { getOnuStatusClass, getOnuStatusIcon } = useOlts();
 
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
+
 const props = defineProps({
     action: String,
     id: {
@@ -408,7 +414,7 @@ const SECTIONS = {
     direccion: ["street", "external_number", "internal_number", "colony_id", "zip", "municipality_id", "state_id", "location_id", "address", "geo_data"],
     servicio: ["estado", "connection_type", "ift", "tipo_cliente", "modem_sn", "vendor", "box_nomenclator", "last_time_online", "reinstatement"],
     credenciales: ["user", "password", "original_password", "password_wifi", "user_film", "password_film"],
-    contrato: ["type_of_billing_id", "duration_contract_id", "plazo_especial_meses", "activation_date", "discharge_date", "activation_cost", "is_payment_activation_cost", "distribute_commission", "partner_id", "seller_id", "medium_id"],
+    contrato: ["type_of_billing_id", "duration_contract_id", "plazo_especial_meses", "porcentaje_comision_especial", "activation_date", "discharge_date", "activation_cost", "is_payment_activation_cost", "distribute_commission", "partner_id", "seller_id", "medium_id"],
     encuesta: ["installation_on_time", "technician_attencion", "amount_technician_and_why", "doubt_signed_contract", "comment"],
 };
 // Campos renderizados a mano (mapa/widgets/banner) → no van en los loops de sección.

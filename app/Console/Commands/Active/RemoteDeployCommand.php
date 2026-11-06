@@ -67,6 +67,15 @@ class RemoteDeployCommand extends Command
         }
 
         $version     = $this->option('app-version') ?? '';
+        if ($version !== '' && ! preg_match('/^[A-Za-z0-9._-]+$/', $version)) {
+            $log->update([
+                'status'        => 'failed',
+                'error_message' => 'Versión inválida: solo se aceptan letras, números, puntos, guiones y guion bajo.',
+                'finished_at'   => now(),
+            ]);
+            $this->error('Versión inválida.');
+            return 1;
+        }
         $title       = $this->option('title') ?? '';
         $summary     = $this->option('summary') ?? '';
         $releaseDate = $this->option('release-date') ?? now()->toDateString();
@@ -88,12 +97,16 @@ class RemoteDeployCommand extends Command
         // existente") y el && corta antes del checkout.
         // La verificación previa del tag convierte el "exit 1" mudo del checkout
         // ("pathspec ... did not match") en un mensaje diagnosticable. Item #530.
+        // Anti-RCE (#244): $version ya pasó la lista de caracteres al inicio de runDeploy y además se
+        // escapa donde va como argumento; en el mensaje va entre comillas dobles, por eso no se usa
+        // escapeshellarg ahí.
         $gitSyncCmd = $version
             ? sprintf(
                 'git fetch origin --tags --force && { git rev-parse -q --verify refs/tags/%1$s >/dev/null '
-                . '|| { echo "ERROR: el tag %1$s no existe en el remoto configurado ($(git remote get-url origin)). '
+                . '|| { echo "ERROR: el tag %2$s no existe en el remoto configurado ($(git remote get-url origin)). '
                 . 'Verifica que el codigo de esa version este publicado en origin."; exit 1; }; } '
                 . '&& git checkout tags/%1$s',
+                escapeshellarg($version),
                 $version
             )
             : 'git fetch origin main && git reset --hard origin/main';
@@ -118,7 +131,9 @@ class RemoteDeployCommand extends Command
             //    NOTA: no se corre composer aquí a propósito — este prod usa deps de dev y
             //    `--no-dev` las eliminaba rompiendo la app. Los cambios de composer.json se
             //    aplican a mano cuando haga falta (como históricamente en este server).
-            ['key' => 'npm_build',     'name' => 'Compilar frontend (npm)',         'type' => 'shell', 'cmd' => 'npm ci && npm run prod', 'timeout' => 600, 'critical' => true],
+            //    El 'cmd' real lo arma npmBuildCommand() en el loop (necesita HEAD ya actualizado);
+            //    el Symfony Process queda 60 s por encima del `timeout` interno como red.
+            ['key' => 'npm_build',     'name' => 'Compilar frontend (npm)',         'type' => 'shell', 'cmd' => 'npm ci && npm run prod', 'timeout' => (int) config('deployment.npm_timeout', 1800) + 60, 'critical' => true],
             // 4. Migraciones aditivas. Se corre como SUBPROCESO `php artisan migrate --force`
             //    (NO Artisan::call): en el contexto nohup el --force programático no frenaba
             //    el prompt de confirmación de producción y el deploy se colgaba esperando stdin.
@@ -209,6 +224,9 @@ class RemoteDeployCommand extends Command
                 ]);
                 $this->line('  [npm_build]: OMITIDO (sin cambios en dependencias/frontend) — M3.');
                 continue;
+            }
+            if ($step['key'] === 'npm_build') {
+                $step['cmd'] = $this->npmBuildCommand($previousCommit);
             }
 
             [$exitCode, $output, $ms] = $step['type'] === 'artisan'
@@ -458,6 +476,50 @@ class RemoteDeployCommand extends Command
     }
 
     /**
+     * Comando real del paso npm_build. La V1.59 falló en prod (2026-10-14) contra el techo fijo de
+     * 600 s: `npm ci` reinstala TODO node_modules y `npm run prod` solo ya tarda ~8-9 min. Ahora:
+     *  - techo configurable (`deployment.npm_timeout`) y memoria para node (`deployment.npm_max_old_space_mb`);
+     *  - sin `npm ci` si las dependencias no cambiaron y node_modules quedó completo (canSkipNpmCi); si
+     *    aun así la compilación falla, reintenta UNA vez con `npm ci` por si node_modules estaba roto;
+     *  - todo bajo `timeout` de coreutils, que al vencer mata al GRUPO de procesos (npm + node). Antes el
+     *    Symfony Process solo mataba al `sh` y un webpack huérfano podía terminar DESPUÉS del rollback,
+     *    publicando el JS nuevo sobre el código viejo.
+     */
+    private function npmBuildCommand(?string $previousCommit): string
+    {
+        $timeout = max(60, (int) config('deployment.npm_timeout', 1800));
+        $heapMb  = (int) config('deployment.npm_max_old_space_mb', 4096);
+
+        $build = $this->canSkipNpmCi($previousCommit)
+            ? 'npm run prod || { echo "La compilación falló con el node_modules existente; reintentando con npm ci"; npm ci && npm run prod; }'
+            : 'npm ci && npm run prod';
+
+        $env = $heapMb > 0 ? 'NODE_OPTIONS=' . escapeshellarg("--max-old-space-size={$heapMb}") . ' ' : '';
+
+        return sprintf(
+            '%stimeout -k 30 %d sh -c %s; c=$?; [ "$c" -eq 124 ] && echo "TIMEOUT: la compilación superó %d s (subir DEPLOY_NPM_TIMEOUT)"; exit $c',
+            $env,
+            $timeout,
+            escapeshellarg($build),
+            $timeout
+        );
+    }
+
+    /**
+     * ¿Se puede omitir `npm ci`? Solo si package.json/package-lock.json no cambiaron desde el deploy
+     * anterior y node_modules quedó COMPLETO: npm escribe node_modules/.package-lock.json al terminar
+     * un install, así que un `npm ci` cortado a la mitad no lo deja. Falla-seguro: ante la duda, reinstala.
+     */
+    private function canSkipNpmCi(?string $previousCommit): bool
+    {
+        if (!$previousCommit || !is_file(base_path('node_modules/.package-lock.json'))) {
+            return false;
+        }
+        [$code] = $this->runShell("git diff --quiet {$previousCommit} HEAD -- package.json package-lock.json", 60);
+        return $code === 0;
+    }
+
+    /**
      * M2 — Mata procesos huérfanos de deploys anteriores (migrate/npm colgados) que podrían quedar con
      * stdout abierto y colgar/contaminar este deploy. Solo toca procesos cuyo patrón de comando es
      * EXCLUSIVO de un deploy; nunca procesos legítimos. El primer carácter de cada patrón va en clase de
@@ -474,6 +536,8 @@ class RemoteDeployCommand extends Command
             '[p]hp artisan deploy:dry-run-migrations',
             '[n]pm ci',
             '[n]pm run prod',
+            // El webpack en sí (`node …/.bin/mix --production`): matar a npm no siempre lo arrastra.
+            '[m]ix --production',
         ];
 
         $killed = [];

@@ -9,7 +9,8 @@
         { "name": "facturacion.fiscal.editar", "description": "Editar los datos fiscales del cliente (no timbra)" },
         { "name": "facturacion.datos.ver",    "description": "Ver la tarjeta Datos de facturación del cliente" },
         { "name": "facturacion.datos.editar", "description": "Editar la tarjeta Datos de facturación del cliente" },
-        { "name": "clientes.datos_red.editar", "description": "Editar los datos de red de un servicio dedicado (router, interfaz VLAN, bloque e IPs a monitorear)" }
+        { "name": "clientes.datos_red.editar", "description": "Editar los datos de red de un servicio dedicado (router, interfaz VLAN, bloque e IPs a monitorear)" },
+        { "name": "facturacion.auditoria.ver", "description": "Ver el historial de cambios de los datos de facturación" }
     ],
     "dependencies":[],
     "active": true,

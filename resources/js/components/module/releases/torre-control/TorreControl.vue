@@ -214,6 +214,10 @@
                 <!-- §5 — toca producción: no bloquea, pero no se puede descubrir tarde. -->
                 <span v-if="it.toca_produccion" class="tc-frn tc-frn-prod"
                       :title="'Este item referencia producción (' + it.toca_produccion + '). No se bloquea; queda avisado.'">🏭 toca prod</span>
+                <!-- CIRC-02c Fase 2 (#9991140) — badge rojo gemelo del banner watchdog de arriba,
+                     directo en la tarjeta del item afectado. -->
+                <span v-if="watchdogPendienteIds.has(it.id)" class="tc-frn tc-frn-hum"
+                      title="Tiene una respuesta con ejecutar=true sin consumir hace más de 60 min.">⏱ respuesta sin consumir</span>
               </div>
               <!-- #652 — LO PRIMERO QUE SE LEE ES EL TICKET EN LLANO, no su título técnico.
                    Esta bandeja se revisa a diario y se decide sobre ella; escrita para la máquina,
@@ -255,7 +259,7 @@
                 </div>
                 <div v-if="pregActual(it)" class="tc-pregunta">
                   <div v-if="pregActual(it).pregunta || pregActual(it).fase" class="tc-pregunta-t">
-                    <span v-if="it.preguntas.length > 1" class="tc-pregunta-num">{{ pregIdx(it) + 1 }}.</span>{{ pregActual(it).pregunta }}
+                    <span v-if="it.preguntas.length > 1" class="tc-pregunta-num">{{ pregIdx(it) + 1 }}.</span>{{ preguntaNat(it, pregActual(it)) }}
                     <span v-if="pregActual(it).fase" class="tc-fase-badge">se decide en {{ pregActual(it).fase }}</span>
                   </div>
                   <div v-if="pregActual(it).opciones && pregActual(it).opciones.length" class="tc-opts">
@@ -264,8 +268,20 @@
                       class="tc-opt"
                       :class="{ 'tc-opt-sel': selPreg(it.id, pregActual(it).id) === op.clave, 'tc-opt-rec': op.recomendada }"
                       @click="elegirOpcion(it, pregActual(it), op)">
-                      <span v-if="op.recomendada" class="tc-opt-badge">RECOMENDADA</span>{{ op.texto }}<span
+                      <span v-if="op.recomendada" class="tc-opt-badge">RECOMENDADA</span>{{ opcionNat(it, pregActual(it), op) }}<span
                         v-if="op.confianza" class="tc-opt-meta">confianza {{ op.confianza }}<template v-if="op.reversible === true"> · reversible</template><template v-else-if="op.reversible === false"> · no reversible</template></span></button>
+                  </div>
+
+                  <!-- #652 p2 — el brief ORIGINAL, palabra por palabra. La traducción ayuda a leer;
+                       esto es lo que de verdad se autoriza, y tiene que poder verificarse. -->
+                  <div v-if="hayPregNat(it, pregActual(it))" class="tc-tec-wrap">
+                    <button type="button" class="tc-tec-toggle" @click="pregTecOpen[it.id] = !pregTecOpen[it.id]">
+                      {{ pregTecOpen[it.id] ? 'Ocultar texto original ▲' : 'Ver texto original del brief ▼' }}
+                    </button>
+                    <div v-if="pregTecOpen[it.id]" class="tc-tec-panel">
+                      <div><b>{{ pregActual(it).pregunta }}</b></div>
+                      <div v-for="op in pregActual(it).opciones" :key="'t-' + op.clave" style="margin-top:6px">· {{ op.texto }}</div>
+                    </div>
                   </div>
                   <!-- #1069 — «otra respuesta»: si ninguna opción sirve, texto libre; cuenta como respondida. -->
                   <div v-if="pregActual(it).opciones && pregActual(it).opciones.length" class="tc-otra"
@@ -283,6 +299,23 @@
                    background al escalar; hasta que ese job escriba `preguntas` no hay nada que
                    responder aquí. Ya no se limita a nivel C (el gate corre para toda la bandeja). -->
               <div v-else class="tc-noopts">Brief pendiente — el circuito está preparando las preguntas y opciones (puede tardar unos segundos)…</div>
+
+              <!-- CIRC-02c Fase 2 (#9991140) — hilo de SOLO LECTURA de las respuestas ya dadas a
+                   este item (roadmap_item_respuestas, CIRC-02b), en orden cronológico. NO es el
+                   panel de responder (ese es #9991017, TODO(CIRC-02b) en TorreArbolNodo.vue). -->
+              <div v-if="it.respuestas && it.respuestas.length" class="tc-resp-wrap">
+                <div class="tc-resp-head">Respuestas ({{ it.respuestas.length }})</div>
+                <div v-for="r in it.respuestas" :key="r.id" class="tc-resp-row">
+                  <span class="tc-resp-badge" :class="respEstadoClase(r)">{{ respEstadoLabel(r) }}</span>
+                  <span class="tc-resp-autor">{{ r.autor }}</span>
+                  <span class="tc-resp-fecha">{{ rel(r.created_at) }}</span>
+                  <div class="tc-resp-cuerpo">{{ r.cuerpo }}</div>
+                </div>
+              </div>
+              <!-- Auditor (b): item sin NINGUNA respuesta y ya marcado por el watchdog de 7 días. -->
+              <div v-else-if="sinRespuestaDias(it.id) !== null" class="tc-resp-empty-auditor">
+                ⏳ Auditor: sin respuesta hace {{ sinRespuestaDias(it.id) }} día{{ sinRespuestaDias(it.id) === 1 ? '' : 's' }}
+              </div>
 
               <textarea v-model="coment[it.id]" class="tc-coment" rows="2" placeholder="Comentario (opcional)…"></textarea>
               <label class="tc-solo-coment"><input type="checkbox" v-model="soloComentario[it.id]"> Solo comentario — no ejecutar todavía</label>
@@ -478,6 +511,19 @@
     <!-- Visor "Trabajando ahora" (#349): stepper de fases por sesión + resumen de la vuelta -->
     <torre-trabajando-ahora :sesiones="sesiones" :resumen="resumenUltima" :now-ms="nowMs" :pausado="pausado" :dark="darkMode" />
 
+    <!-- CIRC-02c Fase 2 (#9991140) — watchdog del hilo de respuestas (RespuestasWatchdogService,
+         Fase 1 #9991139): respuestas con ejecutar=true sin consumir hace >60 min con el circuito
+         corriendo — señal de que una terminal debió tomarlas y no lo hizo. -->
+    <div v-if="watchdogRespuestas.pendientes_60min.length" class="tc-alert">
+      ⏱ <b>{{ watchdogRespuestas.pendientes_60min.length }} respuesta(s) sin consumir hace más de 60 min</b> — el circuito está corriendo y nadie las tomó.
+      <div class="tc-watchdog-list">
+        <button v-for="(r, i) in watchdogRespuestas.pendientes_60min" :key="r.item_id + '-' + i"
+          type="button" class="tc-watchdog-row" @click="irWatchdogItem(r.item_id)">
+          #{{ r.item_id }} · {{ r.title || 'item' }} — {{ r.autor }} hace {{ r.minutos }} min
+        </button>
+      </div>
+    </div>
+
     <!-- #507 sub-paso 4 — AUTOPILOT: qué decide solo, qué te consulta y qué lleva hecho hoy.
          El kill switch NO se duplica aquí a propósito: vive en la barra de arriba, siempre visible. -->
     <div class="tc-ap" :class="{ 'tc-ap-off': !autopilot.enabled, 'tc-ap-pausa': pausado }">
@@ -550,6 +596,13 @@
         <div class="tc-kpi" title="Cuenta estado_aprobacion = aprobado_irving: aprobados por ti, listos para que una terminal los tome."><div class="tc-n" style="color:var(--tc-accent)">{{ kpi(est('aprobado_irving'), 'resumen') }}</div><div class="tc-l">Aprobado por Irving</div><div class="tc-bar" style="background:var(--tc-accent)"></div></div>
         <div class="tc-kpi" title="Cuenta estado_aprobacion = aprobado_revisor: aprobados por el revisor automático."><div class="tc-n" style="color:var(--tc-accent)">{{ kpi(est('aprobado_revisor'), 'resumen') }}</div><div class="tc-l">Aprobado por revisor</div><div class="tc-bar" style="background:var(--tc-accent)"></div></div>
         <div class="tc-kpi" title="Cuenta estado_aprobacion = cancelado más rechazado."><div class="tc-n" style="color:var(--tc-muted)">{{ kpi(est('cancelado') + est('rechazado'), 'resumen') }}</div><div class="tc-l">Cancelados/Rechazados</div><div class="tc-bar" style="background:var(--tc-muted)"></div></div>
+        <!-- CIRC-02c Fase 2 (#9991140) — contador del watchdog de respuestas (RespuestasWatchdogService).
+             Rojo si hay algo sin consumir/sin contestar; azul (tono "normal") si está en cero. -->
+        <div class="tc-kpi">
+          <div class="tc-n" :style="{ color: watchdogRespuestas.contador_pendientes > 0 ? 'var(--tc-bad)' : 'var(--tc-info)' }">{{ watchdogRespuestas.contador_pendientes }}</div>
+          <div class="tc-l">Respuestas sin consumir</div>
+          <div class="tc-bar" :style="{ background: watchdogRespuestas.contador_pendientes > 0 ? 'var(--tc-bad)' : 'var(--tc-info)' }"></div>
+        </div>
       </div>
       <div class="tc-meta" style="margin-top:6px">Las tarjetas de estado (todas menos "Items totales") suman el Total. "Requiere Irving" muestra solo lo accionable.</div>
 
@@ -805,6 +858,24 @@ export default {
         // #766 (Pieza 1c hija de #672) — KPI "Frontera dura": aperturas de la válvula.
         const fronteraDura = ref({ total: 0, ultimos_7_dias: 0, por_categoria: {}, listado: [] });
         const fronteraDuraDetalleAbierto = ref(false);
+        // CIRC-02c Fase 2 (#9991140) — watchdog del hilo de respuestas (RespuestasWatchdogService,
+        // Fase 1 #9991139): dos señales de "no se está consumiendo" (ver banner + KPI + badge).
+        const watchdogRespuestas = ref({ pendientes_60min: [], sin_respuesta_7dias: [], contador_pendientes: 0 });
+        const watchdogPendienteIds = computed(() => new Set(watchdogRespuestas.value.pendientes_60min.map((r) => r.item_id)));
+        function sinRespuestaDias(itemId) {
+            const found = watchdogRespuestas.value.sin_respuesta_7dias.find((x) => x.item_id === itemId);
+            return found ? found.dias : null;
+        }
+        function respEstadoClase(r) {
+            if (r.consumida_at) return 'tc-resp-badge-ok';
+            if (r.ejecutar) return 'tc-resp-badge-warn';
+            return 'tc-resp-badge-info';
+        }
+        function respEstadoLabel(r) {
+            if (r.consumida_at) return 'ejecutada';
+            if (r.ejecutar) return 'pendiente';
+            return 'informativa';
+        }
 
         // Estado EN VIVO de la vuelta (#335)
         const live = ref({ running: false, stale: false, started_at: null, heartbeat_at: null, current_item: null });
@@ -945,6 +1016,7 @@ export default {
         const nowMs = ref(Date.now());   // ticker local para animar cronómetro/heartbeat entre polls
         let estadoTimer = null;          // polling de /circuito/estado
         let tickTimer = null;            // ticker de 1s
+        let watchdogTimer = null;        // #9991140 — polling propio del watchdog de respuestas (15s)
 
         // Disparo manual + urgente (#337)
         const canDisparar = ref(false);
@@ -1166,6 +1238,21 @@ export default {
             }
         }
 
+        // CIRC-02c Fase 2 (#9991140) — endpoint propio, no bloquea el resto del panorama si falla
+        // (mismo patrón que cargarFronteraDura). Refrescado también por su propio polling de 15s.
+        async function cargarWatchdogRespuestas() {
+            try {
+                const { data } = await axios.get('/api/roadmap/torre/watchdog-respuestas');
+                watchdogRespuestas.value = {
+                    pendientes_60min: data.pendientes_60min || [],
+                    sin_respuesta_7dias: data.sin_respuesta_7dias || [],
+                    contador_pendientes: data.contador_pendientes || 0,
+                };
+            } catch (e) {
+                // Banner/KPI/badge accesorios: si falla, el resto de la Torre sigue funcionando igual.
+            }
+        }
+
         // #766 — endpoint propio, no bloquea el resto del panorama si falla.
         async function cargarFronteraDura() {
             try {
@@ -1184,6 +1271,19 @@ export default {
         // #477 — tarjeta compacta para TODA "Tu bandeja": colapsa descripción/observaciones tras "Ver descripción".
         const descOpen = reactive({}); // id -> bool (desplegable abierto)
         const tecOpen  = reactive({}); // #652: id -> bool (título técnico desplegado)
+        const pregTecOpen = reactive({}); // #652 p2: id -> bool (texto original del brief desplegado)
+
+        // #652 p2 — LA TRADUCCIÓN ES UNA LENTE, NUNCA UN REEMPLAZO.
+        // `preguntas` (y con ello `op.clave`, que es sha1 del texto ORIGINAL) no se toca: el
+        // @click sigue mandando la opción intacta. Esto sólo decide QUÉ TEXTO SE PINTA.
+        // Sin traducción para esa pregunta/opción, cae al original — nunca queda en blanco.
+        const natDe = (it, pg) => (it && pg && it.preguntas_natural) ? it.preguntas_natural[String(pg.id)] : null;
+        const hayPregNat = (it, pg) => !!natDe(it, pg);
+        const preguntaNat = (it, pg) => { const n = natDe(it, pg); return (n && n.pregunta) || (pg && pg.pregunta) || ''; };
+        const opcionNat = (it, pg, op) => {
+            const n = natDe(it, pg);
+            return (n && n.opciones && n.opciones[op.clave]) || op.texto;
+        };
         const tieneDescExtendida = (it) => !!(it.description || it.alcance_autorizado || it.fuera_de_alcance || it.recomendacion);
         const estadoLabelItem = (it) => (it.estado_aprobacion === 'requiere_irving' ? 'requiere tu decisión' : (it.estado_aprobacion || 'requiere tu decisión'));
 
@@ -1437,6 +1537,7 @@ export default {
                 cargarContadores();   // #507 bombitas por módulo (endpoint propio, no bloquea)
                 cargarDecisionesAuto();   // #878 "Decidido sin ti" (endpoint propio, no bloquea)
                 cargarFronteraDura();   // #766 KPI "Frontera dura" (endpoint propio, no bloquea)
+                cargarWatchdogRespuestas();   // #9991140 — banner/KPI/badge del watchdog de respuestas
                 maybeDeepLink();   // #torre: deep-link /releases?item=NNN tras poblar la bandeja
             } catch (e) {
                 // #878 — ANTES no había catch: la excepción se tragaba y los refs se quedaban en su
@@ -1668,6 +1769,14 @@ export default {
             verRecorrido(ev);   // rule #5: nunca dejar al usuario en pantalla vacía
         }
 
+        // CIRC-02c Fase 2 (#9991140) — click de una fila del banner watchdog: los items de
+        // pendientes_60min no siempre siguen en "Tu bandeja" (ya pudieron responderse), así que
+        // intenta resaltar in-page y si no está aquí abre su detalle real (mismo patrón que openItem).
+        function irWatchdogItem(itemId) {
+            if (highlightInPage(itemId)) return;
+            verRecorrido({ id: itemId });
+        }
+
         // Deep-link /releases?item=NNN — corre una vez tras cargar la bandeja: si el item está aquí lo
         // resalta; si no, abre su detalle real (misma pestaña) para no dejar pantalla vacía.
         function maybeDeepLink() {
@@ -1729,10 +1838,13 @@ export default {
             // Polling en vivo del estado ligero + ticker local para el cronómetro/heartbeat.
             estadoTimer = setInterval(pollEstado, 4000);
             tickTimer = setInterval(() => { nowMs.value = Date.now(); }, 1000);
+            // #9991140 — polling propio del watchdog de respuestas, cada 15s.
+            watchdogTimer = setInterval(cargarWatchdogRespuestas, 15000);
         });
         onUnmounted(() => {
             if (estadoTimer) clearInterval(estadoTimer);
             if (tickTimer) clearInterval(tickTimer);
+            if (watchdogTimer) clearInterval(watchdogTimer);
             if (disparoMsgTimer) clearTimeout(disparoMsgTimer);
             if (window.speechSynthesis) window.speechSynthesis.cancel(); // no dejar voz sonando al salir de la Torre (spa-nav)
         });
@@ -1750,7 +1862,7 @@ export default {
             cambiosValidacion, aprobadosVersion, aprobadosAbierto, valBusy, abrirYProbar, validarFunciona, reportarProblema,
             sel, coment, soloComentario, deciding, decidir, elegirOpcion, libre, elegirLibre, selPreg, aviso,
             // #477: tarjeta compacta nivel C
-            descOpen, tecOpen, tieneDescExtendida, estadoLabelItem,
+            descOpen, tecOpen, pregTecOpen, hayPregNat, preguntaNat, opcionNat, tieneDescExtendida, estadoLabelItem,
             // 🔊 Escuchar + 🔎 Ver más (compartido con Integración)
             hablando, leer, verMas,
             segOpen, seg, toggleSeg, crearSeguimiento,
@@ -1778,6 +1890,9 @@ export default {
             preguntaRespondida, faltanPreguntas,
             // #766 — KPI "Frontera dura": aperturas de la válvula.
             fronteraDura, fronteraDuraDetalleAbierto,
+            // CIRC-02c Fase 2 (#9991140) — watchdog del hilo de respuestas.
+            watchdogRespuestas, watchdogPendienteIds, sinRespuestaDias, irWatchdogItem,
+            respEstadoClase, respEstadoLabel,
         };
     },
 };
@@ -1891,6 +2006,22 @@ export default {
 .tc-otra .tc-seg-in{margin-bottom:0;flex:1;}
 .tc-otra-sel .tc-seg-in{border-color:var(--tc-ok,#16a34a);}
 .tc-noopts{margin-top:8px;font-size:12px;font-style:italic;color:var(--tc-muted);}
+/* CIRC-02c Fase 2 (#9991140) — hilo de respuestas de SOLO LECTURA dentro de la tarjeta. */
+.tc-resp-wrap{margin-top:10px;padding-top:8px;border-top:1px dashed var(--tc-line);}
+.tc-resp-head{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--tc-muted);margin-bottom:6px;}
+.tc-resp-row{padding:5px 0;font-size:12px;}
+.tc-resp-row + .tc-resp-row{border-top:1px solid var(--tc-line);}
+.tc-resp-badge{display:inline-block;font-size:10.5px;font-weight:700;border-radius:6px;padding:1px 7px;margin-right:6px;}
+.tc-resp-badge-ok{background:#ecfdf5;color:#047857;}
+.tc-resp-badge-warn{background:#fffbeb;color:#b45309;}
+.tc-resp-badge-info{background:#f1f5f9;color:#475569;}
+.tc-resp-autor{font-weight:600;margin-right:6px;}
+.tc-resp-fecha{color:var(--tc-muted);font-size:11px;}
+.tc-resp-cuerpo{margin-top:3px;color:var(--tc-ink);white-space:pre-wrap;}
+.tc-resp-empty-auditor{margin-top:10px;font-size:12px;color:var(--tc-warn);font-style:italic;}
+/* Banner watchdog (#9991140) — filas clickeables dentro del banner rojo de arriba. */
+.tc-watchdog-list{margin-top:6px;display:flex;flex-direction:column;gap:4px;}
+.tc-watchdog-row{text-align:left;background:none;border:none;padding:2px 0;font-size:12px;color:inherit;text-decoration:underline;cursor:pointer;}
 /* #477 — tarjeta compacta nivel C */
 .tc-t-compact{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:12px;}
 .tc-titulo-c{font-size:14px;font-weight:700;line-height:1.35;margin-top:4px;}
@@ -2123,6 +2254,10 @@ export default {
 .tc-dark .tc-killbtn{background:#1c2740;color:#f87171;border-color:#5b2b2b;}
 .tc-dark .tc-killbtn.tc-resume{background:#132a1f;color:#4ade80;border-color:#2b5b3b;}
 .tc-dark .tc-badge-dec{background:rgba(251,191,36,.15);color:#fbbf24;}
+/* CIRC-02c Fase 2 (#9991140) — hilo de respuestas */
+.tc-dark .tc-resp-badge-ok{background:rgba(74,222,128,.15);color:#4ade80;}
+.tc-dark .tc-resp-badge-warn{background:rgba(251,191,36,.15);color:#fbbf24;}
+.tc-dark .tc-resp-badge-info{background:rgba(148,163,184,.15);color:#94a3b8;}
 .tc-dark .tc-aviso-1030{background:rgba(251,191,36,.12);color:#fbbf24;border-color:#5b4a20;}
 .tc-dark .tc-aviso-1030-ok{background:rgba(45,212,191,.10);color:#5eead4;border-color:#155e52;}
 .tc-dark .tc-tipo-decision{background:rgba(129,140,248,.18);color:#a5b4fc;}

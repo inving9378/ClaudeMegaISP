@@ -499,6 +499,7 @@ import { getSectoresCapa } from "./helper/sectores-request";
 import { getTiposSplitter, crearNapRapida } from "./helper/nap-alta-request";
 import { getTiposCable, crearCableRapido } from "./helper/cable-alta-request";
 import { crearDropRapido } from "./helper/drop-alta-request";
+import { crearEnlaceRapido } from "./helper/enlace-alta-request";
 
 import Swal from "sweetalert2";
 import {
@@ -594,6 +595,8 @@ let cableDibujoLayer = null;
 let cableVerticesLayer = null;
 let snapCablePreview = null;
 let cableClickTimer = null;
+// MR-23 fase 4a (item roadmap #9990519): resaltado visual del nodo origen elegido en modo Trazar.
+let trazarHighlightLayer = null;
 // MR-26 Fase 4 (item roadmap #9990525): capa de cobertura comercial en vivo (Fase 1, #9990522),
 // independiente de `drawnItems` (no es un objeto de BD con `dialog`, se recalcula en cada fetch).
 let coberturaLayer = null;
@@ -635,6 +638,14 @@ const ultimoClickNap = ref(null);
 const modoAgregarCable = ref(false);
 const tipoCableDibujo = ref("cable");
 const verticesCable = ref([]);
+
+// MR-23 fase 4a (item roadmap #9990519): modo "Trazar" — clic secuencial sobre 2 nodos YA
+// EXISTENTES del mapa (origen, luego destino) para crear un enlace directo entre ellos,
+// consumiendo EnlacesController::store (#9990518). nodoOrigenTrazar guarda el id + posición del
+// primer nodo elegido mientras se espera el segundo clic; Esc/clic derecho cancela esa espera
+// sin apagar la herramienta (mismo criterio que modoAgregarCable).
+const modoTrazar = ref(false);
+const nodoOrigenTrazar = ref(null);
 
 // MR-24e Fase 3b/4 (items roadmap #9990582/#9990583): dialog de alta rápida que abre
 // finalizarDibujoCable() al terminar el trazo (Enter/doble-clic) y persiste contra
@@ -1238,6 +1249,13 @@ const initMap = async () => {
 
     map.on("contextmenu", function (e) {
         L.DomEvent.stopPropagation(e);
+        if (modoTrazar.value && nodoOrigenTrazar.value) {
+            // MR-23 fase 4a (item roadmap #9990519): clic derecho cancela la selección de
+            // origen en curso sin apagar la herramienta.
+            cancelarSeleccionTrazar();
+            map.contextmenu.hide();
+            return;
+        }
         if (
             !currentProject.value ||
             currentProject.value.classification !== "project" ||
@@ -1886,6 +1904,35 @@ const initMap = async () => {
         ],
     }).addTo(map);
 
+    // MR-23 fase 4a (item roadmap #9990519): toggle "Modo: Trazar" — clic secuencial sobre 2
+    // nodos YA EXISTENTES (origen, luego destino) para crear un enlace directo entre ellos.
+    // Gate por permiso `mapa_red_trazar` (#9990518), igual que el resto de acciones del módulo.
+    if (permissons.data.canView("mapa_red_trazar")) {
+        L.easyButton({
+            states: [
+                {
+                    stateName: "trazar-apagado",
+                    icon: "fa-link",
+                    title: "Modo: Trazar enlace entre 2 nodos",
+                    onClick: function (btn) {
+                        modoTrazar.value = true;
+                        document.addEventListener("keydown", handleKeydownTrazar);
+                        btn.state("trazar-encendido");
+                    },
+                },
+                {
+                    stateName: "trazar-encendido",
+                    icon: "fa-link",
+                    title: "Desactivar modo: Trazar",
+                    onClick: function (btn) {
+                        cancelarModoTrazar();
+                        btn.state("trazar-apagado");
+                    },
+                },
+            ],
+        }).addTo(map);
+    }
+
     map.on("click", async function (e) {
         if (addInSerie.value) {
             let { color, data, icon_color, project_id, type, start } =
@@ -2016,6 +2063,94 @@ const cancelarDibujoCable = () => {
     document.removeEventListener("keydown", handleKeydownDibujoCable);
     map.doubleClickZoom.enable();
     cancelarTrazoCableActual();
+};
+
+// MR-23 fase 4a (item roadmap #9990519): quita el resaltado visual del nodo origen elegido.
+const limpiarResaltadoTrazar = () => {
+    if (trazarHighlightLayer) {
+        map.removeLayer(trazarHighlightLayer);
+        trazarHighlightLayer = null;
+    }
+};
+
+// MR-23 fase 4a (item roadmap #9990519): cancela la selección de origen EN CURSO (Esc/clic
+// derecho) sin apagar la herramienta — mismo criterio que cancelarTrazoCableActual.
+const cancelarSeleccionTrazar = () => {
+    nodoOrigenTrazar.value = null;
+    limpiarResaltadoTrazar();
+};
+
+// MR-23 fase 4a (item roadmap #9990519): apaga el modo "Trazar" por completo.
+const cancelarModoTrazar = () => {
+    modoTrazar.value = false;
+    document.removeEventListener("keydown", handleKeydownTrazar);
+    cancelarSeleccionTrazar();
+};
+
+// MR-23 fase 4a (item roadmap #9990519): Esc cancela la selección de origen en curso, sin
+// apagar la herramienta (así se puede elegir otro origen de inmediato).
+const handleKeydownTrazar = (e) => {
+    if (e.key === "Escape") {
+        cancelarSeleccionTrazar();
+    }
+};
+
+// MR-23 fase 4a (item roadmap #9990519): clic sobre un nodo existente en modo "Trazar" — primer
+// clic = origen (resalta el nodo con un círculo), segundo clic = destino (confirma y dispara el
+// POST contra EnlacesController::store, #9990518). En éxito dibuja el enlace de inmediato con
+// L.polyline, sin recargar el mapa (mismo criterio que confirmarCableDialog/guardarNap); la
+// herramienta queda encendida para trazar el siguiente enlace.
+const clickNodoTrazar = async (props, layer) => {
+    if (props?.id == null) {
+        return;
+    }
+    const posNodo = layer.getLatLng
+        ? layer.getLatLng()
+        : layer.getBounds().getCenter();
+    if (!nodoOrigenTrazar.value) {
+        nodoOrigenTrazar.value = { id: props.id, latlng: posNodo };
+        limpiarResaltadoTrazar();
+        trazarHighlightLayer = L.circleMarker(posNodo, {
+            radius: 14,
+            color: "#f59e0b",
+            weight: 3,
+            fillOpacity: 0,
+        }).addTo(map);
+        return;
+    }
+    if (props.id === nodoOrigenTrazar.value.id) {
+        message("Elige un nodo distinto como destino", "warning");
+        return;
+    }
+    const origen = nodoOrigenTrazar.value;
+    const confirmacion = await Swal.fire({
+        title: "¿Trazar enlace?",
+        text: "Se creará un enlace directo entre estos dos nodos.",
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonColor: "#3085d6",
+        cancelButtonColor: "#d33",
+        confirmButtonText: "Sí, trazar",
+        cancelButtonText: "Cancelar",
+    });
+    if (!confirmacion.isConfirmed) {
+        cancelarSeleccionTrazar();
+        return;
+    }
+    const resultado = await crearEnlaceRapido({
+        nodo_origen_id: origen.id,
+        nodo_destino_id: props.id,
+    });
+    if (resultado.ok) {
+        L.polyline([origen.latlng, posNodo], {
+            color: "#0ea5e9",
+            weight: 3,
+        }).addTo(map);
+        message("Enlace trazado correctamente");
+    } else {
+        message(resultado.message, "error");
+    }
+    cancelarSeleccionTrazar();
 };
 
 // MR-24e Fase 3a (item roadmap #9990581): agrega un vértice al trazo en curso, snapeando a
@@ -2702,7 +2837,22 @@ const drawLayers = (selectedLayers, noSelectedLayers = []) => {
                 });
                 layer.on("contextmenu", function (e) {
                     L.DomEvent.stopPropagation(e);
+                    if (modoTrazar.value && nodoOrigenTrazar.value) {
+                        // MR-23 fase 4a (item roadmap #9990519): clic derecho sobre un nodo
+                        // cancela la selección de origen en curso, sin apagar la herramienta.
+                        cancelarSeleccionTrazar();
+                        return;
+                    }
                     layer.options.contextmenu = addInSerie.value;
+                });
+                // MR-23 fase 4a (item roadmap #9990519): en modo "Trazar", el clic sobre un nodo
+                // YA existente lo elige como origen/destino en vez de su comportamiento normal
+                // (abrir panel/asignar cliente, que sigue viviendo en createLayerFromObject).
+                layer.on("click", function (e) {
+                    if (modoTrazar.value) {
+                        L.DomEvent.stopPropagation(e);
+                        clickNodoTrazar(e.target.properties, e.target);
+                    }
                 });
                 return layer;
             }

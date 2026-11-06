@@ -30,7 +30,7 @@
             <i class="fas fa-times me-1"></i>Quitar filtro
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         :key="tableKey"
         ref="datatableRef"
         module="administracion/documentation/documentation_submenu"

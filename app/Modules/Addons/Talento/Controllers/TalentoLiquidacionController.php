@@ -8,6 +8,7 @@ use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoCompensationRuleHistory;
 use App\Modules\Addons\Talento\Models\TalentoLedgerEntry;
 use App\Modules\Addons\Talento\Models\TalentoLiquidation;
+use App\Modules\Addons\Talento\Models\TalentoLiquidationEvent;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
 use App\Modules\Addons\Talento\Services\LiquidationService;
 use App\Modules\Addons\Talento\Services\LiquidationStateService;
@@ -242,6 +243,14 @@ class TalentoLiquidacionController extends Controller
         $liq->puede_cerrar = $liq->status === 'draft'
             && auth()->user()->can('talento.liquidation.manage')
             && (int) $liq->colaborador_id !== $this->fichaQueNoPuedeCerrar();
+
+        // UNI-T J4 F2b: historial de eventos y permiso de «confirmar pago» (solo con el interruptor encendido).
+        if (LiquidationStateService::activo()) {
+            $liq->eventos = TalentoLiquidationEvent::where('liquidation_id', $liq->id)->orderBy('id')->get();
+            $liq->puede_pagar = $liq->status === 'closed'
+                && auth()->user()->can('talento.liquidation.pagar')
+                && (int) $liq->colaborador_id !== $this->fichaQueNoPuedeCerrar();
+        }
 
         return response()->json($liq);
     }

@@ -15,7 +15,7 @@
         </a>
     </div>
 
-    <Datatable
+    <Datatable :urlState="true"
         module="inventory/supplier"
         model="Supplier"
         list="Listado de Proveedores"

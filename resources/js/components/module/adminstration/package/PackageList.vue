@@ -5,7 +5,7 @@
                 data-bs-toggle="modal" data-bs-target="#crudpackage">Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="administracion/paquete"
         model="Package"
         list="Listado de Paquetes"

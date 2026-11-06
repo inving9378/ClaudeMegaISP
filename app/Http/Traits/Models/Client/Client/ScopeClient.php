@@ -14,6 +14,22 @@ use Illuminate\Support\Facades\DB;
 trait ScopeClient
 {
     /**
+     * Días (Y-m-d) del filtro Fecha de Corte, ambos inclusivos. El selector manda instantes en UTC:
+     * después de las 18:00 de México ya son el día siguiente, así que el día que eligió la persona se
+     * obtiene en la zona del sistema. Lo usan el conteo del paginador y las filas: si divergen, el
+     * paginador y la tabla dejan de coincidir. Con un solo clic el selector manda [día, null]: es ese
+     * día; `Carbon::parse(null)` lo convertiría en «hasta hoy».
+     *
+     * @return array{0:string,1:string}
+     */
+    public static function rangoFechaCorte(array $rango): array
+    {
+        $dia = fn ($instante) => Carbon::parse($instante)->setTimezone(config('app.timezone'))->format('Y-m-d');
+
+        return [$dia($rango[0]), $dia($rango[1] ?? $rango[0])];
+    }
+
+    /**
      * @param array|null $columnasCrudas Nombres de columna SIN calificar (item #9990811, buscador v2:
      *                                   config('clientes_busqueda.v2_habilitado')). $columns (arriba) ya
      *                                   viene calificado (ej. 'client_main_information.name') y no sirve
@@ -34,8 +50,9 @@ trait ScopeClient
                         }
                         if ($keyV === 'fecha_corte') {
                             if (is_array($val) && count($val) == 2) {
-                                $query->whereDate('clients.fecha_corte', '>=', Carbon::parse($val[0])->subDay()->format('Y-m-d'))
-                                    ->whereDate('clients.fecha_corte', '<', Carbon::parse($val[1])->format('Y-m-d'));
+                                [$desde, $hasta] = self::rangoFechaCorte($val);
+                                $query->whereDate('clients.fecha_corte', '>=', $desde)
+                                    ->whereDate('clients.fecha_corte', '<=', $hasta);
                             }
                         } elseif ($keyV === 'fecha_pago_today') {
                             $query->whereDate('clients.fecha_pago', $val);

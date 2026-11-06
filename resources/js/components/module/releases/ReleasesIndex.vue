@@ -61,7 +61,7 @@
              style="white-space:nowrap">
             <i class="bi bi-cloud-slash"></i>
             <b>{{ publicacionAviso.no_publicadas }} versión(es) no publicada(s) en GitHub.</b>
-            <a href="#" class="alert-link ms-auto" @click.prevent="tab = 'historial'">Ver lista</a>
+            <a href="#" class="alert-link ms-auto" @click.prevent="subHistorial = 'versiones'; tab = 'historial-unico'">Ver lista</a>
         </div>
         <div v-else-if="publicacionAviso && !publicacionAviso.ok"
              class="alert alert-warning mb-3 py-2 px-3">
@@ -106,6 +106,16 @@
                     <i class="bi bi-diagram-3 me-1"></i> Para mergear
                 </a>
             </li>
+            <!-- #1146 (Paso 5c) — Historial único: acciones, actividad del equipo y versiones en una
+                 sola pestaña con sub-selector. Cada sub-sección conserva su gate (la del equipo sigue
+                 pidiendo torre.actividad.view). Las pestañas viejas siguen detrás del interruptor
+                 `pestanasViejas` y se retiran al final. -->
+            <li class="nav-item">
+                <a class="nav-link" :class="{ active: tab === 'historial-unico' }" href="#" @click.prevent="tab = 'historial-unico'">
+                    <i class="bi bi-clock-history me-1"></i> Historial
+                </a>
+            </li>
+            <template v-if="pestanasViejas">
             <li class="nav-item">
                 <a class="nav-link" :class="{ active: tab === 'acciones' }" href="#" @click.prevent="tab = 'acciones'">
                     <i class="bi bi-list-check me-1"></i> Historial de acciones
@@ -123,6 +133,7 @@
                     <i class="bi bi-clock-history me-1"></i> Historial de versiones
                 </a>
             </li>
+            </template>
             <li class="nav-item">
                 <a class="nav-link" :class="{ active: tab === 'configuracion' }" href="#" @click.prevent="tab = 'configuracion'">
                     <i class="bi bi-gear me-1"></i> Configuración
@@ -168,13 +179,25 @@
         <integracion-ramas v-if="tab === 'integracion'" />
 
         <!-- ── Sub-sección: Historial de acciones (Fase 8, Épica #874, #885) ── -->
-        <torre-historial-acciones v-if="tab === 'acciones'" />
+        <!-- #1146 — Historial único con sub-selector -->
+        <ul v-if="tab === 'historial-unico'" class="nav nav-pills mb-3">
+            <li class="nav-item">
+                <a class="nav-link py-1" :class="{ active: subHistorial === 'acciones' }" href="#" @click.prevent="subHistorial = 'acciones'">Acciones</a>
+            </li>
+            <li class="nav-item" v-if="hasPermission.data.canView('torre.actividad.view')">
+                <a class="nav-link py-1" :class="{ active: subHistorial === 'actividad-equipo' }" href="#" @click.prevent="subHistorial = 'actividad-equipo'">Equipo</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link py-1" :class="{ active: subHistorial === 'versiones' }" href="#" @click.prevent="subHistorial = 'versiones'">Versiones</a>
+            </li>
+        </ul>
+        <torre-historial-acciones v-if="tab === 'acciones' || (tab === 'historial-unico' && subHistorial === 'acciones')" />
 
         <!-- ── Sub-sección: Actividad del equipo (#9990375) ── -->
-        <torre-actividad-equipo v-if="tab === 'actividad-equipo' && hasPermission.data.canView('torre.actividad.view')" />
+        <torre-actividad-equipo v-if="(tab === 'actividad-equipo' || (tab === 'historial-unico' && subHistorial === 'actividad-equipo')) && hasPermission.data.canView('torre.actividad.view')" />
 
         <!-- ── Tab: Historial ── -->
-        <template v-if="tab === 'historial'">
+        <template v-if="tab === 'historial' || (tab === 'historial-unico' && subHistorial === 'versiones')">
         <div class="d-flex justify-content-between align-items-center mb-5">
             <h2 class="fw-bold">Historial de versiones</h2>
             <button
@@ -398,10 +421,18 @@ export default {
         // Es lo que usan los engranes de fuera de esta pantalla para traer aquí en vez de abrir cada
         // uno su propio tablero. Un valor desconocido cae a 'panorama'.
         const TABS_VALIDAS = ['panorama', 'roadmap', 'terminales', 'integracion', 'acciones',
-            'actividad-equipo', 'historial', 'configuracion'];
+            'actividad-equipo', 'historial', 'historial-unico', 'configuracion'];
+        // #1146 — interruptor de las pestañas viejas (acciones / equipo / versiones por separado).
+        // Apagado: solo se ve «Historial». Los enlaces viejos (?tab=acciones…) caen al historial único.
+        const pestanasViejas = ref(false);
+        const subHistorial = ref('acciones');
         const tabInicial = (() => {
             try {
                 const q = new URLSearchParams(currentSearch()).get('tab');
+                if (['acciones', 'actividad-equipo', 'historial'].includes(q)) {
+                    subHistorial.value = q === 'historial' ? 'versiones' : q;
+                    return 'historial-unico';
+                }
                 return TABS_VALIDAS.includes(q) ? q : 'panorama';
             } catch (e) {
                 return 'panorama';
@@ -719,6 +750,7 @@ export default {
         };
 
         return {
+            pestanasViejas, subHistorial,
             dockPx,
             tab,
             tabsClasicas,

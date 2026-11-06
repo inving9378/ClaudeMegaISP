@@ -227,7 +227,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, reactive } from "vue";
+import { ref, onMounted, computed, reactive, watch } from "vue";
 import Swal from "sweetalert2";
 import Modal from "../../../../shared/ModalSimple.vue";
 import { getAll, deleteUser, activeOrInactive, bloquearUser } from "./helper/request.js";
@@ -236,6 +236,7 @@ import Permission from "../../../../helpers/Permission";
 import { allViewHasPermission } from "../../../../helpers/Request";
 import { darkMode } from "../../../../hook/appConfig.js";
 import { useDataTable } from "../../../../composables/useDataTable.js";
+import { useTableUrlState } from "../../../../hook/useTableUrlState";
 import { pro } from "@he-tree/vue";
 
 const hasPermission = reactive({
@@ -387,6 +388,30 @@ const pagination = ref({
     rowsPerPage: 50,
     rowsNumber: 0,
 });
+
+// #1176 (patrón de #1162/#1175): conserva página, filas por página y búsqueda al entrar a un
+// registro y volver. La búsqueda va en history.state, nunca en la URL. Se lee antes de montar.
+const tablaUrl = useTableUrlState({ parametros: ["page", "rowsPerPage"] });
+{
+    const { url, privado } = tablaUrl.leer();
+    if (/^\d+$/.test(url.rowsPerPage ?? "") && rowPerPageOptions.value.includes(Number(url.rowsPerPage))) {
+        pagination.value.rowsPerPage = Number(url.rowsPerPage);
+    }
+    if (/^[1-9]\d*$/.test(url.page ?? "") && pagination.value.rowsPerPage !== 0) {
+        pagination.value.page = Number(url.page);
+    }
+    if (typeof privado.search === "string") filter.value = privado.search;
+    watch([filter, () => pagination.value.page, () => pagination.value.rowsPerPage], () => {
+        const { page, rowsPerPage } = pagination.value;
+        tablaUrl.guardar(
+            {
+                page: page !== 1 ? String(page) : null,
+                rowsPerPage: rowsPerPage !== 50 ? String(rowsPerPage) : null,
+            },
+            filter.value !== "" ? { search: filter.value } : {}
+        );
+    });
+}
 
 onMounted(async () => {
     hasPermission.data = new Permission(await allViewHasPermission());

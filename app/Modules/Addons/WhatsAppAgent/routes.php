@@ -73,6 +73,7 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/instances/{id}/qr',        [WhatsAppInstanceController::class, 'getQr'])->whereNumber('id');
             Route::get('/instances/{id}/status',    [WhatsAppInstanceController::class, 'connectionStatus'])->whereNumber('id');
             Route::post('/instances/{id}/disconnect', [WhatsAppInstanceController::class, 'disconnect'])->whereNumber('id'); // logout real en Evolution
+            Route::post('/instances/{id}/restart',    [WhatsAppInstanceController::class, 'restart'])->whereNumber('id'); // restart (sin logout) en Evolution
 
             // Funciones por línea (Fase 3) — gate whatsapp_manage_instances
             Route::post('/instances/{id}/functions',                        [WhatsAppInstanceController::class, 'assignFunction'])->whereNumber('id');

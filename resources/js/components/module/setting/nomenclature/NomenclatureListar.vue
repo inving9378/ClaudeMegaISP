@@ -24,7 +24,7 @@
             Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="configuracion/nomenclature"
         model="Nomenclature"
         list="Listado de Nomenclatura"

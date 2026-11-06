@@ -4,6 +4,7 @@ namespace App\Modules\Core\Auditoria;
 
 use App\Modules\BaseModuleServiceProvider;
 use App\Modules\Core\Auditoria\Console\AuditoriaPermisosCaso0Command;
+use App\Modules\Core\Auditoria\Console\AuditoriaPermisosMatrizRolesCommand;
 
 class ModuleServiceProvider extends BaseModuleServiceProvider
 {
@@ -18,6 +19,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 AuditoriaPermisosCaso0Command::class,
+                AuditoriaPermisosMatrizRolesCommand::class,
             ]);
         }
     }

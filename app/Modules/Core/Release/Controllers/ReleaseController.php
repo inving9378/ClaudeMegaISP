@@ -84,12 +84,13 @@ class ReleaseController extends Controller
 
         try {
             $validator = Validator::make($request->all(), [
-                'version' => ['required', 'string', 'max:50', 'unique:releases,version'],
+                'version' => ['required', 'string', 'max:50', 'regex:/^[A-Za-z0-9._-]+$/', 'unique:releases,version'],
                 'title' => ['nullable', 'string', 'max:255'],
                 'summary' => ['nullable', 'string'],
                 'release_date' => ['required', 'date'],
             ], [
                 'version.required' => 'La version es obligatoria.',
+                'version.regex' => 'La version solo puede contener letras, numeros, puntos, guiones y guion bajo.',
                 'version.unique' => 'Ya existe una version con ese nombre.',
                 'title.required' => 'El titulo es obligatorio.',
                 'release_date.required' => 'La fecha de lanzamiento es obligatoria.',
@@ -459,6 +460,7 @@ class ReleaseController extends Controller
                 'required',
                 'string',
                 'max:50',
+                'regex:/^[A-Za-z0-9._-]+$/',
                 Rule::unique('releases', 'version')->ignore($release->id),
             ],
             'title' => ['nullable', 'string', 'max:255'],
@@ -466,6 +468,7 @@ class ReleaseController extends Controller
             'release_date' => ['required', 'date'],
         ], [
             'version.required' => 'La versión es obligatoria.',
+            'version.regex' => 'La versión solo puede contener letras, números, puntos, guiones y guion bajo.',
             'version.unique' => 'Ya existe una versión con ese nombre.',
             'release_date.required' => 'La fecha de lanzamiento es obligatoria.',
         ]);

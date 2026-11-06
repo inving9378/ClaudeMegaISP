@@ -15,7 +15,7 @@
             Configuración general
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="configuracion/rules"
         model="CommissionRule"
         list="Listado de Reglas"

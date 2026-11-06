@@ -35,6 +35,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
 
         // Registrar middleware de autenticación del portal
         $this->app['router']->aliasMiddleware('auth.portal', AuthPortal::class);
+        $this->app['router']->aliasMiddleware('portal.impersonacion', \App\Modules\Addons\PortalCliente\Middleware\PortalImpersonacion::class);
 
         if ($this->app->runningInConsole()) {
             $this->commands([AntiIdorTestCommand::class]);

@@ -30,6 +30,7 @@ return [
     'pagos.pago_recibido' => ['nombre' => 'Aviso «pago recibido» (transferencia SPEI)', 'grupo' => 'Pagos', 'servicio' => 'whatsapp', 'via' => 'linea', 'listo' => true],
     'portalpago.resumen_diario' => ['nombre' => 'Resumen diario de pagos recurrentes (interno)', 'grupo' => 'Pagos', 'servicio' => 'whatsapp', 'via' => 'directo', 'listo' => true],
     'domiciliacion.liga' => ['nombre' => 'Liga para domiciliar la tarjeta', 'grupo' => 'Domiciliación', 'servicio' => 'whatsapp', 'via' => 'linea', 'listo' => true],
+    'portalcliente.recuperar_otp' => ['nombre' => 'Código para recuperar la contraseña del Portal Cliente', 'grupo' => 'Portal Cliente', 'servicio' => 'whatsapp', 'via' => 'linea', 'listo' => true],
     'domiciliacion.avisos_cobro' => ['nombre' => 'Avisos de cobro automático (cobrado, intento fallido, fallo final)', 'grupo' => 'Domiciliación', 'servicio' => 'whatsapp', 'via' => 'linea', 'listo' => true],
     'facturacion.pausas' => ['nombre' => 'Avisos de pausa de facturación', 'grupo' => 'Facturación', 'servicio' => 'whatsapp', 'via' => 'linea', 'listo' => true],
     'facturacion.recordatorio' => ['nombre' => 'Recordatorio de facturación (cliente sin correo)', 'grupo' => 'Facturación', 'servicio' => 'whatsapp', 'via' => 'linea', 'listo' => true],

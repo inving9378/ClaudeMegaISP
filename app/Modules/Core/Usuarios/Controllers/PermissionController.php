@@ -178,6 +178,11 @@ class PermissionController extends Controller
                     ->log('Permisos del rol ' . $role->name . ': ' . count($permissionsToAdd) . ' agregados, ' . count($permissionsToRemove) . ' quitados');
             }
 
+            // Item #542: marca de override manual — un permiso revocado a mano aquí
+            // no debe volver a ser inyectado por PermissionSyncService en un sync
+            // posterior; si se vuelve a agregar a mano, se borra la marca.
+            $this->syncManualOverrides($role->id, $permissionsToAdd, $permissionsToRemove);
+
             // Reforma de permisos B1.2: editar un rol toca SOLO role_has_permissions.
             // Se elimina la propagación que antes escribía/borraba los permisos como
             // DIRECTOS en cada usuario del rol (re-sembraba directos en cada edición).
@@ -237,6 +242,33 @@ class PermissionController extends Controller
             } else {
                 $query->delete();
             }
+        }
+    }
+
+    /**
+     * Item #542: registra en `role_permission_overrides` los permisos revocados
+     * a mano (para que PermissionSyncService no los re-inyecte) y limpia la marca
+     * de los que se vuelven a agregar a mano.
+     */
+    private function syncManualOverrides(int $roleId, array $added, array $removed): void
+    {
+        if ($removed) {
+            $removedIds = Permission::whereIn('name', $removed)->where('guard_name', 'web')->pluck('id');
+            $now = now();
+            foreach ($removedIds as $permissionId) {
+                DB::table('role_permission_overrides')->updateOrInsert(
+                    ['role_id' => $roleId, 'permission_id' => $permissionId],
+                    ['updated_at' => $now, 'created_at' => $now]
+                );
+            }
+        }
+
+        if ($added) {
+            $addedIds = Permission::whereIn('name', $added)->where('guard_name', 'web')->pluck('id');
+            DB::table('role_permission_overrides')
+                ->where('role_id', $roleId)
+                ->whereIn('permission_id', $addedIds)
+                ->delete();
         }
     }
 

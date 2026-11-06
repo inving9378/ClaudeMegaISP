@@ -13,6 +13,7 @@ use App\Models\ClientAdditionalInformation;
 use App\Models\ClientMainInformation;
 use App\Modules\Core\CRM\Models\Crm;
 use App\Services\Clientes\HistorialCliente;
+use App\Services\Clientes\TipoCliente;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -137,9 +138,11 @@ class ConversionEmpresarialService
                 fn () => ClientMainInformation::create($input),
                 'Convertido del prospecto empresarial CRM #' . $crm->id
             );
-            // Item #1024: el segmento comercial del prospecto pasa al cliente (distingue residencial/negocio/PyME/dedicado).
+            // Item #1165: tipo_cliente es la única fuente de verdad; el segmento del prospecto (RES/NEG/PYME/DED)
+            // se traduce a él y ya no se escribe segmento_id en el cliente.
             $segmentoId = $e->segmento_id ?? $crm->crm_main_information?->segmento_id;
-            ClientAdditionalInformation::create($this->camposDe('ClientAdditionalInformation', $datos) + ['client_id' => $client->id, 'segmento_id' => $segmentoId]);
+            $tipo = $datos['tipo_cliente'] ?? $this->tipoDeSegmento($segmentoId);
+            ClientAdditionalInformation::create($this->camposDe('ClientAdditionalInformation', $datos) + ['client_id' => $client->id, 'tipo_cliente' => $tipo]);
 
             (new ClientHelperController($client))->stepNeededWhenNewClientIsCreated();
             $this->fiscal->aplicarAlConvertir($e, $client->id, [], $userId);
@@ -158,6 +161,19 @@ class ConversionEmpresarialService
             $crm->delete();
 
             return ['client_id' => $client->id, 'conversion_id' => $conv->id];
+        });
+    }
+
+    /** Código de segmento CRM → tipo de cliente. Sin segmento o desconocido: Residencial. */
+    private function tipoDeSegmento(?int $segmentoId): string
+    {
+        $codigo = $segmentoId ? DB::table('crm_segmentos')->where('id', $segmentoId)->value('codigo') : null;
+
+        return TipoCliente::normalizar(match ($codigo) {
+            'NEG' => TipoCliente::NEGOCIO,
+            'PYME' => TipoCliente::PYME,
+            'DED' => TipoCliente::DEDICADO,
+            default => TipoCliente::RESIDENCIAL,
         });
     }
 

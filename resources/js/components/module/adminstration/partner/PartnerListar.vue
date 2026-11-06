@@ -5,7 +5,7 @@
                 data-bs-toggle="modal" data-bs-target="#crudsocio">Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="administracion/socios"
         model="Partner"
         list="Listado de Socios"

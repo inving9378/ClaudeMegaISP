@@ -11,7 +11,7 @@
             </div>
         </div>
 
-        <Datatable
+        <Datatable :urlState="true"
             module="inventory/supplier-invoice"
             model="SupplierInvoice"
             list="Listado de Facturas de Proveedores"

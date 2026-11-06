@@ -16,7 +16,7 @@
             Agregar
         </button>
     </div>
-    <Datatable
+    <Datatable :urlState="true"
         module="inventory/inventory_item_type"
         model="InventoryItemType"
         list="Listado de Tipos de Articulos"

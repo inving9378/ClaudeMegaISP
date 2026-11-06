@@ -248,6 +248,12 @@ Route::prefix('api/megafamilia')->middleware(['log_api_mobile', 'force_json'])->
     // Public: login → returns sanctum token
     Route::post('/auth/login', [ApiController::class, 'login']);
 
+    // Public: OTP por SMS (#496) — aparte de /auth/login, la app aún no lo usa.
+    Route::middleware('throttle:10,1')->group(function () {
+        Route::post('/auth/otp/enviar', [ApiController::class, 'otpEnviar']);
+        Route::post('/auth/otp/verificar', [ApiController::class, 'otpVerificar']);
+    });
+
     // Public: OTA — la app revisa esto al abrir y se autoactualiza
     Route::get('/app-version', [ApiController::class, 'appVersion']);
 
@@ -284,12 +290,14 @@ Route::prefix('api/megafamilia')->middleware(['log_api_mobile', 'force_json'])->
         Route::get('/profiles/{id}', [ApiController::class, 'profileDetail'])->whereNumber('id');
         Route::get('/profiles/{id}/devices', [ApiController::class, 'profileDevices'])->whereNumber('id');
         Route::post('/profiles/{id}/invite', [ApiController::class, 'inviteDevice'])->whereNumber('id');
+        Route::put('/profiles/{id}/pin', [ApiController::class, 'setProfilePin'])->whereNumber('id');
         Route::get('/profiles/{id}/tasks', [ApiController::class, 'profileTasks'])->whereNumber('id');
         Route::get('/profiles/{id}/location', [ApiController::class, 'profileLocation'])->whereNumber('id');
 
         Route::get('/devices/{id}/rules', [ApiController::class, 'deviceRules'])->whereNumber('id');
         Route::put('/devices/{id}/rules', [ApiController::class, 'updateDeviceRules'])->whereNumber('id');
         Route::put('/devices/{id}/fcm-token', [ApiController::class, 'updateDeviceFcmToken'])->whereNumber('id');
+        Route::post('/devices/{id}/verify-pin', [ApiController::class, 'verifyDevicePin'])->whereNumber('id')->middleware('throttle:10,1');
 
         // Geocercas del Panel del Padre (item roadmap #32), scoped por perfil.
         Route::get('/profiles/{id}/geofences', [ApiController::class, 'profileGeofences'])->whereNumber('id');
