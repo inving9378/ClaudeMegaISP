@@ -12,23 +12,23 @@ class CommissionRuleController extends Controller
 {
     public function index()
     {
-        return view('meganet.module.setting.commission.index');
+        return view('core-configuracion::commission.index');
     }
 
     public function create()
     {
-        return view('meganet.module.setting.commission.add');
+        return view('core-configuracion::commission.add');
     }
 
     public function edit($id_rule)
     {
-        return view('meganet.module.setting.commission.edit', compact('id_rule'));
+        return view('core-configuracion::commission.edit', compact('id_rule'));
     }
 
 
     public function showVendors($id_rule)
     {
-        return view('meganet.module.setting.commission.vendors', compact('id_rule'));
+        return view('core-configuracion::commission.vendors', compact('id_rule'));
     }
 
     public function getAllRules()

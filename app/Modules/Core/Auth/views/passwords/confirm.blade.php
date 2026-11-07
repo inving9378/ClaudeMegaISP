@@ -1,4 +1,4 @@
-@extends('meganet.layouts.master-without-nav')
+@extends('core-layout::master-without-nav')
 @section('title')
 Confirm Password
 @endsection

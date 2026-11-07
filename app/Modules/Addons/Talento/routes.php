@@ -562,6 +562,7 @@ Route::middleware(['auth:sanctum', 'talento.cuenta_activa'])
         Route::post('/ots/{id}/iniciar',              [TalentoMobileApiController::class, 'iniciarOT']);
         Route::post('/ots/{id}/completar',            [TalentoMobileApiController::class, 'completarOT']);
         Route::post('/ots/{id}/incidencia',           [TalentoMobileApiController::class, 'reportarIncidencia']);
+        Route::post('/ots/{id}/reprogramar',          [TalentoMobileApiController::class, 'reprogramarOT']);
         Route::put('/ots/{id}/nota',                  [TalentoMobileApiController::class, 'guardarNota']);
 
         Route::get('/compensacion/semana',    [TalentoMobileApiController::class, 'compensacionSemana']);

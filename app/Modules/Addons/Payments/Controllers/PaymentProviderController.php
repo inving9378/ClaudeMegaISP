@@ -2,6 +2,8 @@
 
 namespace App\Modules\Addons\Payments\Controllers;
 
+use Illuminate\Support\Facades\Log;
+use Illuminate\Contracts\Encryption\DecryptException;
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\Payments\Models\PaymentProvider;
 use Illuminate\Http\JsonResponse;
@@ -96,7 +98,15 @@ class PaymentProviderController extends Controller
 
     private function summary(PaymentProvider $p): array
     {
-        $cfg = $p->config ?? [];
+        // Un config cifrado con otra APP_KEY no debe tumbar la lista completa de proveedores.
+        $configIlegible = false;
+        try {
+            $cfg = $p->config ?? [];
+        } catch (DecryptException $e) {
+            $cfg = [];
+            $configIlegible = true;
+            Log::warning('Proveedor de pago con config ilegible', ['provider_id' => $p->id]);
+        }
         // Solo metadatos del config — los secretos quedan ocultos
         $cfgPreview = [
             'merchant_id'  => $cfg['merchant_id'] ?? null,
@@ -110,6 +120,7 @@ class PaymentProviderController extends Controller
             'provider'     => $p->provider,
             'is_active'    => $p->is_active,
             'config_meta'  => $cfgPreview,
+            'config_ilegible' => $configIlegible,
             'created_at'   => $p->created_at,
             'updated_at'   => $p->updated_at,
         ];

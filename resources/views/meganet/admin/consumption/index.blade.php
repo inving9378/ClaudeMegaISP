@@ -24,6 +24,9 @@
                 </form>
             </div>
             <div class="card-body">
+                @if(!empty($radiusNoDisponible))
+                    <div class="alert alert-warning" role="alert">No se pudo consultar RADIUS. Intenta de nuevo o revisa la conexión.</div>
+                @endif
                 <div class="table-responsive">
                     <table class="table table-bordered table-striped" id="consumptionTable" width="100%"
                            cellspacing="0">

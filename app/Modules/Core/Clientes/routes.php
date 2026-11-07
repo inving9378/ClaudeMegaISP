@@ -85,7 +85,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::prefix('document')->group(function () {
             Route::post('/add/{idClient}', [DocumentClientController::class, 'store']);
             Route::post('/update/{idClient}', [DocumentClientController::class, 'update']);
-            Route::post('/upload-file/{id}', [DocumentClientController::class, 'uploadFile']);
             Route::post('/table', [DocumentClientController::class, 'table']);
             Route::post('/destroy/{id}', [DocumentClientController::class, 'destroy']);
             Route::post('/generate_contract/{id}', [DocumentClientController::class, 'generateContract']);
@@ -213,8 +212,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             // Facturas
             Route::prefix('invoice')->group(function () {
                 Route::post('/crear/{id}', [ClientInvoiceController::class, 'store']);
-                Route::post('/update/{id}', [ClientInvoiceController::class, 'update']);
-                Route::post('/get-totals/{id}', [ClientInvoiceController::class, 'getTotals']);
                 Route::post('/destroy/{id}', [ClientInvoiceController::class, 'destroy']);
                 Route::post('/table', [ClientInvoiceController::class, 'table']);
                 Route::get('/pdf/{id}', [ClientInvoiceController::class, 'getPrintPdf']);

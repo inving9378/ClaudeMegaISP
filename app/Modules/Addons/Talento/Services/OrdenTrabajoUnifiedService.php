@@ -212,10 +212,22 @@ class OrdenTrabajoUnifiedService
             'notas'                   => $task->description,
             'nota_tecnico'            => $task->nota_tecnico,
             'scheduled_at'            => $scheduledAt,
+            // Item #1158: la app avisa que está atrasada y ofrece reprogramarla, igual que «Mi día».
+            'atrasada'                => $this->estaAtrasada($task, $scheduledAt),
+            'fecha'                   => $scheduledAt ? substr($scheduledAt, 0, 10) : null,
             'potencia_referencia_dbm' => null,
             'evidencias'              => $evidencias,
             'evidencias_requeridas'   => $requeridas,
         ]);
+    }
+
+    private function estaAtrasada(Task $task, ?string $scheduledAt): bool
+    {
+        return config('talento.ordenes_atrasadas_en_mi_dia', true)
+            && $scheduledAt !== null
+            && in_array($task->status, AgendaOrdenesService::ESTADOS_ABIERTOS, true)
+            && ! $task->validated_at
+            && substr($scheduledAt, 0, 10) < now()->toDateString();
     }
 
     // ── API pública READ ──────────────────────────────────────────────────────
@@ -273,11 +285,14 @@ class OrdenTrabajoUnifiedService
     /**
      * Calendario de la app (2026-11-05): órdenes y tareas de la persona que tocan los días entre
      * $desde y $hasta, con las mismas reglas que Scheduling › Calendario. Una tarea de varios días
-     * sale aunque haya empezado antes del rango.
+     * sale aunque haya empezado antes del rango. Lo atrasado se ve siempre: si el rango incluye hoy,
+     * también llega lo abierto de antes del rango, para que la app lo muestre al ver hoy.
      */
     public function calendarioDe(int $colaboradorId, string $desde, string $hasta): array
     {
         $userId = $this->getUserId($colaboradorId);
+        $hoy = now()->toDateString();
+        $incluyeAtrasadas = $hoy >= $desde && $hoy <= $hasta;
 
         $tareas = ($userId)
             ? Task::with(['talentoType'])
@@ -285,11 +300,17 @@ class OrdenTrabajoUnifiedService
                 ->where(fn($q) => $q->whereNull('archived')->orWhere('archived', false))
                 ->whereNotIn('status', ['Archivado', 'Cancelled', 'Canceled', 'Cancelado', 'Cancelada'])
                 ->whereDate('start_date', '<=', $hasta)
-                ->where(fn($q) => $q->whereDate('start_date', '>=', $desde)->orWhere('end_time', '>=', $desde))
+                ->where(function ($q) use ($desde, $incluyeAtrasadas) {
+                    $q->whereDate('start_date', '>=', $desde)->orWhere('end_time', '>=', $desde);
+                    if ($incluyeAtrasadas) {
+                        $q->orWhereIn('status', AgendaOrdenesService::ESTADOS_ABIERTOS);
+                    }
+                })
                 ->get()
-                ->map(function (Task $t) use ($desde) {
+                ->map(function (Task $t) use ($desde, $incluyeAtrasadas) {
                     [$inicio, $fin] = \App\Services\TaskScheduleService::ventana($t->start_date, $t->start_time, $t->end_time);
-                    if (! $inicio || $fin->toDateString() < $desde) {
+                    $abierta = in_array($t->status, AgendaOrdenesService::ESTADOS_ABIERTOS, true);
+                    if (! $inicio || ($fin->toDateString() < $desde && ! ($incluyeAtrasadas && $abierta))) {
                         return null;
                     }
                     $resumen = $this->summaryFromTask($t);
@@ -301,7 +322,7 @@ class OrdenTrabajoUnifiedService
                         'titulo'    => $t->title ?: ($t->talentoType?->name ?? 'Tarea'),
                         'prioridad' => $t->priority,
                         'estado'    => $t->status,
-                        'atrasada'  => in_array($t->status, AgendaOrdenesService::ESTADOS_ABIERTOS, true) && $fin->lt(now()),
+                        'atrasada'  => $abierta && $fin->lt(now()),
                         'inicio'    => $inicio->format('Y-m-d\\TH:i:s'),
                         'fin'       => $fin->format('Y-m-d\\TH:i:s'),
                         'cliente'   => $resumen['cliente'],
@@ -1723,15 +1744,7 @@ class OrdenTrabajoUnifiedService
         }
 
         $valor  = (float)$ultimoDbm;
-        $umbral = DB::table('talento_dbm_thresholds')
-            ->where(function ($q) use ($valor) {
-                $q->whereNull('dbm_min')->orWhere('dbm_min', '<=', $valor);
-            })
-            ->where(function ($q) use ($valor) {
-                $q->whereNull('dbm_max')->orWhere('dbm_max', '>=', $valor);
-            })
-            ->orderBy('sort_order')
-            ->first();
+        $umbral = $this->umbralDbm($valor);
 
         if ($umbral && $umbral->accion === 'bloquea') {
             return [
@@ -1751,6 +1764,20 @@ class OrdenTrabajoUnifiedService
                 ? ['categoria' => $umbral->categoria, 'mensaje' => $umbral->mensaje]
                 : null,
         ];
+    }
+
+    /** El rango de talento_dbm_thresholds en que cae una lectura. */
+    private function umbralDbm(float $valor): ?object
+    {
+        return DB::table('talento_dbm_thresholds')
+            ->where(function ($q) use ($valor) {
+                $q->whereNull('dbm_min')->orWhere('dbm_min', '<=', $valor);
+            })
+            ->where(function ($q) use ($valor) {
+                $q->whereNull('dbm_max')->orWhere('dbm_max', '>=', $valor);
+            })
+            ->orderBy('sort_order')
+            ->first();
     }
 
     /**
@@ -1779,8 +1806,13 @@ class OrdenTrabajoUnifiedService
         $bonusMonto = (float)(DB::table('settings')->where('key', 'talento_health_bonus_amount')->value('value') ?? 30);
         $perdida    = abs($potencia);
         $bono       = $perdida <= $maxLoss ? $bonusMonto : 0;
+        $umbral     = $this->umbralDbm($potencia);
 
         return [
+            // La app muestra categoría y mensaje al guardar la lectura; son los del mismo rango que usa el cierre.
+            'categoria'           => ['cumplio' => 'cumplió', 'baja_senal' => 'baja'][$umbral->categoria ?? '']
+                                        ?? $umbral->categoria ?? 'sin clasificar',
+            'mensaje'             => $umbral->mensaje ?? 'Lectura guardada.',
             'potencia_medida_dbm' => $potencia,
             'max_loss_db'         => $maxLoss,
             'perdida_estimada_db' => round($perdida, 2),

@@ -88,12 +88,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::post('/monitoreo-dedicados', [MonitoreoDedicadosController::class, 'guardar']);
 
         Route::post('/debt-payment-client-recurrent', [SettingController::class, 'debtPaymentClientRecurrent']);
-        Route::post('/debt-payment-client-custom', [SettingController::class, 'debtPaymentClientCustom']);
 
         Route::group(['prefix' => 'debitcustom'], function () {
             Route::get('/', [SettingDebitPaymentCustomController::class, 'index']);
             Route::post('/add', [SettingDebitPaymentCustomController::class, 'store']);
-            Route::get('/editar/{id}', [SettingDebitPaymentCustomController::class, 'edit']);
             Route::post('/update/{id}', [SettingDebitPaymentCustomController::class, 'update']);
             Route::post('/destroy/{id}', [SettingDebitPaymentCustomController::class, 'destroy']);
             Route::post('/table', [SettingDebitPaymentCustomController::class, 'table']);
@@ -127,7 +125,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::group(['prefix' => 'additional-fields'], function () {
             Route::get('/', [SettingAdditionalFieldController::class, 'index']);
             Route::post('/add', [SettingAdditionalFieldController::class, 'store']);
-            Route::get('/editar/{id}', [SettingAdditionalFieldController::class, 'edit']);
             Route::post('/update/{id}', [SettingAdditionalFieldController::class, 'update']);
             Route::post('/destroy/{id}', [SettingAdditionalFieldController::class, 'destroy']);
             Route::post('/table', [SettingAdditionalFieldController::class, 'table']);
@@ -139,7 +136,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/', [ImportController::class, 'index']);
             Route::get('/crear', [ImportController::class, 'create']);
             Route::post('/create', [ImportController::class, 'store']);
-            Route::get('/{id}/editar', [ImportController::class, 'edit']);
             Route::post('/{id}/update', [ImportController::class, 'update']);
             Route::post('/destroy/{id}', [ImportController::class, 'destroy']);
             Route::post('/table', [ImportController::class, 'table']);
@@ -390,7 +386,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::prefix('socios')->group(function () {
             Route::get('/', [PartnerController::class, 'index']);
             Route::post('/add', [PartnerController::class, 'store']);
-            Route::get('/editar/{id}', [PartnerController::class, 'edit']);
             Route::post('/update/{id}', [PartnerController::class, 'update']);
             Route::post('/destroy/{id}', [PartnerController::class, 'destroy']);
             Route::post('/table', [PartnerController::class, 'table']);
@@ -399,7 +394,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::prefix('ift')->group(function () {
             Route::get('/', [IftController::class, 'index']);
             Route::post('/add', [IftController::class, 'store']);
-            Route::get('/editar/{id}', [IftController::class, 'edit']);
             Route::post('/update/{id}', [IftController::class, 'update']);
             Route::post('/destroy/{id}', [IftController::class, 'destroy']);
             Route::post('/table', [IftController::class, 'table']);
@@ -408,7 +402,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::prefix('metotdo-de-pago')->group(function () {
             Route::get('/', [MethodOfPaymentController::class, 'index']);
             Route::post('/add', [MethodOfPaymentController::class, 'store']);
-            Route::get('/editar/{id}', [MethodOfPaymentController::class, 'edit']);
             Route::post('/update/{id}', [MethodOfPaymentController::class, 'update']);
             Route::post('/destroy/{id}', [MethodOfPaymentController::class, 'destroy']);
             Route::post('/table', [MethodOfPaymentController::class, 'table']);

@@ -3048,6 +3048,12 @@ return [
         '/ventas/catalogos/parametros-reglamento/{id}',
     ],
 
+    // Consumo de internet de los clientes: usuario, IP y tráfico desde RADIUS (#1186).
+    'consumo_internet.ver' => [
+        '/admin/consumo',
+        '/admin/consumo/{username}',
+    ],
+
     // ══════════════════════════════════════════════════════════════════════════
     // TestScriptController — utilería de debug (item roadmap #9991145, Fase 1 de
     // #9991116). Rutas CRÍTICAS confirmadas: DROP/CREATE TRIGGER sobre payments,
@@ -3055,7 +3061,7 @@ return [
     // plano, liberación de IP sin validar pertenencia. 'log-client' (MEDIO) queda
     // fuera de alcance, sigue solo con 'auth'.
     // ══════════════════════════════════════════════════════════════════════════
-    'sistema_test_script_manage' => [
+    'sistema.test_script.manage' => [
         '/script',
         '/information-dev',
         '/data-client-mikrotik/{id}',
@@ -3065,7 +3071,7 @@ return [
 
     // ══════════════════════════════════════════════════════════════════════════
     // TestScriptController (item #505): solo /log-client. Las otras 5 rutas las cubre
-    // sistema_test_script_manage (#9991145), decisión posterior y más restrictiva.
+    // sistema.test_script.manage (#9991145), decisión posterior y más restrictiva.
     // ══════════════════════════════════════════════════════════════════════════
     'test.script.ejecutar' => [
         '/log-client',

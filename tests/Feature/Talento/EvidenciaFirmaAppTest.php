@@ -95,4 +95,22 @@ class EvidenciaFirmaAppTest extends TestCase
             ->assertStatus(422)
             ->assertJsonValidationErrors('foto');
     }
+
+    public function test_la_lectura_de_senal_le_dice_a_la_app_su_categoria_y_mensaje(): void
+    {
+        DB::table('talento_dbm_thresholds')->insert([
+            'dbm_min' => -21, 'dbm_max' => -19, 'categoria' => 'excelente', 'accion' => 'ok',
+            'mensaje' => 'Mensaje sintético.', 'aplica_bono' => true, 'sort_order' => 0,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $res = $this->withHeaders(['Accept' => 'application/json'])->post("/talento/api/ots/{$this->tareaId}/evidencia", [
+            'foto' => UploadedFile::fake()->image('senal.jpg', 800, 600), 'evidence_type_id' => $this->tipoFoto,
+            'lat' => 19.43, 'lng' => -99.13, 'potencia_dbm' => -20,
+        ]);
+
+        $res->assertStatus(201);
+        $this->assertSame('excelente', $res->json('salud_red.categoria'));
+        $this->assertSame('Mensaje sintético.', $res->json('salud_red.mensaje'));
+    }
 }

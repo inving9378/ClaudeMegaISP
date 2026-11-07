@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\ClientInternetService;
 use Carbon\Carbon;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class InternetConsumptionRadiusController extends Controller
 {
@@ -14,20 +17,31 @@ class InternetConsumptionRadiusController extends Controller
         $mesActual = $request->get('month', Carbon::now()->month);
         $anioActual = $request->get('year', Carbon::now()->year);
 
-        $consumos = DB::connection('radius')->table('radacct')
-            ->select(
-                'username',
-                // Obtenemos la última IP registrada para este usuario
-                DB::raw('MAX(framedipaddress) as last_ip'),
-                DB::raw('SUM(acctinputoctets) as upload'),
-                DB::raw('SUM(acctoutputoctets) as download'),
-                DB::raw('SUM(acctsessiontime) as total_time'),
-                DB::raw('COUNT(radacctid) as total_sessions')
-            )
-            ->whereMonth('acctstarttime', $mesActual)
-            ->whereYear('acctstarttime', $anioActual)
-            ->groupBy('username')
-            ->get();
+        try {
+            $consumos = DB::connection('radius')->table('radacct')
+                ->select(
+                    'username',
+                    // Obtenemos la última IP registrada para este usuario
+                    DB::raw('MAX(framedipaddress) as last_ip'),
+                    DB::raw('SUM(acctinputoctets) as upload'),
+                    DB::raw('SUM(acctoutputoctets) as download'),
+                    DB::raw('SUM(acctsessiontime) as total_time'),
+                    DB::raw('COUNT(radacctid) as total_sessions')
+                )
+                ->whereMonth('acctstarttime', $mesActual)
+                ->whereYear('acctstarttime', $anioActual)
+                ->groupBy('username')
+                ->get();
+        } catch (QueryException $e) {
+            Log::warning('Consumo de internet: RADIUS no responde', ['error' => $e->getMessage()]);
+
+            return view('meganet.admin.consumption.index', [
+                'data' => collect(),
+                'mesActual' => $mesActual,
+                'anioActual' => $anioActual,
+                'radiusNoDisponible' => true,
+            ]);
+        }
 
         $nombresClientes = ClientInternetService::pluck('client_name', 'client_name')->toArray();
 
@@ -55,16 +69,23 @@ class InternetConsumptionRadiusController extends Controller
     public function show($username)
     {
         // Buscamos las sesiones en la base de datos de Radius
-        $sesiones = DB::connection('radius')->table('radacct')
-            ->where('username', $username)
-            ->orderBy('acctstarttime', 'desc')
-            ->paginate(20);
+        $radiusNoDisponible = false;
+        try {
+            $sesiones = DB::connection('radius')->table('radacct')
+                ->where('username', $username)
+                ->orderBy('acctstarttime', 'desc')
+                ->paginate(20);
+        } catch (QueryException $e) {
+            Log::warning('Consumo de internet: RADIUS no responde', ['error' => $e->getMessage()]);
+            $sesiones = new LengthAwarePaginator([], 0, 20);
+            $radiusNoDisponible = true;
+        }
 
         // Opcional: Obtener el nombre real desde Meganet para el título
         $cliente = \App\Models\ClientInternetService::where('client_name', $username)->first();
         $nombreReal = $cliente ? $cliente->client_name : $username;
 
-        return view('meganet.admin.consumption.show', compact('sesiones', 'username', 'nombreReal'));
+        return view('meganet.admin.consumption.show', compact('sesiones', 'username', 'nombreReal', 'radiusNoDisponible'));
     }
 
     private function formatBytes($bytes, $precision = 2)

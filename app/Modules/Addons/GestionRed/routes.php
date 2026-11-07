@@ -69,20 +69,14 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('red')->gro
         Route::post('/table', [RouterController::class, 'table']);
 
         Route::prefix('mikrotik')->group(function () {
-            Route::get('/crear', [MikrotikController::class, 'create']);
-            Route::post('/add', [MikrotikController::class, 'store']);
-            Route::get('/editar/{id}', [MikrotikController::class, 'edit']);
             Route::post('/update/{id}', [MikrotikController::class, 'update']);
-            Route::post('/crear/{id}', [MikrotikController::class, 'store']);
             Route::post('/destroy/{id}', [MikrotikController::class, 'destroy']);
             Route::post('/table', [MikrotikController::class, 'table']);
             Route::get('/cleantails', [MikrotikController::class, 'clearMikrotikTails']);
             Route::get('/read-notification/{id}', [RouterController::class, 'readNotification']);
 
             Route::prefix('config')->group(function () {
-                Route::get('/editar/{id}', [MikrotikConfigController::class, 'edit']);
                 Route::post('/update/{id}', [MikrotikConfigController::class, 'update']);
-                Route::post('/crear/{id}', [MikrotikConfigController::class, 'store']);
                 Route::post('/destroy/{id}', [MikrotikConfigController::class, 'destroy']);
             });
         });
@@ -203,7 +197,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('olts')->gr
 
         Route::prefix('profiles')->group(function () {
             Route::post('/', [OLTsProfilesController::class, 'index']);
-            Route::post('/store', [OLTsProfilesController::class, 'store']);
         });
 
         Route::prefix('olts')->group(function () {

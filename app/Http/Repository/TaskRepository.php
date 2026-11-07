@@ -41,6 +41,8 @@ class TaskRepository
     {
         return $this->model
             ->where(fn ($q) => $q->whereDate('start_time', '<', now())->orWhereNull('start_time'))
+            // Lo terminado o archivado conserva su fecha: moverlo a hoy borra cuándo se hizo.
+            ->whereIn('status', ['ToDo', 'InProgress'])
             // Item #1158: con las atrasadas encendidas, una orden de Talento conserva su día (sale en
             // rojo en «Mi día» hasta que se termine o se reprograme con motivo); no se mueve a hoy.
             ->when(config('talento.ordenes_atrasadas_en_mi_dia', true), fn ($q) => $q->whereNull('talento_type_id'))

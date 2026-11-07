@@ -30,8 +30,14 @@ class TaskService
         if (config('unificacion.interruptores.calendario_f4') && !empty($filters['rango_inicio']) && !empty($filters['rango_fin'])) {
             $desde = Carbon::parse($filters['rango_inicio'])->toDateString();
             $hasta = Carbon::parse($filters['rango_fin'])->toDateString();
-            $query->whereBetween('tasks.start_date', [$desde, $hasta])
-                ->whereNotIn('tasks.status', ['Cancelled', 'Canceled', 'Cancelado', 'Cancelada']);
+            $hoy = now()->toDateString();
+            $query->where(function ($q) use ($desde, $hasta, $hoy) {
+                $q->whereBetween('tasks.start_date', [$desde, $hasta]);
+                // Lo atrasado se ve siempre: si el rango incluye hoy, también lo abierto de antes del rango.
+                if ($hoy >= $desde && $hoy <= $hasta) {
+                    $q->orWhere(fn ($a) => $a->whereIn('tasks.status', ['ToDo', 'InProgress'])->whereDate('tasks.start_date', '<', $desde));
+                }
+            })->whereNotIn('tasks.status', ['Cancelled', 'Canceled', 'Cancelado', 'Cancelada']);
         }
 
         return $query->get();

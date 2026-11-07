@@ -147,6 +147,7 @@ import { onMounted, ref, watch, nextTick } from "vue";
 import {
     getfieldsJson,
     getfieldsEdited,
+    resetCrudForm,
     updateThisField,
     clearError,
     fieldsJson,
@@ -200,6 +201,9 @@ export default {
         );
 
         const initComponent = async (action) => {
+            // Se vacía antes de cargar: el título y la descripción ya en pantalla no toman los datos
+            // nuevos, así que salían vacíos o con los de la tarea abierta antes.
+            resetCrudForm();
             let idItem = await getIdByAction(action);
             if (action == "/scheduling/task/add") {
                 id.value = null;

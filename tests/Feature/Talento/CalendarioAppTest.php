@@ -115,6 +115,32 @@ class CalendarioAppTest extends TestCase
         $this->assertFalse($eventos[$porVenir]['atrasada']);
     }
 
+    public function test_lo_atrasado_de_antes_del_rango_llega_si_el_rango_incluye_hoy(): void
+    {
+        $vieja = now()->subDays(40)->format('Y-m-d H:i:s');
+        $abierta = $this->tarea($this->yo, $vieja, $vieja);
+        $enCurso = $this->tarea($this->yo, $vieja, $vieja, ['status' => 'InProgress']);
+        $terminada = $this->tarea($this->yo, $vieja, $vieja, ['status' => 'Done']);
+        $ajena = $this->tarea($this->otro, $vieja, $vieja);
+
+        $eventos = $this->eventos(now()->startOfWeek()->toDateString(), now()->endOfWeek()->toDateString())->keyBy('id');
+
+        $this->assertTrue($eventos[$abierta]['atrasada']);
+        $this->assertTrue($eventos[$enCurso]['atrasada']);
+        $this->assertFalse($eventos->has($terminada));
+        $this->assertFalse($eventos->has($ajena));
+    }
+
+    public function test_lo_atrasado_de_antes_del_rango_no_llega_si_el_rango_no_incluye_hoy(): void
+    {
+        $vieja = now()->subDays(40)->format('Y-m-d H:i:s');
+        $abierta = $this->tarea($this->yo, $vieja, $vieja);
+
+        $ids = $this->eventos(now()->addDays(5)->toDateString(), now()->addDays(10)->toDateString())->pluck('id');
+
+        $this->assertFalse($ids->contains($abierta));
+    }
+
     public function test_distingue_orden_de_tarea_y_manda_lo_que_pinta_la_app(): void
     {
         $tipo = DB::table('talento_work_order_types')->insertGetId([

@@ -310,7 +310,7 @@ class Client extends BaseModel
 
     public function getClientNameAttribute()
     {
-        return $this->client_main_information->name;
+        return $this->client_main_information?->name;
     }
 
     public function getPriceAllServicesAttribute()

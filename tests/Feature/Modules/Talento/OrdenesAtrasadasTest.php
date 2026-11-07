@@ -129,4 +129,22 @@ class OrdenesAtrasadasTest extends TestCase
         $this->assertSame($ayer, $tarea->fresh()->start_date);
         $this->assertSame($ayer, $orden->fresh()->start_date);
     }
+
+    public function test_la_tarea_de_fechas_pasadas_solo_mueve_lo_abierto(): void
+    {
+        config(['unificacion.interruptores.fechas_atrasadas_intactas_f2' => false]);
+        $ayer  = now()->subDay()->toDateString();
+        $tarea = fn (string $status) => Task::create(['title' => "UNI-PRUEBA {$status}", 'status' => $status, 'start_date' => $ayer, 'start_time' => $ayer . ' 09:00:00']);
+        $abiertas = [$tarea('ToDo'), $tarea('InProgress')];
+        $cerradas = [$tarea('Done'), $tarea('Archivado')];
+
+        $this->artisan('update_task_old_command:process')->assertExitCode(0);
+
+        foreach ($abiertas as $t) {
+            $this->assertSame(now()->toDateString(), substr((string) $t->fresh()->start_time, 0, 10), $t->status);
+        }
+        foreach ($cerradas as $t) {
+            $this->assertSame($ayer, substr((string) $t->fresh()->start_time, 0, 10), $t->status);
+        }
+    }
 }

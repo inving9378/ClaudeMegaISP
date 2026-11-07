@@ -42,12 +42,12 @@ class RuleDatatableHelper extends HelperModuleDatatable
                 ];
 
                 //if ($type_modal_edit) $info = Arr::add($info, 'modal', $request['request']->modal['modal']);
-                $nestedData['action'] = view('meganet.module.setting.rules.columns.actions' . $type_modal_edit, $info)->toHtml();
+                $nestedData['action'] = view('core-configuracion::rules.columns.actions' . $type_modal_edit, $info)->toHtml();
 
-                $nestedData['sellers_count'] =  view('meganet.module.setting.rules.columns.sellers' . $type_modal_edit, ['sellers' => $value->sellers_count])->toHtml();
-                $nestedData['name'] =  view('meganet.module.setting.rules.columns.name' . $type_modal_edit, ['id' => $value->id, 'name' => $value->name])->toHtml();
-                $nestedData['monthly_bonus'] =  isset($value->monthly_bonus) ? view('meganet.module.setting.rules.columns.monthly_bonus' . $type_modal_edit, ['commission' => $value->monthly_bonus])->toHtml() : '';
-                $nestedData['distributors_commission'] =  isset($value->distributors_commission) ? view('meganet.module.setting.rules.columns.distributors_commission' . $type_modal_edit, ['commission' => $value->distributors_commission, 'contracts' => $contracts])->toHtml() : '';
+                $nestedData['sellers_count'] =  view('core-configuracion::rules.columns.sellers' . $type_modal_edit, ['sellers' => $value->sellers_count])->toHtml();
+                $nestedData['name'] =  view('core-configuracion::rules.columns.name' . $type_modal_edit, ['id' => $value->id, 'name' => $value->name])->toHtml();
+                $nestedData['monthly_bonus'] =  isset($value->monthly_bonus) ? view('core-configuracion::rules.columns.monthly_bonus' . $type_modal_edit, ['commission' => $value->monthly_bonus])->toHtml() : '';
+                $nestedData['distributors_commission'] =  isset($value->distributors_commission) ? view('core-configuracion::rules.columns.distributors_commission' . $type_modal_edit, ['commission' => $value->distributors_commission, 'contracts' => $contracts])->toHtml() : '';
 
                 $data[] = $nestedData;
             }

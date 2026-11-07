@@ -730,6 +730,34 @@ class TalentoMobileApiController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    // ── Reprogramar ─────────────────────────────────────────────────────────
+
+    /**
+     * POST /talento/api/ots/{id}/reprogramar: la persona mueve SU orden a otro día y dice por qué
+     * (item #1158). Las reglas son las de «Mi día» en la web; el motivo queda en el historial.
+     */
+    public function reprogramarOT(Request $request, int $id)
+    {
+        $data = $request->validate([
+            'fecha'  => 'required|date',
+            'motivo' => 'required|string|min:5|max:500',
+        ], [
+            'fecha.required'  => 'Elige el nuevo día.',
+            'motivo.required' => 'Escribe por qué se mueve la orden.',
+            'motivo.min'      => 'Escribe por qué se mueve la orden.',
+        ]);
+
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) return $this->noColaborador();
+
+        $r = $this->unified->reprogramarPropia($id, $colaborador->id, $data['fecha'], $data['motivo'], $request->user()->id);
+        if (! $r['ok']) {
+            return response()->json(['message' => $r['mensaje']], $r['codigo']);
+        }
+
+        return response()->json($r);
+    }
+
     // ── Historial de OTs ──────────────────────────────────────────────────────
 
     public function otHistorial(Request $request)

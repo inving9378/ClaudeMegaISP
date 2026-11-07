@@ -301,13 +301,6 @@
         },
         {
             "method": "POST",
-            "path": "/red/router/mikrotik/add",
-            "description": "Crea la configuración MikroTik de un router",
-            "scope": "router_add_router",
-            "permission": "router_add_router"
-        },
-        {
-            "method": "POST",
             "path": "/red/router/mikrotik/update/{id}",
             "description": "Actualiza la configuración MikroTik de un router",
             "scope": "router_edit_router",

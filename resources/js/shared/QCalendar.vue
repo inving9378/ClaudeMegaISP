@@ -67,6 +67,11 @@ function suave(hex, a) {
     return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
+/** Date → "YYYY-MM-DD" con la fecha local. */
+function dia(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function iniciales(nombre) {
     const partes = String(nombre || "").trim().split(/\s+/).filter(Boolean);
     if (!partes.length) return "";
@@ -171,7 +176,8 @@ export default {
                     rango_inicio: info.startStr,
                     rango_fin: info.endStr,
                 });
-                ok((Array.isArray(data) ? data : []).map((e) => this.evento(e)));
+                const eventos = (Array.isArray(data) ? data : []).map((e) => this.evento(e));
+                ok(eventos.concat(this.atrasadasEnHoy(eventos, info)));
             } catch (e) {
                 window.console.error("Calendario: no se pudieron cargar las tareas", e);
                 this.error = "No se pudieron cargar las tareas. Vuelve a intentar en un momento.";
@@ -186,7 +192,6 @@ export default {
             const ini = new Date(e.start);
             const fin = e.end ? new Date(e.end) : null;
             const variosDias = !!fin && fin - ini >= 864e5;
-            const dia = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
             const finExclusivo = variosDias
                 ? dia(new Date(fin.getFullYear(), fin.getMonth(), fin.getDate() + (fin.getHours() || fin.getMinutes() ? 1 : 0)))
                 : null;
@@ -210,20 +215,47 @@ export default {
                 },
             };
         },
+        // Lo atrasado se ve siempre (6-nov-2026): con hoy en pantalla, además de en su día sale en la franja
+        // «Todo el día» de hoy. Es una copia sin arrastre; al abrirla se edita la tarea de verdad.
+        atrasadasEnHoy(eventos, info) {
+            const ahora = new Date();
+            if (ahora < info.start || ahora >= info.end) return [];
+            const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+            return eventos
+                .filter((e) => e.extendedProps.abierta && e.extendedProps.finReal < hoy.getTime())
+                .map((e) => {
+                    const fin = new Date(e.extendedProps.finReal);
+                    const diaFin = new Date(fin.getFullYear(), fin.getMonth(), fin.getDate());
+                    return {
+                        ...e,
+                        id: `${e.id}-hoy`,
+                        start: dia(hoy),
+                        end: null,
+                        allDay: true,
+                        editable: false,
+                        extendedProps: {
+                            ...e.extendedProps,
+                            idTarea: e.id,
+                            diasAtraso: Math.round((hoy - diaFin) / 864e5),
+                        },
+                    };
+                });
+        },
         contenido(arg) {
             const ev = arg.event;
             const p = ev.extendedProps;
+            const atraso = p.diasAtraso ? `${p.diasAtraso} ${p.diasAtraso === 1 ? "día" : "días"}` : "";
             const atrasada = p.abierta && p.finReal < Date.now();
             const lista = arg.view.type.startsWith("list");
             const horas = arg.view.type.startsWith("timeGrid");
 
             const caja = document.createElement("div");
             caja.className = "gc-ev event_edit_task" + (p.estado === "Done" ? " gc-ev-hecha" : "") + (lista ? " gc-ev-lista" : "");
-            caja.dataset.idItem = ev.id;
+            caja.dataset.idItem = p.idTarea ?? ev.id;
             if (p.clienteInfo) caja.dataset.clientInformation = p.clienteInfo;
             caja.style.setProperty("--gc-c", p.color);
             caja.style.setProperty("--gc-c-suave", suave(p.color, 0.14));
-            caja.title = [ev.title, p.hora, p.persona].filter(Boolean).join(" · ");
+            caja.title = [ev.title, atraso && `Atrasada ${atraso}`, p.hora, p.persona].filter(Boolean).join(" · ");
 
             const fila = document.createElement("div");
             fila.className = "gc-ev-fila";
@@ -247,7 +279,7 @@ export default {
 
             const t = document.createElement("span");
             t.className = "gc-ev-titulo";
-            t.textContent = (!horas && !lista && p.hora ? p.hora + " " : "") + ev.title;
+            t.textContent = atraso ? `${atraso} · ${ev.title}` : (!horas && !lista && p.hora ? p.hora + " " : "") + ev.title;
             fila.appendChild(t);
 
             if (p.persona) {

@@ -49,6 +49,8 @@ return new class extends Migration
         'mapa_red_fotos_ver'           => 'Ver fotos de nodos/enlaces del Mapa de Red',
         'mapa_red_fotos_subir'         => 'Subir fotos a nodos/enlaces del Mapa de Red',
         'mapa_red_fotos_eliminar'      => 'Eliminar fotos de nodos/enlaces del Mapa de Red',
+        'mapa_red_catalogo_view'       => 'Ver catálogos del Mapa de Red',
+        'mapa_red_catalogo_manage'     => 'Gestionar catálogos del Mapa de Red (crear/editar/eliminar)',
     ];
 
     private const ROLES = ['super-administrator', 'DESARROLLADOR'];

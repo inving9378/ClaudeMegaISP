@@ -48,7 +48,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::group(['prefix' => 'document'], function () {
             Route::post('/add/{idCrm}', [DocumentCrmController::class, 'store']);
             Route::post('/update/{idCrm}', [DocumentCrmController::class, 'update']);
-            Route::post('/upload-file/{id}', [DocumentCrmController::class, 'uploadFile']);
             Route::post('/table', [DocumentCrmController::class, 'table']);
             Route::post('/destroy/{id}', [DocumentCrmController::class, 'destroy']);
             Route::post('/generate_contract/{id}', [DocumentCrmController::class, 'generateContract']);

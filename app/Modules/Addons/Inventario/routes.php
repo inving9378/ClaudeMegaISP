@@ -36,8 +36,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('inventory'
         Route::post('/add-custom', [InventoryItemController::class, 'storeCustom']);
         Route::post('/update/{id}', [InventoryItemController::class, 'update']);
         Route::post('/destroy/{id}', [InventoryItemController::class, 'destroy']);
-        Route::post('/assign_to_user/{id}', [InventoryItemController::class, 'assignToUser']);
-        Route::post('/change_store/{id}', [InventoryItemController::class, 'changeStore']);
         Route::post('/add_movement', [InventoryItemController::class, 'addMovement']);
         Route::post('/table', [InventoryItemController::class, 'table']);
     });

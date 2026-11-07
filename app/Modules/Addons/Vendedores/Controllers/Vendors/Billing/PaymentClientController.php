@@ -23,7 +23,8 @@ class PaymentClientController extends Controller
 {
     public function index()
     {
-        return view('meganet.module.vendors.payment');
+        // La vista nunca existió en el repo: los pagos se consultan desde la ficha del vendedor.
+        return redirect('/vendedores');
     }
 
     public function getListPaymentsOfCustomersBySeller(Request $request, $id)

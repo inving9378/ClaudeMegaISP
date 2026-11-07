@@ -57,13 +57,15 @@ Route::middleware(['web', 'throttle:60,1'])->get('/csrf-refresh', function () {
 })->name('csrf.refresh');
 
 Route::group(['middleware' => ['auth']], function () {
-    Route::prefix('admin/consumo')->group(function () {
-        Route::get('/', [InternetConsumptionRadiusController::class, 'index'])
-            ->name('consumption.index');
-        Route::get('/{username}', [InternetConsumptionRadiusController::class, 'show'])
-            ->name('consumption.show');
-    });
     Route::group(['middleware' => ['check_route_permission']], function () {
+        // Consumo de internet de los clientes: permiso propio `consumo_internet.ver` (#1186).
+        Route::prefix('admin/consumo')->group(function () {
+            Route::get('/', [InternetConsumptionRadiusController::class, 'index'])
+                ->name('consumption.index');
+            Route::get('/{username}', [InternetConsumptionRadiusController::class, 'show'])
+                ->name('consumption.show');
+        });
+
         // TestScriptController — utilería de debug, 5 rutas CRÍTICAS (item #9991145,
         // Fase 1 de #9991116). Gate: permiso 'sistema.test_script.manage', asignado
         // solo a super-administrator+DESARROLLADOR. 'log-client' (MEDIO) queda fuera
@@ -226,7 +228,6 @@ Route::group(['middleware' => ['auth']], function () {
     Route::post('/get-default-fields-value', 'SharedDefaultValues@getDefaultFieldsValue');
 
     // ConfigAppLayoutController routes movidas a app/Modules/Core/Layout/routes.php
-    Route::post('/getDataTable', 'Controller@getDataToTable');
     Route::get('/read-all-notifications', 'Utils\NotificationController@readAll');
     Route::get('/read-notification/{id}', 'Utils\NotificationController@readNotification');
     // #9990615 — conteo read-only para el poller del badge de la campana.
@@ -239,7 +240,6 @@ Route::group(['middleware' => ['auth']], function () {
 
 Route::group(['prefix' => '/register-vendor'], function () {
     Route::get('', [RegisterVendorController::class, 'index'])->name('register-vendor.index');
-    Route::post('/register', [RegisterVendorController::class, 'register'])->name('register-vendor.register');
 });
 
 Route::get('/notification-email', function () {

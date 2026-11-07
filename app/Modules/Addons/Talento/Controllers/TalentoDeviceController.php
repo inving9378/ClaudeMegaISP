@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Talento\Controllers;
 
+use Illuminate\Database\UniqueConstraintViolationException;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
@@ -113,12 +114,19 @@ class TalentoDeviceController extends Controller
             return response()->json(['status' => 'already_active', 'device' => $existing]);
         }
 
+        // device_key es único en toda la tabla: el teléfono pudo quedar registrado a otra cuenta. Si esa
+        // vinculación sigue activa no se le quita a su dueño; si ya se revocó, el teléfono está libre.
+        $deOtraCuenta = TalentoDevice::where('device_key', $deviceKey)->where('user_id', '!=', $userId)->first();
+        if ($deOtraCuenta && ! $deOtraCuenta->revoked_at) {
+            return $this->dispositivoEnUso();
+        }
+
         // New device key: revoke any currently active device for this user
         TalentoDevice::where('user_id', $userId)
             ->whereNull('revoked_at')
             ->update(['revoked_at' => $now]);
 
-        $device = TalentoDevice::create([
+        $datos = [
             'user_id'           => $userId,
             'device_key'        => $deviceKey,
             'platform'          => $data['platform'] ?? null,
@@ -128,9 +136,24 @@ class TalentoDeviceController extends Controller
             'bound_at'          => $now,
             'last_seen_at'      => $now,
             'revoked_at'        => null,
-        ]);
+        ];
+
+        try {
+            $device = $deOtraCuenta ? tap($deOtraCuenta)->update($datos) : TalentoDevice::create($datos);
+        } catch (UniqueConstraintViolationException $e) {
+            // Otra petición registró el mismo teléfono entre la consulta y el alta.
+            return $this->dispositivoEnUso();
+        }
 
         return response()->json(['status' => 'bound', 'device' => $device], 201);
+    }
+
+    private function dispositivoEnUso(): \Illuminate\Http\JsonResponse
+    {
+        return response()->json([
+            'status'  => 'device_in_use',
+            'message' => 'Este teléfono está vinculado a otra cuenta. Pide a Administración que lo libere.',
+        ], 409);
     }
 
     /**

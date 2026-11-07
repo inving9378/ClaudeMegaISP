@@ -59,8 +59,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('maps')->gr
     Route::get('/zones', [ConnectionsController::class, 'zones']);
     Route::post('/get-clients', [ProyectsController::class, 'clients']);
     Route::post('/clients-without-project', [ProyectsController::class, 'clientsWithoutProject']);
-    Route::resource('/layers', LayersController::class);
-    Route::resource('/projects', ProyectsController::class);
+    Route::resource('/layers', LayersController::class)->except(['create', 'show', 'edit']);
+    Route::resource('/projects', ProyectsController::class)->except(['create', 'show', 'edit']);
     Route::post('/projects/move-folder/{node}/{to}', [ProyectsController::class, 'moveFolder']);
     Route::post('/projects/move-marker/{node}/{to}', [LayersController::class, 'moveMarker']);
     Route::post('/projects/move-folder/{node}', [ProyectsController::class, 'moveFolder']);
@@ -80,7 +80,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('maps')->gr
     Route::post('/layers/update-markers-distance-from-route/{id}', [LayersController::class, 'updateMarkersDistanceFromRoute']);
     Route::delete('/layers/unassign-route/{id}', [LayersController::class, 'unassignRoute']);
     Route::post('/layers/change-route-position/{id}', [LayersController::class, 'changeRoutePosition']);
-    Route::get('/layers/devices/{id}', [LayersController::class, 'devicesFromRack']);
     Route::post('/change-classification', [LayersController::class, 'changeClassification']);
     Route::post('/client-to-service-box/{client}/{box}', [LayersController::class, 'addClientToServiceBox']);
     Route::post('/kmz/{id}', [KMZController::class, 'loadKMZ']);
@@ -90,16 +89,15 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('maps')->gr
     Route::post('/service-box/remove-clients', [ServiceBoxController::class, 'removeClients']);
     Route::post('/service-box/remove-client/{id}', [ServiceBoxController::class, 'removeClient']);
     Route::post('/service-box/add-clients/{id}', [ServiceBoxController::class, 'addClients']);
-    Route::post('/service-box/save-port/{id}', [ServiceBoxController::class, 'savePort']);
     Route::post('/service-box/remove-client-from-drop/{id}', [ServiceBoxController::class, 'removeClientFromDrop']);
 
     // Connections
-    Route::resource('/connections', ConnectionsController::class)->except('index');
+    Route::resource('/connections', ConnectionsController::class)->except(['index', 'create', 'show', 'edit']);
     Route::post('/connections-multiple/{id}', [ConnectionsController::class, 'connectionsMultiple']);
     Route::post('/connections/cut/{id}', [ConnectionsController::class, 'cutConnections']);
 
     // Devices
-    Route::resource('/devices', DevicesController::class)->except('index');
+    Route::resource('/devices', DevicesController::class)->except(['index', 'create', 'show', 'edit']);
     Route::post('/devices/save-port/{id}', [DevicesController::class, 'savePort']);
     Route::post('/devices/add-ports/{id}', [DevicesController::class, 'addPorts']);
     Route::post('/devices/change-card-olt-direction/{id}', [DevicesController::class, 'changeCardOLTDirection']);
@@ -187,7 +185,6 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapas')->g
     Route::post('/map_link/show', [MaplinkController::class, 'show'])->name('maps.map_link.show');
 
     Route::post('/maplinks/list', [MapasController::class, 'getListMapLinks'])->name('maps.getListMapLinks');
-    Route::post('/maplinks/route/store', [MaplinkController::class, 'storeMapLinkRoute'])->name('maps.map_link.route.store');
     Route::post('/maplinks/destroy', [MaplinkController::class, 'destroy'])->name('maps.map_link.destroy');
 
     // MAP
@@ -296,15 +293,12 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapas')->g
     // SPLITTERS
     Route::post('splitter/index', [SplitterController::class, 'index'])->name('maps.splitter.index');
     Route::post('splitter/store', [SplitterController::class, 'store'])->name('maps.splitter.store');
-    Route::post('splitter/update', [SplitterController::class, 'update'])->name('maps.splitter.update');
     Route::post('splitter/destroy', [SplitterController::class, 'destroy'])->name('maps.splitter.destroy');
     Route::post('splitter/list', [SplitterController::class, 'list'])->name('maps.splitter.list');
 
     // TRAY
     Route::post('tray/index', [TrayController::class, 'index'])->name('maps.tray.index');
     Route::post('tray/list', [TrayController::class, 'list'])->name('maps.tray.list');
-    Route::post('tray/store', [TrayController::class, 'store'])->name('maps.tray.store');
-    Route::post('tray/update', [TrayController::class, 'update'])->name('maps.tray.update');
 
     // TABLE
     Route::post('table', [TableController::class, 'getByName'])->name('maps.table');
