@@ -51,7 +51,9 @@ class PreferenciasVistaTest extends TestCase
         $this->guardar($user, 'colores_estado', false)->assertOk();
         $this->guardar($user, 'estado', 'inactivo')->assertOk();
 
-        $this->leer($user)->assertOk()->assertExactJson(['preferencias' => [
+        $respuesta = $this->leer($user);
+        $this->assertStringContainsString('no-store', $respuesta->headers->get('Cache-Control'), 'Al volver con «atrás» no debe salir de caché');
+        $respuesta->assertOk()->assertExactJson(['preferencias' => [
             'estado' => 'inactivo',
             'rol' => 'Vendedor',
             'colores_estado' => false,

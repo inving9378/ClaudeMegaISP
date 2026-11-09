@@ -358,48 +358,72 @@
                             </span>
                         </div>
 
-                        <!-- Rol -->
-                        <div class="d-flex align-items-center gap-4">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Rol</label>
-                                <select
-                                    class="form-select"
-                                    v-model="data.role"
-                                    @input="clearServerErrors('role')"
-                                >
-                                    <option selected>Selecciona un rol</option>
-                                    <option
-                                        v-for="role in roles"
-                                        :key="role.id"
-                                        :value="role.id"
-                                    >
-                                        {{ role.name }}
-                                    </option>
-                                </select>
+                        <!-- Roles: TODOS los de la persona (Vendedor va en el check de abajo).
+                             Guardar sin tocarlos no los cambia. -->
+                        <div class="mb-3">
+                            <label class="form-label">Roles</label>
+                            <div class="mb-2">
+                                <template v-for="(nombre, i) in etiquetasRoles" :key="nombre">
+                                    <span v-if="i > 0" class="mx-1">+</span>
+                                    <span class="badge bg-primary" style="font-size: 12px">{{ nombre }}</span>
+                                </template>
                                 <span
-                                    v-for="error in v$.role.$errors"
-                                    :key="error.$uid"
-                                    class="error-message"
+                                    v-if="etiquetasRoles.length === 0"
+                                    class="text-muted small"
+                                    >Sin roles</span
                                 >
-                                    {{ error.$message }}
-                                </span>
-                                <span
-                                    v-if="serverErrors.role"
-                                    class="error-message"
-                                >
-                                    {{ serverErrors.role[0] }}
-                                </span>
                             </div>
-                            <div class="col-md-6 form-check">
-                                <input
-                                    class="form-check-input"
-                                    type="checkbox"
-                                    v-model="data.is_seller"
-                                    v-bind:disabled="data.role === 4"
-                                />
-                                <label class="form-check-label">
-                                    Añadir rol de vendedor
-                                </label>
+                            <div class="border rounded p-2 roles-grid">
+                                <div
+                                    v-for="role in opcionesRoles"
+                                    :key="role.id"
+                                    class="form-check"
+                                >
+                                    <input
+                                        :id="`rol-${role.id}`"
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        :value="role.id"
+                                        v-model="data.roles_seleccionados"
+                                        :disabled="role.bloqueado"
+                                        @change="clearServerErrors('role')"
+                                    />
+                                    <label class="form-check-label" :for="`rol-${role.id}`">
+                                        {{ role.name }}
+                                        <small v-if="role.bloqueado" class="text-muted">
+                                            ({{ role.motivo }})
+                                        </small>
+                                    </label>
+                                </div>
+                            </div>
+                            <span
+                                v-for="error in v$.roles_seleccionados.$errors"
+                                :key="error.$uid"
+                                class="error-message"
+                            >
+                                {{ error.$message }}
+                            </span>
+                            <span
+                                v-if="serverErrors.role"
+                                class="error-message"
+                            >
+                                {{ serverErrors.role[0] }}
+                            </span>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <input
+                                id="check-vendedor"
+                                class="form-check-input"
+                                type="checkbox"
+                                v-model="data.is_seller"
+                            />
+                            <label class="form-check-label" for="check-vendedor">
+                                Añadir rol de vendedor
+                            </label>
+                            <div class="form-text">
+                                Se suma a sus otros roles. Al quitarlo solo se quita Vendedor:
+                                sus prospectos, ventas y comisiones se conservan y queda como
+                                vendedor Inactivo.
                             </div>
                         </div>
 
@@ -431,9 +455,7 @@
                         <!-- Regla asociada -->
                         <div
                             class="mb-3"
-                            v-if="
-                                data.rol_name === 'Vendedor' || data.is_seller
-                            "
+                            v-if="data.is_seller"
                         >
                             <label class="form-label">Regla asociada</label>
                             <select
@@ -574,11 +596,56 @@ const state = ref(null);
 const municipality = ref(null);
 const typesSellers = ref([]);
 const commissionsRules = ref([]);
-const data = reactive({});
+const data = reactive({ roles_seleccionados: [] });
+// Hasta tener los roles de la persona no se mandan roles: el servidor entonces no los toca.
+const rolesCargados = ref(false);
 const serverErrors = ref({});
+
+// Roles que nunca se quitan desde este formulario (el servidor tampoco los quita).
+const ROLES_FIJOS = ["super-administrator", "DESARROLLADOR", "ADMINISTRADOR_COMPLETO"];
+
+// Opciones: los roles que quien edita puede asignar + los que ya tiene la persona. Vendedor va en
+// el check y client no se asigna aquí. Los que no se pueden quitar se ven marcados y fijos.
+const opcionesRoles = computed(() => {
+    const propios = data.roles ?? [];
+    const asignables = new Set(roles.value.map((r) => r.id));
+    const todos = new Map([...roles.value, ...propios].map((r) => [r.id, r]));
+    return [...todos.values()]
+        .filter((r) => r.name !== "Vendedor" && r.name !== "client")
+        .map((r) => {
+            const loTiene = propios.some((p) => p.id === r.id);
+            const fijo = loTiene && ROLES_FIJOS.includes(r.name);
+            const ajeno = loTiene && !asignables.has(r.id);
+            return {
+                id: r.id,
+                name: r.name,
+                bloqueado: fijo || ajeno,
+                motivo: fijo ? "se conserva siempre" : "no lo puedes quitar",
+            };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name));
+});
+
+// Etiquetas de lo que quedará al guardar, p. ej. «TECNICO + Vendedor».
+const etiquetasRoles = computed(() => {
+    const nombres = opcionesRoles.value
+        .filter((r) => data.roles_seleccionados.includes(r.id))
+        .map((r) => r.name);
+    return data.is_seller ? [...nombres, "Vendedor"] : nombres;
+});
 
 onMounted(async () => {
     await getDataUser();
+    // Todos los roles que tiene hoy; el check refleja si tiene el rol Vendedor (la columna
+    // is_seller puede no coincidir, y guardar sin tocar nada no debe cambiar sus roles). Se fija
+    // en cuanto llegan sus datos: si esperara a los catálogos de abajo, pisaría lo que la persona
+    // ya hubiera marcado mientras carga.
+    const propios = data.roles ?? [];
+    data.roles_seleccionados = propios
+        .filter((r) => r.name !== "Vendedor" && r.name !== "client")
+        .map((r) => r.id);
+    data.is_seller = propios.some((r) => r.name === "Vendedor");
+    rolesCargados.value = Array.isArray(data.roles);
     roles.value = await getRoles();
     states.value = await getStates();
     await getTypes();
@@ -603,9 +670,6 @@ onMounted(async () => {
     if (defaultColony) {
         data.colony = defaultColony.name;
     }
-
-    data.is_seller = Boolean(data.is_seller);
-    data.role = data.roles[0].id;
 
     setTypeSeller();
     commissionsRules.value = await getRules();
@@ -687,8 +751,11 @@ const rules = computed(() => {
         login_user: {
             required: helpers.withMessage("Este campo es requerido", required),
         },
-        role: {
-            required: helpers.withMessage("Este campo es requerido", required),
+        roles_seleccionados: {
+            alMenosUno: helpers.withMessage(
+                "Elige al menos un rol o marca «Añadir rol de vendedor»",
+                (value) => (Array.isArray(value) && value.length > 0) || !!data.is_seller
+            ),
         },
         password: {
             // Item #216: en edición ya NO llega prellenada desde el backend, así
@@ -760,10 +827,16 @@ const update = async (e) => {
         if (result) {
             let formData = new FormData();
             Object.keys(data).forEach((key) => {
+                // Los roles viajan abajo, uno por uno; `roles` son los objetos de la ficha.
+                if (["roles", "role", "roles_seleccionados"].includes(key)) return;
                 let value = data[key];
                 if (key === "is_seller") value = value ? 1 : 0;
                 formData.append(key, value);
             });
+            if (rolesCargados.value) {
+                formData.append("roles_enviados", 1);
+                data.roles_seleccionados.forEach((id) => formData.append("roles_seleccionados[]", id));
+            }
             let response = await updateUser(data.id, formData);
             // GUARD Fase 1: el backend bloquea (status 422) si es cuenta-cliente.
             if (response && response.status === 422) {
@@ -806,5 +879,13 @@ const update = async (e) => {
 <style>
 .error-message {
     color: red;
+}
+</style>
+
+<style scoped>
+.roles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 4px 16px;
 }
 </style>

@@ -29,7 +29,59 @@
                 no-data-label="No hay elementos para mostrar"
             >
                 <template v-slot:top="props">
-                    <div class="d-flex justify-content-end">
+                    <div class="d-flex flex-wrap align-items-center gap-2 w-100">
+                    <!-- Filtro de Estado (en el servidor). La estrella lo guarda como
+                         predeterminado de ESTE usuario; otra vez, lo restablece. -->
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <label for="vendedores-filtro-estado" class="col-form-label me-1">Estado</label>
+                        <select
+                            id="vendedores-filtro-estado"
+                            class="form-select form-select-sm"
+                            style="width: 170px"
+                            v-model="estado"
+                        >
+                            <option
+                                v-for="opcion in OPCIONES_ESTADO"
+                                :key="opcion.value"
+                                :value="opcion.value"
+                            >
+                                {{ opcion.label }}
+                            </option>
+                        </select>
+                        <button
+                            type="button"
+                            class="btn btn-sm btn-link px-1"
+                            :title="textoEstrella"
+                            :aria-label="textoEstrella"
+                            @click="alternarPredeterminado"
+                        >
+                            <i
+                                :class="[
+                                    'mdi',
+                                    esPredeterminado
+                                        ? 'mdi-star text-warning'
+                                        : 'mdi-star-outline text-muted',
+                                ]"
+                                style="font-size: 18px"
+                            ></i>
+                        </button>
+                        <span
+                            v-if="estado !== 'todos'"
+                            class="badge bg-primary d-inline-flex align-items-center"
+                            style="font-size: 12px"
+                        >
+                            Filtrando: {{ etiquetaEstado(estado) }}
+                            <button
+                                type="button"
+                                class="btn-close btn-close-white ms-2"
+                                style="font-size: 8px"
+                                aria-label="Quitar el filtro de Estado"
+                                title="Quitar el filtro de Estado"
+                                @click="estado = 'todos'"
+                            ></button>
+                        </span>
+                    </div>
+                    <div class="d-flex align-items-center ms-auto">
                         <button
                             type="button"
                             class="tc-btn tc-btn-seg"
@@ -61,6 +113,7 @@
                             :dark="darkMode"
                         >
                         </q-input>
+                    </div>
                     </div>
                 </template>
                 <template v-slot:body-cell-name="props">
@@ -136,8 +189,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
+import Swal from "sweetalert2";
 import { getAll } from "./helper/request.js";
+import { usePreferenciasVista } from "../../../composables/usePreferenciasVista.js";
+import { useTableUrlState } from "../../../hook/useTableUrlState";
 import Modal from "../../../shared/ModalSimple.vue";
 import Breadcrumb from "../../base/shared/Breadcrumb.vue";
 import { darkMode } from "../../../hook/appConfig.js";
@@ -258,11 +314,12 @@ const showModal = ref(false);
 const tableIdentifier = ref("vendedores");
 const { getColumns, saveColumns } = useDataTable();
 
+// La lista se pagina en el navegador: sin rowsNumber (con él Quasar la trataba como paginada en el
+// servidor y el pie decía «1-10 de 10» con cualquier número de filas).
 const pagination = ref({
     descending: false,
     page: 1,
     rowsPerPage: 50,
-    rowsNumber: 10,
 });
 
 const breadcrumbList = ref([
@@ -270,18 +327,102 @@ const breadcrumbList = ref([
     { title: "Vendedores", a: "/vendedores" },
 ]);
 
-onMounted(() => {
+// Filtro de Estado (#1199). Sin predeterminado guardado por el usuario: Activos. «Inactivos»
+// incluye a quienes se les quitó el check de vendedor: conservan prospectos, ventas y comisiones.
+const ESTADO_INICIAL = "activo";
+const OPCIONES_ESTADO = [
+    { label: "Todos", value: "todos" },
+    { label: "Activos", value: "activo" },
+    { label: "Inactivos", value: "inactivo" },
+    { label: "Bloqueados", value: "bloqueado" },
+];
+const esOpcion = (valor) => OPCIONES_ESTADO.some((opcion) => opcion.value === valor);
+const etiquetaEstado = (valor) =>
+    OPCIONES_ESTADO.find((opcion) => opcion.value === valor)?.label ?? valor;
+
+const estado = ref(ESTADO_INICIAL);
+// Lo que el usuario dejó como predeterminado (null = no ha elegido).
+const predeterminado = ref(null);
+const preferencias = usePreferenciasVista("vendedores");
+
+// Al volver de la ficha de un vendedor se conserva el filtro de esa entrada del historial
+// (history.state, no la URL); manda sobre el predeterminado.
+const tablaUrl = useTableUrlState({ parametros: [] });
+const estadoDelHistorial = (() => {
+    const { privado } = tablaUrl.leer();
+    return esOpcion(privado.estado) ? privado.estado : null;
+})();
+watch(estado, () => tablaUrl.guardar({}, { estado: estado.value }));
+
+// Hasta tener el predeterminado del usuario no se pide la lista (la primera ya sale filtrada).
+let filtroListo = false;
+watch(
+    estado,
+    () => {
+        if (filtroListo) {
+            pagination.value.page = 1;
+            getSellers();
+        }
+    },
+    { flush: "sync" }
+);
+
+onMounted(async () => {
     getColumnsTable();
+    try {
+        const guardadas = await preferencias.cargar();
+        if (esOpcion(guardadas.estado)) predeterminado.value = guardadas.estado;
+    } catch (error) {
+        // Sin preferencias se trabaja con el valor inicial.
+        window.console.error("No se pudieron leer las preferencias del listado:", error);
+    }
+    estado.value = estadoDelHistorial ?? predeterminado.value ?? ESTADO_INICIAL;
+    filtroListo = true;
     getSellers();
 });
 
+const esPredeterminado = computed(
+    () => predeterminado.value !== null && predeterminado.value === estado.value
+);
+const textoEstrella = computed(() =>
+    esPredeterminado.value
+        ? `Es tu predeterminado. Clic para restablecer (al entrar verás «${etiquetaEstado(ESTADO_INICIAL)}»)`
+        : "Usar como predeterminado"
+);
+
+const avisar = (texto, icon = "success") =>
+    Swal.fire({ toast: true, position: "top-end", timer: 3000, showConfirmButton: false, icon, title: texto });
+
+const alternarPredeterminado = async () => {
+    try {
+        if (esPredeterminado.value) {
+            await preferencias.restablecer("estado");
+            predeterminado.value = null;
+            avisar(`Estado: al entrar verás «${etiquetaEstado(ESTADO_INICIAL)}».`);
+        } else {
+            const valor = estado.value;
+            await preferencias.guardar("estado", valor);
+            predeterminado.value = valor;
+            avisar(`Estado: al entrar verás «${etiquetaEstado(valor)}».`);
+        }
+    } catch (error) {
+        avisar("No se pudo guardar el predeterminado.", "error");
+    }
+};
+
+// Si llegan dos respuestas cruzadas (cambios rápidos de filtro), solo vale la última petición.
+let ultimaPeticion = 0;
+
 const getSellers = async () => {
+    const peticion = ++ultimaPeticion;
     try {
         loading.value = true;
-        data.value = await getAll();
+        const filas = await getAll({ estado: estado.value });
+        if (peticion !== ultimaPeticion) return;
+        data.value = filas;
         loading.value = false;
     } catch (error) {
-        loading.value = false;
+        if (peticion === ultimaPeticion) loading.value = false;
         console.log(error);
     }
 };

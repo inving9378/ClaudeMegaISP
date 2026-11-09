@@ -37,8 +37,8 @@
             >
             <span v-if="!seller_activo" class="tc-badge-warn ms-auto">
                 <i class="bi bi-exclamation-triangle me-1"></i>
-                Vendedor {{ seller_estado || "inactivo" }} — es normal que no
-                tenga movimientos
+                Vendedor {{ seller_estado || "inactivo" }} — se conserva su
+                historial; puede no tener movimientos recientes
             </span>
         </div>
 
@@ -238,7 +238,8 @@ onMounted(async () => {
 
 const getSellers = async () => {
     try {
-        sellers.value = await getAll();
+        // Todos (también Inactivos): su ficha se sigue consultando y debe tener nombre y vecinos.
+        sellers.value = await getAll({ estado: "todos" });
         updateBreadcrumb();
     } catch (error) {
         console.log(error);

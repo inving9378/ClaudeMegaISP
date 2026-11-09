@@ -26,7 +26,10 @@ class PreferenciaVistaController extends Controller
             ->get()
             ->mapWithKeys(fn ($fila) => [$fila->preferencia => $fila->valor]);
 
-        return response()->json(['preferencias' => (object) $preferencias->all()]);
+        // no-store: al volver con «atrás» el navegador reutilizaba la respuesta anterior (no-cache no
+        // basta) y la pantalla no veía el predeterminado recién guardado.
+        return response()->json(['preferencias' => (object) $preferencias->all()])
+            ->header('Cache-Control', 'no-store, private');
     }
 
     /** Guarda el valor; con `valor: null` la borra y la vista vuelve a su valor inicial. */

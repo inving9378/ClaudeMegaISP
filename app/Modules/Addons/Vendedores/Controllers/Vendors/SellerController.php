@@ -32,8 +32,33 @@ class SellerController extends Controller
         return view('meganet.module.vendors.list');
     }
 
-    public function index()
+    /** Filtro de Estado de la lista de Vendedores → nombre en seller_status. */
+    private const ESTADOS_LISTA = ['activo' => 'Activo', 'inactivo' => 'Inactivo', 'bloqueado' => 'Bloqueado'];
+
+    /**
+     * Sin `estado`, igual que siempre: solo quien tiene el rol Vendedor y tipo (lo usan también
+     * Comisiones y el menú de la ficha). Con `estado` (lista de Vendedores, #1199): TODOS los
+     * vendedores, también los que quedaron Inactivos al quitarles el check «Añadir rol de
+     * vendedor» (ya no tienen el rol, pero sí sus prospectos, ventas y comisiones) y los que no
+     * tienen tipo asignado.
+     */
+    public function index(Request $request)
     {
+        $request->validate(['estado' => ['nullable', 'in:todos,' . implode(',', array_keys(self::ESTADOS_LISTA))]]);
+
+        if ($request->filled('estado')) {
+            $estado = self::ESTADOS_LISTA[$request->input('estado')] ?? null;
+            $sellers = Seller::join('users', 'sellers.user_id', '=', 'users.id')
+                ->leftJoin('seller_status', 'sellers.status_id', '=', 'seller_status.id')
+                ->leftJoin('seller_types', 'sellers.type_id', '=', 'seller_types.id')
+                ->when($estado, fn ($query) => $query->where('seller_status.name', $estado))
+                ->select('sellers.id as seller_id', 'users.*', 'seller_status.name as status_seller', 'seller_types.name as type', 'sellers.balance')
+                ->orderBy('sellers.id')
+                ->get();
+
+            return response()->json($sellers);
+        }
+
         $sellers = Seller::whereHas('user', function ($query) {
             $query->whereHas('roles', function ($query) {
                 $query->where('name', 'Vendedor');
@@ -69,8 +94,13 @@ class SellerController extends Controller
         $this->data['seller_nombre'] = trim(implode(' ', array_filter([
             $user->name, $user->father_last_name, $user->mother_last_name,
         ])));
-        $this->data['seller_activo'] = ($user->estado ?? null) === 'activo';
-        $this->data['seller_estado'] = $user->estado ?? 'desconocido';
+        // #1199: también cuenta el estado como vendedor (Inactivo al quitarle el check, Bloqueado…):
+        // su ficha se sigue consultando con sus prospectos, ventas y comisiones.
+        $estadoVendedor = SellerStatus::where('id', Seller::where('id', $seller_id)->value('status_id'))->value('name');
+        $this->data['seller_activo'] = ($user->estado ?? null) === 'activo' && in_array($estadoVendedor, [null, 'Activo'], true);
+        $this->data['seller_estado'] = ($user->estado ?? null) !== 'activo'
+            ? ($user->estado ?? 'desconocido')
+            : mb_strtolower($estadoVendedor ?? 'activo');
 
         return view('meganet.module.vendors.menu', $this->data);
     }

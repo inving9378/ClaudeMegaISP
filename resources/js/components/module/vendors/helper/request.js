@@ -1,9 +1,10 @@
 import axios from "axios";
 
 // Datos del vendedor
-export const getAll = async () => {
+// params.estado (todos/activo/inactivo/bloqueado): sin él, solo quien tiene el rol Vendedor.
+export const getAll = async (params = {}) => {
     let data = [];
-    await axios["get"](`/vendedores/data`).then((response) => {
+    await axios["get"](`/vendedores/data`, { params }).then((response) => {
         data = response.data;
     });
     return data;

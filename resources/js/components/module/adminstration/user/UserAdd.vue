@@ -434,7 +434,7 @@
                                     class="form-check-input"
                                     type="checkbox"
                                     v-model="data.is_seller"
-                                    v-bind:disabled="data.role === 4"
+                                    v-bind:disabled="getRoleName(data.role) === 'Vendedor'"
                                 />
                                 <label class="form-check-label">
                                     Añadir rol de vendedor
@@ -750,7 +750,7 @@ const rules = computed(() => {
         status_id: {
             requiredIfSellerOrRole6: helpers.withMessage(
                 "Este campo es requerido",
-                requiredIf(() => data.is_seller || data.role === 6)
+                requiredIf(() => data.is_seller || getRoleName(data.role) === "Vendedor")
             ),
         },
     };

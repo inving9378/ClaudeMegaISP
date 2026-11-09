@@ -10,6 +10,7 @@ use Intervention\Image\Facades\Image;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Models\Seller;
+use App\Models\SellerStatus;
 use App\Models\State;
 use App\Models\Municipality;
 use App\Models\Colony;
@@ -414,71 +415,71 @@ class UserController extends Controller
             $user->sucursal_id = $request->sucursal_id;
             $user->save();
 
-            $roles = [];
-            if ($request->role) {
-                $roles[] = \Spatie\Permission\Models\Role::findById($request->role)->name;
-            }
+            // Roles. El formulario de edición manda TODOS los roles de la persona salvo Vendedor
+            // (roles_enviados + roles_seleccionados[]): guardar sin tocarlos no los cambia.
+            // Vendedor lo gobierna solo el check «Añadir rol de vendedor»: activarlo lo SUMA al rol
+            // base y quitarlo quita solo Vendedor. Antes el formulario manejaba un solo rol (el de id
+            // más bajo): a un Técnico + Vendedor le mostraba Vendedor y al guardar perdía Técnico.
+            $current = $user->roles()->pluck('name')->all();
+            $eraVendedor = in_array('Vendedor', $current, true);
 
-            // GUARD — un supervisor sin user_edit_user real no puede asignar
-            // roles admin (ver ROLES_SOLO_ADMIN_ASIGNA): el acceso nuevo del
-            // supervisor no debe servir para convertir a su subordinado en
-            // administrador. getRoles() ya filtra el selector, esto es la
-            // verificación real server-side.
-            if (! auth()->user()?->can('user_edit_user') && array_intersect($roles, self::ROLES_SOLO_ADMIN_ASIGNA)) {
+            if ($request->has('roles_enviados')) {
+                $ids = array_filter((array) $request->input('roles_seleccionados', []), 'is_numeric');
+                // client no se asigna desde aquí (y si ya lo tiene, nunca se quita: ver $neverRemove).
+                $roles = Role::whereIn('id', $ids)->whereNotIn('name', ['Vendedor', 'client'])->pluck('name')->all();
+                $quiereVendedor = $request->is_seller == "1";
+                $tocarRoles = true;
+            } else {
+                // Compatibilidad: un solo rol en `role`. Sin la key, los roles no se tocan (#9991149).
+                $roles = [];
+                if ($request->role) {
+                    $roles[] = Role::findById($request->role)->name;
+                }
+                // Mandar solo «Vendedor» ya no reemplaza el rol base: equivale a activar el check.
+                if ($roles === ['Vendedor']) {
+                    $roles = array_values(array_diff($current, ['Vendedor']));
+                }
+                $quiereVendedor = $request->is_seller == "1" || in_array('Vendedor', $roles, true);
+                $roles = array_values(array_diff($roles, ['Vendedor']));
+                $tocarRoles = $request->has('role');
+            }
+            if ($quiereVendedor) {
+                $roles[] = 'Vendedor';
+            }
+            $roles = array_values(array_unique($roles));
+
+            // GUARD — un supervisor sin user_edit_user real no puede asignar roles admin (ver
+            // ROLES_SOLO_ADMIN_ASIGNA): su acceso no debe servir para convertir a su subordinado en
+            // administrador. getRoles() ya filtra el selector; esto es la verificación real. Solo
+            // cuenta lo que se AGREGA: el formulario manda también los roles que ya tiene.
+            $puedeAsignarAdmin = (bool) auth()->user()?->can('user_edit_user');
+            if (! $puedeAsignarAdmin && array_intersect(array_diff($roles, $current), self::ROLES_SOLO_ADMIN_ASIGNA)) {
                 DB::rollBack();
                 return response()->json(['status' => 403, 'message' => 'No puedes asignar ese rol.']);
             }
 
             // GUARD Fase 1 — una cuenta-cliente no puede recibir roles de staff.
-            // Roles que el form intenta asignar (incluye 'Vendedor' si is_seller),
+            // Roles que el form intenta asignar (incluye 'Vendedor' si el check está activo),
             // evaluados contra los roles ACTUALES del usuario (antes de mutarlos).
-            $intendedRoles = $roles;
-            if (($request->is_seller == "1" || in_array('Vendedor', $intendedRoles)) && !in_array('Vendedor', $intendedRoles)) {
-                $intendedRoles[] = 'Vendedor';
-            }
-            $guardResult = $this->enforceClientStaffGuard($user, $user->login_user, $intendedRoles, $request);
+            $guardResult = $this->enforceClientStaffGuard($user, $user->login_user, $roles, $request);
             if ($guardResult !== true) {
                 DB::rollBack();
                 return $guardResult;
             }
 
-            $is_seller = $request->is_seller == "1" || in_array('Vendedor', $roles);
+            $this->sincronizarVendedor($user, $quiereVendedor, $eraVendedor, $request);
 
-            if ($is_seller && !in_array('Vendedor', $roles)) {
-                $roles[] = 'Vendedor';
-            }
-
-            // Registro de Vendedor (Seller): alta/actualización o baja según is_seller.
-            // El ROL 'Vendedor' se agrega/quita en el diff dirigido de más abajo.
-            if ($is_seller) {
-                $seller = Seller::firstOrNew(['user_id' => $id]);
-                $seller->status_id = 1;
-                $seller->type_id = $request->type_id;
-                $seller->save();
-            } else {
-                $seller = Seller::where('user_id', $id)->first();
-                if ($seller) {
-                    $seller->delete();
-                }
-            }
-
-            // PASO 2 — reemplazo de syncRoles (destructivo) por un diff DIRIGIDO.
-            // Nunca se quitan estos roles aunque no vengan en el payload:
+            // Diff DIRIGIDO (reemplazo de syncRoles, que era destructivo). Nunca se quitan estos
+            // roles aunque no vengan en el payload:
             //   super-administrator / DESARROLLADOR / ADMINISTRADOR_COMPLETO (sistema)
             //   client (rompería MegaFamilia y el portal de un staff-cliente).
-            //
-            // GUARD (item #9991149): $roles se construye solo a partir de $request->role
-            // (singular). Si la key 'role' NO viene en el payload (ausencia total, no vacío/null
-            // explícito), $roles queda [] y el diff de abajo removería cualquier rol de staff
-            // actual no protegido — un caller que simplemente no manda 'role' le borraría roles.
-            // $request->has('role') distingue "la key no vino" de "vino vacía/null"; en ese caso
-            // se salta TODO el bloque (no se toca $user->roles, no se llama assignRole/removeRole,
-            // no se escribe el Log::info) dejando los roles intactos. Si 'role' SÍ viene (aunque
-            // sea vacío/null), el diff dirigido corre igual que antes.
-            if ($request->has('role')) {
+            // Quien no puede asignar roles de administración tampoco puede quitarlos.
+            if ($tocarRoles) {
                 $neverRemove = ['super-administrator', 'DESARROLLADOR', 'ADMINISTRADOR_COMPLETO', 'client'];
-                $selected = array_values(array_unique($roles));
-                $current  = $user->roles()->pluck('name')->all();
+                if (! $puedeAsignarAdmin) {
+                    $neverRemove = array_merge($neverRemove, self::ROLES_SOLO_ADMIN_ASIGNA);
+                }
+                $selected = $roles;
 
                 // Quitar: roles de staff actuales NO seleccionados y NO protegidos.
                 $toRemove = array_values(array_filter($current, function ($r) use ($selected, $neverRemove) {
@@ -517,11 +518,13 @@ class UserController extends Controller
                 }
             }
 
-            // Solo actualizar regla de comisión si llega un ID numérico válido y el usuario tiene vendedor.
-            // isset($request->rule_id) era insuficiente: FormData convierte null → string "null", que
-            // pasaba el isset y causaba FK violation → rollback silencioso de TODO (incluido el password).
-            if (is_numeric($request->input('rule_id')) && $user->seller) {
-                $user->seller->updateRule($request->input('rule_id'));
+            // Solo actualizar regla de comisión si llega un ID numérico válido y la persona sigue
+            // como vendedor. isset($request->rule_id) era insuficiente: FormData convierte null →
+            // string "null", que pasaba el isset y causaba FK violation → rollback silencioso de
+            // TODO (incluido el password). updateRule() no repite la regla si no cambió.
+            $seller = Seller::where('user_id', $user->id)->first();
+            if ($quiereVendedor && is_numeric($request->input('rule_id')) && $seller) {
+                $seller->updateRule($request->input('rule_id'));
             }
 
             DB::commit();
@@ -590,6 +593,46 @@ class UserController extends Controller
      * @param  string     $loginUser  login_user del target (identidad de cliente vía CMI)
      * @param  array      $roles      roles que se intentan asignar (por nombre)
      */
+    /**
+     * Fila de vendedor según el check «Añadir rol de vendedor». Nunca se borra: borrarla se llevaba
+     * en cascada sus prospectos, ventas, descuentos y reglas (y con comisiones o pagos fallaba el
+     * guardado). Al quitar el check pasa a Inactivo y guarda el estado que tenía; al volver a
+     * ponerlo recupera ese estado, así un Bloqueado sigue Bloqueado. Guardar sin cambiar el check
+     * no toca el estado (antes lo regresaba a Activo en cada guardado). Tipo de vendedor solo cambia
+     * si el formulario lo manda; regla, historial, saldo y rango no se tocan aquí.
+     */
+    private function sincronizarVendedor(User $user, bool $quiereVendedor, bool $eraVendedor, Request $request): void
+    {
+        $seller = Seller::where('user_id', $user->id)->first();
+        $inactivos = SellerStatus::where('name', 'Inactivo')->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+        if ($quiereVendedor) {
+            if (! $seller) {
+                $seller = new Seller();
+                $seller->user_id = $user->id;
+                $seller->status_id = SellerStatus::where('name', 'Activo')->orderBy('id')->value('id') ?? 1;
+            } elseif (! $eraVendedor && in_array((int) $seller->status_id, $inactivos, true)) {
+                // Reactivación: vuelve al estado que tenía antes de inactivarlo.
+                $seller->status_id = $seller->status_id_antes_de_inactivar
+                    ?? SellerStatus::where('name', 'Activo')->orderBy('id')->value('id')
+                    ?? $seller->status_id;
+                $seller->status_id_antes_de_inactivar = null;
+            }
+            if (is_numeric($request->input('type_id'))) {
+                $seller->type_id = (int) $request->input('type_id');
+            }
+            $seller->save();
+
+            return;
+        }
+
+        if ($seller && $eraVendedor && $inactivos && ! in_array((int) $seller->status_id, $inactivos, true)) {
+            $seller->status_id_antes_de_inactivar = $seller->status_id;
+            $seller->status_id = $inactivos[0];
+            $seller->save();
+        }
+    }
+
     private function enforceClientStaffGuard(?User $user, string $loginUser, array $roles, Request $request)
     {
         $staffRolesRequested = array_values(array_filter($roles, fn ($r) => $r !== 'client'));

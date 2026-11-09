@@ -18,5 +18,10 @@ return [
             'rol' => ['required', 'string', 'max:100', 'not_in:client'],
             'colores_estado' => ['required', 'boolean'],
         ],
+
+        // Vendedores › Listado de vendedores.
+        'vendedores' => [
+            'estado' => ['required', 'string', 'in:todos,activo,inactivo,bloqueado'],
+        ],
     ],
 ];
