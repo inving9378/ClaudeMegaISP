@@ -67,16 +67,58 @@ class UserController extends Controller
         'super-administrator', 'DESARROLLADOR', 'Super Administrador', 'Administrador', 'ADMINISTRADOR_COMPLETO',
     ];
 
+    /** Columnas por las que se puede ordenar el listado; null = se ordena por subconsulta. */
+    private const ORDEN_LISTADO = [
+        'id' => 'id',
+        'name' => 'name',
+        'father_last_name' => 'father_last_name',
+        'mother_last_name' => 'mother_last_name',
+        'email' => 'email',
+        'login_user' => 'login_user',
+        'address' => 'address',
+        'city_municipality' => 'city_municipality',
+        'colony' => 'colony',
+        'state_country' => 'state_country',
+        'code_postal' => 'code_postal',
+        'rfc' => 'rfc',
+        'estado' => 'estado',
+        'rol_name' => null,
+        'sucursal_str' => null,
+    ];
+
+    /** Página de siempre cuando no se pide tamaño (la usan también las listas de pagos de Vendedores). */
+    private const POR_PAGINA_SIN_PARAMETRO = 49;
+
     public function index()
     {
-        return view('meganet.module.administration.user.listar');
+        // Opciones del filtro por rol; los clientes nunca salen en este listado.
+        $rolesFiltro = Role::where('name', '!=', 'client')->orderBy('name')->pluck('name');
+
+        return view('meganet.module.administration.user.listar', [
+            'rolesFiltro' => $rolesFiltro,
+        ]);
     }
 
+    /**
+     * Filtros (estado, rol), orden y tamaño de página son opcionales: sin ellos responde igual que
+     * siempre. rowsPerPage=0 trae todos los registros (también para exportar) y exige el permiso
+     * de la pantalla del listado.
+     */
     public function getAllUsers(Request $request)
     {
-        $search = $request->input('search', '');
+        $request->validate([
+            'estado' => ['nullable', 'in:todos,activo,inactivo,bloqueado'],
+            'rol' => ['nullable', 'string', 'max:100'],
+            'sortBy' => ['nullable', 'in:' . implode(',', array_keys(self::ORDEN_LISTADO))],
+            'descending' => ['nullable', 'in:true,false,1,0'],
+            'rowsPerPage' => ['nullable', 'integer', 'min:0', 'max:1000'],
+        ]);
 
-        $users = User::where(function ($query) use ($search) {
+        $search = $request->input('search', '');
+        $estado = $request->input('estado');
+        $rol = $request->input('rol');
+
+        $query = User::where(function ($query) use ($search) {
             $query->where('name', 'like', "%{$search}%")
                 ->orWhere('father_last_name', 'like', "%{$search}%")
                 ->orWhere('mother_last_name', 'like', "%{$search}%")
@@ -94,8 +136,18 @@ class UserController extends Controller
                 $query->where('name', 'client');
             })
             ->has('roles')
-            ->orderBy('id')
-            ->paginate(49);
+            ->when($estado && $estado !== 'todos', fn ($query) => $query->where('estado', $estado))
+            ->when($rol && $rol !== 'todos', fn ($query) => $query->whereHas('roles', fn ($q) => $q->where('name', $rol)));
+
+        $this->ordenarListado($query, $request->input('sortBy'), $request->boolean('descending'));
+
+        $porPagina = $request->filled('rowsPerPage') ? (int) $request->input('rowsPerPage') : self::POR_PAGINA_SIN_PARAMETRO;
+        if ($porPagina === 0) {
+            abort_unless($this->puedeVerListadoAdministradores(), 403, 'Ver o exportar todos los registros requiere el permiso del listado de Administradores.');
+            $porPagina = max((clone $query)->count(), 1);
+        }
+
+        $users = $query->paginate($porPagina);
 
         // Enrich: mark which users have a Talento collaborator profile (read-only join)
         $colaboradorMap = \Illuminate\Support\Facades\DB::table('talento_colaboradores')
@@ -111,6 +163,36 @@ class UserController extends Controller
         return response()->json($users);
     }
 
+    /** Sin columna, el orden de siempre (id ascendente); el id desempata cualquier otro orden. */
+    private function ordenarListado($query, ?string $sortBy, bool $descendente): void
+    {
+        $direccion = $descendente ? 'desc' : 'asc';
+
+        if ($sortBy === 'rol_name') {
+            $query->orderBy(
+                DB::table('model_has_roles')
+                    ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
+                    ->whereColumn('model_has_roles.model_id', 'users.id')
+                    ->where('model_has_roles.model_type', (new User())->getMorphClass())
+                    ->selectRaw('MIN(roles.name)'),
+                $direccion
+            );
+        } elseif ($sortBy === 'sucursal_str') {
+            $query->orderBy(Sucursal::select('name')->whereColumn('sucursals.id', 'users.sucursal_id'), $direccion);
+        } elseif ($sortBy !== null && $sortBy !== 'id') {
+            $query->orderBy(self::ORDEN_LISTADO[$sortBy], $direccion);
+        }
+
+        $query->orderBy('id', $sortBy === 'id' ? $direccion : 'asc');
+    }
+
+    /** Mismo criterio que el middleware de rutas para la pantalla /administracion/user. */
+    private function puedeVerListadoAdministradores(): bool
+    {
+        $user = auth()->user();
+
+        return $user && ($user->isAdmin() || $user->isDevelopment() || $user->isSuperAdmin() || $user->can('user_view_user'));
+    }
 
     public function getRoles()
     {

@@ -154,6 +154,13 @@ Route::group(['middleware' => ['auth']], function () {
     Route::get('/setting-table/get/{table_id}', [\App\Modules\Core\Configuracion\Controllers\Table\SettingTableController::class, 'get']);
     Route::post('/setting-table/post/{table_id}', [\App\Modules\Core\Configuracion\Controllers\Table\SettingTableController::class, 'store']);
 
+    // Preferencias de vista por usuario (predeterminados de los listados). Como /setting-table:
+    // solo sesión, y cada quien lee y escribe lo suyo. Lista cerrada en config/preferencias_vista.php.
+    Route::get('/preferencias-vista/{vista}', [\App\Modules\Core\Configuracion\Controllers\Table\PreferenciaVistaController::class, 'show'])
+        ->where('vista', '[a-z0-9_]+');
+    Route::put('/preferencias-vista/{vista}/{preferencia}', [\App\Modules\Core\Configuracion\Controllers\Table\PreferenciaVistaController::class, 'update'])
+        ->where(['vista' => '[a-z0-9_]+', 'preferencia' => '[a-z0-9_]+']);
+
     // Rutas / , /index y /get-*-card-in-dashboard-c migradas a
     // app/Modules/Core/Dashboard/routes.php
     // Ruta /permissions-auth migrada a app/Modules/Core/Usuarios/routes.php

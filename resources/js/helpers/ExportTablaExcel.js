@@ -68,3 +68,37 @@ export const exportTable = async (columns, rows, tableName, visibleColumns) => {
         }
     }
 };
+
+// Nombres de campo que nunca salen en una exportación, aunque se pidan como columna.
+const CAMPOS_SENSIBLES = /pass|contrase|token|secret|clave_api|api_key/i;
+
+/**
+ * Exportación genérica a XLSX para listados que ya tienen sus filas (sin el endpoint de módulos).
+ * Solo exporta las columnas visibles, en su orden, sin la de acciones ni campos sensibles.
+ *
+ * @param {Array}  columns        Columnas de q-table ({ name, label, field }).
+ * @param {Array}  rows           Filas a exportar (ya filtradas por el servidor).
+ * @param {string} tableName      Nombre del archivo, sin extensión.
+ * @param {Array}  visibleColumns Nombres de las columnas visibles.
+ */
+export const exportarFilas = (columns, rows, tableName, visibleColumns) => {
+    const cols = columns.filter(
+        (col) =>
+            visibleColumns.includes(col.name) &&
+            col.name !== "action" &&
+            !CAMPOS_SENSIBLES.test(col.name) &&
+            !(typeof col.field === "string" && CAMPOS_SENSIBLES.test(col.field))
+    );
+    const data = [cols.map((col) => col.label)];
+    rows.forEach((row) => {
+        data.push(
+            cols.map((col) =>
+                cleanHtml(typeof col.field === "function" ? col.field(row) : row[col.field ?? col.name])
+            )
+        );
+    });
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), "Hoja1");
+    XLSX.writeFile(wb, `${tableName}.xlsx`);
+};

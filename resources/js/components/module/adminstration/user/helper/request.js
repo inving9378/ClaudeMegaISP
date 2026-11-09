@@ -1,25 +1,20 @@
 import axios from "axios";
 
-export const getAll = async (page, rowsPerPage, search) => {
-    let result = { data: [], total: 0 };
-    await axios
-        .get(`/administracion/user/get-all-users`, {
-            params: {
-                page,
-                rowsPerPage,
-                search,
-            },
-        })
-        .then((response) => {
-            result = {
-                data: response.data.data,
-                total: response.data.total,
-            };
-        })
-        .catch((error) => {
-            console.error("Error fetching data:", error);
-        });
-    return result;
+// filtros: estado, rol, sortBy, descending (opcionales). Un error se propaga: quien llama decide
+// (el listado conserva lo que mostraba; exportar avisa en vez de bajar un archivo vacío).
+export const getAll = async (page, rowsPerPage, search, filtros = {}) => {
+    const response = await axios.get(`/administracion/user/get-all-users`, {
+        params: {
+            page,
+            rowsPerPage,
+            search,
+            ...filtros,
+        },
+    });
+    return {
+        data: response.data.data,
+        total: response.data.total,
+    };
 };
 
 export const getById = async (id) => {
