@@ -429,7 +429,7 @@ class ProvisionadorAsterisk
 
         try {
             $p = Process::fromShellCommandline(
-                'sudo -n bash ' . escapeshellarg($script)
+                $this->sudo() . 'bash ' . escapeshellarg($script)
                     . ' --fase=' . escapeshellarg($fase)
                     . ' --archivo-entorno=' . escapeshellarg($archivoEntorno),
                 base_path(), null, null, $timeout
@@ -650,7 +650,44 @@ class ProvisionadorAsterisk
             throw new RuntimeException("la revisión aplicada ({$revision}) no es la que declara el manifiesto ({$esperada})");
         }
 
-        return ['revision' => $revision, 'esperada' => $esperada, 'descubrimiento' => $this->modoDescubrimiento];
+        return [
+            'revision'       => $revision,
+            'esperada'       => $esperada,
+            'descubrimiento' => $this->modoDescubrimiento,
+            'voip_llamadas'  => $this->asegurarTablaLlamadas(),
+        ];
+    }
+
+    /**
+     * La tabla donde Asterisk deja cada llamada (CDR → voip_llamadas, MegaVoz Fase 3).
+     *
+     * La crea una migración del módulo, pero esa migración no hace nada cuando todavía
+     * no hay base realtime —el estado de cualquier servidor antes de esta provisión— y
+     * aun así queda registrada como corrida: en producción ya está marcada así, y
+     * `migrate` no la volvería a intentar nunca. Sin la tabla, cdr_adaptive_odbc no
+     * tiene dónde escribir y no queda registro de ninguna llamada.
+     *
+     * Se corre el `up()` de esa misma migración (una sola definición de la tabla), que
+     * no hace nada si ya existe. Va aquí porque es justo después de crear el esquema
+     * realtime y antes de arrancar la central.
+     */
+    private function asegurarTablaLlamadas(): string
+    {
+        DB::purge('asterisk_rt');
+        $schema = DB::connection('asterisk_rt')->getSchemaBuilder();
+
+        if ($schema->hasTable('voip_llamadas')) {
+            return 'ya existía';
+        }
+
+        $migracion = require base_path('app/Modules/Addons/VoIP/migrations/2026_09_24_110000_create_voip_llamadas_table.php');
+        $migracion->up();
+
+        if (! $schema->hasTable('voip_llamadas')) {
+            throw new RuntimeException('no se pudo crear voip_llamadas en la base realtime: Asterisk no tendría dónde registrar las llamadas');
+        }
+
+        return 'creada';
     }
 
     /**
@@ -672,7 +709,7 @@ class ProvisionadorAsterisk
      */
     private function comandoAlembic(): string
     {
-        $sudo = (function_exists('posix_geteuid') && posix_geteuid() === 0) ? '' : 'sudo -n ';
+        $sudo = $this->sudo();
 
         foreach (['alembic --version', 'python3 -m alembic --version'] as $candidato) {
             $p = Process::fromShellCommandline($sudo . $candidato, null, null, null, 60);
@@ -824,7 +861,9 @@ class ProvisionadorAsterisk
     private function arrancarServicio(): array
     {
         foreach ([['enable', 'asterisk'], ['restart', 'asterisk']] as [$accion, $unidad]) {
-            $p = new Process(['sudo', '-n', 'systemctl', $accion, $unidad], null, null, null, 120);
+            $p = Process::fromShellCommandline(
+                $this->sudo() . 'systemctl ' . $accion . ' ' . escapeshellarg($unidad), null, null, null, 120
+            );
             $p->run();
             if (! $p->isSuccessful()) {
                 throw new RuntimeException("systemctl {$accion} {$unidad} falló: " . Str::limit($p->getErrorOutput(), 300));
@@ -847,7 +886,7 @@ class ProvisionadorAsterisk
 
         for ($i = 0; $i < $limite; $i++) {
             $cli = Process::fromShellCommandline(
-                'sudo -n /usr/sbin/asterisk -rx ' . escapeshellarg('core show version'), null, null, null, 15
+                $this->sudo() . '/usr/sbin/asterisk -rx ' . escapeshellarg('core show version'), null, null, null, 15
             );
             $cli->run();
 
@@ -887,7 +926,7 @@ class ProvisionadorAsterisk
     private function validarFinal(): array
     {
         $cli = fn (string $cmd) => tap(Process::fromShellCommandline(
-            'sudo -n /usr/sbin/asterisk -rx ' . escapeshellarg($cmd), null, null, null, 60
+            $this->sudo() . '/usr/sbin/asterisk -rx ' . escapeshellarg($cmd), null, null, null, 60
         ))->run()->getOutput();
 
         // La CLI misma: si no contesta, no hay nada más que preguntar. Pasó por
@@ -959,6 +998,19 @@ class ProvisionadorAsterisk
     }
 
     // ── Utilidades ───────────────────────────────────────────────────────
+
+    /**
+     * `sudo -n ` cuando hace falta, nada cuando la provisión ya corre como root.
+     *
+     * La página de add-ons (VoIP/system/install.sh) la corre como root, igual que el
+     * proceso de actualización, y en un servidor sin el paquete `sudo` anteponerlo
+     * hacía fallar el primer paso con «sudo: command not found». Misma regla que ya
+     * tenía comandoAlembic().
+     */
+    private function sudo(): string
+    {
+        return (function_exists('posix_geteuid') && posix_geteuid() === 0) ? '' : 'sudo -n ';
+    }
 
     private function resumen(): array
     {

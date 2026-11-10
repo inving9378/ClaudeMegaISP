@@ -7,6 +7,11 @@
     "type": "addon",
     "dependencies": [],
     "active": true,
+    "system": {
+        "install": "system/install.sh",
+        "purge": "system/purge.sh",
+        "description": "Asterisk compilado (servicio asterisk), su base realtime y usuario MySQL, el usuario web en el grupo asterisk y el proxy /ws del servidor web para el mini-teléfono. Las grabaciones nunca se borran."
+    },
 
     "permissions": [
         { "name": "voip.view",               "description": "Ver módulo VoIP" },

@@ -54,7 +54,7 @@ return [
     | vieja, otros por hacer con la nueva— y reintentar encima es adivinar si lo ya
     | hecho sigue valiendo.
     */
-    'provisionador_version' => '1.0.0',
+    'provisionador_version' => '1.1.0',
 
     'asterisk' => [
 

@@ -15,6 +15,7 @@
 set -euo pipefail
 
 : "${CONFIRMAR:=}"
+: "${DESDE_ADDON:=0}"
 : "${ASTERISK_DB_NAME:=asterisk}"
 : "${SOPORTE_DIR:=/usr/share/megaisp-asterisk}"
 
@@ -32,6 +33,9 @@ for arg in "$@"; do
     case "$arg" in
         --confirmar=*) CONFIRMAR="${arg#*=}" ;;
         --base=*)      ASTERISK_DB_NAME="${arg#*=}" ;;
+        # La purga del add-on (VoIP/system/purge.sh) respalda antes y no sigue
+        # con una provisión de prueba: no se imprime el «Ahora: …» de dev.
+        --desde-addon) DESDE_ADDON=1 ;;
         *) echo "ERROR: argumento no reconocido: ${arg}"; exit 1 ;;
     esac
 done
@@ -126,6 +130,11 @@ printf "  %-26s : %s\n" "$SOPORTE_DIR" "$([ -d "$SOPORTE_DIR" ] && echo 'QUEDA' 
 printf "  usuario asterisk           : %s\n" "$(id asterisk >/dev/null 2>&1 && echo 'QUEDA' || echo 'no')"
 printf "  unit de systemd            : %s\n" "$([ -e /etc/systemd/system/asterisk.service ] && echo 'QUEDA' || echo 'no')"
 printf "  base %-21s : %s\n" "$ASTERISK_DB_NAME" "$(mysql -N -e "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name='${ASTERISK_DB_NAME}'" 2>/dev/null)"
+if [[ "$DESDE_ADDON" == "1" ]]; then
+    echo
+    echo "=== Servidor limpio. ==="
+    exit 0
+fi
 echo
 echo "=== Servidor limpio. Ahora: ==="
 echo
