@@ -47,7 +47,27 @@ class MiTelefonoController extends Controller
             'turn_url'        => config('voip.turn.url'),
             'turn_username'   => config('voip.turn.username'),
             'turn_credential' => config('voip.turn.credential'),
+            // Al colgar una llamada contestada con un cliente, el teléfono lleva a
+            // Tickets para que la registre (y ofrece dar de alta al que no es cliente).
+            'ticket_al_colgar' => $this->atiendeClientes(),
         ]);
+    }
+
+    /**
+     * Quién registra un ticket al colgar: Mostrador, su supervisor y cualquiera cuya
+     * extensión esté en un grupo de timbrado o cola (son los que contestan a clientes).
+     */
+    private function atiendeClientes(): bool
+    {
+        $user = auth()->user();
+        if ($user->hasAnyRole(['Mostrador', 'SUPERVISOR_MOSTRADOR'])) {
+            return true;
+        }
+
+        return \Illuminate\Support\Facades\DB::table('voip_grupo_extension as ge')
+            ->join('voip_extensiones as e', 'e.id', '=', 'ge.extension_id')
+            ->where('e.user_id', $user->id)
+            ->exists();
     }
 
     /**

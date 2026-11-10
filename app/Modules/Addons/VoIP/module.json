@@ -22,6 +22,8 @@
         { "name": "voip.troncales.provision","description": "Provisionar/desprovisionar troncales en Asterisk" },
         { "name": "voip.troncales.test",     "description": "Probar conexión ARI y verificar estado de troncal" },
         { "name": "voip.kpis.view",          "description": "Ver el tablero de KPIs de la cola" },
+        { "name": "voip.dashboard.view",      "description": "Ver el tablero de llamadas: historial y rendimiento por trabajador" },
+        { "name": "voip.grabaciones.escuchar","description": "Escuchar y descargar las grabaciones de llamadas" },
 
         { "name": "voip.extensiones.view",     "description": "Ver listado de extensiones" },
         { "name": "voip.extensiones.create",   "description": "Crear extensiones VoIP" },
@@ -71,7 +73,11 @@
         { "method": "GET",    "path": "/voip/ia-bot/leads",        "description": "Lista leads capturados por el bot IA",    "scope": "voip.ia-bot.leads",  "permission": "voip.ia-bot.leads" },
         { "method": "GET",    "path": "/voip/ia-bot/kb",           "description": "Lista la base de conocimiento del bot IA","scope": "voip.ia-bot.kb",     "permission": "voip.ia-bot.kb" },
 
-        { "method": "GET",    "path": "/voip/kpis/data",           "description": "KPIs de la cola (entradas/atendidas/abandonadas/por agente)", "scope": "voip.kpis.view", "permission": "voip.kpis.view" }
+        { "method": "GET",    "path": "/voip/kpis/data",           "description": "KPIs de la cola (entradas/atendidas/abandonadas/por agente)", "scope": "voip.kpis.view", "permission": "voip.kpis.view" },
+
+        { "method": "GET",    "path": "/voip/dashboard/data",      "description": "Resumen, llamadas por día y rendimiento por trabajador", "scope": "voip.dashboard.view", "permission": "voip.dashboard.view" },
+        { "method": "GET",    "path": "/voip/dashboard/llamadas",  "description": "Historial de llamadas con filtros y paginación",        "scope": "voip.dashboard.view", "permission": "voip.dashboard.view" },
+        { "method": "GET",    "path": "/voip/grabaciones/{uniqueid}", "description": "Escucha o descarga (?descargar=1) la grabación de una llamada", "scope": "voip.grabaciones.escuchar", "permission": "voip.grabaciones.escuchar" }
     ],
 
     "menu": [
@@ -81,6 +87,7 @@
             "permission": "voip.view",
             "url": "/voip/troncales",
             "children": [
+                { "label": "Dashboard", "url": "/voip", "permission": "voip.dashboard.view" },
                 { "label": "Troncales", "url": "/voip/troncales", "permission": "voip.troncales.view" },
                 { "label": "KPIs", "url": "/voip/kpis", "permission": "voip.kpis.view" }
             ]

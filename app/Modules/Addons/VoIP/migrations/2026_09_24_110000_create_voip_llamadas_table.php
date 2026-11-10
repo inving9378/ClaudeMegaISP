@@ -60,7 +60,11 @@ return new class extends Migration
             $table->id();
 
             // ── Identidad de la llamada, tal como la conoce Asterisk ──
-            $table->string('uniqueid', 150)->unique();
+            // NO único: Asterisk escribe una fila por cada agente al que la cola le
+            // timbra, todas con el uniqueid del lado del que llama. Con unique() la
+            // fila ANSWERED del agente que contestó chocaba con la del primero al que
+            // le timbró y se perdía (ver 2026_11_10_150000_voip_llamadas_uniqueid_no_unico).
+            $table->string('uniqueid', 150)->index();
             $table->string('linkedid', 150)->nullable()->index();
             $table->unsignedInteger('sequence')->nullable();
 

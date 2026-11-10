@@ -489,6 +489,7 @@ import VoipExtensiones    from "./components/module/voip/VoipExtensiones.vue";
 import VoipGruposTimbrado from "./components/module/voip/VoipGruposTimbrado.vue";
 import VoipIaBotManager   from "./components/module/voip/VoipIaBotManager.vue";
 import VoipKpis           from "./components/module/voip/VoipKpis.vue";
+import VoipDashboard      from "./components/module/voip/VoipDashboard.vue";
 
 
 import SupplierListar from "./components/module/inventory/supplier/SupplierListar.vue";
@@ -896,6 +897,7 @@ const app = createApp({
         'voip-grupos-timbrado':  VoipGruposTimbrado,
         'voip-ia-bot-manager':   VoipIaBotManager,
         'voip-kpis':             VoipKpis,
+        'voip-dashboard':        VoipDashboard,
     },
 });
 

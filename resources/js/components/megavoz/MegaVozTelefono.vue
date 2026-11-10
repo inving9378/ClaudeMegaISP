@@ -8,7 +8,7 @@
         </div>
 
         <!-- Panel expandido (solo para marcar — mientras hay llamada, el modal de abajo manda) -->
-        <div v-else-if="abierto && !estadoLlamada" class="mv-panel">
+        <div v-else-if="abierto && !estadoLlamada && !postLlamada" class="mv-panel">
             <div class="mv-head">
                 <span class="mv-dot" :class="'mv-dot--' + estado"></span>
                 <span class="mv-titulo">{{ nombre }} <small>({{ numero }})</small></span>
@@ -33,9 +33,40 @@
             </div>
         </div>
 
+        <!-- Después de colgar con un cliente (Mostrador y quien atiende): lleva a
+             Tickets para registrar la llamada; si el número no es de ningún cliente,
+             ofrece darlo de alta y, al guardarlo, crear su ticket. -->
+        <div v-if="postLlamada && !estadoLlamada" class="mv-post">
+            <div class="mv-post-head">
+                <i class="fa fa-phone-slash"></i>
+                <span>Llamada terminada · {{ numeroLegible(postLlamada.numero) }}</span>
+                <button class="mv-close" @click="cerrarPostLlamada" title="Cerrar">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+            <div v-if="postLlamada.cliente" class="mv-post-fila">
+                Cliente: <b>{{ postLlamada.cliente.name }}</b>
+            </div>
+            <div v-else-if="postLlamada.noEsCliente" class="mv-post-fila">
+                Este número no es de ningún cliente.
+                <button class="mv-post-btn mv-post-btn--alta" @click="darDeAltaCliente">
+                    <i class="fa fa-user-plus"></i> Dar de alta cliente
+                </button>
+                <div class="mv-post-nota">Al guardarlo te lleva a crear su ticket.</div>
+            </div>
+            <div v-else-if="postLlamada.buscando" class="mv-post-fila mv-post-nota">Buscando cliente…</div>
+            <div v-if="postLlamada.cuenta !== null" class="mv-post-cuenta">
+                <div>Te llevo a Tickets en <b>{{ postLlamada.cuenta }}</b> s</div>
+                <div class="mv-post-acciones">
+                    <button class="mv-post-btn" @click="irATickets">Ir ahora</button>
+                    <button class="mv-post-btn mv-post-btn--suave" @click="quedarme">Quedarme</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Burbuja -->
         <button class="mv-bubble" :class="sinHttps ? 'mv-bubble--sinhttps' : 'mv-bubble--' + estado"
-                @click="abierto = !abierto"
+                @click="postLlamada ? (cerrarPostLlamada(), abierto = true) : (abierto = !abierto)"
                 :title="sinHttps ? 'Requiere HTTPS' : etiquetaEstado">
             <i class="fa fa-phone"></i>
             <span v-if="estadoLlamada" class="mv-badge"></span>
@@ -186,6 +217,12 @@ export default {
             _ringInterval: null,
             // Blindaje contra doble clic en "Contestar" — ver contestar().
             _contestando: false,
+            // Al colgar una llamada contestada con un número externo, quien
+            // atiende clientes (MiTelefonoController::atiendeClientes) va a Tickets.
+            ticketAlColgar: false,
+            // { numero, cliente: {id, name}|null, noEsCliente, buscando, cuenta: s|null }
+            postLlamada: null,
+            _postIntervalo: null,
         };
     },
 
@@ -229,6 +266,7 @@ export default {
             this.tieneTelefono = true;
             this.numero = body.numero;
             this.nombre = body.nombre;
+            this.ticketAlColgar = !! body.ticket_al_colgar;
             this.iniciarUA(body);
         } catch (e) {
             // Sin teléfono asignado o error de red — el widget simplemente no aparece.
@@ -239,6 +277,7 @@ export default {
         if (this.ua) this.ua.stop();
         clearInterval(this._timerId);
         clearTimeout(this._dispDebounce);
+        clearInterval(this._postIntervalo);
         this.detenerTonoLlamando();
     },
 
@@ -333,6 +372,7 @@ export default {
                 this.remotoId = data.session.remote_identity?.uri?.user
                     || data.session.remote_identity?.display_name
                     || '—';
+                this.cerrarPostLlamada();
                 this.estadoLlamada = data.originator === 'local' ? 'saliente' : 'entrante';
                 this.abierto = true;
                 this.engancharSesion();
@@ -431,7 +471,12 @@ export default {
             // encontrado revisando el código: el mismo síntoma exacto que
             // produciría un permiso de micrófono denegado/ignorado).
             this.sesion.on('getusermediafailed', () => this.terminarConMensaje('No se pudo acceder al micrófono — revisa el permiso en el navegador'));
-            this.sesion.on('ended', () => this.terminarConMensaje('Llamada finalizada'));
+            this.sesion.on('ended', () => {
+                // Se lee ANTES de limpiar la sesión (limpiarSesion borra número y ficha).
+                const post = this.datosPostLlamada();
+                this.terminarConMensaje('Llamada finalizada');
+                if (post) setTimeout(() => this.iniciarPostLlamada(post), 2100);
+            });
             this.sesion.on('failed', (data) => this.terminarConMensaje(this.mensajeDeFallo(data)));
         },
 
@@ -701,6 +746,96 @@ export default {
             return mapa[data?.cause] || 'No se pudo completar la llamada';
         },
 
+        // Solo llamadas que de verdad se platicaron (estaban 'activa') con un número
+        // externo: las internas entre compañeros y las que no se contestaron no cuentan.
+        datosPostLlamada() {
+            if (! this.ticketAlColgar || this.estadoLlamada !== 'activa') return null;
+            const numero = (this.remotoId || '').replace(/\D/g, '');
+            if (numero.length < 7) return null;
+            const f = this.fichaCliente;
+            return {
+                numero,
+                cliente: f && f.id ? { id: f.id, name: f.name } : null,
+                noEsCliente: f === false,
+            };
+        },
+
+        async iniciarPostLlamada(post) {
+            this.cerrarPostLlamada();
+            this.postLlamada = { ...post, buscando: false, cuenta: 5 };
+            this._postIntervalo = setInterval(() => {
+                if (! this.postLlamada || this.postLlamada.cuenta === null) return;
+                this.postLlamada.cuenta -= 1;
+                if (this.postLlamada.cuenta <= 0) this.irATickets();
+            }, 1000);
+
+            // Si la ficha no alcanzó a llegar durante la llamada, se busca ahora.
+            if (! post.cliente && ! post.noEsCliente) {
+                this.postLlamada.buscando = true;
+                try {
+                    const r = await fetch(`/voip/mi-telefono/ficha/${encodeURIComponent(post.numero)}`, {
+                        headers: { 'Accept': 'application/json' },
+                    });
+                    const body = await r.json();
+                    if (! this.postLlamada) return;
+                    if (body.found) this.postLlamada.cliente = { id: body.id, name: body.name };
+                    else this.postLlamada.noEsCliente = true;
+                } catch (e) {
+                    // Sin datos del cliente se sigue igual: igual llega a Tickets.
+                } finally {
+                    if (this.postLlamada) this.postLlamada.buscando = false;
+                }
+            }
+        },
+
+        detenerCuenta() {
+            clearInterval(this._postIntervalo);
+            this._postIntervalo = null;
+            if (this.postLlamada) this.postLlamada.cuenta = null;
+        },
+
+        irATickets() {
+            this.detenerCuenta();
+            // La tarjeta sigue a la vista si falta dar de alta al cliente.
+            if (! this.postLlamada?.noEsCliente) this.postLlamada = null;
+            this.abierto = false;
+            this.navegar('/tickets/abiertos');
+        },
+
+        quedarme() {
+            this.detenerCuenta();
+            if (! this.postLlamada?.noEsCliente) this.postLlamada = null;
+        },
+
+        darDeAltaCliente() {
+            const numero = this.postLlamada?.numero || '';
+            this.cerrarPostLlamada();
+            this.abierto = false;
+            this.navegar(`/cliente/crear?telefono=${encodeURIComponent(numero)}&despues=ticket`);
+        },
+
+        cerrarPostLlamada() {
+            clearInterval(this._postIntervalo);
+            this._postIntervalo = null;
+            this.postLlamada = null;
+        },
+
+        // Navegación SPA (el teléfono vive fuera de #init-vue y no se recarga);
+        // si spa-nav no está, carga normal: la llamada ya terminó.
+        navegar(ruta) {
+            const url = new URL(ruta, window.location.origin).href;
+            if (typeof window.__spaNavigate === 'function') {
+                window.__spaNavigate(url, true);
+            } else {
+                window.location.href = url;
+            }
+        },
+
+        numeroLegible(n) {
+            const d = String(n || '').replace(/\D/g, '');
+            return d.length === 10 ? `${d.slice(0, 2)} ${d.slice(2, 6)} ${d.slice(6)}` : n;
+        },
+
         limpiarSesion() {
             clearInterval(this._timerId);
             this._timerId = null;
@@ -865,4 +1000,24 @@ export default {
     padding: 4px 10px;
 }
 .mv-ficha-link--ticket { color: #b45309; border-color: #fde68a; }
+
+/* Después de colgar */
+.mv-post {
+    position: absolute; bottom: 62px; right: 0; width: 280px;
+    background: #fff; border-radius: 12px; padding: 12px 14px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.2);
+    font-size: 13px; color: #1f2937;
+}
+.mv-post-head { display: flex; align-items: center; gap: 8px; font-weight: 600; margin-bottom: 8px; }
+.mv-post-head span { flex: 1; }
+.mv-post-fila { margin-bottom: 8px; }
+.mv-post-nota { font-size: 11.5px; color: #6b7280; margin-top: 4px; }
+.mv-post-cuenta { border-top: 1px solid #e5e7eb; padding-top: 8px; }
+.mv-post-acciones { display: flex; gap: 6px; margin-top: 6px; }
+.mv-post-btn {
+    border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8;
+    border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.mv-post-btn--suave { background: transparent; border-color: #d1d5db; color: #4b5563; }
+.mv-post-btn--alta { display: block; width: 100%; margin-top: 6px; background: #ecfdf5; border-color: #a7f3d0; color: #047857; }
 </style>

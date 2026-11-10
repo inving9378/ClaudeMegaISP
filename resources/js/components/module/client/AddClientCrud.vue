@@ -23,7 +23,7 @@
                                 :errors="dataForm.data.errors"
                                 :key="val"
                                 v-model="dataForm.data[val.field]"
-                                @update-field="updateThisField"
+                                @update-field="actualizarCampo"
                                 @clear-error="clearError"
                             />
                         </template>
@@ -68,6 +68,7 @@
 <script>
 
 import {onMounted, ref} from "vue";
+import {currentSearch} from "../../../hook/comunValues";
 import {
     getfieldsJson,
     updateThisField,
@@ -101,8 +102,39 @@ export default {
         const fieldsCrmClientJson = ref({});
 
 
+        // Desde el mini-teléfono al colgar con alguien que no es cliente (MegaVoz):
+        // ?telefono= llega precargado y ?despues=ticket lleva a crear su ticket al guardar.
+        const params = new URLSearchParams(currentSearch());
+        const telefonoInicial = (params.get('telefono') || '').replace(/\D/g, '');
+        const despuesTicket = params.get('despues') === 'ticket';
+
+        // El teléfono que llega del mini-teléfono se pone cuando ya está el formulario
+        // fresco: con navegación SPA el componente se dibuja primero con la definición
+        // que quedó en memoria de una visita anterior y luego getfieldsJson la reemplaza
+        // (y con ella los valores). Además InputText calcula su valor inicial de forma
+        // asíncrona y lo emite: si esa emisión llegara después, pisaría el teléfono. Por
+        // eso se pone en esa primera emisión (o, si ya pasó, poco después) y el campo se
+        // vuelve a montar (objeto nuevo como :key) para que nazca con el número.
+        let telefonoPendiente = telefonoInicial;
+        let formularioListo = false;
+        const ponerTelefono = () => {
+            if (! telefonoPendiente) return;
+            const telefono = telefonoPendiente;
+            telefonoPendiente = '';
+            dataForm.data.phone = telefono;
+            if (fieldsJson.value?.phone) {
+                fieldsJson.value.phone = { ...fieldsJson.value.phone };
+            }
+        };
+        const actualizarCampo = (payload) => {
+            updateThisField(payload);
+            if (formularioListo && payload?.field === 'phone') ponerTelefono();
+        };
+
         onMounted(async () => {
             await getfieldsJson("Client");
+            formularioListo = true;
+            if (telefonoPendiente) setTimeout(ponerTelefono, 400);
         });
 
         const getCrmClientIfExist = async () => {
@@ -127,7 +159,9 @@ export default {
                     `/cliente/${props.action}`,
                     props.action
                 )
-                .then((response) => location.href = `/cliente/success/${response.id}`);
+                .then((response) => location.href = despuesTicket
+                    ? `/tickets/crear/${response.id}`
+                    : `/cliente/success/${response.id}`);
         };
 
         return {
@@ -137,6 +171,7 @@ export default {
             onSubmit,
             clearError,
             updateThisField,
+            actualizarCampo,
             submitButtonAction,
             searchButtonAction,
             isCreate,

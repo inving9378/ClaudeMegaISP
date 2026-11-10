@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Addons\VoIP\Controllers\DashboardLlamadasController;
 use App\Modules\Addons\VoIP\Controllers\ExtensionController;
 use App\Modules\Addons\VoIP\Controllers\GrupoTimbradoController;
 use App\Modules\Addons\VoIP\Controllers\IaBotController;
@@ -10,8 +11,12 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth'])->prefix('voip')->group(function () {
 
-    // ── Vista principal ───────────────────────────────────────────────────────
-    Route::get('/', [TroncalController::class, 'index'])->name('voip.index');
+    // ── Vista principal: tablero de llamadas (sin voip.dashboard.view → Troncales) ──
+    Route::get('/', [DashboardLlamadasController::class, 'inicio'])->name('voip.index');
+    Route::get('/dashboard/data',      [DashboardLlamadasController::class, 'data'])->name('voip.dashboard.data');
+    Route::get('/dashboard/llamadas',  [DashboardLlamadasController::class, 'llamadas'])->name('voip.dashboard.llamadas');
+    Route::get('/grabaciones/{uniqueid}', [DashboardLlamadasController::class, 'grabacion'])
+        ->where('uniqueid', '[0-9]+\.[0-9]+')->name('voip.grabaciones.show');
 
     // ════════════════════════════════════════════════════════════════════════
     // TRONCALES
