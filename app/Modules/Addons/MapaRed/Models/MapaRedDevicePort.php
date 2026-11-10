@@ -26,6 +26,8 @@ class MapaRedDevicePort extends Model
         'transfer',
         'transfer_type',
         'card',
+        'potencia_inicial_dbm',
+        'potencia_inicial_at',
         'zone',
         'data',
     ];

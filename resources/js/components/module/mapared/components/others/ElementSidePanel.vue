@@ -296,8 +296,8 @@
                                             <th>Estado</th>
                                             <th>Señal</th>
                                             <th>Puerto</th>
-                                            <th>RX dBm</th>
-                                            <th>TX dBm</th>
+                                            <th title="Potencia que llega al cliente (bajada)">Llega al cliente dBm</th>
+                                            <th title="Potencia que recibe la OLT del cliente (subida)">Recibe la OLT dBm</th>
                                             <th>OLT</th>
                                         </tr>
                                     </thead>

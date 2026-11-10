@@ -637,6 +637,7 @@ cae, se **degrada a algo que parece una decisión legítima**.
 - **Google Maps + Leaflet** (`MIX_VUE_APP_GOOGLEMAPS_KEY`)
 - **WhatsApp Evolution API** (`WHATSAPP_API_*` env)
 - **Claude API** → `IAChatController` (`CLAUDE_API_KEY`, `CLAUDE_MODEL`)
+- **Red en solo lectura** (`config/red.php`, `App\Support\Red\SoloLectura`): fuera de producción el candado se pone solo y MikroTik (`ClienteRouterOs`), SmartOLT (solo GET) y la OLT Huawei (`execWrite`) rechazan todo cambio con `RedSoloLecturaException`. `RED_ROUTERS_REALES_EN_DEV=true` deja a dev LEER los routers reales (sin él se desvía a `MIKROTIK_DEV_*`); `RED_SOLO_LECTURA=false` lo quita para probar escrituras en el laboratorio.
 
 ---
 

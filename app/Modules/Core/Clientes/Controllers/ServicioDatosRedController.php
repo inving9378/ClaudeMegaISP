@@ -33,7 +33,7 @@ class ServicioDatosRedController extends Controller
         abort_unless($this->puedeEditar($request), 403, 'No tienes permiso para editar los datos de red del dedicado.');
 
         return response()->json($this->datosRed->guardar($servicioId, $request->only([
-            'router_id', 'interfaz_vlan', 'vlan_id', 'bloque_cidr', 'ip_router', 'ips',
+            'router_id', 'interfaz_vlan', 'vlan_id', 'bloque_cidr', 'ip_router', 'ip_referencia', 'ips',
         ]), $request->user()?->id) + ['puede_editar' => true]);
     }
 

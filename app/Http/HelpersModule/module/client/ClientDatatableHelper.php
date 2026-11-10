@@ -82,9 +82,7 @@ class ClientDatatableHelper
             ->with($eagerRelations);
 
         // Aplicar joins manuales
-        foreach ($joins as $join) {
-            $query->leftJoin($join['table'], $join['first'], $join['operator'], $join['second']);
-        }
+        $this->aplicarJoins($query, $joins);
 
         if (in_array('last_payment', $columns)) {
             $query->leftJoin(
@@ -111,6 +109,35 @@ class ClientDatatableHelper
         $query->offset($start)->limit($limit);
         $result = $query->get();
         return $result;
+    }
+
+    /**
+     * Tablas uno-a-muchos del listado. Un leftJoin directo repetiría al cliente
+     * una vez por registro (item #1168); se unen como tabla derivada con UNA sola
+     * fila por cliente (la más reciente, MAX(id)), con el mismo nombre de tabla
+     * para que columnas, filtros y orden que la referencian sigan funcionando.
+     */
+    private const TABLAS_UNO_A_MUCHOS = [
+        'client_internet_services' => 'client_id',
+        'client_bundle_services' => 'client_id',
+        'client_voz_services' => 'client_id',
+        'client_custom_services' => 'client_id',
+        'olt_onus' => 'client_id',
+        'network_ips' => 'client_id',
+        'nomenclatures' => 'client_id',
+        'client_main_information' => 'client_id', // 1-a-1 con datos sucios (cliente con 2 filas)
+    ];
+
+    private function aplicarJoins($query, array $joins): void
+    {
+        foreach ($joins as $join) {
+            $table = $join['table'];
+            if (isset(self::TABLAS_UNO_A_MUCHOS[$table]) && $join['first'] === 'clients.id') {
+                $fk = self::TABLAS_UNO_A_MUCHOS[$table];
+                $table = DB::raw("(SELECT t.* FROM `{$table}` t INNER JOIN (SELECT `{$fk}` AS cid, MAX(id) AS mid FROM `{$table}` GROUP BY `{$fk}`) m ON t.id = m.mid) as `{$table}`");
+            }
+            $query->leftJoin($table, $join['first'], $join['operator'], $join['second']);
+        }
     }
 
     /**
@@ -596,9 +623,7 @@ class ClientDatatableHelper
             ->with($eagerRelations);
 
         // Aplicar joins manuales
-        foreach ($joins as $join) {
-            $query->leftJoin($join['table'], $join['first'], $join['operator'], $join['second']);
-        }
+        $this->aplicarJoins($query, $joins);
 
         if (in_array('last_payment', $columns ?? [])) {
             $query->leftJoin(

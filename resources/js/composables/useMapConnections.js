@@ -1,6 +1,7 @@
 import { computed, ref } from "vue";
 import { sincronizeRoutes } from "./useNodeMap";
 import { colors } from "../components/module/maps/helper/mapUtils";
+import { rutearOrtogonal } from "./ruteoOrtogonal";
 
 export const devices = ref([]);
 export const connections = ref([]);
@@ -267,6 +268,14 @@ export const redrawConnections = async (container) => {
         }
         c["path"] = getPathFromConnection(c, container);
     });
+    // Variante ortogonal por canaletas (la usan Site y Rack; solo dibujo)
+    const puntos = connections.value
+        .filter((c) => c._pts && c.visible)
+        .map((c) => ({ id: c._k, ...c._pts }));
+    const orto = rutearOrtogonal(puntos);
+    connections.value.forEach((c) => {
+        c["pathGrid"] = c._pts && c.visible ? orto[c._k] ?? null : null;
+    });
 };
 
 export const getPathFromConnection = (connection, container) => {
@@ -316,8 +325,8 @@ export const getPathFromConnection = (connection, container) => {
             let ctrlX2 = startX + (endX - startX) / 2;
             let ctrlY2 = endY;
 
-            console.log(startX, endX);
-            
+            connection._k = connection.id ?? `${connection.from_element}>${connection.to_element}`;
+            connection._pts = { startX, startY, endX, endY };
 
             return `M${startX}, ${startY} C${ctrlX1},${ctrlY1} ${ctrlX2},${ctrlY2} ${endX},${endY}`;
         } else {

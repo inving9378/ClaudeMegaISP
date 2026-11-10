@@ -8,7 +8,12 @@ class TalentoWorkOrderType extends BaseModel
 {
     protected $table = 'talento_work_order_types';
 
-    protected $fillable = ['name', 'category', 'color', 'points', 'is_billable', 'requires_validation', 'active'];
+    protected $fillable = ['name', 'category', 'area', 'project_id', 'color', 'points', 'is_billable', 'requires_validation', 'inicia_garantia', 'active'];
+
+    /** Área del tipo (item #1200): de cliente (instalación, garantía…) o de planta externa. */
+    public const AREA_CLIENTE = 'cliente';
+    public const AREA_PLANTA_EXTERNA = 'planta_externa';
+    public const AREAS = [self::AREA_CLIENTE, self::AREA_PLANTA_EXTERNA];
 
     /**
      * Rojo reservado para las órdenes atrasadas (item #1158): ningún tipo lo usa, así una orden que
@@ -33,8 +38,21 @@ class TalentoWorkOrderType extends BaseModel
         'is_billable'          => 'boolean',
         'requires_validation'  => 'boolean',
         'active'               => 'boolean',
+        'inicia_garantia'      => 'boolean',
         'points'               => 'integer',
+        'project_id'           => 'integer',
     ];
+
+    public function esPlantaExterna(): bool
+    {
+        return $this->area === self::AREA_PLANTA_EXTERNA;
+    }
+
+    /** Plantillas de orden del tipo (item #1200). */
+    public function templates()
+    {
+        return $this->hasMany(TalentoWorkOrderTemplate::class, 'type_id');
+    }
 
     public function workOrders()
     {

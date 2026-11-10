@@ -5,7 +5,10 @@ namespace App\Modules\Addons\Talento\Services;
 use App\Models\Task;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
+use App\Modules\Addons\Talento\Models\TalentoWorkOrderChecklistItem;
+use App\Modules\Addons\Talento\Models\TalentoWorkOrderData;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderType;
+use App\Modules\Addons\Talento\Support\EsquemaCamposOrden;
 use App\Modules\Addons\Talento\Support\OrdenReferencia;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -947,9 +950,44 @@ class OrdenTrabajoUnifiedService
         if (! $clientId) {
             return null;
         }
-        $nombre = $this->clientByClientId($clientId)['name'];
+        $cliente = $this->clientByClientId($clientId);
 
-        return ['id' => $clientId, 'nombre' => $nombre ?: "Cliente #{$clientId}"];
+        // #1228: también la dirección, para mostrar qué cambia al cambiar el cliente de una orden.
+        return ['id' => $clientId, 'nombre' => $cliente['name'] ?: "Cliente #{$clientId}", 'direccion' => $cliente['address']];
+    }
+
+    /**
+     * Item #1200 — clientes para el «Cliente de referencia» de una orden de planta externa.
+     * Busca por número de cliente exacto, nombre completo o teléfono. Solo lo necesario para
+     * elegirlo: número, nombre y dirección.
+     */
+    public function searchClientesReferencia(string $search, int $limit = 10): array
+    {
+        $search = trim($search);
+        $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $search) . '%';
+
+        return DB::table('client_main_information')
+            ->whereNull('deleted_at')
+            ->whereNotNull('client_id')
+            ->where(function ($q) use ($search, $like) {
+                if (ctype_digit(ltrim($search, '0')) && ltrim($search, '0') !== '') {
+                    $q->orWhere('client_id', (int) ltrim($search, '0'));
+                }
+                $q->orWhereRaw("CONCAT_WS(' ', name, father_last_name, mother_last_name) LIKE ?", [$like])
+                  ->orWhere('phone', 'like', $like);
+            })
+            // El número de cliente exacto va primero (los demás pueden coincidir por teléfono).
+            ->orderByRaw('client_id = ? DESC', [(int) ltrim($search, '0')])
+            ->orderBy('client_id')
+            ->limit($limit)
+            ->get(['client_id', 'name', 'father_last_name', 'mother_last_name', 'address'])
+            ->map(fn ($r) => [
+                'id'        => (int) $r->client_id,
+                'nombre'    => trim(implode(' ', array_filter([$r->name, $r->father_last_name, $r->mother_last_name]))) ?: "Cliente #{$r->client_id}",
+                'direccion' => $r->address ?: null,
+            ])
+            ->values()
+            ->all();
     }
 
     /**
@@ -1042,6 +1080,8 @@ class OrdenTrabajoUnifiedService
                 && in_array($task->status, AgendaOrdenesService::ESTADOS_ABIERTOS, true)
                 && substr($scheduledAt, 0, 10) < now()->toDateString(),
             'notes'          => $task->description,
+            // Item #1200: en planta externa el título identifica la orden ("[Habilitar caja] Zona 3 · Caja 12").
+            'title'          => $task->title,
             'nota_tecnico'   => $task->nota_tecnico,
             'validated_at'   => $task->validated_at,
             'validated_by'   => null,
@@ -1061,6 +1101,7 @@ class OrdenTrabajoUnifiedService
                 'id'                  => $type->id,
                 'name'                => $type->name,
                 'category'            => $type->category,
+                'area'                => $type->area ?? TalentoWorkOrderType::AREA_CLIENTE,
                 'points'              => $type->points,
                 'is_billable'         => (bool) $type->is_billable,
                 'requires_validation' => (bool) $type->requires_validation,
@@ -1072,6 +1113,17 @@ class OrdenTrabajoUnifiedService
                 ? DB::table('client_main_information')->where('id', $task->client_main_information_id)->value('client_id')
                 : null),
             'prospecto'      => $this->prospectoByCrmLeadId($task->crm_lead_id),
+            // #1225: con qué más está ligada (el aviso de eliminar dice que el prospecto y el ticket no se tocan).
+            'ticket_id'      => $task->ticket_id ? (int) $task->ticket_id : null,
+            // #1228: lo que es del cliente actual y no deja cambiarle el cliente (ticket, ONU, servicio).
+            'vinculos'       => OrdenPendienteService::vinculosDelCliente($task),
+            'eliminada'      => $task->trashed() ? [
+                'cuando' => $task->deleted_at?->format('Y-m-d H:i'),
+                'por'    => $task->eliminada_por
+                    ? trim((string) DB::table('users')->where('id', $task->eliminada_por)->selectRaw("CONCAT_WS(' ', name, father_last_name) as n")->value('n')) ?: null
+                    : null,
+                'motivo' => $task->motivo_eliminacion,
+            ] : null,
             '_source'        => 'task',
         ];
     }
@@ -1085,6 +1137,9 @@ class OrdenTrabajoUnifiedService
         $to            = $filters['to']             ?? null;
         $search        = $filters['search']         ?? null;
         $prospecto     = $filters['prospecto']      ?? null;
+        // #1225: "Ver eliminadas" — solo las órdenes borradas (lógico) de `tasks`; el controller ya
+        // revisó el permiso. Las antiguas no se eliminan desde aquí, así que no entran.
+        $eliminadas    = ! empty($filters['eliminadas']);
 
         // Filtro "Buscar prospecto" (#9991201): TalentoWorkOrder no tiene crm_lead_id
         // (tabla sin uso, 0 filas — decisión ya tomada al construir #9991205/#9991206),
@@ -1117,7 +1172,7 @@ class OrdenTrabajoUnifiedService
             ->when($from,          fn($q, $v) => $q->where('scheduled_at', '>=', $v))
             ->when($to,            fn($q, $v) => $q->where('scheduled_at', '<=', $v . ' 23:59:59'))
             ->when($search, fn($q, $s) => $q->whereHas('colaborador.user', fn($u) => $u->where('name', 'like', "%$s%")))
-            ->when($prospecto, fn($q) => $q->whereRaw('1=0'));
+            ->when($prospecto || $eliminadas, fn($q) => $q->whereRaw('1=0'));
 
         $workOrders = $woQuery->orderByDesc('scheduled_at')
             ->get()
@@ -1128,6 +1183,7 @@ class OrdenTrabajoUnifiedService
             ]))->toBase();
 
         $taskQuery = Task::with(['talentoType', 'users'])
+            ->when($eliminadas, fn($q) => $q->onlyTrashed())
             ->whereNotNull('talento_type_id')
             ->when($typeId, fn($q, $v) => $q->where('talento_type_id', $v))
             ->when($from,   fn($q, $v) => $q->whereDate('start_date', '>=', $v))
@@ -1190,7 +1246,8 @@ class OrdenTrabajoUnifiedService
         ];
     }
 
-    public function showForAdmin(int $id, ?string $origen = null): ?array
+    /** $conEliminadas (#1225): también encuentra la orden borrada (lógico), para quien puede eliminar. */
+    public function showForAdmin(int $id, ?string $origen = null, bool $conEliminadas = false): ?array
     {
         $ot = $origen === OrdenReferencia::ORIGEN_TAREA ? null : TalentoWorkOrder::with(['colaborador.user', 'type', 'assignedBy', 'validatedBy', 'workActivities.recordedBy'])
             ->find($id);
@@ -1203,12 +1260,14 @@ class OrdenTrabajoUnifiedService
         }
 
         $task = $origen === OrdenReferencia::ORIGEN_ANTIGUA ? null : Task::with(['talentoType', 'users'])
+            ->when($conEliminadas, fn ($q) => $q->withTrashed())
             ->whereNotNull('talento_type_id')
             ->find($id);
         if ($task) {
             $item = $this->adminItemFromTask($task);
             $item['_source'] = 'task';
             $item['reprogramaciones'] = app(AgendaOrdenesService::class)->reprogramacionesDe($task->id);
+            $item += $this->datosDePlantilla($task->id);
             if (app(OrderParticipantsService::class)->activo()) {
                 $item['participantes'] = app(OrderParticipantsService::class)->listar('task', $task->id);
             }
@@ -1216,6 +1275,33 @@ class OrdenTrabajoUnifiedService
         }
 
         return null;
+    }
+
+    /**
+     * Item #1200: datos capturados con la plantilla (con la copia del esquema con que nació la
+     * orden) y su checklist de materiales. Vacío para las órdenes sin plantilla.
+     */
+    private function datosDePlantilla(int $taskId): array
+    {
+        $d = TalentoWorkOrderData::where('tarea_id', $taskId)->first();
+        if (! $d) {
+            return ['datos' => null, 'checklist' => []];
+        }
+
+        return [
+            'datos' => [
+                'template_id' => $d->template_id,
+                'plantilla'   => $d->template?->name,
+                'campos'      => $d->schema_snapshot ?? [],
+                'valores'     => (object) ($d->values ?? []),
+                // #1225: las notas del usuario, para editarlas sin el resto de la descripción.
+                'notas'       => EsquemaCamposOrden::notasDe(Task::whereKey($taskId)->withTrashed()->value('description')),
+            ],
+            'checklist' => TalentoWorkOrderChecklistItem::where('tarea_id', $taskId)
+                ->orderBy('sort_order')->orderBy('id')
+                ->get(['id', 'label', 'cantidad', 'unidad', 'checked', 'checked_at', 'checked_by'])
+                ->toArray(),
+        ];
     }
 
     // ── Admin SPA — WRITE ────────────────────────────────────────────────────────

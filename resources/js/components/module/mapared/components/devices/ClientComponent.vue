@@ -45,6 +45,17 @@
                 </q-btn>
             </q-item-section>
             <q-item-section avatar style="padding: 0">
+                <q-btn
+                    size="sm"
+                    padding="5px"
+                    color="amber-8"
+                    icon="lightbulb"
+                    @click.stop="encenderLampara"
+                >
+                    <q-tooltip class="bg-grey">Iluminar recorrido hasta la OLT</q-tooltip>
+                </q-btn>
+            </q-item-section>
+            <q-item-section avatar style="padding: 0">
                 <port-note-component
                     :object="port"
                     :has-edit="hasEdit"
@@ -62,6 +73,20 @@
                     {{ port.client?.client_id }} - {{ port.name }}
                 </q-item-label>
             </q-item-section>
+        <q-item-section side class="potencia-cliente" style="font-size: 11px; line-height: 1.2">
+            <template v-if="potencia && potencia.actual_dbm != null">
+                <span :class="colorActual">
+                    {{ potencia.actual_dbm.toFixed(1) }} dBm
+                    <small v-if="!potencia.en_vivo && potencia.leida_at">(última: {{ potencia.leida_at.slice(5, 16) }})</small>
+                </span>
+                <span v-if="potencia.inicial_dbm != null" class="text-grey-7">
+                    inicial: {{ potencia.inicial_dbm.toFixed(1) }}
+                    <span v-if="potencia.diferencia_db != null">(Δ {{ potencia.diferencia_db > 0 ? "+" : "" }}{{ potencia.diferencia_db.toFixed(1) }})</span>
+                </span>
+            </template>
+            <span v-else-if="potencia && !potencia.tiene_onu" class="text-grey-7">sin ONU ligada</span>
+            <span v-else-if="potencia" class="text-grey-7">sin lectura</span>
+        </q-item-section>
         </template>
         <template v-else>
             <q-item-section class="draggable">
@@ -69,11 +94,36 @@
                     {{ port.client?.client_id }} - {{ port.name }}
                 </q-item-label>
             </q-item-section>
+        <q-item-section side class="potencia-cliente" style="font-size: 11px; line-height: 1.2">
+            <template v-if="potencia && potencia.actual_dbm != null">
+                <span :class="colorActual">
+                    {{ potencia.actual_dbm.toFixed(1) }} dBm
+                    <small v-if="!potencia.en_vivo && potencia.leida_at">(última: {{ potencia.leida_at.slice(5, 16) }})</small>
+                </span>
+                <span v-if="potencia.inicial_dbm != null" class="text-grey-7">
+                    inicial: {{ potencia.inicial_dbm.toFixed(1) }}
+                    <span v-if="potencia.diferencia_db != null">(Δ {{ potencia.diferencia_db > 0 ? "+" : "" }}{{ potencia.diferencia_db.toFixed(1) }})</span>
+                </span>
+            </template>
+            <span v-else-if="potencia && !potencia.tiene_onu" class="text-grey-7">sin ONU ligada</span>
+            <span v-else-if="potencia" class="text-grey-7">sin lectura</span>
+        </q-item-section>
             <q-item-section avatar v-if="hasEdit">
                 <form-disconnect-client
                     :object="port"
                     @removed="(data) => emits('update', data)"
                 />
+            </q-item-section>
+            <q-item-section avatar style="padding: 0">
+                <q-btn
+                    size="sm"
+                    padding="5px"
+                    color="amber-8"
+                    icon="lightbulb"
+                    @click.stop="encenderLampara"
+                >
+                    <q-tooltip class="bg-grey">Iluminar recorrido hasta la OLT</q-tooltip>
+                </q-btn>
             </q-item-section>
             <q-item-section avatar style="padding: 0">
                 <port-note-component
@@ -118,7 +168,7 @@
 </template>
 
 <script setup>
-import { onBeforeMount, ref, watch } from "vue";
+import { computed, onBeforeMount, ref, watch } from "vue";
 import { hideLoading, showLoading } from "../../../../../helpers/loading";
 import { saveDevice } from "../../helper/devices-request";
 import PortNoteComponent from "../PortNoteComponent.vue";
@@ -135,6 +185,7 @@ defineOptions({
 const props = defineProps({
     device: Object,
     hasEdit: Boolean,
+    potencia: { type: Object, default: null },
 });
 
 const emits = defineEmits(["toggle", "change-port-direction", "update"]);
@@ -142,6 +193,12 @@ const emits = defineEmits(["toggle", "change-port-direction", "update"]);
 const port = ref(null);
 
 const clientWidth = 400;
+
+const colorActual = computed(() => {
+    const v = props.potencia?.actual_dbm;
+    if (v == null) return "";
+    return v <= -27 ? "text-negative" : v <= -24 ? "text-warning" : "text-positive";
+});
 
 onBeforeMount(() => {
     port.value = props.device.ports[0];
@@ -157,6 +214,12 @@ watch(
         port.value = n.ports[0];
     }
 );
+
+// Item #1241: avisa al mapa (LeafletMapRed) que ilumine el recorrido cliente→OLT.
+const encenderLampara = () => {
+    const clientId = port.value?.client?.id ?? port.value?.client_id;
+    window.dispatchEvent(new CustomEvent("mapared:lampara", { detail: { clientId } }));
+};
 
 const changePortDirection = async () => {
     showLoading();

@@ -47,6 +47,7 @@ class RoadmapItem extends Model
     protected $fillable = [
         'title', 'description', 'status', 'priority',
         'target_version', 'prompt', 'position',
+        'solo_humano', 'solo_humano_motivo', 'solo_humano_por', 'solo_humano_at',   // #1230
         'depende_de',   // MR-36 (#9990332): ids que deben estar cerrados antes de reclamar éste
         'started_at', 'completed_at',
         'subtasks', 'log',
@@ -1274,7 +1275,12 @@ TXT;
      */
     public static function sqlElegibleParaPool($q): void
     {
-        $q->where(fn ($x) => $x->whereNull('excluir_pool_automatico')->orWhere('excluir_pool_automatico', false))
+        // #1230 — CANDADO `solo_humano`: PRIMERA condición, fuera de cualquier override (ni
+        // `automatizacion_override=auto` ni `aprobado_irving` lo saltan). Como este predicado lo
+        // comparten `scopeDespachable` y el UPDATE atómico de `claimNextParalelo` (también el
+        // despacho dirigido), todos los caminos de reclamo quedan cubiertos.
+        $q->where(fn ($x) => $x->whereNull('solo_humano')->orWhere('solo_humano', false))
+          ->where(fn ($x) => $x->whereNull('excluir_pool_automatico')->orWhere('excluir_pool_automatico', false))
           ->where(fn ($x) => $x->whereNull('esperando_merge_irving')->orWhere('esperando_merge_irving', false))
           // #921 — un item AGENDADO a futuro no es trabajo pendiente: fuera del pool hasta su fecha,
           // SIN usar `excluir_pool_automatico` (ese es el master switch de otros 6 mecanismos).

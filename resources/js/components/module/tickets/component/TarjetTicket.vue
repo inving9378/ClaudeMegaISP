@@ -1,10 +1,10 @@
 <template>
     <div class="col-md-3 col-xl-3 cursor-pointer" @click="redirect(link)">
-        <div class="card mb-3" style="min-height: 200px;">
+        <div class="card mb-3" :class="color ? `border-start border-4 border-${color}` : ''" style="min-height: 200px;">
             <div class="card-body">
                 <h5 class="card-title d-flex justify-content-between">
                     <div>
-                        <i :class="`display-4 ${icon}`"></i>
+                        <i :class="[`display-4 ${icon}`, color ? `text-${color}` : '']"></i>
                     </div>
                     <div>
                         <h4 class="mb-1 mt-1">
@@ -32,6 +32,7 @@ export default {
         link: String,
         porcent: String | Number,
         labelPorcent: String,
+        color: { type: String, default: "" },
     },
     setup() {
         const redirect = (url) => {

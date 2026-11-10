@@ -19,6 +19,14 @@ return [
             'colores_estado' => ['required', 'boolean'],
         ],
 
+        // Clientes › Listado de clientes. Estado y tipo son listas (el filtro es multi-valor);
+        // las reglas aplican al valor completo; el front descarta las claves que ya no existen.
+        'clientes' => [
+            'estado' => ['required', 'array', 'max:20'],
+            'tipo' => ['required', 'array', 'max:20'],
+            'colores_estado' => ['required', 'boolean'],
+        ],
+
         // Vendedores › Listado de vendedores.
         'vendedores' => [
             'estado' => ['required', 'string', 'in:todos,activo,inactivo,bloqueado'],

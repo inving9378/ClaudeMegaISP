@@ -4,6 +4,7 @@ namespace App\Modules\Addons\MapaRed\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\MapaRed\Services\MapaRedNapHealthService;
+use App\Modules\Addons\MapaRed\Services\MapaRedPotenciaHistorialService;
 use Illuminate\Http\Request;
 
 /**
@@ -13,7 +14,7 @@ use Illuminate\Http\Request;
  */
 class NapSaludController extends Controller
 {
-    public function __construct(private MapaRedNapHealthService $service)
+    public function __construct(private MapaRedNapHealthService $service, private MapaRedPotenciaHistorialService $historial)
     {
     }
 
@@ -63,5 +64,13 @@ class NapSaludController extends Controller
                 ? (float) $layer->potencia_instalacion_dbm
                 : null,
         ]);
+    }
+
+    /** Item #1270 (MR-33) — serie de potencia de la caja (30 o 90 días) + diferencia vs instalación. */
+    public function potenciaHistorial(Request $request, int $layerId)
+    {
+        $data = $request->validate(['dias' => 'nullable|integer|in:30,90']);
+
+        return response()->json($this->historial->serie($layerId, (int) ($data['dias'] ?? 30)));
     }
 }

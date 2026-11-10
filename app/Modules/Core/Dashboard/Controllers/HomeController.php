@@ -15,7 +15,6 @@ use App\Models\Ticket;
 use App\Models\ClientMainInformation;
 use App\Models\Transaction;
 use App\Services\FinanceService;
-use App\Services\IdentidadConsistencyService;
 use App\Services\ServerInfoService;
 use Illuminate\Support\Facades\DB;
 
@@ -57,7 +56,8 @@ class HomeController extends Controller
                 "icon" => "fas fa-exchange-alt",
                 "link" => "/cliente/listar",
                 "porcent" => "0.0",
-                "permission" => "dashboard_view_card_client_inline"
+                "permission" => "dashboard_view_card_client_inline",
+                "color" => "success"
             ],
             "ClientNew" => [
                 "estado" => "Clientes nuevos",
@@ -66,7 +66,8 @@ class HomeController extends Controller
                 "icon" => "bx bx-user",
                 "link" => "/cliente/listar",
                 "porcent" => "0.0",
-                "permission" => "dashboard_view_card_client_new"
+                "permission" => "dashboard_view_card_client_new",
+                "color" => "info"
             ],
             "TicketsOpen" => [
                 "estado" => "Tickets nuevos/abiertos",
@@ -75,7 +76,8 @@ class HomeController extends Controller
                 "icon" => "bx bx-list-check",
                 "link" => "/tickets/abiertos",
                 "porcent" => "0.0",
-                "permission" => "dashboard_view_card_tickets_open_new"
+                "permission" => "dashboard_view_card_tickets_open_new",
+                "color" => "warning"
             ],
             "Devices" => [
                 "estado" => "Los dispositivos sin respuesta",
@@ -84,16 +86,8 @@ class HomeController extends Controller
                 "icon" => "bx bx-plug",
                 "link" => "/red/router/listar",
                 "porcent" => "0.0",
-                "permission" => "dashboard_view_card_device_not_responding"
-            ],
-            "IdentidadCobertura" => [
-                "estado" => "Cobertura bridge identidad (cliente↔colaborador)",
-                "total" => "N/D",
-                "time_human" => "Fase 3c #9990778",
-                "icon" => "bx bx-check-shield",
-                "link" => "#",
-                "porcent" => "0.0",
-                "permission" => "dashboard_view_card_identidad_cobertura"
+                "permission" => "dashboard_view_card_device_not_responding",
+                "color" => "danger"
             ]
         ];
 
@@ -119,13 +113,6 @@ class HomeController extends Controller
             $array['TicketsOpen']['total'] = $ticket_info[0]['total'];
             $array['TicketsOpen']['porcent'] = $ticket_info[0]['total'] * 100 / $ticketCount;
         };
-
-        $identidadCoberturaPct = app(IdentidadConsistencyService::class)
-            ->resumen()['client_main_information']['cobertura_pct'] ?? null;
-        if ($identidadCoberturaPct !== null) {
-            $array['IdentidadCobertura']['total'] = "{$identidadCoberturaPct}%";
-            $array['IdentidadCobertura']['porcent'] = $identidadCoberturaPct;
-        }
 
         return $array;
     }

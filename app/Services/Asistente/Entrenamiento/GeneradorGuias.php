@@ -76,7 +76,13 @@ class GeneradorGuias
         $guia = null;
         $tecnicas = [];
         for ($intento = 1; $intento <= 2; $intento++) {
-            $r = IA::enviar($clave, $prompt, [], $this->system(), [], ['max_tokens' => 2500]);
+            // 8000: los modelos que razonan antes de responder gastan parte del tope en eso; con 2500 la
+            // guía llegaba cortada a media frase (2026-11-10, Talento con claude-sonnet-5-5).
+            $r = IA::enviar($clave, $prompt, [], $this->system(), [], ['max_tokens' => 8000]);
+            if (($r['fin'] ?? null) === 'max_tokens') {
+                $guia = null;   // cortada: nunca se escribe una guía a medias
+                continue;
+            }
             $guia = $this->limpiar((string) ($r['texto'] ?? ''), $material['pantallas']);
             $tecnicas = $this->palabrasTecnicas($guia);
             if (!$tecnicas && str_starts_with($guia, '# ')) {
@@ -87,7 +93,10 @@ class GeneradorGuias
                 . (!str_starts_with($guia, '# ') ? ' (no empezaba con "# " y el nombre)' : '')
                 . '. Vuelve a escribir la guía completa corrigiéndolo.';
         }
-        if ($guia === null || !str_starts_with($guia, '# ')) {
+        if ($guia === null) {
+            return ['estado' => 'error', 'detalle' => 'la respuesta de la IA llegó cortada (tope de tokens); no se escribió la guía'];
+        }
+        if (!str_starts_with($guia, '# ')) {
             return ['estado' => 'error', 'detalle' => 'la IA no devolvió una guía con el formato pedido'];
         }
 

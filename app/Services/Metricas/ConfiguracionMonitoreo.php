@@ -38,7 +38,7 @@ class ConfiguracionMonitoreo
         $configs = DB::table('servicio_monitoreo')
             ->whereIn('servicio_id', $servicios)
             ->where('activo', true)
-            ->get(['id', 'servicio_id', 'cliente_id', 'router_id', 'interfaz_vlan', 'vlan_id', 'ip_router']);
+            ->get(['id', 'servicio_id', 'cliente_id', 'router_id', 'interfaz_vlan', 'vlan_id', 'ip_router', 'ip_referencia']);
 
         $ips = DB::table('servicio_monitoreo_ips')->where('monitorear', true)
             ->whereIn('servicio_monitoreo_id', $configs->pluck('id'))
@@ -64,6 +64,7 @@ class ConfiguracionMonitoreo
                 'interfaz'    => $interfaz,
                 'vlan_id'     => $m->vlan_id ? (int) $m->vlan_id : null,
                 'ips'         => $susIps,
+                'ip_referencia' => trim((string) $m->ip_referencia) !== '' ? trim((string) $m->ip_referencia) : null,
             ];
         }
 

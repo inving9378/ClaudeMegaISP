@@ -36,7 +36,7 @@ hacen las cosas; pero para **qué datos pide** una pantalla usa siempre la guía
 - `modulos/reportes` — **Reportes**: Permite consultar y exportar reportes operativos y novedades del sistema.
 - `modulos/scheduling` — **Planificación y seguimiento de proyectos y tareas**: Es el módulo para organizar proyectos y tareas del ISP en un solo lugar.
 - `modulos/smartimportexport` — **Importación y Exportación de Datos**: Herramienta para cargar o descargar grandes volúmenes de datos desde o hacia el sistema.
-- `modulos/talento` — **Talento**: Gestión del personal de campo y sus labores.
+- `modulos/talento` — **Talento (personal de campo)**: Aquí se administra al personal de campo (técnicos, vendedores, instaladores): sus órdenes de trabajo, asistencia, pagos, penalizaciones y formación.
 - `modulos/tickets` — **Tickets (soporte)**: Es el módulo que gestiona las solicitudes de asistencia de los clientes del ISP.
 - `modulos/usuarios` — **Usuarios**: Administración de cuentas de acceso y roles del personal en MegaISP.
 - `modulos/vendedores` — **Vendedores**: Administrar la fuerza de ventas del ISP, comisiones y prospectos.

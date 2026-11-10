@@ -2,6 +2,7 @@
 
 namespace App\Services\OltDriver\Huawei;
 
+use App\Support\Red\SoloLectura;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
@@ -215,6 +216,10 @@ class HuaweiTransport
      */
     public function execWrite(string $cmd, ?string $confirmReply = null): string
     {
+        // Red en solo lectura (config/red.php): ninguna escritura llega a la OLT.
+        if (SoloLectura::activo()) {
+            throw SoloLectura::bloqueo('la OLT Huawei', $cmd);
+        }
         $this->assertOpen();
         $prompt = $this->currentPrompt();
 

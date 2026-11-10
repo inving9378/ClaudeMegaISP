@@ -356,11 +356,12 @@ class Task extends Model
         return $cls;
     }
 
-    public function sendNotifications($priority = null, $recipients = null)
+    public function sendNotifications($priority = null, $recipients = null, ?string $titulo = null)
     {
         $notification = new TaskNotification();
         $notification->priority = $priority;
-        $notification->title = 'Nueva tarea asignada';
+        // $titulo (item #1225): avisos de Talento como «orden retirada/eliminada»; sin él, el de siempre.
+        $notification->title = $titulo ?? 'Nueva tarea asignada';
         $notification->task_id = $this->id;
         // Las órdenes de Talento abren en el «Mi día» de quien la tiene asignada (2026-10-27); la
         // dirección de Scheduling exige task_view_full_task y al técnico lo regresaba al inicio.

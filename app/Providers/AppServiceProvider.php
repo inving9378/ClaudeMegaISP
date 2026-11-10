@@ -120,6 +120,9 @@ class AppServiceProvider extends ServiceProvider
             if (config('services.smartolt.proxy') !== null) {
                 $data['proxy'] = config('services.smartolt.proxy');
             }
+            // Con la red en solo lectura (config/red.php) solo salen consultas (GET).
+            $data['handler'] = \GuzzleHttp\HandlerStack::create();
+            $data['handler']->push(\App\Support\Red\SoloLectura::middlewareSoloConsultas('SmartOLT'), 'red-solo-lectura');
             return new Client($data);
         });
     }

@@ -46,6 +46,7 @@
             </div>
 
             <select-filter
+              v-if="prefsListas"
               :options="array_all_status"
               :id="idTable"
               name="client_main_information.estado"
@@ -53,7 +54,7 @@
               @setFilter="setFilter"
             >
             </select-filter>
-            <div v-if="array_tipos_cliente" class="d-flex align-items-center gap-2">
+            <div v-if="array_tipos_cliente && prefsListas" class="d-flex align-items-center gap-2">
               <select-filter
                 :options="array_tipos_cliente"
                 :id="`${idTable}_tipo`"
@@ -101,6 +102,10 @@
                     <q-item clickable v-close-popup @click="toogleBackgroundColor">
                       <q-item-section avatar><q-icon name="mdi-palette" style="color: #ED93B1" /></q-item-section>
                       <q-item-section>Alternar colores de estado</q-item-section>
+                    </q-item>
+                    <q-item clickable v-close-popup @click="guardarPredeterminados">
+                      <q-item-section avatar><q-icon name="mdi-star-outline" style="color: #FBBF24" /></q-item-section>
+                      <q-item-section>Usar filtros actuales como predeterminados</q-item-section>
                     </q-item>
                     <q-separator />
                     <q-item-label header class="q-py-xs">Estilo de estado</q-item-label>
@@ -372,6 +377,7 @@ import VueDatePicker from "@vuepic/vue-datepicker";
 import { darkMode, rowStatusStyle, setRowStatusStyle } from "../../../hook/appConfig";
 import { useOlts } from "../../../composables/useOlts";
 import { useTableUrlState } from "../../../hook/useTableUrlState";
+import { usePreferenciasVista } from "../../../composables/usePreferenciasVista.js";
 
 export default {
   name: "DatatableClient",
@@ -567,6 +573,7 @@ export default {
       const search = typeof privado.search === "string" ? privado.search : "";
 
       return {
+        hayFiltroEnUrl: estado.length > 0 || tipo.length > 0,
         paginacion,
         estado,
         tipo,
@@ -577,6 +584,8 @@ export default {
       };
     };
     const guardado = leerEstadoGuardado();
+    const prefsListas = ref(false);
+    const preferencias = usePreferenciasVista("clientes");
     ampliadaActiva.value = guardado.ampliada;
 
     const fechaCorte = ref(guardado.fechaCorte);
@@ -603,6 +612,29 @@ export default {
     const columnsToExpand = ref([]);
 
     onMounted(async () => {
+      try {
+        const guardadas = await preferencias.cargar();
+        const validos = (campo, json) => {
+          const lista = Array.isArray(guardadas[campo]) ? guardadas[campo] : [];
+          const claves = Object.keys(JSON.parse(json || "{}"));
+          return lista.filter((v) => claves.includes(v));
+        };
+        if (!guardado.hayFiltroEnUrl) {
+          const estado = validos("estado", props.array_all_status);
+          const tipo = validos("tipo", props.array_tipos_cliente);
+          guardado.estado = estado;
+          guardado.tipo = tipo;
+          const filtros = { ...ffilters.value };
+          if (estado.length) filtros[CAMPO_ESTADO] = estado;
+          if (tipo.length) filtros[CAMPO_TIPO] = tipo;
+          ffilters.value = filtros;
+        }
+        if (typeof guardadas.colores_estado === "boolean") colorBlackAndWhite.value = guardadas.colores_estado;
+      } catch (error) {
+        window.console.error("No se pudieron leer las preferencias del listado:", error);
+      }
+      prefsListas.value = true;
+
       // FR-02 (#536): eliminar ya no pasa por «Cancelado» (que ahora es un estado de baja que se
       // elige en la ficha): borra definitivamente y exige escribir ELIMINAR.
       $(document).on("click" + ns, `#${props.idTable} .fa-trash`, async function (e) {
@@ -669,13 +701,32 @@ export default {
     });
     const tempToFilter = ref({});
 
+    // Colores de estado: preferencia del usuario (clientes.colores_estado); sin ella rige el valor
+    // que traía el módulo, como antes.
     const colorBlackAndWhite = ref(props.color_datatable == 1);
-    const toogleBackgroundColor = () => {
-      isUpdatedColorDatatable.value = true;
+    const toogleBackgroundColor = async () => {
       colorBlackAndWhite.value = !colorBlackAndWhite.value;
       resetTable();
+      try {
+        await preferencias.guardar("colores_estado", colorBlackAndWhite.value);
+      } catch (error) {
+        toastr.error("No se pudo guardar la preferencia de colores.", "Clientes");
+      }
     };
 
+    // Estado/tipo predeterminados: se aplican solo si la URL no trae filtros (URL > preferencia).
+    const guardarPredeterminados = async () => {
+      try {
+        for (const [nombre, campo] of [["estado", CAMPO_ESTADO], ["tipo", CAMPO_TIPO]]) {
+          const valores = ffilters.value[campo] ?? [];
+          if (valores.length) await preferencias.guardar(nombre, valores);
+          else await preferencias.restablecer(nombre);
+        }
+        toastr.success("Al entrar a Clientes verás estos filtros de estado y tipo.", "Clientes");
+      } catch (error) {
+        toastr.error("No se pudieron guardar los predeterminados.", "Clientes");
+      }
+    };
     watch(searchColumns, () => {
       const searchTerm = searchColumns.value.toLowerCase();
       const filteredFields = Object.keys(fieldsJson.value)
@@ -778,7 +829,7 @@ export default {
           start: startPagination.value,
           dir: dir,
           color_active: colorBlackAndWhite.value,
-          is_update_color: isUpdatedColorDatatable.value,
+          is_update_color: false,
         }, { signal: currentAbortController.signal });
 
         // Descarta la respuesta si el input ya tiene un término diferente.
@@ -800,7 +851,7 @@ export default {
           start: startPagination.value,
           dir: dir,
           color_active: colorBlackAndWhite.value,
-          is_update_color: isUpdatedColorDatatable.value,
+          is_update_color: false,
           url: url,
         };
         allRows = response.data.data;
@@ -843,6 +894,7 @@ export default {
       rows.value = Object.values(allRows);
 
       loading.value = false;
+      tablaUrl.restaurarScroll();
     };
 
     const pagesNumber = computed(() => {
@@ -1100,6 +1152,8 @@ export default {
       iDClient,
       resetTable,
       guardado,
+      prefsListas,
+      guardarPredeterminados,
       fechaCorte,
       checkClass,
       expandAfterColumn,

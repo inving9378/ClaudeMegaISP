@@ -47,3 +47,9 @@ sudo rm /etc/nginx/conf.d/gzip-dev.conf && sudo nginx -t && sudo systemctl reloa
 
 > PROD (`192.168.105.108`) no se toca desde dev. Si algún día se quiere allá, es el mismo
 > drop-in, instalado a mano en esa máquina por Irving.
+
+## Estado en dev (2026-11-09)
+**Ya instalado** en `/etc/nginx/sites-enabled/00-gzip-dev.conf` (no en `conf.d/`: el usuario `meganet`
+solo tiene sudo para `tee` en `sites-enabled/`). **No lo instales otra vez en `conf.d/`**: nginx falla
+con `"gzip_types" directive is duplicate`. Detalle y mediciones en
+`docs/bitacora/2026-11-09-lentitud-dev.md`.

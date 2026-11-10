@@ -20,6 +20,9 @@ class AvanceService
     /** Horas sin lease antes de considerar fantasma un `en_progreso` sin worker_sid. */
     public const HORAS_FANTASMA = 4;
 
+    /** Horas de espera antes de reintentar cerrar un paraguas cuyo último cierre vetó un guard del modelo. */
+    public const HORAS_REINTENTO_PARAGUAS = 24;
+
     private const EVENTO_VUELTA_VACIA = 'claim_liberado_al_morir_la_vuelta';
 
     /** @return array<string, int[]> */
@@ -96,7 +99,7 @@ class AvanceService
             ->whereExists(fn ($w) => $w->selectRaw('1')->from('roadmap_items as h')->whereColumn('h.origen_item_id', 'roadmap_items.id'));
 
         foreach ($q->limit(50)->get() as $item) {
-            if ($item->tieneSubItemsAbiertos()) {
+            if ($item->tieneSubItemsAbiertos() || $this->cierreParaguasVetadoReciente($item)) {
                 continue;
             }
             $ids[] = (int) $item->id;
@@ -109,6 +112,26 @@ class AvanceService
         }
 
         return $ids;
+    }
+
+    /**
+     * El item sigue en `aprobado_irving` y ya hubo un intento reciente: un guard del `saving` lo vetó
+     * (nivel C con rama y sin merge, o el gate de cierre con bloqueantes). Reintentar cada minuto
+     * reescribía la fila completa con su `log` creciendo: #995 y #576 llegaron a 3.3 MB y 1 MB, y el
+     * binlog de MySQL a ~10 GB/día, hasta llenar el disco de dev (2026-11-09).
+     */
+    private function cierreParaguasVetadoReciente(RoadmapItem $item): bool
+    {
+        $log = is_array($item->log) ? $item->log : [];
+        foreach (array_reverse($log) as $e) {
+            if (($e['por'] ?? null) === 'jarvis-avance' && ($e['evento'] ?? null) === 'paraguas_cerrado') {
+                $ts = strtotime((string) ($e['ts'] ?? ''));
+
+                return $ts !== false && $ts > now()->subHours(self::HORAS_REINTENTO_PARAGUAS)->getTimestamp();
+            }
+        }
+
+        return false;
     }
 
     /** Con merge_commit pero sin cerrar y sin worker: el trabajo ya está en main → completado (el gate de cierre sigue vigente). */

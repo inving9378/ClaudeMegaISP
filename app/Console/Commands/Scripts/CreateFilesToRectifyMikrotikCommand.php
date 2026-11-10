@@ -5,6 +5,7 @@ namespace App\Console\Commands\Scripts;
 use App\Http\Repository\ClientInternetServiceRepository;
 use App\Http\Repository\RouterRepository;
 use App\Http\Traits\RouterConnection;
+use App\Support\Red\SoloLectura;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -30,6 +31,11 @@ class CreateFilesToRectifyMikrotikCommand extends Command
      */
     public function handle()
     {
+        // Sube el script por FTP a la IP real del router, sin pasar por la conexión RouterOS.
+        if (SoloLectura::activo()) {
+            $this->error('La red está en solo lectura (config/red.php): este comando sube archivos al router y no se corre.');
+            return self::FAILURE;
+        }
 
         $routerRepository = new RouterRepository();
         $router = $routerRepository->getRouterById(2);

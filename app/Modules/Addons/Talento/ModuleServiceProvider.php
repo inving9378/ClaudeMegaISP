@@ -67,6 +67,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 EvaluarReglasSemanalesCommand::class,
                 SimularAislamientoReglasCommand::class,
                 CerrarEncuestasCommand::class,
+                \App\Modules\Addons\Talento\Console\SimularCajaNivel2Command::class,
             ]);
         }
     }

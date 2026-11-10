@@ -15,9 +15,8 @@ use Illuminate\Support\Facades\Log;
  * el driver de MultiOLT ya categoriza — `OltOnu.status`/`OltOnu.signal`). El emparejamiento
  * ONU↔enlace es SIEMPRE por serie (D19), nunca por ID de BD.
  *
- * "RX"/"TX" que expone el dashboard son los mismos campos que ya documenta HuaweiDriver:
- * `signal_1310` = lo que la OLT recibe del ONT (upstream) → "Rx".
- * `signal_1490` = lo que el ONT recibe de la OLT (downstream, lo que llega al cliente) → "Tx".
+ * Item #1235: `rx_dbm` = `signal_1490` (lo que el ONT recibe de la OLT, lo que llega al cliente)
+ * y `tx_dbm` = `signal_1310` (lo que la OLT recibe del ONT). Antes estaban al revés.
  */
 class MapaRedNapHealthService
 {
@@ -59,8 +58,10 @@ class MapaRedNapHealthService
                 'estado' => $onu->status ?? 'sin dato',
                 'senal' => $onu->signal ?? 'sin dato',
                 'puerto_nap' => $enlace->puertoNap?->numero,
-                'rx_dbm' => $onu->signal_1310 ?? null,
-                'tx_dbm' => $onu->signal_1490 ?? null,
+                // Item #1235 (decisión de Irving): "potencia del cliente" = lo que RECIBE la ONU
+                // (bajada, signal_1490). rx_dbm alimenta promedio/mínima/potencia de instalación.
+                'rx_dbm' => $onu->signal_1490 ?? null,
+                'tx_dbm' => $onu->signal_1310 ?? null,
                 'olt_nombre' => $onu->olt_name ?? null,
                 'con_dato' => $onu !== null,
             ];

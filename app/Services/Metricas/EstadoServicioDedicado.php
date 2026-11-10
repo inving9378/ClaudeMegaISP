@@ -79,6 +79,7 @@ class EstadoServicioDedicado
             'configurado'    => $config !== null,
             'automatica'     => (bool) $config?->automatica,
             'intervalo_seg'  => 60,
+            'ont'            => $this->ont($servicioId),
             'ips_configuradas' => $config ? $config->ips->where('monitorear', true)->where('ip', '!=', $config->ip_router)->pluck('ip')->values()->all() : [],
         ];
 
@@ -141,6 +142,24 @@ class EstadoServicioDedicado
                 'latencia_ms' => $p->lat_avg_ms !== null ? (float) $p->lat_avg_ms : null,
                 'perdida_pct' => $p->enviados > 0 ? round((1 - $p->recibidos / $p->enviados) * 100, 1) : null,
             ])->values()->all() : [],
+        ];
+    }
+
+    /** Potencia óptica de la ONT del servicio, tal como la dejó el último smartolt:sync (no consulta la OLT). */
+    private function ont(int $servicioId): ?array
+    {
+        $onu = DB::table('olt_onus')->where('service_id', $servicioId)->orderByDesc('last_synced_at')->first(['signal', 'signal_1310', 'signal_1490', 'status', 'last_synced_at']);
+        if ($onu === null) {
+            return null;
+        }
+        // signal_1490 = potencia que recibe la ONT (Rx), la que se usa para juzgar el enlace.
+        $dbm = $onu->signal_1490 ?? $onu->signal_1310;
+
+        return [
+            'dbm'         => is_numeric($dbm) ? round((float) $dbm, 2) : null,
+            'calidad'     => $onu->signal && $onu->signal !== '-' ? $onu->signal : null,
+            'estado'      => $onu->status,
+            'sincronizada' => $onu->last_synced_at ? Carbon::parse($onu->last_synced_at)->toIso8601String() : null,
         ];
     }
 

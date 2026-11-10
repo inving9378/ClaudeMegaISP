@@ -26,7 +26,7 @@ use Illuminate\Support\Str;
  */
 class ImportarLegacyCommand extends Command
 {
-    protected $signature = 'mapared:importar-legacy {--dry-run} {--zona=} {--truncar}';
+    protected $signature = 'mapared:importar-legacy {--dry-run} {--zona=} {--truncar} {--force : Salta la confirmación de --truncar (uso no interactivo)}';
 
     protected $description = 'MR-05: copia las 9 tablas map_* legado a su espejo mapared_* (idempotente por origen_legacy_id)';
 
@@ -77,6 +77,10 @@ class ImportarLegacyCommand extends Command
             if ($this->dryRun) {
                 $this->warn('(dry-run) --truncar: se vaciarían las ' . count(self::TABLAS_MIRROR) . ' tablas mapared_* antes de importar. No se ejecuta.');
             } else {
+                if (!$this->confirmarTruncado()) {
+                    $this->error('--truncar cancelado: no se vació ni importó nada.');
+                    return self::FAILURE;
+                }
                 $this->truncarMirror();
             }
         }
@@ -188,6 +192,22 @@ class ImportarLegacyCommand extends Command
     // ------------------------------------------------------------------
     // Set-up
     // ------------------------------------------------------------------
+
+    private function confirmarTruncado(): bool
+    {
+        $this->warn('--truncar vaciará estas tablas (irreversible):');
+        foreach (self::TABLAS_MIRROR as $tabla) {
+            $this->line(sprintf('  %-45s %d filas', $tabla, DB::table($tabla)->count()));
+        }
+        if ($this->option('force')) {
+            return true;
+        }
+        if (!$this->input->isInteractive()) {
+            $this->error('Sin terminal interactiva: agrega --force para confirmar el vaciado.');
+            return false;
+        }
+        return $this->confirm('¿Vaciar estas tablas antes de importar?', false);
+    }
 
     private function truncarMirror(): void
     {

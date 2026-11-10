@@ -195,6 +195,7 @@ import TalentoSitios from "./components/module/talento/TalentoSitios.vue";
 import TalentoCampo from "./components/module/talento/TalentoCampo.vue";
 import TalentoCajas from "./components/module/talento/TalentoCajas.vue";
 import TalentoRutas from "./components/module/talento/TalentoRutas.vue";
+import TalentoRecorridos from "./components/module/talento/TalentoRecorridos.vue";
 import TalentoProyectos from "./components/module/talento/TalentoProyectos.vue";
 import TalentoCalidad from "./components/module/talento/TalentoCalidad.vue";
 import TalentoPenalizaciones from "./components/module/talento/TalentoPenalizaciones.vue";
@@ -361,6 +362,7 @@ import {
     QStepper,
     QStep,
     QUploader,
+    ClosePopup,
 } from "./../../public/plugins/quasar/js/quasar.umd.prod";
 import PaymentListar from "./components/module/finance/payment/PaymentListar.vue";
 import ShowScripts from "./components/module/adminstration/show_scripts/ShowScripts.vue";
@@ -675,6 +677,7 @@ const app = createApp({
         'talento-campo': TalentoCampo,
         'talento-cajas': TalentoCajas,
         'talento-rutas': TalentoRutas,
+        'talento-recorridos': TalentoRecorridos,
         'talento-proyectos': TalentoProyectos,
         'talento-calidad': TalentoCalidad,
         'talento-penalizaciones': TalentoPenalizaciones,
@@ -982,6 +985,7 @@ app.use(Quasar, {
     ],
 });
 app.directive("hasPermission", hasPermission);
+app.directive("close-popup", ClosePopup);
 app.directive("table-resizable", QTableResizable);
 
 // Pestañas de ficha de cliente aportadas por módulos (infra extensible — roadmap #5).

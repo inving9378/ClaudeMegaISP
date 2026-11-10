@@ -2,22 +2,31 @@
 
 namespace App\Modules\Addons\Talento\Controllers;
 
-use App\Modules\Addons\Hub\Services\Servicios;
 use App\Http\Controllers\Controller;
 use App\Http\Traits\NotificationTrait;
 use App\Models\Project;
 use App\Models\Task;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
+use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
+use App\Modules\Addons\Talento\Models\TalentoWorkOrderChecklistItem;
+use App\Modules\Addons\Talento\Models\TalentoWorkOrderData;
+use App\Modules\Addons\Talento\Models\TalentoWorkOrderTemplate;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderType;
 use App\Modules\Addons\Talento\Services\AgendaOrdenesService;
+use App\Modules\Addons\Talento\Services\AvisoOrdenColaborador;
+use App\Modules\Addons\Talento\Services\ChoqueAgendaOrdenes;
 use App\Modules\Addons\Talento\Services\CorreccionOrdenValidadaService;
+use App\Modules\Addons\Talento\Services\OrdenPendienteService;
 use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
 use App\Modules\Addons\Talento\Support\Actor;
+use App\Modules\Addons\Talento\Support\EsquemaCamposOrden;
 use App\Modules\Addons\Talento\Support\OrdenReferencia;
-use App\Modules\Addons\WhatsAppAgent\Services\WhatsAppGateway;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 
 class TalentoWorkOrderController extends Controller
 {
@@ -52,8 +61,11 @@ class TalentoWorkOrderController extends Controller
             ->values()
             ->all();
     }
-    // Mapeo tipo_id → project_id para tareas campo (Capa 6 refinará con lógica dinámica)
-    private const TYPE_PROJECT_MAP = [
+    // Mapeo tipo_id → project_id para tareas campo (Capa 6 refinará con lógica dinámica).
+    // Item #1200: solo es respaldo de los 5 tipos viejos; manda talento_work_order_types.project_id.
+    // Se retira en #1206 (los ids de dev y prod no coinciden). Público desde #1225: editar el tipo de
+    // una orden pendiente mueve el proyecto igual que al crearla.
+    public const TYPE_PROJECT_MAP = [
         1 => 2,  // Instalación nueva → INSTALACIONES
         2 => 5,  // Soporte/reparación → REPARACION
         3 => 3,  // Cambio de equipo → ORDEN DE SERVICIO
@@ -63,7 +75,7 @@ class TalentoWorkOrderController extends Controller
 
     public function __construct(
         private OrdenTrabajoUnifiedService $unified,
-        private WhatsAppGateway $whatsapp,
+        private AvisoOrdenColaborador $avisos,
     ) {}
 
     public function index()
@@ -77,6 +89,12 @@ class TalentoWorkOrderController extends Controller
         $this->authorize('talento.work_orders.view');
 
         $filtros = $request->only(['colaborador_id', 'status', 'type_id', 'from', 'to', 'search', 'prospecto']);
+
+        // #1225: "Ver eliminadas" — solo quien puede eliminar órdenes.
+        if ($request->boolean('eliminadas')) {
+            $this->authorize('talento.ordenes.eliminar');
+            $filtros['eliminadas'] = true;
+        }
 
         if (! $this->esStaffOrdenes()) {
             $idsVisibles = $this->idsColaboradoresVisibles();
@@ -154,10 +172,22 @@ class TalentoWorkOrderController extends Controller
 
         $r = $agenda->reprogramar($task, $data['fecha'], $data['motivo'], auth()->id());
         if (! $r['ok']) {
-            return response()->json(['error' => $r['mensaje']], $r['codigo']);
+            return $this->respuestaFalla($r); // error + id de la orden con la que choca (#1227)
         }
 
         return response()->json($r);
+    }
+
+    /**
+     * GET /talento/api/clientes-orden?search= — clientes para cambiar el de una orden Pendiente
+     * (#1228). Mismo motor que el listado de Clientes; mismo permiso que editar la orden.
+     */
+    public function clientesOrden(Request $request, OrdenPendienteService $ordenes)
+    {
+        $this->authorize('talento.ordenes.editar');
+        $data = $request->validate(['search' => 'required|string|max:100']);
+
+        return response()->json($ordenes->buscarClientes($data['search']));
     }
 
     public function prospectosCrm(Request $request)
@@ -176,6 +206,20 @@ class TalentoWorkOrderController extends Controller
 
 
     /**
+     * GET /talento/api/clientes-referencia?search= — item #1200: buscador del «Cliente de
+     * referencia (opcional)» del modal "Nueva orden" para planta externa (la caja que reportó un
+     * cliente). Mismo permiso que el buscador de prospectos.
+     */
+    public function clientesReferencia(Request $request)
+    {
+        $this->authorize('talento.work_orders.manage');
+
+        $data = $request->validate(['search' => 'required|string|min:2|max:100']);
+
+        return response()->json($this->unified->searchClientesReferencia($data['search']));
+    }
+
+    /**
      * GET /talento/aviso/{id} — clic en la campanita sobre «Nueva tarea asignada» de una orden de
      * Talento (2026-10-27): si la orden es de quien abre el aviso, se marca leído y se abre en su
      * «Mi día»; si no, sigue a Scheduling como siempre.
@@ -188,6 +232,14 @@ class TalentoWorkOrderController extends Controller
         $datos = $this->getNotificationAttributes($aviso);
         $task  = ! empty($datos['task_id']) ? Task::find($datos['task_id']) : null;
         $url   = $task ? Actor::for(auth()->user())->urlOrdenEnMiDia($task) : null;
+
+        // #1225: «orden retirada/eliminada» ya no es de quien abre el aviso (o ya no existe): va a su
+        // «Mi día» en vez de a Scheduling, que al técnico le niega el acceso.
+        if (! $url && in_array($datos['title'] ?? null, [AvisoOrdenColaborador::TITULO_RETIRADA, AvisoOrdenColaborador::TITULO_ELIMINADA], true)) {
+            $propio = Actor::for(auth()->user())->talento();
+            $url = $propio ? "/talento/colaborador/{$propio->id}?tab=mi_dia" : '/';
+        }
+
         if (! $url) {
             return redirect('/scheduling/task/read-notification/' . $id);
         }
@@ -199,7 +251,7 @@ class TalentoWorkOrderController extends Controller
         return redirect($url);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, ChoqueAgendaOrdenes $choques)
     {
         $data = $request->validate([
             'colaborador_id' => 'required|exists:talento_colaboradores,id',
@@ -213,6 +265,9 @@ class TalentoWorkOrderController extends Controller
             // La hora sigue siendo opcional ("YYYY-MM-DD" o "YYYY-MM-DD HH:mm").
             'scheduled_at'   => 'required|date',
             'notes'          => 'nullable|string',
+            // Item #1200: plantilla del tipo y los datos que pide al crear ({key: valor}).
+            'template_id'    => 'nullable|integer',
+            'datos'          => 'nullable|array',
         ], [
             'scheduled_at.required' => 'Elige el día de la orden.',
             'scheduled_at.date'     => 'El día de la orden no es una fecha válida.',
@@ -270,11 +325,35 @@ class TalentoWorkOrderController extends Controller
             ], 422);
         }
 
+        // Item #1200: planta externa (habilitar caja, montaje de fibra…). Sin prospecto del CRM: el
+        // cliente, si viene, es solo la referencia de la caja reportada. El proyecto sale del tipo,
+        // sin el respaldo de "primer proyecto" (asignaría uno equivocado).
+        if ($type->esPlantaExterna()) {
+            if (! empty($data['crm_lead_id'])) {
+                return $this->rechazo(['crm_lead_id' => 'Las órdenes de planta externa no llevan prospecto del CRM. Si la orden es por una caja que reportó un cliente, elígelo como cliente de referencia.']);
+            }
+            if (! $type->project_id) {
+                return $this->rechazo(['type_id' => "El tipo «{$type->name}» todavía no tiene proyecto asignado. Asígnalo en la configuración de tipos de orden antes de crear órdenes de este tipo."]);
+            }
+        }
+
+        $conPlantilla = $this->resolverPlantilla($type, $data);
+        if ($conPlantilla instanceof JsonResponse) {
+            return $conPlantilla;
+        }
+
         // Parsear scheduled_at → start_date + start_time
         $scheduled = ! empty($data['scheduled_at']) ? Carbon::parse($data['scheduled_at']) : null;
 
-        // Resolver project_id: mapeo estático tipo→proyecto; fallback al primero disponible
-        $projectId = self::TYPE_PROJECT_MAP[$data['type_id']]
+        // Misma regla de choque de agenda que Editar y Reprogramar (#1227). Sin hora no choca.
+        if ($choque = $choques->verificar($colaborador->user, $scheduled)) {
+            return response()->json(['error' => $choque['mensaje'], 'choque' => $choque['choque']], 422);
+        }
+
+        // Resolver project_id: el del tipo; si no tiene, el mapeo estático de los tipos viejos y, como
+        // último respaldo (solo tipos de cliente; planta externa ya se rechazó arriba), el primero.
+        $projectId = $type->project_id
+            ?? self::TYPE_PROJECT_MAP[$data['type_id']]
             ?? Project::orderBy('id')->value('id');
 
         // Resolver client_main_information_id desde clients.id si viene client_id
@@ -288,80 +367,139 @@ class TalentoWorkOrderController extends Controller
         // Tipo de task: sigue la category del TalentoWorkOrderType (campo o interna)
         $tipo = $type->category ?? 'campo';
 
-        $task = Task::create([
-            'tipo'                       => $tipo,
-            'talento_type_id'            => $data['type_id'],
-            'points'                     => $type->points,
-            'is_billable'                => $type->is_billable,
-            'project_id'                 => $projectId,
-            'client_main_information_id' => $clientInfoId,
-            'crm_lead_id'                => $data['crm_lead_id'] ?? null,
-            'olt_onu_id'                 => $data['olt_onu_id'] ?? null,
-            'ticket_id'                  => $ticketId,
-            'start_date'                 => $scheduled?->toDateString(),
-            'start_time'                 => $scheduled?->format('Y-m-d H:i:s'),
-            'end_time'                   => $scheduled?->copy()->addHour()->format('Y-m-d H:i:s'),
-            'description'                => $data['notes'] ?? null,
-            'status'                     => 'ToDo',
-            'title'                      => '[' . $type->name . '] ' . (! empty($data['notes']) ? mb_substr($data['notes'], 0, 60) : 'Nueva orden'),
-            'priority'                   => 'Media',
-        ]);
+        $titulo = '[' . $type->name . '] ' . (! empty($data['notes']) ? mb_substr($data['notes'], 0, 60) : 'Nueva orden');
+        $descripcion = $data['notes'] ?? null;
+        $prioridad = 'Media';
+        if ($conPlantilla) {
+            [$plantilla, $esquema, $valores, $checklist] = $conPlantilla;
+            $titulo = EsquemaCamposOrden::titulo($type->name, $plantilla->title, $esquema, $valores);
+            // La app y el portal solo muestran tasks.description: ahí van los datos en renglones
+            // "Etiqueta: valor", las instrucciones, los materiales y las notas del usuario.
+            $descripcion = EsquemaCamposOrden::descripcion($esquema, $valores, $plantilla->description, $checklist, $data['notes'] ?? null);
+            $prioridad = $plantilla->priority ?: 'Media';
+        }
 
-        // Asignar al técnico (task_user pivot)
-        if ($colaborador->user_id) {
-            $task->users()->sync([$colaborador->user_id]);
+        // Tarea, asignación, datos y checklist en una sola transacción: o queda todo o nada.
+        $task = DB::transaction(function () use ($tipo, $data, $type, $projectId, $clientInfoId, $ticketId, $scheduled, $titulo, $descripcion, $prioridad, $conPlantilla, $colaborador) {
+            $task = Task::create([
+                'tipo'                       => $tipo,
+                'talento_type_id'            => $data['type_id'],
+                'points'                     => $type->points,
+                'is_billable'                => $type->is_billable,
+                'project_id'                 => $projectId,
+                'client_main_information_id' => $clientInfoId,
+                'crm_lead_id'                => $data['crm_lead_id'] ?? null,
+                'olt_onu_id'                 => $data['olt_onu_id'] ?? null,
+                'ticket_id'                  => $ticketId,
+                'start_date'                 => $scheduled?->toDateString(),
+                'start_time'                 => $scheduled?->format('Y-m-d H:i:s'),
+                'end_time'                   => $scheduled?->copy()->addHour()->format('Y-m-d H:i:s'),
+                'description'                => $descripcion,
+                'status'                     => 'ToDo',
+                'title'                      => $titulo,
+                'priority'                   => $prioridad,
+            ]);
 
-            // Sin hora la orden queda a las 00:00: el aviso dice solo el día.
-            $cuando = $scheduled
-                ? ' para el ' . $scheduled->format($scheduled->format('H:i') === '00:00' ? 'd/m' : 'd/m H:i')
-                : '';
-
-            // Push al técnico si tiene tokens FCM registrados (app móvil)
-            \App\Modules\Addons\Talento\Controllers\TalentoMobileApiController::sendPushToUser(
-                $colaborador->user_id,
-                'Nueva orden de trabajo',
-                "Se te asignó: {$type->name}{$cuando}",
-                ['type' => 'ot_assigned', 'ot_id' => $task->id]
-            );
-
-            // Notificación en su usuario (campanita del topbar / Portal de Colaborador):
-            // mismo mecanismo que usa Scheduling para "tarea asignada" — Task::
-            // sendNotifications() ya sabe escribir la fila en task_notifications +
-            // Notification::send(..., StandardNotification) → tabla `notifications`.
-            // Aislado: un fallo aquí no debe tumbar la creación de la orden.
-            try {
-                $task->sendNotifications();
-            } catch (\Throwable $e) {
-                Log::warning('Talento OT: fallo notificación en-app al crear orden', [
-                    'task_id' => $task->id, 'error' => $e->getMessage(),
-                ]);
+            // Asignar al técnico (task_user pivot)
+            if ($colaborador->user_id) {
+                $task->users()->sync([$colaborador->user_id]);
             }
 
-            // WhatsApp al técnico (gateway único de WhatsAppAgent — nunca una
-            // integración Evolution propia). Mismo freno maestro que el resto del
-            // sistema (WHATSAPP_SENDER_ENABLED, default false → log-only) y mismo
-            // aislamiento: un fallo aquí no debe tumbar la creación de la orden.
-            $phone = self::normalizeMxWhatsappNumber($colaborador->user->phone ?? null);
-            if ($phone) {
-                try {
-                    $this->whatsapp->sendText(
-                        Servicios::slugWhatsApp('talento.ot_asignada'),
-                        $phone,
-                        "Hola {$colaborador->user->name}, se te asignó una nueva orden de trabajo: "
-                            . "{$type->name}{$cuando}. Consulta el detalle en «Mi día» de Talento o en la app."
-                    );
-                } catch (\Throwable $e) {
-                    Log::warning('Talento OT: fallo notificación WhatsApp al crear orden', [
-                        'task_id' => $task->id, 'error' => $e->getMessage(),
+            if ($conPlantilla) {
+                [$plantilla, $esquema, $valores, $checklist] = $conPlantilla;
+                TalentoWorkOrderData::create([
+                    'tarea_id'        => $task->id,
+                    'template_id'     => $plantilla->id,
+                    'schema_snapshot' => $esquema,
+                    'values'          => (object) $valores,
+                    'created_by'      => auth()->id(),
+                    'updated_by'      => auth()->id(),
+                ]);
+                foreach ($checklist as $i => $c) {
+                    TalentoWorkOrderChecklistItem::create([
+                        'tarea_id'   => $task->id,
+                        'label'      => $c['label'],
+                        'cantidad'   => $c['cantidad'],
+                        'unidad'     => $c['unidad'],
+                        'sort_order' => ($i + 1) * 10,
                     ]);
                 }
             }
+
+            return $task;
+        });
+
+        // Avisos al técnico. Fuera de la transacción: un fallo aquí no deshace la orden.
+        if ($colaborador->user_id) {
+            // Push a la app + campanita + WhatsApp (gateway único, freno WHATSAPP_SENDER_ENABLED).
+            // Mismos textos de siempre; desde #1225 viven en AvisoOrdenColaborador porque editar y
+            // eliminar una orden también avisan. Campanita y WhatsApp aislados: no tumban la creación.
+            $this->avisos->asignada($task, $colaborador->user, $type->name, $scheduled);
         }
 
         return response()->json(
             $this->unified->showForAdmin($task->id),
             201
         );
+    }
+
+    /** 422 con un mensaje general (lo que muestra el modal) y el mapa por campo (Fase B). */
+    private function rechazo(array $errors): JsonResponse
+    {
+        return response()->json(['error' => (string) reset($errors), 'errors' => $errors], 422);
+    }
+
+    /**
+     * Item #1200: plantilla de la orden y sus datos de creación ya validados.
+     *
+     * - Planta externa con plantillas activas: la plantilla es obligatoria.
+     * - La plantilla debe estar activa y ser del mismo tipo.
+     * - `datos` se valida contra el esquema: tipos, obligatorios de creación, opciones; llaves
+     *   desconocidas o de cierre se rechazan.
+     *
+     * @return null|JsonResponse|array{0: TalentoWorkOrderTemplate, 1: array, 2: array, 3: array}
+     *         null = orden sin plantilla (como siempre); array = [plantilla, esquema, valores, checklist]
+     */
+    private function resolverPlantilla(TalentoWorkOrderType $type, array $data): null|JsonResponse|array
+    {
+        $datos = $data['datos'] ?? [];
+
+        if (empty($data['template_id'])) {
+            if ($type->esPlantaExterna() && $type->templates()->active()->exists()) {
+                return $this->rechazo(['template_id' => 'Elige la plantilla de la orden.']);
+            }
+            if (! empty($datos)) {
+                return $this->rechazo(['datos' => 'Los datos de la orden solo se capturan con una plantilla.']);
+            }
+            return null;
+        }
+
+        $plantilla = TalentoWorkOrderTemplate::active()->whereKey($data['template_id'])->first();
+        if (! $plantilla || (int) $plantilla->type_id !== (int) $type->id) {
+            return $this->rechazo(['template_id' => 'La plantilla no existe, está desactivada o no corresponde al tipo de orden elegido.']);
+        }
+
+        $esquema = EsquemaCamposOrden::normalizarEsquema($plantilla->fields ?? []);
+        $checklist = EsquemaCamposOrden::normalizarChecklist($plantilla->checklist ?? []);
+        if ($esquema['errors'] || $checklist['errors']) {
+            Log::warning('Talento OT: plantilla con esquema inválido', [
+                'template_id' => $plantilla->id, 'errores' => $esquema['errors'] + $checklist['errors'],
+            ]);
+            return $this->rechazo(['template_id' => "La plantilla «{$plantilla->name}» tiene un error de configuración; revísala en la configuración de plantillas."]);
+        }
+
+        $r = EsquemaCamposOrden::validarDatos($esquema['fields'], $datos, EsquemaCamposOrden::MOMENTO_CREACION);
+        if ($r['errors']) {
+            // Mensaje general con la etiqueta del primer campo con error ("Zona: Este campo es obligatorio.").
+            $labels = array_column($esquema['fields'], 'label', 'key');
+            $primera = array_key_first($r['errors']);
+            $key = explode('.', $primera)[1] ?? '';
+            $errores = $r['errors'];
+            $general = isset($labels[$key]) ? $labels[$key] . ': ' . $errores[$primera] : $errores[$primera];
+            return response()->json(['error' => $general, 'errors' => $errores], 422);
+        }
+
+        return [$plantilla, $esquema['fields'], $r['values'], $checklist['items']];
     }
 
     /**
@@ -414,7 +552,9 @@ class TalentoWorkOrderController extends Controller
     {
         $this->authorize('talento.work_orders.view');
 
-        $data = $this->unified->showForAdmin(...$this->ref($id));
+        // #1225: quien puede eliminar órdenes también abre las eliminadas (filtro "Ver eliminadas").
+        [$ordenId, $origen] = $this->ref($id);
+        $data = $this->unified->showForAdmin($ordenId, $origen, auth()->user()->can('talento.ordenes.eliminar'));
         if (! $data) {
             abort(404);
         }
@@ -430,27 +570,98 @@ class TalentoWorkOrderController extends Controller
         return response()->json($data);
     }
 
-    public function update(Request $request, $id)
+    /**
+     * PUT /talento/api/ordenes/{id} — editar una orden mientras está Pendiente (item #1225):
+     * colaborador, cliente/prospecto, tipo (recalcula puntos), fecha y hora (de hoy en adelante, sin
+     * chocar con otra orden de la persona) y notas. Cada campo cambiado queda en el historial.
+     * Antes (sin pantalla que lo usara) pedía talento.work_orders.manage y dejaba editar En curso.
+     */
+    public function update(Request $request, $id, OrdenPendienteService $ordenes)
     {
-        $this->authorize('talento.work_orders.manage');
+        $this->authorize('talento.ordenes.editar');
 
         $data = $request->validate([
-            'colaborador_id' => 'sometimes|exists:talento_colaboradores,id',
-            'type_id'        => 'sometimes|exists:talento_work_order_types,id',
-            'scheduled_at'   => 'nullable|date',
-            'notes'          => 'nullable|string',
-            'client_id'      => 'nullable|exists:clients,id',
-            'olt_onu_id'     => 'nullable|exists:olt_onus,id',
+            'colaborador_id' => 'sometimes|required|exists:talento_colaboradores,id',
+            'type_id'        => 'sometimes|required|exists:talento_work_order_types,id',
+            'client_id'      => 'sometimes|nullable|exists:clients,id',
+            'crm_lead_id'    => 'sometimes|nullable|exists:crm_lead_information,id',
+            'scheduled_at'   => 'sometimes|required|date',
+            'notes'          => 'sometimes|nullable|string|max:5000',
+            // #1200: órdenes con plantilla — todos los campos de creación.
+            'datos'          => 'sometimes|nullable|array',
+        ], [
+            'colaborador_id.required' => 'Selecciona un colaborador.',
+            'type_id.required'        => 'Selecciona un tipo de orden.',
+            'scheduled_at.required'   => 'Elige el día de la orden.',
+            'scheduled_at.date'       => 'El día de la orden no es una fecha válida.',
         ]);
 
-        $ref = $this->ref($id);
-        $result = $this->unified->actualizarAdmin($ref[0], $data, $ref[1]);
-
-        if (!$result['success']) {
-            return response()->json(['error' => $result['message']], $result['status_code'] ?? 422);
+        [$ordenId, $origen] = $this->ref($id);
+        if ($antigua = $this->rechazoOrdenAntigua($ordenId, $origen)) {
+            return $antigua;
         }
 
-        return response()->json($result['data']);
+        $r = $ordenes->editar($ordenId, $data, (int) auth()->id());
+        if (! $r['ok']) {
+            return $this->respuestaFalla($r);
+        }
+
+        return response()->json($this->unified->showForAdmin($ordenId, OrdenReferencia::ORIGEN_TAREA) + ['cambios' => $r['cambios']]);
+    }
+
+    /**
+     * DELETE /talento/api/ordenes/{id} — eliminar (borrado lógico) una orden mientras está Pendiente
+     * (item #1225), con motivo obligatorio. No toca el prospecto, el ticket ni el cliente ligados;
+     * la respuesta dice si estaba ligada a alguno para que la pantalla lo avise.
+     */
+    public function destroy(Request $request, $id, OrdenPendienteService $ordenes)
+    {
+        $this->authorize('talento.ordenes.eliminar');
+
+        $data = $request->validate([
+            'motivo'  => ['required', Rule::in(array_keys(OrdenPendienteService::MOTIVOS_ELIMINACION))],
+            'detalle' => 'nullable|string|max:400|required_if:motivo,otro',
+        ], [
+            'motivo.required'     => 'Elige el motivo de la eliminación.',
+            'motivo.in'           => 'Elige un motivo de la lista.',
+            'detalle.required_if' => 'Escribe el motivo.',
+        ]);
+
+        [$ordenId, $origen] = $this->ref($id);
+        if ($antigua = $this->rechazoOrdenAntigua($ordenId, $origen)) {
+            return $antigua;
+        }
+
+        $r = $ordenes->eliminar($ordenId, $data['motivo'], $data['detalle'] ?? null, (int) auth()->id());
+        if (! $r['ok']) {
+            return $this->respuestaFalla($r);
+        }
+
+        return response()->json(['ok' => true, 'id' => $ordenId, 'ligada' => $r['ligada']]);
+    }
+
+    /** Las órdenes de la tabla vieja (talento_work_orders) no se editan ni eliminan desde aquí. */
+    private function rechazoOrdenAntigua(int $ordenId, ?string $origen)
+    {
+        $esTarea = $origen !== OrdenReferencia::ORIGEN_ANTIGUA
+            && Task::withTrashed()->whereKey($ordenId)->whereNotNull('talento_type_id')->exists();
+        if (! $esTarea && $origen !== OrdenReferencia::ORIGEN_TAREA && TalentoWorkOrder::whereKey($ordenId)->exists()) {
+            return response()->json(['error' => 'Las órdenes antiguas son de solo lectura.'], 422);
+        }
+
+        return null;
+    }
+
+    private function respuestaFalla(array $r)
+    {
+        return response()->json(array_filter([
+            'error'           => $r['mensaje'],
+            'ya_no_pendiente' => $r['ya_no_pendiente'] ?? null,
+            'choque'          => $r['choque'] ?? null,
+            'vinculos'        => $r['vinculos'] ?? null, // #1228: por qué no se le cambia el cliente
+            // #1200: errores por campo de los datos de la plantilla, para marcarlos en el formulario.
+            'errors'          => $r['errors'] ?? null,
+        ], fn ($v) => $v !== null), $r['codigo']);
     }
 
     public function changeStatus(Request $request, $id)
@@ -580,6 +791,37 @@ class TalentoWorkOrderController extends Controller
         return response()->json(TalentoWorkOrderType::orderBy('name')->get());
     }
 
+    /**
+     * GET /talento/api/order-templates?type_id= — plantillas activas de un tipo de orden (item
+     * #1200): campos (ya normalizados y en orden), checklist, prioridad e instrucciones. Lo
+     * consume el modal "Nueva orden" para dibujar los campos que pide al crear.
+     */
+    public function plantillas(Request $request)
+    {
+        $this->authorize('talento.work_orders.view');
+
+        $data = $request->validate(['type_id' => 'required|integer|exists:talento_work_order_types,id']);
+
+        return response()->json(
+            TalentoWorkOrderTemplate::active()
+                ->where('type_id', $data['type_id'])
+                ->orderBy('sort_order')->orderBy('name')
+                ->get()
+                ->map(fn (TalentoWorkOrderTemplate $t) => [
+                    'id'                => $t->id,
+                    'type_id'           => $t->type_id,
+                    'name'              => $t->name,
+                    'title'             => $t->title,
+                    'description'       => $t->description,
+                    'priority'          => $t->priority,
+                    'estimated_minutes' => $t->estimated_minutes,
+                    'fields'            => EsquemaCamposOrden::normalizarEsquema($t->fields ?? [])['fields'],
+                    'checklist'         => EsquemaCamposOrden::normalizarChecklist($t->checklist ?? [])['items'],
+                ])
+                ->values()
+        );
+    }
+
     public function storeType(Request $request)
     {
         $this->authorize('talento.work_orders.manage');
@@ -617,27 +859,4 @@ class TalentoWorkOrderController extends Controller
         return response()->json($type);
     }
 
-    /**
-     * MX 10 dígitos → prefijo 521 (mismo formato que espera whatsapp_conversations.
-     * contact_number — ver SendReferralShareListener::normalizeNumber, WhatsAppAgent).
-     * Devuelve null si no hay teléfono o no matchea un patrón MX reconocible (evita
-     * mandar un número mal formado en vez de fallar silenciosamente en la API).
-     */
-    private static function normalizeMxWhatsappNumber(?string $phone): ?string
-    {
-        if (! $phone) {
-            return null;
-        }
-        $digits = preg_replace('/\D/', '', $phone) ?? '';
-        if (strlen($digits) === 10) {
-            return '521' . $digits;
-        }
-        if (strlen($digits) === 12 && str_starts_with($digits, '52')) {
-            return '521' . substr($digits, 2);
-        }
-        if (strlen($digits) === 13 && str_starts_with($digits, '521')) {
-            return $digits;
-        }
-        return null;
-    }
 }

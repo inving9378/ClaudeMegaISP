@@ -3,12 +3,19 @@
         <path
             v-for="conn in connections"
             :key="'connection-' + conn.id"
-            :d="conn.path"
+            :d="(props.rejilla && conn.pathGrid) || conn.path"
             class="map-connection animate-fade-in"
+            tabindex="0"
             :class="{
+                'map-connection-hl': activo === conn,
+                'map-connection-dim': activo && activo !== conn,
                 'map-connection-destroy': hasEdit && conn.id !== null,
                 green: conn.id === null,
             }"
+            @mouseenter="resaltar(conn)"
+            @mouseleave="resaltar(null)"
+            @focus="resaltar(conn)"
+            @blur="resaltar(null)"
             @click="
                 {
                     currentConnection = conn;
@@ -61,7 +68,21 @@ defineOptions({
 
 const props = defineProps({
     hasEdit: Boolean,
+    // Dibujo ortogonal por canaletas + resaltado (Site y Rack)
+    rejilla: Boolean,
 });
+
+const activo = ref(null);
+const resaltar = (conn) => {
+    if (!props.rejilla) return;
+    [activo.value?.from_element, activo.value?.to_element].forEach((id) =>
+        id && document.getElementById(id)?.classList.remove("puerto-hl")
+    );
+    activo.value = conn;
+    [conn?.from_element, conn?.to_element].forEach((id) =>
+        id && document.getElementById(id)?.classList.add("puerto-hl")
+    );
+};
 
 const emits = defineEmits(["removed"]);
 
@@ -123,3 +144,17 @@ const destroy = async () => {
     }
 };
 </script>
+
+<style>
+.map-connection-hl {
+    stroke: #ffb300 !important;
+    stroke-width: 5px !important;
+    filter: drop-shadow(0 0 4px #ffb300);
+}
+.map-connection-dim {
+    opacity: 0.2;
+}
+.puerto-hl {
+    box-shadow: 0 0 0 3px #ffb300, 0 0 8px #ffb300 !important;
+}
+</style>

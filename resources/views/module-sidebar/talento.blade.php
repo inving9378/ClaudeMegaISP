@@ -1,4 +1,4 @@
-@if(auth()->user()->canAny(['talento.view','talento.work_orders.view','talento.compensation.view','talento.liquidation.view','talento.attendance.view','talento.location.view','talento.work_sites.view','talento.custody.view','talento.devices.view','talento.caja.view','talento.routes.view','talento.projects.view','talento.quality.view','talento.penalties.view','talento.credentials.view','talento.loans.view','talento.academy.view','talento.dashboard.view','talento.escalafon.view','talento.embajadores.view']))
+@if(auth()->user()->canAny(['talento.view','talento.work_orders.view','talento.compensation.view','talento.liquidation.view','talento.attendance.view','talento.location.view','talento.work_sites.view','talento.custody.view','talento.devices.view','talento.caja.view','talento.routes.view','talento.projects.view','talento.quality.view','talento.penalties.view','talento.credentials.view','talento.loans.view','talento.academy.view','talento.dashboard.view','talento.escalafon.view','talento.embajadores.view','talento.recorridos.view']))
 <li>
     <a href="javascript: void(0);" class="has-arrow">
         <i data-feather="users"></i>
@@ -31,6 +31,10 @@
              técnico); desde aquí sigue creando órdenes y ve cuánto cobra cada quien. --}}
         @if(auth()->user()->can('talento.work_orders.manage'))
             <li><a href="{{ url('/talento/ordenes') }}"><span><small><i class="fa fa-fw fa-clipboard-list"></i></small> Órdenes de trabajo</span></a></li>
+        @endif
+        {{-- Item #1311: recorridos de planta externa (Geo Tracker, hallazgos con foto y pin). --}}
+        @if(auth()->user()->can('talento.recorridos.view'))
+            <li><a href="{{ url('/talento/recorridos') }}"><span><small><i class="fa fa-fw fa-route"></i></small> Recorridos</span></a></li>
         @endif
         @if(auth()->user()->can('talento.liquidation.totales'))
             <li><a href="{{ url('/talento/liquidaciones') }}"><span><small><i class="fa fa-fw fa-file-invoice-dollar"></i></small> Liquidaciones</span></a></li>

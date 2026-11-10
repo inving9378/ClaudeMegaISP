@@ -4,16 +4,18 @@ namespace App\Services\Metricas;
 
 use App\Models\Router;
 use App\Services\Metricas\RouterOs\PearRouterOsApi;
+use App\Support\Red\ClienteRouterOs;
+use App\Support\Red\SoloLectura;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
-use PEAR2\Net\RouterOS\Client;
 use RuntimeException;
 use Throwable;
 
 /**
  * Métricas reales desde el MikroTik de cada dedicado (item #988), con el registro de
  * routers/NAS de siempre (routers + mikrotiks). En producción (EntornoMetricas) se conecta al router
- * registrado; fuera de ella, solo al de laboratorio, y sin laboratorio a ninguno.
+ * registrado; fuera de ella, solo al de laboratorio, y sin laboratorio a ninguno. Excepción: con
+ * RED_ROUTERS_REALES_EN_DEV y el candado de solo lectura puesto (config/red.php), al registrado.
  *
  * Usuario: el de solo lectura (login_api_ro) si está capturado; si no, el de la API de siempre
  * como respaldo, y la sesión lo dice (soloLectura() = false) para que el dry-run lo muestre.
@@ -32,26 +34,35 @@ final class MikrotikMetricasDriver implements MetricasDriver
         [$login, $password, $soloLectura] = $this->credenciales($mikrotik);
 
         $destino = self::destino(
-            EntornoMetricas::esProduccion(),
+            EntornoMetricas::esProduccion() || SoloLectura::routersRealesEnDev(),
             ['ip' => $router->ip_host, 'login' => $login, 'password' => $password, 'port' => $mikrotik->port_api],
             (array) config('metricas.laboratorio', [])
         );
         if ($destino === null) {
             throw new SinConexionRouter('sin destino', 'fuera de producción no hay router de laboratorio configurado (MIKROTIK_DEV_*): no se conecta a ningún router.');
         }
+        $redirigido0 = $destino['ip'] !== $router->ip_host;
+        // API-SSL (#998): si el router tiene capturado su puerto API-SSL se usa cifrado (los
+        // routers usan certificado autofirmado → sin verificar el par, solo se cifra el canal).
+        $usaSsl = ! $redirigido0 && (int) $mikrotik->port_api_ssl > 0;
+        if ($usaSsl) {
+            $destino['port'] = (int) $mikrotik->port_api_ssl;
+        }
         $puerto = (int) ($destino['port'] ?: 8728);
         $host = $destino['ip'] . ':' . $puerto;
         $redirigido = $destino['ip'] !== $router->ip_host || $destino['login'] !== $login
-            || $puerto !== (int) ($mikrotik->port_api ?: 8728);
+            || (! $usaSsl && $puerto !== (int) ($mikrotik->port_api ?: 8728));
 
         try {
-            $client = new Client(
+            $client = new ClienteRouterOs(
                 $destino['ip'],
                 $destino['login'],
                 (string) $destino['password'],
                 $puerto,
                 false,
-                (int) config('metricas.mikrotik.timeout_segundos', 5)
+                (int) config('metricas.mikrotik.timeout_segundos', 5),
+                $usaSsl ? \PEAR2\Net\Transmitter\NetworkStream::CRYPTO_TLS : \PEAR2\Net\Transmitter\NetworkStream::CRYPTO_OFF,
+                $usaSsl ? stream_context_create(['ssl' => ['verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true, 'ciphers' => 'ADH:ALL@SECLEVEL=0']]) : null
             );
         } catch (Throwable $e) {
             throw new SinConexionRouter($host . ($redirigido ? ' (redirección MIKROTIK_DEV_*)' : ''), $e->getMessage(), $e);

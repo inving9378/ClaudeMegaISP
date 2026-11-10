@@ -49,6 +49,7 @@ class DatosRedDedicado
                 'vlan_id'       => $config->vlan_id,
                 'bloque_cidr'   => $config->bloque_cidr,
                 'ip_router'     => $config->ip_router,
+                'ip_referencia' => $config->ip_referencia,
                 'ips'           => $config->ips->map(fn ($i) => ['ip' => $i->ip, 'etiqueta' => $i->etiqueta, 'monitorear' => $i->monitorear])->values()->all(),
             ]
             : [
@@ -57,6 +58,7 @@ class DatosRedDedicado
                 'vlan_id'       => null,
                 'bloque_cidr'   => $redPool ? "{$redPool->network}/{$redPool->bm}" : null,
                 'ip_router'     => null,
+                'ip_referencia' => null,
                 'ips'           => [],
             ];
 
@@ -98,13 +100,14 @@ class DatosRedDedicado
             'vlan_id'          => ['nullable', 'integer', 'between:1,4094'],
             'bloque_cidr'      => ['nullable', 'string', 'max:43'],
             'ip_router'        => ['nullable', 'ipv4'],
+            'ip_referencia'    => ['nullable', 'ipv4'],
             'ips'              => ['array', 'max:254'],
             'ips.*.ip'         => ['required', 'ipv4'],
             'ips.*.etiqueta'   => ['nullable', 'string', 'max:100'],
             'ips.*.monitorear' => ['boolean'],
         ], [], [
             'router_id' => 'router', 'interfaz_vlan' => 'interfaz VLAN', 'vlan_id' => 'VLAN ID',
-            'bloque_cidr' => 'bloque', 'ip_router' => 'IP del router', 'ips.*.ip' => 'IP', 'ips.*.etiqueta' => 'etiqueta',
+            'bloque_cidr' => 'bloque', 'ip_router' => 'IP del router', 'ip_referencia' => 'IP de referencia', 'ips.*.ip' => 'IP', 'ips.*.etiqueta' => 'etiqueta',
         ]);
 
         $validador->after(function ($v) use ($entrada, $servicioId, $minimo) {
@@ -161,6 +164,7 @@ class DatosRedDedicado
                 'vlan_id'       => $datos['vlan_id'] ?? null,
                 'bloque_cidr'   => $bloque?->cidr(),
                 'ip_router'     => ! empty($datos['ip_router']) ? $datos['ip_router'] : null,
+                'ip_referencia' => ! empty($datos['ip_referencia']) ? $datos['ip_referencia'] : null,
                 'automatica'    => false,
                 'revisado_por'  => $usuarioId,
                 'revisado_at'   => now(),

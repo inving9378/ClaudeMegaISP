@@ -26,7 +26,10 @@
                               placeholder="Ej. El cliente pidió que se revise hasta el día 15."></textarea>
                     <div class="form-text">Queda en el historial de la orden, con tu nombre.</div>
 
-                    <div v-if="error" class="alert alert-danger py-2 small mt-3 mb-0">{{ error }}</div>
+                    <!-- #1227: el choque de agenda se marca con su propio icono; se quita al cambiar el día. -->
+                    <div v-if="error" class="alert alert-danger py-2 small mt-3 mb-0" role="alert">
+                        <i class="fa me-1" :class="esChoque ? 'fa-calendar-times' : 'fa-exclamation-circle'"></i>{{ error }}
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" :disabled="guardando" @click="cerrar">Cancelar</button>
@@ -71,8 +74,15 @@ export default {
             motivo: "",
             guardando: false,
             error: "",
+            esChoque: false,
             rapidos: ["Me la cancelaron", "El cliente no estaba", "El cliente pidió otro día", "Falta material o equipo", "No alcanzó el tiempo"],
         };
+    },
+    watch: {
+        // #1227: el aviso de choque deja de ser cierto en cuanto se elige otro día u hora.
+        nueva() {
+            if (this.esChoque) { this.esChoque = false; this.error = ""; }
+        },
     },
     computed: {
         atrasada() {
@@ -97,12 +107,15 @@ export default {
         async guardar() {
             this.guardando = true;
             this.error = "";
+            this.esChoque = false;
             try {
                 const { data } = await axios.post(this.url, { fecha: this.nueva, motivo: this.motivo.trim() });
                 this.$emit("reprogramada", data);
             } catch (e) {
                 const d = e.response?.data;
                 this.error = d?.error || d?.message || "No se pudo mover la orden.";
+                // El panel manda el id de la otra orden; «Mi día» y la app solo el texto.
+                this.esChoque = Boolean(d?.choque) || String(this.error).startsWith("Choque de agenda");
             } finally {
                 this.guardando = false;
             }

@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\DB;
  *   en rojo, con su fecha original, hasta que se termine o se reprograme con un motivo.
  * - reprogramar(): mueve la orden a un día de hoy en adelante y deja el motivo en el historial de
  *   la orden (talento_order_events, evento order.rescheduled), con quién la movió y de qué día a cuál.
+ *   No la deja encimarse con otra orden abierta de la misma persona (ChoqueAgendaOrdenes, #1227).
  *
  * Solo órdenes de Talento en `tasks` (talento_type_id): la tabla vieja talento_work_orders no tiene
  * filas y las tareas generales de Scheduling no entran a la carga de los técnicos.
@@ -191,6 +192,15 @@ class AgendaOrdenesService
 
         if ($nuevo->toDateString() < now()->toDateString()) {
             return ['ok' => false, 'mensaje' => 'La nueva fecha debe ser de hoy en adelante.', 'codigo' => 422];
+        }
+
+        // Misma regla de choque de agenda que Crear y Editar (#1227), solo si el inicio cambia; la
+        // orden no choca consigo misma. Aplica a los tres caminos: panel, «Mi día» del portal y app.
+        if (! $anterior || $nuevo->format('Y-m-d H:i') !== $anterior->format('Y-m-d H:i')) {
+            $choque = app(ChoqueAgendaOrdenes::class)->verificar($task->users()->first(), $nuevo, $task->id);
+            if ($choque) {
+                return $choque;
+            }
         }
 
         $eraAtrasada = $anterior && $anterior->toDateString() < now()->toDateString();

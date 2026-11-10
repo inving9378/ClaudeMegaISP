@@ -13,6 +13,7 @@ use App\Modules\Addons\Talento\Controllers\TalentoFieldFlowController;
 use App\Modules\Addons\Talento\Controllers\TalentoCajaController;
 use App\Modules\Addons\Talento\Controllers\TalentoWarrantyController;
 use App\Modules\Addons\Talento\Controllers\TalentoRouteController;
+use App\Modules\Addons\Talento\Controllers\TalentoRecorridoController;
 use App\Modules\Addons\Talento\Controllers\TalentoProjectController;
 use App\Modules\Addons\Talento\Controllers\TalentoQualityController;
 use App\Modules\Addons\Talento\Controllers\TalentoPenaltyController;
@@ -79,6 +80,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
         Route::get('/campo',          [TalentoFieldFlowController::class,   'index']);
         Route::get('/cajas',          [TalentoCajaController::class,        'index']);
         Route::get('/rutas',          [TalentoRouteController::class,       'index']);
+        // Item #1311: recorridos de planta externa (importar Geo Tracker, hallazgos con foto y pin).
+        Route::get('/recorridos',     [TalentoRecorridoController::class,   'index']);
         Route::get('/proyectos',      [TalentoProjectController::class,     'index']);
         Route::get('/calidad',        fn() => view('addon-talento::talento.calidad'));
         Route::get('/penalizaciones', [TalentoPenaltyController::class, 'index']);
@@ -165,12 +168,18 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/order-types',       [TalentoWorkOrderController::class, 'types']);
             Route::post('/order-types',      [TalentoWorkOrderController::class, 'storeType']);
             Route::put('/order-types/{id}',  [TalentoWorkOrderController::class, 'updateType']);
+            // Item #1200: plantillas activas de un tipo (campos que pide el modal "Nueva orden").
+            Route::get('/order-templates',   [TalentoWorkOrderController::class, 'plantillas']);
 
             // ── Órdenes de trabajo ────────────────────────────────────────────
             // #9991204 (Fase A1 de #9991201): prospectos CRM para el dropdown del modal
             // "Nueva Orden de Trabajo" — antes de /ordenes/{id} por la misma regla de
             // orden de rutas del módulo (paths fijos antes de los parametrizados).
             Route::get('/prospectos-crm',                   [TalentoWorkOrderController::class, 'prospectosCrm']);
+            // #1228: buscador de clientes al editar una orden Pendiente (nombre, teléfono o número).
+            Route::get('/clientes-orden',                   [TalentoWorkOrderController::class, 'clientesOrden']);
+            // Item #1200: «Cliente de referencia» de las órdenes de planta externa.
+            Route::get('/clientes-referencia',              [TalentoWorkOrderController::class, 'clientesReferencia']);
             Route::get('/ordenes',                          [TalentoWorkOrderController::class, 'data']);
             Route::post('/ordenes',                         [TalentoWorkOrderController::class, 'store']);
             Route::post('/ordenes/asignables',              [TalentoWorkOrderController::class, 'asignables']);
@@ -179,6 +188,8 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::get('/ordenes/ticket/{ticketId}',        [TalentoWorkOrderController::class, 'ordenesDeTicket']);
             Route::get('/ordenes/{id}',                     [TalentoWorkOrderController::class, 'show']);
             Route::put('/ordenes/{id}',                     [TalentoWorkOrderController::class, 'update']);
+            // #1225: eliminar (borrado lógico con motivo) una orden pendiente; el controller exige talento.ordenes.eliminar.
+            Route::delete('/ordenes/{id}',                  [TalentoWorkOrderController::class, 'destroy']);
             Route::put('/ordenes/{id}/status',              [TalentoWorkOrderController::class, 'changeStatus']);
             Route::post('/ordenes/{id}/validate',           [TalentoWorkOrderController::class, 'validateOrder']);
             Route::post('/ordenes/{id}/return',             [TalentoWorkOrderController::class, 'returnOrder']);
@@ -271,6 +282,24 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/rutas/{id}/activar',          [TalentoRouteController::class, 'activate']);
             Route::post('/rutas/{id}/analizar-desvios', [TalentoRouteController::class, 'analyzeDeviations']);
             Route::put('/rutas/{id}/stops/reordenar',   [TalentoRouteController::class, 'reorderStops']);
+
+            // ── Recorridos de planta externa (item #1311, fase a) ─────────────
+            Route::get('/hallazgo-categorias',          [TalentoRecorridoController::class, 'categorias']);
+            Route::post('/hallazgo-categorias',         [TalentoRecorridoController::class, 'guardarCategoria']);
+            Route::put('/hallazgo-categorias/{id}',     [TalentoRecorridoController::class, 'guardarCategoria']);
+            Route::get('/recorridos',                   [TalentoRecorridoController::class, 'data']);
+            Route::post('/recorridos',                  [TalentoRecorridoController::class, 'store']);
+            Route::get('/recorridos/colaboradores',     [TalentoRecorridoController::class, 'colaboradores']);
+            Route::get('/recorridos/{id}',              [TalentoRecorridoController::class, 'show']);
+            Route::put('/recorridos/{id}',              [TalentoRecorridoController::class, 'update']);
+            Route::delete('/recorridos/{id}',           [TalentoRecorridoController::class, 'destroy']);
+            Route::get('/recorridos/{id}/original',     [TalentoRecorridoController::class, 'original']);
+            Route::post('/recorridos/{id}/fotos',       [TalentoRecorridoController::class, 'subirFoto']);
+            Route::get('/recorridos/{id}/fotos/{fotoId}', [TalentoRecorridoController::class, 'foto']);
+            Route::post('/recorridos/{id}/enviar',      [TalentoRecorridoController::class, 'enviar']);
+            Route::put('/recorridos/{id}/hallazgos/{hid}',        [TalentoRecorridoController::class, 'actualizarHallazgo']);
+            Route::delete('/recorridos/{id}/hallazgos/{hid}',     [TalentoRecorridoController::class, 'eliminarHallazgo']);
+            Route::post('/recorridos/{id}/hallazgos/{hid}/unir',  [TalentoRecorridoController::class, 'unirHallazgo']);
 
             // ── Proyectos planta externa (Fase 5a) ────────────────────────────
             // Tipos de actividad

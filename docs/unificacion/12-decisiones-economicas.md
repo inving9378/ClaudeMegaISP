@@ -129,6 +129,14 @@ están en la tabla sin motor que los lea. Calidad de señal: 1 regla activa de 7
 
 **Recomendación: A ahora; C después, con política de permanencia definida por Irving.**
 
+### Política de descomisión cerrada por Irving (#1216 → #1220, 2026-11-09)
+
+- **Solo comisiones PENDIENTES** se descomisionan. **Nunca clawback** de comisiones ya pagadas.
+- **Ventana de permanencia móvil**: 30 días desde la activación (`descomision.ventana_dias`); si el cliente cancela o no concreta el primer pago dentro de ella, se revierte el 100 % de la comisión aún pendiente.
+- **Desbloqueo** de un vendedor bloqueado: solo Irving, mediante permiso Spatie, con motivo obligatorio y entrada en bitácora.
+- **Apagado por defecto**: `config/descomision.php` → `enabled=false` (`DESCOMISION_ENABLED`). El status «Bloqueado» se resuelve por nombre en `seller_status` (`status_bloqueado`), compatible con `sellers.status_id_antes_de_inactivar` (#1193).
+- Esta fase es solo política + config; el motor (servicio/job) es un item posterior.
+
 ## 7. Planta externa — evaluación 1–10, bono normal y excelencia
 
 **Lo pedido.** Evaluación 1–10; bono normal desde 9; excelencia en 10; componente individual y colectivo.

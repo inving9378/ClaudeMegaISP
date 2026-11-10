@@ -40,15 +40,30 @@ class ApiIdorTest extends TestCase
             'updated_at' => now(),
         ]);
 
+        // parental_accounts.client_isp_id es NOT NULL con FK a clients
+        $usuarioBase = DB::table('users')->min('id');
+        $clientIspId = DB::table('clients')->insertGetId([
+            'created_by' => $usuarioBase, 'updated_by' => $usuarioBase,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        // plan_id tiene FK a parental_plans: no se asume que exista el plan 1
+        $planId = DB::table('parental_plans')->insertGetId([
+            'name' => 'Plan IDOR ' . $sufijo, 'slug' => 'idor-' . $sufijo . '-' . uniqid(),
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
         $accountId = DB::table('parental_accounts')->insertGetId([
             'user_id'    => $userId,
-            'plan_id'    => 1,
+            'client_isp_id' => $clientIspId,
+            'plan_id'    => $planId,
             'status'     => 'active',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
         $profileId = DB::table('parental_profiles')->insertGetId([
+            'client_isp_id' => $clientIspId,
             'account_id' => $accountId,
             'name'       => 'Hijo ' . $sufijo,
             'created_at' => now(),
@@ -56,6 +71,7 @@ class ApiIdorTest extends TestCase
         ]);
 
         $deviceId = DB::table('parental_devices')->insertGetId([
+            'client_isp_id' => $clientIspId,
             'profile_id' => $profileId,
             'account_id' => $accountId,
             'name'       => 'Telefono ' . $sufijo,
@@ -64,6 +80,7 @@ class ApiIdorTest extends TestCase
         ]);
 
         $taskId = DB::table('parental_tasks')->insertGetId([
+            'client_isp_id' => $clientIspId,
             'profile_id' => $profileId,
             'title'      => 'Tarea ' . $sufijo,
             'status'     => 'pending',
@@ -72,6 +89,7 @@ class ApiIdorTest extends TestCase
         ]);
 
         $requestId = DB::table('parental_requests')->insertGetId([
+            'client_isp_id' => $clientIspId,
             'profile_id' => $profileId,
             'type'       => 'time_extra',
             'status'     => 'pending',

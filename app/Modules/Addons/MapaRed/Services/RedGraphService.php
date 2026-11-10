@@ -10,7 +10,10 @@ use App\Modules\Addons\MapaRed\Models\MapaRedHilo;
 use App\Modules\Addons\MapaRed\Models\MapaRedLayer;
 use App\Modules\Addons\MapaRed\Models\MapaRedPuerto;
 use App\Modules\Addons\MapaRed\Models\MapaRedSplitter;
+use App\Modules\Addons\MapaRed\Models\MapaRedDevicePort;
+use App\Modules\Addons\MapaRed\Models\MapaRedFiber;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 /**
@@ -135,6 +138,230 @@ class RedGraphService
                 ];
             }
         );
+    }
+
+    /**
+     * Item #1237 (lámpara) — recorrido cliente→OLT sobre el modelo del DIAGRAMA (el que dibujan
+     * los usuarios: `mapared_devices*` + `MapaRedFiber`), no sobre el modelo espejo (`mapared_enlaces`
+     * está vacío en dev). Mismo caminador de la clase: un solo servicio de recorrido.
+     *
+     * Búsqueda en anchura desde el puerto del cliente, solo hacia ARRIBA: la conectividad se guarda
+     * sin dirección, así que la dirección sale de las reglas del equipo —
+     *  · splitter: entrando por una SALIDA se salta a su ENTRADA; entrando por la entrada es
+     *    "aguas abajo" y no se expande;
+     *  · organizador: puerto in↔out del mismo nombre (salto interno);
+     *  · hilo (`MapaRedFiber`): sigue por todas sus uniones (fusiones en cada caja; el mismo hilo en
+     *    dos cajas es el mismo nodo, así recorre el cable completo);
+     *  · meta: un puerto `out` de un dispositivo `olt` (PON).
+     * Tolera ciclos (visitados) y rutas incompletas: sin llegar a la OLT devuelve lo más lejano que
+     * alcanzó y dónde se corta; nunca inventa un tramo. Los registros `mapared_fibers_cut` NO son
+     * averías (son el "abrir hilo para empalmar" del editor), así que no marcan corte: un corte real
+     * es la ausencia de unión.
+     *
+     * @return array{completa:bool, motivo_corte:?string, origen:?array, tramos:array, puntos:array, cliente_id:?int, puerto_id:int}
+     */
+    public function trazarDiagramaDesdePuerto(int $puertoId, int $maxNodos = 4000): array
+    {
+        return $this->recordar(
+            self::CACHE_PREFIX.':v'.$this->version().':diagrama:puerto:'.$puertoId,
+            fn () => $this->caminarDiagrama($puertoId, $maxNodos)
+        );
+    }
+
+    /** Puertos del diagrama que tienen a este cliente (`client_main_information.id`). */
+    public function puertosDeCliente(int $clienteId): array
+    {
+        return DB::table('mapared_devices_ports')->where('client_id', $clienteId)->orderBy('id')->pluck('id')->map(fn ($i) => (int) $i)->all();
+    }
+
+    private function caminarDiagrama(int $puertoId, int $maxNodos): array
+    {
+        $P = MapaRedDevicePort::class;
+        $F = MapaRedFiber::class;
+        $inicio = DB::table('mapared_devices_ports')->find($puertoId);
+        $base = ['completa' => false, 'motivo_corte' => null, 'origen' => null, 'tramos' => [], 'puntos' => [], 'cliente_id' => $inicio?->client_id ? (int) $inicio->client_id : null, 'puerto_id' => $puertoId];
+        if (! $inicio) {
+            $base['motivo_corte'] = 'El puerto del cliente no existe en el diagrama.';
+
+            return $base;
+        }
+
+        $visitados = [];   // clave => ['padre'=>clave|null,'prof'=>int,'caja'=>layer_id|null]
+        $nodos = [];       // clave => ['t'=>'P'|'F','id'=>int]
+        $cola = [];
+        $encolar = function (string $t, int $id, string $modo, ?string $padre, int $prof, ?int $caja) use (&$visitados, &$nodos, &$cola) {
+            $clave = $t.$id.($t === 'P' ? ':'.$modo : '');
+            if (isset($visitados[$clave])) {
+                return;
+            }
+            $visitados[$clave] = ['padre' => $padre, 'prof' => $prof, 'caja' => $caja];
+            $nodos[$clave] = ['t' => $t, 'id' => $id];
+            $cola[] = [$clave, $t, $id, $modo, $prof];
+        };
+        $encolar('P', $puertoId, 'inicio', null, 0, null);
+
+        $puertos = [];
+        $dispositivos = [];
+        $dePuerto = function (int $id) use (&$puertos, &$dispositivos) {
+            if (! isset($puertos[$id])) {
+                $puertos[$id] = DB::table('mapared_devices_ports')->find($id);
+                $did = $puertos[$id]?->device_id;
+                if ($did && ! isset($dispositivos[$did])) {
+                    $dispositivos[$did] = DB::table('mapared_devices')->find($did);
+                }
+            }
+
+            return $puertos[$id];
+        };
+
+        $meta = null;
+        $ultimo = null;
+        $i = 0;
+        while ($cola !== [] && $i < $maxNodos) {
+            [$clave, $t, $id, $modo, $prof] = array_shift($cola);
+            $i++;
+            $ultimo = $clave;
+
+            if ($t === 'P') {
+                $p = $dePuerto($id);
+                $d = $p ? ($dispositivos[$p->device_id] ?? null) : null;
+                if (! $p || ! $d) {
+                    continue;
+                }
+                if ($d->type === 'olt' && $p->type === 'out') {
+                    $meta = $clave;
+                    break;
+                }
+                if ($modo === 'conn' && ($d->type === 'client' || ($d->type === 'splitter' && $p->type === 'in'))) {
+                    continue; // aguas abajo: no se expande
+                }
+                if ($modo === 'conn' || $modo === 'inicio') {
+                    if ($d->type === 'splitter' && $p->type === 'out') {
+                        $in = DB::table('mapared_devices_ports')->where('device_id', $d->id)->where('type', 'in')->orderBy('id')->first();
+                        if ($in) {
+                            $dePuerto((int) $in->id);
+                            $encolar('P', (int) $in->id, 'salto', $clave, $prof + 1, $visitados[$clave]['caja']);
+                        }
+                    } elseif ($d->type === 'organizer') {
+                        $par = DB::table('mapared_devices_ports')->where('device_id', $d->id)->where('name', $p->name)->where('type', $p->type === 'in' ? 'out' : 'in')->orderBy('id')->first();
+                        if ($par) {
+                            $dePuerto((int) $par->id);
+                            $encolar('P', (int) $par->id, 'salto', $clave, $prof + 1, $visitados[$clave]['caja']);
+                        }
+                    }
+                }
+                if ($modo === 'salto' && $d->type === 'splitter' && $p->type === 'out') {
+                    continue;
+                }
+            }
+
+            $tipoClase = $t === 'P' ? $P : $F;
+            $uniones = DB::table('mapared_devices_ports_connections')
+                ->where(fn ($q) => $q->where('from_type', $tipoClase)->where('from_id', $id))
+                ->orWhere(fn ($q) => $q->where('to_type', $tipoClase)->where('to_id', $id))
+                ->get(['id', 'from_type', 'from_id', 'to_type', 'to_id', 'layer_id']);
+            foreach ($uniones as $u) {
+                [$ot, $oid] = ($u->from_type === $tipoClase && (int) $u->from_id === $id) ? [$u->to_type, (int) $u->to_id] : [$u->from_type, (int) $u->from_id];
+                if ($ot === $P) {
+                    $po = $dePuerto($oid);
+                    $do = $po ? ($dispositivos[$po->device_id] ?? null) : null;
+                    if ($do && ($do->type === 'client' || ($do->type === 'splitter' && $po->type === 'in'))) {
+                        continue; // aguas abajo: ni se visita (no cuenta como "hasta dónde llegó")
+                    }
+                    $encolar('P', $oid, 'conn', $clave, $prof + 1, $u->layer_id ? (int) $u->layer_id : null);
+                } elseif ($ot === $F) {
+                    $encolar('F', $oid, 'conn', $clave, $prof + 1, $u->layer_id ? (int) $u->layer_id : null);
+                }
+            }
+        }
+
+        $fin = $meta;
+        if (! $fin) {
+            $fin = array_key_first($visitados);
+            foreach ($visitados as $k => $v) {
+                if ($v['prof'] > $visitados[$fin]['prof']) {
+                    $fin = $k;
+                }
+            }
+            if ($i >= $maxNodos && $cola !== []) {
+                $base['motivo_corte'] = 'El recorrido es demasiado extenso (límite de '.$maxNodos.' nodos).';
+            }
+        }
+
+        $camino = [];
+        for ($k = $fin; $k !== null; $k = $visitados[$k]['padre']) {
+            array_unshift($camino, $k);
+        }
+
+        return $this->armarDiagrama($base, $camino, $nodos, $visitados, $dePuerto, $dispositivos, (bool) $meta);
+    }
+
+    private function armarDiagrama(array $base, array $camino, array $nodos, array $visitados, callable $dePuerto, array &$dispositivos, bool $llego): array
+    {
+        $capas = [];
+        $capa = function (?int $id) use (&$capas) {
+            if (! $id) {
+                return null;
+            }
+
+            return $capas[$id] ??= DB::table('mapared_layers')->where('id', $id)->first(['id', 'dialog', 'type', 'text', 'label', 'coords', 'lat', 'lng', 'distance', 'data']);
+        };
+        $pos = fn ($o) => ($o && $o->lat !== null && $o->lng !== null) ? ['lat' => (float) $o->lat, 'lng' => (float) $o->lng] : null;
+        $tramos = [];
+        $puntos = [];
+        $cajasVistas = [];
+        $agregarCaja = function (?int $layerId) use (&$puntos, &$cajasVistas, $capa, $pos) {
+            $l = $capa($layerId);
+            if (! $l || isset($cajasVistas[$layerId]) || $l->type !== 'marker') {
+                return;
+            }
+            $cajasVistas[$layerId] = true;
+            $puntos[] = ['tipo' => $l->dialog === 'site' ? 'site' : ($l->dialog === 'junction_box' ? 'caja_empalme' : 'caja_servicio'), 'id' => (int) $l->id, 'etiqueta' => $l->text, 'posicion' => $pos($l)];
+        };
+        $ultimoDesc = null;
+
+        foreach ($camino as $clave) {
+            $n = $nodos[$clave];
+            $agregarCaja($visitados[$clave]['caja']);
+            if ($n['t'] === 'F') {
+                $f = DB::table('mapared_fibers')->find($n['id']);
+                $l = $f ? $capa((int) $f->fiber_id) : null;
+                if ($l && ! isset($tramos[$l->id])) {
+                    $coords = is_string($l->coords) ? json_decode($l->coords, true) : $l->coords;
+                    $tramos[$l->id] = ['tipo' => 'cable', 'layer_id' => (int) $l->id, 'etiqueta' => $l->text, 'hilo' => ['id' => (int) $f->id, 'buffer' => $f->buffer, 'numero' => $f->number], 'distancia' => $l->distance, 'coords' => is_array($coords) ? array_values($coords) : []];
+                }
+                $ultimoDesc = 'el hilo '.($f?->buffer ?? '?').'/'.($f?->number ?? '?').' del cable '.($l?->text ?: '#'.($f?->fiber_id ?? '?'));
+            } else {
+                $p = $dePuerto($n['id']);
+                $d = $p ? ($dispositivos[$p->device_id] ?? null) : null;
+                if ($d && $d->layer_id) {
+                    $agregarCaja((int) $d->layer_id);
+                }
+                if ($d && in_array($d->type, ['splitter', 'client'], true) && (! isset($puntos[count($puntos) - 1]) || ($puntos[count($puntos) - 1]['id'] ?? null) !== (int) $d->id || ($puntos[count($puntos) - 1]['tipo'] ?? null) !== $d->type)) {
+                    $puntos[] = ['tipo' => $d->type === 'client' ? 'cliente' : 'splitter', 'id' => (int) $d->id, 'etiqueta' => $d->name, 'posicion' => $pos($d) ?? $pos($capa((int) $d->layer_id))];
+                }
+                $ultimoDesc = 'el puerto '.($p?->name ?? '?').' de '.($d?->name ?: ($d?->type ?? 'un dispositivo'));
+            }
+        }
+
+        $base['tramos'] = array_values($tramos);
+        $base['puntos'] = $puntos;
+        $base['completa'] = $llego;
+        if ($llego) {
+            $p = $dePuerto($nodos[end($camino)]['id']);
+            $olt = $dispositivos[$p->device_id];
+            $rack = $olt->parent_id ? DB::table('mapared_devices')->find($olt->parent_id) : null;
+            $site = $capa((int) $olt->layer_id);
+            $base['origen'] = ['olt' => $olt->name, 'puerto' => $p->name, 'tarjeta' => $p->card, 'rack' => $rack?->name, 'site' => $site?->text, 'site_id' => $site ? (int) $site->id : null, 'posicion' => $pos($site) ?? $pos($olt)];
+            if ($base['origen']['posicion']) {
+                $puntos[] = ['tipo' => 'olt', 'id' => (int) $olt->id, 'etiqueta' => $olt->name.' · PON '.$p->name, 'posicion' => $base['origen']['posicion']];
+                $base['puntos'] = $puntos;
+            }
+        } elseif ($base['motivo_corte'] === null) {
+            $base['motivo_corte'] = 'El recorrido se corta en '.($ultimoDesc ?? 'el puerto del cliente').': no tiene unión hacia la OLT en el diagrama.';
+        }
+
+        return $base;
     }
 
     /**

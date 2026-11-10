@@ -91,6 +91,8 @@ class Kernel extends ConsoleKernel
         // conserva las últimas 7 versiones y borra el resto, análogo a la retención de
         // backup_db:process. Comando ya blindado (solo toca {V}/{V}.zip con match exacto).
         $schedule->command('backups:purge-test --force')->dailyAt('02:20')->withoutOverlapping();
+        // Item #1270 (MR-33): historial diario de potencia por caja (Mapa de Red).
+        $schedule->command('mapared:potencia-capturar')->dailyAt('04:30')->withoutOverlapping();
         $schedule->command('crme:propuestas-vencer')->dailyAt('01:10')->withoutOverlapping();
 
         // #1154 (Fase 1b de #576) — modo APRENDER MAC PPPoE: radacct + caller-id de /ppp/active.

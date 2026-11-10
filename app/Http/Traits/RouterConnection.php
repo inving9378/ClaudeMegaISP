@@ -16,6 +16,8 @@ use App\Models\Mikrotik;
 use App\Models\Network;
 use App\Models\Router;
 use App\Services\NetworkIpService;
+use App\Support\Red\ClienteRouterOs;
+use App\Support\Red\SoloLectura;
 use Exception;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -216,7 +218,7 @@ trait RouterConnection
             'port' => $device_port,
         ] = $this->destinoConexion($device_ip, $device_login, $device_password, $device_port);
         try {
-            $client = new Client(
+            $client = new ClienteRouterOs(
                 $device_ip,
                 $device_login,
                 $device_password,
@@ -235,14 +237,16 @@ trait RouterConnection
     /**
      * Host y credenciales con los que de verdad se abre la conexión. Fuera de production se
      * sustituyen por MIKROTIK_DEV_*, con respaldo fijo a un router de prueba que ya no existe
-     * (#997). Público para que quien abre su propia conexión (el monitoreo de dedicados, #988,
+     * (#997), salvo con RED_ROUTERS_REALES_EN_DEV y el candado de solo lectura puesto
+     * (config/red.php): entonces va al router real, solo para leerlo. Público para que quien abre
+     * su propia conexión (el monitoreo de dedicados, #988,
      * que necesita un timeout corto) use exactamente el mismo destino y pueda decir cuál fue.
      *
      * @return array{ip: mixed, login: mixed, password: mixed, port: mixed}
      */
     public function destinoConexion($device_ip, $device_login, $device_password, $device_port): array
     {
-        if (config('app.env') !== "production") {
+        if (config('app.env') !== "production" && ! SoloLectura::routersRealesEnDev()) {
             $device_ip = $_ENV['MIKROTIK_DEV_IP'] ?? '89.0.142.86';
             $device_login = $_ENV['MIKROTIK_DEV_LOGIN'] ?? 'admin';
             $device_password = $_ENV['MIKROTIK_DEV_PASSWORD'] ?? 'admin';

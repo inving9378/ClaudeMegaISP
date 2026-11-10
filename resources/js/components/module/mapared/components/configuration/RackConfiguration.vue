@@ -209,6 +209,7 @@
                     >
                         <svg-connections
                             :has-edit="hasEdit"
+                            rejilla
                             @removed="update"
                         />
                         <template

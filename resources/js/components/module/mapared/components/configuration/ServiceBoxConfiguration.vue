@@ -205,6 +205,94 @@
                         ref="workspace"
                         v-show="tabCharoles !== 'marker-information'"
                     >
+                        <div
+                            class="potencia-caja-badge"
+                            :class="cajaColor"
+                            style="position: absolute; top: 6px; left: 8px; z-index: 5; padding: 4px 10px; border-radius: 6px; font-weight: 600; background: rgba(255,255,255,0.92); color: #222; border: 1px solid #999"
+                        >
+                            <span v-if="potencia?.potencia_caja_dbm != null">
+                                Caja: {{ potencia.potencia_caja_dbm.toFixed(1) }} dBm
+                            </span>
+                            <span v-else>Caja: sin lecturas</span>
+                            <q-btn
+                                flat
+                                round
+                                dense
+                                size="xs"
+                                icon="refresh"
+                                :loading="cargandoPotencia"
+                                @click.stop="cargarPotencia(true)"
+                            />
+                            <q-btn
+                                flat
+                                round
+                                dense
+                                size="xs"
+                                icon="show_chart"
+                                @click.stop="abrirHistorial"
+                            >
+                                <q-tooltip>Historial de potencia</q-tooltip>
+                            </q-btn>
+                            <q-tooltip v-if="potencia?.potencia_caja_dbm != null">
+                                Cliente más débil
+                                {{ potencia.cliente_mas_debil_dbm.toFixed(1) }} +
+                                {{ potencia.margen_db }} dB ·
+                                {{ potencia.con_lectura }} con lectura,
+                                {{ potencia.sin_onu }} sin ONU
+                            </q-tooltip>
+                        </div>
+                        <q-dialog v-model="historialAbierto">
+                            <q-card style="min-width: 360px">
+                                <q-card-section class="text-subtitle1">
+                                    Historial de potencia de la caja
+                                </q-card-section>
+                                <q-card-section>
+                                    <q-btn-toggle
+                                        v-model="historialDias"
+                                        dense
+                                        no-caps
+                                        toggle-color="primary"
+                                        :options="[
+                                            { label: '30 días', value: 30 },
+                                            { label: '90 días', value: 90 },
+                                        ]"
+                                        @update:model-value="cargarHistorial"
+                                    />
+                                    <div
+                                        v-if="historial?.puntos?.length"
+                                        class="q-mt-md"
+                                    >
+                                        <svg viewBox="0 0 300 100" width="100%" height="120">
+                                            <polyline
+                                                :points="historialPuntosSvg"
+                                                fill="none"
+                                                stroke="#1976d2"
+                                                stroke-width="2"
+                                            />
+                                        </svg>
+                                        <div>
+                                            Actual:
+                                            {{ historial.potencia_actual_dbm.toFixed(1) }} dBm
+                                        </div>
+                                        <div v-if="historial.bajo_db != null">
+                                            <span
+                                                v-if="historial.bajo_db > 0"
+                                                class="text-negative"
+                                            >
+                                                Bajó {{ historial.bajo_db }} dB desde la instalación
+                                            </span>
+                                            <span v-else>
+                                                Sin pérdida desde la instalación
+                                                ({{ historial.bajo_db }} dB)
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div v-else class="q-mt-md text-grey">
+                                        Sin lecturas en este periodo.
+                                    </div>
+                                </q-card-section>
+                            </q-card>
+                        </q-dialog>
                         <template
                             v-for="device in routes"
                             :key="`route-${device.id}`"
@@ -247,6 +335,7 @@
                                     v-if="device.type === 'splitter'"
                                 />
                                 <client-component
+                                    :potencia="potenciaDe(device)"
                                     :device="device"
                                     :has-edit="hasEdit"
                                     @toggle="togglePort"
@@ -440,6 +529,7 @@ const onShowDialog = async () => {
     setToLocalStorage("layer-config", JSON.stringify(props.object));
     currentNode.value = props.object;
     await loadConfig();
+    cargarPotencia(true);
     if (!hasStoredTab && charoles.value.length > 0) {
         tabCharoles.value = `charole-${charoles.value[0].id}`;
     }
@@ -493,6 +583,73 @@ const createCharole = async () => {
         );
     }
 };
+
+const potencia = ref(null);
+const cargandoPotencia = ref(false);
+
+const cargarPotencia = async (enVivo = true) => {
+    cargandoPotencia.value = true;
+    try {
+        const { data } = await axios.get(
+            `/mapa-red/api/service-box/${props.object.id}/potencia`,
+            { params: enVivo ? {} : { sin_vivo: 1 } }
+        );
+        potencia.value = data;
+    } catch (e) {
+        potencia.value = null;
+    } finally {
+        cargandoPotencia.value = false;
+    }
+};
+
+const historialAbierto = ref(false);
+const historialDias = ref(30);
+const historial = ref(null);
+
+const cargarHistorial = async () => {
+    try {
+        const { data } = await axios.get(
+            `/mapa-red/api/naps/${props.object.id}/potencia-historial`,
+            { params: { dias: historialDias.value } }
+        );
+        historial.value = data;
+    } catch (e) {
+        historial.value = null;
+    }
+};
+
+const abrirHistorial = () => {
+    historialAbierto.value = true;
+    cargarHistorial();
+};
+
+// Polilínea 300x100; más arriba = mejor señal (más cercano a cero).
+const historialPuntosSvg = computed(() => {
+    const pts = historial.value?.puntos ?? [];
+    if (!pts.length) return "";
+    const vals = pts.map((p) => p.minima_dbm);
+    const min = Math.min(...vals);
+    const max = Math.max(...vals);
+    const rango = max - min || 1;
+    return pts
+        .map((p, i) => {
+            const x = pts.length === 1 ? 150 : (i / (pts.length - 1)) * 300;
+            const y = 95 - ((p.minima_dbm - min) / rango) * 90;
+            return `${x.toFixed(1)},${y.toFixed(1)}`;
+        })
+        .join(" ");
+});
+
+const potenciaDe = (device) => {
+    const portId = device.ports?.[0]?.id;
+    return potencia.value?.clientes?.find((c) => c.port_id === portId) ?? null;
+};
+
+const cajaColor = computed(() => {
+    const v = potencia.value?.potencia_caja_dbm;
+    if (v == null) return "";
+    return v <= -27 ? "text-negative" : v <= -24 ? "text-warning" : "";
+});
 
 const loadConfig = async () => {
     showLoading();

@@ -90,6 +90,8 @@ class HistoricoServicioDedicado
             'latencia'    => [
                 'ips'     => array_map(fn ($ip) => $ip + ['puntos' => $series['latencia'][$ip['ip']]], $ips),
                 'perdida' => $series['perdida'],
+                // #1002: ping de referencia externo (otra serie, misma gráfica). null si el servicio no tiene IP.
+                'referencia' => $this->referencia($monitoreo, $ejeDesde, $ejeHasta, $eje['paso'], $desde, $ahora),
             ],
             'trafico'     => [
                 'bajada' => $series['bajada'],
@@ -185,6 +187,44 @@ class HistoricoServicioDedicado
         }
 
         return [$filas, $simulado];
+    }
+
+    /** @return ?array{ip: string, puntos: array, perdida: array} latencia y pérdida por cubeta de la IP de referencia */
+    private function referencia(?ServicioMonitoreo $monitoreo, int $ejeDesde, int $ejeHasta, int $paso, int $desde, int $ahora): ?array
+    {
+        $ip = trim((string) $monitoreo?->ip_referencia);
+        if ($ip === '') {
+            return null;
+        }
+        $n = max(0, (int) ceil((min($ejeHasta, $ahora) - $ejeDesde) / $paso));
+        $lat = $per = array_fill(0, $n, [0.0, 0, 0.0]);
+        $filas = DB::table('cliente_metricas_referencia')->where('servicio_id', $monitoreo->servicio_id)
+            ->whereBetween('ts', [date('Y-m-d H:i:s', $desde), date('Y-m-d H:i:s', $ahora)])
+            ->whereNotIn('estado', ['omitido', 'error'])
+            ->get(['ts', 'enviados', 'recibidos', 'lat_avg_ms', 'lat_max_ms']);
+        foreach ($filas as $f) {
+            $k = intdiv(strtotime($f->ts) - $ejeDesde, $paso);
+            if ($k < 0 || $k >= $n) {
+                continue;
+            }
+            if ($f->recibidos > 0 && $f->lat_avg_ms !== null) {
+                $lat[$k][0] += (float) $f->lat_avg_ms;
+                $lat[$k][1]++;
+                $lat[$k][2] = max($lat[$k][2], (float) ($f->lat_max_ms ?? $f->lat_avg_ms));
+            }
+            if ($f->enviados > 0) {
+                $per[$k][0] += (1 - $f->recibidos / $f->enviados) * 100;
+                $per[$k][1]++;
+                $per[$k][2] = max($per[$k][2], (1 - $f->recibidos / $f->enviados) * 100);
+            }
+        }
+        $puntos = fn (array $c, int $dec) => array_map(fn ($b, $k) => [
+            ($ejeDesde + $k * $paso + intdiv($paso, 2)) * 1000,
+            $b[1] > 0 ? round($b[0] / $b[1], $dec) : null,
+            $b[1] > 0 ? round($b[2], $dec) : null,
+        ], $c, array_keys($c));
+
+        return ['ip' => $ip, 'puntos' => $puntos($lat, 3), 'perdida' => $puntos($per, 2)];
     }
 
     /** @return array{0: array, 1: string[], 2: ?int} pings por minuto e IP, IPs vistas, paquetes de la última medición */

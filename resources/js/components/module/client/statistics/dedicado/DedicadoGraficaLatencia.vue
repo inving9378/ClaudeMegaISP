@@ -3,7 +3,7 @@
         <q-card-section class="dg-encabezado">
             <div class="text-subtitle2 text-weight-bold">Latencia y pérdida de paquetes</div>
             <ul class="dg-leyenda" aria-label="Leyenda de la gráfica">
-                <li v-for="(ip, i) in datos.latencia.ips" :key="ip.ip">
+                <li v-for="(ip, i) in lista" :key="ip.ip">
                     <svg width="28" height="10" aria-hidden="true">
                         <line x1="1" y1="5" x2="27" y2="5" :stroke="color(i)" stroke-width="2.5" :stroke-dasharray="dash(i)" />
                     </svg>
@@ -57,10 +57,16 @@ export default {
         const dash = (i) => (DASH[i % DASH.length] ? String(DASH[i % DASH.length]) : "none");
         const tenue = (hex) => `${hex}66`;
 
-        const nombres = computed(() => props.datos.latencia.ips.map((ip) => `Latencia · ${nombreIp(ip)}`));
+        // #1002: la IP de referencia externa va como una serie más de la misma gráfica.
+        const lista = computed(() => {
+            const r = props.datos.latencia.referencia;
+            return [...props.datos.latencia.ips, ...(r ? [{ ip: r.ip, etiqueta: "Referencia externa", puntos: r.puntos }] : [])];
+        });
+
+        const nombres = computed(() => lista.value.map((ip) => `Latencia · ${nombreIp(ip)}`));
 
         const series = computed(() => [
-            ...props.datos.latencia.ips.flatMap((ip, i) => [
+            ...lista.value.flatMap((ip, i) => [
                 { name: nombres.value[i], type: "line", data: ip.puntos.map(([x, y]) => ({ x, y })) },
                 { name: `Máximo · ${nombreIp(ip)}`, type: "line", data: ip.puntos.map(([x, , y]) => ({ x, y })) },
             ]),
@@ -70,7 +76,7 @@ export default {
         // Autoescala con los datos (promedios y máximos de todas las IPs): las latencias son
         // sub-milisegundo y el eje crece solo si hay picos.
         const maxLatencia = computed(() =>
-            topeRedondo(Math.max(0, ...props.datos.latencia.ips.flatMap((ip) => ip.puntos.flatMap((p) => [p[1] ?? 0, p[2] ?? 0]))))
+            topeRedondo(Math.max(0, ...lista.value.flatMap((ip) => ip.puntos.flatMap((p) => [p[1] ?? 0, p[2] ?? 0]))))
         );
 
         // 0 a 20 %; si hay más, crece a 40, 60, 80 o 100 (marcas enteras de 5 en 5 hasta 25 en 25).
@@ -90,7 +96,7 @@ export default {
 
         const opciones = computed(() => {
             const c = colores.value;
-            const ips = props.datos.latencia.ips;
+            const ips = lista.value;
             const lineas = ips.flatMap((_, i) => [color(i), tenue(color(i))]);
             return {
                 chart: {
@@ -159,7 +165,7 @@ export default {
             };
         });
 
-        return { clave, darkMode, colores, color, dash, nombreIp, series, opciones, minutosCubeta, OPACIDAD };
+        return { lista, clave, darkMode, colores, color, dash, nombreIp, series, opciones, minutosCubeta, OPACIDAD };
     },
 };
 </script>

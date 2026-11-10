@@ -48,8 +48,11 @@ export function useTableUrlState({ parametros, prefijo = "", esperaMs = 300 }) {
 
         const anterior = window.history.state ?? {};
         const tablas = { ...(anterior[CLAVE_STATE] ?? {}) };
-        if (Object.keys(privado).length > 0) {
-            tablas[clave] = privado;
+        // El scroll (#1163) lo escribe guardarScroll al abrir una fila: no lo pisa el guardado de filtros.
+        const scrollY = anterior[CLAVE_STATE]?.[clave]?.scrollY;
+        const conScroll = scrollY !== undefined ? { ...privado, scrollY } : privado;
+        if (Object.keys(conScroll).length > 0) {
+            tablas[clave] = conScroll;
         } else {
             delete tablas[clave];
         }
@@ -92,9 +95,34 @@ export function useTableUrlState({ parametros, prefijo = "", esperaMs = 300 }) {
         escribirConEspera.flush();
     });
 
+    // #1163: al abrir una fila se recuerda el scroll en la entrada actual del historial; al volver con
+    // atrás se restaura cuando ya hay filas (spa-nav hace scrollTo(0,0) al montar, las filas llegan después).
+    const scrollPendiente = Number(currentHistoryState()?.[CLAVE_STATE]?.[clave]?.scrollY) || 0;
+
+    const guardarScroll = () => {
+        if (detenido) return;
+        const anterior = window.history.state ?? {};
+        const tablas = { ...(anterior[CLAVE_STATE] ?? {}) };
+        tablas[clave] = { ...(tablas[clave] ?? {}), scrollY: Math.round(window.scrollY) };
+        window.history.replaceState({ ...anterior, [CLAVE_STATE]: tablas }, "", window.location.href);
+    };
+
+    const alClic = (e) => {
+        if (e.target?.closest?.("a[href]")) guardarScroll();
+    };
+    window.addEventListener("click", alClic, true);
+    onBeforeUnmount(() => window.removeEventListener("click", alClic, true));
+
+    let restaurado = false;
+    const restaurarScroll = () => {
+        if (restaurado || scrollPendiente <= 0) return;
+        restaurado = true;
+        requestAnimationFrame(() => window.scrollTo(0, scrollPendiente));
+    };
+
     const guardar = (url, privado = {}) => {
         if (!detenido) escribirConEspera(url, privado);
     };
 
-    return { leer, guardar };
+    return { leer, guardar, restaurarScroll };
 }

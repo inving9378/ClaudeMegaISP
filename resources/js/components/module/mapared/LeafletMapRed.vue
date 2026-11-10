@@ -2000,6 +2000,7 @@ const initMap = async () => {
 // Fase 3c (#9990761): cancela el loop de requestAnimationFrame al salir del mapa (SPA nav) para
 // no dejarlo corriendo de fondo sin el contenedor del mapa vivo.
 onBeforeUnmount(() => {
+    window.removeEventListener("mapared:lampara", encenderLampara);
     detenerMonitorRendimientoFlujoAnimado();
 });
 
@@ -2580,6 +2581,53 @@ const trazarRutaEnlace = async (enlaceId) => {
         );
     }
 };
+
+// Item #1241 (lámpara): ilumina el recorrido cliente→OLT sobre el mapa (endpoint #1237).
+// Cierra los diálogos de configuración para dejar ver el mapa; si el recorrido está
+// incompleto avisa dónde se corta.
+const encenderLampara = async (ev) => {
+    const clientId = ev?.detail?.clientId;
+    if (!clientId) {
+        message("Este cliente no tiene identificador para trazar el recorrido", "warning");
+        return;
+    }
+    let r;
+    try {
+        r = (await axios.get(`/mapa-red/api/lampara/cliente/${clientId}`)).data;
+    } catch (e) {
+        message("No se pudo obtener el recorrido del cliente", "error");
+        return;
+    }
+    dialogs.value.service_box_config = false;
+    dialogs.value.junction_box_config = false;
+    currentObject.value = null;
+
+    trazoLayer.clearLayers();
+    const par = (c) => (Array.isArray(c) ? [Number(c[0]), Number(c[1])] : [Number(c.lat), Number(c.lng)]);
+    const todos = [];
+    (r.tramos ?? []).forEach((t) => {
+        const linea = (t.coords ?? []).map(par).filter((c) => !c.some(Number.isNaN));
+        if (linea.length >= 2) {
+            L.polyline(linea, { color: "#f59e0b", weight: 6, opacity: 0.95 }).addTo(trazoLayer);
+            todos.push(...linea);
+        }
+    });
+    (r.puntos ?? []).forEach((pt) => {
+        if (!pt.posicion) return;
+        const c = [pt.posicion.lat, pt.posicion.lng];
+        L.circleMarker(c, { radius: 6, color: "#b45309", fillColor: "#fde68a", fillOpacity: 1 })
+            .bindTooltip(pt.etiqueta ?? pt.tipo)
+            .addTo(trazoLayer);
+        todos.push(c);
+    });
+    if (todos.length) {
+        map.fitBounds(todos, { padding: [40, 40] });
+    }
+    if (!r.completa) {
+        message(r.motivo_corte ?? "El recorrido no llega hasta la OLT", "warning");
+    }
+};
+window.addEventListener("mapared:lampara", encenderLampara);
 
 const onRealoadedProject = (list) => {
     reloadProjects.value = false;

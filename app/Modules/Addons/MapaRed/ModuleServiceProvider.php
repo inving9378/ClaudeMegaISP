@@ -3,6 +3,8 @@
 namespace App\Modules\Addons\MapaRed;
 
 use App\Modules\Addons\MapaRed\Console\BackfillCommand;
+use App\Modules\Addons\MapaRed\Console\CapturarPotenciaCommand;
+use App\Modules\Addons\MapaRed\Console\ClientesFicticiosCommand;
 use App\Modules\Addons\MapaRed\Console\ImportarLegacyCommand;
 use App\Modules\Addons\MapaRed\Console\ValidarPresupuestoOpticoCommand;
 use App\Modules\Addons\MapaRed\Models\MapaRedEmpalme;
@@ -28,6 +30,10 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
         MapaRedEmpalme::saved(fn () => RedGraphService::invalidarCache());
         MapaRedEmpalme::deleted(fn () => RedGraphService::invalidarCache());
         MapaRedEmpalme::restored(fn () => RedGraphService::invalidarCache());
+
+        // Item #1237 — el recorrido de la lámpara camina las uniones del diagrama: cualquier cambio las invalida.
+        \App\Modules\Addons\MapaRed\Models\MapaRedDevicePortConnection::saved(fn () => RedGraphService::invalidarCache());
+        \App\Modules\Addons\MapaRed\Models\MapaRedDevicePortConnection::deleted(fn () => RedGraphService::invalidarCache());
 
         // MR-23 fase 4d (#9990456) — historial de cambios de nodos/enlaces (MapaRedLayer,
         // el modelo real que edita ElementSidePanel.vue vía LayersController). Un renglón
@@ -56,6 +62,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 BackfillCommand::class,
+                CapturarPotenciaCommand::class,
+                ClientesFicticiosCommand::class,
                 ImportarLegacyCommand::class,
                 ValidarPresupuestoOpticoCommand::class,
             ]);

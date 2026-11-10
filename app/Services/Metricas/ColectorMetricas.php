@@ -81,6 +81,7 @@ final class ColectorMetricas
         $infoRouters = [];
         $filas = [];
         $pings = [];
+        $referencias = [];
         $contadores = [];
         $abortado = false;
 
@@ -143,7 +144,7 @@ final class ColectorMetricas
 
                 $info['ping_ms'] = [];
                 $this->leerRouter($sesion, $routerId, $servicios, $previos, $param, $inicioRouter + $presupuestoRouter,
-                    $filas, $pings, $contadores, $latido, $info['ping_ms']);
+                    $filas, $pings, $contadores, $latido, $info['ping_ms'], $referencias);
 
                 // Solo dry-run, informativo: IPs que no están en ningún servicio (p. ej. de un
                 // dedicado sin «Datos de red» todavía), desde esta misma conexión. No van a $pings.
@@ -185,7 +186,7 @@ final class ColectorMetricas
         ];
 
         if (! $dryRun) {
-            DB::transaction(function () use ($filas, $pings, $contadores, $latido) {
+            DB::transaction(function () use ($filas, $pings, $referencias, $contadores, $latido) {
                 if ($filas !== []) {
                     ClienteMetrica::upsert($filas, ['servicio_id', 'ts'], [
                         'cliente_id', 'bajada_bps', 'subida_bps', 'bajada_pps', 'subida_pps', 'estado',
@@ -195,6 +196,11 @@ final class ColectorMetricas
                 if ($pings !== []) {
                     ClienteMetricaPing::upsert($pings, ['servicio_id', 'ip', 'ts'], [
                         'cliente_id', 'monitoreo_ip_id', 'enviados', 'recibidos', 'lat_min_ms', 'lat_avg_ms', 'lat_max_ms', 'estado', 'origen',
+                    ]);
+                }
+                if ($referencias !== []) {
+                    DB::table('cliente_metricas_referencia')->upsert($referencias, ['servicio_id', 'ts'], [
+                        'cliente_id', 'ip', 'enviados', 'recibidos', 'lat_min_ms', 'lat_avg_ms', 'lat_max_ms', 'estado', 'origen',
                     ]);
                 }
                 if ($contadores !== []) {
@@ -222,7 +228,7 @@ final class ColectorMetricas
 
     /** Lectura de un router ya verificado: contadores de todas sus interfaces y ping a cada IP. */
     private function leerRouter(SesionRouter $sesion, int $routerId, array $servicios, $previos, array $param, float $limite,
-        array &$filas, array &$pings, array &$contadores, array &$latido, array &$tiemposPing): void
+        array &$filas, array &$pings, array &$contadores, array &$latido, array &$tiemposPing, array &$referencias = []): void
     {
         $pedidas = [];
         foreach ($servicios as $s) {
@@ -279,6 +285,22 @@ final class ColectorMetricas
                     $tiemposPing[] = ['ip' => $ip['ip'], 'ms' => (int) round((microtime(true) - $antes) * 1000), 'detalle' => $lp?->detalle ?? []];
                     $lecturasPing[] = $lp;
                     $pings[] = $this->filaPing($s, $ip, $param, $lp);
+                }
+
+                // #1002: ping de referencia externo, en su propia serie (no entra al estado ni a la disponibilidad).
+                if (! empty($s['ip_referencia'])) {
+                    $lr = microtime(true) > $limite ? null : $sesion->ping($s['ip_referencia'], $param['paquetes'], $param['intervalo']);
+                    $referencias[] = $this->base($s, $param) + [
+                        'ip' => $s['ip_referencia'],
+                        'enviados' => $lr?->enviados ?? $param['paquetes'], 'recibidos' => $lr?->recibidos() ?? 0,
+                        'lat_min_ms' => $lr?->minMs(), 'lat_avg_ms' => $lr?->avgMs(), 'lat_max_ms' => $lr?->maxMs(),
+                        'estado' => match (true) {
+                            $lr === null        => ClienteMetricaPing::OMITIDO,
+                            $lr->error !== null => ClienteMetricaPing::ERROR,
+                            $lr->responde()     => ClienteMetricaPing::RESPONDE,
+                            default             => ClienteMetricaPing::SIN_RESPUESTA,
+                        },
+                    ];
                 }
 
                 $filas[] = $this->base($s, $param) + $trafico + ResumenPing::de($lecturasPing);

@@ -92,6 +92,18 @@
                         :error="!!errores.ip_router"
                         :error-message="errores.ip_router"
                     />
+                    <q-input
+                        v-model="form.ip_referencia"
+                        label="IP de referencia externa (opcional)"
+                        hint="La que el cliente monitorea (su servidor, VPN o un DNS). Se mide desde su router, en otra serie de la gráfica."
+                        clearable
+                        outlined
+                        dense
+                        :dark="darkMode"
+                        :readonly="!puedeEditar"
+                        :error="!!errores.ip_referencia"
+                        :error-message="errores.ip_referencia"
+                    />
                 </div>
                 <div class="drd-estado">
                     <span class="drd-punto" :class="monitoreo.activo === false ? 'drd-pausado' : 'drd-activo'" aria-hidden="true"></span>
@@ -213,7 +225,7 @@ export default {
         const puedeEditar = ref(false);
         const prefijoMinimo = ref(24);
         const errores = ref({});
-        const form = reactive({ router_id: null, interfaz_vlan: null, vlan_id: null, bloque_cidr: null, ip_router: null });
+        const form = reactive({ router_id: null, interfaz_vlan: null, vlan_id: null, bloque_cidr: null, ip_router: null, ip_referencia: null });
         const filas = ref([]);
         const monitoreo = ref({ activo: null, motivo: null, automatica: false });
         const propuesto = ref(false);
@@ -269,6 +281,7 @@ export default {
                 vlan_id: r.datos.vlan_id,
                 bloque_cidr: r.datos.bloque_cidr,
                 ip_router: r.datos.ip_router,
+                ip_referencia: r.datos.ip_referencia,
             });
             // hosts se recalcula en el siguiente tick; se arma con lo guardado.
             rehacerFilas(r.datos.ips || []);

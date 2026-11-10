@@ -11,6 +11,7 @@
                     :link="val.link"
                     :porcent="val.porcent"
                     :labelPorcent="val.time_human"
+                    :color="val.color"
                 ></tarjet-ticket>
             </template>
         </div>

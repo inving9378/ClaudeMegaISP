@@ -52,6 +52,8 @@ abstract class PortalTestCase extends TestCase
             'name'               => 'TestCliente' . $clientId,
             'father_last_name'   => 'Prueba',
             'phone'              => '5500000000',
+            // El login valida contra `password` (Contraseña WEB, texto plano), no contra portal_password.
+            'password'           => 'TestPassword123!',
             'portal_password'    => Hash::make('TestPassword123!'),
             'portal_registered_at' => now(),
             'created_at'         => now(),

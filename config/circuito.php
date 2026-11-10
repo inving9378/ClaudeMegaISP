@@ -295,7 +295,12 @@ return [
     | aparte), y por eso este valor sube GRADUALMENTE y se mide antes de subirlo más.
     */
     'paralelo_mismo_modulo' => max(1, (int) env('CIRCUITO_PARALELO_MISMO_MODULO', 1)),
-    'max_builds'       => (int) env('CIRCUITO_MAX_BUILDS', 3),
+    // 2026-11-09 (Irving, lentitud de dev): 3 → 1. Medido: 3 webpack a la vez (cada uno 1 núcleo y
+    // hasta 4.6 GB) con ~40% de CPU robada por el hipervisor dejaban 1–4% libre y las pantallas
+    // esperaban CPU. Ojo: con 1 ranura, una vuelta de 600 s que espera turno tras el build de
+    // producción post-merge (7–27 min) puede cortarse por timeout; si pasa, subir con
+    // CIRCUITO_MAX_BUILDS=2 en el .env (sin redeploy, no hay config:cache en dev).
+    'max_builds'       => (int) env('CIRCUITO_MAX_BUILDS', 1),
 
     // #938 — límite real de una vuelta (lo aplica `timeout` en deploy/circuito/vuelta.sh vía
     // CIRCUITO_TIMEOUT). Expuesto aquí SOLO para que la Torre (pestaña Terminales) pinte el

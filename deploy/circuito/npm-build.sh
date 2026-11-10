@@ -12,7 +12,7 @@ mkdir -p "$RUNTIME"
 # CIRCUITO_MAX_BUILDS directo y config/circuito.php:136 quedaba como control fantasma (nadie
 # lo leía). Si `artisan` falla (worktree roto, DB caída) cae a env/default — nunca bloquea el build.
 MAX="$(php artisan circuito:flags 2>/dev/null | sed -n 's/^max_builds=//p')"
-MAX="${MAX:-${CIRCUITO_MAX_BUILDS:-3}}"
+MAX="${MAX:-${CIRCUITO_MAX_BUILDS:-1}}"
 
 # Espera hasta adquirir una ranura (bloqueante con backoff).
 FD=""
@@ -44,7 +44,11 @@ STAGE="build-staging-$$-$(date +%s%N)"
 export MIX_JS_STAGE_DIR="$STAGE"
 find public -maxdepth 1 -name 'build-staging-*' -mmin +60 -exec rm -rf {} + 2>/dev/null
 
-npm run "$MODE" "$@"
+# 2026-11-09 (Irving, lentitud de dev): el build corre con la prioridad MÍNIMA de CPU y de disco.
+# Medido: webpack competía de tú a tú con PHP-FPM en un box de 4 núcleos con ~40% de CPU robada por
+# el hipervisor → las pantallas (Mapas, Mapa de Red, Clientes) tardaban 1.4–2.4 s solo en generar el
+# HTML. Con nice 19 / ionice idle, PHP le gana la CPU al build; el build solo tarda más.
+nice -n 19 ionice -c 3 npm run "$MODE" "$@"
 RC=$?
 
 STAGE_DIR="public/$STAGE"

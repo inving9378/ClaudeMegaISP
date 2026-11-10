@@ -1,4 +1,7 @@
 export const apexchartInit = (id, series, labels) => {
+    // La vista pudo desmontarse (spa-nav) antes de que llegaran los datos: sin elemento no hay gráfica.
+    const el = document.querySelector(`#${id}`);
+    if (!el || !el.isConnected) return null;
     var piechartColors = getChartColorsArray(`#${id}`);
     var options = {
         series: series,
@@ -27,7 +30,7 @@ export const apexchartInit = (id, series, labels) => {
         }]
     };
 
-    var chart = new ApexCharts(document.querySelector(`#${id}`), options);
+    var chart = new ApexCharts(el, options);
     chart.render();
 
     return chart;

@@ -60,6 +60,14 @@
                     <div class="detr-titulo">Tráfico subida</div>
                     <div class="detr-valor detr-subida">{{ mbps(estado.subida_bps) }}</div>
                 </div>
+                <div v-if="estado.ont" class="detr-celda">
+                    <div class="detr-titulo">Potencia ONT</div>
+                    <div class="detr-valor">{{ dbm(estado.ont.dbm) }}</div>
+                    <div class="detr-nota">
+                        {{ [estado.ont.calidad, estado.ont.estado].filter(Boolean).join(" · ") }}
+                        <template v-if="estado.ont.sincronizada"> · dato de {{ new Date(estado.ont.sincronizada).toLocaleString("es-MX") }}</template>
+                    </div>
+                </div>
                 <div class="detr-celda">
                     <div class="detr-titulo">{{ estado.ultima_es_intento ? "Último intento" : "Última lectura" }}</div>
                     <div class="detr-valor">{{ haceCuanto }}</div>
@@ -170,9 +178,10 @@ export default {
         const textoEstado = (e) => TEXTOS[e] || "Sin datos";
         const ms = (v) => (v === null || v === undefined ? "—" : `${Number(v).toFixed(2)} ms`);
         const pct = (v) => (v === null || v === undefined ? "—" : `${Number(v).toLocaleString("es-MX", { maximumFractionDigits: 1 })} %`);
+        const dbm = (v) => (v === null || v === undefined ? "—" : `${Number(v).toFixed(2)} dBm`);
         const mbps = (bps) => (bps === null || bps === undefined ? "—" : `${(bps / 1e6).toFixed(1)} Mbps`);
 
-        return { darkMode, estado, cargando, error, cargar, ipMonitoreada, haceCuanto, textoEstado, ms, pct, mbps };
+        return { darkMode, estado, cargando, error, cargar, ipMonitoreada, haceCuanto, textoEstado, ms, pct, mbps, dbm };
     },
 };
 </script>

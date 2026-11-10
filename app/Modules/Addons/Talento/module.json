@@ -21,6 +21,8 @@
         { "name": "talento.work_orders.manage",    "description": "Crear y editar órdenes de trabajo" },
         { "name": "talento.work_orders.validate",  "description": "Validar órdenes de trabajo completadas" },
         { "name": "talento.ordenes.cierre_excepcion",  "description": "Cerrar una orden desde administración sin sus evidencias (con motivo)" },
+        { "name": "talento.ordenes.editar",        "description": "Editar una orden de trabajo mientras está Pendiente" },
+        { "name": "talento.ordenes.eliminar",      "description": "Eliminar (borrado lógico, con motivo) una orden de trabajo mientras está Pendiente y ver las eliminadas" },
         { "name": "talento.compensation.view",     "description": "Ver reglas de compensación y asignaciones" },
         { "name": "talento.compensation.manage",   "description": "Crear reglas y asignarlas a colaboradores" },
         { "name": "talento.liquidation.view",      "description": "Ver liquidaciones semanales" },
@@ -60,7 +62,10 @@
         { "name": "talento.comisiones.view",      "description": "Ver reglas, estado de cuenta, pagos y deudas de comisiones del colaborador (Fase D, mismo motor que Vendedores)" },
         { "name": "talento.comisiones.manage",    "description": "Registrar pagos de comisión y cobros de deuda" },
         { "name": "talento.reglas_desempeno.view",   "description": "Ver reglas de desempeño semanal por combinación de roles y sus evaluaciones" },
-        { "name": "talento.reglas_desempeno.manage", "description": "Crear/editar reglas de desempeño semanal y confirmar penalizaciones sugeridas" }
+        { "name": "talento.reglas_desempeno.manage", "description": "Crear/editar reglas de desempeño semanal y confirmar penalizaciones sugeridas" },
+        { "name": "talento.recorridos.view",      "description": "Ver recorridos de planta externa, sus hallazgos y fotos" },
+        { "name": "talento.recorridos.manage",    "description": "Importar recorridos (Geo Tracker), clasificar sus hallazgos, recortar la ruta y enviarlos" },
+        { "name": "talento.recorridos.categorias.manage", "description": "Editar el catálogo de categorías de hallazgo de los recorridos" }
     ],
 
     "menu": [
@@ -78,6 +83,7 @@
                 { "label": "Dispositivos",     "url": "/talento/dispositivos",       "permission": "talento.devices.view" },
                 { "label": "Proyectos",        "url": "/talento/proyectos",          "permission": "talento.projects.view" },
                 { "label": "Calidad de caja",  "url": "/talento/calidad",            "permission": "talento.quality.view" },
+                { "label": "Recorridos",       "url": "/talento/recorridos",         "permission": "talento.recorridos.view" },
                 { "label": "Penalizaciones",   "url": "/talento/penalizaciones",     "permission": "talento.penalties.view" },
                 { "label": "Credenciales",     "url": "/talento/credenciales",       "permission": "talento.credentials.view" },
                 { "label": "Paquetes de documentos", "url": "/talento/expediente/paquetes", "permission": "talento.expediente.paquetes.manage" },

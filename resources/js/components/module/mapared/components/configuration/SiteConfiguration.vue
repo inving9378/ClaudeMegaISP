@@ -360,6 +360,7 @@
                         </div>
                         <svg-connections
                             :has-edit="hasEdit"
+                            rejilla
                             @removed="update"
                         />
                     </div>

@@ -196,7 +196,7 @@ class AuthTest extends PortalTestCase
     {
         // Cliente sin portal_password (aún no registrado)
         $clientId = DB::table('clients')->insertGetId([
-            'created_by' => 1, 'updated_by' => 1, 'created_at' => now(), 'updated_at' => now(),
+            'created_by' => DB::table('users')->min('id'), 'updated_by' => DB::table('users')->min('id'), 'created_at' => now(), 'updated_at' => now(),
         ]);
         DB::table('client_main_information')->insertGetId([
             'client_id'        => $clientId,
@@ -216,18 +216,17 @@ class AuthTest extends PortalTestCase
 
         $response->assertRedirect('/portal');
 
-        // Verificar que se guardó el hash
-        $hash = DB::table('client_main_information')
-            ->where('client_id', $clientId)
-            ->value('portal_password');
-        $this->assertTrue(Hash::check('NuevaPass123!', $hash));
+        // La contraseña se guarda en `password` (texto plano, Contraseña WEB) y su hash en web_password_hash
+        $fila = DB::table('client_main_information')->where('client_id', $clientId)->first();
+        $this->assertSame('NuevaPass123!', $fila->password);
+        $this->assertTrue(Hash::check('NuevaPass123!', $fila->web_password_hash));
     }
 
     public function test_registro_telefono_incorrecto_da_mensaje_generico(): void
     {
         // Cliente sin portal_password
         $clientId = DB::table('clients')->insertGetId([
-            'created_by' => 1, 'updated_by' => 1, 'created_at' => now(), 'updated_at' => now(),
+            'created_by' => DB::table('users')->min('id'), 'updated_by' => DB::table('users')->min('id'), 'created_at' => now(), 'updated_at' => now(),
         ]);
         DB::table('client_main_information')->insertGetId([
             'client_id'        => $clientId,
@@ -254,7 +253,9 @@ class AuthTest extends PortalTestCase
 
     public function test_registro_cliente_ya_registrado_redirige_a_recuperar(): void
     {
-        $cliente = $this->crearClientePortal(); // ya tiene portal_password
+        // Con el flujo por código (#473) registro no puede cambiar la contraseña de una cuenta ya registrada
+        config(['portalcliente.recuperar_otp' => true]);
+        $cliente = $this->crearClientePortal(); // ya tiene portal_registered_at
 
         $response = $this->post('/portal/registro', [
             'numero_cliente'            => $cliente->client_id,
@@ -263,9 +264,8 @@ class AuthTest extends PortalTestCase
             'contrasena_confirmation'   => 'NuevaPass123!',
         ]);
 
-        $response->assertSessionHasErrors('numero_cliente');
-        $error = session('errors')->get('numero_cliente')[0];
-        $this->assertStringContainsString('ya tiene cuenta', $error);
+        $response->assertRedirect(route('portal.recuperar'));
+        $this->assertStringContainsString('ya tiene cuenta', session('info'));
     }
 
     public function test_registro_numero_inexistente_no_revela_existencia(): void
@@ -309,6 +309,7 @@ class AuthTest extends PortalTestCase
 
     public function test_recuperar_contrasena_con_telefono_correcto(): void
     {
+        config(['portalcliente.recuperar_otp' => false]);
         $cliente = $this->crearClientePortal();
 
         $response = $this->post('/portal/recuperar', [
@@ -321,10 +322,9 @@ class AuthTest extends PortalTestCase
         $response->assertRedirect('/portal/login');
 
         // La nueva contraseña debe funcionar
-        $hash = DB::table('client_main_information')
-            ->where('id', $cliente->id)
-            ->value('portal_password');
-        $this->assertTrue(Hash::check('NuevaPass456!', $hash));
+        $fila = DB::table('client_main_information')->where('id', $cliente->id)->first();
+        $this->assertSame('NuevaPass456!', $fila->password);
+        $this->assertTrue(Hash::check('NuevaPass456!', $fila->web_password_hash));
     }
 
     public function test_recuperar_contrasena_telefono_incorrecto(): void

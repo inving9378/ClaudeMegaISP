@@ -155,6 +155,11 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
     Route::get('/naps/salud', [NapSaludController::class, 'dashboard'])->name('mapa-red.api.naps.salud');
     Route::get('/naps/salud-lote', [NapSaludController::class, 'lote'])->name('mapa-red.api.naps.salud-lote');
     Route::put('/naps/{layerId}/potencia-instalacion', [NapSaludController::class, 'actualizarPotenciaInstalacion'])->name('mapa-red.api.naps.potencia-instalacion');
+    Route::get('/naps/{layerId}/potencia-historial', [NapSaludController::class, 'potenciaHistorial'])->name('mapa-red.api.naps.potencia-historial');
+
+    // Item #1235 — potencia por cliente y de la caja de servicio.
+    Route::get('/service-box/{layerId}/potencia', [\App\Modules\Addons\MapaRed\Controllers\PotenciaCajaController::class, 'show'])->name('mapa-red.api.service-box.potencia');
+    Route::put('/service-box/puertos/{portId}/potencia-inicial', [\App\Modules\Addons\MapaRed\Controllers\PotenciaCajaController::class, 'corregirInicial'])->name('mapa-red.api.service-box.potencia-inicial');
 
     // MR-20 (item #956) — semáforo de ocupación de puertos por NAP (D16).
     Route::get('/naps/ocupacion-lote', [NapOcupacionController::class, 'lote'])->name('mapa-red.api.naps.ocupacion-lote');
@@ -164,6 +169,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])->prefix('mapa-red/a
 
     // MR-16 Fase 1 (item #9990468) — trazo cliente→OLT listo para dibujar en el mapa.
     Route::get('/enlaces-servicio/{id}/trazo', [EnlacesServicioController::class, 'trazo'])->name('mapa-red.api.enlaces-servicio.trazo');
+
+    // Item #1237 — lámpara: recorrido de la fibra de un cliente (diagrama) hasta la OLT, solo lectura.
+    Route::get('/lampara/cliente/{clientId}', [\App\Modules\Addons\MapaRed\Controllers\LamparaController::class, 'cliente'])->whereNumber('clientId')->name('mapa-red.api.lampara.cliente');
 
     // MR-17 Fase 3a (item #9990593) — "¿quién depende de esto?": fan-out + impacto en MRR.
     Route::get('/impacto', [ImpactoController::class, 'index'])->name('mapa-red.api.impacto');

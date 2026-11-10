@@ -2,6 +2,8 @@
 
 namespace App\Services\Metricas;
 
+use App\Support\Red\SoloLectura;
+
 /**
  * ¿Este sistema es producción, para el monitoreo de dedicados? (item #988). Lo usa SOLO el colector;
  * RouterConnection sigue decidiendo por su lado para el resto del sistema.
@@ -44,6 +46,6 @@ final class EntornoMetricas
     /** METRICAS_DRIVER si está definido; si no, el real donde hay a qué conectarse y el simulado en DEV. */
     public static function driverPorDefecto(): string
     {
-        return (string) (config('metricas.driver') ?: (self::esProduccion() || self::hayLaboratorio() ? 'mikrotik' : 'simulado'));
+        return (string) (config('metricas.driver') ?: (self::esProduccion() || self::hayLaboratorio() || SoloLectura::routersRealesEnDev() ? 'mikrotik' : 'simulado'));
     }
 }

@@ -46,7 +46,7 @@
               <div v-if="detalle.ot.cliente" class="col-md-6"><i class="fa fa-user me-1 text-muted"></i>{{ detalle.ot.cliente }}<span v-if="detalle.ot.es_prospecto" class="tc-muted-txt"> · prospecto</span></div>
               <div v-if="detalle.ot.telefono" class="col-md-6"><i class="fa fa-phone me-1 text-muted"></i>{{ detalle.ot.telefono }}</div>
               <div v-if="detalle.ot.direccion" class="col-12"><i class="fa fa-map-marker-alt me-1 text-muted"></i>{{ detalle.ot.direccion }}</div>
-              <div v-if="detalle.ot.notas" class="col-12"><i class="fa fa-sticky-note me-1 text-muted"></i>{{ detalle.ot.notas }}</div>
+              <div v-if="detalle.ot.notas" class="col-12" style="white-space: pre-line"><i class="fa fa-sticky-note me-1 text-muted"></i>{{ detalle.ot.notas }}</div>
             </div>
           </div>
         </div>

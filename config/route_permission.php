@@ -2482,6 +2482,8 @@ return [
         // siquiera el supervisor con permiso real de crear (ver store())
         // podía ver qué tipos existen. Gap pre-existente, no de esta sesión.
         '/talento/api/order-types',
+        // Item #1200: plantillas del tipo elegido en "Nueva orden" (campos que se piden al crear).
+        '/talento/api/order-templates',
         '/talento/api/ots/**',
         '/talento/api/campo/{workOrderId}/estado',
         '/talento/api/campo/{workOrderId}/firmas',
@@ -2504,10 +2506,16 @@ return [
         '/talento/api/sitios/config/radio',
         '/talento/sitios',
     ],
+    // #1228: buscador de clientes del formulario «Editar orden» (el controller vuelve a revisarlo).
+    'talento.ordenes.editar' => [
+        '/talento/api/clientes-orden',
+    ],
     'talento.work_orders.manage' => [
         // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);
         // el controller hace la restricción real.
         '/talento/api/prospectos-crm',
+        // Item #1200: buscador del «Cliente de referencia» de planta externa (mismo permiso que prospectos).
+        '/talento/api/clientes-referencia',
         '/talento/api/ordenes/{id}/actividades',
         '/talento/api/ordenes/{id}/status',
         '/talento/api/order-types/{id}',
@@ -2728,6 +2736,26 @@ return [
         '/talento/api/rutas/{id}/activar',
         '/talento/api/rutas/{id}/analizar-desvios',
         '/talento/api/rutas/{id}/stops/reordenar',
+    ],
+    // Item #1311: recorridos de planta externa. Ver = lectura (lista, detalle, fotos, archivo
+    // original, catálogo); el controller exige talento.recorridos.manage para escribir y
+    // talento.recorridos.categorias.manage para el catálogo.
+    'talento.recorridos.view' => [
+        '/talento/recorridos',
+        '/talento/api/recorridos',
+        '/talento/api/recorridos/**',
+        '/talento/api/hallazgo-categorias',
+    ],
+    'talento.recorridos.manage' => [
+        '/talento/recorridos',
+        '/talento/api/recorridos',
+        '/talento/api/recorridos/**',
+        '/talento/api/hallazgo-categorias',
+    ],
+    'talento.recorridos.categorias.manage' => [
+        '/talento/recorridos',
+        '/talento/api/hallazgo-categorias',
+        '/talento/api/hallazgo-categorias/{id}',
     ],
     'talento.work_sites.view' => [
         '/talento/sitios',

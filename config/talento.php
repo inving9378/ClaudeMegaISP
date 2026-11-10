@@ -98,4 +98,29 @@ return [
     */
     'ordenes_atrasadas_en_mi_dia' => env('TALENTO_ORDENES_ATRASADAS_EN_MI_DIA', true),
 
+    /*
+    | MR-34 regla 2 (item #1296): bono a la cuadrilla de planta por caja de segundo nivel con señal
+    | mejor que el umbral. Fase 1-2: SOLO simulación en `talento_caja_nivel2_simulaciones` (nunca
+    | escribe en el ledger). Apagada por default. Borde pendiente de Irving: 'estricto' = señal > umbral,
+    | false = señal >= umbral.
+    */
+    'caja_nivel2' => [
+        'enabled'    => (bool) env('TALENTO_CAJA_NIVEL2_ENABLED', false),
+        'umbral_dbm' => (float) env('TALENTO_CAJA_NIVEL2_UMBRAL_DBM', -23.0),
+        'estricto'   => (bool) env('TALENTO_CAJA_NIVEL2_ESTRICTO', true),
+        'monto'      => (float) env('TALENTO_CAJA_NIVEL2_MONTO', 30),
+    ],
+
+    /*
+    | Recorridos de planta externa (item #1311, fase a: importar Geo Tracker). Tolerancia de la
+    | línea simplificada por modo (metros), cuánto puede salirse la hora de una foto de la ruta para
+    | ubicarla por hora (segundos) y cómo se reducen las fotos al guardarlas (decisión 4 de #1315).
+    */
+    'recorridos' => [
+        'simplificar_m'     => ['a_pie' => 3, 'vehiculo' => 8],
+        'tolerancia_hora_s' => 300,
+        'foto_lado_max'     => 1600,
+        'foto_calidad'      => 80,
+    ],
+
 ];

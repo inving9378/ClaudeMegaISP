@@ -45,7 +45,7 @@
 </template>
 
 <script>
-import {onMounted, ref, watch} from "vue";
+import {onMounted, onBeforeUnmount, ref, watch} from "vue";
 import {apexchartInit} from "../helpers/apexchart.init";
 
 export default {
@@ -58,6 +58,7 @@ export default {
         const totals = ref(0);
         const groups = ref([]);
         const char = ref(null);
+        let desmontado = false;
 
         watch(
             () => props.payments,
@@ -67,6 +68,7 @@ export default {
         );
 
         const initComponent = (payments) => {
+            if (desmontado) return;
             if (_.values(payments).length) {
                 let series = [];
                 let labels = [];
@@ -86,6 +88,10 @@ export default {
 
         onMounted(() => {
             initComponent(props.payments);
+        })
+        onBeforeUnmount(() => {
+            desmontado = true;
+            if (char.value) { try { char.value.destroy(); } catch (e) {} char.value = null; }
         })
         return {
             totals,

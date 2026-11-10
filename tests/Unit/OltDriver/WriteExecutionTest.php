@@ -8,6 +8,8 @@ use App\Services\OltDriver\Huawei\HuaweiTransport;
 use App\Services\OltDriver\Huawei\ReadOnlyGuard;
 use App\Services\OltDriver\Huawei\SessionInterface;
 use App\Services\OltDriver\Huawei\WriteExecutionAbortedException;
+use Illuminate\Config\Repository;
+use Illuminate\Container\Container;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 
@@ -73,6 +75,24 @@ class WriteExecutionTest extends TestCase
             'DEADBEEF0000',
             self::$ontPortFixture
         );
+    }
+
+    /**
+     * Estas pruebas son del camino de escritura, así que corren con la red en solo lectura
+     * QUITADA a propósito; sin configuración, execWrite falla cerrado (config/red.php).
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $app = new Container();
+        $app->instance('config', new Repository(['red' => ['solo_lectura' => false]]));
+        Container::setInstance($app);
+    }
+
+    protected function tearDown(): void
+    {
+        Container::setInstance(null);
+        parent::tearDown();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
