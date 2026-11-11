@@ -1,10 +1,17 @@
-@if(auth()->user()->canAny(['voip.view', 'voip.troncales.view', 'voip.extensiones.view', 'voip.grupos.view', 'voip.ia-bot.view']))
+@if(auth()->user()->canAny(['voip.view', 'voip.dashboard.view', 'voip.troncales.view', 'voip.extensiones.view', 'voip.grupos.view', 'voip.ia-bot.view']))
     <li>
         <a href="javascript: void(0);" class="has-arrow">
             <i data-feather="phone"></i>
             <span data-key="t-voip">{{ $item->sidebar_label ?? 'VoIP' }}</span>
         </a>
         <ul class="sub-menu" aria-expanded="false">
+            @if(auth()->user()->can('voip.dashboard.view'))
+                <li>
+                    <a href="{{ url('/voip') }}">
+                        <span><small><i class="fa fa-fw fa-chart-bar"></i></small> Dashboard</span>
+                    </a>
+                </li>
+            @endif
             @if(auth()->user()->can('voip.troncales.view'))
                 <li>
                     <a href="{{ url('/voip/troncales') }}">

@@ -7,157 +7,219 @@
             Entra por <code>https://dev.meganett.com.mx</code>, no por la IP directa.
         </div>
 
-        <!-- Panel expandido (solo para marcar — mientras hay llamada, el modal de abajo manda) -->
-        <div v-else-if="abierto && !estadoLlamada && !postLlamada" class="mv-panel">
-            <div class="mv-head">
-                <span class="mv-dot" :class="'mv-dot--' + estado"></span>
-                <span class="mv-titulo">{{ nombre }} <small>({{ numero }})</small></span>
-                <button class="mv-close" @click="abierto = false" title="Cerrar">
-                    <i class="fa fa-times"></i>
-                </button>
-            </div>
+        <!-- Panel para marcar (mientras hay llamada o tarjeta de después, manda la ventana de llamada) -->
+        <transition name="mv-pop">
+            <div v-if="! sinHttps && abierto && ! estadoLlamada && ! postLlamada" class="mv-panel">
+                <div class="mv-head">
+                    <span class="mv-yo">
+                        {{ iniciales(nombre) || '?' }}
+                        <span class="mv-dot" :class="'mv-dot--' + estado"></span>
+                    </span>
+                    <div class="mv-head-txt">
+                        <div class="mv-titulo">{{ nombre }}</div>
+                        <div class="mv-estado-txt">Ext. {{ String(numero).replace(/^web/, '') }} · {{ etiquetaEstado }}</div>
+                    </div>
+                    <button class="mv-close" @click="abierto = false" title="Cerrar">
+                        <i class="fa fa-times"></i>
+                    </button>
+                </div>
 
-            <div class="mv-estado-txt">{{ etiquetaEstado }}</div>
-
-            <div class="mv-marcar">
-                <input class="mv-input" v-model="destino" placeholder="Número a marcar…"
-                       @input="consultarDisponibilidad" @keyup.enter="llamar"
-                       :disabled="estado !== 'registrado'">
-                <button class="mv-btn mv-btn--ok" @click="llamar"
-                        :disabled="estado !== 'registrado' || !destino" title="Llamar">
-                    <i class="fa fa-phone"></i>
-                </button>
-            </div>
-            <div v-if="destino" class="mv-disponibilidad" :class="'mv-disponibilidad--' + claseDisponibilidad">
-                <span class="mv-disp-dot"></span>{{ textoDisponibilidad }}
-            </div>
-        </div>
-
-        <!-- Después de colgar con un cliente (Mostrador y quien atiende): lleva a
-             Tickets para registrar la llamada; si el número no es de ningún cliente,
-             ofrece darlo de alta y, al guardarlo, crear su ticket. -->
-        <div v-if="postLlamada && !estadoLlamada" class="mv-post">
-            <div class="mv-post-head">
-                <i class="fa fa-phone-slash"></i>
-                <span>Llamada terminada · {{ numeroLegible(postLlamada.numero) }}</span>
-                <button class="mv-close" @click="cerrarPostLlamada" title="Cerrar">
-                    <i class="fa fa-times"></i>
-                </button>
-            </div>
-            <div v-if="postLlamada.cliente" class="mv-post-fila">
-                Cliente: <b>{{ postLlamada.cliente.name }}</b>
-            </div>
-            <div v-else-if="postLlamada.noEsCliente" class="mv-post-fila">
-                Este número no es de ningún cliente.
-                <button class="mv-post-btn mv-post-btn--alta" @click="darDeAltaCliente">
-                    <i class="fa fa-user-plus"></i> Dar de alta cliente
-                </button>
-                <div class="mv-post-nota">Al guardarlo te lleva a crear su ticket.</div>
-            </div>
-            <div v-else-if="postLlamada.buscando" class="mv-post-fila mv-post-nota">Buscando cliente…</div>
-            <div v-if="postLlamada.cuenta !== null" class="mv-post-cuenta">
-                <div>Te llevo a Tickets en <b>{{ postLlamada.cuenta }}</b> s</div>
-                <div class="mv-post-acciones">
-                    <button class="mv-post-btn" @click="irATickets">Ir ahora</button>
-                    <button class="mv-post-btn mv-post-btn--suave" @click="quedarme">Quedarme</button>
+                <div class="mv-marcar">
+                    <input class="mv-input" v-model="destino" placeholder="Número a marcar…"
+                           @input="consultarDisponibilidad" @keyup.enter="llamar"
+                           :disabled="estado !== 'registrado'">
+                    <button class="mv-btn mv-btn--ok" @click="llamar"
+                            :disabled="estado !== 'registrado' || !destino" title="Llamar">
+                        <i class="fa fa-phone"></i>
+                    </button>
+                </div>
+                <div v-if="destino" class="mv-disponibilidad" :class="'mv-disponibilidad--' + claseDisponibilidad">
+                    <span class="mv-disp-dot"></span>{{ textoDisponibilidad }}
                 </div>
             </div>
-        </div>
+        </transition>
 
         <!-- Burbuja -->
         <button class="mv-bubble" :class="sinHttps ? 'mv-bubble--sinhttps' : 'mv-bubble--' + estado"
-                @click="postLlamada ? (cerrarPostLlamada(), abierto = true) : (abierto = !abierto)"
-                :title="sinHttps ? 'Requiere HTTPS' : etiquetaEstado">
+                @click="clicBurbuja"
+                :title="sinHttps ? 'Requiere HTTPS' : (estadoLlamada ? 'Ver la llamada' : etiquetaEstado)">
             <i class="fa fa-phone"></i>
             <span v-if="estadoLlamada" class="mv-badge"></span>
         </button>
 
-        <!-- Modal de llamada — SIEMPRE visible mientras se marca, suena o está conectada, sin
-             importar si la burbuja está abierta o cerrada. Antes el botón de colgar solo
-             existía dentro del panel colapsable y se perdía de vista con facilidad. -->
-        <div v-if="estadoLlamada" class="mv-call-backdrop">
-            <div class="mv-call-modal">
-                <!-- Terminó (sin respuesta, colgaron, etc.) — se muestra el motivo
-                     un momento antes de cerrar, en vez de que el modal desaparezca
-                     de golpe sin explicación. -->
-                <div v-if="finalizando" class="mv-call-fin">
-                    <i class="fa fa-phone-slash mv-call-icon mv-call-icon--fin"></i>
-                    <div class="mv-call-titulo">{{ mensajeFinal }}</div>
-                    <div class="mv-call-cerrando">Cerrando…</div>
-                </div>
+        <!-- Ventana de llamada, estilo teléfono: flota sin tapar la pantalla, se arrastra a
+             cualquier lado y se puede minimizar para seguir trabajando. Aparece SIEMPRE que se
+             marca, suena o hay llamada, y al colgar muestra ahí mismo lo de Tickets. -->
+        <transition name="mv-ventana">
+            <div v-if="faseVentana" ref="ventana" class="mv-call"
+                 :class="['mv-call--' + faseVentana, { 'mv-call--mini': mini, 'mv-call--arrastrando': arrastre }]"
+                 :style="estiloVentana" @pointerdown="empezarArrastre">
+                <transition name="mv-fade" mode="out-in">
+                    <!-- Minimizada: una barra con lo esencial -->
+                    <div v-if="mini" key="mini" class="mv-mini">
+                        <span class="mv-avatar mv-avatar--chico" :class="{ 'mv-avatar--sonando': sonando }">
+                            <template v-if="inicialesRemoto">{{ inicialesRemoto }}</template>
+                            <i v-else class="fa fa-user"></i>
+                        </span>
+                        <div class="mv-mini-txt">
+                            <div class="mv-mini-nombre">{{ nombreRemoto }}</div>
+                            <div class="mv-mini-estado">{{ textoEstado }}</div>
+                        </div>
+                        <template v-if="faseVentana === 'entrante'">
+                            <button class="mv-redondo mv-redondo--chico mv-redondo--colgar" @click="colgar" title="Rechazar">
+                                <i class="fa fa-phone-slash"></i>
+                            </button>
+                            <button class="mv-redondo mv-redondo--chico mv-redondo--contestar" @click="contestar" title="Contestar">
+                                <i class="fa fa-phone"></i>
+                            </button>
+                        </template>
+                        <template v-else-if="faseVentana !== 'fin'">
+                            <button v-if="faseVentana === 'activa'" class="mv-redondo mv-redondo--chico"
+                                    :class="{ 'mv-redondo--on': silenciado }" @click="toggleMute"
+                                    :title="silenciado ? 'Activar micrófono' : 'Silenciar'">
+                                <i :class="silenciado ? 'fa fa-microphone-slash' : 'fa fa-microphone'"></i>
+                            </button>
+                            <button class="mv-redondo mv-redondo--chico mv-redondo--colgar" @click="colgar" title="Colgar">
+                                <i class="fa fa-phone-slash"></i>
+                            </button>
+                        </template>
+                        <button class="mv-ctl" @click="minimizada = false" title="Ampliar">
+                            <i class="fa fa-expand-alt"></i>
+                        </button>
+                    </div>
 
-                <!-- Marcando (saliente, todavía sin contestar) -->
-                <div v-else-if="estadoLlamada === 'saliente'">
-                    <i class="fa fa-phone mv-call-icon mv-call-icon--saliente"></i>
-                    <div class="mv-call-titulo">Llamando a…</div>
-                    <div class="mv-call-remoto">{{ remotoId }}</div>
-                    <div class="mv-call-acciones">
-                        <button class="mv-btn mv-btn--bad mv-btn--grande mv-btn--solo" @click="colgar" title="Colgar">
-                            <i class="fa fa-phone-slash"></i>
-                        </button>
-                    </div>
-                </div>
+                    <!-- Ampliada -->
+                    <div v-else :key="'grande-' + faseVentana" class="mv-grande">
+                        <span class="mv-asa" aria-hidden="true"></span>
+                        <div class="mv-barra">
+                            <span class="mv-barra-txt"><i class="fa fa-phone-alt"></i> Llamada de voz</span>
+                            <button v-if="faseVentana === 'post'" class="mv-ctl" @click="cerrarPostLlamada" title="Cerrar">
+                                <i class="fa fa-times"></i>
+                            </button>
+                            <button v-else class="mv-ctl" @click="minimizada = true" title="Minimizar y seguir trabajando">
+                                <i class="fa fa-minus"></i>
+                            </button>
+                        </div>
 
-                <!-- Entrante -->
-                <div v-else-if="estadoLlamada === 'entrante'">
-                    <i class="fa fa-phone-volume mv-ring mv-call-icon"></i>
-                    <div class="mv-call-titulo">Llamada entrante</div>
-                    <div class="mv-call-remoto">{{ remotoId }}</div>
-                    <div class="mv-call-acciones">
-                        <button class="mv-btn mv-btn--ok mv-btn--grande" @click="contestar" title="Contestar">
-                            <i class="fa fa-phone"></i>
-                        </button>
-                        <button class="mv-btn mv-btn--bad mv-btn--grande" @click="colgar" title="Rechazar">
-                            <i class="fa fa-phone-slash"></i>
-                        </button>
-                    </div>
-                </div>
+                        <div class="mv-centro">
+                            <div class="mv-avatar" :class="{ 'mv-avatar--sonando': sonando, 'mv-avatar--fin': faseVentana === 'fin' || faseVentana === 'post' }">
+                                <template v-if="sonando">
+                                    <span class="mv-onda"></span>
+                                    <span class="mv-onda mv-onda--2"></span>
+                                </template>
+                                <template v-if="inicialesRemoto">{{ inicialesRemoto }}</template>
+                                <i v-else class="fa fa-user"></i>
+                            </div>
+                            <div class="mv-nombre">{{ nombreRemoto }}</div>
+                            <div v-if="subRemoto" class="mv-sub">{{ subRemoto }}</div>
+                            <div class="mv-estado" :class="{ 'mv-estado--reloj': faseVentana === 'activa' }">{{ textoEstado }}</div>
+                        </div>
 
-                <!-- Conectada -->
-                <div v-else>
-                    <i class="fa fa-phone mv-call-icon mv-call-icon--activa"></i>
-                    <div class="mv-call-titulo">Llamada en curso</div>
-                    <div class="mv-call-remoto">{{ remotoId }}</div>
-                    <div class="mv-cronometro">{{ duracionTexto }}</div>
-                    <div class="mv-call-acciones">
-                        <button class="mv-btn" :class="silenciado ? 'mv-btn--warn' : ''" @click="toggleMute" :title="silenciado ? 'Activar mic' : 'Silenciar'">
-                            <i :class="silenciado ? 'fa fa-microphone-slash' : 'fa fa-microphone'"></i>
-                        </button>
-                        <button class="mv-btn mv-btn--bad mv-btn--grande" @click="colgar" title="Colgar">
-                            <i class="fa fa-phone-slash"></i>
-                        </button>
-                    </div>
-                </div>
+                        <!-- MegaVoz Fase 4 — ficha del cliente que llama, si se identificó -->
+                        <div v-if="['entrante', 'saliente', 'activa'].includes(faseVentana) && (cargandoFicha || fichaCliente !== null)" class="mv-info">
+                            <div v-if="cargandoFicha" class="mv-info-tenue">Buscando cliente…</div>
+                            <template v-else-if="fichaCliente">
+                                <div class="mv-info-fila">
+                                    <span>Saldo</span>
+                                    <b :class="fichaCliente.balance < 0 ? 'mv-saldo--debe' : 'mv-saldo--ok'">
+                                        {{ formatoSaldo(fichaCliente.balance) }}
+                                    </b>
+                                </div>
+                                <div class="mv-info-fila" v-if="fichaCliente.active_services.length">
+                                    <span>Servicio</span>
+                                    <b>{{ fichaCliente.active_services[0].description }}</b>
+                                </div>
+                                <div class="mv-info-fila">
+                                    <span>Tickets abiertos</span>
+                                    <b :class="fichaCliente.tickets_open > 0 ? 'mv-saldo--debe' : ''">{{ fichaCliente.tickets_open }}</b>
+                                </div>
+                                <div class="mv-info-acciones">
+                                    <a :href="`/cliente/editar/${fichaCliente.id}`" target="_blank" class="mv-chip">
+                                        <i class="fa fa-id-card"></i> Ver ficha
+                                    </a>
+                                    <a :href="`/tickets/crear/${fichaCliente.id}`" target="_blank" class="mv-chip mv-chip--ticket">
+                                        <i class="fa fa-plus"></i> Crear ticket
+                                    </a>
+                                </div>
+                            </template>
+                            <div v-else class="mv-info-tenue">
+                                Número no identificado ·
+                                <a href="/tickets/crear" target="_blank" class="mv-link">Crear ticket</a>
+                            </div>
+                        </div>
 
-                <!-- MegaVoz Fase 4 — ficha del cliente que llama, si se identificó -->
-                <div v-if="cargandoFicha" class="mv-ficha mv-ficha--cargando">Buscando cliente…</div>
-                <div v-else-if="fichaCliente" class="mv-ficha">
-                    <div class="mv-ficha-nombre">{{ fichaCliente.name }}</div>
-                    <div class="mv-ficha-fila">
-                        <span>Saldo</span>
-                        <b :class="fichaCliente.balance < 0 ? 'mv-saldo--debe' : 'mv-saldo--ok'">
-                            {{ formatoSaldo(fichaCliente.balance) }}
-                        </b>
+                        <!-- Después de colgar con un cliente (Mostrador y quien atiende): lleva a
+                             Tickets para registrar la llamada; si el número no es de ningún cliente,
+                             ofrece darlo de alta y, al guardarlo, crear su ticket. -->
+                        <div v-if="faseVentana === 'post'" class="mv-info mv-info--post">
+                            <div v-if="postLlamada.buscando" class="mv-info-tenue">Buscando cliente…</div>
+                            <template v-else-if="postLlamada.noEsCliente">
+                                <div class="mv-info-tenue">Este número no es de ningún cliente.</div>
+                                <button class="mv-boton mv-boton--alta" @click="darDeAltaCliente">
+                                    <i class="fa fa-user-plus"></i> Dar de alta cliente
+                                </button>
+                                <div class="mv-info-nota">Al guardarlo te lleva a crear su ticket.</div>
+                            </template>
+                            <div v-if="postLlamada.cuenta !== null" class="mv-cuenta">
+                                <div class="mv-cuenta-txt">Te llevo a Tickets en <b>{{ postLlamada.cuenta }}</b> s</div>
+                                <div class="mv-cuenta-barra"><span :style="{ width: (postLlamada.cuenta / 5 * 100) + '%' }"></span></div>
+                                <div class="mv-cuenta-acciones">
+                                    <button class="mv-boton" @click="irATickets"><i class="fa fa-ticket-alt"></i> Ir ahora</button>
+                                    <button class="mv-boton mv-boton--suave" @click="quedarme">Quedarme</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-if="faseVentana === 'entrante'" class="mv-controles">
+                            <div class="mv-control">
+                                <button class="mv-redondo mv-redondo--colgar" @click="colgar" title="Rechazar">
+                                    <i class="fa fa-phone-slash"></i>
+                                </button>
+                                <span>Rechazar</span>
+                            </div>
+                            <div class="mv-control">
+                                <button class="mv-redondo mv-redondo--contestar mv-redondo--brinca" @click="contestar" title="Contestar">
+                                    <i class="fa fa-phone"></i>
+                                </button>
+                                <span>Contestar</span>
+                            </div>
+                        </div>
+                        <div v-else-if="faseVentana === 'saliente'" class="mv-controles">
+                            <div class="mv-control">
+                                <button class="mv-redondo mv-redondo--colgar" @click="colgar" title="Colgar">
+                                    <i class="fa fa-phone-slash"></i>
+                                </button>
+                                <span>Colgar</span>
+                            </div>
+                        </div>
+                        <div v-else-if="faseVentana === 'activa'" class="mv-controles">
+                            <div class="mv-control">
+                                <button class="mv-redondo" :class="{ 'mv-redondo--on': silenciado }" @click="toggleMute"
+                                        :title="silenciado ? 'Activar micrófono' : 'Silenciar'">
+                                    <i :class="silenciado ? 'fa fa-microphone-slash' : 'fa fa-microphone'"></i>
+                                </button>
+                                <span>{{ silenciado ? 'Silenciado' : 'Silenciar' }}</span>
+                            </div>
+                            <div class="mv-control">
+                                <button class="mv-redondo mv-redondo--colgar" @click="colgar" title="Colgar">
+                                    <i class="fa fa-phone-slash"></i>
+                                </button>
+                                <span>Colgar</span>
+                            </div>
+                            <div class="mv-control">
+                                <button class="mv-redondo" @click="minimizada = true" title="Minimizar y seguir trabajando">
+                                    <i class="fa fa-compress-alt"></i>
+                                </button>
+                                <span>Minimizar</span>
+                            </div>
+                        </div>
+                        <div v-else-if="faseVentana === 'fin'" class="mv-controles mv-controles--fin">
+                            <span>Cerrando…</span>
+                        </div>
                     </div>
-                    <div class="mv-ficha-fila" v-if="fichaCliente.active_services.length">
-                        <span>Servicio</span>
-                        <b>{{ fichaCliente.active_services[0].description }}</b>
-                    </div>
-                    <div class="mv-ficha-fila">
-                        <span>Tickets abiertos</span>
-                        <b :class="fichaCliente.tickets_open > 0 ? 'mv-saldo--debe' : ''">{{ fichaCliente.tickets_open }}</b>
-                    </div>
-                    <div class="mv-ficha-acciones">
-                        <a :href="`/cliente/editar/${fichaCliente.id}`" target="_blank" class="mv-ficha-link">Ver ficha</a>
-                        <a :href="`/tickets/crear/${fichaCliente.id}`" target="_blank" class="mv-ficha-link mv-ficha-link--ticket">+ Crear ticket</a>
-                    </div>
-                </div>
-                <div v-else-if="fichaCliente === false" class="mv-ficha mv-ficha--sinidentificar">
-                    Número no identificado.
-                    <a href="/tickets/crear" target="_blank" class="mv-ficha-link mv-ficha-link--ticket">+ Crear ticket</a>
-                </div>
+                </transition>
             </div>
-        </div>
+        </transition>
 
         <audio ref="audioRemoto" autoplay></audio>
     </div>
@@ -165,7 +227,7 @@
 
 <script>
 import JsSIP from 'jssip';
-import { markRaw } from 'vue';
+import { markRaw, nextTick } from 'vue';
 
 export default {
     name: 'MegaVozTelefono',
@@ -223,6 +285,12 @@ export default {
             // { numero, cliente: {id, name}|null, noEsCliente, buscando, cuenta: s|null }
             postLlamada: null,
             _postIntervalo: null,
+            // Ventana de llamada: minimizada (barra) o ampliada, dónde la dejó el usuario
+            // ({x, y} en px, se recuerda en localStorage) y el arrastre en curso.
+            minimizada: false,
+            posVentana: null,
+            arrastre: null,
+            anchoPantalla: typeof window !== 'undefined' ? window.innerWidth : 1280,
         };
     },
 
@@ -241,10 +309,66 @@ export default {
             if (this.destinoDisponible === false) return 'no';
             return 'consultando';
         },
+        // null | 'entrante' | 'saliente' | 'activa' | 'fin' | 'post'
+        faseVentana() {
+            if (this.estadoLlamada) return this.finalizando ? 'fin' : this.estadoLlamada;
+            return this.postLlamada ? 'post' : null;
+        },
+        mini() {
+            return this.minimizada && this.faseVentana !== 'post';
+        },
+        sonando() {
+            return ! this.finalizando && (this.estadoLlamada === 'entrante' || this.estadoLlamada === 'saliente');
+        },
+        esMovil() {
+            return this.anchoPantalla < 576;
+        },
+        numeroRemoto() {
+            return this.faseVentana === 'post' ? (this.postLlamada?.numero || '') : this.remotoId;
+        },
+        clienteRemoto() {
+            if (this.faseVentana === 'post') return this.postLlamada?.cliente || null;
+            return this.fichaCliente && this.fichaCliente.id ? this.fichaCliente : null;
+        },
+        nombreRemoto() {
+            return this.clienteRemoto?.name || this.etiquetaNumero(this.numeroRemoto) || 'Desconocido';
+        },
+        subRemoto() {
+            if (this.clienteRemoto?.name) return this.etiquetaNumero(this.numeroRemoto);
+            const noEsCliente = this.faseVentana === 'post' ? this.postLlamada?.noEsCliente : this.fichaCliente === false;
+            return noEsCliente ? 'No es cliente' : '';
+        },
+        inicialesRemoto() {
+            return this.clienteRemoto?.name ? this.iniciales(this.clienteRemoto.name) : '';
+        },
+        textoEstado() {
+            switch (this.faseVentana) {
+                case 'entrante': return 'Llamada entrante…';
+                case 'saliente': return 'Llamando…';
+                case 'activa':   return this.duracionTexto;
+                case 'fin':      return this.mensajeFinal;
+                case 'post':     return 'Llamada terminada' + (this.postLlamada?.duracion ? ` · ${this.postLlamada.duracion}` : '');
+                default:         return '';
+            }
+        },
+        estiloVentana() {
+            if (! this.posVentana || this.esMovil) return {};
+            return { left: `${this.posVentana.x}px`, top: `${this.posVentana.y}px`, right: 'auto', bottom: 'auto' };
+        },
         textoDisponibilidad() {
             if (this.destinoDisponible === true) return 'Disponible';
             if (this.destinoDisponible === false) return 'Sin conexión — puede que no conteste';
             return 'Consultando…';
+        },
+    },
+
+    watch: {
+        // Al aparecer o cambiar de tamaño, que no quede fuera de la pantalla.
+        faseVentana(nueva, antes) {
+            if (nueva && ! antes) nextTick(() => this.acotarVentana());
+        },
+        minimizada() {
+            nextTick(() => this.acotarVentana());
         },
     },
 
@@ -267,6 +391,11 @@ export default {
             this.numero = body.numero;
             this.nombre = body.nombre;
             this.ticketAlColgar = !! body.ticket_al_colgar;
+            try {
+                const guardada = JSON.parse(localStorage.getItem('megavoz.ventana') || 'null');
+                if (guardada && Number.isFinite(guardada.x) && Number.isFinite(guardada.y)) this.posVentana = guardada;
+            } catch (e) { /* sin almacenamiento: posición por defecto */ }
+            window.addEventListener('resize', this.alRedimensionar);
             this.iniciarUA(body);
         } catch (e) {
             // Sin teléfono asignado o error de red — el widget simplemente no aparece.
@@ -275,6 +404,8 @@ export default {
 
     beforeUnmount() {
         if (this.ua) this.ua.stop();
+        window.removeEventListener('resize', this.alRedimensionar);
+        this.soltarArrastre();
         clearInterval(this._timerId);
         clearTimeout(this._dispDebounce);
         clearInterval(this._postIntervalo);
@@ -375,6 +506,7 @@ export default {
                 this.cerrarPostLlamada();
                 this.estadoLlamada = data.originator === 'local' ? 'saliente' : 'entrante';
                 this.abierto = true;
+                this.minimizada = false;
                 this.engancharSesion();
                 this.cargarFicha(this.remotoId);
                 // Saliente: tono de "está timbrando" (ver iniciarTonoLlamando).
@@ -474,8 +606,7 @@ export default {
             this.sesion.on('ended', () => {
                 // Se lee ANTES de limpiar la sesión (limpiarSesion borra número y ficha).
                 const post = this.datosPostLlamada();
-                this.terminarConMensaje('Llamada finalizada');
-                if (post) setTimeout(() => this.iniciarPostLlamada(post), 2100);
+                this.terminarConMensaje('Llamada finalizada', post ? () => this.iniciarPostLlamada(post) : null);
             });
             this.sesion.on('failed', (data) => this.terminarConMensaje(this.mensajeDeFallo(data)));
         },
@@ -622,13 +753,16 @@ export default {
         // de verdad — antes desaparecía sin avisar nada, y con una llamada
         // saliente sin respuesta eso se veía como que el mini-teléfono se
         // había quedado colgado.
-        terminarConMensaje(mensaje) {
+        terminarConMensaje(mensaje, despues = null) {
             clearInterval(this._timerId);
             this._timerId = null;
             this.detenerTonoLlamando();
             this.mensajeFinal = mensaje;
             this.finalizando = true;
-            setTimeout(() => this.limpiarSesion(), 2000);
+            setTimeout(() => {
+                this.limpiarSesion();
+                if (despues) despues();
+            }, 2000);
         },
 
         // Cadencia clásica de ringback (440Hz+480Hz, 2s tono / 4s silencio) —
@@ -757,11 +891,13 @@ export default {
                 numero,
                 cliente: f && f.id ? { id: f.id, name: f.name } : null,
                 noEsCliente: f === false,
+                duracion: this.duracionTexto,
             };
         },
 
         async iniciarPostLlamada(post) {
             this.cerrarPostLlamada();
+            this.minimizada = false;
             this.postLlamada = { ...post, buscando: false, cuenta: 5 };
             this._postIntervalo = setInterval(() => {
                 if (! this.postLlamada || this.postLlamada.cuenta === null) return;
@@ -836,6 +972,86 @@ export default {
             return d.length === 10 ? `${d.slice(0, 2)} ${d.slice(2, 6)} ${d.slice(6)}` : n;
         },
 
+        clicBurbuja() {
+            if (this.estadoLlamada) {
+                this.minimizada = false;
+            } else if (this.postLlamada) {
+                this.cerrarPostLlamada();
+                this.abierto = true;
+            } else {
+                this.abierto = ! this.abierto;
+            }
+        },
+
+        iniciales(nombre) {
+            return String(nombre || '').trim().split(/\s+/).filter(Boolean).slice(0, 2)
+                .map((p) => p[0]).join('').toUpperCase();
+        },
+
+        // Número externo legible ("55 1234 5678") o extensión interna ("Ext. 1001").
+        etiquetaNumero(n) {
+            const d = String(n || '').replace(/\D/g, '');
+            if (! n) return '';
+            if (d.length >= 7) return this.numeroLegible(d);
+            return `Ext. ${String(n).replace(/^web/, '')}`;
+        },
+
+        // Arrastrar la ventana desde cualquier parte que no sea un botón o liga.
+        empezarArrastre(e) {
+            if (this.esMovil || (e.pointerType === 'mouse' && e.button !== 0)) return;
+            if (e.target.closest('button, a, input, audio')) return;
+            const caja = this.$refs.ventana?.getBoundingClientRect();
+            if (! caja) return;
+            this.arrastre = { dx: e.clientX - caja.left, dy: e.clientY - caja.top, seleccion: document.body.style.userSelect };
+            // Que al pasar sobre la página no se vaya seleccionando su texto.
+            document.body.style.userSelect = 'none';
+            window.addEventListener('pointermove', this.moverArrastre);
+            window.addEventListener('pointerup', this.soltarArrastre);
+            window.addEventListener('pointercancel', this.soltarArrastre);
+            e.preventDefault();
+        },
+
+        moverArrastre(e) {
+            if (! this.arrastre) return;
+            this.posVentana = this.acotar(e.clientX - this.arrastre.dx, e.clientY - this.arrastre.dy);
+        },
+
+        soltarArrastre() {
+            window.removeEventListener('pointermove', this.moverArrastre);
+            window.removeEventListener('pointerup', this.soltarArrastre);
+            window.removeEventListener('pointercancel', this.soltarArrastre);
+            if (! this.arrastre) return;
+            document.body.style.userSelect = this.arrastre.seleccion || '';
+            this.arrastre = null;
+            this.guardarPosicion();
+        },
+
+        acotar(x, y) {
+            const el = this.$refs.ventana;
+            const ancho = el?.offsetWidth || 340;
+            const alto = el?.offsetHeight || 480;
+            const margen = 8;
+            return {
+                x: Math.round(Math.min(Math.max(margen, x), Math.max(margen, window.innerWidth - ancho - margen))),
+                y: Math.round(Math.min(Math.max(margen, y), Math.max(margen, window.innerHeight - alto - margen))),
+            };
+        },
+
+        acotarVentana() {
+            if (this.posVentana) this.posVentana = this.acotar(this.posVentana.x, this.posVentana.y);
+        },
+
+        guardarPosicion() {
+            try {
+                if (this.posVentana) localStorage.setItem('megavoz.ventana', JSON.stringify(this.posVentana));
+            } catch (e) { /* sin almacenamiento: solo dura esta página */ }
+        },
+
+        alRedimensionar() {
+            this.anchoPantalla = window.innerWidth;
+            this.acotarVentana();
+        },
+
         limpiarSesion() {
             clearInterval(this._timerId);
             this._timerId = null;
@@ -867,18 +1083,22 @@ export default {
    informativos de fondo, nunca al revés). */
 .mv-wrap { position: fixed; right: 160px; bottom: 24px; z-index: 10050; }
 
+/* ── Burbuja ─────────────────────────────────────────────────────────── */
 .mv-bubble {
-    width: 52px; height: 52px; border-radius: 50%;
+    width: 54px; height: 54px; border-radius: 50%;
     border: none; cursor: pointer; position: relative;
     display: flex; align-items: center; justify-content: center;
-    font-size: 20px; color: #fff;
+    font-size: 21px; color: #fff;
     background: #64748b;
-    box-shadow: 0 2px 10px rgba(0,0,0,.25);
-    transition: background .2s;
+    box-shadow: 0 4px 14px rgba(0,0,0,.28);
+    transition: background .2s, transform .15s ease, box-shadow .2s;
 }
+.mv-bubble:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,.3); }
+.mv-bubble:active { transform: scale(.94); }
 .mv-bubble--registrando { background: #d97706; }
 .mv-bubble--registrado  { background: #16a34a; }
 .mv-bubble--error       { background: #dc2626; }
+.mv-bubble--sinhttps    { background: #94a3b8; }
 
 .mv-badge {
     position: absolute; top: -2px; right: -2px; width: 14px; height: 14px;
@@ -890,134 +1110,229 @@ export default {
     50%      { transform: scale(1.3); }
 }
 
-.mv-panel {
-    position: absolute; bottom: 62px; right: 0; width: 260px;
-    background: #fff; border-radius: 12px; padding: 14px;
-    box-shadow: 0 10px 30px rgba(0,0,0,.2);
-    font-size: 13.5px; color: #1f2937;
-}
-.mv-bubble--sinhttps { background: #94a3b8; }
-.mv-panel-aviso {
-    position: absolute; bottom: 62px; right: 0; width: 220px;
-    background: #1f2937; color: #fff; border-radius: 10px; padding: 12px;
-    font-size: 12.5px; line-height: 1.5; box-shadow: 0 10px 30px rgba(0,0,0,.2);
-}
-.mv-panel-aviso code { color: #93c5fd; }
-.mv-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-.mv-titulo { font-weight: 700; flex: 1; }
-.mv-titulo small { font-weight: 400; color: #6b7280; }
-.mv-close { border: none; background: transparent; color: #9ca3af; cursor: pointer; }
-
-.mv-dot { width: 9px; height: 9px; border-radius: 50%; background: #94a3b8; flex-shrink: 0; }
-.mv-dot--registrando { background: #d97706; }
-.mv-dot--registrado  { background: #16a34a; }
-.mv-dot--error        { background: #dc2626; }
-
-.mv-estado-txt { color: #6b7280; font-size: 12px; margin-bottom: 10px; }
-
-.mv-marcar { display: flex; gap: 6px; }
-.mv-disponibilidad {
-    display: flex; align-items: center; gap: 6px;
-    font-size: 11.5px; margin-top: 6px; color: #6b7280;
-}
-.mv-disp-dot { width: 7px; height: 7px; border-radius: 50%; background: #9ca3af; flex-shrink: 0; }
-.mv-disponibilidad--ok .mv-disp-dot { background: #16a34a; }
-.mv-disponibilidad--ok { color: #16a34a; }
-.mv-disponibilidad--no .mv-disp-dot { background: #d97706; }
-.mv-disponibilidad--no { color: #b45309; }
-.mv-input {
-    flex: 1; border: 1px solid #d1d5db; border-radius: 8px;
-    padding: 6px 10px; font-size: 13.5px;
-}
-
-.mv-llamando-de { margin-bottom: 10px; }
-.mv-ring { color: #16a34a; margin-right: 4px; }
-
-.mv-en-llamada { text-align: center; }
-.mv-remoto { font-weight: 600; margin-bottom: 2px; }
-.mv-cronometro { color: #6b7280; font-variant-numeric: tabular-nums; margin-bottom: 10px; }
-
-.mv-acciones { display: flex; gap: 8px; justify-content: center; }
-.mv-btn {
-    width: 38px; height: 38px; border-radius: 50%; border: none;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; background: #e5e7eb; color: #374151;
-}
-.mv-btn--ok   { background: #16a34a; color: #fff; }
-.mv-btn--bad  { background: #dc2626; color: #fff; }
-.mv-btn--warn { background: #d97706; color: #fff; }
-.mv-btn:disabled { opacity: .4; cursor: not-allowed; }
 /* El ícono (FontAwesome, <i>) dentro de un botón puede no repasar el clic a
    su padre de forma confiable en algunos navegadores — el reporte real de
    David: "solo funciona el clic en la esquina" de la burbuja, exactamente
    este patrón. pointer-events:none saca al ícono de la jugada del todo: el
    clic SIEMPRE cae directo en el botón, sin importar dónde del ícono se
    haga clic. */
-.mv-bubble i, .mv-btn i, .mv-close i { pointer-events: none; }
-.mv-btn--grande { width: 52px; height: 52px; font-size: 20px; }
+.mv-bubble i, .mv-btn i, .mv-close i, .mv-ctl i, .mv-redondo i, .mv-boton i { pointer-events: none; }
 
-/* Modal de llamada activa — visible siempre, no depende de la burbuja */
-.mv-call-backdrop {
-    position: fixed; inset: 0; z-index: 10052;
-    background: rgba(15, 23, 42, .35);
-    display: flex; align-items: flex-start; justify-content: center;
-    padding-top: 90px;
+/* ── Panel para marcar ───────────────────────────────────────────────── */
+.mv-panel {
+    position: absolute; bottom: 66px; right: 0; width: 300px;
+    background: #fff; border-radius: 18px; padding: 16px;
+    box-shadow: 0 16px 40px rgba(0,0,0,.22);
+    font-size: 13.5px; color: #1f2937;
+    transform-origin: bottom right;
 }
-.mv-call-modal {
-    background: #fff; border-radius: 16px; padding: 24px 28px;
-    width: 260px; text-align: center;
-    box-shadow: 0 20px 50px rgba(0,0,0,.35);
+.mv-panel-aviso {
+    position: absolute; bottom: 66px; right: 0; width: 220px;
+    background: #1f2937; color: #fff; border-radius: 12px; padding: 12px;
+    font-size: 12.5px; line-height: 1.5; box-shadow: 0 10px 30px rgba(0,0,0,.2);
 }
-.mv-call-icon { font-size: 30px; color: #16a34a; margin-bottom: 8px; display: block; }
-.mv-call-icon--activa { color: #0d9488; }
-.mv-call-icon--saliente { color: #2563eb; animation: mv-pulse 1.2s infinite; }
-.mv-call-icon--fin { color: #6b7280; }
-.mv-call-fin { text-align: center; }
-.mv-call-cerrando { font-size: 11px; color: #9ca3af; margin-top: 6px; }
-.mv-btn--solo { width: 60px; height: 60px; font-size: 24px; }
-.mv-call-titulo { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; font-weight: 700; }
-.mv-call-remoto { font-size: 18px; font-weight: 700; color: #1f2937; margin: 4px 0 10px; }
-.mv-call-acciones { display: flex; gap: 14px; justify-content: center; margin-top: 14px; }
+.mv-panel-aviso code { color: #93c5fd; }
+.mv-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.mv-yo {
+    position: relative; width: 40px; height: 40px; border-radius: 50%; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(145deg, #2a8f7f, #1b5e55); color: #fff;
+    font-weight: 700; font-size: 14px;
+}
+.mv-yo .mv-dot { position: absolute; right: -1px; bottom: -1px; border: 2px solid #fff; width: 12px; height: 12px; }
+.mv-head-txt { flex: 1; min-width: 0; }
+.mv-titulo { font-weight: 700; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mv-estado-txt { color: #6b7280; font-size: 12px; }
+.mv-close {
+    width: 30px; height: 30px; border-radius: 50%; border: none; flex: none;
+    background: transparent; color: #9ca3af; cursor: pointer; transition: background .15s, color .15s;
+}
+.mv-close:hover { background: #f3f4f6; color: #4b5563; }
 
-/* MegaVoz Fase 4 — ficha del cliente que llama */
-.mv-ficha {
-    margin-top: 16px; padding-top: 14px; border-top: 1px solid #e5e7eb;
-    text-align: left; font-size: 12.5px;
-}
-.mv-ficha--cargando { text-align: center; color: #9ca3af; font-style: italic; }
-.mv-ficha--sinidentificar { text-align: center; color: #9ca3af; }
-.mv-ficha-nombre { font-weight: 700; font-size: 14px; color: #1f2937; margin-bottom: 6px; }
-.mv-ficha-fila {
-    display: flex; justify-content: space-between; gap: 8px;
-    padding: 2px 0; color: #6b7280;
-}
-.mv-saldo--debe { color: #dc2626; }
-.mv-saldo--ok   { color: #16a34a; }
-.mv-ficha-acciones { display: flex; gap: 10px; margin-top: 10px; justify-content: center; }
-.mv-ficha-link {
-    font-size: 12px; font-weight: 600; text-decoration: none;
-    color: #2563eb; border: 1px solid #bfdbfe; border-radius: 6px;
-    padding: 4px 10px;
-}
-.mv-ficha-link--ticket { color: #b45309; border-color: #fde68a; }
+.mv-dot { width: 9px; height: 9px; border-radius: 50%; background: #94a3b8; flex-shrink: 0; }
+.mv-dot--registrando { background: #d97706; }
+.mv-dot--registrado  { background: #16a34a; }
+.mv-dot--error       { background: #dc2626; }
 
-/* Después de colgar */
-.mv-post {
-    position: absolute; bottom: 62px; right: 0; width: 280px;
-    background: #fff; border-radius: 12px; padding: 12px 14px;
-    box-shadow: 0 10px 30px rgba(0,0,0,.2);
-    font-size: 13px; color: #1f2937;
+.mv-marcar { display: flex; gap: 8px; }
+.mv-input {
+    flex: 1; min-width: 0; border: 1px solid #d1d5db; border-radius: 999px;
+    padding: 9px 16px; font-size: 14px; outline: none; transition: border-color .15s, box-shadow .15s;
 }
-.mv-post-head { display: flex; align-items: center; gap: 8px; font-weight: 600; margin-bottom: 8px; }
-.mv-post-head span { flex: 1; }
-.mv-post-fila { margin-bottom: 8px; }
-.mv-post-nota { font-size: 11.5px; color: #6b7280; margin-top: 4px; }
-.mv-post-cuenta { border-top: 1px solid #e5e7eb; padding-top: 8px; }
-.mv-post-acciones { display: flex; gap: 6px; margin-top: 6px; }
-.mv-post-btn {
-    border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8;
-    border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
+.mv-input:focus { border-color: #25d366; box-shadow: 0 0 0 3px rgba(37,211,102,.18); }
+.mv-btn {
+    width: 42px; height: 42px; border-radius: 50%; border: none; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; background: #e5e7eb; color: #374151;
+    transition: transform .15s ease, filter .15s;
 }
-.mv-post-btn--suave { background: transparent; border-color: #d1d5db; color: #4b5563; }
-.mv-post-btn--alta { display: block; width: 100%; margin-top: 6px; background: #ecfdf5; border-color: #a7f3d0; color: #047857; }
+.mv-btn:active:not(:disabled) { transform: scale(.92); }
+.mv-btn--ok { background: #25d366; color: #fff; }
+.mv-btn--ok:hover:not(:disabled) { filter: brightness(1.05); }
+.mv-btn:disabled { opacity: .4; cursor: not-allowed; }
+.mv-disponibilidad {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11.5px; margin: 8px 0 0 6px; color: #6b7280;
+}
+.mv-disp-dot { width: 7px; height: 7px; border-radius: 50%; background: #9ca3af; flex-shrink: 0; }
+.mv-disponibilidad--ok .mv-disp-dot { background: #16a34a; }
+.mv-disponibilidad--ok { color: #16a34a; }
+.mv-disponibilidad--no .mv-disp-dot { background: #d97706; }
+.mv-disponibilidad--no { color: #b45309; }
+
+/* ── Ventana de llamada (estilo teléfono) ────────────────────────────── */
+.mv-call {
+    position: fixed; right: 24px; bottom: 96px; z-index: 10052;
+    width: 340px; border-radius: 26px; overflow: hidden;
+    color: #e9edef;
+    background: radial-gradient(130% 75% at 50% 0%, #1f5a50 0%, #133a35 42%, #0b141a 100%);
+    box-shadow: 0 24px 60px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.06);
+    touch-action: none; user-select: none; cursor: grab;
+}
+.mv-call--arrastrando { cursor: grabbing; box-shadow: 0 30px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.1); }
+.mv-call--mini { width: 340px; border-radius: 999px; }
+.mv-call--fin, .mv-call--post { background: radial-gradient(130% 75% at 50% 0%, #2b3a40 0%, #1a2529 45%, #0b141a 100%); }
+
+.mv-grande { position: relative; }
+.mv-asa {
+    position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    width: 38px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.22);
+}
+.mv-barra { display: flex; align-items: center; gap: 8px; padding: 18px 14px 0 18px; }
+.mv-barra-txt { flex: 1; display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: rgba(233,237,239,.7); }
+.mv-ctl {
+    width: 32px; height: 32px; border-radius: 50%; border: none; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,.08); color: #e9edef; cursor: pointer; font-size: 13px;
+    transition: background .15s, transform .15s;
+}
+.mv-ctl:hover { background: rgba(255,255,255,.18); }
+.mv-ctl:active { transform: scale(.9); }
+
+.mv-centro { text-align: center; padding: 22px 22px 4px; }
+.mv-avatar {
+    position: relative; width: 108px; height: 108px; border-radius: 50%; margin: 0 auto 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 38px; font-weight: 600; color: #fff;
+    background: linear-gradient(145deg, #2a8f7f, #1b5e55);
+    box-shadow: 0 10px 28px rgba(0,0,0,.35);
+}
+.mv-avatar--fin { filter: grayscale(.7); opacity: .85; }
+.mv-onda {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 2px solid rgba(37,211,102,.6);
+    animation: mv-onda 2s ease-out infinite;
+}
+.mv-onda--2 { animation-delay: 1s; }
+@keyframes mv-onda {
+    from { transform: scale(1); opacity: .9; }
+    to   { transform: scale(1.8); opacity: 0; }
+}
+.mv-nombre { font-size: 22px; font-weight: 600; color: #fff; line-height: 1.25; overflow-wrap: anywhere; }
+.mv-sub { font-size: 14px; color: rgba(233,237,239,.7); margin-top: 3px; }
+.mv-estado { margin-top: 10px; font-size: 14px; color: rgba(233,237,239,.8); }
+.mv-estado--reloj { font-variant-numeric: tabular-nums; font-size: 17px; color: #25d366; letter-spacing: .03em; }
+
+.mv-info {
+    margin: 14px 16px 0; padding: 12px 14px; border-radius: 16px;
+    background: rgba(255,255,255,.07); font-size: 13px;
+}
+.mv-info-fila { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; color: rgba(233,237,239,.7); }
+.mv-info-fila b { color: #fff; font-weight: 600; text-align: right; }
+.mv-info-fila b.mv-saldo--debe { color: #ff8a80; }
+.mv-info-fila b.mv-saldo--ok   { color: #6ee7a8; }
+.mv-info-acciones { display: flex; gap: 8px; margin-top: 10px; }
+.mv-chip {
+    flex: 1; text-align: center; font-size: 12.5px; font-weight: 600; text-decoration: none;
+    padding: 8px 10px; border-radius: 999px; color: #e9edef; background: rgba(255,255,255,.1);
+    transition: background .15s;
+}
+.mv-chip:hover { background: rgba(255,255,255,.18); color: #fff; }
+.mv-chip--ticket { background: rgba(37,211,102,.2); color: #8af0b6; }
+.mv-chip--ticket:hover { background: rgba(37,211,102,.3); color: #b5f7d0; }
+.mv-info-tenue { text-align: center; color: rgba(233,237,239,.68); line-height: 1.5; }
+.mv-link { color: #8af0b6; font-weight: 600; }
+.mv-link:hover { color: #b5f7d0; }
+.mv-info-nota { font-size: 11.5px; text-align: center; color: rgba(233,237,239,.6); margin-top: 6px; }
+.mv-info--post { margin-bottom: 22px; padding: 14px; }
+
+.mv-cuenta { margin-top: 12px; }
+.mv-info-tenue + .mv-cuenta, .mv-info-nota + .mv-cuenta { padding-top: 12px; border-top: 1px solid rgba(255,255,255,.08); }
+.mv-cuenta-txt { text-align: center; font-size: 13px; color: rgba(233,237,239,.85); }
+.mv-cuenta-barra { height: 4px; border-radius: 2px; background: rgba(255,255,255,.12); margin: 9px 0 12px; overflow: hidden; }
+.mv-cuenta-barra span { display: block; height: 100%; background: #25d366; transition: width 1s linear; }
+.mv-cuenta-acciones { display: flex; gap: 8px; }
+.mv-boton {
+    flex: 1; border: none; border-radius: 999px; padding: 10px 12px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    background: #25d366; color: #052e1a;
+    transition: transform .15s ease, filter .15s;
+}
+.mv-boton:hover { filter: brightness(1.07); }
+.mv-boton:active { transform: scale(.96); }
+.mv-boton--suave { background: rgba(255,255,255,.12); color: #e9edef; }
+.mv-boton--alta { display: block; width: 100%; margin-top: 10px; background: #fff; color: #0b141a; }
+
+.mv-controles { display: flex; justify-content: center; gap: 30px; padding: 26px 16px 26px; }
+.mv-controles--fin { font-size: 12px; color: rgba(233,237,239,.5); padding-top: 18px; }
+.mv-control { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 12px; color: rgba(233,237,239,.75); }
+.mv-redondo {
+    width: 62px; height: 62px; border-radius: 50%; border: none; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 23px; color: #fff; background: rgba(255,255,255,.13); cursor: pointer;
+    transition: transform .15s ease, background .15s ease, box-shadow .15s;
+}
+.mv-redondo:hover { background: rgba(255,255,255,.22); }
+.mv-redondo:active { transform: scale(.9); }
+.mv-redondo--on, .mv-redondo--on:hover { background: #fff; color: #0b141a; }
+.mv-redondo--colgar { background: #ea4335; box-shadow: 0 8px 20px rgba(234,67,53,.4); }
+.mv-redondo--colgar:hover { background: #d93025; }
+.mv-redondo--contestar { background: #25d366; box-shadow: 0 8px 20px rgba(37,211,102,.4); }
+.mv-redondo--contestar:hover { background: #1ebe5a; }
+.mv-redondo--brinca { animation: mv-brinca 1.6s ease-in-out infinite; }
+.mv-redondo--brinca:hover { animation-play-state: paused; }
+@keyframes mv-brinca {
+    0%, 55%, 100% { transform: translateY(0) rotate(0); }
+    15% { transform: translateY(-7px) rotate(-14deg); }
+    30% { transform: translateY(0) rotate(10deg); }
+    42% { transform: translateY(-3px) rotate(-6deg); }
+}
+.mv-redondo--chico { width: 40px; height: 40px; font-size: 15px; box-shadow: none; }
+
+/* Minimizada */
+.mv-mini { display: flex; align-items: center; gap: 10px; padding: 9px 10px 9px 9px; }
+.mv-avatar--chico { width: 46px; height: 46px; margin: 0; font-size: 16px; flex: none; box-shadow: none; }
+.mv-avatar--chico.mv-avatar--sonando { animation: mv-latido 1.4s ease-out infinite; }
+@keyframes mv-latido {
+    0%   { box-shadow: 0 0 0 0 rgba(37,211,102,.6); }
+    100% { box-shadow: 0 0 0 12px rgba(37,211,102,0); }
+}
+.mv-mini-txt { flex: 1; min-width: 0; }
+.mv-mini-nombre { font-weight: 600; color: #fff; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mv-mini-estado { font-size: 12.5px; color: #25d366; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Transiciones ────────────────────────────────────────────────────── */
+.mv-ventana-enter-active, .mv-ventana-leave-active,
+.mv-pop-enter-active, .mv-pop-leave-active { transition: opacity .22s ease, transform .24s cubic-bezier(.2,.8,.2,1); }
+.mv-ventana-enter-from, .mv-ventana-leave-to { opacity: 0; transform: translateY(18px) scale(.95); }
+.mv-pop-enter-from, .mv-pop-leave-to { opacity: 0; transform: translateY(10px) scale(.96); }
+.mv-fade-enter-active, .mv-fade-leave-active { transition: opacity .15s ease; }
+.mv-fade-enter-from, .mv-fade-leave-to { opacity: 0; }
+
+/* ── Celular: la llamada ocupa la parte de abajo, como en el teléfono ─── */
+@media (max-width: 575.98px) {
+    .mv-wrap { right: 16px; bottom: 16px; }
+    .mv-panel { width: calc(100vw - 32px); }
+    .mv-call {
+        left: 0; right: 0; bottom: 0; top: auto;
+        width: auto; border-radius: 26px 26px 0 0; cursor: default;
+    }
+    .mv-call--mini { top: 0; bottom: auto; border-radius: 0 0 22px 22px; }
+    .mv-grande { min-height: 74vh; display: flex; flex-direction: column; }
+    .mv-grande .mv-controles { margin-top: auto; padding-bottom: 34px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mv-onda, .mv-redondo--brinca, .mv-avatar--sonando, .mv-badge { animation: none !important; }
+}
 </style>

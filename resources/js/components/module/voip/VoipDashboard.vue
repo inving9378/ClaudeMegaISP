@@ -53,136 +53,172 @@
             </div>
 
             <!-- Rendimiento -->
-            <div class="card mb-3">
-                <div class="card-header">
-                    Rendimiento por trabajador
-                    <span class="small text-muted ms-1">— llamadas de clientes; «con ticket» = levantó un ticket en los {{ datos.minutos_ticket }} min después de colgar</span>
-                </div>
-                <div class="card-body p-0">
-                    <div v-if="! datos.trabajadores.length" class="text-center py-4 text-muted">Nadie atendió llamadas de clientes en el rango.</div>
-                    <div v-else class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Trabajador</th>
-                                    <th class="text-end">Contestadas</th>
-                                    <th class="text-end" title="Le timbró una llamada que nadie contestó">Sin contestar</th>
-                                    <th class="text-end">Salientes</th>
-                                    <th class="text-end">Tiempo hablado</th>
-                                    <th class="text-end">Promedio</th>
-                                    <th class="text-end">Con ticket</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="t in datos.trabajadores" :key="t.user_id">
-                                    <td>{{ t.nombre }}</td>
-                                    <td class="text-end">{{ t.contestadas }}</td>
-                                    <td class="text-end">{{ t.no_contestadas }}</td>
-                                    <td class="text-end">{{ t.salientes }}</td>
-                                    <td class="text-end">{{ duracion(t.segundos_total) }}</td>
-                                    <td class="text-end">{{ duracion(t.segundos_prom) }}</td>
-                                    <td class="text-end">
-                                        <template v-if="t.ticket_pct !== null">{{ t.con_ticket }} <span class="text-muted">({{ t.ticket_pct }}%)</span></template>
-                                        <span v-else class="text-muted">—</span>
-                                    </td>
-                                    <td class="text-end">
-                                        <button class="btn btn-link btn-sm p-0" @click="verDeTrabajador(t.user_id)">Ver llamadas</button>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+            <div class="card vd-card mb-3">
+                <div class="vd-card-head">
+                    <div>
+                        <div class="vd-card-titulo">Rendimiento por trabajador</div>
+                        <div class="vd-card-sub">Llamadas de clientes · «con ticket» = levantó un ticket en los {{ datos.minutos_ticket }} min después de colgar</div>
                     </div>
+                </div>
+                <div v-if="! datos.trabajadores.length" class="vd-vacio">
+                    <i class="fa fa-headset"></i>
+                    <div>Nadie atendió llamadas de clientes en el rango.</div>
+                </div>
+                <div v-else class="table-responsive">
+                    <table class="vd-tabla">
+                        <thead>
+                            <tr>
+                                <th>Trabajador</th>
+                                <th class="vd-num">Contestadas</th>
+                                <th class="vd-num" title="Le timbró una llamada que nadie contestó">Sin contestar</th>
+                                <th class="vd-num">Salientes</th>
+                                <th class="vd-num">Tiempo hablado</th>
+                                <th class="vd-num">Promedio</th>
+                                <th>Con ticket</th>
+                                <th class="vd-acciones"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="t in datos.trabajadores" :key="t.user_id">
+                                <td>
+                                    <div class="vd-persona">
+                                        <span class="vd-avatar">{{ iniciales(t.nombre) }}</span>
+                                        <span class="vd-persona-nombre" :title="t.nombre">{{ t.nombre }}</span>
+                                    </div>
+                                </td>
+                                <td class="vd-num vd-fuerte">{{ t.contestadas }}</td>
+                                <td class="vd-num" :class="{ 'vd-alerta': t.no_contestadas > 0 }">{{ t.no_contestadas }}</td>
+                                <td class="vd-num">{{ t.salientes }}</td>
+                                <td class="vd-num">{{ duracion(t.segundos_total) }}</td>
+                                <td class="vd-num">{{ duracion(t.segundos_prom) }}</td>
+                                <td>
+                                    <div v-if="t.ticket_pct !== null" class="vd-avance">
+                                        <div class="vd-avance-barra"><span :style="{ width: t.ticket_pct + '%' }"></span></div>
+                                        <span class="vd-avance-txt">{{ t.con_ticket }} de {{ t.contestadas }} · {{ t.ticket_pct }}%</span>
+                                    </div>
+                                    <span v-else class="vd-tenue">—</span>
+                                </td>
+                                <td class="vd-acciones">
+                                    <button class="vd-boton-chico" @click="verDeTrabajador(t.user_id)">
+                                        <i class="fa fa-list-ul"></i> Ver llamadas
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
             <!-- Historial -->
-            <div class="card mb-0" ref="historial">
-                <div class="card-header">Historial de llamadas</div>
-                <div class="card-body pb-2">
-                    <div class="row g-2 mb-2">
-                        <div class="col-12 col-md-3">
-                            <input type="search" class="form-control form-control-sm" placeholder="Número, cliente o trabajador"
-                                   v-model="filtros.buscar" @input="buscarConPausa">
-                        </div>
-                        <div class="col-6 col-md-2">
-                            <select class="form-select form-select-sm" v-model="filtros.direccion" @change="cargarLlamadas(1)">
-                                <option value="">Todas</option>
-                                <option value="entrante">Entrantes</option>
-                                <option value="saliente">Salientes</option>
-                                <option value="interna">Internas</option>
-                            </select>
-                        </div>
-                        <div class="col-6 col-md-2">
-                            <select class="form-select form-select-sm" v-model="filtros.estado" @change="cargarLlamadas(1)">
-                                <option value="">Cualquier estado</option>
-                                <option value="contestada">Contestada</option>
-                                <option value="asistente">Atendió el asistente</option>
-                                <option value="no_atendida">No atendida</option>
-                                <option value="sin_respuesta">Sin respuesta</option>
-                            </select>
-                        </div>
-                        <div class="col-6 col-md-3">
-                            <select class="form-select form-select-sm" v-model="filtros.trabajador" @change="cargarLlamadas(1)">
-                                <option value="">Todos los trabajadores</option>
-                                <option v-for="t in datos.trabajadores" :key="t.user_id" :value="t.user_id">{{ t.nombre }}</option>
-                            </select>
-                        </div>
-                        <div class="col-6 col-md-2 d-flex align-items-center">
-                            <div class="form-check mb-0">
-                                <input class="form-check-input" type="checkbox" id="vd-con-grab" v-model="filtros.con_grabacion" @change="cargarLlamadas(1)">
-                                <label class="form-check-label small" for="vd-con-grab">Solo con grabación</label>
-                            </div>
-                        </div>
+            <div class="card vd-card mb-0" ref="historial">
+                <div class="vd-card-head">
+                    <div>
+                        <div class="vd-card-titulo">Historial de llamadas</div>
+                        <div class="vd-card-sub">{{ totalLlamadas }} llamada{{ totalLlamadas === 1 ? '' : 's' }} en el rango</div>
                     </div>
                 </div>
+                <div class="vd-filtros">
+                    <div class="vd-buscar">
+                        <i class="fa fa-search"></i>
+                        <input type="search" class="form-control form-control-sm" placeholder="Número, cliente o trabajador"
+                               v-model="filtros.buscar" @input="buscarConPausa">
+                    </div>
+                    <select class="form-select form-select-sm" v-model="filtros.direccion" @change="cargarLlamadas(1)">
+                        <option value="">Todas</option>
+                        <option value="entrante">Entrantes</option>
+                        <option value="saliente">Salientes</option>
+                        <option value="interna">Internas</option>
+                    </select>
+                    <select class="form-select form-select-sm" v-model="filtros.estado" @change="cargarLlamadas(1)">
+                        <option value="">Cualquier estado</option>
+                        <option value="contestada">Contestada</option>
+                        <option value="asistente">Atendió el asistente</option>
+                        <option value="no_atendida">No atendida</option>
+                        <option value="sin_respuesta">Sin respuesta</option>
+                    </select>
+                    <select class="form-select form-select-sm" v-model="filtros.trabajador" @change="cargarLlamadas(1)">
+                        <option value="">Todos los trabajadores</option>
+                        <option v-for="t in datos.trabajadores" :key="t.user_id" :value="t.user_id">{{ t.nombre }}</option>
+                    </select>
+                    <label class="vd-check">
+                        <input class="form-check-input" type="checkbox" v-model="filtros.con_grabacion" @change="cargarLlamadas(1)">
+                        Solo con grabación
+                    </label>
+                </div>
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
+                    <table class="vd-tabla">
                         <thead>
                             <tr>
                                 <th>Fecha</th>
                                 <th>Llamada</th>
                                 <th>Cliente</th>
                                 <th>Atendió</th>
-                                <th class="text-end">Espera</th>
-                                <th class="text-end">Duración</th>
+                                <th class="vd-num">Duración</th>
                                 <th>Estado</th>
-                                <th class="text-end">Grabación</th>
+                                <th class="vd-acciones">Grabación</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-if="cargandoLlamadas"><td colspan="8" class="text-center text-muted py-4"><i class="fa fa-spinner fa-spin me-1"></i> Cargando…</td></tr>
-                            <tr v-else-if="! llamadas.length"><td colspan="8" class="text-center text-muted py-4">Sin llamadas con estos filtros.</td></tr>
+                            <tr v-if="cargandoLlamadas"><td colspan="7" class="vd-vacio"><i class="fa fa-spinner fa-spin"></i><div>Cargando…</div></td></tr>
+                            <tr v-else-if="! llamadas.length"><td colspan="7" class="vd-vacio"><i class="fa fa-phone-slash"></i><div>Sin llamadas con estos filtros.</div></td></tr>
                             <template v-else v-for="l in llamadas" :key="l.id">
-                                <tr>
-                                    <td class="text-nowrap">{{ fechaHora(l.inicio) }}</td>
-                                    <td class="text-nowrap">
-                                        <i class="fa me-1 text-muted" :class="iconoDireccion(l.direccion)" :title="nombreDireccion(l.direccion)"></i>
-                                        <template v-if="l.direccion === 'interna'">{{ l.origen }} → {{ l.numero }}</template>
-                                        <template v-else>{{ formatoNumero(l.numero) }}</template>
+                                <tr :class="{ 'vd-fila-abierta': audioAbierto === l.id }">
+                                    <td class="vd-nowrap">
+                                        <div class="vd-fecha-dia">{{ soloFecha(l.inicio) }}</div>
+                                        <div class="vd-tenue">{{ soloHora(l.inicio) }}</div>
+                                    </td>
+                                    <td class="vd-nowrap">
+                                        <div class="vd-llamada">
+                                            <span class="vd-dir" :class="'vd-dir--' + l.direccion" :title="nombreDireccion(l.direccion)">
+                                                <i class="fa" :class="iconoDireccion(l.direccion)"></i>
+                                            </span>
+                                            <span v-if="l.direccion === 'interna'">{{ l.origen }} → {{ l.numero }}</span>
+                                            <span v-else class="vd-numero">{{ formatoNumero(l.numero) }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="vd-cliente">
+                                        <a v-if="l.cliente_id" :href="`/cliente/editar/${l.cliente_id}`" :title="l.cliente">{{ l.cliente }}</a>
+                                        <span v-else-if="l.direccion !== 'interna'" class="vd-tenue vd-italica">No es cliente</span>
+                                        <span v-else class="vd-tenue">—</span>
                                     </td>
                                     <td>
-                                        <a v-if="l.cliente_id" :href="`/cliente/editar/${l.cliente_id}`">{{ l.cliente }}</a>
-                                        <span v-else-if="l.direccion !== 'interna'" class="text-muted">No es cliente</span>
+                                        <div v-if="l.trabajador" class="vd-persona">
+                                            <span class="vd-avatar">{{ iniciales(nombreTrabajador(l)) }}</span>
+                                            <div>
+                                                <div class="vd-persona-nombre" :title="nombreTrabajador(l)">{{ nombreTrabajador(l) }}</div>
+                                                <div class="vd-tenue">Ext. {{ String(l.extension || '').replace(/^web/, '') }}</div>
+                                            </div>
+                                        </div>
+                                        <div v-else-if="l.estado === 'asistente'" class="vd-persona">
+                                            <span class="vd-avatar vd-avatar--bot"><i class="fa fa-robot"></i></span>
+                                            <span class="vd-persona-nombre">Asistente de voz</span>
+                                        </div>
+                                        <span v-else class="vd-tenue">—</span>
                                     </td>
-                                    <td>{{ l.trabajador || (l.estado === 'asistente' ? 'Asistente de voz' : '—') }}</td>
-                                    <td class="text-end">{{ duracion(l.espera) }}</td>
-                                    <td class="text-end">{{ l.segundos ? duracion(l.segundos) : '—' }}</td>
-                                    <td><span class="badge" :class="claseEstado(l.estado)">{{ nombreEstado(l.estado) }}</span></td>
-                                    <td class="text-end text-nowrap">
+                                    <td class="vd-num vd-nowrap">
+                                        <div class="vd-fuerte">{{ l.segundos ? duracion(l.segundos) : '—' }}</div>
+                                        <div v-if="l.espera > 0" class="vd-tenue">espera {{ duracion(l.espera) }}</div>
+                                    </td>
+                                    <td>
+                                        <span class="vd-pill" :class="'vd-pill--' + l.estado">
+                                            <i class="fa" :class="iconoEstado(l.estado)"></i>{{ nombreEstado(l.estado) }}
+                                        </span>
+                                    </td>
+                                    <td class="vd-acciones vd-nowrap">
                                         <template v-if="l.grabacion && puedeEscuchar">
-                                            <button class="btn btn-sm btn-outline-primary" @click="alternarAudio(l)" :title="audioAbierto === l.id ? 'Cerrar' : 'Escuchar'">
+                                            <button class="vd-icono" :class="{ 'vd-icono--activo': audioAbierto === l.id }" @click="alternarAudio(l)"
+                                                    :title="audioAbierto === l.id ? 'Cerrar' : 'Escuchar'">
                                                 <i class="fa" :class="audioAbierto === l.id ? 'fa-times' : 'fa-play'"></i>
                                             </button>
-                                            <a class="btn btn-sm btn-outline-secondary ms-1" :href="urlGrabacion(l, true)" title="Descargar">
+                                            <a class="vd-icono" :href="urlGrabacion(l, true)" title="Descargar">
                                                 <i class="fa fa-download"></i>
                                             </a>
                                         </template>
-                                        <span v-else-if="l.tiene_grabacion" class="text-muted small">Grabada</span>
+                                        <span v-else-if="l.tiene_grabacion" class="vd-tenue"><i class="fa fa-microphone"></i> Grabada</span>
                                     </td>
                                 </tr>
                                 <tr v-if="audioAbierto === l.id" class="vd-audio-fila">
-                                    <td colspan="8">
+                                    <td colspan="7">
                                         <audio class="w-100" controls autoplay preload="none" :src="urlGrabacion(l, false)"
                                                @error="errorAudio = l.id"></audio>
                                         <div v-if="errorAudio === l.id" class="small text-danger mt-1">
@@ -194,12 +230,11 @@
                         </tbody>
                     </table>
                 </div>
-                <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2" v-if="totalLlamadas > 0">
-                    <span class="small text-muted">{{ totalLlamadas }} llamada{{ totalLlamadas === 1 ? '' : 's' }}</span>
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-secondary" :disabled="pagina <= 1" @click="cargarLlamadas(pagina - 1)">Anterior</button>
-                        <button class="btn btn-outline-secondary" disabled>{{ pagina }} / {{ paginas }}</button>
-                        <button class="btn btn-outline-secondary" :disabled="pagina >= paginas" @click="cargarLlamadas(pagina + 1)">Siguiente</button>
+                <div class="vd-pie" v-if="totalLlamadas > 0">
+                    <span class="vd-tenue">Página {{ pagina }} de {{ paginas }} · {{ totalLlamadas }} llamada{{ totalLlamadas === 1 ? '' : 's' }}</span>
+                    <div class="vd-paginas">
+                        <button class="vd-boton-chico" :disabled="pagina <= 1" @click="cargarLlamadas(pagina - 1)">‹ Anterior</button>
+                        <button class="vd-boton-chico" :disabled="pagina >= paginas" @click="cargarLlamadas(pagina + 1)">Siguiente ›</button>
                     </div>
                 </div>
             </div>
@@ -439,17 +474,34 @@ export default {
             return { entrante: 'Entrante', saliente: 'Saliente', interna: 'Interna' }[d] || d;
         },
 
+        iconoEstado(e) {
+            return { contestada: 'fa-check', asistente: 'fa-robot', no_atendida: 'fa-phone-slash', sin_respuesta: 'fa-minus' }[e] || 'fa-minus';
+        },
+
+        // El backend manda «Nombre Apellido (1001)»: el nombre sin la extensión.
+        nombreTrabajador(l) {
+            return String(l.trabajador || '').replace(/\s*\([^)]*\)\s*$/, '');
+        },
+
+        iniciales(nombre) {
+            const partes = String(nombre || '').trim().split(/\s+/).filter(Boolean);
+            return ((partes[0]?.[0] || '') + (partes[1]?.[0] || '')).toUpperCase() || '?';
+        },
+
+        soloFecha(iso) {
+            if (! iso) return '';
+            const [a, m, d] = iso.slice(0, 10).split('-');
+            return `${d}/${m}/${a}`;
+        },
+
+        soloHora(iso) {
+            return iso ? iso.slice(11, 16) : '';
+        },
+
         nombreEstado(e) {
             return {
                 contestada: 'Contestada', asistente: 'Asistente', no_atendida: 'No atendida', sin_respuesta: 'Sin respuesta',
             }[e] || e;
-        },
-
-        claseEstado(e) {
-            return {
-                contestada: 'bg-success-subtle text-success', asistente: 'bg-info-subtle text-info',
-                no_atendida: 'bg-danger-subtle text-danger', sin_respuesta: 'bg-secondary-subtle text-secondary',
-            }[e] || 'bg-secondary-subtle text-secondary';
         },
     },
 };
@@ -457,6 +509,120 @@ export default {
 
 <style scoped>
 .vd-fecha { width: auto; }
-.vd-audio-fila td { background: transparent; }
-.vd-dark .vd-audio-fila td { border-color: #3a4055; }
+.vd-fecha-dia { font-weight: 600; }
+.vd-card { overflow: hidden; }
+.vd-card-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--vd-borde); }
+.vd-card-titulo { font-weight: 600; font-size: 15px; color: var(--vd-tinta); }
+.vd-card-sub { font-size: 12px; color: var(--vd-tenue); margin-top: 2px; }
+
+.voip-dash {
+    --vd-tinta: #1f2937; --vd-tenue: #6b7280; --vd-borde: #eceef2; --vd-cabecera: #f8f9fb;
+    --vd-hover: #f5f7fa; --vd-acento: #2a78d6; --vd-acento-suave: #e8f1fc;
+}
+.voip-dash.vd-dark {
+    --vd-tinta: #e5e7eb; --vd-tenue: #9ca3af; --vd-borde: rgba(255,255,255,.08); --vd-cabecera: rgba(255,255,255,.03);
+    --vd-hover: rgba(255,255,255,.04); --vd-acento: #6ea8f0; --vd-acento-suave: rgba(57,135,229,.16);
+}
+
+/* Tabla */
+.vd-tabla { width: 100%; border-collapse: collapse; font-size: 13.5px; color: var(--vd-tinta); }
+.vd-tabla thead th {
+    background: var(--vd-cabecera); color: var(--vd-tenue); font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .05em; padding: 10px; white-space: nowrap;
+    border-bottom: 1px solid var(--vd-borde);
+}
+.vd-tabla tbody td { padding: 12px 10px; border-bottom: 1px solid var(--vd-borde); vertical-align: middle; height: 60px; }
+.vd-tabla tbody tr:last-child td { border-bottom: none; }
+.vd-tabla tbody tr:hover td { background: var(--vd-hover); }
+.vd-tabla th:first-child, .vd-tabla td:first-child { padding-left: 20px; }
+.vd-tabla th:last-child, .vd-tabla td:last-child { padding-right: 20px; }
+.vd-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vd-fuerte { font-weight: 600; }
+.vd-alerta { color: #c2410c; font-weight: 600; }
+.vd-tenue { color: var(--vd-tenue); font-size: 12px; }
+.vd-italica { font-style: italic; }
+.vd-nowrap { white-space: nowrap; }
+.vd-acciones { text-align: right; white-space: nowrap; }
+
+/* Personas */
+.vd-persona { display: flex; align-items: center; gap: 10px; }
+.vd-persona > div { min-width: 0; }
+.vd-persona-nombre { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+.vd-avatar {
+    width: 30px; height: 30px; border-radius: 50%; flex: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--vd-acento-suave); color: var(--vd-acento); font-size: 11.5px; font-weight: 700;
+}
+.vd-avatar--bot { background: rgba(27,175,122,.14); color: #15936a; }
+
+/* Llamada */
+.vd-llamada { display: flex; align-items: center; gap: 10px; }
+.vd-numero { font-variant-numeric: tabular-nums; font-weight: 500; }
+.vd-dir {
+    width: 26px; height: 26px; border-radius: 50%; flex: none; font-size: 11px;
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.vd-dir--entrante { background: var(--vd-acento-suave); color: var(--vd-acento); }
+.vd-dir--saliente { background: rgba(98,80,214,.12); color: #6250d6; }
+.vd-dir--interna  { background: rgba(107,114,128,.12); color: var(--vd-tenue); }
+.vd-cliente a {
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    max-width: 190px; overflow-wrap: anywhere; line-height: 1.35; font-weight: 500; color: var(--vd-acento);
+}
+
+/* Estado */
+.vd-pill {
+    display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+.vd-pill i { font-size: 10px; }
+.vd-pill--contestada    { background: #dcfce7; color: #166534; }
+.vd-pill--asistente     { background: #dbeafe; color: #1e40af; }
+.vd-pill--no_atendida   { background: #fee2e2; color: #991b1b; }
+.vd-pill--sin_respuesta { background: #f1f5f9; color: #475569; }
+.vd-dark .vd-pill--contestada    { background: rgba(34,197,94,.16);  color: #86efac; }
+.vd-dark .vd-pill--asistente     { background: rgba(59,130,246,.18); color: #93c5fd; }
+.vd-dark .vd-pill--no_atendida   { background: rgba(239,68,68,.18);  color: #fca5a5; }
+.vd-dark .vd-pill--sin_respuesta { background: rgba(148,163,184,.16); color: #cbd5e1; }
+
+/* Botones */
+.vd-icono {
+    width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--vd-borde);
+    background: transparent; color: var(--vd-acento); display: inline-flex; align-items: center;
+    justify-content: center; font-size: 12px; cursor: pointer; text-decoration: none; margin-left: 4px;
+    transition: background .15s, border-color .15s;
+}
+.vd-icono:hover { background: var(--vd-acento-suave); border-color: transparent; }
+.vd-icono--activo { background: var(--vd-acento); color: #fff; border-color: transparent; }
+.vd-boton-chico {
+    border: 1px solid var(--vd-borde); background: transparent; color: var(--vd-tinta);
+    border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 500; cursor: pointer;
+}
+.vd-boton-chico:hover:not(:disabled) { background: var(--vd-hover); border-color: var(--vd-acento); color: var(--vd-acento); }
+.vd-boton-chico:disabled { opacity: .45; cursor: default; }
+.vd-boton-chico i { margin-right: 4px; font-size: 11px; }
+
+/* Con ticket */
+.vd-avance { display: flex; align-items: center; gap: 10px; }
+.vd-avance-barra { width: 70px; height: 6px; border-radius: 3px; background: var(--vd-borde); overflow: hidden; flex: none; }
+.vd-avance-barra span { display: block; height: 100%; background: var(--vd-acento); border-radius: 3px; }
+.vd-avance-txt { font-size: 12px; color: var(--vd-tenue); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Filtros, vacío, audio, pie */
+.vd-filtros {
+    display: grid; grid-template-columns: minmax(200px, 1.6fr) repeat(3, minmax(150px, 1fr)) auto;
+    gap: 10px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--vd-borde);
+}
+@media (max-width: 991px) { .vd-filtros { grid-template-columns: 1fr 1fr; } }
+.vd-buscar { position: relative; }
+.vd-buscar i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--vd-tenue); font-size: 12px; }
+.vd-buscar input { padding-left: 30px; }
+.vd-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--vd-tinta); white-space: nowrap; margin: 0; cursor: pointer; }
+.vd-check .form-check-input { margin: 0; }
+.vd-vacio { text-align: center; color: var(--vd-tenue); padding: 36px 16px !important; height: auto !important; }
+.vd-vacio i { font-size: 22px; opacity: .55; margin-bottom: 6px; }
+.vd-fila-abierta td { background: var(--vd-hover); }
+.vd-audio-fila td { background: var(--vd-cabecera) !important; height: auto !important; padding: 12px 20px !important; }
+.vd-pie { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 20px; border-top: 1px solid var(--vd-borde); }
+.vd-paginas { display: flex; gap: 6px; }
 </style>
