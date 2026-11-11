@@ -2473,6 +2473,8 @@ return [
         '/talento/api/ordenes/{id}',
         // "Asignar trabajo" desde la ficha del cliente o del prospecto (2026-10-22).
         '/talento/api/ordenes/asignables',
+        // #1324: quiénes marcaron asistencia hoy en «Nueva orden» (el controller acota a su equipo si no gestiona).
+        '/talento/api/ordenes/asignacion',
         // G2: órdenes ligadas a un ticket (lectura, misma puerta que la lista).
         '/talento/api/ordenes/ticket/{ticketId}',
         // Item #1158: calendario de carga (el controller acota a uno mismo + su equipo si no es staff)
@@ -2510,6 +2512,8 @@ return [
     // #1228: buscador de clientes del formulario «Editar orden» (el controller vuelve a revisarlo).
     'talento.ordenes.editar' => [
         '/talento/api/clientes-orden',
+        // #1326: regresar al técnico una orden con incidencia (bandeja de Órdenes).
+        '/talento/api/ordenes/{id}/incidencia/regresar',
     ],
     'talento.work_orders.manage' => [
         // 2026-10-21: sin esta línea solo el rol admin llegaba (la dirección no tenía permiso);

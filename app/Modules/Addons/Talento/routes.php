@@ -184,12 +184,16 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::post('/ordenes',                         [TalentoWorkOrderController::class, 'store']);
             Route::post('/ordenes/asignables',              [TalentoWorkOrderController::class, 'asignables']);
             Route::get('/ordenes/carga',                    [TalentoWorkOrderController::class, 'carga']);
+            // #1324: quiénes marcaron asistencia hoy, para elegir a quién asignar (antes de /ordenes/{id}).
+            Route::get('/ordenes/asignacion',               [TalentoWorkOrderController::class, 'asignacion']);
             Route::post('/ordenes/{id}/reprogramar',        [TalentoWorkOrderController::class, 'reprogramar'])->whereNumber('id');
             Route::get('/ordenes/ticket/{ticketId}',        [TalentoWorkOrderController::class, 'ordenesDeTicket']);
             Route::get('/ordenes/{id}',                     [TalentoWorkOrderController::class, 'show']);
             Route::put('/ordenes/{id}',                     [TalentoWorkOrderController::class, 'update']);
             // #1225: eliminar (borrado lógico con motivo) una orden pendiente; el controller exige talento.ordenes.eliminar.
             Route::delete('/ordenes/{id}',                  [TalentoWorkOrderController::class, 'destroy']);
+            // #1326: regresar al técnico una orden que reportó con «No puedo completar» (el controller exige talento.ordenes.editar).
+            Route::post('/ordenes/{id}/incidencia/regresar', [TalentoWorkOrderController::class, 'regresarIncidencia'])->whereNumber('id');
             Route::put('/ordenes/{id}/status',              [TalentoWorkOrderController::class, 'changeStatus']);
             Route::post('/ordenes/{id}/validate',           [TalentoWorkOrderController::class, 'validateOrder']);
             Route::post('/ordenes/{id}/return',             [TalentoWorkOrderController::class, 'returnOrder']);
@@ -775,6 +779,12 @@ Route::get('/talento/api/curso-imagen-firmada/{tipo}/{id}', [TalentoMobileEquipo
     ->whereIn('tipo', ['estandar', 'penalizacion'])
     ->whereNumber('id')
     ->name('talento.curso.imagen.firmada');
+// 11-nov-2026 (#1327): la foto de evidencia en el detalle de la orden de la app, con la misma
+// protección (firma, 1 hora). El enlace solo lo arma el detalle de una orden asignada al técnico.
+Route::get('/talento/api/evidencia-foto-firmada/{id}', [TalentoMobileApiController::class, 'evidenciaFotoFirmada'])
+    ->middleware('signed')
+    ->whereNumber('id')
+    ->name('talento.evidencia.foto.firmada');
 
 // Item #1285: documentación de la orden en su detalle (Talento › Órdenes de trabajo › Ver):
 // evidencias obligatorias, fotos, dBm, nota, incidencias y cronología. Misma regla de acceso que el

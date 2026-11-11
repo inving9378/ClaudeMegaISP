@@ -3,16 +3,20 @@
 namespace App\Modules\Addons\Talento\Services;
 
 use App\Models\Task;
+use App\Models\User;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderChecklistItem;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderData;
+use App\Modules\Addons\Talento\Models\TalentoWorkOrderMedia;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderType;
 use App\Modules\Addons\Talento\Support\EsquemaCamposOrden;
+use App\Modules\Addons\Talento\Support\OrdenEquipo;
 use App\Modules\Addons\Talento\Support\OrdenReferencia;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 
 /**
@@ -135,12 +139,18 @@ class OrdenTrabajoUnifiedService
         $client = $esProspecto
             ? $this->prospectoContacto($task->crm_lead_id)
             : $this->clientByInfoId($task->client_main_information_id);
+        // #1326: con una incidencia sin atender la orden está con el supervisor: la app la muestra como
+        // «Incidencia» (no cuenta en el globo de pendientes ni se puede iniciar).
+        $incidencia = in_array($task->status, ['ToDo', 'InProgress'], true)
+            ? app(IncidenciasOrdenService::class)->abierta($task->id)
+            : null;
         return [
             'id'           => $task->id,
             'folio'        => $task->id,
             'origen'       => 'task',         // discriminador de origen (tabla tasks)
             'tipo'         => $task->talentoType?->name ?? '—',
-            'status'       => self::TASK_STATUS_MAP[$task->status] ?? $task->status,
+            'status'       => $incidencia ? 'incidencia' : (self::TASK_STATUS_MAP[$task->status] ?? $task->status),
+            'incidencia'   => $incidencia ? ['motivo' => $incidencia['motivo_texto'], 'nota' => $incidencia['nota']] : null,
             'cliente'      => $client['name'],
             'direccion'    => $client['address'],
             'telefono'     => $client['phone'],
@@ -157,9 +167,9 @@ class OrdenTrabajoUnifiedService
             ->get([
                 'm.id', 'm.created_at', 'm.potencia_dbm',
                 'm.evidence_type_id as type_id', 'et.name as tipo_nombre',
-                'm.watermark_applied', 'm.location_flagged',
+                'm.watermark_applied', 'm.location_flagged', 'm.type as media_type',
             ])
-            ->map(fn($e) => $this->enrichEvidenciaWithTier($e))
+            ->map(fn($e) => $this->conFotoFirmada($this->enrichEvidenciaWithTier($e)))
             ->toArray();
 
         $requeridas = DB::table('talento_ot_type_evidence_requirements as r')
@@ -191,9 +201,9 @@ class OrdenTrabajoUnifiedService
             ->get([
                 'm.id', 'm.created_at', 'm.potencia_dbm',
                 'm.evidence_type_id as type_id', 'et.name as tipo_nombre',
-                'm.watermark_applied', 'm.location_flagged',
+                'm.watermark_applied', 'm.location_flagged', 'm.type as media_type',
             ])
-            ->map(fn($e) => $this->enrichEvidenciaWithTier($e))
+            ->map(fn($e) => $this->conFotoFirmada($this->enrichEvidenciaWithTier($e)))
             ->toArray();
 
         $requeridas = $typeId
@@ -570,6 +580,10 @@ class OrdenTrabajoUnifiedService
                 $mapped = self::TASK_STATUS_MAP[$task->status] ?? $task->status;
                 return ['success' => false, 'message' => "La OT ya está en estado '{$mapped}'.", 'status_code' => 422];
             }
+            // #1326: con una incidencia sin atender la orden está con el supervisor.
+            if (app(IncidenciasOrdenService::class)->abierta($task->id)) {
+                return ['success' => false, 'message' => 'Esta orden está con tu supervisor por la incidencia que reportaste. Espera a que la regrese o la reprograme.', 'status_code' => 422];
+            }
             $task->update(['status' => 'InProgress']);
             $this->transicionar('task', $task->id, 'order.started', 'pending', 'in_progress', auth()->id());
             return ['success' => true, 'status' => 'in_progress', 'started_at' => null];
@@ -655,7 +669,12 @@ class OrdenTrabajoUnifiedService
                 'created_at'    => now(),
                 'updated_at'    => now(),
             ]);
-            $this->transicionar('task', $task->id, 'order.incident', $mappedStatus, $mappedStatus, $userId, $data['motivo'] ?? null);
+            // #1326: la orden pasa al supervisor. Si ya estaba en curso vuelve a pendiente, para que el
+            // supervisor la pueda editar, reasignar o eliminar con las mismas reglas de #1225.
+            if ($task->status === 'InProgress') {
+                $task->update(['status' => 'ToDo']);
+            }
+            $this->transicionar('task', $task->id, 'order.incident', $mappedStatus, 'pending', $userId, $data['motivo'] ?? null);
             return ['success' => true, 'incident_id' => $incidentId, 'status' => 'incidencia'];
         }
 
@@ -1052,9 +1071,30 @@ class OrdenTrabajoUnifiedService
         ];
     }
 
+    /** #1325: [{colaborador_id, user_id, nombre}] de los auxiliares de una orden en equipo. */
+    private function auxiliaresDeTarea(Task $task): array
+    {
+        $ids = OrdenEquipo::auxiliaresUserIds($task);
+        if (! $ids) {
+            return [];
+        }
+        $colaboradores = TalentoColaborador::whereIn('user_id', $ids)->pluck('id', 'user_id');
+
+        return User::whereIn('id', $ids)->get(['id', 'name', 'father_last_name', 'mother_last_name'])
+            ->sortBy(fn ($u) => array_search($u->id, $ids, true))
+            ->map(fn ($u) => [
+                'colaborador_id' => $colaboradores[$u->id] ?? null,
+                'user_id'        => $u->id,
+                'nombre'         => trim(implode(' ', array_filter([$u->name, $u->father_last_name, $u->mother_last_name]))),
+            ])
+            ->values()
+            ->all();
+    }
+
     private function adminItemFromTask(Task $task): array
     {
-        $firstUser   = $task->users->first();
+        // #1325: con órdenes en equipo, la persona de la orden es el responsable (no el primer asignado).
+        $firstUser   = $task->users->firstWhere('id', OrdenEquipo::responsableUserId($task)) ?? $task->users->first();
         $colaborador = $firstUser
             ? TalentoColaborador::with('user')->where('user_id', $firstUser->id)->first()
             : null;
@@ -1097,6 +1137,12 @@ class OrdenTrabajoUnifiedService
                     'mother_last_name'  => $firstUser->mother_last_name,
                 ],
             ] : null,
+            // #1325: auxiliares del responsable (vacío sin órdenes en equipo).
+            'auxiliares'     => $this->auxiliaresDeTarea($task),
+            // #1326: incidencia sin atender (la orden está con el supervisor).
+            'incidencia'     => ! $task->trashed() && in_array($task->status, ['ToDo', 'InProgress'], true)
+                ? app(IncidenciasOrdenService::class)->abierta($task->id)
+                : null,
             'type' => $type ? [
                 'id'                  => $type->id,
                 'name'                => $type->name,
@@ -1191,7 +1237,11 @@ class OrdenTrabajoUnifiedService
             ->when($search, fn($q, $s) => $q->whereHas('users', fn($u) => $u->where('name', 'like', "%$s%")))
             ->when($prospectoLeadIds !== null, fn($q) => $q->whereIn('crm_lead_id', $prospectoLeadIds ?: [-1]));
 
-        if ($status === 'atrasadas') {
+        if ($status === 'incidencia') {
+            // #1326: bandeja del supervisor (las antiguas no tienen este flujo).
+            $workOrders = collect();
+            app(IncidenciasOrdenService::class)->scopeConAbierta($taskQuery->whereIn('status', ['ToDo', 'InProgress']));
+        } elseif ($status === 'atrasadas') {
             // Item #1158: pendientes o en curso cuyo día ya pasó (la tabla vieja no tiene filas).
             $workOrders = collect();
             app(AgendaOrdenesService::class)->scopeAtrasadas($taskQuery, now()->toDateString());
@@ -1410,6 +1460,11 @@ class OrdenTrabajoUnifiedService
             $currentOtStatus = self::TASK_STATUS_MAP[$task->status] ?? 'cancelled';
             if (!in_array($newOtStatus, $transitions[$currentOtStatus] ?? [])) {
                 return ['success' => false, 'message' => "Transición inválida: {$currentOtStatus} → {$newOtStatus}", 'status_code' => 422];
+            }
+            // #1326: con una incidencia sin atender no se inicia; primero se atiende (Regresar al técnico,
+            // Reprogramar, Editar o Eliminar).
+            if ($newOtStatus === 'in_progress' && app(IncidenciasOrdenService::class)->abierta($task->id)) {
+                return ['success' => false, 'message' => 'Esta orden tiene una incidencia sin atender: regrésala al técnico, reprográmala, edítala o elimínala.', 'status_code' => 422];
             }
 
             $excepcion = false;
@@ -1884,6 +1939,20 @@ class OrdenTrabajoUnifiedService
         $result = (array)$ev;
         $result['dbm_tier'] = $umbral ? (array)$umbral : null;
         return (object)$result;
+    }
+
+    /**
+     * 11-nov-2026 (#1327): enlace firmado (1 hora) para que la app muestre la foto de la evidencia.
+     * Los documentos sensibles (INE, comprobante de domicilio) no llevan enlace.
+     */
+    private function conFotoFirmada(object $ev): object
+    {
+        $sensible = in_array($ev->media_type ?? null, TalentoWorkOrderMedia::SENSITIVE_TYPES, true);
+        $ev->foto_url = $sensible
+            ? null
+            : URL::temporarySignedRoute('talento.evidencia.foto.firmada', now()->addHour(), ['id' => $ev->id]);
+        unset($ev->media_type);
+        return $ev;
     }
 
     private function calcularSaludRed(float $potencia): array

@@ -16,10 +16,12 @@ use App\Modules\Addons\Talento\Services\AgendaOrdenesService;
 use App\Modules\Addons\Talento\Services\AvisoOrdenColaborador;
 use App\Modules\Addons\Talento\Services\ChoqueAgendaOrdenes;
 use App\Modules\Addons\Talento\Services\CorreccionOrdenValidadaService;
+use App\Modules\Addons\Talento\Services\IncidenciasOrdenService;
 use App\Modules\Addons\Talento\Services\OrdenPendienteService;
 use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
 use App\Modules\Addons\Talento\Support\Actor;
 use App\Modules\Addons\Talento\Support\EsquemaCamposOrden;
+use App\Modules\Addons\Talento\Support\OrdenEquipo;
 use App\Modules\Addons\Talento\Support\OrdenReferencia;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -116,6 +118,11 @@ class TalentoWorkOrderController extends Controller
             (int)($request->per_page ?? 25),
             (int)($request->query('page', 1))
         );
+
+        // #1326: cuántas órdenes de las que ve esperan atención por una incidencia (botón de la bandeja).
+        $result['con_incidencia'] = empty($filtros['eliminadas'])
+            ? $this->unified->listForAdmin(['colaborador_id' => $filtros['colaborador_id'] ?? null, 'status' => 'incidencia'], 1, 1)['total']
+            : 0;
 
         return response()->json($result);
     }
@@ -268,6 +275,9 @@ class TalentoWorkOrderController extends Controller
             // Item #1200: plantilla del tipo y los datos que pide al crear ({key: valor}).
             'template_id'    => 'nullable|integer',
             'datos'          => 'nullable|array',
+            // #1325: auxiliares del responsable (ids de talento_colaboradores), solo con órdenes en equipo.
+            'auxiliares'     => 'nullable|array',
+            'auxiliares.*'   => 'integer',
         ], [
             'scheduled_at.required' => 'Elige el día de la orden.',
             'scheduled_at.date'     => 'El día de la orden no es una fecha válida.',
@@ -286,6 +296,13 @@ class TalentoWorkOrderController extends Controller
                 ->exists();
 
             abort_unless($esSuSupervisor, 403, 'No tienes permiso para crear órdenes para este colaborador.');
+
+            // #1325: los auxiliares también tienen que ser de su equipo.
+            $auxiliaresPedidos = array_map('intval', $data['auxiliares'] ?? []);
+            $deSuEquipo = $auxiliaresPedidos
+                ? Actor::for(auth()->user())->talento()?->subordinados()->whereIn('id', $auxiliaresPedidos)->count()
+                : 0;
+            abort_unless($deSuEquipo === count(array_unique($auxiliaresPedidos)), 403, 'Solo puedes poner como auxiliares a personas de tu equipo.');
         }
 
         // G2: la orden nace de un ticket; si no trae cliente se toma el del ticket (customer_lead = clients.id).
@@ -342,12 +359,24 @@ class TalentoWorkOrderController extends Controller
             return $conPlantilla;
         }
 
+        // #1325: auxiliares (equipo). Sin el interruptor, pedir auxiliares se rechaza.
+        $auxiliares = OrdenEquipo::resolverAuxiliares($data['auxiliares'] ?? [], $colaborador->id);
+        if (is_string($auxiliares)) {
+            return $this->rechazo(['auxiliares' => $auxiliares]);
+        }
+
         // Parsear scheduled_at → start_date + start_time
         $scheduled = ! empty($data['scheduled_at']) ? Carbon::parse($data['scheduled_at']) : null;
 
         // Misma regla de choque de agenda que Editar y Reprogramar (#1227). Sin hora no choca.
         if ($choque = $choques->verificar($colaborador->user, $scheduled)) {
             return response()->json(['error' => $choque['mensaje'], 'choque' => $choque['choque']], 422);
+        }
+        // #1325: la misma regla para cada auxiliar.
+        foreach ($auxiliares as $auxiliar) {
+            if ($choque = $choques->verificar($auxiliar->user, $scheduled)) {
+                return response()->json(['error' => $choque['mensaje'], 'choque' => $choque['choque']], 422);
+            }
         }
 
         // Resolver project_id: el del tipo; si no tiene, el mapeo estático de los tipos viejos y, como
@@ -380,7 +409,7 @@ class TalentoWorkOrderController extends Controller
         }
 
         // Tarea, asignación, datos y checklist en una sola transacción: o queda todo o nada.
-        $task = DB::transaction(function () use ($tipo, $data, $type, $projectId, $clientInfoId, $ticketId, $scheduled, $titulo, $descripcion, $prioridad, $conPlantilla, $colaborador) {
+        $task = DB::transaction(function () use ($tipo, $data, $type, $projectId, $clientInfoId, $ticketId, $scheduled, $titulo, $descripcion, $prioridad, $conPlantilla, $colaborador, $auxiliares) {
             $task = Task::create([
                 'tipo'                       => $tipo,
                 'talento_type_id'            => $data['type_id'],
@@ -400,10 +429,8 @@ class TalentoWorkOrderController extends Controller
                 'priority'                   => $prioridad,
             ]);
 
-            // Asignar al técnico (task_user pivot)
-            if ($colaborador->user_id) {
-                $task->users()->sync([$colaborador->user_id]);
-            }
+            // Asignar al técnico y, con órdenes en equipo (#1325), a sus auxiliares (task_user + participantes).
+            OrdenEquipo::asignar($task, $colaborador->user_id, $auxiliares->pluck('user_id')->all());
 
             if ($conPlantilla) {
                 [$plantilla, $esquema, $valores, $checklist] = $conPlantilla;
@@ -435,6 +462,9 @@ class TalentoWorkOrderController extends Controller
             // Mismos textos de siempre; desde #1225 viven en AvisoOrdenColaborador porque editar y
             // eliminar una orden también avisan. Campanita y WhatsApp aislados: no tumban la creación.
             $this->avisos->asignada($task, $colaborador->user, $type->name, $scheduled);
+        }
+        foreach ($auxiliares as $auxiliar) {
+            $this->avisos->asignada($task, $auxiliar->user, $type->name, $scheduled, 'al crear orden como auxiliar');
         }
 
         return response()->json(
@@ -589,6 +619,9 @@ class TalentoWorkOrderController extends Controller
             'notes'          => 'sometimes|nullable|string|max:5000',
             // #1200: órdenes con plantilla — todos los campos de creación.
             'datos'          => 'sometimes|nullable|array',
+            // #1325: auxiliares (reemplazan a los de antes); sin la llave se conservan.
+            'auxiliares'     => 'sometimes|array',
+            'auxiliares.*'   => 'integer',
         ], [
             'colaborador_id.required' => 'Selecciona un colaborador.',
             'type_id.required'        => 'Selecciona un tipo de orden.',
@@ -638,6 +671,29 @@ class TalentoWorkOrderController extends Controller
         }
 
         return response()->json(['ok' => true, 'id' => $ordenId, 'ligada' => $r['ligada']]);
+    }
+
+    /**
+     * POST /talento/api/ordenes/{id}/incidencia/regresar — #1326: la orden que el técnico reportó con
+     * «No puedo completar» vuelve a su lista sin cambios y la incidencia queda atendida. Para cambiarla
+     * de día, de persona o eliminarla están Reprogramar, Editar y Eliminar, que también la atienden.
+     */
+    public function regresarIncidencia($id, IncidenciasOrdenService $incidencias)
+    {
+        $this->authorize('talento.ordenes.editar');
+
+        [$ordenId, $origen] = $this->ref($id);
+        if ($antigua = $this->rechazoOrdenAntigua($ordenId, $origen)) {
+            return $antigua;
+        }
+        $task = Task::whereKey($ordenId)->whereNotNull('talento_type_id')->first();
+        abort_unless($task, 404, 'Orden no encontrada.');
+
+        if (! $incidencias->atender($task->id, 'regresada', (int) auth()->id())) {
+            return response()->json(['error' => 'Esta orden ya no tiene una incidencia por atender. Actualiza la lista.'], 422);
+        }
+
+        return response()->json($this->unified->showForAdmin($task->id, OrdenReferencia::ORIGEN_TAREA));
     }
 
     /** Las órdenes de la tabla vieja (talento_work_orders) no se editan ni eliminan desde aquí. */
@@ -783,6 +839,58 @@ class TalentoWorkOrderController extends Controller
             ])
             ->sortBy('etiqueta', SORT_NATURAL | SORT_FLAG_CASE)
             ->values());
+    }
+
+    /**
+     * GET /talento/api/ordenes/asignacion — quiénes marcaron asistencia hoy, para elegir a quién se
+     * asigna una orden (#1324), y si se pueden poner auxiliares (#1325). Mismo alcance que asignables(): quien gestiona órdenes ve a todos; un
+     * supervisor, a su equipo directo. Con la misma forma que el buscador de colaboradores del
+     * formulario ({id, type, user}), más la hora de entrada y si ya marcó salida.
+     */
+    public function asignacion()
+    {
+        $this->authorize('talento.work_orders.view');
+
+        $query = TalentoColaborador::activos()->with('user:id,name,father_last_name,mother_last_name');
+        if (! auth()->user()->can('talento.work_orders.manage')) {
+            $propio = Actor::for(auth()->user())->talento();
+            abort_unless($propio, 403, 'No tienes permiso para asignar órdenes de trabajo.');
+            $query->where('supervisor_id', $propio->id);
+        }
+
+        $hoy = now()->toDateString();
+        $marcas = DB::table('talento_attendances')
+            ->whereDate('check_in_at', $hoy)
+            ->orderBy('check_in_at')
+            ->get(['colaborador_id', 'check_in_at', 'check_out_at'])
+            ->groupBy('colaborador_id');
+
+        $presentes = $query->whereIn('id', $marcas->keys())->get()
+            ->map(function (TalentoColaborador $c) use ($marcas) {
+                $suyas = $marcas[$c->id];
+                return [
+                    'id'      => $c->id,
+                    'type'    => $c->type,
+                    'user'    => $c->user?->only(['name', 'father_last_name', 'mother_last_name']),
+                    'entrada' => Carbon::parse($suyas->first()->check_in_at)->format('H:i'),
+                    // Ya se fue si su última marca del día tiene salida.
+                    'salio'   => $suyas->last()->check_out_at !== null,
+                ];
+            })
+            // Primero quienes siguen trabajando, por hora de llegada; al final los que ya se fueron.
+            ->sortBy(fn ($p) => ($p['salio'] ? '1' : '0') . $p['entrada'])
+            ->values();
+
+        return response()->json([
+            'fecha'     => $hoy,
+            'presentes' => $presentes,
+            // #1325: si se pueden poner auxiliares y cómo se reparten los puntos (para avisarlo al asignar).
+            'equipo'    => [
+                'activo'         => OrdenEquipo::activo(),
+                'max_auxiliares' => OrdenEquipo::MAX_AUXILIARES,
+                'reparto'        => OrdenEquipo::reparto(),
+            ],
+        ]);
     }
 
     public function types()

@@ -9,12 +9,16 @@ use App\Modules\Addons\Talento\Services\AttendanceService;
 use App\Modules\Addons\Talento\Models\TalentoCompensationRule;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
+use App\Modules\Addons\Talento\Models\TalentoWorkOrderMedia;
+use App\Modules\Addons\Talento\Services\FieldMediaService;
 use App\Modules\Addons\Talento\Services\GeocodingService;
+use App\Modules\Addons\Talento\Services\IncidenciasOrdenService;
 use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
 use App\Services\Security\PasswordService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Gateway para la app móvil "Talento Equipo" (React Native).
@@ -391,6 +395,22 @@ class TalentoMobileApiController extends Controller
         return response()->json(['ot' => $detail]);
     }
 
+    /**
+     * 11-nov-2026 (#1327): la foto de una evidencia para la app. La ruta va firmada (1 hora) y el
+     * enlace solo lo arma el detalle de una orden asignada a quien lo pide; los documentos
+     * sensibles (INE, comprobante de domicilio) no se sirven por aquí.
+     */
+    public function evidenciaFotoFirmada(int $id)
+    {
+        $media = TalentoWorkOrderMedia::findOrFail($id);
+        abort_if($media->isSensitive(), 404);
+
+        $path = app(FieldMediaService::class)->resolvePath($media);
+        abort_unless(Storage::disk('local')->exists($path), 404, 'Archivo no encontrado.');
+
+        return Storage::disk('local')->response($path, null, ['Cache-Control' => 'private, max-age=3600']);
+    }
+
     // ── Health / tenant (sin auth — para validar URL antes de login) ─────────
 
     public function health()
@@ -661,7 +681,8 @@ class TalentoMobileApiController extends Controller
     public function reportarIncidencia(Request $request, int $id)
     {
         $request->validate([
-            'motivo'      => 'required|in:cliente_ausente,sin_acceso,falta_material,olt_sin_senal,riesgo,otro',
+            // #1326: misma lista que IncidenciasOrdenService (incluye «El cliente canceló»).
+            'motivo'      => 'required|in:' . implode(',', array_keys(IncidenciasOrdenService::MOTIVOS)),
             'nota'        => 'nullable|string|max:1000',
             'lat'         => 'nullable|numeric',
             'lng'         => 'nullable|numeric',

@@ -216,6 +216,9 @@ class AgendaOrdenesService
                 'a'         => $nuevo->format('Y-m-d H:i'),
                 'atrasada'  => $eraAtrasada,
             ]);
+
+            // #1326: reprogramarla atiende la incidencia que la tenía con el supervisor.
+            app(IncidenciasOrdenService::class)->atender($task->id, 'reprogramada', $actorId);
         });
 
         return ['ok' => true, 'fecha' => $nuevo->toDateString(), 'hora' => $nuevo->format('H:i') !== '00:00' ? $nuevo->format('H:i') : null];

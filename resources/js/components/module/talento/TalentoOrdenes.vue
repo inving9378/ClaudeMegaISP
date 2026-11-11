@@ -10,6 +10,10 @@
             <button type="button" :class="{ activo: !vistaAgenda }" @click="ponerVista(false)"><i class="fa fa-list me-1"></i>Lista</button>
             <button type="button" :class="{ activo: vistaAgenda }" @click="ponerVista(true)"><i class="fa fa-calendar-alt me-1"></i>Agenda</button>
           </div>
+          <!-- #1326: órdenes que el técnico no pudo completar y esperan al supervisor. -->
+          <button v-if="conIncidencia > 0 && !vistaAgenda" type="button" class="tc-btn tc-btn-bad" @click="verIncidencias">
+            <i class="fa fa-exclamation-triangle me-1"></i>{{ conIncidencia }} con incidencia
+          </button>
           <button v-if="puedeCrear" @click="openCreate" class="tc-btn tc-btn-ok">
             <i class="fa fa-plus me-1"></i> Nueva orden
           </button>
@@ -40,6 +44,7 @@
               <option value="validated">Validada</option>
               <option value="cancelled">Cancelada</option>
               <option value="atrasadas">Atrasadas (ya pasó su día)</option>
+              <option value="incidencia">Con incidencia (esperan al supervisor)</option>
             </select>
           </div>
           <div class="col-6 col-sm-6 col-md-2">
@@ -84,6 +89,9 @@
                 <td class="text-muted small">{{ o.id }}</td>
                 <td>
                   <div class="fw-semibold small">{{ fullName(o.colaborador?.user) }}</div>
+                  <div v-if="o.auxiliares?.length" class="small text-muted" :title="'Auxiliares: ' + nombresAuxiliares(o)">
+                    + {{ o.auxiliares.length === 1 ? o.auxiliares[0].nombre : `${o.auxiliares.length} auxiliares` }}
+                  </div>
                 </td>
                 <td>
                   <!-- Las órdenes asignadas desde la ficha del cliente no decían de quién eran (2026-10-27). -->
@@ -115,10 +123,15 @@
                   <template v-else>
                     <span class="tc-status" :class="statusBadge(o.status)">{{ statusLabel(o.status) }}</span>
                     <span v-if="o.atrasada" class="ord-atrasada" title="Ya pasó su día y no se ha terminado">Atrasada</span>
+                    <div v-if="o.incidencia" class="mt-1">
+                      <span class="ord-incidencia">Incidencia</span>
+                      <div class="small text-muted">{{ o.incidencia.motivo_texto }}</div>
+                    </div>
                   </template>
                 </td>
                 <td class="text-end">
-                  <button @click="viewOrder(o)" class="tc-btn tc-btn-info me-1">Ver</button>
+                  <button v-if="o.incidencia && !o.eliminada" @click="viewOrder(o)" class="tc-btn tc-btn-bad me-1">Atender</button>
+                  <button v-else @click="viewOrder(o)" class="tc-btn tc-btn-info me-1">Ver</button>
                   <button v-if="puedeCrear && o.atrasada && !o.eliminada" @click="abrirReprogramar(o)" class="tc-btn tc-btn-bad me-1">Reprogramar</button>
                   <!-- David (29-sep): "Validar"/"Iniciar"/"Completar" son
                        acciones de GESTIÓN (backend: talento.work_orders.
@@ -129,7 +142,7 @@
                        SU PROPIA orden desde la app móvil de campo, no
                        desde aquí. Mismo flag que ya gatea "Nueva orden". -->
                   <button v-if="puedeCrear && o.status === 'completed' && !o.eliminada" @click="openValidate(o)" class="tc-btn tc-btn-ok me-1">Validar</button>
-                  <button v-if="puedeCrear && canAdvance(o.status) && !o.eliminada" @click="advanceStatus(o)" class="tc-btn tc-btn-primary">
+                  <button v-if="puedeCrear && canAdvance(o.status) && !o.eliminada && !o.incidencia" @click="advanceStatus(o)" class="tc-btn tc-btn-primary">
                     {{ nextStatusLabel(o.status) }}
                   </button>
                   <!-- #1225: Editar y Eliminar solo mientras está Pendiente (Atrasada incluida), en un menú para no
@@ -174,43 +187,22 @@
           </div>
           <div class="modal-body">
             <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label">Colaborador <span class="text-danger">*</span></label>
-                <!-- Dentro de la ficha de un colaborador (colaboradorId presente): fija,
-                     sin buscador — un supervisor sin acceso al roster completo no puede
-                     ni debe buscar A OTROS, solo crear para éste. -->
-                <div v-if="colaboradorId && !createModal.editId" class="form-control-plaintext small">
-                  <i class="fa fa-check-circle text-success me-1"></i>{{ createModal.colaborador_name }}
-                </div>
-                <template v-else>
-                  <input v-model="colSearch" @input="debounceColSearch" type="text" class="form-control"
-                         placeholder="Buscar colaborador…">
-                  <ul v-if="colSuggestions.length" class="list-group mt-1 position-absolute shadow" style="z-index:10001;max-height:180px;overflow-y:auto">
-                    <li v-for="c in colSuggestions" :key="c.id" @click="selectCol(c)"
-                        class="list-group-item list-group-item-action small cursor-pointer">
-                      {{ fullName(c.user) }} <span class="text-muted">· {{ c.type }}</span>
-                    </li>
-                  </ul>
-                  <div v-if="createModal.colaborador_id" class="mt-1 small text-success">
-                    <i class="fa fa-check-circle me-1"></i>{{ createModal.colaborador_name }}
-                  </div>
-                </template>
+              <!-- #1322: primero el área y después el tipo de esa área, como en Tareas. Solo al crear y
+                   cuando hay tipos de más de un área; los tipos de cliente son los de planta interna. -->
+              <div v-if="eligeArea" class="col-md-6">
+                <label class="form-label" for="no_area">Área <span class="text-danger">*</span></label>
+                <select id="no_area" v-model="createModal.area" class="form-select tc-select">
+                  <option :value="null">— Seleccionar —</option>
+                  <option v-for="a in areasDisponibles" :key="a.valor" :value="a.valor">{{ a.texto }}</option>
+                </select>
               </div>
               <div class="col-md-6">
-                <label class="form-label">Tipo de orden <span class="text-danger">*</span></label>
-                <select v-model="createModal.type_id" class="form-select tc-select" id="no_tipo" ref="tipoSelect" :disabled="tipoFijo">
-                  <option :value="null">— Seleccionar —</option>
-                  <!-- Item #1200: con tipos de planta externa, dos bloques; sin ellos, la lista de siempre.
-                       Al editar (#1225) solo salen los tipos a los que puede cambiar la orden. -->
-                  <template v-if="tiposPlantaExterna.length && !createModal.editId">
-                    <optgroup label="Cliente">
-                      <option v-for="t in tiposCliente" :key="t.id" :value="t.id">{{ t.name }}</option>
-                    </optgroup>
-                    <optgroup label="Planta externa">
-                      <option v-for="t in tiposPlantaExterna" :key="t.id" :value="t.id">{{ t.name }}</option>
-                    </optgroup>
-                  </template>
-                  <option v-else v-for="t in (createModal.editId ? tiposEdicion : activeTypes)" :key="t.id" :value="t.id">{{ t.name }}</option>
+                <label class="form-label" for="no_tipo">Tipo de orden <span class="text-danger">*</span></label>
+                <!-- Al editar (#1225) solo salen los tipos a los que puede cambiar la orden. -->
+                <select v-model="createModal.type_id" class="form-select tc-select" id="no_tipo" ref="tipoSelect"
+                        :disabled="tipoFijo || (eligeArea && !createModal.area)">
+                  <option :value="null">{{ eligeArea && !createModal.area ? '— Elige primero el área —' : '— Seleccionar —' }}</option>
+                  <option v-for="t in tiposDelFormulario" :key="t.id" :value="t.id">{{ t.name }}</option>
                 </select>
                 <div v-if="selectedType" class="mt-1 small text-muted">
                   {{ selectedType.points }} pts
@@ -223,6 +215,58 @@
                      class="mt-1 small fw-semibold ord-pts-cambio">
                   PTS: {{ createModal.puntosActuales }} → {{ selectedType.points }}
                 </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Colaborador <span class="text-danger">*</span></label>
+                <!-- Dentro de la ficha de un colaborador (colaboradorId presente): fija,
+                     sin buscador — un supervisor sin acceso al roster completo no puede
+                     ni debe buscar A OTROS, solo crear para éste. -->
+                <div v-if="colaboradorId && !createModal.editId" class="form-control-plaintext small">
+                  <i class="fa fa-check-circle text-success me-1"></i>{{ createModal.colaborador_name }}
+                </div>
+                <template v-else>
+                  <input v-model="colSearch" @input="debounceColSearch" @focus="abrirListaCol" @blur="cerrarListaColDespues"
+                         type="text" class="form-control" placeholder="Buscar colaborador…">
+                  <!-- #1324: sin escribir, quienes marcaron asistencia hoy; al buscar, ellos primero. -->
+                  <ul v-if="listaColAbierta && sugerenciasCol.length" class="list-group mt-1 position-absolute shadow" style="z-index:10001;max-height:220px;overflow-y:auto">
+                    <li v-if="!colSearch.trim()" class="list-group-item prosp-group-header small fw-semibold py-1">Marcaron asistencia hoy</li>
+                    <li v-for="c in sugerenciasCol" :key="c.id" @mousedown.prevent="selectCol(c)"
+                        class="list-group-item list-group-item-action small cursor-pointer">
+                      {{ fullName(c.user) }} <span class="text-muted">· {{ c.type }}</span>
+                      <span v-if="presente(c.id)" class="ord-presente ms-1" :class="{ salio: presente(c.id).salio }">
+                        {{ presente(c.id).salio ? `Salió · llegó ${presente(c.id).entrada}` : `Llegó ${presente(c.id).entrada}` }}
+                      </span>
+                    </li>
+                  </ul>
+                  <div v-if="createModal.colaborador_id" class="mt-1 small text-success">
+                    <i class="fa fa-check-circle me-1"></i>{{ createModal.colaborador_name }}
+                  </div>
+                  <div v-else-if="presentesCargados && !presentes.length" class="form-text">Nadie ha marcado asistencia hoy; busca por nombre.</div>
+                </template>
+              </div>
+              <!-- #1325: auxiliares del responsable (equipos de 2 a 6). Solo con órdenes en equipo activas. -->
+              <div v-if="equipo.activo" class="col-12 position-relative">
+                <label class="form-label" for="no_aux">Auxiliares <span class="text-muted small">(opcional, hasta {{ equipo.max_auxiliares }})</span></label>
+                <div v-if="createModal.auxiliares.length" class="d-flex flex-wrap gap-1 mb-1">
+                  <span v-for="a in createModal.auxiliares" :key="a.id" class="ord-aux">
+                    {{ a.nombre }}
+                    <button type="button" class="ord-aux-quitar" :aria-label="`Quitar a ${a.nombre}`" @click="quitarAuxiliar(a.id)">&times;</button>
+                  </span>
+                </div>
+                <input v-if="createModal.auxiliares.length < equipo.max_auxiliares" id="no_aux" v-model="auxSearch"
+                       @input="debounceAuxSearch" @focus="abrirListaAux" @blur="cerrarListaAuxDespues"
+                       type="text" class="form-control" placeholder="Agregar auxiliar…">
+                <ul v-if="listaAuxAbierta && sugerenciasAux.length" class="list-group mt-1 position-absolute shadow" style="z-index:10001;max-height:220px;overflow-y:auto">
+                  <li v-if="!auxSearch.trim()" class="list-group-item prosp-group-header small fw-semibold py-1">Marcaron asistencia hoy</li>
+                  <li v-for="c in sugerenciasAux" :key="c.id" @mousedown.prevent="agregarAuxiliar(c)"
+                      class="list-group-item list-group-item-action small cursor-pointer">
+                    {{ fullName(c.user) }} <span class="text-muted">· {{ c.type }}</span>
+                    <span v-if="presente(c.id)" class="ord-presente ms-1" :class="{ salio: presente(c.id).salio }">
+                      {{ presente(c.id).salio ? `Salió · llegó ${presente(c.id).entrada}` : `Llegó ${presente(c.id).entrada}` }}
+                    </span>
+                  </li>
+                </ul>
+                <div class="form-text">{{ textoReparto }}</div>
               </div>
               <!-- Item #1200: planta externa no lleva prospecto; el cliente es solo la referencia de la caja. -->
               <div v-if="esPlantaExterna" class="col-md-6 position-relative">
@@ -397,6 +441,9 @@
               <div class="col-md-2"><strong>Pts:</strong> {{ detail.order.points }}</div>
               <div class="col-md-3"><strong>Estado:</strong> <span class="tc-status" :class="statusBadge(detail.order.status)">{{ statusLabel(detail.order.status) }}</span></div>
               <div class="col-md-3"><strong>Agendada:</strong> {{ fechaAgenda(detail.order.scheduled_at) }}</div>
+              <div class="col-12" v-if="detail.order.auxiliares?.length">
+                <strong>Auxiliares:</strong> {{ nombresAuxiliares(detail.order) }}
+              </div>
               <div class="col-md-4" v-if="detail.order.cliente?.nombre">
                 <strong>{{ detail.order.type?.area === 'planta_externa' ? 'Cliente de referencia:' : 'Cliente:' }}</strong>
                 <a v-if="puedeAbrirCliente" :href="`/cliente/editar/${detail.order.cliente.id}`">{{ detail.order.cliente.nombre }}</a>
@@ -415,6 +462,15 @@
                 <div class="alert alert-secondary py-2 small mb-0">
                   <i class="fa fa-trash-alt me-1"></i>Eliminada el {{ formatDatetime(detail.order.eliminada.cuando) }}
                   por {{ detail.order.eliminada.por || 'alguien' }}. Motivo: {{ detail.order.eliminada.motivo }}
+                </div>
+              </div>
+              <!-- #1326: el técnico no pudo completarla; la orden está con el supervisor. -->
+              <div class="col-12" v-if="detail.order.incidencia && !detail.order.eliminada">
+                <div class="alert alert-warning py-2 small mb-0">
+                  <div class="fw-semibold"><i class="fa fa-exclamation-triangle me-1"></i>No se pudo completar: {{ detail.order.incidencia.motivo_texto }}</div>
+                  <div v-if="detail.order.incidencia.nota">{{ detail.order.incidencia.nota }}</div>
+                  <div class="text-muted">{{ detail.order.incidencia.por || 'El técnico' }} · {{ formatDatetime(detail.order.incidencia.cuando) }}</div>
+                  <div class="mt-1">Está con el supervisor: reprográmala, edítala para cambiar de persona, elimínala o regrésala al técnico como está.</div>
                 </div>
               </div>
               <div class="col-12" v-if="detail.order.atrasada && !detail.order.eliminada">
@@ -475,6 +531,10 @@
             <!-- #1225: también desde la vista Agenda, que abre este mismo detalle. -->
             <button v-if="esEditable(detail.order) && puedeEditarOrden" @click="abrirEditar(detail.order)" class="btn btn-outline-primary">
               <i class="fa fa-pencil-alt me-1"></i>Editar
+            </button>
+            <button v-if="detail.order?.incidencia && !detail.order.eliminada && puedeEditarOrden" @click="regresarAlTecnico(detail.order)"
+                    class="btn btn-outline-secondary" :disabled="regresando">
+              <span v-if="regresando" class="spinner-border spinner-border-sm me-1"></span><i v-else class="fa fa-undo me-1"></i>Regresar al técnico
             </button>
             <button v-if="esEditable(detail.order) && puedeEliminarOrden" @click="abrirEliminar(detail.order)" class="btn btn-danger">
               <i class="fa fa-trash-alt me-1"></i>Eliminar
@@ -674,11 +734,14 @@ export default {
       permisosOrdenes: {},
       orders: [],
       types: [],
+      // #1326: órdenes con incidencia sin atender (lo manda la lista) y el botón «Regresar al técnico».
+      conIncidencia: 0,
+      regresando: false,
       loading: true,
       pagination: { current_page: 1, last_page: 1 },
       filters: { search: '', prospecto: '', status: '', type_id: '', from: '', to: '', eliminadas: false },
       searchTimeout: null,
-      createModal: { show: false, editId: null, colaborador_id: null, colaborador_name: '', type_id: null, scheduled_at: '', notes: '', saving: false, error: '', choque: null, crm_lead_id: null, crm_lead_name: '', client_id: null, client_name: '', client_dir: null, vinculos: [], original: null, tipoOriginal: null, puntosActuales: null, desdeDetalle: false, template_id: null, datos: {}, cliente_ref: null, conPlantilla: false },
+      createModal: { show: false, editId: null, colaborador_id: null, colaborador_name: '', type_id: null, scheduled_at: '', notes: '', saving: false, error: '', choque: null, crm_lead_id: null, crm_lead_name: '', client_id: null, client_name: '', client_dir: null, vinculos: [], original: null, tipoOriginal: null, puntosActuales: null, desdeDetalle: false, template_id: null, datos: {}, cliente_ref: null, conPlantilla: false, area: null, auxiliares: [] },
       // #1225: editar / eliminar una orden pendiente.
       eliminarModal: { show: false, order: null, motivo: '', detalle: '', saving: false, error: '' },
       motivosEliminacion: MOTIVOS_ELIMINACION,
@@ -691,6 +754,7 @@ export default {
       intentoGuardar: false,
       erroresServidor: {},
       revirtiendoTipo: false,
+      revirtiendoArea: false,
       clienteRefSearch: '',
       clienteRefSuggestions: [],
       clienteRefListOpen: false,
@@ -704,6 +768,18 @@ export default {
       colSearch: '',
       colSuggestions: [],
       colSearchTimeout: null,
+      // #1324: quienes marcaron asistencia hoy (GET /talento/api/ordenes/asignacion).
+      presentes: [],
+      presentesCargados: false,
+      listaColAbierta: false,
+      colCloseTimeout: null,
+      // #1325: órdenes en equipo (lo dice GET /talento/api/ordenes/asignacion) y el buscador de auxiliares.
+      equipo: { activo: false, max_auxiliares: 5, reparto: { activo: false, responsable: 100, auxiliar: 100 } },
+      auxSearch: '',
+      auxSuggestions: [],
+      auxSearchTimeout: null,
+      listaAuxAbierta: false,
+      auxCloseTimeout: null,
       // #9991201/#9991204: dropdown de prospecto CRM en el modal de crear orden.
       prospSearch: '',
       prospSuggestions: { propios: [], generales: [] },
@@ -714,12 +790,26 @@ export default {
       clientSuggestions: [],
     };
   },
-  watch: {
-    // #1227: el aviso de choque deja de ser cierto en cuanto se cambia la fecha o la persona.
-    'createModal.scheduled_at'() { this.limpiarChoque(); },
-    'createModal.colaborador_id'() { this.limpiarChoque(); },
-  },
   computed: {
+    // #1325: lo que se puede agregar como auxiliar: ni el responsable ni quien ya está.
+    sugerenciasAux() {
+      const fuera = new Set([this.createModal.colaborador_id, ...(this.createModal.auxiliares || []).map(a => a.id)]);
+      const base = this.auxSearch.trim()
+        ? [...this.auxSuggestions].sort((a, b) => (this.presente(b.id) ? 1 : 0) - (this.presente(a.id) ? 1 : 0))
+        : this.presentes;
+      return base.filter(c => !fuera.has(c.id));
+    },
+    // #1325: cómo se pagan los puntos con auxiliares, tal como está configurado hoy.
+    textoReparto() {
+      const r = this.equipo.reparto || {};
+      if (r.activo) return `Los auxiliares ven la orden en su app. Puntos: el responsable recibe ${r.responsable} % y cada auxiliar ${r.auxiliar} % de los puntos de la orden.`;
+      return 'Los auxiliares ven la orden en su app. Mientras no se active el reparto por rol, cada integrante recibe los puntos completos de la orden.';
+    },
+    // #1324: sin texto, quienes marcaron asistencia hoy; con texto, lo encontrado con ellos primero.
+    sugerenciasCol() {
+      if (!this.colSearch.trim()) return this.presentes;
+      return [...this.colSuggestions].sort((a, b) => (this.presente(b.id) ? 1 : 0) - (this.presente(a.id) ? 1 : 0));
+    },
     // #1228: ya hay cliente o prospecto elegido (el buscador se bloquea hasta quitarlo).
     vinculoElegido() { return !!(this.createModal.crm_lead_id || this.createModal.client_id); },
     // La orden trae ticket, ONU o servicio del cliente actual: no se le cambia el cliente (el servidor también lo rechaza).
@@ -769,9 +859,20 @@ export default {
       const m = this.eliminarModal;
       return !!m.motivo && (m.motivo !== 'otro' || m.detalle.trim() !== '');
     },
-    // Item #1200: tipos de cliente (los de siempre) y de planta externa.
-    tiposCliente() { return this.activeTypes.filter(t => (t.area || 'cliente') !== 'planta_externa'); },
-    tiposPlantaExterna() { return this.activeTypes.filter(t => t.area === 'planta_externa'); },
+    // #1322: áreas que tienen tipos activos; planta interna primero, que es la de casi todas las órdenes.
+    // Los tipos de cliente (instalación, soporte, cambio de equipo, reubicación, baja) son los de planta interna.
+    areasDisponibles() {
+      const etiquetas = { cliente: 'Planta interna', planta_externa: 'Planta externa' };
+      return [...new Set(this.activeTypes.map(t => t.area || 'cliente'))]
+        .map(valor => ({ valor, texto: etiquetas[valor] || valor }))
+        .sort((a, b) => (a.valor === 'cliente' ? -1 : b.valor === 'cliente' ? 1 : a.texto.localeCompare(b.texto, 'es')));
+    },
+    eligeArea() { return !this.createModal.editId && this.areasDisponibles.length > 1; },
+    tiposDelFormulario() {
+      if (this.createModal.editId) return this.tiposEdicion;
+      if (!this.eligeArea) return this.activeTypes;
+      return this.activeTypes.filter(t => (t.area || 'cliente') === this.createModal.area);
+    },
     esPlantaExterna() { return this.selectedType?.area === 'planta_externa'; },
     plantillaSel() { return this.plantillas.find(p => p.id === this.createModal.template_id) || null; },
     camposCreacion() { return camposDe(this.plantillaSel?.fields, 'creacion'); },
@@ -814,6 +915,10 @@ export default {
     },
   },
   watch: {
+    // #1227: el aviso de choque deja de ser cierto en cuanto se cambia la fecha o la persona. Hasta el
+    // 11-nov este par vivía en un segundo `watch:` del componente, que este de abajo pisaba.
+    'createModal.scheduled_at'() { this.limpiarChoque(); },
+    'createModal.colaborador_id'() { this.limpiarChoque(); },
     // Item #1200: al cambiar de tipo se limpian plantilla y datos; si se perdería algo ya capturado,
     // se pide confirmación. Entre tipos de cliente no se pierde nada: se comporta como siempre.
     'createModal.type_id'(nuevo, viejo) {
@@ -836,6 +941,18 @@ export default {
         return;
       }
       this.prepararTipo();
+    },
+    // #1322: al cambiar de área, el tipo de otra área se quita (el watch del tipo pide confirmación si
+    // se pierden datos; si la cancelan, el área vuelve a la anterior).
+    'createModal.area'(nueva, vieja) {
+      if (this.revirtiendoArea) { this.revirtiendoArea = false; return; }
+      if (!this.createModal.show || this.createModal.editId) return;
+      const tipo = this.selectedType;
+      if (!tipo || (tipo.area || 'cliente') === nueva) return;
+      this.createModal.type_id = null;
+      this.$nextTick(() => {
+        if (this.createModal.type_id === tipo.id) { this.revirtiendoArea = true; this.createModal.area = vieja; }
+      });
     },
     'createModal.template_id'() {
       if (this.createModal.editId) return;
@@ -870,6 +987,7 @@ export default {
         if (this.colaboradorId) params.colaborador_id = this.colaboradorId;
         const { data } = await axios.get('/talento/api/ordenes', { params });
         this.orders = data?.data ?? [];
+        this.conIncidencia = data?.con_incidencia ?? 0;
         this.pagination = { current_page: data?.current_page ?? 1, last_page: data?.last_page ?? 1 };
       } finally { this.loading = false; }
     },
@@ -887,8 +1005,10 @@ export default {
         colaborador_name: this.colaboradorId ? this.colaboradorNombre : '',
         type_id: null, scheduled_at: '', notes: '', saving: false, error: '', choque: null, crm_lead_id: null, crm_lead_name: '',
         editId: null, client_id: null, client_name: '', client_dir: null, vinculos: [], original: null, tipoOriginal: null, puntosActuales: null, desdeDetalle: false,
-        template_id: null, datos: {}, cliente_ref: null, conPlantilla: false,
+        template_id: null, datos: {}, cliente_ref: null, conPlantilla: false, area: null, auxiliares: [],
       };
+      this.auxSearch = '';
+      this.auxSuggestions = [];
       this.clientSuggestions = [];
       this.plantillas = [];
       this.intentoGuardar = false;
@@ -897,11 +1017,64 @@ export default {
       this.clienteRefSuggestions = [];
       this.colSearch = '';
       this.colSuggestions = [];
+      this.listaColAbierta = false;
       this.prospSearch = '';
       this.prospSuggestions = { propios: [], generales: [] };
       this.prospListOpen = false;
+      this.cargarPresentes();
+    },
+    // #1324: quienes marcaron asistencia hoy. Si falla, el buscador sigue funcionando igual que antes.
+    async cargarPresentes() {
+      this.presentesCargados = false;
+      try {
+        const { data } = await axios.get('/talento/api/ordenes/asignacion');
+        this.presentes = data?.presentes ?? [];
+        if (data?.equipo) this.equipo = data.equipo;
+        this.presentesCargados = true;
+      } catch (e) {
+        this.presentes = [];
+      }
+    },
+    presente(id) { return this.presentes.find(p => p.id === id) || null; },
+    // ── Auxiliares (#1325) ───────────────────────────────────────────
+    nombresAuxiliares(o) { return (o.auxiliares || []).map(a => a.nombre).join(', '); },
+    abrirListaAux() {
+      clearTimeout(this.auxCloseTimeout);
+      this.listaAuxAbierta = true;
+    },
+    cerrarListaAuxDespues() {
+      this.auxCloseTimeout = setTimeout(() => { this.listaAuxAbierta = false; }, 200);
+    },
+    debounceAuxSearch() {
+      this.listaAuxAbierta = true;
+      clearTimeout(this.auxSearchTimeout);
+      this.auxSearchTimeout = setTimeout(() => this.searchAux(), 300);
+    },
+    async searchAux() {
+      const texto = this.auxSearch.trim();
+      if (!texto) { this.auxSuggestions = []; return; }
+      const { data } = await axios.get('/talento/api/colaboradores', { params: { search: texto, per_page: 10 } });
+      if (texto === this.auxSearch.trim()) this.auxSuggestions = data?.data ?? [];
+    },
+    agregarAuxiliar(c) {
+      if (this.createModal.auxiliares.length >= this.equipo.max_auxiliares) return;
+      this.createModal.auxiliares.push({ id: c.id, nombre: this.fullName(c.user) });
+      this.auxSearch = '';
+      this.auxSuggestions = [];
+      this.listaAuxAbierta = false;
+    },
+    quitarAuxiliar(id) {
+      this.createModal.auxiliares = (this.createModal.auxiliares || []).filter(a => a.id !== id);
+    },
+    abrirListaCol() {
+      clearTimeout(this.colCloseTimeout);
+      this.listaColAbierta = true;
+    },
+    cerrarListaColDespues() {
+      this.colCloseTimeout = setTimeout(() => { this.listaColAbierta = false; }, 200);
     },
     debounceColSearch() {
+      this.listaColAbierta = true;
       clearTimeout(this.colSearchTimeout);
       this.colSearchTimeout = setTimeout(() => this.searchCols(), 300);
     },
@@ -925,6 +1098,8 @@ export default {
       this.createModal.colaborador_name = this.fullName(c.user);
       this.colSearch = this.fullName(c.user);
       this.colSuggestions = [];
+      this.listaColAbierta = false;
+      this.quitarAuxiliar(c.id);
       // El colaborador cambió → los "propios" del prospecto quedaron obsoletos.
       this.prospSuggestions = { propios: [], generales: [] };
     },
@@ -1052,6 +1227,7 @@ export default {
       this.createModal.error = '';
       this.createModal.choque = null;
       if (!this.createModal.colaborador_id) { this.createModal.error = 'Selecciona un colaborador.'; return; }
+      if (this.eligeArea && !this.createModal.area) { this.createModal.error = 'Elige el área de la orden.'; return; }
       if (!this.createModal.type_id) { this.createModal.error = 'Selecciona un tipo de orden.'; return; }
       if (!this.createModal.scheduled_at) { this.createModal.error = 'Elige el día de la orden.'; return; }
       if (this.createModal.editId) { await this.guardarEdicion(); return; }
@@ -1062,6 +1238,7 @@ export default {
         notes:          this.createModal.notes || null,
         crm_lead_id:    this.createModal.crm_lead_id || null,
       };
+      if (this.equipo.activo && this.createModal.auxiliares.length) payload.auxiliares = this.createModal.auxiliares.map(a => a.id);
       // Item #1200: planta externa manda plantilla, datos y cliente de referencia (sin prospecto).
       if (this.esPlantaExterna) {
         if (this.plantillas.length && !this.createModal.template_id) { this.createModal.error = 'Elige la plantilla de la orden.'; return; }
@@ -1262,8 +1439,11 @@ export default {
         template_id: d.datos?.template_id ?? null, datos: { ...(d.datos?.valores || {}) },
         cliente_ref: plantaExterna && d.cliente ? { id: d.cliente.id, nombre: d.cliente.nombre } : null,
         conPlantilla,
+        auxiliares: (d.auxiliares || []).filter(a => a.colaborador_id).map(a => ({ id: a.colaborador_id, nombre: a.nombre })),
         saving: false, error: '', choque: null,
       };
+      this.auxSearch = '';
+      this.auxSuggestions = [];
       // Lo que tenía al abrir, para mostrar qué cambiará al guardar (#1228).
       const m = this.createModal;
       m.original = { client_id: m.client_id, client_name: m.client_name, client_dir: m.client_dir, crm_lead_id: m.crm_lead_id, crm_lead_name: m.crm_lead_name };
@@ -1272,6 +1452,8 @@ export default {
       this.clienteRefSuggestions = [];
       this.colSearch = this.createModal.colaborador_name;
       this.colSuggestions = [];
+      this.listaColAbierta = false;
+      this.cargarPresentes();
       this.prospSearch = d.prospecto?.nombre || d.cliente?.nombre || '';
       this.prospSuggestions = { propios: [], generales: [] };
       this.prospListOpen = false;
@@ -1286,6 +1468,8 @@ export default {
         crm_lead_id:    m.crm_lead_id || null,
         client_id:      m.client_id || null,
       };
+      // #1325: con órdenes en equipo se mandan siempre (vacío = quitar a todos los auxiliares).
+      if (this.equipo.activo) payload.auxiliares = (m.auxiliares || []).map(a => a.id);
       // #1200: planta externa manda el cliente de referencia (sin prospecto) y, con plantilla,
       // todos sus campos de creación.
       if (this.esPlantaExterna) {
@@ -1317,7 +1501,9 @@ export default {
     abrirEliminar(o) {
       this.cerrarMenu();
       this.detail.show = false;
-      this.eliminarModal = { show: true, order: o, motivo: '', detalle: '', saving: false, error: '' };
+      // #1326: si el técnico reportó que el cliente canceló, ese es el motivo propuesto.
+      const motivo = o.incidencia?.motivo === 'cliente_cancelo' ? 'cliente_cancelo' : '';
+      this.eliminarModal = { show: true, order: o, motivo, detalle: '', saving: false, error: '' };
     },
     cerrarEliminar() {
       if (!this.eliminarModal.saving) this.eliminarModal.show = false;
@@ -1338,6 +1524,23 @@ export default {
         if (this.yaNoPendiente(e)) return;
         m.error = this.mensajeError(e, 'No se pudo eliminar la orden.');
       } finally { m.saving = false; }
+    },
+    // ── Bandeja de incidencias (#1326) ───────────────────────────────
+    verIncidencias() {
+      this.filters.status = 'incidencia';
+      this.load();
+    },
+    async regresarAlTecnico(o) {
+      this.regresando = true;
+      try {
+        const { data } = await axios.post(`/talento/api/ordenes/${o.id}/incidencia/regresar`);
+        this.detail = { show: true, order: data, ref: o.id };
+        this.refrescar();
+        Swal.fire({ icon: 'success', title: `Orden #${o.id} regresada al técnico`, timer: 1800, showConfirmButton: false });
+      } catch (e) {
+        Swal.fire({ icon: 'error', title: this.mensajeError(e, 'No se pudo regresar la orden.') });
+        this.refrescar();
+      } finally { this.regresando = false; }
     },
     formatDatetime(d) {
       if (!d) return '—';
@@ -1390,6 +1593,51 @@ export default {
   color: #fff;
   font-size: 11px;
   font-weight: 600;
+}
+/* #1326: orden con incidencia sin atender. */
+.ord-incidencia {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: #ff8f00;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+/* #1325: auxiliares elegidos. */
+.ord-aux {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 10px;
+  border-radius: 12px;
+  background: #e3f2fd;
+  color: #0d47a1;
+  font-size: 12px;
+  font-weight: 600;
+}
+.ord-aux-quitar {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+}
+/* #1324: llegó hoy (verde) o ya salió (gris) en el buscador de colaborador. */
+.ord-presente {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: #e8f5e9;
+  color: #1b5e20;
+  font-size: 11px;
+  font-weight: 600;
+}
+.ord-presente.salio {
+  background: #eceff1;
+  color: #455a64;
 }
 .ord-menu-fondo {
   position: fixed;

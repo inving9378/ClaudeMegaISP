@@ -10,6 +10,7 @@ use App\Modules\Addons\Talento\Models\TalentoWorkOrderChecklistItem;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderData;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderType;
 use App\Modules\Addons\Talento\Support\EsquemaCamposOrden;
+use App\Modules\Addons\Talento\Support\OrdenEquipo;
 use App\Services\TaskScheduleService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -82,7 +83,10 @@ class OrdenPendienteService
                 return $this->falla(422, self::MSG_NO_EDITABLE) + ['ya_no_pendiente' => true];
             }
 
-            $usuarioAnterior = $task->users->first();
+            // #1325: con órdenes en equipo, la persona de la orden es el responsable, no cualquier asignado.
+            $responsableId   = OrdenEquipo::responsableUserId($task);
+            $usuarioAnterior = $task->users->firstWhere('id', $responsableId) ?? $task->users->first();
+            $auxAntes        = OrdenEquipo::auxiliaresUserIds($task);
             $tipoActual      = TalentoWorkOrderType::find($task->talento_type_id);
             $datosOrden      = TalentoWorkOrderData::where('tarea_id', $task->id)->lockForUpdate()->first();
             $plantaExterna   = (bool) $tipoActual?->esPlantaExterna();
@@ -146,12 +150,39 @@ class OrdenPendienteService
                 }
             }
 
+            // ── Auxiliares (#1325): si vienen, reemplazan a los de antes; si no, se conservan ──
+            $auxDespues = $auxAntes;
+            if (array_key_exists('auxiliares', $data) && is_array($data['auxiliares'])) {
+                $responsableColId = $colabNuevo?->id ?? (int) TalentoColaborador::where('user_id', $usuarioAnterior?->id)->value('id');
+                $resueltos = OrdenEquipo::resolverAuxiliares($data['auxiliares'], $responsableColId);
+                if (is_string($resueltos)) {
+                    return $this->falla(422, $resueltos);
+                }
+                $auxDespues = $resueltos->pluck('user_id')->map(fn ($u) => (int) $u)->all();
+            }
+            if ($colabNuevo) {
+                $auxDespues = array_values(array_diff($auxDespues, [(int) $colabNuevo->user_id]));
+            }
+            $auxEntran = array_values(array_diff($auxDespues, $auxAntes));
+            $auxSalen  = array_values(array_diff($auxAntes, $auxDespues));
+            if ($auxEntran || $auxSalen) {
+                $cambios['auxiliares'] = [self::nombres($auxAntes), self::nombres($auxDespues)];
+            }
+
             // ── Choque de agenda: solo si cambió la fecha/hora o la persona ──
             // Regla única compartida con Crear y Reprogramar (#1227): ChoqueAgendaOrdenes.
             if ($inicioFinal && ($colabNuevo || isset($cambios['fecha']))) {
                 $usuarioDestino = $colabNuevo ? $colabNuevo->user : $usuarioAnterior;
                 if ($choque = $this->choque->verificar($usuarioDestino, $inicioFinal, $task->id)) {
                     return $choque;
+                }
+            }
+            // #1325: los auxiliares que entran y, si cambió la fecha, todos.
+            if ($inicioFinal) {
+                foreach (User::whereIn('id', isset($cambios['fecha']) ? $auxDespues : $auxEntran)->get() as $auxiliar) {
+                    if ($choque = $this->choque->verificar($auxiliar, $inicioFinal, $task->id)) {
+                        return $choque;
+                    }
                 }
             }
 
@@ -254,9 +285,11 @@ class OrdenPendienteService
                 'updated_at' => now(),
             ]);
 
+            if ($colabNuevo || isset($cambios['auxiliares'])) {
+                // Sin órdenes en equipo es lo de siempre: solo el responsable en task_user y en participantes.
+                OrdenEquipo::asignar($task, (int) ($colabNuevo?->user_id ?? $usuarioAnterior?->id), $auxDespues);
+            }
             if ($colabNuevo) {
-                $task->users()->sync([$colabNuevo->user_id]);
-                app(OrderParticipantsService::class)->fijar('task', $task->id, $colabNuevo->user_id);
                 $this->unified->transicionar('task', $task->id, 'order.reassigned', null, null, $actorId, null,
                     ['assigned_by'], ['colaborador_id' => $colabNuevo->id]);
             }
@@ -269,13 +302,21 @@ class OrdenPendienteService
                 ]);
             }
 
+            // #1326: si estaba con el supervisor por una incidencia, editarla la atiende.
+            if ($cambios) {
+                app(IncidenciasOrdenService::class)->atender($task->id, 'editada', $actorId);
+            }
+
             return [
                 'ok'       => true,
                 'codigo'   => 200,
                 'cambios'  => array_keys($cambios),
                 '_avisos'  => [
                     'nuevo'    => $colabNuevo?->user,
-                    'anterior' => $colabNuevo ? $usuarioAnterior : null,
+                    // El responsable anterior que se quedó como auxiliar no recibe «retirada».
+                    'anterior' => $colabNuevo && ! in_array((int) $usuarioAnterior?->id, $auxDespues, true) ? $usuarioAnterior : null,
+                    'aux_entran' => User::whereIn('id', $auxEntran)->get()->all(),
+                    'aux_salen'  => User::whereIn('id', array_diff($auxSalen, [(int) $colabNuevo?->user_id]))->get()->all(),
                     'tipo'     => $tipoFinal?->name ?? 'Orden de trabajo',
                     'inicio'   => $inicioFinal,
                 ],
@@ -291,6 +332,12 @@ class OrdenPendienteService
             }
             if ($task && $a['anterior']) {
                 $this->avisos->retirada($task, $a['anterior'], $a['tipo'], $a['inicio']);
+            }
+            foreach ($task ? $a['aux_entran'] : [] as $usuario) {
+                $this->avisos->asignada($task, $usuario, $a['tipo'], $a['inicio'], 'al sumar auxiliar');
+            }
+            foreach ($task ? $a['aux_salen'] : [] as $usuario) {
+                $this->avisos->retirada($task, $usuario, $a['tipo'], $a['inicio']);
             }
         }
         unset($r['_avisos']);
@@ -336,6 +383,8 @@ class OrdenPendienteService
                 'updated_at'         => now(),
             ]);
             $task->delete(); // SoftDeletes: deleted_at = ahora.
+            // #1326: si estaba con el supervisor por una incidencia (p. ej. el cliente canceló), queda atendida.
+            app(IncidenciasOrdenService::class)->atender($task->id, 'eliminada', $actorId);
 
             TalentoOrderEventRecorder::registrar('task', $task->id, 'order.deleted', 'pending', 'deleted', $actorId, $texto, [
                 'motivo'          => $motivo,
@@ -509,6 +558,15 @@ class OrdenPendienteService
     private static function nombre(?User $u): ?string
     {
         return $u ? (trim($u->name . ' ' . $u->father_last_name) ?: "Usuario #{$u->id}") : null;
+    }
+
+    /** #1325: nombres de los auxiliares para el historial ("Sin auxiliares" si no hay). */
+    private static function nombres(array $userIds): string
+    {
+        $usuarios = User::whereIn('id', $userIds)->get()->keyBy('id');
+        $lista = array_filter(array_map(fn ($id) => self::nombre($usuarios[$id] ?? null), $userIds));
+
+        return $lista ? implode(', ', $lista) : 'Sin auxiliares';
     }
 
     private static function fecha(?Carbon $c): ?string
