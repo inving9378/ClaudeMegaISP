@@ -2462,6 +2462,7 @@ return [
     ],
     'talento.work_orders.view' => [
         '/talento/ordenes',
+        '/talento/api/ordenes/{id}/documentacion', // #1285: documentación y fotos en el detalle de la orden
         '/talento/campo',
         // Listar Y crear comparten path (el middleware no distingue método,
         // solo path) — el controller (store()) hace la distinción real:
@@ -3103,6 +3104,25 @@ return [
     // ══════════════════════════════════════════════════════════════════════════
     'test.script.ejecutar' => [
         '/log-client',
+    ],
+
+    // Item #1200 Fase C: pantalla «Plantillas de orden» (tipos y plantillas de planta externa).
+    // El controlador vuelve a exigir el permiso en su constructor.
+    'talento.work_order_templates.manage' => [
+        '/talento/plantillas-orden',
+        '/talento/api/plantillas-orden/catalogos',
+        '/talento/api/plantillas-orden/tipos',
+        '/talento/api/plantillas-orden/tipos/{id}',
+        '/talento/api/plantillas-orden/tipos/{id}/activo',
+        '/talento/api/plantillas-orden/tipos/{id}/plantillas',
+        '/talento/api/plantillas-orden/plantillas',
+        '/talento/api/plantillas-orden/vista-previa',
+        '/talento/api/plantillas-orden/plantillas/{id}',
+        '/talento/api/plantillas-orden/plantillas/{id}/activo',
+        '/talento/api/plantillas-orden/plantillas/{id}/duplicar',
+        '/talento/api/plantillas-orden/plantillas/{id}/mover',
+        '/talento/api/plantillas-orden/plantillas/{id}/exportar',
+        '/talento/api/plantillas-orden/importar',
     ],
 
 ];

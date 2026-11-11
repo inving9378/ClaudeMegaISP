@@ -87,4 +87,30 @@ class CommitsRetenidosTest extends TestCase
         $this->assertSame([['hash' => 'abc123', 'item' => '#7', 'motivo' => 'falta validar esto']], CommitsRetenidos::lista($archivo));
         $this->assertSame([], CommitsRetenidos::lista("{$this->repo}/no-existe.txt"));
     }
+
+    private function versionDeUnSoloCommit(): void
+    {
+        $arbol = trim((string) shell_exec($this->git . 'rev-parse HEAD^{tree}'));
+        $unico = trim((string) shell_exec($this->git . 'commit-tree ' . $arbol . ' -p V1 -m version 2>&1'));
+        shell_exec($this->git . 'tag V2 ' . $unico);
+    }
+
+    public function test_lo_detecta_en_una_version_de_un_solo_commit(): void
+    {
+        $hash = $this->commit('a.txt', 'contenido retenido largo');
+        $this->commit('b.txt', 'otro cambio posterior');
+        $this->versionDeUnSoloCommit();
+
+        $this->assertSame('contenido', CommitsRetenidos::en($this->repo, 'V2', $this->retenido($hash))[0]['via']);
+    }
+
+    public function test_version_de_un_solo_commit_sin_el_retenido_pasa(): void
+    {
+        $hash = $this->commit('a.txt', 'contenido retenido largo');
+        shell_exec($this->git . 'switch -q -c release V1');
+        $this->commit('r.txt', 'arreglo ajeno sin relacion');
+        $this->versionDeUnSoloCommit();
+
+        $this->assertSame([], CommitsRetenidos::en($this->repo, 'V2', $this->retenido($hash)));
+    }
 }

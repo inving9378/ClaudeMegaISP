@@ -775,3 +775,35 @@ Route::get('/talento/api/curso-imagen-firmada/{tipo}/{id}', [TalentoMobileEquipo
     ->whereIn('tipo', ['estandar', 'penalizacion'])
     ->whereNumber('id')
     ->name('talento.curso.imagen.firmada');
+
+// Item #1285: documentación de la orden en su detalle (Talento › Órdenes de trabajo › Ver):
+// evidencias obligatorias, fotos, dBm, nota, incidencias y cronología. Misma regla de acceso que el
+// detalle; las fotos además exigen talento.media.view.
+Route::middleware(['web', 'auth', 'check_route_permission'])
+    ->get('/talento/api/ordenes/{id}/documentacion', [\App\Modules\Addons\Talento\Controllers\TalentoOrdenDocumentacionController::class, 'index']);
+
+// Item #1200 Fase C: «Plantillas de orden» (tipos y plantillas de planta externa). Grupo propio para
+// no mezclarse con las rutas de órdenes; todas exigen talento.work_order_templates.manage (aquí, en
+// config/route_permission.php y en el constructor del controlador).
+$plantillasOrden = \App\Modules\Addons\Talento\Controllers\TalentoWorkOrderTemplateAdminController::class;
+Route::middleware(['web', 'auth', 'check_route_permission'])
+    ->get('/talento/plantillas-orden', [$plantillasOrden, 'index']);
+Route::middleware(['web', 'auth', 'check_route_permission'])
+    ->prefix('talento/api/plantillas-orden')
+    ->group(function () use ($plantillasOrden) {
+        Route::get('/catalogos',                  [$plantillasOrden, 'catalogos']);
+        Route::get('/tipos',                      [$plantillasOrden, 'tipos']);
+        Route::post('/tipos',                     [$plantillasOrden, 'guardarTipo']);
+        Route::put('/tipos/{id}',                 [$plantillasOrden, 'guardarTipo'])->whereNumber('id');
+        Route::patch('/tipos/{id}/activo',        [$plantillasOrden, 'activarTipo'])->whereNumber('id');
+        Route::get('/tipos/{id}/plantillas',      [$plantillasOrden, 'plantillas'])->whereNumber('id');
+        Route::post('/plantillas',                [$plantillasOrden, 'guardarPlantilla']);
+        Route::post('/vista-previa',              [$plantillasOrden, 'vistaPrevia']);
+        Route::get('/plantillas/{id}',            [$plantillasOrden, 'plantilla'])->whereNumber('id');
+        Route::put('/plantillas/{id}',            [$plantillasOrden, 'guardarPlantilla'])->whereNumber('id');
+        Route::patch('/plantillas/{id}/activo',   [$plantillasOrden, 'activarPlantilla'])->whereNumber('id');
+        Route::post('/plantillas/{id}/duplicar',  [$plantillasOrden, 'duplicarPlantilla'])->whereNumber('id');
+        Route::post('/plantillas/{id}/mover',     [$plantillasOrden, 'moverPlantilla'])->whereNumber('id');
+        Route::get('/plantillas/{id}/exportar',   [$plantillasOrden, 'exportar'])->whereNumber('id');
+        Route::post('/importar',                  [$plantillasOrden, 'importar']);
+    });

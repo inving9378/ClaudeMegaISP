@@ -23,6 +23,13 @@ class MapaRedFiber extends Model
         'zone',
     ];
 
+    /**
+     * Mismos campos que App\Models\MapFiber que usa la pantalla de conexiones. `disable` y
+     * `accept_connection` no se copian: el frontend no los lee y el segundo hace una consulta
+     * por cada hilo.
+     */
+    protected $appends = ['selected', 'model_type'];
+
     public function layer()
     {
         return $this->belongsTo(MapaRedLayer::class, 'fiber_id');
@@ -41,5 +48,15 @@ class MapaRedFiber extends Model
     public function cuts()
     {
         return $this->hasMany(MapaRedCutFiber::class, 'fiber_id');
+    }
+
+    public function getSelectedAttribute()
+    {
+        return false;
+    }
+
+    public function getModelTypeAttribute()
+    {
+        return $this::class;
     }
 }

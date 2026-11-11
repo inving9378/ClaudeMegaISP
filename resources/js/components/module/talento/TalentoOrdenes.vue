@@ -446,6 +446,7 @@
                 <div class="mt-2 p-2 border rounded" style="white-space:pre-line">{{ detail.order.notes }}</div>
               </details>
             </div>
+            <OrdenDocumentacion :orden-id="detail.ref ?? detail.order.id" />
             <div v-if="detail.order.reprogramaciones?.length" class="mt-3">
               <h6>Cambios de día</h6>
               <ul class="list-group list-group-flush">
@@ -623,6 +624,7 @@ import ReprogramarOrden from "./ReprogramarOrden.vue";
 import TalentoAgenda from "./TalentoAgenda.vue";
 import { fechaAgenda } from "./fechaAgenda.js";
 import CamposPlantilla from "./campos/CamposPlantilla.vue";
+import OrdenDocumentacion from "./ordenes/OrdenDocumentacion.vue";
 import {
   camposDe, validarCampos, limpiarValores, erroresDeServidor, textoMaterial, esVacio,
 } from "./campos/camposPlantilla.js";
@@ -639,7 +641,7 @@ const MOTIVOS_ELIMINACION = [
 
 export default {
   name: 'TalentoOrdenes',
-  components: { FechaHoraOrden, CargaCalendario, ReprogramarOrden, TalentoAgenda, CamposPlantilla },
+  components: { FechaHoraOrden, CargaCalendario, ReprogramarOrden, TalentoAgenda, CamposPlantilla, OrdenDocumentacion },
   props: {
     // Si viene, filtra la lista a este colaborador únicamente (uso: pestaña
     // "Órdenes de trabajo" de la ficha de un colaborador) — sin esto, se
@@ -1087,7 +1089,7 @@ export default {
     },
     async viewOrder(o) {
       const { data } = await axios.get(`/talento/api/ordenes/${o.id}`);
-      this.detail = { show: true, order: data };
+      this.detail = { show: true, order: data, ref: o.id };
     },
     openCorregir(o) {
       this.corregirModal = { show: true, order: o, tipo_id: o.type?.id ?? o.type_id ?? null, puntos: '', motivo: '', saving: false, error: '', resultado: '' };

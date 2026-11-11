@@ -440,6 +440,7 @@ import {
     routes,
     setDefaultConnections,
     enableMultiConnections,
+    isLayerModel,
 } from "../../../../../composables/useMapConnections";
 import {
     getFromLocalStorage,
@@ -680,7 +681,7 @@ const fusionAll = async (fiber) => {
     enableMultiConnections.value = false;
     if (
         !fromSelected.value ||
-        fromSelected.value.model_type !== "App\\Models\\MapLayer"
+        !isLayerModel(fromSelected.value)
     ) {
         if (fromSelected.value) {
             fromSelected.value.selected = false;
@@ -799,7 +800,7 @@ const togglePort = async (port) => {
     } else {
         if (
             !fromSelected.value ||
-            fromSelected.value.model_type === "App\\Models\\MapLayer"
+            isLayerModel(fromSelected.value)
         ) {
             if (fromSelected.value) {
                 fromSelected.value.selected = false;
@@ -854,7 +855,7 @@ const onHideJunction = () => {
 const createConnection = async (data = null) => {
     showLoading();
     let result;
-    const multiple = fromSelected.value?.model_type === "App\\Models\\MapLayer";
+    const multiple = isLayerModel(fromSelected.value);
     if (enableMultiConnections.value) {
         const avaiables = getAvaiablesConnectionsPerRange(
             props.object.id,

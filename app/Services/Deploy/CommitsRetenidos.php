@@ -69,6 +69,12 @@ class CommitsRetenidos
             $parchesDeLaVersion ??= self::parchesDesdeElTagAnterior($repo, $ref);
             if (in_array(self::parche($repo, $retenido['hash']), $parchesDeLaVersion, true)) {
                 $encontrados[] = $retenido + ['via' => 'cherry-pick'];
+                continue;
+            }
+
+            // Versión armada como UN solo commit (git commit-tree): no tiene la historia ni un parche propio.
+            if (self::contenidoPresente($repo, $retenido['hash'], $ref)) {
+                $encontrados[] = $retenido + ['via' => 'contenido'];
             }
         }
 
@@ -87,6 +93,55 @@ class CommitsRetenidos
 
         return "«{$ref}» contiene commits retenidos para release:\n" . implode("\n", $lineas)
             . "\nPara liberar uno, quien lo valida borra su línea en " . self::ARCHIVO . ' y lo commitea.';
+    }
+
+    /**
+     * ¿El árbol de $ref ya trae lo que hizo el commit retenido? Cada archivo que el commit tocó debe traer
+     * todas sus líneas añadidas. Detecta versiones de un solo commit, donde ni la historia ni el parche
+     * delatan al retenido. Un commit que ya no existe en el repo no se puede comparar y no se reporta aquí.
+     */
+    private static function contenidoPresente(string $repo, string $hash, string $ref): bool
+    {
+        [$diff, $codigo] = self::git($repo, ['show', '--format=', '-U0', '--no-color', '--no-renames', $hash]);
+        if ($codigo !== 0 || trim($diff) === '') {
+            return false;
+        }
+
+        $archivos = [];
+        $actual = null;
+        foreach (explode("\n", $diff) as $linea) {
+            if (str_starts_with($linea, '+++ ')) {
+                $actual = str_starts_with($linea, '+++ b/') ? substr($linea, 6) : null;
+                if ($actual !== null) {
+                    $archivos[$actual] = [];
+                }
+            } elseif ($actual !== null && $linea !== '' && $linea[0] === '+') {
+                $texto = trim(substr($linea, 1));
+                if (strlen($texto) >= 8) { // las líneas triviales («}», «<?php») coinciden con cualquier cosa
+                    $archivos[$actual][] = $texto;
+                }
+            }
+        }
+
+        $evaluados = 0;
+        foreach ($archivos as $ruta => $lineas) {
+            if ($lineas === []) {
+                continue;
+            }
+            [$contenido, $c] = self::git($repo, ['show', "{$ref}:{$ruta}"]);
+            if ($c !== 0) {
+                return false;
+            }
+            $presentes = array_flip(array_map('trim', explode("\n", $contenido)));
+            foreach ($lineas as $texto) {
+                if (!isset($presentes[$texto])) {
+                    return false;
+                }
+            }
+            $evaluados++;
+        }
+
+        return $evaluados > 0;
     }
 
     /** @return string[] */

@@ -111,6 +111,7 @@ class Kernel extends ConsoleKernel
 
         // #996 — ping_statistics: crudo 90 días; daily_ping_statistics se conserva para siempre.
         $schedule->command('ping:purge-raw --force')->dailyAt('02:40')->withoutOverlapping();
+        $schedule->command('otp:purge --force')->dailyAt('02:50')->withoutOverlapping();
 
         // #9990687 (F5b) — cruza tabla releases / tags locales / tags en origin / GitHub Releases
         // y crea items tipo=hallazgo por cada divergencia nueva (dedupe automático por huella).

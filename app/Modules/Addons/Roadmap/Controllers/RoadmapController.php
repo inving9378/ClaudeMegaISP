@@ -1108,6 +1108,7 @@ class RoadmapController extends Controller
                 // prefijo [RESPUESTA] del título. `tipo` de la BD (manual|hallazgo|respuesta) manda; el resto = decisión.
                 'tipo_bandeja'  => $i->tipo === 'respuesta' ? 'respuesta' : 'decision',
                 'motivo_espera' => $i->motivo_espera,
+                'resumen_natural' => $i->resumen_natural,   // #1184 — ya se pedía en COLUMNAS_BANDEJA pero no salía
                 'recomendacion' => $i->comentarios_claude,   // texto completo del decisor (pregunta + recomendación)
                 'opciones'      => $i->opcionesDetalladas(),  // [{clave,texto,recomendada}] — legacy/fallback (#431)
                 'opcion_elegida' => $i->opcion_elegida,       // clave estable de la opción marcada (o null)

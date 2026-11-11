@@ -65,7 +65,8 @@
         { "name": "talento.reglas_desempeno.manage", "description": "Crear/editar reglas de desempeño semanal y confirmar penalizaciones sugeridas" },
         { "name": "talento.recorridos.view",      "description": "Ver recorridos de planta externa, sus hallazgos y fotos" },
         { "name": "talento.recorridos.manage",    "description": "Importar recorridos (Geo Tracker), clasificar sus hallazgos, recortar la ruta y enviarlos" },
-        { "name": "talento.recorridos.categorias.manage", "description": "Editar el catálogo de categorías de hallazgo de los recorridos" }
+        { "name": "talento.recorridos.categorias.manage", "description": "Editar el catálogo de categorías de hallazgo de los recorridos" },
+        { "name": "talento.work_order_templates.manage", "description": "Administrar tipos y plantillas de órdenes de planta externa (campos y materiales)" }
     ],
 
     "menu": [
@@ -98,7 +99,8 @@
                 { "label": "Caja de vendedor", "url": "/talento/caja-vendedor",    "permission": "talento.caja-vendedor.view" },
                 { "label": "Comisiones",       "url": "/talento/comisiones",       "permission": "talento.comisiones.view" },
                 { "label": "Reglas de desempeño semanal", "url": "/talento/reglas-desempeno", "permission": "talento.reglas_desempeno.view" },
-                { "label": "Documentos pendientes", "url": "/talento/documentos-pendientes", "permission": "talento.documentos.ver-todos" }
+                { "label": "Documentos pendientes", "url": "/talento/documentos-pendientes", "permission": "talento.documentos.ver-todos" },
+                { "label": "Plantillas de orden", "url": "/talento/plantillas-orden", "permission": "talento.work_order_templates.manage" }
             ]
         }
     ],

@@ -546,6 +546,7 @@ import {
     arbolDerivadoVisible,
 } from "../../../composables/useNodeMap";
 import JSZip from "jszip";
+import { crearGestorLamparas } from "./helper/lamparas";
 
 defineOptions({
     name: "LeafletMap",
@@ -586,6 +587,7 @@ let map = null;
 // MR-16 Fase 2a (item roadmap #9990495): capa dedicada para el trazo de ruta a OLT
 // (dibujada bajo demanda al hacer clic en "Trazar ruta a OLT" de un enlace de servicio).
 let trazoLayer = null;
+let lamparasGestor = null; // #1240: gestor de N lámparas
 // MR-24e Fase 1a (item roadmap #9990557): línea punteada de vista previa del snap
 // contra la ruta más cercana mientras el modo "agregar NAP" está activo.
 let snapLinePreview = null;
@@ -2001,6 +2003,7 @@ const initMap = async () => {
 // no dejarlo corriendo de fondo sin el contenedor del mapa vivo.
 onBeforeUnmount(() => {
     window.removeEventListener("mapared:lampara", encenderLampara);
+    lamparasGestor?.destruir();
     detenerMonitorRendimientoFlujoAnimado();
 });
 
@@ -2602,27 +2605,8 @@ const encenderLampara = async (ev) => {
     dialogs.value.junction_box_config = false;
     currentObject.value = null;
 
-    trazoLayer.clearLayers();
-    const par = (c) => (Array.isArray(c) ? [Number(c[0]), Number(c[1])] : [Number(c.lat), Number(c.lng)]);
-    const todos = [];
-    (r.tramos ?? []).forEach((t) => {
-        const linea = (t.coords ?? []).map(par).filter((c) => !c.some(Number.isNaN));
-        if (linea.length >= 2) {
-            L.polyline(linea, { color: "#f59e0b", weight: 6, opacity: 0.95 }).addTo(trazoLayer);
-            todos.push(...linea);
-        }
-    });
-    (r.puntos ?? []).forEach((pt) => {
-        if (!pt.posicion) return;
-        const c = [pt.posicion.lat, pt.posicion.lng];
-        L.circleMarker(c, { radius: 6, color: "#b45309", fillColor: "#fde68a", fillOpacity: 1 })
-            .bindTooltip(pt.etiqueta ?? pt.tipo)
-            .addTo(trazoLayer);
-        todos.push(c);
-    });
-    if (todos.length) {
-        map.fitBounds(todos, { padding: [40, 40] });
-    }
+    lamparasGestor ??= crearGestorLamparas(L, map);
+    lamparasGestor.encender(clientId, ev?.detail?.etiqueta ?? `Cliente ${clientId}`, r);
     if (!r.completa) {
         message(r.motivo_corte ?? "El recorrido no llega hasta la OLT", "warning");
     }

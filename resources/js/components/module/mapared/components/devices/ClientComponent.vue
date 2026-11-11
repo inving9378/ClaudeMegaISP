@@ -218,7 +218,9 @@ watch(
 // Item #1241: avisa al mapa (LeafletMapRed) que ilumine el recorrido cliente→OLT.
 const encenderLampara = () => {
     const clientId = port.value?.client?.id ?? port.value?.client_id;
-    window.dispatchEvent(new CustomEvent("mapared:lampara", { detail: { clientId } }));
+    const c = port.value?.client;
+    const etiqueta = c?.name ?? c?.full_name ?? (clientId ? `Cliente ${clientId}` : undefined);
+    window.dispatchEvent(new CustomEvent("mapared:lampara", { detail: { clientId, etiqueta } }));
 };
 
 const changePortDirection = async () => {

@@ -123,22 +123,50 @@ export const getAvaiablesConnectionsPerRange = (
     return connections;
 };
 
+// Tipo del equipo dueño del puerto. El Mapa de Red manda solo device_type; el módulo
+// Mapas manda además el objeto device.
+const deviceTypeOf = (port) => port?.device_type ?? port?.device?.type;
+
 export const isOlt = (port) => {
-    return port.device?.type === "olt";
+    return deviceTypeOf(port) === "olt";
 };
 
 export const isOutPort = (port) => {
     return port.type === "out";
 };
 
+// Este composable lo usan el módulo Mapas (modelos Map*) y el Mapa de Red (modelos
+// MapaRed*): cada tipo acepta las dos clases para que ambas pantallas conecten igual.
+const FIBER_MODELS = [
+    "App\\Models\\MapFiber",
+    "App\\Modules\\Addons\\MapaRed\\Models\\MapaRedFiber",
+];
+const PORT_MODELS = [
+    "App\\Models\\MapDevicePort",
+    "App\\Modules\\Addons\\MapaRed\\Models\\MapaRedDevicePort",
+];
+const LAYER_MODELS = [
+    "App\\Models\\MapLayer",
+    "App\\Modules\\Addons\\MapaRed\\Models\\MapaRedLayer",
+];
+
 export const isFiber = (port) => {
-    return port.model_type === "App\\Models\\MapFiber";
+    return FIBER_MODELS.includes(port?.model_type);
+};
+
+export const isDevicePort = (port) => {
+    return PORT_MODELS.includes(port?.model_type);
+};
+
+// Troncal completa (polyline) seleccionada, no un hilo/puerto suelto.
+export const isLayerModel = (obj) => {
+    return LAYER_MODELS.includes(obj?.model_type);
 };
 
 export const isFiberOltConnection = (from, to) => {
     if (
-        (isFiber(from) && to["device"]?.type === "olt") ||
-        (isFiber(to) && from["device"]?.type === "olt")
+        (isFiber(from) && deviceTypeOf(to) === "olt") ||
+        (isFiber(to) && deviceTypeOf(from) === "olt")
     ) {
         return true;
     }
@@ -246,16 +274,10 @@ export const validateConnection = (from, to) => {
 };
 
 export const getConnectionType = (from, to) => {
-    if (
-        from.model_type === "App\\Models\\MapFiber" &&
-        to.model_type === "App\\Models\\MapFiber"
-    ) {
+    if (isFiber(from) && isFiber(to)) {
         return "fiber-to-fiber";
     }
-    if (
-        from.model_type === "App\\Models\\MapDevicePort" &&
-        to.model_type === "App\\Models\\MapDevicePort"
-    ) {
+    if (isDevicePort(from) && isDevicePort(to)) {
         return "port-to-port";
     }
     return "fiber-to-port";
@@ -405,10 +427,10 @@ const setContinuosConnections = () => {
                         if (!con1 && !con2) {
                             connections.value.push({
                                 id: null,
-                                from_type: "App\\Models\\MapFiber",
+                                from_type: from.model_type,
                                 from_id: from.id,
                                 from_input: from.current_input,
-                                to_type: "App\\Models\\MapFiber",
+                                to_type: to.model_type,
                                 to_id: to.id,
                                 to_input: to.current_input,
                                 from_element: `polyline-port-${from.id}-${r.route_id}`,

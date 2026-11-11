@@ -32,6 +32,23 @@ class MapaRedDevicePort extends Model
         'data',
     ];
 
+    /**
+     * Mismos campos calculados que App\Models\MapDevicePort: la pantalla de conexiones
+     * (useMapConnections.js) distingue los puertos por element_id/model_type y pinta la
+     * selección con selected. Sin ellos, en el site no se podía conectar un puerto con
+     * otro (el segundo clic se tomaba como el mismo puerto) ni dibujar las conexiones.
+     * `dbs` y el nombre del cliente no se copian: el Mapa de Red ya muestra la potencia
+     * por su cuenta (ClientComponent → potencia).
+     */
+    protected $appends = ['selected', 'model_type', 'element_id', 'device_type'];
+
+    /**
+     * El equipo se carga para calcular lo de arriba, pero no se manda en el JSON: la pantalla
+     * solo necesita su tipo (device_type) y con la ficha completa la respuesta de un site
+     * casi se duplicaba de tamaño.
+     */
+    protected $hidden = ['device'];
+
     protected $casts = [
         'connected' => 'boolean',
         'data' => 'json',
@@ -55,5 +72,25 @@ class MapaRedDevicePort extends Model
     public function connections_to()
     {
         return $this->morphMany(MapaRedDevicePortConnection::class, 'to');
+    }
+
+    public function getSelectedAttribute()
+    {
+        return false;
+    }
+
+    public function getModelTypeAttribute()
+    {
+        return $this::class;
+    }
+
+    public function getDeviceTypeAttribute()
+    {
+        return $this->device?->type;
+    }
+
+    public function getElementIdAttribute()
+    {
+        return sprintf('%s-port-%s-%d', $this->device?->type, $this->type, $this->id);
     }
 }

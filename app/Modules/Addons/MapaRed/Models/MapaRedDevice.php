@@ -28,6 +28,12 @@ class MapaRedDevice extends Model
 
     protected $casts = ['data' => 'json'];
 
+    /**
+     * Igual que App\Models\MapDevice: el organizador muestra los puertos de la vista activa
+     * (`active` = in/out). Sin este campo el organizador salía sin puertos en el site.
+     */
+    protected $appends = ['active'];
+
     public function layer()
     {
         return $this->belongsTo(MapaRedLayer::class, 'layer_id');
@@ -46,6 +52,11 @@ class MapaRedDevice extends Model
     public function devices()
     {
         return $this->hasMany(MapaRedDevice::class, 'parent_id');
+    }
+
+    public function getActiveAttribute()
+    {
+        return 'in';
     }
 
     public function createPorts()

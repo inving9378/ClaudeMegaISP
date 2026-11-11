@@ -32,6 +32,7 @@ class DevicesController extends Controller
         $object = $this->repository->create($request->all());
         $object->createPorts();
         $object->load('ports');
+        $this->ligarPuertosConEquipo($object);
         return response()->json($object);
     }
 

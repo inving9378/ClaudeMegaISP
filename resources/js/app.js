@@ -209,6 +209,7 @@ import TalentoEmbajadores from "./components/module/talento/TalentoEmbajadores.v
 import TalentoVentas from "./components/module/talento/TalentoVentas.vue";
 import TalentoVentasRanking from "./components/module/talento/TalentoVentasRanking.vue";
 import TalentoEvidenciaConfig from "./components/module/talento/TalentoEvidenciaConfig.vue";
+import TalentoPlantillasOrden from "./components/module/talento/plantillas/TalentoPlantillasOrden.vue"; // #1200 Fase C
 import TalentoPaqueteDocumentos from "./components/module/talento/TalentoPaqueteDocumentos.vue";
 import TalentoExpedienteDocumentos from "./components/module/talento/TalentoExpedienteDocumentos.vue";
 import TalentoArticulosVendedor from "./components/module/talento/TalentoArticulosVendedor.vue";
@@ -691,6 +692,7 @@ const app = createApp({
         'talento-ventas': TalentoVentas,
         'talento-ventas-ranking': TalentoVentasRanking,
         'talento-evidencia-config': TalentoEvidenciaConfig,
+        'talento-plantillas-orden': TalentoPlantillasOrden,
         'talento-paquete-documentos': TalentoPaqueteDocumentos,
         'talento-articulos-vendedor': TalentoArticulosVendedor,
         'talento-caja-vendedor': TalentoCajaVendedor,

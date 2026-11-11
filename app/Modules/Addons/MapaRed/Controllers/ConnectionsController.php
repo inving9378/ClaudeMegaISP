@@ -45,12 +45,18 @@ class ConnectionsController extends Controller
         } else if ($object->to_type === MapaRedFiber::class) {
             $this->updateCut($object->layer_id, $object->to_id, $object->to_input);
         }
-        if (isset($object->from->device) && $object->from->device->type === 'olt') {
-            $object->from->zone = $object->data['zone'];
-            $object->from->save();
-        } else if (isset($object->to->device) && $object->to->device->type === 'olt') {
-            $object->to->zone = $object->data['zone'];
-            $object->to->save();
+        // La zona solo llega cuando se conecta un puerto PON (salida) de la OLT: la pantalla
+        // la pide en ese caso. Al conectar un puerto de entrada/uplink no viene, y leer
+        // data['zone'] sobre null tronaba con 500 después de haber guardado la conexión.
+        $zona = data_get($object->data, 'zone');
+        if ($zona !== null) {
+            if (isset($object->from->device) && $object->from->device->type === 'olt') {
+                $object->from->zone = $zona;
+                $object->from->save();
+            } else if (isset($object->to->device) && $object->to->device->type === 'olt') {
+                $object->to->zone = $zona;
+                $object->to->save();
+            }
         }
         return $this->layerConfig($object->layer);
     }

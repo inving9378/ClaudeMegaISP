@@ -36,6 +36,10 @@
         @if(auth()->user()->can('talento.recorridos.view'))
             <li><a href="{{ url('/talento/recorridos') }}"><span><small><i class="fa fa-fw fa-route"></i></small> Recorridos</span></a></li>
         @endif
+        {{-- #1200 Fase C: tipos y plantillas de órdenes de planta externa. --}}
+        @if(auth()->user()->can('talento.work_order_templates.manage'))
+            <li><a href="{{ url('/talento/plantillas-orden') }}"><span><small><i class="fa fa-fw fa-shapes"></i></small> Plantillas de orden</span></a></li>
+        @endif
         @if(auth()->user()->can('talento.liquidation.totales'))
             <li><a href="{{ url('/talento/liquidaciones') }}"><span><small><i class="fa fa-fw fa-file-invoice-dollar"></i></small> Liquidaciones</span></a></li>
         @endif

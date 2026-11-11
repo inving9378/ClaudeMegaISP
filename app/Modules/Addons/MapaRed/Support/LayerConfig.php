@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\MapaRed\Support;
 
 use App\Modules\Addons\MapaRed\Models\MapaRedDevice;
+use App\Modules\Addons\MapaRed\Models\MapaRedDevicePort;
 use App\Modules\Addons\MapaRed\Models\MapaRedDevicePortConnection;
 use App\Modules\Addons\MapaRed\Models\MapaRedLayerRoute;
 
@@ -16,14 +17,36 @@ trait LayerConfig
     public function layerConfig($layer)
     {
         $devices = MapaRedDevice::with(['devices', 'devices.ports', 'ports'])->where('layer_id', $layer->id)->get();
+        $devices->each(fn ($device) => $this->ligarPuertosConEquipo($device));
         $routes = $this->routesByLayer($layer);
         $connections = MapaRedDevicePortConnection::where('layer_id', $layer->id)->get();
+        // Los puertos de cada conexión calculan element_id/device_type con su equipo:
+        // precargarlo aquí evita una consulta por puerto (un site trae cientos).
+        $connections->loadMorph('from', [MapaRedDevicePort::class => ['device']]);
+        $connections->loadMorph('to', [MapaRedDevicePort::class => ['device']]);
         return response()->json([
             'inputs' => $layer->inputs,
             'devices' => $devices,
             'routes' => $routes,
             'connections' => $connections,
         ]);
+    }
+
+    /**
+     * Cada puerto necesita su equipo para element_id/device_type y para `port.device`
+     * (isOlt() del frontend). Se liga una copia sin relaciones: con la relación completa
+     * el JSON entraría en ciclo (equipo → puertos → equipo …) y sin ligar nada se haría
+     * una consulta por puerto.
+     */
+    public function ligarPuertosConEquipo(MapaRedDevice $device): void
+    {
+        if ($device->relationLoaded('ports')) {
+            $equipo = $device->withoutRelations();
+            $device->ports->each(fn ($port) => $port->setRelation('device', $equipo));
+        }
+        if ($device->relationLoaded('devices')) {
+            $device->devices->each(fn ($hijo) => $this->ligarPuertosConEquipo($hijo));
+        }
     }
 
     public function routesByLayer($layer)
