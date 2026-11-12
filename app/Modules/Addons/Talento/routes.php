@@ -592,6 +592,9 @@ Route::middleware(['auth:sanctum', 'talento.cuenta_activa'])
         Route::get('/ots/{id}',                       [TalentoMobileApiController::class, 'otShow']);
         Route::get('/ots/{id}/tipos-evidencia',       [TalentoMobileApiController::class, 'tiposEvidencia']);
         Route::post('/ots/{id}/evidencia',            [TalentoMobileApiController::class, 'otEvidencia']);
+        // 11-nov-2026 (#1347): quitar una foto que salió mal mientras la orden sigue abierta.
+        Route::delete('/ots/{id}/evidencia/{mediaId}', [TalentoMobileApiController::class, 'eliminarEvidencia'])
+            ->whereNumber(['id', 'mediaId']);
         Route::post('/ots/{id}/iniciar',              [TalentoMobileApiController::class, 'iniciarOT']);
         Route::post('/ots/{id}/completar',            [TalentoMobileApiController::class, 'completarOT']);
         Route::post('/ots/{id}/incidencia',           [TalentoMobileApiController::class, 'reportarIncidencia']);

@@ -16,6 +16,7 @@ use App\Modules\Addons\Talento\Support\OrdenReferencia;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 
@@ -808,6 +809,73 @@ class OrdenTrabajoUnifiedService
         $saludRed = $potencia !== null ? $this->calcularSaludRed($potencia) : null;
 
         return ['success' => true, 'media_id' => $mediaId, 'salud_red' => $saludRed];
+    }
+
+    /**
+     * 11-nov-2026 (#1347): las fotos ya subidas de una orden, para la pantalla de evidencias de la
+     * app, y si todavía se pueden quitar (orden pendiente o en curso).
+     */
+    public function evidenciasParaCaptura(object $ot): array
+    {
+        $evidencias = DB::table('talento_work_order_media')
+            ->where($ot->is_task ? 'tarea_id' : 'work_order_id', $ot->id)
+            ->whereNotNull('evidence_type_id')
+            ->orderBy('created_at')
+            ->get(['id', 'evidence_type_id as type_id', 'created_at', 'potencia_dbm', 'type as media_type'])
+            ->map(fn($e) => $this->conFotoFirmada($e))
+            ->all();
+
+        return ['evidencias' => $evidencias, 'puede_eliminar' => $this->evidenciaEditable($ot)];
+    }
+
+    /**
+     * 11-nov-2026 (#1347): el técnico quita una foto suya que salió mal para tomarla de nuevo.
+     * Solo con la orden pendiente o en curso; ya terminada no. Se borra el archivo y queda en
+     * activity_log quién la quitó, de qué tipo era y cuándo se había tomado.
+     */
+    public function eliminarEvidencia(int $id, int $mediaId, int $colaboradorId, int $userId): array
+    {
+        $ot = $this->findLight($id, $colaboradorId);
+        if (! $ot) {
+            return ['success' => false, 'message' => 'OT no encontrada.', 'status_code' => 404];
+        }
+
+        $media = TalentoWorkOrderMedia::where('id', $mediaId)
+            ->where($ot->is_task ? 'tarea_id' : 'work_order_id', $ot->id)
+            ->whereNotNull('evidence_type_id')
+            ->first();
+        if (! $media || $media->isSensitive()) {
+            return ['success' => false, 'message' => 'Evidencia no encontrada.', 'status_code' => 404];
+        }
+
+        if (! $this->evidenciaEditable($ot)) {
+            return ['success' => false, 'message' => 'La orden ya se terminó; sus evidencias ya no se pueden quitar.', 'code' => 'ESTADO_INVALIDO', 'status_code' => 422];
+        }
+
+        $tipo = DB::table('talento_evidence_types')->where('id', $media->evidence_type_id)->value('name');
+        $path = $media->file_path;
+        $media->delete();
+        Storage::disk('local')->delete($path);
+
+        activity('talento')
+            ->performedOn($ot->is_task ? Task::find($ot->id) : TalentoWorkOrder::find($ot->id))
+            ->causedBy(User::find($userId))
+            ->withProperties([
+                'media_id' => $mediaId, 'tipo' => $tipo, 'tomada' => (string) $media->captured_at,
+                'potencia_dbm' => $media->potencia_dbm, 'archivo' => $path,
+            ])
+            ->log('Evidencia quitada desde la app para tomarla de nuevo');
+
+        return ['success' => true];
+    }
+
+    private function evidenciaEditable(object $ot): bool
+    {
+        $estado = $ot->is_task
+            ? (self::TASK_STATUS_MAP[Task::where('id', $ot->id)->value('status')] ?? null)
+            : TalentoWorkOrder::where('id', $ot->id)->value('status');
+
+        return in_array($estado, ['pending', 'in_progress'], true);
     }
 
     /**

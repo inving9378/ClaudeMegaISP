@@ -539,11 +539,26 @@ class TalentoMobileApiController extends Controller
             ->pluck('evidence_type_id')
             ->values();
 
-        return response()->json([
+        // 11-nov-2026 (#1347): las fotos ya tomadas, para verlas, quitarlas y volver a tomarlas.
+        return response()->json(array_merge([
             'tipos'     => $tipos,
             'requeridos'=> $requeridos,
             'subidos'   => $subidos,
-        ]);
+        ], $this->unified->evidenciasParaCaptura($ot)));
+    }
+
+    /** 11-nov-2026 (#1347): el técnico quita una foto que salió mal (orden pendiente o en curso). */
+    public function eliminarEvidencia(Request $request, int $id, int $mediaId)
+    {
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) return $this->noColaborador();
+
+        $result = $this->unified->eliminarEvidencia($id, $mediaId, $colaborador->id, $request->user()->id);
+        if (! $result['success']) {
+            return response()->json(collect($result)->except(['success', 'status_code'])->all(), $result['status_code']);
+        }
+
+        return response()->json(['message' => 'Foto eliminada.']);
     }
 
     public function otEvidencia(Request $request, int $id)
