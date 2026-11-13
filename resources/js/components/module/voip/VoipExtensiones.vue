@@ -5,9 +5,15 @@
             <h4 class="mb-0">
                 <i class="fa fa-phone me-2 text-primary"></i>Extensiones VoIP (PJSIP)
             </h4>
-            <button v-if="canCreate" class="btn btn-primary btn-sm" @click="abrirModal()">
-                <i class="fa fa-plus me-1"></i> Nueva extensión
-            </button>
+            <div class="d-flex gap-2">
+                <button v-if="canSync" class="btn btn-outline-secondary btn-sm" @click="abrirSincronizacion()"
+                        title="Compara MegaISP con Asterisk y corrige lo que no coincida">
+                    <i class="fa fa-sync-alt me-1"></i> Sincronizar con Asterisk
+                </button>
+                <button v-if="canCreate" class="btn btn-primary btn-sm" @click="abrirModal()">
+                    <i class="fa fa-plus me-1"></i> Nueva extensión
+                </button>
+            </div>
         </div>
 
         <!-- Tabla -->
@@ -76,13 +82,17 @@
                                     </span>
                                 </td>
                                 <td>
-                                    <span v-if="e.provisionado_at" class="text-success">
+                                    <span v-if="e.en_asterisk === false" class="text-danger"
+                                          title="MegaISP la tiene pero Asterisk no: ningún teléfono puede usarla. Usa «Sincronizar con Asterisk».">
+                                        <i class="fa fa-exclamation-triangle me-1"></i>No está en Asterisk
+                                    </span>
+                                    <span v-else-if="e.provisionado_at || e.en_asterisk" class="text-success">
                                         <i class="fa fa-dot-circle me-1"></i>Provisionada
                                     </span>
                                     <span v-else class="text-warning">
                                         <i class="fa fa-circle-notch me-1"></i>Sin provisionar
                                     </span>
-                                    <span v-if="e.provisionado_at" class="ms-2">
+                                    <span v-if="e.en_asterisk !== false && (e.provisionado_at || e.en_asterisk)" class="ms-2">
                                         <span v-if="conectadas.includes(e.numero)" class="tc-status is-ok">
                                             <i class="fa fa-wifi me-1"></i>Conectada
                                         </span>
@@ -234,7 +244,14 @@
                             <div class="col-md-4">
                                 <label class="form-label small">Transporte PJSIP</label>
                                 <input class="form-control form-control-sm" v-model="form.transporte"
-                                       placeholder="transport-udp">
+                                       placeholder="transport-udp" list="voip-transportes">
+                                <datalist id="voip-transportes">
+                                    <option value="transport-udp">En la oficina (red local)</option>
+                                    <option value="transport-externo">Desde fuera de la oficina (Zoiper, celular)</option>
+                                </datalist>
+                                <div class="form-text small" v-if="form.transporte === 'transport-externo'">
+                                    Para teléfonos que se conectan por internet. En el teléfono usa el puerto del transporte externo.
+                                </div>
                             </div>
 
                             <div class="col-12">
@@ -250,6 +267,58 @@
                         <button type="button" class="btn btn-primary btn-sm" @click="guardar" :disabled="guardando">
                             <i class="fa fa-save me-1"></i>
                             {{ guardando ? 'Guardando…' : (editando ? 'Actualizar' : 'Crear extensión') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Sincronizar con Asterisk -->
+        <div class="modal fade" tabindex="-1" ref="modalSyncEl">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fa fa-sync-alt me-2"></i>Sincronizar con Asterisk</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div v-if="sync.cargando" class="text-center py-4 text-muted">
+                            <i class="fa fa-spinner fa-spin me-1"></i>
+                            {{ sync.resultado ? 'Aplicando…' : 'Comparando MegaISP con Asterisk…' }}
+                        </div>
+                        <template v-else-if="sync.resultado">
+                            <p v-if="!sync.resultado.aplicado" class="small text-muted mb-2">
+                                Esto es lo que se haría. Nada cambia hasta que presiones «Aplicar».
+                            </p>
+                            <h6 class="mb-1">{{ sync.resultado.aplicado ? 'Hecho' : 'Cambios' }}
+                                <span class="badge bg-secondary ms-1">{{ sync.resultado.tareas.length }}</span></h6>
+                            <ul class="small mb-3">
+                                <li v-for="(t, i) in sync.resultado.tareas" :key="'t' + i">
+                                    <i v-if="sync.resultado.aplicado" class="fa fa-check text-success me-1"></i>{{ t }}
+                                </li>
+                                <li v-if="!sync.resultado.tareas.length" class="text-muted">Nada que cambiar: ya coinciden.</li>
+                            </ul>
+                            <template v-if="sync.resultado.pendientes.length">
+                                <h6 class="mb-1 text-warning">Necesita a una persona
+                                    <span class="badge bg-warning text-dark ms-1">{{ sync.resultado.pendientes.length }}</span></h6>
+                                <ul class="small mb-3">
+                                    <li v-for="(p, i) in sync.resultado.pendientes" :key="'p' + i">{{ p }}</li>
+                                </ul>
+                            </template>
+                            <template v-if="sync.resultado.fallas.length">
+                                <h6 class="mb-1 text-danger">Fallaron</h6>
+                                <ul class="small mb-0">
+                                    <li v-for="(f, i) in sync.resultado.fallas" :key="'f' + i">{{ f }}</li>
+                                </ul>
+                            </template>
+                        </template>
+                        <div v-else-if="sync.error" class="alert alert-danger mb-0">{{ sync.error }}</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+                        <button v-if="sync.resultado && !sync.resultado.aplicado && sync.resultado.tareas.length"
+                                type="button" class="btn btn-primary btn-sm" :disabled="sync.cargando" @click="aplicarSincronizacion()">
+                            <i class="fa fa-check me-1"></i> Aplicar {{ sync.resultado.tareas.length }} cambios
                         </button>
                     </div>
                 </div>
@@ -337,6 +406,7 @@ export default {
             toastTipo:      'success',
             form:           this.formVacio(),
             errores:        {},
+            sync:           { cargando: false, resultado: null, error: '' },
         };
     },
 
@@ -346,6 +416,10 @@ export default {
         canDelete()    { return this.$store?.getters?.hasPermission?.('voip.extensiones.delete')    ?? false; },
         canProvision() { return this.$store?.getters?.hasPermission?.('voip.extensiones.provision') ?? false; },
         canTest()      { return this.$store?.getters?.hasPermission?.('voip.extensiones.test')      ?? false; },
+        canSync()      {
+            const g = this.$store?.getters;
+            return !!(g?.hasPermission?.('voip.extensiones.provision') && g?.hasPermission?.('voip.troncales.provision'));
+        },
     },
 
     mounted() {
@@ -394,6 +468,40 @@ export default {
                 if (r.ok) this.extensiones = await r.json();
             } finally {
                 this.cargando = false;
+            }
+        },
+
+        async abrirSincronizacion() {
+            this.sync = { cargando: true, resultado: null, error: '' };
+            bootstrap.Modal.getOrCreateInstance(this.$refs.modalSyncEl).show();
+            try {
+                const r = await fetch(`${this.baseUrl}/sincronizacion`, { headers: this.headers() });
+                const body = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(body.error ?? r.statusText);
+                this.sync.resultado = body;
+            } catch (e) {
+                this.sync.error = 'No se pudo comparar con Asterisk: ' + e.message;
+            } finally {
+                this.sync.cargando = false;
+            }
+        },
+
+        async aplicarSincronizacion() {
+            this.sync.cargando = true;
+            try {
+                const r = await fetch(`${this.baseUrl}/sincronizacion`, { method: 'POST', headers: this.headers() });
+                const body = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(body.error ?? r.statusText);
+                this.sync.resultado = body;
+                this.toast(body.fallas?.length ? 'Sincronizado con fallas: revisa la lista' : 'Sincronizado con Asterisk',
+                           body.fallas?.length ? 'error' : 'success');
+                await this.cargar();
+                await this.cargarEstados();
+            } catch (e) {
+                this.sync.error = 'No se pudo aplicar: ' + e.message;
+                this.sync.resultado = null;
+            } finally {
+                this.sync.cargando = false;
             }
         },
 

@@ -63,6 +63,13 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
+        // Si de verdad existe en Asterisk (no solo lo que recuerda provisionado_at).
+        try {
+            $enAsterisk = DB::connection('asterisk_rt')->table('ps_endpoints')->pluck('id')->flip();
+        } catch (\Throwable $e) {
+            $enAsterisk = null;
+        }
+
         $extensiones = Extension::with('agente')->orderBy('numero')->get()->map(fn (Extension $e) => [
             'id'              => $e->id,
             'numero'          => $e->numero,
@@ -78,6 +85,7 @@ class ExtensionController extends Controller
             'provisionado_at' => $e->provisionado_at?->toDateTimeString(),
             'endpoint_id'     => $e->endpointId(),
             'tiene_secret'    => ! empty($e->attributes['secret'] ?? null),
+            'en_asterisk'     => $enAsterisk === null ? null : isset($enAsterisk[$e->endpointId()]),
         ]);
 
         return response()->json($extensiones);
@@ -125,7 +133,7 @@ class ExtensionController extends Controller
             'tipo_dispositivo'=> 'nullable|in:telefono_ip,softphone',
             'contexto'        => 'nullable|string|max:100',
             'codecs'          => 'nullable|string|max:100',
-            'transporte'      => 'nullable|string|max:100',
+            'transporte'      => ['nullable', 'string', 'max:100', $this->reglaTransporte()],
             'callerid'        => 'nullable|string|max:100',
             'activo'          => 'nullable|boolean',
         ]);
@@ -143,6 +151,17 @@ class ExtensionController extends Controller
         return response()->json(['id' => $ext->id, 'endpoint_id' => $ext->endpointId()], 201);
     }
 
+    /** transport-externo solo existe si el servidor lo tiene configurado (ASTERISK_BIND_EXTERNO). */
+    private function reglaTransporte(): \Closure
+    {
+        return function (string $atributo, $valor, \Closure $falla) {
+            if ($valor === AsteriskProvisioningService::TRANSPORTE_EXTERNO
+                && trim((string) config('voip.asterisk.bind_externo', '')) === '') {
+                $falla('Este servidor no tiene configurado el transporte para teléfonos de fuera (ASTERISK_BIND_EXTERNO).');
+            }
+        };
+    }
+
     public function update(Request $request, Extension $extension): JsonResponse
     {
         if (! auth()->user()?->can('voip.extensiones.edit')) {
@@ -157,7 +176,7 @@ class ExtensionController extends Controller
             'tipo_dispositivo'=> 'nullable|in:telefono_ip,softphone',
             'contexto'        => 'nullable|string|max:100',
             'codecs'          => 'nullable|string|max:100',
-            'transporte'      => 'nullable|string|max:100',
+            'transporte'      => ['nullable', 'string', 'max:100', $this->reglaTransporte()],
             'callerid'        => 'nullable|string|max:100',
             'activo'          => 'nullable|boolean',
         ]);
@@ -185,17 +204,46 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
-        if ($extension->estaProvisionada()) {
-            try {
-                $this->provisioner->desprovisionarExtension($extension);
-            } catch (\Throwable $e) {
-                Log::warning("VoIP: no se pudo desprovisionar ext {$extension->numero} al eliminar: {$e->getMessage()}");
+        // Con ella se va su gemela del navegador (webNNNN): se crea sola al dar de alta la
+        // extensión, y antes se quedaba viva en MegaISP y en Asterisk al borrarla.
+        $aBorrar = [$extension];
+        if (! $extension->es_webrtc) {
+            $gemela = Extension::where('numero', 'web' . $extension->numero)->where('es_webrtc', true)->first();
+            if ($gemela) {
+                $aBorrar[] = $gemela;
             }
         }
 
-        $extension->delete();
+        $grupos = \App\Modules\Addons\VoIP\Models\GrupoTimbrado::whereHas('extensiones',
+            fn ($q) => $q->whereIn('voip_extensiones.id', collect($aBorrar)->pluck('id'))
+        )->get();
 
-        return response()->json(['ok' => true]);
+        foreach ($aBorrar as $ext) {
+            // Siempre, no solo si provisionado_at dice que está: si quedó desalineado,
+            // borrar de Asterisk lo que no existe no hace daño.
+            try {
+                $this->provisioner->desprovisionarExtension($ext);
+            } catch (\Throwable $e) {
+                Log::warning("VoIP: no se pudo desprovisionar ext {$ext->numero} al eliminar: {$e->getMessage()}");
+            }
+            $ext->delete();   // la liga con grupos se borra en cascada
+        }
+
+        // Que la cola y el plan de marcado dejen de llamarla.
+        if ($grupos->isNotEmpty()) {
+            try {
+                foreach ($grupos as $g) {
+                    if ($g->es_cola) {
+                        $this->provisioner->provisionarCola($g->fresh('extensiones'));
+                    }
+                }
+                app(\App\Modules\Addons\VoIP\Services\DialplanGeneratorService::class)->regenerar();
+            } catch (\Throwable $e) {
+                Log::warning("VoIP: al eliminar ext {$extension->numero} no se pudo actualizar la cola o el plan: {$e->getMessage()}");
+            }
+        }
+
+        return response()->json(['ok' => true, 'borradas' => collect($aBorrar)->pluck('numero')]);
     }
 
     public function provisionar(Extension $extension): JsonResponse
@@ -239,24 +287,9 @@ class ExtensionController extends Controller
 
         try {
             [$conectadas, $equipos] = Cache::remember('voip_ext_estados', 10, function () {
-                $contactos = DB::connection('asterisk_rt')
-                    ->table('ps_contacts')
-                    ->where('expiration_time', '>', time())
-                    ->get(['endpoint', 'user_agent']);
+                [$conectadas, $agentes] = $this->provisioner->conexiones();
 
-                $conectadas = $contactos
-                    ->pluck('endpoint')
-                    ->map(fn ($ep) => explode('/', $ep)[0])
-                    ->unique()
-                    ->values()
-                    ->all();
-
-                $equipos = $contactos
-                    ->keyBy(fn ($c) => explode('/', $c->endpoint)[0])
-                    ->map(fn ($c) => self::clasificarEquipo($c->user_agent))
-                    ->all();
-
-                return [$conectadas, $equipos];
+                return [$conectadas, array_map(fn ($ua) => self::clasificarEquipo($ua), $agentes)];
             });
         } catch (\Throwable $e) {
             Log::warning("VoIP: no se pudo leer ps_contacts para estados — {$e->getMessage()}");
@@ -328,15 +361,18 @@ class ExtensionController extends Controller
         $nuevoEstado = ! $extension->activo;
         $extension->update(['activo' => $nuevoEstado]);
 
-        if ($extension->estaProvisionada()) {
-            try {
-                $nuevoEstado
-                    ? $this->provisioner->provisionarExtension($extension)
-                    : $this->provisioner->desprovisionarExtension($extension);
-            } catch (\Throwable $e) {
-                Log::warning("VoIP: toggle-provisión falló para ext {$extension->numero}: {$e->getMessage()}");
-                return response()->json(['ok' => true, 'activo' => $nuevoEstado, 'warning' => $e->getMessage()]);
+        // Al desactivar se quita de Asterisk (y provisionado_at queda vacío), así que al
+        // reactivar hay que darla de alta siempre: antes solo se hacía si seguía marcada
+        // como provisionada, y una extensión reactivada se quedaba fuera de Asterisk.
+        try {
+            if ($nuevoEstado) {
+                $this->provisioner->provisionarExtension($extension);
+            } elseif ($extension->estaProvisionada()) {
+                $this->provisioner->desprovisionarExtension($extension);
             }
+        } catch (\Throwable $e) {
+            Log::warning("VoIP: toggle-provisión falló para ext {$extension->numero}: {$e->getMessage()}");
+            return response()->json(['ok' => true, 'activo' => $nuevoEstado, 'warning' => $e->getMessage()]);
         }
 
         return response()->json(['ok' => true, 'activo' => $nuevoEstado]);

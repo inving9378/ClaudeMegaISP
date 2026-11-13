@@ -15,8 +15,17 @@ use Symfony\Component\Process\Process;
  */
 class VoiceTtsService
 {
-    public function __construct(private OpenAiTtsDriver $driver = new OpenAiTtsDriver(1, 'voip.voz'))
+    private OpenAiTtsDriver $driver;
+
+    /**
+     * Sin tipo a propósito: con `OpenAiTtsDriver $driver = new …(1, 'voip.voz')` el
+     * contenedor de Laravel inyectaba su propio OpenAiTtsDriver (clave por defecto
+     * «marketing.voz_videos») e ignoraba el valor por defecto, así que María hablaba
+     * —o fallaba— con la IA asignada a los videos de Marketing.
+     */
+    public function __construct($driver = null)
     {
+        $this->driver = $driver instanceof OpenAiTtsDriver ? $driver : new OpenAiTtsDriver(1, 'voip.voz');
     }
 
     /**

@@ -233,6 +233,18 @@ class TroncalController extends Controller
 
         $troncal->update(['activo' => ! $troncal->activo]);
 
+        // Antes solo cambiaba el interruptor en MegaISP: la troncal seguía registrada en
+        // Asterisk y recibiendo llamadas aunque aquí se viera apagada.
+        try {
+            $troncal->activo
+                ? $this->provisioner->provisionar($troncal)
+                : $this->provisioner->desprovisionar($troncal);
+            $this->generarDialplan();
+        } catch (\Throwable $e) {
+            Log::warning("VoIP: toggle de la troncal {$troncal->nombre} no se aplicó en Asterisk: {$e->getMessage()}");
+            return response()->json(['ok' => true, 'activo' => $troncal->activo, 'warning' => $e->getMessage()]);
+        }
+
         return response()->json(['ok' => true, 'activo' => $troncal->activo]);
     }
 

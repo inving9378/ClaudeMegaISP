@@ -31,7 +31,19 @@ class IaBotController extends Controller
     public function getConfig(): JsonResponse
     {
         $this->authorize('voip.ia-bot.view');
-        return response()->json(IaBotConfig::current());
+
+        // ¿Está corriendo el servicio que contesta las llamadas? Sin él, el plan de
+        // marcado se brinca a María aunque esté habilitada.
+        $host = (string) config('voip.bot_voz.host', '127.0.0.1');
+        $port = (int) config('voip.bot_voz.port', 9099);
+        $sock = @fsockopen($host, $port, $errno, $errstr, 0.5);
+        if ($sock) {
+            fclose($sock);
+        }
+
+        return response()->json(IaBotConfig::current()->toArray() + [
+            'servicio' => ['activo' => (bool) $sock, 'direccion' => "{$host}:{$port}"],
+        ]);
     }
 
     public function saveConfig(Request $request): JsonResponse

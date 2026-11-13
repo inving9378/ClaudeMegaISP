@@ -35,6 +35,18 @@ class MegaVozKpiController extends Controller
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
+        // Trae lo nuevo de queue_log antes de calcular. Es incremental (guarda hasta dónde
+        // leyó) y así los KPIs no dependen de que corra el cron de tareas programadas.
+        // Se corre la clase directamente: el módulo solo registra sus comandos en consola, así
+        // que Artisan::call() desde una petición web decía «the command does not exist».
+        try {
+            $importar = app(\App\Modules\Addons\VoIP\Console\ImportarQueueLogCommand::class);
+            $importar->setLaravel(app());
+            $importar->run(new \Symfony\Component\Console\Input\ArrayInput([]), new \Symfony\Component\Console\Output\NullOutput());
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('VoIP: no se pudo importar queue_log para KPIs: ' . $e->getMessage());
+        }
+
         $queuename = $request->get('cola', 'cola_1');
         $desde = $request->filled('desde')
             ? Carbon::parse($request->get('desde'))->startOfDay()

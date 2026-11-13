@@ -17,6 +17,9 @@ use Illuminate\Support\Facades\Cache;
  */
 class AsteriskProvisioningService
 {
+    /** Transporte para teléfonos de fuera de la oficina (pjsip.conf.tpl, config voip.asterisk.bind_externo). */
+    public const TRANSPORTE_EXTERNO = 'transport-externo';
+
     private string $regFile;
 
     public function __construct()
@@ -62,13 +65,15 @@ class AsteriskProvisioningService
         $this->upsert('ps_endpoints', $endpointData);
 
         if ($troncal->tipo === 'registro') {
-            // Auth en realtime, registración en archivo estático
-            $this->upsert('ps_auths', [
-                'id'        => $authId,
-                'auth_type' => 'userpass',
-                'username'  => $troncal->usuario,
-                'password'  => $troncal->secret_plain,
-            ]);
+            // Auth en realtime, registración en archivo estático. Una contraseña
+            // ilegible (otra APP_KEY) no pisa la que ya tiene Asterisk.
+            $auth = ['id' => $authId, 'auth_type' => 'userpass', 'username' => $troncal->usuario];
+            if (($secreto = $troncal->secret_plain) !== null && $secreto !== '') {
+                $auth['password'] = $secreto;
+            } else {
+                Log::warning("VoIP: la contraseña de la troncal {$troncal->nombre} no se pudo leer; se conserva la que ya tiene Asterisk.");
+            }
+            $this->upsert('ps_auths', $auth);
             $this->db()->table('ps_registrations')->where('id', $id)->delete();
             $this->provisionarRegistracion($troncal);
         } else {
@@ -108,6 +113,23 @@ class AsteriskProvisioningService
 
         $troncal->update(['provisionado_at' => null]);
         Log::info("VoIP: troncal {$troncal->nombre} ({$id}) desprovisionada.");
+    }
+
+    /**
+     * Endpoints con un teléfono registrado ahora mismo (contacto vigente en ps_contacts),
+     * y qué equipo es. Lo usan Extensiones y Grupos para pintar quién está conectado.
+     *
+     * @return array{0: list<string>, 1: array<string, ?string>}  [endpoints, user_agent por endpoint]
+     */
+    public function conexiones(): array
+    {
+        $contactos = $this->db()->table('ps_contacts')
+            ->where('expiration_time', '>', time())
+            ->get(['endpoint', 'user_agent']);
+
+        $porEndpoint = $contactos->keyBy(fn ($c) => explode('/', (string) $c->endpoint)[0]);
+
+        return [$porEndpoint->keys()->values()->all(), $porEndpoint->map(fn ($c) => $c->user_agent)->all()];
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -464,12 +486,35 @@ class AsteriskProvisioningService
             'qualify_frequency' => 60,
         ]);
 
-        $this->upsert('ps_auths', [
+        $auth = [
             'id'        => $authId,
             'auth_type' => 'userpass',
             'username'  => $ext->numero,
-            'password'  => $ext->secret_plain,
-        ]);
+        ];
+        // Sin contraseña legible (cifrada con otra APP_KEY, como pasó en dev) NO se pisa
+        // la que ya tiene Asterisk: escribir null dejaba al teléfono sin poder registrarse.
+        $secreto = $ext->secret_plain;
+        if ($secreto !== null && $secreto !== '') {
+            $auth['password'] = $secreto;
+        } else {
+            Log::warning("VoIP: la contraseña de la extensión {$ext->numero} no se pudo leer; se conserva la que ya tiene Asterisk.");
+        }
+        $this->upsert('ps_auths', $auth);
+
+        $this->upsert('ps_endpoints', $this->datosEndpoint($ext));
+
+        $ext->update(['provisionado_at' => now()->toDateTimeString()]);
+        Log::info("VoIP: extensión {$ext->numero} ({$id}) provisionada.");
+    }
+
+    /**
+     * La fila de ps_endpoints de una extensión. Aparte de provisionarExtension() para
+     * poder probarla sin la base realtime.
+     */
+    public function datosEndpoint(Extension $ext): array
+    {
+        $id     = $ext->endpointId();
+        $authId = "{$id}_auth";
 
         $endpoint = [
             'id'           => $id,
@@ -497,12 +542,35 @@ class AsteriskProvisioningService
             $endpoint['dtls_auto_generate_cert'] = 'yes';
             $endpoint['dtls_verify']             = 'fingerprint';
             $endpoint['dtls_setup']              = 'actpass';
+        } else {
+            // Teléfonos detrás de un router (casa, celular, Zoiper fuera de la oficina):
+            // contestarles y mandarles el audio a la dirección de la que de verdad llegan
+            // sus paquetes, no a la IP privada que anuncian. En la red local no cambia nada.
+            $endpoint['force_rport']     = 'yes';
+            $endpoint['rewrite_contact'] = 'yes';
+            $endpoint['rtp_symmetric']   = 'yes';
         }
 
-        $this->upsert('ps_endpoints', $endpoint);
+        // Con el transporte externo, el audio sale de la misma IP pública que la
+        // señalización; si no, el router del teléfono descarta el audio de vuelta.
+        // Se escribe también null para limpiar a una extensión que deja de ser externa.
+        $ip = $ext->transporte === self::TRANSPORTE_EXTERNO ? self::ipTransporteExterno() : null;
+        $endpoint['media_address']             = $ip;
+        $endpoint['bind_rtp_to_media_address'] = $ip ? 'yes' : null;
 
-        $ext->update(['provisionado_at' => now()->toDateTimeString()]);
-        Log::info("VoIP: extensión {$ext->numero} ({$id}) provisionada.");
+        return $endpoint;
+    }
+
+    /** IP del transporte externo ("IP:puerto" en config), o null si no hay o es 0.0.0.0. */
+    public static function ipTransporteExterno(): ?string
+    {
+        $bind = trim((string) config('voip.asterisk.bind_externo', ''));
+        if ($bind === '') {
+            return null;
+        }
+        $ip = str_contains($bind, ':') ? substr($bind, 0, strrpos($bind, ':')) : $bind;
+
+        return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) && $ip !== '0.0.0.0' ? $ip : null;
     }
 
     public function desprovisionarExtension(Extension $ext): void

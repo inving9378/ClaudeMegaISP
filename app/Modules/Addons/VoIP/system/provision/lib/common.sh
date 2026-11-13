@@ -22,7 +22,7 @@
 # Carpetas de la provisión (las mismas que usan config/requisitos-voip.php y el
 # provisionador). Fijas a propósito: el desinstalador las borra y una ruta
 # cambiada por .env no debe poder mandarlo a borrar otra cosa.
-ASTERISK_BIN="/usr/sbin/asterisk"
+: "${ASTERISK_BIN:=/usr/sbin/asterisk}"                  # override solo para pruebas
 : "${ASTERISK_TRABAJO_DIR:=/var/cache/megaisp-asterisk}"   # override solo para pruebas
 
 # Lo que borra el desinstalador (desinstalar-asterisk.sh + este paquete). Las

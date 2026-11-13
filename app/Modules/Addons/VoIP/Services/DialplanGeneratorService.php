@@ -52,6 +52,13 @@ class DialplanGeneratorService
 
         $this->applyEndpointContexts($troncales);
 
+        // Sin esto el archivo nuevo quedaba escrito pero Asterisk seguía con el plan
+        // anterior hasta la siguiente recarga por otra razón.
+        $recargado = app(AsteriskProvisioningService::class)->reloadDialplan();
+        if (! $recargado) {
+            Log::warning('VoIP: plan de marcado regenerado pero Asterisk no confirmó la recarga (pbx_config).');
+        }
+
         Log::info(sprintf(
             'VoIP: megaisp_grupos.conf regenerado — %d grupos, %d troncales con ruteo entrante.',
             $grupos->count(),
@@ -82,6 +89,9 @@ class DialplanGeneratorService
         foreach ($grupos as $grupo) {
             $lines[] = $this->buildGrupoContext($grupo);
         }
+
+        // Llamadas del personal a la calle (el restringido no las tiene)
+        $lines[] = $this->contextoSalida($this->troncalSalida());
 
         // Contexto restringido (bloqueado): internos sí, troncal no
         $lines[] = $this->buildContextoRestringido();
@@ -258,6 +268,53 @@ class DialplanGeneratorService
             "exten = t,1,Hangup()",
             "",
         ];
+    }
+
+    /**
+     * La troncal por la que sale el personal: la primera activa que puede sacar llamadas
+     * (dirección saliente o ambas) y no tiene un propósito propio (UCM, cobranza, avisos…).
+     */
+    public function troncalSalida(): ?Troncal
+    {
+        return Troncal::where('activo', true)
+            ->whereIn('direccion', ['saliente', 'ambas'])
+            ->whereNull('proposito')
+            ->orderBy('id')
+            ->first();
+    }
+
+    /**
+     * Llamadas del personal a la calle.
+     *
+     * Reabre [from-internal]: Asterisk junta las extensiones de un contexto aunque esté en
+     * dos archivos, así que la regla no depende de extensions.conf (lo escribe root y en
+     * algunas centrales está editado a mano). Solo números nacionales de 10 dígitos: nada
+     * internacional, que es por donde entra el fraude telefónico si alguien adivina la
+     * contraseña de una extensión. El contexto restringido no la incluye: un usuario
+     * bloqueado sigue sin poder salir.
+     *
+     * Marca a la URI del proveedor (host:puerto de la troncal) en vez de al AOR, que en las
+     * troncales de registro no lleva contacto fijo; la autenticación y el from_user son los
+     * del endpoint de la troncal.
+     */
+    public function contextoSalida(?Troncal $troncal): string
+    {
+        if (! $troncal || ! $troncal->host) {
+            return ";── Llamadas a la calle: no hay troncal activa de uso general (saliente/ambas, sin propósito) ──\n";
+        }
+
+        $endpoint = $troncal->endpointId();
+        $destino  = 'sip:${EXTEN}@' . $troncal->host . ($troncal->puerto ? ':' . $troncal->puerto : '');
+
+        return implode("\n", [
+            ";── Llamadas a la calle por la troncal «{$troncal->nombre}» ({$endpoint}) ──",
+            '[from-internal]',
+            'exten = _[2-9]XXXXXXXXX,1,NoOp(Saliente: ${CALLERID(num)} -> ${EXTEN})',
+            ' same = n,Set(CDR(userfield)=saliente)',
+            " same = n,Dial(PJSIP/{$endpoint}/{$destino},60)",
+            ' same = n,Hangup()',
+            '',
+        ]);
     }
 
     private function buildContextoRestringido(): string

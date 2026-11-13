@@ -2,6 +2,9 @@
 
 namespace App\Modules\Addons\VoIP\Console;
 
+use App\Modules\Addons\IA\Services\IA;
+use App\Modules\Addons\IA\Services\IANoConfigurada;
+use App\Modules\Addons\VoIP\Models\IaBotConfig;
 use App\Modules\Addons\VoIP\Models\IaBotConversation;
 use App\Modules\Addons\VoIP\Services\Voz\ConversacionBotService;
 use App\Modules\Addons\VoIP\Services\Voz\VoiceSttService;
@@ -21,7 +24,8 @@ class BotVozProbarCommand extends Command
 {
     protected $signature = 'voip:bot-voz-probar
                             {--wav= : Ruta a un .wav con la pregunta del cliente}
-                            {--texto= : O, más simple, el texto directo (sin pasar por STT)}';
+                            {--texto= : O, más simple, el texto directo (sin pasar por STT)}
+                            {--revisar : Solo revisa que María esté lista (claves de IA, servicio, configuración), sin llamar a OpenAI}';
 
     protected $description = 'Prueba el motor de María (STT→LLM→TTS) con un WAV o texto de prueba, sin tocar Asterisk';
 
@@ -30,6 +34,10 @@ class BotVozProbarCommand extends Command
         ConversacionBotService $cerebro,
         VoiceTtsService $tts
     ): int {
+        if ($this->option('revisar')) {
+            return $this->revisar();
+        }
+
         $wav   = $this->option('wav');
         $texto = $this->option('texto');
 
@@ -89,5 +97,63 @@ class BotVozProbarCommand extends Command
         $this->line("IaBotConversation #{$conversacion->id} (call_id={$conversacion->call_id})");
 
         return self::SUCCESS;
+    }
+
+    /**
+     * ¿Tiene María todo para contestar? Lo usa el instalador del add-on (paso 60).
+     * No llama a OpenAI ni imprime claves: solo si cada función de IA tiene una
+     * clave legible, si el servicio escucha y cómo está configurada.
+     * Sale con error si falta algo que le impida atender.
+     */
+    private function revisar(): int
+    {
+        $faltas = 0;
+        $funciones = [
+            'voip.bot_voz'       => 'Conversación (lo que piensa)',
+            'voip.voz'           => 'Voz (lo que dice)',
+            'voip.transcripcion' => 'Oído (lo que entiende)',
+        ];
+
+        foreach ($funciones as $clave => $que) {
+            try {
+                $c = IA::credencialesPara($clave);
+            } catch (IANoConfigurada $e) {
+                $this->warn("✘ {$que}: {$e->getMessage()}");
+                $faltas++;
+                continue;
+            }
+
+            if (trim((string) $c['llave']) !== '') {
+                $this->line("✔ {$que}: {$c['proveedor']} · {$c['modelo']}");
+                continue;
+            }
+
+            $faltas++;
+            $this->warn($c['integracion']->encrypted_value
+                ? "✘ {$que}: la clave de «{$c['proveedor']}» no se puede leer (se guardó con otra APP_KEY). Pégala de nuevo en Integraciones."
+                : "✘ {$que}: la integración «{$c['proveedor']}» no tiene clave. Pégala en Integraciones.");
+        }
+
+        $host = (string) config('voip.bot_voz.host', '127.0.0.1');
+        $port = (int) config('voip.bot_voz.port', 9099);
+        $sock = @fsockopen($host, $port, $errno, $errstr, 1);
+        if ($sock) {
+            fclose($sock);
+            $this->line("✔ Servicio: escucha en {$host}:{$port}");
+        } else {
+            $this->warn("✘ Servicio: nadie escucha en {$host}:{$port} (systemctl status megaisp-bot-voz)");
+            $faltas++;
+        }
+
+        $cfg = IaBotConfig::current();
+        $horario = substr((string) $cfg->horario_inicio, 0, 5) . '–' . substr((string) $cfg->horario_fin, 0, 5);
+        if ($cfg->enabled && $cfg->piloto_porcentaje > 0) {
+            $this->line("✔ Atiende el {$cfg->piloto_porcentaje} % de las llamadas, de {$horario}");
+        } else {
+            $this->line('· Apagada' . ($cfg->enabled ? ' (piloto en 0 %)' : '')
+                . ': las llamadas van directo a las personas. Para encenderla: VoIP → Asistente IA.');
+        }
+
+        return $faltas ? self::FAILURE : self::SUCCESS;
     }
 }

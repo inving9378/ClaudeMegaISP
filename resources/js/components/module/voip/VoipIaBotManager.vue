@@ -7,6 +7,10 @@
         <small class="text-muted">María — Atención a clientes y ventas</small>
       </div>
       <div class="d-flex align-items-center gap-2">
+        <span v-if="servicio" :class="['tc-status', servicio.activo ? 'is-ok' : 'is-bad']"
+              :title="servicio.activo ? `El servicio de María contesta en ${servicio.direccion}` : 'El servicio de María no está corriendo: el teléfono se la brinca'">
+          {{ servicio.activo ? 'Servicio activo' : 'Servicio detenido' }}
+        </span>
         <span :class="['tc-status', config.enabled ? 'is-ok' : 'is-slate']">
           {{ config.enabled ? 'Habilitado' : 'Deshabilitado' }}
         </span>
@@ -14,6 +18,24 @@
           {{ config.enabled ? 'Deshabilitar' : 'Habilitar' }}
         </button>
       </div>
+    </div>
+
+    <!-- Por qué María no está atendiendo, si es el caso -->
+    <div v-if="config.enabled && servicio && !servicio.activo" class="alert alert-danger py-2 small">
+      <i class="fas fa-exclamation-triangle me-1"></i>
+      María está habilitada pero <strong>su servicio no está corriendo</strong>: ninguna llamada la atiende, todas van
+      directo a la cola. Hay que arrancar el servicio <code>megaisp-bot-voz</code> en el servidor
+      (lo instala el instalador de Asterisk desde Add-ons).
+    </div>
+    <div v-else-if="config.enabled && config.piloto_porcentaje <= 0" class="alert alert-warning py-2 small">
+      <i class="fas fa-exclamation-triangle me-1"></i>
+      María está habilitada pero el piloto está en <strong>0 %</strong>: no atiende a nadie. Súbelo a 100 % para que
+      atienda todas las llamadas dentro del horario.
+    </div>
+    <div v-else-if="config.enabled && servicio && servicio.activo" class="alert alert-success py-2 small">
+      <i class="fas fa-check-circle me-1"></i>
+      María atiende el <strong>{{ config.piloto_porcentaje }} %</strong> de las llamadas entre
+      {{ config.horario_inicio }} y {{ config.horario_fin }}. Si ya está en una llamada, la siguiente pasa a una persona.
     </div>
 
     <!-- Tabs -->
@@ -508,6 +530,7 @@ export default {
   data() {
     return {
       tab: 'config',
+      servicio: null,
       config: { enabled: false, piloto_porcentaje: 0, horario_inicio: '09:00', horario_fin: '20:00',
                 system_prompt: '', greeting_customer: '', greeting_lead: '',
                 voice: 'nova', temperature: 0.7, max_turns: 12, max_duration_seconds: 480,
@@ -575,6 +598,8 @@ export default {
         // arregla el guardado, ya normaliza en el backend por si acaso).
         if (typeof data.horario_inicio === 'string') data.horario_inicio = data.horario_inicio.slice(0, 5);
         if (typeof data.horario_fin === 'string') data.horario_fin = data.horario_fin.slice(0, 5);
+        this.servicio = data.servicio ?? null;
+        delete data.servicio;
         this.config = data;
       } catch (e) { this.$notify?.({ type: 'error', title: e.message }); }
       finally { this.loadingConfig = false; }
@@ -584,7 +609,12 @@ export default {
       this.saving = true;
       try {
         const { data } = await this.request('PUT', '/ia-bot/config', this.config);
-        this.config = data;
+        if (data) {
+          if (typeof data.horario_inicio === 'string') data.horario_inicio = data.horario_inicio.slice(0, 5);
+          if (typeof data.horario_fin === 'string') data.horario_fin = data.horario_fin.slice(0, 5);
+          delete data.servicio;
+          this.config = data;
+        }
         this.showToast('Configuración guardada correctamente', 'success');
       } catch (e) { this.showToast(e.message, 'danger'); }
       finally { this.saving = false; }

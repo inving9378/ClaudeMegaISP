@@ -24,7 +24,10 @@ class GeneradorConfigAsterisk
         $this->destino = $destino ?? '/etc/asterisk';
     }
 
-    public function generar(?array $valores = null): array
+    /**
+     * @param  array<int,string>|null  $solo  Si se da, solo estos archivos (p. ej. ['pjsip.conf']).
+     */
+    public function generar(?array $valores = null, ?array $solo = null): array
     {
         $valores ??= $this->valoresDelServidor();
 
@@ -35,6 +38,9 @@ class GeneradorConfigAsterisk
 
         foreach (glob($this->origen . '/*.tpl') as $tpl) {
             $nombre    = basename($tpl, '.tpl');
+            if ($solo !== null && ! in_array($nombre, $solo, true)) {
+                continue;
+            }
             $contenido = $this->rellenar(file_get_contents($tpl), $valores);
             $ruta      = $this->destino . '/' . $nombre;
 
@@ -176,6 +182,7 @@ class GeneradorConfigAsterisk
             'EXTERNAL_MEDIA'     => config('voip.asterisk.external_media', ''),
             'EXTERNAL_SIGNALING' => config('voip.asterisk.external_signaling', ''),
             'LOCAL_NET'          => config('voip.asterisk.local_net', ''),
+            'BIND_EXTERNO'       => config('voip.asterisk.bind_externo', ''),
             'RTP_START'          => config('voip.asterisk.rtp_start', 10000),
             'RTP_END'            => config('voip.asterisk.rtp_end', 20000),
             'AMI_BIND'           => config('voip.ami_host', '127.0.0.1'),

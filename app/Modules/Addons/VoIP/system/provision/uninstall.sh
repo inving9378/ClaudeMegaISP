@@ -28,6 +28,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"
 # shellcheck source=lib/40-proxy-ws.sh
 source "${SCRIPT_DIR}/lib/40-proxy-ws.sh"
+# shellcheck source=lib/50-bot-voz.sh
+source "${SCRIPT_DIR}/lib/50-bot-voz.sh"
 # shellcheck source=lib/90-desinstalar.sh
 source "${SCRIPT_DIR}/lib/90-desinstalar.sh"
 
@@ -44,6 +46,7 @@ main() {
     log_step "== Desinstalación de Asterisk de VoIP (idempotente) =="
     preflight
     desinstalar_respaldo_bd      # 1 — respaldo de la base realtime
+    quitar_bot_voz               # 1b — servicio del asistente de voz (María)
     quitar_proxy_ws              # 2 — /ws del servidor web
     desinstalar_grabaciones      # 3 — se quedan; cambia el dueño
     desinstalar_asterisk         # 4 — servicio, binarios, config, datos, base, usuario

@@ -169,6 +169,32 @@ class BotVozEscucharCommand extends Command
         return self::SUCCESS; // inalcanzable salvo señal
     }
 
+    /**
+     * Toma una de las líneas de María (archivo con flock). null = todas ocupadas.
+     * El recurso devuelto debe seguir vivo mientras dure la llamada.
+     *
+     * @return resource|null
+     */
+    private function tomarLinea()
+    {
+        $max = max(1, (int) config('voip.bot_voz.max_simultaneas', 1));
+        $dir = storage_path('app/megavoz-lineas');
+        if (! is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+        }
+        for ($i = 1; $i <= $max; $i++) {
+            $fh = @fopen("{$dir}/linea-{$i}.lock", 'c');
+            if ($fh && flock($fh, LOCK_EX | LOCK_NB)) {
+                return $fh;
+            }
+            if ($fh) {
+                fclose($fh);
+            }
+        }
+
+        return null;
+    }
+
     private function atenderLlamada($conn, string $peer): void
     {
         stream_set_timeout($conn, 30);
@@ -192,6 +218,15 @@ class BotVozEscucharCommand extends Command
         // María nunca llegó a atender.
         if (! $config->debeAtenderAhora()) {
             $this->log("{$peer}: uuid={$uuid} — fuera del piloto/horario, se declina (dialplan sigue solo).");
+            return;
+        }
+
+        // Una línea por llamada: si María ya está hablando con alguien (todas sus
+        // líneas tomadas), esta llamada pasa a la cola para que la atienda una persona.
+        // El candado se suelta solo al terminar el proceso de la llamada, aunque truene.
+        $linea = $this->tomarLinea();
+        if ($linea === null) {
+            $this->log("{$peer}: uuid={$uuid} — María ocupada, pasa a la cola con una persona.");
             return;
         }
 

@@ -12,6 +12,21 @@ bind={{BIND_SIP}}
 {{#EXTERNAL_SIGNALING}}external_signaling_address={{EXTERNAL_SIGNALING}}{{/EXTERNAL_SIGNALING}}
 {{#LOCAL_NET}}local_net={{LOCAL_NET}}{{/LOCAL_NET}}
 
+{{#BIND_EXTERNO}}
+; Teléfonos que se conectan desde FUERA de la oficina (Zoiper, celulares).
+; Transporte aparte amarrado a la IP pública del servidor: así Asterisk contesta
+; desde la misma IP a la que el teléfono le habló. Con un solo transporte en
+; 0.0.0.0, en un servidor con IP privada + IP pública la respuesta sale por la
+; ruta normal (con la IP del NAT del router) y el router del teléfono la tira:
+; Zoiper se queda en «408 Request Timeout». Las extensiones que lo usan llevan
+; transporte = transport-externo (AsteriskProvisioningService amarra su audio a
+; esta misma IP).
+[transport-externo]
+type=transport
+protocol=udp
+bind={{BIND_EXTERNO}}
+{{/BIND_EXTERNO}}
+
 ; MegaVoz Fase 2 — mini-teléfono WebRTC. La señalización viaja por el mismo
 ; servidor HTTP que ya usa ARI (http.conf, loopback:{{ARI_PORT}}); este objeto
 ; solo declara el transporte para que los endpoints WebRTC lo referencien —

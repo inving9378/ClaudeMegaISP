@@ -821,7 +821,13 @@ class ProvisionadorAsterisk
     private function sembrar(): array
     {
         Artisan::call('db:seed', ['--class' => \App\Modules\Addons\VoIP\Seeders\PlanNumeracionSeeder::class, '--force' => true]);
-        Artisan::call('db:seed', ['--class' => \App\Modules\Addons\VoIP\Seeders\ExtensionesArranqueSeeder::class, '--force' => true]);
+        // Las extensiones de arranque solo en una central sin ninguna. Reinstalar
+        // desde Add-ons (para aplicar lo nuevo de una versión) corre este paso otra
+        // vez, y el sembrador solo salta los números que existen: revivía las
+        // extensiones que alguien ya había borrado.
+        if (! \App\Modules\Addons\VoIP\Models\Extension::query()->exists()) {
+            Artisan::call('db:seed', ['--class' => \App\Modules\Addons\VoIP\Seeders\ExtensionesArranqueSeeder::class, '--force' => true]);
+        }
 
         $provisionador = app(AsteriskProvisioningService::class);
         $publicadas    = 0;

@@ -39,6 +39,8 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 BotVozProbarCommand::class,
                 BotVozEscucharCommand::class,
                 GenerarGemelasWebrtcCommand::class,
+                \App\Modules\Addons\VoIP\Console\GenerarConfigAsteriskCommand::class,
+                \App\Modules\Addons\VoIP\Console\SincronizarAsteriskCommand::class,
             ]);
         }
     }

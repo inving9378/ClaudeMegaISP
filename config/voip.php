@@ -70,6 +70,13 @@ return [
         'external_media'      => env('ASTERISK_EXTERNAL_MEDIA', ''),
         'external_signaling'  => env('ASTERISK_EXTERNAL_SIGNALING', ''),
         'local_net'           => env('ASTERISK_LOCAL_NET', ''),
+        // Transporte SIP aparte para teléfonos que se conectan desde FUERA de la oficina
+        // (Zoiper, celulares), como "IP:puerto" — p. ej. "203.0.113.10:5080". Hace falta
+        // cuando el servidor tiene una IP pública propia además de la de la red local:
+        // amarrado a esa IP, Asterisk contesta desde la misma dirección a la que el
+        // teléfono le habló. Vacío = no se crea. Las extensiones que lo usan llevan
+        // transporte «transport-externo».
+        'bind_externo'        => env('ASTERISK_BIND_EXTERNO', ''),
         'rtp_start'           => env('ASTERISK_RTP_START', 10000),
         'rtp_end'             => env('ASTERISK_RTP_END', 20000),
         'ami_permit'          => env('ASTERISK_AMI_PERMIT', '127.0.0.1/255.255.255.255'),
@@ -92,6 +99,9 @@ return [
     'bot_voz' => [
         'host' => env('MEGAVOZ_BOT_VOZ_HOST', '127.0.0.1'),
         'port' => (int) env('MEGAVOZ_BOT_VOZ_PORT', 9099),
+        // Cuántas llamadas atiende María a la vez. Con la línea ocupada, la siguiente
+        // llamada sigue directo a la cola para que la conteste una persona.
+        'max_simultaneas' => (int) env('MEGAVOZ_BOT_VOZ_MAX_SIMULTANEAS', 1),
     ],
 
     // MegaVoz — servidor TURN (coturn, 25-sep-2026) para el mini-teléfono

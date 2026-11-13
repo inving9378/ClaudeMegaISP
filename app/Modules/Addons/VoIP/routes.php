@@ -52,6 +52,9 @@ Route::middleware(['web', 'auth'])->prefix('voip')->group(function () {
     // ════════════════════════════════════════════════════════════════════════
     Route::get('/grupos-timbrado',                          [GrupoTimbradoController::class, 'index'])->name('voip.grupos.index');
     Route::get('/grupos-timbrado/data',                     [GrupoTimbradoController::class, 'data'])->name('voip.grupos.data');
+    Route::get('/grupos-timbrado/estados',                  [GrupoTimbradoController::class, 'estados'])->name('voip.grupos.estados');
+    Route::get('/sincronizacion',                           [\App\Modules\Addons\VoIP\Controllers\SincronizacionController::class, 'revisar'])->name('voip.sincronizacion.revisar');
+    Route::post('/sincronizacion',                          [\App\Modules\Addons\VoIP\Controllers\SincronizacionController::class, 'aplicar'])->name('voip.sincronizacion.aplicar');
     Route::get('/grupos-timbrado/extensiones-disponibles',  [GrupoTimbradoController::class, 'extensionesDisponibles'])->name('voip.grupos.extensiones');
     Route::post('/grupos-timbrado',                         [GrupoTimbradoController::class, 'store'])->name('voip.grupos.store');
     Route::put('/grupos-timbrado/{grupoTimbrado}',          [GrupoTimbradoController::class, 'update'])->name('voip.grupos.update');

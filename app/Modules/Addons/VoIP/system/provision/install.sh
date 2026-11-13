@@ -5,12 +5,22 @@
 # Deja la central de MegaISP lista en un servidor de PRODUCCIÓN:
 #   10 base realtime `asterisk` + usuario MySQL `asterisk_rt` (y sus ASTERISK_RT_DB_*
 #      en el .env de MegaISP)
+#   15 teléfonos fuera de la oficina: si el servidor sale por IP privada y tiene
+#      una pública en la interfaz, ASTERISK_BIND_EXTERNO=<pública>:5080
 #   20 Asterisk vía `php artisan voip:provisionar` (descarga verificada por sha256,
 #      compilación, Alembic, configuración, credenciales AMI/ARI, plan de numeración,
 #      arranque y validación)
 #   30 el usuario web en el grupo `asterisk` (config generada y grabaciones)
 #   40 /ws en el vhost de MegaISP (nginx o Apache) para el mini-teléfono web
 #   cierre: config:clear + queue:restart y verificación (CLI, ARI y /ws)
+#   50 servicio del asistente de voz «María» (megaisp-bot-voz)
+#   60 sincronizar MegaISP con Asterisk (extensiones, troncales, colas, plan de
+#      marcado con salida a la calle) y revisión final (troncales registradas,
+#      salida, teléfonos de fuera, María)
+#
+# Volver a correrlo en una central que ya funciona es la forma de aplicarle lo
+# nuevo de una versión: el paso 20 reinicia Asterisk, así que el preflight se
+# detiene si hay llamadas en curso.
 #
 # NO instala MySQL (se asume presente) ni el servidor TURN (coturn) del
 # mini-teléfono: eso depende de la IP pública y de los puertos del router.
@@ -29,6 +39,8 @@
 #                                    'meganet' con dev); APP_URL sigue abortando en dev
 #   VOIP_FORCE_ROTATE_DB_PASSWORD=1  rota el password MySQL de asterisk_rt a juego
 #                                    con el .env cuando no coinciden (si no, aborta)
+#   VOIP_BIND_EXTERNO=IP:puerto|no   paso 15: fijar a mano el transporte de fuera, o no tocarlo
+#   VOIP_REINICIAR_CON_LLAMADAS=1    seguir aunque haya llamadas en curso (se cortan)
 #
 # Paso por paso: cada paso dice OMITIDO / [ok] / [XX]. Si uno falla, deshace lo
 # suyo, se detiene y deja el motivo a la vista; reintentar retoma desde ahí.
@@ -40,12 +52,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"
 # shellcheck source=lib/10-base-realtime.sh
 source "${SCRIPT_DIR}/lib/10-base-realtime.sh"
+# shellcheck source=lib/15-transporte-externo.sh
+source "${SCRIPT_DIR}/lib/15-transporte-externo.sh"
 # shellcheck source=lib/20-asterisk.sh
 source "${SCRIPT_DIR}/lib/20-asterisk.sh"
 # shellcheck source=lib/30-acceso-web.sh
 source "${SCRIPT_DIR}/lib/30-acceso-web.sh"
 # shellcheck source=lib/40-proxy-ws.sh
 source "${SCRIPT_DIR}/lib/40-proxy-ws.sh"
+# shellcheck source=lib/50-bot-voz.sh
+source "${SCRIPT_DIR}/lib/50-bot-voz.sh"
+# shellcheck source=lib/60-sincronizar.sh
+source "${SCRIPT_DIR}/lib/60-sincronizar.sh"
 
 # --- Preflight ---------------------------------------------------------------
 # _quien_escucha PROTO PUERTO — proceso que escucha en ese puerto (vacío si nadie).
@@ -77,6 +95,17 @@ preflight() {
             die "El puerto ${par#*:}/${par%%:*} ya lo usa '${quien}'. Asterisk lo necesita; libéralo (o cambia ASTERISK_ARI_PORT) y reintenta."
         fi
     done
+
+    # El paso 20 reinicia Asterisk: con llamadas en curso, se cortarían.
+    if [[ -x "$ASTERISK_BIN" ]] && systemctl is-active --quiet asterisk 2>/dev/null; then
+        local llamadas
+        llamadas="$("$ASTERISK_BIN" -rx 'core show channels count' 2>/dev/null | sed -n 's/^\([0-9][0-9]*\) active call.*/\1/p' | head -n1 || true)"
+        if [[ "$llamadas" =~ ^[0-9]+$ ]] && (( llamadas > 0 )); then
+            [[ "${VOIP_REINICIAR_CON_LLAMADAS:-}" == 1 ]] \
+                || die "Hay ${llamadas} llamada(s) en curso y la instalación reinicia Asterisk: se cortarían. No se tocó nada; reintenta cuando no haya llamadas."
+            log_warn "Hay ${llamadas} llamada(s) en curso; VOIP_REINICIAR_CON_LLAMADAS=1 → se cortarán al reiniciar Asterisk."
+        fi
+    fi
 
     log_ok "Preflight OK — MegaISP en ${MEGAISP_ROOT}, usuario web '${MEGAISP_USER}'"
 }
@@ -131,8 +160,12 @@ summary() {
     printf '  %s\n' "Asterisk $("$ASTERISK_BIN" -V 2>/dev/null | sed 's/^Asterisk //' || echo '?') instalado como servicio (arranca en boot)."
     printf '  %s\n' "Base realtime: $(voip_db_name) (usuario $(voip_db_user)); credenciales en el .env de MegaISP (no se muestran)."
     printf '  %s\n' "Grabaciones: $(voip_grabaciones_dir)"
+    printf '  %s\n' "Asistente de voz «María»: servicio ${BOT_VOZ_SERVICIO} en $(_bot_voz_host):$(_bot_voz_port) (arranca en boot)."
     printf '\n  %s\n' "Pendiente a mano (no lo puede hacer este script):"
-    printf '    - %s\n' "Troncales: en VoIP → Troncales, «Provisionar» cada una (y verificar que registre)."
+    printf '    - %s\n' "Troncales: las activas se dieron de alta en el paso 60. La que diga «no registrada» en la revisión final: usuario, contraseña y servidor en VoIP → Troncales."
+    printf '    - %s\n' "María: si la revisión final marca ✘, clave de OpenAI en Integraciones y funciones asignadas en Módulos IA. Encenderla y su horario: VoIP → Asistente IA."
+    [[ -n "$(get_env_value ASTERISK_BIND_EXTERNO)" ]] \
+        && printf '    - %s\n' "Teléfonos de fuera (Zoiper, celulares): en VoIP → Extensiones ponles el transporte «transport-externo»; en el teléfono, servidor $(get_env_value ASTERISK_BIND_EXTERNO)."
     [[ -n "$(get_env_value ASTERISK_EXTERNAL_MEDIA)" ]] \
         || printf '    - %s\n' "ASTERISK_EXTERNAL_MEDIA/SIGNALING vacíos: si el servidor está detrás de NAT, el audio con la troncal puede ir en un solo sentido."
     [[ -n "$(get_env_value MEGAVOZ_TURN_USERNAME)" ]] \
@@ -144,11 +177,17 @@ main() {
     log_step "== Instalación de Asterisk para VoIP (idempotente) =="
     preflight
     provision_base_realtime   # 10 — base + usuario MySQL + ASTERISK_RT_DB_*
+    provision_transporte_externo  # 15 — ASTERISK_BIND_EXTERNO (teléfonos de fuera), antes de generar pjsip.conf
     provision_asterisk        # 20 — php artisan voip:provisionar
     provision_acceso_web      # 30 — usuario web en el grupo asterisk
     provision_proxy_ws        # 40 — /ws en el vhost (nginx o Apache)
     finalize                  # cierre — config + verificación
+    provision_bot_voz         # 50 — servicio del asistente de voz (María)
+    provision_sincronizar     # 60 — MegaISP ↔ Asterisk (extensiones, troncales, colas, plan)
+    verificar_telefonia       # 60 — revisión final (solo avisa)
     summary
+    (( SINCRONIZAR_FALLAS == 0 )) \
+        || die "La central quedó instalada, pero la sincronización tuvo fallas (paso 60, arriba). Corrígelas y vuelve a instalar."
     log_ok "Listo."
 }
 

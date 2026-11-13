@@ -51,7 +51,9 @@
                                     <span v-if="g.miembros.length === 0" class="text-muted small">Sin miembros</span>
                                     <span v-else>
                                         <span v-for="(m, i) in g.miembros" :key="m.id"
-                                              class="tc-status is-slate me-1">
+                                              class="tc-status me-1 mb-1 d-inline-block"
+                                              :class="estaConectada(m.numero) ? 'is-ok' : 'is-slate'"
+                                              :title="`${m.nombre} — ${estaConectada(m.numero) ? 'teléfono conectado' : 'sin teléfono conectado'}`">
                                             {{ m.numero }}
                                         </span>
                                     </span>
@@ -80,6 +82,13 @@
                     </table>
                 </div>
             </div>
+        </div>
+        <div v-if="grupos.length" class="small text-muted mt-2">
+            <span class="tc-status is-ok me-1">verde</span>
+            teléfono conectado ahora ·
+            <span class="tc-status is-slate mx-1">gris</span>
+            sin teléfono conectado (no le va a timbrar)
+            <span v-if="!estadosCargados" class="ms-2 text-warning">· no se pudo consultar Asterisk</span>
         </div>
 
         <!-- Modal Crear/Editar -->
@@ -258,6 +267,10 @@ export default {
             toastTipo:        'success',
             form:             this.formVacio(),
             errores:          {},
+            // Extensiones con teléfono conectado ahora (Asterisk), se refresca cada 30 s.
+            conectadas:       [],
+            estadosCargados:  false,
+            intervaloEstados: null,
         };
     },
 
@@ -270,6 +283,12 @@ export default {
     mounted() {
         this.cargar();
         this.cargarExtensiones();
+        this.cargarEstados();
+        this.intervaloEstados = setInterval(() => this.cargarEstados(), 30000);
+    },
+
+    beforeUnmount() {
+        clearInterval(this.intervaloEstados);
     },
 
     methods: {
@@ -293,6 +312,22 @@ export default {
             } finally {
                 this.cargando = false;
             }
+        },
+
+        async cargarEstados() {
+            try {
+                const r = await fetch(`${this.baseUrl}/grupos-timbrado/estados`, { headers: this.headers() });
+                if (r.ok) {
+                    this.conectadas = (await r.json()).conectadas ?? [];
+                    this.estadosCargados = true;
+                }
+            } catch (e) {
+                // Sin estado no se pinta nada en verde; la tabla sigue funcionando.
+            }
+        },
+
+        estaConectada(numero) {
+            return this.conectadas.includes(numero);
         },
 
         async cargarExtensiones() {

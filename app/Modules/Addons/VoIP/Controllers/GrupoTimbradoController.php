@@ -50,6 +50,22 @@ class GrupoTimbradoController extends Controller
         return response()->json($grupos);
     }
 
+    /** Extensiones con teléfono conectado ahora, para pintar en verde a los miembros. */
+    public function estados(): JsonResponse
+    {
+        if (! auth()->user()?->can('voip.grupos.view')) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        try {
+            [$conectadas] = $this->provisioner->conexiones();
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+
+        return response()->json(['conectadas' => $conectadas]);
+    }
+
     public function extensionesDisponibles(): JsonResponse
     {
         if (! auth()->user()?->can('voip.grupos.view')) {
