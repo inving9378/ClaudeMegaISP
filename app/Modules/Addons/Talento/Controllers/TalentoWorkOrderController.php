@@ -15,6 +15,7 @@ use App\Modules\Addons\Talento\Models\TalentoWorkOrderType;
 use App\Modules\Addons\Talento\Services\AgendaOrdenesService;
 use App\Modules\Addons\Talento\Services\AvisoOrdenColaborador;
 use App\Modules\Addons\Talento\Services\ChoqueAgendaOrdenes;
+use App\Modules\Addons\Talento\Services\CorreccionEvidenciasService;
 use App\Modules\Addons\Talento\Services\CorreccionOrdenValidadaService;
 use App\Modules\Addons\Talento\Services\IncidenciasOrdenService;
 use App\Modules\Addons\Talento\Services\OrdenPendienteService;
@@ -122,6 +123,14 @@ class TalentoWorkOrderController extends Controller
         // #1326: cuántas órdenes de las que ve esperan atención por una incidencia (botón de la bandeja).
         $result['con_incidencia'] = empty($filtros['eliminadas'])
             ? $this->unified->listForAdmin(['colaborador_id' => $filtros['colaborador_id'] ?? null, 'status' => 'incidencia'], 1, 1)['total']
+            : 0;
+        // #1286: correcciones que el técnico ya envió y esperan revisión.
+        $result['correcciones_por_revisar'] = empty($filtros['eliminadas'])
+            ? $this->unified->listForAdmin(['colaborador_id' => $filtros['colaborador_id'] ?? null, 'status' => 'correccion_revisar'], 1, 1)['total']
+            : 0;
+        // #1286: con la revisión del supervisor encendida, las terminadas que esperan su validación.
+        $result['por_validar'] = empty($filtros['eliminadas']) && config('unificacion.interruptores.validacion_separada')
+            ? $this->unified->listForAdmin(['colaborador_id' => $filtros['colaborador_id'] ?? null, 'status' => 'completed'], 1, 1)['total']
             : 0;
 
         return response()->json($result);
@@ -696,6 +705,61 @@ class TalentoWorkOrderController extends Controller
         return response()->json($this->unified->showForAdmin($task->id, OrdenReferencia::ORIGEN_TAREA));
     }
 
+    /**
+     * POST /talento/api/ordenes/{id}/correccion — #1286: sobre una orden terminada, el supervisor le pide
+     * al técnico fotos de corrección con un motivo. La orden no cambia de estado ni de puntos; el técnico
+     * la vuelve a ver en «Mi día» de la app hasta que envíe las fotos.
+     */
+    public function pedirCorreccion(Request $request, $id, CorreccionEvidenciasService $correcciones, AvisoOrdenColaborador $avisos)
+    {
+        $this->authorize('talento.work_orders.validate');
+        $data = $request->validate(['motivo' => 'required|string|min:5|max:1000']);
+
+        $task = $this->tareaParaCorreccion($id);
+        $result = $correcciones->pedir($task, trim($data['motivo']), (int) auth()->id());
+        if (! $result['success']) {
+            return response()->json(['error' => $result['message']], $result['status_code']);
+        }
+
+        $tipo = $task->talentoType?->name ?? 'Orden de trabajo';
+        foreach ($task->users as $usuario) {
+            $avisos->correccionPedida($task, $usuario, $tipo, trim($data['motivo']));
+        }
+
+        return response()->json($this->unified->showForAdmin($task->id, OrdenReferencia::ORIGEN_TAREA));
+    }
+
+    /** POST /talento/api/ordenes/{id}/correccion/cerrar — #1286: dar por buena la corrección enviada o cancelarla. */
+    public function cerrarCorreccion(Request $request, $id, CorreccionEvidenciasService $correcciones)
+    {
+        $this->authorize('talento.work_orders.validate');
+        $data = $request->validate(['cierre' => ['required', Rule::in(['aceptada', 'cancelada'])]]);
+
+        $task = $this->tareaParaCorreccion($id);
+        $result = $correcciones->cerrar($task->id, $data['cierre'], (int) auth()->id());
+        if (! $result['success']) {
+            return response()->json(['error' => $result['message']], $result['status_code']);
+        }
+
+        return response()->json($this->unified->showForAdmin($task->id, OrdenReferencia::ORIGEN_TAREA));
+    }
+
+    /** La orden (de `tasks`) a la que se le pide o cierra una corrección, con el mismo alcance de equipo que Validar. */
+    private function tareaParaCorreccion($id): Task
+    {
+        [$ordenId, $origen] = $this->ref($id);
+        if ($antigua = $this->rechazoOrdenAntigua($ordenId, $origen)) {
+            abort($antigua);
+        }
+        $task = Task::with(['users', 'talentoType'])->whereKey($ordenId)->whereNotNull('talento_type_id')->first();
+        abort_unless($task, 404, 'Orden no encontrada.');
+        abort_unless($this->unified->puedeValidarEquipo($task->users->pluck('id')->all()), response()->json([
+            'error' => 'Solo puedes pedir correcciones en órdenes de tu equipo.',
+        ], 403));
+
+        return $task;
+    }
+
     /** Las órdenes de la tabla vieja (talento_work_orders) no se editan ni eliminan desde aquí. */
     private function rechazoOrdenAntigua(int $ordenId, ?string $origen)
     {
@@ -769,18 +833,28 @@ class TalentoWorkOrderController extends Controller
         return response()->json($result);
     }
 
-    public function returnOrder(Request $request, $id)
+    /**
+     * POST /talento/api/ordenes/{id}/return — revisión del supervisor (#1286, sobre UNI-T D3b): la
+     * orden terminada que todavía no valida regresa al técnico con una nota que ve en la app. Él la
+     * corrige y la vuelve a terminar; sus puntos cuentan cuando se valide.
+     */
+    public function returnOrder(Request $request, $id, CorreccionEvidenciasService $correcciones, AvisoOrdenColaborador $avisos)
     {
         $this->authorize('talento.work_orders.validate');
+        $data = $request->validate(['motivo' => 'required|string|min:5|max:1000']);
 
-        [$ordenId, $origen] = $this->ref($id);
-        $result = $this->unified->devolver($ordenId, $request->input('motivo'), $origen);
-
-        if (!$result['success']) {
+        $task = $this->tareaParaCorreccion($id);
+        $result = $correcciones->devolver($task, trim($data['motivo']), (int) auth()->id());
+        if (! $result['success']) {
             return response()->json(['error' => $result['message']], $result['status_code'] ?? 422);
         }
 
-        return response()->json($result['data']);
+        $tipo = $task->talentoType?->name ?? 'Orden de trabajo';
+        foreach ($task->users as $usuario) {
+            $avisos->devuelta($task, $usuario, $tipo, trim($data['motivo']));
+        }
+
+        return response()->json($this->unified->showForAdmin($task->id, OrdenReferencia::ORIGEN_TAREA));
     }
 
     public function addActivity(Request $request, $id)

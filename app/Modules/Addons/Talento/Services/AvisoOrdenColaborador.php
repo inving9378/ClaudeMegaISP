@@ -84,6 +84,34 @@ class AvisoOrdenColaborador
             . 'se eliminó; ya no está en tu «Mi día».', $task->id, 'al eliminar orden');
     }
 
+    /** #1286: el supervisor pidió fotos de corrección en una orden ya terminada. */
+    public function correccionPedida(Task $task, User $usuario, string $tipoNombre, string $motivo): void
+    {
+        TalentoMobileApiController::sendPushToUser(
+            $usuario->id,
+            'Corrección pedida en una orden',
+            "Orden #{$task->id} ({$tipoNombre}): {$motivo}",
+            ['type' => 'ot_correccion', 'ot_id' => $task->id]
+        );
+        $this->campanita($task, $usuario, 'Corrección pedida en una orden', 'al pedir corrección');
+        $this->whatsApp($usuario, "Hola {$usuario->name}, tu supervisor pidió una corrección en la orden #{$task->id} "
+            . "({$tipoNombre}): {$motivo}. Abre la orden en la app, sube las fotos de la corrección y envíala.", $task->id, 'al pedir corrección');
+    }
+
+    /** #1286: el supervisor revisó la orden terminada y se la devolvió con una nota. */
+    public function devuelta(Task $task, User $usuario, string $tipoNombre, string $motivo): void
+    {
+        TalentoMobileApiController::sendPushToUser(
+            $usuario->id,
+            'Tu supervisor te devolvió una orden',
+            "Orden #{$task->id} ({$tipoNombre}): {$motivo}",
+            ['type' => 'ot_devuelta', 'ot_id' => $task->id]
+        );
+        $this->campanita($task, $usuario, 'Tu supervisor te devolvió una orden', 'al devolver orden');
+        $this->whatsApp($usuario, "Hola {$usuario->name}, tu supervisor te devolvió la orden #{$task->id} "
+            . "({$tipoNombre}): {$motivo}. Está otra vez en tu «Mi día»: corrígela y vuelve a completarla.", $task->id, 'al devolver orden');
+    }
+
     /** " para el d/m" o " para el d/m H:i" (sin hora la orden queda a las 00:00: el aviso dice solo el día). */
     public static function cuando(?Carbon $inicio): string
     {

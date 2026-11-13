@@ -4,6 +4,7 @@ namespace App\Modules\Addons\Talento\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrderMedia;
+use App\Modules\Addons\Talento\Services\CorreccionEvidenciasService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -59,17 +60,46 @@ class TalentoOrdenDocumentacionController extends Controller
             'distancia_m'    => $m->location_distance_m,
             'restringida'    => $m->isSensitive() && ! $verSensibles,
             'url'            => ($m->isSensitive() && ! $verSensibles) ? null : route('talento.media.serve', ['id' => $m->id]),
+            // #1286: foto de corrección (null = de cuando se hizo la orden).
+            'correccion_id'  => $m->correccion_id ? (int) $m->correccion_id : null,
         ])->values() : null;
+
+        // #1286: correcciones pedidas por el supervisor sobre la orden terminada.
+        $correcciones = $esTarea ? array_map(fn ($c) => array_merge($c, [
+            'pedida_at'  => $this->iso($c['pedida_at']),
+            'enviada_at' => $this->iso($c['enviada_at']),
+            'cerrada_at' => $this->iso($c['cerrada_at']),
+        ]), app(CorreccionEvidenciasService::class)->historial($numero)) : [];
 
         return response()->json([
             'puede_ver_fotos' => $verFotos,
             'fotos'           => $fotos,
-            'requeridas'      => $this->requeridas($tipoId, $media),
+            // Lo obligatorio se cumple con las fotos de cuando se hizo la orden, no con las de corrección.
+            'requeridas'      => $this->requeridas($tipoId, $media->filter(fn ($m) => ! $m->correccion_id)),
             'lecturas_dbm'    => $this->lecturas($media),
             'nota_tecnico'    => $this->texto($fila->nota_tecnico ?? null),
             'incidencias'     => $this->incidencias($fk, $numero),
-            'cronologia'      => $this->cronologia($fila, $esTarea),
+            'correcciones'    => $correcciones,
+            'cronologia'      => array_merge($this->cronologia($fila, $esTarea), $this->pasosDeCorreccion($correcciones)),
         ]);
+    }
+
+    /** #1286: pedida, enviada y cerrada de cada corrección, para la cronología. */
+    private function pasosDeCorreccion(array $correcciones): array
+    {
+        $cierres = ['aceptada' => 'Corrección aceptada', 'cancelada' => 'Corrección cancelada', 'reemplazada' => 'Se pidió otra corrección'];
+        $pasos = [];
+        foreach ($correcciones as $c) {
+            $pasos[] = ['paso' => 'Corrección pedida', 'fecha' => $c['pedida_at'], 'quien' => $c['pedida_por']];
+            if ($c['enviada_at']) {
+                $pasos[] = ['paso' => 'Corrección enviada por el técnico', 'fecha' => $c['enviada_at'], 'quien' => null];
+            }
+            if ($c['cerrada_at'] && $c['cierre'] !== 'reemplazada') {
+                $pasos[] = ['paso' => $cierres[$c['cierre']] ?? 'Corrección cerrada', 'fecha' => $c['cerrada_at'], 'quien' => $c['cerrada_por']];
+            }
+        }
+
+        return $pasos;
     }
 
     /** Evidencias que exige el tipo de orden y cuántas fotos de cada una hay. */
@@ -111,6 +141,7 @@ class TalentoOrdenDocumentacionController extends Controller
                 'categoria' => $umbral->categoria ?? null,
                 'mensaje'   => $umbral->mensaje ?? null,
                 'capturada' => $this->iso($m->captured_at ?? $m->created_at),
+                'correccion' => (bool) $m->correccion_id,
             ];
         })->values()->all();
     }

@@ -341,6 +341,8 @@ JS;
             ],
             'evidencias' => $detalle['evidencias'],
             'checklist'  => $checklist,
+            // #1202: campos de la plantilla que se capturan al cerrar y materiales usados (o null).
+            'plantilla'  => $detalle['plantilla'] ?? null,
             'firmas'     => [
                 'technician' => in_array('technician', $firmas, true),
                 'client'     => $hayFirmaClie,
@@ -425,6 +427,24 @@ JS;
         }
         $res = app(OrdenTrabajoUnifiedService::class)->completar($id, $colaborador->id, $data);
         return response()->json($res, $res['success'] ? 200 : ($res['status_code'] ?? 422));
+    }
+
+    /** #1202: datos de la plantilla que se capturan al cerrar (campos y materiales usados). */
+    public function guardarDatosCierre(Request $request, string $origen, int $id)
+    {
+        $request->validate(['datos' => 'nullable|array', 'checklist' => 'nullable|array']);
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) {
+            return response()->json(['message' => 'Sin perfil de colaborador activo.'], 403);
+        }
+        $res = app(OrdenTrabajoUnifiedService::class)->guardarDatosCierre(
+            $id, $colaborador->id, (array) $request->input('datos', []), (array) $request->input('checklist', []), (int) auth()->id()
+        );
+
+        return response()->json(
+            $res['success'] ? ['plantilla' => $res['data']] : collect($res)->except(['success', 'status_code'])->all(),
+            $res['success'] ? 200 : ($res['status_code'] ?? 422)
+        );
     }
 
     // ── Evidencia anti-fraude ─────────────────────────────────────────────────

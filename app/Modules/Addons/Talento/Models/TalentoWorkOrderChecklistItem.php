@@ -12,11 +12,12 @@ class TalentoWorkOrderChecklistItem extends BaseModel
 {
     protected $table = 'talento_work_order_checklist_items';
 
-    protected $fillable = ['tarea_id', 'label', 'cantidad', 'unidad', 'sort_order', 'checked', 'checked_at', 'checked_by'];
+    protected $fillable = ['tarea_id', 'label', 'cantidad', 'unidad', 'cantidad_usada', 'sort_order', 'checked', 'checked_at', 'checked_by'];
 
     protected $casts = [
         'tarea_id'   => 'integer',
         'cantidad'   => 'float',
+        'cantidad_usada' => 'float',
         'sort_order' => 'integer',
         'checked'    => 'boolean',
         'checked_at' => 'datetime',

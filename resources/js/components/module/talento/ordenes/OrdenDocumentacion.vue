@@ -28,19 +28,36 @@
         <div class="small fw-semibold mb-2">Fotos de evidencia <span v-if="fotos.length" class="text-muted fw-normal">· {{ fotos.length }}</span></div>
         <div v-if="!doc.puede_ver_fotos" class="small text-muted">No tienes permiso para ver las fotos.</div>
         <div v-else-if="!fotos.length" class="small text-muted">Esta orden no tiene fotos de evidencia.</div>
-        <div v-else class="oe-grid">
-          <button v-for="(f, i) in fotos" :key="f.id" type="button" class="oe-mini"
-                  :aria-label="'Ver foto: ' + etiqueta(f)" :disabled="!f.url" @click="abrir(i)">
-            <img v-if="f.url && !rotas[f.id]" :src="f.url" :alt="etiqueta(f)" loading="lazy" @error="rotas[f.id] = true">
-            <span v-else class="oe-sin-foto"><i v-if="f.restringida" class="fa fa-lock me-1"></i>{{ f.restringida ? 'Restringida' : 'Sin imagen' }}</span>
-            <span class="oe-pie">
-              {{ etiqueta(f) }}
-              <span class="d-block text-muted">{{ hora(f.capturada) }}<template v-if="f.potencia_dbm !== null && f.potencia_dbm !== undefined"> · {{ f.potencia_dbm }} dBm</template></span>
-              <span v-if="f.justificacion" class="d-block text-muted fst-italic">{{ f.justificacion }}</span>
-              <span v-if="f.fuera_de_lugar" class="tc-status is-warn mt-1">Fuera del lugar{{ f.distancia_m ? ' (' + Math.round(f.distancia_m) + ' m)' : '' }}</span>
-            </span>
-          </button>
-        </div>
+        <!-- #1286: las fotos de cuando se hizo la orden y, aparte, las de cada corrección que pidió el supervisor. -->
+        <template v-else>
+          <div v-for="g in gruposFotos" :key="g.clave" class="od-grupo">
+            <div v-if="g.correccion" class="small mb-2">
+              <span class="fw-semibold">Corrección {{ g.numero }}</span>
+              <span class="tc-status ms-1" :class="g.estado[1]">{{ g.estado[0] }}</span>
+              <div>{{ g.correccion.motivo }}</div>
+              <div class="text-muted">
+                Pedida {{ hora(g.correccion.pedida_at) }}<template v-if="g.correccion.pedida_por"> por {{ g.correccion.pedida_por }}</template>
+                <template v-if="g.correccion.enviada_at"> · enviada {{ hora(g.correccion.enviada_at) }}</template>
+              </div>
+              <div v-if="g.correccion.nota_tecnico"><strong>Nota del técnico:</strong> {{ g.correccion.nota_tecnico }}</div>
+            </div>
+            <div v-else-if="gruposFotos.length > 1" class="small fw-semibold mb-2">De cuando se hizo la orden</div>
+            <div v-if="!g.fotos.length" class="small text-muted">Sin fotos todavía.</div>
+            <div v-else class="oe-grid">
+              <button v-for="f in g.fotos" :key="f.id" type="button" class="oe-mini"
+                      :aria-label="'Ver foto: ' + etiqueta(f)" :disabled="!f.url" @click="abrir(fotos.indexOf(f))">
+                <img v-if="f.url && !rotas[f.id]" :src="f.url" :alt="etiqueta(f)" loading="lazy" @error="rotas[f.id] = true">
+                <span v-else class="oe-sin-foto"><i v-if="f.restringida" class="fa fa-lock me-1"></i>{{ f.restringida ? 'Restringida' : 'Sin imagen' }}</span>
+                <span class="oe-pie">
+                  {{ etiqueta(f) }}
+                  <span class="d-block text-muted">{{ hora(f.capturada) }}<template v-if="f.potencia_dbm !== null && f.potencia_dbm !== undefined"> · {{ f.potencia_dbm }} dBm</template></span>
+                  <span v-if="f.justificacion" class="d-block text-muted fst-italic">{{ f.justificacion }}</span>
+                  <span v-if="f.fuera_de_lugar" class="tc-status is-warn mt-1">Fuera del lugar{{ f.distancia_m ? ' (' + Math.round(f.distancia_m) + ' m)' : '' }}</span>
+                </span>
+              </button>
+            </div>
+          </div>
+        </template>
       </div>
 
       <!-- Lecturas de dBm -->
@@ -50,7 +67,7 @@
           <li v-for="l in doc.lecturas_dbm" :key="l.foto_id">
             <strong>{{ l.valor }} dBm</strong>
             <span v-if="l.categoria" class="tc-status ms-1" :class="claseDbm(l.categoria)">{{ textoCategoria(l.categoria) }}</span>
-            <span class="text-muted ms-1">{{ hora(l.capturada) }}</span>
+            <span class="text-muted ms-1">{{ hora(l.capturada) }}<template v-if="l.correccion"> · de una corrección</template></span>
           </li>
         </ul>
       </div>
@@ -120,6 +137,11 @@ const CATEGORIAS_DBM = {
   cumplio: ['Cumplió', 'is-ok'], baja_senal: ['Baja señal', 'is-bad'],
 };
 const CONDICIONES = { cambio_equipo: 'si hubo cambio de equipo' };
+// #1286: cómo va cada corrección (texto y color de la etiqueta).
+const ESTADOS_CORRECCION = {
+  pedida: ['Espera al técnico', 'is-warn'], enviada: ['Por revisar', 'is-info'], aceptada: ['Aceptada', 'is-ok'],
+  cancelada: ['Cancelada', 'is-slate'], reemplazada: ['Se pidió otra', 'is-slate'],
+};
 
 export default {
   name: 'OrdenDocumentacion',
@@ -136,6 +158,17 @@ export default {
     condicionales() { return (this.doc?.requeridas || []).filter(r => r.condicion); },
     cumplidas() { return this.obligatorias.filter(r => r.cumplida).length; },
     faltantes() { return this.obligatorias.filter(r => !r.cumplida); },
+    // #1286: primero las fotos de cuando se hizo la orden; después, cada corrección con las suyas.
+    gruposFotos() {
+      const correcciones = Array.isArray(this.doc?.correcciones) ? this.doc.correcciones : [];
+      const grupos = [{ clave: 'orden', fotos: this.fotos.filter(f => !f.correccion_id) }];
+      correcciones.forEach((c, k) => grupos.push({
+        clave: 'c' + c.id, numero: k + 1, correccion: c,
+        estado: ESTADOS_CORRECCION[c.estado === 'cerrada' ? c.cierre : c.estado] || [c.estado, 'is-slate'],
+        fotos: this.fotos.filter(f => f.correccion_id === c.id),
+      }));
+      return grupos.filter(g => g.correccion || g.fotos.length);
+    },
   },
   watch: {
     ordenId: { immediate: true, handler() { this.cargar(); } },
@@ -187,6 +220,7 @@ export default {
 <style scoped>
 .od-bloque { border-top: 1px solid rgba(0, 0, 0, .08); padding-top: .6rem; margin-top: .6rem; }
 .od-chip { font-size: .78rem; border-radius: 999px; padding: .15rem .6rem; border: 1px solid transparent; }
+.od-grupo + .od-grupo { margin-top: .9rem; padding-top: .6rem; border-top: 1px dashed rgba(0, 0, 0, .12); }
 .od-ok { background: rgba(25, 135, 84, .1); border-color: rgba(25, 135, 84, .35); color: #146c43; }
 .od-falta { background: rgba(220, 53, 69, .08); border-color: rgba(220, 53, 69, .4); color: #b02a37; }
 .oe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .75rem; }

@@ -36,6 +36,45 @@ class OrdenTrabajoUnifiedService
         'Done'       => 'completed',
     ];
 
+    /**
+     * #1286: correcciones abiertas por id de orden, una sola consulta por lista de la app. Se vacía al
+     * entrar a cada consulta (summaryForHoy, calendarioDe, cambiosDesde, historial, detail): la ruta
+     * guarda el controller y con él este servicio entre peticiones.
+     */
+    private ?array $correccionesAbiertas = null;
+
+    private function correccionAbiertaDe(int $taskId): ?array
+    {
+        $this->correccionesAbiertas ??= app(CorreccionEvidenciasService::class)->abiertasPorTarea();
+
+        return $this->correccionesAbiertas[$taskId] ?? null;
+    }
+
+    /**
+     * #1286: terminada y validada = «validated»; terminada sin validar = «completed» (espera la
+     * revisión del supervisor). Mismo criterio que la agenda (AgendaOrdenesService::carga).
+     */
+    private function estadoDeTarea(Task $task): ?string
+    {
+        return $task->status === 'Done' && $task->validated_at
+            ? 'validated'
+            : (self::TASK_STATUS_MAP[$task->status] ?? $task->status);
+    }
+
+    /** Filtro por estado (app y lista web) sobre `tasks`, con el mismo criterio que estadoDeTarea(). */
+    private function filtrarEstadoTarea($query, string $estado): void
+    {
+        if ($estado === 'completed') {
+            $query->where('status', 'Done')->whereNull('validated_at');
+        } elseif ($estado === 'validated') {
+            $query->where('status', 'Done')->whereNotNull('validated_at');
+        } elseif (($taskStatus = array_search($estado, self::TASK_STATUS_MAP)) !== false) {
+            $query->where('status', $taskStatus);
+        } else {
+            $query->whereRaw('1=0');
+        }
+    }
+
     // ── Resolución de usuario ─────────────────────────────────────────────────
 
     private function getUserId(int $colaboradorId): ?int
@@ -145,13 +184,23 @@ class OrdenTrabajoUnifiedService
         $incidencia = in_array($task->status, ['ToDo', 'InProgress'], true)
             ? app(IncidenciasOrdenService::class)->abierta($task->id)
             : null;
+        // #1286: devolución del supervisor (la orden regresó a En curso) o corrección sobre la ya validada.
+        $correccion = $this->correccionAbiertaDe($task->id);
         return [
             'id'           => $task->id,
             'folio'        => $task->id,
             'origen'       => 'task',         // discriminador de origen (tabla tasks)
             'tipo'         => $task->talentoType?->name ?? '—',
-            'status'       => $incidencia ? 'incidencia' : (self::TASK_STATUS_MAP[$task->status] ?? $task->status),
+            'status'       => $incidencia ? 'incidencia' : $this->estadoDeTarea($task),
             'incidencia'   => $incidencia ? ['motivo' => $incidencia['motivo_texto'], 'nota' => $incidencia['nota']] : null,
+            'correccion'   => $correccion ? [
+                'estado'     => $correccion['estado'],
+                'modo'       => $correccion['modo'],
+                'motivo'     => $correccion['motivo'],
+                'pedida_por' => $correccion['pedida_por'],
+                'pedida_at'  => $correccion['pedida_at'],
+                'fotos'      => $correccion['fotos'],
+            ] : null,
             'cliente'      => $client['name'],
             'direccion'    => $client['address'],
             'telefono'     => $client['phone'],
@@ -203,6 +252,8 @@ class OrdenTrabajoUnifiedService
                 'm.id', 'm.created_at', 'm.potencia_dbm',
                 'm.evidence_type_id as type_id', 'et.name as tipo_nombre',
                 'm.watermark_applied', 'm.location_flagged', 'm.type as media_type',
+                // #1286: la app marca las fotos de corrección.
+                ...(CorreccionEvidenciasService::disponible() ? ['m.correccion_id'] : []),
             ])
             ->map(fn($e) => $this->conFotoFirmada($this->enrichEvidenciaWithTier($e)))
             ->toArray();
@@ -232,6 +283,8 @@ class OrdenTrabajoUnifiedService
             'potencia_referencia_dbm' => null,
             'evidencias'              => $evidencias,
             'evidencias_requeridas'   => $requeridas,
+            // #1202: lo que la plantilla pide al cerrar (campos y materiales), o null.
+            'plantilla'               => app(CierrePlantillaService::class)->datos($task->id),
         ]);
     }
 
@@ -251,6 +304,7 @@ class OrdenTrabajoUnifiedService
      */
     public function summaryForHoy(int $colaboradorId): array
     {
+        $this->correccionesAbiertas = null;
         $today  = now()->toDateString();
         $userId = $this->getUserId($colaboradorId);
 
@@ -293,7 +347,24 @@ class OrdenTrabajoUnifiedService
             ? app(AgendaOrdenesService::class)->atrasadasDe($userId, fn (Task $t) => $this->summaryFromTask($t))
             : collect();
 
-        return $atrasadas->merge($fromWorkOrders)->merge($fromTasks)->values()->all();
+        // #1286: una orden devuelta por el supervisor, o validada con una corrección pedida, vuelve a
+        // «Mi día», sea del día que sea, hasta que el técnico la vuelva a terminar o envíe las fotos.
+        $pedidas = array_keys(array_filter(
+            $userId ? ($this->correccionesAbiertas ??= app(CorreccionEvidenciasService::class)->abiertasPorTarea()) : [],
+            fn ($c) => $c['estado'] === 'pedida'
+        ));
+        $conCorreccion = $pedidas
+            ? Task::with(['talentoType'])
+                ->whereIn('id', $pedidas)
+                ->whereHas('users', fn($q) => $q->where('users.id', $userId))
+                ->orderBy('id')
+                ->get()
+                ->map(fn($t) => $this->summaryFromTask($t))
+            : collect();
+
+        return $atrasadas->merge($conCorreccion)->merge($fromWorkOrders)->merge($fromTasks)
+            ->unique(fn ($o) => $o['origen'] . ':' . $o['id'])
+            ->values()->all();
     }
 
     /**
@@ -304,6 +375,7 @@ class OrdenTrabajoUnifiedService
      */
     public function calendarioDe(int $colaboradorId, string $desde, string $hasta): array
     {
+        $this->correccionesAbiertas = null;
         $userId = $this->getUserId($colaboradorId);
         $hoy = now()->toDateString();
         $incluyeAtrasadas = $hoy >= $desde && $hoy <= $hasta;
@@ -398,6 +470,7 @@ class OrdenTrabajoUnifiedService
      */
     public function cambiosDesde(int $colaboradorId, \Carbon\Carbon $since): array
     {
+        $this->correccionesAbiertas = null;
         $userId = $this->getUserId($colaboradorId);
 
         $fromWorkOrders = TalentoWorkOrder::with(['type'])
@@ -428,6 +501,7 @@ class OrdenTrabajoUnifiedService
      */
     public function historial(int $colaboradorId, ?string $estado, ?string $fecha, int $perPage = 20): array
     {
+        $this->correccionesAbiertas = null;
         $userId = $this->getUserId($colaboradorId);
 
         $woQuery = TalentoWorkOrder::with(['type'])
@@ -449,12 +523,7 @@ class OrdenTrabajoUnifiedService
             $taskQuery = Task::with(['talentoType'])
                 ->whereHas('users', fn($q) => $q->where('users.id', $userId));
             if ($estado) {
-                $taskStatus = array_search($estado, self::TASK_STATUS_MAP);
-                if ($taskStatus !== false) {
-                    $taskQuery->where('status', $taskStatus);
-                } else {
-                    $taskQuery->whereRaw('1=0');
-                }
+                $this->filtrarEstadoTarea($taskQuery, $estado);
             }
             if ($fecha) {
                 $taskQuery->whereDate('start_date', $fecha);
@@ -495,6 +564,7 @@ class OrdenTrabajoUnifiedService
      */
     public function detail(int $id, int $colaboradorId): ?array
     {
+        $this->correccionesAbiertas = null;
         $ot = TalentoWorkOrder::with(['type'])
             ->where('id', $id)
             ->where('colaborador_id', $colaboradorId)
@@ -510,6 +580,32 @@ class OrdenTrabajoUnifiedService
         }
 
         return null;
+    }
+
+    /**
+     * Revisión del supervisor en la app (13-nov-2026): el resumen y el detalle que ve el técnico
+     * (cliente, fotos firmadas, datos de cierre, material usado) de órdenes que no son suyas. Quién
+     * puede verlas lo decide RevisionOrdenesAppService.
+     *
+     * @return array<int, array> resumen por id de orden
+     */
+    public function resumenesDeTareas(iterable $tasks): array
+    {
+        $this->correccionesAbiertas = null;
+        $resumenes = [];
+        foreach ($tasks as $task) {
+            $resumenes[$task->id] = $this->summaryFromTask($task);
+        }
+
+        return $resumenes;
+    }
+
+    public function detalleDeTarea(Task $task): array
+    {
+        $this->correccionesAbiertas = null;
+        $task->loadMissing('talentoType');
+
+        return $this->detailFromTask($task);
     }
 
     /**
@@ -706,7 +802,16 @@ class OrdenTrabajoUnifiedService
         $evTypeId = (int)$data['evidence_type_id'];
         $evType   = DB::table('talento_evidence_types')->where('id', $evTypeId)->first();
 
-        if (config('unificacion.interruptores.evidencias_d6')) {
+        // #1286: con una corrección pedida (orden devuelta por el supervisor, o validada con corrección)
+        // las fotos nuevas quedan marcadas como de la corrección y el tipo admite otra aunque ya tenga.
+        // Sobre la orden ya terminada, solo de los tipos de su orden (u «Otro»).
+        $correccion = $isTask ? app(CorreccionEvidenciasService::class)->pedida($task->id) : null;
+
+        if ($correccion && $task->status === 'Done') {
+            if (! $this->tipoDeLaOrden((int) $task->talento_type_id, $evTypeId)) {
+                return ['success' => false, 'message' => 'Este tipo de evidencia no corresponde a este tipo de orden.', 'code' => 'TIPO_NO_EN_MATRIZ', 'status_code' => 422];
+            }
+        } elseif (config('unificacion.interruptores.evidencias_d6')) {
             $estado = $isTask ? (self::TASK_STATUS_MAP[$task->status] ?? $task->status) : $wo->status;
             if (! in_array($estado, ['pending', 'in_progress'], true)) {
                 return ['success' => false, 'message' => "No se puede subir evidencia en estado '{$estado}'.", 'code' => 'ESTADO_INVALIDO', 'status_code' => 422];
@@ -728,7 +833,7 @@ class OrdenTrabajoUnifiedService
             ];
         }
 
-        if (! $evType->permite_varias) {
+        if (! $evType->permite_varias && ! $correccion) {
             $fkCol    = $isTask ? 'tarea_id' : 'work_order_id';
             $entityId = $isTask ? $task->id : $wo->id;
             $existe   = DB::table('talento_work_order_media')
@@ -793,7 +898,7 @@ class OrdenTrabajoUnifiedService
 
             'created_by'          => $userId,
             'created_at'          => now(),
-        ]);
+        ] + ($correccion ? ['correccion_id' => $correccion->id] : []));
 
         // Auto-start si aún está pendiente
         if ($isTask) {
@@ -817,15 +922,61 @@ class OrdenTrabajoUnifiedService
      */
     public function evidenciasParaCaptura(object $ot): array
     {
+        $editable = $this->evidenciaEditable($ot);
+        // #1286: la devolución o corrección abierta (la app muestra la nota). Con la orden ya terminada
+        // solo se quitan las fotos de la corrección; devuelta (en curso) se edita como cualquier abierta.
+        $correccion = $ot->is_task ? app(CorreccionEvidenciasService::class)->abierta($ot->id) : null;
+        $pedidaId = ($correccion['estado'] ?? null) === 'pedida' ? $correccion['id'] : null;
+
         $evidencias = DB::table('talento_work_order_media')
             ->where($ot->is_task ? 'tarea_id' : 'work_order_id', $ot->id)
             ->whereNotNull('evidence_type_id')
             ->orderBy('created_at')
-            ->get(['id', 'evidence_type_id as type_id', 'created_at', 'potencia_dbm', 'type as media_type'])
-            ->map(fn($e) => $this->conFotoFirmada($e))
+            ->get([
+                'id', 'evidence_type_id as type_id', 'created_at', 'potencia_dbm', 'type as media_type',
+                ...(CorreccionEvidenciasService::disponible() ? ['correccion_id'] : []),
+            ])
+            ->map(function ($e) use ($editable, $pedidaId) {
+                $e = $this->conFotoFirmada($e);
+                $e->quitable = $editable || ($pedidaId && (int) ($e->correccion_id ?? 0) === $pedidaId);
+                return $e;
+            })
             ->all();
 
-        return ['evidencias' => $evidencias, 'puede_eliminar' => $this->evidenciaEditable($ot)];
+        return ['evidencias' => $evidencias, 'puede_eliminar' => $editable, 'correccion' => $correccion];
+    }
+
+    /**
+     * #1286: tipos de evidencia de un tipo de orden (su matriz, más «Otro»), o null si el tipo no
+     * tiene matriz (entonces vale cualquiera).
+     */
+    public function tiposDeLaOrden(int $ordenTypeId): ?array
+    {
+        $ids = DB::table('talento_ot_type_evidence_requirements')
+            ->where('ot_type_id', $ordenTypeId)
+            ->pluck('evidence_type_id')
+            ->map(fn ($v) => (int) $v)
+            ->all();
+
+        return $ids ? array_values(array_unique([...$ids, 15])) : null;
+    }
+
+    private function tipoDeLaOrden(int $ordenTypeId, int $evTypeId): bool
+    {
+        $permitidos = $this->tiposDeLaOrden($ordenTypeId);
+
+        return $permitidos === null || in_array($evTypeId, $permitidos, true);
+    }
+
+    /** #1286: foto de la corrección que todavía espera al técnico (se puede quitar con la orden terminada). */
+    private function esFotoDeCorreccionPedida(object $ot, TalentoWorkOrderMedia $media): bool
+    {
+        if (! $ot->is_task || ! $media->correccion_id) {
+            return false;
+        }
+        $pedida = app(CorreccionEvidenciasService::class)->pedida($ot->id);
+
+        return $pedida && (int) $pedida->id === (int) $media->correccion_id;
     }
 
     /**
@@ -848,7 +999,7 @@ class OrdenTrabajoUnifiedService
             return ['success' => false, 'message' => 'Evidencia no encontrada.', 'status_code' => 404];
         }
 
-        if (! $this->evidenciaEditable($ot)) {
+        if (! $this->evidenciaEditable($ot) && ! $this->esFotoDeCorreccionPedida($ot, $media)) {
             return ['success' => false, 'message' => 'La orden ya se terminó; sus evidencias ya no se pueden quitar.', 'code' => 'ESTADO_INVALIDO', 'status_code' => 422];
         }
 
@@ -876,6 +1027,23 @@ class OrdenTrabajoUnifiedService
             : TalentoWorkOrder::where('id', $ot->id)->value('status');
 
         return in_array($estado, ['pending', 'in_progress'], true);
+    }
+
+    /**
+     * #1202: el técnico guarda los datos de la plantilla que se capturan al cerrar (app y portal).
+     * Solo en sus órdenes de `tasks` y mientras sigan abiertas; ya terminadas no se cambian.
+     */
+    public function guardarDatosCierre(int $id, int $colaboradorId, array $datos, array $checklist, int $userId): array
+    {
+        $ot = $this->findLight($id, $colaboradorId);
+        if (! $ot || ! $ot->is_task) {
+            return ['success' => false, 'message' => 'OT no encontrada.', 'status_code' => 404];
+        }
+        if (! $this->evidenciaEditable($ot)) {
+            return ['success' => false, 'message' => 'La orden ya se terminó; sus datos ya no se pueden cambiar.', 'code' => 'ESTADO_INVALIDO', 'status_code' => 422];
+        }
+
+        return app(CierrePlantillaService::class)->guardar($ot->id, $datos, $checklist, $userId);
     }
 
     /**
@@ -922,6 +1090,18 @@ class OrdenTrabajoUnifiedService
             $ev = $this->validarEvidencias($task->talento_type_id, 'tarea_id', $task->id);
             if ($ev !== null) return $ev;
 
+            // #1202: los datos obligatorios de la plantilla que el técnico captura al cerrar.
+            $faltanDatos = app(CierrePlantillaService::class)->faltantes($task->id);
+            if ($faltanDatos) {
+                return [
+                    'success'     => false,
+                    'message'     => 'Faltan datos de la orden por capturar: ' . implode(', ', $faltanDatos) . '.',
+                    'code'        => 'DATOS_CIERRE_FALTANTES',
+                    'faltan'      => $faltanDatos,
+                    'status_code' => 422,
+                ];
+            }
+
             $dbm = $this->verificarGateDbm($task->talento_type_id, 'tarea_id', $task->id);
             if (isset($dbm['error'])) return $dbm['error'];
 
@@ -935,6 +1115,8 @@ class OrdenTrabajoUnifiedService
             $task->update($updates);
             $task->refresh();
             $this->transicionar('task', $task->id, 'order.completed', 'in_progress', 'completed', auth()->id(), null, ['completed_by']);
+            // #1286: si el supervisor la había devuelto, su nota queda atendida y la orden vuelve a su revisión.
+            app(CorreccionEvidenciasService::class)->alCompletar($task->id, $this->getUserId($colaboradorId), $data['nota_tecnico'] ?? null);
             $this->cerrarTicketSiCorresponde($task);
             if ((int) $task->talento_type_id === 3) { // 3 = Cambio de equipo
                 app(\App\Services\PppoeCsidReaprenderService::class)->alCerrarOtCambioEquipo($task);
@@ -1181,7 +1363,8 @@ class OrdenTrabajoUnifiedService
             'type_id'        => $task->talento_type_id,
             'points'         => $task->points,
             'is_billable'    => (bool) $task->is_billable,
-            'status'         => self::TASK_STATUS_MAP[$task->status] ?? $task->status,
+            // #1286: terminada y validada sale «Validada»; terminada sin validar, «completed» (por validar).
+            'status'         => $this->estadoDeTarea($task),
             'scheduled_at'   => $scheduledAt,
             // Item #1158: abierta y con su día ya pasado.
             'atrasada'       => $scheduledAt !== null
@@ -1313,13 +1496,15 @@ class OrdenTrabajoUnifiedService
             // Item #1158: pendientes o en curso cuyo día ya pasó (la tabla vieja no tiene filas).
             $workOrders = collect();
             app(AgendaOrdenesService::class)->scopeAtrasadas($taskQuery, now()->toDateString());
-        } elseif ($status) {
-            $taskStatus = array_search($status, self::TASK_STATUS_MAP);
-            $taskQuery->when(
-                $taskStatus !== false,
-                fn($q) => $q->where('status', $taskStatus),
-                fn($q) => $q->whereRaw('1=0')
+        } elseif ($status === 'correccion_pedida' || $status === 'correccion_revisar') {
+            // #1286: devueltas o con corrección que espera al técnico, o ya enviadas al supervisor.
+            $workOrders = collect();
+            app(CorreccionEvidenciasService::class)->scopeConAbierta(
+                $status === 'correccion_revisar' ? $taskQuery->where('status', 'Done') : $taskQuery,
+                $status === 'correccion_pedida' ? 'pedida' : 'enviada'
             );
+        } elseif ($status) {
+            $this->filtrarEstadoTarea($taskQuery, $status);
         }
 
         if ($colaboradorId) {
@@ -1331,9 +1516,12 @@ class OrdenTrabajoUnifiedService
                 : $taskQuery->whereRaw('1=0');
         }
 
+        $correcciones = app(CorreccionEvidenciasService::class)->abiertasPorTarea();
         $tasks = $taskQuery->orderByDesc('start_date')->orderByDesc('start_time')
             ->get()
             ->map(fn($t) => array_merge($this->adminItemFromTask($t), [
+                // #1286: devolución o corrección abierta (pedida al técnico o enviada al supervisor).
+                'correccion' => ! $t->trashed() ? ($correcciones[$t->id] ?? null) : null,
                 '_sort_ts' => $t->start_date ? strtotime($t->start_date) : (strtotime((string) $t->created_at) ?: 0),
             ]));
 
@@ -1385,6 +1573,12 @@ class OrdenTrabajoUnifiedService
             $item = $this->adminItemFromTask($task);
             $item['_source'] = 'task';
             $item['reprogramaciones'] = app(AgendaOrdenesService::class)->reprogramacionesDe($task->id);
+            $item['correccion'] = ! $task->trashed() ? app(CorreccionEvidenciasService::class)->abierta($task->id) : null;
+            // #1286: qué puede hacer el supervisor con la revisión (la web además revisa el permiso).
+            $terminada = ! $task->trashed() && $task->status === 'Done';
+            $item['puede_devolver'] = $terminada && ! $task->validated_at
+                && (bool) config('unificacion.interruptores.validacion_separada');
+            $item['puede_pedir_correccion'] = $terminada && (bool) $task->validated_at;
             $item += $this->datosDePlantilla($task->id);
             if (app(OrderParticipantsService::class)->activo()) {
                 $item['participantes'] = app(OrderParticipantsService::class)->listar('task', $task->id);
@@ -1417,7 +1611,7 @@ class OrdenTrabajoUnifiedService
             ],
             'checklist' => TalentoWorkOrderChecklistItem::where('tarea_id', $taskId)
                 ->orderBy('sort_order')->orderBy('id')
-                ->get(['id', 'label', 'cantidad', 'unidad', 'checked', 'checked_at', 'checked_by'])
+                ->get(['id', 'label', 'cantidad', 'unidad', 'cantidad_usada', 'checked', 'checked_at', 'checked_by'])
                 ->toArray(),
         ];
     }
@@ -1619,7 +1813,7 @@ class OrdenTrabajoUnifiedService
      * UNI-T D4b — ¿el usuario autenticado puede validar a estos ejecutores? Administración global
      * (super admin) siempre; el resto solo si supervisa (supervisor_id) a alguno. Apagado = sí.
      */
-    private function puedeValidarEquipo(array $userIds): bool
+    public function puedeValidarEquipo(array $userIds): bool
     {
         if (! config('unificacion.interruptores.validacion_equipo_d4b')) {
             return true;
@@ -1716,6 +1910,8 @@ class OrdenTrabajoUnifiedService
                 'updated_by'   => auth()->id() ?? 0,
             ]);
             $this->transicionar('task', $id, 'order.validated', 'completed', 'validated', auth()->id(), null, ['validated_by']);
+            // #1286: validarla cierra lo que quedara abierto de su revisión.
+            app(CorreccionEvidenciasService::class)->alValidar($id, auth()->id());
 
             try {
                 app(\App\Modules\Addons\Talento\Services\HealthBonusService::class)->evaluateTask($task->fresh());

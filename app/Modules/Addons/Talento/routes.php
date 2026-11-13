@@ -25,6 +25,7 @@ use App\Modules\Addons\Talento\Controllers\TalentoEscalafonController;
 use App\Modules\Addons\Talento\Controllers\TalentoEmbajadoresController;
 use App\Modules\Addons\Talento\Controllers\TalentoVentasController;
 use App\Modules\Addons\Talento\Controllers\TalentoMobileApiController;
+use App\Modules\Addons\Talento\Controllers\TalentoMobileRevisionController;
 use App\Modules\Addons\Talento\Controllers\TalentoMobileEquipoController;
 use App\Modules\Addons\Talento\Controllers\TalentoEvidenciaConfigController;
 use App\Modules\Addons\Talento\Controllers\TalentoPaqueteDocumentoController;
@@ -194,6 +195,10 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
             Route::delete('/ordenes/{id}',                  [TalentoWorkOrderController::class, 'destroy']);
             // #1326: regresar al técnico una orden que reportó con «No puedo completar» (el controller exige talento.ordenes.editar).
             Route::post('/ordenes/{id}/incidencia/regresar', [TalentoWorkOrderController::class, 'regresarIncidencia'])->whereNumber('id');
+            // #1286: pedir al técnico fotos de corrección sobre una orden terminada, y darla por buena o cancelarla
+            // (el controller exige talento.work_orders.validate).
+            Route::post('/ordenes/{id}/correccion',         [TalentoWorkOrderController::class, 'pedirCorreccion'])->whereNumber('id');
+            Route::post('/ordenes/{id}/correccion/cerrar',  [TalentoWorkOrderController::class, 'cerrarCorreccion'])->whereNumber('id');
             Route::put('/ordenes/{id}/status',              [TalentoWorkOrderController::class, 'changeStatus']);
             Route::post('/ordenes/{id}/validate',           [TalentoWorkOrderController::class, 'validateOrder']);
             Route::post('/ordenes/{id}/return',             [TalentoWorkOrderController::class, 'returnOrder']);
@@ -595,11 +600,20 @@ Route::middleware(['auth:sanctum', 'talento.cuenta_activa'])
         // 11-nov-2026 (#1347): quitar una foto que salió mal mientras la orden sigue abierta.
         Route::delete('/ots/{id}/evidencia/{mediaId}', [TalentoMobileApiController::class, 'eliminarEvidencia'])
             ->whereNumber(['id', 'mediaId']);
+        // #1286: el técnico envía al supervisor las fotos de la corrección que le pidió.
+        Route::post('/ots/{id}/correccion/enviar',    [TalentoMobileApiController::class, 'enviarCorreccion'])->whereNumber('id');
+        // #1202: datos de la plantilla que el técnico captura al cerrar (campos y materiales usados).
+        Route::put('/ots/{id}/datos-cierre',          [TalentoMobileApiController::class, 'guardarDatosCierre'])->whereNumber('id');
         Route::post('/ots/{id}/iniciar',              [TalentoMobileApiController::class, 'iniciarOT']);
         Route::post('/ots/{id}/completar',            [TalentoMobileApiController::class, 'completarOT']);
         Route::post('/ots/{id}/incidencia',           [TalentoMobileApiController::class, 'reportarIncidencia']);
         Route::post('/ots/{id}/reprogramar',          [TalentoMobileApiController::class, 'reprogramarOT']);
         Route::put('/ots/{id}/nota',                  [TalentoMobileApiController::class, 'guardarNota']);
+        // 13-nov-2026: revisión del supervisor en la app (las terminadas de su equipo: validar o devolver con nota).
+        Route::get('/revision/ordenes',               [TalentoMobileRevisionController::class, 'index']);
+        Route::get('/revision/ordenes/{id}',          [TalentoMobileRevisionController::class, 'show'])->whereNumber('id');
+        Route::post('/revision/ordenes/{id}/validar', [TalentoMobileRevisionController::class, 'validar'])->whereNumber('id');
+        Route::post('/revision/ordenes/{id}/devolver', [TalentoMobileRevisionController::class, 'devolver'])->whereNumber('id');
 
         Route::get('/compensacion/semana',    [TalentoMobileApiController::class, 'compensacionSemana']);
 
@@ -739,6 +753,9 @@ Route::middleware(['web', 'auth', 'can:portal.colaborador'])
             ->whereIn('origen', ['work_order', 'task'])->whereNumber('id');
         Route::post('/ot/{origen}/{id}/completar', [PortalTecnicoController::class, 'completarOt'])
             ->whereIn('origen', ['work_order', 'task'])->whereNumber('id');
+        // #1202: datos de la plantilla que se capturan al cerrar (campos y materiales usados).
+        Route::put('/ot/{origen}/{id}/datos-cierre', [PortalTecnicoController::class, 'guardarDatosCierre'])
+            ->whereIn('origen', ['task'])->whereNumber('id');
         // Reprogramar una orden propia con motivo (item #1158): lo atrasado no se queda atrás.
         Route::post('/ot/task/{id}/reprogramar', [PortalTecnicoController::class, 'reprogramarOt'])->whereNumber('id');
 

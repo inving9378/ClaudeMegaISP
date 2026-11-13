@@ -29,7 +29,10 @@
         @endif
         {{-- 2026-10-22: el Mostrador ya no ve la lista de colaboradores (entra a su dashboard, como un
              técnico); desde aquí sigue creando órdenes y ve cuánto cobra cada quien. --}}
-        @if(auth()->user()->can('talento.work_orders.manage'))
+        {{-- 2026-11-13: también quien valida órdenes (el supervisor de un equipo): sin el enlace
+             tenía que escribir la dirección para llegar a «por validar». --}}
+        @if(auth()->user()->can('talento.work_orders.manage')
+            || (auth()->user()->can('talento.work_orders.validate') && auth()->user()->can('talento.work_orders.view')))
             <li><a href="{{ url('/talento/ordenes') }}"><span><small><i class="fa fa-fw fa-clipboard-list"></i></small> Órdenes de trabajo</span></a></li>
         @endif
         {{-- Item #1311: recorridos de planta externa (Geo Tracker, hallazgos con foto y pin). --}}

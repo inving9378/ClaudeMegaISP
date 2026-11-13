@@ -268,11 +268,12 @@ final class EsquemaCamposOrden
 
     /**
      * Valida y normaliza los valores capturados para un momento (creación o cierre).
-     * Llaves desconocidas, o de otro momento, se rechazan.
+     * Llaves desconocidas, o de otro momento, se rechazan. Con $exigirObligatorios = false (el técnico
+     * guarda su avance antes de cerrar, #1202) un obligatorio vacío no es error; se exige al completar.
      *
      * @return array{values: array<string, mixed>, errors: array<string, string>}
      */
-    public static function validarDatos(array $fields, array $datos, string $momento = self::MOMENTO_CREACION): array
+    public static function validarDatos(array $fields, array $datos, string $momento = self::MOMENTO_CREACION, bool $exigirObligatorios = true): array
     {
         $errors = [];
         $values = [];
@@ -304,7 +305,7 @@ final class EsquemaCamposOrden
             }
 
             if (self::vacio($raw)) {
-                if (! empty($f['required'])) {
+                if (! empty($f['required']) && $exigirObligatorios) {
                     $errors["datos.$k"] = 'Este campo es obligatorio.';
                 }
                 continue;
@@ -317,12 +318,25 @@ final class EsquemaCamposOrden
             }
             if (! self::vacio($v)) {
                 $values[$k] = $v;
-            } elseif (! empty($f['required'])) {
+            } elseif (! empty($f['required']) && $exigirObligatorios) {
                 $errors["datos.$k"] = 'Este campo es obligatorio.';
             }
         }
 
         return ['values' => $values, 'errors' => $errors];
+    }
+
+    /** #1202: etiquetas de los campos obligatorios de un momento que siguen vacíos (tablas incluidas). */
+    public static function obligatoriosVacios(array $fields, array $values, string $momento): array
+    {
+        $faltan = [];
+        foreach (self::camposDe($fields, $momento) as $f) {
+            if (! empty($f['required']) && self::vacio($values[$f['key']] ?? null)) {
+                $faltan[] = (string) ($f['label'] ?? $f['key']);
+            }
+        }
+
+        return $faltan;
     }
 
     /** @return array<int, array> filas normalizadas ([] si la tabla quedó vacía) */

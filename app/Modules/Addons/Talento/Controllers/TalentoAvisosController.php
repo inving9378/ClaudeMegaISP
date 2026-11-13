@@ -13,6 +13,8 @@ use App\Modules\Addons\Talento\Models\TalentoPenalty;
 use App\Modules\Addons\Talento\Models\TalentoProject;
 use App\Modules\Addons\Talento\Models\TalentoWeeklyRuleEvaluation;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
+use App\Modules\Addons\Talento\Services\CorreccionEvidenciasService;
+use App\Modules\Addons\Talento\Services\RevisionOrdenesAppService;
 use App\Modules\Addons\Talento\Services\TalentoWeeklyRuleEvaluationService;
 use App\Modules\Addons\Talento\Support\PayWeek;
 use App\Services\TaskScheduleService;
@@ -45,6 +47,9 @@ class TalentoAvisosController extends Controller
             'colaborador_id' => $col->id,
             'server_time' => now()->toIso8601String(),
             'tareas' => $this->tareas($col),
+            'correcciones' => $this->correcciones($col),
+            // 13-nov-2026: a quien revisa, las órdenes de su equipo que terminaron y esperan su revisión.
+            'por_validar' => app(RevisionOrdenesAppService::class)->avisos($request->user()),
             'proyectos' => TalentoProject::where('lead_colaborador_id', $col->id)
                 ->whereIn('status', ['planning', 'active', 'paused'])
                 ->orderByDesc('id')
@@ -114,6 +119,35 @@ class TalentoAvisosController extends Controller
                 'reglas' => $reglas->avanceEnCurso($col),
             ] : null,
         ]);
+    }
+
+    /** #1286: correcciones que el supervisor le pidió y todavía no envía (cada una se avisa una vez). */
+    private function correcciones(TalentoColaborador $col): array
+    {
+        if (! CorreccionEvidenciasService::disponible()) {
+            return [];
+        }
+
+        return DB::table('talento_orden_correcciones as c')
+            ->join('tasks as t', 't.id', '=', 'c.tarea_id')
+            ->join('task_user as tu', 'tu.task_id', '=', 't.id')
+            ->leftJoin('talento_work_order_types as ty', 'ty.id', '=', 't.talento_type_id')
+            ->where('tu.user_id', $col->user_id)
+            ->whereNull('t.deleted_at')
+            ->whereNull('c.cerrada_at')
+            ->whereNull('c.enviada_at')
+            ->orderByDesc('c.id')
+            ->limit(30)
+            ->get(['c.id', 'c.tarea_id', 'ty.name as tipo', 't.status', 't.validated_at'])
+            ->map(fn ($c) => [
+                'id' => (int) $c->id,
+                'ot_id' => (int) $c->tarea_id,
+                'titulo' => 'Orden #' . $c->tarea_id . ($c->tipo ? " · {$c->tipo}" : ''),
+                // Devuelta por el supervisor (todavía sin validar) frente a corrección sobre la ya validada.
+                'devuelta' => ! ($c->status === 'Done' && $c->validated_at),
+            ])
+            ->values()
+            ->all();
     }
 
     /** Órdenes y tareas abiertas asignadas a la persona (mismo criterio que «Mi día»). */

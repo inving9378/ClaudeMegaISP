@@ -64,7 +64,9 @@
               <button class="tc-btn tc-btn-ok" :disabled="accionOt" @click="completarOt">
                 <span v-if="accionOt" class="spinner-border spinner-border-sm me-1"></span><i v-else class="fa fa-check-circle me-1"></i>Completar orden
               </button>
-              <div class="tc-muted-txt mt-2">Antes de cerrar se revisa la evidencia obligatoria y la lectura dBm.</div>
+              <div class="tc-muted-txt mt-2">
+                Antes de cerrar se revisa la evidencia obligatoria y la lectura dBm<template v-if="detalle.plantilla">, y se guardan los datos de la orden</template>.
+              </div>
             </template>
             <template v-else-if="detalle.ot.status === 'completed'">
               <button class="tc-btn tc-btn-ok" :disabled="accionOt || !ambasFirmas" @click="aceptarOt">
@@ -78,6 +80,55 @@
             <div v-else class="small text-muted">
               <i class="fa fa-info-circle me-1"></i>Orden en estado «{{ estado(detalle.ot.status).label }}».
             </div>
+          </div>
+        </div>
+
+        <!-- #1202: datos de la plantilla que el técnico captura al cerrar (campos y materiales usados). -->
+        <div v-if="detalle.plantilla" class="tc-card">
+          <div class="tc-cardhead p-3 fw-semibold d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span>
+              <i class="fa fa-clipboard-list me-2"></i>Datos de la orden
+              <small v-if="detalle.plantilla.plantilla" class="tc-muted-txt fw-normal ms-1">· {{ detalle.plantilla.plantilla }}</small>
+            </span>
+            <span v-if="detalle.plantilla.faltan.length" class="tc-status is-warn">Faltan: {{ detalle.plantilla.faltan.join(", ") }}</span>
+            <span v-else-if="detalle.plantilla.campos.length" class="tc-status is-ok">Completos</span>
+          </div>
+          <div class="p-3">
+            <template v-if="cierreEditable">
+              <div v-if="coordenadasCierre.length" class="mb-3 d-flex flex-wrap gap-2">
+                <button v-for="c in coordenadasCierre" :key="c.key" type="button" class="tc-btn tc-btn-info btn-sm"
+                        :disabled="ubicando" @click="usarUbicacion(c.key)">
+                  <i class="fa fa-map-marker-alt me-1"></i>Usar mi ubicación en «{{ c.label }}»
+                </button>
+              </div>
+              <CamposPlantilla v-if="detalle.plantilla.campos.length" id-prefix="cierre" :campos="detalle.plantilla.campos"
+                               v-model="datosCierre" :errores="erroresCierre" />
+              <div v-if="materiales.length" class="mt-3">
+                <div class="small fw-semibold mb-2">Materiales que usaste</div>
+                <div v-for="m in materiales" :key="m.id" class="d-flex align-items-center gap-2 mb-2">
+                  <input :id="'mat_' + m.id" v-model="m.checked" type="checkbox" class="form-check-input mt-0">
+                  <label :for="'mat_' + m.id" class="small mb-0 flex-grow-1">
+                    {{ m.label }}<span v-if="m.cantidad" class="tc-muted-txt"> (plantilla: {{ m.cantidad }}{{ m.unidad ? " " + m.unidad : "" }})</span>
+                  </label>
+                  <input v-model="m.cantidad_usada" type="number" min="0" step="any" class="form-control form-control-sm mi-cantidad"
+                         :aria-label="'Cantidad usada de ' + m.label" placeholder="Cantidad">
+                  <span class="small tc-muted-txt mi-unidad">{{ m.unidad || "" }}</span>
+                </div>
+              </div>
+              <div v-if="errorCierre" class="text-danger small mt-2">{{ errorCierre }}</div>
+              <button type="button" class="tc-btn tc-btn-primary mt-3" :disabled="guardandoCierre" @click="guardarCierre()">
+                <span v-if="guardandoCierre" class="spinner-border spinner-border-sm me-1"></span><i v-else class="fa fa-save me-1"></i>Guardar datos
+              </button>
+            </template>
+            <template v-else>
+              <CamposPlantilla v-if="detalle.plantilla.campos.length" solo-lectura id-prefix="cierre-ro" texto-vacio="Sin capturar"
+                               :campos="detalle.plantilla.campos" :model-value="detalle.plantilla.valores || {}" />
+              <ul v-if="materiales.length" class="small mt-3 mb-0 ps-3">
+                <li v-for="m in materiales" :key="m.id">
+                  {{ m.label }}<span v-if="m.cantidad_usada !== ''"> · usó {{ m.cantidad_usada }}{{ m.unidad ? " " + m.unidad : "" }}</span>
+                </li>
+              </ul>
+            </template>
           </div>
         </div>
 
@@ -300,6 +351,7 @@
 import ReprogramarOrden from "./ReprogramarOrden.vue";
 import FirmaCanvas from "../../firma/FirmaCanvas.vue";
 import TalentoMarcarAsistencia from "./TalentoMarcarAsistencia.vue";
+import CamposPlantilla from "./campos/CamposPlantilla.vue";
 
 const ESTADOS = {
   pending:            { label: "Pendiente",   clase: "is-info" },
@@ -329,7 +381,7 @@ function uuid() {
 
 export default {
   name: "TalentoMiDia",
-  components: { FirmaCanvas, TalentoMarcarAsistencia, ReprogramarOrden },
+  components: { FirmaCanvas, TalentoMarcarAsistencia, ReprogramarOrden, CamposPlantilla },
   data() {
     return {
       aviso: { tipo: "info", texto: "" },
@@ -349,9 +401,18 @@ export default {
       captura: { abierta: false, tipo: null, tomada: false, streamActivo: false, error: "", dbm: null, justificacion: "", enviando: false },
       firma: { abierta: false, tipo: "client", guardando: false, error: "" },
       stream: null,
+      // #1202: datos de la plantilla que se capturan al cerrar.
+      datosCierre: {},
+      materiales: [],
+      erroresCierre: {},
+      errorCierre: "",
+      guardandoCierre: false,
+      ubicando: false,
     };
   },
   computed: {
+    cierreEditable() { return ["pending", "in_progress"].includes(this.detalle?.ot?.status); },
+    coordenadasCierre() { return (this.detalle?.plantilla?.campos || []).filter((c) => c.type === "coordenadas"); },
     atrasadas() { return this.ots.filter((o) => o.atrasada); },
     // La orden abierta, si está atrasada (también cuando se abrió desde la campanita, sin la marca).
     otSelAtrasada() {
@@ -442,6 +503,7 @@ export default {
       try {
         const { data } = await axios.get(`/talento/portal/ot/${this.otSel.origen}/${this.otSel.id}`);
         this.detalle = data;
+        this.prepararCierre();
       } catch (e) {
         this.detalle = null;
         this.avisar("danger", this.error(e, "No se pudo cargar la orden."));
@@ -470,7 +532,60 @@ export default {
       }
     },
     iniciarOt() { this.accion("/iniciar", "Orden iniciada.", "No se pudo iniciar la orden."); },
-    completarOt() { this.accion("/completar", "Orden completada.", "No se pudo completar la orden."); },
+    async completarOt() {
+      // #1202: lo capturado en «Datos de la orden» se guarda antes de cerrar.
+      if (this.detalle?.plantilla && this.cierreEditable && !(await this.guardarCierre(true))) return;
+      this.accion("/completar", "Orden completada.", "No se pudo completar la orden.");
+    },
+    // ── Datos de la orden al cerrar (#1202) ───────────────────────────
+    prepararCierre() {
+      const p = this.detalle?.plantilla;
+      this.datosCierre = { ...(p?.valores || {}) };
+      this.materiales = (p?.checklist || []).map((m) => ({ ...m, cantidad_usada: m.cantidad_usada ?? "" }));
+      this.erroresCierre = {};
+      this.errorCierre = "";
+    },
+    async guardarCierre(silencioso = false) {
+      if (!this.detalle?.plantilla || this.guardandoCierre) return false;
+      this.guardandoCierre = true;
+      this.erroresCierre = {};
+      this.errorCierre = "";
+      try {
+        const { data } = await axios.put(this.otUrl("/datos-cierre"), {
+          datos: this.datosCierre,
+          checklist: this.materiales.map((m) => ({ id: m.id, checked: !!m.checked, cantidad_usada: m.cantidad_usada === "" ? null : m.cantidad_usada })),
+        });
+        this.detalle.plantilla = data.plantilla;
+        this.prepararCierre();
+        if (!silencioso) this.avisar("success", "Datos guardados.");
+        return true;
+      } catch (e) {
+        const errores = e?.response?.data?.errors || {};
+        const porCampo = {};
+        Object.keys(errores).forEach((k) => {
+          if (k.startsWith("datos.")) porCampo[k.slice(6)] = errores[k];
+        });
+        this.erroresCierre = porCampo;
+        this.errorCierre = Object.keys(errores).some((k) => k.startsWith("checklist."))
+          ? "Revisa las cantidades de material: deben ser números de 0 en adelante."
+          : this.error(e, "No se pudieron guardar los datos.");
+        this.avisar("warning", "Revisa los datos de la orden marcados en rojo.");
+        return false;
+      } finally {
+        this.guardandoCierre = false;
+      }
+    },
+    async usarUbicacion(key) {
+      this.ubicando = true;
+      try {
+        const pos = await ubicacion();
+        this.datosCierre = { ...this.datosCierre, [key]: `${pos.coords.latitude.toFixed(6)},${pos.coords.longitude.toFixed(6)}` };
+      } catch (e) {
+        this.avisar("warning", "No se pudo obtener tu ubicación. Revisa que el navegador tenga permiso.");
+      } finally {
+        this.ubicando = false;
+      }
+    },
     aceptarOt() { this.accion("/aceptar", "Orden aceptada.", "No se pudo aceptar la orden."); },
 
     async abrirCaptura() {
@@ -600,6 +715,9 @@ export default {
 </script>
 
 <style scoped>
+/* #1202: cantidad usada de cada material. */
+.mi-cantidad { max-width: 7rem; }
+.mi-unidad { min-width: 2.5rem; }
 .mi-dia-atrasada {
   border-left: 4px solid #d50000 !important;
   background: rgba(213, 0, 0, 0.05) !important;

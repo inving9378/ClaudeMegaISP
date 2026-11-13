@@ -14,6 +14,14 @@
           <button v-if="conIncidencia > 0 && !vistaAgenda" type="button" class="tc-btn tc-btn-bad" @click="verIncidencias">
             <i class="fa fa-exclamation-triangle me-1"></i>{{ conIncidencia }} con incidencia
           </button>
+          <!-- #1286: terminadas que esperan la revisión del supervisor (solo con la revisión encendida). -->
+          <button v-if="porValidar > 0 && !vistaAgenda" type="button" class="tc-btn tc-btn-warn" @click="verPorValidar">
+            <i class="fa fa-clipboard-check me-1"></i>{{ porValidar }} por validar
+          </button>
+          <!-- #1286: correcciones que el técnico ya envió y esperan revisión. -->
+          <button v-if="correccionesPorRevisar > 0 && !vistaAgenda" type="button" class="tc-btn tc-btn-info" @click="verCorrecciones">
+            <i class="fa fa-camera me-1"></i>{{ correccionesPorRevisar }} {{ correccionesPorRevisar === 1 ? 'corrección' : 'correcciones' }} por revisar
+          </button>
           <button v-if="puedeCrear" @click="openCreate" class="tc-btn tc-btn-ok">
             <i class="fa fa-plus me-1"></i> Nueva orden
           </button>
@@ -40,11 +48,13 @@
               <option value="">Todos los estados</option>
               <option value="pending">Pendiente</option>
               <option value="in_progress">En curso</option>
-              <option value="completed">Completada</option>
+              <option value="completed">Por validar (terminada)</option>
               <option value="validated">Validada</option>
               <option value="cancelled">Cancelada</option>
               <option value="atrasadas">Atrasadas (ya pasó su día)</option>
               <option value="incidencia">Con incidencia (esperan al supervisor)</option>
+              <option value="correccion_pedida">Corrección pedida (espera al técnico)</option>
+              <option value="correccion_revisar">Corrección enviada (por revisar)</option>
             </select>
           </div>
           <div class="col-6 col-sm-6 col-md-2">
@@ -127,10 +137,16 @@
                       <span class="ord-incidencia">Incidencia</span>
                       <div class="small text-muted">{{ o.incidencia.motivo_texto }}</div>
                     </div>
+                    <!-- #1286: devuelta al técnico, o corrección pedida sobre la ya validada. -->
+                    <div v-if="o.correccion" class="mt-1">
+                      <span class="ord-correccion">{{ etiquetaCorreccion(o.correccion) }}</span>
+                    </div>
                   </template>
                 </td>
                 <td class="text-end">
                   <button v-if="o.incidencia && !o.eliminada" @click="viewOrder(o)" class="tc-btn tc-btn-bad me-1">Atender</button>
+                  <button v-else-if="(o.correccion?.estado === 'enviada' || (o.status === 'completed' && o._source === 'task')) && !o.eliminada"
+                          @click="viewOrder(o)" class="tc-btn tc-btn-primary me-1">Revisar</button>
                   <button v-else @click="viewOrder(o)" class="tc-btn tc-btn-info me-1">Ver</button>
                   <button v-if="puedeCrear && o.atrasada && !o.eliminada" @click="abrirReprogramar(o)" class="tc-btn tc-btn-bad me-1">Reprogramar</button>
                   <!-- David (29-sep): "Validar"/"Iniciar"/"Completar" son
@@ -140,8 +156,10 @@
                        viera la lista (con solo status como condición) y al
                        hacer clic 403eaban en silencio. El técnico avanza
                        SU PROPIA orden desde la app móvil de campo, no
-                       desde aquí. Mismo flag que ya gatea "Nueva orden". -->
-                  <button v-if="puedeCrear && o.status === 'completed' && !o.eliminada" @click="openValidate(o)" class="tc-btn tc-btn-ok me-1">Validar</button>
+                       desde aquí. Mismo flag que ya gatea "Nueva orden".
+                       13-nov: «Validar» también para el supervisor que tiene el permiso de validar,
+                       igual que en el detalle; antes solo lo veía ahí, detrás de «Revisar». -->
+                  <button v-if="(puedeCrear || puedeValidar) && o.status === 'completed' && !o.eliminada" @click="openValidate(o)" class="tc-btn tc-btn-ok me-1">Validar</button>
                   <button v-if="puedeCrear && canAdvance(o.status) && !o.eliminada && !o.incidencia" @click="advanceStatus(o)" class="tc-btn tc-btn-primary">
                     {{ nextStatusLabel(o.status) }}
                   </button>
@@ -473,6 +491,29 @@
                   <div class="mt-1">Está con el supervisor: reprográmala, edítala para cambiar de persona, elimínala o regrésala al técnico como está.</div>
                 </div>
               </div>
+              <!-- #1286: devuelta al técnico (revisión del supervisor) o corrección sobre la ya validada. -->
+              <div class="col-12" v-if="detail.order.correccion && !detail.order.eliminada">
+                <div class="alert py-2 small mb-0" :class="detail.order.correccion.estado === 'enviada' ? 'alert-info' : 'alert-warning'">
+                  <div class="fw-semibold">
+                    <i class="fa fa-camera me-1"></i>{{ tituloCorreccion(detail.order.correccion) }}
+                  </div>
+                  <div>{{ detail.order.correccion.motivo }}</div>
+                  <div class="text-muted">
+                    {{ detail.order.correccion.modo === 'devolucion' ? 'Devuelta por' : 'Pedida por' }}
+                    {{ detail.order.correccion.pedida_por || 'alguien' }} · {{ formatDatetime(detail.order.correccion.pedida_at) }}
+                    <template v-if="detail.order.correccion.enviada_at"> · {{ detail.order.correccion.modo === 'devolucion' ? 'terminada otra vez' : 'enviada' }} {{ formatDatetime(detail.order.correccion.enviada_at) }}</template>
+                  </div>
+                  <div v-if="detail.order.correccion.nota_tecnico" class="mt-1"><strong>Nota del técnico:</strong> {{ detail.order.correccion.nota_tecnico }}</div>
+                  <div class="mt-1">{{ ayudaCorreccion(detail.order.correccion) }}</div>
+                </div>
+              </div>
+              <!-- #1286: terminada, espera la revisión del supervisor. -->
+              <div class="col-12" v-if="detail.order.puede_devolver && !detail.order.correccion">
+                <div class="alert alert-warning py-2 small mb-0">
+                  <i class="fa fa-clipboard-check me-1"></i>El técnico la terminó y espera tu revisión: revisa sus fotos en «Documentación»
+                  y valídala (ahí cuentan sus puntos) o devuélvesela con una nota.
+                </div>
+              </div>
               <div class="col-12" v-if="detail.order.atrasada && !detail.order.eliminada">
                 <div class="alert alert-danger py-2 small mb-0">
                   <i class="fa fa-exclamation-circle me-1"></i>Atrasada: ya pasó su día y no se ha terminado. Hay que terminarla o reprogramarla con un motivo.
@@ -494,6 +535,10 @@
                 <ul class="small mb-0 ps-3">
                   <li v-for="m in detail.order.checklist" :key="m.id">
                     <i v-if="m.checked" class="fa fa-check text-success me-1" title="Marcado por el técnico"></i>{{ textoMaterial(m) }}
+                    <!-- #1202: lo que el técnico anotó que usó al cerrar. -->
+                    <span v-if="m.cantidad_usada !== null && m.cantidad_usada !== undefined" class="text-muted">
+                      · usó {{ Number(m.cantidad_usada) }}{{ m.unidad ? ' ' + m.unidad : '' }}
+                    </span>
                   </li>
                 </ul>
               </div>
@@ -502,7 +547,7 @@
                 <div class="mt-2 p-2 border rounded" style="white-space:pre-line">{{ detail.order.notes }}</div>
               </details>
             </div>
-            <OrdenDocumentacion :orden-id="detail.ref ?? detail.order.id" />
+            <OrdenDocumentacion :key="versionDocumentacion" :orden-id="detail.ref ?? detail.order.id" />
             <div v-if="detail.order.reprogramaciones?.length" class="mt-3">
               <h6>Cambios de día</h6>
               <ul class="list-group list-group-flush">
@@ -536,6 +581,29 @@
                     class="btn btn-outline-secondary" :disabled="regresando">
               <span v-if="regresando" class="spinner-border spinner-border-sm me-1"></span><i v-else class="fa fa-undo me-1"></i>Regresar al técnico
             </button>
+            <!-- #1286: revisión del supervisor: validar (cuentan los puntos) o devolver con una nota. -->
+            <template v-if="puedeValidar && detail.order?.puede_devolver">
+              <button @click="openValidate(detail.order)" class="btn btn-success">
+                <i class="fa fa-check me-1"></i>Validar
+              </button>
+              <button @click="abrirCorreccion(detail.order, true)" class="btn btn-outline-danger">
+                <i class="fa fa-undo me-1"></i>Devolver con nota
+              </button>
+            </template>
+            <!-- #1286: fotos de corrección sobre la orden ya validada: pedirlas, darlas por buenas o cancelar. -->
+            <template v-if="puedePedirCorreccion(detail.order)">
+              <button v-if="detail.order.correccion?.estado === 'enviada'" @click="cerrarCorreccion(detail.order, 'aceptada')"
+                      class="btn btn-success" :disabled="cerrandoCorreccion">
+                <i class="fa fa-check me-1"></i>Dar por buena
+              </button>
+              <button v-if="detail.order.correccion?.estado !== 'pedida'" @click="abrirCorreccion(detail.order)"
+                      class="btn btn-outline-primary" :disabled="cerrandoCorreccion">
+                <i class="fa fa-camera me-1"></i>{{ detail.order.correccion ? 'Pedir otra corrección' : 'Pedir corrección al técnico' }}
+              </button>
+              <button v-else @click="cerrarCorreccion(detail.order, 'cancelada')" class="btn btn-outline-secondary" :disabled="cerrandoCorreccion">
+                Cancelar corrección
+              </button>
+            </template>
             <button v-if="esEditable(detail.order) && puedeEliminarOrden" @click="abrirEliminar(detail.order)" class="btn btn-danger">
               <i class="fa fa-trash-alt me-1"></i>Eliminar
             </button>
@@ -548,6 +616,43 @@
     <ReprogramarOrden v-if="reprogramar" :orden="reprogramar" :fecha-inicial="reprogramar.fechaInicial"
                       :url="`/talento/api/ordenes/${reprogramar.id}/reprogramar`"
                       @cerrar="reprogramar = null" @reprogramada="trasReprogramar" />
+
+    <!-- Modal devolver con nota / pedir corrección al técnico (#1286) -->
+    <div v-if="correccionModal.show" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5);z-index:9999"
+         role="dialog" aria-modal="true" aria-labelledby="correccion-titulo">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 id="correccion-titulo" class="modal-title">
+              {{ correccionModal.devolver ? 'Devolver al técnico' : (correccionModal.otra ? 'Pedir otra corrección' : 'Pedir corrección al técnico') }}
+              · orden #{{ correccionModal.order?.id }}
+            </h5>
+            <button @click="correccionModal.show = false" type="button" class="btn-close" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <p v-if="correccionModal.devolver" class="small text-muted">
+              La orden regresa a «En curso» en la app del técnico con tu nota. La corrige, la vuelve a terminar y regresa a tu
+              revisión. Sus puntos cuentan cuando la valides. Necesita la app 1.30.
+            </p>
+            <p v-else class="small text-muted">
+              La orden sigue validada y con sus puntos. El técnico la vuelve a ver en «Mi día» de la app con este motivo,
+              sube las fotos de la corrección y te la envía. Necesita la app 1.29 o más nueva.
+            </p>
+            <label for="correccion-motivo" class="form-label">¿Qué hay que corregir? *</label>
+            <textarea id="correccion-motivo" v-model="correccionModal.motivo" class="form-control" rows="3" maxlength="1000"
+                      placeholder="Ej. La foto del serial salió borrosa; tómala de nuevo."></textarea>
+            <div v-if="correccionModal.error" class="text-danger small mt-2">{{ correccionModal.error }}</div>
+          </div>
+          <div class="modal-footer">
+            <button @click="correccionModal.show = false" type="button" class="btn btn-secondary">Cancelar</button>
+            <button @click="guardarCorreccion" type="button" class="btn btn-primary"
+                    :disabled="correccionModal.saving || correccionModal.motivo.trim().length < 5">
+              <span v-if="correccionModal.saving" class="spinner-border spinner-border-sm me-1"></span>{{ correccionModal.devolver ? 'Devolver' : 'Pedir corrección' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Modal corregir orden validada (UNI-T D7.3) -->
     <div v-if="corregirModal.show" class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5);z-index:9999">
@@ -737,6 +842,13 @@ export default {
       // #1326: órdenes con incidencia sin atender (lo manda la lista) y el botón «Regresar al técnico».
       conIncidencia: 0,
       regresando: false,
+      // #1286: correcciones enviadas por revisar (lo manda la lista), el modal de «Pedir corrección» y
+      // la versión de la documentación (se vuelve a cargar tras pedir o cerrar una).
+      correccionesPorRevisar: 0,
+      porValidar: 0,
+      correccionModal: { show: false, order: null, motivo: '', saving: false, error: '', otra: false, devolver: false },
+      cerrandoCorreccion: false,
+      versionDocumentacion: 0,
       loading: true,
       pagination: { current_page: 1, last_page: 1 },
       filters: { search: '', prospecto: '', status: '', type_id: '', from: '', to: '', eliminadas: false },
@@ -802,7 +914,13 @@ export default {
     // #1325: cómo se pagan los puntos con auxiliares, tal como está configurado hoy.
     textoReparto() {
       const r = this.equipo.reparto || {};
-      if (r.activo) return `Los auxiliares ven la orden en su app. Puntos: el responsable recibe ${r.responsable} % y cada auxiliar ${r.auxiliar} % de los puntos de la orden.`;
+      if (r.activo) {
+        // Regla de Irving (#1325): el % de auxiliares se reparte entre ellos; la orden nunca paga más del 100 %.
+        const n = (this.createModal.auxiliares || []).length;
+        const cada = n ? Math.round((r.auxiliar / n) * 10) / 10 : r.auxiliar;
+        return `Los auxiliares ven la orden en su app. Puntos: el responsable recibe ${r.responsable} % y los auxiliares ${r.auxiliar} % entre todos`
+          + (n > 1 ? ` (${cada} % cada uno).` : '.') + ' Sola, la persona recibe la orden completa.';
+      }
       return 'Los auxiliares ven la orden en su app. Mientras no se active el reparto por rol, cada integrante recibe los puntos completos de la orden.';
     },
     // #1324: sin texto, quienes marcaron asistencia hoy; con texto, lo encontrado con ellos primero.
@@ -899,6 +1017,10 @@ export default {
     puedeCorregir() {
       return new Permission(this.permisosOrdenes).canDo('talento.ordenes.corregir_validada');
     },
+    // #1286: pedir fotos de corrección es del mismo permiso que validar órdenes.
+    puedeValidar() {
+      return new Permission(this.permisosOrdenes).canDo('talento.work_orders.validate');
+    },
     puedeEditarColores() {
       return new Permission(this.permisosOrdenes).canDo('talento.work_orders.manage');
     },
@@ -988,6 +1110,8 @@ export default {
         const { data } = await axios.get('/talento/api/ordenes', { params });
         this.orders = data?.data ?? [];
         this.conIncidencia = data?.con_incidencia ?? 0;
+        this.correccionesPorRevisar = data?.correcciones_por_revisar ?? 0;
+        this.porValidar = data?.por_validar ?? 0;
         this.pagination = { current_page: data?.current_page ?? 1, last_page: data?.last_page ?? 1 };
       } finally { this.loading = false; }
     },
@@ -1291,8 +1415,13 @@ export default {
     async confirmValidate() {
       this.validateModal.saving = true;
       try {
-        await axios.post(`/talento/api/ordenes/${this.validateModal.order.id}/validate`);
+        const { data } = await axios.post(`/talento/api/ordenes/${this.validateModal.order.id}/validate`);
         this.validateModal.show = false;
+        // #1286: si se validó desde el detalle, el detalle muestra ya la orden validada.
+        if (this.detail.show && this.detail.order?.id === this.validateModal.order.id && data?.id) {
+          this.detail = { ...this.detail, order: data };
+          this.versionDocumentacion++;
+        }
         this.load();
       } catch (e) {
         alert(e.response?.data?.error ?? 'Error al validar.');
@@ -1313,7 +1442,8 @@ export default {
                validated: 'is-ok', cancelled: 'is-bad' }[s] ?? 'is-slate';
     },
     statusLabel(s) {
-      return { pending: 'Pendiente', in_progress: 'En curso', completed: 'Completada',
+      // #1286: «completed» es terminada que espera la revisión del supervisor.
+      return { pending: 'Pendiente', in_progress: 'En curso', completed: 'Por validar',
                validated: 'Validada', cancelled: 'Cancelada' }[s] ?? s;
     },
     fechaAgenda,
@@ -1542,6 +1672,76 @@ export default {
         this.refrescar();
       } finally { this.regresando = false; }
     },
+    // ── Correcciones de evidencia (#1286) ────────────────────────────
+    verCorrecciones() {
+      this.filters.status = 'correccion_revisar';
+      this.load();
+    },
+    verPorValidar() {
+      this.filters.status = 'completed';
+      this.load();
+    },
+    // Corrección sobre la orden ya validada (el servidor dice si se puede; aquí además el permiso).
+    puedePedirCorreccion(o) {
+      return this.puedeValidar && !!o?.puede_pedir_correccion;
+    },
+    etiquetaCorreccion(c) {
+      if (c.modo === 'devolucion') return c.estado === 'enviada' ? 'Corregida, por validar' : 'Devuelta al técnico';
+      return c.estado === 'enviada' ? 'Corrección por revisar' : 'Corrección pedida';
+    },
+    tituloCorreccion(c) {
+      if (c.modo === 'devolucion') return c.estado === 'enviada' ? 'El técnico la corrigió y la volvió a terminar' : 'Devuelta al técnico';
+      return c.estado === 'enviada' ? 'El técnico envió la corrección' : 'Corrección pedida al técnico';
+    },
+    ayudaCorreccion(c) {
+      if (c.modo === 'devolucion') {
+        return c.estado === 'enviada'
+          ? 'Revisa sus fotos en «Documentación» y valídala (ahí cuentan sus puntos), o devuélvesela otra vez.'
+          : 'Está en curso en la app del técnico con tu nota; cuando la vuelva a terminar regresa a tu revisión.';
+      }
+      return c.estado === 'enviada'
+        ? 'Revisa las fotos de corrección en «Documentación» y dala por buena, o pide otra corrección.'
+        : `Espera a que el técnico suba las fotos desde la app y la envíe (${c.fotos} ${c.fotos === 1 ? 'foto' : 'fotos'} hasta ahora).`;
+    },
+    abrirCorreccion(o, devolver = false) {
+      this.correccionModal = { show: true, order: o, motivo: '', saving: false, error: '', otra: !!o.correccion, devolver };
+    },
+    async guardarCorreccion() {
+      const m = this.correccionModal;
+      m.saving = true;
+      m.error = '';
+      try {
+        const url = `/talento/api/ordenes/${m.order.id}/${m.devolver ? 'return' : 'correccion'}`;
+        const { data } = await axios.post(url, { motivo: m.motivo.trim() });
+        m.show = false;
+        this.trasCorreccion(data, m.devolver ? `Orden #${m.order.id} devuelta al técnico` : `Corrección pedida en la orden #${m.order.id}`);
+      } catch (e) {
+        m.error = this.mensajeError(e, m.devolver ? 'No se pudo devolver la orden.' : 'No se pudo pedir la corrección.');
+      } finally { m.saving = false; }
+    },
+    async cerrarCorreccion(o, cierre) {
+      if (cierre === 'cancelada') {
+        const r = await Swal.fire({
+          icon: 'question', title: '¿Cancelar la corrección?', text: 'El técnico deja de verla en su «Mi día». Las fotos que ya subió se quedan en la orden.',
+          showCancelButton: true, confirmButtonText: 'Sí, cancelarla', cancelButtonText: 'No',
+        });
+        if (!r.isConfirmed) return;
+      }
+      this.cerrandoCorreccion = true;
+      try {
+        const { data } = await axios.post(`/talento/api/ordenes/${o.id}/correccion/cerrar`, { cierre });
+        this.trasCorreccion(data, cierre === 'aceptada' ? `Corrección de la orden #${o.id} aceptada` : 'Corrección cancelada');
+      } catch (e) {
+        Swal.fire({ icon: 'error', title: this.mensajeError(e, 'No se pudo cerrar la corrección.') });
+        this.refrescar();
+      } finally { this.cerrandoCorreccion = false; }
+    },
+    trasCorreccion(orden, titulo) {
+      this.detail = { show: true, order: orden, ref: this.detail.ref ?? orden.id };
+      this.versionDocumentacion++;
+      this.refrescar();
+      Swal.fire({ icon: 'success', title: titulo, timer: 1800, showConfirmButton: false });
+    },
     formatDatetime(d) {
       if (!d) return '—';
       return new Date(d).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
@@ -1600,6 +1800,16 @@ export default {
   padding: 1px 7px;
   border-radius: 8px;
   background: #ff8f00;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+/* #1286: corrección pedida o por revisar. */
+.ord-correccion {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: #1565c0;
   color: #fff;
   font-size: 11px;
   font-weight: 600;

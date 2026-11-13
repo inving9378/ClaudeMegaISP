@@ -2548,6 +2548,9 @@ return [
         // el controller hace la restricción real.
         '/talento/api/ordenes/{id}/validate',
         '/talento/api/ordenes/{id}/return',
+        // #1286: pedir fotos de corrección al técnico sobre una orden terminada, y darla por buena o cancelarla.
+        '/talento/api/ordenes/{id}/correccion',
+        '/talento/api/ordenes/{id}/correccion/cerrar',
         '/talento/api/ots/**',
     ],
     'talento.ordenes.corregir_validada' => [

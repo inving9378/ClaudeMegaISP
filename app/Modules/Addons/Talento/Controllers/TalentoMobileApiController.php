@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Modules\Addons\Talento\Support\Actor;
 use App\Modules\Addons\Talento\Services\AttendanceService;
+use App\Modules\Addons\Talento\Services\CorreccionEvidenciasService;
 use App\Modules\Addons\Talento\Models\TalentoCompensationRule;
 use App\Modules\Addons\Talento\Models\TalentoColaborador;
 use App\Modules\Addons\Talento\Models\TalentoWorkOrder;
@@ -14,6 +15,7 @@ use App\Modules\Addons\Talento\Services\FieldMediaService;
 use App\Modules\Addons\Talento\Services\GeocodingService;
 use App\Modules\Addons\Talento\Services\IncidenciasOrdenService;
 use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
+use App\Modules\Addons\Talento\Services\RevisionOrdenesAppService;
 use App\Services\Security\PasswordService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -540,11 +542,63 @@ class TalentoMobileApiController extends Controller
             ->values();
 
         // 11-nov-2026 (#1347): las fotos ya tomadas, para verlas, quitarlas y volver a tomarlas.
+        $captura = $this->unified->evidenciasParaCaptura($ot);
+
+        // #1286: con una corrección pedida sobre la orden ya validada se ofrecen los tipos de la orden,
+        // ninguno es obligatorio y «subidos» son los que ya tienen foto de esta corrección. Una orden
+        // devuelta (en curso) queda como cualquier abierta.
+        if (($captura['correccion']['estado'] ?? null) === 'pedida' && $captura['correccion']['modo'] === 'correccion') {
+            $permitidos = $this->unified->tiposDeLaOrden((int) $ot->type_id);
+            $tipos = $permitidos === null ? $tipos : $tipos->filter(fn ($t) => in_array((int) $t['id'], $permitidos, true))->values();
+            $requeridos = collect();
+            $subidos = collect($captura['evidencias'])
+                ->filter(fn ($e) => (int) ($e->correccion_id ?? 0) === $captura['correccion']['id'])
+                ->pluck('type_id')->unique()->values();
+        }
+
         return response()->json(array_merge([
             'tipos'     => $tipos,
             'requeridos'=> $requeridos,
             'subidos'   => $subidos,
-        ], $this->unified->evidenciasParaCaptura($ot)));
+        ], $captura));
+    }
+
+    /** #1286: el técnico envía al supervisor las fotos de la corrección que le pidió. */
+    public function enviarCorreccion(Request $request, int $id)
+    {
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) return $this->noColaborador();
+
+        $request->validate(['nota' => 'nullable|string|max:1000']);
+
+        $ot = $this->unified->findLight($id, $colaborador->id);
+        if (! $ot || ! $ot->is_task) {
+            return response()->json(['message' => 'OT no encontrada.'], 404);
+        }
+
+        $result = app(CorreccionEvidenciasService::class)->enviar($ot->id, $request->user()->id, $request->input('nota'));
+        if (! $result['success']) {
+            return response()->json(collect($result)->except(['success', 'status_code'])->all(), $result['status_code']);
+        }
+
+        return response()->json(['message' => 'Corrección enviada a tu supervisor.']);
+    }
+
+    /** #1202: el técnico guarda los datos de la plantilla que se capturan al cerrar (campos y materiales). */
+    public function guardarDatosCierre(Request $request, int $id)
+    {
+        $colaborador = $this->resolveColaborador($request);
+        if (! $colaborador) return $this->noColaborador();
+
+        $request->validate(['datos' => 'nullable|array', 'checklist' => 'nullable|array']);
+        $result = $this->unified->guardarDatosCierre(
+            $id, $colaborador->id, (array) $request->input('datos', []), (array) $request->input('checklist', []), $request->user()->id
+        );
+        if (! $result['success']) {
+            return response()->json(collect($result)->except(['success', 'status_code'])->all(), $result['status_code']);
+        }
+
+        return response()->json(['plantilla' => $result['data']]);
     }
 
     /** 11-nov-2026 (#1347): el técnico quita una foto que salió mal (orden pendiente o en curso). */
@@ -1149,6 +1203,8 @@ class TalentoMobileApiController extends Controller
             'es_vendedor'  => $actor->esVendedorTrack(),
             'es_mostrador' => $actor->esMostradorTrack(),
             'tiene_equipo' => $actor->tieneEquipo(),
+            // 13-nov-2026: revisa las órdenes terminadas de su equipo (validar o devolver con nota).
+            'puede_validar_ordenes' => $user ? app(RevisionOrdenesAppService::class)->disponible($user) : false,
             'email'        => $user?->email,
             'telefono'     => $user?->phone,
         ];
