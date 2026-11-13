@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Marketing\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Addons\Marketing\Support\EmpresaActiva;
 use App\Modules\Addons\Marketing\Models\Campaign;
 use App\Modules\Addons\Marketing\Models\CampaignContent;
 use App\Modules\Addons\Marketing\Models\MarketingTemplate;
@@ -10,6 +11,7 @@ use App\Modules\Addons\Marketing\Services\AIContentService;
 use App\Modules\Addons\Marketing\Services\ImageGeneratorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Log;
 
 class ContentGeneratorController extends Controller
@@ -22,7 +24,7 @@ class ContentGeneratorController extends Controller
     public function generateCopy(Request $request): JsonResponse
     {
         $request->validate([
-            'campaign_id' => 'required|integer|exists:marketing_campaigns,id',
+            'campaign_id' => ['required', 'integer', Rule::exists('marketing_campaigns', 'id')->where('company_id', app(EmpresaActiva::class)->id())],
             'template_id' => 'required|integer|exists:marketing_templates,id',
         ]);
 
@@ -52,7 +54,7 @@ class ContentGeneratorController extends Controller
     public function generateImage(Request $request): JsonResponse
     {
         $request->validate([
-            'campaign_id'   => 'required|integer|exists:marketing_campaigns,id',
+            'campaign_id'   => ['required', 'integer', Rule::exists('marketing_campaigns', 'id')->where('company_id', app(EmpresaActiva::class)->id())],
             'custom_prompt' => 'nullable|string|max:500',
         ]);
 

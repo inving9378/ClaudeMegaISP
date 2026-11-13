@@ -1,17 +1,28 @@
 <template>
     <div class="q-pa-md">
-        <!-- Header -->
-        <div class="row items-center q-mb-md">
-            <div class="col">
-                <div class="text-h5 text-weight-bold">
-                    <i class="fa fa-bullhorn q-mr-sm text-primary"></i> Marketing
-                </div>
-                <div class="text-caption text-grey-6">Gestión de campañas, contenido IA y leads</div>
-            </div>
-            <div class="col-auto">
-                <q-btn color="primary" icon="add" label="Nueva campaña" @click="showCreateDialog = true" />
-            </div>
-        </div>
+        <!-- Header (Fase 0: encabezado del kit con selector de empresa) -->
+        <mkt-raiz :color-marca="mktContexto?.empresa_activa?.color_primario">
+            <mkt-encabezado-pantalla
+                titulo="Marketing"
+                subtitulo="Gestión de campañas, contenido IA y leads"
+                icono="campaign"
+                con-selector-empresa
+                @contexto="(ctx) => (mktContexto = ctx)"
+            >
+                <template #acciones>
+                    <q-btn
+                        v-if="mktContexto?.capacidades?.gestionar_empresas"
+                        outline
+                        no-caps
+                        color="primary"
+                        icon="domain"
+                        label="Empresas y equipo"
+                        href="/marketing/empresas"
+                    />
+                    <q-btn color="primary" icon="add" label="Nueva campaña" @click="showCreateDialog = true" />
+                </template>
+            </mkt-encabezado-pantalla>
+        </mkt-raiz>
 
         <!-- Stats -->
         <div class="row q-gutter-md q-mb-lg">
@@ -147,6 +158,7 @@ export default {
     data() {
         return {
             activeTab: 'campaigns',
+            mktContexto: null,
             stats: {},
             templates: [],
             totalUnread: 0,

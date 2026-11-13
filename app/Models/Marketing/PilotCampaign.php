@@ -4,11 +4,13 @@ namespace App\Models\Marketing;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Modules\Addons\Marketing\Models\Concerns\PerteneceAEmpresa;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PilotCampaign extends Model
 {
     use SoftDeletes;
+    use PerteneceAEmpresa;
 
     protected $table = 'marketing_pilot_campaigns';
 

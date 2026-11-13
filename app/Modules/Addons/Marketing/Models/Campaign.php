@@ -5,11 +5,13 @@ namespace App\Modules\Addons\Marketing\Models;
 use App\Models\BaseModel;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Modules\Addons\Marketing\Models\Concerns\PerteneceAEmpresa;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Campaign extends BaseModel
 {
     use SoftDeletes;
+    use PerteneceAEmpresa;
 
     protected $table = 'marketing_campaigns';
 

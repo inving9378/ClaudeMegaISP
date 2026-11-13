@@ -36,6 +36,14 @@ class ConversationControllerTest extends MarketingTestCase
         }
         $this->user->givePermissionTo(['view-conversations', 'manage-conversations', 'send-message-whatsapp']);
 
+        // Precondición Fase 0 de Marketing (QA, contrato §5): las rutas de Marketing ahora exigen empresa
+        // asignada (marketing.empresa). Se asigna al usuario a la empresa 1 (Meganet) como admin; sin esto
+        // todas las peticiones responden 403 sin_empresa. No cambia ninguna aserción.
+        \Illuminate\Support\Facades\DB::table('marketing_empresa_usuario')->updateOrInsert(
+            ['company_id' => 1, 'user_id' => $this->user->id],
+            ['rol' => 'admin', 'activo' => 1, 'created_by' => $this->user->id, 'created_at' => now(), 'updated_at' => now()]
+        );
+
         // Marketing data
         $this->channel = Channel::firstOrCreate(['code' => 'whatsapp'], [
             'name' => 'WhatsApp Business', 'company_id' => 1, 'active' => true, 'config' => [],

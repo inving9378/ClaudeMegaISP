@@ -63,6 +63,10 @@
         {
             "name": "publish-content",
             "description": "Publicar contenido en redes sociales"
+        },
+        {
+            "name": "marketing.empresas.gestionar",
+            "description": "Marketing: administrar empresas (marcas) y su equipo"
         }
     ],
     "menu": [
@@ -117,6 +121,13 @@
             "icon": "chart-line",
             "url": "/marketing",
             "permission": "create-marketing-campaigns"
+        },
+        {
+            "title": "Marketing — Empresas y equipo",
+            "description": "Marcas del grupo Meganet y quién trabaja en cada una (admin, marketing, ventas).",
+            "icon": "building",
+            "url": "/marketing/empresas",
+            "permission": "marketing.empresas.gestionar"
         }
     ],
     "config_sections": [
@@ -382,6 +393,69 @@
             "description": "Webhook Evolution (bot mktg)",
             "scope": "public",
             "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/contexto",
+            "description": "Empresa activa, empresas de la persona y capacidades (selector de empresa)",
+            "scope": null,
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/api/marketing/contexto/empresa-activa",
+            "description": "Cambiar la empresa activa de Marketing",
+            "scope": null,
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/empresas",
+            "description": "Empresas (marcas) que la persona administra",
+            "scope": "marketing.empresas.gestionar",
+            "permission": "marketing.empresas.gestionar"
+        },
+        {
+            "method": "POST",
+            "path": "/api/marketing/empresas",
+            "description": "Crear empresa (marca); quien la crea queda como admin",
+            "scope": "marketing.empresas.gestionar",
+            "permission": "marketing.empresas.gestionar"
+        },
+        {
+            "method": "PUT",
+            "path": "/api/marketing/empresas/{id}",
+            "description": "Editar empresa (nombre, slug, colores, activa)",
+            "scope": "marketing.empresas.gestionar",
+            "permission": "marketing.empresas.gestionar"
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/empresas/{id}/usuarios",
+            "description": "Equipo de una empresa (rol y estado de cada persona)",
+            "scope": "marketing.empresas.gestionar",
+            "permission": "marketing.empresas.gestionar"
+        },
+        {
+            "method": "POST",
+            "path": "/api/marketing/empresas/{id}/usuarios",
+            "description": "Agregar persona a la empresa con un rol",
+            "scope": "marketing.empresas.gestionar",
+            "permission": "marketing.empresas.gestionar"
+        },
+        {
+            "method": "PUT",
+            "path": "/api/marketing/empresas/{id}/usuarios/{userId}",
+            "description": "Cambiar rol o dar de baja/alta a una persona en la empresa",
+            "scope": "marketing.empresas.gestionar",
+            "permission": "marketing.empresas.gestionar"
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/empresas/{id}/usuarios-disponibles",
+            "description": "Buscar personal que se puede agregar a la empresa",
+            "scope": "marketing.empresas.gestionar",
+            "permission": "marketing.empresas.gestionar"
         }
     ],
     "ai": {

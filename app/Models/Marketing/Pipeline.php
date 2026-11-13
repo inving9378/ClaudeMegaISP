@@ -3,6 +3,7 @@
 namespace App\Models\Marketing;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Modules\Addons\Marketing\Models\Concerns\PerteneceAEmpresa;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Pipeline extends Model
 {
     use SoftDeletes;
+    use PerteneceAEmpresa;
 
     protected $table = 'marketing_pipelines';
 

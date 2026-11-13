@@ -4,6 +4,7 @@ namespace App\Models\Marketing;
 
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
+use App\Modules\Addons\Marketing\Models\Concerns\PerteneceAEmpresa;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class LeadForm extends Model
 {
     use SoftDeletes;
+    use PerteneceAEmpresa;
 
     protected $table = 'marketing_lead_forms';
 

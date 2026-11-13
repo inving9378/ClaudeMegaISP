@@ -3,12 +3,14 @@
 namespace App\Models\Marketing;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Modules\Addons\Marketing\Models\Concerns\PerteneceAEmpresa;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PublicationChannel extends Model
 {
     use SoftDeletes;
+    use PerteneceAEmpresa;
 
     protected $table = 'marketing_publication_channels';
 

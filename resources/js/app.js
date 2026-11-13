@@ -1018,6 +1018,7 @@ app.component("fleet-tab-gps",            FleetTabGps);
 app.component("fleet-tab-historial",      FleetTabHistorial);
 app.component("fleet-tab-fotos",          FleetTabFotos);
 
+require("./components/module/marketing/registrar").default(app); // Marketing IA: kit + pantallas nuevas (Fase 0+)
 app.use(VueApexCharts);
 
 app.use(store);

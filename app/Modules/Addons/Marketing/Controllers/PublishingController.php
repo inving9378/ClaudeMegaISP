@@ -3,6 +3,7 @@
 namespace App\Modules\Addons\Marketing\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Addons\Marketing\Support\EmpresaActiva;
 use App\Models\Marketing\MultivariantCampaign;
 use App\Models\Marketing\Publication;
 use App\Models\Marketing\PublicationChannel;
@@ -12,6 +13,7 @@ use App\Modules\Addons\Marketing\Services\Publishing\SmartRouter;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
@@ -95,7 +97,7 @@ class PublishingController extends Controller
     {
         $data = $request->validate([
             'channel_ids'    => 'required|array',
-            'channel_ids.*'  => 'integer|exists:marketing_publication_channels,id',
+            'channel_ids.*'  => ['integer', Rule::exists('marketing_publication_channels', 'id')->where('company_id', app(EmpresaActiva::class)->id())],
             'scheduled_for'  => 'nullable|date',
             'caption'        => 'nullable|string|max:2200',
             'hashtags'       => 'nullable|array',

@@ -3,6 +3,7 @@
 namespace App\Models\Marketing;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Modules\Addons\Marketing\Models\Concerns\PerteneceAEmpresa;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 class GeneratedContent extends Model
 {
     use SoftDeletes;
+    use PerteneceAEmpresa;
 
     protected $table = 'marketing_generated_content';
 

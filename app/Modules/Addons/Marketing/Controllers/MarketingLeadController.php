@@ -70,7 +70,7 @@ class MarketingLeadController extends Controller
         $order = $request->order === 'asc' ? 'asc' : 'desc';
         $query->orderBy($sort, $order);
 
-        $perPage = min((int) ($request->per_page ?? 25), 100);
+        $perPage = max(1, min((int) ($request->per_page ?? 25), 100)); // acotado 1..100: per_page<=0 daba 500 (LIMIT negativo)
         $leads   = $query->paginate($perPage);
 
         return LeadResource::collection($leads);

@@ -3,11 +3,13 @@
 namespace App\Models\Marketing;
 
 use App\Models\BaseModel;
+use App\Modules\Addons\Marketing\Models\Concerns\PerteneceAEmpresa;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class MultivariantCampaign extends BaseModel
 {
     use SoftDeletes;
+    use PerteneceAEmpresa;
 
     protected $table = 'marketing_multivariant_campaigns';
 

@@ -72,6 +72,17 @@ class MultivariantCampaignControllerTest extends TestCase
     protected function actingAsAdmin()
     {
         $user = \App\Models\User::where('email', 'admin@meganet.com')->first();
+
+        // Precondición Fase 0 de Marketing (QA, contrato §5): si el usuario existe, asegurar su asignación a
+        // la empresa 1 (Meganet) como admin; sin ella las rutas responden 403 sin_empresa. (En megaisp_test
+        // admin@meganet.com no existe: esta prueba ya fallaba en la base — preexistente.)
+        if ($user) {
+            \Illuminate\Support\Facades\DB::table('marketing_empresa_usuario')->updateOrInsert(
+                ['company_id' => 1, 'user_id' => $user->id],
+                ['rol' => 'admin', 'activo' => 1, 'created_by' => $user->id, 'created_at' => now(), 'updated_at' => now()]
+            );
+        }
+
         return $this->actingAs($user);
     }
 }

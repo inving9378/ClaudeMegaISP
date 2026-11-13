@@ -4,12 +4,14 @@ namespace App\Models\Marketing;
 
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
+use App\Modules\Addons\Marketing\Models\Concerns\PerteneceAEmpresa;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Publication extends Model
 {
     use SoftDeletes;
+    use PerteneceAEmpresa;
 
     protected $table = 'marketing_publications';
 
