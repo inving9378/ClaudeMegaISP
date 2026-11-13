@@ -24,6 +24,11 @@
 # =============================================================================
 
 SINCRONIZAR_FALLAS=0
+# Lo que la revisión final encontró que de verdad falta (el resumen lo lista; si
+# queda vacío, dice «Nada pendiente»). MARIA_APAGADA: está lista pero nadie la
+# ha encendido (decisión de negocio, no un pendiente técnico).
+VERIF_PENDIENTES=()
+MARIA_APAGADA=0
 
 # _ast COMANDO — salida de la CLI de Asterisk (vacía si no responde).
 _ast() { "$ASTERISK_BIN" -rx "$1" 2>/dev/null || true; }
@@ -96,12 +101,14 @@ verificar_telefonia() {
             log_ok "Teléfonos de fuera: transport-externo escucha en ${bind}"
         else
             log_warn "ASTERISK_BIND_EXTERNO=${bind}, pero Asterisk no levantó transport-externo. Si existe /etc/asterisk/pjsip.conf.nuevo, alguien editó pjsip.conf a mano: revisa el diff, aplícalo y reinicia Asterisk (systemctl restart asterisk)."
+            VERIF_PENDIENTES+=("Teléfonos de fuera: Asterisk no levantó transport-externo (${bind}); ver el aviso de la revisión.")
         fi
     fi
 
     txt="$(_ast 'pjsip show registrations' | grep -E '^[[:space:]]*[^[:space:]<=]+/sip:' || true)"
     if [[ -z "$txt" ]]; then
-        log_info "Ninguna troncal se registra con su proveedor. Si la del proveedor lo necesita, revisa que esté activa en VoIP → Troncales."
+        log_warn "Ninguna troncal está registrada con su proveedor: sin eso no entran ni salen llamadas de la calle."
+        VERIF_PENDIENTES+=("Ninguna troncal registrada con el proveedor: en VoIP → Troncales, la del proveedor debe estar activa, con su usuario, contraseña y servidor.")
     else
         while read -r linea; do
             [[ -n "$linea" ]] || continue
@@ -111,6 +118,7 @@ verificar_telefonia() {
                 log_ok "Troncal ${nombre}: registrada"
             else
                 log_warn "Troncal ${nombre}: ${estado:-sin estado}. Revisa usuario, contraseña y servidor en VoIP → Troncales."
+                VERIF_PENDIENTES+=("Troncal ${nombre} no registrada (${estado:-sin estado}): usuario, contraseña y servidor en VoIP → Troncales.")
             fi
         done <<<"$txt"
     fi
@@ -121,6 +129,7 @@ verificar_telefonia() {
         log_ok "Llamadas a la calle (10 dígitos): salen por ${nombre}"
     else
         log_warn "No hay salida a la calle: falta una troncal activa con dirección «saliente» o «ambas» en VoIP → Troncales."
+        VERIF_PENDIENTES+=("Sin salida a la calle: una troncal activa con dirección «saliente» o «ambas» en VoIP → Troncales.")
     fi
 
     n="$(_ast 'queue show' | grep -cE '^[^[:space:]]+ has [0-9]+ calls' || true)"
@@ -132,5 +141,8 @@ verificar_telefonia() {
         log_ok "María tiene lo que necesita"
     else
         log_warn "A María le falta lo de arriba. Las llamadas siguen llegando a las personas."
+        VERIF_PENDIENTES+=("María: lo que marca ✘ en la revisión (clave de IA en Integraciones → Módulos IA).")
     fi
+    grep -q 'Apagada' <<<"$txt" && MARIA_APAGADA=1
+    return 0
 }

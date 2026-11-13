@@ -313,6 +313,14 @@ class DialplanGeneratorService
             ' same = n,Set(CDR(userfield)=saliente)',
             " same = n,Dial(PJSIP/{$endpoint}/{$destino},60)",
             ' same = n,Hangup()',
+            '; Mismo número con lada de país o prefijo viejo (como viene en los contactos del',
+            '; celular o de Zoiper): se reduce a los 10 dígitos que pide el proveedor.',
+            'exten = _52[2-9]XXXXXXXXX,1,Goto(${EXTEN:2},1)',
+            'exten = _+52[2-9]XXXXXXXXX,1,Goto(${EXTEN:3},1)',
+            'exten = _521[2-9]XXXXXXXXX,1,Goto(${EXTEN:3},1)',
+            'exten = _+521[2-9]XXXXXXXXX,1,Goto(${EXTEN:4},1)',
+            'exten = _04[45][2-9]XXXXXXXXX,1,Goto(${EXTEN:3},1)',
+            'exten = _01[2-9]XXXXXXXXX,1,Goto(${EXTEN:2},1)',
             '',
         ]);
     }

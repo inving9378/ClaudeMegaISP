@@ -13,10 +13,14 @@
 #   30 el usuario web en el grupo `asterisk` (config generada y grabaciones)
 #   40 /ws en el vhost de MegaISP (nginx o Apache) para el mini-teléfono web
 #   cierre: config:clear + queue:restart y verificación (CLI, ARI y /ws)
-#   50 servicio del asistente de voz «María» (megaisp-bot-voz)
 #   60 sincronizar MegaISP con Asterisk (extensiones, troncales, colas, plan de
-#      marcado con salida a la calle) y revisión final (troncales registradas,
-#      salida, teléfonos de fuera, María)
+#      marcado con salida a la calle)
+#   50 servicio del asistente de voz «María» (megaisp-bot-voz); va DESPUÉS de
+#      sincronizar para que la telefonía nunca dependa de ella
+#   revisión final (troncales registradas, salida, teléfonos de fuera, María)
+#
+# Si fallan la sincronización o María, la instalación sigue hasta el final (lo
+# demás queda hecho y revisado) y entonces termina con error diciendo qué faltó.
 #
 # Volver a correrlo en una central que ya funciona es la forma de aplicarle lo
 # nuevo de una versión: el paso 20 reinicia Asterisk, así que el preflight se
@@ -160,17 +164,22 @@ summary() {
     printf '  %s\n' "Asterisk $("$ASTERISK_BIN" -V 2>/dev/null | sed 's/^Asterisk //' || echo '?') instalado como servicio (arranca en boot)."
     printf '  %s\n' "Base realtime: $(voip_db_name) (usuario $(voip_db_user)); credenciales en el .env de MegaISP (no se muestran)."
     printf '  %s\n' "Grabaciones: $(voip_grabaciones_dir)"
-    printf '  %s\n' "Asistente de voz «María»: servicio ${BOT_VOZ_SERVICIO} en $(_bot_voz_host):$(_bot_voz_port) (arranca en boot)."
-    printf '\n  %s\n' "Pendiente a mano (no lo puede hacer este script):"
-    printf '    - %s\n' "Troncales: las activas se dieron de alta en el paso 60. La que diga «no registrada» en la revisión final: usuario, contraseña y servidor en VoIP → Troncales."
-    printf '    - %s\n' "María: si la revisión final marca ✘, clave de OpenAI en Integraciones y funciones asignadas en Módulos IA. Encenderla y su horario: VoIP → Asistente IA."
-    [[ -n "$(get_env_value ASTERISK_BIND_EXTERNO)" ]] \
-        && printf '    - %s\n' "Teléfonos de fuera (Zoiper, celulares): en VoIP → Extensiones ponles el transporte «transport-externo»; en el teléfono, servidor $(get_env_value ASTERISK_BIND_EXTERNO)."
-    [[ -n "$(get_env_value ASTERISK_EXTERNAL_MEDIA)" ]] \
-        || printf '    - %s\n' "ASTERISK_EXTERNAL_MEDIA/SIGNALING vacíos: si el servidor está detrás de NAT, el audio con la troncal puede ir en un solo sentido."
-    [[ -n "$(get_env_value MEGAVOZ_TURN_USERNAME)" ]] \
-        || printf '    - %s\n' "Sin TURN (MEGAVOZ_TURN_*): el mini-teléfono web puede quedarse sin audio fuera de la red local."
-    printf '    - %s\n' "SIP escucha en 5060/udp de todas las interfaces: no abras ese puerto en el router sin firewall (fraude telefónico)."
+    (( BOT_VOZ_FALLA == 0 )) \
+        && printf '  %s\n' "Asistente de voz «María»: servicio ${BOT_VOZ_SERVICIO} en $(_bot_voz_host):$(_bot_voz_port) (arranca en boot)."
+    local bind; bind="$(get_env_value ASTERISK_BIND_EXTERNO)"
+    [[ -n "$bind" ]] \
+        && printf '  %s\n' "Teléfonos de fuera (Zoiper, celulares): servidor ${bind}, con el transporte «transport-externo» en su extensión."
+    (( MARIA_APAGADA == 1 )) \
+        && printf '  %s\n' "María está lista pero apagada: contesta cuando se encienda en VoIP → Asistente IA."
+
+    # Pendiente = solo lo que la revisión final encontró mal, no una lista fija.
+    if (( ${#VERIF_PENDIENTES[@]} == 0 && SINCRONIZAR_FALLAS == 0 && BOT_VOZ_FALLA == 0 )); then
+        printf '\n'
+        log_ok "Nada pendiente: la central quedó configurada."
+    elif (( ${#VERIF_PENDIENTES[@]} > 0 )); then
+        printf '\n  %s\n' "Pendiente (lo encontró la revisión final):"
+        printf '    - %s\n' "${VERIF_PENDIENTES[@]}"
+    fi
 }
 
 main() {
@@ -182,12 +191,17 @@ main() {
     provision_acceso_web      # 30 — usuario web en el grupo asterisk
     provision_proxy_ws        # 40 — /ws en el vhost (nginx o Apache)
     finalize                  # cierre — config + verificación
-    provision_bot_voz         # 50 — servicio del asistente de voz (María)
     provision_sincronizar     # 60 — MegaISP ↔ Asterisk (extensiones, troncales, colas, plan)
-    verificar_telefonia       # 60 — revisión final (solo avisa)
+    provision_bot_voz         # 50 — servicio del asistente de voz (María); si falla, sigue
+    verificar_telefonia       # revisión final (solo avisa)
     summary
-    (( SINCRONIZAR_FALLAS == 0 )) \
-        || die "La central quedó instalada, pero la sincronización tuvo fallas (paso 60, arriba). Corrígelas y vuelve a instalar."
+    local -a fallas=()
+    (( SINCRONIZAR_FALLAS == 0 )) || fallas+=("la sincronización (paso 60)")
+    (( BOT_VOZ_FALLA == 0 ))      || fallas+=("el servicio de María (paso 50)")
+    if (( ${#fallas[@]} > 0 )); then
+        local que="${fallas[0]}"; (( ${#fallas[@]} > 1 )) && que="${fallas[0]} y ${fallas[1]}"
+        die "La central quedó instalada y lo demás configurado, pero falló ${que}: el motivo está arriba. Corrígelo y vuelve a instalar."
+    fi
     log_ok "Listo."
 }
 

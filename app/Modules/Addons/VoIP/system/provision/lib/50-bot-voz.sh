@@ -16,10 +16,14 @@
 #     (unit anterior restaurada o quitada) y se dice dónde ver el error.
 #   - nc (netcat) es requisito: el plan de marcado lo usa para saber si María
 #     está arriba antes de pasarle la llamada.
+#   - Si María no queda arriba, NO detiene la instalación: deja BOT_VOZ_FALLA=1,
+#     dice dónde ver el error y sigue (las llamadas van a las personas sin ella).
+#     install.sh termina con error al final, después de la revisión.
 # =============================================================================
 
 : "${SYSTEMD_DIR:=/etc/systemd/system}"
 : "${BOT_VOZ_SERVICIO:=megaisp-bot-voz}"
+BOT_VOZ_FALLA=0
 
 _bot_voz_unit_path() { printf '%s/%s.service' "${SYSTEMD_DIR%/}" "$BOT_VOZ_SERVICIO"; }
 _bot_voz_host() { local v; v="$(get_env_value MEGAVOZ_BOT_VOZ_HOST)"; printf '%s' "${v:-127.0.0.1}"; }
@@ -61,13 +65,20 @@ provision_bot_voz() {
 
     if ! have nc; then
         log_info "Instalando netcat (el plan de marcado lo usa para saber si María está arriba)"
-        DEBIAN_FRONTEND=noninteractive apt-get install -y netcat-openbsd >/dev/null \
-            || die "No pude instalar netcat-openbsd. Instálalo a mano (apt-get install netcat-openbsd) y vuelve a correr."
+        if ! DEBIAN_FRONTEND=noninteractive apt-get install -y netcat-openbsd >/dev/null; then
+            BOT_VOZ_FALLA=1
+            log_err "No pude instalar netcat-openbsd; María se queda sin instalar. Lo demás sigue; vuelve a instalar cuando apt funcione."
+            return 0
+        fi
         log_ok "netcat instalado"
     fi
 
     local php; php="${PHP_BIN:-$(command -v php || true)}"
-    [[ -n "$php" ]] || die "No encuentro php en el PATH para arrancar el servicio de María (fija PHP_BIN=...)."
+    if [[ -z "$php" ]]; then
+        BOT_VOZ_FALLA=1
+        log_err "No encuentro php en el PATH para arrancar el servicio de María (fija PHP_BIN=...). Lo demás sigue."
+        return 0
+    fi
 
     local unit; unit="$(_bot_voz_unit_path)"
     local nuevo; nuevo="$(_bot_voz_unit "$php")"
@@ -126,7 +137,9 @@ provision_bot_voz() {
         fi
         systemctl daemon-reload
     fi
-    die "María no arrancó. Mira el error con: journalctl -u ${BOT_VOZ_SERVICIO} -n 50   y   ${MEGAISP_ROOT%/}/storage/logs/megavoz-bot-voz.log. Asterisk quedó instalado; las llamadas siguen yendo a la cola."
+    BOT_VOZ_FALLA=1
+    log_err "María no arrancó. Mira el error con: journalctl -u ${BOT_VOZ_SERVICIO} -n 50   y   ${MEGAISP_ROOT%/}/storage/logs/megavoz-bot-voz.log. Lo demás de la central sigue; las llamadas van a las personas."
+    return 0
 }
 
 quitar_bot_voz() {

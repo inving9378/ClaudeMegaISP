@@ -44,9 +44,40 @@ class LlamadasSalientesTest extends TestCase
     {
         $ctx = (new DialplanGeneratorService())->contextoSalida($this->troncal());
 
-        $this->assertSame(1, preg_match_all('/^exten = /m', $ctx), 'una sola regla de salida');
+        $this->assertSame(1, substr_count($ctx, 'Dial('), 'una sola regla marca; las demás solo recortan la lada');
         $this->assertStringNotContainsString('_00', $ctx);
         $this->assertStringNotContainsString('X.', $ctx);
+    }
+
+    /**
+     * Simula cómo Asterisk empata cada forma de escribir un número de México: debe acabar
+     * en los mismos 10 dígitos de la única regla que marca. Un internacional no empata nada.
+     */
+    public function test_lada_de_pais_y_prefijos_viejos_acaban_en_10_digitos(): void
+    {
+        $ctx = (new DialplanGeneratorService())->contextoSalida($this->troncal());
+        preg_match_all('/^exten = (_[^,]+),1,(?:Goto\(\$\{EXTEN:(\d+)\},1\)|NoOp)/m', $ctx, $m, PREG_SET_ORDER);
+        $reglas = [];
+        foreach ($m as $r) {
+            $re = '/^' . strtr(preg_quote(substr($r[1], 1), '/'), ['X' => '\\d', '\\[' => '[', '\\]' => ']', '\\-' => '-']) . '$/';
+            $reglas[] = [$re, isset($r[2]) && $r[2] !== '' ? (int) $r[2] : null];
+        }
+        $marcar = function (string $n) use ($reglas, &$marcar): ?string {
+            $hits = array_values(array_filter($reglas, fn ($r) => preg_match($r[0], $n)));
+            if (count($hits) !== 1) {
+                return null;
+            }
+
+            return $hits[0][1] === null ? $n : $marcar(substr($n, $hits[0][1]));
+        };
+
+        foreach (['5500001234', '525500001234', '+525500001234', '5215500001234', '+5215500001234',
+                  '0445500001234', '0455500001234', '015500001234'] as $escrito) {
+            $this->assertSame('5500001234', $marcar($escrito), "«{$escrito}» debe marcar 5500001234");
+        }
+        foreach (['13055551234', '+13055551234', '0013055551234', '550000123', '1003'] as $escrito) {
+            $this->assertNull($marcar($escrito), "«{$escrito}» no debe salir a la calle");
+        }
     }
 
     public function test_sin_troncal_no_hay_regla(): void

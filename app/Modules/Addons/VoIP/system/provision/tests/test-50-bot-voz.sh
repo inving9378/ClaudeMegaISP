@@ -69,8 +69,8 @@ check 'grep -q "systemctl restart megaisp-bot-voz" "$FAKE_LOG"' "reinicia con la
 
 echo "4) No queda escuchando en una instalación nueva → se deshace"
 rm -rf "$T/systemd" "$T/backups"
-FAKE_LISTEN=0 run provision_bot_voz; rc=$?
-check '[[ $rc != 0 ]]' "falla"
+FAKE_LISTEN=0 run 'provision_bot_voz; echo "FALLA=$BOT_VOZ_FALLA"'; rc=$?
+check '[[ $rc == 0 ]] && grep -q "FALLA=1" "$T/out" && grep -q "María no arrancó" "$T/out"' "lo marca como falla sin detener la instalación"
 check '[[ ! -f "$UNIT" ]]' "quita la unit nueva"
 check 'grep -q "systemctl disable megaisp-bot-voz" "$FAKE_LOG"' "la deshabilita"
 check 'grep -q "journalctl -u megaisp-bot-voz" "$T/out"' "dice dónde ver el error"
@@ -78,8 +78,8 @@ check 'grep -q "journalctl -u megaisp-bot-voz" "$T/out"' "dice dónde ver el err
 echo "5) No queda escuchando tras cambiar la unit → se restaura la anterior"
 run provision_bot_voz >/dev/null
 cp "$UNIT" "$T/unit-buena"
-ROOT=/srv/otro FAKE_LISTEN=0 FAKE_ACTIVE="megaisp-bot-voz" run provision_bot_voz; rc=$?
-check '[[ $rc != 0 ]]' "falla"
+ROOT=/srv/otro FAKE_LISTEN=0 FAKE_ACTIVE="megaisp-bot-voz" run 'provision_bot_voz; echo "FALLA=$BOT_VOZ_FALLA"'; rc=$?
+check '[[ $rc == 0 ]] && grep -q "FALLA=1" "$T/out"' "lo marca como falla sin detener la instalación"
 check 'cmp -s "$UNIT" "$T/unit-buena"' "deja la unit anterior"
 
 echo "6) Desinstalar"

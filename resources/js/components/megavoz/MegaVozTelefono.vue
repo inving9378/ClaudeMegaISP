@@ -29,7 +29,7 @@
                            @input="consultarDisponibilidad" @keyup.enter="llamar"
                            :disabled="estado !== 'registrado'">
                     <button class="mv-btn mv-btn--ok" @click="llamar"
-                            :disabled="estado !== 'registrado' || !destino" title="Llamar">
+                            :disabled="estado !== 'registrado' || ! puedeMarcar" title="Llamar">
                         <i class="fa fa-phone"></i>
                     </button>
                 </div>
@@ -228,6 +228,7 @@
 <script>
 import JsSIP from 'jssip';
 import { markRaw, nextTick } from 'vue';
+import { revisarNumero } from './numeroMarcado.js';
 
 export default {
     name: 'MegaVozTelefono',
@@ -304,7 +305,17 @@ export default {
             };
             return mapa[this.estado] || this.estado;
         },
+        // Lo escrito en «Número a marcar», ya limpio: sin espacios ni guiones y con +52/044 de
+        // México reducidos a 10 dígitos. Ver numeroMarcado.js.
+        marcado() {
+            return revisarNumero(this.destino);
+        },
+        puedeMarcar() {
+            return this.marcado.tipo === 'interno' || this.marcado.tipo === 'nacional';
+        },
         claseDisponibilidad() {
+            if (this.marcado.tipo === 'invalido') return 'no';
+            if (this.marcado.tipo === 'nacional') return 'fuera';
             if (this.destinoDisponible === true) return 'ok';
             if (this.destinoDisponible === false) return 'no';
             return 'consultando';
@@ -356,6 +367,8 @@ export default {
             return { left: `${this.posVentana.x}px`, top: `${this.posVentana.y}px`, right: 'auto', bottom: 'auto' };
         },
         textoDisponibilidad() {
+            if (this.marcado.tipo === 'invalido') return this.marcado.motivo;
+            if (this.marcado.tipo === 'nacional') return `Llamada a la calle · se marcará ${this.marcado.numero}`;
             if (this.destinoDisponible === true) return 'Disponible';
             if (this.destinoDisponible === false) return 'Sin conexión — puede que no conteste';
             return 'Consultando…';
@@ -631,14 +644,15 @@ export default {
         },
 
         llamar() {
-            if (! this.destino || ! this.ua) return;
+            if (! this.ua || ! this.puedeMarcar) return;
+            const numero = this.marcado.numero;
             // Todo lo demás (asignar this.sesion, estadoLlamada='saliente',
             // remotoId, engancharSesion, la ficha) lo hace el handler de
             // 'newRTCSession' de arriba — dispara síncrono dentro de
             // ua.call(), así que duplicarlo aquí es justo lo que causaba el
             // bug del estado pisado.
             try {
-                this.ua.call(`sip:${this.destino}@${location.hostname}`, {
+                this.ua.call(`sip:${numero}@${location.hostname}`, {
                     mediaConstraints: { audio: true, video: false },
                     pcConfig: this.pcConfig,
                 });
@@ -683,7 +697,10 @@ export default {
         consultarDisponibilidad() {
             clearTimeout(this._dispDebounce);
             const numero = this.destino;
-            if (! numero) {
+            const marcado = revisarNumero(numero);
+            // Solo las extensiones tienen «conectado / sin conexión»: un número de fuera no
+            // es un teléfono de la central y preguntarle a ARI siempre diría «sin conexión».
+            if (marcado.tipo !== 'interno') {
                 this.destinoDisponible = null;
                 return;
             }
@@ -693,7 +710,7 @@ export default {
                 // el resultado de un número que ya no es el que se ve en pantalla.
                 if (numero !== this.destino) return;
                 try {
-                    const r = await fetch(`/voip/mi-telefono/disponibilidad/${encodeURIComponent(numero)}`, {
+                    const r = await fetch(`/voip/mi-telefono/disponibilidad/${encodeURIComponent(marcado.numero)}`, {
                         headers: { 'Accept': 'application/json' },
                     });
                     const body = await r.json();
@@ -1179,6 +1196,8 @@ export default {
 .mv-disponibilidad--ok { color: #16a34a; }
 .mv-disponibilidad--no .mv-disp-dot { background: #d97706; }
 .mv-disponibilidad--no { color: #b45309; }
+.mv-disponibilidad--fuera .mv-disp-dot { background: #2563eb; }
+.mv-disponibilidad--fuera { color: #2563eb; }
 
 /* ── Ventana de llamada (estilo teléfono) ────────────────────────────── */
 .mv-call {

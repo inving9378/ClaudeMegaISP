@@ -112,8 +112,8 @@ FAKE_DUMP_RC=1 run provision_sincronizar; rc=$?
 check '[[ $rc != 0 ]] && ! grep -q "voip:sincronizar" "$FAKE_LOG"' "aborta sin sincronizar"
 
 echo "5) Revisión final con todo bien"
-run verificar_telefonia; rc=$?
-check '[[ $rc == 0 ]]' "termina bien"
+run 'verificar_telefonia; echo "PENDIENTES=${#VERIF_PENDIENTES[@]}"'; rc=$?
+check '[[ $rc == 0 ]] && grep -q "PENDIENTES=0" "$T/out"' "termina bien, sin pendientes"
 check 'grep -q "transport-externo escucha en 203.0.113.10:5080" "$T/out"' "teléfonos de fuera: transporte arriba"
 check 'grep -q "Troncal trunk_reg_2: registrada" "$T/out"' "troncal registrada"
 check 'grep -q "salen por trunk_2" "$T/out"' "salida a la calle y por qué troncal"
@@ -121,8 +121,9 @@ check 'grep -q "Colas en Asterisk: 1" "$T/out"' "cuenta las colas"
 check 'grep -q "php artisan voip:bot-voz-probar --revisar --no-ansi" "$FAKE_LOG" && grep -q "María tiene lo que necesita" "$T/out"' "revisa a María sin llamar a OpenAI"
 
 echo "6) Revisión final con problemas (solo avisa)"
-FAKE_EXTERNO=0 FAKE_RECHAZADA=1 FAKE_SALIDA=0 FAKE_BOT_RC=1 run verificar_telefonia; rc=$?
+FAKE_EXTERNO=0 FAKE_RECHAZADA=1 FAKE_SALIDA=0 FAKE_BOT_RC=1 run 'verificar_telefonia; echo "PENDIENTES=${#VERIF_PENDIENTES[@]}"'; rc=$?
 check '[[ $rc == 0 ]]' "no detiene la instalación"
+check 'grep -q "PENDIENTES=4" "$T/out"' "anota los 4 pendientes reales (transporte, troncal, salida, María)"
 check 'grep -q "no levantó transport-externo" "$T/out"' "avisa que falta el transporte"
 check 'grep -q "Troncal trunk_reg_4: Rejected" "$T/out"' "avisa de la troncal rechazada"
 check 'grep -q "No hay salida a la calle" "$T/out"' "avisa que no hay salida"
