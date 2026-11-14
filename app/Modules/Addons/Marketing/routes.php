@@ -1,8 +1,13 @@
 <?php
 
+use App\Modules\Addons\Marketing\Controllers\Campana360Controller;
+use App\Modules\Addons\Marketing\Controllers\Campana360GeneracionController;
+use App\Modules\Addons\Marketing\Controllers\Campana360PiezaController;
+use App\Modules\Addons\Marketing\Controllers\Campana360VideoController;
 use App\Modules\Addons\Marketing\Controllers\CampaignController;
 use App\Modules\Addons\Marketing\Controllers\ContentGeneratorController;
 use App\Modules\Addons\Marketing\Controllers\ContextoEmpresaController;
+use App\Modules\Addons\Marketing\Controllers\DashboardController;
 use App\Modules\Addons\Marketing\Controllers\EmpresaController;
 use App\Modules\Addons\Marketing\Controllers\EmpresaUsuarioController;
 use App\Modules\Addons\Marketing\Controllers\EvolutionWebhookController;
@@ -18,6 +23,7 @@ use App\Modules\Addons\Marketing\Controllers\PublicLeadFormController;
 use App\Modules\Addons\Marketing\Controllers\MarketingLeadController;
 use App\Modules\Addons\Marketing\Controllers\MarketingLeadFormController;
 use App\Modules\Addons\Marketing\Controllers\MetaOAuthController;
+use App\Modules\Addons\Marketing\Controllers\NavegacionController;
 use App\Modules\Addons\Marketing\Controllers\PilotCampaignController;
 use App\Modules\Addons\Marketing\Controllers\PilotCampaignTrackingController;
 use App\Modules\Addons\Marketing\Controllers\PublishingController;
@@ -33,6 +39,12 @@ use Illuminate\Support\Facades\Route;
 $V  = ['marketing.empresa', 'marketing.rol:admin,marketing,ventas'];
 $M  = ['marketing.empresa', 'marketing.rol:admin,marketing'];
 $MP = ['marketing.empresa', 'marketing.rol:admin,marketing', 'marketing.principal'];
+
+// Fase 1 (QA F-4): los parámetros de id son numéricos. Sin esto, un id no numérico (`/leads/abc`) llegaba al
+// controlador con firma `int $id` y daba 500 (TypeError); ahora no hay ruta que coincida → 404. Hasta 18
+// dígitos para que nunca desborde un int. Se aplica por grupo (nunca Route::pattern global).
+$NUM = ['id' => '[0-9]{1,18}', 'campaignId' => '[0-9]{1,18}', 'sendId' => '[0-9]{1,18}', 'userId' => '[0-9]{1,18}',
+        'piezaId' => '[0-9]{1,18}', 'videoId' => '[0-9]{1,18}'];
 
 // ── PÚBLICAS: sin auth ────────────────────────────────────────────────────────
 Route::middleware(['web'])->group(function () {
@@ -61,7 +73,7 @@ Route::middleware(['web'])->group(function () {
 });
 
 // ── API JSON: auth requerida ──────────────────────────────────────────────────
-Route::middleware(['web', 'auth'])->prefix('api/marketing')->name('api.marketing.')->group(function () use ($V, $M, $MP) {
+Route::middleware(['web', 'auth'])->prefix('api/marketing')->name('api.marketing.')->where($NUM)->group(function () use ($V, $M, $MP) {
     // Leads CRUD
     Route::get('leads', [MarketingLeadController::class, 'index'])->name('leads.index')->middleware($V);
     Route::post('leads', [MarketingLeadController::class, 'store'])->name('leads.store')->middleware($V);
@@ -154,12 +166,41 @@ Route::middleware(['web', 'auth'])->prefix('api/marketing')->name('api.marketing
         Route::post('/{id}/send',           [PilotCampaignController::class, 'send'])->name('send')->middleware($M);
         Route::post('/{id}/sends/{sendId}/mark-converted', [PilotCampaignController::class, 'markConverted'])->name('mark-converted')->middleware($M);
     });
+
+    // ── Fase 1 (Marketing IA 360): Dashboard y barra de navegación del módulo ─────
+    // Al final del grupo para no mover el orden de las rutas existentes (§2.4 de fase-1-paquetes.md).
+    Route::get('dashboard/resumen', [DashboardController::class, 'resumen'])->name('dashboard.resumen')->middleware($M);
+    Route::get('dashboard/campanas-activas', [DashboardController::class, 'campanasActivas'])->name('dashboard.campanas-activas')->middleware($M);
+    Route::get('navegacion', [NavegacionController::class, 'index'])->name('navegacion')->middleware('marketing.empresa');
+
+    // ── Fase 2 (Marketing IA 360): Campañas 360 con IA ─────────────────────────────
+    // Al final del grupo (§2.4 de fase-2-paquetes.md). Acceso = regla de la Fase 1 ($M: solo admin de Meganet).
+    // Generar, regenerar y producir llevan además throttle:6,1 (F2-15: cuidar el gasto de IA y del servidor).
+    Route::get('campanas-360', [Campana360Controller::class, 'index'])->name('campanas-360.index')->middleware($M);
+    Route::post('campanas-360', [Campana360Controller::class, 'store'])->name('campanas-360.store')->middleware($M);
+    Route::get('campanas-360/{id}', [Campana360Controller::class, 'show'])->name('campanas-360.show')->middleware($M);
+    Route::put('campanas-360/{id}', [Campana360Controller::class, 'update'])->name('campanas-360.update')->middleware($M);
+    Route::delete('campanas-360/{id}', [Campana360Controller::class, 'destroy'])->name('campanas-360.destroy')->middleware($M);
+    Route::post('campanas-360/{id}/estado', [Campana360Controller::class, 'cambiarEstado'])->name('campanas-360.estado.cambiar')->middleware($M);
+    Route::post('campanas-360/{id}/generar', [Campana360GeneracionController::class, 'generar'])->name('campanas-360.generar')->middleware(array_merge($M, ['throttle:6,1']));
+    Route::get('campanas-360/{id}/progreso', [Campana360GeneracionController::class, 'progreso'])->name('campanas-360.progreso')->middleware($M);
+    Route::put('campanas-360/{id}/estrategia', [Campana360GeneracionController::class, 'actualizarEstrategia'])->name('campanas-360.estrategia.update')->middleware($M);
+    Route::put('campanas-360/{id}/piezas/{piezaId}', [Campana360PiezaController::class, 'actualizar'])->name('campanas-360.piezas.update')->middleware($M);
+    Route::post('campanas-360/{id}/piezas/{piezaId}/regenerar', [Campana360PiezaController::class, 'regenerar'])->name('campanas-360.piezas.regenerar')->middleware(array_merge($M, ['throttle:6,1']));
+    Route::post('campanas-360/{id}/piezas/{piezaId}/producir', [Campana360PiezaController::class, 'producir'])->name('campanas-360.piezas.producir')->middleware(array_merge($M, ['throttle:6,1']));
+    Route::get('campanas-360/{id}/videos/{videoId}/ver', [Campana360VideoController::class, 'ver'])->name('campanas-360.videos.ver')->middleware($M);
+    Route::get('campanas-360/{id}/videos/{videoId}/miniatura', [Campana360VideoController::class, 'miniatura'])->name('campanas-360.videos.miniatura')->middleware($M);
 });
 
 // ── STAFF: panel admin (Blade views) ─────────────────────────────────────────
-Route::middleware(['web', 'auth', 'check_route_permission'])
+// Fase 1 (F1-1, decisión de Henry 2026-11-13): sin `check_route_permission` — config/route_permission.php
+// no tiene entradas /marketing/** y solo dejaba pasar a los roles de administración del sistema. El acceso
+// lo dan `auth` (se conserva: sin sesión nunca entra) + la empresa y el rol de Marketing (`marketing.empresa`
+// y `marketing.rol`, negado por defecto) + el permiso Spatie de cada acción en su controlador.
+Route::middleware(['web', 'auth'])
     ->prefix('marketing')
     ->name('marketing.')
+    ->where($NUM)
     ->group(function () use ($V, $M, $MP) {
 
         // Vistas principales Fase 2
@@ -185,6 +226,12 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
 
         // Voice Comparator
         Route::get('/voice-comparator', fn () => view('addon-marketing::voice-comparator'))->name('voice-comparator.view')->middleware($M);
+
+        // Fase 2 (Marketing IA 360): Campañas 360 con IA — §2.4 de fase-2-paquetes.md
+        Route::get('/campanas-360', fn () => view('addon-marketing::campanas-360.lista'))->name('campanas-360.lista')->middleware($M);
+        Route::get('/campanas-360/nueva', fn () => view('addon-marketing::campanas-360.asistente', ['campanaId' => null]))->name('campanas-360.nueva')->middleware($M);
+        Route::get('/campanas-360/{id}', fn () => view('addon-marketing::campanas-360.ficha', ['campanaId' => (int) request()->route('id')]))->name('campanas-360.ficha')->middleware($M);
+        Route::get('/campanas-360/{id}/editar', fn () => view('addon-marketing::campanas-360.asistente', ['campanaId' => (int) request()->route('id')]))->name('campanas-360.editar')->middleware($M);
 
         // Legado (mantener compatible mientras se migra)
         Route::get('/', [MarketingController::class, 'index'])->name('index')->middleware($M);
@@ -240,9 +287,11 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
     });
 
 // ── Fase 5: API de Publicación ───────────────────────────────────────────────
-Route::middleware(['web', 'auth', 'check_route_permission'])
+// Fase 1 (F1-1): sin `check_route_permission`, igual que las vistas Blade de arriba; `auth` se conserva.
+Route::middleware(['web', 'auth'])
     ->prefix('api/marketing/publishing')
     ->name('api.marketing.publishing.')
+    ->where($NUM)
     ->group(function () use ($V, $M, $MP) {
         // Canales
         Route::get('channels', [PublishingController::class, 'listChannels'])->name('channels.index')->middleware($M);
@@ -266,9 +315,9 @@ Route::middleware(['web', 'auth', 'check_route_permission'])
     });
 
 // ── Fase 0 (Marketing IA 360): contexto de empresa + «Empresas y equipo» ─────
-// Fuera de los grupos con check_route_permission (config/route_permission.php no tiene entradas
-// /marketing/**). La pantalla de equipo exige rol `admin` en la empresa activa Y el permiso Spatie.
-Route::middleware(['web', 'auth', 'marketing.empresa'])->group(function () {
+// Sin check_route_permission (config/route_permission.php no tiene entradas /marketing/**).
+// La pantalla de equipo exige rol `admin` en la empresa activa Y el permiso Spatie.
+Route::middleware(['web', 'auth', 'marketing.empresa'])->where($NUM)->group(function () {
     Route::get('/api/marketing/contexto', [ContextoEmpresaController::class, 'show'])
         ->name('api.marketing.contexto.show');
     Route::post('/api/marketing/contexto/empresa-activa', [ContextoEmpresaController::class, 'cambiar'])

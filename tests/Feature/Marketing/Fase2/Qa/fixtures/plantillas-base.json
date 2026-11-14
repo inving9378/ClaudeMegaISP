@@ -1,0 +1,50 @@
+[
+    {
+        "company_id": 1,
+        "name": "Video Genérico — Vertical (9:16)",
+        "slug": "generic_9_16",
+        "description": "Plantilla flexible para cualquier tipo de mensaje de marketing. Formato vertical.",
+        "category": "generic",
+        "aspect_ratios": "[\"9:16\"]",
+        "duration_seconds": 20,
+        "schema": "{\"id\": \"generic_9_16\", \"name\": \"Video Genérico — Vertical (9:16)\", \"audio\": {\"voiceover\": {\"volume\": 1, \"enabled\": true}, \"background_music\": {\"volume\": 0.25, \"enabled\": false}}, \"scenes\": [{\"type\": \"logo_reveal\", \"layers\": [{\"type\": \"background\", \"color\": \"{{brand.primary_color}}\"}], \"duration\": 3}, {\"type\": \"feature_highlight\", \"bg_color\": \"{{brand.primary_color}}\", \"duration\": 7, \"sub_text\": \"{{subheadline}}\", \"main_text\": \"{{headline}}\", \"text_color\": \"white\"}, {\"body\": \"{{body_text}}\", \"type\": \"info_banner\", \"title\": \"\", \"bg_color\": \"#1A1A2E\", \"duration\": 5, \"text_color\": \"#FFFFFF\"}, {\"type\": \"call_to_action\", \"phone\": \"{{brand.phone}}\", \"bg_color\": \"{{brand.primary_color}}\", \"cta_text\": \"{{cta_text}}\", \"duration\": 5, \"text_color\": \"white\"}], \"variables\": [{\"key\": \"headline\", \"label\": \"Titular principal\", \"required\": true}, {\"key\": \"subheadline\", \"label\": \"Subtítulo\", \"required\": false}, {\"key\": \"body_text\", \"label\": \"Texto cuerpo\", \"required\": false}, {\"key\": \"cta_text\", \"label\": \"Texto CTA\", \"default\": \"¡Contáctanos!\", \"required\": false}, {\"key\": \"voiceover_text\", \"label\": \"Narración TTS\", \"required\": false}], \"description\": \"Plantilla flexible para cualquier tipo de mensaje de marketing. Formato vertical.\", \"engine_version\": \"1.0\", \"duration_seconds\": 20, \"voiceover_script\": \"{{voiceover_text}}\", \"requires_voiceover\": true, \"voiceover_fallback\": \"{{headline}}. {{body_text}}. Llama al {{brand.phone}} o visita {{brand.website}}.\", \"supported_aspect_ratios\": [\"9:16\"]}",
+        "engine_version": "1.0",
+        "default_variables": "[]",
+        "estimated_render_seconds": 40,
+        "requires_voiceover": 1,
+        "preview_thumbnail": null,
+        "active": 1
+    },
+    {
+        "company_id": 1,
+        "name": "Video Genérico — Horizontal (16:9)",
+        "slug": "generic_16_9",
+        "description": "Plantilla flexible para cualquier tipo de mensaje de marketing. Formato horizontal.",
+        "category": "generic",
+        "aspect_ratios": "[\"16:9\"]",
+        "duration_seconds": 20,
+        "schema": "{\"id\": \"generic_16_9\", \"name\": \"Video Genérico — Horizontal (16:9)\", \"audio\": {\"voiceover\": {\"volume\": 1, \"enabled\": true}, \"background_music\": {\"volume\": 0.25, \"enabled\": false}}, \"scenes\": [{\"type\": \"logo_reveal\", \"layers\": [{\"type\": \"background\", \"color\": \"{{brand.primary_color}}\"}], \"duration\": 3}, {\"type\": \"feature_highlight\", \"bg_color\": \"{{brand.primary_color}}\", \"duration\": 7, \"sub_text\": \"{{subheadline}}\", \"main_text\": \"{{headline}}\", \"text_color\": \"white\"}, {\"body\": \"{{body_text}}\", \"type\": \"info_banner\", \"title\": \"\", \"bg_color\": \"#1A1A2E\", \"duration\": 5, \"text_color\": \"#FFFFFF\"}, {\"type\": \"call_to_action\", \"phone\": \"{{brand.phone}}\", \"bg_color\": \"{{brand.primary_color}}\", \"cta_text\": \"{{cta_text}}\", \"duration\": 5, \"text_color\": \"white\"}], \"variables\": [{\"key\": \"headline\", \"label\": \"Titular principal\", \"required\": true}, {\"key\": \"subheadline\", \"label\": \"Subtítulo\", \"required\": false}, {\"key\": \"body_text\", \"label\": \"Texto cuerpo\", \"required\": false}, {\"key\": \"cta_text\", \"label\": \"Texto CTA\", \"default\": \"¡Contáctanos!\", \"required\": false}, {\"key\": \"voiceover_text\", \"label\": \"Narración TTS\", \"required\": false}], \"description\": \"Plantilla flexible para cualquier tipo de mensaje de marketing. Formato horizontal.\", \"engine_version\": \"1.0\", \"duration_seconds\": 20, \"voiceover_script\": \"{{voiceover_text}}\", \"requires_voiceover\": true, \"voiceover_fallback\": \"{{headline}}. {{body_text}}. Llama al {{brand.phone}} o visita {{brand.website}}.\", \"supported_aspect_ratios\": [\"16:9\"]}",
+        "engine_version": "1.0",
+        "default_variables": "[]",
+        "estimated_render_seconds": 45,
+        "requires_voiceover": 1,
+        "preview_thumbnail": null,
+        "active": 1
+    },
+    {
+        "company_id": 1,
+        "name": "Plan Promo - Gamer",
+        "slug": "multivariant-plan-promo-gamer",
+        "description": "Video multivariante para nicho Gamer. B-roll dinámico + texto cinético.",
+        "category": "multivariant_plan_promo",
+        "aspect_ratios": "[\"9:16\", \"1:1\", \"16:9\"]",
+        "duration_seconds": 15,
+        "schema": "{\"name\": \"Plan Promo - Gamer\", \"audio\": {\"ducking\": true, \"voiceover\": {\"volume\": 1, \"enabled\": true, \"from_brief\": \"voiceover_script\", \"voice_from_niche\": true}, \"background_music\": {\"volume\": 0.18, \"enabled\": true, \"asset_category\": \"epic_electronic\"}}, \"niche\": \"gamer\", \"scenes\": [{\"id\": \"hook\", \"type\": \"broll_overlay\", \"layers\": [{\"type\": \"kinetic_text\", \"style\": \"huge_dramatic\", \"position\": \"center\", \"segments_from_brief\": \"kinetic_text_segments\"}], \"duration\": 3, \"broll_source\": \"niche:gamer\"}, {\"id\": \"solution\", \"type\": \"kinetic_text\", \"layers\": [{\"text\": \"{{plan_speed}}\", \"type\": \"kinetic_text\", \"style\": \"extreme_centered\", \"position\": \"center\", \"duration_sec\": 2.5}, {\"text\": \"${{plan_price}}/mes\", \"type\": \"kinetic_text\", \"style\": \"huge_centered\", \"position\": \"center\", \"duration_sec\": 2}], \"bg_color\": \"{{brand.primary_color}}\", \"duration\": 6, \"broll_source\": \"niche:gamer\"}, {\"id\": \"cta\", \"type\": \"broll_overlay\", \"layers\": [{\"type\": \"kinetic_text\", \"style\": \"huge_centered\", \"position\": \"center\", \"duration_sec\": 1.2, \"segments_from_brief\": \"cta\"}, {\"text\": \"{{phone_cta}}\", \"type\": \"kinetic_text\", \"style\": \"large_centered\", \"position\": \"center\", \"duration_sec\": 1.5}], \"bg_color\": \"{{brand.primary_color}}\", \"duration\": 3, \"bg_darken\": 0.45, \"broll_source\": \"niche:gamer\"}], \"version\": \"1.0\", \"category\": \"multivariant_plan_promo\", \"variables\": [{\"key\": \"plan_name\", \"default\": \"Plan Mega\", \"required\": false}, {\"key\": \"plan_speed\", \"default\": \"100 MEGAS\", \"required\": false}, {\"key\": \"plan_price\", \"default\": \"599\", \"required\": false}, {\"key\": \"phone_cta\", \"default\": \"55 0000 0000\", \"required\": false}], \"aspect_ratio\": \"9:16\", \"duration_seconds\": 15, \"voiceover_script\": \"{{plan_speed}} de internet. Sin lag. Sin contratos. Llama al {{phone_cta}}.\", \"voiceover_fallback\": \"Internet para gamers. Llama ahora.\", \"uses_creative_brief\": true, \"supported_aspect_ratios\": [\"9:16\", \"1:1\", \"16:9\"]}",
+        "engine_version": "1.0",
+        "default_variables": null,
+        "estimated_render_seconds": 120,
+        "requires_voiceover": 1,
+        "preview_thumbnail": null,
+        "active": 1
+    }
+]

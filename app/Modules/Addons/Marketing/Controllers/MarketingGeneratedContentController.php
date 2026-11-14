@@ -41,6 +41,7 @@ class MarketingGeneratedContentController extends Controller
                 'output_path', 'thumbnail_path', 'generation_cost_usd',
                 'generation_metadata', 'render_progress', 'render_stage',
                 'created_at', 'updated_at',
+                'source_campaign_id', 'pieza', // Fase 2 (§2.1): enlace «Ver campaña» en Video → Cola
             ])
             ->paginate(20);
 

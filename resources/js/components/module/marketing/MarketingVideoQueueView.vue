@@ -1,256 +1,314 @@
 <template>
-  <div class="q-pa-md">
-    <div class="row items-center q-mb-md">
-      <div class="col text-h5 text-weight-bold">Cola de Renders</div>
-      <div class="col-auto q-gutter-sm">
-        <q-btn flat dense icon="refresh" label="Actualizar" @click="load" :loading="loading" />
-        <q-btn unelevated color="primary" label="Nuevo video" to="/marketing/video-generator" icon="add" />
-      </div>
-    </div>
+    <mkt-raiz :color-marca="contexto?.empresa_activa?.color_primario">
+        <div class="mkt-cola">
+            <mkt-encabezado-pantalla
+                titulo="Fila de producción"
+                con-selector-empresa
+                @contexto="(c) => (contexto = c)"
+            >
+                <template v-if="estado !== 'sin_permiso'" #filtros>
+                    <q-select
+                        v-model="filters.status"
+                        :options="statusOptions"
+                        emit-value
+                        map-options
+                        dense
+                        outlined
+                        clearable
+                        options-dense
+                        label="Estado"
+                        @update:model-value="cambiarFiltro"
+                    />
+                </template>
+                <template #acciones>
+                    <mkt-boton v-if="puedeGenerar" tipo="crear" etiqueta="Nuevo video" href="/marketing/video-generator" />
+                </template>
 
-    <!-- Filtros -->
-    <q-card flat bordered class="q-mb-md">
-      <q-card-section class="row q-gutter-sm">
-        <q-select
-          v-model="filters.status"
-          :options="statusOptions"
-          emit-value map-options dense outlined
-          label="Estado" clearable style="min-width:150px"
-          @update:model-value="load"
-        />
-      </q-card-section>
-    </q-card>
+                <div v-if="estado === 'sin_permiso' || estado === 'error'" class="mkt-cola__estado">
+                    <mkt-estado-vacio
+                        v-if="estado === 'sin_permiso'"
+                        icono="lock"
+                        titulo="No puedes ver la fila de producción"
+                        texto="No tienes acceso a esta sección. Pídelo a Irving."
+                    />
+                    <mkt-estado-vacio v-else icono="cloud_off" titulo="No se pudo cargar la fila de producción" :texto="mensajeError" />
+                </div>
 
-    <!-- Lista de renders -->
-    <q-list bordered separator>
-      <q-item v-if="loading" class="text-center q-pa-md">
-        <q-item-section><q-spinner size="32px" color="primary" /></q-item-section>
-      </q-item>
+                <mkt-tabla-ejecutiva
+                    v-else
+                    :columnas="columnas"
+                    :filas="items"
+                    :cargando="estado === 'cargando' || refrescando"
+                    :pagination="paginacionTabla"
+                    :rows-per-page-options="[paginacionTabla.rowsPerPage]"
+                    :table-row-class-fn="claseFila"
+                    vacio-icono="video_library"
+                    :vacio-titulo="filters.status ? 'No hay videos con ese estado' : 'Aún no hay videos'"
+                    :vacio-texto="filters.status ? 'Quita el filtro para ver todos.' : 'Genera tu primer video desde una plantilla.'"
+                    @request="alPedirPagina"
+                    @actualizar="load({ silencioso: true })"
+                >
 
-      <q-item v-else-if="items.length === 0" class="text-grey-6 text-center q-pa-md">
-        <q-item-section>No hay renders todavía.</q-item-section>
-      </q-item>
+                    <template #body-cell-video="props">
+                        <q-td :props="props">
+                            <div class="mkt-cola__video">
+                                <span class="mkt-cola__nombre">Video #{{ props.row.id }}</span>
+                                <span class="mkt-cola__meta">
+                                    <span v-if="props.row.generation_metadata?.template_slug">{{ props.row.generation_metadata.template_slug }}</span>
+                                    <span v-if="props.row.generation_metadata?.aspect_ratio"> · {{ props.row.generation_metadata.aspect_ratio }}</span>
+                                    <!-- Fase 2: videos producidos desde una Campaña 360 -->
+                                    <template v-if="props.row.source_campaign_id">
+                                        · <a class="mkt-cola__campana" :href="`/marketing/campanas-360/${props.row.source_campaign_id}`" @click.stop>Ver campaña</a>
+                                    </template>
+                                </span>
+                            </div>
+                        </q-td>
+                    </template>
 
-      <q-item v-for="item in items" :key="item.id" class="q-py-md">
-        <q-item-section avatar>
-          <q-icon :name="statusIcon(item.status)" :color="statusColor(item.status)" size="32px" />
-        </q-item-section>
+                    <template #body-cell-estado="props">
+                        <q-td :props="props">
+                            <div class="mkt-cola__estado-celda">
+                                <mkt-insignia-estado :texto="statusLabel(props.row.status)" :tono="tono(props.row.status)" />
+                                <div v-if="props.row.status === 'generating'" class="mkt-cola__progreso">
+                                    <q-linear-progress :value="(Number(props.row.render_progress) || 0) / 100" rounded size="6px" class="mkt-cola__barra" />
+                                    <span class="mkt-cola__meta">{{ props.row.render_stage || 'Procesando…' }} · {{ Number(props.row.render_progress) || 0 }} %</span>
+                                </div>
+                                <div v-if="props.row.status === 'failed'" class="mkt-cola__error">{{ ultimoError(props.row) }}</div>
+                            </div>
+                        </q-td>
+                    </template>
 
-        <q-item-section>
-          <q-item-label class="text-weight-medium">
-            Video #{{ item.id }}
-            <q-chip dense size="sm" :color="statusColor(item.status)" text-color="white" class="q-ml-sm">
-              {{ statusLabel(item.status) }}
-            </q-chip>
-          </q-item-label>
-          <q-item-label caption>
-            {{ formatDate(item.created_at) }}
-            <span v-if="item.generation_metadata?.template_slug">
-              · {{ item.generation_metadata.template_slug }}
-            </span>
-            <span v-if="item.generation_metadata?.aspect_ratio">
-              · {{ item.generation_metadata.aspect_ratio }}
-            </span>
-          </q-item-label>
+                    <template #body-cell-acciones="props">
+                        <q-td :props="props">
+                            <div class="mkt-cola__acciones">
+                                <q-btn v-if="props.row.status === 'generating'" flat round dense icon="autorenew" :aria-label="`Actualizar avance del video ${props.row.id}`" @click.stop="pollOnce(props.row)">
+                                    <q-tooltip>Actualizar avance</q-tooltip>
+                                </q-btn>
+                                <q-btn
+                                    v-if="props.row.status === 'ready' && props.row.output_path"
+                                    flat
+                                    round
+                                    dense
+                                    icon="download"
+                                    :href="'/api/marketing/generated-content/' + props.row.id + '/download'"
+                                    target="_blank"
+                                    :aria-label="`Descargar video ${props.row.id}`"
+                                >
+                                    <q-tooltip>Descargar</q-tooltip>
+                                </q-btn>
+                                <q-btn v-if="puedeEliminar" flat round dense icon="delete" class="mkt-cola__borrar" :aria-label="`Eliminar video ${props.row.id}`" @click.stop="confirmDelete(props.row)">
+                                    <q-tooltip>Eliminar</q-tooltip>
+                                </q-btn>
+                            </div>
+                        </q-td>
+                    </template>
+                </mkt-tabla-ejecutiva>
+            </mkt-encabezado-pantalla>
 
-          <!-- Progress bar -->
-          <div v-if="item.status === 'generating'" class="q-mt-sm">
-            <q-linear-progress
-              :value="(item.render_progress ?? 0) / 100"
-              color="primary"
-              track-color="grey-3"
-              rounded
-              size="8px"
-            />
-            <div class="text-caption text-grey-6 q-mt-xs">
-              {{ item.render_stage ?? 'procesando...' }} — {{ item.render_progress ?? 0 }}%
-            </div>
-          </div>
-
-          <!-- Cost info if ready -->
-          <div v-if="item.status === 'ready'" class="text-caption text-grey-6 q-mt-xs">
-            Duración: {{ item.generation_metadata?.duration_sec?.toFixed(1) ?? '?' }}s
-            <span v-if="item.generation_cost_usd > 0">
-              · Costo TTS: ${{ item.generation_cost_usd?.toFixed(4) }} USD
-            </span>
-          </div>
-
-          <!-- Error log -->
-          <div v-if="item.status === 'failed' && item.render_log?.length" class="text-caption text-negative q-mt-xs">
-            {{ item.render_log.slice(-1)[0]?.error ?? 'Error desconocido' }}
-          </div>
-        </q-item-section>
-
-        <q-item-section side>
-          <div class="row q-gutter-sm">
-            <!-- Progress polling badge for generating -->
-            <q-btn
-              v-if="item.status === 'generating'"
-              flat round dense icon="autorenew"
-              color="primary"
-              @click="pollOnce(item)"
-            />
-            <!-- Download if ready -->
-            <q-btn
-              v-if="item.status === 'ready' && item.output_path"
-              flat round dense icon="download"
-              color="positive"
-              :href="'/api/marketing/generated-content/' + item.id + '/download'"
-              target="_blank"
-              title="Descargar video"
-            />
-            <!-- Delete -->
-            <q-btn
-              flat round dense icon="delete"
-              color="negative"
-              @click="confirmDelete(item)"
-              title="Eliminar"
-            />
-          </div>
-        </q-item-section>
-      </q-item>
-    </q-list>
-
-    <!-- Pagination -->
-    <div class="row justify-center q-mt-md" v-if="pagination.last_page > 1">
-      <q-pagination
-        v-model="pagination.current_page"
-        :max="pagination.last_page"
-        boundary-links
-        @update:model-value="load"
-      />
-    </div>
-
-    <!-- Delete confirm dialog -->
-    <q-dialog v-model="deleteDialog">
-      <q-card>
-        <q-card-section class="text-h6">Eliminar render</q-card-section>
-        <q-card-section>¿Eliminar el video #{{ deleteTarget?.id }}? Esta acción no se puede deshacer.</q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Cancelar" v-close-popup />
-          <q-btn unelevated color="negative" label="Eliminar" :loading="deleting" @click="deleteItem" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-  </div>
+            <mkt-dialogo v-model="deleteDialog" titulo="Eliminar video" :guardando="deleting" :ancho="420">
+                <p class="mkt-cola__texto">¿Eliminar el video #{{ deleteTarget?.id }}? Esta acción no se puede deshacer.</p>
+                <template #acciones>
+                    <mkt-boton tipo="volver" etiqueta="Cancelar" :deshabilitado="deleting" @click="deleteDialog = false" />
+                    <mkt-boton tipo="eliminar" etiqueta="Eliminar" :cargando="deleting" @click="deleteItem" />
+                </template>
+            </mkt-dialogo>
+        </div>
+    </mkt-raiz>
 </template>
 
 <script>
+import axios from "axios";
+import { message } from "../../../helpers/toastMsg";
+import { currentSearch } from "../../../hook/comunValues";
+import { mensajeDeError, formatoFecha, formatoNumero, puedePermiso } from "./kit";
+
+/** Fecha del sistema: dd/mm/aaaa hh:mm (hora de México). */
+const fechaCorta = (v) => {
+    if (!v) return "—";
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) return "—";
+    return new Intl.DateTimeFormat("es-MX", {
+        day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false,
+        timeZone: "America/Mexico_City",
+    }).format(d).replace(",", "");
+};
+
+const ESTADOS = {
+    pending: { label: "Pendiente", icon: "hourglass_empty", tono: "neutro" },
+    generating: { label: "Generando", icon: "sync", tono: "info" },
+    ready: { label: "Listo", icon: "check_circle", tono: "exito" },
+    failed: { label: "Fallido", icon: "error", tono: "peligro" },
+};
+
+/**
+ * Fila de producción (/marketing/video-queue) — Fase 1, rediseño con el kit, mismo funcionamiento.
+ * §2.13: una sola tarjeta como el Listado de Clientes (título + filtro «Estado» en la fila, tabla adentro).
+ */
 export default {
-  name: 'MarketingVideoQueueView',
-
-  data() {
-    return {
-      loading: false,
-      deleting: false,
-      items: [],
-      filters: { status: null },
-      pagination: { current_page: 1, last_page: 1, total: 0 },
-      deleteDialog: false,
-      deleteTarget: null,
-      pollTimer: null,
-      statusOptions: [
-        { label: 'Pendiente', value: 'pending' },
-        { label: 'Generando', value: 'generating' },
-        { label: 'Listo',     value: 'ready' },
-        { label: 'Fallido',   value: 'failed' },
-      ],
-    };
-  },
-
-  mounted() {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('id')) {
-      this.highlightId = parseInt(params.get('id'));
-    }
-    this.load();
-    this.startPolling();
-  },
-
-  beforeUnmount() {
-    this.stopPolling();
-  },
-
-  methods: {
-    async load() {
-      this.loading = true;
-      try {
-        const params = { page: this.pagination.current_page };
-        if (this.filters.status) params.status = this.filters.status;
-
-        const res = await axios.get('/api/marketing/generated-content', { params });
-        const data = res.data;
-        this.items = data.data ?? [];
-        this.pagination = {
-          current_page: data.current_page ?? 1,
-          last_page:    data.last_page    ?? 1,
-          total:        data.total        ?? 0,
+    name: "MarketingVideoQueueView",
+    data() {
+        return {
+            contexto: null,
+            estado: "cargando", // cargando | listo | error | sin_permiso
+            mensajeError: "",
+            refrescando: false,
+            deleting: false,
+            items: [],
+            filters: { status: null },
+            pagination: { current_page: 1, last_page: 1, total: 0, per_page: 15 },
+            columnas: [
+                { name: "video", label: "Video", field: "id", align: "left" },
+                { name: "estado", label: "Estado", field: "status", align: "left" },
+                { name: "fecha", label: "Fecha", field: "created_at", align: "left", format: (v) => fechaCorta(v), ocultarEnMovil: false },
+                { name: "duracion", label: "Duración", field: (r) => r, align: "left", format: (r) => (r.status === "ready" ? this.duracion(r) : "—") },
+                { name: "acciones", label: "Acciones", field: "id", align: "right" },
+            ],
+            deleteDialog: false,
+            deleteTarget: null,
+            highlightId: null,
+            pollTimer: null,
+            statusOptions: Object.entries(ESTADOS).map(([value, e]) => ({ value, label: e.label })),
         };
-      } catch (e) {
-        this.$q.notify({ type: 'negative', message: 'Error al cargar la cola' });
-      } finally {
-        this.loading = false;
-      }
     },
-
-    async pollOnce(item) {
-      try {
-        const res = await axios.get(`/api/marketing/generated-content/${item.id}/progress`);
-        const idx = this.items.findIndex(i => i.id === item.id);
-        if (idx !== -1) {
-          this.items[idx] = { ...this.items[idx], ...res.data };
-        }
-      } catch (e) { /* silent */ }
+    computed: {
+        puedeGenerar() {
+            return puedePermiso(this.$store, "generate-video-content");
+        },
+        puedeEliminar() {
+            return puedePermiso(this.$store, "delete-video-content");
+        },
+        subtitulo() {
+            return this.estado === "listo" ? `${formatoNumero(this.pagination.total)} en total` : "";
+        },
+        /** Paginación por servidor en el formato de q-table (como el Listado de Clientes). */
+        paginacionTabla() {
+            return {
+                page: this.pagination.current_page,
+                rowsPerPage: this.pagination.per_page || 15,
+                rowsNumber: this.pagination.total,
+            };
+        },
     },
-
-    startPolling() {
-      this.pollTimer = setInterval(() => {
-        const hasActive = this.items.some(i => i.status === 'generating' || i.status === 'pending');
-        if (hasActive) this.load();
-      }, 5000);
+    mounted() {
+        const id = parseInt(new URLSearchParams(currentSearch()).get("id"), 10);
+        if (id > 0) this.highlightId = id;
+        this.load();
+        this.pollTimer = setInterval(() => {
+            if (this.estado === "listo" && this.items.some((i) => i.status === "generating" || i.status === "pending")) {
+                this.load({ silencioso: true });
+            }
+        }, 5000);
     },
-
-    stopPolling() {
-      if (this.pollTimer) clearInterval(this.pollTimer);
+    beforeUnmount() {
+        if (this.pollTimer) clearInterval(this.pollTimer);
     },
-
-    confirmDelete(item) {
-      this.deleteTarget = item;
-      this.deleteDialog = true;
+    methods: {
+        formatoFecha,
+        async load({ silencioso = false } = {}) {
+            if (silencioso) this.refrescando = true;
+            else this.estado = "cargando";
+            try {
+                const params = { page: this.pagination.current_page };
+                if (this.filters.status) params.status = this.filters.status;
+                const { data } = await axios.get("/api/marketing/generated-content", { params });
+                this.items = data?.data ?? [];
+                this.pagination = {
+                    current_page: data?.current_page ?? 1,
+                    last_page: data?.last_page ?? 1,
+                    total: data?.total ?? 0,
+                    per_page: data?.per_page ?? this.pagination.per_page,
+                };
+                this.estado = "listo";
+            } catch (e) {
+                if (e?.response?.status === 403) {
+                    this.estado = "sin_permiso";
+                } else if (!silencioso || this.estado !== "listo") {
+                    this.mensajeError = mensajeDeError(e, "Intenta de nuevo en un momento.");
+                    this.estado = "error";
+                }
+            } finally {
+                this.refrescando = false;
+            }
+        },
+        alPedirPagina({ pagination }) {
+            if (!pagination || pagination.page === this.pagination.current_page) return;
+            this.pagination.current_page = pagination.page;
+            this.load();
+        },
+        claseFila(fila) {
+            return fila.id === this.highlightId ? "mkt-cola__fila--resaltada" : "";
+        },
+        cambiarFiltro() {
+            this.pagination.current_page = 1;
+            this.load();
+        },
+        async pollOnce(item) {
+            try {
+                const { data } = await axios.get(`/api/marketing/generated-content/${item.id}/progress`);
+                const idx = this.items.findIndex((i) => i.id === item.id);
+                if (idx !== -1) this.items[idx] = { ...this.items[idx], ...data };
+            } catch (e) {
+                /* el sondeo periódico lo vuelve a intentar */
+            }
+        },
+        confirmDelete(item) {
+            this.deleteTarget = item;
+            this.deleteDialog = true;
+        },
+        async deleteItem() {
+            if (!this.deleteTarget || this.deleting) return;
+            this.deleting = true;
+            try {
+                await axios.delete(`/api/marketing/generated-content/${this.deleteTarget.id}`);
+                this.deleteDialog = false;
+                message("Video eliminado.");
+                this.deleteTarget = null;
+                await this.load({ silencioso: true });
+            } catch (e) {
+                message(mensajeDeError(e, "No se pudo eliminar el video."), "error");
+            } finally {
+                this.deleting = false;
+            }
+        },
+        duracion(item) {
+            const s = Number(item.generation_metadata?.duration_sec);
+            return Number.isFinite(s) && s > 0 ? `${s.toFixed(1)} s` : "—";
+        },
+        ultimoError(item) {
+            const log = Array.isArray(item.render_log) ? item.render_log : [];
+            return log.slice(-1)[0]?.error || "La producción del video falló. Revisa la plantilla e intenta de nuevo.";
+        },
+        statusIcon(s) {
+            return ESTADOS[s]?.icon ?? "help";
+        },
+        statusLabel(s) {
+            return ESTADOS[s]?.label ?? s;
+        },
+        tono(s) {
+            return ESTADOS[s]?.tono ?? "neutro";
+        },
     },
-
-    async deleteItem() {
-      if (!this.deleteTarget) return;
-      this.deleting = true;
-      try {
-        await axios.delete(`/api/marketing/generated-content/${this.deleteTarget.id}`);
-        this.deleteDialog = false;
-        this.$q.notify({ type: 'positive', message: 'Eliminado correctamente' });
-        await this.load();
-      } catch (e) {
-        this.$q.notify({ type: 'negative', message: 'Error al eliminar' });
-      } finally {
-        this.deleting = false;
-        this.deleteTarget = null;
-      }
-    },
-
-    statusIcon(s) {
-      return { pending: 'hourglass_empty', generating: 'sync', ready: 'check_circle', failed: 'error' }[s] ?? 'help';
-    },
-
-    statusColor(s) {
-      return { pending: 'grey', generating: 'blue', ready: 'positive', failed: 'negative' }[s] ?? 'grey';
-    },
-
-    statusLabel(s) {
-      return { pending: 'Pendiente', generating: 'Generando', ready: 'Listo', failed: 'Fallido' }[s] ?? s;
-    },
-
-    formatDate(d) {
-      if (!d) return '';
-      return new Date(d).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
-    },
-  },
 };
 </script>
+
+<style scoped>
+.mkt-cola { min-width: 0; }
+.mkt-cola__estado { padding: 0 16px 16px; }
+.mkt-cola__video,
+.mkt-cola__estado-celda { display: flex; flex-direction: column; gap: 4px; min-width: 0; white-space: normal; }
+.mkt-cola__nombre { font-weight: 500; }
+.mkt-cola__meta { font-size: 12px; color: var(--mkt-texto-suave); overflow-wrap: anywhere; }
+.mkt-cola__progreso { display: flex; flex-direction: column; gap: 4px; min-width: 160px; max-width: 280px; }
+.mkt-cola__barra { color: var(--mkt-info); }
+.mkt-cola__campana { font-weight: 500; text-decoration: none; }
+.mkt-cola__campana:hover { text-decoration: underline; }
+.mkt-cola__error { font-size: 12px; color: var(--mkt-peligro); overflow-wrap: anywhere; max-width: 320px; }
+.mkt-cola__acciones { display: inline-flex; align-items: center; gap: 4px; }
+.mkt-cola__borrar { color: var(--mkt-peligro); }
+.mkt-cola :deep(.mkt-cola__fila--resaltada > td:first-child) { box-shadow: inset 3px 0 0 var(--mkt-carpeta); }
+.mkt-cola__texto { margin: 0; font-size: 14px; line-height: 1.5; color: var(--mkt-texto); }
+@media (max-width: 599px) {
+    .mkt-cola__estado { padding: 0 12px 12px; }
+    .mkt-cola__progreso { min-width: 0; }
+}
+</style>

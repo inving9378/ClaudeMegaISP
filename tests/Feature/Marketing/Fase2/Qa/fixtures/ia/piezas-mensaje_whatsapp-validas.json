@@ -1,0 +1,5 @@
+{"piezas": [
+ {"variante": "A", "contenido": {"uso": "difusion", "texto": "Hola, este diciembre llega fibra de 500 megas a tu colonia con instalación gratis. ¿Te paso informes?"}},
+ {"variante": "B", "contenido": {"uso": "seguimiento", "texto": "Hola de nuevo, ¿pudiste revisar la promoción de fibra? Quedan pocos lugares."}},
+ {"variante": "C", "contenido": {"uso": "respuesta", "texto": "¡Gracias por escribir! La fibra de 500 megas incluye instalación gratis. ¿En qué colonia vives?"}}
+]}

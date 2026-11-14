@@ -88,7 +88,7 @@ class PantallaEmpresasTest extends MarketingTestCase
 
         $this->abrir($u)
             ->assertForbidden()
-            ->assertSee('Aún no tienes empresa en Marketing')
+            ->assertSee('No tienes acceso a Marketing')
             ->assertDontSee('<marketing-empresas-equipo', false);
     }
 

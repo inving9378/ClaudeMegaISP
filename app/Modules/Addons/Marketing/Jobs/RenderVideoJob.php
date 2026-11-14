@@ -9,7 +9,10 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\MaxAttemptsExceededException;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Queue\TimeoutExceededException;
 use Illuminate\Support\Facades\Log;
 
 class RenderVideoJob implements ShouldQueue
@@ -22,6 +25,17 @@ class RenderVideoJob implements ShouldQueue
     public function backoff(): array
     {
         return [60, 300];
+    }
+
+    /**
+     * Fase 2 (riesgo R2 de docs/marketing/fase-2-paquetes.md): la cola `database` tiene `retry_after = 300` y un render
+     * puede durar hasta 600 s, así que otro procesador podría tomar el MISMO trabajo mientras el primero sigue. Con este
+     * candado por video el segundo no arranca (se devuelve a la cola 60 s) y, cuando vuelve, `handle()` ve el video
+     * `ready` y termina sin hacer nada. El candado vence solo a los 900 s si el proceso muere.
+     */
+    public function middleware(): array
+    {
+        return [(new WithoutOverlapping("mkt-render-{$this->generatedContentId}"))->releaseAfter(60)->expireAfter(900)];
     }
 
     public function __construct(
@@ -38,6 +52,12 @@ class RenderVideoJob implements ShouldQueue
 
         if (!$record) {
             Log::channel('marketing')->error("RenderVideoJob: GeneratedContent #{$this->generatedContentId} not found");
+            return;
+        }
+
+        // Fase 2 (R2): idempotente — si ya quedó listo (p. ej. lo terminó otro intento), no se vuelve a producir.
+        if ($record->status === 'ready') {
+            Log::channel('marketing')->info("RenderVideoJob: GC#{$this->generatedContentId} ya estaba listo; no se repite");
             return;
         }
 
@@ -66,14 +86,19 @@ class RenderVideoJob implements ShouldQueue
                     'render_progress'     => 100,
                     'output_path'         => $result['output_path'] ?? null,
                     'thumbnail_path'      => $result['thumbnail_path'] ?? null,
+                    // Fase 2: en éxito también se guarda el log (antes se perdía y no se sabía si salió sin voz).
+                    'render_log'          => $result['log'] ?? [],
+                    'failure_reason'      => null,
                     'generation_metadata' => array_merge(
                         $record->generation_metadata ?? [],
                         [
                             'duration_sec' => $result['duration_sec'] ?? 0,
                             'file_size'    => $result['file_size']    ?? 0,
                             'resolution'   => $result['resolution']   ?? '',
-                            'tts_cost_usd' => $result['tts_cost_usd'] ?? 0,
+                            // Fase 2: el render devuelve `cost_usd` (antes se leía `tts_cost_usd` y quedaba en 0).
+                            'tts_cost_usd' => $result['cost_usd'] ?? ($result['tts_cost_usd'] ?? 0),
                             'render_ms'    => $result['render_ms']    ?? 0,
+                            'voz_generada' => $result['voz_generada'] ?? null,
                         ]
                     ),
                 ]);
@@ -101,7 +126,12 @@ class RenderVideoJob implements ShouldQueue
     public function failed(\Throwable $exception): void
     {
         $record = GeneratedContent::find($this->generatedContentId);
-        if ($record) {
+        // Fase 2 (R2): un intento repetido que se agotó esperando el candado NO marca error a un video que ya quedó
+        // listo ni a uno que otro procesador sigue produciendo.
+        $otroLoProduce = $exception instanceof MaxAttemptsExceededException
+            && ! $exception instanceof TimeoutExceededException
+            && $record?->status === 'generating';
+        if ($record && $record->status !== 'ready' && ! $otroLoProduce) {
             $this->markFailed($record, $exception->getMessage());
         }
 
@@ -116,9 +146,11 @@ class RenderVideoJob implements ShouldQueue
         $log[] = ['ts' => now()->toIso8601String(), 'error' => $reason];
 
         $record->update([
-            'status'       => 'failed',
-            'render_stage' => 'error',
-            'render_log'   => $log,
+            'status'         => 'failed',
+            'render_stage'   => 'error',
+            'render_log'     => $log,
+            // Fase 2: antes no se llenaba y la pantalla no podía decir por qué falló.
+            'failure_reason' => mb_substr($reason, 0, 500),
         ]);
     }
 }

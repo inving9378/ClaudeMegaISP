@@ -13,6 +13,23 @@ use Illuminate\Support\Str;
 
 class VideoTemplateRenderer
 {
+    /** Fase 2 (Campañas 360): lista blanca de las escenas que vienen del guion (§2.6). */
+    public const GUION_TIPOS_ESCENA = [
+        'logo_reveal'       => [],
+        'feature_highlight' => ['main_text', 'sub_text'],
+        'broll_overlay'     => ['broll_source', 'bg_darken', 'layers'],
+        'call_to_action'    => ['cta_text'],
+    ];
+
+    public const GUION_MAX_ESCENAS = 8;
+
+    public const GUION_MAX_SEGUNDOS = 75;
+
+    public const VOCES_GUION = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+
+    public const MUSICAS_GUION = ['corporate_clean', 'corporate_confident', 'epic_electronic', 'modern_creative',
+                                  'uplifting_family', 'warm_acoustic'];
+
     protected array $log = [];
 
     public function __construct(
@@ -51,6 +68,19 @@ class VideoTemplateRenderer
                 ];
             }
 
+            // Fase 2 (Campañas 360, §2.6 [F2-1]): plantillas «Guion por escenas». Las escenas vienen de
+            // variables['_escenas_mvm'] pasadas por una lista blanca; sin esta bandera nada de esto corre.
+            $desdeVariables  = ($schema['escenas_desde_variables'] ?? false) === true;
+            $escenasGuion    = [];
+            if ($desdeVariables) {
+                $escenasGuion = $this->escenasDesdeVariables($variables['_escenas_mvm'] ?? null);
+                if ($escenasGuion === []) {
+                    return ['success' => false, 'error' => 'El guion no trae escenas.', 'log' => $this->log, 'voz_generada' => null];
+                }
+                // Los colores nunca vienen de fuera en estas plantillas: los pone el Brand Kit.
+                unset($variables['_override_primary_color'], $variables['_override_secondary_color'], $variables['_override_logo']);
+            }
+
             // 2. Resolve brand variables (with per-video overrides)
             $brand   = $this->loadBrand($companyId);
             $flatBrand = $this->flattenBrand($brand);
@@ -80,8 +110,10 @@ class VideoTemplateRenderer
             // 4. Generate voiceover
             $voiceoverPath = null;
             $voiceDuration = 0.0;
+            $vozPedida     = false;
 
             if (!empty($schema['voiceover_script']) && ($schema['audio']['voiceover']['enabled'] ?? true)) {
+                $vozPedida = true;
                 $script = $this->resolveVariables($schema['voiceover_script'], $context);
                 // Fall back to fallback_script if the primary still has unresolved placeholders
                 if (str_contains($script, '{{') && !empty($schema['voiceover_fallback'])) {
@@ -90,12 +122,23 @@ class VideoTemplateRenderer
                 $voiceFile    = "marketing/audio/voiceover/{$companyId}/{$jobId}.mp3";
                 $voiceAbsPath = storage_path("app/{$voiceFile}");
 
-                $this->logStep("TTS: synthesizing voiceover ({$script})");
                 $ttsOptions = [];
-                if ($voiceId = $this->resolveVoiceForNiche($context, $companyId)) {
+                // Fase 2 [F2-1 b]: voz elegida para ESTE video (lista cerrada) antes que la del nicho.
+                $vozVideo = $desdeVariables ? $this->vozDeVariables($variables) : null;
+                if ($vozVideo !== null) {
+                    $ttsOptions['voice'] = $vozVideo;
+                } elseif ($voiceId = $this->resolveVoiceForNiche($context, $companyId)) {
                     $ttsOptions['voice'] = $voiceId;
                 }
-                $ttsResult = $this->tts->synthesize($script, $voiceAbsPath, $ttsOptions);
+
+                if ($desdeVariables && (trim($script) === '' || str_contains($script, '{{'))) {
+                    // Guion sin voz en off: no se manda texto vacío (ni marcadores) al TTS; el video sale sin voz y se avisa.
+                    $this->logStep('TTS: el guion no trae voz en off');
+                    $ttsResult = ['success' => false, 'error' => 'sin texto de voz'];
+                } else {
+                    $this->logStep("TTS: synthesizing voiceover ({$script})");
+                    $ttsResult = $this->tts->synthesize($script, $voiceAbsPath, $ttsOptions);
+                }
 
                 if ($ttsResult['success']) {
                     $voiceoverPath = $voiceAbsPath;
@@ -109,6 +152,10 @@ class VideoTemplateRenderer
 
             // 5. Determine total duration — always use template duration, truncate voiceover if needed
             $schemaSeconds = (float) ($schema['duration_seconds'] ?? 15);
+            if ($desdeVariables) {
+                // Fase 2 [F2-1 a]: la duración es la suma de las escenas del guion (tope 75 s), no la nominal.
+                $schemaSeconds = (float) min(self::GUION_MAX_SEGUNDOS, array_sum(array_column($escenasGuion, 'duration')));
+            }
             $totalDuration = $schemaSeconds;
 
             if ($voiceoverPath && $voiceDuration > $schemaSeconds) {
@@ -130,7 +177,7 @@ class VideoTemplateRenderer
 
             // 6. Render scenes
             $scenePaths = [];
-            $scenes     = $schema['scenes'] ?? [];
+            $scenes     = $desdeVariables ? $escenasGuion : ($schema['scenes'] ?? []);
             $sceneCount = count($scenes);
             $sceneTime  = $sceneCount > 0 ? ($totalDuration / $sceneCount) : $totalDuration;
 
@@ -188,8 +235,14 @@ class VideoTemplateRenderer
                 }
                 $musicPath = null;
                 $musicCat  = $schema['audio']['background_music']['asset_category'] ?? null;
+                // Fase 2 [F2-1 c]: música elegida para ESTE video (lista cerrada) antes que la del esquema;
+                // `_musica` presente y null = sin música.
+                if ($desdeVariables && array_key_exists('_musica', $variables)) {
+                    $musicCat = in_array($variables['_musica'], self::MUSICAS_GUION, true) ? $variables['_musica'] : null;
+                }
                 if ($musicCat) {
-                    $musicAsset = $this->assets->getRandom('audio', $musicCat, $companyId);
+                    // [F2-7] la biblioteca guarda la música con type = 'music' (antes se buscaba 'audio' y nunca sonaba).
+                    $musicAsset = $this->assets->getRandom('music', $musicCat, $companyId);
                     if ($musicAsset) {
                         $musicPath = $this->assets->pathFor($musicAsset);
                     }
@@ -248,8 +301,14 @@ class VideoTemplateRenderer
                 'output_path'    => $relOutputPath,
                 'thumbnail_path' => $relThumbPath,
                 'duration_sec'   => $finalDur,
+                // Fase 2 (hallazgo de frontend): tamaño y resolución reales del MP4 final (antes el job guardaba 0 y '').
+                'file_size'      => (int) (($finalInfo['size_bytes'] ?? 0) ?: (@filesize($outFile) ?: 0)),
+                'resolution'     => (($finalInfo['width'] ?? 0) > 0 && ($finalInfo['height'] ?? 0) > 0)
+                    ? "{$finalInfo['width']}x{$finalInfo['height']}" : '',
                 'cost_usd'       => $totalCost,
                 'log'            => $this->log,
+                // Fase 2 [F2-1 d]: null = la plantilla no pide voz; false = la pidió y el video salió sin voz.
+                'voz_generada'   => $vozPedida ? ($voiceoverPath !== null) : null,
             ];
         } catch (\Throwable $e) {
             Log::channel('marketing')->error('VideoTemplateRenderer exception: ' . $e->getMessage(), [
@@ -902,6 +961,118 @@ class VideoTemplateRenderer
             'boxcolor'    => $style['boxcolor']    ?? 'black@0.45',
             'width'       => $w,
         ];
+    }
+
+    // ── Fase 2: escenas desde el guion (lista blanca) ─────────────────────────────
+
+    /**
+     * Escenas de `_escenas_mvm` pasadas por la lista blanca: solo 4 tipos, solo sus claves permitidas, nunca una
+     * clave de color, `duration` de 2 a 15 s, máx. 8 escenas, `broll_source` solo `niche:<slug>`, textos sin `{{ }}`
+     * ni caracteres de control, y el teléfono del CTA SIEMPRE del Brand Kit.
+     */
+    public function escenasDesdeVariables(mixed $escenas): array
+    {
+        if (!is_array($escenas)) {
+            return [];
+        }
+
+        $limpias = [];
+        foreach (array_slice(array_values($escenas), 0, self::GUION_MAX_ESCENAS) as $e) {
+            if (!is_array($e)) {
+                continue;
+            }
+            $tipo = $e['type'] ?? null;
+            if (!is_string($tipo) || !array_key_exists($tipo, self::GUION_TIPOS_ESCENA)) {
+                continue;
+            }
+            $dur = $e['duration'] ?? null;
+            if (!is_numeric($dur)) {
+                continue;
+            }
+
+            $escena = ['type' => $tipo, 'duration' => (int) max(2, min(15, (int) $dur))];
+
+            foreach (self::GUION_TIPOS_ESCENA[$tipo] as $clave) {
+                if (!array_key_exists($clave, $e) || str_contains(strtolower($clave), 'color')) {
+                    continue;
+                }
+                $valor = $e[$clave];
+
+                switch ($clave) {
+                    case 'broll_source':
+                        if (is_string($valor) && preg_match('/^niche:[a-z_]{1,50}$/', $valor)) {
+                            $escena['broll_source'] = $valor;
+                        }
+                        break;
+                    case 'bg_darken':
+                        if (is_numeric($valor)) {
+                            $escena['bg_darken'] = max(0.0, min(0.8, (float) $valor));
+                        }
+                        break;
+                    case 'layers':
+                        $capas = $this->capasDesdeVariables($valor, $escena['duration']);
+                        if ($capas !== []) {
+                            $escena['layers'] = $capas;
+                        }
+                        break;
+                    default:
+                        if (is_string($valor)) {
+                            $escena[$clave] = $this->textoSeguro($valor);
+                        }
+                }
+            }
+
+            if ($tipo === 'call_to_action') {
+                $escena['phone'] = '{{brand.phone}}';
+            }
+
+            $limpias[] = $escena;
+        }
+
+        return $limpias;
+    }
+
+    /** Solo capas `kinetic_text` con texto, sin estilos ni colores propios. */
+    protected function capasDesdeVariables(mixed $capas, int $duracion): array
+    {
+        if (!is_array($capas)) {
+            return [];
+        }
+
+        $limpias = [];
+        foreach (array_slice(array_values($capas), 0, 1) as $c) {
+            if (!is_array($c) || ($c['type'] ?? null) !== 'kinetic_text' || !is_string($c['text'] ?? null)) {
+                continue;
+            }
+            $texto = $this->textoSeguro($c['text']);
+            if ($texto === '') {
+                continue;
+            }
+            $limpias[] = [
+                'type'         => 'kinetic_text',
+                'text'         => $texto,
+                'duration_sec' => (float) $duracion,
+                'style'        => 'huge_centered',
+                'position'     => 'center',
+            ];
+        }
+
+        return $limpias;
+    }
+
+    protected function textoSeguro(string $texto): string
+    {
+        $texto = str_replace(['{{', '}}'], '', strip_tags($texto));
+        $texto = preg_replace('/[\x00-\x1F\x7F]/u', ' ', $texto) ?? '';
+
+        return trim(mb_substr($texto, 0, 120));
+    }
+
+    protected function vozDeVariables(array $variables): ?string
+    {
+        $voz = $variables['_voz'] ?? null;
+
+        return is_string($voz) && in_array($voz, self::VOCES_GUION, true) ? $voz : null;
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────────

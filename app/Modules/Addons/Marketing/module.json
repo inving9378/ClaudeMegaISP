@@ -67,6 +67,78 @@
         {
             "name": "marketing.empresas.gestionar",
             "description": "Marketing: administrar empresas (marcas) y su equipo"
+        },
+        {
+            "name": "marketing.leads.view",
+            "description": "Marketing: ver leads"
+        },
+        {
+            "name": "marketing.leads.create",
+            "description": "Marketing: capturar leads"
+        },
+        {
+            "name": "marketing.leads.update",
+            "description": "Marketing: editar leads"
+        },
+        {
+            "name": "marketing.leads.delete",
+            "description": "Marketing: eliminar leads"
+        },
+        {
+            "name": "marketing.leads.assign",
+            "description": "Marketing: asignar leads a un vendedor"
+        },
+        {
+            "name": "marketing.leads.score",
+            "description": "Marketing: recalcular la calificación (score) de un lead"
+        },
+        {
+            "name": "marketing.forms.view",
+            "description": "Marketing: ver formularios de captación"
+        },
+        {
+            "name": "marketing.forms.create",
+            "description": "Marketing: crear formularios de captación"
+        },
+        {
+            "name": "marketing.forms.update",
+            "description": "Marketing: editar formularios de captación"
+        },
+        {
+            "name": "marketing.forms.delete",
+            "description": "Marketing: eliminar formularios de captación"
+        },
+        {
+            "name": "marketing.brand_kit.configure",
+            "description": "Marketing: ver y configurar el Brand Kit"
+        },
+        {
+            "name": "marketing.conversations.view",
+            "description": "Marketing: ver conversaciones (menú lateral)"
+        },
+        {
+            "name": "marketing.campaigns.view",
+            "description": "Marketing: ver campañas (menú lateral)"
+        },
+        {
+            "name": "view-marketing-campaigns",
+            "description": "Ver campañas IA (multivariante)"
+        },
+        {
+            "name": "regenerate-marketing-variants",
+            "description": "Regenerar variantes de una campaña IA"
+        },
+        {
+            "name": "view-video-templates",
+            "description": "Ver plantillas del motor de video"
+        },
+        {
+            "name": "view-video-content",
+            "description": "Ver videos generados y su cola"
+        },
+        {
+            "name": "test-voices",
+            "description": "Probar y comparar voces (TTS)"
         }
     ],
     "menu": [
@@ -77,39 +149,153 @@
             "url": "/marketing",
             "children": [
                 {
-                    "label": "Dashboard",
+                    "label": "Panel",
                     "url": "/marketing",
-                    "permission": "create-marketing-campaigns"
+                    "icono_material": "insights",
+                    "icono_fa": "fa-chart-line",
+                    "roles_empresa": [
+                        "admin",
+                        "marketing"
+                    ]
                 },
                 {
-                    "label": "Leads",
-                    "url": "/marketing/leads",
-                    "permission": "create-marketing-campaigns"
+                    "label": "Campañas 360",
+                    "url": "/marketing/campanas-360",
+                    "icono_material": "rocket_launch",
+                    "icono_fa": "fa-rocket",
+                    "roles_empresa": [
+                        "admin",
+                        "marketing"
+                    ]
                 },
                 {
-                    "label": "Campañas",
-                    "url": "/marketing/campaigns",
-                    "permission": "create-marketing-campaigns"
-                },
-                {
-                    "label": "Video MVM",
+                    "label": "Reels y videos",
                     "url": "/marketing/video-templates",
-                    "permission": "generate-video-content"
+                    "permission": "view-video-templates",
+                    "icono_material": "movie",
+                    "icono_fa": "fa-video",
+                    "roles_empresa": [
+                        "admin",
+                        "marketing"
+                    ],
+                    "sub": [
+                        {
+                            "label": "Plantillas",
+                            "url": "/marketing/video-templates"
+                        },
+                        {
+                            "label": "Generar",
+                            "url": "/marketing/video-generator",
+                            "permission": "generate-video-content"
+                        },
+                        {
+                            "label": "Video por nicho",
+                            "url": "/marketing/campaigns/generate",
+                            "permission": "view-marketing-campaigns"
+                        },
+                        {
+                            "label": "Fila de producción",
+                            "url": "/marketing/video-queue",
+                            "permission": "view-video-content"
+                        }
+                    ]
                 },
                 {
                     "label": "Publicación",
                     "url": "/marketing/publishing",
-                    "permission": "publish-content"
+                    "permission": "view-publishing-dashboard",
+                    "icono_material": "campaign",
+                    "icono_fa": "fa-broadcast-tower",
+                    "roles_empresa": [
+                        "admin",
+                        "marketing"
+                    ],
+                    "sub": [
+                        {
+                            "label": "Resumen",
+                            "url": "/marketing/publishing"
+                        },
+                        {
+                            "label": "Publicar",
+                            "url": "/marketing/publishing/campaign"
+                        },
+                        {
+                            "label": "Fila de publicación",
+                            "url": "/marketing/publishing/queue"
+                        }
+                    ]
                 },
                 {
-                    "label": "Brand Kit",
+                    "label": "Leads",
+                    "url": "/marketing/leads",
+                    "permission": "marketing.leads.view",
+                    "icono_material": "people",
+                    "icono_fa": "fa-user-tag",
+                    "roles_empresa": [
+                        "admin",
+                        "marketing",
+                        "ventas"
+                    ],
+                    "sub": [
+                        {
+                            "label": "Leads",
+                            "url": "/marketing/leads"
+                        },
+                        {
+                            "label": "Conversaciones",
+                            "url": "/marketing/conversations"
+                        },
+                        {
+                            "label": "Formularios de captura",
+                            "url": "/marketing/lead-forms",
+                            "permission": "marketing.forms.view",
+                            "roles_empresa": [
+                                "admin",
+                                "marketing"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "label": "Pruebas A/B",
+                    "url": "/marketing/pilot-campaigns",
+                    "icono_material": "science",
+                    "icono_fa": "fa-flask",
+                    "roles_empresa": [
+                        "admin",
+                        "marketing"
+                    ]
+                },
+                {
+                    "label": "Configuración",
                     "url": "/marketing/brand-kit",
-                    "permission": "manage-brand-assets"
-                },
-                {
-                    "label": "Integraciones",
-                    "url": "/integraciones",
-                    "permission": "manage-integrations"
+                    "permission": "marketing.brand_kit.configure",
+                    "icono_material": "settings",
+                    "icono_fa": "fa-cog",
+                    "roles_empresa": [
+                        "admin",
+                        "marketing"
+                    ],
+                    "sub": [
+                        {
+                            "label": "Brand Kit",
+                            "url": "/marketing/brand-kit"
+                        },
+                        {
+                            "label": "Voces",
+                            "url": "/marketing/voice-comparator",
+                            "permission": "test-voices"
+                        },
+                        {
+                            "label": "Canales de publicación",
+                            "url": "/marketing/publishing/setup"
+                        },
+                        {
+                            "label": "Integraciones",
+                            "url": "/integraciones",
+                            "permission": "manage-integrations"
+                        }
+                    ]
                 }
             ]
         }
@@ -456,6 +642,125 @@
             "description": "Buscar personal que se puede agregar a la empresa",
             "scope": "marketing.empresas.gestionar",
             "permission": "marketing.empresas.gestionar"
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/dashboard/resumen",
+            "description": "Dashboard: KPIs del mes (leads, conversión, gasto MXN, costo por lead) y embudo de la empresa activa",
+            "scope": null,
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/dashboard/campanas-activas",
+            "description": "Dashboard: campañas activas de la empresa activa",
+            "scope": null,
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/navegacion",
+            "description": "Barra de navegación del módulo según el rol en la empresa activa (orden de module.json)",
+            "scope": null,
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/campanas-360",
+            "description": "Campañas 360: lista de campañas (filtro por estado, paginada)",
+            "scope": null,
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/api/marketing/campanas-360",
+            "description": "Campañas 360: crear campaña en borrador (asistente)",
+            "scope": null,
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/campanas-360/{id}",
+            "description": "Campañas 360: ficha con estrategia, piezas y videos",
+            "scope": null,
+            "permission": null
+        },
+        {
+            "method": "PUT",
+            "path": "/api/marketing/campanas-360/{id}",
+            "description": "Campañas 360: editar datos (solo borrador o pausada)",
+            "scope": null,
+            "permission": null
+        },
+        {
+            "method": "DELETE",
+            "path": "/api/marketing/campanas-360/{id}",
+            "description": "Campañas 360: borrar campaña en borrador (los videos se conservan)",
+            "scope": null,
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/api/marketing/campanas-360/{id}/estado",
+            "description": "Campañas 360: activar, pausar, terminar o cancelar",
+            "scope": null,
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/api/marketing/campanas-360/{id}/generar",
+            "description": "Campañas 360: generar estrategia y piezas con IA (asíncrono)",
+            "scope": null,
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/campanas-360/{id}/progreso",
+            "description": "Campañas 360: avance de la generación y de los videos (sondeo)",
+            "scope": null,
+            "permission": null
+        },
+        {
+            "method": "PUT",
+            "path": "/api/marketing/campanas-360/{id}/estrategia",
+            "description": "Campañas 360: editar la estrategia",
+            "scope": null,
+            "permission": null
+        },
+        {
+            "method": "PUT",
+            "path": "/api/marketing/campanas-360/{id}/piezas/{piezaId}",
+            "description": "Campañas 360: editar una pieza (guion, copy, anuncio o WhatsApp)",
+            "scope": null,
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/api/marketing/campanas-360/{id}/piezas/{piezaId}/regenerar",
+            "description": "Campañas 360: regenerar una sola pieza con IA",
+            "scope": null,
+            "permission": null
+        },
+        {
+            "method": "POST",
+            "path": "/api/marketing/campanas-360/{id}/piezas/{piezaId}/producir",
+            "description": "Campañas 360: producir un guion en Video MVM (cola video-render)",
+            "scope": null,
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/campanas-360/{id}/videos/{videoId}/ver",
+            "description": "Campañas 360: reproducir un video producido",
+            "scope": null,
+            "permission": null
+        },
+        {
+            "method": "GET",
+            "path": "/api/marketing/campanas-360/{id}/videos/{videoId}/miniatura",
+            "description": "Campañas 360: miniatura de un video producido",
+            "scope": null,
+            "permission": null
         }
     ],
     "ai": {

@@ -22,6 +22,8 @@ class GeneratedContent extends Model
         'thumbnail_path', 'output_url', 'output_text', 'status', 'generation_engine',
         'generation_cost_usd', 'generation_metadata', 'failure_reason',
         'generated_at', 'used_at', 'render_progress', 'render_stage', 'render_log',
+        // Fase 2 (Campañas 360, §2.3 de docs/marketing/fase-2-paquetes.md)
+        'pieza', 'variante', 'contenido', 'pieza_origen_id', 'editado_at', 'regeneraciones',
     ];
 
     protected $casts = [
@@ -32,6 +34,10 @@ class GeneratedContent extends Model
         'render_progress'    => 'integer',
         'generated_at'       => 'datetime',
         'used_at'            => 'datetime',
+        'contenido'          => 'array',
+        'editado_at'         => 'datetime',
+        'regeneraciones'     => 'integer',
+        'pieza_origen_id'    => 'integer',
     ];
 
     public function template(): MorphTo
@@ -52,5 +58,17 @@ class GeneratedContent extends Model
     public function publications(): HasMany
     {
         return $this->hasMany(Publication::class, 'content_id');
+    }
+
+    /** En un video producido desde una Campaña 360: el guion del que salió. Fase 2. */
+    public function guion(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'pieza_origen_id');
+    }
+
+    /** En un guion de Campaña 360: los videos producidos con él. Fase 2. */
+    public function videos(): HasMany
+    {
+        return $this->hasMany(self::class, 'pieza_origen_id')->whereIn('pieza', ['reel', 'video']);
     }
 }

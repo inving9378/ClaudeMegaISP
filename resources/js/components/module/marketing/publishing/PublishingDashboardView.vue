@@ -1,156 +1,182 @@
 <template>
-  <div class="q-pa-md">
-    <div class="row items-center q-mb-lg">
-      <div class="col">
-        <div class="text-h5 text-weight-bold">Dashboard de Publicaciones</div>
-        <div class="text-body2 text-grey-6">Métricas y estado general del publicador multicanal</div>
-      </div>
-      <div class="col-auto q-gutter-sm">
-        <q-btn color="primary" icon="add" label="Nueva Publicación" to="/marketing/publishing/campaign" />
-        <q-btn color="grey-7" icon="list" label="Ver Cola" to="/marketing/publishing/queue" outline />
-      </div>
-    </div>
+    <mkt-raiz :color-marca="contexto?.empresa_activa?.color_primario">
+        <div class="mkt-pub">
+            <mkt-encabezado-pantalla
+                titulo="Resumen"
+                subtitulo="Estado del publicador multicanal"
+                con-selector-empresa
+                @contexto="(c) => (contexto = c)"
+            >
+                <template #acciones>
+                    <mkt-boton tipo="secundario" etiqueta="Ver fila de publicación" href="/marketing/publishing/queue" />
+                    <mkt-boton tipo="crear" etiqueta="Nueva publicación" href="/marketing/publishing/campaign" />
+                </template>
+            </mkt-encabezado-pantalla>
 
-    <!-- Stats Cards -->
-    <div class="row q-gutter-md q-mb-lg">
-      <div class="col-12 col-sm-6 col-md-2">
-        <q-card class="text-center q-pa-md">
-          <div class="text-h4 text-weight-bold text-primary">{{ stats.published }}</div>
-          <div class="text-caption text-grey-6">Publicadas</div>
-        </q-card>
-      </div>
-      <div class="col-12 col-sm-6 col-md-2">
-        <q-card class="text-center q-pa-md">
-          <div class="text-h4 text-weight-bold text-orange">{{ stats.queued }}</div>
-          <div class="text-caption text-grey-6">En Cola</div>
-        </q-card>
-      </div>
-      <div class="col-12 col-sm-6 col-md-2">
-        <q-card class="text-center q-pa-md">
-          <div class="text-h4 text-weight-bold text-negative">{{ stats.failed }}</div>
-          <div class="text-caption text-grey-6">Fallidas</div>
-        </q-card>
-      </div>
-      <div class="col-12 col-sm-6 col-md-2">
-        <q-card class="text-center q-pa-md">
-          <div class="text-h4 text-weight-bold text-warning">{{ stats.waiting_credentials }}</div>
-          <div class="text-caption text-grey-6">En Espera</div>
-        </q-card>
-      </div>
-      <div class="col-12 col-sm-6 col-md-2">
-        <q-card class="text-center q-pa-md">
-          <div class="text-h4 text-weight-bold">{{ stats.total }}</div>
-          <div class="text-caption text-grey-6">Total</div>
-        </q-card>
-      </div>
-    </div>
+            <mkt-tarjeta-panel v-if="estado === 'sin_permiso'">
+                <mkt-estado-vacio icono="lock" titulo="No tienes acceso a esta sección" texto="No tienes acceso a esta sección. Pídelo a Irving." />
+            </mkt-tarjeta-panel>
 
-    <div class="row q-gutter-md">
-      <!-- Estado de Canales -->
-      <div class="col-12 col-md-5">
-        <q-card>
-          <q-card-section>
-            <div class="text-subtitle1 text-weight-bold q-mb-sm">Estado de Canales</div>
-            <q-list separator>
-              <q-item v-for="ch in byChannel" :key="ch.channel_name" dense>
-                <q-item-section avatar>
-                  <q-icon :name="platformIcon(ch.platform)" :color="ch.credentials_ready ? 'positive' : 'warning'" />
-                </q-item-section>
-                <q-item-section>
-                  <q-item-label>{{ ch.channel_name }}</q-item-label>
-                  <q-item-label caption>{{ ch.published_count }} publicadas</q-item-label>
-                </q-item-section>
-                <q-item-section side>
-                  <q-badge :color="ch.credentials_ready ? 'positive' : 'warning'" :label="ch.credentials_ready ? '✓ Listo' : '⏸ Pendiente'" />
-                </q-item-section>
-              </q-item>
-            </q-list>
-          </q-card-section>
-          <q-card-actions>
-            <q-btn flat color="primary" label="Configurar canales" to="/marketing/publishing/setup" />
-          </q-card-actions>
-        </q-card>
-      </div>
+            <mkt-tarjeta-panel v-else-if="estado === 'error'">
+                <mkt-estado-vacio icono="cloud_off" titulo="No se pudo cargar el tablero" :texto="mensajeError" />
+            </mkt-tarjeta-panel>
 
-      <!-- Publicaciones Recientes -->
-      <div class="col-12 col-md-6">
-        <q-card>
-          <q-card-section>
-            <div class="text-subtitle1 text-weight-bold q-mb-sm">Publicaciones Recientes</div>
-            <div v-if="!recent.length" class="text-grey-5 text-center q-pa-md">
-              Sin publicaciones todavía
-            </div>
-            <q-list separator v-else>
-              <q-item v-for="pub in recent" :key="pub.id" dense>
-                <q-item-section avatar>
-                  <q-icon :name="platformIcon(pub.platform)" :color="platformColor(pub.platform)" />
-                </q-item-section>
-                <q-item-section>
-                  <q-item-label>{{ pub.channel_name }}</q-item-label>
-                  <q-item-label caption>{{ pub.ab_variant_tag }} · {{ formatDate(pub.published_at) }}</q-item-label>
-                </q-item-section>
-                <q-item-section side v-if="pub.metrics">
-                  <div class="text-caption">
-                    <span v-if="pub.metrics.likes">❤️ {{ pub.metrics.likes }}</span>
-                    <span v-if="pub.metrics.views" class="q-ml-xs">▶️ {{ pub.metrics.views }}</span>
-                  </div>
-                </q-item-section>
-                <q-item-section side>
-                  <q-btn
-                    v-if="pub.external_post_url"
-                    flat dense icon="open_in_new" size="sm"
-                    :href="pub.external_post_url" target="_blank"
-                  />
-                </q-item-section>
-              </q-item>
-            </q-list>
-          </q-card-section>
-          <q-card-actions>
-            <q-btn flat color="primary" label="Ver toda la cola" to="/marketing/publishing/queue" />
-          </q-card-actions>
-        </q-card>
-      </div>
-    </div>
-  </div>
+            <template v-else>
+                <section class="mkt-pub__kpis" aria-label="Resumen de publicaciones">
+                    <mkt-tarjeta-kpi etiqueta="Publicadas" :valor="stats.published" icono="check_circle" :cargando="cargando" />
+                    <mkt-tarjeta-kpi etiqueta="En fila" :valor="stats.queued" icono="schedule" :cargando="cargando" />
+                    <mkt-tarjeta-kpi etiqueta="Fallidas" :valor="stats.failed" icono="error_outline" :cargando="cargando" />
+                    <mkt-tarjeta-kpi etiqueta="Esperando credenciales" :valor="stats.waiting_credentials" icono="key" :cargando="cargando" />
+                </section>
+
+                <div class="mkt-pub__rejilla">
+                    <mkt-tarjeta-panel titulo="Canales" subtitulo="Si cada canal tiene sus credenciales listas" :cargando="cargando">
+                        <template #acciones>
+                            <mkt-boton tipo="secundario" chico etiqueta="Configurar" href="/marketing/publishing/setup" />
+                        </template>
+                        <mkt-estado-vacio
+                            v-if="!byChannel.length"
+                            icono="hub"
+                            titulo="Sin canales"
+                            texto="Configura los canales para empezar a publicar."
+                        />
+                        <ul v-else class="mkt-pub__lista">
+                            <li v-for="ch in byChannel" :key="ch.channel_name" class="mkt-pub__fila">
+                                <q-icon :name="platformIcon(ch.platform)" size="20px" class="mkt-pub__plataforma" aria-hidden="true" />
+                                <div class="mkt-pub__fila-texto">
+                                    <span class="mkt-pub__fuerte">{{ ch.channel_name }}</span>
+                                    <span class="mkt-pub__suave">{{ formatoNumero(ch.published_count) }} publicadas</span>
+                                </div>
+                                <mkt-insignia-estado :texto="ch.credentials_ready ? 'Listo' : 'Pendiente'" :tono="ch.credentials_ready ? 'exito' : 'aviso'" />
+                            </li>
+                        </ul>
+                    </mkt-tarjeta-panel>
+
+                    <mkt-tarjeta-panel titulo="Publicaciones recientes" :subtitulo="`${formatoNumero(stats.total)} en total`" :cargando="cargando">
+                        <template #acciones>
+                            <mkt-boton tipo="secundario" chico etiqueta="Ver toda la fila" href="/marketing/publishing/queue" />
+                        </template>
+                        <mkt-estado-vacio
+                            v-if="!recent.length"
+                            icono="campaign"
+                            titulo="Sin publicaciones todavía"
+                            texto="Cuando publiques una campaña, aquí verás lo último que salió." />
+                        <ul v-else class="mkt-pub__lista">
+                            <li v-for="pub in recent" :key="pub.id" class="mkt-pub__fila">
+                                <q-icon :name="platformIcon(pub.platform)" size="20px" class="mkt-pub__plataforma" aria-hidden="true" />
+                                <div class="mkt-pub__fila-texto">
+                                    <span class="mkt-pub__fuerte">{{ pub.channel_name }}</span>
+                                    <span class="mkt-pub__suave">
+                                        <template v-if="pub.ab_variant_tag">{{ pub.ab_variant_tag }} · </template>{{ formatoFecha(pub.published_at, { conHora: true }) }}
+                                    </span>
+                                </div>
+                                <span v-if="pub.metrics" class="mkt-pub__metricas">
+                                    <span v-if="pub.metrics.likes"><q-icon name="favorite" size="14px" aria-hidden="true" /> {{ formatoNumero(pub.metrics.likes) }}</span>
+                                    <span v-if="pub.metrics.views"><q-icon name="visibility" size="14px" aria-hidden="true" /> {{ formatoNumero(pub.metrics.views) }}</span>
+                                </span>
+                                <q-btn
+                                    v-if="pub.external_post_url"
+                                    flat
+                                    round
+                                    dense
+                                    icon="open_in_new"
+                                    :href="pub.external_post_url"
+                                    target="_blank"
+                                    rel="noopener"
+                                    aria-label="Ver publicación"
+                                />
+                            </li>
+                        </ul>
+                    </mkt-tarjeta-panel>
+                </div>
+            </template>
+        </div>
+    </mkt-raiz>
 </template>
 
 <script>
-import axios from 'axios';
+import axios from "axios";
+import { mensajeDeError, formatoFecha, formatoNumero } from "../kit";
 
+const ICONOS = { facebook: "fab fa-facebook", instagram: "fab fa-instagram", whatsapp: "fab fa-whatsapp", email: "email" };
+
+/** Tablero de publicación (/marketing/publishing) — Fase 1, rediseño con el kit, mismos endpoints. */
 export default {
-  name: 'MarketingPublishingDashboardView',
-  data() {
-    return {
-      stats: { total: 0, published: 0, queued: 0, failed: 0, waiting_credentials: 0 },
-      byChannel: [],
-      recent: [],
-    };
-  },
-  mounted() {
-    this.load();
-  },
-  methods: {
-    async load() {
-      const [statsRes, recentRes] = await Promise.all([
-        axios.get('/api/marketing/publishing/dashboard/stats'),
-        axios.get('/api/marketing/publishing/dashboard/recent'),
-      ]);
-      this.stats     = statsRes.data.stats;
-      this.byChannel = statsRes.data.by_channel;
-      this.recent    = recentRes.data.publications;
+    name: "MarketingPublishingDashboardView",
+    data() {
+        return {
+            contexto: null,
+            estado: "cargando", // cargando | listo | error | sin_permiso
+            mensajeError: "",
+            stats: { total: null, published: null, queued: null, failed: null, waiting_credentials: null },
+            byChannel: [],
+            recent: [],
+        };
     },
-    platformIcon(platform) {
-      const map = { facebook: 'fab fa-facebook', instagram: 'fab fa-instagram', whatsapp: 'fab fa-whatsapp', email: 'email' };
-      return map[platform] || 'share';
+    computed: {
+        cargando() {
+            return this.estado === "cargando";
+        },
     },
-    platformColor(platform) {
-      const map = { facebook: 'blue-8', instagram: 'purple-6', whatsapp: 'green-7', email: 'orange-7' };
-      return map[platform] || 'grey';
+    mounted() {
+        this.load();
     },
-    formatDate(d) {
-      if (!d) return '';
-      return new Date(d).toLocaleDateString('es-MX', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    methods: {
+        formatoFecha,
+        formatoNumero,
+        async load() {
+            this.estado = "cargando";
+            try {
+                const [statsRes, recentRes] = await Promise.all([
+                    axios.get("/api/marketing/publishing/dashboard/stats"),
+                    axios.get("/api/marketing/publishing/dashboard/recent"),
+                ]);
+                this.stats = statsRes.data?.stats ?? this.stats;
+                this.byChannel = statsRes.data?.by_channel ?? [];
+                this.recent = recentRes.data?.publications ?? [];
+                this.estado = "listo";
+            } catch (e) {
+                if (e?.response?.status === 403) {
+                    this.estado = "sin_permiso";
+                } else {
+                    this.mensajeError = mensajeDeError(e, "Intenta de nuevo en un momento.");
+                    this.estado = "error";
+                }
+            }
+        },
+        platformIcon(platform) {
+            return ICONOS[platform] || "share";
+        },
     },
-  },
 };
 </script>
+
+<style scoped>
+.mkt-pub {
+    display: flex;
+    flex-direction: column;
+    gap: var(--mkt-esp-2);
+    min-width: 0;
+}
+.mkt-pub > :first-child { margin-bottom: 0; }
+.mkt-pub__kpis { display: grid; gap: var(--mkt-esp-2); grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.mkt-pub__rejilla { display: grid; gap: var(--mkt-esp-2); grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); align-items: start; }
+.mkt-pub__lista { list-style: none; margin: 0; padding: 0; }
+.mkt-pub__fila { display: flex; align-items: center; gap: 12px; padding: 10px 0; min-width: 0; }
+.mkt-pub__fila + .mkt-pub__fila { border-top: 1px solid var(--mkt-borde); }
+.mkt-pub__plataforma { color: var(--mkt-texto-suave); flex: 0 0 auto; }
+.mkt-pub__fila-texto { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
+.mkt-pub__fuerte { font-weight: 600; color: var(--mkt-texto); overflow-wrap: anywhere; }
+.mkt-pub__suave { font-size: 13px; color: var(--mkt-texto-suave); }
+.mkt-pub__metricas { display: inline-flex; gap: var(--mkt-esp-1); font-size: 13px; color: var(--mkt-texto-suave); white-space: nowrap; }
+.mkt-pub__metricas > span { display: inline-flex; align-items: center; gap: 2px; }
+@media (max-width: 1023px) {
+    .mkt-pub__kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .mkt-pub__rejilla { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 599px) {
+    .mkt-pub__kpis { gap: var(--mkt-esp-1); }
+    .mkt-pub__rejilla { gap: var(--mkt-esp-2); }
+    .mkt-pub__fila { flex-wrap: wrap; }
+}
+</style>

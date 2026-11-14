@@ -3,79 +3,51 @@
 namespace App\Modules\Addons\Marketing\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Addons\Marketing\Controllers\Concerns\RespondeRetirada;
 use App\Modules\Addons\Marketing\Models\Lead;
-use App\Modules\Addons\Marketing\Services\LeadQualifierService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
+/**
+ * Leads «legado» (`/marketing/leads-legacy/**`). Fase 1 (F1-3): RETIRADO — usaba columnas que
+ * `marketing_leads` no tiene (`campaign_id` del modelo legado, `contact_name`, `channel`…) y respondía
+ * 500. La API vigente de leads es `/api/marketing/leads`. Con `{id}` se conserva el findOrFail con scope
+ * (id de otra marca → 404) y después responde 410. Ver docs/marketing/fase-1-paquetes.md §2.5.
+ */
 class LeadController extends Controller
 {
-    public function __construct(
-        private readonly LeadQualifierService $qualifier
-    ) {}
+    use RespondeRetirada;
 
     public function table(Request $request): JsonResponse
     {
-        $query = Lead::with(['campaign:id,title', 'assignedTo:id,name'])
-            ->when($request->filled('campaign_id'), fn ($q) => $q->where('campaign_id', $request->campaign_id))
-            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status))
-            ->when($request->filled('channel'), fn ($q) => $q->where('channel', $request->channel))
-            ->when($request->filled('search'), fn ($q) => $q->where(function ($q) use ($request) {
-                $q->where('contact_name', 'like', "%{$request->search}%")
-                    ->orWhere('contact_identifier', 'like', "%{$request->search}%");
-            }))
-            ->orderByDesc('created_at');
-
-        return response()->json($query->paginate(20));
+        return $this->retirada();
     }
 
     public function show(int $id): JsonResponse
     {
-        $lead = Lead::with(['campaign:id,title', 'assignedTo:id,name'])->findOrFail($id);
+        Lead::findOrFail($id);
 
-        return response()->json($lead);
+        return $this->retirada();
     }
 
     public function qualify(int $id): JsonResponse
     {
-        $lead = Lead::findOrFail($id);
-        try {
-            $result = $this->qualifier->qualify($lead);
-        } catch (\App\Modules\Addons\IA\Services\IANoConfigurada $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
-        }
+        Lead::findOrFail($id);
 
-        return response()->json([
-            'message'        => 'Lead calificado correctamente.',
-            'qualification'  => $result,
-            'lead'           => $lead->fresh(),
-        ]);
+        return $this->retirada();
     }
 
     public function updateStatus(Request $request, int $id): JsonResponse
     {
-        $lead = Lead::findOrFail($id);
+        Lead::findOrFail($id);
 
-        $request->validate([
-            'status' => 'required|in:new,contacted,qualified,unqualified,scheduled,converted,lost',
-        ]);
-
-        $lead->update(['status' => $request->status]);
-
-        return response()->json($lead);
+        return $this->retirada();
     }
 
     public function assign(Request $request, int $id): JsonResponse
     {
-        $lead = Lead::findOrFail($id);
+        Lead::findOrFail($id);
 
-        $request->validate([
-            'user_id' => 'required|integer|exists:users,id',
-        ]);
-
-        $lead->update(['assigned_to' => $request->user_id]);
-        $lead->load('assignedTo:id,name');
-
-        return response()->json($lead);
+        return $this->retirada();
     }
 }

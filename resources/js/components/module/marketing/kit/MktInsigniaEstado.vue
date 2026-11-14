@@ -1,11 +1,18 @@
 <template>
-    <span class="mkt-insignia" :class="`mkt-insignia--${tonoValido}`">
-        <span class="mkt-insignia__punto" aria-hidden="true"></span>{{ texto }}
-    </span>
+    <span class="estado-chip mkt-insignia" :class="`estado-tono--${tonoCliente}`">{{ texto }}</span>
 </template>
 
 <script>
 const TONOS = ["exito", "aviso", "peligro", "info", "neutro", "primario"];
+
+/**
+ * Insignia de estado = el chip de estado de la ficha de Cliente (`.estado-chip` + `.estado-tono--*`, globales del
+ * sistema en resources/sass/app.scss, item #488): fondo pastel, texto oscuro del matiz y punto de color; en oscuro
+ * toma los tonos oscuros del sistema. Sin colores propios.
+ *   exito → Activo (verde) · peligro → Bloqueado (rojo) · aviso → Inactivo (ámbar)
+ *   info / primario → Nuevo (azul) · neutro → Cancelado (gris)
+ */
+const MAPA = { exito: "activo", peligro: "bloqueado", aviso: "inactivo", info: "nuevo", primario: "nuevo", neutro: "cancelado" };
 
 export default {
     name: "MktInsigniaEstado",
@@ -14,38 +21,14 @@ export default {
         tono: { type: String, default: "neutro" },
     },
     computed: {
-        tonoValido() {
-            return TONOS.includes(this.tono) ? this.tono : "neutro";
+        tonoCliente() {
+            return MAPA[TONOS.includes(this.tono) ? this.tono : "neutro"];
         },
     },
 };
 </script>
 
 <style scoped>
-.mkt-insignia {
-    --tono: var(--mkt-neutro, #74788d);
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 2px 10px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 500;
-    line-height: 20px;
-    white-space: nowrap;
-    color: var(--tono);
-    background: color-mix(in srgb, var(--tono) 14%, transparent);
-}
-.mkt-insignia__punto {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: currentColor;
-}
-.mkt-insignia--exito { --tono: var(--mkt-exito, #2ab57d); }
-.mkt-insignia--aviso { --tono: #c98a14; } /* #ffbf53 sobre blanco no da contraste de texto: se oscurece */
-.mkt-insignia--peligro { --tono: var(--mkt-peligro, #fd625e); }
-.mkt-insignia--info { --tono: #2f8fdc; }
-.mkt-insignia--neutro { --tono: var(--mkt-neutro, #74788d); }
-.mkt-insignia--primario { --tono: var(--mkt-primario, #5156be); }
+/* En tablas y tarjetas el chip va a 12 px (en la ficha de Cliente hereda 0.75em del título). */
+.mkt-insignia { font-size: 12px; white-space: nowrap; }
 </style>

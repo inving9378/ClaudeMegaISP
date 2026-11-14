@@ -29,4 +29,13 @@ return [
 
     // Token de API de Replicate (ImageGeneratorService — generación de imágenes SDXL).
     'replicate_api_token' => env('REPLICATEAPITOKEN', ''),
+
+    /*
+    | Quién entra a Marketing (decisión de Irving, 2026-11-14): por ROL, no por nombre. Quien tenga uno de estos
+    | roles entra como administrador de Marketing de Meganet y su rol trae todos los permisos de Marketing
+    | (migración 2026_11_14_120000). La lista del equipo en el .env del servidor / `marketing:equipo-fijar` ya no
+    | hace falta para ellos; queda solo como forma opcional de dar acceso a alguien que no tenga ninguno de estos roles.
+    | Nombres exactos de la tabla `roles` (guard web).
+    */
+    'roles_con_acceso' => ['super-administrator', 'Administrador', 'DESARROLLADOR', 'Mostrador'],
 ];

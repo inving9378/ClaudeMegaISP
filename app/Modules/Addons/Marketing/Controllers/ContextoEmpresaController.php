@@ -13,7 +13,9 @@ use Illuminate\Http\Request;
 /**
  * Contexto de empresa de la persona (selector de empresa del módulo).
  *  GET  /api/marketing/contexto                 → empresa activa, sus empresas y capacidades
- *  POST /api/marketing/contexto/empresa-activa  → cambia la empresa activa (validada contra sus asignaciones)
+ *  POST /api/marketing/contexto/empresa-activa  → valida la elección contra sus asignaciones (404 si no es
+ *                                                suya); por el punto A del cambio de alcance la activa
+ *                                                sigue siendo SIEMPRE la principal (selector oculto)
  */
 class ContextoEmpresaController extends Controller
 {
@@ -49,8 +51,11 @@ class ContextoEmpresaController extends Controller
             ], 404);
         }
 
-        $request->session()->put(ResolverEmpresaActiva::CLAVE_SESION, $asignacion->company_id);
-        $this->contexto->establecer($asignacion->empresa, $asignacion->rol);
+        // CAMBIO DE ALCANCE de Henry (punto A, Fase 1): por ahora Marketing es solo de Meganet. Aunque la
+        // persona tenga otra asignación activa, la empresa activa NO cambia: en sesión queda siempre la
+        // principal y la respuesta es la de la empresa principal (la que ya fijó el middleware, como admin).
+        // Nunca se escribe otra empresa en sesión.
+        $request->session()->put(ResolverEmpresaActiva::CLAVE_SESION, Empresa::PRINCIPAL_ID);
 
         return response()->json($this->payload($request));
     }

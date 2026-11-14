@@ -162,6 +162,7 @@ class EquipoApiBackendTest extends MarketingTestCase
         // Con otro admin activo, sí se puede.
         $otro = $this->crearUsuario(['Mostrador']);
         $this->asignar($otro, $this->empresa->id, 'admin');
+        $this->asignar($otro, 1, 'admin'); // [Fase 1 · B] para entrar a Marketing hay que ser admin activo de la empresa 1
         $this->actingAs($this->admin)->putJson($this->url("/{$this->admin->id}"), ['rol' => 'marketing'])->assertOk();
 
         // …y ahora el otro es el último.

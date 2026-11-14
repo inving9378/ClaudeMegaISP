@@ -87,14 +87,12 @@
                     </div>
 
                     <footer class="mkt-dlg__pie">
-                        <q-btn flat no-caps label="Cancelar" :disable="guardando" @click="cerrar" />
-                        <q-btn
-                            type="submit"
-                            unelevated
-                            no-caps
-                            color="primary"
-                            :label="esEdicion ? 'Guardar cambios' : 'Crear empresa'"
-                            :loading="guardando"
+                        <mkt-boton tipo="volver" etiqueta="Cancelar" :deshabilitado="guardando" @click="cerrar" />
+                        <mkt-boton
+                            submit
+                            :tipo="esEdicion ? 'guardar' : 'crear'"
+                            :etiqueta="esEdicion ? 'Guardar cambios' : 'Crear empresa'"
+                            :cargando="guardando"
                         />
                     </footer>
                 </form>

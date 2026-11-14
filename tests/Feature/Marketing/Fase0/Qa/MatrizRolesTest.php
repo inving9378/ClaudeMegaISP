@@ -16,6 +16,13 @@ use Tests\Feature\Marketing\MarketingTestCase;
  * representativa de cada grupo V, M, MP y de las nuevas; JSON y navegación de página;
  * `config_compartida` con la empresa B activa.
  *
+ * AJUSTE FASE 1 (QA, cambio de alcance B de Henry, 2026-11-13): solo entra quien tiene fila ACTIVA con
+ * rol `admin` en la empresa 1 (y usuario activo); la empresa activa SIEMPRE es la 1. Las filas `marketing`
+ * y `ventas` y los admins de otra empresa reciben 403 `sin_acceso`. Cada prueba cambiada lleva
+ * «[Fase 1 · B]» con su razón; las que comprobaban que ventas/marketing SÍ entraban ahora comprueban que
+ * NO entran (más estricto). Las de `config_compartida` ya no se pueden alcanzar (nadie de otra empresa
+ * entra): se conservan como «otra empresa → sin_acceso y no toca la config».
+ *
  * Nota: las pruebas de página dependen de que el layout `core-layout::master` renderice en el
  * worktree (necesita `public/js/app.js` compilado por frontend, §2.10.1). Las de JSON no.
  */
@@ -23,8 +30,9 @@ class MatrizRolesTest extends MarketingTestCase
 {
     use EscenarioEmpresas;
 
-    private const MSG_SIN_EMPRESA = 'Todavía no perteneces a ninguna empresa de Marketing. Pide a un administrador de Marketing que te agregue en «Empresas y equipo».';
+    private const MSG_SIN_EMPRESA = 'No tienes acceso a Marketing. Pide acceso a un administrador de Marketing.'; // [Fase 1] texto nuevo (corrección 5 de QA)
     private const MSG_SIN_PERMISO_ROL = 'Tu rol en esta empresa no permite esta acción.';
+    private const MSG_SIN_ACCESO = 'Marketing está abierto a super-administrador, Administrador, Desarrollador y Mostrador. Si necesitas entrar, pídele a un administrador que te asigne uno de esos roles.';
     private const MSG_CONFIG_COMPARTIDA = 'Esta configuración es de Meganet y la comparten todas las empresas; solo se cambia con Meganet como empresa activa.';
 
     protected function setUp(): void
@@ -91,7 +99,7 @@ class MatrizRolesTest extends MarketingTestCase
     {
         $r = $this->como($this->sinEmpresa)->get('/marketing/leads');
         $r->assertStatus(403);
-        $r->assertSee('Aún no tienes empresa en Marketing');
+        $r->assertSee('No tienes acceso a Marketing');
     }
 
     public function test_super_admin_sin_asignacion_no_tiene_atajo(): void
@@ -117,36 +125,38 @@ class MatrizRolesTest extends MarketingTestCase
         $this->assertNegativa($this->como($u, $inactiva->id)->getJson('/api/marketing/leads'), 'sin_empresa', self::MSG_SIN_EMPRESA);
     }
 
+    /** [Fase 1 · B] La fila en la 1 pasa de 'ventas' a 'admin' (ventas ya no entra); sigue cayendo a la 1. */
     public function test_sesion_apuntando_a_empresa_inactiva_cae_a_la_activa(): void
     {
         $inactiva = $this->crearEmpresa('QA Inactiva 2', activo: false);
-        $u = $this->crearUsuario('qa_mixto', [1 => 'ventas', $inactiva->id => 'admin']);
+        $u = $this->crearUsuario('qa_mixto', [1 => 'admin', $inactiva->id => 'admin']);
 
         $r = $this->como($u, $inactiva->id)->getJson('/api/marketing/contexto');
         $r->assertOk();
         $this->assertSame(1, $r->json('empresa_activa.id'));
-        $this->assertSame('ventas', $r->json('empresa_activa.rol'));
+        $this->assertSame('admin', $r->json('empresa_activa.rol'));
     }
 
     // ── V: ventas entra a leads y conversaciones (D2) ────────────────────────
 
+    /** [Fase 1 · B] Antes ventas veía/creaba/editaba leads y conversaciones (D2). Ahora: 403 sin_acceso y nada cambia. */
     public function test_ventas_ve_crea_edita_e_historial_de_leads_y_conversaciones(): void
     {
         $lead = $this->a['lead'];
-        $this->assertPermitido($this->como($this->ventasA)->getJson('/api/marketing/leads'), 'ventas GET leads');
-        $this->assertPermitido($this->como($this->ventasA)->getJson("/api/marketing/leads/{$lead->id}"), 'ventas GET lead');
-        $this->assertPermitido($this->como($this->ventasA)->getJson("/api/marketing/leads/{$lead->id}/activities"), 'ventas historial');
-        $this->assertPermitido(
-            $this->como($this->ventasA)->putJson("/api/marketing/leads/{$lead->id}", ['notes' => 'editado por ventas']),
-            'ventas PUT lead'
-        );
-        $alta = $this->como($this->ventasA)->postJson('/api/marketing/leads', ['source_id' => $this->fuente->id, 'full_name' => 'Alta de ventas']);
-        $this->assertSame(201, $alta->status(), 'ventas POST lead: ' . substr((string) $alta->getContent(), 0, 300));
-
-        $this->assertPermitido($this->como($this->ventasA)->getJson('/api/marketing/conversations'), 'ventas GET conversations');
-        $this->assertPermitido($this->como($this->ventasA)->getJson("/api/marketing/conversations/{$this->a['conversacion']->id}"), 'ventas GET conversation');
-        $this->assertPermitido($this->como($this->ventasA)->getJson("/api/marketing/conversations/{$this->a['conversacion']->id}/messages"), 'ventas mensajes');
-        $this->assertPermitido($this->como($this->ventasA)->getJson('/api/marketing/lead-sources'), 'ventas lead-sources');
+        $antes = $this->fila('marketing_leads', $lead->id);
+        $cuantos = DB::table('marketing_leads')->count();
+        foreach ([
+            ['GET', '/api/marketing/leads', []], ['GET', "/api/marketing/leads/{$lead->id}", []],
+            ['GET', "/api/marketing/leads/{$lead->id}/activities", []],
+            ['PUT', "/api/marketing/leads/{$lead->id}", ['notes' => 'editado por ventas']],
+            ['POST', '/api/marketing/leads', ['source_id' => $this->fuente->id, 'full_name' => 'Alta de ventas']],
+            ['GET', '/api/marketing/conversations', []], ['GET', "/api/marketing/conversations/{$this->a['conversacion']->id}", []],
+            ['GET', "/api/marketing/conversations/{$this->a['conversacion']->id}/messages", []], ['GET', '/api/marketing/lead-sources', []],
+        ] as [$m, $url, $datos]) {
+            $this->assertNegativa($this->como($this->ventasA)->json($m, $url, $datos), 'sin_acceso', self::MSG_SIN_ACCESO);
+        }
+        $this->assertEquals($antes, $this->fila('marketing_leads', $lead->id));
+        $this->assertSame($cuantos, DB::table('marketing_leads')->count());
     }
 
     // ── M: ventas recibe sin_permiso_rol ─────────────────────────────────────
@@ -170,28 +180,35 @@ class MatrizRolesTest extends MarketingTestCase
         ];
     }
 
-    /** @dataProvider rutasSoloMarketing */
+    /**
+     * [Fase 1 · B] Antes `sin_permiso_rol` (marketing.rol); ahora corta antes marketing.empresa con `sin_acceso`.
+     * @dataProvider rutasSoloMarketing
+     */
     public function test_ventas_recibe_sin_permiso_rol_en_rutas_de_marketing(string $metodo, string $plantilla): void
     {
         $url = str_replace(['{lead}', '{campana}'], [$this->a['lead']->id, $this->a['campana']->id], $plantilla);
         $antes = $this->fila('marketing_leads', $this->a['lead']->id);
 
         $r = $this->como($this->ventasA)->json($metodo, $url, ['user_id' => $this->ventasA->id]);
-        $this->assertNegativa($r, 'sin_permiso_rol', self::MSG_SIN_PERMISO_ROL);
+        $this->assertNegativa($r, 'sin_acceso', self::MSG_SIN_ACCESO);
 
         $this->assertEquals($antes, $this->fila('marketing_leads', $this->a['lead']->id), 'el lead no debe cambiar');
         Queue::assertNothingPushed();
     }
 
-    /** @dataProvider rutasSoloMarketing */
+    /**
+     * [Fase 1 · B] Antes marketing SÍ entraba (solo lectura). Ahora NO entra, ni lectura ni escritura; y el admin de la 1 sí.
+     * @dataProvider rutasSoloMarketing
+     */
     public function test_marketing_si_entra_a_rutas_de_marketing(string $metodo, string $plantilla): void
     {
-        if ($metodo !== 'GET') {
-            $this->assertTrue(true); // las de escritura se cubren en aislamiento; aquí solo lectura
-            return;
-        }
         $url = str_replace(['{lead}', '{campana}'], [$this->a['lead']->id, $this->a['campana']->id], $plantilla);
-        $this->assertPermitido($this->como($this->marketingA)->getJson($url), "marketing GET {$url}");
+        $antes = $this->fila('marketing_leads', $this->a['lead']->id);
+        $this->assertNegativa($this->como($this->marketingA)->json($metodo, $url, ['user_id' => $this->marketingA->id]), 'sin_acceso', self::MSG_SIN_ACCESO);
+        $this->assertEquals($antes, $this->fila('marketing_leads', $this->a['lead']->id));
+        if ($metodo === 'GET') {
+            $this->assertPermitido($this->como($this->adminA)->getJson($url), "admin de la 1 GET {$url}");
+        }
     }
 
     public static function paginasSoloMarketing(): array
@@ -213,11 +230,11 @@ class MatrizRolesTest extends MarketingTestCase
         $this->como($this->ventasA)->get($url)->assertStatus(403);
     }
 
+    /** [Fase 1 · B] Antes ventas abría Leads y Conversaciones; ahora 403 (página de sin acceso). */
     public function test_ventas_paginas_de_leads_y_conversaciones_no_dan_403(): void
     {
         foreach (['/marketing/leads', "/marketing/leads/{$this->a['lead']->id}", '/marketing/conversations'] as $url) {
-            $r = $this->como($this->ventasA)->get($url);
-            $this->assertNotContains($r->status(), [401, 403, 404], "ventas {$url} → {$r->status()}");
+            $this->como($this->ventasA)->get($url)->assertStatus(403);
         }
     }
 
@@ -237,42 +254,49 @@ class MatrizRolesTest extends MarketingTestCase
         ];
     }
 
-    /** @dataProvider rutasConfigCompartida */
+    /**
+     * [Fase 1 · B] Antes `config_compartida`; con la regla B el admin de otra empresa no entra: `sin_acceso`.
+     * Se conserva lo importante: 403 y marketing_settings intacto.
+     * @dataProvider rutasConfigCompartida
+     */
     public function test_con_empresa_b_activa_la_config_compartida_da_403_config_compartida(string $metodo, string $url, array $cuerpo): void
     {
         $settingsAntes = DB::table('marketing_settings')->orderBy('id')->get()->toArray();
 
         $r = $this->como($this->adminB, $this->empresaB->id)->json($metodo, $url, $cuerpo);
-        $this->assertNegativa($r, 'config_compartida', self::MSG_CONFIG_COMPARTIDA);
+        $this->assertNegativa($r, 'sin_acceso', self::MSG_SIN_ACCESO);
 
         $this->assertEquals($settingsAntes, DB::table('marketing_settings')->orderBy('id')->get()->toArray(), 'no debe tocar marketing_settings');
     }
 
+    /** [Fase 1 · B] Antes `config_compartida`; ahora `sin_acceso`. */
     public function test_marketing_de_b_tampoco_edita_la_config_compartida(): void
     {
         $u = $this->crearUsuario('qa_mkt_b', [$this->empresaB->id => 'marketing']);
-        $this->assertNegativa(
-            $this->como($u, $this->empresaB->id)->putJson('/api/marketing/brand-kit', []),
-            'config_compartida',
-            self::MSG_CONFIG_COMPARTIDA
-        );
+        $this->assertNegativa($this->como($u, $this->empresaB->id)->putJson('/api/marketing/brand-kit', []), 'sin_acceso', self::MSG_SIN_ACCESO);
     }
 
+    /**
+     * [Fase 1 · A/B] Antes, con B elegida en sesión, `config_compartida`. Ahora la empresa activa SIEMPRE es la 1:
+     * pedir B en sesión no cambia nada y el admin de la 1 pasa la capa en ambos casos.
+     */
     public function test_admin_de_a_y_b_con_b_activa_recibe_config_compartida_y_con_a_activa_no(): void
     {
         $u = $this->crearUsuario('qa_admin_ab', [1 => 'admin', $this->empresaB->id => 'admin']);
 
-        $this->assertNegativa($this->como($u, $this->empresaB->id)->putJson('/api/marketing/brand-kit', []), 'config_compartida', self::MSG_CONFIG_COMPARTIDA);
-        $this->assertPermitido($this->como($u, 1)->getJson('/api/marketing/brand-kit'), 'admin A lectura brand-kit');
-
-        $r = $this->como($u, 1)->putJson('/api/marketing/brand-kit', []);
-        $this->assertNotSame('config_compartida', $r->json('error'));
-        $this->assertNotSame('sin_permiso_rol', $r->json('error'));
+        foreach ([$this->empresaB->id, 1] as $enSesion) {
+            $this->assertPermitido($this->como($u, $enSesion)->getJson('/api/marketing/brand-kit'), "admin lectura brand-kit (sesión {$enSesion})");
+            $this->como($u, $enSesion)->getJson('/api/marketing/contexto')->assertJsonPath('empresa_activa.id', 1);
+            $r = $this->como($u, $enSesion)->putJson('/api/marketing/brand-kit', []);
+            $this->assertNotSame('config_compartida', $r->json('error'));
+            $this->assertNotSame('sin_acceso', $r->json('error'));
+        }
     }
 
+    /** [Fase 1 · B] Antes `sin_permiso_rol`; ahora `sin_acceso`. */
     public function test_ventas_con_meganet_activa_no_edita_config_compartida(): void
     {
-        $this->assertNegativa($this->como($this->ventasA)->putJson('/api/marketing/brand-kit', []), 'sin_permiso_rol', self::MSG_SIN_PERMISO_ROL);
+        $this->assertNegativa($this->como($this->ventasA)->putJson('/api/marketing/brand-kit', []), 'sin_acceso', self::MSG_SIN_ACCESO);
     }
 
     public function test_config_compartida_pagina_da_403(): void
@@ -286,8 +310,9 @@ class MatrizRolesTest extends MarketingTestCase
     {
         $this->como($this->adminA)->getJson('/api/marketing/empresas')->assertOk();
 
-        $this->assertNegativa($this->como($this->marketingA)->getJson('/api/marketing/empresas'), 'sin_permiso_rol', self::MSG_SIN_PERMISO_ROL);
-        $this->assertNegativa($this->como($this->ventasA)->getJson('/api/marketing/empresas'), 'sin_permiso_rol', self::MSG_SIN_PERMISO_ROL);
+        // [Fase 1 · B] marketing y ventas: antes `sin_permiso_rol`, ahora `sin_acceso`.
+        $this->assertNegativa($this->como($this->marketingA)->getJson('/api/marketing/empresas'), 'sin_acceso', self::MSG_SIN_ACCESO);
+        $this->assertNegativa($this->como($this->ventasA)->getJson('/api/marketing/empresas'), 'sin_acceso', self::MSG_SIN_ACCESO);
         $this->assertNegativa($this->como($this->sinEmpresa)->getJson('/api/marketing/empresas'), 'sin_empresa', self::MSG_SIN_EMPRESA);
 
         // Admin de la empresa pero sin el permiso Spatie → 403 (formato Spatie; solo se verifica el status).
@@ -303,40 +328,42 @@ class MatrizRolesTest extends MarketingTestCase
         $this->como($this->sinEmpresa)->get('/marketing/empresas')->assertStatus(403);
     }
 
+    /** [Fase 1 · B] Antes marketing podía todo menos Empresas; ahora no entra a nada. El admin de la 1 sí. */
     public function test_marketing_puede_todo_lo_de_marketing_menos_empresas(): void
     {
-        $this->assertPermitido($this->como($this->marketingA)->getJson('/api/marketing/leads'), 'marketing leads');
-        $this->assertPermitido($this->como($this->marketingA)->getJson('/api/marketing/multivariant-campaigns'), 'marketing multivariante');
-        $this->assertPermitido($this->como($this->marketingA)->getJson('/api/marketing/brand-kit'), 'marketing brand-kit');
-        $this->assertPermitido($this->como($this->marketingA)->getJson('/api/marketing/contexto'), 'marketing contexto');
-
-        $r = $this->como($this->marketingA)->putJson('/api/marketing/brand-kit', []);
-        $this->assertNotSame('config_compartida', $r->json('error'), 'marketing con Meganet activa sí edita la config compartida');
-        $this->assertNotSame('sin_permiso_rol', $r->json('error'));
+        foreach (['/api/marketing/leads', '/api/marketing/multivariant-campaigns', '/api/marketing/brand-kit', '/api/marketing/contexto'] as $url) {
+            $this->assertNegativa($this->como($this->marketingA)->getJson($url), 'sin_acceso', self::MSG_SIN_ACCESO);
+            $this->assertPermitido($this->como($this->adminA)->getJson($url), "admin {$url}");
+        }
+        $this->assertNegativa($this->como($this->marketingA)->putJson('/api/marketing/brand-kit', []), 'sin_acceso', self::MSG_SIN_ACCESO);
     }
 
+    /** [Fase 1 · B] Antes el contexto respondía a los tres roles y al admin de B; ahora solo al admin de la 1. */
     public function test_contexto_responde_a_los_tres_roles(): void
     {
-        foreach ([$this->adminA, $this->marketingA, $this->ventasA, $this->adminB] as $u) {
-            $this->como($u)->getJson('/api/marketing/contexto')->assertOk()->assertJsonPath('ok', true);
+        $this->como($this->adminA)->getJson('/api/marketing/contexto')->assertOk()->assertJsonPath('ok', true);
+        foreach ([$this->marketingA, $this->ventasA, $this->adminB] as $u) {
+            $this->assertNegativa($this->como($u)->getJson('/api/marketing/contexto'), 'sin_acceso', self::MSG_SIN_ACCESO);
         }
     }
 
+    /** [Fase 1 · B] Antes con ventasA (que ya no entra); ahora con el admin de la 1. Misma exigencia. */
     public function test_quitar_la_asignacion_corta_el_acceso_en_la_siguiente_peticion(): void
     {
-        $this->como($this->ventasA)->getJson('/api/marketing/leads')->assertOk();
+        $this->como($this->adminA)->getJson('/api/marketing/leads')->assertOk();
 
-        DB::table('marketing_empresa_usuario')->where('user_id', $this->ventasA->id)->update(['activo' => 0]);
+        DB::table('marketing_empresa_usuario')->where('user_id', $this->adminA->id)->update(['activo' => 0]);
 
-        $this->assertNegativa($this->como($this->ventasA)->getJson('/api/marketing/leads'), 'sin_empresa', self::MSG_SIN_EMPRESA);
+        $this->assertNegativa($this->como($this->adminA)->getJson('/api/marketing/leads'), 'sin_empresa', self::MSG_SIN_EMPRESA);
     }
 
+    /** [Fase 1 · B] Antes marketing → ventas daba `sin_permiso_rol`; ahora admin → marketing da `sin_acceso`. */
     public function test_bajar_de_rol_aplica_en_la_siguiente_peticion(): void
     {
-        $this->como($this->marketingA)->getJson('/api/marketing/multivariant-campaigns')->assertOk();
+        $this->como($this->adminA)->getJson('/api/marketing/multivariant-campaigns')->assertOk();
 
-        DB::table('marketing_empresa_usuario')->where('user_id', $this->marketingA->id)->update(['rol' => 'ventas']);
+        DB::table('marketing_empresa_usuario')->where('user_id', $this->adminA->id)->update(['rol' => 'marketing']);
 
-        $this->assertNegativa($this->como($this->marketingA)->getJson('/api/marketing/multivariant-campaigns'), 'sin_permiso_rol', self::MSG_SIN_PERMISO_ROL);
+        $this->assertNegativa($this->como($this->adminA)->getJson('/api/marketing/multivariant-campaigns'), 'sin_acceso', self::MSG_SIN_ACCESO);
     }
 }

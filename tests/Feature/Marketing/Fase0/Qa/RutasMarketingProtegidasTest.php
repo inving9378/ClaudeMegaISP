@@ -15,6 +15,12 @@ use Tests\Feature\Marketing\MarketingTestCase;
  * (c) Existen las 10 rutas nuevas con su middleware; total 131.
  *
  * La lista fija se escribió desde la base (cc002c0f6, `Route::getRoutes()` en orden de registro).
+ *
+ * Ajustes Fase 1 (QA, contrato fase-1-paquetes.md §2.4 / §2.6, F1-1 = SÍ):
+ *  - la 6.ª columna de las 58 rutas Blade y de Publicación pasa de ['check_route_permission'] a [] y se
+ *    agrega la aserción de que YA NO lo llevan (test_ninguna_ruta_de_marketing_lleva_check_route_permission);
+ *  - total 131 → 134: las 3 nuevas de Fase 1 (dashboard/resumen, dashboard/campanas-activas, navegacion)
+ *    entran en nuevas() con el rol que les toca. Ninguna otra exigencia cambia.
  */
 class RutasMarketingProtegidasTest extends MarketingTestCase
 {
@@ -93,68 +99,68 @@ class RutasMarketingProtegidasTest extends MarketingTestCase
             ['POST',   'api/marketing/pilot-campaigns/{id}/dry-run',                          'api.marketing.pilot-campaigns.dry-run',                   'PilotCampaignController@dryRun',                                        'M', []],
             ['POST',   'api/marketing/pilot-campaigns/{id}/send',                             'api.marketing.pilot-campaigns.send',                      'PilotCampaignController@send',                                          'M', []],
             ['POST',   'api/marketing/pilot-campaigns/{id}/sends/{sendId}/mark-converted',    'api.marketing.pilot-campaigns.mark-converted',            'PilotCampaignController@markConverted',                                 'M', []],
-            ['GET',    'marketing/leads',                                                     'marketing.leads.view',                                    'Closure',                                                               'V', ['check_route_permission']],
-            ['GET',    'marketing/leads/{id}',                                                'marketing.lead-detail.view',                              'Closure',                                                               'V', ['check_route_permission']],
-            ['GET',    'marketing/lead-forms',                                                'marketing.lead-forms.view',                               'Closure',                                                               'M', ['check_route_permission']],
-            ['GET',    'marketing/lead-forms/create',                                         'marketing.lead-forms.create',                             'Closure',                                                               'M', ['check_route_permission']],
-            ['GET',    'marketing/lead-forms/{id}/edit',                                      'marketing.lead-forms.edit',                               'Closure',                                                               'M', ['check_route_permission']],
-            ['GET',    'marketing/conversations',                                             'marketing.conversations.view',                            'Closure',                                                               'V', ['check_route_permission']],
-            ['GET',    'marketing/conversations/{id}',                                        'marketing.conversations.detail',                          'Closure',                                                               'V', ['check_route_permission']],
-            ['GET',    'marketing/video-templates',                                           'marketing.video-templates.view',                          'Closure',                                                               'M', ['check_route_permission']],
-            ['GET',    'marketing/video-generator',                                           'marketing.video-generator.view',                          'Closure',                                                               'M', ['check_route_permission']],
-            ['GET',    'marketing/video-queue',                                               'marketing.video-queue.view',                              'Closure',                                                               'M', ['check_route_permission']],
-            ['GET',    'marketing/brand-kit',                                                 'marketing.brand-kit.view',                                'Closure',                                                               'M', ['check_route_permission']],
-            ['GET',    'marketing/campaigns/generate',                                        'marketing.campaigns.generate',                            'Closure',                                                               'M', ['check_route_permission']],
-            ['GET',    'marketing/campaigns/multivariant',                                    'marketing.campaigns.multivariant',                        'Closure',                                                               'M', ['check_route_permission']],
-            ['GET',    'marketing/voice-comparator',                                          'marketing.voice-comparator.view',                         'Closure',                                                               'M', ['check_route_permission']],
-            ['GET',    'marketing',                                                           'marketing.index',                                         'MarketingController@index',                                             'M', ['check_route_permission']],
-            ['GET',    'marketing/stats',                                                     'marketing.stats',                                         'MarketingController@stats',                                             'M', ['check_route_permission']],
-            ['GET',    'marketing/campaigns',                                                 'marketing.campaigns.index',                               'CampaignController@index',                                              'M', ['check_route_permission']],
-            ['GET',    'marketing/campaigns/{id}',                                            'marketing.campaigns.show',                                'CampaignController@show',                                               'M', ['check_route_permission']],
-            ['POST',   'marketing/campaigns/table',                                           'marketing.campaigns.table',                               'CampaignController@table',                                              'M', ['check_route_permission']],
-            ['POST',   'marketing/campaigns/store',                                           'marketing.campaigns.store',                               'CampaignController@store',                                              'M', ['check_route_permission']],
-            ['PUT',    'marketing/campaigns/{id}',                                            'marketing.campaigns.update',                              'CampaignController@update',                                             'M', ['check_route_permission']],
-            ['DELETE', 'marketing/campaigns/{id}',                                            'marketing.campaigns.destroy',                             'CampaignController@destroy',                                            'M', ['check_route_permission']],
-            ['POST',   'marketing/campaigns/{id}/approve',                                    'marketing.campaigns.approve',                             'CampaignController@approve',                                            'M', ['check_route_permission']],
-            ['POST',   'marketing/campaigns/{id}/pause',                                      'marketing.campaigns.pause',                               'CampaignController@pause',                                              'M', ['check_route_permission']],
-            ['POST',   'marketing/campaigns/{id}/activate',                                   'marketing.campaigns.activate',                            'CampaignController@activate',                                           'M', ['check_route_permission']],
-            ['POST',   'marketing/content/generate-copy',                                     'marketing.content.generate-copy',                         'ContentGeneratorController@generateCopy',                               'M', ['check_route_permission']],
-            ['POST',   'marketing/content/generate-image',                                    'marketing.content.generate-image',                        'ContentGeneratorController@generateImage',                              'M', ['check_route_permission']],
-            ['POST',   'marketing/content/approve/{id}',                                      'marketing.content.approve',                               'ContentGeneratorController@approve',                                    'M', ['check_route_permission']],
-            ['POST',   'marketing/content/reject/{id}',                                       'marketing.content.reject',                                'ContentGeneratorController@reject',                                     'M', ['check_route_permission']],
-            ['GET',    'marketing/content/campaign/{campaignId}',                             'marketing.content.by-campaign',                           'ContentGeneratorController@byCampaign',                                 'M', ['check_route_permission']],
-            ['POST',   'marketing/leads-legacy/table',                                        'marketing.leads-legacy.table',                            'LeadController@table',                                                  'M', ['check_route_permission']],
-            ['GET',    'marketing/leads-legacy/{id}',                                         'marketing.leads-legacy.show',                             'LeadController@show',                                                   'M', ['check_route_permission']],
-            ['POST',   'marketing/leads-legacy/{id}/qualify',                                 'marketing.leads-legacy.qualify',                          'LeadController@qualify',                                                'M', ['check_route_permission']],
-            ['PUT',    'marketing/leads-legacy/{id}/status',                                  'marketing.leads-legacy.update-status',                    'LeadController@updateStatus',                                           'M', ['check_route_permission']],
-            ['POST',   'marketing/leads-legacy/{id}/assign',                                  'marketing.leads-legacy.assign',                           'LeadController@assign',                                                 'M', ['check_route_permission']],
-            ['GET',    'marketing/templates',                                                 'marketing.templates.index',                               'MarketingController@templates',                                         'M', ['check_route_permission']],
-            ['POST',   'marketing/templates/store',                                           'marketing.templates.store',                               'MarketingController@storeTemplate',                                     'M', ['check_route_permission']],
-            ['PUT',    'marketing/templates/{id}',                                            'marketing.templates.update',                              'MarketingController@updateTemplate',                                    'M', ['check_route_permission']],
-            ['DELETE', 'marketing/templates/{id}',                                            'marketing.templates.destroy',                             'MarketingController@destroyTemplate',                                   'M', ['check_route_permission']],
-            ['GET',    'marketing/pilot-campaigns',                                           'marketing.pilot-campaigns.view',                          'Closure',                                                               'M', ['check_route_permission']],
-            ['GET',    'marketing/publishing',                                                'marketing.publishing.dashboard',                          'Closure',                                                               'M', ['check_route_permission']],
-            ['GET',    'marketing/publishing/setup',                                          'marketing.publishing.setup',                              'Closure',                                                               'M', ['check_route_permission']],
-            ['GET',    'marketing/publishing/queue',                                          'marketing.publishing.queue',                              'Closure',                                                               'M', ['check_route_permission']],
-            ['GET',    'marketing/publishing/campaign',                                       'marketing.publishing.campaign',                           'Closure',                                                               'M', ['check_route_permission']],
-            ['GET',    'marketing/meta/oauth/start',                                          'marketing.meta.oauth.start',                              'MetaOAuthController@start',                                             'MP', ['check_route_permission']],
-            ['GET',    'marketing/meta/oauth/callback',                                       'marketing.meta.oauth.callback',                           'MetaOAuthController@callback',                                          'MP', ['check_route_permission']],
-            ['GET',    'api/marketing/publishing/channels',                                   'api.marketing.publishing.channels.index',                 'PublishingController@listChannels',                                     'M', ['check_route_permission']],
-            ['POST',   'api/marketing/publishing/channels/{id}/validate',                     'api.marketing.publishing.channels.validate',              'PublishingController@validateChannel',                                  'M', ['check_route_permission']],
-            ['PUT',    'api/marketing/publishing/channels/{id}/config',                       'api.marketing.publishing.channels.config',                'PublishingController@updateChannelConfig',                              'M', ['check_route_permission']],
-            ['GET',    'api/marketing/publishing/campaigns/{id}/route',                       'api.marketing.publishing.campaigns.route',                'PublishingController@routeCampaign',                                    'M', ['check_route_permission']],
-            ['POST',   'api/marketing/publishing/campaigns/{id}/publish',                     'api.marketing.publishing.campaigns.publish',              'PublishingController@publishCampaign',                                  'M', ['check_route_permission']],
-            ['GET',    'api/marketing/publishing/publications',                               'api.marketing.publishing.publications.index',             'PublishingController@listPublications',                                 'M', ['check_route_permission']],
-            ['GET',    'api/marketing/publishing/publications/{id}',                          'api.marketing.publishing.publications.show',              'PublishingController@showPublication',                                  'M', ['check_route_permission']],
-            ['POST',   'api/marketing/publishing/publications/{id}/retry',                    'api.marketing.publishing.publications.retry',             'PublishingController@retryPublication',                                 'M', ['check_route_permission']],
-            ['POST',   'api/marketing/publishing/publications/{id}/cancel',                   'api.marketing.publishing.publications.cancel',            'PublishingController@cancelPublication',                                'M', ['check_route_permission']],
-            ['GET',    'api/marketing/publishing/publications/{id}/metrics',                  'api.marketing.publishing.publications.metrics',           'PublishingController@fetchMetrics',                                     'M', ['check_route_permission']],
-            ['GET',    'api/marketing/publishing/dashboard/stats',                            'api.marketing.publishing.dashboard.stats',                'PublishingController@dashboardStats',                                   'M', ['check_route_permission']],
-            ['GET',    'api/marketing/publishing/dashboard/recent',                           'api.marketing.publishing.dashboard.recent',               'PublishingController@dashboardRecent',                                  'M', ['check_route_permission']],
+            ['GET',    'marketing/leads',                                                     'marketing.leads.view',                                    'Closure',                                                               'V', []],
+            ['GET',    'marketing/leads/{id}',                                                'marketing.lead-detail.view',                              'Closure',                                                               'V', []],
+            ['GET',    'marketing/lead-forms',                                                'marketing.lead-forms.view',                               'Closure',                                                               'M', []],
+            ['GET',    'marketing/lead-forms/create',                                         'marketing.lead-forms.create',                             'Closure',                                                               'M', []],
+            ['GET',    'marketing/lead-forms/{id}/edit',                                      'marketing.lead-forms.edit',                               'Closure',                                                               'M', []],
+            ['GET',    'marketing/conversations',                                             'marketing.conversations.view',                            'Closure',                                                               'V', []],
+            ['GET',    'marketing/conversations/{id}',                                        'marketing.conversations.detail',                          'Closure',                                                               'V', []],
+            ['GET',    'marketing/video-templates',                                           'marketing.video-templates.view',                          'Closure',                                                               'M', []],
+            ['GET',    'marketing/video-generator',                                           'marketing.video-generator.view',                          'Closure',                                                               'M', []],
+            ['GET',    'marketing/video-queue',                                               'marketing.video-queue.view',                              'Closure',                                                               'M', []],
+            ['GET',    'marketing/brand-kit',                                                 'marketing.brand-kit.view',                                'Closure',                                                               'M', []],
+            ['GET',    'marketing/campaigns/generate',                                        'marketing.campaigns.generate',                            'Closure',                                                               'M', []],
+            ['GET',    'marketing/campaigns/multivariant',                                    'marketing.campaigns.multivariant',                        'Closure',                                                               'M', []],
+            ['GET',    'marketing/voice-comparator',                                          'marketing.voice-comparator.view',                         'Closure',                                                               'M', []],
+            ['GET',    'marketing',                                                           'marketing.index',                                         'MarketingController@index',                                             'M', []],
+            ['GET',    'marketing/stats',                                                     'marketing.stats',                                         'MarketingController@stats',                                             'M', []],
+            ['GET',    'marketing/campaigns',                                                 'marketing.campaigns.index',                               'CampaignController@index',                                              'M', []],
+            ['GET',    'marketing/campaigns/{id}',                                            'marketing.campaigns.show',                                'CampaignController@show',                                               'M', []],
+            ['POST',   'marketing/campaigns/table',                                           'marketing.campaigns.table',                               'CampaignController@table',                                              'M', []],
+            ['POST',   'marketing/campaigns/store',                                           'marketing.campaigns.store',                               'CampaignController@store',                                              'M', []],
+            ['PUT',    'marketing/campaigns/{id}',                                            'marketing.campaigns.update',                              'CampaignController@update',                                             'M', []],
+            ['DELETE', 'marketing/campaigns/{id}',                                            'marketing.campaigns.destroy',                             'CampaignController@destroy',                                            'M', []],
+            ['POST',   'marketing/campaigns/{id}/approve',                                    'marketing.campaigns.approve',                             'CampaignController@approve',                                            'M', []],
+            ['POST',   'marketing/campaigns/{id}/pause',                                      'marketing.campaigns.pause',                               'CampaignController@pause',                                              'M', []],
+            ['POST',   'marketing/campaigns/{id}/activate',                                   'marketing.campaigns.activate',                            'CampaignController@activate',                                           'M', []],
+            ['POST',   'marketing/content/generate-copy',                                     'marketing.content.generate-copy',                         'ContentGeneratorController@generateCopy',                               'M', []],
+            ['POST',   'marketing/content/generate-image',                                    'marketing.content.generate-image',                        'ContentGeneratorController@generateImage',                              'M', []],
+            ['POST',   'marketing/content/approve/{id}',                                      'marketing.content.approve',                               'ContentGeneratorController@approve',                                    'M', []],
+            ['POST',   'marketing/content/reject/{id}',                                       'marketing.content.reject',                                'ContentGeneratorController@reject',                                     'M', []],
+            ['GET',    'marketing/content/campaign/{campaignId}',                             'marketing.content.by-campaign',                           'ContentGeneratorController@byCampaign',                                 'M', []],
+            ['POST',   'marketing/leads-legacy/table',                                        'marketing.leads-legacy.table',                            'LeadController@table',                                                  'M', []],
+            ['GET',    'marketing/leads-legacy/{id}',                                         'marketing.leads-legacy.show',                             'LeadController@show',                                                   'M', []],
+            ['POST',   'marketing/leads-legacy/{id}/qualify',                                 'marketing.leads-legacy.qualify',                          'LeadController@qualify',                                                'M', []],
+            ['PUT',    'marketing/leads-legacy/{id}/status',                                  'marketing.leads-legacy.update-status',                    'LeadController@updateStatus',                                           'M', []],
+            ['POST',   'marketing/leads-legacy/{id}/assign',                                  'marketing.leads-legacy.assign',                           'LeadController@assign',                                                 'M', []],
+            ['GET',    'marketing/templates',                                                 'marketing.templates.index',                               'MarketingController@templates',                                         'M', []],
+            ['POST',   'marketing/templates/store',                                           'marketing.templates.store',                               'MarketingController@storeTemplate',                                     'M', []],
+            ['PUT',    'marketing/templates/{id}',                                            'marketing.templates.update',                              'MarketingController@updateTemplate',                                    'M', []],
+            ['DELETE', 'marketing/templates/{id}',                                            'marketing.templates.destroy',                             'MarketingController@destroyTemplate',                                   'M', []],
+            ['GET',    'marketing/pilot-campaigns',                                           'marketing.pilot-campaigns.view',                          'Closure',                                                               'M', []],
+            ['GET',    'marketing/publishing',                                                'marketing.publishing.dashboard',                          'Closure',                                                               'M', []],
+            ['GET',    'marketing/publishing/setup',                                          'marketing.publishing.setup',                              'Closure',                                                               'M', []],
+            ['GET',    'marketing/publishing/queue',                                          'marketing.publishing.queue',                              'Closure',                                                               'M', []],
+            ['GET',    'marketing/publishing/campaign',                                       'marketing.publishing.campaign',                           'Closure',                                                               'M', []],
+            ['GET',    'marketing/meta/oauth/start',                                          'marketing.meta.oauth.start',                              'MetaOAuthController@start',                                             'MP', []],
+            ['GET',    'marketing/meta/oauth/callback',                                       'marketing.meta.oauth.callback',                           'MetaOAuthController@callback',                                          'MP', []],
+            ['GET',    'api/marketing/publishing/channels',                                   'api.marketing.publishing.channels.index',                 'PublishingController@listChannels',                                     'M', []],
+            ['POST',   'api/marketing/publishing/channels/{id}/validate',                     'api.marketing.publishing.channels.validate',              'PublishingController@validateChannel',                                  'M', []],
+            ['PUT',    'api/marketing/publishing/channels/{id}/config',                       'api.marketing.publishing.channels.config',                'PublishingController@updateChannelConfig',                              'M', []],
+            ['GET',    'api/marketing/publishing/campaigns/{id}/route',                       'api.marketing.publishing.campaigns.route',                'PublishingController@routeCampaign',                                    'M', []],
+            ['POST',   'api/marketing/publishing/campaigns/{id}/publish',                     'api.marketing.publishing.campaigns.publish',              'PublishingController@publishCampaign',                                  'M', []],
+            ['GET',    'api/marketing/publishing/publications',                               'api.marketing.publishing.publications.index',             'PublishingController@listPublications',                                 'M', []],
+            ['GET',    'api/marketing/publishing/publications/{id}',                          'api.marketing.publishing.publications.show',              'PublishingController@showPublication',                                  'M', []],
+            ['POST',   'api/marketing/publishing/publications/{id}/retry',                    'api.marketing.publishing.publications.retry',             'PublishingController@retryPublication',                                 'M', []],
+            ['POST',   'api/marketing/publishing/publications/{id}/cancel',                   'api.marketing.publishing.publications.cancel',            'PublishingController@cancelPublication',                                'M', []],
+            ['GET',    'api/marketing/publishing/publications/{id}/metrics',                  'api.marketing.publishing.publications.metrics',           'PublishingController@fetchMetrics',                                     'M', []],
+            ['GET',    'api/marketing/publishing/dashboard/stats',                            'api.marketing.publishing.dashboard.stats',                'PublishingController@dashboardStats',                                   'M', []],
+            ['GET',    'api/marketing/publishing/dashboard/recent',                           'api.marketing.publishing.dashboard.recent',               'PublishingController@dashboardRecent',                                  'M', []],
         ];
     }
 
-    /** [método, uri, nombre, acción, ¿de gestión de empresas?] — contrato §2.6. */
+    /** [método, uri, nombre, acción, ¿de gestión de empresas?, roles de marketing.rol (null = no lo lleva)] — Fase 0 §2.6 + Fase 1 §2.4. */
     private static function nuevas(): array
     {
         return [
@@ -168,6 +174,29 @@ class RutasMarketingProtegidasTest extends MarketingTestCase
             ['POST', 'api/marketing/empresas/{id}/usuarios',                'api.marketing.empresas.usuarios.store',       'EmpresaUsuarioController@store',          true],
             ['PUT',  'api/marketing/empresas/{id}/usuarios/{userId}',       'api.marketing.empresas.usuarios.update',      'EmpresaUsuarioController@update',         true],
             ['GET',  'api/marketing/empresas/{id}/usuarios-disponibles',    'api.marketing.empresas.usuarios.disponibles', 'EmpresaUsuarioController@disponibles',    true],
+            // Fase 1 (§2.4): al final del grupo API.
+            ['GET',  'api/marketing/dashboard/resumen',                     'api.marketing.dashboard.resumen',             'DashboardController@resumen',             false, ['admin', 'marketing']],
+            ['GET',  'api/marketing/dashboard/campanas-activas',            'api.marketing.dashboard.campanas-activas',    'DashboardController@campanasActivas',     false, ['admin', 'marketing']],
+            ['GET',  'api/marketing/navegacion',                            'api.marketing.navegacion',                    'NavegacionController@index',              false, null],
+            // Fase 2 (Campañas 360): SOLO SE AGREGAN; ninguna comprobación existente cambia.
+            ['GET', 'api/marketing/campanas-360', 'api.marketing.campanas-360.index', 'Campana360Controller@index', false, ['admin', 'marketing']],
+            ['POST', 'api/marketing/campanas-360', 'api.marketing.campanas-360.store', 'Campana360Controller@store', false, ['admin', 'marketing']],
+            ['GET', 'api/marketing/campanas-360/{id}', 'api.marketing.campanas-360.show', 'Campana360Controller@show', false, ['admin', 'marketing']],
+            ['PUT', 'api/marketing/campanas-360/{id}', 'api.marketing.campanas-360.update', 'Campana360Controller@update', false, ['admin', 'marketing']],
+            ['DELETE', 'api/marketing/campanas-360/{id}', 'api.marketing.campanas-360.destroy', 'Campana360Controller@destroy', false, ['admin', 'marketing']],
+            ['POST', 'api/marketing/campanas-360/{id}/estado', 'api.marketing.campanas-360.estado.cambiar', 'Campana360Controller@cambiarEstado', false, ['admin', 'marketing']],
+            ['POST', 'api/marketing/campanas-360/{id}/generar', 'api.marketing.campanas-360.generar', 'Campana360GeneracionController@generar', false, ['admin', 'marketing']],
+            ['GET', 'api/marketing/campanas-360/{id}/progreso', 'api.marketing.campanas-360.progreso', 'Campana360GeneracionController@progreso', false, ['admin', 'marketing']],
+            ['PUT', 'api/marketing/campanas-360/{id}/estrategia', 'api.marketing.campanas-360.estrategia.update', 'Campana360GeneracionController@actualizarEstrategia', false, ['admin', 'marketing']],
+            ['PUT', 'api/marketing/campanas-360/{id}/piezas/{piezaId}', 'api.marketing.campanas-360.piezas.update', 'Campana360PiezaController@actualizar', false, ['admin', 'marketing']],
+            ['POST', 'api/marketing/campanas-360/{id}/piezas/{piezaId}/regenerar', 'api.marketing.campanas-360.piezas.regenerar', 'Campana360PiezaController@regenerar', false, ['admin', 'marketing']],
+            ['POST', 'api/marketing/campanas-360/{id}/piezas/{piezaId}/producir', 'api.marketing.campanas-360.piezas.producir', 'Campana360PiezaController@producir', false, ['admin', 'marketing']],
+            ['GET', 'api/marketing/campanas-360/{id}/videos/{videoId}/ver', 'api.marketing.campanas-360.videos.ver', 'Campana360VideoController@ver', false, ['admin', 'marketing']],
+            ['GET', 'api/marketing/campanas-360/{id}/videos/{videoId}/miniatura', 'api.marketing.campanas-360.videos.miniatura', 'Campana360VideoController@miniatura', false, ['admin', 'marketing']],
+            ['GET', 'marketing/campanas-360', 'marketing.campanas-360.lista', 'Closure', false, ['admin', 'marketing']],
+            ['GET', 'marketing/campanas-360/nueva', 'marketing.campanas-360.nueva', 'Closure', false, ['admin', 'marketing']],
+            ['GET', 'marketing/campanas-360/{id}', 'marketing.campanas-360.ficha', 'Closure', false, ['admin', 'marketing']],
+            ['GET', 'marketing/campanas-360/{id}/editar', 'marketing.campanas-360.editar', 'Closure', false, ['admin', 'marketing']],
         ];
     }
 
@@ -423,7 +452,10 @@ class RutasMarketingProtegidasTest extends MarketingTestCase
         $rutas = $this->porNombre();
         $errores = [];
 
-        foreach (self::nuevas() as [$met, $uri, $nombre, $accion, $gestion]) {
+        $this->assertCount(31, self::nuevas()); // Fase 0: 10 · Fase 1: +3 · Fase 2: +18
+        foreach (self::nuevas() as $fila) {
+            [$met, $uri, $nombre, $accion, $gestion] = $fila;
+            $rolesEsperados = $fila[5] ?? null;
             if (! isset($rutas[$nombre])) {
                 $errores[] = "falta {$nombre}";
                 continue;
@@ -457,17 +489,30 @@ class RutasMarketingProtegidasTest extends MarketingTestCase
                 if (! in_array('permission:marketing.empresas.gestionar', $mw, true)) {
                     $errores[] = "{$nombre}: falta permission:marketing.empresas.gestionar";
                 }
-            } elseif ($this->rolesDe($mw) !== null) {
-                $errores[] = "{$nombre}: el contexto lo usan todos los roles; no debe llevar marketing.rol";
+            } elseif ($this->rolesDe($mw) !== $rolesEsperados) {
+                $errores[] = "{$nombre}: marketing.rol = " . json_encode($this->rolesDe($mw)) . ' ≠ ' . json_encode($rolesEsperados);
             }
         }
 
         $this->assertSame([], $errores, implode("\n", $errores));
     }
 
+    /** [Fase 1] 131 → 134 (contrato Fase 1 §2.4: + 3 rutas nuevas). */
     public function test_total_de_rutas_de_marketing_es_131(): void
     {
-        $this->assertCount(131, $this->rutasMarketing(), 'Contrato §2.6: 121 existentes + 10 nuevas.');
+        $this->assertCount(152, $this->rutasMarketing(), 'Fase 0: 121 existentes + 10 nuevas; Fase 1: + 3 nuevas; Fase 2: + 18 nuevas.');
+    }
+
+    /** [Fase 1 · F1-1] check_route_permission se quitó de los 2 grupos; ninguna ruta de Marketing lo lleva. */
+    public function test_ninguna_ruta_de_marketing_lleva_check_route_permission(): void
+    {
+        $con = [];
+        foreach ($this->rutasMarketing() as $r) {
+            if (in_array('check_route_permission', $r->gatherMiddleware(), true)) {
+                $con[] = $r->getName();
+            }
+        }
+        $this->assertSame([], $con);
     }
 
     public function test_las_nuevas_no_tapan_a_las_existentes(): void

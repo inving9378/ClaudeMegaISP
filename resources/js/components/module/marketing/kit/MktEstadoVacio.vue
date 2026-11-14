@@ -5,13 +5,14 @@
         </div>
         <div class="mkt-vacio__titulo">{{ titulo }}</div>
         <p v-if="texto" class="mkt-vacio__texto">{{ texto }}</p>
-        <div v-if="$slots.accion" class="mkt-vacio__accion">
-            <slot name="accion" />
-        </div>
     </div>
 </template>
 
 <script>
+/**
+ * Estado vacío / error / sin permiso: SOLO texto (regla de Henry, 13-nov): cada pantalla tiene UN botón de acción
+ * principal y va arriba a la derecha, en el encabezado; aquí no se repite ni se agrega ninguno.
+ */
 export default {
     name: "MktEstadoVacio",
     props: {
@@ -38,8 +39,8 @@ export default {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--mkt-primario, #5156be);
-    background: color-mix(in srgb, var(--mkt-primario, #5156be) 10%, transparent);
+    color: #94a3b8;
+    background: var(--mkt-kpi-fondo, #f8fafc);
     margin-bottom: var(--mkt-esp-1, 8px);
 }
 .mkt-vacio__titulo {
@@ -53,8 +54,5 @@ export default {
     font-size: 14px;
     line-height: 1.5;
     color: var(--mkt-texto-suave, #74788d);
-}
-.mkt-vacio__accion {
-    margin-top: var(--mkt-esp-2, 16px);
 }
 </style>

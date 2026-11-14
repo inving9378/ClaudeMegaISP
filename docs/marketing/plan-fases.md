@@ -1,5 +1,18 @@
 # Marketing IA 360 — Plan por fases (APROBADO por Henry el 12-nov; Fase 0 en construcción — D1–D3 SÍ)
 
+
+> ## ⚠️ CAMBIO DE ALCANCE — Henry, 2026-11-13 (manda sobre todo lo de abajo)
+> 1. **No es multimarca: solo existe Meganet.** Nada de selector de empresa ni pantalla para dar de alta marcas; Meganet
+>    (empresa 1) queda fija. Lo multiempresa de la Fase 0 se queda por dentro (tablas, scope), **oculto en pantalla**.
+>    Se cancela la parte multiempresa de la Fase 5 (la cuenta `act_` y el tope se guardan para Meganet, sin pantalla por marca).
+> 2. **Acceso: SOLO Henry e Irving**, ambos admin con TODAS las facultades (campañas, contenido, reels, videos, leads,
+>    analítica). Nadie más: no hay roles `ventas` ni `marketing` para otros. Sesión de LM obligatoria; negado por defecto
+>    a cualquier otro usuario (aunque sea super-administrador). Las personas se fijan por `login_user`, nunca por id ni
+>    escritas en el repo (comando `marketing:equipo-fijar`, Fase 1).
+> 3. **El constructor de campañas deja LISTOS los Reels y los Videos** (ver Fase 2 y Fase 3): guion por escenas y paso
+>    directo a Video MVM para producirlo. Es criterio de aceptación, no opcional.
+> 4. Fase 4: el Kanban lo usan Henry e Irving; ambos ven y mueven todos los leads (sin rol `ventas`).
+
 Dueño: **Henry** · Worktree: `/var/www/megaisp-henry-marketing` · Rama: `feat/marketing-360-equipo`
 Equipo por fase (instrucción fija): `ingeniero-supervisor` + `agente-backend` + `agente-frontend` +
 `agente-qa` en paralelo · Puerta: skill `pruebas-antes-de-avanzar` · Reporte completo → **alto hasta
@@ -94,8 +107,16 @@ funcional de cada pantalla (abre, guarda, filtra, sin errores de consola, 1440/3
 - Asistente por pasos: objetivo → público → oferta → canales → presupuesto MXN y fechas → **la IA genera**:
   estrategia, guiones de Reels por escenas, copies FB/IG con variantes A/B, mensajes de WhatsApp,
   variantes de anuncio. Todo editable y regenerable por pieza.
-- Las piezas se guardan en `marketing_generated_content` (ver Fase 3) ligadas a la campaña; los guiones
-  de Reels pueden mandarse a Video MVM.
+- Las piezas se guardan en `marketing_generated_content` (ver Fase 3) ligadas a la campaña.
+- **REELS Y VIDEOS LISTOS PARA PRODUCIR (obligatorio, Henry 13-nov):** por cada Reel (9:16) y Video (16:9) de la
+  campaña la IA entrega un **guion por escenas**: número, duración en segundos, toma/visual, texto en pantalla, voz en
+  off, música/sonido y llamada a la acción final, más duración total. Botón **«Producir en Video MVM»** por guion: crea
+  el trabajo en el motor de Video MVM que ya existe (plantilla, voz y escenas cargadas, sin copiar y pegar), ligado a la
+  campaña; la campaña muestra el estado de cada video (en cola / listo / error) y el video terminado queda en la
+  biblioteca ligado a su campaña. Al planear la Fase 2, el supervisor confirma qué recibe MVM por escena y lo que falte
+  se ajusta dentro del módulo.
+- **Criterio de aceptación de la Fase 2:** una campaña de prueba genera al menos 1 Reel y 1 Video con guion por
+  escenas y los dos se producen en Video MVM desde la campaña, de punta a punta.
 - Claves IA nuevas: `marketing.campana_360` (estrategia) y `marketing.piezas_campana` (piezas).
 - Los textos de WhatsApp **solo se generan** como contenido; nunca se envían (ni por Sofía ni por ninguna línea).
 
@@ -107,13 +128,15 @@ funcional de cada pantalla (abre, guarda, filtra, sin errores de consola, 1440/3
 - Biblioteca (filtros por campaña, canal, estado, variante) + calendario FullCalendar (arrastrar para
   reprogramar). "Programar" crea la fila en `marketing_publications` (la cola de Publicación que ya existe);
   "publicado" se sincroniza desde ahí. Video MVM: un guion aprobado abre el generador con el guion cargado.
+- Reels y videos producidos en MVM aparecen en la biblioteca (vista previa, estado, campaña) y se programan en el
+  calendario como cualquier pieza; un guion editado se puede volver a producir.
 
 ### Fase 4 — CRM Kanban de leads
 - **Columna nueva en `marketing_leads`**: `campaign_id` (además de `marketing_attributions`).
 - Sembrar por empresa el embudo con 5 etapas (nuevo, contactado, cotizado, cliente, perdido) en las
   tablas de pipeline que ya existen; mover tarjeta = cambio de etapa + `status` equivalente + actividad
   `stage_changed`. Perdido pide motivo (`lost_reason` ya existe).
-- Rol `ventas`: ve y mueve sus leads asignados; `marketing`/`admin`: todos los de su empresa.
+- ~~Rol `ventas`…~~ (cancelado 13-nov): Henry e Irving ven y mueven todos los leads.
 
 ### Fase 5 — Meta Ads (solo lectura) + analítica por campaña
 - Lectura **GET** del tope y gasto de **toda la cuenta publicitaria** (`spend_cap` / `amount_spent`; el tope

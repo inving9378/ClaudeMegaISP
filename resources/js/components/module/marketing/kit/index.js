@@ -9,6 +9,12 @@ import MktTarjetaPanel from "./MktTarjetaPanel.vue";
 import MktTablaEjecutiva from "./MktTablaEjecutiva.vue";
 import MktEstadoVacio from "./MktEstadoVacio.vue";
 import MktInsigniaEstado from "./MktInsigniaEstado.vue";
+import MktNavegacionModulo from "./MktNavegacionModulo.vue";
+import MktDialogo from "./MktDialogo.vue";
+import MktPestanas from "./MktPestanas.vue";
+import MktFichaEncabezado from "./MktFichaEncabezado.vue";
+import MktBoton from "./MktBoton.vue";
+import MktMenuTabla from "./MktMenuTabla.vue";
 
 export * from "./formato";
 export * from "./tokens";
@@ -23,6 +29,14 @@ export const COMPONENTES_KIT = Object.freeze({
     "mkt-tabla-ejecutiva": MktTablaEjecutiva,
     "mkt-estado-vacio": MktEstadoVacio,
     "mkt-insignia-estado": MktInsigniaEstado,
+    // Fase 1
+    "mkt-navegacion-modulo": MktNavegacionModulo,
+    "mkt-dialogo": MktDialogo,
+    // Fase 2 · diseño unificado con Clientes (§2.13)
+    "mkt-pestanas": MktPestanas,
+    "mkt-ficha-encabezado": MktFichaEncabezado,
+    "mkt-boton": MktBoton,
+    "mkt-menu-tabla": MktMenuTabla,
 });
 
 export {
@@ -34,4 +48,10 @@ export {
     MktTablaEjecutiva,
     MktEstadoVacio,
     MktInsigniaEstado,
+    MktNavegacionModulo,
+    MktDialogo,
+    MktPestanas,
+    MktFichaEncabezado,
+    MktBoton,
+    MktMenuTabla,
 };

@@ -1,299 +1,404 @@
 <template>
-  <div class="q-pa-md" style="max-width:800px;margin:0 auto">
-    <div class="row items-center q-mb-md">
-      <q-btn flat dense icon="arrow_back" to="/marketing/video-templates" class="q-mr-sm" />
-      <div class="text-h5 text-weight-bold">Generar Video</div>
-    </div>
-
-    <!-- Step 1: Seleccionar plantilla -->
-    <q-card flat bordered class="q-mb-md">
-      <q-card-section>
-        <div class="text-subtitle1 text-weight-medium q-mb-sm">1. Plantilla</div>
-        <q-select
-          v-model="selectedTemplateId"
-          :options="templateOptions"
-          emit-value map-options
-          label="Selecciona una plantilla"
-          outlined dense
-          @update:model-value="onTemplateChange"
-          :loading="loadingTemplates"
-        />
-        <div v-if="selectedTemplate" class="q-mt-sm row q-gutter-sm text-caption text-grey-7">
-          <span><q-icon name="aspect_ratio" /> {{ selectedTemplate.aspect_ratios?.[0] }}</span>
-          <span><q-icon name="schedule" /> ~{{ selectedTemplate.duration_seconds }}s</span>
-          <span><q-icon name="timer" /> Render ~{{ selectedTemplate.estimated_render_seconds }}s</span>
-          <span v-if="selectedTemplate.requires_voiceover"><q-icon name="mic" /> Incluye narración</span>
-        </div>
-      </q-card-section>
-    </q-card>
-
-    <!-- Step 2: Variables -->
-    <q-card flat bordered class="q-mb-md" v-if="selectedTemplate">
-      <q-card-section>
-        <div class="text-subtitle1 text-weight-medium q-mb-sm">2. Contenido</div>
-
-        <div v-for="varDef in templateVariables" :key="varDef.key" class="q-mb-md">
-          <!-- Textarea para voiceover_text -->
-          <q-input
-            v-if="varDef.key === 'voiceover_text'"
-            v-model="variables[varDef.key]"
-            :label="varDef.label + (varDef.required ? ' *' : '')"
-            type="textarea"
-            outlined dense
-            :hint="varDef.example ? 'Ej: ' + varDef.example : varDef.default ?? ''"
-            autogrow
-          />
-          <!-- Otros campos -->
-          <q-input
-            v-else
-            v-model="variables[varDef.key]"
-            :label="varDef.label + (varDef.required ? ' *' : '')"
-            outlined dense
-            :hint="varDef.example ? 'Ej: ' + varDef.example : varDef.default ?? ''"
-          />
-        </div>
-      </q-card-section>
-    </q-card>
-
-    <!-- Step 3: Opciones -->
-    <q-card flat bordered class="q-mb-md" v-if="selectedTemplate">
-      <q-card-section>
-        <div class="text-subtitle1 text-weight-medium q-mb-sm">3. Opciones</div>
-        <div class="row q-gutter-md">
-          <q-select
-            v-model="options.tts_driver"
-            :options="[{label:'OpenAI (nova)', value:'openai'},{label:'Piper (local)', value:'piper'}]"
-            emit-value map-options
-            label="Motor de voz (TTS)"
-            outlined dense style="min-width:200px"
-          />
-        </div>
-      </q-card-section>
-    </q-card>
-
-    <!-- Step 4: Overrides opcionales -->
-    <q-card flat bordered class="q-mb-md" v-if="selectedTemplate">
-      <q-expansion-item
-        icon="tune"
-        label="Personalizar para este video (opcional)"
-        caption="Logo o colores diferentes al Brand Kit global"
-        dense
-      >
-        <q-card-section class="q-pt-none">
-          <!-- Override logo -->
-          <q-checkbox v-model="useLogoOverride" label="Usar logo diferente para este video" dense class="q-mb-sm" />
-          <div v-if="useLogoOverride" class="q-mb-md q-ml-lg">
-            <q-file
-              v-model="overrides.logoFile"
-              label="Logo para este video"
-              accept=".png,.jpg,.jpeg,.svg,.webp"
-              :max-file-size="5 * 1024 * 1024"
-              outlined dense
-              clearable
+    <mkt-raiz :color-marca="contexto?.empresa_activa?.color_primario">
+        <div class="mkt-generador">
+            <mkt-encabezado-pantalla
+                titulo="Generar"
+                con-selector-empresa
+                @contexto="(c) => (contexto = c)"
             >
-              <template #prepend><q-icon name="image" /></template>
-            </q-file>
-            <div v-if="overrides.logoFile" class="q-mt-xs">
-              <img
-                :src="logoPreviewUrl"
-                style="max-height:60px;max-width:120px;object-fit:contain"
-              />
-            </div>
-          </div>
+                <template #acciones>
+                    <mkt-boton tipo="secundario" etiqueta="Ver fila de producción" href="/marketing/video-queue" />
+                    <!-- Acción principal (UNA, arriba a la derecha). -->
+                    <mkt-boton
+                        v-if="puedeGenerar && estado !== 'sin_permiso' && estado !== 'error'"
+                        tipo="guardar"
+                        etiqueta="Generar video"
+                        :cargando="generating"
+                        :deshabilitado="!selectedTemplateId || generating"
+                        @click="generate"
+                    />
+                </template>
+            </mkt-encabezado-pantalla>
 
-          <!-- Override colors -->
-          <q-checkbox v-model="useColorOverride" label="Usar colores diferentes para este video" dense class="q-mb-sm" />
-          <div v-if="useColorOverride" class="row q-gutter-md q-ml-lg q-mb-sm">
-            <div>
-              <div class="text-caption text-grey-7 q-mb-xs">Primario</div>
-              <div class="row items-center q-gutter-xs">
-                <input type="color" v-model="overrides.primary_color" style="width:36px;height:36px;border:none;padding:2px;cursor:pointer" />
-                <q-input v-model="overrides.primary_color" dense outlined style="width:100px" />
-              </div>
-            </div>
-            <div>
-              <div class="text-caption text-grey-7 q-mb-xs">Secundario</div>
-              <div class="row items-center q-gutter-xs">
-                <input type="color" v-model="overrides.secondary_color" style="width:36px;height:36px;border:none;padding:2px;cursor:pointer" />
-                <q-input v-model="overrides.secondary_color" dense outlined style="width:100px" />
-              </div>
-            </div>
-          </div>
-        </q-card-section>
-      </q-expansion-item>
-    </q-card>
+            <mkt-tarjeta-panel v-if="estado === 'sin_permiso'">
+                <mkt-estado-vacio
+                    icono="lock"
+                    titulo="No puedes generar videos"
+                    texto="No tienes acceso a esta sección. Pídelo a Irving."
+                />
+            </mkt-tarjeta-panel>
 
-    <!-- Acción -->
-    <div class="row q-gutter-sm">
-      <q-btn
-        unelevated color="primary"
-        label="Generar video"
-        icon="movie"
-        :loading="generating"
-        :disable="!selectedTemplateId || generating"
-        @click="generate"
-      />
-      <q-btn flat color="grey" label="Ver cola de renders" to="/marketing/video-queue" />
-    </div>
+            <mkt-tarjeta-panel v-else-if="estado === 'error'">
+                <mkt-estado-vacio icono="cloud_off" titulo="No se pudieron cargar las plantillas" :texto="mensajeError" />
+            </mkt-tarjeta-panel>
 
-    <!-- Resultado -->
-    <q-card v-if="renderResult" flat bordered class="q-mt-md bg-green-1">
-      <q-card-section>
-        <div class="row items-center q-gutter-sm">
-          <q-icon name="check_circle" color="positive" size="32px" />
-          <div>
-            <div class="text-weight-medium">¡Video encolado correctamente!</div>
-            <div class="text-caption text-grey-7">ID: {{ renderResult.generated_content_id }}</div>
-          </div>
-          <q-space />
-          <q-btn
-            flat color="primary" label="Ver progreso"
-            :href="'/marketing/video-queue?id=' + renderResult.generated_content_id"
-          />
+            <div v-else class="mkt-generador__rejilla">
+                <div class="mkt-generador__principal">
+                    <!-- 1. Plantilla -->
+                    <mkt-tarjeta-panel titulo="1. Plantilla" tono="lila" icono-fa="fa-film" :cargando="estado === 'cargando'">
+                        <mkt-estado-vacio
+                            v-if="!templates.length"
+                            icono="video_library"
+                            :titulo="soloGuionEscenas ? 'Las plantillas de video se usan desde Campañas 360' : 'No hay plantillas disponibles'"
+                            :texto="soloGuionEscenas
+                                ? 'Las plantillas que hay son de «Guion por escenas»: el guion, la voz y la música salen de una campaña. Abre una campaña en Campañas 360 y produce el video desde su pestaña Reels o Video.'
+                                : 'El catálogo de plantillas de Meganet está vacío. Pide a un administrador que cargue plantillas.'" />
+                        <template v-else>
+                            <q-select
+                                v-model="selectedTemplateId"
+                                :options="templateOptions"
+                                emit-value
+                                map-options
+                                outlined
+                                dense
+                                options-dense
+                                label="Selecciona una plantilla"
+                                @update:model-value="onTemplateChange"
+                            />
+                            <div v-if="selectedTemplate" class="mkt-generador__datos">
+                                <span v-if="selectedTemplate.aspect_ratios?.[0]"><q-icon name="aspect_ratio" size="16px" aria-hidden="true" /> {{ selectedTemplate.aspect_ratios[0] }}</span>
+                                <span v-if="selectedTemplate.duration_seconds"><q-icon name="schedule" size="16px" aria-hidden="true" /> ~{{ selectedTemplate.duration_seconds }} s</span>
+                                <span v-if="selectedTemplate.estimated_render_seconds"><q-icon name="timer" size="16px" aria-hidden="true" /> Producción ~{{ selectedTemplate.estimated_render_seconds }} s</span>
+                                <span v-if="selectedTemplate.requires_voiceover"><q-icon name="mic" size="16px" aria-hidden="true" /> Incluye narración</span>
+                            </div>
+                        </template>
+                    </mkt-tarjeta-panel>
+
+                    <!-- 2. Contenido -->
+                    <mkt-tarjeta-panel v-if="selectedTemplate" titulo="2. Contenido" tono="azul" icono-fa="fa-align-left" :cargando="cargandoVariables">
+                        <div v-if="errorVariables" class="mkt-generador__aviso" role="alert">
+                            <q-icon name="error_outline" size="18px" aria-hidden="true" />
+                            <span>{{ errorVariables }}</span>
+                            <mkt-boton tipo="secundario" chico etiqueta="Reintentar" @click="onTemplateChange(selectedTemplateId)" />
+                        </div>
+                        <p v-else-if="!templateVariables.length" class="mkt-generador__suave">Esta plantilla no pide datos.</p>
+                        <div v-else class="mkt-generador__campos">
+                            <q-input
+                                v-for="varDef in templateVariables"
+                                :key="varDef.key"
+                                v-model="variables[varDef.key]"
+                                :label="varDef.label + (varDef.required ? ' *' : '')"
+                                :type="varDef.key === 'voiceover_text' ? 'textarea' : 'text'"
+                                :autogrow="varDef.key === 'voiceover_text'"
+                                :class="{ 'mkt-generador__campo-ancho': varDef.key === 'voiceover_text' }"
+                                outlined
+                                dense
+                                :error="faltantes.includes(varDef.key)"
+                                error-message="Este dato es obligatorio"
+                                :hint="varDef.example ? 'Ej.: ' + varDef.example : varDef.default ?? ''"
+                            />
+                        </div>
+                    </mkt-tarjeta-panel>
+
+                    <!-- 3. Opciones -->
+                    <mkt-tarjeta-panel v-if="selectedTemplate" titulo="3. Opciones" tono="verde" icono-fa="fa-sliders-h">
+                        <div class="mkt-generador__campos">
+                            <q-select
+                                v-model="options.tts_driver"
+                                :options="ttsOptions"
+                                emit-value
+                                map-options
+                                outlined
+                                dense
+                                options-dense
+                                label="Motor de voz"
+                            />
+                        </div>
+                        <q-expansion-item
+                            class="mkt-generador__extra"
+                            icon="tune"
+                            label="Personalizar para este video (opcional)"
+                            caption="Logo o colores distintos a los del Brand Kit"
+                            dense
+                        >
+                            <div class="mkt-generador__extra-cuerpo">
+                                <q-checkbox v-model="useLogoOverride" dense label="Usar otro logo en este video" />
+                                <div v-if="useLogoOverride" class="mkt-generador__sangria">
+                                    <q-file
+                                        v-model="overrides.logoFile"
+                                        label="Logo para este video"
+                                        accept=".png,.jpg,.jpeg,.svg,.webp"
+                                        :max-file-size="5 * 1024 * 1024"
+                                        outlined
+                                        dense
+                                        clearable
+                                    >
+                                        <template #prepend><q-icon name="image" /></template>
+                                    </q-file>
+                                    <img v-if="logoPreviewUrl" :src="logoPreviewUrl" alt="Vista previa del logo" class="mkt-generador__logo" />
+                                </div>
+
+                                <q-checkbox v-model="useColorOverride" dense label="Usar otros colores en este video" />
+                                <div v-if="useColorOverride" class="mkt-generador__sangria mkt-generador__colores">
+                                    <div v-for="c in camposColor" :key="c.key" class="mkt-generador__color">
+                                        <label class="mkt-generador__etiqueta" :for="`mkt-gen-${c.key}`">{{ c.label }}</label>
+                                        <div class="mkt-generador__color-campo">
+                                            <input :id="`mkt-gen-${c.key}`" v-model="overrides[c.key]" type="color" class="mkt-generador__picker" />
+                                            <q-input v-model="overrides[c.key]" dense outlined :aria-label="c.label" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </q-expansion-item>
+                    </mkt-tarjeta-panel>
+                </div>
+
+                <!-- Lateral: acción y resultado -->
+                <aside class="mkt-generador__lateral">
+                    <mkt-tarjeta-panel titulo="Generar" tono="oliva" icono-fa="fa-play-circle">
+                        <p class="mkt-generador__suave">
+                            El video entra a la fila de producción. Puedes seguir trabajando y revisar su avance ahí.
+                        </p>
+                        <p v-if="!puedeGenerar" class="mkt-generador__suave mkt-generador__sin-permiso">
+                            <q-icon name="lock" size="16px" aria-hidden="true" /> No tienes el permiso «Generar contenido de video».
+                        </p>
+                    </mkt-tarjeta-panel>
+
+                    <mkt-tarjeta-panel v-if="renderResult" titulo="Video en la fila" tono="crema" icono-fa="fa-check-circle">
+                        <div class="mkt-generador__exito" role="status">
+                            <q-icon name="check_circle" size="28px" aria-hidden="true" />
+                            <div>
+                                <div class="mkt-generador__exito-titulo">Video en la fila de producción</div>
+                                <div class="mkt-generador__suave">Folio {{ renderResult.generated_content_id }}</div>
+                            </div>
+                        </div>
+                        <template #pie>
+                            <a class="mkt-generador__enlace" :href="'/marketing/video-queue?id=' + renderResult.generated_content_id">Ver avance en la fila de producción</a>
+                        </template>
+                    </mkt-tarjeta-panel>
+                </aside>
+            </div>
         </div>
-      </q-card-section>
-    </q-card>
-  </div>
+    </mkt-raiz>
 </template>
 
 <script>
+import axios from "axios";
+import { message } from "../../../helpers/toastMsg";
+import { currentSearch } from "../../../hook/comunValues";
+import { mensajeDeError, puedePermiso } from "./kit";
+
+/** Mensaje del backend: `mensaje` del contrato o el `error` en texto que ya devolvía el render. */
+const mensajeRender = (e, porDefecto) => {
+    const d = e?.response?.data;
+    if (!d?.mensaje && typeof d?.error === "string" && d.error.includes(" ")) return d.error;
+    return mensajeDeError(e, porDefecto);
+};
+
+/** Generar (/marketing/video-generator) — Fase 1, rediseño con el kit, mismo funcionamiento; §2.13 bloques como la ficha de Cliente. */
 export default {
-  name: 'MarketingVideoGeneratorView',
-
-  data() {
-    return {
-      loadingTemplates: false,
-      generating: false,
-      templates: [],
-      selectedTemplateId: null,
-      selectedTemplate: null,
-      templateVariables: [],
-      variables: {},
-      options: {
-        tts_driver: 'openai',
-      },
-      renderResult: null,
-      useLogoOverride: false,
-      useColorOverride: false,
-      overrides: {
-        logoFile: null,
-        primary_color: '#0066CC',
-        secondary_color: '#FF6600',
-      },
-    };
-  },
-
-  computed: {
-    templateOptions() {
-      return this.templates.map(t => ({
-        label: `${t.name}`,
-        value: t.id,
-      }));
+    name: "MarketingVideoGeneratorView",
+    data() {
+        return {
+            soloGuionEscenas: false,
+            contexto: null,
+            estado: "cargando", // cargando | listo | error | sin_permiso
+            mensajeError: "",
+            generating: false,
+            templates: [],
+            selectedTemplateId: null,
+            selectedTemplate: null,
+            templateVariables: [],
+            cargandoVariables: false,
+            errorVariables: "",
+            variables: {},
+            faltantes: [],
+            options: { tts_driver: "openai" },
+            ttsOptions: [
+                { label: "OpenAI (nova)", value: "openai" },
+                { label: "Piper (local)", value: "piper" },
+            ],
+            renderResult: null,
+            useLogoOverride: false,
+            useColorOverride: false,
+            overrides: { logoFile: null, primary_color: "#0066CC", secondary_color: "#FF6600" },
+            camposColor: [
+                { key: "primary_color", label: "Primario" },
+                { key: "secondary_color", label: "Secundario" },
+            ],
+            logoPreviewUrl: null,
+        };
     },
-    logoPreviewUrl() {
-      if (!this.overrides.logoFile) return null;
-      return URL.createObjectURL(this.overrides.logoFile);
+    computed: {
+        templateOptions() {
+            return this.templates.map((t) => ({ label: t.name, value: t.id }));
+        },
+        puedeGenerar() {
+            return puedePermiso(this.$store, "generate-video-content");
+        },
     },
-  },
-
-  mounted() {
-    this.loadTemplates().then(() => {
-      const params = new URLSearchParams(window.location.search);
-      const id = params.get('template_id');
-      if (id) {
-        this.selectedTemplateId = parseInt(id);
-        this.onTemplateChange(this.selectedTemplateId);
-      }
-    });
-  },
-
-  methods: {
-    async loadTemplates() {
-      this.loadingTemplates = true;
-      try {
-        const res = await axios.get('/api/marketing/video-templates');
-        this.templates = res.data.data ?? [];
-      } finally {
-        this.loadingTemplates = false;
-      }
+    watch: {
+        "overrides.logoFile"(file) {
+            if (this.logoPreviewUrl) URL.revokeObjectURL(this.logoPreviewUrl);
+            this.logoPreviewUrl = file ? URL.createObjectURL(file) : null;
+        },
     },
-
-    async onTemplateChange(id) {
-      const tpl = this.templates.find(t => t.id === id);
-      this.selectedTemplate = tpl ?? null;
-      this.variables = {};
-      this.templateVariables = [];
-      this.renderResult = null;
-
-      if (!tpl) return;
-
-      try {
-        const res = await axios.get(`/api/marketing/video-templates/${id}/variables`);
-        this.templateVariables = res.data.variables ?? [];
-        const defaults = res.data.default_variables ?? {};
-        this.variables = { ...defaults };
-      } catch (e) {
-        this.$q.notify({ type: 'warning', message: 'No se pudieron cargar las variables' });
-      }
+    mounted() {
+        this.iniciar();
     },
-
-    async generate() {
-      if (!this.selectedTemplateId) return;
-
-      // Validate required
-      const missing = this.templateVariables
-        .filter(v => v.required && !this.variables[v.key])
-        .map(v => v.label);
-
-      if (missing.length) {
-        this.$q.notify({ type: 'warning', message: 'Faltan campos requeridos: ' + missing.join(', ') });
-        return;
-      }
-
-      this.generating = true;
-      this.renderResult = null;
-
-      try {
-        let res;
-
-        // If there's a logo file override, send multipart
-        if (this.useLogoOverride && this.overrides.logoFile) {
-          const fd = new FormData();
-          fd.append('template_id', this.selectedTemplateId);
-          fd.append('variables',   JSON.stringify(this.variables));
-          fd.append('options',     JSON.stringify(this.options));
-          fd.append('overrides[logo_file]', this.overrides.logoFile);
-          if (this.useColorOverride) {
-            fd.append('overrides[primary_color]',   this.overrides.primary_color);
-            fd.append('overrides[secondary_color]', this.overrides.secondary_color);
-          }
-          res = await axios.post('/api/marketing/generated-content/render', fd, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-          });
-        } else {
-          const payload = {
-            template_id: this.selectedTemplateId,
-            variables:   this.variables,
-            options:     this.options,
-          };
-          if (this.useColorOverride) {
-            payload.overrides = {
-              primary_color:   this.overrides.primary_color,
-              secondary_color: this.overrides.secondary_color,
-            };
-          }
-          res = await axios.post('/api/marketing/generated-content/render', payload);
-        }
-
-        this.renderResult = res.data;
-        this.$q.notify({ type: 'positive', message: '¡Video encolado! Puedes ver el progreso en la cola.' });
-      } catch (e) {
-        const msg = e.response?.data?.error ?? 'Error al encolar el render';
-        this.$q.notify({ type: 'negative', message: msg });
-      } finally {
-        this.generating = false;
-      }
+    beforeUnmount() {
+        if (this.logoPreviewUrl) URL.revokeObjectURL(this.logoPreviewUrl);
     },
-  },
+    methods: {
+        async iniciar() {
+            // La navegación SPA monta Vue antes del pushState: el ?template_id se lee con currentSearch() al montar.
+            const id = parseInt(new URLSearchParams(currentSearch()).get("template_id"), 10);
+            await this.loadTemplates();
+            if (this.estado !== "listo") return;
+            if (id > 0 && this.templates.some((t) => t.id === id)) {
+                this.selectedTemplateId = id;
+                this.onTemplateChange(id);
+            }
+        },
+        async loadTemplates() {
+            this.estado = "cargando";
+            try {
+                const { data } = await axios.get("/api/marketing/video-templates");
+                // Fase 2: las plantillas «Guion por escenas» solo se usan desde Campañas 360 (reciben escenas, no variables).
+                const todas = data?.data ?? [];
+                this.templates = todas.filter((t) => t?.category !== "guion_escenas");
+                // Solo para el aviso: hay plantillas, pero todas son de «Guion por escenas» (se usan desde Campañas 360).
+                this.soloGuionEscenas = todas.length > 0 && this.templates.length === 0;
+                this.estado = "listo";
+            } catch (e) {
+                if (e?.response?.status === 403) {
+                    this.estado = "sin_permiso";
+                } else {
+                    this.mensajeError = mensajeDeError(e, "Intenta de nuevo en un momento.");
+                    this.estado = "error";
+                }
+            }
+        },
+        async onTemplateChange(id) {
+            const tpl = this.templates.find((t) => t.id === id);
+            this.selectedTemplate = tpl ?? null;
+            this.variables = {};
+            this.templateVariables = [];
+            this.faltantes = [];
+            this.errorVariables = "";
+            this.renderResult = null;
+            if (!tpl) return;
+            this.cargandoVariables = true;
+            try {
+                const { data } = await axios.get(`/api/marketing/video-templates/${id}/variables`);
+                this.templateVariables = data?.variables ?? [];
+                this.variables = { ...(data?.default_variables ?? {}) };
+            } catch (e) {
+                this.errorVariables = mensajeDeError(e, "No se pudieron cargar los datos que pide la plantilla.");
+            } finally {
+                this.cargandoVariables = false;
+            }
+        },
+        async generate() {
+            if (!this.selectedTemplateId || this.generating) return;
+            this.faltantes = this.templateVariables.filter((v) => v.required && !this.variables[v.key]).map((v) => v.key);
+            if (this.faltantes.length) {
+                message("Faltan datos obligatorios del contenido.", "warning");
+                return;
+            }
+            this.generating = true;
+            this.renderResult = null;
+            try {
+                let res;
+                if (this.useLogoOverride && this.overrides.logoFile) {
+                    const fd = new FormData();
+                    fd.append("template_id", this.selectedTemplateId);
+                    fd.append("variables", JSON.stringify(this.variables));
+                    fd.append("options", JSON.stringify(this.options));
+                    fd.append("overrides[logo_file]", this.overrides.logoFile);
+                    if (this.useColorOverride) {
+                        fd.append("overrides[primary_color]", this.overrides.primary_color);
+                        fd.append("overrides[secondary_color]", this.overrides.secondary_color);
+                    }
+                    res = await axios.post("/api/marketing/generated-content/render", fd, {
+                        headers: { "Content-Type": "multipart/form-data" },
+                    });
+                } else {
+                    const payload = { template_id: this.selectedTemplateId, variables: this.variables, options: this.options };
+                    if (this.useColorOverride) {
+                        payload.overrides = {
+                            primary_color: this.overrides.primary_color,
+                            secondary_color: this.overrides.secondary_color,
+                        };
+                    }
+                    res = await axios.post("/api/marketing/generated-content/render", payload);
+                }
+                this.renderResult = res.data;
+                message("Video en la fila de producción. Puedes ver su avance ahí.");
+            } catch (e) {
+                message(mensajeRender(e, "No se pudo mandar el video a la fila de producción."), "error");
+            } finally {
+                this.generating = false;
+            }
+        },
+    },
 };
 </script>
+
+<style scoped>
+.mkt-generador { min-width: 0; }
+.mkt-generador__rejilla {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    align-items: start;
+}
+.mkt-generador__principal,
+.mkt-generador__lateral { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.mkt-generador__datos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--mkt-esp-1) var(--mkt-esp-2);
+    margin-top: var(--mkt-esp-1);
+    font-size: 13px;
+    color: var(--mkt-texto-suave);
+}
+.mkt-generador__datos > span { display: inline-flex; align-items: center; gap: 4px; }
+.mkt-generador__campos {
+    display: grid;
+    gap: var(--mkt-esp-1) var(--mkt-esp-2);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.mkt-generador__campo-ancho { grid-column: 1 / -1; }
+.mkt-generador__suave { margin: 0; font-size: 13px; line-height: 1.5; color: var(--mkt-texto-suave); }
+.mkt-generador__sin-permiso { margin-top: var(--mkt-esp-2); display: flex; align-items: center; gap: 6px; }
+.mkt-generador__aviso {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--mkt-esp-1);
+    font-size: 14px;
+    color: var(--mkt-peligro);
+}
+.mkt-generador__extra { margin-top: var(--mkt-esp-2); border: 1px solid var(--mkt-borde); border-radius: var(--mkt-radio); }
+.mkt-generador__extra-cuerpo { display: flex; flex-direction: column; gap: var(--mkt-esp-1); padding: var(--mkt-esp-1) var(--mkt-esp-2) var(--mkt-esp-2); }
+.mkt-generador__sangria { padding-left: var(--mkt-esp-4); display: flex; flex-direction: column; gap: var(--mkt-esp-1); }
+.mkt-generador__logo { max-height: 60px; max-width: 120px; object-fit: contain; }
+.mkt-generador__colores { flex-direction: row; flex-wrap: wrap; gap: var(--mkt-esp-2); }
+.mkt-generador__etiqueta { display: block; font-size: 12px; color: var(--mkt-texto-suave); margin-bottom: 4px; }
+.mkt-generador__color-campo { display: flex; align-items: center; gap: var(--mkt-esp-1); max-width: 180px; }
+.mkt-generador__picker {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    padding: 2px;
+    border: 1px solid var(--mkt-borde);
+    border-radius: 4px;
+    background: var(--mkt-fondo-tarjeta);
+    cursor: pointer;
+}
+.mkt-generador__exito { display: flex; align-items: center; gap: var(--mkt-esp-1); color: var(--mkt-exito); }
+.mkt-generador__exito-titulo { font-weight: 600; color: var(--mkt-texto); }
+.mkt-generador__enlace { font-weight: 500; text-decoration: none; }
+.mkt-generador__enlace:hover { text-decoration: underline; }
+@media (max-width: 1023px) {
+    .mkt-generador__rejilla { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 599px) {
+    .mkt-generador__rejilla,
+    .mkt-generador__principal,
+    .mkt-generador__lateral { gap: var(--mkt-esp-2); }
+    .mkt-generador__campos { grid-template-columns: minmax(0, 1fr); }
+    .mkt-generador__sangria { padding-left: var(--mkt-esp-2); }
+}
+</style>

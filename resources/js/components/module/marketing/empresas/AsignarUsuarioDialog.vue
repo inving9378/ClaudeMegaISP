@@ -24,7 +24,7 @@
                                 <div class="mkt-dlg__persona-nombre">{{ elegida.nombre }}</div>
                                 <div class="mkt-dlg__persona-dato">{{ elegida.login_user }} · {{ elegida.email || "sin correo" }}</div>
                             </div>
-                            <q-btn flat dense no-caps color="primary" label="Cambiar" :disable="guardando" @click="elegida = null" />
+                            <q-btn flat dense no-caps label="Cambiar" :disable="guardando" @click="elegida = null" />
                         </div>
 
                         <!-- Búsqueda -->
@@ -91,16 +91,8 @@
                     </div>
 
                     <footer class="mkt-dlg__pie">
-                        <q-btn flat no-caps label="Cancelar" :disable="guardando" @click="cerrar" />
-                        <q-btn
-                            type="submit"
-                            unelevated
-                            no-caps
-                            color="primary"
-                            label="Agregar"
-                            :disable="!elegida"
-                            :loading="guardando"
-                        />
+                        <mkt-boton tipo="volver" etiqueta="Cancelar" :deshabilitado="guardando" @click="cerrar" />
+                        <mkt-boton submit tipo="crear" etiqueta="Agregar" :deshabilitado="!elegida" :cargando="guardando" />
                     </footer>
                 </form>
             </mkt-raiz>

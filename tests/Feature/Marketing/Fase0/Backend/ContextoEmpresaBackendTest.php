@@ -57,18 +57,18 @@ class ContextoEmpresaBackendTest extends MarketingTestCase
             ->assertJsonPath('capacidades.gestionar_empresas', false, 'admin de empresa sin el permiso Spatie')
             ->assertJsonPath('capacidades.editar_config_compartida', true);
 
+        // [Fase 1 · B] Antes ventas y el admin de B recibían el contexto con capacidades en false; con la regla B
+        // ni siquiera entran: 403 `sin_acceso` (más estricto).
         $ventas = $this->crearUsuario(['super-administrator']);
         $this->asignar($ventas, 1, 'ventas');
         $this->actingAs($ventas)->getJson('/api/marketing/contexto')
-            ->assertJsonPath('capacidades.gestionar_empresas', false)
-            ->assertJsonPath('capacidades.editar_config_compartida', false);
+            ->assertStatus(403)->assertJsonPath('error', 'sin_acceso');
 
         $adminB = $this->crearUsuario(['super-administrator']);
         $b = $this->crearEmpresa();
         $this->asignar($adminB, $b->id, 'admin');
         $this->actingAs($adminB)->getJson('/api/marketing/contexto')
-            ->assertJsonPath('capacidades.gestionar_empresas', true)
-            ->assertJsonPath('capacidades.editar_config_compartida', false);
+            ->assertStatus(403)->assertJsonPath('error', 'sin_acceso');
     }
 
     public function test_la_lista_de_empresas_excluye_inactivas_y_asignaciones_dadas_de_baja(): void
@@ -76,7 +76,7 @@ class ContextoEmpresaBackendTest extends MarketingTestCase
         $u = $this->crearUsuario();
         $inactiva = $this->crearEmpresa(['activo' => false]);
         $baja = $this->crearEmpresa();
-        $this->asignar($u, 1, 'marketing');
+        $this->asignar($u, 1, 'admin'); // [Fase 1 · B] antes 'marketing', que ya no entra
         $this->asignar($u, $inactiva->id, 'admin');
         $this->asignar($u, $baja->id, 'admin', false);
 
@@ -84,6 +84,11 @@ class ContextoEmpresaBackendTest extends MarketingTestCase
         $this->assertSame([1], array_column($r->json('empresas'), 'id'));
     }
 
+    /**
+     * [Fase 1 · A/B] Antes: cambiar a B (rol ventas) guardaba B en sesión y las peticiones siguientes trabajaban
+     * con B. Ahora la empresa activa SIEMPRE es la 1: aunque se pida B, la siguiente petición sigue en la 1
+     * como admin, y la propia respuesta no debe anunciar B (el selector está oculto, punto A).
+     */
     public function test_cambiar_de_empresa_guarda_en_sesion_y_responde_la_nueva(): void
     {
         $u = $this->crearUsuario();
@@ -91,17 +96,15 @@ class ContextoEmpresaBackendTest extends MarketingTestCase
         $this->asignar($u, 1, 'admin');
         $this->asignar($u, $b->id, 'ventas');
 
-        $this->actingAs($u)->postJson('/api/marketing/contexto/empresa-activa', ['company_id' => $b->id])
-            ->assertOk()
-            ->assertJsonPath('empresa_activa.id', $b->id)
-            ->assertJsonPath('empresa_activa.rol', 'ventas')
-            ->assertJsonPath('capacidades.editar_config_compartida', false)
-            ->assertSessionHas(self::CLAVE, $b->id);
+        $r = $this->actingAs($u)->postJson('/api/marketing/contexto/empresa-activa', ['company_id' => $b->id]);
+        $this->assertNotSame($b->id, $r->json('empresa_activa.id'), 'Regla A: la respuesta no puede anunciar otra empresa que la 1');
+        $this->assertNotSame('ventas', $r->json('empresa_activa.rol'));
 
-        // La siguiente petición ya trabaja con B.
-        $this->actingAs($u)->getJson('/api/marketing/contexto')->assertJsonPath('empresa_activa.id', $b->id);
+        // La siguiente petición sigue en la 1, como admin.
+        $this->actingAs($u)->getJson('/api/marketing/contexto')
+            ->assertOk()->assertJsonPath('empresa_activa.id', 1)->assertJsonPath('empresa_activa.rol', 'admin');
 
-        // Y se puede regresar (company_id como texto numérico también vale).
+        // Pedir la 1 (como texto numérico también) responde la 1.
         $this->actingAs($u)->postJson('/api/marketing/contexto/empresa-activa', ['company_id' => '1'])
             ->assertOk()->assertJsonPath('empresa_activa.id', 1)->assertSessionHas(self::CLAVE, 1);
     }

@@ -1,0 +1,5 @@
+{"piezas": [
+ {"variante": "A", "contenido": {"titular": "Fibra 500 con instalación gratis", "texto_principal": "Toda tu familia conectada sin pausas.", "descripcion": "Primeros 100 clientes", "boton": "ENVIAR_MENSAJE", "formato": "video", "idea_visual": "Familia viendo series sin cortes"}},
+ {"variante": "B", "contenido": {"titular": "¿Se traba tu internet?", "texto_principal": "Cámbiate a fibra este diciembre.", "descripcion": "Instalación gratis", "boton": "MAS_INFORMACION", "formato": "imagen", "idea_visual": "Círculo de carga tachado"}},
+ {"variante": "C", "contenido": {"titular": "500 megas para tu casa", "texto_principal": "Internet estable para estudiar y trabajar.", "descripcion": "Atención local", "boton": "LLAMAR", "formato": "carrusel", "idea_visual": "Tres tarjetas: estudiar, trabajar, jugar"}}
+]}

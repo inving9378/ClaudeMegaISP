@@ -1,0 +1,15 @@
+{"piezas": [
+ {"variante": "A", "contenido": {
+  "titulo": "Fibra para toda la familia", "formato": "16:9", "gancho": "Tu internet no debería pelear con tu familia",
+  "escenas": [
+   {"numero": 1, "duracion_s": 3, "toma": "Logo", "visual": {"tipo": "logo", "categoria_broll": null},
+    "texto_pantalla": "", "voz_en_off": "Meganet presenta.", "musica_sonido": ""},
+   {"numero": 2, "duracion_s": 6, "toma": "Familia en la sala", "visual": {"tipo": "broll", "categoria_broll": "familia"},
+    "texto_pantalla": "Series sin pausas", "voz_en_off": "Series sin pausas aunque todos estén conectados.", "musica_sonido": ""},
+   {"numero": 3, "duracion_s": 5, "toma": "Precio", "visual": {"tipo": "texto", "categoria_broll": null},
+    "texto_pantalla": "500 Megas", "voz_en_off": "Quinientos megas de fibra.", "musica_sonido": ""},
+   {"numero": 4, "duracion_s": 5, "toma": "Cierre con teléfono", "visual": {"tipo": "cta", "categoria_broll": null},
+    "texto_pantalla": "Contrata hoy", "voz_en_off": "Contrata hoy.", "musica_sonido": "Remate"}],
+  "musica": {"ambiente": "corporate_clean"}, "voz": {"id": "fable"},
+  "cta_final": {"texto": "Contrata hoy"}, "duracion_total_s": 19}}
+]}

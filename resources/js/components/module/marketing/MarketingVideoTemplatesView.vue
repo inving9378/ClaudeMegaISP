@@ -1,224 +1,294 @@
 <template>
-  <div class="q-pa-md">
-    <div class="row items-center q-mb-md">
-      <div class="col text-h5 text-weight-bold">Plantillas de Video</div>
-      <div class="col-auto">
-        <q-btn
-          icon="add_circle"
-          color="primary"
-          label="Generar video"
-          unelevated
-          :href="'/marketing/video-generator'"
-        />
-      </div>
-    </div>
+    <mkt-raiz :color-marca="contexto?.empresa_activa?.color_primario">
+        <div class="mkt-plantillas">
+            <mkt-encabezado-pantalla
+                titulo="Plantillas"
+                con-selector-empresa
+                @contexto="(c) => (contexto = c)"
+            >
+                <template v-if="estado !== 'sin_permiso'" #filtros>
+                    <q-input
+                        v-model="filters.search"
+                        class="mkt-filtro--busqueda"
+                        dense
+                        outlined
+                        clearable
+                        placeholder="Buscar plantilla…"
+                        aria-label="Buscar plantilla"
+                        @update:model-value="debouncedLoad"
+                    >
+                        <template #prepend><q-icon name="search" /></template>
+                    </q-input>
+                    <q-select
+                        v-model="filters.category"
+                        :options="categoryOptions"
+                        emit-value
+                        map-options
+                        dense
+                        outlined
+                        clearable
+                        options-dense
+                        label="Categoría"
+                        @update:model-value="load"
+                    />
+                    <q-select
+                        v-model="filters.aspect_ratio"
+                        :options="ratioOptions"
+                        emit-value
+                        map-options
+                        dense
+                        outlined
+                        clearable
+                        options-dense
+                        label="Formato"
+                        @update:model-value="load"
+                    />
+                </template>
+                <template #acciones>
+                    <mkt-boton v-if="estado !== 'sin_permiso' && puedeGenerar" tipo="crear" etiqueta="Generar video" href="/marketing/video-generator" />
+                </template>
 
-    <!-- Filtros -->
-    <q-card flat bordered class="q-mb-md">
-      <q-card-section class="row q-gutter-sm">
-        <q-input
-          v-model="filters.search"
-          dense outlined clearable
-          placeholder="Buscar plantilla..."
-          style="min-width:220px"
-          @update:model-value="load"
-        />
-        <q-select
-          v-model="filters.category"
-          :options="categoryOptions"
-          emit-value map-options dense outlined
-          label="Categoría" clearable style="min-width:170px"
-          @update:model-value="load"
-        />
-        <q-select
-          v-model="filters.aspect_ratio"
-          :options="ratioOptions"
-          emit-value map-options dense outlined
-          label="Formato" clearable style="min-width:130px"
-          @update:model-value="load"
-        />
-      </q-card-section>
-    </q-card>
+                <div class="mkt-plantillas__contenido">
+                    <mkt-estado-vacio
+                        v-if="estado === 'sin_permiso'"
+                        icono="lock"
+                        titulo="No puedes ver las plantillas de video"
+                        texto="No tienes acceso a esta sección. Pídelo a Irving."
+                    />
 
-    <!-- Grid de plantillas -->
-    <div v-if="loading" class="text-center q-pa-xl">
-      <q-spinner size="48px" color="primary" />
-    </div>
+                    <mkt-estado-vacio v-else-if="estado === 'error'" icono="cloud_off" titulo="No se pudieron cargar las plantillas" :texto="mensajeError" />
 
-    <div v-else-if="templates.length === 0" class="text-center q-pa-xl text-grey-6">
-      <q-icon name="video_library" size="64px" class="q-mb-md" />
-      <div>No se encontraron plantillas.</div>
-    </div>
+                    <div v-else-if="estado === 'cargando'" class="mkt-plantillas__rejilla" aria-busy="true">
+                        <div v-for="n in 8" :key="n" class="mkt-plantillas__tarjeta">
+                            <q-skeleton height="160px" square />
+                            <div class="mkt-plantillas__cuerpo">
+                                <q-skeleton type="text" width="70%" />
+                                <q-skeleton type="text" width="90%" />
+                            </div>
+                        </div>
+                    </div>
 
-    <div v-else class="row q-gutter-md">
-      <div
-        v-for="tpl in templates"
-        :key="tpl.id"
-        class="col-xs-12 col-sm-6 col-md-4 col-lg-3"
-      >
-        <q-card flat bordered class="cursor-pointer template-card" @click="selectTemplate(tpl)">
-          <!-- Thumbnail / placeholder -->
-          <div class="template-thumb bg-grey-3 row items-center justify-center" style="height:160px">
-            <q-img
-              v-if="tpl.preview_thumbnail"
-              :src="'/storage/' + tpl.preview_thumbnail"
-              style="height:160px"
-              fit="cover"
-            />
-            <div v-else class="column items-center text-grey-5">
-              <q-icon name="videocam" size="48px" />
-              <div class="text-caption q-mt-xs">{{ ratioLabel(tpl.aspect_ratios?.[0]) }}</div>
-            </div>
-          </div>
+                    <mkt-estado-vacio
+                        v-else-if="templates.length === 0"
+                        icono="video_library"
+                        titulo="No hay plantillas con esos filtros"
+                        texto="Quita o cambia los filtros para ver todo el catálogo." />
 
-          <q-card-section class="q-pb-xs">
-            <div class="text-subtitle2 text-weight-medium ellipsis">{{ tpl.name }}</div>
-            <div class="text-caption text-grey-6 ellipsis-2-lines" style="min-height:32px">{{ tpl.description }}</div>
-          </q-card-section>
+                    <div v-else class="mkt-plantillas__rejilla">
+                        <article
+                            v-for="tpl in templates"
+                            :key="tpl.id"
+                            class="mkt-plantillas__tarjeta mkt-plantillas__tarjeta--clic"
+                            tabindex="0"
+                            role="button"
+                            :aria-label="`Ver detalle de ${tpl.name}`"
+                            @click="selectTemplate(tpl)"
+                            @keydown.enter.prevent="selectTemplate(tpl)"
+                        >
+                            <div class="mkt-plantillas__miniatura">
+                                <img v-if="tpl.preview_thumbnail" :src="'/storage/' + tpl.preview_thumbnail" :alt="`Miniatura de ${tpl.name}`" loading="lazy" />
+                                <div v-else class="mkt-plantillas__sin-miniatura">
+                                    <q-icon name="videocam" size="40px" aria-hidden="true" />
+                                    <span>{{ ratioLabel(tpl.aspect_ratios?.[0]) }}</span>
+                                </div>
+                            </div>
+                            <div class="mkt-plantillas__cuerpo">
+                                <h3 class="mkt-plantillas__nombre">{{ tpl.name }}</h3>
+                                <p class="mkt-plantillas__descripcion">{{ tpl.description }}</p>
+                                <div class="mkt-plantillas__etiquetas">
+                                    <mkt-insignia-estado :texto="categoryLabel(tpl.category)" tono="primario" />
+                                    <mkt-insignia-estado v-if="tpl.aspect_ratios?.[0]" :texto="tpl.aspect_ratios[0]" tono="neutro" />
+                                    <mkt-insignia-estado v-if="tpl.requires_voiceover" texto="Voz" tono="exito" />
+                                    <mkt-insignia-estado v-if="soloCampanas360(tpl)" texto="Solo desde Campañas 360" tono="info" />
+                                </div>
+                            </div>
+                            <div v-if="!soloCampanas360(tpl)" class="mkt-plantillas__pie">
+                                <mkt-boton tipo="enlace" chico etiqueta="Usar plantilla" @click.stop="goGenerate(tpl)" />
+                            </div>
+                        </article>
+                    </div>
+                </div>
+            </mkt-encabezado-pantalla>
 
-          <q-card-section class="q-pt-xs q-pb-sm">
-            <q-chip dense color="primary" text-color="white" size="sm" class="q-mr-xs">
-              {{ categoryLabel(tpl.category) }}
-            </q-chip>
-            <q-chip dense outline color="secondary" size="sm" class="q-mr-xs">
-              {{ tpl.aspect_ratios?.[0] }}
-            </q-chip>
-            <q-chip v-if="tpl.requires_voiceover" dense outline color="green" size="sm" icon="mic">
-              TTS
-            </q-chip>
-          </q-card-section>
-
-          <q-card-actions align="right" class="q-pt-none">
-            <q-btn
-              flat dense color="primary" label="Usar plantilla"
-              @click.stop="goGenerate(tpl)"
-            />
-          </q-card-actions>
-        </q-card>
-      </div>
-    </div>
-
-    <!-- Dialog detalle -->
-    <q-dialog v-model="detailDialog" max-width="560px">
-      <q-card v-if="selected" style="min-width:460px">
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-h6">{{ selected.name }}</div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup />
-        </q-card-section>
-        <q-card-section>
-          <div class="text-body2 text-grey-7 q-mb-sm">{{ selected.description }}</div>
-          <q-separator class="q-my-sm" />
-          <div class="row q-gutter-sm text-caption">
-            <div><strong>Categoría:</strong> {{ categoryLabel(selected.category) }}</div>
-            <div><strong>Formato:</strong> {{ selected.aspect_ratios?.join(', ') }}</div>
-            <div><strong>Duración:</strong> ~{{ selected.duration_seconds }}s</div>
-            <div><strong>Render est.:</strong> ~{{ selected.estimated_render_seconds }}s</div>
-          </div>
-          <q-separator class="q-my-sm" />
-          <div class="text-subtitle2 q-mb-xs">Variables requeridas:</div>
-          <q-chip
-            v-for="v in requiredVars"
-            :key="v.key"
-            dense color="orange-1" text-color="orange-9" size="sm" class="q-mr-xs q-mb-xs"
-          >
-            {{ v.key }} — {{ v.label }}
-          </q-chip>
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat color="grey" label="Cerrar" v-close-popup />
-          <q-btn unelevated color="primary" label="Usar esta plantilla" @click="goGenerate(selected)" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-  </div>
+            <!-- Detalle -->
+            <mkt-dialogo v-model="detailDialog" :titulo="selected?.name || 'Plantilla'" :ancho="560">
+                <template v-if="selected">
+                    <p class="mkt-plantillas__texto">{{ selected.description }}</p>
+                    <dl class="mkt-plantillas__datos">
+                        <div><dt>Categoría</dt><dd>{{ categoryLabel(selected.category) }}</dd></div>
+                        <div><dt>Formatos</dt><dd>{{ (selected.aspect_ratios || []).join(', ') || '—' }}</dd></div>
+                        <div><dt>Duración</dt><dd>{{ selected.duration_seconds ? `~${selected.duration_seconds} s` : '—' }}</dd></div>
+                        <div><dt>Tiempo de producción</dt><dd>{{ selected.estimated_render_seconds ? `~${selected.estimated_render_seconds} s` : '—' }}</dd></div>
+                    </dl>
+                    <div>
+                        <div class="mkt-plantillas__subtitulo">Datos que pide</div>
+                        <div v-if="requiredVars.length" class="mkt-plantillas__etiquetas">
+                            <mkt-insignia-estado v-for="v in requiredVars" :key="v.key" :texto="v.label || v.key" tono="aviso" />
+                        </div>
+                        <p v-else class="mkt-plantillas__texto-suave">No pide datos obligatorios.</p>
+                    </div>
+                </template>
+                <template #acciones>
+                    <mkt-boton tipo="volver" etiqueta="Cerrar" @click="detailDialog = false" />
+                    <mkt-boton v-if="!soloCampanas360(selected)" tipo="guardar" etiqueta="Usar esta plantilla" @click="goGenerate(selected)" />
+                    <mkt-boton v-else tipo="guardar" etiqueta="Ir a Campañas 360" href="/marketing/campanas-360" />
+                </template>
+            </mkt-dialogo>
+        </div>
+    </mkt-raiz>
 </template>
 
 <script>
+import axios from "axios";
+import { mensajeDeError, puedePermiso } from "./kit";
+
+/** Plantillas de video (/marketing/video-templates) — Fase 1, rediseño con el kit. Solo lectura. */
 export default {
-  name: 'MarketingVideoTemplatesView',
-
-  data() {
-    return {
-      loading: false,
-      templates: [],
-      selected: null,
-      detailDialog: false,
-      filters: {
-        search: '',
-        category: null,
-        aspect_ratio: null,
-      },
-      categoryOptions: [
-        { label: 'Promo de Plan',          value: 'plan_promo' },
-        { label: 'Anuncio de Cobertura',   value: 'coverage_announcement' },
-        { label: 'Testimonio',             value: 'testimonial' },
-        { label: 'Recordatorio de Pago',   value: 'payment_reminder' },
-        { label: 'Bienvenida',             value: 'welcome' },
-        { label: 'Oferta Flash',           value: 'flash_promo' },
-        { label: 'Aviso de Mantenimiento', value: 'maintenance_notice' },
-        { label: 'Genérico',               value: 'generic' },
-      ],
-      ratioOptions: [
-        { label: 'Vertical 9:16',   value: '9:16' },
-        { label: 'Cuadrado 1:1',    value: '1:1' },
-        { label: 'Horizontal 16:9', value: '16:9' },
-      ],
-    };
-  },
-
-  computed: {
-    requiredVars() {
-      return (this.selected?.schema?.variables ?? []).filter(v => v.required);
+    name: "MarketingVideoTemplatesView",
+    data() {
+        return {
+            contexto: null,
+            estado: "cargando", // cargando | listo | error | sin_permiso
+            mensajeError: "",
+            templates: [],
+            selected: null,
+            detailDialog: false,
+            filters: { search: "", category: null, aspect_ratio: null },
+            categoryOptions: [
+                { label: "Promo de plan", value: "plan_promo" },
+                { label: "Anuncio de cobertura", value: "coverage_announcement" },
+                { label: "Testimonio", value: "testimonial" },
+                { label: "Recordatorio de pago", value: "payment_reminder" },
+                { label: "Bienvenida", value: "welcome" },
+                { label: "Oferta flash", value: "flash_promo" },
+                { label: "Aviso de mantenimiento", value: "maintenance_notice" },
+                { label: "Genérico", value: "generic" },
+                { label: "Guion por escenas", value: "guion_escenas" },
+            ],
+            ratioOptions: [
+                { label: "Vertical 9:16", value: "9:16" },
+                { label: "Cuadrado 1:1", value: "1:1" },
+                { label: "Horizontal 16:9", value: "16:9" },
+            ],
+            _timer: null,
+        };
     },
-  },
-
-  mounted() {
-    this.load();
-  },
-
-  methods: {
-    async load() {
-      this.loading = true;
-      try {
-        const params = {};
-        if (this.filters.search)       params.search = this.filters.search;
-        if (this.filters.category)     params.category = this.filters.category;
-        if (this.filters.aspect_ratio) params.aspect_ratio = this.filters.aspect_ratio;
-
-        const res = await axios.get('/api/marketing/video-templates', { params });
-        this.templates = res.data.data ?? [];
-      } catch (e) {
-        this.$q.notify({ type: 'negative', message: 'Error al cargar plantillas' });
-      } finally {
-        this.loading = false;
-      }
+    computed: {
+        puedeGenerar() {
+            return puedePermiso(this.$store, "generate-video-content");
+        },
+        requiredVars() {
+            return (this.selected?.schema?.variables ?? []).filter((v) => v.required);
+        },
+        hayFiltros() {
+            return !!(this.filters.search || this.filters.category || this.filters.aspect_ratio);
+        },
     },
-
-    selectTemplate(tpl) {
-      this.selected = tpl;
-      this.detailDialog = true;
+    mounted() {
+        this.load();
     },
-
-    goGenerate(tpl) {
-      window.location.href = `/marketing/video-generator?template_id=${tpl.id}`;
+    beforeUnmount() {
+        clearTimeout(this._timer);
     },
-
-    categoryLabel(cat) {
-      return this.categoryOptions.find(o => o.value === cat)?.label ?? cat;
+    methods: {
+        async load() {
+            this.estado = "cargando";
+            try {
+                const params = {};
+                if (this.filters.search) params.search = this.filters.search;
+                if (this.filters.category) params.category = this.filters.category;
+                if (this.filters.aspect_ratio) params.aspect_ratio = this.filters.aspect_ratio;
+                const { data } = await axios.get("/api/marketing/video-templates", { params });
+                this.templates = data?.data ?? [];
+                this.estado = "listo";
+            } catch (e) {
+                if (e?.response?.status === 403) {
+                    this.estado = "sin_permiso";
+                } else {
+                    this.mensajeError = mensajeDeError(e, "Intenta de nuevo en un momento.");
+                    this.estado = "error";
+                }
+            }
+        },
+        debouncedLoad() {
+            clearTimeout(this._timer);
+            this._timer = setTimeout(() => this.load(), 350);
+        },
+        limpiarFiltros() {
+            this.filters = { search: "", category: null, aspect_ratio: null };
+            this.load();
+        },
+        selectTemplate(tpl) {
+            this.selected = tpl;
+            this.detailDialog = true;
+        },
+        /** Fase 2: las plantillas «Guion por escenas» reciben escenas desde Campañas 360; no se generan a mano. */
+        soloCampanas360(tpl) {
+            return tpl?.category === "guion_escenas";
+        },
+        goGenerate(tpl) {
+            if (this.soloCampanas360(tpl)) return;
+            if (tpl?.id) window.location.href = `/marketing/video-generator?template_id=${tpl.id}`;
+        },
+        categoryLabel(cat) {
+            return this.categoryOptions.find((o) => o.value === cat)?.label ?? cat ?? "—";
+        },
+        ratioLabel(ratio) {
+            return this.ratioOptions.find((o) => o.value === ratio)?.label ?? ratio ?? "";
+        },
     },
-
-    ratioLabel(ratio) {
-      return this.ratioOptions.find(o => o.value === ratio)?.label ?? ratio;
-    },
-  },
 };
 </script>
 
 <style scoped>
-.template-card:hover {
-  box-shadow: 0 4px 16px rgba(0,0,0,.12);
-  transform: translateY(-2px);
-  transition: all .2s;
+.mkt-plantillas { min-width: 0; }
+.mkt-plantillas__contenido { padding: 4px 16px 16px; min-width: 0; }
+.mkt-plantillas__rejilla {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+.mkt-plantillas__tarjeta {
+    display: flex;
+    flex-direction: column;
+    background: var(--mkt-fondo-tarjeta);
+    border: 1px solid var(--mkt-borde);
+    border-radius: 4px;
+    overflow: hidden;
+    min-width: 0;
+}
+.mkt-plantillas__tarjeta--clic { cursor: pointer; transition: border-color 0.15s ease; }
+.mkt-plantillas__tarjeta--clic:hover { border-color: var(--mkt-carpeta); }
+.mkt-plantillas__tarjeta--clic:focus-visible { outline: 2px solid var(--mkt-carpeta); outline-offset: 2px; }
+.mkt-plantillas__miniatura { height: 160px; background: var(--mkt-kpi-fondo); display: flex; align-items: center; justify-content: center; }
+.mkt-plantillas__miniatura img { width: 100%; height: 100%; object-fit: cover; }
+.mkt-plantillas__sin-miniatura { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; color: var(--mkt-texto-suave); }
+.mkt-plantillas__cuerpo { display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; flex: 1 1 auto; }
+.mkt-plantillas__nombre { margin: 0; font-size: 15px; font-weight: 600; line-height: 22px; color: var(--mkt-texto); overflow-wrap: anywhere; }
+.mkt-plantillas__descripcion {
+    margin: 0;
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--mkt-texto-suave);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 36px;
+}
+.mkt-plantillas__etiquetas { display: flex; flex-wrap: wrap; gap: 6px; }
+.mkt-plantillas__pie { display: flex; justify-content: flex-end; padding: 0 8px 8px; }
+.mkt-plantillas__texto { margin: 0; font-size: 14px; line-height: 1.5; color: var(--mkt-texto); }
+.mkt-plantillas__texto-suave { margin: 0; font-size: 13px; color: var(--mkt-texto-suave); }
+.mkt-plantillas__subtitulo { font-size: 13px; font-weight: 600; color: var(--mkt-texto-suave); margin-bottom: 6px; }
+.mkt-plantillas__datos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; margin: 0; }
+.mkt-plantillas__datos dt { font-size: 12px; font-weight: 500; color: var(--mkt-texto-suave); }
+.mkt-plantillas__datos dd { margin: 0; font-size: 14px; color: var(--mkt-texto); }
+@media (max-width: 599px) {
+    .mkt-plantillas__contenido { padding: 4px 12px 12px; }
+    .mkt-plantillas__rejilla { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .mkt-plantillas__tarjeta--clic { transition: none; }
 }
 </style>

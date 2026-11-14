@@ -2,6 +2,7 @@
 
 namespace App\Modules\Addons\Marketing;
 
+use App\Modules\Addons\Marketing\Console\EquipoFijarCommand;
 use App\Modules\Addons\Marketing\Listeners\GatewayMessageListener;
 use App\Modules\Addons\Marketing\Middleware\RequiereRolEmpresa;
 use App\Modules\Addons\Marketing\Middleware\ResolverEmpresaActiva;
@@ -40,6 +41,11 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
         $router->aliasMiddleware('marketing.empresa', ResolverEmpresaActiva::class);
         $router->aliasMiddleware('marketing.rol', RequiereRolEmpresa::class);
         $router->aliasMiddleware('marketing.principal', SoloEmpresaPrincipal::class);
+
+        // Fase 1 (cambio de alcance de Henry, punto C): fijar el equipo admin de Marketing por login_user.
+        if ($this->app->runningInConsole()) {
+            $this->commands([EquipoFijarCommand::class]);
+        }
 
         // Adaptador hacia el gateway ÚNICO de WhatsApp (item roadmap #203, Fase
         // A). Inerte por default (config('marketing_gateway.mode') = 'legacy');

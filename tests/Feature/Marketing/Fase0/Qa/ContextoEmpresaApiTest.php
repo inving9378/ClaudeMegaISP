@@ -55,51 +55,62 @@ class ContextoEmpresaApiTest extends MarketingTestCase
         $this->assertCount(1, $r->json('empresas'));
     }
 
+    /** [Fase 1 · B] marketing A, ventas A y admin B ya no entran (403 sin_acceso); solo el admin de la 1 recibe el contexto. */
     public function test_capacidades_por_rol(): void
     {
+        foreach (['marketing A' => $this->marketingA, 'ventas A' => $this->ventasA, 'admin B' => $this->adminB] as $que => $u) {
+            $r = $this->como($u)->getJson('/api/marketing/contexto');
+            $this->assertSame(403, $r->status(), $que);
+            $this->assertSame('sin_acceso', $r->json('error'), $que);
+        }
         $casos = [
-            'marketing A'      => [$this->marketingA, null, false, true],
-            'ventas A'         => [$this->ventasA, null, false, false],
-            'admin B'          => [$this->adminB, null, true, false],
-            'admin A sin perm' => [$this->adminASinPermiso, null, false, true],
+            'admin A'          => [$this->adminA, true, true],
+            'admin A sin perm' => [$this->adminASinPermiso, false, true],
         ];
-        foreach ($casos as $que => [$u, $emp, $gestionar, $editar]) {
-            $r = $this->como($u, $emp)->getJson('/api/marketing/contexto');
+        foreach ($casos as $que => [$u, $gestionar, $editar]) {
+            $r = $this->como($u)->getJson('/api/marketing/contexto');
             $r->assertOk();
             $this->assertSame($gestionar, $r->json('capacidades.gestionar_empresas'), "{$que}: gestionar_empresas");
             $this->assertSame($editar, $r->json('capacidades.editar_config_compartida'), "{$que}: editar_config_compartida");
         }
     }
 
+    /** [Fase 1 · B] La fila en la 1 pasa de 'marketing' a 'admin' (si no, ya no entra). La exigencia de la lista no cambia. */
     public function test_lista_solo_asignaciones_activas_de_empresas_activas_por_id(): void
     {
         $inactiva = $this->crearEmpresa('QA Inactiva', activo: false);
         $otra = $this->crearEmpresa('QA Otra');
-        $u = $this->crearUsuario('qa_varias', [$this->empresaB->id => 'ventas', 1 => 'marketing', $inactiva->id => 'admin']);
+        $u = $this->crearUsuario('qa_varias', [$this->empresaB->id => 'ventas', 1 => 'admin', $inactiva->id => 'admin']);
         $this->asignar($u, $otra->id, 'admin', activo: false);
 
         $r = $this->como($u)->getJson('/api/marketing/contexto');
         $r->assertOk();
 
         $this->assertSame([1, $this->empresaB->id], array_column($r->json('empresas'), 'id'), 'ordenadas por id, sin inactivas');
-        $this->assertSame(['marketing', 'ventas'], array_column($r->json('empresas'), 'rol'));
+        $this->assertSame(['admin', 'ventas'], array_column($r->json('empresas'), 'rol'));
     }
 
+    /** [Fase 1 · A/B] Antes: admin de B + ventas de la 1 → la 1 como ventas. Ahora ventas no entra; con admin en la 1 y en B, siempre la 1. */
     public function test_sin_sesion_elige_la_de_menor_id_y_la_guarda_en_sesion(): void
     {
-        $u = $this->crearUsuario('qa_dos', [$this->empresaB->id => 'admin', 1 => 'ventas']);
+        $u = $this->crearUsuario('qa_dos', [$this->empresaB->id => 'admin', 1 => 'admin']);
 
         $r = $this->como($u)->getJson('/api/marketing/contexto');
-        $r->assertOk()->assertJsonPath('empresa_activa.id', 1)->assertJsonPath('empresa_activa.rol', 'ventas');
+        $r->assertOk()->assertJsonPath('empresa_activa.id', 1)->assertJsonPath('empresa_activa.rol', 'admin');
         $this->assertSame(1, (int) session('marketing.empresa_activa_id'));
+
+        $soloB = $this->crearUsuario('qa_solo_b', [$this->empresaB->id => 'admin', 1 => 'ventas']);
+        $this->como($soloB)->getJson('/api/marketing/contexto')->assertStatus(403)->assertJsonPath('error', 'sin_acceso');
     }
 
+    /** [Fase 1 · A] Antes respetaba B guardada en sesión; ahora la empresa activa es SIEMPRE la 1 aunque la sesión diga B. */
     public function test_respeta_la_empresa_guardada_en_sesion(): void
     {
-        $u = $this->crearUsuario('qa_dos_b', [1 => 'ventas', $this->empresaB->id => 'admin']);
+        $u = $this->crearUsuario('qa_dos_b', [1 => 'admin', $this->empresaB->id => 'admin']);
 
         $this->como($u, $this->empresaB->id)->getJson('/api/marketing/contexto')
-            ->assertOk()->assertJsonPath('empresa_activa.id', $this->empresaB->id)->assertJsonPath('empresa_activa.rol', 'admin');
+            ->assertOk()->assertJsonPath('empresa_activa.id', 1)->assertJsonPath('empresa_activa.rol', 'admin');
+        $this->assertSame(1, (int) session('marketing.empresa_activa_id'));
     }
 
     public static function sesionesBasura(): array
@@ -119,36 +130,34 @@ class ContextoEmpresaApiTest extends MarketingTestCase
     {
         $this->contexto()->limpiar();
         $this->flushSession();
-        $r = $this->actingAs($this->ventasA)->withSession(['marketing.empresa_activa_id' => $valor])->getJson('/api/marketing/contexto');
+        // [Fase 1 · B] antes con ventasA (ya no entra); ahora con el admin de la 1.
+        $r = $this->actingAs($this->adminA)->withSession(['marketing.empresa_activa_id' => $valor])->getJson('/api/marketing/contexto');
 
         $r->assertOk()->assertJsonPath('empresa_activa.id', 1);
     }
 
     public function test_sesion_con_empresa_ajena_no_da_acceso_a_ella(): void
     {
-        // ventasA tiene en sesión el id de B (no es suyo): se ignora.
-        $this->como($this->ventasA, $this->empresaB->id)->getJson('/api/marketing/contexto')
+        // [Fase 1 · B] antes ventasA (ya no entra); ahora adminA tiene en sesión el id de B (no es suyo): se ignora.
+        $this->como($this->adminA, $this->empresaB->id)->getJson('/api/marketing/contexto')
             ->assertOk()->assertJsonPath('empresa_activa.id', 1);
         $this->assertSame(1, (int) session('marketing.empresa_activa_id'));
     }
 
     // ── POST /api/marketing/contexto/empresa-activa ──────────────────────────
 
+    /** [Fase 1 · A] Antes cambiar a B la dejaba activa; ahora la activa es SIEMPRE la 1: ni la respuesta ni la siguiente petición traen B. */
     public function test_cambiar_de_empresa_guarda_en_sesion_y_responde_la_misma_forma(): void
     {
         $u = $this->crearUsuario('qa_cambio', [1 => 'admin', $this->empresaB->id => 'ventas']);
 
         $r = $this->como($u)->postJson('/api/marketing/contexto/empresa-activa', ['company_id' => $this->empresaB->id]);
-        $r->assertOk();
-        $this->assertSame(['ok', 'usuario', 'empresa_activa', 'empresas', 'capacidades'], array_keys($r->json()));
-        $r->assertJsonPath('empresa_activa.id', $this->empresaB->id)->assertJsonPath('empresa_activa.rol', 'ventas');
-        $r->assertJsonPath('capacidades.gestionar_empresas', false);
-        $r->assertJsonPath('capacidades.editar_config_compartida', false);
-        $this->assertSame($this->empresaB->id, (int) session('marketing.empresa_activa_id'));
+        $this->assertNotSame($this->empresaB->id, $r->json('empresa_activa.id'), 'Regla A: la respuesta no puede anunciar otra empresa');
+        $this->assertNotSame('ventas', $r->json('empresa_activa.rol'));
 
-        // La siguiente petición (misma sesión) ya trae B.
         $this->contexto()->limpiar();
-        $this->getJson('/api/marketing/contexto')->assertOk()->assertJsonPath('empresa_activa.id', $this->empresaB->id);
+        $this->getJson('/api/marketing/contexto')->assertOk()->assertJsonPath('empresa_activa.id', 1)->assertJsonPath('empresa_activa.rol', 'admin');
+        $this->assertSame(1, (int) session('marketing.empresa_activa_id'));
     }
 
     public function test_cambiar_a_la_misma_empresa_es_idempotente(): void
@@ -160,11 +169,13 @@ class ContextoEmpresaApiTest extends MarketingTestCase
             ->assertOk()->assertJsonPath('empresa_activa.id', 1);
     }
 
+    /** [Fase 1 · A] Antes cambiaba a B; ahora el texto numérico se acepta (200) pero la activa sigue siendo la 1 y B nunca llega a la sesión. */
     public function test_cambiar_acepta_company_id_como_texto_numerico(): void
     {
         $u = $this->crearUsuario('qa_txt', [1 => 'admin', $this->empresaB->id => 'admin']);
         $this->como($u)->postJson('/api/marketing/contexto/empresa-activa', ['company_id' => (string) $this->empresaB->id])
-            ->assertOk()->assertJsonPath('empresa_activa.id', $this->empresaB->id);
+            ->assertOk()->assertJsonPath('empresa_activa.id', 1);
+        $this->assertSame(1, (int) session('marketing.empresa_activa_id'));
     }
 
     public function test_cambiar_a_empresa_ajena_inactiva_o_inexistente_da_404_y_no_toca_la_sesion(): void
@@ -226,9 +237,13 @@ class ContextoEmpresaApiTest extends MarketingTestCase
         }
     }
 
+    /** [Fase 1 · B] Antes ventas recibía 404 al pedir B; ahora ventas ni entra (403 sin_acceso). El admin de la 1 pidiendo una ajena → 404. */
     public function test_cambiar_no_permite_a_ventas_colarse_a_otra_empresa(): void
     {
         $this->como($this->ventasA)->postJson('/api/marketing/contexto/empresa-activa', ['company_id' => $this->empresaB->id])
+            ->assertStatus(403)->assertJsonPath('error', 'sin_acceso');
+
+        $this->como($this->adminA)->postJson('/api/marketing/contexto/empresa-activa', ['company_id' => $this->empresaB->id])
             ->assertStatus(404);
         $this->contexto()->limpiar();
         $this->getJson('/api/marketing/contexto')->assertJsonPath('empresa_activa.id', 1);

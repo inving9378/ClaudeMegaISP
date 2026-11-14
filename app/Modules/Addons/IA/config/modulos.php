@@ -43,6 +43,8 @@ return [
     'marketing.lead_scoring' => ['nombre' => 'Puntuar leads', 'grupo' => 'Marketing', 'requiere' => [], 'listo' => true],
     'marketing.lead_calificacion' => ['nombre' => 'Calificar lead por conversación', 'grupo' => 'Marketing', 'requiere' => [], 'listo' => true],
     'marketing.director_creativo' => ['nombre' => 'Briefs de video por nicho', 'grupo' => 'Marketing', 'requiere' => [], 'listo' => true],
+    'marketing.campana_360' => ['nombre' => 'Estrategia de campañas 360', 'grupo' => 'Marketing', 'requiere' => [], 'listo' => true],
+    'marketing.piezas_campana' => ['nombre' => 'Piezas de campañas 360 (guiones, copies, anuncios, WhatsApp)', 'grupo' => 'Marketing', 'requiere' => [], 'listo' => true],
     'voip.bot_voz' => ['nombre' => 'Bot de voz «María»', 'grupo' => 'VoIP', 'requiere' => [], 'listo' => true],
     'pagos.comprobantes' => ['nombre' => 'Leer comprobantes de pago (foto y PDF)', 'grupo' => 'Pagos', 'requiere' => ['imagenes', 'pdf'], 'listo' => true],
     'flotas.ocr' => ['nombre' => 'Leer documentos de vehículos (foto y PDF)', 'grupo' => 'Flotas', 'requiere' => ['imagenes', 'pdf'], 'listo' => true],

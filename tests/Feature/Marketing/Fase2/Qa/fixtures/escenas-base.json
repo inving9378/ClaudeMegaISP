@@ -1,0 +1,310 @@
+{
+    "generica_9_16": {
+        "escenas": [
+            {
+                "type": "logo_reveal",
+                "duration": 3,
+                "escena": {
+                    "type": "logo_reveal",
+                    "layers": [
+                        {
+                            "type": "background",
+                            "color": "#1976D2"
+                        }
+                    ],
+                    "duration": 3
+                },
+                "tamano": "1080x1920"
+            },
+            {
+                "type": "feature_highlight",
+                "duration": 7,
+                "escena": {
+                    "type": "feature_highlight",
+                    "bg_color": "#1976D2",
+                    "duration": 7,
+                    "sub_text": "Sub QA",
+                    "main_text": "Fibra QA",
+                    "text_color": "white"
+                },
+                "tamano": "1080x1920"
+            },
+            {
+                "type": "info_banner",
+                "duration": 5,
+                "escena": {
+                    "body": "Cuerpo de prueba con acentos: añadir",
+                    "type": "info_banner",
+                    "title": "",
+                    "bg_color": "#1A1A2E",
+                    "duration": 5,
+                    "text_color": "#FFFFFF"
+                },
+                "tamano": "1080x1920"
+            },
+            {
+                "type": "call_to_action",
+                "duration": 5,
+                "escena": {
+                    "type": "call_to_action",
+                    "phone": "",
+                    "bg_color": "#1976D2",
+                    "cta_text": "Llama hoy",
+                    "duration": 5,
+                    "text_color": "white"
+                },
+                "tamano": "1080x1920"
+            }
+        ],
+        "tts": [
+            {
+                "texto": "Narración de prueba",
+                "opciones": []
+            }
+        ],
+        "error": "Scene concatenation failed"
+    },
+    "generica_16_9": {
+        "escenas": [
+            {
+                "type": "logo_reveal",
+                "duration": 3,
+                "escena": {
+                    "type": "logo_reveal",
+                    "layers": [
+                        {
+                            "type": "background",
+                            "color": "#1976D2"
+                        }
+                    ],
+                    "duration": 3
+                },
+                "tamano": "1920x1080"
+            },
+            {
+                "type": "feature_highlight",
+                "duration": 7,
+                "escena": {
+                    "type": "feature_highlight",
+                    "bg_color": "#1976D2",
+                    "duration": 7,
+                    "sub_text": "{{subheadline}}",
+                    "main_text": "Fibra QA 16",
+                    "text_color": "white"
+                },
+                "tamano": "1920x1080"
+            },
+            {
+                "type": "info_banner",
+                "duration": 5,
+                "escena": {
+                    "body": "{{body_text}}",
+                    "type": "info_banner",
+                    "title": "",
+                    "bg_color": "#1A1A2E",
+                    "duration": 5,
+                    "text_color": "#FFFFFF"
+                },
+                "tamano": "1920x1080"
+            },
+            {
+                "type": "call_to_action",
+                "duration": 5,
+                "escena": {
+                    "type": "call_to_action",
+                    "phone": "",
+                    "bg_color": "#1976D2",
+                    "cta_text": "{{cta_text}}",
+                    "duration": 5,
+                    "text_color": "white"
+                },
+                "tamano": "1920x1080"
+            }
+        ],
+        "tts": [
+            {
+                "texto": "Narración 16",
+                "opciones": []
+            }
+        ],
+        "error": "Scene concatenation failed"
+    },
+    "nicho_gamer_9_16": {
+        "escenas": [
+            {
+                "type": "broll_overlay",
+                "duration": 3,
+                "escena": {
+                    "id": "hook",
+                    "type": "broll_overlay",
+                    "layers": [
+                        {
+                            "type": "kinetic_text",
+                            "style": "huge_dramatic",
+                            "position": "center",
+                            "segments_from_brief": "kinetic_text_segments"
+                        }
+                    ],
+                    "duration": 3,
+                    "broll_source": "niche:gamer"
+                },
+                "tamano": "1080x1920"
+            },
+            {
+                "type": "kinetic_text",
+                "duration": 6,
+                "escena": {
+                    "id": "solution",
+                    "type": "kinetic_text",
+                    "layers": [
+                        {
+                            "text": "500 MEGAS",
+                            "type": "kinetic_text",
+                            "style": "extreme_centered",
+                            "position": "center",
+                            "duration_sec": 2.5
+                        },
+                        {
+                            "text": "$599/mes",
+                            "type": "kinetic_text",
+                            "style": "huge_centered",
+                            "position": "center",
+                            "duration_sec": 2
+                        }
+                    ],
+                    "bg_color": "#1976D2",
+                    "duration": 6,
+                    "broll_source": "niche:gamer"
+                },
+                "tamano": "1080x1920"
+            },
+            {
+                "type": "broll_overlay",
+                "duration": 3,
+                "escena": {
+                    "id": "cta",
+                    "type": "broll_overlay",
+                    "layers": [
+                        {
+                            "type": "kinetic_text",
+                            "style": "huge_centered",
+                            "position": "center",
+                            "duration_sec": 1.2,
+                            "segments_from_brief": "cta"
+                        },
+                        {
+                            "text": "55 0000 0000",
+                            "type": "kinetic_text",
+                            "style": "large_centered",
+                            "position": "center",
+                            "duration_sec": 1.5
+                        }
+                    ],
+                    "bg_color": "#1976D2",
+                    "duration": 3,
+                    "bg_darken": 0.45,
+                    "broll_source": "niche:gamer"
+                },
+                "tamano": "1080x1920"
+            }
+        ],
+        "tts": [
+            {
+                "texto": "500 MEGAS de internet. Sin lag. Sin contratos. Llama al 55 0000 0000.",
+                "opciones": {
+                    "voice": "onyx"
+                }
+            }
+        ],
+        "error": "Scene concatenation failed"
+    },
+    "nicho_gamer_16_9": {
+        "escenas": [
+            {
+                "type": "broll_overlay",
+                "duration": 3,
+                "escena": {
+                    "id": "hook",
+                    "type": "broll_overlay",
+                    "layers": [
+                        {
+                            "type": "kinetic_text",
+                            "style": "huge_dramatic",
+                            "position": "center",
+                            "segments_from_brief": "kinetic_text_segments"
+                        }
+                    ],
+                    "duration": 3,
+                    "broll_source": "niche:gamer"
+                },
+                "tamano": "1920x1080"
+            },
+            {
+                "type": "kinetic_text",
+                "duration": 6,
+                "escena": {
+                    "id": "solution",
+                    "type": "kinetic_text",
+                    "layers": [
+                        {
+                            "text": "{{plan_speed}}",
+                            "type": "kinetic_text",
+                            "style": "extreme_centered",
+                            "position": "center",
+                            "duration_sec": 2.5
+                        },
+                        {
+                            "text": "${{plan_price}}/mes",
+                            "type": "kinetic_text",
+                            "style": "huge_centered",
+                            "position": "center",
+                            "duration_sec": 2
+                        }
+                    ],
+                    "bg_color": "#1976D2",
+                    "duration": 6,
+                    "broll_source": "niche:gamer"
+                },
+                "tamano": "1920x1080"
+            },
+            {
+                "type": "broll_overlay",
+                "duration": 3,
+                "escena": {
+                    "id": "cta",
+                    "type": "broll_overlay",
+                    "layers": [
+                        {
+                            "type": "kinetic_text",
+                            "style": "huge_centered",
+                            "position": "center",
+                            "duration_sec": 1.2,
+                            "segments_from_brief": "cta"
+                        },
+                        {
+                            "text": "{{phone_cta}}",
+                            "type": "kinetic_text",
+                            "style": "large_centered",
+                            "position": "center",
+                            "duration_sec": 1.5
+                        }
+                    ],
+                    "bg_color": "#1976D2",
+                    "duration": 3,
+                    "bg_darken": 0.45,
+                    "broll_source": "niche:gamer"
+                },
+                "tamano": "1920x1080"
+            }
+        ],
+        "tts": [
+            {
+                "texto": "Internet para gamers. Llama ahora.",
+                "opciones": {
+                    "voice": "onyx"
+                }
+            }
+        ],
+        "error": "Scene concatenation failed"
+    }
+}

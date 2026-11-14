@@ -202,3 +202,165 @@ cierra. `$q.notify` **no** está instalado en este app: usar `message()`.
 6. Sin librerías nuevas. Disponibles: Quasar 2.10 (lista cerrada en app.js), ApexCharts (`vue3-apexcharts`),
    Chart.js, FullCalendar, drag & drop nativo.
 7. Pantallas nuevas: registrar el tag en `registrar.js` (no en app.js).
+
+---
+
+## 10. Fase 1 — piezas nuevas (2026-11-13)
+
+> **Cambio de alcance (Henry, 13-nov): solo Meganet.** `mkt-encabezado-pantalla` sigue cargando el contexto
+> (`con-selector-empresa` → emite `contexto` con `capacidades` y color) pero **no muestra** el selector; para volver a
+> mostrarlo existe la prop `mostrar-selector` (por defecto `false`). «Empresas y equipo» no se ofrece en la barra ni en
+> botones (la pantalla existe, oculta).
+
+### 10.1 Navegación del módulo — `mkt-navegacion-modulo`
+
+- Va en **todas** las pantallas, dentro de `<mkt-raiz>`, **debajo del encabezado**. Sin props.
+- Lee `GET /api/marketing/navegacion` (orden de `module.json → menu[0].children`, ya filtrado por permiso). Marca el item
+  cuya URL —o la de uno de sus `sub`— coincide **más largo** con la ruta actual; si el item activo trae `sub`, pinta una
+  segunda fila de pestañas.
+- A 375 px se desplaza **dentro de sí misma** (la página no). Si la petición falla, no pinta nada.
+- Enlaces `<a href>` normales (la navegación SPA los toma).
+
+### 10.2 Diálogo — `mkt-dialogo`
+
+```html
+<mkt-dialogo v-model="abierto" titulo="Nuevo lead" :guardando="guardando" :ancho="560">
+  …campos…
+  <template #acciones>
+    <q-btn flat no-caps label="Cancelar" :disable="guardando" @click="abierto = false" />
+    <q-btn unelevated no-caps color="primary" label="Guardar" :loading="guardando" :disable="guardando" @click="guardar" />
+  </template>
+</mkt-dialogo>
+```
+
+- Trae su propia `<mkt-raiz>` (variables, modo oscuro, arreglo de Bootstrap): **no** se envuelve otra vez.
+- `guardando` bloquea cerrar (ni Esc ni clic fuera). Filete superior con el color de marca.
+- Móvil: `calc(100vw - 32px)` y botones a todo el ancho. Para confirmar un borrado: botón `color="negative"`.
+- Reemplaza a `$q.dialog` / `$q.notify`, que **no** están instalados en este app (avisos: `message()`).
+
+### 10.3 Gráfica de embudo (Dashboard)
+
+- ApexCharts barra horizontal `distributed`, colores `COLORES_EMBUDO` de `kit/tokens.js` (Nuevo neutro → Contactado
+  info → Calificado aviso → En negociación primario → Ganado éxito) y opciones base `opcionesBaseGrafica(oscuro)`.
+- Al lado, la **misma información en texto** (etapa, total, % del mes) para lectura rápida y lectores de pantalla; la
+  gráfica lleva `aria-hidden`. Pie del panel: total, perdidos y archivados. Sin leads → estado vacío, nunca barras en 0.
+
+### 10.4 Estado «no encontrado»
+
+- Una ficha por id que responde **404** (no existe o ya se eliminó) muestra `mkt-estado-vacio` con ícono `search_off`,
+  título **«No encontrado»** y botón para volver a la lista. Nunca pantalla en blanco ni datos de otro registro.
+- **403** → ícono `lock`, sin botones de acción. **Error** → `cloud_off` + mensaje del backend + «Reintentar».
+
+### 10.5 Ayudantes nuevos (`kit/formato.js`, `kit/tokens.js`, solo agregados)
+
+| Función | Para qué |
+|---|---|
+| `formatoMoneda(v, moneda)` | MXN → `formatoMXN`; otra → `$1,234.50 USD` (sin convertir) |
+| `ESTADOS_LEAD`, `etiquetaEstadoLead`, `tonoEstadoLead` | etiqueta y tono de insignia del estado del lead |
+| `mesesRecientes(n)` | selector de mes (mes actual y anteriores, zona America/Mexico_City) |
+| `erroresPorCampo(e)` | 422 → `{ campo: mensaje }` para `:error-message` |
+| `puedePermiso(this.$store, p)` | ocultar botones según permiso Spatie (true mientras el store no carga) |
+| `iniciales`, `esSinPermiso`, `esNoEncontrado` | avatares y ramas de error |
+| `COLORES_EMBUDO`, `opcionesBaseGrafica(oscuro)` | gráficas con la paleta del kit |
+
+---
+
+## 11. Fase 2 — Campañas 360 (2026-11-13)
+
+Piezas en `resources/js/components/module/marketing/campanas360/`. Catálogos y límites espejo del contrato en
+`catalogos360.js` (el backend manda: cualquier 422 gana sobre la revisión local); sondeo en `sondeo.js`.
+
+### 11.1 Asistente por pasos
+
+- `q-stepper` plano dentro de un `mkt-tarjeta-panel`: **Objetivo → Público → Oferta → Canales → Presupuesto y fechas →
+  Revisar**. En móvil, `contracted` (solo íconos). Debajo de cada título, una línea de ayuda que dice qué se pide.
+- Opciones con peso (objetivo, canales) como **tarjetas seleccionables** (ícono en cuadro de 40 px, título, ayuda), no como
+  radios sueltos. Seleccionada = borde y fondo tenue en `--mkt-primario` + `check_circle`.
+- Navegación en el pie del panel: «Atrás» (flat) · espacio · «Guardar borrador» (outline) · «Siguiente» / «Generar con IA»
+  (relleno). En móvil, botones a todo el ancho.
+- Validación en línea por paso al pulsar «Siguiente»; los 422 del backend se pintan en su campo y llevan al primer paso
+  con error (el paso se marca en rojo). Montos con prefijo `$` y sufijo `MXN`; el `hint` muestra el monto con `formatoMXN`.
+- **Guardar** en cualquier paso: la primera vez crea (POST) y la URL pasa a `/{id}/editar` (`history.replaceState`), así
+  recargar no duplica. «Revisar» resume cada bloque con su botón «Cambiar» y lista las piezas que preparará la IA.
+
+### 11.2 Tarjeta de guion y editor de escenas
+
+- **Tarjeta** (`TarjetaGuion`): título «Guion de Reel A», subtítulo con título del guion · formato · duración; acciones
+  Editar · Regenerar · **Producir en Video MVM** (relleno). Cuerpo: gancho y **tabla de escenas** (#, duración, toma/visual,
+  texto en pantalla en negritas, voz en off, música/sonido) con fila de total. En móvil cada escena es una tarjeta
+  «etiqueta: valor».
+- **Editor** (`EditorGuionEscenas`, `mkt-dialogo` de 960 px, persistente): barra de resumen arriba (escenas y total contra el
+  límite; verde dentro, rojo fuera), una tarjeta por escena con subir/bajar/quitar, contadores de caracteres por tipo de
+  visual (`broll` 60, `texto` 18, `cta` 24, `logo` sin texto), avisos en ámbar (voz en off larga) y errores en rojo. «Agregar
+  escena» inserta antes del cierre. Guardar se bloquea mientras haya errores locales.
+
+### 11.3 Estado de producción de video
+
+| Estado | Insignia | Qué más se ve |
+|---|---|---|
+| En cola | `neutro` «En cola» | barra en 0 + «Esperando turno en el procesador de videos…» |
+| Produciendo | `info` «Produciendo» | barra indeterminada + «Armando escenas, voz y música…» |
+| Listo | `exito` «Listo» | `<video controls preload="none">` con la miniatura como `poster` (9:16 angosto, 16:9 ancho) |
+| Error | `peligro` «Error» | banner con el mensaje corto del backend + «Puedes volver a producirlo» |
+| Demorado | (el de su estado) | banner ámbar `hourglass_bottom`: «Sigue en cola: el procesador de videos no está corriendo. Avísale a Irving.» |
+| Sin voz | `aviso` «Sin voz» | nota: revisar que la IA de voz esté asignada |
+
+- «Producir» se deshabilita mientras ese guion tenga un video en cola o produciendo. El diálogo precarga voz y música del
+  guion y muestra formato (1080 × 1920 / 1920 × 1080), escenas y duración; un 422 `guion_invalido` lista los errores por escena.
+- La ficha consulta `…/progreso` cada 5 s solo mientras haya algo generando, en espera, en cola o produciendo; se pausa con la
+  pestaña oculta y se detiene a los 30 min con aviso y botón «Revisar ahora».
+
+### 11.4 WhatsApp: solo texto
+
+- Banner informativo fijo arriba de los mensajes: «Solo texto: estos mensajes no se envían desde LM. Cópialos y úsalos donde
+  corresponda.» Cada mensaje en burbuja con su uso (Difusión, Seguimiento, Respuesta a quien pregunta).
+- Acciones: **Copiar** (relleno), Editar, Regenerar. **Nunca** un botón de enviar ni nada conectado a un gateway.
+
+### 11.5 Otros
+
+- Piezas en pestañas por canal (`q-tabs` con flechas en móvil); un punto `info` en la pestaña si algo está generando y
+  `negative` si algo falló. Copies A/B lado a lado; anuncios con vista tipo anuncio y contadores `largo / tope` (rojo si se pasa).
+- Reparto del presupuesto: barra horizontal ApexCharts (`SERIE_GRAFICAS`, `opcionesBaseGrafica`) + la misma información en
+  tabla (canal, %, monto MXN, total = presupuesto). Gráfica `aria-hidden`.
+- «IA no configurada» (422 `ia_no_configurada`) → `mkt-estado-vacio` con ícono `smart_toy` y el mensaje del backend; no se
+  reintenta solo.
+- Ayudante nuevo: `formatoDuracion(seg)` en `kit/formato.js` → `27.6 s`, `1 min 15 s`.
+
+### 11.6 Menú de Marketing (§2.11, aprobado por Henry el 13-nov)
+
+- **Una sola fuente**: `module.json → menu[0].children`. De ahí salen el **submenú lateral**
+  (`resources/views/module-sidebar/marketing.blade.php`) y la **barra interna** (`mkt-navegacion-modulo`), en el mismo
+  orden. Reordenar o renombrar = editar module.json; no se escribe el menú a mano en ningún Blade.
+- Orden: **Panel · Campañas 360 · Reels y videos · Publicación · Leads · Pruebas A/B · Configuración**. Contenido
+  (Fase 3) y Analítica (Fase 5) se agregan a module.json cuando existan.
+- Pestañas (`sub`) solo en la barra interna: Reels y videos (Plantillas · Generar · Video por nicho · Fila de producción),
+  Publicación (Resumen · Publicar · Fila de publicación), Leads (Leads · Conversaciones · Formularios de captura),
+  Configuración (Brand Kit · Voces · Canales de publicación · Integraciones). Una pestaña con `permission` se oculta a quien
+  no lo tiene. Cada sección de primer nivel pide el mismo permiso que exige la pantalla que abre (Reels y videos
+  `view-video-templates`, Publicación `view-publishing-dashboard`, Leads `marketing.leads.view`, Configuración
+  `marketing.brand_kit.configure`); Panel, Campañas 360 y Pruebas A/B solo piden la regla de acceso de la Fase 1.
+- El submenú lateral **solo se pinta** si `EquipoMarketing::puedeEntrar(usuario)` (activo + equipo fijado + fila «admin»
+  activa en Meganet). Íconos del lateral en `icono_fa` (FA5 validados contra `icons.min.css`); los de la barra en
+  `icono_material`.
+
+## 12. Diseño unificado con Clientes (§2.13, 13-nov) — MANDA sobre las secciones 3, 4, 10.1 y 11.6
+
+Referencia única: Clientes (Listado `/cliente/listar` y ficha `/cliente/editar/{id}`), solo lectura. Detalle por tipo de
+pantalla en `docs/marketing/diseno-propuesta.md`. Lo que cambia respecto de lo anterior:
+
+- **Breadcrumb** en cada vista Blade, antes del componente: `<Breadcrumb :list='[{"title":"Página"},{"title":"Marketing","link":"/marketing"},…,{"title":"<pestaña>","active":true}]'></Breadcrumb>`.
+- **Encabezado** (`mkt-encabezado-pantalla`): ya no hay cuadro de ícono (#0066CC) ni subtítulo; es la q-card del
+  Listado de Clientes con título `text-h6` (20 px / 500), filtros en la misma fila (`#filtros`, campos de 200 px,
+  búsqueda `mkt-filtro--busqueda` de 240 px), acciones a la derecha (`#acciones`) y la tabla en el cuerpo (slot por
+  defecto). El título es el nombre de la pestaña del menú.
+- **Navegación**: las 7 secciones viven en el submenú lateral; «Marketing» abre el Panel. En la pantalla hay UN solo
+  grupo de pestañas tipo carpeta (`mkt-pestanas`, copia de `.cc-folder-tabs` de la ficha de Cliente): las
+  sub-secciones de la sección activa, que pinta el propio encabezado. Nunca flechas: pasan a otra línea.
+- **Ficha** (campaña, lead): `mkt-pestanas` → `mkt-ficha-encabezado` (avatar, nombre · #id, estado, datos, cifras,
+  botones) → bloques `mkt-tarjeta-panel` con `tono` (lila, azul, verde, crema, oliva, salmon, rosa, gris) e `icono-fa`.
+- **Tabla** (`mkt-tabla-ejecutiva`): «Elementos por página», «No hay elementos para mostrar», «1-10 de 50», encabezados
+  sin mayúsculas ni fondo, filas de 48 px, `tabla-listado` + `tituloSiCorta`, tres puntos y «Buscar».
+- **Botones** (`mkt-boton`, Bootstrap `.btn` 38 px): crear verde, guardar/principal azul (`btn-info`), eliminar rojo,
+  volver gris, secundario con borde. Los solo-ícono, `q-btn flat round dense` sin color.
+- **Estado**: `mkt-insignia-estado` = `.estado-chip` del sistema. **Cifras**: `mkt-tarjeta-kpi` = `.cic-stat` de la ficha.
+- **Esquinas** 4 px (q-card) y 12 px solo en bloques de ficha; **oscuro** igual que Clientes (`#1a1a1a`, bloques `#1d1d21`).

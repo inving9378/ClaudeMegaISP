@@ -1,6 +1,6 @@
 @extends('core-layout::master')
-@section('title') Marketing · Sin empresa @endsection
-@section('content')
+@section('title') Marketing · Sin acceso @endsection
+@section('styles')
     <style>
         .mkt-sin-empresa { display: flex; justify-content: center; padding: 48px 16px; }
         .mkt-sin-empresa__tarjeta { max-width: 560px; width: 100%; background: #ffffff; border: 1px solid #e9e9ef;
@@ -12,11 +12,15 @@
         body[data-layout-mode=dark] .mkt-sin-empresa__titulo,
         body[data-layout-mode=dark] .mkt-sin-empresa__texto { color: #ced4da; }
     </style>
+@endsection
+@section('content')
+    {{-- Ruta como Clientes (§2.13): mismo componente Breadcrumb y mismo lugar. --}}
+    <Breadcrumb :list='[{"title":"Página"},{"title":"Marketing","link":"/marketing"},{"title":"Sin acceso","active":true}]'></Breadcrumb>
     <div class="mkt-sin-empresa">
         <div class="mkt-sin-empresa__tarjeta" role="alert">
             <div class="mkt-sin-empresa__icono"><i class="fas fa-building" aria-hidden="true"></i></div>
-            <h1 class="mkt-sin-empresa__titulo">Aún no tienes empresa en Marketing</h1>
-            <p class="mkt-sin-empresa__texto">Todavía no perteneces a ninguna empresa de Marketing. Pide a un administrador de Marketing que te agregue en «Empresas y equipo».</p>
+            <h1 class="mkt-sin-empresa__titulo">No tienes acceso a Marketing</h1>
+            <p class="mkt-sin-empresa__texto">No tienes acceso a Marketing. Pide acceso a un administrador de Marketing.</p>
         </div>
     </div>
 @endsection

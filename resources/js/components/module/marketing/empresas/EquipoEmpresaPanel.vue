@@ -4,7 +4,7 @@
         :subtitulo="subtitulo"
     >
         <template v-if="puedeEditar && estado !== 'error'" #acciones>
-            <q-btn unelevated no-caps color="primary" icon="person_add" label="Agregar persona" @click="dialogo = true" />
+            <mkt-boton tipo="crear" etiqueta="Agregar persona" @click="dialogo = true" />
         </template>
 
         <q-banner v-if="avisoFila" dense rounded class="mkt-equipo__aviso" role="alert">
@@ -19,12 +19,7 @@
             v-if="estado === 'error'"
             icono="cloud_off"
             titulo="No se pudo cargar el equipo"
-            :texto="mensajeError"
-        >
-            <template #accion>
-                <q-btn outline no-caps color="primary" icon="refresh" label="Reintentar" @click="cargar" />
-            </template>
-        </mkt-estado-vacio>
+            :texto="mensajeError" />
 
         <mkt-tabla-ejecutiva
             v-else
@@ -36,9 +31,6 @@
             vacio-titulo="Esta empresa aún no tiene equipo"
             vacio-texto="Agrega a las personas que trabajarán en ella y elige su rol: Administrador, Marketing o Ventas."
         >
-            <template v-if="puedeEditar" #vacio-accion>
-                <q-btn unelevated no-caps color="primary" icon="person_add" label="Agregar persona" @click="dialogo = true" />
-            </template>
 
             <template #body-cell-nombre="props">
                 <q-td :props="props" :class="{ 'mkt-equipo__inactiva': !props.row.activo }">
@@ -250,7 +242,7 @@ export default {
     font-weight: 600;
     padding: 0 6px;
     border-radius: 4px;
-    color: var(--mkt-marca, #0066cc);
+    color: var(--mkt-primario, #5156be);
     border: 1px solid currentColor;
     line-height: 16px;
 }

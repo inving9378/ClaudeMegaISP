@@ -283,8 +283,10 @@ class EmpresasApiTest extends MarketingTestCase
 
     // ── PUT /api/marketing/empresas/{id} ─────────────────────────────────────
 
+    /** [Fase 1 · B] adminB recibe además fila admin en la 1 para poder entrar a Marketing; lo probado no cambia. */
     public function test_actualizar_subconjunto_de_campos(): void
     {
+        $this->adminTambienDeLaPrincipal($this->adminB);
         $nuevo = $this->nombreUnico('B Renombrada');
         $r = $this->como($this->adminB, $this->empresaB->id)->putJson("/api/marketing/empresas/{$this->empresaB->id}", ['nombre' => $nuevo]);
         $r->assertOk()->assertJsonPath('ok', true)->assertJsonPath('data.nombre', $nuevo);
@@ -295,15 +297,19 @@ class EmpresasApiTest extends MarketingTestCase
         $this->assertSame($this->adminB->id, (int) $fila->updated_by);
     }
 
+    /** [Fase 1 · B] adminB recibe además fila admin en la 1 para poder entrar a Marketing; lo probado no cambia. */
     public function test_actualizar_con_su_propio_slug_y_nombre_no_choca_consigo(): void
     {
+        $this->adminTambienDeLaPrincipal($this->adminB);
         $this->como($this->adminB, $this->empresaB->id)
             ->putJson("/api/marketing/empresas/{$this->empresaB->id}", ['nombre' => $this->empresaB->nombre, 'slug' => $this->empresaB->slug])
             ->assertOk();
     }
 
+    /** [Fase 1 · B] adminB recibe además fila admin en la 1 para poder entrar a Marketing; lo probado no cambia. */
     public function test_actualizar_con_nombre_o_slug_de_otra_empresa_da_422(): void
     {
+        $this->adminTambienDeLaPrincipal($this->adminB);
         $this->como($this->adminB, $this->empresaB->id)
             ->putJson("/api/marketing/empresas/{$this->empresaB->id}", ['slug' => 'meganet'])
             ->assertStatus(422)->assertJsonValidationErrors(['slug']);
@@ -327,24 +333,39 @@ class EmpresasApiTest extends MarketingTestCase
         }
     }
 
+    /**
+     * [Fase 1 · B] adminB recibe fila admin en la 1 para poder entrar. Al desactivar B, B sale de sus empresas
+     * (antes se comprobaba con `sin_empresa`; ahora sigue entrando por la 1, así que se comprueba en la lista).
+     * Y un miembro que SOLO era de B queda sin empresa.
+     */
     public function test_desactivar_otra_empresa_si_se_puede_y_sus_miembros_quedan_sin_empresa(): void
     {
+        $this->adminTambienDeLaPrincipal($this->adminB);
+        $soloDeB = $this->crearUsuario('qa_solo_de_b', [$this->empresaB->id => 'ventas']);
         $this->como($this->adminB, $this->empresaB->id)->putJson("/api/marketing/empresas/{$this->empresaB->id}", ['activo' => false])
             ->assertOk()->assertJsonPath('data.activo', false);
 
-        $this->como($this->adminB)->getJson('/api/marketing/contexto')->assertStatus(403)->assertJsonPath('error', 'sin_empresa');
+        $r = $this->como($this->adminB)->getJson('/api/marketing/contexto')->assertOk();
+        $this->assertNotContains($this->empresaB->id, array_column($r->json('empresas'), 'id'));
+        $this->como($soloDeB)->getJson('/api/marketing/contexto')->assertStatus(403)->assertJsonPath('error', 'sin_empresa');
     }
 
     public function test_actualizar_empresa_ajena_inexistente_o_no_numerica_da_404(): void
     {
         $antes = $this->fila('marketing_empresas', 1);
 
-        $this->como($this->adminB, $this->empresaB->id)->putJson('/api/marketing/empresas/1', ['nombre' => 'Hackeada'])->assertStatus(404);
-        $this->como($this->adminB, $this->empresaB->id)->putJson('/api/marketing/empresas/1', ['activo' => false])->assertStatus(404);
-        $this->como($this->adminB, $this->empresaB->id)->putJson('/api/marketing/empresas/999999999', ['nombre' => 'X'])->assertStatus(404);
-        $this->como($this->adminB, $this->empresaB->id)->putJson('/api/marketing/empresas/abc', ['nombre' => 'X'])->assertStatus(404);
+        // [Fase 1 · B] Antes: adminB (solo de B) contra la 1 → 404. Ahora adminB ni entra (403 sin_acceso, más
+        // estricto) y la «ajena» se prueba al revés: el admin de la 1 contra B (de la que no es admin) → 404.
+        $this->como($this->adminB, $this->empresaB->id)->putJson('/api/marketing/empresas/1', ['nombre' => 'Hackeada'])->assertStatus(403)->assertJsonPath('error', 'sin_acceso');
+        $this->como($this->adminB, $this->empresaB->id)->putJson('/api/marketing/empresas/1', ['activo' => false])->assertStatus(403);
+        $antesB = $this->fila('marketing_empresas', $this->empresaB->id);
+        $this->como($this->adminA, 1)->putJson("/api/marketing/empresas/{$this->empresaB->id}", ['nombre' => 'Hackeada'])->assertStatus(404);
+        $this->como($this->adminA, 1)->putJson("/api/marketing/empresas/{$this->empresaB->id}", ['activo' => false])->assertStatus(404);
+        $this->como($this->adminA, 1)->putJson('/api/marketing/empresas/999999999', ['nombre' => 'X'])->assertStatus(404);
+        $this->como($this->adminA, 1)->putJson('/api/marketing/empresas/abc', ['nombre' => 'X'])->assertStatus(404);
 
         $this->assertEquals($antes, $this->fila('marketing_empresas', 1));
+        $this->assertEquals($antesB, $this->fila('marketing_empresas', $this->empresaB->id));
     }
 
     public function test_actualizar_empresa_donde_solo_soy_marketing_da_404(): void
@@ -357,18 +378,29 @@ class EmpresasApiTest extends MarketingTestCase
         $this->assertEquals($antes, $this->fila('marketing_empresas', $this->empresaB->id));
     }
 
+    /** [Fase 1 · B] adminB recibe además fila admin en la 1 para poder entrar a Marketing; lo probado no cambia. */
     public function test_actualizar_ignora_id_y_created_by_del_request(): void
     {
+        $this->adminTambienDeLaPrincipal($this->adminB);
         $this->como($this->adminB, $this->empresaB->id)
             ->putJson("/api/marketing/empresas/{$this->empresaB->id}", ['id' => 1, 'created_by' => 1, 'nombre' => $this->nombreUnico()])
             ->assertOk()->assertJsonPath('data.id', $this->empresaB->id);
         $this->assertSame('Meganet', DB::table('marketing_empresas')->where('id', 1)->value('nombre'));
     }
 
+    /** [Fase 1 · B] adminB recibe además fila admin en la 1 para poder entrar a Marketing; lo probado no cambia. */
     public function test_actualizar_con_color_invalido_da_422(): void
     {
+        $this->adminTambienDeLaPrincipal($this->adminB);
         $this->como($this->adminB, $this->empresaB->id)
             ->putJson("/api/marketing/empresas/{$this->empresaB->id}", ['color_primario' => 'javascript:alert(1)'])
             ->assertStatus(422)->assertJsonValidationErrors(['color_primario']);
     }
+
+    /** [Fase 1 · B] Regla de Henry: para entrar a Marketing hay que ser admin activo de la empresa 1. */
+    private function adminTambienDeLaPrincipal(\App\Models\User $u): void
+    {
+        $this->asignar($u, 1, 'admin');
+    }
+
 }

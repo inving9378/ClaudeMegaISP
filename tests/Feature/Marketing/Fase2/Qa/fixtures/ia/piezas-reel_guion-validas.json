@@ -1,0 +1,27 @@
+{"piezas": [
+ {"variante": "A", "contenido": {
+  "titulo": "¿Se traba tu serie?", "formato": "9:16", "gancho": "¿Otra vez se trabó la serie?",
+  "escenas": [
+   {"numero": 1, "duracion_s": 4, "toma": "Mamá frente a la tele con el círculo de carga",
+    "visual": {"tipo": "broll", "categoria_broll": "familia"}, "texto_pantalla": "¿Se traba tu serie?",
+    "voz_en_off": "¿Otra vez se trabó la serie?", "musica_sonido": "Golpe de bajo"},
+   {"numero": 2, "duracion_s": 4, "toma": "Texto grande sobre el color de la marca",
+    "visual": {"tipo": "texto", "categoria_broll": null}, "texto_pantalla": "$599 al mes",
+    "voz_en_off": "Fibra de quinientos megas.", "musica_sonido": ""},
+   {"numero": 3, "duracion_s": 4, "toma": "Cierre con logo y teléfono",
+    "visual": {"tipo": "cta", "categoria_broll": null}, "texto_pantalla": "Contrata hoy",
+    "voz_en_off": "Contrata hoy, la instalación es gratis.", "musica_sonido": "Remate"}],
+  "musica": {"ambiente": "uplifting_family"}, "voz": {"id": "nova"},
+  "cta_final": {"texto": "Contrata hoy"}, "duracion_total_s": 12}},
+ {"variante": "B", "contenido": {
+  "titulo": "Toda la familia conectada", "formato": "9:16", "gancho": "¿Cuántos se conectan en tu casa?",
+  "escenas": [
+   {"numero": 1, "duracion_s": 3, "toma": "Logo animado", "visual": {"tipo": "logo", "categoria_broll": null},
+    "texto_pantalla": "", "voz_en_off": "", "musica_sonido": "Entrada"},
+   {"numero": 2, "duracion_s": 5, "toma": "Niños con tabletas", "visual": {"tipo": "broll", "categoria_broll": "home_office"},
+    "texto_pantalla": "Todos conectados a la vez", "voz_en_off": "En casa todos se conectan al mismo tiempo.", "musica_sonido": ""},
+   {"numero": 3, "duracion_s": 4, "toma": "Cierre", "visual": {"tipo": "cta", "categoria_broll": null},
+    "texto_pantalla": "Llama hoy", "voz_en_off": "Llama hoy.", "musica_sonido": ""}],
+  "musica": {"ambiente": "sin_musica"}, "voz": {"id": "onyx"},
+  "cta_final": {"texto": "Llama hoy"}, "duracion_total_s": 12}}
+]}

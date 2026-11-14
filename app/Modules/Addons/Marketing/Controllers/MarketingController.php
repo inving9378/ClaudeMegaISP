@@ -3,19 +3,21 @@
 namespace App\Modules\Addons\Marketing\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Modules\Addons\Marketing\Models\Campaign;
-use App\Modules\Addons\Marketing\Models\Lead;
-use App\Modules\Addons\Marketing\Models\MarketingTemplate;
-use App\Modules\Addons\Marketing\Repositories\CampaignRepository;
+use App\Modules\Addons\Marketing\Controllers\Concerns\RespondeRetirada;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
+/**
+ * Panel de Marketing. `index` sirve la vista del Dashboard.
+ *
+ * Fase 1 (F1-3): `stats` y las Plantillas legado quedaron RETIRADAS — dependían de `marketing_templates`,
+ * tabla que no existe (500). Las rutas siguen registradas y responden 410 (alta de plantilla: primero su
+ * validación). El Dashboard nuevo usa `/api/marketing/dashboard/*`. Ver docs/marketing/fase-1-paquetes.md §2.5.
+ */
 class MarketingController extends Controller
 {
-    public function __construct(
-        private readonly CampaignRepository $repository
-    ) {}
+    use RespondeRetirada;
 
     public function index(): View
     {
@@ -24,28 +26,17 @@ class MarketingController extends Controller
 
     public function stats(): JsonResponse
     {
-        return response()->json([
-            'campaigns' => $this->repository->stats(),
-            'leads'     => [
-                'total'       => Lead::count(),
-                'new'         => Lead::where('status', 'new')->count(),
-                'qualified'   => Lead::where('status', 'qualified')->count(),
-                'converted'   => Lead::where('status', 'converted')->count(),
-            ],
-            'templates' => MarketingTemplate::active()->count(),
-        ]);
+        return $this->retirada();
     }
 
     public function templates(): JsonResponse
     {
-        $templates = MarketingTemplate::active()->orderBy('name')->get();
-
-        return response()->json($templates);
+        return $this->retirada();
     }
 
     public function storeTemplate(Request $request): JsonResponse
     {
-        $validated = $request->validate([
+        $request->validate([
             'name'          => 'required|string|max:255',
             'description'   => 'nullable|string',
             'channel'       => 'required|string|in:whatsapp,facebook,instagram',
@@ -56,34 +47,16 @@ class MarketingController extends Controller
             'is_active'     => 'boolean',
         ]);
 
-        $template = MarketingTemplate::create($validated);
-
-        return response()->json($template, 201);
+        return $this->retirada();
     }
 
     public function updateTemplate(Request $request, int $id): JsonResponse
     {
-        $template  = MarketingTemplate::findOrFail($id);
-        $validated = $request->validate([
-            'name'          => 'sometimes|string|max:255',
-            'description'   => 'nullable|string',
-            'channel'       => 'sometimes|string|in:whatsapp,facebook,instagram',
-            'template_type' => 'sometimes|string|in:campaign,welcome,followup,closing',
-            'system_prompt' => 'nullable|string',
-            'base_copy'     => 'sometimes|string',
-            'variables'     => 'nullable|array',
-            'is_active'     => 'boolean',
-        ]);
-
-        $template->update($validated);
-
-        return response()->json($template);
+        return $this->retirada();
     }
 
     public function destroyTemplate(int $id): JsonResponse
     {
-        MarketingTemplate::findOrFail($id)->delete();
-
-        return response()->json(['message' => 'Plantilla eliminada']);
+        return $this->retirada();
     }
 }

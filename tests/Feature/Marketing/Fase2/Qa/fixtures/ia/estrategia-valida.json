@@ -1,0 +1,25 @@
+{
+  "resumen": "Campaña de diciembre para conseguir familias nuevas en colonias con fibra recién instalada.",
+  "propuesta_valor": "Internet de fibra estable para toda la familia con instalación gratis.",
+  "mensajes_clave": ["Fibra que aguanta a toda la familia", "Instalación gratis", "Atención local"],
+  "publico_detalle": "Familias de 25 a 55 años con varios dispositivos conectados al mismo tiempo.",
+  "por_canal": [
+    {"canal": "reels", "rol": "Atraer", "formato": "Reel 9:16 de 15 a 30 s", "frecuencia": "3 por semana"},
+    {"canal": "video", "rol": "Explicar", "formato": "Video 16:9 de 30 a 60 s", "frecuencia": "1 por semana"},
+    {"canal": "facebook", "rol": "Informar", "formato": "Publicación con imagen", "frecuencia": "2 por semana"},
+    {"canal": "instagram", "rol": "Inspirar", "formato": "Publicación con carrusel", "frecuencia": "2 por semana"},
+    {"canal": "anuncios_meta", "rol": "Convertir", "formato": "Anuncio de mensajes", "frecuencia": "Siempre activo"},
+    {"canal": "whatsapp", "rol": "Cerrar", "formato": "Mensajes de texto", "frecuencia": "Al recibir interés"}
+  ],
+  "calendario": [
+    {"semana": 1, "acciones": ["Lanzar Reel A y anuncio A"]},
+    {"semana": 2, "acciones": ["Publicar Video A", "Reel B"]}
+  ],
+  "reparto_presupuesto": [
+    {"canal": "anuncios_meta", "porcentaje": "60.00", "monto_mxn": "1.00"},
+    {"canal": "reels", "porcentaje": "25.00", "monto_mxn": "1.00"},
+    {"canal": "video", "porcentaje": "15.00", "monto_mxn": "1.00"}
+  ],
+  "kpis": [{"nombre": "Leads", "meta": "150"}, {"nombre": "Contrataciones", "meta": "30"}],
+  "riesgos": ["Poca respuesta en colonias sin cobertura confirmada"]
+}

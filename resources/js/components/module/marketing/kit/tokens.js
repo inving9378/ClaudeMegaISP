@@ -24,11 +24,12 @@ export const COLORES = Object.freeze({
     fondoTarjeta: "#ffffff",
 });
 
+/** Oscuro igual que Clientes (q-card dark del Listado de Clientes). */
 export const COLORES_OSCURO = Object.freeze({
-    borde: "#3b403d",
+    borde: "#3a3a40",
     texto: "#ced4da",
     textoSuave: "#858d98",
-    fondoTarjeta: "#313533",
+    fondoTarjeta: "#1a1a1a",
 });
 
 export const MARCA_MEGANET = Object.freeze({
@@ -51,4 +52,28 @@ export const FUENTE = '"IBM Plex Sans", sans-serif';
 /** Valida "#RRGGBB" (mismo patrón que el backend). */
 export const esColorHex = (v) => typeof v === "string" && /^#[0-9A-Fa-f]{6}$/.test(v);
 
-export default { COLORES, COLORES_OSCURO, MARCA_MEGANET, SERIE_GRAFICAS, FUENTE, esColorHex };
+
+// ── Fase 1 (solo se agrega) ───────────────────────────────────────────────────
+
+/** Colores de las etapas del embudo (de la paleta LM, en orden del embudo). */
+export const COLORES_EMBUDO = Object.freeze([
+    COLORES.neutro,   // Nuevo
+    COLORES.info,     // Contactado
+    COLORES.aviso,    // Calificado
+    COLORES.primario, // En negociación
+    COLORES.exito,    // Ganado
+]);
+
+/** Opciones base de ApexCharts del kit (fuente, sin barra de herramientas, ejes con los tokens). */
+export function opcionesBaseGrafica(oscuro = false) {
+    const t = oscuro ? { ...COLORES, ...COLORES_OSCURO } : COLORES;
+    return {
+        chart: { fontFamily: FUENTE, toolbar: { show: false }, foreColor: t.textoSuave, animations: { enabled: false } },
+        grid: { borderColor: t.borde, strokeDashArray: 3 },
+        dataLabels: { enabled: false },
+        legend: { show: false },
+        tooltip: { theme: oscuro ? "dark" : "light" },
+    };
+}
+
+export default { COLORES, COLORES_OSCURO, MARCA_MEGANET, SERIE_GRAFICAS, FUENTE, esColorHex, COLORES_EMBUDO, opcionesBaseGrafica };

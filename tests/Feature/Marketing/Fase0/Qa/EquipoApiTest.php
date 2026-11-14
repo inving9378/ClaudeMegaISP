@@ -44,9 +44,22 @@ class EquipoApiTest extends MarketingTestCase
         return "/api/marketing/empresas/{$this->empresaB->id}/usuarios{$resto}";
     }
 
+    /** [Fase 1 · B] Para entrar a Marketing hay que ser admin activo de la 1: adminB recibe esa fila; gestiona B igual. */
     private function comoAdminB(): static
     {
+        $this->asignar($this->adminB, 1, 'admin');
+
         return $this->como($this->adminB, $this->empresaB->id);
+    }
+
+    private ?User $soloAdminB = null;
+
+    /** [Fase 1 · B] Admin SOLO de B (sin fila en la 1): con la regla B no entra a nada → 403 `sin_acceso`. */
+    private function comoSoloAdminB(): static
+    {
+        $this->soloAdminB ??= $this->crearUsuario('qa_solo_admin_b', [$this->empresaB->id => 'admin']);
+
+        return $this->como($this->soloAdminB, $this->empresaB->id);
     }
 
     private function spatieDe(User $u): array
@@ -86,7 +99,9 @@ class EquipoApiTest extends MarketingTestCase
 
     public function test_index_de_empresa_ajena_da_404(): void
     {
-        $this->comoAdminB()->getJson('/api/marketing/empresas/1/usuarios')->assertStatus(404);
+        // [Fase 1 · B] el admin solo de B ya ni entra (403 sin_acceso); el admin de la 1 contra B (ajena) → 404.
+        $this->comoSoloAdminB()->getJson('/api/marketing/empresas/1/usuarios')->assertStatus(403)->assertJsonPath('error', 'sin_acceso');
+        $this->como($this->adminA, 1)->getJson($this->urlB())->assertStatus(404);
         $this->comoAdminB()->getJson('/api/marketing/empresas/999999999/usuarios')->assertStatus(404);
     }
 
@@ -191,16 +206,20 @@ class EquipoApiTest extends MarketingTestCase
 
     public function test_agregar_en_empresa_ajena_da_404_y_no_escribe(): void
     {
-        $this->comoAdminB()->postJson('/api/marketing/empresas/1/usuarios', ['user_id' => $this->candidato->id, 'rol' => 'admin'])
-            ->assertStatus(404);
+        // [Fase 1 · B] admin solo de B → 403 sin_acceso; admin de la 1 agregando en B (ajena) → 404. Nada se escribe.
+        $this->comoSoloAdminB()->postJson('/api/marketing/empresas/1/usuarios', ['user_id' => $this->candidato->id, 'rol' => 'admin'])
+            ->assertStatus(403)->assertJsonPath('error', 'sin_acceso');
         $this->assertSame(0, DB::table('marketing_empresa_usuario')->where('company_id', 1)->where('user_id', $this->candidato->id)->count());
+        $this->como($this->adminA, 1)->postJson($this->urlB(), ['user_id' => $this->candidato->id, 'rol' => 'admin'])->assertStatus(404);
+        $this->assertSame(0, DB::table('marketing_empresa_usuario')->where('company_id', $this->empresaB->id)->where('user_id', $this->candidato->id)->count());
     }
 
     public function test_admin_de_b_no_puede_agregarse_a_si_mismo_en_a(): void
     {
-        $this->comoAdminB()->postJson('/api/marketing/empresas/1/usuarios', ['user_id' => $this->adminB->id, 'rol' => 'admin'])
-            ->assertStatus(404);
-        $this->assertSame(0, DB::table('marketing_empresa_usuario')->where('company_id', 1)->where('user_id', $this->adminB->id)->count());
+        // [Fase 1 · B] con un admin SOLO de B (adminB ahora necesita fila en la 1 para entrar): 403 sin_acceso, sin fila nueva.
+        $this->comoSoloAdminB()->postJson('/api/marketing/empresas/1/usuarios', ['user_id' => $this->soloAdminB->id, 'rol' => 'admin'])
+            ->assertStatus(403)->assertJsonPath('error', 'sin_acceso');
+        $this->assertSame(0, DB::table('marketing_empresa_usuario')->where('company_id', 1)->where('user_id', $this->soloAdminB->id)->count());
     }
 
     // ── PUT usuarios/{userId} ────────────────────────────────────────────────
@@ -274,7 +293,9 @@ class EquipoApiTest extends MarketingTestCase
 
     public function test_actualizar_en_empresa_ajena_da_404(): void
     {
-        $this->comoAdminB()->putJson("/api/marketing/empresas/1/usuarios/{$this->marketingA->id}", ['activo' => false])->assertStatus(404);
+        // [Fase 1 · B] admin solo de B → 403 sin_acceso; admin de la 1 contra B (ajena) → 404.
+        $this->comoSoloAdminB()->putJson("/api/marketing/empresas/1/usuarios/{$this->marketingA->id}", ['activo' => false])->assertStatus(403);
+        $this->como($this->adminA, 1)->putJson($this->urlB("/{$this->adminB->id}"), ['activo' => false])->assertStatus(404);
         $this->assertSame(1, (int) DB::table('marketing_empresa_usuario')->where('company_id', 1)->where('user_id', $this->marketingA->id)->value('activo'));
     }
 
@@ -367,6 +388,8 @@ class EquipoApiTest extends MarketingTestCase
 
     public function test_disponibles_de_empresa_ajena_da_404(): void
     {
-        $this->comoAdminB()->getJson('/api/marketing/empresas/1/usuarios-disponibles?buscar=qa')->assertStatus(404);
+        // [Fase 1 · B] admin solo de B → 403 sin_acceso; admin de la 1 contra B (ajena) → 404.
+        $this->comoSoloAdminB()->getJson('/api/marketing/empresas/1/usuarios-disponibles?buscar=qa')->assertStatus(403);
+        $this->como($this->adminA, 1)->getJson($this->urlB('-disponibles?buscar=qa'))->assertStatus(404);
     }
 }

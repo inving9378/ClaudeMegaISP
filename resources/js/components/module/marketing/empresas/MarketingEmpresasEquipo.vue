@@ -5,18 +5,14 @@
                 ref="encabezado"
                 titulo="Empresas y equipo"
                 subtitulo="Marcas del grupo Meganet y quién trabaja en cada una"
-                icono="domain"
                 con-selector-empresa
                 @contexto="alCargarContexto"
             >
                 <template #acciones>
-                    <q-btn
+                    <mkt-boton
                         v-if="puedeGestionar && estado === 'listo'"
-                        unelevated
-                        no-caps
-                        color="primary"
-                        icon="add"
-                        label="Nueva empresa"
+                        tipo="crear"
+                        etiqueta="Nueva empresa"
                         @click="abrirFormulario(null)"
                     />
                 </template>
@@ -27,21 +23,12 @@
                 <mkt-estado-vacio
                     icono="lock"
                     titulo="No puedes administrar empresas"
-                    texto="Esta pantalla es para quien tiene rol Administrador en la empresa activa y el permiso «Marketing: administrar empresas». Si lo necesitas, pídelo a un administrador de Marketing."
-                >
-                    <template #accion>
-                        <q-btn outline no-caps color="primary" icon="arrow_back" label="Volver a Marketing" href="/marketing" />
-                    </template>
-                </mkt-estado-vacio>
+                    texto="Esta pantalla es para quien tiene rol Administrador en la empresa activa y el permiso «Marketing: administrar empresas». Si lo necesitas, pídelo a un administrador de Marketing." />
             </mkt-tarjeta-panel>
 
             <!-- Error -->
             <mkt-tarjeta-panel v-else-if="estado === 'error'">
-                <mkt-estado-vacio icono="cloud_off" titulo="No se pudieron cargar las empresas" :texto="mensajeError">
-                    <template #accion>
-                        <q-btn outline no-caps color="primary" icon="refresh" label="Reintentar" @click="cargarEmpresas" />
-                    </template>
-                </mkt-estado-vacio>
+                <mkt-estado-vacio icono="cloud_off" titulo="No se pudieron cargar las empresas" :texto="mensajeError" />
             </mkt-tarjeta-panel>
 
             <template v-else>
@@ -67,9 +54,6 @@
                         vacio-texto="Crea la primera marca del grupo; quedarás como su administrador."
                         @row-click="(_ev, row) => seleccionar(row)"
                     >
-                        <template v-if="puedeGestionar" #vacio-accion>
-                            <q-btn unelevated no-caps color="primary" icon="add" label="Nueva empresa" @click="abrirFormulario(null)" />
-                        </template>
 
                         <template #body-cell-nombre="props">
                             <q-td :props="props" class="mkt-empresas__celda-nombre" :class="{ 'mkt-empresas__celda-nombre--elegida': props.row.id === seleccionadaId }">
@@ -101,7 +85,6 @@
                                     flat
                                     dense
                                     no-caps
-                                    color="primary"
                                     icon="groups"
                                     :label="props.row.id === seleccionadaId ? 'Viendo equipo' : 'Ver equipo'"
                                     :aria-pressed="props.row.id === seleccionadaId ? 'true' : 'false'"
@@ -112,7 +95,6 @@
                                     flat
                                     dense
                                     round
-                                    color="primary"
                                     icon="edit"
                                     :aria-label="`Editar ${props.row.nombre}`"
                                     @click.stop="abrirFormulario(props.row)"
@@ -297,10 +279,8 @@ export default {
 .mkt-empresas {
     display: flex;
     flex-direction: column;
-    gap: var(--mkt-esp-3);
-    padding: var(--mkt-esp-3);
-    max-width: 1440px;
-    margin: 0 auto;
+    gap: var(--mkt-esp-2);
+    min-width: 0;
 }
 /* El encabezado trae su propio margen inferior; aquí manda el gap. */
 .mkt-empresas > :first-child { margin-bottom: 0; }
@@ -328,7 +308,7 @@ export default {
 }
 .mkt-empresas__slug-movil { display: none; font-size: 12px; color: var(--mkt-texto-suave); }
 .mkt-empresas__celda-nombre { box-shadow: inset 3px 0 0 transparent; }
-.mkt-empresas__celda-nombre--elegida { box-shadow: inset 3px 0 0 var(--mkt-marca); }
+.mkt-empresas__celda-nombre--elegida { box-shadow: inset 3px 0 0 var(--mkt-primario); }
 .mkt-empresas__acciones { white-space: nowrap; }
 .mkt-empresas :deep(tbody tr) { cursor: pointer; }
 
@@ -336,7 +316,6 @@ export default {
     .mkt-empresas__kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 599px) {
-    .mkt-empresas { padding: var(--mkt-esp-2) 0; gap: var(--mkt-esp-2); }
     .mkt-empresas__kpis { gap: var(--mkt-esp-1); }
     .mkt-empresas__slug-movil { display: block; }
 }

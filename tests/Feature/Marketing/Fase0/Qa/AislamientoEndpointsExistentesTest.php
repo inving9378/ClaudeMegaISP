@@ -150,7 +150,14 @@ class AislamientoEndpointsExistentesTest extends MarketingTestCase
 
         $r = $this->como($actor, $empresa)->json($metodo, $url, $cuerpo);
 
-        $this->assertSame(404, $r->status(), "{$direccion} {$metodo} {$url}: esperaba 404, llegó {$r->status()} " . substr((string) $r->getContent(), 0, 300));
+        // [Fase 1 · B] B→A: el admin de otra empresa ya no entra a Marketing → 403 `sin_acceso`, que no depende
+        // del id (no revela si existe). A→B sigue siendo 404.
+        if ($direccion === 'B→A') {
+            $this->assertSame(403, $r->status(), "{$direccion} {$metodo} {$url}: esperaba 403 sin_acceso, llegó {$r->status()} " . substr((string) $r->getContent(), 0, 300));
+            $this->assertSame('sin_acceso', $r->json('error'));
+        } else {
+            $this->assertSame(404, $r->status(), "{$direccion} {$metodo} {$url}: esperaba 404, llegó {$r->status()} " . substr((string) $r->getContent(), 0, 300));
+        }
         $this->assertFalse($this->contieneMarca($r, $destino['marca']), "{$direccion} {$metodo} {$url}: la respuesta trae datos de la otra empresa");
         $this->assertEquals($antes, $this->fotografia($destino, $clave), "{$direccion} {$metodo} {$url}: la fila de la otra empresa cambió");
         $this->assertSame($publicacionesAntes, DB::table('marketing_publications')->count(), 'no debe crear publicaciones');
@@ -216,8 +223,9 @@ class AislamientoEndpointsExistentesTest extends MarketingTestCase
     /** @dataProvider listados */
     public function test_listado_de_b_no_trae_filas_de_a(string $url, bool $noAplica = false): void
     {
+        // [Fase 1 · B] Antes 200 sin datos de A; ahora el admin de B no entra: 403 `sin_acceso` (y tampoco datos de A).
         $r = $this->como($this->adminB, $this->empresaB->id)->getJson($url);
-        $r->assertOk();
+        $r->assertStatus(403)->assertJsonPath('error', 'sin_acceso');
         $this->assertFalse($this->contieneMarca($r, $this->a['marca']), "{$url} trae datos de A con B activa");
     }
 
@@ -226,8 +234,9 @@ class AislamientoEndpointsExistentesTest extends MarketingTestCase
         $esperado = DB::table('marketing_publications')->where('company_id', 1)->whereNotNull('pub_channel_id')->whereNull('deleted_at')->count();
         $this->como($this->adminA, 1)->getJson('/api/marketing/publishing/dashboard/stats')->assertOk()->assertJsonPath('stats.total', $esperado);
 
+        // [Fase 1 · B] Antes B veía total 0; ahora B no entra.
         $this->como($this->adminB, $this->empresaB->id)->getJson('/api/marketing/publishing/dashboard/stats')
-            ->assertOk()->assertJsonPath('stats.total', 0);
+            ->assertStatus(403)->assertJsonPath('error', 'sin_acceso');
     }
 
     public function test_conteo_de_leads_paginado_cuadra_con_la_empresa(): void
@@ -292,8 +301,9 @@ class AislamientoEndpointsExistentesTest extends MarketingTestCase
 
     public function test_generate_image_rechaza_campana_de_otra_empresa(): void
     {
+        // [Fase 1 · B] Antes 422 por exists acotado (el exists acotado ya lo cubre ExistsAcotadoBackendTest con el admin de la 1); ahora B no entra.
         $r = $this->como($this->adminB, $this->empresaB->id)->postJson('/marketing/content/generate-image', ['campaign_id' => $this->a['campana']->id]);
-        $r->assertStatus(422)->assertJsonValidationErrors(['campaign_id']);
+        $r->assertStatus(403)->assertJsonPath('error', 'sin_acceso');
         Http::assertNothingSent();
     }
 
@@ -325,8 +335,9 @@ class AislamientoEndpointsExistentesTest extends MarketingTestCase
         $r = $this->como($this->adminB, $this->empresaB->id)->postJson('/api/marketing/leads', [
             'source_id' => $this->fuente->id, 'full_name' => 'Alta desde B', 'company_id' => 1,
         ]);
-        $r->assertStatus(201);
-        $this->assertSame($this->empresaB->id, (int) DB::table('marketing_leads')->where('full_name', 'Alta desde B')->value('company_id'));
+        // [Fase 1 · B] Antes 201 y quedaba en B; ahora B no entra: 403 y no se crea nada.
+        $r->assertStatus(403)->assertJsonPath('error', 'sin_acceso');
+        $this->assertSame(0, DB::table('marketing_leads')->where('full_name', 'Alta desde B')->count());
     }
 
     public function test_editar_lead_no_lo_mueve_de_empresa(): void

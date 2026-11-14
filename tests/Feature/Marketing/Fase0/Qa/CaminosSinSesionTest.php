@@ -231,8 +231,10 @@ class CaminosSinSesionTest extends MarketingTestCase
         Queue::fake();
         $form = $this->a['formulario'];
 
-        // El staff de B navega Marketing (fija su empresa en sesión)…
-        $this->como($this->adminB, $this->empresaB->id)->getJson('/api/marketing/contexto')->assertOk();
+        // El staff de B intenta navegar Marketing con su empresa en sesión… [Fase 1 · B] ahora recibe 403
+        // `sin_acceso` (solo entra el admin de la 1); lo que se prueba sigue igual: con esa sesión abierta,
+        // el formulario público de A funciona y el lead cae en A.
+        $this->como($this->adminB, $this->empresaB->id)->getJson('/api/marketing/contexto')->assertStatus(403)->assertJsonPath('error', 'sin_acceso');
 
         // …y en OTRA petición, con la misma sesión abierta, abre el formulario público de A.
         $this->contexto()->limpiar();
