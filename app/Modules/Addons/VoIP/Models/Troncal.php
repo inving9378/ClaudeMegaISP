@@ -58,6 +58,23 @@ class Troncal extends Model
         return "trunk_{$this->id}";
     }
 
+    /**
+     * Contexto del plan de marcado al que Asterisk manda las llamadas que entran por
+     * esta troncal. Con grupo de entrada, el que genera el plan (inbound-trunk-N →
+     * el grupo); sin grupo, el configurado. Es el único lugar que lo decide: antes el
+     * alta, la edición y «Provisionar» ponían `contexto` (from-trunk, que no existe en
+     * el plan, o vacío al crear) encima del que había dejado el plan, y las llamadas
+     * de entrada se perdían aunque la troncal estuviera registrada.
+     */
+    public function contextoEntrante(): string
+    {
+        if ($this->grupo_entrante_id) {
+            return "inbound-trunk-{$this->id}";
+        }
+
+        return trim((string) $this->contexto) !== '' ? (string) $this->contexto : 'from-trunk';
+    }
+
     public function estiProvisionada(): bool
     {
         return $this->provisionado_at !== null;

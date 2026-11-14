@@ -171,6 +171,15 @@ class SincronizadorAsterisk
                 $this->hacer($aplicar, "Troncal «{$t->nombre}»: ya está en Asterisk; marcarla como provisionada",
                     fn () => $t->update(['provisionado_at' => now()->toDateTimeString()]));
             }
+
+            // Un contexto de entrada equivocado (from-trunk, vacío) deja la troncal
+            // registrada pero las llamadas que entran no llegan a nadie.
+            $esperado = $t->contextoEntrante();
+            if ($ep && (string) ($ep->context ?? '') !== $esperado) {
+                $actual = (string) ($ep->context ?? '') !== '' ? $ep->context : 'vacío';
+                $this->hacer($aplicar, "Troncal «{$t->nombre}»: las llamadas que entran iban al contexto «{$actual}»; mandarlas a «{$esperado}»",
+                    fn () => DB::connection('asterisk_rt')->table('ps_endpoints')->where('id', $id)->update(['context' => $esperado]));
+            }
         }
 
         return $adoptadas;

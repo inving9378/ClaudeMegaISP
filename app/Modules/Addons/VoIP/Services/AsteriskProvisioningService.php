@@ -54,7 +54,7 @@ class AsteriskProvisioningService
             'id'           => $id,
             'transport'    => $troncal->transporte,
             'aors'         => $id,
-            'context'      => $troncal->contexto,
+            'context'      => $troncal->contextoEntrante(),
             'allow'        => $troncal->codecs,
             'direct_media' => 'no',
             'from_user'    => $troncal->usuario,

@@ -94,7 +94,8 @@ class TroncalController extends Controller
         $provisionError = null;
         if ($troncal->activo) {
             try {
-                $this->provisioner->provisionar($troncal);
+                // fresh(): con los valores por omisión de la base (contexto, transporte…).
+                $this->provisioner->provisionar($troncal->fresh());
                 $troncal->refresh();
             } catch (\Throwable $e) {
                 Log::warning("VoIP: auto-provisión falló para nueva troncal #{$troncal->id}: {$e->getMessage()}");
@@ -237,18 +238,51 @@ class TroncalController extends Controller
         // Asterisk y recibiendo llamadas aunque aquí se viera apagada.
         try {
             $troncal->activo
-                ? $this->provisioner->provisionar($troncal)
+                ? $this->provisioner->provisionar($troncal->fresh())
                 : $this->provisioner->desprovisionar($troncal);
             $this->generarDialplan();
         } catch (\Throwable $e) {
             Log::warning("VoIP: toggle de la troncal {$troncal->nombre} no se aplicó en Asterisk: {$e->getMessage()}");
-            return response()->json(['ok' => true, 'activo' => $troncal->activo, 'warning' => $e->getMessage()]);
+            return response()->json(['ok' => true, 'activo' => $troncal->activo,
+                'provisionado_at' => $troncal->fresh()->provisionado_at?->toDateTimeString(), 'warning' => $e->getMessage()]);
         }
 
-        return response()->json(['ok' => true, 'activo' => $troncal->activo]);
+        // La pantalla actualiza «Provisionada» con esto, sin recargar.
+        return response()->json(['ok' => true, 'activo' => $troncal->activo,
+            'provisionado_at' => $troncal->fresh()->provisionado_at?->toDateTimeString()]);
     }
 
     // ── Tests de conectividad ─────────────────────────────────────────────────
+
+    // ── Diagnóstico de llamadas ───────────────────────────────────────────────
+    // Lo que en prod no se puede mirar en la consola de Asterisk, en texto para copiar.
+
+    public function diagnostico(\App\Modules\Addons\VoIP\Services\DiagnosticoLlamadas $diag): JsonResponse
+    {
+        if (! auth()->user()->can('voip.troncales.test')) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        return response()->json(['texto' => $diag->informe(), 'grabando_desde' => $diag->grabandoDesde()]);
+    }
+
+    public function diagnosticoGrabar(Request $request, \App\Modules\Addons\VoIP\Services\DiagnosticoLlamadas $diag): JsonResponse
+    {
+        if (! auth()->user()->can('voip.troncales.test')) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+        $accion = $request->validate(['accion' => 'required|in:iniciar,detener'])['accion'];
+
+        if ($accion === 'iniciar') {
+            $diag->grabar();
+
+            return response()->json(['ok' => true, 'grabando_desde' => $diag->grabandoDesde()]);
+        }
+
+        $diag->detener();
+
+        return response()->json(['ok' => true, 'grabando_desde' => null, 'texto' => $diag->informe()]);
+    }
 
     private function generarDialplan(): void
     {

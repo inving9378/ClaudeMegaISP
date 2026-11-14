@@ -10,6 +10,10 @@
                     <i class="fa fa-plug me-1"></i>
                     {{ probando ? 'Probando…' : 'Probar Asterisk' }}
                 </button>
+                <button v-if="canTest" class="btn btn-outline-secondary btn-sm" @click="abrirDiagnostico"
+                        title="Por qué no entra o no sale una llamada, en texto para copiar">
+                    <i class="fa fa-stethoscope me-1"></i> Diagnóstico
+                </button>
                 <button v-if="canCreate" class="btn btn-primary btn-sm" @click="abrirModal()">
                     <i class="fa fa-plus me-1"></i> Nueva troncal
                 </button>
@@ -349,6 +353,45 @@
             </div>
         </div>
 
+        <!-- Diagnóstico de llamadas: lo que en prod no se puede ver en la consola de Asterisk -->
+        <div class="modal fade" id="modalDiagnostico" tabindex="-1" ref="modalDiagEl">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="fa fa-stethoscope me-2"></i>Diagnóstico de llamadas</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="small text-muted mb-2">
+                            Para saber qué pasa con una llamada: pulsa <b>Grabar llamada de prueba</b>, haz la llamada
+                            (que te llamen o marca afuera) y luego <b>Ver resultado</b>. Copia el texto y pásalo a soporte.
+                        </p>
+                        <div v-if="diag.grabando" class="alert alert-warning py-2 small mb-2">
+                            <i class="fa fa-circle text-danger me-1"></i>
+                            Grabando desde las {{ diag.grabando }}: haz la llamada de prueba ahora (se apaga sola en 10 minutos).
+                        </div>
+                        <pre style="font-size:12px; line-height:1.45; white-space:pre-wrap; word-break:break-word;
+                                    background:rgba(127,127,127,.08); color:inherit; padding:12px; border-radius:8px;
+                                    max-height:60vh; overflow:auto; margin:0">{{ diag.cargando ? 'Consultando la central…' : diag.texto }}</pre>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" @click="cargarDiagnostico" :disabled="diag.cargando">
+                            <i class="fa fa-sync me-1"></i> Actualizar
+                        </button>
+                        <button v-if="! diag.grabando" type="button" class="btn btn-warning btn-sm" @click="grabarDiagnostico('iniciar')" :disabled="diag.cargando">
+                            <i class="fa fa-circle me-1"></i> Grabar llamada de prueba
+                        </button>
+                        <button v-else type="button" class="btn btn-primary btn-sm" @click="grabarDiagnostico('detener')" :disabled="diag.cargando">
+                            <i class="fa fa-stop me-1"></i> Ver resultado
+                        </button>
+                        <button type="button" class="btn btn-success btn-sm" @click="copiarDiagnostico" :disabled="! diag.texto">
+                            <i class="fa fa-copy me-1"></i> Copiar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Toast. pointer-events:none en el contenedor: vacío/inactivo (fuera de los ~3.5s
              que dura mostrado) NO debe bloquear clics de nada que ande cerca en esa esquina —
              pasó con la burbuja del mini-teléfono de MegaVoz, tapada por esta misma caja aun
@@ -387,6 +430,7 @@ export default {
         return {
             troncales:       [],
             grupos:          [],
+            diag:            { texto: '', grabando: null, cargando: false },
             cargando:        false,
             guardando:       false,
             eliminando:      false,
@@ -674,7 +718,19 @@ export default {
                 const body = await r.json();
                 if (body.ok) {
                     t.activo = body.activo;
-                    this.toast(body.activo ? `Troncal "${t.nombre}" activada` : `Troncal "${t.nombre}" desactivada`);
+                    // Sin esto la fila seguía diciendo «Provisionada» o «Sin bloque» de antes
+                    // hasta recargar la página.
+                    if ('provisionado_at' in body) t.provisionado_at = body.provisionado_at;
+                    const { [t.id]: _viejo, ...resto } = this.verificaciones;
+                    this.verificaciones = resto;
+                    if (body.warning) {
+                        // Antes decía «activada» aunque la central no la hubiera dado de alta.
+                        this.toast(`"${t.nombre}" cambió aquí, pero la central no la aplicó: ${body.warning}`, 'error');
+                    } else {
+                        this.toast(body.activo ? `Troncal "${t.nombre}" activada` : `Troncal "${t.nombre}" desactivada`);
+                    }
+                    // El registro con el proveedor tarda unos segundos: se vuelve a verificar solo.
+                    if (body.activo && this.canTest) setTimeout(() => this.verificar(t), 4000);
                 } else {
                     this.toast('Error al cambiar estado', 'error');
                 }
@@ -746,6 +802,53 @@ export default {
 
         headers() {
             return { 'X-CSRF-TOKEN': this.csrfToken, 'Accept': 'application/json' };
+        },
+
+        abrirDiagnostico() {
+            bootstrap.Modal.getOrCreateInstance(this.$refs.modalDiagEl).show();
+            this.cargarDiagnostico();
+        },
+
+        async cargarDiagnostico() {
+            this.diag.cargando = true;
+            try {
+                const r = await fetch(`${this.baseUrl}/troncales/diagnostico`, { headers: this.headers() });
+                const body = await r.json();
+                this.diag.texto    = r.ok ? body.texto : (body.error || 'No se pudo consultar la central.');
+                this.diag.grabando = body.grabando_desde || null;
+            } catch {
+                this.diag.texto = 'No se pudo consultar la central (error de red).';
+            } finally {
+                this.diag.cargando = false;
+            }
+        },
+
+        async grabarDiagnostico(accion) {
+            this.diag.cargando = true;
+            try {
+                const r = await fetch(`${this.baseUrl}/troncales/diagnostico/grabar`, {
+                    method:  'POST',
+                    headers: { ...this.headers(), 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ accion }),
+                });
+                const body = await r.json();
+                this.diag.grabando = body.grabando_desde || null;
+                if (body.texto) this.diag.texto = body.texto;
+                if (accion === 'iniciar' && r.ok) this.toast('Grabando: haz la llamada de prueba y luego «Ver resultado»');
+            } catch {
+                this.toast('Error de red', 'error');
+            } finally {
+                this.diag.cargando = false;
+            }
+        },
+
+        async copiarDiagnostico() {
+            try {
+                await navigator.clipboard.writeText(this.diag.texto);
+                this.toast('Diagnóstico copiado');
+            } catch {
+                this.toast('No se pudo copiar: selecciona el texto y cópialo a mano', 'error');
+            }
         },
 
         toast(msg, tipo = 'success') {

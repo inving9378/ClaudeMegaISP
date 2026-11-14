@@ -376,20 +376,11 @@ class DialplanGeneratorService
     {
         $db = DB::connection('asterisk_rt');
 
-        // Trunks con grupo entrante
-        foreach ($troncalesConGrupo as $troncal) {
-            $db->table('ps_endpoints')
-               ->where('id', $troncal->endpointId())
-               ->update(['context' => "inbound-trunk-{$troncal->id}"]);
-        }
-
-        // Trunks sin grupo → restaurar al contexto configurado en BD
-        $idsConGrupo = $troncalesConGrupo->pluck('id')->all();
-        Troncal::whereNull('grupo_entrante_id')->get()->each(function (Troncal $t) use ($db) {
-            $ctx = $t->contexto ?: 'from-trunk';
+        // Con grupo → inbound-trunk-N; sin grupo → el configurado (Troncal::contextoEntrante).
+        Troncal::all()->each(function (Troncal $t) use ($db) {
             $db->table('ps_endpoints')
                ->where('id', $t->endpointId())
-               ->update(['context' => $ctx]);
+               ->update(['context' => $t->contextoEntrante()]);
         });
     }
 

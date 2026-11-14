@@ -23,6 +23,8 @@ Route::middleware(['web', 'auth'])->prefix('voip')->group(function () {
     // ════════════════════════════════════════════════════════════════════════
     Route::get('/troncales',                          [TroncalController::class, 'index'])->name('voip.troncales.index');
     Route::get('/troncales/data',                     [TroncalController::class, 'data'])->name('voip.troncales.data');
+    Route::get('/troncales/diagnostico',              [TroncalController::class, 'diagnostico'])->name('voip.troncales.diagnostico');
+    Route::post('/troncales/diagnostico/grabar',      [TroncalController::class, 'diagnosticoGrabar'])->name('voip.troncales.diagnostico.grabar');
     Route::post('/troncales',                         [TroncalController::class, 'store'])->name('voip.troncales.store');
     Route::put('/troncales/{troncal}',                [TroncalController::class, 'update'])->name('voip.troncales.update');
     Route::delete('/troncales/{troncal}',             [TroncalController::class, 'destroy'])->name('voip.troncales.destroy');
