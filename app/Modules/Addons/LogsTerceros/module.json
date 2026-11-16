@@ -2,7 +2,7 @@
     "slug": "addon-logs-terceros",
     "name": "Logs de terceros",
     "version": "1.0.0",
-    "description": "Ver, completos y sin editar, los logs del servidor (Asterisk, nginx, MegaISP…) desde Administración, agrupados. Se agrega la ruta absoluta de cada archivo con un nombre. Solo lectura: no escribe, no mueve ni borra archivos; no lee secretos (.env, llaves, /proc).",
+    "description": "Ver, completos y sin editar, los logs y cualquier otro archivo del servidor (Asterisk, nginx, configuraciones, MegaISP…) desde Administración, agrupados. Se agrega la ruta absoluta de cada archivo con un nombre. Solo lectura: no escribe, no mueve ni borra archivos; no lee secretos (.env, llaves, bases de datos, /proc).",
     "type": "addon",
     "dependencies": [],
     "active": true,
@@ -17,7 +17,7 @@
     "admin_cards": [
         {
             "title": "Logs de terceros",
-            "description": "Logs del servidor (Asterisk, nginx, MegaISP…) agrupados, completos y para copiar. Solo lectura.",
+            "description": "Logs y archivos del servidor (Asterisk, nginx, MegaISP…) agrupados, completos y para copiar. Solo lectura.",
             "icon": "file-alt",
             "url": "/admin/logs-terceros",
             "permission": "logs_terceros.ver"
@@ -29,6 +29,8 @@
         { "method": "GET",    "path": "/admin/logs-terceros/datos",                     "description": "Grupos con sus archivos y estado de cada uno",         "scope": "logs_terceros.ver",       "permission": "logs_terceros.ver" },
         { "method": "GET",    "path": "/admin/logs-terceros/archivos/{archivo}/contenido", "description": "Texto del log (lo último, más antiguo, lo nuevo o todo)", "scope": "logs_terceros.ver",    "permission": "logs_terceros.ver" },
         { "method": "GET",    "path": "/admin/logs-terceros/archivos/{archivo}/descargar", "description": "Descarga el archivo tal cual",                       "scope": "logs_terceros.ver",       "permission": "logs_terceros.ver" },
+        { "method": "POST",   "path": "/admin/logs-terceros/archivos/{archivo}/root",      "description": "Lee como root (con la contraseña) lo que el servidor web no puede leer", "scope": "logs_terceros.ver", "permission": "logs_terceros.ver" },
+        { "method": "POST",   "path": "/admin/logs-terceros/archivos/{archivo}/root/descargar", "description": "Descarga como root (con la contraseña), hasta 100 MB", "scope": "logs_terceros.ver", "permission": "logs_terceros.ver" },
         { "method": "POST",   "path": "/admin/logs-terceros/grupos",                    "description": "Crea un grupo (nombre y descripción)",                 "scope": "logs_terceros.gestionar", "permission": "logs_terceros.gestionar" },
         { "method": "PUT",    "path": "/admin/logs-terceros/grupos/{grupo}",            "description": "Cambia un grupo",                                      "scope": "logs_terceros.gestionar", "permission": "logs_terceros.gestionar" },
         { "method": "DELETE", "path": "/admin/logs-terceros/grupos/{grupo}",            "description": "Quita un grupo y sus rutas (los archivos no se tocan)", "scope": "logs_terceros.gestionar", "permission": "logs_terceros.gestionar" },
@@ -38,7 +40,7 @@
     ],
 
     "ai": {
-        "knowledge": "Logs de terceros (Administración → Logs de terceros) muestra, completos y sin poder editarlos, archivos de log del servidor agrupados: por ejemplo /var/log/asterisk/messages.log de la central telefónica o storage/logs/laravel.log de MegaISP. Un grupo tiene nombre y descripción opcional; cada log, nombre y ruta absoluta. Se ve lo último y se puede cargar lo más antiguo, todo (hasta 16 MB), seguir lo nuevo, copiar o descargar. No acepta secretos (.env, llaves, /proc). Solo super-administrador y DESARROLLADOR.",
+        "knowledge": "Logs de terceros (Administración → Logs de terceros) muestra, completos y sin poder editarlos, logs y cualquier otro archivo del servidor agrupados: por ejemplo /var/log/asterisk/messages.log de la central telefónica o storage/logs/laravel.log de MegaISP. Un grupo tiene nombre y descripción opcional; cada log, nombre y ruta absoluta. Se ve lo último y se puede cargar lo más antiguo, todo (hasta 16 MB), seguir lo nuevo, copiar o descargar. No acepta secretos (.env, llaves, bases de datos, /proc); los binarios solo se descargan. Lo que el servidor web no puede leer (p. ej. /home/<usuario>, /root) se lee como root escribiendo la contraseña, igual que en los add-ons; no se guarda. Solo super-administrador y DESARROLLADOR.",
         "example_intents": [
             "ver el log de asterisk",
             "agregar un log a un grupo"

@@ -3,17 +3,19 @@
 namespace App\Modules\Addons\LogsTerceros\Services;
 
 /**
- * Lee archivos de log del servidor para «Logs de terceros». SOLO lectura: no hay nada en
- * este módulo que escriba, mueva o borre un archivo del servidor.
+ * Lee archivos del servidor para «Logs de terceros»: logs y cualquier otro archivo de texto
+ * (configuraciones, salidas de programas…). SOLO lectura: no hay nada en este módulo que
+ * escriba, mueva o borre un archivo del servidor.
  *
  * Qué se puede registrar y leer (se revisa al guardar la ruta y otra vez al leer, sobre la
  * ruta real, para que un enlace simbólico no sirva de atajo):
- *   - ruta absoluta (desde /), sin bytes nulos;
- *   - que parezca un log: bajo /var/log, bajo storage/logs de MegaISP, o con «log» en alguna
- *     parte de la ruta, o terminado en .out/.err;
- *   - nunca secretos: .env*, llaves y certificados, shadow, respaldos de base de datos, ni
- *     /proc, /sys, /dev, /run, /root/.ssh, /etc/ssl/private, ni el resto del código de MegaISP.
+ *   - ruta absoluta (desde /), sin bytes nulos; cualquier tipo de archivo;
+ *   - nunca secretos: .env*, llaves privadas y almacenes de llaves, shadow, bases de datos y
+ *     sus respaldos, ni /proc, /sys, /dev, /run, /root/.ssh, /etc/ssl/private.
+ * Hasta el 17-nov solo se aceptaban logs (bajo /var/log o con «log» en la ruta); Irving pidió
+ * poder ver toda clase de archivos.
  * Se lee con el usuario del servidor web: si el archivo no le da permiso, se dice tal cual.
+ * Un archivo binario (con bytes nulos) no se pinta: se avisa y se puede descargar.
  *
  * La ruta puede llevar * (o ? y [..]) para los logs que cambian de nombre al rotar, como
  * storage/logs/laravel-*.log: se muestra el archivo más reciente que coincida y que pase las
@@ -31,14 +33,11 @@ class LectorLogs
 
     private const NOMBRES_PROHIBIDOS = [
         '/^\.env/i', '/\.env(\.|$)/i', '/(secret|credential)/i',
-        '/\.(pem|key|crt|p12|pfx|jks|kdbx|sqlite|db)$/i', '/^id_(rsa|dsa|ecdsa|ed25519)/i',
-        '/^(shadow|gshadow|sudoers|passwd-|shadow-)$/i', '/\.sql(\.gz)?$/i', '/\.(bak|dump)$/i',
+        '/\.(pem|key|p12|pfx|jks|kdbx|sqlite3?|db)$/i', '/^id_(rsa|dsa|ecdsa|ed25519)/i',
+        '/^(shadow|gshadow|sudoers|passwd-|shadow-)$/i', '/\.sql(\.gz)?$/i', '/\.dump$/i',
+        // Archivos de contraseñas conocidos: MySQL, PostgreSQL, Composer/npm/git, Apache.
+        '/^(\.netrc|\.pgpass|\.my\.cnf|debian\.cnf|auth\.json|\.npmrc|\.htpasswd)$/i',
     ];
-
-    public function __construct(private ?string $raizMegaisp = null)
-    {
-        $this->raizMegaisp = rtrim($raizMegaisp ?? base_path(), '/');
-    }
 
     /** Motivo por el que la ruta no se acepta, o null si se acepta. */
     public function rechazo(string $ruta): ?string
@@ -58,30 +57,25 @@ class LectorLogs
         $nombre = basename($ruta);
         foreach (self::NOMBRES_PROHIBIDOS as $patron) {
             if (preg_match($patron, $nombre)) {
-                return 'Ese archivo puede tener contraseñas o llaves; aquí solo se ven logs.';
+                return 'Ese archivo puede tener contraseñas o llaves; por seguridad no se muestra.';
             }
         }
-        $logsMegaisp = $this->raizMegaisp . '/storage/logs';
-        if (str_starts_with($ruta, $this->raizMegaisp . '/') && ! str_starts_with($ruta, $logsMegaisp . '/')) {
-            return "De MegaISP solo se ven sus logs ({$logsMegaisp}).";
-        }
-        $pareceLog = str_starts_with($ruta, '/var/log/')
-            || str_starts_with($ruta, $logsMegaisp . '/')
-            || preg_match('/log/i', $ruta)
-            || preg_match('/\.(out|err)(\.\d+)?(\.gz)?$/i', $nombre);
 
-        return $pareceLog ? null : 'Solo archivos de log: bajo /var/log, con «log» en la ruta o terminados en .out/.err.';
+        return null;
     }
 
     /**
      * Estado del archivo sin leerlo. Con un patrón, el del archivo más reciente que coincide
      * (`actual`). `real` es la ruta real que se lee.
      *
-     * @return array{existe: bool, legible: bool, tamano: ?int, modificado: ?int, motivo: ?string, comprimido: bool, actual: ?string, real: ?string}
+     * `permiso`: no se puede leer solo por permisos del usuario del servidor web (con root sí se
+     * podría; ver LectorComoRoot).
+     *
+     * @return array{existe: bool, legible: bool, permiso: bool, tamano: ?int, modificado: ?int, motivo: ?string, comprimido: bool, actual: ?string, real: ?string}
      */
     public function info(string $ruta): array
     {
-        $base = ['existe' => false, 'legible' => false, 'tamano' => null, 'modificado' => null, 'motivo' => null,
+        $base = ['existe' => false, 'legible' => false, 'permiso' => false, 'tamano' => null, 'modificado' => null, 'motivo' => null,
             'comprimido' => false, 'actual' => null, 'real' => null];
         if ($motivo = $this->rechazo($ruta)) {
             return array_merge($base, ['motivo' => $motivo]);
@@ -90,12 +84,16 @@ class LectorLogs
         if ($this->esPatron($ruta)) {
             $concreta = $this->masReciente($ruta);
             if ($concreta === null) {
-                return array_merge($base, ['motivo' => 'Ningún archivo coincide con ese patrón.']);
+                $cerrada = $this->carpetaCerrada($ruta);
+
+                return array_merge($base, ['motivo' => $cerrada ?? 'Ningún archivo coincide con ese patrón.', 'permiso' => $cerrada !== null]);
             }
         }
         $real = @realpath($concreta);
         if ($real === false || ! @is_file($real)) {
-            return array_merge($base, ['motivo' => 'No existe (o no es un archivo).']);
+            $cerrada = @is_dir($concreta) ? null : $this->carpetaCerrada($concreta);
+
+            return array_merge($base, ['motivo' => $cerrada ?? $this->porQueNoSeVe($concreta), 'permiso' => $cerrada !== null]);
         }
         if ($motivo = $this->rechazo($real)) {
             return array_merge($base, ['existe' => true, 'motivo' => "Apunta a {$real}: {$motivo}"]);
@@ -105,6 +103,7 @@ class LectorLogs
         return array_merge($base, [
             'existe'     => true,
             'legible'    => $legible,
+            'permiso'    => ! $legible,
             'tamano'     => @filesize($real) ?: 0,
             'modificado' => @filemtime($real) ?: null,
             'motivo'     => $legible ? null : 'MegaISP (usuario ' . $this->usuarioWeb() . ') no tiene permiso para leerlo.',
@@ -112,6 +111,40 @@ class LectorLogs
             'actual'     => $this->esPatron($ruta) ? $real : null,
             'real'       => $real,
         ]);
+    }
+
+    /**
+     * Sin realpath no se sabe si el archivo existe: puede faltar, ser una carpeta o estar dentro
+     * de una carpeta a la que el usuario del servidor web no puede entrar (p. ej. /home/<usuario>
+     * con permisos 700). Antes todo salía como «No existe» y confundía.
+     */
+    private function porQueNoSeVe(string $ruta): string
+    {
+        if (@is_dir($ruta)) {
+            return 'Es una carpeta, no un archivo.';
+        }
+
+        return $this->carpetaCerrada($ruta) ?? 'No existe.';
+    }
+
+    /** La primera carpeta del camino a la que el usuario del servidor web no puede entrar, dicha para la pantalla. */
+    private function carpetaCerrada(string $ruta): ?string
+    {
+        $carpeta = '';
+        foreach (array_slice(explode('/', trim($this->normalizar($ruta), '/')), 0, -1) as $parte) {
+            if ($this->esPatron($parte)) {
+                break;
+            }
+            $carpeta .= '/' . $parte;
+            if (! @is_dir($carpeta)) {
+                return null;
+            }
+            if (! @is_executable($carpeta)) {
+                return 'MegaISP (usuario ' . $this->usuarioWeb() . ") no tiene permiso para entrar a la carpeta {$carpeta}, así que no puede ver el archivo.";
+            }
+        }
+
+        return null;
     }
 
     private function esPatron(string $ruta): bool
@@ -146,7 +179,7 @@ class LectorLogs
      *   - $completo: todo, si no pasa de MAXIMO_COMPLETO.
      * Para .gz los puntos son sobre el texto ya descomprimido.
      *
-     * @return array{texto: string, desde: int, hasta: int, tamano: int, inicio: bool, modificado: ?int}
+     * @return array{texto: string, binario: bool, desde: int, hasta: int, tamano: int, inicio: bool, modificado: ?int}
      */
     public function leer(string $ruta, ?int $hasta = null, ?int $despues = null, int $bytes = self::BYTES_POR_PAGINA, bool $completo = false): array
     {
@@ -161,8 +194,12 @@ class LectorLogs
             ? $this->leerGz($real, $hasta, $bytes, $completo)
             : $this->leerPlano($real, $hasta, $despues, $bytes, $completo);
 
+        // Binario (imagen, ejecutable, base de datos…): no se pinta, se descarga.
+        $binario = str_contains(substr($texto, 0, 65536), "\0");
+
         return [
-            'texto'      => $this->limpiar($texto),
+            'texto'      => $binario ? '' : $this->limpiar($texto),
+            'binario'    => $binario,
             'desde'      => $desde,
             'hasta'      => $fin,
             'tamano'     => $tamano,
@@ -327,7 +364,7 @@ class LectorLogs
         return '/' . implode('/', $partes);
     }
 
-    private function usuarioWeb(): string
+    public function usuarioWeb(): string
     {
         if (function_exists('posix_geteuid') && function_exists('posix_getpwuid')) {
             return (string) (posix_getpwuid(posix_geteuid())['name'] ?? 'del servidor web');

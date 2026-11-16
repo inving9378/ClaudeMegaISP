@@ -13,7 +13,7 @@
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <div>
             <h4 class="mb-1"><i class="fas fa-file-alt me-2"></i>Logs de terceros</h4>
-            <div class="text-muted small">Logs del servidor agrupados, completos y para copiar. Solo lectura: aquí no se edita ni se borra ningún archivo.</div>
+            <div class="text-muted small">Logs y cualquier otro archivo del servidor, agrupados, completos y para copiar. Solo lectura: aquí no se edita ni se borra ningún archivo.</div>
         </div>
         <div class="d-flex gap-2">
             <button type="button" class="btn btn-sm btn-outline-secondary" onclick="logsTerceros.cargar()">
@@ -35,7 +35,7 @@
         <div class="col-lg-8">
             <div class="card border-0 shadow-sm">
                 <div class="card-body pb-2">
-                    <div id="lt-vacio" class="text-muted small py-4 text-center">Elige un log de la izquierda para verlo.</div>
+                    <div id="lt-vacio" class="text-muted small py-4 text-center">Elige un archivo de la izquierda para verlo.</div>
                     <div id="lt-visor" class="d-none">
                         <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
                             <div class="me-2" style="min-width:0">
@@ -49,7 +49,7 @@
                                 <button type="button" class="btn btn-sm btn-outline-secondary" id="lt-antiguas" onclick="logsTerceros.antiguas()"><i class="fas fa-arrow-up me-1"></i>Más antiguas</button>
                                 <button type="button" class="btn btn-sm btn-outline-secondary" id="lt-todo" onclick="logsTerceros.todo()"><i class="fas fa-expand me-1"></i>Ver todo</button>
                                 <button type="button" class="btn btn-sm btn-outline-primary" onclick="logsTerceros.copiar()"><i class="fas fa-copy me-1"></i>Copiar</button>
-                                <a class="btn btn-sm btn-outline-primary" id="lt-descargar" href="#" data-spa-skip><i class="fas fa-download me-1"></i>Descargar</a>
+                                <a class="btn btn-sm btn-outline-primary" id="lt-descargar" href="#" data-spa-skip onclick="return logsTerceros.descargar(event)"><i class="fas fa-download me-1"></i>Descargar</a>
                             </div>
                         </div>
                         <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
@@ -60,6 +60,18 @@
                                 <label class="form-check-label" for="lt-ajustar">Ajustar líneas largas</label>
                             </div>
                             <span class="small text-muted ms-auto" id="lt-cuenta"></span>
+                        </div>
+                        {{-- Sin permiso para el servidor web: se lee como root con contraseña, igual que en los add-ons --}}
+                        <div id="lt-root" class="alert alert-warning d-none mb-2">
+                            <div class="small mb-2"><i class="fas fa-lock me-1"></i><span id="lt-root-motivo"></span></div>
+                            <div class="d-flex flex-wrap gap-2 align-items-center">
+                                <input type="password" id="lt-root-clave" class="form-control form-control-sm" style="max-width:260px"
+                                       autocomplete="new-password" placeholder="Contraseña de root"
+                                       onkeydown="if (event.key === 'Enter') logsTerceros.leerComoRoot()">
+                                <button type="button" class="btn btn-sm btn-warning" onclick="logsTerceros.leerComoRoot()"><i class="fas fa-unlock me-1"></i>Leer como root</button>
+                            </div>
+                            <div class="small mt-1 opacity-75">Igual que en los add-ons: la contraseña no se guarda; esta pantalla la recuerda solo hasta que salgas de ella.</div>
+                            <div class="small text-danger mt-1" id="lt-root-error"></div>
                         </div>
                         <pre id="lt-texto" class="mb-0 p-2 rounded" style="background:#111;color:#ddd;font-size:12px;line-height:1.35;height:calc(100vh - 330px);min-height:320px;overflow:auto;white-space:pre;"></pre>
                     </div>
@@ -91,7 +103,7 @@
     {{-- Archivo --}}
     <div class="modal fade" id="lt-modal-archivo" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog"><div class="modal-content">
-            <div class="modal-header"><h5 class="modal-title" id="lt-archivo-titulo">Agregar log</h5>
+            <div class="modal-header"><h5 class="modal-title" id="lt-archivo-titulo">Agregar archivo</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
             <div class="modal-body">
                 <input type="hidden" id="lt-archivo-id">
@@ -103,8 +115,8 @@
                 <input type="text" class="form-control" id="lt-archivo-ruta" maxlength="1024" list="lt-sugerencias"
                        style="font-family:monospace" placeholder="/var/log/asterisk/messages.log" oninput="logsTerceros.sugerir()">
                 <datalist id="lt-sugerencias"></datalist>
-                <div class="form-text">Solo logs: bajo /var/log, con «log» en la ruta o terminados en .out/.err. No se aceptan .env, llaves ni /proc.
-                    Para los que cambian de nombre cada día usa <code>*</code> y se verá el más reciente, p. ej. <code>…/storage/logs/laravel-*.log</code>.</div>
+                <div class="form-text">Cualquier archivo del servidor: logs, configuraciones, salidas de programas… Por seguridad no se muestran
+                    los que guardan contraseñas o llaves (.env, llaves privadas, bases de datos) ni /proc. Para los que cambian de nombre cada día usa <code>*</code> y se verá el más reciente, p. ej. <code>…/storage/logs/laravel-*.log</code>.</div>
                 <div class="text-danger small mt-2" id="lt-archivo-error"></div>
             </div>
             <div class="modal-footer">
@@ -120,9 +132,12 @@
 <script>
 window.logsTerceros = (function () {
     let grupos = [], sugerencias = [], gestionar = false;
-    let actual = null;                         // log abierto
+    let actual = null;                         // archivo abierto
     let texto = '', desde = 0, hasta = 0, tamano = 0, inicio = false;
     let reloj = null;
+    // Como root (archivos que el servidor web no puede leer). La contraseña solo vive aquí, en
+    // memoria de esta pantalla; el servidor no la guarda.
+    let rootInfo = { via: 'su', pide: 'root' }, comoRoot = false, claveRoot = null, motivoRoot = '';
 
     const $ = (id) => document.getElementById(id);
     const raiz = () => $('logs-terceros');
@@ -145,7 +160,11 @@ window.logsTerceros = (function () {
             credentials: 'same-origin',
         }, opciones || {}));
         const datos = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(datos.error || datos.message || ('Error ' + r.status));
+        if (!r.ok) {
+            const e = new Error(datos.error || datos.message || ('Error ' + r.status));
+            e.datos = datos;
+            throw e;
+        }
         return datos;
     }
 
@@ -155,6 +174,7 @@ window.logsTerceros = (function () {
         try {
             const d = await pedir(raiz().dataset.urlDatos);
             grupos = d.grupos; sugerencias = d.sugerencias; gestionar = d.puede_gestionar;
+            if (d.root) rootInfo = d.root;
             pintarGrupos();
         } catch (e) { aviso(e.message, 'danger'); }
     }
@@ -165,7 +185,7 @@ window.logsTerceros = (function () {
         if (!cont) return;
         if (!grupos.length) {
             cont.innerHTML = '<div class="card border-0 shadow-sm"><div class="card-body small text-muted">'
-                + (gestionar ? 'Todavía no hay grupos. Crea uno con «Nuevo grupo» y agrégale la ruta de sus logs.' : 'Todavía no hay logs registrados.')
+                + (gestionar ? 'Todavía no hay grupos. Crea uno con «Nuevo grupo» y agrégale la ruta de sus archivos.' : 'Todavía no hay archivos registrados.')
                 + '</div></div>';
             return;
         }
@@ -175,7 +195,7 @@ window.logsTerceros = (function () {
                     <div style="min-width:0"><div class="fw-semibold">${esc(g.nombre)}</div>
                         ${g.descripcion ? `<div class="small text-muted">${esc(g.descripcion)}</div>` : ''}</div>
                     ${gestionar ? `<div class="btn-group btn-group-sm flex-shrink-0">
-                        <button type="button" class="btn btn-outline-primary" title="Agregar log" onclick="logsTerceros.formArchivo(null, ${g.id})"><i class="fas fa-plus"></i></button>
+                        <button type="button" class="btn btn-outline-primary" title="Agregar archivo" onclick="logsTerceros.formArchivo(null, ${g.id})"><i class="fas fa-plus"></i></button>
                         <button type="button" class="btn btn-outline-secondary" title="Cambiar grupo" onclick="logsTerceros.formGrupo(${g.id})"><i class="fas fa-pen"></i></button>
                         <button type="button" class="btn btn-outline-danger" title="Quitar grupo" onclick="logsTerceros.borrarGrupo(${g.id})"><i class="fas fa-trash"></i></button>
                     </div>` : ''}
@@ -187,13 +207,15 @@ window.logsTerceros = (function () {
                             <div style="min-width:0">
                                 <div class="small fw-semibold">${esc(a.nombre)}</div>
                                 <div class="small text-break opacity-75" style="font-family:monospace;font-size:11px">${esc(a.ruta)}${a.actual ? ' → ' + esc(a.actual.split('/').pop()) : ''}</div>
-                                <div class="small ${a.legible ? 'opacity-75' : 'text-danger'}">${a.legible ? esc((a.tamano_txt || '') + ' · ' + fecha(a.modificado)) : '<i class="fas fa-exclamation-triangle me-1"></i>' + esc(a.motivo)}</div>
+                                <div class="small ${a.legible ? 'opacity-75' : (actual && actual.id === a.id ? 'text-white' : (a.permiso ? 'text-warning' : 'text-danger'))}">${a.legible ? esc((a.tamano_txt || '') + ' · ' + fecha(a.modificado))
+                                    : a.permiso ? '<i class="fas fa-lock me-1"></i>Necesita permisos de root (se pide la contraseña al abrirlo)'
+                                    : '<i class="fas fa-exclamation-triangle me-1"></i>' + esc(a.motivo)}</div>
                             </div>
                             ${gestionar ? `<div class="btn-group btn-group-sm flex-shrink-0" onclick="event.stopPropagation()">
                                 <button type="button" class="btn btn-sm btn-link p-0 me-2 ${actual && actual.id === a.id ? 'text-white' : ''}" title="Cambiar" onclick="logsTerceros.formArchivo(${a.id})"><i class="fas fa-pen"></i></button>
                                 <button type="button" class="btn btn-sm btn-link p-0 ${actual && actual.id === a.id ? 'text-white' : 'text-danger'}" title="Quitar de la lista" onclick="logsTerceros.borrarArchivo(${a.id})"><i class="fas fa-times"></i></button>
                             </div>` : ''}
-                        </div>`).join('') : '<div class="list-group-item small text-muted">Sin logs todavía.</div>'}
+                        </div>`).join('') : '<div class="list-group-item small text-muted">Sin archivos todavía.</div>'}
                 </div>
             </div>`).join('');
     }
@@ -222,7 +244,37 @@ window.logsTerceros = (function () {
     }
 
     function pintarMeta(r) {
-        $('lt-meta').textContent = (r.actual ? `Ahora: ${r.actual} · ` : '') + `${r.tamano_txt || ''} · modificado ${fecha(r.modificado)}`;
+        $('lt-meta').textContent = (r.actual ? `Ahora: ${r.actual} · ` : '') + `${r.tamano_txt || ''} · modificado ${fecha(r.modificado)}`
+            + (r.como_root ? ' · leído como root' : '');
+    }
+
+    // Normal por GET; como root por POST con la contraseña (nunca en la URL).
+    function leerContenido(params) {
+        if (!comoRoot) return pedir(urlContenido(params));
+        return pedir(`${base()}/archivos/${actual.id}/root`, {
+            method: 'POST', body: JSON.stringify(Object.assign({ password: claveRoot }, params)),
+        });
+    }
+
+    function mostrarRoot(ver, error) {
+        const p = $('lt-root');
+        if (!p) return;
+        p.classList.toggle('d-none', !ver);
+        if (!ver) return;
+        const quien = rootInfo.pide || 'root';
+        $('lt-root-motivo').textContent = (motivoRoot ? motivoRoot + ' ' : '') + `Se puede leer con permisos de root: escribe la contraseña de ${quien}.`;
+        $('lt-root-clave').placeholder = `Contraseña de ${quien}`;
+        $('lt-root-clave').value = '';
+        $('lt-root-error').textContent = error || '';
+        setTimeout(() => $('lt-root-clave')?.focus(), 50);
+    }
+
+    async function leerComoRoot() {
+        const clave = $('lt-root-clave').value;
+        if (!clave) { $('lt-root-error').textContent = 'Escribe la contraseña.'; return; }
+        claveRoot = clave; comoRoot = true;
+        $('lt-root-clave').value = '';
+        await recargar();
     }
 
     async function abrir(id) {
@@ -235,6 +287,7 @@ window.logsTerceros = (function () {
         $('lt-ruta').textContent = actual.ruta;
         $('lt-descargar').href = `${base()}/archivos/${actual.id}/descargar`;
         $('lt-filtro').value = '';
+        comoRoot = false; motivoRoot = ''; mostrarRoot(false);
         pintarGrupos();
         await recargar();
     }
@@ -243,14 +296,34 @@ window.logsTerceros = (function () {
         if (!actual) return;
         aviso('');
         try {
-            const r = await pedir(urlContenido({}));
+            const r = await leerContenido({});
+            mostrarRoot(false);
             texto = r.texto; desde = r.desde; hasta = r.hasta; tamano = r.tamano; inicio = r.inicio;
+            binario(r);
             pintarMeta(r); pintarTexto(true);
         } catch (e) {
             texto = ''; pintarTexto(false);
             $('lt-meta').textContent = '';
+            const d = e.datos || {};
+            if (d.root) rootInfo = d.root;
+            if (!comoRoot && d.necesita_root) {
+                // Sin permiso para el servidor web: como root, con la contraseña que ya se dio
+                // en esta pantalla o pidiéndola (si la vía no la necesita, directo).
+                motivoRoot = e.message; comoRoot = true;
+                if (claveRoot !== null || !rootInfo.pide) return recargar();
+                return mostrarRoot(true);
+            }
+            if (comoRoot && d.password_incorrecta) { claveRoot = null; return mostrarRoot(true, e.message); }
             aviso(e.message, 'warning');
         }
+    }
+
+    // Imagen, ejecutable, base de datos…: el servidor no manda el texto; solo se puede descargar.
+    function binario(r) {
+        if (!r.binario) return;
+        detenerSeguir();
+        inicio = true; hasta = tamano;
+        aviso('Es un archivo binario (no es texto), por eso no se muestra aquí. Puedes descargarlo.', 'info');
     }
 
     async function antiguas() {
@@ -258,7 +331,7 @@ window.logsTerceros = (function () {
         const pre = $('lt-texto');
         const altoAntes = pre.scrollHeight;
         try {
-            const r = await pedir(urlContenido({ hasta: desde }));
+            const r = await leerContenido({ hasta: desde });
             texto = r.texto + texto; desde = r.desde; inicio = r.inicio;
             pintarTexto(false);
             pre.scrollTop = pre.scrollHeight - altoAntes;
@@ -268,8 +341,9 @@ window.logsTerceros = (function () {
     async function todo() {
         if (!actual) return;
         try {
-            const r = await pedir(urlContenido({ completo: 1 }));
+            const r = await leerContenido({ completo: 1 });
             texto = r.texto; desde = r.desde; hasta = r.hasta; tamano = r.tamano; inicio = r.inicio;
+            binario(r);
             pintarMeta(r); pintarTexto(true);
         } catch (e) { aviso(e.message, 'warning'); }
     }
@@ -286,10 +360,13 @@ window.logsTerceros = (function () {
         const b = $('lt-seguir');
         b.classList.remove('btn-outline-secondary'); b.classList.add('btn-success'); b.innerHTML = '<i class="fas fa-pause me-1"></i>Siguiendo';
         const id = actual.id;
+        let ocupado = false;   // como root cada vuelta tarda más: no se encima una con otra
         reloj = setInterval(async () => {
             if (!raiz() || !actual || actual.id !== id) { detenerSeguir(); return; }
+            if (ocupado) return;
+            ocupado = true;
             try {
-                const r = await pedir(urlContenido({ despues: hasta }));
+                const r = await leerContenido({ despues: hasta });
                 if (r.desde !== hasta) { texto = ''; inicio = false; desde = r.desde; }   // se rotó
                 hasta = r.hasta; tamano = r.tamano; pintarMeta(r);
                 if (r.texto) {
@@ -299,7 +376,36 @@ window.logsTerceros = (function () {
                     pintarTexto(abajo);
                 }
             } catch (e) { detenerSeguir(); aviso(e.message, 'warning'); }
+            finally { ocupado = false; }
         }, 3000);
+    }
+
+    // Descargar: normal es el enlace; como root, POST con la contraseña y se guarda lo que llega.
+    async function descargar(ev) {
+        if (!comoRoot || !actual) return true;
+        ev.preventDefault();
+        aviso('Preparando la descarga como root…', 'info');
+        try {
+            const r = await fetch(`${base()}/archivos/${actual.id}/root/descargar`, {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf(), 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ password: claveRoot }),
+            });
+            if (!r.ok) {
+                const d = await r.json().catch(() => ({}));
+                if (d.password_incorrecta) { claveRoot = null; aviso(''); mostrarRoot(true, d.error); return false; }
+                throw new Error(d.error || d.message || ('Error ' + r.status));
+            }
+            const blob = await r.blob();
+            const m = (r.headers.get('Content-Disposition') || '').match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = m ? decodeURIComponent(m[1]) : 'archivo';
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+            aviso('');
+        } catch (e) { aviso(e.message, 'warning'); }
+        return false;
     }
 
     let filtroEspera = null;
@@ -346,7 +452,7 @@ window.logsTerceros = (function () {
 
     async function borrarGrupo(id) {
         const g = grupos.find((x) => x.id === id);
-        if (!g || !confirm(`¿Quitar el grupo «${g.nombre}» y sus ${g.archivos.length} logs de la lista?\nLos archivos del servidor no se tocan.`)) return;
+        if (!g || !confirm(`¿Quitar el grupo «${g.nombre}» y sus ${g.archivos.length} archivos de la lista?\nLos archivos del servidor no se tocan.`)) return;
         try {
             await pedir(`${base()}/grupos/${id}`, { method: 'DELETE' });
             if (actual && g.archivos.some((a) => a.id === actual.id)) cerrarVisor();
@@ -356,7 +462,7 @@ window.logsTerceros = (function () {
 
     function formArchivo(id, grupoId) {
         const a = id ? buscarArchivo(id) : null;
-        $('lt-archivo-titulo').textContent = a ? 'Cambiar log' : 'Agregar log';
+        $('lt-archivo-titulo').textContent = a ? 'Cambiar archivo' : 'Agregar archivo';
         $('lt-archivo-id').value = a ? a.id : '';
         $('lt-archivo-grupo').innerHTML = grupos.map((g) => `<option value="${g.id}">${esc(g.nombre)}</option>`).join('');
         $('lt-archivo-grupo').value = a ? a.grupo_id : (grupoId || (grupos[0] && grupos[0].id));
@@ -398,11 +504,11 @@ window.logsTerceros = (function () {
     }
 
     function cerrarVisor() {
-        detenerSeguir(); actual = null; texto = '';
+        detenerSeguir(); actual = null; texto = ''; comoRoot = false; mostrarRoot(false);
         $('lt-visor').classList.add('d-none'); $('lt-vacio').classList.remove('d-none');
     }
 
-    return { cargar, abrir, recargar, antiguas, todo, seguir, filtrar, ajustar, copiar,
+    return { cargar, abrir, recargar, antiguas, todo, seguir, filtrar, ajustar, copiar, leerComoRoot, descargar,
              formGrupo, guardarGrupo, borrarGrupo, formArchivo, guardarArchivo, borrarArchivo, sugerir };
 })();
 // En la carga completa, Vue monta #init-vue hasta que llegan los permisos y redibuja lo que

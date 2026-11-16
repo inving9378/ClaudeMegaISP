@@ -4,8 +4,8 @@ use App\Modules\Addons\LogsTerceros\Controllers\LogsTercerosController as C;
 use Illuminate\Support\Facades\Route;
 
 /*
- * Logs de terceros (Administración): ver, completos y sin editar, archivos de log del servidor
- * agrupados. Ver ahí: logs_terceros.ver. Dar de alta/cambiar/quitar grupos y rutas:
+ * Logs de terceros (Administración): ver, completos y sin editar, logs y otros archivos del
+ * servidor, agrupados. Ver ahí: logs_terceros.ver. Dar de alta/cambiar/quitar grupos y rutas:
  * logs_terceros.gestionar. Los dos los reciben solo super-administrator y DESARROLLADOR (no
  * terminan en .view, así que no se reparten a los demás roles). `web` explícito porque
  * loadRoutesFrom() no lo aplica solo.
@@ -17,6 +17,11 @@ Route::middleware(['web', 'auth', 'permission:logs_terceros.ver'])
         Route::get('/datos', [C::class, 'datos'])->name('logs-terceros.datos');
         Route::get('/archivos/{archivo}/contenido', [C::class, 'contenido'])->whereNumber('archivo')->name('logs-terceros.contenido');
         Route::get('/archivos/{archivo}/descargar', [C::class, 'descargar'])->whereNumber('archivo')->name('logs-terceros.descargar');
+        // Los que el servidor web no puede leer: como root, con la contraseña que se escribe en la
+        // página (misma vía que los add-ons; ver Services/LectorComoRoot.php). POST: la contraseña
+        // nunca va en la URL.
+        Route::post('/archivos/{archivo}/root', [C::class, 'contenidoRoot'])->whereNumber('archivo')->name('logs-terceros.root');
+        Route::post('/archivos/{archivo}/root/descargar', [C::class, 'descargarRoot'])->whereNumber('archivo')->name('logs-terceros.root.descargar');
     });
 
 Route::middleware(['web', 'auth', 'permission:logs_terceros.gestionar'])

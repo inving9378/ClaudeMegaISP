@@ -1,0 +1,34 @@
+/* Listados con selector de columnas (#1342). Se activa con class="tabla-listado" en el q-table.
+ * - La tabla ocupa solo lo que piden sus columnas visibles: al ocultar columnas se reduce y las
+ *   que quedan no se estiran para llenar el ancho.
+ * - Los textos largos se cortan con «…»; el texto completo sale como tooltip con
+ *   helpers/tablaListado.js. Una columna ensanchada a mano (v-table-resizable) muestra más texto.
+ * - La última columna (Acciones) queda fija a la derecha cuando hay desplazamiento horizontal.
+ *   Su fondo se hereda de la tarjeta de la tabla, así sirve en claro, oscuro y alto contraste;
+ *   el estilo «Relleno» de las filas conserva su color. */
+.tabla-listado .q-table {
+    width: auto;
+}
+
+.tabla-listado .q-table tbody td:not(:last-child) {
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tabla-listado .q-table__middle,
+.tabla-listado .q-table,
+.tabla-listado .q-table thead,
+.tabla-listado .q-table tbody,
+.tabla-listado .q-table tr {
+    background-color: inherit;
+}
+
+.tabla-listado .q-table thead th:last-child,
+.tabla-listado .q-table tbody td:last-child {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    background-color: inherit;
+    box-shadow: -6px 0 6px -6px rgba(0, 0, 0, 0.25);
+}

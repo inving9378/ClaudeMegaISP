@@ -7,7 +7,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * «Logs de terceros»: qué rutas se aceptan y cómo se lee (solo lectura). Archivos en una
- * carpeta temporal; la raíz de MegaISP es falsa.
+ * carpeta temporal.
  */
 class LectorLogsTest extends TestCase
 {
@@ -19,7 +19,7 @@ class LectorLogsTest extends TestCase
     {
         $this->dir = sys_get_temp_dir() . '/lector-logs-' . bin2hex(random_bytes(4));
         mkdir($this->dir . '/logs', 0700, true);
-        $this->lector = new LectorLogs('/srv/megaisp');
+        $this->lector = new LectorLogs();
     }
 
     protected function tearDown(): void
@@ -35,18 +35,22 @@ class LectorLogsTest extends TestCase
         return $ruta;
     }
 
-    public function test_acepta_logs_y_rechaza_secretos_y_rutas_raras(): void
+    public function test_acepta_cualquier_archivo_y_rechaza_secretos(): void
     {
         foreach (['/var/log/asterisk/messages.log', '/var/log/nginx/error.log', '/var/log/syslog',
             '/srv/megaisp/storage/logs/laravel.log', '/opt/evolution/logs/app.txt', '/var/lib/megaisp/bot.out',
-            '/var/log/asterisk/messages.log-20261114.gz'] as $bien) {
+            '/var/log/asterisk/messages.log-20261114.gz',
+            // Desde el 17-nov, no solo logs: configuraciones, código, certificados públicos, respaldos de configuración.
+            '/etc/nginx/nginx.conf', '/etc/asterisk/pjsip.conf', '/srv/megaisp/config/database.php',
+            '/srv/megaisp/storage/app/reporte.txt', '/etc/hosts', '/etc/ssl/certs/sitio.crt', '/etc/nginx/sites-available/default.bak'] as $bien) {
             $this->assertNull($this->lector->rechazo($bien), $bien);
         }
         foreach (['var/log/syslog' => 'absoluta', '/srv/megaisp/.env' => 'contraseñas', '/var/log/app/produccion.env' => 'contraseñas', '/var/log/app.env.bak' => 'contraseñas', '/var/log/x/secrets.log' => 'contraseñas', '/var/log/../../srv/megaisp/.env' => 'contraseñas',
             '/etc/shadow' => 'contraseñas', '/home/x/.ssh/id_rsa' => 'contraseñas', '/etc/ssl/private/log.key' => '/etc/ssl/private',
             '/proc/self/environ' => '/proc', '/var/log/../../proc/1/environ' => '/proc', '/var/backups/megaisp/x.sql.gz' => 'contraseñas',
-            '/srv/megaisp/config/database.php' => 'solo se ven sus logs', '/srv/megaisp/storage/app/log.txt' => 'solo se ven sus logs',
-            '/etc/nginx/nginx.conf' => 'Solo archivos de log'] as $mal => $motivo) {
+            '/root/.my.cnf' => 'contraseñas', '/etc/mysql/debian.cnf' => 'contraseñas', '/srv/megaisp/auth.json' => 'contraseñas',
+            '/var/lib/asterisk/astdb.sqlite3' => 'contraseñas', '/home/x/.git-credentials' => 'contraseñas',
+            '/run/php/php8.2-fpm.sock' => '/run'] as $mal => $motivo) {
             $this->assertStringContainsString($motivo, (string) $this->lector->rechazo($mal), $mal);
         }
     }
@@ -138,6 +142,29 @@ class LectorLogsTest extends TestCase
         $this->lector->leer($this->dir . '/logs/atajo.log');
     }
 
+    public function test_dice_si_no_puede_entrar_a_la_carpeta(): void
+    {
+        // Como /home/<usuario> con 700 visto por www-data: realpath falla aunque el archivo exista.
+        mkdir($this->dir . '/cerrada');
+        file_put_contents($this->dir . '/cerrada/historial', "uno\n");
+        chmod($this->dir . '/cerrada', 0);
+        try {
+            if (@is_executable($this->dir . '/cerrada')) {
+                $this->markTestSkipped('Corriendo como root: no hay carpetas cerradas.');
+            }
+            $info = $this->lector->info($this->dir . '/cerrada/historial');
+            $this->assertStringContainsString('no tiene permiso para entrar a la carpeta ' . $this->dir . '/cerrada', (string) $info['motivo']);
+            $this->assertTrue($info['permiso'], 'la página ofrece leerlo como root');
+            $this->assertStringContainsString('entrar a la carpeta', (string) $this->lector->info($this->dir . '/cerrada/*.log')['motivo']);
+        } finally {
+            chmod($this->dir . '/cerrada', 0700);
+        }
+        $this->assertSame('Es una carpeta, no un archivo.', $this->lector->info($this->dir . '/cerrada')['motivo']);
+        $this->assertSame('No existe.', $this->lector->info($this->dir . '/logs/nada.log')['motivo']);
+        $this->assertFalse($this->lector->info($this->dir . '/logs/nada.log')['permiso'], 'root no arregla lo que no existe');
+        $this->assertFalse($this->lector->info('/srv/x/.env')['permiso'], 'ni lo prohibido');
+    }
+
     public function test_con_asterisco_muestra_el_mas_reciente_y_nunca_un_secreto(): void
     {
         $viejo = $this->archivo('laravel-2026-11-15.log', "ayer\n");
@@ -158,14 +185,28 @@ class LectorLogsTest extends TestCase
         $this->assertStringContainsString('Ningún archivo', (string) $this->lector->info($this->dir . '/logs/nada-*.log')['motivo']);
     }
 
+    public function test_un_binario_no_se_pinta(): void
+    {
+        $ruta = $this->archivo('foto.png', "\x89PNG\r\n\x1a\n\0\0\0\rIHDR" . random_bytes(64));
+        $r = $this->lector->leer($ruta);
+        $this->assertTrue($r['binario']);
+        $this->assertSame('', $r['texto']);
+
+        $config = $this->archivo('pjsip.conf', "[transport-udp]\ntype=transport\n");
+        $r = $this->lector->leer($config);
+        $this->assertFalse($r['binario']);
+        $this->assertSame("[transport-udp]\ntype=transport\n", $r['texto']);
+    }
+
     public function test_lo_muy_grande_no_se_muestra_completo(): void
     {
-        $ruta = $this->archivo('grande.log', '');
-        $f = fopen($ruta, 'r+');
-        ftruncate($f, LectorLogs::MAXIMO_COMPLETO + 10);
-        fclose($f);
+        // Texto (no ceros: un archivo de puros bytes nulos es binario). Líneas de 1 KB.
+        $linea = str_repeat('x', 1023) . "\n";
+        $ruta = $this->archivo('grande.log', str_repeat($linea, intdiv(LectorLogs::MAXIMO_COMPLETO, 1024) + 1));
 
-        $this->assertSame(LectorLogs::BYTES_POR_PAGINA, strlen($this->lector->leer($ruta)['texto']), 'de lo grande se ve lo último');
+        $r = $this->lector->leer($ruta);
+        $this->assertFalse($r['binario']);
+        $this->assertSame(LectorLogs::BYTES_POR_PAGINA - 1024, strlen($r['texto']), 'de lo grande se ve lo último, en líneas completas');
         $this->expectException(\LengthException::class);
         $this->lector->leer($ruta, completo: true);
     }
