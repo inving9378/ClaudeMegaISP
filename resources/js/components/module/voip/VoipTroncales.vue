@@ -107,7 +107,10 @@
                                     </template>
                                 </td>
                                 <td class="text-center">
-                                    <i :class="t.activo ? 'fa fa-toggle-on text-success' : 'fa fa-toggle-off text-secondary'"
+                                    <i v-if="cambiando[t.id]" class="fa fa-spinner fa-spin fa-lg text-muted"
+                                       title="Aplicando en la central…"></i>
+                                    <i v-else
+                                       :class="t.activo ? 'fa fa-toggle-on text-success' : 'fa fa-toggle-off text-secondary'"
                                        class="fa-lg"
                                        :style="canEdit ? 'cursor:pointer' : ''"
                                        :title="canEdit ? (t.activo ? 'Clic para desactivar' : 'Clic para activar') : ''"
@@ -442,6 +445,9 @@ export default {
             mostrarSecret:   false,
             testConexion:    null,
             verificaciones:    {},
+            // Troncales con el interruptor en curso: no se acepta otro clic hasta que responda
+            // (un segundo clic mandaba otra orden y la regresaba a como estaba).
+            cambiando:         {},
             intervaloVerificar: null,
             confirmMsg:        '',
             confirmCallback:   null,
@@ -703,13 +709,15 @@ export default {
         },
 
         async toggleActivo(t) {
+            if (this.cambiando[t.id]) return;
             if (t.activo) {
                 const ok = await this.pedirConfirm(
                     `¿Desactivar la troncal <strong>${t.nombre}</strong>?<br>
                     <span class="text-muted small">Las llamadas activas no se interrumpen; las nuevas no serán enrutadas mientras esté inactiva.</span>`
                 );
-                if (! ok) return;
+                if (! ok || this.cambiando[t.id]) return;
             }
+            this.cambiando = { ...this.cambiando, [t.id]: true };
             try {
                 const r    = await fetch(`${this.baseUrl}/troncales/${t.id}/toggle`, {
                     method:  'PATCH',
@@ -736,6 +744,9 @@ export default {
                 }
             } catch {
                 this.toast('Error de red', 'error');
+            } finally {
+                const { [t.id]: _listo, ...siguen } = this.cambiando;
+                this.cambiando = siguen;
             }
         },
 

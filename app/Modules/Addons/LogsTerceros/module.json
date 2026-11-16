@@ -1,0 +1,50 @@
+{
+    "slug": "addon-logs-terceros",
+    "name": "Logs de terceros",
+    "version": "1.0.0",
+    "description": "Ver, completos y sin editar, los logs del servidor (Asterisk, nginx, MegaISP…) desde Administración, agrupados. Se agrega la ruta absoluta de cada archivo con un nombre. Solo lectura: no escribe, no mueve ni borra archivos; no lee secretos (.env, llaves, /proc).",
+    "type": "addon",
+    "dependencies": [],
+    "active": true,
+
+    "permissions": [
+        { "name": "logs_terceros.ver",       "description": "Ver los logs de terceros (solo lectura)" },
+        { "name": "logs_terceros.gestionar", "description": "Crear grupos y agregar, cambiar o quitar rutas de logs de terceros" }
+    ],
+
+    "menu": [],
+
+    "admin_cards": [
+        {
+            "title": "Logs de terceros",
+            "description": "Logs del servidor (Asterisk, nginx, MegaISP…) agrupados, completos y para copiar. Solo lectura.",
+            "icon": "file-alt",
+            "url": "/admin/logs-terceros",
+            "permission": "logs_terceros.ver"
+        }
+    ],
+
+    "api_endpoints": [
+        { "method": "GET",    "path": "/admin/logs-terceros",                           "description": "Pantalla de logs de terceros",                         "scope": "logs_terceros.ver",       "permission": "logs_terceros.ver" },
+        { "method": "GET",    "path": "/admin/logs-terceros/datos",                     "description": "Grupos con sus archivos y estado de cada uno",         "scope": "logs_terceros.ver",       "permission": "logs_terceros.ver" },
+        { "method": "GET",    "path": "/admin/logs-terceros/archivos/{archivo}/contenido", "description": "Texto del log (lo último, más antiguo, lo nuevo o todo)", "scope": "logs_terceros.ver",    "permission": "logs_terceros.ver" },
+        { "method": "GET",    "path": "/admin/logs-terceros/archivos/{archivo}/descargar", "description": "Descarga el archivo tal cual",                       "scope": "logs_terceros.ver",       "permission": "logs_terceros.ver" },
+        { "method": "POST",   "path": "/admin/logs-terceros/grupos",                    "description": "Crea un grupo (nombre y descripción)",                 "scope": "logs_terceros.gestionar", "permission": "logs_terceros.gestionar" },
+        { "method": "PUT",    "path": "/admin/logs-terceros/grupos/{grupo}",            "description": "Cambia un grupo",                                      "scope": "logs_terceros.gestionar", "permission": "logs_terceros.gestionar" },
+        { "method": "DELETE", "path": "/admin/logs-terceros/grupos/{grupo}",            "description": "Quita un grupo y sus rutas (los archivos no se tocan)", "scope": "logs_terceros.gestionar", "permission": "logs_terceros.gestionar" },
+        { "method": "POST",   "path": "/admin/logs-terceros/archivos",                  "description": "Agrega un log (nombre y ruta absoluta) a un grupo",    "scope": "logs_terceros.gestionar", "permission": "logs_terceros.gestionar" },
+        { "method": "PUT",    "path": "/admin/logs-terceros/archivos/{archivo}",        "description": "Cambia el nombre, la ruta o el grupo de un log",       "scope": "logs_terceros.gestionar", "permission": "logs_terceros.gestionar" },
+        { "method": "DELETE", "path": "/admin/logs-terceros/archivos/{archivo}",        "description": "Quita un log de la lista (el archivo no se toca)",     "scope": "logs_terceros.gestionar", "permission": "logs_terceros.gestionar" }
+    ],
+
+    "ai": {
+        "knowledge": "Logs de terceros (Administración → Logs de terceros) muestra, completos y sin poder editarlos, archivos de log del servidor agrupados: por ejemplo /var/log/asterisk/messages.log de la central telefónica o storage/logs/laravel.log de MegaISP. Un grupo tiene nombre y descripción opcional; cada log, nombre y ruta absoluta. Se ve lo último y se puede cargar lo más antiguo, todo (hasta 16 MB), seguir lo nuevo, copiar o descargar. No acepta secretos (.env, llaves, /proc). Solo super-administrador y DESARROLLADOR.",
+        "example_intents": [
+            "ver el log de asterisk",
+            "agregar un log a un grupo"
+        ],
+        "sensitive_actions": []
+    },
+    "client_tab": null,
+    "service_type": null
+}

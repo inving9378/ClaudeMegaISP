@@ -347,9 +347,12 @@ class AsteriskProvisioningService
     public function reloadDialplan(): bool
     {
         try {
-            // pbx_config.so emite la confirmación como evento asíncrono;
-            // leer con readAll para capturar el "Module Reloaded".
-            $raw = $this->amiSend("Action: Reload\r\nModule: pbx_config.so\r\n\r\n", readAll: true);
+            // Solo la respuesta: Asterisk contesta "Response: Success / Message: Module Reloaded"
+            // al instante. Con readAll se esperaba un "EventList: Complete" que un Reload nunca
+            // manda, y cada recarga tardaba todo el plazo de lectura (13 s medidos en test,
+            // 2026-11-14): el interruptor de troncales parecía no hacer caso y, al volver a
+            // tocarlo, se revertía.
+            $raw = $this->amiSend("Action: Reload\r\nModule: pbx_config.so\r\n\r\n", readAll: false);
             $ok  = str_contains($raw, 'Response: Success')
                 || str_contains($raw, 'Module Reloaded')
                 || str_contains($raw, 'Module reloaded');
