@@ -194,8 +194,31 @@ class ExtensionController extends Controller
         }
 
         $this->asegurarGemelaWebrtc($extension);
+        $this->alinearContextoGemela($extension);
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * La gemela del navegador (webNNNN) marca con el mismo contexto que su extensión. Antes solo
+     * lo copiaba al crearse: corregir la extensión no arreglaba el teléfono web (prod, 17-nov:
+     * un contexto mal escrito, «from-intermal», seguía en la gemela y rechazaba toda llamada).
+     */
+    private function alinearContextoGemela(Extension $extension): void
+    {
+        if ($extension->es_webrtc) {
+            return;
+        }
+        $gemela = Extension::where('numero', 'web' . $extension->numero)->where('es_webrtc', true)->first();
+        if (! $gemela || $gemela->contexto === $extension->contexto) {
+            return;
+        }
+        $gemela->update(['contexto' => $extension->contexto]);
+        try {
+            $this->provisioner->provisionarExtension($gemela);
+        } catch (\Throwable $e) {
+            Log::warning("VoIP: contexto de {$gemela->numero} guardado, pero no se pudo pasar a Asterisk: {$e->getMessage()}");
+        }
     }
 
     public function destroy(Extension $extension): JsonResponse
