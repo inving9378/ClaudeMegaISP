@@ -6,47 +6,55 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Modules\Addons\VoIP\Models\Extension;
 use App\Modules\Addons\VoIP\Services\AsteriskProvisioningService;
-use App\Modules\Addons\VoIP\Services\ReclamadorExtensionAutomatico;
+use App\Modules\Addons\VoIP\Services\SegmentosTelefono;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class ExtensionController extends Controller
 {
     public function __construct(
         private AsteriskProvisioningService $provisioner,
-        private ReclamadorExtensionAutomatico $reclamador,
     ) {}
 
     /**
-     * Crea (si falta) la gemela WebRTC de una extensión de escritorio —
-     * mismo mecanismo que el alta automática de colaboradores (Fase 1),
-     * reusado aquí porque sin esto el mini-teléfono NUNCA aparecía para
-     * nadie asignado desde esta pantalla (encontrado en vivo 24-sep-2026:
-     * Diana tenía la extensión 1003 asignada, pero sin `web1003` el widget
-     * no se dibuja — "el propio componente... no se dibuja nada si el
-     * usuario no tiene una extensión WebRTC asignada"). Best-effort: un
-     * fallo aquí no debe tumbar el guardado de la extensión.
-     *
-     * SIN DUEÑO (28-sep-2026): ya no exige `user_id` — Irving pidió que
-     * TODA extensión nueva (con dueño o sin él, ej. una de departamento)
-     * reciba su gemela `webNNNN` automáticamente al crearse/editarse.
-     * `crearGemelaWebrtc()` acepta `$user = null` para este caso.
+     * Segmentos (17-nov-2026, ver SegmentosTelefono): 1000–1999 aparatos físicos,
+     * 2000–2999 teléfonos web. Ya no hay gemelas: guardar o borrar una extensión no crea
+     * ni toca ninguna otra. Un número que ya tenía y no cambia se acepta tal cual (las
+     * gemelas viejas `webNNNN` se pueden editar hasta que «Sincronizar» las pase).
      */
-    private function asegurarGemelaWebrtc(Extension $extension): void
+    private function reglaSegmento(bool $esWeb, ?string $actual = null): \Closure
     {
-        if ($extension->es_webrtc) {
-            return;
-        }
-        $user = $extension->user_id ? User::find($extension->user_id) : null;
-        try {
-            $this->reclamador->crearGemelaWebrtc($extension, $user);
-        } catch (\Throwable $e) {
-            Log::warning("VoIP: no se pudo crear la gemela WebRTC de la extensión {$extension->numero}: {$e->getMessage()}");
-        }
+        return function (string $atributo, $valor, \Closure $falla) use ($esWeb, $actual) {
+            $n = trim((string) $valor);
+            if ($actual !== null && $n === $actual) {
+                return;
+            }
+            if ($esWeb && ! SegmentosTelefono::esNumeroWeb($n)) {
+                $falla('Un teléfono web va del 2000 al 2999 (misma área que el físico: 2100 atención, 2200 técnicos…).');
+            } elseif (! $esWeb && SegmentosTelefono::esNumeroWeb($n)) {
+                $falla('Del 2000 al 2999 son teléfonos web. Un aparato físico va del 1000 al 1999.');
+            } elseif (SegmentosTelefono::baseDeGemela($n) !== null) {
+                $falla('Los números con «web» ya no se usan: el teléfono web lleva su propio número del 2000 al 2999.');
+            }
+        };
+    }
+
+    /** Un teléfono web por persona. */
+    private function reglaUnaPorPersona(?int $ignorarId = null): \Closure
+    {
+        return function (string $atributo, $valor, \Closure $falla) use ($ignorarId) {
+            $otra = Extension::where('user_id', $valor)->where('es_webrtc', true)
+                ->when($ignorarId, fn ($q) => $q->where('id', '!=', $ignorarId))
+                ->value('numero');
+            if ($otra !== null) {
+                $falla("Esa persona ya tiene su teléfono web ({$otra}): es uno por persona.");
+            }
+        };
     }
 
     public function index()
@@ -84,6 +92,8 @@ class ExtensionController extends Controller
             'activo'          => $e->activo,
             'provisionado_at' => $e->provisionado_at?->toDateTimeString(),
             'endpoint_id'     => $e->endpointId(),
+            'es_webrtc'       => (bool) $e->es_webrtc,
+            'numero_anterior' => $e->numero_anterior,
             'tiene_secret'    => ! empty($e->attributes['secret'] ?? null),
             'en_asterisk'     => $enAsterisk === null ? null : isset($enAsterisk[$e->endpointId()]),
         ]);
@@ -125,18 +135,31 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
+        $esWeb = $request->boolean('es_webrtc');
         $data = $request->validate([
-            'numero'          => 'required|string|max:20|unique:voip_extensiones,numero',
+            'numero'          => ['required', 'string', 'max:20', 'unique:voip_extensiones,numero', $this->reglaSegmento($esWeb)],
             'nombre'          => 'required|string|max:100',
-            'secret'          => 'required|string|min:4',
-            'user_id'         => 'nullable|exists:users,id',
+            // El teléfono web no se configura a mano: el navegador la recibe sola.
+            'secret'          => $esWeb ? 'nullable|string|min:4' : 'required|string|min:4',
+            'user_id'         => $esWeb ? ['required', 'exists:users,id', $this->reglaUnaPorPersona()] : 'nullable|exists:users,id',
             'tipo_dispositivo'=> 'nullable|in:telefono_ip,softphone',
             'contexto'        => 'nullable|string|max:100',
             'codecs'          => 'nullable|string|max:100',
             'transporte'      => ['nullable', 'string', 'max:100', $this->reglaTransporte()],
             'callerid'        => 'nullable|string|max:100',
             'activo'          => 'nullable|boolean',
+        ], [
+            'user_id.required' => 'Un teléfono web es de una persona: elige el agente.',
         ]);
+
+        if ($esWeb) {
+            $data = SegmentosTelefono::DATOS_WEB + $data;
+            $data['secret']   = ($data['secret'] ?? '') !== '' ? $data['secret'] : Str::random(32);
+            $data['callerid'] = ($data['callerid'] ?? '') !== '' ? $data['callerid'] : $data['numero'];
+        } else {
+            $data['es_webrtc'] = false;
+        }
+        $data['voip_rango_numeracion_id'] = SegmentosTelefono::rangoDe($data['numero'])?->id;
 
         $ext = Extension::create($data);
 
@@ -145,8 +168,6 @@ class ExtensionController extends Controller
         } catch (\Throwable $e) {
             Log::warning("VoIP: auto-provisión falló para ext {$ext->numero}: {$e->getMessage()}");
         }
-
-        $this->asegurarGemelaWebrtc($ext);
 
         return response()->json(['id' => $ext->id, 'endpoint_id' => $ext->endpointId()], 201);
     }
@@ -168,11 +189,13 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
+        $esWeb = (bool) $extension->es_webrtc;
         $data = $request->validate([
-            'numero'          => "required|string|max:20|unique:voip_extensiones,numero,{$extension->id}",
+            'numero'          => ['required', 'string', 'max:20', "unique:voip_extensiones,numero,{$extension->id}",
+                                  $this->reglaSegmento($esWeb, $extension->numero)],
             'nombre'          => 'required|string|max:100',
             'secret'          => 'nullable|string|min:4',
-            'user_id'         => 'nullable|exists:users,id',
+            'user_id'         => $esWeb ? ['required', 'exists:users,id', $this->reglaUnaPorPersona($extension->id)] : 'nullable|exists:users,id',
             'tipo_dispositivo'=> 'nullable|in:telefono_ip,softphone',
             'contexto'        => 'nullable|string|max:100',
             'codecs'          => 'nullable|string|max:100',
@@ -184,6 +207,24 @@ class ExtensionController extends Controller
         if (empty($data['secret'])) {
             unset($data['secret']);
         }
+        if ($esWeb) {
+            $data = array_merge($data, SegmentosTelefono::DATOS_WEB);
+        }
+
+        // El endpoint de Asterisk se llama como el número: si cambia, el viejo se quita
+        // (antes se quedaba vivo en Asterisk con la contraseña de siempre).
+        $anterior = $extension->numero;
+        if (trim($data['numero']) !== $anterior) {
+            try {
+                $this->provisioner->desprovisionarExtension($extension);
+            } catch (\Throwable $e) {
+                Log::warning("VoIP: al cambiar {$anterior} → {$data['numero']} no se pudo quitar el número viejo de Asterisk: {$e->getMessage()}");
+            }
+            if (($data['callerid'] ?? '') === $anterior) {
+                $data['callerid'] = trim($data['numero']);
+            }
+            $data['voip_rango_numeracion_id'] = SegmentosTelefono::rangoDe($data['numero'])?->id ?? $extension->voip_rango_numeracion_id;
+        }
 
         $extension->update($data);
 
@@ -193,32 +234,7 @@ class ExtensionController extends Controller
             Log::warning("VoIP: re-provisión falló para ext {$extension->numero}: {$e->getMessage()}");
         }
 
-        $this->asegurarGemelaWebrtc($extension);
-        $this->alinearContextoGemela($extension);
-
         return response()->json(['ok' => true]);
-    }
-
-    /**
-     * La gemela del navegador (webNNNN) marca con el mismo contexto que su extensión. Antes solo
-     * lo copiaba al crearse: corregir la extensión no arreglaba el teléfono web (prod, 17-nov:
-     * un contexto mal escrito, «from-intermal», seguía en la gemela y rechazaba toda llamada).
-     */
-    private function alinearContextoGemela(Extension $extension): void
-    {
-        if ($extension->es_webrtc) {
-            return;
-        }
-        $gemela = Extension::where('numero', 'web' . $extension->numero)->where('es_webrtc', true)->first();
-        if (! $gemela || $gemela->contexto === $extension->contexto) {
-            return;
-        }
-        $gemela->update(['contexto' => $extension->contexto]);
-        try {
-            $this->provisioner->provisionarExtension($gemela);
-        } catch (\Throwable $e) {
-            Log::warning("VoIP: contexto de {$gemela->numero} guardado, pero no se pudo pasar a Asterisk: {$e->getMessage()}");
-        }
     }
 
     public function destroy(Extension $extension): JsonResponse
@@ -227,15 +243,8 @@ class ExtensionController extends Controller
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
-        // Con ella se va su gemela del navegador (webNNNN): se crea sola al dar de alta la
-        // extensión, y antes se quedaba viva en MegaISP y en Asterisk al borrarla.
+        // Solo ella: desde el 17-nov-2026 los teléfonos web ya no van ligados a un físico.
         $aBorrar = [$extension];
-        if (! $extension->es_webrtc) {
-            $gemela = Extension::where('numero', 'web' . $extension->numero)->where('es_webrtc', true)->first();
-            if ($gemela) {
-                $aBorrar[] = $gemela;
-            }
-        }
 
         $grupos = \App\Modules\Addons\VoIP\Models\GrupoTimbrado::whereHas('extensiones',
             fn ($q) => $q->whereIn('voip_extensiones.id', collect($aBorrar)->pluck('id'))

@@ -43,38 +43,22 @@ GRABACIONES_DIR=/var/lib/megaisp/grabaciones
 ; El endpoint de PJSIP se llama igual que el número de la extensión, así que el
 ; destino sale del propio ${EXTEN} y este contexto no necesita regenerarse cada
 ; vez que se da de alta una extensión nueva.
+;
+; Dos segmentos que no se mezclan (MegaISP, SegmentosTelefono):
+;   1000–1999  aparatos físicos (teléfono IP, softphone) — un número por aparato
+;   2000–2999  teléfonos web (el del navegador) — un número por persona
+; Los dos se marcan igual, con 4 dígitos, desde cualquier teléfono. Cada número
+; timbra solo su línea: ya no hay gemelas «webNNNN» ligadas a un aparato.
 [from-internal]
 
-; Internos de 4 dígitos — el plan de numeración de MegaISP vive en 1000-1999.
-;
-; Timbra la de escritorio Y la gemela WebRTC (web${EXTEN}) A LA VEZ —
-; contesta la que esté conectada. Antes solo timbraba PJSIP/${EXTEN}: si esa
-; persona no tenía su teléfono físico prendido (el caso normal para alguien
-; que solo usa el navegador), marcar su número de 4 dígitos fallaba de
-; inmediato ("Could not create dialog... Is endpoint registered and
-; reachable?") aunque su línea de navegador SÍ estuviera conectada — y quien
-; marcaba tenía que saber de memoria el prefijo "web" para encontrarla, algo
-; que nadie recuerda en la práctica (encontrado en vivo 24-sep-2026, Irving
-; marcando "1003" repetidamente en vez de "web1003" para llamar a Diana). Si
-; web${EXTEN} no existe como endpoint (la mayoría de las extensiones no
-; tienen gemela), ese segundo canal simplemente no se puede crear y Asterisk
-; sigue con el primero — no rompe nada, solo dos líneas de log de más.
+; Internos de 4 dígitos (físicos 1000–1999 y web 2000–2999).
 exten = _[1-9]XXX,1,NoOp(Interno: ${CALLERID(num)} -> ${EXTEN})
  same = n,Set(CDR(userfield)=interno)
- same = n,Dial(PJSIP/${EXTEN}&PJSIP/web${EXTEN},30)
+ same = n,Dial(PJSIP/${EXTEN},30)
  same = n,Hangup()
 
-; Internos de 3 dígitos — instalaciones con plan corto. Mismo criterio que
-; arriba (timbra escritorio + gemela web a la vez).
+; Internos de 3 dígitos — instalaciones con plan corto.
 exten = _[1-9]XX,1,NoOp(Interno: ${CALLERID(num)} -> ${EXTEN})
- same = n,Set(CDR(userfield)=interno)
- same = n,Dial(PJSIP/${EXTEN}&PJSIP/web${EXTEN},30)
- same = n,Hangup()
-
-; MegaVoz Fase 2 — gemela WebRTC de una extensión (webNNNN). El endpoint de
-; PJSIP se llama igual que el número completo con el prefijo, igual que el
-; resto de este contexto.
-exten = _web[1-9]XXX,1,NoOp(Interno (WebRTC): ${CALLERID(num)} -> ${EXTEN})
  same = n,Set(CDR(userfield)=interno)
  same = n,Dial(PJSIP/${EXTEN},30)
  same = n,Hangup()

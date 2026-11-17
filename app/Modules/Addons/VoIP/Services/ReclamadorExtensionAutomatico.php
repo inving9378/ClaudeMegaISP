@@ -10,23 +10,20 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
- * MegaVoz Fase 1 — extensión SIP automática por colaborador.
+ * Teléfono web automático por colaborador.
  *
- * NO crea extensiones nuevas: reclama una de las ya sembradas por
- * `ExtensionesArranqueSeeder` (#9990718 §8) en el rango que le corresponde a su
- * rol, le pone el nombre real y le rota el secret (una extensión reclamada no
- * debe seguir con el secret genérico con el que se sembró). Duplicar la
- * creación de extensiones sería pisar el plan de numeración ya construido
- * (§7/§8) — este servicio se apoya en él, no lo reemplaza.
+ * Desde el 17-nov-2026 (segmentos, ver SegmentosTelefono) lo que se le da a una persona
+ * es su TELÉFONO WEB, con número propio en 2000–2999 y en el área de su rol (mostrador →
+ * 2100–2199). Ya no se toma un número de aparato físico (1000–1999): esos son de los
+ * teléfonos de escritorio y se asignan a mano en Extensiones cuando hay un aparato.
  *
- * Alcance decidido por David (23-sep-2026): solo los roles de atención directa
- * reclaman automáticamente. El resto de los colaboradores (oficina, RH,
- * contabilidad, etc.) no recibe extensión sola — se asigna a mano si hace
- * falta, vía la pantalla de Extensiones.
+ * Alcance decidido por David (23-sep-2026): solo los roles de atención directa reciben
+ * teléfono solo. El resto (oficina, RH, contabilidad…) se da de alta a mano en
+ * Extensiones → «Nueva extensión» → tipo «Teléfono web».
  */
 class ReclamadorExtensionAutomatico
 {
-    /** rol de Spatie => código del rango en voip_rangos_numeracion */
+    /** rol de Spatie => código del área (el rango web es «<área>_web») */
     private const ROL_A_RANGO = [
         'TECNICO'            => 'tecnicos',
         'TECNICO_INSTALADOR' => 'tecnicos',
@@ -45,153 +42,63 @@ class ReclamadorExtensionAutomatico
             return null;
         }
 
-        // Ya tiene una — no se reclama una segunda.
-        if (Extension::where('user_id', $user->id)->exists()) {
+        // Uno por persona.
+        if (Extension::where('user_id', $user->id)->where('es_webrtc', true)->exists()) {
             return null;
         }
 
-        $codigoRango = $this->rangoParaUsuario($user);
-        if (! $codigoRango) {
+        $area = $this->rangoParaUsuario($user);
+        if (! $area) {
             // Rol fuera del alcance decidido (oficina, RH, etc.) — no es un error.
             return null;
         }
 
-        $rango = RangoNumeracion::porCodigo($codigoRango)->first();
+        $codigo = $area . SegmentosTelefono::SUFIJO_WEB;
+        $rango  = RangoNumeracion::porCodigo($codigo)->first();
         if (! $rango) {
-            Log::warning("VoIP: reclamo automático de extensión — rango '{$codigoRango}' no está sembrado (corre PlanNumeracionSeeder).", [
+            Log::warning("VoIP: teléfono web automático — el rango '{$codigo}' no está sembrado (lo crea «Instalar dependencias» de VoIP).", [
                 'colaborador_id' => $colaborador->id,
             ]);
             return null;
         }
 
-        $extension = Extension::where('voip_rango_numeracion_id', $rango->id)
-            ->whereNull('user_id')
-            ->where('sembrada_por_sistema', true)
-            ->orderBy('numero')
-            ->first();
-
-        if (! $extension) {
-            Log::warning("VoIP: reclamo automático de extensión — sin extensiones libres en el rango '{$codigoRango}' para el colaborador #{$colaborador->id}. Asignar a mano desde Extensiones.", [
+        $numero = SegmentosTelefono::primerLibre($rango);
+        if (! $numero) {
+            Log::warning("VoIP: teléfono web automático — sin números libres en '{$codigo}' para el colaborador #{$colaborador->id}. Darlo de alta a mano en Extensiones.", [
                 'colaborador_id' => $colaborador->id,
             ]);
             return null;
         }
 
-        $extension->update([
-            'nombre'   => $user->name,
-            'user_id'  => $user->id,
-            // Una extensión reclamada deja de tener el secret genérico con el
-            // que se sembró — se rota por una propia.
-            'secret'   => Str::random(32),
-        ]);
-
-        try {
-            $this->provisioner->provisionarExtension($extension);
-        } catch (\Throwable $e) {
-            // Best-effort: el reclamo en BD ya quedó (queda visible en Extensiones
-            // como "sin provisionar"); un admin puede reintentar desde la UI.
-            Log::warning("VoIP: extensión {$extension->numero} reclamada para colaborador #{$colaborador->id} pero falló el provisionamiento: {$e->getMessage()}");
-        }
-
-        $this->crearGemelaWebrtc($extension, $user);
-
-        return $extension->fresh();
+        return $this->crearTelefonoWeb($user, $numero, $rango);
     }
 
     /**
-     * MegaVoz Fase 2 — "endpoint doble" (plan 22-sep-2026): la extensión de
-     * escritorio recién reclamada recibe una gemela para el mini-teléfono del
-     * navegador (`web{numero}`). A diferencia de la de escritorio, esta SÍ se
-     * crea nueva — no hay un pool de gemelas pre-sembradas que reclamar,
-     * porque es 100% derivada del número de la extensión dueña.
-     *
-     * PÚBLICO desde 24-sep-2026: además del alta automática de arriba,
-     * `ExtensionController::store()/update()` reusa este mismo método cuando
-     * un admin asigna `user_id` a una extensión A MANO (el camino que la
-     * propia clase ya documentaba como soportado — "se asigna a mano si hace
-     * falta, vía la pantalla de Extensiones" — pero nunca creaba la gemela
-     * web, así que el mini-teléfono no aparecía para nadie asignado por ese
-     * camino). Idempotente si el dueño no cambió (early-return si
-     * `web{numero}` ya existe CON el mismo `user_id`).
-     *
-     * SIN DUEÑO (28-sep-2026): `$user` es nullable a propósito — Irving pidió
-     * que TODA extensión reciba su gemela web, no solo las que ya tienen un
-     * colaborador asignado (ej. las 27 sembradas por departamento sin
-     * `user_id` de `ExtensionesArranqueSeeder`). Una gemela sin dueño queda
-     * con `user_id=null` — inerte hasta que alguien la reclame (ver rama de
-     * reasignación abajo, que ya cubre pasar de "sin dueño" a "con dueño").
-     * `ExtensionController::asegurarGemelaWebrtc()` ya no exige `user_id`
-     * para llamar aquí.
-     *
-     * REASIGNACIÓN (24-sep-2026): si `web{numero}` ya existe pero con OTRO
-     * `user_id` (la extensión de escritorio se le quitó a alguien y se le
-     * dio a otra persona), se actualiza la gemela en vez de dejarla como
-     * estaba — si no, quedaba a nombre de la persona anterior para
-     * siempre. Se rota también el `secret` (la persona anterior pudo
-     * haberlo visto/guardado) y se reprovisiona contra PJSIP realtime para
-     * que el cambio de credencial surta efecto de inmediato.
+     * Da de alta el teléfono web de una persona y lo publica en Asterisk. Best-effort en
+     * la publicación: si falla, la extensión queda en MegaISP («Sin provisionar») y
+     * «Sincronizar con Asterisk» la sube.
      */
-    public function crearGemelaWebrtc(Extension $extension, ?User $user = null): void
+    public function crearTelefonoWeb(User $user, string $numero, ?RangoNumeracion $rango, string $contexto = 'from-internal'): Extension
     {
-        $numeroWeb  = 'web' . $extension->numero;
-        $gemela     = Extension::where('numero', $numeroWeb)->first();
-        $nombreBase = $user->name ?? $extension->nombre;
-        $userId     = $user?->id;
-
-        if ($gemela) {
-            if ((int) $gemela->user_id === (int) $userId) {
-                return; // ya es de este mismo dueño (o sigue igual sin dueño) — nada que hacer
-            }
-
-            // Reasignación: la gemela existe pero era de otra persona (o de nadie).
-            $gemela->update([
-                'nombre'  => $nombreBase . ' (navegador)',
-                'user_id' => $userId,
-                'secret'  => Str::random(32),
-            ]);
-
-            try {
-                $this->provisioner->provisionarExtension($gemela);
-            } catch (\Throwable $e) {
-                Log::warning("VoIP: reasignación de gemela WebRTC {$numeroWeb} guardada pero falló el reprovisionamiento: {$e->getMessage()}");
-            }
-
-            return;
-        }
-
-        $gemela = Extension::create([
-            'numero'                   => $numeroWeb,
-            'nombre'                   => $nombreBase . ' (navegador)',
-            'user_id'                  => $userId,
+        $ext = Extension::create(SegmentosTelefono::DATOS_WEB + [
+            'numero'                   => $numero,
+            'nombre'                   => trim("{$user->name} {$user->father_last_name}") . ' (navegador)',
+            'user_id'                  => $user->id,
             'secret'                   => Str::random(32),
-            'tipo_dispositivo'         => 'softphone',
-            'es_webrtc'                => true,
-            'contexto'                 => $extension->contexto,
-            // ulaw PRIMERO (no opus) — este Asterisk NO tiene transcodificador
-            // de Opus instalado (solo res_format_attr_opus.so, que negocia el
-            // formato pero no convierte audio; confirmado: "module show like
-            // opus" no lista ningún codec_opus). Con opus primero, una
-            // llamada navegador→teléfono de escritorio (que solo tiene
-            // ulaw/alaw) terminaba con cada lado negociando un códec
-            // distinto → "No path to translate" → la llamada se caía al
-            // conectar. ulaw es soportado por cualquier navegador WebRTC
-            // (parte obligatoria del estándar), así que no rompe nada — solo
-            // dejamos de depender de una conversión que este servidor no
-            // puede hacer. Encontrado en vivo 24-sep-2026 (David llamando de
-            // MegaVoz a la extensión de escritorio de Irving).
-            'codecs'                   => 'ulaw,alaw,opus',
-            'transporte'               => 'transport-wss',
-            'callerid'                 => $extension->numero,
+            'contexto'                 => $contexto,
+            'callerid'                 => $numero,
             'activo'                   => true,
-            'voip_rango_numeracion_id' => $extension->voip_rango_numeracion_id,
+            'voip_rango_numeracion_id' => $rango?->id,
             'sembrada_por_sistema'     => false,
         ]);
 
         try {
-            $this->provisioner->provisionarExtension($gemela);
+            $this->provisioner->provisionarExtension($ext);
         } catch (\Throwable $e) {
-            Log::warning("VoIP: gemela WebRTC {$numeroWeb} creada para colaborador pero falló el provisionamiento: {$e->getMessage()}");
+            Log::warning("VoIP: teléfono web {$numero} creado para {$user->name} pero falló la publicación en Asterisk: {$e->getMessage()}");
         }
+
+        return $ext->fresh();
     }
 
     private function rangoParaUsuario(User $user): ?string

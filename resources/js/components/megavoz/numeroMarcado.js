@@ -10,7 +10,6 @@ const SEPARADORES = /[\s  -​\-‐‑–—().\/]/g;
 
 export function normalizarNumero(texto) {
     let n = String(texto ?? '').trim().replace(SEPARADORES, '');
-    if (/^web\d+$/i.test(n)) return n.toLowerCase();
 
     const mas = n.startsWith('+');
     if (mas) n = n.slice(1);
@@ -27,7 +26,8 @@ export function normalizarNumero(texto) {
 export function revisarNumero(texto) {
     const numero = normalizarNumero(texto);
     if (! numero) return { numero, tipo: null, motivo: '' };
-    if (/^(web)?[1-9]\d{2,3}$/i.test(numero)) return { numero, tipo: 'interno', motivo: '' };
+    // Internos: aparatos 1000–1999 y teléfonos web 2000–2999, todos de 4 dígitos (o 3 en planes cortos).
+    if (/^[1-9]\d{2,3}$/.test(numero)) return { numero, tipo: 'interno', motivo: '' };
     if (/^[2-9]\d{9}$/.test(numero)) return { numero, tipo: 'nacional', motivo: '' };
 
     const digitos = numero.replace(/^\+/, '');

@@ -256,8 +256,9 @@ class HistorialLlamadasService
     }
 
     /**
-     * Extensión del CDR → trabajador. La gemela WebRTC (web1001) es del mismo
-     * dueño que la de escritorio (1001); si no está registrada se busca la base.
+     * Extensión del CDR → trabajador. El canal guarda el número de ese momento: una
+     * gemela vieja (web1003) que ya pasó a su número propio (2003) se encuentra por
+     * `numero_anterior`; si no, por el número del aparato (1003), como antes.
      *
      * @return array<string, array{user_id: int|null, nombre: string}>
      */
@@ -267,22 +268,25 @@ class HistorialLlamadasService
             return [];
         }
         $numeros = $endpoints->merge($endpoints->map(fn ($e) => preg_replace('/^web/', '', $e)))->unique()->values();
-        $ext = Extension::query()
+        $columnas = ['voip_extensiones.numero', 'voip_extensiones.numero_anterior', 'voip_extensiones.nombre',
+                     'voip_extensiones.user_id', 'u.name as u_name', 'u.father_last_name as u_apellido'];
+        $filas = Extension::query()
             ->leftJoin('users as u', 'u.id', '=', 'voip_extensiones.user_id')
-            ->whereIn('voip_extensiones.numero', $numeros)
-            ->get(['voip_extensiones.numero', 'voip_extensiones.nombre', 'voip_extensiones.user_id',
-                   'u.name as u_name', 'u.father_last_name as u_apellido'])
-            ->keyBy('numero');
+            ->where(fn ($q) => $q->whereIn('voip_extensiones.numero', $numeros)
+                ->orWhereIn('voip_extensiones.numero_anterior', $endpoints))
+            ->get($columnas);
+        $ext      = $filas->keyBy('numero');
+        $anterior = $filas->whereNotNull('numero_anterior')->keyBy('numero_anterior');
 
         $mapa = [];
         foreach ($endpoints as $e) {
-            $fila = $ext[$e] ?? $ext[preg_replace('/^web/', '', $e)] ?? null;
+            $fila = $ext[$e] ?? $anterior[$e] ?? $ext[preg_replace('/^web/', '', $e)] ?? null;
             $nombre = $fila && $fila->user_id
                 ? trim("{$fila->u_name} {$fila->u_apellido}")
                 : ($fila->nombre ?? null);
             $mapa[$e] = [
                 'user_id' => $fila->user_id ?? null,
-                'nombre'  => ($nombre ?: 'Extensión') . ' (' . preg_replace('/^web/', '', $e) . ')',
+                'nombre'  => ($nombre ?: 'Extensión') . ' (' . (isset($anterior[$e]) ? $fila->numero : preg_replace('/^web/', '', $e)) . ')',
             ];
         }
 

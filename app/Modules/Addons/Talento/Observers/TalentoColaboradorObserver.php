@@ -93,10 +93,10 @@ class TalentoColaboradorObserver
     }
 
     /**
-     * MegaVoz Fase 1 (23-sep-2026). Reclama una extensión SIP ya sembrada del
-     * rango que le corresponde por rol (solo roles de atención directa — ver
-     * ReclamadorExtensionAutomatico::ROL_A_RANGO). Best-effort: un fallo aquí
-     * NUNCA debe bloquear el alta/activación del colaborador.
+     * MegaVoz (23-sep-2026; segmentos desde el 17-nov-2026). Le da su teléfono web,
+     * con número propio en 2000–2999 y en el área de su rol (solo roles de atención
+     * directa — ver ReclamadorExtensionAutomatico::ROL_A_RANGO). Best-effort: un
+     * fallo aquí NUNCA debe bloquear el alta/activación del colaborador.
      */
     private function reclamarExtension(TalentoColaborador $colaborador): void
     {

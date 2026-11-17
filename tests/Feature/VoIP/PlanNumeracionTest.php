@@ -34,9 +34,9 @@ class PlanNumeracionTest extends TestCase
     }
 
     /** @test */
-    public function el_seeder_crea_los_nueve_rangos_y_los_ocho_perfiles(): void
+    public function el_seeder_crea_los_quince_rangos_y_los_ocho_perfiles(): void
     {
-        $this->assertSame(9, RangoNumeracion::count());
+        $this->assertSame(15, RangoNumeracion::count());
         $this->assertSame(8, PerfilExtension::count());
     }
 
@@ -46,7 +46,7 @@ class PlanNumeracionTest extends TestCase
         (new PlanNumeracionSeeder)->run();
         (new PlanNumeracionSeeder)->run();
 
-        $this->assertSame(9, RangoNumeracion::count(), 'duplicó rangos');
+        $this->assertSame(15, RangoNumeracion::count(), 'duplicó rangos');
         $this->assertSame(8, PerfilExtension::count(), 'duplicó perfiles');
     }
 
@@ -91,7 +91,9 @@ class PlanNumeracionTest extends TestCase
     /** @test */
     public function acepta_un_rango_adyacente_valido(): void
     {
-        $this->assertEmpty($this->validador->validar('2000', '2099'));
+        // 2000–2999 ya son los teléfonos web: el siguiente libre es 3000.
+        $this->assertEmpty($this->validador->validar('3000', '3099'));
+        $this->assertNotEmpty($this->validador->validar('2000', '2099'), 'el segmento web ya está ocupado');
     }
 
     /** @test */

@@ -17,7 +17,7 @@
                     </span>
                     <div class="mv-head-txt">
                         <div class="mv-titulo">{{ nombre }}</div>
-                        <div class="mv-estado-txt">Ext. {{ String(numero).replace(/^web/, '') }} · {{ etiquetaEstado }}</div>
+                        <div class="mv-estado-txt">Ext. {{ numero }} · {{ etiquetaEstado }}</div>
                     </div>
                     <button class="mv-close" @click="abierto = false" title="Cerrar">
                         <i class="fa fa-times"></i>

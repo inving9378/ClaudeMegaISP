@@ -7,7 +7,9 @@ use App\Modules\Addons\VoIP\Models\RangoNumeracion;
 use Illuminate\Database\Seeder;
 
 /**
- * Plan de numeración estándar: ocho perfiles y nueve rangos (#9990718 §7).
+ * Plan de numeración estándar: ocho perfiles y quince rangos (#9990718 §7): nueve de
+ * aparatos físicos (1000–1999) y seis de teléfonos web (2000–2999, uno por persona; ver
+ * SegmentosTelefono).
  *
  * Que la instalación no quede con una pantalla vacía de extensiones, sino con la
  * estructura de la empresa ya definida.
@@ -61,7 +63,10 @@ class PlanNumeracionSeeder extends Seeder
          'permite_entrantes_exterior' => false, 'graba_llamadas' => false],
     ];
 
-    /** Los nueve rangos. El 1700–1899 no lleva perfil: es reserva sin uso asignado. */
+    /**
+     * Los rangos. 1000–1999 son aparatos físicos; 2000–2999, teléfonos web (el del
+     * navegador), con las mismas áreas y perfiles. Las reservas no llevan perfil.
+     */
     public const RANGOS = [
         ['codigo' => 'oficinas',    'desde' => '1000', 'hasta' => '1099', 'perfil' => 'oficina',
          'nombre' => 'Oficinas y administración', 'proposito' => 'El grueso del personal fijo', 'protegido' => false],
@@ -91,6 +96,26 @@ class PlanNumeracionSeeder extends Seeder
         // persona aquí rompe la telefonía de la propia instalación.
         ['codigo' => 'sistema',     'desde' => '1900', 'hasta' => '1999', 'perfil' => 'sistema',
          'nombre' => 'Sistema, reservado y protegido', 'proposito' => 'Enlaces a PBX externo, troncales internas y servicios', 'protegido' => true],
+
+        // Teléfonos web (17-nov-2026): un número por persona, con su propio segmento para
+        // que no se mezclen con los aparatos. Misma área que el físico: 1100 ↔ 2100.
+        ['codigo' => 'oficinas_web',  'desde' => '2000', 'hasta' => '2099', 'perfil' => 'oficina',
+         'nombre' => 'Teléfonos web — Oficinas y administración', 'proposito' => 'Teléfono del navegador, uno por persona', 'protegido' => false],
+
+        ['codigo' => 'atencion_web',  'desde' => '2100', 'hasta' => '2199', 'perfil' => 'atencion',
+         'nombre' => 'Teléfonos web — Atención a clientes y mostrador', 'proposito' => 'Teléfono del navegador, uno por persona', 'protegido' => false],
+
+        ['codigo' => 'tecnicos_web',  'desde' => '2200', 'hasta' => '2299', 'perfil' => 'tecnico_campo',
+         'nombre' => 'Teléfonos web — Técnicos de campo', 'proposito' => 'Teléfono del navegador, uno por persona', 'protegido' => false],
+
+        ['codigo' => 'ventas_web',    'desde' => '2300', 'hasta' => '2399', 'perfil' => 'ventas',
+         'nombre' => 'Teléfonos web — Ventas y cobranza', 'proposito' => 'Teléfono del navegador, uno por persona', 'protegido' => false],
+
+        ['codigo' => 'direccion_web', 'desde' => '2400', 'hasta' => '2499', 'perfil' => 'direccion',
+         'nombre' => 'Teléfonos web — Gerencia y dirección', 'proposito' => 'Teléfono del navegador, uno por persona', 'protegido' => false],
+
+        ['codigo' => 'reserva_web',   'desde' => '2500', 'hasta' => '2999', 'perfil' => null,
+         'nombre' => 'Teléfonos web — Reserva', 'proposito' => 'Sin uso asignado todavía', 'protegido' => false],
     ];
 
     public function run(): void

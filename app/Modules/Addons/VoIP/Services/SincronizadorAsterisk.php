@@ -21,6 +21,11 @@ use Illuminate\Support\Str;
  * extensión de Asterisk que no exista en MegaISP (algún teléfono la puede estar usando):
  * la reporta. Una troncal vieja solo se quita si otra de MegaISP tomó sus credenciales.
  *
+ * Antes que nada separa los teléfonos web de los físicos (SeparadorTelefonosWeb): las
+ * gemelas viejas `webNNNN` pasan a su número propio en 2000–2999. Un `webNNNN` que solo
+ * existe en Asterisk sí se quita: el navegador saca sus credenciales de MegaISP, así que
+ * sin la fila de MegaISP ningún teléfono lo puede estar usando.
+ *
  * Escribe el archivo de registraciones de troncales: hay que correrlo como el usuario
  * del servidor web (desde la pantalla) o como root.
  */
@@ -33,6 +38,7 @@ class SincronizadorAsterisk
     public function __construct(
         private AsteriskProvisioningService $prov,
         private DialplanGeneratorService $dialplan,
+        private SeparadorTelefonosWeb $separador,
     ) {
     }
 
@@ -40,6 +46,11 @@ class SincronizadorAsterisk
     public function revisar(bool $aplicar): array
     {
         $this->tareas = $this->pendientes = $this->fallas = [];
+
+        // Primero, para que lo de abajo ya vea los números nuevos de los teléfonos web.
+        $web = $this->separador->revisar($aplicar);
+        array_push($this->tareas, ...$web['tareas']);
+        array_push($this->fallas, ...$web['fallas']);
 
         $ast       = DB::connection('asterisk_rt');
         $endpoints = $ast->table('ps_endpoints')->get()->keyBy('id');
@@ -220,6 +231,12 @@ class SincronizadorAsterisk
                 } else {
                     $this->pendientes[] = "Asterisk tiene la troncal {$id} y MegaISP no. Revísala antes de quitarla.";
                 }
+                continue;
+            }
+            if (preg_match('/^web\d+$/', $id)) {
+                $this->hacer($aplicar, "Quitar de Asterisk el teléfono web viejo {$id} (MegaISP ya no lo tiene; los teléfonos web tienen número propio en 2000–2999)", function () use ($id) {
+                    $this->prov->desprovisionarExtension(new Extension(['numero' => $id]));
+                });
                 continue;
             }
             $this->pendientes[] = "Asterisk tiene la extensión {$id} y MegaISP no. No se borra por si algún teléfono la usa; dala de alta en Extensiones o pide que se quite.";

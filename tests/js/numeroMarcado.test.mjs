@@ -22,8 +22,9 @@ test('lada de país y prefijos viejos de México acaban en 10 dígitos', () => {
 test('extensiones de la central', () => {
     assert.deepEqual(revisarNumero('1003'), { numero: '1003', tipo: 'interno', motivo: '' });
     assert.equal(revisarNumero(' 10 03 ').numero, '1003');
-    assert.equal(revisarNumero('WEB1003').numero, 'web1003');
-    assert.equal(revisarNumero('web1003').tipo, 'interno');
+    // Teléfonos web: número propio de 4 dígitos (2000–2999); el prefijo «web» ya no existe.
+    assert.deepEqual(revisarNumero('2003'), { numero: '2003', tipo: 'interno', motivo: '' });
+    assert.equal(revisarNumero('web1003').tipo, 'invalido');
     assert.equal(revisarNumero('1999').tipo, 'interno');
 });
 

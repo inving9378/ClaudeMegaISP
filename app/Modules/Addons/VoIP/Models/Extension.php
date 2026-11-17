@@ -19,9 +19,12 @@ class Extension extends Model
         // sobrescritura, departamento de origen y marca de sembrada por el sistema.
         'voip_rango_numeracion_id', 'voip_perfil_extension_id',
         'departamento', 'sembrada_por_sistema',
-        // MegaVoz Fase 2: "endpoint doble" — la gemela WebRTC de una extensión
-        // de escritorio (ver migración 2026_09_23_190000).
+        // Teléfono web (el del navegador). Desde el 17-nov-2026 tiene número propio en
+        // 2000–2999, uno por persona (SegmentosTelefono); ya no es «gemela» de un físico.
         'es_webrtc',
+        // Número que tuvo antes de pasar a su segmento (p. ej. «web1011»), para que el
+        // historial de llamadas siga diciendo de quién era.
+        'numero_anterior',
     ];
 
     protected $casts = [

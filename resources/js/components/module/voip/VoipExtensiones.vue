@@ -47,7 +47,11 @@
                                 <td>{{ e.nombre }}</td>
                                 <td class="text-muted">{{ e.agente_nombre || '—' }}</td>
                                 <td>
-                                    <span class="tc-status" :class="e.tipo_dispositivo === 'softphone' ? 'is-info' : 'is-slate'">
+                                    <span v-if="e.es_webrtc" class="tc-status is-ok"
+                                          :title="e.numero_anterior ? `Antes ${e.numero_anterior}` : 'Teléfono del navegador'">
+                                        <i class="fa fa-globe me-1"></i>Teléfono web
+                                    </span>
+                                    <span v-else class="tc-status" :class="e.tipo_dispositivo === 'softphone' ? 'is-info' : 'is-slate'">
                                         {{ e.tipo_dispositivo === 'softphone' ? 'Softphone' : 'Teléfono IP' }}
                                     </span>
                                 </td>
@@ -170,10 +174,23 @@
                     </div>
                     <div class="modal-body">
                         <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label small">Tipo</label>
+                                <!-- Un aparato no se convierte en teléfono web ni al revés: son segmentos distintos. -->
+                                <select class="form-select form-select-sm tc-select" v-model="form.tipo">
+                                    <option value="softphone" :disabled="!!editando?.es_webrtc">Softphone (aparato o app con usuario y contraseña)</option>
+                                    <option value="telefono_ip" :disabled="!!editando?.es_webrtc">Teléfono IP (aparato físico)</option>
+                                    <option value="web" :disabled="!!editando && !editando.es_webrtc">Teléfono web (el del navegador, uno por persona)</option>
+                                </select>
+                                <div class="form-text small">
+                                    <template v-if="esWeb">Teléfonos web: del <strong>2000</strong> al <strong>2999</strong>, misma área que el físico (2100 atención, 2200 técnicos…). La contraseña se pone sola.</template>
+                                    <template v-else>Aparatos: del <strong>1000</strong> al <strong>1999</strong>. Del 2000 al 2999 son teléfonos web.</template>
+                                </div>
+                            </div>
                             <div class="col-md-4">
                                 <label class="form-label small">Número <span class="text-danger">*</span></label>
                                 <input class="form-control form-control-sm" v-model="form.numero"
-                                       placeholder="ej. 1001"
+                                       :placeholder="esWeb ? 'ej. 2101' : 'ej. 1001'"
                                        :class="{'is-invalid': errores.numero}">
                                 <div class="invalid-feedback">{{ errores.numero }}</div>
                             </div>
@@ -185,7 +202,7 @@
                                 <div class="invalid-feedback">{{ errores.nombre }}</div>
                             </div>
 
-                            <div class="col-md-6">
+                            <div class="col-md-6" v-if="!esWeb">
                                 <label class="form-label small">
                                     Secret / Password <span class="text-danger">*</span>
                                     <small v-if="editando" class="text-muted">(dejar vacío = sin cambio)</small>
@@ -209,22 +226,19 @@
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label small">Agente (usuario del sistema)</label>
-                                <select class="form-select form-select-sm tc-select" v-model="form.user_id">
+                                <label class="form-label small">
+                                    Agente (usuario del sistema) <span v-if="esWeb" class="text-danger">*</span>
+                                </label>
+                                <select class="form-select form-select-sm tc-select" v-model="form.user_id"
+                                        :class="{'is-invalid': errores.user_id}">
                                     <option :value="null">— Sin asignar —</option>
                                     <option v-for="u in usuarios" :key="u.id" :value="u.id">
                                         {{ u.nombre }}
                                     </option>
                                 </select>
+                                <div class="invalid-feedback">{{ errores.user_id }}</div>
                             </div>
 
-                            <div class="col-md-6">
-                                <label class="form-label small">Tipo de dispositivo</label>
-                                <select class="form-select form-select-sm tc-select" v-model="form.tipo_dispositivo">
-                                    <option value="softphone">Softphone</option>
-                                    <option value="telefono_ip">Teléfono IP</option>
-                                </select>
-                            </div>
                             <div class="col-md-6">
                                 <label class="form-label small">CallerID (opcional)</label>
                                 <input class="form-control form-control-sm" v-model="form.callerid"
@@ -236,12 +250,12 @@
                                 <input class="form-control form-control-sm" v-model="form.contexto"
                                        placeholder="from-internal">
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-4" v-if="!esWeb">
                                 <label class="form-label small">Codecs</label>
                                 <input class="form-control form-control-sm" v-model="form.codecs"
                                        placeholder="ulaw,alaw">
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-4" v-if="!esWeb">
                                 <label class="form-label small">Transporte PJSIP</label>
                                 <input class="form-control form-control-sm" v-model="form.transporte"
                                        placeholder="transport-udp" list="voip-transportes">
@@ -411,6 +425,7 @@ export default {
     },
 
     computed: {
+        esWeb()        { return this.form.tipo === 'web'; },
         canCreate()    { return this.$store?.getters?.hasPermission?.('voip.extensiones.create')    ?? false; },
         canEdit()      { return this.$store?.getters?.hasPermission?.('voip.extensiones.edit')      ?? false; },
         canDelete()    { return this.$store?.getters?.hasPermission?.('voip.extensiones.delete')    ?? false; },
@@ -452,7 +467,7 @@ export default {
                 nombre:          '',
                 secret,
                 user_id:         null,
-                tipo_dispositivo:'softphone',
+                tipo:            'softphone',
                 contexto:        'from-internal',
                 codecs:          'ulaw,alaw',
                 transporte:      'transport-udp',
@@ -531,7 +546,7 @@ export default {
                     nombre:          ext.nombre,
                     secret:          '',
                     user_id:         ext.user_id,
-                    tipo_dispositivo:ext.tipo_dispositivo,
+                    tipo:            ext.es_webrtc ? 'web' : (ext.tipo_dispositivo || 'softphone'),
                     contexto:        ext.contexto,
                     codecs:          ext.codecs,
                     transporte:      ext.transporte,
@@ -557,11 +572,16 @@ export default {
                 const r    = await fetch(url, {
                     method,
                     headers: { ...this.headers(), 'Content-Type': 'application/json' },
-                    body: JSON.stringify(this.form),
+                    body: JSON.stringify(this.payload()),
                 });
                 const body = await r.json();
 
-                if (r.status === 422) { this.errores = body.errors ?? {}; return; }
+                if (r.status === 422) {
+                    // Laravel manda cada error como lista: se muestra el primero, como texto.
+                    this.errores = Object.fromEntries(Object.entries(body.errors ?? {})
+                        .map(([campo, msj]) => [campo, Array.isArray(msj) ? msj[0] : msj]));
+                    return;
+                }
                 if (!r.ok)           { this.toast('Error: ' + (body.error ?? r.statusText), 'error'); return; }
 
                 bootstrap.Modal.getOrCreateInstance(this.$refs.modalEl).hide();
@@ -570,6 +590,18 @@ export default {
             } finally {
                 this.guardando = false;
             }
+        },
+
+        // «tipo» del formulario → lo que guarda el servidor (es_webrtc + tipo_dispositivo).
+        payload() {
+            const { tipo, ...resto } = this.form;
+            const esWeb = tipo === 'web';
+            return {
+                ...resto,
+                es_webrtc:        esWeb,
+                tipo_dispositivo: esWeb ? 'softphone' : tipo,
+                secret:           esWeb && !this.editando ? '' : resto.secret,
+            };
         },
 
         confirmarEliminar(e) {
