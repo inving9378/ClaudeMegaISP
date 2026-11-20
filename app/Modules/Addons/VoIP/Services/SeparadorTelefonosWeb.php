@@ -11,18 +11,22 @@ use Illuminate\Support\Facades\DB;
  * Pasa las gemelas viejas (`web1011`, ligadas a una extensión física) a teléfonos web con
  * número propio en 2000–2999 (SegmentosTelefono):
  *
- *   - con dueño        → mismo teléfono, número nuevo con la misma terminación (web1011 → 2011);
+ *   - con dueño        → mismo teléfono, con el primer número disponible de su área que no
+ *                        se parezca a un aparato (web1011 → 2005, nunca 2011 si existe la 1011);
  *                        se guarda el viejo en `numero_anterior` para el historial.
  *   - sin dueño        → se quita: ningún navegador la puede usar (el teléfono web sale de la
  *                        cuenta de la persona) y solo dejaba al aparato «ligado».
  *   - dos o más de la misma persona → se queda una (la que hoy usa su navegador: activa y la
  *                        más antigua; si ya tiene una de 2000–2999, esa) y las otras se quitan,
  *                        pasándole antes sus grupos de timbrado.
+ *   - teléfono web que se parece a un aparato (2011 y existe la 1011, como los dejó la V1.96)
+ *                      → pasa a un número disponible: el aparato y el navegador son dos lugares
+ *                        distintos y no deben confundirse (Irving, 20-nov-2026).
  *
  * Lo corre SincronizadorAsterisk antes que todo lo demás (pantalla «Sincronizar con
  * Asterisk» y paso «Sincronizar» de «Instalar dependencias»), así que llega a producción
  * con el instalador. revisar(false) solo lista; revisar(true) lo hace. Idempotente: sin
- * gemelas viejas no hace nada.
+ * gemelas ni parecidos no hace nada.
  */
 class SeparadorTelefonosWeb
 {
@@ -41,7 +45,8 @@ class SeparadorTelefonosWeb
         $gemelas = Extension::with('agente')->where('es_webrtc', true)->orderBy('id')->get()
             ->filter(fn (Extension $e) => SegmentosTelefono::baseDeGemela($e->numero) !== null)
             ->values();
-        if ($gemelas->isEmpty()) {
+        $parecidos = $this->parecidosAUnAparato();
+        if ($gemelas->isEmpty() && $parecidos->isEmpty()) {
             return ['tareas' => [], 'fallas' => []];
         }
 
@@ -69,7 +74,8 @@ class SeparadorTelefonosWeb
                 continue;
             }
 
-            $nuevo = $this->numeroNuevo($g, $apartados);
+            $base  = SegmentosTelefono::baseDeGemela($g->numero);
+            $nuevo = SegmentosTelefono::disponible($g->rango ?? SegmentosTelefono::rangoDe($base), $apartados);
             if ($nuevo === null) {
                 $this->fallas[] = "{$g->numero} ({$persona}): no hay números libres en 2000–2999.";
                 continue;
@@ -78,6 +84,20 @@ class SeparadorTelefonosWeb
 
             $this->hacer($aplicar, "{$g->numero} → {$nuevo}: teléfono web de {$persona} con número propio (recarga la página para tomarlo)",
                 fn () => $this->renumerar($g, $nuevo));
+        }
+
+        foreach ($parecidos as $w) {
+            $persona = $this->persona($w);
+            $nuevo   = SegmentosTelefono::disponible($w->rango ?? SegmentosTelefono::rangoDe($w->numero), $apartados);
+            if ($nuevo === null) {
+                $this->fallas[] = "{$w->numero} ({$persona}): no hay números libres en 2000–2999.";
+                continue;
+            }
+            $apartados[] = $nuevo;
+
+            $aparato = SegmentosTelefono::parecido($w->numero);
+            $this->hacer($aplicar, "{$w->numero} → {$nuevo}: teléfono web de {$persona}; ya no se parece al aparato {$aparato} (recarga la página para tomarlo)",
+                fn () => $this->renumerar($w, $nuevo));
         }
 
         return ['tareas' => $this->tareas, 'fallas' => $this->fallas];
@@ -101,41 +121,46 @@ class SeparadorTelefonosWeb
             ->all();
     }
 
-    /** Misma terminación (web1011 → 2011) si está libre; si no, el primero libre de su área. */
-    private function numeroNuevo(Extension $g, array $apartados): ?string
+    /**
+     * Teléfonos web de 2000–2999 que se parecen a un aparato que existe (2011 con la 1011).
+     *
+     * @return Collection<int, Extension>
+     */
+    private function parecidosAUnAparato(): Collection
     {
-        $base   = SegmentosTelefono::baseDeGemela($g->numero);
-        $espejo = SegmentosTelefono::webEspejo($base);
-        if ($espejo !== null && ! in_array($espejo, $apartados, true)
-            && ! Extension::where('numero', $espejo)->where('id', '!=', $g->id)->exists()) {
-            return $espejo;
-        }
+        $web = Extension::with('agente')->where('es_webrtc', true)
+            ->whereBetween('numero', [SegmentosTelefono::WEB_DESDE, SegmentosTelefono::WEB_HASTA])
+            ->orderBy('id')->get()
+            ->filter(fn (Extension $e) => SegmentosTelefono::esNumeroWeb($e->numero));
+        $aparatos = Extension::whereIn('numero', $web->map(fn (Extension $e) => SegmentosTelefono::parecido($e->numero)))
+            ->pluck('numero')->flip();
 
-        $fisico = $g->rango ?? SegmentosTelefono::rangoDe($base);
-
-        return SegmentosTelefono::primerLibre(SegmentosTelefono::rangoWebDe($fisico), $apartados);
+        return $web->filter(fn (Extension $e) => isset($aparatos[SegmentosTelefono::parecido($e->numero)]))->values();
     }
 
     private function renumerar(Extension $g, string $nuevo): void
     {
         $viejo = $g->numero;
-        $base  = SegmentosTelefono::baseDeGemela($viejo);
+        // El número que se veía: el del aparato en una gemela (web1011 → 1011), si no el propio.
+        $visible = SegmentosTelefono::baseDeGemela($viejo) ?? $viejo;
 
         // El endpoint de Asterisk se llama como el número: el viejo se quita y se publica el nuevo.
         $this->prov->desprovisionarExtension($g);
 
-        // El identificador que ve quien recibe la llamada era el del aparato (1011): con
-        // ese, devolver la llamada timbraba al aparato y no al navegador.
+        // El identificador que ve quien recibe la llamada: con el viejo, devolver la llamada
+        // timbraba al aparato y no al navegador.
         $callerid = (string) $g->callerid;
-        if ($callerid === '' || $callerid === $base || $callerid === $viejo) {
+        if ($callerid === '' || $callerid === $visible || $callerid === $viejo) {
             $callerid = $nuevo;
-        } elseif (str_contains($callerid, "<{$base}>")) {
-            $callerid = str_replace("<{$base}>", "<{$nuevo}>", $callerid);
+        } elseif (str_contains($callerid, "<{$visible}>")) {
+            $callerid = str_replace("<{$visible}>", "<{$nuevo}>", $callerid);
         }
 
         $g->update([
             'numero'                   => $nuevo,
-            'numero_anterior'          => $viejo,
+            // Se conserva la gemela vieja (web1003) si la había: es la de casi todo el historial.
+            'numero_anterior'          => SegmentosTelefono::baseDeGemela((string) $g->numero_anterior) !== null
+                ? $g->numero_anterior : $viejo,
             'callerid'                 => $callerid,
             'voip_rango_numeracion_id' => SegmentosTelefono::rangoDe($nuevo)?->id ?? $g->voip_rango_numeracion_id,
         ]);

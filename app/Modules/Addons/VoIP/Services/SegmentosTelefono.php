@@ -18,6 +18,10 @@ use App\Modules\Addons\VoIP\Models\RangoNumeracion;
  * tiene su propio número de 4 dígitos y se marca igual desde cualquier teléfono.
  *
  * Las áreas son las mismas en los dos segmentos: 1100 atención ↔ 2100 atención web.
+ *
+ * El aparato y el teléfono web son dos lugares distintos (Irving, 20-nov-2026): el número
+ * web es uno disponible y nunca «se parece» al de un aparato. Si existe la 1003, no hay
+ * 2003: así nadie marca uno creyendo que timbra el otro.
  */
 final class SegmentosTelefono
 {
@@ -50,10 +54,18 @@ final class SegmentosTelefono
         return preg_match('/^web(\d+)$/i', trim((string) $numero), $m) ? $m[1] : null;
     }
 
-    /** El número web que conserva la terminación del físico: 1011 → 2011; null si no es 1xxx. */
-    public static function webEspejo(string $base): ?string
+    /**
+     * El número del otro segmento con la misma terminación (1003 ↔ 2003): el que «se le
+     * parece». Null si no es un número de 4 dígitos de 1000–2999.
+     */
+    public static function parecido(string $numero): ?string
     {
-        return preg_match('/^1\d{3}$/', $base) ? '2' . substr($base, 1) : null;
+        $numero = trim($numero);
+        if (! preg_match('/^[12]\d{3}$/', $numero)) {
+            return null;
+        }
+
+        return ($numero[0] === '1' ? '2' : '1') . substr($numero, 1);
     }
 
     /** Rango web de la misma área que un rango físico («atencion» → «atencion_web»). */
@@ -73,7 +85,8 @@ final class SegmentosTelefono
     }
 
     /**
-     * Primer número libre de un rango web. Sin rango, cualquiera libre del segmento web.
+     * Primer número libre de un rango web que no se parezca a un aparato (si existe la 1003,
+     * se salta la 2003). Sin rango, cualquiera del segmento web.
      *
      * @param  list<string>  $apartados  números que ya se van a usar en esta misma pasada
      */
@@ -83,17 +96,26 @@ final class SegmentosTelefono
         $hasta = (int) ($rango->hasta ?? self::WEB_HASTA);
         $ocupados = Extension::whereBetween('numero', [(string) $desde, (string) $hasta])->pluck('numero')
             ->merge($apartados)->flip();
+        $aparatos = Extension::whereBetween('numero', ['1000', '1999'])->pluck('numero')->flip();
 
         for ($n = $desde; $n <= $hasta; $n++) {
             // El primero de cada área se deja libre, igual que en los físicos (1100, 1200…).
             if ($n === $desde && $rango) {
                 continue;
             }
-            if (! isset($ocupados[(string) $n])) {
-                return (string) $n;
+            $numero = (string) $n;
+            if (! isset($ocupados[$numero]) && ! isset($aparatos[(string) self::parecido($numero)])) {
+                return $numero;
             }
         }
 
         return null;
+    }
+
+    /** Primer libre en el área web; si el área está llena, en cualquier parte del segmento web. */
+    public static function disponible(?RangoNumeracion $rango, array $apartados = []): ?string
+    {
+        return self::primerLibre(self::rangoWebDe($rango), $apartados)
+            ?? ($rango ? self::primerLibre(null, $apartados) : null);
     }
 }

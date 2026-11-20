@@ -183,14 +183,14 @@
                                     <option value="web" :disabled="!!editando && !editando.es_webrtc">Teléfono web (el del navegador, uno por persona)</option>
                                 </select>
                                 <div class="form-text small">
-                                    <template v-if="esWeb">Teléfonos web: del <strong>2000</strong> al <strong>2999</strong>, misma área que el físico (2100 atención, 2200 técnicos…). La contraseña se pone sola.</template>
-                                    <template v-else>Aparatos: del <strong>1000</strong> al <strong>1999</strong>. Del 2000 al 2999 son teléfonos web.</template>
+                                    <template v-if="esWeb">Teléfonos web: del <strong>2000</strong> al <strong>2999</strong>. Es otro lugar distinto del aparato: lleva un número que no se parezca al de ningún aparato (si existe la 1003, no la 2003). Deja el número vacío y se le da uno disponible; la contraseña se pone sola.</template>
+                                    <template v-else>Aparatos: del <strong>1000</strong> al <strong>1999</strong>. Del 2000 al 2999 son teléfonos web, y ninguno se parece al número de un aparato.</template>
                                 </div>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label small">Número <span class="text-danger">*</span></label>
+                                <label class="form-label small">Número <span v-if="!esWeb || editando" class="text-danger">*</span></label>
                                 <input class="form-control form-control-sm" v-model="form.numero"
-                                       :placeholder="esWeb ? 'ej. 2101' : 'ej. 1001'"
+                                       :placeholder="esWeb ? (editando ? 'ej. 2101' : 'Automático: uno disponible') : 'ej. 1001'"
                                        :class="{'is-invalid': errores.numero}">
                                 <div class="invalid-feedback">{{ errores.numero }}</div>
                             </div>
@@ -585,7 +585,8 @@ export default {
                 if (!r.ok)           { this.toast('Error: ' + (body.error ?? r.statusText), 'error'); return; }
 
                 bootstrap.Modal.getOrCreateInstance(this.$refs.modalEl).hide();
-                this.toast(this.editando ? 'Extensión actualizada' : 'Extensión creada');
+                this.toast(this.editando ? 'Extensión actualizada'
+                    : (this.esWeb ? `Teléfono web ${body.numero} creado` : 'Extensión creada'));
                 await this.cargar();
             } finally {
                 this.guardando = false;

@@ -47,7 +47,7 @@ class ReclamadorExtensionAutomatico
             return null;
         }
 
-        $area = $this->rangoParaUsuario($user);
+        $area = self::areaDe($user);
         if (! $area) {
             // Rol fuera del alcance decidido (oficina, RH, etc.) — no es un error.
             return null;
@@ -101,7 +101,8 @@ class ReclamadorExtensionAutomatico
         return $ext->fresh();
     }
 
-    private function rangoParaUsuario(User $user): ?string
+    /** Área de la persona según su rol («atencion», «tecnicos»…); null si su rol no está en la lista. */
+    public static function areaDe(User $user): ?string
     {
         foreach (self::ROL_A_RANGO as $rol => $codigoRango) {
             if ($user->hasRole($rol)) {

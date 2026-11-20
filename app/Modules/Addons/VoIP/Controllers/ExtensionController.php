@@ -5,7 +5,9 @@ namespace App\Modules\Addons\VoIP\Controllers;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Modules\Addons\VoIP\Models\Extension;
+use App\Modules\Addons\VoIP\Models\RangoNumeracion;
 use App\Modules\Addons\VoIP\Services\AsteriskProvisioningService;
+use App\Modules\Addons\VoIP\Services\ReclamadorExtensionAutomatico;
 use App\Modules\Addons\VoIP\Services\SegmentosTelefono;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,8 +42,27 @@ class ExtensionController extends Controller
                 $falla('Del 2000 al 2999 son teléfonos web. Un aparato físico va del 1000 al 1999.');
             } elseif (SegmentosTelefono::baseDeGemela($n) !== null) {
                 $falla('Los números con «web» ya no se usan: el teléfono web lleva su propio número del 2000 al 2999.');
+            } elseif (($otro = $this->parecidoQueExiste($n)) !== null) {
+                // Aparato y navegador son dos lugares distintos: que nadie marque uno creyendo
+                // que timbra el otro (1003 ↔ 2003).
+                $falla($esWeb
+                    ? "La {$otro->numero} es un aparato: el teléfono web lleva un número que no se le parezca, para que no se confundan."
+                      . (($libre = SegmentosTelefono::disponible(SegmentosTelefono::rangoDe($n))) ? " Disponible: {$libre}." : '')
+                    : "La {$otro->numero} es el teléfono web de {$this->dueno($otro)}: el aparato lleva un número que no se le parezca, para que no se confundan.");
             }
         };
+    }
+
+    private function parecidoQueExiste(string $numero): ?Extension
+    {
+        $parecido = SegmentosTelefono::parecido($numero);
+
+        return $parecido !== null ? Extension::with('agente')->where('numero', $parecido)->first() : null;
+    }
+
+    private function dueno(Extension $e): string
+    {
+        return $e->agente ? trim("{$e->agente->name} {$e->agente->father_last_name}") : $e->nombre;
     }
 
     /** Un teléfono web por persona. */
@@ -137,7 +158,8 @@ class ExtensionController extends Controller
 
         $esWeb = $request->boolean('es_webrtc');
         $data = $request->validate([
-            'numero'          => ['required', 'string', 'max:20', 'unique:voip_extensiones,numero', $this->reglaSegmento($esWeb)],
+            // Teléfono web sin número: se le da el primero disponible del área de la persona.
+            'numero'          => [$esWeb ? 'nullable' : 'required', 'string', 'max:20', 'unique:voip_extensiones,numero', $this->reglaSegmento($esWeb)],
             'nombre'          => 'required|string|max:100',
             // El teléfono web no se configura a mano: el navegador la recibe sola.
             'secret'          => $esWeb ? 'nullable|string|min:4' : 'required|string|min:4',
@@ -153,6 +175,12 @@ class ExtensionController extends Controller
         ]);
 
         if ($esWeb) {
+            if (trim((string) ($data['numero'] ?? '')) === '') {
+                $data['numero'] = $this->numeroWebDisponible((int) $data['user_id']);
+                if ($data['numero'] === null) {
+                    return response()->json(['errors' => ['numero' => ['No hay números libres del 2000 al 2999.']]], 422);
+                }
+            }
             $data = SegmentosTelefono::DATOS_WEB + $data;
             $data['secret']   = ($data['secret'] ?? '') !== '' ? $data['secret'] : Str::random(32);
             $data['callerid'] = ($data['callerid'] ?? '') !== '' ? $data['callerid'] : $data['numero'];
@@ -169,7 +197,16 @@ class ExtensionController extends Controller
             Log::warning("VoIP: auto-provisión falló para ext {$ext->numero}: {$e->getMessage()}");
         }
 
-        return response()->json(['id' => $ext->id, 'endpoint_id' => $ext->endpointId()], 201);
+        return response()->json(['id' => $ext->id, 'numero' => $ext->numero, 'endpoint_id' => $ext->endpointId()], 201);
+    }
+
+    /** Primer número web disponible en el área de la persona (por su rol; si no, oficinas). */
+    private function numeroWebDisponible(int $userId): ?string
+    {
+        $user = User::find($userId);
+        $area = $user ? ReclamadorExtensionAutomatico::areaDe($user) : null;
+
+        return SegmentosTelefono::disponible(RangoNumeracion::porCodigo($area ?? 'oficinas')->first());
     }
 
     /** transport-externo solo existe si el servidor lo tiene configurado (ASTERISK_BIND_EXTERNO). */
