@@ -171,7 +171,7 @@
                                 <button type="button" class="btn btn-sm"
                                         :class="reproduciendo ? 'btn-outline-danger' : 'btn-outline-primary'"
                                         :disabled="!reproduciendo && (generandoMuestra || !vozOpciones.asignada || !textoNota)"
-                                        @click="reproduciendo ? detenerMuestra() : escucharNota()">
+                                        @click="reproduciendo ? $refs.muestra.pause() : escucharNota()">
                                     <i class="fa me-1" :class="reproduciendo ? 'fa-stop' : (generandoMuestra ? 'fa-spinner fa-spin' : 'fa-play')"></i>
                                     {{ reproduciendo ? 'Detener' : (generandoMuestra ? 'Generando…' : 'Escuchar') }}
                                 </button>
@@ -180,6 +180,13 @@
                                 {{ vozOpciones.motivo || 'No hay voz asignada en Integraciones → Módulos IA.' }}
                             </div>
                             <div v-if="errorMuestra" class="alert alert-danger py-1 px-2 small mb-2">{{ errorMuestra }}</div>
+                            <!-- La voz generada queda en un reproductor: se vuelve a oír sin generarla otra vez, y si el
+                                 navegador no deja que suene solo, aquí se le da ▶. -->
+                            <audio ref="muestra" class="voz-muestra mb-2" controls preload="auto" v-show="urlMuestra"
+                                   @play="reproduciendo = !!urlMuestra" @pause="reproduciendo = false" @ended="reproduciendo = false"></audio>
+                            <div v-if="avisoAutoplay" class="small text-muted mb-2">
+                                Tu navegador no dejó que sonara solo: dale <i class="fa fa-play"></i> en el reproductor.
+                            </div>
                             <div class="row g-2">
                                 <div class="col-md-4">
                                     <label class="form-label small">Voz</label>
@@ -354,6 +361,9 @@ function nuevaCampana(opcionesVoz) {
              voz: opcionesVoz.voz || 'nova', voz_velocidad: opcionesVoz.velocidad.defecto, voz_tono: '' };
 }
 
+// 10 ms de silencio: el play que se da dentro del clic, antes de que llegue la voz (ver escucharNota).
+const SILENCIO = 'data:audio/wav;base64,UklGRnQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YVAAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
+
 const VOZ_INICIAL = { asignada: false, motivo: '', soporta_tono: false, voces: [], tonos: [], voz: 'nova',
                       velocidad: { defecto: 0.95, min: 0.5, max: 1.5 }, plantilla: '' };
 
@@ -379,7 +389,7 @@ export default {
             generandoMuestra:    false,
             reproduciendo:       false,
             errorMuestra:        '',
-            audioMuestra:        null,
+            avisoAutoplay:       false,
             urlMuestra:          null,
             creando:             false,
             campanaSeleccionada: null,
@@ -474,7 +484,17 @@ export default {
         async escucharNota() {
             this.detenerMuestra();
             this.errorMuestra     = '';
+            this.avisoAutoplay    = false;
             this.generandoMuestra = true;
+            // Generar la voz tarda unos segundos y, para entonces, Safari, Firefox o Chrome con el
+            // sonido bloqueado ya no lo cuentan como parte del clic y no dejan reproducir. Se le da
+            // play al reproductor aquí, todavía dentro del clic (con un silencio), y luego se le cambia
+            // el audio: el navegador ya lo dio por permitido.
+            const audio = this.$refs.muestra;
+            if (audio) {
+                audio.src = SILENCIO;
+                audio.play().catch(() => {});
+            }
             try {
                 const { data } = await axios.post(`${this.baseUrl}/campanas/escuchar`, {
                     notas:         this.textoNota,
@@ -484,11 +504,17 @@ export default {
                     voz_velocidad: this.nueva.voz_velocidad,
                     voz_tono:      this.nueva.voz_tono || null,
                 }, { headers: { 'X-CSRF-TOKEN': this.csrfToken }, responseType: 'blob' });
-                this.urlMuestra   = URL.createObjectURL(data);
-                this.audioMuestra = new Audio(this.urlMuestra);
-                this.audioMuestra.onended = () => this.detenerMuestra();
-                this.reproduciendo = true;
-                await this.audioMuestra.play();
+                if (!(data instanceof Blob) || !data.size) throw new Error('sin audio');
+                this.urlMuestra = URL.createObjectURL(data);
+                if (!audio) return;
+                audio.src = this.urlMuestra;
+                try {
+                    await audio.play();
+                } catch (e) {
+                    // Bloqueado aun así: queda el reproductor a la vista para darle play a mano.
+                    if (e && e.name === 'NotAllowedError') this.avisoAutoplay = true;
+                    else throw e;
+                }
             } catch (e) {
                 this.detenerMuestra();
                 this.errorMuestra = await this.errorDeMuestra(e);
@@ -497,20 +523,23 @@ export default {
             }
         },
         detenerMuestra() {
-            if (this.audioMuestra) {
-                this.audioMuestra.onended = null;
-                this.audioMuestra.pause();
-                this.audioMuestra = null;
+            const audio = this.$refs.muestra;
+            if (audio) {
+                audio.pause();
+                audio.removeAttribute('src');
+                audio.load();
             }
             if (this.urlMuestra) {
                 URL.revokeObjectURL(this.urlMuestra);
                 this.urlMuestra = null;
             }
             this.reproduciendo = false;
+            this.avisoAutoplay = false;
         },
         // La respuesta de error llega como Blob (se pidió audio); se lee el JSON de adentro
         async errorDeMuestra(e) {
             if (e.response?.status === 429) return 'Muchas pruebas seguidas: espera un minuto y vuelve a escuchar.';
+            if (!e.response) return 'El navegador no pudo reproducir la voz. Revisa que el sonido de esta página no esté bloqueado e inténtalo otra vez.';
             try {
                 const json = JSON.parse(await e.response.data.text());
                 const primero = json.errors ? Object.values(json.errors)[0] : null;
@@ -684,6 +713,7 @@ export default {
 <style scoped>
 .fw-600 { font-weight: 600; }
 .nota-lista { max-width: 360px; }
+.voz-muestra { width: 100%; height: 36px; display: block; }
 .voz-panel { border: 1px solid var(--bs-border-color, #dee2e6); border-radius: .5rem; padding: .75rem; }
 .modal-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,.45);
