@@ -1,6 +1,8 @@
-# Módulo CobranzaBlaster
+# Módulo Campañas/Blaster (antes «Cobranza» / CobranzaBlaster)
 
-> Robocalling de cobranza por voz. `app/Modules/Addons/CobranzaBlaster/` · slug `addon-cobranza-blaster` (id 140) · addon activo.
+> Llamadas automáticas por voz: cobranza a morosos, avisos, anuncios y corte por zona. Desde el 23-nov-2026 se llama «Campañas/Blaster» en el menú y las pantallas; por dentro sigue igual (carpeta `CobranzaBlaster`, rutas `/cobranza/*`, permisos `cobranza.*`, tablas `cobranza_*`).
+>
+> Robocalling por voz. `app/Modules/Addons/CobranzaBlaster/` · slug `addon-cobranza-blaster` (id 140) · addon activo.
 
 **En simple:** es el sistema que llama por teléfono, en automático y con voz generada, a los clientes que deben dinero para recordarles que paguen.
 

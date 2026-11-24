@@ -1,9 +1,9 @@
 {
     "id": 140,
     "slug": "addon-cobranza-blaster",
-    "name": "CobranzaBlaster",
+    "name": "Campañas/Blaster",
     "version": "1.0.0",
-    "description": "Blaster de cobranzas vía Asterisk AMI — llamadas automáticas a clientes morosos",
+    "description": "Campañas de llamadas automáticas vía Asterisk AMI: cobranza a morosos, avisos, anuncios y corte por zona (antes «Cobranza»)",
     "type": "addon",
     "dependencies": [],
     "active": true,
@@ -17,11 +17,12 @@
 
     "menu": [
         {
-            "label": "CobranzaBlaster",
+            "label": "Campañas/Blaster",
             "icon": "phone-call",
             "permission": "cobranza.view",
             "url": "/cobranza/campanas",
             "children": [
+                { "label": "Dashboard",       "url": "/cobranza/dashboard", "permission": "cobranza.view" },
                 { "label": "Campañas",        "url": "/cobranza/campanas", "permission": "cobranza.view" },
                 { "label": "Config. VoIP",    "url": "/cobranza/voip",     "permission": "cobranza.configure" }
             ]
@@ -30,8 +31,8 @@
 
     "admin_cards": [
         {
-            "title": "CobranzaBlaster",
-            "description": "Campañas de llamadas automáticas a morosos vía Asterisk AMI.",
+            "title": "Campañas/Blaster",
+            "description": "Campañas de llamadas automáticas (cobranza, avisos, anuncios y corte) vía Asterisk AMI.",
             "icon": "phone",
             "url": "/cobranza/campanas",
             "permission": "cobranza.view"
@@ -41,7 +42,7 @@
     "config_sections": [
         {
             "key": "cobranza_voip",
-            "label": "VoIP / SIP — CobranzaBlaster",
+            "label": "VoIP / SIP — Campañas/Blaster",
             "type": "api_key",
             "category": "Red",
             "icon": "phone",
@@ -88,6 +89,8 @@
     "api_endpoints": [
         { "method": "GET",    "path": "/cobranza/campanas/data",          "description": "Lista campañas (JSON)", "scope": "cobranza.view",      "permission": "cobranza.view" },
         { "method": "GET",    "path": "/cobranza/campanas/kpis",          "description": "KPIs globales",         "scope": "cobranza.view",      "permission": "cobranza.view" },
+        { "method": "GET",    "path": "/cobranza/dashboard/data",         "description": "Llamadas de la central: conteo por tipo, resumen y por día", "scope": "cobranza.view", "permission": "cobranza.view" },
+        { "method": "GET",    "path": "/cobranza/dashboard/llamadas",     "description": "Historial de llamadas con grabación (paginado)", "scope": "cobranza.view", "permission": "cobranza.view" },
         { "method": "POST",   "path": "/cobranza/campanas",               "description": "Crear campaña",         "scope": "cobranza.manage",    "permission": "cobranza.manage" },
         { "method": "GET",    "path": "/cobranza/voip/configuracion",     "description": "Configuración VoIP",    "scope": "cobranza.configure", "permission": "cobranza.configure" },
         { "method": "POST",   "path": "/cobranza/voip/configuracion",     "description": "Guardar VoIP",          "scope": "cobranza.configure", "permission": "cobranza.configure" },
@@ -97,7 +100,7 @@
     ],
 
     "ai": {
-        "knowledge": "CobranzaBlaster automatiza llamadas telefónicas a clientes morosos usando Asterisk AMI y TTS de OpenAI. Permite crear campañas con morosos, originar llamadas en horario configurable y registrar resultados (contestó, no contestó, buzón).",
+        "knowledge": "Campañas/Blaster (antes Cobranza) automatiza llamadas telefónicas a clientes morosos usando Asterisk AMI y TTS de OpenAI. Permite crear campañas con morosos, originar llamadas en horario configurable y registrar resultados (contestó, no contestó, buzón).",
         "example_intents": [
             "crear una campaña de cobranza",
             "ver clientes que no contestaron",

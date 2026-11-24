@@ -221,6 +221,10 @@ class SincronizadorAsterisk
             if (isset($extensiones[$id]) || isset($troncales[$id])) {
                 continue;
             }
+            // La troncal de Campañas/Blaster la da de alta su propio módulo (Config. VoIP).
+            if ($id === config('voip.trunk_endpoint_id')) {
+                continue;
+            }
             if (preg_match('/^trunk_(\d+)$/', $id, $m)) {
                 if (in_array($id, $adoptadas, true)) {
                     $this->hacer($aplicar, "Quitar de Asterisk la troncal vieja {$id} (la reemplaza la de MegaISP con sus mismas credenciales)", function () use ($m) {

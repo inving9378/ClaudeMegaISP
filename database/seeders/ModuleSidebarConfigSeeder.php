@@ -145,9 +145,9 @@ class ModuleSidebarConfigSeeder extends Seeder
 
         // ─── ADDONS VISIBLES EN SIDEBAR (is_core=false, show_in_sidebar=true) ──────
 
-        // Cobranza Blaster (addon-cobranza-blaster) — pos 10, sección menu
+        // Campañas/Blaster (addon-cobranza-blaster, antes «Cobranza») — pos 10, sección menu
         ModuleSidebarConfig::updateOrCreate(['module_key' => 'cobranza-blaster'], [
-            'sidebar_label'    => 'Cobranza',
+            'sidebar_label'    => 'Campañas/Blaster',
             'is_core'          => false,
             'show_in_sidebar'  => true,
             'sidebar_location' => 'direct',

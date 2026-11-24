@@ -7,7 +7,7 @@ use App\Modules\Addons\CobranzaBlaster\Models\CobranzaLlamada;
 use App\Modules\Addons\CobranzaBlaster\Models\CobranzaLlamadaEvento;
 use App\Modules\Addons\CobranzaBlaster\Services\AmiConnectionService;
 use App\Modules\Addons\CobranzaBlaster\Services\CobranzaTtsService;
-use App\Modules\Addons\VoIP\Models\Troncal;
+use App\Modules\Addons\CobranzaBlaster\Models\VoipConfiguracion;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -69,19 +69,17 @@ class BlastCampanaJob implements ShouldQueue
             return;
         }
 
-        if (!$ami->connect()) {
-            Log::error("BlastCampanaJob: no se pudo conectar al AMI para campaña #{$this->campanaId}");
+        // Todas las campañas salen por la troncal del módulo (Config. VoIP), sin elegir
+        // otra (pedido de Irving, 23-nov). Si no está aplicada, no se marca ni se gastan
+        // intentos: las llamadas esperan a que se configure.
+        if (VoipConfiguracion::first()?->estado !== 'activa') {
+            Log::warning("BlastCampanaJob: la troncal de Campañas/Blaster no está aplicada (Config. VoIP); campaña #{$this->campanaId} en espera.");
             return;
         }
 
-        // MegaVoz Fase 7 — troncal propia por campaña (voip_troncales, elegida
-        // al crearla). Sin una elegida, originate() cae al default global de
-        // siempre — comportamiento sin cambio para las campañas de cobranza
-        // ya existentes.
-        $endpointId = null;
-        if ($campana->troncal_id) {
-            $troncal = Troncal::find($campana->troncal_id);
-            $endpointId = $troncal?->endpointId();
+        if (!$ami->connect()) {
+            Log::error("BlastCampanaJob: no se pudo conectar al AMI para campaña #{$this->campanaId}");
+            return;
         }
 
         foreach ($llamadas as $llamada) {
@@ -92,23 +90,29 @@ class BlastCampanaJob implements ShouldQueue
                 continue;
             }
 
-            // MegaVoz Fase 7 — cobranza sigue con SU mensaje (nombre+monto+
-            // fecha, plantilla ya probada); aviso/anuncio/corte hablan el
-            // texto libre que el admin escribió al crear la campaña
-            // (audio_mensaje), cacheado por contenido (generateAudioCached
-            // ya cachea por hash del texto — un solo audio para toda la
-            // campaña, no uno por llamada).
+            // Lo que se lee es la nota de la campaña, con su voz, velocidad y tono (pedido de
+            // Irving, 24-nov). En cobranza la nota lleva {nombre}, {saldo}, {fecha} y
+            // {numero_cliente} y sale un audio por llamada; en aviso/anuncio/corte el texto es
+            // el mismo para todos y se genera una sola vez. Las campañas de antes (sin voz
+            // elegida) siguen con su mensaje de siempre: la plantilla o audio_mensaje.
+            $voz  = $campana->opcionesVoz();
+            $nota = $campana->hablaLaNota() ? $campana->notas : null;
+
             $audioPath = $campana->tipo === 'cobranza'
                 ? $tts->generateAudio(
                     $llamada->id,
-                    $cmi->name,
-                    (float) $llamada->monto_vencido,
-                    $campana->fecha_fin?->format('d/m/Y') ?? 'la brevedad posible',
-                    (string) $llamada->client_id
+                    $tts->textoCobranza(
+                        $nota,
+                        $cmi->name,
+                        (float) $llamada->monto_vencido,
+                        $campana->fecha_fin?->format('d/m/Y') ?? 'la brevedad posible',
+                        (string) $llamada->client_id
+                    ),
+                    $voz
                 )
-                : $tts->generateAudioCached('campana_' . $campana->id, (string) $campana->audio_mensaje);
+                : $tts->generateAudioCached('campana_' . $campana->id, (string) ($nota ?? $campana->audio_mensaje), $voz);
 
-            $result = $ami->originate($llamada->telefono, $audioPath, $llamada->id, $cmi->name, $endpointId);
+            $result = $ami->originate($llamada->telefono, $audioPath, $llamada->id, $cmi->name);
 
             $nuevosIntentos = $llamada->intentos + 1;
             $puedeReintentar = !$result['success'] && $nuevosIntentos < $campana->max_intentos;

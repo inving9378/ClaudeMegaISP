@@ -12,12 +12,13 @@ class VoipConfiguracion extends BaseModel
     protected $fillable = [
         'nombre', 'sip_host', 'sip_port', 'sip_username', 'sip_secret',
         'sip_fromuser', 'sip_fromdomain', 'estado', 'ultimo_registro_at',
-        'callerid_nombre', 'callerid_numero', 'activa',
+        'callerid_nombre', 'callerid_numero', 'activa', 'grupo_entrante_id',
     ];
 
     protected $casts = [
-        'activa'   => 'boolean',
-        'sip_port' => 'integer',
+        'activa'            => 'boolean',
+        'sip_port'          => 'integer',
+        'grupo_entrante_id' => 'integer',
     ];
 
     protected $hidden = ['sip_secret'];

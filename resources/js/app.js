@@ -485,6 +485,7 @@ import ClientClabeCard from "./components/module/client/ClientClabeCard.vue";
 // CobranzaBlaster (Fase 6) — 2026-05-29
 import CobranzaVoipConfig from "./components/module/cobranza/CobranzaVoipConfig.vue";
 import CobranzaCampanas from "./components/module/cobranza/CobranzaCampanas.vue";
+import CobranzaDashboard from "./components/module/cobranza/CobranzaDashboard.vue";
 
 // VoIP — addon-voip Fase A+B+D2 (Troncales + Extensiones + Grupos + IA Bot) — 2026-06-09
 import VoipTroncales      from "./components/module/voip/VoipTroncales.vue";
@@ -897,6 +898,7 @@ const app = createApp({
         // CobranzaBlaster (Fase 6)
         'cobranza-voip-config': CobranzaVoipConfig,
         'cobranza-campanas':    CobranzaCampanas,
+        'cobranza-dashboard':   CobranzaDashboard,
         'voip-troncales':        VoipTroncales,
         'voip-extensiones':      VoipExtensiones,
         'voip-grupos-timbrado':  VoipGruposTimbrado,

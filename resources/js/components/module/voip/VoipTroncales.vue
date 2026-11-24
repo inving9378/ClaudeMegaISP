@@ -202,10 +202,9 @@
                                         :class="{'is-invalid': errores.proposito}">
                                     <option :value="null">— Sin propósito específico —</option>
                                     <option value="registro_ucm">Registro UCM (entrada de llamadas)</option>
-                                    <option value="saliente_cobranza">Saliente: Cobranza</option>
-                                    <option value="saliente_avisos">Saliente: Avisos</option>
-                                    <option value="saliente_anuncio">Saliente: Anuncios</option>
-                                    <option value="saliente_corte">Saliente: Corte de servicio</option>
+                                    <!-- Las campañas ya no eligen troncal: salen por la de Campañas/Blaster → Config. VoIP.
+                                         Solo se muestra si la troncal ya lo tenía, para no perder el dato al editar. -->
+                                    <option v-if="form.proposito && form.proposito.startsWith('saliente_')" :value="form.proposito">{{ propositoEtiqueta(form.proposito) }} (ya no se usa)</option>
                                 </select>
                                 <div class="invalid-feedback">{{ errores.proposito }}</div>
                             </div>

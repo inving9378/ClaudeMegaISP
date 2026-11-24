@@ -121,7 +121,7 @@ class DashboardLlamadasController extends Controller
         if (! auth()->user()->can('voip.grabaciones.escuchar')) {
             abort(403);
         }
-        if (! preg_match('/^\d+\.\d+$/', $uniqueid)) {
+        if (! preg_match('/^(\d+\.\d+|cob-\d+-\d+)$/', $uniqueid)) {
             abort(404);
         }
 

@@ -2,10 +2,15 @@
     <li>
         <a href="javascript: void(0);" class="has-arrow">
             <i data-feather="phone-call"></i>
-            <span data-key="t-cobranza">{{ $item->sidebar_label ?? 'Cobranza' }}</span>
+            <span data-key="t-cobranza">{{ $item->sidebar_label ?? 'Campañas/Blaster' }}</span>
         </a>
         <ul class="sub-menu" aria-expanded="false">
             @if(auth()->user()->can('cobranza.view'))
+                <li>
+                    <a href="{{ url('/cobranza/dashboard') }}">
+                        <span><small><i class="fa fa-fw fa-chart-bar"></i></small> Dashboard</span>
+                    </a>
+                </li>
                 <li>
                     <a href="{{ url('/cobranza/campanas') }}">
                         <span><small><i class="fa fa-fw fa-broadcast-tower"></i></small> Campañas</span>

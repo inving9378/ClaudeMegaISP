@@ -1,11 +1,11 @@
 @extends('core-layout::master')
 
 @section('title')
-    Cobranza Blaster · Campañas
+    Campañas/Blaster · Campañas
 @endsection
 
 @section('content')
-    <Breadcrumb :list='[{"title":"Inicio"},{"title":"Cobranza Blaster"},{"title":"Campañas","active":"active"}]'></Breadcrumb>
+    <Breadcrumb :list='[{"title":"Inicio"},{"title":"Campañas/Blaster"},{"title":"Campañas","active":"active"}]'></Breadcrumb>
     <div>
         <cobranza-campanas
             csrf-token="{{ csrf_token() }}"

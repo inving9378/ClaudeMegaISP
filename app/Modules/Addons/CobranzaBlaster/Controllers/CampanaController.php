@@ -6,8 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Modules\Addons\CobranzaBlaster\Models\CobranzaCampana;
 use App\Modules\Addons\CobranzaBlaster\Models\CobranzaLlamada;
 use App\Modules\Addons\CobranzaBlaster\Services\CobranzaCampanaService;
+use App\Modules\Addons\CobranzaBlaster\Services\CobranzaTtsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 
 class CampanaController extends Controller
@@ -75,7 +79,6 @@ class CampanaController extends Controller
         $data = $request->validate([
             'nombre'                  => 'required|string|max:255',
             'tipo'                    => 'nullable|in:cobranza,aviso,anuncio,corte',
-            'troncal_id'              => 'nullable|integer|exists:voip_troncales,id',
             'max_canales_simultaneos' => 'nullable|integer|min:1|max:100',
             'fecha_inicio'            => 'nullable|date',
             'fecha_fin'               => 'nullable|date|after_or_equal:fecha_inicio',
@@ -85,12 +88,75 @@ class CampanaController extends Controller
             'minutos_entre_intentos'  => 'nullable|integer|min:30',
             'dias_vencimiento'        => 'nullable|integer|min:0',
             'audio_mensaje'           => 'nullable|string|max:2000',
-            'notas'                   => 'nullable|string',
-        ]);
+            'notas'                   => 'nullable|string|max:2000',
+        ] + $this->reglasVoz());
+
+        // La nota es el mensaje que escucha el cliente (24-nov). En cobranza, vacía = el
+        // mensaje de siempre; en aviso/anuncio/corte no hay nada que leer sin ella.
+        if (($data['tipo'] ?? 'cobranza') !== 'cobranza' && trim((string) ($data['notas'] ?? '')) === '') {
+            throw ValidationException::withMessages(['notas' => 'Escribe la nota: es el mensaje que escucha el cliente.']);
+        }
+
+        $data['voz'] ??= config('cobranza.blaster_tts_voice', 'nova');
+        $data['voz_velocidad'] ??= CobranzaTtsService::VELOCIDAD_DEFECTO;
 
         $campana = CobranzaCampana::create($data);
 
         return response()->json($campana, 201);
+    }
+
+    /** Voces, tonos y velocidad para el alta, y si hay voz asignada en Integraciones → Módulos IA. */
+    public function voz(CobranzaTtsService $tts): JsonResponse
+    {
+        if (! auth()->user()->can('cobranza.manage')) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        return response()->json($tts->opciones());
+    }
+
+    /**
+     * Escuchar la nota con la voz elegida antes de crear la campaña. En cobranza las variables
+     * se llenan con datos de ejemplo. Cada muestra cuesta (se registra en Módulos IA).
+     */
+    public function escuchar(Request $request, CobranzaTtsService $tts)
+    {
+        if (! auth()->user()->can('cobranza.manage')) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
+        $data = $request->validate([
+            'notas'     => 'required|string|max:2000',
+            'tipo'      => 'nullable|in:cobranza,aviso,anuncio,corte',
+            'fecha_fin' => 'nullable|date',
+        ] + $this->reglasVoz());
+
+        $fecha = ! empty($data['fecha_fin']) ? date('d/m/Y', strtotime($data['fecha_fin'])) : 'la brevedad posible';
+        $texto = $tts->textoDeEjemplo($data['notas'], $data['tipo'] ?? 'cobranza', $fecha);
+
+        $r = $tts->muestra($texto, [
+            'voz'       => $data['voz'] ?? null,
+            'velocidad' => $data['voz_velocidad'] ?? null,
+            'tono'      => $data['voz_tono'] ?? null,
+        ]);
+
+        if (! $r['ok']) {
+            return response()->json(['error' => $r['error']], 422);
+        }
+
+        return new Response($r['mp3'], 200, [
+            'Content-Type'  => 'audio/mpeg',
+            'Cache-Control' => 'no-store',
+        ]);
+    }
+
+    private function reglasVoz(): array
+    {
+        return [
+            'voz'           => ['nullable', Rule::in(array_keys(CobranzaTtsService::VOCES))],
+            'voz_velocidad' => 'nullable|numeric|between:' . CobranzaTtsService::VELOCIDAD_MIN . ',' . CobranzaTtsService::VELOCIDAD_MAX,
+            'voz_tono'      => ['nullable', Rule::in(array_keys(CobranzaTtsService::TONOS))],
+        ];
     }
 
     /**

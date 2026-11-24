@@ -1,10 +1,19 @@
 <?php
 
 use App\Modules\Addons\CobranzaBlaster\Controllers\CampanaController;
+use App\Modules\Addons\CobranzaBlaster\Controllers\DashboardController;
 use App\Modules\Addons\CobranzaBlaster\Controllers\VoipConfiguracionController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['web', 'auth'])->prefix('cobranza')->group(function () {
+
+    // ── Dashboard: todas las llamadas de la central con su grabación (24-nov) ──
+    Route::get('/dashboard',          [DashboardController::class, 'index'])
+        ->name('cobranza.dashboard.index');
+    Route::get('/dashboard/data',     [DashboardController::class, 'data'])
+        ->name('cobranza.dashboard.data');
+    Route::get('/dashboard/llamadas', [DashboardController::class, 'llamadas'])
+        ->name('cobranza.dashboard.llamadas');
 
     // ── Campañas — vistas ──────────────────────────────────────────────────────
     Route::get('/', [CampanaController::class, 'index'])
@@ -22,6 +31,14 @@ Route::middleware(['web', 'auth'])->prefix('cobranza')->group(function () {
 
     Route::post('/campanas',            [CampanaController::class, 'store'])
         ->name('cobranza.campanas.store');
+
+    // Voz de la campaña: opciones y escuchar la nota antes de crearla (24-nov)
+    Route::get('/campanas/voz',         [CampanaController::class, 'voz'])
+        ->name('cobranza.campanas.voz');
+
+    Route::post('/campanas/escuchar',   [CampanaController::class, 'escuchar'])
+        ->middleware('throttle:20,1')
+        ->name('cobranza.campanas.escuchar');
 
     Route::post('/campanas/{id}/activar', [CampanaController::class, 'activar'])
         ->name('cobranza.campanas.activar');

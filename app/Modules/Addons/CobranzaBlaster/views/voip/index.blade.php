@@ -1,11 +1,11 @@
 @extends('core-layout::master')
 
 @section('title')
-    Cobranza Blaster · Configuración VoIP
+    Campañas/Blaster · Configuración VoIP
 @endsection
 
 @section('content')
-    <Breadcrumb :list='[{"title":"Inicio"},{"title":"Cobranza Blaster"},{"title":"Configuración VoIP","active":"active"}]'></Breadcrumb>
+    <Breadcrumb :list='[{"title":"Inicio"},{"title":"Campañas/Blaster"},{"title":"Configuración VoIP","active":"active"}]'></Breadcrumb>
     <div>
         <cobranza-voip-config
             csrf-token="{{ csrf_token() }}"

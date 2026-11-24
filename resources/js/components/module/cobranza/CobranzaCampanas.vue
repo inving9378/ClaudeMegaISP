@@ -38,7 +38,7 @@
 
         <!-- Toolbar -->
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="mb-0"><i class="fa fa-broadcast-tower me-2 text-primary"></i>Campañas de Cobranza</h5>
+            <h5 class="mb-0"><i class="fa fa-broadcast-tower me-2 text-primary"></i>Campañas/Blaster</h5>
             <button class="btn btn-sm btn-primary" @click="abrirNueva">
                 <i class="fa fa-plus me-1"></i> Nueva campaña
             </button>
@@ -68,7 +68,7 @@
                                 {{ c.nombre }}
                                 <span class="badge bg-light text-dark border ms-1">{{ tipoEtiqueta(c.tipo) }}</span>
                             </div>
-                            <div class="text-muted small">{{ c.notas }}</div>
+                            <div class="text-muted small text-truncate nota-lista" :title="c.notas">{{ c.notas }}</div>
                         </td>
                         <td>
                             <span class="badge" :class="estadoBadge(c.estado)">{{ c.estado }}</span>
@@ -124,7 +124,7 @@
 
         <!-- Modal Nueva Campaña -->
         <div v-if="modal.nueva" class="modal-overlay" @click.self="modal.nueva = false">
-            <div class="modal-box card p-4" style="max-width:560px;width:100%;">
+            <div class="modal-box card p-4" style="max-width:640px;width:100%;max-height:90vh;overflow-y:auto;">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0"><i class="fa fa-plus-circle me-2 text-primary"></i>Nueva campaña</h5>
                     <button class="btn btn-sm btn-outline-secondary" @click="modal.nueva = false">✕</button>
@@ -149,19 +149,68 @@
                             <i class="fa fa-map-marker-alt"></i> de la lista abre ese paso.
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label small">Troncal de salida</label>
-                        <select class="form-select form-select-sm" v-model="nueva.troncal_id">
-                            <option :value="null">— Usar la troncal por defecto del sistema —</option>
-                            <option v-for="t in troncales" :key="t.id" :value="t.id">{{ t.nombre }}</option>
-                        </select>
+                    <div class="col-12">
+                        <label class="form-label small">
+                            Nota — es el mensaje que escucha el cliente{{ nueva.tipo !== 'cobranza' ? ' *' : '' }}
+                        </label>
+                        <textarea class="form-control form-control-sm" v-model="nueva.notas" rows="4" maxlength="2000"
+                                  :class="{'is-invalid': erroresNueva.notas}"
+                                  :placeholder="nueva.tipo === 'cobranza'
+                                      ? 'Vacía = el mensaje de cobranza de siempre'
+                                      : 'Ej: Le informamos que el día... habrá un corte programado de servicio en su zona...'"></textarea>
+                        <div class="invalid-feedback">{{ primerError('notas') }}</div>
+                        <div class="form-text small" v-if="nueva.tipo === 'cobranza'">
+                            Puedes usar <code>{nombre}</code>, <code>{saldo}</code>, <code>{fecha}</code> y
+                            <code>{numero_cliente}</code>: en cada llamada se cambian por los datos del cliente.
+                        </div>
                     </div>
-                    <div class="col-12" v-if="nueva.tipo !== 'cobranza'">
-                        <label class="form-label small">Mensaje a leer (se lee tal cual, por voz) *</label>
-                        <textarea class="form-control form-control-sm" v-model="nueva.audio_mensaje" rows="3"
-                                  :class="{'is-invalid': erroresNueva.audio_mensaje}"
-                                  placeholder="Ej: Le informamos que el día... habrá un corte programado de servicio en su zona..."></textarea>
-                        <div class="invalid-feedback">{{ erroresNueva.audio_mensaje }}</div>
+                    <div class="col-12">
+                        <div class="voz-panel">
+                            <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
+                                <span class="small fw-600"><i class="fa fa-microphone me-1 text-primary"></i>Voz de la llamada</span>
+                                <button type="button" class="btn btn-sm"
+                                        :class="reproduciendo ? 'btn-outline-danger' : 'btn-outline-primary'"
+                                        :disabled="!reproduciendo && (generandoMuestra || !vozOpciones.asignada || !textoNota)"
+                                        @click="reproduciendo ? detenerMuestra() : escucharNota()">
+                                    <i class="fa me-1" :class="reproduciendo ? 'fa-stop' : (generandoMuestra ? 'fa-spinner fa-spin' : 'fa-play')"></i>
+                                    {{ reproduciendo ? 'Detener' : (generandoMuestra ? 'Generando…' : 'Escuchar') }}
+                                </button>
+                            </div>
+                            <div v-if="vozCargada && !vozOpciones.asignada" class="alert alert-warning py-1 px-2 small mb-2">
+                                {{ vozOpciones.motivo || 'No hay voz asignada en Integraciones → Módulos IA.' }}
+                            </div>
+                            <div v-if="errorMuestra" class="alert alert-danger py-1 px-2 small mb-2">{{ errorMuestra }}</div>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <label class="form-label small">Voz</label>
+                                    <select class="form-select form-select-sm" v-model="nueva.voz">
+                                        <option v-for="v in vozOpciones.voces" :key="v.id" :value="v.id">{{ v.etiqueta }}</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small">Velocidad: <strong>{{ velocidadEtiqueta }}</strong></label>
+                                    <input type="range" class="form-range" step="0.05" v-model.number="nueva.voz_velocidad"
+                                           :min="vozOpciones.velocidad.min" :max="vozOpciones.velocidad.max">
+                                    <div class="d-flex justify-content-between small text-muted"><span>Lenta</span><span>Rápida</span></div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small">Tono</label>
+                                    <select class="form-select form-select-sm" v-model="nueva.voz_tono" :disabled="!vozOpciones.soporta_tono">
+                                        <option value="">Natural</option>
+                                        <option v-for="t in vozOpciones.tonos" :key="t.id" :value="t.id">{{ t.etiqueta }}</option>
+                                    </select>
+                                    <div class="form-text small" v-if="vozCargada && !vozOpciones.soporta_tono">
+                                        Se activa con el modelo gpt-4o-mini-tts en Integraciones → Módulos IA.
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-text small" v-if="nueva.tipo === 'cobranza'">
+                                Se escucha con un cliente de ejemplo: Juan Pérez, saldo de $350.00.
+                            </div>
+                            <div class="text-danger small" v-for="campo in ['voz', 'voz_velocidad', 'voz_tono']" :key="campo">
+                                {{ primerError(campo) }}
+                            </div>
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small">Canales simultáneos (opcional)</label>
@@ -195,10 +244,6 @@
                     <div class="col-md-4">
                         <label class="form-label small">Días vencimiento</label>
                         <input type="number" class="form-control form-control-sm" v-model.number="nueva.dias_vencimiento" min="0">
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label small">Notas</label>
-                        <textarea class="form-control form-control-sm" v-model="nueva.notas" rows="2"></textarea>
                     </div>
                 </div>
                 <div class="d-flex justify-content-end gap-2 mt-4">
@@ -300,6 +345,18 @@
 </template>
 
 <script>
+// La nota es el mensaje que escucha el cliente; en cobranza arranca con el de siempre.
+function nuevaCampana(opcionesVoz) {
+    return { nombre: '', tipo: 'cobranza', max_canales_simultaneos: null,
+             fecha_inicio: '', fecha_fin: '', hora_inicio: '09:00', hora_fin: '20:00',
+             max_intentos: 3, minutos_entre_intentos: 180, dias_vencimiento: 1,
+             notas: opcionesVoz.plantilla || '',
+             voz: opcionesVoz.voz || 'nova', voz_velocidad: opcionesVoz.velocidad.defecto, voz_tono: '' };
+}
+
+const VOZ_INICIAL = { asignada: false, motivo: '', soporta_tono: false, voces: [], tonos: [], voz: 'nova',
+                      velocidad: { defecto: 0.95, min: 0.5, max: 1.5 }, plantilla: '' };
+
 export default {
     name: 'CobranzaCampanas',
     props: {
@@ -314,19 +371,24 @@ export default {
             kpis:        {},
             procesando:  null,
             modal:       { nueva: false, llamadas: false, zona: false },
-            nueva:       { nombre: '', tipo: 'cobranza', troncal_id: null, max_canales_simultaneos: null,
-                           audio_mensaje: '', fecha_inicio: '', fecha_fin: '', hora_inicio: '09:00',
-                           hora_fin: '20:00', max_intentos: 3, minutos_entre_intentos: 180, dias_vencimiento: 1, notas: '' },
+            nueva:       nuevaCampana(VOZ_INICIAL),
             erroresNueva:        {},
+            // Voz de la campaña: opciones del servidor y la muestra que se está escuchando
+            vozOpciones:         { ...VOZ_INICIAL },
+            vozCargada:          false,
+            generandoMuestra:    false,
+            reproduciendo:       false,
+            errorMuestra:        '',
+            audioMuestra:        null,
+            urlMuestra:          null,
             creando:             false,
             campanaSeleccionada: null,
             llamadas:            [],
             cargandoLlamadas:    false,
             filtroEstadoLlamadas:'',
             estadosLlamada:      ['pendiente','marcando','contestada','no_contesto','ocupado','fallida','pagada','excluida'],
-            // MegaVoz Fase 7 — troncales para el selector + distrito/zona/caja
-            // del "activar por zona" (aviso/anuncio/corte).
-            troncales:         [],
+            // MegaVoz Fase 7 — distrito/zona/caja del "activar por zona"
+            // (aviso/anuncio/corte).
             distritos:         [],
             zonasDelDistrito:  [],
             cajasDeZona:       [],
@@ -334,10 +396,32 @@ export default {
             activandoZona:     false,
         };
     },
+    computed: {
+        // Lo que se va a leer: en cobranza, nota vacía = el mensaje de siempre
+        textoNota() {
+            const nota = (this.nueva.notas || '').trim();
+            return nota || (this.nueva.tipo === 'cobranza' ? this.vozOpciones.plantilla : '');
+        },
+        velocidadEtiqueta() {
+            return `${Number(this.nueva.voz_velocidad || 1).toFixed(2)}×`;
+        },
+    },
+    watch: {
+        'nueva.tipo'(tipo) {
+            const plantilla = this.vozOpciones.plantilla;
+            if (tipo === 'cobranza' && !(this.nueva.notas || '').trim()) this.nueva.notas = plantilla;
+            if (tipo !== 'cobranza' && plantilla && this.nueva.notas === plantilla) this.nueva.notas = '';
+        },
+        'modal.nueva'(abierto) {
+            if (!abierto) this.detenerMuestra();
+        },
+    },
     mounted() {
         this.cargar();
         this.cargarKpis();
-        this.cargarTroncales();
+    },
+    beforeUnmount() {
+        this.detenerMuestra();
     },
     methods: {
         async cargar(page = 1) {
@@ -361,23 +445,78 @@ export default {
             }
         },
         cambiarPagina(page) { this.cargar(page); },
-        abrirNueva() {
-            this.nueva         = { nombre: '', tipo: 'cobranza', troncal_id: null, max_canales_simultaneos: null,
-                                   audio_mensaje: '', fecha_inicio: '', fecha_fin: '', hora_inicio: '09:00',
-                                   hora_fin: '20:00', max_intentos: 3, minutos_entre_intentos: 180, dias_vencimiento: 1, notas: '' };
+        async abrirNueva() {
+            this.nueva         = nuevaCampana(this.vozOpciones);
             this.erroresNueva  = {};
+            this.errorMuestra  = '';
             this.modal.nueva   = true;
+            if (!this.vozCargada) await this.cargarVoz();
         },
-        // MegaVoz Fase 7 — lista de troncales para el selector (best-effort:
-        // si el usuario no tiene voip.troncales.view, la lista queda vacía y
-        // el select se queda en "usar la troncal por defecto", sin bloquear
-        // la creación de la campaña).
-        async cargarTroncales() {
+        async cargarVoz() {
             try {
-                const { data } = await axios.get('/voip/troncales/data');
-                this.troncales = data;
+                const { data } = await axios.get(`${this.baseUrl}/campanas/voz`);
+                this.vozOpciones = { ...VOZ_INICIAL, ...data };
+                this.vozCargada  = true;
+                // Si el modal ya está abierto y no lo han tocado, se llena con lo del servidor
+                if (this.nueva.tipo === 'cobranza' && !(this.nueva.notas || '').trim()) this.nueva.notas = data.plantilla || '';
+                if (!this.vozOpciones.voces.some(v => v.id === this.nueva.voz)) this.nueva.voz = this.vozOpciones.voz;
+                if (!this.vozOpciones.soporta_tono) this.nueva.voz_tono = '';
             } catch (e) {
-                this.troncales = [];
+                console.error(e);
+                this.vozOpciones = { ...VOZ_INICIAL, motivo: 'No se pudieron cargar las voces.' };
+                this.vozCargada  = true;
+            }
+        },
+        primerError(campo) {
+            const e = this.erroresNueva[campo];
+            return Array.isArray(e) ? e[0] : (e || '');
+        },
+        async escucharNota() {
+            this.detenerMuestra();
+            this.errorMuestra     = '';
+            this.generandoMuestra = true;
+            try {
+                const { data } = await axios.post(`${this.baseUrl}/campanas/escuchar`, {
+                    notas:         this.textoNota,
+                    tipo:          this.nueva.tipo,
+                    fecha_fin:     this.nueva.fecha_fin || null,
+                    voz:           this.nueva.voz,
+                    voz_velocidad: this.nueva.voz_velocidad,
+                    voz_tono:      this.nueva.voz_tono || null,
+                }, { headers: { 'X-CSRF-TOKEN': this.csrfToken }, responseType: 'blob' });
+                this.urlMuestra   = URL.createObjectURL(data);
+                this.audioMuestra = new Audio(this.urlMuestra);
+                this.audioMuestra.onended = () => this.detenerMuestra();
+                this.reproduciendo = true;
+                await this.audioMuestra.play();
+            } catch (e) {
+                this.detenerMuestra();
+                this.errorMuestra = await this.errorDeMuestra(e);
+            } finally {
+                this.generandoMuestra = false;
+            }
+        },
+        detenerMuestra() {
+            if (this.audioMuestra) {
+                this.audioMuestra.onended = null;
+                this.audioMuestra.pause();
+                this.audioMuestra = null;
+            }
+            if (this.urlMuestra) {
+                URL.revokeObjectURL(this.urlMuestra);
+                this.urlMuestra = null;
+            }
+            this.reproduciendo = false;
+        },
+        // La respuesta de error llega como Blob (se pidió audio); se lee el JSON de adentro
+        async errorDeMuestra(e) {
+            if (e.response?.status === 429) return 'Muchas pruebas seguidas: espera un minuto y vuelve a escuchar.';
+            try {
+                const json = JSON.parse(await e.response.data.text());
+                const primero = json.errors ? Object.values(json.errors)[0] : null;
+                return json.error || (Array.isArray(primero) ? primero[0] : '') || json.message || 'No se pudo generar la voz.';
+            } catch (_) {
+                return 'No se pudo reproducir la voz.';
             }
         },
         tipoEtiqueta(tipo) {
@@ -446,7 +585,7 @@ export default {
             this.creando      = true;
             this.erroresNueva = {};
             try {
-                await axios.post(`${this.baseUrl}/campanas`, this.nueva, {
+                await axios.post(`${this.baseUrl}/campanas`, { ...this.nueva, voz_tono: this.nueva.voz_tono || null }, {
                     headers: { 'X-CSRF-TOKEN': this.csrfToken },
                 });
                 this.modal.nueva = false;
@@ -544,6 +683,8 @@ export default {
 
 <style scoped>
 .fw-600 { font-weight: 600; }
+.nota-lista { max-width: 360px; }
+.voz-panel { border: 1px solid var(--bs-border-color, #dee2e6); border-radius: .5rem; padding: .75rem; }
 .modal-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,.45);
     display: flex; align-items: center; justify-content: center; z-index: 1050;

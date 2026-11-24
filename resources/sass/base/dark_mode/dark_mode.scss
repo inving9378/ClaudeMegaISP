@@ -86,8 +86,10 @@ body[data-layout-mode="dark"] {
 /* :not() de los 6 badges de Vendedores (Torre pill, ver AJUSTE 2 más abajo):
    son <span> — este reset genérico de texto les pisaba el color semántico
    (--tc-info/--tc-accent/etc.) aunque AJUSTE 2 ya los excluyera a ellos.
-   Lo mismo con los chips de la lista de Tareas: su color oscuro vive en app.scss. */
-[data-layout-mode="dark"] span:not(.badge-Interno):not(.badge-Externo):not(.badge-Distribuidor):not(.badge-Activo):not(.badge-Inactivo):not(.badge-Bloqueado):not(.doc-factura):not([class*="badge-invoice-"]):not(.task-chip):not(.task-chip-dot) {
+   Lo mismo con los chips de la lista de Tareas: su color oscuro vive en app.scss.
+   Y el Dashboard de Campañas/Blaster (.cd y su reproductor): trae sus propios colores de
+   modo oscuro; con este reset los estados y los textos tenues quedaban todos en blanco. */
+[data-layout-mode="dark"] span:not(.badge-Interno):not(.badge-Externo):not(.badge-Distribuidor):not(.badge-Activo):not(.badge-Inactivo):not(.badge-Bloqueado):not(.doc-factura):not([class*="badge-invoice-"]):not(.task-chip):not(.task-chip-dot):not(.cd *):not(.cd-reproductor *) {
     color: #FFFFFF !important;
 }
 

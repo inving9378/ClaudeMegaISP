@@ -85,7 +85,7 @@ class AmiConnectionService
         return is_resource($this->socket) && !feof($this->socket);
     }
 
-    public function originate(string $telefono, string $audioPath, int $llamadaId, string $clienteNombre, ?string $endpointId = null): array
+    public function originate(string $telefono, string $audioPath, int $llamadaId, string $clienteNombre): array
     {
         $actionId = 'blaster-' . $llamadaId . '-' . time();
         // ChannelId fija el Uniqueid del canal originado (Asterisk >= 12). Así
@@ -97,10 +97,9 @@ class AmiConnectionService
         // config/voip.php), provisionada por VoiceGateway::configureTrunk. Antes:
         // SIP/servnet-trunk (chan_sip). Item #9990714: el endpoint id ya no viaja
         // hardcodeado aquí — el default vive únicamente en config/voip.php.
-        // MegaVoz Fase 7: $endpointId opcional — cada campaña puede elegir SU
-        // propia troncal (voip_troncales.proposito=saliente_*); sin una elegida,
-        // cae al mismo default global de siempre (comportamiento sin cambio).
-        $channel   = 'PJSIP/' . ($endpointId ?: config('voip.trunk_endpoint_id')) . '/' . $telefono;
+        // Siempre la troncal del módulo (Config. VoIP); las campañas ya no eligen otra
+        // (pedido de Irving, 23-nov).
+        $channel   = 'PJSIP/' . config('voip.trunk_endpoint_id') . '/' . $telefono;
 
         // #277: sin CallerID configurado, resolveCallerId() ya no cae al placeholder
         // 'Meganet Telecomunicaciones <5551234567>'. Se ABORTA el originate (fallback duro,

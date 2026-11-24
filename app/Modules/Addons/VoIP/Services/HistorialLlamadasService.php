@@ -24,8 +24,10 @@ use Throwable;
  * Asterisk escribe una fila por cada par de canales: la troncal que entra, la
  * cola, cada agente al que le timbró (ringall timbra a todos), el que contestó.
  * Todas comparten `linkedid`. normalizar() las junta y decide:
- *   - dirección: entra por una troncal (o por el contexto de una troncal/grupo)
- *     → entrante; sale hacia una troncal → saliente; si no → interna.
+ *   - dirección: la origina una campaña de Campañas/Blaster (canal «cob-…») →
+ *     campana; entra por una troncal (o por el contexto de una troncal/grupo)
+ *     → entrante; sale hacia una troncal → saliente; si no → interna. La troncal
+ *     propia de Campañas/Blaster (voip.trunk_endpoint_id) cuenta como troncal.
  *   - quién contestó: la fila ANSWERED cuyo destino es una extensión. Si la
  *     contestó el asistente de voz (AudioSocket) → «asistente».
  *   - a quién le timbró sin que nadie contestara: filas NO ANSWER hacia
@@ -71,12 +73,15 @@ class HistorialLlamadasService
                    'lastapp', 'disposition', 'duration', 'billsec', 'grabacion', 'start', 'answer', 'end'])
             ->map(fn ($f) => (array) $f);
 
+        $troncalCampanas = (string) config('voip.trunk_endpoint_id', 'servnet');
+        $contextoCampanas = (string) config('voip.ami_context', 'cobranza-blaster');
+
         $llamadas = $filas
             ->groupBy(fn ($f) => $f['linkedid'] ?: $f['uniqueid'])
-            ->map(fn (Collection $grupo) => self::normalizar($grupo->values()->all()))
+            ->map(fn (Collection $grupo) => self::normalizar($grupo->values()->all(), $troncalCampanas, $contextoCampanas))
             ->values();
 
-        return $this->enriquecer($llamadas)->sortByDesc('inicio')->values();
+        return $this->enriquecer($this->conDatosDeCampana($llamadas))->sortByDesc('inicio')->values();
     }
 
     // ── Normalización (pura: sin BD, probada en tests/Unit) ───────────────────
@@ -91,32 +96,63 @@ class HistorialLlamadasService
         return null;
     }
 
-    public static function esTroncal(?string $endpoint): bool
+    public static function esTroncal(?string $endpoint, ?string $troncalCampanas = null): bool
     {
-        return $endpoint !== null && str_starts_with($endpoint, 'trunk_');
+        return $endpoint !== null
+            && (str_starts_with($endpoint, 'trunk_') || ($troncalCampanas !== null && $troncalCampanas !== '' && $endpoint === $troncalCampanas));
+    }
+
+    /** cob-<id de cobranza_llamadas>-<hora>: el canal que origina una campaña (AmiConnectionService::originate). */
+    public static function llamadaDeCampana(?string $id): ?int
+    {
+        return $id && preg_match('/^cob-(\d+)-\d+$/', $id, $m) ? (int) $m[1] : null;
     }
 
     /**
      * @param array<int, array<string, mixed>> $filas filas CDR de un mismo linkedid, en orden
      * @return array<string, mixed>
      */
-    public static function normalizar(array $filas): array
+    public static function normalizar(array $filas, ?string $troncalCampanas = null, ?string $contextoCampanas = null): array
     {
         $primera = $filas[0];
         $inicio  = Carbon::parse($primera['start']);
         $fin     = collect($filas)->map(fn ($f) => Carbon::parse($f['end'] ?? $f['start']))->max();
+        $id      = $primera['linkedid'] ?: $primera['uniqueid'];
+        $conGrabacion = collect($filas)->first(fn ($f) => ! empty($f['grabacion']));
+
+        $campana = self::llamadaDeCampana($id);
+        if ($campana !== null || ($contextoCampanas && collect($filas)->contains('dcontext', $contextoCampanas))) {
+            $contestada = collect($filas)->first(fn ($f) => $f['disposition'] === 'ANSWERED');
+
+            return [
+                'id'                 => $id,
+                'inicio'             => $inicio->toDateTimeString(),
+                'fin'                => $fin->toDateTimeString(),
+                'direccion'          => 'campana',
+                'origen'             => null,
+                'numero'             => null,   // lo pone conDatosDeCampana() desde cobranza_llamadas
+                'estado'             => $contestada ? 'contestada' : 'sin_respuesta',
+                'extension'          => null,
+                'segundos'           => $contestada ? (int) $contestada['billsec'] : 0,
+                'espera'             => null,
+                'timbro_a'           => [],
+                'grabacion'          => $conGrabacion['uniqueid'] ?? null,
+                'campana_llamada_id' => $campana,
+            ];
+        }
+        $esTroncal = fn (?string $endpoint) => self::esTroncal($endpoint, $troncalCampanas);
 
         $entrante = false;
         $saliente = null;   // fila que salió por una troncal
         foreach ($filas as $f) {
             $origen  = self::endpointDe($f['channel']);
             $destino = self::endpointDe($f['dstchannel']);
-            if (self::esTroncal($origen)
+            if ($esTroncal($origen)
                 || str_starts_with((string) $f['dcontext'], 'inbound-trunk-')
                 || str_starts_with((string) $f['dcontext'], 'grupo-')) {
                 $entrante = true;
             }
-            if (self::esTroncal($destino) && $saliente === null) {
+            if ($esTroncal($destino) && $saliente === null) {
                 $saliente = $f;
             }
         }
@@ -126,7 +162,7 @@ class HistorialLlamadasService
         $contestada = null;
         foreach ($filas as $f) {
             $destino = self::endpointDe($f['dstchannel']);
-            if ($f['disposition'] === 'ANSWERED' && $destino !== null && ! self::esTroncal($destino)) {
+            if ($f['disposition'] === 'ANSWERED' && $destino !== null && ! $esTroncal($destino)) {
                 $contestada = $f;
                 break;
             }
@@ -190,16 +226,14 @@ class HistorialLlamadasService
         if ($direccion === 'entrante' && $estado === 'no_atendida') {
             foreach ($filas as $f) {
                 $destino = self::endpointDe($f['dstchannel']);
-                if ($destino !== null && ! self::esTroncal($destino) && $f['disposition'] !== 'ANSWERED') {
+                if ($destino !== null && ! $esTroncal($destino) && $f['disposition'] !== 'ANSWERED') {
                     $timbro[$destino] = true;
                 }
             }
         }
 
-        $conGrabacion = collect($filas)->first(fn ($f) => ! empty($f['grabacion']));
-
         return [
-            'id'          => $primera['linkedid'] ?: $primera['uniqueid'],
+            'id'          => $id,
             'inicio'      => $inicio->toDateTimeString(),
             'fin'         => $fin->toDateTimeString(),
             'direccion'   => $direccion,
@@ -212,6 +246,7 @@ class HistorialLlamadasService
             // strval: PHP vuelve entero la llave "1003" de un arreglo.
             'timbro_a'    => array_map('strval', array_keys($timbro)),
             'grabacion'   => $conGrabacion['uniqueid'] ?? null,
+            'campana_llamada_id' => null,
         ];
     }
 
@@ -229,7 +264,39 @@ class HistorialLlamadasService
         return $d;
     }
 
-    // ── Enriquecimiento (trabajador y cliente) ────────────────────────────────
+    // ── Enriquecimiento (campaña, trabajador y cliente) ───────────────────────
+
+    /**
+     * Las llamadas de campaña no traen el número en el CDR (la origina la central, el destino
+     * es «s»): sale de cobranza_llamadas, junto con la campaña. Sin el módulo, quedan como están.
+     */
+    private function conDatosDeCampana(Collection $llamadas): Collection
+    {
+        $ids = $llamadas->pluck('campana_llamada_id')->filter()->unique()->values();
+        $datos = collect();
+        if ($ids->isNotEmpty() && DB::getSchemaBuilder()->hasTable('cobranza_llamadas')) {
+            $datos = DB::table('cobranza_llamadas as l')
+                ->leftJoin('cobranza_campanas as c', 'c.id', '=', 'l.campana_id')
+                ->whereIn('l.id', $ids)
+                ->get(['l.id', 'l.telefono', 'l.campana_id', 'c.nombre', 'c.tipo'])
+                ->keyBy('id');
+        }
+
+        return $llamadas->map(function (array $l) use ($datos) {
+            $l['campana_id'] = null;
+            $l['campana']    = null;
+            $l['campana_tipo'] = null;
+            if ($l['direccion'] === 'campana') {
+                $d = $datos[$l['campana_llamada_id']] ?? null;
+                $l['numero']       = $d ? self::numeroExterno($d->telefono) : null;
+                $l['campana_id']   = $d->campana_id ?? null;
+                $l['campana']      = $d->nombre ?? null;
+                $l['campana_tipo'] = $d->tipo ?? null;
+            }
+
+            return $l;
+        });
+    }
 
     private function enriquecer(Collection $llamadas): Collection
     {
@@ -347,6 +414,7 @@ class HistorialLlamadasService
             'espera_prom'    => self::promedio($contestadas->pluck('espera')),
             'duracion_prom'  => self::promedio($contestadas->pluck('segundos')),
             'salientes'      => $llamadas->where('direccion', 'saliente')->count(),
+            'campanas'       => $llamadas->where('direccion', 'campana')->count(),
             'internas'       => $llamadas->where('direccion', 'interna')->count(),
             'con_grabacion'  => $llamadas->whereNotNull('grabacion')->count(),
         ];

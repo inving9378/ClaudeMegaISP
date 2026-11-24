@@ -20,7 +20,7 @@ writeprotect = yes
 clearglobalvars = no
 
 [globals]
-; MegaVoz Fase 3 — dónde deja MixMonitor las grabaciones de la cola. Un solo
+; Dónde deja MixMonitor las grabaciones de las llamadas (todas desde el 24-nov). Un solo
 ; global en vez de repetir la ruta en cada contexto que genera MegaISP; si
 ; cambia, se regenera aquí (config/voip.php → grabaciones.dir), no en el
 ; contenido que produce DialplanGeneratorService.
@@ -37,18 +37,30 @@ GRABACIONES_DIR={{GRABACIONES_DIR}}
 ;   2000–2999  teléfonos web (el del navegador) — un número por persona
 ; Los dos se marcan igual, con 4 dígitos, desde cualquier teléfono. Cada número
 ; timbra solo su línea: ya no hay gemelas «webNNNN» ligadas a un aparato.
+;
+; Se graban, como todas las llamadas desde el 24-nov (las mismas líneas que el plan que
+; genera MegaISP, DialplanGeneratorService::lineasGrabar). Si nadie contesta, la fila
+; del historial queda sin grabación.
 [from-internal]
 
 ; Internos de 4 dígitos (físicos 1000–1999 y web 2000–2999).
 exten = _[1-9]XXX,1,NoOp(Interno: ${CALLERID(num)} -> ${EXTEN})
  same = n,Set(CDR(userfield)=interno)
+ same = n,ExecIf($["${GRABANDO}" = ""]?Set(CDR(grabacion)=${UNIQUEID}.wav))
+ same = n,ExecIf($["${GRABANDO}" = ""]?MixMonitor(${GRABACIONES_DIR}/${UNIQUEID}.wav))
+ same = n,Set(GRABANDO=1)
  same = n,Dial(PJSIP/${EXTEN},30)
+ same = n,ExecIf($["${DIALSTATUS}" != "ANSWER"]?Set(CDR(grabacion)=))
  same = n,Hangup()
 
 ; Internos de 3 dígitos — instalaciones con plan corto.
 exten = _[1-9]XX,1,NoOp(Interno: ${CALLERID(num)} -> ${EXTEN})
  same = n,Set(CDR(userfield)=interno)
+ same = n,ExecIf($["${GRABANDO}" = ""]?Set(CDR(grabacion)=${UNIQUEID}.wav))
+ same = n,ExecIf($["${GRABANDO}" = ""]?MixMonitor(${GRABACIONES_DIR}/${UNIQUEID}.wav))
+ same = n,Set(GRABANDO=1)
  same = n,Dial(PJSIP/${EXTEN},30)
+ same = n,ExecIf($["${DIALSTATUS}" != "ANSWER"]?Set(CDR(grabacion)=))
  same = n,Hangup()
 
 ; ─── Servicios del sistema ─────────────────────────────────────────────────

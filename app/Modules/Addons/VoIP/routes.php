@@ -15,8 +15,9 @@ Route::middleware(['web', 'auth'])->prefix('voip')->group(function () {
     Route::get('/', [DashboardLlamadasController::class, 'inicio'])->name('voip.index');
     Route::get('/dashboard/data',      [DashboardLlamadasController::class, 'data'])->name('voip.dashboard.data');
     Route::get('/dashboard/llamadas',  [DashboardLlamadasController::class, 'llamadas'])->name('voip.dashboard.llamadas');
+    // <uniqueid de Asterisk> o cob-<llamada>-<hora> (las que origina Campañas/Blaster)
     Route::get('/grabaciones/{uniqueid}', [DashboardLlamadasController::class, 'grabacion'])
-        ->where('uniqueid', '[0-9]+\.[0-9]+')->name('voip.grabaciones.show');
+        ->where('uniqueid', '[0-9]+\.[0-9]+|cob-[0-9]+-[0-9]+')->name('voip.grabaciones.show');
 
     // ════════════════════════════════════════════════════════════════════════
     // TRONCALES

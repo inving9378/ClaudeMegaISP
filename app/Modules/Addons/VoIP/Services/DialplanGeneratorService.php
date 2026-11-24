@@ -7,6 +7,7 @@ use App\Modules\Addons\VoIP\Models\IaBotConfig;
 use App\Modules\Addons\VoIP\Models\Troncal;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Genera megaisp_grupos.conf a partir de los datos en BD (grupos de timbrado
@@ -90,6 +91,9 @@ class DialplanGeneratorService
             $lines[] = $this->buildGrupoContext($grupo);
         }
 
+        // Troncal propia de Campañas/Blaster (entrantes y salientes de las campañas)
+        $lines[] = $this->contextosCampanas($grupos);
+
         // Llamadas del personal a la calle (el restringido no las tiene)
         $lines[] = $this->contextoSalida($this->troncalSalida());
 
@@ -109,12 +113,14 @@ class DialplanGeneratorService
             "[{$ctxName}]",
             "exten = s,1,NoOp(Entrante {$troncal->nombre}: CallerID=\${CALLERID(all)})",
             " same = n,Answer()",
+            ...self::lineasGrabar(),
             " same = n,Wait(1)",
             " same = n,Set(CDR(userfield)=inbound)",
             " same = n,Goto(grupo-{$grupoId},s,1)",
             "",
             "exten = _X.,1,NoOp(DID entrante {$troncal->nombre}: \${EXTEN})",
             " same = n,Answer()",
+            ...self::lineasGrabar(),
             " same = n,Wait(1)",
             " same = n,Set(CDR(userfield)=inbound)",
             " same = n,Goto(grupo-{$grupoId},s,1)",
@@ -149,6 +155,7 @@ class DialplanGeneratorService
         }
 
         $lines[] = "exten = s,1,NoOp(Grupo {$grupo->id} — {$grupo->nombre} — {$grupo->estrategia})";
+        array_push($lines, ...self::lineasGrabar());
 
         if ($grupo->estrategia === 'ringall') {
             // Todos timbran a la vez
@@ -248,8 +255,7 @@ class DialplanGeneratorService
         return [
             "exten = s,1,NoOp(Grupo {$grupo->id} — {$grupo->nombre} — cola real, MegaVoz Fase 3)",
             " same = n,Answer()",
-            " same = n,Set(CDR(grabacion)=\${UNIQUEID}.wav)",
-            " same = n,MixMonitor(\${GRABACIONES_DIR}/\${UNIQUEID}.wav)  ; retención y purga: megavoz:purgar-grabaciones",
+            ...self::lineasGrabar(),
             " same = n,Playback(beep)  ; contestador — María (si le toca esta llamada) sigue justo después",
             ...($botHabilitado ? [
                 " same = n,TrySystem(nc -z -w1 {$botHost} {$botPort})  ; Fase 6 — pre-vuelo: sin esto, un AudioSocket() a un daemon caído cuelga el canal en vez de seguir a la cola (ver nota arriba)",
@@ -268,6 +274,93 @@ class DialplanGeneratorService
             "exten = t,1,Hangup()",
             "",
         ];
+    }
+
+    /**
+     * Campañas/Blaster tiene SU troncal (Config. VoIP del módulo, endpoint
+     * voip.trunk_endpoint_id) y las campañas ya no eligen otra (Irving, 23-nov). Lo que
+     * entra por ella timbra en el grupo elegido ahí, o en el primer grupo activo.
+     */
+    private function contextosCampanas($grupos): string
+    {
+        if (! Schema::hasTable('voip_configuracion')) {
+            return '';
+        }
+
+        $elegido = Schema::hasColumn('voip_configuracion', 'grupo_entrante_id')
+            ? DB::table('voip_configuracion')->orderBy('id')->value('grupo_entrante_id')
+            : null;
+        $grupo = $grupos->firstWhere('id', $elegido) ?? $grupos->sortBy('id')->first();
+
+        return $this->planCampanas(
+            (string) config('voip.trunk_context', 'from-servnet'),
+            (string) config('voip.ami_context', 'cobranza-blaster'),
+            $grupo?->id,
+            $grupo?->nombre
+        );
+    }
+
+    /**
+     * Entrada: [contexto de la troncal] → grupo. Salida: el blaster origina por
+     * PJSIP/<troncal>/<número> y, al contestar, la llamada cae en [contexto del blaster],
+     * que reproduce el audio de la campaña (antes stubs/extensions-cobranza-blaster.conf,
+     * que había que copiar a mano y nunca llegó a ninguna central).
+     */
+    public function planCampanas(string $ctxEntrada, string $ctxBlaster, ?int $grupoId, ?string $grupoNombre): string
+    {
+        $endpoint = (string) config('voip.trunk_endpoint_id', 'servnet');
+
+        $entrada = $grupoId
+            ? [
+                ";── Entrante troncal de Campañas/Blaster ({$endpoint}) → grupo-{$grupoId} ({$grupoNombre}) ──",
+                "[{$ctxEntrada}]",
+                'exten = s,1,NoOp(Entrante Campañas/Blaster: CallerID=${CALLERID(all)})',
+                ' same = n,Answer()',
+                ...self::lineasGrabar(),
+                ' same = n,Wait(1)',
+                ' same = n,Set(CDR(userfield)=inbound)',
+                " same = n,Goto(grupo-{$grupoId},s,1)",
+                '',
+                'exten = _X.,1,NoOp(DID entrante Campañas/Blaster: ${EXTEN})',
+                ' same = n,Answer()',
+                ...self::lineasGrabar(),
+                ' same = n,Wait(1)',
+                ' same = n,Set(CDR(userfield)=inbound)',
+                " same = n,Goto(grupo-{$grupoId},s,1)",
+            ]
+            : [
+                ";── Entrante troncal de Campañas/Blaster ({$endpoint}): no hay grupo de timbrado activo ──",
+                "[{$ctxEntrada}]",
+                'exten = s,1,NoOp(Entrante Campañas/Blaster sin grupo de timbrado activo)',
+                ' same = n,Hangup()',
+                'exten = _X.,1,Goto(s,1)',
+            ];
+
+        return implode("\n", array_merge($entrada, [
+            '',
+            'exten = i,1,Hangup()',
+            'exten = t,1,Hangup()',
+            '',
+            ";── Salientes de Campañas/Blaster: Originate por PJSIP/{$endpoint}/<número> ──",
+            "[{$ctxBlaster}]",
+            'exten = s,1,NoOp(Campaña: llamada ${COBRANZA_LLAMADA_ID} -> ${COBRANZA_NOMBRE})',
+            ' same = n,Answer()',
+            ...self::lineasGrabar(),
+            ' same = n,Wait(1)',
+            ' same = n,Set(AUDIO_BASE=${CUT(COBRANZA_AUDIO,.,1)})',
+            ' same = n,Background(${AUDIO_BASE})',
+            ' same = n,WaitExten(8)',
+            ' same = n,Hangup()',
+            '',
+            '; «1» = pide asesor: aún sin destino (roadmap #190), mensaje y colgar.',
+            'exten = 1,1,NoOp(Campaña: llamada ${COBRANZA_LLAMADA_ID} pide asesor)',
+            ' same = n,Playback(vm-nobodyavail)',
+            ' same = n,Hangup()',
+            '',
+            'exten = i,1,Hangup()',
+            'exten = t,1,Hangup()',
+            '',
+        ]));
     }
 
     /**
@@ -311,7 +404,9 @@ class DialplanGeneratorService
             '[from-internal]',
             'exten = _[2-9]XXXXXXXXX,1,NoOp(Saliente: ${CALLERID(num)} -> ${EXTEN})',
             ' same = n,Set(CDR(userfield)=saliente)',
+            ...self::lineasGrabar(),
             " same = n,Dial(PJSIP/{$endpoint}/{$destino},60)",
+            self::lineaSinContestarSinGrabacion(),
             ' same = n,Hangup()',
             '; Mismo número con lada de país o prefijo viejo (como viene en los contactos del',
             '; celular o de Zoiper): se reduce a los 10 dígitos que pide el proveedor.',
@@ -334,13 +429,17 @@ class DialplanGeneratorService
             '; Internos 3 dígitos (100-999)',
             'exten = _[1-9]XX,1,NoOp(Restringido-interno: ${CALLERID(num)} → ${EXTEN})',
             ' same = n,Set(CDR(userfield)=internal_restricted)',
+            ...self::lineasGrabar(),
             ' same = n,Dial(PJSIP/${EXTEN},20)',
+            self::lineaSinContestarSinGrabacion(),
             ' same = n,Hangup()',
             '',
             '; Internos 4 dígitos (1000-9999)',
             'exten = _[1-9]XXX,1,NoOp(Restringido-interno: ${CALLERID(num)} → ${EXTEN})',
             ' same = n,Set(CDR(userfield)=internal_restricted)',
+            ...self::lineasGrabar(),
             ' same = n,Dial(PJSIP/${EXTEN},20)',
+            self::lineaSinContestarSinGrabacion(),
             ' same = n,Hangup()',
             '',
             '; Intento de salida a la calle — DENEGADO',
@@ -352,6 +451,35 @@ class DialplanGeneratorService
             'exten = t,1,Hangup()',
             '',
         ]);
+    }
+
+    /**
+     * Grabación de la llamada (24-nov, pedido de Irving: todas las llamadas se graban y se
+     * escuchan). Antes solo la cola grababa, así que en una central con grupos normales
+     * (Dial) no quedaba ninguna grabación, y tampoco de salientes, internas ni campañas.
+     *
+     * Se repite en cada punto por donde entra una llamada (troncal, grupo, cola, salida,
+     * campaña). GRABANDO evita una segunda grabación cuando la misma llamada pasa por
+     * dos de ellos (troncal → grupo). Va en línea, sin Gosub a un contexto compartido:
+     * extensions.conf (plantilla de root) y este archivo se regeneran por separado y una
+     * subrutina que todavía no existe cuelga la llamada. El archivo se llama como siempre,
+     * <UNIQUEID>.wav, y queda en CDR(grabacion) para ligarlo a su fila de voip_llamadas.
+     *
+     * @return array<int, string>
+     */
+    public static function lineasGrabar(): array
+    {
+        return [
+            ' same = n,ExecIf($["${GRABANDO}" = ""]?Set(CDR(grabacion)=${UNIQUEID}.wav))',
+            ' same = n,ExecIf($["${GRABANDO}" = ""]?MixMonitor(${GRABACIONES_DIR}/${UNIQUEID}.wav))  ; retención y purga: megavoz:purgar-grabaciones',
+            ' same = n,Set(GRABANDO=1)',
+        ];
+    }
+
+    /** Llamada que sale y nadie contesta: sin grabación en el historial (solo grabó el timbre). */
+    public static function lineaSinContestarSinGrabacion(): string
+    {
+        return ' same = n,ExecIf($["${DIALSTATUS}" != "ANSWER"]?Set(CDR(grabacion)=))';
     }
 
     private function fallbackLine(GrupoTimbrado $grupo): string

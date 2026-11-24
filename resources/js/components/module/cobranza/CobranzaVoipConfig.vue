@@ -67,6 +67,18 @@
                                 <input class="form-control form-control-sm" v-model="form.callerid_numero"
                                        placeholder="5551234567">
                             </div>
+                            <div class="col-12">
+                                <label class="form-label small">Las llamadas que entran por esta troncal timbran en</label>
+                                <select class="form-select form-select-sm" v-model="form.grupo_entrante_id"
+                                        :class="{'is-invalid': errors.grupo_entrante_id}">
+                                    <option :value="null">— El primer grupo de timbrado activo{{ grupos.length ? ' (' + grupos[0].nombre + ')' : '' }} —</option>
+                                    <option v-for="g in grupos" :key="g.id" :value="g.id">{{ g.nombre }}</option>
+                                </select>
+                                <div class="invalid-feedback">{{ errors.grupo_entrante_id }}</div>
+                                <div class="form-text small">
+                                    Todas las campañas salen por esta troncal, y quien regresa la llamada entra por ella.
+                                </div>
+                            </div>
                         </div>
 
                         <div class="d-flex gap-2 mt-4">
@@ -138,7 +150,9 @@ export default {
         return {
             config:         {},
             form:           { sip_host: '', sip_port: 5060, sip_username: '', sip_secret: '',
-                              sip_fromuser: '', sip_fromdomain: '', callerid_nombre: 'Meganet Telecomunicaciones', callerid_numero: '' },
+                              sip_fromuser: '', sip_fromdomain: '', callerid_nombre: 'Meganet Telecomunicaciones', callerid_numero: '',
+                              grupo_entrante_id: null },
+            grupos:         [],
             errors:         {},
             guardando:      false,
             probando:       false,
@@ -156,9 +170,11 @@ export default {
         async cargar() {
             try {
                 const { data } = await axios.get(`${this.baseUrl}/voip/configuracion`);
-                if (data) {
-                    this.config = data;
-                    this.form   = { ...data, sip_secret: '' };
+                const { grupos, ...config } = data || {};
+                this.grupos = grupos || [];
+                if (config.id) {
+                    this.config = config;
+                    this.form   = { ...config, sip_secret: '' };
                 }
             } catch (e) {
                 console.error(e);

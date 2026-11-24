@@ -128,6 +128,7 @@
                         <option value="entrante">Entrantes</option>
                         <option value="saliente">Salientes</option>
                         <option value="interna">Internas</option>
+                        <option value="campana">Campañas</option>
                     </select>
                     <select class="form-select form-select-sm" v-model="filtros.estado" @change="cargarLlamadas(1)">
                         <option value="">Cualquier estado</option>
@@ -467,11 +468,11 @@ export default {
         },
 
         iconoDireccion(d) {
-            return { entrante: 'fa-arrow-down', saliente: 'fa-arrow-up', interna: 'fa-exchange-alt' }[d] || 'fa-phone';
+            return { entrante: 'fa-arrow-down', saliente: 'fa-arrow-up', interna: 'fa-exchange-alt', campana: 'fa-bullhorn' }[d] || 'fa-phone';
         },
 
         nombreDireccion(d) {
-            return { entrante: 'Entrante', saliente: 'Saliente', interna: 'Interna' }[d] || d;
+            return { entrante: 'Entrante', saliente: 'Saliente', interna: 'Interna', campana: 'Campaña' }[d] || d;
         },
 
         iconoEstado(e) {
@@ -565,6 +566,7 @@ export default {
 .vd-dir--entrante { background: var(--vd-acento-suave); color: var(--vd-acento); }
 .vd-dir--saliente { background: rgba(98,80,214,.12); color: #6250d6; }
 .vd-dir--interna  { background: rgba(107,114,128,.12); color: var(--vd-tenue); }
+.vd-dir--campana  { background: rgba(217,119,6,.12); color: #b45309; }
 .vd-cliente a {
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
     max-width: 190px; overflow-wrap: anywhere; line-height: 1.35; font-weight: 500; color: var(--vd-acento);

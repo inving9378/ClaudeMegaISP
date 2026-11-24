@@ -78,5 +78,5 @@ return [
     'voip.transcripcion' => ['nombre' => 'Oído del bot «María» (voz a texto)', 'grupo' => 'VoIP', 'requiere' => ['voz'], 'modelos' => ['whisper-1'], 'listo' => true],
     'voip.voz' => ['nombre' => 'Voz del bot «María» (texto a voz)', 'grupo' => 'VoIP', 'requiere' => ['voz'], 'modelos' => ['tts-1', 'tts-1-hd', 'gpt-4o-mini-tts'], 'listo' => true],
     'marketing.voz_videos' => ['nombre' => 'Voz de los videos (texto a voz)', 'grupo' => 'Marketing', 'requiere' => ['voz'], 'modelos' => ['tts-1', 'tts-1-hd', 'gpt-4o-mini-tts'], 'listo' => true],
-    'cobranza.voz' => ['nombre' => 'Voz de las llamadas de cobranza (texto a voz)', 'grupo' => 'Cobranza', 'requiere' => ['voz'], 'modelos' => ['tts-1', 'tts-1-hd', 'gpt-4o-mini-tts'], 'listo' => true],
+    'cobranza.voz' => ['nombre' => 'Voz de las llamadas de Campañas/Blaster (texto a voz)', 'grupo' => 'Cobranza', 'requiere' => ['voz'], 'modelos' => ['tts-1', 'tts-1-hd', 'gpt-4o-mini-tts'], 'listo' => true],
 ];

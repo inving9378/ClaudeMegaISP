@@ -4,9 +4,11 @@ namespace App\Modules\Addons\CobranzaBlaster\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\CobranzaBlaster\Models\VoipConfiguracion;
+use App\Modules\Addons\VoIP\Services\DialplanGeneratorService;
 use App\Modules\Core\Voice\VoiceGateway;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class VoipConfiguracionController extends Controller
@@ -28,9 +30,10 @@ class VoipConfiguracionController extends Controller
         }
 
         $config = VoipConfiguracion::first();
+        $grupos = $this->gruposTimbrado();
 
         if (!$config) {
-            return response()->json(null);
+            return response()->json(['grupos' => $grupos]);
         }
 
         // Devolver sin el secret desencriptado por seguridad — el frontend solo sabe si está configurado
@@ -45,6 +48,8 @@ class VoipConfiguracionController extends Controller
             'sip_fromdomain'  => $config->sip_fromdomain,
             'callerid_nombre' => $config->callerid_nombre,
             'callerid_numero' => $config->callerid_numero,
+            'grupo_entrante_id' => $config->grupo_entrante_id,
+            'grupos'          => $grupos,
             'activa'          => $config->activa,
             'estado'          => $config->estado,
             'ultimo_registro_at' => $config->ultimo_registro_at,
@@ -68,6 +73,7 @@ class VoipConfiguracionController extends Controller
             'sip_fromdomain'  => 'nullable|string|max:255',
             'callerid_nombre' => 'nullable|string|max:100',
             'callerid_numero' => 'nullable|string|max:30',
+            'grupo_entrante_id' => 'nullable|integer|exists:voip_grupos_timbrado,id',
             'activa'          => 'nullable|boolean',
         ]);
 
@@ -89,14 +95,25 @@ class VoipConfiguracionController extends Controller
             ]);
             $reloaded = $gateway->reloadPjsip();
 
-            $config->update(['estado' => 'activa']);
+            $config->update(['estado' => 'activa', 'activa' => true]);
+
+            // Plan de marcado de la troncal: entrantes → grupo elegido, salientes → mensaje
+            // de la campaña. Lo arma el mismo generador de VoIP para que «Instalar
+            // dependencias» (voip:sincronizar) lo deje igual.
+            $warnings = $result['warnings'];
+            try {
+                app(DialplanGeneratorService::class)->regenerar();
+            } catch (\Throwable $e) {
+                Log::error('CobranzaBlaster: fallo al regenerar el plan de marcado', ['error' => $e->getMessage()]);
+                $warnings[] = 'La troncal quedó aplicada pero no se pudo regenerar el plan de marcado: ' . $e->getMessage();
+            }
 
             return response()->json([
                 'ok'       => true,
                 'reloaded' => $reloaded,
-                'warnings' => $result['warnings'],
+                'warnings' => $warnings,
                 'ips'      => $result['ips'],
-                'msg'      => 'Troncal Servnet provisionada en PJSIP Realtime'
+                'msg'      => 'Troncal de Campañas/Blaster aplicada en Asterisk'
                               . ($reloaded ? ' y PJSIP recargado.' : ' (recarga de PJSIP no confirmada; revisa AMI).'),
             ]);
         } catch (\Throwable $e) {
@@ -135,6 +152,17 @@ class VoipConfiguracionController extends Controller
                 'output'     => 'No se pudo consultar el estado de la troncal: ' . $e->getMessage(),
                 'msg'        => $e->getMessage(),
             ], 200);
+        }
+    }
+
+    /** Grupos de timbrado activos de VoIP, para elegir a dónde van las llamadas que entran. */
+    private function gruposTimbrado(): array
+    {
+        try {
+            return DB::table('voip_grupos_timbrado')
+                ->where('activo', true)->orderBy('id')->get(['id', 'nombre'])->all();
+        } catch (\Throwable) {
+            return [];
         }
     }
 
