@@ -2,10 +2,8 @@
 
 namespace App\Modules\Addons\CobranzaBlaster\Jobs;
 
-use App\Modules\Addons\CobranzaBlaster\Models\CobranzaCampana;
 use App\Modules\Addons\CobranzaBlaster\Models\CobranzaLlamada;
 use App\Modules\Addons\CobranzaBlaster\Models\CobranzaLlamadaEvento;
-use App\Modules\Core\Clientes\Services\SuspendService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -13,11 +11,22 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Lo que dice Asterisk de una llamada de campaña (vía cobranza:ami-listener) → su estado.
+ *
+ * 25-nov (pedido de Irving): una llamada que no se contesta ya NO programa la suspensión
+ * del servicio del cliente. Antes, en el último intento, «sin contestar», «ocupado» o
+ * «falló» mandaban suspender a las 24 h aunque el cliente hubiera pagado y aunque la
+ * campaña fuera un aviso. El corte por adeudo sigue siendo el de siempre (facturación).
+ */
 class ProcessCallResultJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 3;
+
+    /** Estado final cuando ya no quedan intentos, según por qué no se completó. */
+    private const FINAL = ['NOANSWER' => 'no_contesto', 'BUSY' => 'ocupado', 'FAILED' => 'fallida'];
 
     public function __construct(
         public string $evento,
@@ -27,7 +36,7 @@ class ProcessCallResultJob implements ShouldQueue
         $this->onQueue('cobranza');
     }
 
-    public function handle(SuspendService $suspendService): void
+    public function handle(): void
     {
         $llamada = CobranzaLlamada::where('ami_uniqueid', $this->uniqueid)->first();
 
@@ -36,22 +45,25 @@ class ProcessCallResultJob implements ShouldQueue
         }
 
         $campana = $llamada->campana;
+        $cambio  = self::siguienteEstado(
+            $this->evento,
+            (string) $llamada->estado,
+            (int) $llamada->intentos,
+            (int) ($campana?->max_intentos ?? 1)
+        );
 
-        match ($this->evento) {
-            'ANSWER' => $llamada->update(['estado' => 'contestada']),
+        if ($cambio !== null) {
+            $llamada->update([
+                'estado'             => $cambio['estado'],
+                'proximo_intento_at' => $cambio['reintentar']
+                    ? now()->addMinutes((int) ($campana?->minutos_entre_intentos ?? 180))
+                    : null,
+            ]);
+        }
 
-            'BUSY', 'NOANSWER' => $this->handleReintento($llamada, $campana),
-
-            'FAILED' => $this->handleFallida($llamada, $campana, $suspendService),
-
-            'HANGUP' => $this->handleHangup($llamada),
-
-            'DTMF', 'TRANSFER' => null, // Asterisk maneja la transferencia
-
-            default => Log::info("ProcessCallResultJob: evento desconocido [{$this->evento}]", [
-                'uniqueid' => $this->uniqueid,
-            ]),
-        };
+        if (!in_array($this->evento, ['ANSWER', 'BUSY', 'NOANSWER', 'FAILED', 'HANGUP', 'DTMF'], true)) {
+            Log::info("ProcessCallResultJob: evento desconocido [{$this->evento}]", ['uniqueid' => $this->uniqueid]);
+        }
 
         CobranzaLlamadaEvento::create([
             'llamada_id'  => $llamada->id,
@@ -61,36 +73,32 @@ class ProcessCallResultJob implements ShouldQueue
         ]);
     }
 
-    private function handleReintento(CobranzaLlamada $llamada, CobranzaCampana $campana): void
+    /**
+     * El estado que sigue, o null si este evento no cambia nada. Pura: probada en tests/Unit.
+     *
+     * - Contestada gana: nada que llegue después la vuelve fallida.
+     * - Sin contestar, ocupado o falló: se reintenta mientras queden intentos; si no, queda
+     *   como no_contesto / ocupado / fallida.
+     * - Eso solo cuenta mientras la llamada está «marcando»: un evento repetido o tardío
+     *   no reabre una que ya terminó ni la que ya volvió a la fila.
+     * - El Hangup y el «1» solo quedan en la bitácora de la llamada.
+     *
+     * @return array{estado: string, reintentar: bool}|null
+     */
+    public static function siguienteEstado(string $evento, string $estadoActual, int $intentos, int $maxIntentos): ?array
     {
-        $puedeReintentar = $llamada->intentos < $campana->max_intentos;
-
-        $llamada->update([
-            'estado'             => $puedeReintentar ? 'pendiente' : 'fallida',
-            'proximo_intento_at' => $puedeReintentar
-                ? now()->addMinutes($campana->minutos_entre_intentos)
-                : null,
-        ]);
-    }
-
-    private function handleFallida(CobranzaLlamada $llamada, CobranzaCampana $campana, SuspendService $suspendService): void
-    {
-        $llamada->update(['estado' => 'fallida']);
-
-        if ($llamada->intentos >= $campana->max_intentos && $llamada->client) {
-            // Delegar suspensión al SuspendService existente con 24h de gracia
-            dispatch(function () use ($llamada, $suspendService) {
-                $suspendService->suspendServiceByClient($llamada->client);
-            })->delay(now()->addHours(24))->onQueue('cobranza');
-
-            Log::info("Cobranza: cliente #{$llamada->client_id} programado para suspensión en 24h tras {$llamada->intentos} intentos fallidos.");
+        if ($evento === 'ANSWER') {
+            return in_array($estadoActual, ['contestada', 'pagada', 'excluida'], true)
+                ? null
+                : ['estado' => 'contestada', 'reintentar' => false];
         }
-    }
 
-    private function handleHangup(CobranzaLlamada $llamada): void
-    {
-        if ($llamada->estado === 'marcando') {
-            $llamada->update(['estado' => 'no_contesto']);
+        if (!isset(self::FINAL[$evento]) || $estadoActual !== 'marcando') {
+            return null;
         }
+
+        return $intentos < $maxIntentos
+            ? ['estado' => 'pendiente', 'reintentar' => true]
+            : ['estado' => self::FINAL[$evento], 'reintentar' => false];
     }
 }

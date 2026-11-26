@@ -12,4 +12,8 @@ return [
     // el código; ahora cada instalación puede apuntar a su propia carpeta de
     // sonidos sin tocar código.
     'blaster_audio_base_path' => env('COBRANZA_AUDIO_BASE_PATH', '/var/lib/asterisk/sounds/cobranza/'),
+
+    // Canales simultáneos de una campaña que no fijó los suyos (25-nov). Antes salían
+    // hasta 50 llamadas a la vez y la troncal rechazaba las que no cabían.
+    'canales_por_defecto' => (int) env('COBRANZA_CANALES_POR_DEFECTO', 10),
 ];

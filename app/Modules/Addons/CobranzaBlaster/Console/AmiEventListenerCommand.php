@@ -16,7 +16,8 @@ use Illuminate\Support\Facades\Log;
  * Correlación 100% por Uniqueid, que nosotros fijamos vía ChannelId al originar
  * (ver AmiConnectionService::originate).
  *
- * Correr bajo supervisor:  php artisan cobranza:ami-listener
+ * Lo deja corriendo «Instalar dependencias» de VoIP: servicio systemd megaisp-campanas-ami
+ * (paso 55, 25-nov), que lo levanta cada hora para tomar el código de cada versión.
  */
 class AmiEventListenerCommand extends Command
 {
@@ -24,11 +25,6 @@ class AmiEventListenerCommand extends Command
         {--max-seconds=0 : Detenerse tras N segundos (0 = infinito; útil para debug)}';
 
     protected $description = 'Escucha eventos del AMI de Asterisk y actualiza el estado de las llamadas de cobranza';
-
-    /** Eventos AMI crudos que nos interesan. El resto se ignora. */
-    private const EVENTOS_RELEVANTES = [
-        'Newstate', 'Hangup', 'DTMFEnd', 'OriginateResponse',
-    ];
 
     public function handle(AmiConnectionService $ami): int
     {
@@ -45,7 +41,9 @@ class AmiEventListenerCommand extends Command
             pcntl_signal(SIGINT, function () use (&$debeParar) { $debeParar = true; });
         }
 
-        while (!$debeParar) {
+        $seAcabo = fn () => $maxSeconds > 0 && (time() - $inicio) >= $maxSeconds;
+
+        while (!$debeParar && !$seAcabo()) {
             if (!$ami->isConnected() && !$ami->connect()) {
                 Log::error('[cobranza:ami-listener] no se pudo conectar al AMI; reintento en 5s');
                 $this->error('AMI no disponible, reintentando en 5s…');
@@ -62,7 +60,7 @@ class AmiEventListenerCommand extends Command
                     $this->procesarEvento($evento);
                 }
 
-                if ($maxSeconds > 0 && (time() - $inicio) >= $maxSeconds) {
+                if ($seAcabo()) {
                     $debeParar = true;
                 }
             }
@@ -85,12 +83,6 @@ class AmiEventListenerCommand extends Command
      */
     private function procesarEvento(array $evento): void
     {
-        $tipo = $evento['Event'] ?? null;
-
-        if (!$tipo || !in_array($tipo, self::EVENTOS_RELEVANTES, true)) {
-            return;
-        }
-
         $uniqueid = $evento['Uniqueid'] ?? null;
 
         // Solo nos importan los canales que nosotros originamos (ChannelId 'cob-*').
@@ -98,7 +90,7 @@ class AmiEventListenerCommand extends Command
             return;
         }
 
-        $abstracto = $this->mapearEvento($tipo, $evento);
+        $abstracto = self::mapearEvento($evento);
 
         if ($abstracto === null) {
             return;
@@ -108,40 +100,39 @@ class AmiEventListenerCommand extends Command
     }
 
     /**
-     * Mapea (evento AMI, payload) → evento abstracto de ProcessCallResultJob,
-     * o null si no debe generar transición de estado.
+     * Evento AMI → evento abstracto de ProcessCallResultJob, o null si no interesa.
+     *
+     * El desenlace de una llamada que no se contestó lo da OriginateResponse, que Asterisk
+     * manda siempre al terminar un Originate asíncrono, con su Reason (25-nov). Antes se
+     * leía también la causa del Hangup y las dos cosas se pisaban: ocupado y rechazada
+     * terminaban como «fallida» sin reintento, y «sin contestar» dependía de cuál llegaba
+     * primero. El Hangup ahora solo queda en la bitácora de la llamada.
+     *
+     * Reason (Asterisk): 0 no se pudo crear el canal, 1 colgaron antes de contestar,
+     * 3 timbró y nadie contestó, 4 contestó, 5 ocupado, 8 congestión.
      */
-    private function mapearEvento(string $tipo, array $evento): ?string
+    public static function mapearEvento(array $evento): ?string
     {
-        return match ($tipo) {
+        return match ($evento['Event'] ?? null) {
             // Canal contestado: ChannelStateDesc = 'Up'.
             'Newstate' => ($evento['ChannelStateDesc'] ?? '') === 'Up' ? 'ANSWER' : null,
 
             // El cliente marcó un dígito; "1" = quiere hablar con asesor.
             'DTMFEnd' => ($evento['Digit'] ?? '') === '1' ? 'DTMF' : null,
 
-            // Originate asíncrono que falló de entrada (sin canal).
-            'OriginateResponse' => ($evento['Response'] ?? '') === 'Failure' ? 'FAILED' : null,
+            // Success = contestó (Reason 4). Es la segunda señal de «contestada», además del
+            // Newstate Up: si una se pierde (el listener reiniciándose), basta la otra.
+            'OriginateResponse' => ($evento['Response'] ?? '') === 'Success'
+                ? 'ANSWER'
+                : match ((int) ($evento['Reason'] ?? 0)) {
+                    5       => 'BUSY',
+                    1, 3    => 'NOANSWER',
+                    default => 'FAILED',
+                },
 
-            // Fin de llamada: el código de causa Q.850 define el desenlace.
-            'Hangup' => $this->mapearHangup((int) ($evento['Cause'] ?? 0)),
+            'Hangup' => 'HANGUP',
 
             default => null,
-        };
-    }
-
-    /**
-     * Códigos de causa Q.850 (campo Cause del evento Hangup).
-     *  16 = Normal Clearing  17 = User Busy  18/19 = No answer  21 = Rejected
-     *  Resto = fallo de red/troncal.
-     */
-    private function mapearHangup(int $cause): string
-    {
-        return match ($cause) {
-            17       => 'BUSY',
-            18, 19   => 'NOANSWER',
-            16       => 'HANGUP',
-            default  => 'FAILED',
         };
     }
 }

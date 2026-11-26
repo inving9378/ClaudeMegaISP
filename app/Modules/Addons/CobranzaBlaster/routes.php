@@ -46,6 +46,13 @@ Route::middleware(['web', 'auth'])->prefix('cobranza')->group(function () {
     Route::post('/campanas/{id}/pausar',  [CampanaController::class, 'pausar'])
         ->name('cobranza.campanas.pausar');
 
+    // A cuántos clientes llamaría antes de activar, y reanudar una pausada (25-nov)
+    Route::get('/campanas/{id}/alcance',  [CampanaController::class, 'alcance'])
+        ->name('cobranza.campanas.alcance');
+
+    Route::post('/campanas/{id}/reanudar', [CampanaController::class, 'reanudar'])
+        ->name('cobranza.campanas.reanudar');
+
     Route::delete('/campanas/{id}',       [CampanaController::class, 'destroy'])
         ->name('cobranza.campanas.destroy');
 

@@ -43,7 +43,12 @@ class AmiConnectionService
         }
     }
 
-    public function connect(): bool
+    /**
+     * @param bool $eventos false = sesión solo para mandar acciones (el blaster): Asterisk
+     *                      no le manda eventos y nada se cuela entre acción y respuesta.
+     *                      El listener sí los quiere.
+     */
+    public function connect(bool $eventos = true): bool
     {
         $this->socket = @fsockopen($this->host, $this->port, $errno, $errstr, 5);
 
@@ -57,10 +62,13 @@ class AmiConnectionService
         // Leer banner de Asterisk
         fgets($this->socket, 1024);
 
-        $loginAction = "Action: Login\r\nUsername: {$this->username}\r\nSecret: {$this->secret}\r\n\r\n";
+        $loginId = 'login-' . getmypid() . '-' . time();
+        $loginAction = "Action: Login\r\nUsername: {$this->username}\r\nSecret: {$this->secret}\r\n"
+            . ($eventos ? '' : "Events: off\r\n")
+            . "ActionID: {$loginId}\r\n\r\n";
         fwrite($this->socket, $loginAction);
 
-        $response = $this->readResponse();
+        $response = $this->readResponse($loginId);
 
         if (!str_contains($response, 'Response: Success')) {
             Log::error('AMI login failed', ['response' => $response]);
@@ -73,11 +81,13 @@ class AmiConnectionService
 
     public function disconnect(): void
     {
-        if ($this->socket) {
+        // is_resource: un socket ya cerrado sigue siendo «verdadero» y fwrite sobre él
+        // lanza TypeError (no lo calla la @).
+        if (is_resource($this->socket)) {
             @fwrite($this->socket, "Action: Logoff\r\n\r\n");
             @fclose($this->socket);
-            $this->socket = false;
         }
+        $this->socket = false;
     }
 
     public function isConnected(): bool
@@ -85,14 +95,15 @@ class AmiConnectionService
         return is_resource($this->socket) && !feof($this->socket);
     }
 
-    public function originate(string $telefono, string $audioPath, int $llamadaId, string $clienteNombre): array
+    public function originate(string $telefono, string $audioPath, int $llamadaId, string $clienteNombre, ?string $channelId = null): array
     {
         $actionId = 'blaster-' . $llamadaId . '-' . time();
         // ChannelId fija el Uniqueid del canal originado (Asterisk >= 12). Así
         // conocemos el uniqueid ANTES de marcar y podemos correlacionar cada
         // evento (Newstate/Hangup/DTMF) con la fila de cobranza_llamadas sin
         // depender del timing del evento OriginateResponse (que es asíncrono).
-        $channelId = 'cob-' . $llamadaId . '-' . time();
+        // El blaster lo pasa ya guardado en la fila (25-nov).
+        $channelId ??= 'cob-' . $llamadaId . '-' . time();
         // C5: troncal unificada a PJSIP Realtime (identidad configurable, ver
         // config/voip.php), provisionada por VoiceGateway::configureTrunk. Antes:
         // SIP/servnet-trunk (chan_sip). Item #9990714: el endpoint id ya no viaja
@@ -186,27 +197,59 @@ class AmiConnectionService
         }
 
         fwrite($this->socket, $action);
-        return $this->readResponse();
+
+        return $this->readResponse(preg_match('/^ActionID:\s*(\S+)/mi', $action, $m) ? $m[1] : null);
     }
 
-    private function readResponse(): string
+    /**
+     * La respuesta a la acción que se mandó, no lo primero que llegue (25-nov). Antes se
+     * leía un solo bloque: tras el login llega el evento FullyBooted y, en una sesión con
+     * eventos, Newchannel y compañía, así que cada Originate leía lo de la acción anterior.
+     * La mitad de las llamadas quedaban como fallidas mientras timbraban y se volvían a
+     * marcar. Ahora se saltan los eventos y se espera la respuesta con el mismo ActionID.
+     */
+    private function readResponse(?string $actionId = null, float $segundos = 5.0): string
     {
-        $response = '';
-        $timeout  = microtime(true) + 3;
+        $limite = microtime(true) + $segundos;
 
-        while (microtime(true) < $timeout) {
-            $line = fgets($this->socket, 4096);
-            if ($line === false) {
+        while (microtime(true) < $limite) {
+            $bloque = $this->leerBloque($limite);
+            if ($bloque === null) {
                 break;
             }
-            $response .= $line;
-            // Respuesta AMI termina con línea en blanco
-            if ($line === "\r\n" || $line === "\n") {
-                break;
+            if (!preg_match('/^Response:/mi', $bloque)) {
+                continue;   // un evento, no la respuesta
+            }
+            if ($actionId === null
+                || preg_match('/^ActionID:\s*' . preg_quote($actionId, '/') . '\s*$/mi', $bloque)) {
+                return $bloque;
             }
         }
 
-        return $response;
+        return '';
+    }
+
+    /** Un bloque AMI (líneas hasta la línea en blanco); null si el socket se cerró o no llegó nada. */
+    private function leerBloque(float $limite): ?string
+    {
+        $bloque = '';
+
+        while (microtime(true) < $limite) {
+            $linea = fgets($this->socket, 8192);
+            if ($linea === false) {
+                return $bloque === '' ? null : $bloque;
+            }
+            if ($linea === "\r\n" || $linea === "\n") {
+                if ($bloque === '') {
+                    continue;
+                }
+
+                return $bloque;
+            }
+            $bloque .= $linea;
+        }
+
+        return $bloque === '' ? null : $bloque;
     }
 
     private function parseResponse(string $raw): array

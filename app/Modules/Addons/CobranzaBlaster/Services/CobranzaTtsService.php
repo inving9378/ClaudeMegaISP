@@ -63,11 +63,16 @@ class CobranzaTtsService
     /** Audio de una llamada (uno por llamada: el texto lleva los datos del cliente). */
     public function generateAudio(int $llamadaId, string $texto, array $voz = []): string
     {
-        $cacheKey   = "blaster_{$llamadaId}";
+        // El nombre lleva el texto: si entre intentos cambia el saldo, se genera de nuevo
+        // (antes se reusaba el primer audio con el saldo viejo).
+        $cacheKey   = "blaster_{$llamadaId}_" . substr(md5($texto . '|' . json_encode($voz)), 0, 10);
         $outputPath = $this->audioBasePath . $cacheKey . '.wav';
 
         if (file_exists($outputPath)) {
             return $outputPath;
+        }
+        foreach (glob($this->audioBasePath . "blaster_{$llamadaId}_*.wav") ?: [] as $anterior) {
+            @unlink($anterior);
         }
 
         $mp3Path = sys_get_temp_dir() . "/{$cacheKey}.mp3";
@@ -263,8 +268,42 @@ class CobranzaTtsService
 
     private function convertToWav(string $mp3, string $wav): void
     {
-        // Asterisk requiere WAV 8kHz mono 16-bit (ulaw compatible)
-        @mkdir(dirname($wav), 0755, true);
-        exec('ffmpeg -y -i ' . escapeshellarg($mp3) . ' -ar 8000 -ac 1 -acodec pcm_s16le ' . escapeshellarg($wav) . ' 2>/dev/null');
+        // Asterisk requiere WAV 8kHz mono 16-bit (ulaw compatible). La carpeta la crea
+        // «Instalar dependencias» (grupo asterisk, con escritura para la app); si no está
+        // o no se puede escribir, se dice en el log en vez de fallar callado (25-nov).
+        $dir = dirname($wav);
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true)) {
+            Log::error("CobranzaTtsService: no existe la carpeta de audios {$dir} y no se pudo crear; corre «Instalar dependencias» de VoIP.");
+            return;
+        }
+        if (!is_writable($dir)) {
+            Log::error("CobranzaTtsService: no se puede escribir en la carpeta de audios {$dir}; corre «Instalar dependencias» de VoIP.");
+            return;
+        }
+
+        exec('ffmpeg -y -i ' . escapeshellarg($mp3) . ' -ar 8000 -ac 1 -acodec pcm_s16le ' . escapeshellarg($wav) . ' 2>&1', $salida, $codigo);
+        if ($codigo !== 0) {
+            @unlink($wav);
+            Log::error('CobranzaTtsService: ffmpeg no pudo convertir la voz a WAV (código ' . $codigo . ')', [
+                'salida' => implode("\n", array_slice($salida, -5)),
+            ]);
+            return;
+        }
+        // Asterisk lo lee por el grupo de la carpeta.
+        @chmod($wav, 0644);
+    }
+
+    /**
+     * Borra los audios de llamadas de más de $dias días (25-nov): sale uno por llamada y
+     * sin esto llenaban el disco. Si una llamada vieja se reintenta, se genera de nuevo.
+     */
+    public function limpiarAudiosViejos(int $dias = 3): void
+    {
+        $limite = time() - $dias * 86400;
+        foreach (glob($this->audioBasePath . 'blaster_*.wav') ?: [] as $archivo) {
+            if (@filemtime($archivo) < $limite) {
+                @unlink($archivo);
+            }
+        }
     }
 }

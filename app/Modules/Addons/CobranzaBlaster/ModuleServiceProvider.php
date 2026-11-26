@@ -28,7 +28,9 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
     {
         parent::boot();
 
-        if ($this->app->runningInConsole()) {
+        // Solo con el módulo activo (25-nov): «Instalar dependencias» pregunta por
+        // cobranza:ami-listener para saber si preparar Campañas/Blaster en el servidor.
+        if ($this->app->runningInConsole() && $this->moduleIsActive()) {
             $this->commands([
                 AmiEventListenerCommand::class,
                 LlamadaPruebaCommand::class,

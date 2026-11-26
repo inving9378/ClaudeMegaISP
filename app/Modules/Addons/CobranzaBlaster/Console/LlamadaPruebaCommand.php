@@ -94,7 +94,7 @@ class LlamadaPruebaCommand extends Command
             return self::FAILURE;
         }
 
-        if (!$ami->connect()) {
+        if (!$ami->connect(false)) {
             $this->error('No se pudo conectar al AMI de Asterisk (AMI_HOST/AMI_PORT/AMI_USERNAME/AMI_SECRET en .env).');
             return self::FAILURE;
         }
@@ -127,8 +127,7 @@ class LlamadaPruebaCommand extends Command
 
         $this->info('Originate aceptado por Asterisk. Debe timbrar en unos segundos.');
         $this->line("cobranza_llamadas.id = {$llamada->id} (uniqueid={$result['uniqueid']})");
-        $this->line('Verifica en paralelo: tail -f storage/logs/laravel.log  y  el estado de "cobranza:ami-listener" (supervisor).');
-        $this->line('El estado de esta llamada se actualizará solo si el daemon cobranza:ami-listener está corriendo.');
+        $this->line('El estado de esta llamada lo pone el servicio megaisp-campanas-ami (cobranza:ami-listener), que deja «Instalar dependencias» de VoIP.');
 
         return self::SUCCESS;
     }

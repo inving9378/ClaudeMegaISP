@@ -17,6 +17,8 @@
 #      marcado con salida a la calle)
 #   50 servicio del asistente de voz «María» (megaisp-bot-voz); va DESPUÉS de
 #      sincronizar para que la telefonía nunca dependa de ella
+#   55 Campañas/Blaster: carpeta de audios, ffmpeg y el servicio que pone el
+#      estado a las llamadas (megaisp-campanas-ami); solo si el módulo está activo
 #   revisión final (troncales registradas, salida, teléfonos de fuera, María)
 #
 # Si fallan la sincronización o María, la instalación sigue hasta el final (lo
@@ -66,6 +68,8 @@ source "${SCRIPT_DIR}/lib/30-acceso-web.sh"
 source "${SCRIPT_DIR}/lib/40-proxy-ws.sh"
 # shellcheck source=lib/50-bot-voz.sh
 source "${SCRIPT_DIR}/lib/50-bot-voz.sh"
+# shellcheck source=lib/55-campanas.sh
+source "${SCRIPT_DIR}/lib/55-campanas.sh"
 # shellcheck source=lib/60-sincronizar.sh
 source "${SCRIPT_DIR}/lib/60-sincronizar.sh"
 
@@ -171,9 +175,11 @@ summary() {
         && printf '  %s\n' "Teléfonos de fuera (Zoiper, celulares): servidor ${bind}, con el transporte «transport-externo» en su extensión."
     (( MARIA_APAGADA == 1 )) \
         && printf '  %s\n' "María está lista pero apagada: contesta cuando se encienda en VoIP → Asistente IA."
+    (( CAMPANAS_FALLA == 0 )) && [[ -f "$(_campanas_unit_path)" ]] \
+        && printf '  %s\n' "Campañas/Blaster: audios en $(_campanas_audio_dir) y servicio ${CAMPANAS_SERVICIO} (arranca en boot)."
 
     # Pendiente = solo lo que la revisión final encontró mal, no una lista fija.
-    if (( ${#VERIF_PENDIENTES[@]} == 0 && SINCRONIZAR_FALLAS == 0 && BOT_VOZ_FALLA == 0 )); then
+    if (( ${#VERIF_PENDIENTES[@]} == 0 && SINCRONIZAR_FALLAS == 0 && BOT_VOZ_FALLA == 0 && CAMPANAS_FALLA == 0 )); then
         printf '\n'
         log_ok "Nada pendiente: la central quedó configurada."
     elif (( ${#VERIF_PENDIENTES[@]} > 0 )); then
@@ -193,13 +199,18 @@ main() {
     finalize                  # cierre — config + verificación
     provision_sincronizar     # 60 — MegaISP ↔ Asterisk (extensiones, troncales, colas, plan)
     provision_bot_voz         # 50 — servicio del asistente de voz (María); si falla, sigue
+    provision_campanas        # 55 — Campañas/Blaster: audios, ffmpeg, servicio de estados; si falla, sigue
     verificar_telefonia       # revisión final (solo avisa)
     summary
     local -a fallas=()
     (( SINCRONIZAR_FALLAS == 0 )) || fallas+=("la sincronización (paso 60)")
     (( BOT_VOZ_FALLA == 0 ))      || fallas+=("el servicio de María (paso 50)")
+    (( CAMPANAS_FALLA == 0 ))     || fallas+=("Campañas/Blaster (paso 55)")
     if (( ${#fallas[@]} > 0 )); then
-        local que="${fallas[0]}"; (( ${#fallas[@]} > 1 )) && que="${fallas[0]} y ${fallas[1]}"
+        local que="${fallas[0]}" i
+        for (( i = 1; i < ${#fallas[@]}; i++ )); do
+            if (( i == ${#fallas[@]} - 1 )); then que+=" y ${fallas[i]}"; else que+=", ${fallas[i]}"; fi
+        done
         die "La central quedó instalada y lo demás configurado, pero falló ${que}: el motivo está arriba. Corrígelo y vuelve a instalar."
     fi
     log_ok "Listo."

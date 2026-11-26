@@ -10,6 +10,9 @@
         <cobranza-campanas
             csrf-token="{{ csrf_token() }}"
             base-url="{{ url('/cobranza') }}"
+            dashboard-url="{{ url('/cobranza/dashboard') }}"
+            :puede-gestionar="{{ $puedeGestionar ? 'true' : 'false' }}"
+            :puede-cortar="{{ $puedeCortar ? 'true' : 'false' }}"
         ></cobranza-campanas>
     </div>
 @endsection

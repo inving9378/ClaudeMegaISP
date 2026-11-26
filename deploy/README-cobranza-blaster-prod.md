@@ -1,3 +1,8 @@
+> **Actualización 2026-11-25:** los pasos a mano de esta guía ya no se hacen. «Instalar
+> dependencias» de VoIP (paso 55) deja la carpeta de audios, ffmpeg y el listener como
+> servicio `megaisp-campanas-ami`; el plan de marcado lo genera la app. Se conserva como
+> historia del item #67.
+
 # Desplegar y validar CobranzaBlaster en producción — guía operativa
 
 > Item roadmap **#67**. El código del blaster (listener AMI, correlación por ChannelId,
