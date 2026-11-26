@@ -34,7 +34,7 @@ class PurgarGrabacionesCommand extends Command
 
     protected $description = 'Retención de grabaciones de llamadas de la cola MegaVoz — borra por antigüedad, conserva la fila de voip_llamadas';
 
-    private const DIRS_PROHIBIDOS = ['/', '', '/root', '/home', '/var', '/etc', '/usr', '/bin', '/tmp'];
+    public const DIRS_PROHIBIDOS = ['/', '', '/root', '/home', '/var', '/etc', '/usr', '/bin', '/tmp'];
 
     public function handle(): int
     {
@@ -56,7 +56,9 @@ class PurgarGrabacionesCommand extends Command
         $apply = (bool) $this->option('force');
 
         $candidatos = [];
-        foreach (glob($dir . '/*.wav') as $archivo) {
+        // .wav recién grabadas y .mp3 ya comprimidas (megavoz:comprimir-grabaciones les deja la
+        // fecha de la llamada, así que los 90 días cuentan igual).
+        foreach (array_merge(glob($dir . '/*.wav') ?: [], glob($dir . '/*.mp3') ?: []) as $archivo) {
             $mtime = filemtime($archivo);
             if ($mtime !== false && $mtime < $corte) {
                 $candidatos[] = ['archivo' => $archivo, 'mtime' => $mtime, 'size' => filesize($archivo) ?: 0];

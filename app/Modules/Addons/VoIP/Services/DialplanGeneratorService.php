@@ -205,9 +205,9 @@ class DialplanGeneratorService
      * Asterisk, sin colisiones) y se guarda también como `CDR(grabacion)`
      * para que quede ligado a la fila de `voip_llamadas` sin necesidad de
      * derivarlo después. Formato WAV porque el servidor no trae compilado
-     * `format_mp3` — la conversión a MP3, si se quiere, es un paso aparte
-     * sobre el archivo ya cerrado (ffmpeg, ya presente para Marketing), no
-     * parte de este dialplan.
+     * `format_mp3`: la conversión a MP3 es un paso aparte sobre el archivo ya
+     * cerrado (`megavoz:comprimir-grabaciones`, cada 5 min), no parte de este
+     * dialplan.
      *
      * MegaVoz Fase 6 (conectar el motor real) — `AudioSocket()` se emite
      * SOLO si `ia_bot_config.enabled` está en true AL GENERAR este archivo

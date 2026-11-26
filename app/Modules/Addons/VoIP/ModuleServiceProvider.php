@@ -34,6 +34,7 @@ class ModuleServiceProvider extends BaseModuleServiceProvider
                 ReconciliarEstadosCommand::class,
                 \App\Modules\Addons\VoIP\Console\ProvisionarAsteriskCommand::class,
                 PurgarGrabacionesCommand::class,
+                \App\Modules\Addons\VoIP\Console\ComprimirGrabacionesCommand::class,
                 ImportarQueueLogCommand::class,
                 BotVozProbarCommand::class,
                 BotVozEscucharCommand::class,

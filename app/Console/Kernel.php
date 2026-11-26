@@ -100,8 +100,11 @@ class Kernel extends ConsoleKernel
         $schedule->command('pppoe:aprender-mac --mikrotik')->everyTenMinutes()->withoutOverlapping();
 
         // MegaVoz Fase 3 — retención de grabaciones de la cola (config voip.grabaciones.retencion_dias).
-        // Borra el .wav por antigüedad, conserva la fila de voip_llamadas (solo limpia la referencia).
+        // Borra el .wav o .mp3 por antigüedad, conserva la fila de voip_llamadas (solo limpia la referencia).
         $schedule->command('megavoz:purgar-grabaciones --force')->dailyAt('03:00')->withoutOverlapping();
+        // Pasa a MP3 las grabaciones de llamadas ya terminadas (75% menos, se oye igual). El WAV se
+        // quita solo cuando el MP3 quedó bien. En segundo plano para no atrasar las demás tareas.
+        $schedule->command('megavoz:comprimir-grabaciones --force')->everyFiveMinutes()->withoutOverlapping(30)->runInBackground();
 
         // MegaVoz Fase 5 — importa queue_log a voip_queue_log para el tablero de KPIs.
         $schedule->command('megavoz:importar-queue-log')->everyFiveMinutes()->withoutOverlapping();

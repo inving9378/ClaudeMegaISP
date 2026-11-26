@@ -135,11 +135,14 @@ class DashboardLlamadasController extends Controller
             abort(404, 'La grabación no está disponible en el servidor.');
         }
 
-        $nombre = 'llamada-' . Carbon::parse($llamada->start)->format('Ymd-His') . '.wav';
+        // Las nuevas quedan en MP3 (megavoz:comprimir-grabaciones); las que aún no se convierten, en WAV.
+        $ext    = strtolower(pathinfo($real, PATHINFO_EXTENSION)) === 'mp3' ? 'mp3' : 'wav';
+        $tipo   = $ext === 'mp3' ? 'audio/mpeg' : 'audio/wav';
+        $nombre = 'llamada-' . Carbon::parse($llamada->start)->format('Ymd-His') . '.' . $ext;
 
         return $request->boolean('descargar')
-            ? response()->download($real, $nombre, ['Content-Type' => 'audio/wav'])
-            : response()->file($real, ['Content-Type' => 'audio/wav']);
+            ? response()->download($real, $nombre, ['Content-Type' => $tipo])
+            : response()->file($real, ['Content-Type' => $tipo]);
     }
 
     /** @return array{0: Carbon, 1: Carbon} rango pedido; por omisión los últimos 7 días, máximo MAX_DIAS */
