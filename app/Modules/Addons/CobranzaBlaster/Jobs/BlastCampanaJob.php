@@ -125,9 +125,9 @@ class BlastCampanaJob implements ShouldQueue
         }
 
         // Lo que se lee es la nota de la campaña, con su voz, velocidad y tono (pedido de
-        // Irving, 24-nov). En cobranza la nota lleva {nombre}, {saldo}, {fecha} y
-        // {numero_cliente} y sale un audio por llamada; en aviso/anuncio/corte el texto es
-        // el mismo para todos y se genera una sola vez. Las campañas de antes (sin voz
+        // Irving, 24-nov). Con «solo los que deben» (27-nov; antes era el tipo cobranza) la
+        // nota lleva {nombre}, {saldo}, {fecha} y {numero_cliente} y sale un audio por llamada;
+        // sin eso el texto es el mismo para todos y se genera una sola vez. Las campañas de antes (sin voz
         // elegida) siguen con su mensaje de siempre: la plantilla o audio_mensaje.
         $voz  = $campana->opcionesVoz();
         $nota = $campana->hablaLaNota() ? $campana->notas : null;
@@ -135,7 +135,7 @@ class BlastCampanaJob implements ShouldQueue
         // Sin voz no se marca (25-nov): antes la llamada salía igual y el cliente
         // contestaba a una llamada muda.
         $audioComun = null;
-        if ($campana->tipo !== 'cobranza') {
+        if (! $campana->solo_deudores) {
             $audioComun = $tts->generateAudioCached('campana_' . $campana->id, (string) ($nota ?? $campana->audio_mensaje), $voz);
             if ($audioComun === '') {
                 Log::error("BlastCampanaJob: no se pudo generar la voz de la campaña #{$campana->id}; no se marca a nadie hasta que se pueda.");
@@ -166,7 +166,7 @@ class BlastCampanaJob implements ShouldQueue
                 continue;
             }
 
-            if ($campana->tipo === 'cobranza') {
+            if ($campana->solo_deudores) {
                 // El que ya pagó no recibe la llamada (25-nov: antes nada marcaba «pagada»
                 // y se le seguía llamando). El saldo que se dice es el de hoy.
                 $adeudo = CobranzaCampanaService::adeudoVencido((int) $llamada->client_id, (int) $campana->dias_vencimiento);

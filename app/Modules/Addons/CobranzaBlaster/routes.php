@@ -40,16 +40,17 @@ Route::middleware(['web', 'auth'])->prefix('cobranza')->group(function () {
         ->middleware('throttle:20,1')
         ->name('cobranza.campanas.escuchar');
 
+    // A quién se le llama: estados, zona, caja y la lista para revisarla antes de llamar (27-nov)
+    Route::get('/campanas/audiencia',   [CampanaController::class, 'audiencia'])
+        ->name('cobranza.campanas.audiencia');
+
     Route::post('/campanas/{id}/activar', [CampanaController::class, 'activar'])
         ->name('cobranza.campanas.activar');
 
     Route::post('/campanas/{id}/pausar',  [CampanaController::class, 'pausar'])
         ->name('cobranza.campanas.pausar');
 
-    // A cuántos clientes llamaría antes de activar, y reanudar una pausada (25-nov)
-    Route::get('/campanas/{id}/alcance',  [CampanaController::class, 'alcance'])
-        ->name('cobranza.campanas.alcance');
-
+    // Reanudar una pausada (25-nov)
     Route::post('/campanas/{id}/reanudar', [CampanaController::class, 'reanudar'])
         ->name('cobranza.campanas.reanudar');
 
@@ -58,18 +59,6 @@ Route::middleware(['web', 'auth'])->prefix('cobranza')->group(function () {
 
     Route::get('/campanas/{id}/llamadas', [CampanaController::class, 'llamadas'])
         ->name('cobranza.campanas.llamadas');
-
-    // MegaVoz Fase 7 — activar campaña aviso/anuncio/corte por zona geográfica
-    Route::post('/campanas/{id}/activar-por-zona', [CampanaController::class, 'activarPorZona'])
-        ->name('cobranza.campanas.activar-por-zona');
-
-    // MegaVoz Fase 7 — lookups del selector distrito/zona/caja
-    Route::get('/zonas/distritos',                [CampanaController::class, 'distritos'])
-        ->name('cobranza.zonas.distritos');
-    Route::get('/zonas/distritos/{districtId}/zonas', [CampanaController::class, 'zonasPorDistrito'])
-        ->name('cobranza.zonas.por-distrito');
-    Route::get('/zonas/zonas/{zoneId}/cajas',      [CampanaController::class, 'cajasPorZona'])
-        ->name('cobranza.zonas.cajas-por-zona');
 
     // ── Configuración VoIP ────────────────────────────────────────────────────
     Route::get('/voip',                [VoipConfiguracionController::class, 'index'])

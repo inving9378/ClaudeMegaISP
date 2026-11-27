@@ -5,6 +5,7 @@ namespace App\Modules\Addons\CobranzaBlaster\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Addons\CobranzaBlaster\Models\CobranzaCampana;
 use App\Modules\Addons\CobranzaBlaster\Models\CobranzaLlamada;
+use App\Modules\Addons\CobranzaBlaster\Services\AudienciaCampana;
 use App\Modules\Addons\CobranzaBlaster\Services\CobranzaCampanaService;
 use App\Modules\Addons\CobranzaBlaster\Services\CobranzaTtsService;
 use Illuminate\Http\JsonResponse;
@@ -89,13 +90,26 @@ class CampanaController extends Controller
                 ->mapWithKeys(fn ($e) => [$e => (int) ($porEstado[$e] ?? 0)])->all(),
         ];
 
+        // La audiencia viaja sin la lista de quitados (pueden ser miles de ids cada 20 s): solo cuántos.
+        $leer = function ($c) {
+            $a = $c->audiencia !== null ? json_decode($c->audiencia, true) : null;
+            if (is_array($a)) {
+                $a['quitados_n'] = count($a['quitados'] ?? []);
+                unset($a['quitados']);
+            }
+            $c->audiencia = $a;
+            $c->solo_deudores = (bool) $c->solo_deudores;
+
+            return $c;
+        };
+
         if ($request->boolean('todo')) {
-            return response()->json(['data' => $consulta->limit(5000)->get()] + $extra);
+            return response()->json(['data' => $consulta->limit(5000)->get()->map($leer)] + $extra);
         }
 
         $porPagina = in_array((int) $request->get('por_pagina'), [10, 25, 50, 100], true) ? (int) $request->get('por_pagina') : 25;
 
-        return response()->json(array_merge($consulta->paginate($porPagina)->toArray(), $extra));
+        return response()->json(array_merge($consulta->paginate($porPagina)->through($leer)->toArray(), $extra));
     }
 
     /**
@@ -143,15 +157,22 @@ class CampanaController extends Controller
             'hora_fin'                => 'nullable|date_format:H:i',
             'max_intentos'            => 'nullable|integer|min:1|max:10',
             'minutos_entre_intentos'  => 'nullable|integer|min:30',
-            'dias_vencimiento'        => 'nullable|integer|min:0',
+            'dias_vencimiento'        => 'nullable|integer|min:0|max:3650',
             'audio_mensaje'           => 'nullable|string|max:2000',
             'notas'                   => 'nullable|string|max:2000',
-        ] + $this->reglasVoz());
+            'solo_deudores'           => 'nullable|boolean',
+        ] + $this->reglasVoz() + $this->reglasAudiencia(), $this->mensajesAudiencia());
 
-        // La nota es el mensaje que escucha el cliente (24-nov). En cobranza, vacía = el
-        // mensaje de siempre; en aviso/anuncio/corte no hay nada que leer sin ella.
-        if (($data['tipo'] ?? 'cobranza') !== 'cobranza' && trim((string) ($data['notas'] ?? '')) === '') {
+        $data['solo_deudores'] = (bool) ($data['solo_deudores'] ?? false);
+        $data['audiencia'] = $this->audienciaDe($request);
+
+        // La nota es el mensaje que escucha el cliente (24-nov). Con «solo los que deben»,
+        // vacía = el mensaje de cobranza de siempre (con su saldo); sin eso no hay nada que leer.
+        if (! $data['solo_deudores'] && trim((string) ($data['notas'] ?? '')) === '') {
             throw ValidationException::withMessages(['notas' => 'Escribe la nota: es el mensaje que escucha el cliente.']);
+        }
+        if (! $data['solo_deudores'] && CobranzaTtsService::tieneVariables($data['notas'] ?? '')) {
+            throw ValidationException::withMessages(['notas' => self::SIN_VARIABLES]);
         }
 
         // Un campo numérico o de hora que se dejó vacío toma el valor de siempre de la
@@ -193,13 +214,13 @@ class CampanaController extends Controller
         }
 
         $data = $request->validate([
-            'notas'     => 'required|string|max:2000',
-            'tipo'      => 'nullable|in:cobranza,aviso,anuncio,corte',
-            'fecha_fin' => 'nullable|date',
+            'notas'         => 'required|string|max:2000',
+            'solo_deudores' => 'nullable|boolean',
+            'fecha_fin'     => 'nullable|date',
         ] + $this->reglasVoz());
 
         $fecha = ! empty($data['fecha_fin']) ? date('d/m/Y', strtotime($data['fecha_fin'])) : 'la brevedad posible';
-        $texto = $tts->textoDeEjemplo($data['notas'], $data['tipo'] ?? 'cobranza', $fecha);
+        $texto = $tts->textoDeEjemplo($data['notas'], (bool) ($data['solo_deudores'] ?? false), $fecha);
 
         $r = $tts->muestra($texto, [
             'voz'       => $data['voz'] ?? null,
@@ -217,6 +238,35 @@ class CampanaController extends Controller
         ]);
     }
 
+    /** Estados, zona y caja de «A quién se le llama». La zona y la caja son claves D1Z54 / D1Z54C7. */
+    private function reglasAudiencia(): array
+    {
+        return [
+            'audiencia'           => 'nullable|array',
+            'audiencia.estados'   => 'required_with:audiencia|array|min:1',
+            'audiencia.estados.*' => ['string', Rule::in(array_keys(AudienciaCampana::ESTADOS))],
+            'audiencia.zona'      => ['nullable', 'string', 'regex:/^D\d+[ZW]\d+$/i'],
+            'audiencia.caja'      => ['nullable', 'string', 'regex:/^D\d+[ZW]\d+C\d+$/i'],
+        ];
+    }
+
+    /** En español y con el nombre que ve la persona (si no, diría «audiencia.estados»). */
+    private function mensajesAudiencia(): array
+    {
+        return [
+            'audiencia.estados.required_with' => 'Marca al menos un estado del cliente.',
+            'audiencia.estados.min'           => 'Marca al menos un estado del cliente.',
+            'audiencia.estados.*.in'          => 'Los estados son Activo, Bloqueado o Inactivo.',
+            'audiencia.zona.regex'            => 'La zona no es válida (se espera algo como D1Z54).',
+            'audiencia.caja.regex'            => 'La caja no es válida (se espera algo como D1Z54C7).',
+        ];
+    }
+
+    private function audienciaDe(Request $request): array
+    {
+        return AudienciaCampana::normalizar($request->input('audiencia'));
+    }
+
     private function reglasVoz(): array
     {
         return [
@@ -227,24 +277,14 @@ class CampanaController extends Controller
     }
 
     /**
-     * MegaVoz Fase 7 — "botón de corte por distrito/zona/caja". Activa una
-     * campaña tipo aviso/anuncio/corte cargando clientes por geografía
-     * (nomenclatura DxZyCz) en vez de por morosidad. `corte` exige el
-     * permiso dedicado del plan (cobranza.corte.lanzar); aviso/anuncio
-     * comparten el permiso general de gestión (mismo criterio que el resto
-     * de acciones sobre campañas).
+     * Activa con la lista revisada (27-nov): los filtros de «A quién se le llama» y los clientes
+     * que se dejaron marcados. Solo se llama a los marcados que siguen entrando con esos filtros.
      */
-    public function activarPorZona(int $id, Request $request): JsonResponse
+    public function activar(int $id, Request $request): JsonResponse
     {
         $campana = CobranzaCampana::findOrFail($id);
-
-        $permisoRequerido = $campana->tipo === 'corte' ? 'cobranza.corte.lanzar' : 'cobranza.manage';
-        if (! auth()->user()->can($permisoRequerido)) {
+        if (! auth()->user()->can($this->permisoPara($campana))) {
             return response()->json(['error' => $this->sinPermiso($campana)], 403);
-        }
-
-        if (! in_array($campana->tipo, ['aviso', 'anuncio', 'corte'])) {
-            return response()->json(['error' => 'Esta acción es solo para campañas tipo aviso/anuncio/corte.'], 422);
         }
 
         if (! in_array($campana->estado, ['borrador', 'pausada'])) {
@@ -252,34 +292,34 @@ class CampanaController extends Controller
         }
 
         $data = $request->validate([
-            'district_id' => 'required|integer|exists:districts,id',
-            'zone_id'     => 'nullable|integer|exists:zones,id',
-            'box_id'      => 'nullable|integer|exists:box_zones,id',
-        ]);
+            'solo_deudores'    => 'required|boolean',
+            'dias_vencimiento' => 'nullable|integer|min:0|max:3650',
+            'clientes'         => 'required|array|min:1|max:20000',
+            'clientes.*'       => 'integer',
+            'quitados'         => 'nullable|array|max:20000',
+            'quitados.*'       => 'integer',
+        ] + $this->reglasAudiencia(), [
+            'clientes.required' => 'Marca al menos un cliente para llamarle.',
+            'clientes.min'      => 'Marca al menos un cliente para llamarle.',
+        ] + $this->mensajesAudiencia());
 
-        $r = $this->service->activarCampanaPorZona(
+        // Sin «solo los que deben» se lee un texto igual para todos; la del mensaje de cobranza
+        // de siempre no lo tiene (dice el saldo de cada uno) y la llamada saldría muda.
+        $textoFijo = $campana->hablaLaNota() ? $campana->notas : $campana->audio_mensaje;
+        if (! $data['solo_deudores'] && (trim((string) $textoFijo) === '' || CobranzaTtsService::tieneVariables($textoFijo))) {
+            throw ValidationException::withMessages([
+                'solo_deudores' => 'El mensaje de esta campaña dice el nombre o el saldo de cada cliente: solo sirve con «Solo los que deben».',
+            ]);
+        }
+
+        $r = $this->service->activar(
             $campana,
-            $data['district_id'],
-            $data['zone_id'] ?? null,
-            $data['box_id'] ?? null
+            $this->audienciaDe($request),
+            (bool) $data['solo_deudores'],
+            (int) ($data['dias_vencimiento'] ?? $campana->dias_vencimiento),
+            $data['clientes'],
+            $data['quitados'] ?? []
         );
-
-        return response()->json(['ok' => true] + $r);
-    }
-
-    public function activar(int $id): JsonResponse
-    {
-        if (! auth()->user()->can('cobranza.manage')) {
-            return response()->json(['error' => 'No tienes permiso para gestionar campañas.'], 403);
-        }
-
-        $campana = CobranzaCampana::findOrFail($id);
-
-        if (!in_array($campana->estado, ['borrador', 'pausada'])) {
-            return response()->json(['error' => 'Solo se puede activar desde borrador o pausada.'], 422);
-        }
-
-        $r = $this->service->activarCampana($campana);
 
         return response()->json(['ok' => true] + $r);
     }
@@ -318,41 +358,6 @@ class CampanaController extends Controller
         return response()->json(['ok' => true]);
     }
 
-    // MegaVoz Fase 7 — lookups para el selector de distrito/zona/caja del
-    // "botón de corte". Solo lectura, gate con cobranza.view (lo mismo que
-    // ya gatea ver la pantalla de campañas).
-
-    public function distritos(): JsonResponse
-    {
-        if (! auth()->user()->can('cobranza.view')) {
-            return response()->json(['error' => 'No tienes permiso para ver las campañas.'], 403);
-        }
-
-        return response()->json(\App\Models\District::orderBy('name')->get(['id', 'name']));
-    }
-
-    public function zonasPorDistrito(int $districtId): JsonResponse
-    {
-        if (! auth()->user()->can('cobranza.view')) {
-            return response()->json(['error' => 'No tienes permiso para ver las campañas.'], 403);
-        }
-
-        return response()->json(
-            \App\Models\Zone::where('district_id', $districtId)->orderBy('name')->get(['id', 'name'])
-        );
-    }
-
-    public function cajasPorZona(int $zoneId): JsonResponse
-    {
-        if (! auth()->user()->can('cobranza.view')) {
-            return response()->json(['error' => 'No tienes permiso para ver las campañas.'], 403);
-        }
-
-        return response()->json(
-            DB::table('box_zones')->where('zone_id', $zoneId)->orderBy('name')->get(['id', 'name'])
-        );
-    }
-
     /** Llamadas de una campaña, paginadas, con cuántas hay en cada estado. */
     public function llamadas(int $id, Request $request): JsonResponse
     {
@@ -382,27 +387,37 @@ class CampanaController extends Controller
     }
 
     /**
-     * A cuántos clientes llamaría si se activa ahora: cobranza por morosos, el resto por
-     * distrito/zona/caja. Se muestra antes de activar (25-nov).
+     * «A quién se le llama» (27-nov): cuántos clientes entran con los filtros, cuántos hay en cada
+     * estado, las zonas y cajas con clientes y, con `lista=1`, la lista para revisarla antes de
+     * llamar. Con `campana`, sin los que ya tienen una llamada en ella.
      */
-    public function alcance(int $id, Request $request): JsonResponse
+    public function audiencia(Request $request, AudienciaCampana $audiencia): JsonResponse
     {
-        $campana = CobranzaCampana::findOrFail($id);
-        if (! auth()->user()->can($this->permisoPara($campana))) {
-            return response()->json(['error' => $this->sinPermiso($campana)], 403);
+        $campana = $request->filled('campana') ? CobranzaCampana::findOrFail((int) $request->input('campana')) : null;
+        $permiso = $campana ? $this->permisoPara($campana) : 'cobranza.manage';
+        if (! auth()->user()->can($permiso)) {
+            return response()->json(['error' => $campana ? $this->sinPermiso($campana) : 'No tienes permiso para gestionar campañas.'], 403);
         }
 
-        if ($campana->tipo !== 'cobranza') {
-            $data = $request->validate([
-                'district_id' => 'required|integer|exists:districts,id',
-                'zone_id'     => 'nullable|integer|exists:zones,id',
-                'box_id'      => 'nullable|integer|exists:box_zones,id',
-            ]);
+        // Los filtros llegan sueltos en la URL (estados[], zona, caja): axios 0.x no anida objetos.
+        $data = $request->validate([
+            'solo_deudores'    => 'nullable|boolean',
+            'dias_vencimiento' => 'nullable|integer|min:0|max:3650',
+            'lista'            => 'nullable|boolean',
+            'estados'          => 'nullable|array',
+            'estados.*'        => ['string', Rule::in(array_keys(AudienciaCampana::ESTADOS))],
+            'zona'             => ['nullable', 'string', 'regex:/^D\d+[ZW]\d+$/i'],
+            'caja'             => ['nullable', 'string', 'regex:/^D\d+[ZW]\d+C\d+$/i'],
+        ]);
 
-            return response()->json($this->service->alcance($campana, $data['district_id'], $data['zone_id'] ?? null, $data['box_id'] ?? null));
-        }
+        $soloDeudores = (bool) ($data['solo_deudores'] ?? false);
+        $dias = (int) ($data['dias_vencimiento'] ?? ($campana->dias_vencimiento ?? 1));
 
-        return response()->json($this->service->alcance($campana));
+        return response()->json(AudienciaCampana::resumir(
+            $audiencia->candidatos($campana, $soloDeudores, $dias),
+            $request->only(['estados', 'zona', 'caja']),
+            $request->boolean('lista')
+        ));
     }
 
     /** Pausada → activa, con lo que ya tenía cargado. */
@@ -422,6 +437,8 @@ class CampanaController extends Controller
     }
 
     private const ESTADOS_CAMPANA = ['activa', 'pausada', 'borrador', 'completada'];
+
+    private const SIN_VARIABLES = 'Sin «Solo los que deben» el mensaje es el mismo para todos: quita {nombre}, {saldo}, {fecha} y {numero_cliente}.';
 
     /** Lanzar un corte pide su propio permiso; lo demás, el de gestionar campañas. */
     private function permisoPara(CobranzaCampana $campana): string

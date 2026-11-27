@@ -12,6 +12,7 @@ class CobranzaCampana extends BaseModel
         'nombre', 'tipo', 'max_canales_simultaneos', 'estado', 'fecha_inicio', 'fecha_fin',
         'hora_inicio', 'hora_fin', 'max_intentos', 'minutos_entre_intentos',
         'audio_mensaje', 'dias_vencimiento', 'notas', 'voz', 'voz_velocidad', 'voz_tono',
+        'solo_deudores', 'audiencia',
     ];
 
     protected $casts = [
@@ -23,6 +24,8 @@ class CobranzaCampana extends BaseModel
         'max_intentos'          => 'integer',
         'minutos_entre_intentos'=> 'integer',
         'voz_velocidad'         => 'float',
+        'solo_deudores'         => 'boolean',
+        'audiencia'             => 'array',
     ];
 
     protected $appends = ['total_llamadas', 'porcentaje_completado'];

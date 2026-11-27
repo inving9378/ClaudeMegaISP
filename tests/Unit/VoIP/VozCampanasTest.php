@@ -49,8 +49,8 @@ class VozCampanasTest extends TestCase
     {
         $tts = new CobranzaTtsService();
 
-        $this->assertSame('Corte el lunes {nombre}.', $tts->textoDeEjemplo(' Corte el lunes {nombre}. ', 'corte', 'x'));
-        $this->assertStringContainsString('Juan Pérez', $tts->textoDeEjemplo('Hola {nombre}', 'cobranza', 'x'));
+        $this->assertSame('Corte el lunes {nombre}.', $tts->textoDeEjemplo(' Corte el lunes {nombre}. ', false, 'x'));
+        $this->assertStringContainsString('Juan Pérez', $tts->textoDeEjemplo('Hola {nombre}', true, 'x'));
     }
 
     public function test_voz_y_velocidad_de_la_campana(): void
@@ -84,5 +84,12 @@ class VozCampanasTest extends TestCase
         $this->assertSame('nova', $cuerpo['voice']);
         $this->assertSame(CobranzaTtsService::VELOCIDAD_MAX, $cuerpo['speed']);
         $this->assertArrayNotHasKey('instructions', $cuerpo);
+    }
+
+    public function test_se_sabe_si_el_mensaje_lleva_datos_del_cliente(): void
+    {
+        $this->assertTrue(\App\Modules\Addons\CobranzaBlaster\Services\CobranzaTtsService::tieneVariables('Hola {nombre}.'));
+        $this->assertTrue(\App\Modules\Addons\CobranzaBlaster\Services\CobranzaTtsService::tieneVariables(\App\Modules\Addons\CobranzaBlaster\Services\CobranzaTtsService::PLANTILLA_COBRANZA));
+        $this->assertFalse(\App\Modules\Addons\CobranzaBlaster\Services\CobranzaTtsService::tieneVariables('Mantenimiento el jueves {de 10 a 12}.'));
     }
 }

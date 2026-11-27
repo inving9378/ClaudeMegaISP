@@ -42,6 +42,14 @@ class CobranzaTtsService
     public const VELOCIDAD_MAX     = 1.5;
 
     /** Mensaje de cobranza de siempre; la nota de la campaña lo reemplaza y puede usar las mismas variables. */
+    /** Lo que se cambia por los datos de cada cliente (solo con «Solo los que deben»). */
+    public const VARIABLES = ['{nombre}', '{saldo}', '{fecha}', '{numero_cliente}'];
+
+    public static function tieneVariables(?string $texto): bool
+    {
+        return str_replace(self::VARIABLES, '', (string) $texto) !== (string) $texto;
+    }
+
     public const PLANTILLA_COBRANZA = 'Estimado {nombre}, le habla Meganet Telecomunicaciones. '
         . 'Su saldo vencido es de {saldo} pesos. '
         . 'Le solicitamos realizar su pago antes del {fecha}. '
@@ -129,10 +137,13 @@ class CobranzaTtsService
         ]);
     }
 
-    /** La nota con los datos de ejemplo, para escucharla desde el alta. */
-    public function textoDeEjemplo(string $nota, string $tipo, string $fecha): string
+    /**
+     * La nota con los datos de ejemplo, para escucharla desde el alta. Las variables solo se llenan
+     * cuando la campaña es «solo los que deben» (27-nov: antes, cuando el tipo era cobranza).
+     */
+    public function textoDeEjemplo(string $nota, bool $soloDeudores, string $fecha): string
     {
-        if ($tipo !== 'cobranza') {
+        if (! $soloDeudores) {
             return trim($nota);
         }
 
