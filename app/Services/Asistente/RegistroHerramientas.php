@@ -35,6 +35,15 @@ class RegistroHerramientas
         Herramientas\CrearProspecto::class,
         Herramientas\CrearCliente::class,
         Herramientas\AnotarPendiente::class,
+        // Todo el sistema: cualquier información (solo lectura) y cualquier función de sus pantallas.
+        Herramientas\ExplorarDatos::class,
+        Herramientas\ConsultarDatos::class,
+        Herramientas\ExportarExcel::class,
+        Herramientas\BuscarFunciones::class,
+        Herramientas\ConsultarFuncion::class,
+        Herramientas\HacerEnSistema::class,
+        // Archivos que el usuario manda al chat.
+        Herramientas\LeerArchivo::class,
     ];
 
     /** @var array<string, Herramienta>|null */

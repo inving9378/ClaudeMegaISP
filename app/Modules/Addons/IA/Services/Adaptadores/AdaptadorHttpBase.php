@@ -128,6 +128,18 @@ abstract class AdaptadorHttpBase implements IAAdaptadorInterface
         return $argumentos === [] ? new \stdClass() : $argumentos;
     }
 
+    /**
+     * Archivos de un turno del usuario en conversarConHerramientas (['adjuntos' => [['mime','data','nombre'?]]]).
+     * Un PDF con un proveedor que no los lee se rechaza igual que en enviarMensaje.
+     */
+    protected function adjuntosDeTurno(array $turno): array
+    {
+        $adjuntos = array_values(array_filter((array) ($turno['adjuntos'] ?? []), fn ($a) => is_array($a) && !empty($a['data'])));
+        $this->exigirSoportePdf($adjuntos);
+
+        return $adjuntos;
+    }
+
     protected function esPdf(array $adjunto): bool
     {
         return ($adjunto['mime'] ?? '') === 'application/pdf';

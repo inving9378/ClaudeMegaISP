@@ -41,6 +41,12 @@ abstract class Herramienta
         return false;
     }
 
+    /** Caracteres del resultado que ve la IA en esta vuelta. null = el de memoria.json. */
+    public function maxCaracteresResultado(): ?int
+    {
+        return null;
+    }
+
     /** Lectura: devuelve los datos. Cambio: lo aplica (ya confirmado por el usuario). */
     abstract public function ejecutar(User $user, array $args): array;
 

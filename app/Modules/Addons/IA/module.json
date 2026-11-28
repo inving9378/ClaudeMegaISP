@@ -7,6 +7,12 @@
     "dependencies": [],
     "active": true,
 
+    "system": {
+        "install": "system/install.sh",
+        "purge": "system/purge.sh",
+        "description": "ffmpeg y poppler-utils: para que JARVIS lea videos, audios y el texto de los PDF que le mandan"
+    },
+
     "permissions": [
         { "name": "ia_view_chat",          "description": "Acceder al chat IA y ver historial" },
         { "name": "ia_add_chat",           "description": "Enviar mensajes y crear conversaciones" },

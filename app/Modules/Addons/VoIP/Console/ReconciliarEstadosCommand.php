@@ -2,63 +2,83 @@
 
 namespace App\Modules\Addons\VoIP\Console;
 
-use App\Models\User;
 use App\Modules\Addons\VoIP\Models\Extension;
-use App\Modules\Addons\VoIP\Services\AsteriskProvisioningService;
+use App\Modules\Addons\VoIP\Services\LiberadorExtensiones;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 
 /**
- * Reconcilia el estado del usuario (activo/bloqueado/inactivo) contra el estado
- * de provisión de su extensión VoIP. Idempotente.
+ * Reconcilia el estado del usuario contra su extensión VoIP. Idempotente; corre cada hora.
  *
- * Usar cuando el Observer no pudo actuar (ej. cambios masivos por script,
- * restore de BD, o antes de que el Observer existiera).
+ * Desde el 28-nov (pedido de Irving): la extensión de un usuario bloqueado, desactivado o que ya no
+ * existe queda libre para asignársela a otra persona (LiberadorExtensiones). El observer de User lo hace
+ * al momento; esto atrapa lo que se le haya escapado (Asterisk sin responder, cambios por script, restore
+ * de la base, o lo de antes de que existiera esta regla). Una extensión en llamada se deja para la vuelta
+ * siguiente.
  */
 class ReconciliarEstadosCommand extends Command
 {
     protected $signature = 'voip:reconciliar-estados {--dry-run : Muestra cambios sin aplicarlos}';
-    protected $description = 'Reconcilia estado del usuario (activo/bloqueado/inactivo) con su extensión VoIP';
+    protected $description = 'Libera las extensiones de usuarios bloqueados, inactivos o eliminados';
 
     private bool $dry;
     private int $fixes    = 0;
     private int $reportes = 0;
 
-    public function handle(AsteriskProvisioningService $prov): int
+    public function handle(LiberadorExtensiones $liberador): int
     {
         $this->dry = (bool) $this->option('dry-run');
+        // La instancia del comando se reusa en el mismo proceso (Artisan::call): los contadores, desde cero.
+        $this->fixes = 0;
+        $this->reportes = 0;
 
         $this->info($this->dry
-            ? '🔍  Modo DRY-RUN — sin cambios en BD ni en Asterisk'
-            : '🔧  Aplicando reconciliación de estados usuario ↔ extensión...'
+            ? 'Modo DRY-RUN: sin cambios en la base ni en Asterisk'
+            : 'Reconciliando estados usuario ↔ extensión…'
         );
-        $this->newLine();
 
-        // Verificar canales activos antes de tocar nada
-        $canalesActivos = $this->obtenerCanalesActivos();
-        if ($canalesActivos === null) {
-            $this->warn('  ⚠️   No se pudo verificar canales AMI — se asumirá sin canales activos.');
-            $canalesActivos = [];
-        }
-        if (!empty($canalesActivos)) {
-            $this->warn('  ℹ️   Canales activos: ' . implode(', ', $canalesActivos));
-        }
+        $extensiones = Extension::whereNotNull('user_id')->with('agente')->orderBy('numero')->get();
+        $porLiberar = $extensiones->filter(fn (Extension $e) => ! $e->agente || ($e->agente->estado ?? 'activo') !== 'activo');
 
-        $extensiones = Extension::whereNotNull('user_id')->with('agente')->get();
+        // Solo se pregunta a Asterisk por llamadas en curso si hay algo que liberar.
+        $canalesActivos = [];
+        if ($porLiberar->isNotEmpty()) {
+            $canalesActivos = $this->obtenerCanalesActivos();
+            if ($canalesActivos === null) {
+                $this->warn('  No se pudo ver las llamadas en curso (AMI): se asume que no hay.');
+                $canalesActivos = [];
+            }
+        }
 
         foreach ($extensiones as $ext) {
-            $user = $ext->agente; // relación con User
-            if (!$user) {
-                $this->warn("  ⚠️   Ext {$ext->numero}: user_id={$ext->user_id} no existe en users.");
+            $user   = $ext->agente;
+            $estado = $user ? ($user->estado ?? 'activo') : 'eliminado';
+
+            if ($estado !== 'activo') {
+                if ($this->enLlamada($ext, $canalesActivos)) {
+                    $this->warn("  Ext {$ext->numero}: usuario {$estado}, pero está en llamada. Se libera en la siguiente vuelta.");
+                    continue;
+                }
+                $quien = $user ? trim("{$user->name} {$user->father_last_name}") : "usuario #{$ext->user_id}";
+                $this->warn("  Ext {$ext->numero} ({$quien}): usuario {$estado} → se libera.");
+                $this->fixes++;
+                if (! $this->dry) {
+                    try {
+                        $liberador->liberar($ext, "usuario {$estado} (reconciliación)");
+                        $this->info('       → Libre.');
+                    } catch (\Throwable $e) {
+                        $this->error("       → No se pudo: {$e->getMessage()}");
+                    }
+                }
                 continue;
             }
 
-            $this->reconciliar($ext, $user, $canalesActivos, $prov);
+            if (! $ext->estaProvisionada()) {
+                $this->line("  Ext {$ext->numero} ({$user->name}): usuario activo pero sin dar de alta en Asterisk. Revisar a mano.");
+                $this->reportes++;
+            }
         }
 
-        $this->newLine();
-        $this->info("Resumen: {$this->fixes} corrección(es) aplicada(s), {$this->reportes} para revisión manual.");
-
+        $this->info('Resumen: ' . $this->fixes . ($this->dry ? ' por liberar' : ' liberada(s)') . ", {$this->reportes} para revisar a mano.");
         if ($this->dry && $this->fixes > 0) {
             $this->warn('Modo dry-run: corre sin --dry-run para aplicar los cambios.');
         }
@@ -66,56 +86,15 @@ class ReconciliarEstadosCommand extends Command
         return Command::SUCCESS;
     }
 
-    private function reconciliar(Extension $ext, User $user, array $canalesActivos, AsteriskProvisioningService $prov): void
+    private function enLlamada(Extension $ext, array $canalesActivos): bool
     {
-        $estado      = $user->estado ?? 'activo';
-        $provisionada = $ext->estaProvisionada();
-        $ctxActual   = DB::connection('asterisk_rt')
-            ->table('ps_endpoints')
-            ->where('id', $ext->endpointId())
-            ->value('context');
-
-        // ── Usuario INACTIVO + extensión provisionada → desprovisionar ────────
-        if ($estado === 'inactivo' && $provisionada) {
-            // Verificar que no esté en llamada
-            $endpointId = $ext->endpointId();
-            foreach ($canalesActivos as $canal) {
-                if (str_contains($canal, "PJSIP/{$ext->numero}") || str_contains($canal, $endpointId)) {
-                    $this->warn("  ⏭️   Ext {$ext->numero} (user {$user->name}): EN LLAMADA — omitida. Revisar después.");
-                    return;
-                }
+        foreach ($canalesActivos as $canal) {
+            if (str_starts_with($canal, "PJSIP/{$ext->endpointId()}-")) {
+                return true;
             }
-
-            $this->warn("  🔧  Ext {$ext->numero} (user {$user->name}): usuario INACTIVO pero provisionada. → Desprovisionar.");
-            $this->fixes++;
-            if (!$this->dry) {
-                $prov->desprovisionarExtension($ext);
-                $this->info("       → Hecho.");
-            }
-            return;
         }
 
-        // ── Usuario BLOQUEADO + contexto incorrecto → restringir ─────────────
-        if ($estado === 'bloqueado' && $ctxActual === 'from-internal') {
-            $this->warn("  🔒  Ext {$ext->numero} (user {$user->name}): usuario BLOQUEADO con context=from-internal. → Restringir.");
-            $this->fixes++;
-            if (!$this->dry) {
-                $prov->restringirExtension($ext);
-                $this->info("       → Hecho.");
-            }
-            return;
-        }
-
-        // ── Usuario ACTIVO + extensión desprovisionada → solo reportar ────────
-        if ($estado === 'activo' && !$provisionada) {
-            $this->warn("  📋  Ext {$ext->numero} (user {$user->name}): usuario ACTIVO pero sin provisionar. Revisar manualmente.");
-            $this->reportes++;
-            return;
-        }
-
-        // ── Sin desalineación ─────────────────────────────────────────────────
-        $ctxDesc = $ctxActual ? "context={$ctxActual}" : 'no-provisioned';
-        $this->line("  ✅  Ext {$ext->numero} (user {$user->name}): estado={$estado}, {$ctxDesc} — OK");
+        return false;
     }
 
     private function obtenerCanalesActivos(): ?array

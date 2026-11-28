@@ -20,22 +20,19 @@
             </fieldset>
 
             <div class="ca-lugar">
+                <!-- Con búsqueda (28-nov): en prod son cientos de zonas y de cajas. -->
                 <div class="cp-campo-grupo">
-                    <label :for="`${idBase}-zona`" class="cp-etiqueta">Zona <span class="cp-opcional">· opcional</span></label>
-                    <select :id="`${idBase}-zona`" class="cp-campo" :value="zona || ''" @change="elegirZona($event.target.value)">
-                        <option value="">Todas las zonas</option>
-                        <optgroup v-for="d in distritos" :key="d.distrito" :label="`Distrito ${d.distrito}`">
-                            <option v-for="z in d.zonas" :key="z.clave" :value="z.clave">{{ nombreZona(z.clave, repetidas) }} ({{ n(z.clientes) }})</option>
-                        </optgroup>
-                    </select>
+                    <label :id="`${idBase}-zona-etiqueta`" :for="`${idBase}-zona`" class="cp-etiqueta">Zona <span class="cp-opcional">· opcional</span></label>
+                    <campanas-selector :id="`${idBase}-zona`" :id-etiqueta="`${idBase}-zona-etiqueta`" :model-value="zona"
+                                       :grupos="gruposZonas" texto-todas="Todas las zonas" buscar-etiqueta="Buscar zona o distrito"
+                                       vacio="Ningún cliente tiene zona con estos filtros." @update:model-value="elegirZona" />
                 </div>
                 <div class="cp-campo-grupo">
-                    <label :for="`${idBase}-caja`" class="cp-etiqueta">Caja <span class="cp-opcional">· opcional</span></label>
-                    <select :id="`${idBase}-caja`" class="cp-campo" :value="caja || ''" :disabled="!zona"
-                            @change="$emit('update:caja', $event.target.value || null)">
-                        <option value="">{{ zona ? 'Todas las cajas' : 'Elige antes la zona' }}</option>
-                        <option v-for="cj in cajas" :key="cj.clave" :value="cj.clave">{{ nombreCaja(cj.clave) }} ({{ n(cj.clientes) }})</option>
-                    </select>
+                    <label :id="`${idBase}-caja-etiqueta`" :for="`${idBase}-caja`" class="cp-etiqueta">Caja <span class="cp-opcional">· opcional</span></label>
+                    <campanas-selector :id="`${idBase}-caja`" :id-etiqueta="`${idBase}-caja-etiqueta`" :model-value="caja"
+                                       :grupos="gruposCajas" texto-todas="Todas las cajas" buscar-etiqueta="Buscar caja"
+                                       vacio="Esta zona no tiene cajas con clientes." :disabled="!zona" texto-deshabilitado="Elige antes la zona"
+                                       alinear="derecha" @update:model-value="$emit('update:caja', $event || null)" />
                 </div>
             </div>
 
@@ -60,9 +57,11 @@
 
 <script>
 import { ESTADOS_CLIENTE, nombreZona, nombreCaja, zonasRepetidas, leerClave } from './audiencia.js';
+import CampanasSelector from './CampanasSelector.vue';
 
 export default {
     name: 'CampanasAudiencia',
+    components: { CampanasSelector },
     props: {
         estados:      { type: Array, default: () => [] },
         zona:         { type: String, default: null },
@@ -107,6 +106,19 @@ export default {
             }
             return lista.sort((a, b) => a.caja - b.caja);
         },
+        // Para el selector: por distrito, y se encuentra también por la clave («D1Z54»), «distrito 1» o «wifi».
+        gruposZonas() {
+            return this.distritos.map(d => ({
+                titulo: `Distrito ${d.distrito}`,
+                opciones: d.zonas.map(z => ({
+                    valor: z.clave, etiqueta: nombreZona(z.clave, this.repetidas), n: z.clientes,
+                    buscar: `${z.clave} ${z.letra === 'W' ? 'wifi' : 'zona'} ${z.zona}`,
+                })),
+            }));
+        },
+        gruposCajas() {
+            return [{ titulo: null, opciones: this.cajas.map(cj => ({ valor: cj.clave, etiqueta: nombreCaja(cj.clave), n: cj.clientes, buscar: cj.clave })) }];
+        },
     },
     methods: {
         n(x) {
@@ -138,7 +150,7 @@ export default {
 .ca { container: ca / inline-size; }
 .ca-cuerpo { display: grid; gap: 16px; }
 .ca-cuerpo > * { min-width: 0; }
-.ca--cargando .ca-estado-n, .ca--cargando .ca-lugar select { opacity: .6; }
+.ca--cargando .ca-estado-n, .ca--cargando .ca-lugar :deep(.cs-n) { opacity: .6; }
 .ca-grupo { border: 0; margin: 0; padding: 0; min-width: 0; }
 /* Un <legend> se dibuja ENCIMA del borde de su fieldset; flotado queda dentro de la caja. */
 .ca-leyenda { float: left; width: 100%; padding: 0; }

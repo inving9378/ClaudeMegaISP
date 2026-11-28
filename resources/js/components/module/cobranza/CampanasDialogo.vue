@@ -37,7 +37,7 @@ export default {
         abierto:     { type: Boolean, default: false },
         titulo:      { type: String, default: '' },
         descripcion: { type: String, default: '' },
-        // normal (560 px) · ancho (80% de la pantalla, pedido de Irving) · cajon (panel a la derecha)
+        // normal (560 px) · ancho (toda la pantalla, pedido de Irving) · cajon (panel a la derecha)
         variante:    { type: String, default: 'normal' },
         oscuro:      { type: Boolean, default: false },
     },
@@ -91,6 +91,8 @@ export default {
         // Esc cierra; Tab da la vuelta dentro del diálogo (no se escapa a la página de atrás).
         tecla(e) {
             if (e.key === 'Escape') {
+                // Con un menú de Quasar abierto (estado, columnas, por página), Esc cierra solo el menú.
+                if (document.querySelector('.q-menu')) return;
                 e.stopPropagation();
                 this.cerrar();
                 return;
@@ -113,6 +115,13 @@ export default {
 };
 </script>
 
+<style>
+/* Los menús y avisos de Quasar (estado, columnas, elementos por página) van en <body> con z-index
+   6000: con un diálogo de Campañas abierto (10050) quedaban detrás. Solo mientras hay uno abierto. */
+body.cp-sin-scroll .q-menu,
+body.cp-sin-scroll .q-tooltip { z-index: 10100; }
+</style>
+
 <style scoped>
 .cpd-fondo {
     position: fixed; inset: 0; z-index: 10050;
@@ -120,12 +129,14 @@ export default {
     background: rgba(15, 23, 42, .5);
 }
 .cpd-fondo--cajon { justify-content: flex-end; align-items: stretch; padding: 0; }
+/* Ancho (28-nov, pedido de Irving): toda la pantalla, con un margen para ver que es un diálogo. */
+.cpd-fondo--ancho { padding: 16px; }
 .cpd-caja {
     display: flex; flex-direction: column; max-height: calc(100dvh - 48px); width: min(560px, 100%);
     background: var(--cp-superficie); color: var(--cp-tinta); border-radius: 12px; outline: none;
     box-shadow: 0 24px 48px rgba(15, 23, 42, .22), 0 2px 6px rgba(15, 23, 42, .08);
 }
-.cpd-caja--ancho { width: 80vw; max-width: 100%; }
+.cpd-caja--ancho { width: 100%; height: 100%; max-height: none; }
 .cpd-caja--cajon { width: min(780px, 100vw); max-height: none; height: 100dvh; border-radius: 0; }
 .cd-dark .cpd-caja { box-shadow: 0 24px 48px rgba(0, 0, 0, .55); }
 
@@ -143,7 +154,8 @@ export default {
 .cpd-cerrar:hover { background: var(--cp-hover); color: var(--cp-tinta); }
 .cpd-caja:focus-visible { outline: none; }
 .cpd-cerrar:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--cp-superficie), 0 0 0 4px var(--cp-acento) !important; }
-.cpd-cuerpo { padding: 18px 20px; overflow-y: auto; overscroll-behavior: contain; flex: 1 1 auto; }
+/* --cpd-pad-top: lo que una cabecera pegajosa de adentro sube para quedar al ras (el padding cuenta). */
+.cpd-cuerpo { --cpd-pad-top: 18px; padding: var(--cpd-pad-top) 20px 18px; overflow-y: auto; overscroll-behavior: contain; flex: 1 1 auto; }
 .cpd-pie {
     display: flex; justify-content: flex-end; align-items: center; gap: 8px; flex-wrap: wrap;
     padding: 12px 20px; border-top: 1px solid var(--cp-borde); background: var(--cp-cabecera);
@@ -165,7 +177,7 @@ export default {
     .cpd-fondo { padding: 0; }
     .cpd-caja, .cpd-caja--ancho, .cpd-caja--cajon { width: 100%; height: 100dvh; max-height: none; border-radius: 0; }
     .cpd-cabeza { padding: 14px 16px 12px; }
-    .cpd-cuerpo { padding: 16px; }
+    .cpd-cuerpo { --cpd-pad-top: 16px; padding: 16px; }
     .cpd-pie { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-radius: 0; }
     .cpd-pie > :deep(*) { flex: 1 1 auto; justify-content: center; }
     .cpd-cerrar { width: 44px; height: 44px; }

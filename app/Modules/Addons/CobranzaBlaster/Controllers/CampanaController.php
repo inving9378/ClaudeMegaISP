@@ -147,7 +147,78 @@ class CampanaController extends Controller
             return response()->json(['error' => 'No tienes permiso para gestionar campañas.'], 403);
         }
 
-        $data = $request->validate([
+        $data = $request->validate($this->reglasCampana() + $this->reglasAudiencia(), $this->mensajesAudiencia());
+
+        $data['solo_deudores'] = (bool) ($data['solo_deudores'] ?? false);
+        $data['audiencia'] = $this->audienciaDe($request);
+        $data = $this->prepararCampana($data, $data['solo_deudores']);
+
+        $campana = CobranzaCampana::create($data);
+
+        // fresh(): con los valores de siempre de la base (horario, intentos…) para que la
+        // pantalla siga al paso «a quién llamar» con la campaña completa.
+        return response()->json($campana->fresh(), 201);
+    }
+
+    /**
+     * Editar una campaña (28-nov, pedido de Irving: desde la lista no se podía). En borrador cambia
+     * todo, también a quién se le llama. Ya activada (activa o en pausa) sus llamadas están cargadas:
+     * cambian el nombre, el mensaje, la voz, las fechas, el horario y los límites, y se aplican a las
+     * llamadas que faltan (cada pasada del marcador los vuelve a leer); a quién se le llama y el motivo
+     * ya no. Una terminada no se edita: se duplica.
+     */
+    public function update(int $id, Request $request): JsonResponse
+    {
+        if (! auth()->user()->can('cobranza.manage')) {
+            return response()->json(['error' => 'No tienes permiso para gestionar campañas.'], 403);
+        }
+
+        $campana = CobranzaCampana::findOrFail($id);
+        if ($campana->estado === 'completada') {
+            return response()->json(['error' => 'Una campaña terminada ya no se edita: duplícala para volver a llamar.'], 422);
+        }
+
+        // Una de corte ya activada la lanzó alguien con ese permiso: cambiar lo que escucha el cliente también lo pide.
+        $activada = $campana->estado !== 'borrador';
+        if ($activada && ! auth()->user()->can($this->permisoPara($campana))) {
+            return response()->json(['error' => $this->sinPermiso($campana)], 403);
+        }
+
+        $reglas = $this->reglasCampana();
+        if ($activada) {
+            // Lo que decidió a quién se cargó: si llega, se ignora.
+            unset($reglas['tipo'], $reglas['solo_deudores'], $reglas['dias_vencimiento']);
+        } else {
+            $reglas += $this->reglasAudiencia();
+        }
+        $data = $request->validate($reglas, $this->mensajesAudiencia());
+
+        if ($activada) {
+            $soloDeudores = (bool) $campana->solo_deudores;
+        } else {
+            $soloDeudores = $data['solo_deudores'] = (bool) ($data['solo_deudores'] ?? false);
+            $data['audiencia'] = $this->audienciaDe($request);
+        }
+        $data = $this->prepararCampana($data, $soloDeudores);
+
+        DB::transaction(function () use ($campana, $data, $activada) {
+            // Si en otra pestaña la activaron (o terminó) mientras se editaba, no se pisa.
+            $estado = CobranzaCampana::whereKey($campana->id)->lockForUpdate()->value('estado');
+            if ($estado === 'completada' || ($estado !== 'borrador') !== $activada) {
+                throw ValidationException::withMessages([
+                    'estado' => 'La campaña cambió de estado mientras la editabas (quizá desde otra pestaña). Ciérrala y vuelve a abrirla.',
+                ]);
+            }
+            $campana->update($data);
+        });
+
+        return response()->json($campana->fresh());
+    }
+
+    /** Lo que se captura en el alta y en editar (sin «A quién se le llama», que va aparte). */
+    private function reglasCampana(): array
+    {
+        return [
             'nombre'                  => 'required|string|max:255',
             'tipo'                    => 'nullable|in:cobranza,aviso,anuncio,corte',
             'max_canales_simultaneos' => 'nullable|integer|min:1|max:100',
@@ -161,22 +232,24 @@ class CampanaController extends Controller
             'audio_mensaje'           => 'nullable|string|max:2000',
             'notas'                   => 'nullable|string|max:2000',
             'solo_deudores'           => 'nullable|boolean',
-        ] + $this->reglasVoz() + $this->reglasAudiencia(), $this->mensajesAudiencia());
+        ] + $this->reglasVoz();
+    }
 
-        $data['solo_deudores'] = (bool) ($data['solo_deudores'] ?? false);
-        $data['audiencia'] = $this->audienciaDe($request);
-
+    /** La nota, los vacíos y la voz por omisión: igual en el alta y en editar. */
+    private function prepararCampana(array $data, bool $soloDeudores): array
+    {
         // La nota es el mensaje que escucha el cliente (24-nov). Con «solo los que deben»,
         // vacía = el mensaje de cobranza de siempre (con su saldo); sin eso no hay nada que leer.
-        if (! $data['solo_deudores'] && trim((string) ($data['notas'] ?? '')) === '') {
+        if (! $soloDeudores && trim((string) ($data['notas'] ?? '')) === '') {
             throw ValidationException::withMessages(['notas' => 'Escribe la nota: es el mensaje que escucha el cliente.']);
         }
-        if (! $data['solo_deudores'] && CobranzaTtsService::tieneVariables($data['notas'] ?? '')) {
+        if (! $soloDeudores && CobranzaTtsService::tieneVariables($data['notas'] ?? '')) {
             throw ValidationException::withMessages(['notas' => self::SIN_VARIABLES]);
         }
 
         // Un campo numérico o de hora que se dejó vacío toma el valor de siempre de la
-        // columna (antes llegaba NULL a una columna NOT NULL y el alta fallaba con 500).
+        // columna (antes llegaba NULL a una columna NOT NULL y el alta fallaba con 500);
+        // al editar, se queda el que tenía.
         foreach (['hora_inicio', 'hora_fin', 'max_intentos', 'minutos_entre_intentos', 'dias_vencimiento'] as $campo) {
             if (array_key_exists($campo, $data) && $data[$campo] === null) {
                 unset($data[$campo]);
@@ -186,11 +259,7 @@ class CampanaController extends Controller
         $data['voz'] ??= config('cobranza.blaster_tts_voice', 'nova');
         $data['voz_velocidad'] ??= CobranzaTtsService::VELOCIDAD_DEFECTO;
 
-        $campana = CobranzaCampana::create($data);
-
-        // fresh(): con los valores de siempre de la base (horario, intentos…) para que la
-        // pantalla siga al paso «a quién llamar» con la campaña completa.
-        return response()->json($campana->fresh(), 201);
+        return $data;
     }
 
     /** Voces, tonos y velocidad para el alta, y si hay voz asignada en Integraciones → Módulos IA. */

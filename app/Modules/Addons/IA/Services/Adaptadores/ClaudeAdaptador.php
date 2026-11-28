@@ -64,7 +64,8 @@ class ClaudeAdaptador extends AdaptadorHttpBase
                 $messages[] = ['role' => 'assistant', 'content' => $bloques ?: (string) ($m['contenido'] ?? '')];
                 continue;
             }
-            $messages[] = ['role' => 'user', 'content' => (string) ($m['contenido'] ?? '')];
+            // Archivos del usuario (fotos, PDF): mismos bloques que enviarMensaje.
+            $messages[] = ['role' => 'user', 'content' => $this->formatearContenido((string) ($m['contenido'] ?? ''), $this->adjuntosDeTurno($m))];
         }
         if ($resultados) {
             $messages[] = ['role' => 'user', 'content' => $resultados];

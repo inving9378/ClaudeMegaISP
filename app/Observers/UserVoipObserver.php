@@ -3,71 +3,47 @@
 namespace App\Observers;
 
 use App\Models\User;
-use App\Modules\Addons\VoIP\Models\Extension;
-use App\Modules\Addons\VoIP\Services\AsteriskProvisioningService;
-use Illuminate\Support\Facades\Log;
+use App\Modules\Addons\VoIP\Services\LiberadorExtensiones;
 
+/**
+ * La extensión de VoIP sigue al usuario. Desde el 28-nov (pedido de Irving): si el usuario se bloquea,
+ * se desactiva o se elimina, su extensión queda libre para asignársela a otra persona (antes se quedaba
+ * suya: desactivado se quitaba de Asterisk y bloqueado se restringía, esperando a que volviera).
+ * Reactivarlo no le devuelve la extensión: se le asigna la que toque en VoIP → Extensiones.
+ */
 class UserVoipObserver
 {
-    public function __construct(private AsteriskProvisioningService $provisioner) {}
+    public function __construct(private LiberadorExtensiones $liberador) {}
 
     public function updated(User $user): void
     {
-        if (! $user->isDirty('estado')) {
+        if (! $user->wasChanged('estado')) {
             return;
         }
 
-        $estadoAnterior = $user->getOriginal('estado');
-        $estadoNuevo    = $user->estado;
-
-        if ($estadoAnterior === $estadoNuevo) {
-            return;
-        }
-
-        $extensiones = Extension::where('user_id', $user->id)->get();
-        if ($extensiones->isEmpty()) {
-            return;
-        }
-
-        foreach ($extensiones as $ext) {
-            try {
-                match ($estadoNuevo) {
-                    'inactivo'  => $this->handleInactivo($ext),
-                    'bloqueado' => $this->handleBloqueado($ext),
-                    'activo'    => $this->handleActivo($ext, $estadoAnterior),
-                };
-            } catch (\Throwable $e) {
-                Log::error("VoIP UserObserver: error al procesar ext {$ext->numero} para user {$user->id}: {$e->getMessage()}");
-            }
+        $estado = $user->estado ?? 'activo';
+        if ($estado !== 'activo') {
+            $this->liberador->liberarDe($user, "usuario {$estado}");
         }
     }
 
-    private function handleInactivo(Extension $ext): void
+    /** @var array<int, array<int, int>> extensiones del usuario que se está borrando, por id de usuario */
+    private static array $alBorrar = [];
+
+    /**
+     * Al borrar: aquí solo se anotan sus extensiones y se liberan en deleted(), ya borrado. Si el borrado
+     * falla (otra tabla lo usa), la extensión se queda con su dueño. La llave foránea le quita el dueño sola;
+     * lo demás (quitarla de Asterisk, contraseña nueva del teléfono web) lo hace el liberador.
+     */
+    public function deleting(User $user): void
     {
-        if ($ext->estaProvisionada()) {
-            $this->provisioner->desprovisionarExtension($ext);
-            Log::info("VoIP: usuario inactivo → ext {$ext->numero} desprovisionada.");
-        }
+        self::$alBorrar[$user->id] = $this->liberador->idsDe($user);
     }
 
-    private function handleBloqueado(Extension $ext): void
+    public function deleted(User $user): void
     {
-        if ($ext->estaProvisionada()) {
-            $this->provisioner->restringirExtension($ext);
-            Log::info("VoIP: usuario bloqueado → ext {$ext->numero} restringida (sin salientes).");
-        }
-    }
-
-    private function handleActivo(Extension $ext, string $estadoAnterior): void
-    {
-        if ($estadoAnterior === 'inactivo' && ! $ext->estaProvisionada()) {
-            // Re-provisionar con credenciales actuales
-            $this->provisioner->provisionarExtension($ext);
-            Log::info("VoIP: usuario reactivado (desde inactivo) → ext {$ext->numero} re-provisionada.");
-        } elseif ($estadoAnterior === 'bloqueado' && $ext->estaProvisionada()) {
-            // Solo restaurar el contexto, no tocar auth/aors
-            $this->provisioner->restaurarExtension($ext);
-            Log::info("VoIP: usuario desbloqueado → ext {$ext->numero} restaurada a from-internal.");
-        }
+        $ids = self::$alBorrar[$user->id] ?? [];
+        unset(self::$alBorrar[$user->id]);
+        $this->liberador->liberarIds($ids, 'usuario eliminado');
     }
 }

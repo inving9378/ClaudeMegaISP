@@ -276,6 +276,11 @@ Route::middleware(['auth', 'can:usar-ia-chat'])->prefix('/ia/asistente')->group(
     Route::post('/nueva', [\App\Http\Controllers\IA\IAChatController::class, 'nueva'])->name('ia.asistente.nueva');
     Route::post('/acciones/{id}/confirmar', [\App\Http\Controllers\IA\IAChatController::class, 'confirmar'])->whereNumber('id')->name('ia.asistente.confirmar');
     Route::post('/acciones/{id}/cancelar', [\App\Http\Controllers\IA\IAChatController::class, 'cancelar'])->whereNumber('id')->name('ia.asistente.cancelar');
+    // Archivos del chat (fotos, PDF, Excel, Word, video, audio): se suben en partes y se borran solos.
+    Route::post('/adjuntos', [\App\Http\Controllers\IA\IAChatController::class, 'subirAdjunto'])->name('ia.asistente.adjuntos.subir');
+    Route::get('/adjuntos/{id}/ver', [\App\Http\Controllers\IA\IAChatController::class, 'verAdjunto'])->whereNumber('id')->name('ia.asistente.adjuntos.ver');
+    Route::get('/adjuntos/{id}/descargar', [\App\Http\Controllers\IA\IAChatController::class, 'descargarAdjunto'])->whereNumber('id')->name('ia.asistente.adjuntos.descargar');
+    Route::delete('/adjuntos/{id}', [\App\Http\Controllers\IA\IAChatController::class, 'quitarAdjunto'])->whereNumber('id')->name('ia.asistente.adjuntos.quitar');
 });
 
 // ── IPv6 1.7a (item #999, épica #811 → #951/#950) — pantalla standalone de

@@ -116,7 +116,7 @@ class OpenAIAdaptador extends AdaptadorHttpBase
             } elseif ($rol === 'system') {
                 $messages[] = ['role' => 'system', 'content' => (string) ($m['contenido'] ?? '')];
             } else {
-                $messages[] = ['role' => 'user', 'content' => (string) ($m['contenido'] ?? '')];
+                $messages[] = ['role' => 'user', 'content' => $this->formatearContenido((string) ($m['contenido'] ?? ''), $this->adjuntosDeTurno($m))];
             }
         }
 
@@ -231,6 +231,8 @@ class OpenAIAdaptador extends AdaptadorHttpBase
                         'arguments' => json_encode($this->comoObjeto((array) ($l['argumentos'] ?? [])), JSON_UNESCAPED_UNICODE),
                     ];
                 }
+            } elseif ($rol !== 'system' && ($adjuntos = $this->adjuntosDeTurno($m))) {
+                $input[] = ['role' => 'user', 'content' => $this->contenidoResponses((string) ($m['contenido'] ?? ''), $adjuntos)];
             } else {
                 $input[] = ['role' => $rol === 'system' ? 'system' : 'user', 'content' => (string) ($m['contenido'] ?? '')];
             }
@@ -302,6 +304,20 @@ class OpenAIAdaptador extends AdaptadorHttpBase
     public function parsearRespuesta(array $respuesta): string
     {
         return (string) data_get($respuesta, 'choices.0.message.content', '');
+    }
+
+    /** Texto + archivos en el formato de /v1/responses (input_text, input_image, input_file). */
+    private function contenidoResponses(string $texto, array $adjuntos): array
+    {
+        $partes = [['type' => 'input_text', 'text' => $texto !== '' ? $texto : ' ']];
+        foreach ($adjuntos as $a) {
+            $mime = $a['mime'] ?? 'image/jpeg';
+            $partes[] = $this->esPdf($a)
+                ? ['type' => 'input_file', 'filename' => (string) ($a['nombre'] ?? 'documento.pdf'), 'file_data' => 'data:application/pdf;base64,' . $a['data']]
+                : ['type' => 'input_image', 'image_url' => 'data:' . $mime . ';base64,' . $a['data']];
+        }
+
+        return $partes;
     }
 
     protected function formatearContenido(string $texto, array $imagenes): array|string

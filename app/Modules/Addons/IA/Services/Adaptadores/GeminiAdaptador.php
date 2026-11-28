@@ -117,7 +117,7 @@ class GeminiAdaptador extends AdaptadorHttpBase
                 $contents[] = ['role' => 'model', 'parts' => $parts ?: [['text' => ' ']]];
                 continue;
             }
-            $contents[] = ['role' => 'user', 'parts' => [['text' => ((string) ($m['contenido'] ?? '')) ?: ' ']]];
+            $contents[] = ['role' => 'user', 'parts' => $this->construirParts((string) ($m['contenido'] ?? ''), $this->adjuntosDeTurno($m))];
         }
         if ($respuestas) {
             $contents[] = ['role' => 'user', 'parts' => $respuestas];

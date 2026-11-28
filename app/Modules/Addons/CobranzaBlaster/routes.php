@@ -54,6 +54,11 @@ Route::middleware(['web', 'auth'])->prefix('cobranza')->group(function () {
     Route::post('/campanas/{id}/reanudar', [CampanaController::class, 'reanudar'])
         ->name('cobranza.campanas.reanudar');
 
+    // Editar (28-nov): en borrador todo; ya activada, sin cambiar a quién se le llama
+    Route::put('/campanas/{id}',          [CampanaController::class, 'update'])
+        ->whereNumber('id')
+        ->name('cobranza.campanas.update');
+
     Route::delete('/campanas/{id}',       [CampanaController::class, 'destroy'])
         ->name('cobranza.campanas.destroy');
 

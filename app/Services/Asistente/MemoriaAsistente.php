@@ -2,6 +2,7 @@
 
 namespace App\Services\Asistente;
 
+use App\Models\Asistente\Adjunto;
 use App\Models\Asistente\Conversacion;
 use App\Models\Asistente\Mensaje;
 use App\Models\Asistente\Recuerdo;
@@ -30,8 +31,14 @@ class MemoriaAsistente
     {
     }
 
-    /** Turnos en formato neutro de IA::conversar, coherentes (cada llamada con su resultado). */
-    public function historial(Conversacion $conversacion): array
+    /**
+     * Turnos en formato neutro de IA::conversar, coherentes (cada llamada con su resultado).
+     * Los mensajes del usuario llevan sus archivos: completos (imagen, PDF, texto, vista previa) en
+     * los últimos mensajes que traen archivos; en los anteriores solo se mencionan.
+     *
+     * @param array{imagenes:bool, pdf:bool} $capacidades lo que la IA asignada puede recibir
+     */
+    public function historial(Conversacion $conversacion, array $capacidades = ['imagenes' => false, 'pdf' => false]): array
     {
         $max = $this->conocimiento->memoria('max_mensajes_sin_compactar', 60);
         $maxResultado = $this->conocimiento->memoria('max_caracteres_resultado_herramienta', 4000);
@@ -46,6 +53,10 @@ class MemoriaAsistente
         }
 
         $idsConResultado = $mensajes->where('rol', 'herramienta')->pluck('herramienta_llamada_id')->filter()->flip();
+
+        $adjuntos = Adjunto::whereIn('mensaje_id', $mensajes->where('rol', 'user')->pluck('id'))->orderBy('id')->get()->groupBy('mensaje_id');
+        $completos = $adjuntos->keys()->sortDesc()->take($this->conocimiento->memoria('mensajes_con_archivos_completos', 3))->flip();
+        $servicioAdjuntos = app(AdjuntosAsistente::class);
         $llamadasValidas = [];
 
         $turnos = [];
@@ -79,7 +90,21 @@ class MemoriaAsistente
                 if (in_array($anterior, ['user', 'herramienta'], true)) {
                     $turnos[] = ['rol' => 'assistant', 'contenido' => '(sin respuesta)'];
                 }
-                $turnos[] = ['rol' => 'user', 'contenido' => mb_substr((string) $m->contenido, 0, $maxTexto)];
+                $turno = ['rol' => 'user', 'contenido' => mb_substr((string) $m->contenido, 0, $maxTexto)];
+                if ($adjuntos->has($m->id)) {
+                    $textos = [];
+                    $binarios = [];
+                    foreach ($adjuntos[$m->id] as $a) {
+                        $p = $servicioAdjuntos->paraIa($a, $capacidades, $completos->has($m->id));
+                        $textos[] = $p['texto'];
+                        array_push($binarios, ...$p['binarios']);
+                    }
+                    $turno['contenido'] = trim($turno['contenido'] . "\n\n" . implode("\n\n", $textos));
+                    if ($binarios) {
+                        $turno['adjuntos'] = $binarios;
+                    }
+                }
+                $turnos[] = $turno;
             }
             $anterior = end($turnos)['rol'] ?? null;
         }
@@ -146,7 +171,10 @@ class MemoriaAsistente
         $lineas = [];
         foreach ($mensajes as $m) {
             if ($m->rol === 'user') {
-                $lineas[] = 'Usuario: ' . mb_substr((string) $m->contenido, 0, 1500);
+                // Con su número: después del resumen JARVIS aún puede releerlos con leer_archivo mientras existan.
+                $archivos = Adjunto::where('mensaje_id', $m->id)->get(['id', 'nombre'])->map(fn ($a) => "#{$a->id} «{$a->nombre}»")->all();
+                $lineas[] = 'Usuario: ' . mb_substr((string) $m->contenido, 0, 1500)
+                    . ($archivos ? ' (mandó los archivos: ' . implode(', ', $archivos) . ')' : '');
             } elseif ($m->rol === 'assistant') {
                 if (trim((string) $m->contenido) !== '') {
                     $lineas[] = 'JARVIS: ' . mb_substr((string) $m->contenido, 0, 1500);

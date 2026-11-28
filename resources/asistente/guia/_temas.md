@@ -41,6 +41,6 @@ hacen las cosas; pero para **qué datos pide** una pantalla usa siempre la guía
 - `modulos/usuarios` — **Usuarios**: Administración de cuentas de acceso y roles del personal en MegaISP.
 - `modulos/vendedores` — **Vendedores**: Administrar la fuerza de ventas del ISP, comisiones y prospectos.
 - `modulos/voice` — **Módulo Voice**: Es el conector del sistema con el servicio telefónico.
-- `modulos/voip` — **VoIP**: Módulo para gestionar troncales SIP de manera centralizada.
+- `modulos/voip` — **VoIP (conmutador telefónico)**: Aquí se dan de alta las líneas del proveedor, los números internos de cada persona y a quién le timbra una llamada entrante, y todo se aplica solo en la central telefónica.
 - `modulos/warroom` — **War Room**: Es la sala de juntas digital para monitorear el negocio en tiempo real.
 - `modulos/whatsappagent` — **WhatsApp Agent**: Es el sistema de mensajería WhatsApp de la empresa.

@@ -155,12 +155,27 @@ class VoipConfiguracionController extends Controller
         }
     }
 
-    /** Grupos de timbrado activos de VoIP, para elegir a dónde van las llamadas que entran. */
+    /**
+     * Grupos de timbrado activos de VoIP, para elegir a dónde van las llamadas que entran. Con cuántas
+     * extensiones y cómo timbra cada uno (28-nov: el selector los muestra y busca). En orden de id: «el
+     * primer grupo activo» es el que usa el plan de marcado cuando no se elige ninguno.
+     */
     private function gruposTimbrado(): array
     {
         try {
+            $miembros = DB::table('voip_grupo_extension')->selectRaw('grupo_id, COUNT(*) as n')->groupBy('grupo_id')->pluck('n', 'grupo_id');
+
             return DB::table('voip_grupos_timbrado')
-                ->where('activo', true)->orderBy('id')->get(['id', 'nombre'])->all();
+                ->where('activo', true)->orderBy('id')
+                ->get(['id', 'nombre', 'estrategia', 'es_cola', 'ring_time'])
+                ->map(fn ($g) => [
+                    'id'         => $g->id,
+                    'nombre'     => $g->nombre,
+                    'estrategia' => $g->estrategia,
+                    'es_cola'    => (bool) $g->es_cola,
+                    'ring_time'  => (int) $g->ring_time,
+                    'miembros'   => (int) ($miembros[$g->id] ?? 0),
+                ])->all();
         } catch (\Throwable) {
             return [];
         }

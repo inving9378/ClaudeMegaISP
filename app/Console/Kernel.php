@@ -109,12 +109,19 @@ class Kernel extends ConsoleKernel
         // MegaVoz Fase 5 — importa queue_log a voip_queue_log para el tablero de KPIs.
         $schedule->command('megavoz:importar-queue-log')->everyFiveMinutes()->withoutOverlapping();
 
+        // VoIP (28-nov): la extensión de un usuario bloqueado, inactivo o eliminado queda libre. El observer de
+        // User lo hace al momento; esto reintenta lo que no se pudo (Asterisk sin responder) o se le escapó.
+        $schedule->command('voip:reconciliar-estados')->hourly()->withoutOverlapping();
+
         // Archivar activity_logs con más de 90 días a la BD meganet_logs
         $schedule->command('activitylog:archive --days=90')->dailyAt('02:00')->withoutOverlapping();
 
         // #996 — ping_statistics: crudo 90 días; daily_ping_statistics se conserva para siempre.
         $schedule->command('ping:purge-raw --force')->dailyAt('02:40')->withoutOverlapping();
         $schedule->command('otp:purge --force')->dailyAt('02:50')->withoutOverlapping();
+
+        // JARVIS: los archivos del chat se borran solos al vencer (limites.json → adjuntos.horas_de_vida).
+        $schedule->command('asistente:purgar-adjuntos')->hourly()->withoutOverlapping();
 
         // #9990687 (F5b) — cruza tabla releases / tags locales / tags en origin / GitHub Releases
         // y crea items tipo=hallazgo por cada divergencia nueva (dedupe automático por huella).

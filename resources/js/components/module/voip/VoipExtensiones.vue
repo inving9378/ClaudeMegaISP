@@ -45,7 +45,11 @@
                             <tr v-for="e in extensiones" :key="e.id">
                                 <td class="fw-medium"><code>{{ e.numero }}</code></td>
                                 <td>{{ e.nombre }}</td>
-                                <td class="text-muted">{{ e.agente_nombre || '—' }}</td>
+                                <!-- Sin dueño = libre para asignarla (28-nov: también al bloquear o dar de baja a su usuario). -->
+                                <td class="text-muted">
+                                    <template v-if="e.agente_nombre">{{ e.agente_nombre }}</template>
+                                    <span v-else class="tc-status is-slate" style="font-size:0.72rem">Libre</span>
+                                </td>
                                 <td>
                                     <span v-if="e.es_webrtc" class="tc-status is-ok"
                                           :title="e.numero_anterior ? `Antes ${e.numero_anterior}` : 'Teléfono del navegador'">

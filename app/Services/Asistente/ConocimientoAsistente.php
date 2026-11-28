@@ -111,6 +111,12 @@ class ConocimientoAsistente
         return (int) ($this->limites()[$clave] ?? $default);
     }
 
+    /** Un ajuste anidado de limites.json ("adjuntos.max_mb", "rutas_bloqueadas"...). */
+    public function ajuste(string $clave, mixed $default = null): mixed
+    {
+        return data_get($this->limites(), $clave, $default);
+    }
+
     public function memoria(string $clave, int $default): int
     {
         return (int) ($this->json('memoria.json')[$clave] ?? $default);

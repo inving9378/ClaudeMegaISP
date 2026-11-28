@@ -176,6 +176,10 @@
                                     <button type="button" class="cp-icono" title="Ver llamadas" :aria-label="`Ver las llamadas de ${c.nombre}`" @click="abrirDetalle(c)">
                                         <i class="fa fa-list-ul" aria-hidden="true"></i>
                                     </button>
+                                    <button v-if="puedeEditar(c)" type="button" class="cp-icono" title="Editar" :aria-label="`Editar ${c.nombre}`" @click="abrirEditar(c)">
+                                        <i class="fa fa-pen" aria-hidden="true"></i>
+                                    </button>
+                                    <span v-else-if="puedeGestionar" class="cp-hueco-icono" aria-hidden="true"></span>
                                     <button v-if="puedeGestionar" type="button" class="cp-icono" title="Duplicar" :aria-label="`Duplicar ${c.nombre}`" @click="abrirNueva(c)">
                                         <i class="fa fa-copy" aria-hidden="true"></i>
                                     </button>
@@ -211,13 +215,11 @@
             </footer>
         </section>
 
-        <!-- ── Nueva campaña (80% de la pantalla, pedido de Irving) ─────────────────── -->
+        <!-- ── Nueva / duplicar / editar campaña (toda la pantalla, pedido de Irving) ── -->
         <campanas-dialogo :abierto="dialogo.nueva" variante="ancho" :oscuro="darkMode"
-                          :titulo="duplicandoDe ? `Duplicar «${duplicandoDe}»` : 'Nueva campaña'"
-                          descripcion="El mensaje, a quién y cuándo. En el siguiente paso revisas la lista de clientes antes de llamar."
-                          @cerrar="cerrarNueva">
-            <form class="cp-form" novalidate @submit.prevent="puedeSiguiente && crearCampana(true)">
-                <div class="cp-form-col">
+                          :titulo="tituloNueva" :descripcion="descripcionNueva" @cerrar="cerrarNueva">
+            <form class="cp-form" novalidate @submit.prevent="enviarNueva">
+                <div class="cp-form-col cp-form-col--mensaje">
                     <fieldset class="cp-seccion">
                         <legend class="cp-seccion-titulo">Mensaje</legend>
                         <div class="cp-nombre-motivo">
@@ -232,10 +234,12 @@
                                  a quién se llama lo deciden los filtros de la derecha (27-nov). -->
                             <div class="cp-campo-grupo">
                                 <label for="cp-n-motivo" class="cp-etiqueta">Motivo</label>
-                                <select id="cp-n-motivo" v-model="nueva.tipo" class="cp-campo" aria-describedby="cp-n-motivo-ayuda" @change="alCambiarMotivo">
+                                <select id="cp-n-motivo" v-model="nueva.tipo" class="cp-campo" aria-describedby="cp-n-motivo-ayuda"
+                                        :disabled="edicionActivada" @change="alCambiarMotivo">
                                     <option v-for="(t, id) in TIPOS" :key="id" :value="id">{{ t.label }}</option>
                                 </select>
-                                <p v-if="!puedeLanzarTipo(nueva.tipo)" id="cp-n-motivo-ayuda" class="cp-ayuda">
+                                <p v-if="edicionActivada" id="cp-n-motivo-ayuda" class="cp-ayuda">Ya se activó: el motivo no cambia.</p>
+                                <p v-else-if="!puedeLanzarTipo(nueva.tipo)" id="cp-n-motivo-ayuda" class="cp-ayuda">
                                     Puedes guardarla como borrador; activarla pide el permiso de corte de servicio.
                                 </p>
                             </div>
@@ -307,7 +311,9 @@
                             <p v-for="campo in ['voz', 'voz_velocidad', 'voz_tono']" v-show="erroresNueva[campo]" :key="campo" class="cp-error">{{ primerError(campo) }}</p>
                         </div>
                     </fieldset>
+                </div>
 
+                <div class="cp-form-col cp-form-col--cuando">
                     <fieldset class="cp-seccion">
                         <legend class="cp-seccion-titulo">Cuándo llamar</legend>
                         <div class="cp-par">
@@ -333,11 +339,9 @@
                         </div>
                     </fieldset>
 
-                    <details class="cp-seccion cp-mas" :open="limitesAbiertos" @toggle="limitesAbiertos = $event.target.open">
-                        <summary class="cp-seccion-titulo cp-mas-resumen">
-                            <span>Reintentos y límites</span>
-                            <span class="cp-tenue cp-mas-dato">{{ resumenLimites }}</span>
-                        </summary>
+                    <!-- Siempre a la vista (28-nov, pedido de Irving: antes se plegaba). -->
+                    <fieldset class="cp-seccion">
+                        <legend class="cp-seccion-titulo">Reintentos y límites</legend>
                         <div class="cp-par">
                             <div class="cp-campo-grupo">
                                 <label for="cp-n-intentos" class="cp-etiqueta">Intentos por cliente</label>
@@ -355,12 +359,25 @@
                                        :placeholder="`${canalesDefecto} (por omisión)`">
                             </div>
                         </div>
-                    </details>
+                        <p class="cp-ayuda cp-sin-margen">
+                            Si no contesta o está ocupado, se le vuelve a llamar hasta completar los intentos.
+                        </p>
+                    </fieldset>
                 </div>
 
                 <div class="cp-form-col cp-form-col--lado">
                     <fieldset class="cp-seccion">
                         <legend class="cp-seccion-titulo">A quién se le llama</legend>
+                        <!-- Ya activada, sus llamadas están cargadas: la lista no cambia (para otra, se duplica). -->
+                        <div v-if="edicionActivada" class="cp-fija">
+                            <p class="cp-fija-filtros"><i class="fa fa-lock" aria-hidden="true"></i>{{ audienciaFija }}</p>
+                            <p class="cp-cuenta-total">
+                                <strong class="cp-num">{{ n(edicion.campana.total_llamadas) }}</strong>
+                                {{ +edicion.campana.total_llamadas === 1 ? 'llamada cargada' : 'llamadas cargadas' }}<template v-if="+edicion.campana.pendientes"> · {{ n(edicion.campana.pendientes) }} por marcar</template>
+                            </p>
+                            <p class="cp-cuenta-nota">Ya se activó: esta lista no cambia. Los cambios de mensaje, voz, horario y límites se aplican a las llamadas que faltan. Para llamar a otros clientes, duplícala.</p>
+                        </div>
+                        <template v-else>
                         <campanas-audiencia id-base="cp-n"
                                             v-model:estados="nueva.audiencia.estados" v-model:zona="nueva.audiencia.zona"
                                             v-model:caja="nueva.audiencia.caja" v-model:solo-deudores="nueva.solo_deudores"
@@ -379,6 +396,7 @@
                             </template>
                             <p v-else class="cp-tenue cp-sin-margen">Contando clientes…</p>
                         </div>
+                        </template>
                     </fieldset>
 
                     <div v-if="otrosErrores.length" class="cp-aviso cp-aviso--error" role="alert">
@@ -389,10 +407,17 @@
             </form>
             <template #pie>
                 <button type="button" class="cp-boton" @click="cerrarNueva">Cancelar</button>
-                <button type="button" class="cp-boton" :disabled="creando" @click="crearCampana(false)">Guardar como borrador</button>
-                <button v-if="puedeLanzarTipo(nueva.tipo)" type="button" class="cp-boton cp-boton--primario"
+                <button v-if="edicionActivada" type="button" class="cp-boton cp-boton--primario" :disabled="creando || notaConVariables"
+                        @click="guardarCampana(false)">
+                    <i class="fa" :class="creando ? 'fa-spinner fa-spin' : 'fa-check'" aria-hidden="true"></i>
+                    {{ creando ? 'Guardando…' : 'Guardar cambios' }}
+                </button>
+                <button v-else type="button" class="cp-boton" :disabled="creando" @click="guardarCampana(false)">
+                    {{ edicion ? 'Guardar cambios' : 'Guardar como borrador' }}
+                </button>
+                <button v-if="!edicionActivada && puedeLanzarTipo(nueva.tipo)" type="button" class="cp-boton cp-boton--primario"
                         :disabled="!puedeSiguiente"
-                        @click="crearCampana(true)">
+                        @click="guardarCampana(true)">
                     <i class="fa" :class="creando ? 'fa-spinner fa-spin' : 'fa-arrow-right'" aria-hidden="true"></i>
                     {{ textoSiguiente }}
                 </button>
@@ -425,20 +450,6 @@
                         </div>
                     </div>
 
-                    <div class="cp-revisar-barra">
-                        <label class="cp-buscar">
-                            <i class="fa fa-search" aria-hidden="true"></i>
-                            <input v-model="activar.buscar" data-autofoco type="search" class="cp-campo" autocomplete="off"
-                                   placeholder="Buscar por nombre, número, teléfono o caja" aria-label="Buscar en la lista">
-                        </label>
-                        <div class="cp-segmentos" role="group" aria-label="Qué clientes ver">
-                            <button v-for="sg in segmentosRevision" :key="sg.id" type="button" class="cp-segmento"
-                                    :aria-pressed="activar.vista === sg.id ? 'true' : 'false'" @click="verRevision(sg.id)">
-                                {{ sg.label }}<span v-if="activar.resumen" class="cp-segmento-n">{{ n(sg.n) }}</span>
-                            </button>
-                        </div>
-                    </div>
-
                     <!-- Con una lista ya a la vista que no se pudo actualizar: se dice arriba (la de abajo es la anterior). -->
                     <p v-if="activar.errorLista && activar.clientes.length" class="cp-aviso cp-aviso--error cp-aviso--chico" role="alert">
                         <i class="fa fa-exclamation-triangle" aria-hidden="true"></i>
@@ -446,94 +457,31 @@
                             <button type="button" class="cp-enlace" @click="cargarRevision(true)">Reintentar</button></span>
                     </p>
 
-                    <div class="cp-tabla-caja cp-tabla-caja--borde" :class="{ 'cp-cargando': activar.cargando && activar.clientes.length }" :aria-busy="activar.cargando">
-                        <table class="cp-tabla cp-tabla--revisar">
-                            <thead>
-                                <tr>
-                                    <th scope="col" class="cp-r-marca">
-                                        <label class="cp-r-todos">
-                                            <input type="checkbox" :checked="todosMarcados" :indeterminate.prop="algunosMarcados"
-                                                   :disabled="!filtradosRevision.length" @change="marcarTodos($event.target.checked)"
-                                                   :aria-label="activar.buscar.trim() ? 'Marcar o quitar a todos los de esta búsqueda' : 'Marcar o quitar a todos'">
-                                            <span class="cp-r-todos-texto" aria-hidden="true">{{ activar.buscar.trim() ? 'Todos los de esta búsqueda' : 'Todos' }}</span>
-                                        </label>
-                                    </th>
-                                    <th scope="col">Cliente</th>
-                                    <th scope="col">Teléfono</th>
-                                    <th scope="col">Estado</th>
-                                    <th scope="col">Caja</th>
-                                    <th v-if="activar.vistaDeudores" scope="col" class="cp-num">Saldo vencido</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <template v-if="activar.cargando && !activar.clientes.length">
-                                    <tr v-for="i in 6" :key="`e${i}`" class="cp-fila-esqueleto">
-                                        <td class="cp-r-marca"><span class="cp-esqueleto" style="width: 15px"></span></td>
-                                        <td v-for="j in (activar.vistaDeudores ? 5 : 4)" :key="j"><span class="cp-esqueleto" :style="{ width: j === 1 ? '60%' : '70%' }"></span></td>
-                                    </tr>
-                                </template>
-                                <tr v-else-if="!filtradosRevision.length" class="cp-fila-vacia">
-                                    <td :colspan="activar.vistaDeudores ? 6 : 5" class="cp-vacio">
-                                        <template v-if="activar.buscar.trim()">
-                                            <strong>Nadie coincide con «{{ activar.buscar.trim() }}»</strong>
-                                            <button type="button" class="cp-enlace" @click="activar.buscar = ''">Quitar la búsqueda</button>
-                                        </template>
-                                        <template v-else-if="activar.vista === 'quitados'">
-                                            <strong>No has quitado a nadie</strong>
-                                            <span class="cp-vacio-texto">Se le llama a toda la lista.</span>
-                                        </template>
-                                        <template v-else-if="!activar.filtros.estados.length">
-                                            <strong>Marca al menos un estado del cliente</strong>
-                                            <span class="cp-vacio-texto">Activos, Bloqueados o Inactivos: con eso se arma la lista.</span>
-                                        </template>
-                                        <template v-else-if="activar.errorLista">
-                                            <strong role="alert">No se pudo armar la lista</strong>
-                                            <span class="cp-vacio-texto">{{ activar.errorLista }}</span>
-                                            <button type="button" class="cp-boton" @click="cargarRevision(true)">
-                                                <i class="fa fa-redo" aria-hidden="true"></i> Reintentar
-                                            </button>
-                                        </template>
-                                        <template v-else-if="activar.resumen">
-                                            <strong>Nadie entra con estos filtros</strong>
-                                            <span class="cp-vacio-texto">Marca otro estado o elige otra zona.</span>
-                                            <button v-if="!activar.editando" type="button" class="cp-enlace" @click="activar.editando = true">Cambiar los filtros</button>
-                                        </template>
-                                    </td>
-                                </tr>
-                                <tr v-for="c in paginaRevision" :key="c.id" :class="{ 'cp-fila-quitada': quitado(c.id) }">
-                                    <td class="cp-r-marca">
-                                        <input :id="`cp-r-${c.id}`" type="checkbox" :checked="!quitado(c.id)" @change="alternarCliente(c.id)">
-                                    </td>
-                                    <td class="cp-r-cliente">
-                                        <div class="cp-r-cliente-linea">
-                                            <label :for="`cp-r-${c.id}`" class="cp-r-nombre">{{ c.nombre }}</label>
-                                            <a :href="`/cliente/editar/${c.id}`" target="_blank" rel="noopener" class="cp-r-numero cp-num"
-                                               :aria-label="`Abrir la ficha del cliente ${c.id} en otra pestaña`">#{{ c.id }}</a>
-                                        </div>
-                                        <span v-if="quitado(c.id)" class="cp-r-quitado"><i class="fa fa-phone-slash" aria-hidden="true"></i> No se le llama</span>
-                                    </td>
-                                    <td class="cp-r-telefono cp-num">{{ telefono(c.telefono) }}</td>
-                                    <td class="cp-r-estado">
-                                        <span class="cp-estado" :class="ESTADO_CLIENTE_CLASE[c.estado]">{{ c.estado }}</span>
-                                    </td>
-                                    <td class="cp-r-caja cp-num" :class="{ 'cp-tenue': !c.nomenclatura }">{{ c.nomenclatura || 'Sin caja' }}</td>
-                                    <td v-if="activar.vistaDeudores" class="cp-r-saldo cp-num">{{ dinero(c.monto) }}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <footer v-if="filtradosRevision.length > POR_PAGINA_REVISION" class="cp-pie cp-pie--detalle">
-                        <span class="cp-tenue cp-num">{{ n((activar.pagina - 1) * POR_PAGINA_REVISION + 1) }}–{{ n(Math.min(activar.pagina * POR_PAGINA_REVISION, filtradosRevision.length)) }} de {{ n(filtradosRevision.length) }}</span>
-                        <div class="cp-paginacion">
-                            <button type="button" class="cp-icono" :disabled="activar.pagina <= 1" aria-label="Página anterior" @click="activar.pagina--">
-                                <i class="fa fa-chevron-left" aria-hidden="true"></i>
-                            </button>
-                            <span class="cp-num cp-tenue">{{ activar.pagina }} de {{ paginasRevision }}</span>
-                            <button type="button" class="cp-icono" :disabled="activar.pagina >= paginasRevision" aria-label="Página siguiente" @click="activar.pagina++">
-                                <i class="fa fa-chevron-right" aria-hidden="true"></i>
-                            </button>
-                        </div>
-                    </footer>
+                    <!-- Lo del listado de clientes (filtro, búsqueda, orden, columnas, exportar) con el diseño de Campañas (28-nov). -->
+                    <campanas-revision-tabla :clientes="activar.clientes" :quitados="activar.quitados" :deudores="activar.vistaDeudores"
+                                             :cargando="activar.cargando" :nombre="activar.campana.nombre"
+                                             v-model:buscar="activar.buscar" v-model:vista="activar.vista"
+                                             @alternar="alternarCliente" @marcar="marcarClientes">
+                        <template #vacio>
+                            <template v-if="!activar.filtros.estados.length">
+                                <div><strong>Marca al menos un estado del cliente</strong></div>
+                                <div class="cp-tenue">Activos, Bloqueados o Inactivos: con eso se arma la lista.</div>
+                            </template>
+                            <template v-else-if="activar.errorLista">
+                                <div role="alert"><strong>No se pudo armar la lista</strong></div>
+                                <div class="cp-tenue">{{ activar.errorLista }}</div>
+                                <button type="button" class="cp-boton" @click="cargarRevision(true)">
+                                    <i class="fa fa-redo" aria-hidden="true"></i> Reintentar
+                                </button>
+                            </template>
+                            <template v-else-if="activar.resumen">
+                                <div><strong>Nadie entra con estos filtros</strong></div>
+                                <div class="cp-tenue">Marca otro estado o elige otra zona.</div>
+                                <button v-if="!activar.editando" type="button" class="cp-enlace" @click="activar.editando = true">Cambiar los filtros</button>
+                            </template>
+                            <div v-else>No hay elementos para mostrar</div>
+                        </template>
+                    </campanas-revision-tabla>
                 </section>
 
                 <aside class="cp-revisar-lado" aria-label="Resumen de la campaña">
@@ -553,7 +501,6 @@
                         <template v-else-if="activar.resumen">
                             <span class="cp-alcance-numero cp-num">{{ n(aLlamar) }}</span>
                             <span class="cp-alcance-texto">{{ aLlamar === 1 ? 'cliente recibirá la llamada' : 'clientes recibirán la llamada' }}</span>
-                            <span v-if="activar.vistaDeudores && activar.resumen.clientes_n" class="cp-tenue cp-num">Adeudo vencido de la lista: {{ dinero(montoALlamar) }}</span>
                             <span v-if="quitadosEnLista" class="cp-alcance-nota">
                                 <i class="fa fa-user-minus" aria-hidden="true"></i>
                                 {{ n(quitadosEnLista) }} {{ quitadosEnLista === 1 ? 'quitado' : 'quitados' }} de la lista ·
@@ -678,6 +625,9 @@
                 </div>
             </template>
             <template #pie>
+                <button v-if="detalle.campana && puedeEditar(detalle.campana)" type="button" class="cp-boton" @click="editarDesdeDetalle">
+                    <i class="fa fa-pen" aria-hidden="true"></i> Editar
+                </button>
                 <a v-if="detalle.campana" class="cp-boton" :href="urlGrabaciones(detalle.campana)">
                     <i class="fa fa-headphones" aria-hidden="true"></i> Escuchar las grabaciones
                 </a>
@@ -697,6 +647,7 @@ import { darkMode } from '../../../hook/appConfig.js';
 import { message } from '../../../helpers/toastMsg.js';
 import CampanasDialogo from './CampanasDialogo.vue';
 import CampanasAudiencia from './CampanasAudiencia.vue';
+import CampanasRevisionTabla from './CampanasRevisionTabla.vue';
 import { ESTADOS_POR_OMISION, filtrosDe, resumenAudiencia, zonasRepetidas, tieneVariables } from './audiencia.js';
 
 // Fecha de hoy en la hora local (toISOString da la de UTC: después de las 6 p.m. ya era «mañana»).
@@ -720,9 +671,7 @@ const TIPOS = {
 };
 
 // El estado del cliente con los colores de siempre: activo verde, bloqueado ámbar, inactivo gris.
-const ESTADO_CLIENTE_CLASE = { Activo: 'cp-estado--activa', Bloqueado: 'cp-estado--pausada', Inactivo: 'cp-estado--borrador' };
 
-const POR_PAGINA_REVISION = 50;
 
 const ORDEN_NOMBRES = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
 
@@ -734,7 +683,7 @@ function activarVacio(c = null) {
         campana: c, filtros: filtrosDe(c), soloDeudores: !!(c && c.solo_deudores), dias: Number((c && c.dias_vencimiento) ?? 1),
         // La lista que se cargó y con qué «solo los que deben»: el saldo se muestra según la lista, no según la casilla.
         resumen: null, clientes: [], vistaDeudores: false, quitados: {},
-        buscar: '', vista: 'todos', pagina: 1, editando: false, cargando: false, enviando: false, errorLista: '', error: '',
+        buscar: '', vista: 'todos', editando: false, cargando: false, enviando: false, errorLista: '', error: '',
     };
 }
 
@@ -767,7 +716,8 @@ const ESTADOS_LLAMADA = {
 const ORDENES = ['nombre', 'estado', 'llamadas', 'contestadas', 'creada'];
 
 // La nota es el mensaje que escucha el cliente; con «solo los que deben» arranca con el de cobranza.
-function nuevaCampana(opcionesVoz, base = null) {
+// Con base: duplicar (fechas nuevas) o, con editar, la misma campaña con su nombre y sus fechas.
+function nuevaCampana(opcionesVoz, base = null, editar = false) {
     const c = {
         nombre: '', tipo: 'cobranza', solo_deudores: true, max_canales_simultaneos: null,
         audiencia: { estados: [...ESTADOS_POR_OMISION], zona: null, caja: null },
@@ -778,7 +728,7 @@ function nuevaCampana(opcionesVoz, base = null) {
     };
     if (!base) return c;
     // Duplicar: mismo mensaje, voz, horario y límites; las fechas se eligen de nuevo.
-    return {
+    const copia = {
         ...c,
         nombre: `Copia de ${base.nombre}`.slice(0, 255),
         tipo: base.tipo || 'cobranza',
@@ -795,6 +745,9 @@ function nuevaCampana(opcionesVoz, base = null) {
         voz_velocidad: base.voz_velocidad != null ? Number(base.voz_velocidad) : c.voz_velocidad,
         voz_tono: base.voz_tono || '',
     };
+    if (!editar) return copia;
+    const dia = f => String(f || '').slice(0, 10);
+    return { ...copia, nombre: base.nombre, fecha_inicio: dia(base.fecha_inicio), fecha_fin: dia(base.fecha_fin) };
 }
 
 function leerUrl() {
@@ -812,7 +765,7 @@ function leerUrl() {
 
 export default {
     name: 'CobranzaCampanas',
-    components: { CampanasDialogo, CampanasAudiencia },
+    components: { CampanasDialogo, CampanasAudiencia, CampanasRevisionTabla },
     props: {
         baseUrl:        { type: String, required: true },
         csrfToken:      { type: String, required: true },
@@ -821,7 +774,7 @@ export default {
         puedeCortar:    { type: Boolean, default: false },
     },
     setup() {
-        return { darkMode, TIPOS, SEGMENTOS, ESTADO_CLIENTE_CLASE, POR_PAGINA_REVISION, filtrosDe, resumenAudiencia };
+        return { darkMode, TIPOS, SEGMENTOS, filtrosDe, resumenAudiencia };
     },
     data() {
         const url = leerUrl();
@@ -846,9 +799,10 @@ export default {
             // Alta / duplicar
             nueva:            nuevaCampana(VOZ_INICIAL),
             duplicandoDe:     '',
+            // Editar (28-nov): { id, nombre, activada, campana } de la que se edita; null en alta y duplicar.
+            edicion:          null,
             erroresNueva:     {},
             creando:          false,
-            limitesAbiertos:  false,
             vozOpciones:      { ...VOZ_INICIAL },
             vozCargada:       false,
             generandoMuestra: false,
@@ -911,33 +865,29 @@ export default {
         velocidadEtiqueta() {
             return `${Number(this.nueva.voz_velocidad || 1).toFixed(2)}×`;
         },
-        resumenLimites() {
-            const c = this.nueva;
-            return `${c.max_intentos || 3} intentos · cada ${c.minutos_entre_intentos || 180} min · ${c.max_canales_simultaneos || this.canalesDefecto} a la vez`;
+        tituloNueva() {
+            if (this.edicion) return `Editar «${this.edicion.nombre}»`;
+            return this.duplicandoDe ? `Duplicar «${this.duplicandoDe}»` : 'Nueva campaña';
+        },
+        descripcionNueva() {
+            if (this.edicionActivada) {
+                return this.edicion.campana.estado === 'activa'
+                    ? 'Está llamando: los cambios se aplican a las llamadas que faltan.'
+                    : 'Está en pausa: los cambios se aplican a las llamadas que faltan al reanudarla.';
+            }
+            return 'El mensaje, a quién y cuándo. En el siguiente paso revisas la lista de clientes antes de llamar.';
+        },
+        // Activa o en pausa: sus llamadas ya están cargadas y «a quién se le llama» no cambia.
+        edicionActivada() {
+            return !!(this.edicion && this.edicion.activada);
+        },
+        audienciaFija() {
+            const c = this.edicion && this.edicion.campana;
+            return c ? resumenAudiencia(filtrosDe(c), !!c.solo_deudores, c.dias_vencimiento) : '';
         },
         resumenActivar() {
             const a = this.activar;
             return resumenAudiencia(a.filtros, a.soloDeudores, a.dias, zonasRepetidas(a.resumen && a.resumen.zonas));
-        },
-        // La lista a la vista: búsqueda y «todos / se les llama / quitados».
-        filtradosRevision() {
-            const a = this.activar;
-            const q = plano(a.buscar.trim());
-            const digitos = a.buscar.replace(/\D/g, '');
-            return a.clientes.filter(c => {
-                if (a.vista === 'llamar' && a.quitados[c.id]) return false;
-                if (a.vista === 'quitados' && !a.quitados[c.id]) return false;
-                if (!q) return true;
-                return plano(c.nombre).includes(q) || plano(c.nomenclatura).includes(q)
-                    || (digitos.length > 0 && (String(c.id) === digitos || String(c.telefono || '').includes(digitos)));
-            });
-        },
-        paginasRevision() {
-            return Math.max(1, Math.ceil(this.filtradosRevision.length / POR_PAGINA_REVISION));
-        },
-        paginaRevision() {
-            const inicio = (this.activar.pagina - 1) * POR_PAGINA_REVISION;
-            return this.filtradosRevision.slice(inicio, inicio + POR_PAGINA_REVISION);
         },
         quitadosEnLista() {
             const q = this.activar.quitados;
@@ -945,27 +895,6 @@ export default {
         },
         aLlamar() {
             return this.activar.clientes.length - this.quitadosEnLista;
-        },
-        montoALlamar() {
-            const q = this.activar.quitados;
-            return this.activar.clientes.reduce((t, c) => t + (q[c.id] ? 0 : Number(c.monto || 0)), 0);
-        },
-        segmentosRevision() {
-            const lista = [
-                { id: 'todos', label: 'Todos', n: this.activar.clientes.length },
-                { id: 'llamar', label: 'Se les llama', n: this.aLlamar },
-            ];
-            if (this.quitadosEnLista || this.activar.vista === 'quitados') lista.push({ id: 'quitados', label: 'Quitados', n: this.quitadosEnLista });
-            return lista;
-        },
-        todosMarcados() {
-            const f = this.filtradosRevision;
-            return f.length > 0 && f.every(c => !this.activar.quitados[c.id]);
-        },
-        algunosMarcados() {
-            const f = this.filtradosRevision;
-            const marcados = f.reduce((t, c) => t + (this.activar.quitados[c.id] ? 0 : 1), 0);
-            return marcados > 0 && marcados < f.length;
         },
         // Sin «solo los que deben» se lee un texto igual para todos: la campaña tiene que traerlo y sin
         // {nombre}/{saldo}… (se leerían tal cual).
@@ -1018,8 +947,6 @@ export default {
         'activar.filtros': { deep: true, handler() { if (!this.reemplazando && this.dialogo.activar) this.cargarRevision(); } },
         'activar.soloDeudores'() { if (!this.reemplazando && this.dialogo.activar) this.cargarRevision(); },
         'activar.dias'() { if (!this.reemplazando && this.dialogo.activar && this.activar.soloDeudores) this.cargarRevision(); },
-        'activar.buscar'() { this.activar.pagina = 1; },
-        paginasRevision(total) { if (this.activar.pagina > total) this.activar.pagina = total; },
         'dialogo.nueva'(abierto) {
             if (!abierto) this.detenerMuestra();
         },
@@ -1287,20 +1214,42 @@ export default {
         },
 
         // ── Alta / duplicar ─────────────────────────────────────────────────────
-        async abrirNueva(base = null) {
+        async abrirNueva(base = null, editar = false) {
             if (!this.vozCargada) await this.cargarVoz();
-            this.nueva           = nuevaCampana(this.vozOpciones, base);
+            this.nueva           = nuevaCampana(this.vozOpciones, base, editar);
             this.motivoAnterior  = this.nueva.tipo;
             this.callarWatchers();
-            this.duplicandoDe    = base ? base.nombre : '';
+            this.edicion         = editar ? { id: base.id, nombre: base.nombre, activada: base.estado !== 'borrador', campana: base } : null;
+            this.duplicandoDe    = base && !editar ? base.nombre : '';
             this.erroresNueva    = {};
             this.errorMuestra    = '';
-            this.limitesAbiertos = false;
             if (!this.vozOpciones.voces.some(v => v.id === this.nueva.voz)) this.nueva.voz = this.vozOpciones.voz;
             if (!this.vozOpciones.soporta_tono) this.nueva.voz_tono = '';
             this.audNueva = { resumen: null, cargando: false, error: '' };
             this.dialogo.nueva = true;
             this.contarNueva(true);
+        },
+        // Editar (28-nov): en borrador todo; activa o en pausa, sin cambiar a quién se le llama.
+        // Una terminada no se edita (se duplica); una de corte ya activada pide su permiso.
+        puedeEditar(c) {
+            if (!this.puedeGestionar || c.estado === 'completada') return false;
+            return c.estado === 'borrador' || this.puedeLanzarTipo(c.tipo);
+        },
+        abrirEditar(c) {
+            if (this.puedeEditar(c)) this.abrirNueva(c, true);
+        },
+        // El panel de llamadas va encima del alta: se cierra antes de abrir la edición.
+        editarDesdeDetalle() {
+            const c = this.detalle.campana;
+            this.dialogo.detalle = false;
+            this.abrirEditar(c);
+        },
+        enviarNueva() {
+            if (this.edicionActivada) {
+                if (!this.creando && !this.notaConVariables) this.guardarCampana(false);
+            } else if (this.puedeSiguiente) {
+                this.guardarCampana(true);
+            }
         },
         cerrarNueva() {
             this.dialogo.nueva = false;
@@ -1327,30 +1276,36 @@ export default {
             else if (this.motivoAnterior === 'cobranza') this.nueva.solo_deudores = false;
             this.motivoAnterior = t;
         },
-        async crearCampana(continuar) {
+        // Alta y editar: con continuar (borrador que se puede lanzar) sigue a revisar la lista.
+        async guardarCampana(continuar) {
             if (this.creando) return;
             this.creando      = true;
             this.erroresNueva = {};
+            const edicion = this.edicion;
+            const datos   = { ...this.nueva, voz_tono: this.nueva.voz_tono || null };
+            const config  = { headers: { 'X-CSRF-TOKEN': this.csrfToken } };
             try {
-                const { data } = await axios.post(`${this.baseUrl}/campanas`, { ...this.nueva, voz_tono: this.nueva.voz_tono || null }, {
-                    headers: { 'X-CSRF-TOKEN': this.csrfToken },
-                });
+                const { data } = edicion
+                    ? await axios.put(`${this.baseUrl}/campanas/${edicion.id}`, datos, config)
+                    : await axios.post(`${this.baseUrl}/campanas`, datos, config);
                 this.dialogo.nueva = false;
-                this.recargar(1, true);
+                this.recargar(edicion ? this.pagina : 1, true);
                 this.cargarKpis();
-                if (continuar && this.puedeLanzarTipo(data.tipo)) {
+                if (continuar && data.estado === 'borrador' && this.puedeLanzarTipo(data.tipo)) {
                     this.abrirActivar(data);
+                } else if (edicion && edicion.activada) {
+                    message(`Cambios guardados en «${data.nombre}»: se aplican a las llamadas que faltan.`);
+                } else if (edicion) {
+                    message(`Cambios guardados en «${data.nombre}».`);
                 } else {
                     message(`«${data.nombre}» quedó como borrador. Actívala cuando esté lista.`);
                 }
             } catch (e) {
-                if (e.response?.status === 422) {
-                    this.erroresNueva = e.response.data.errors || {};
-                    const conLimites = ['max_intentos', 'minutos_entre_intentos', 'max_canales_simultaneos'];
-                    if (Object.keys(this.erroresNueva).some(k => conLimites.includes(k))) this.limitesAbiertos = true;
+                if (e.response?.status === 422 && e.response.data?.errors) {
+                    this.erroresNueva = e.response.data.errors;
                 } else {
                     // Que no se quede callado: sin esto, un error del servidor no decía nada.
-                    this.erroresNueva = { general: [this.errorDe(e, 'No se pudo crear la campaña. Intenta de nuevo.')] };
+                    this.erroresNueva = { general: [this.errorDe(e, edicion ? 'No se pudieron guardar los cambios. Intenta de nuevo.' : 'No se pudo crear la campaña. Intenta de nuevo.')] };
                 }
             } finally {
                 this.creando = false;
@@ -1454,7 +1409,7 @@ export default {
         // Cuántos entran mientras se llena el alta (sin la lista: solo números).
         contarNueva(ya = false) {
             clearTimeout(this.temporizadorAudNueva);
-            if (!this.dialogo.nueva) return;
+            if (!this.dialogo.nueva || this.edicionActivada) return;
             const c = this.nueva;
             if (!c.audiencia.estados.length) {
                 this.audNueva.cargando = false;
@@ -1530,17 +1485,16 @@ export default {
             if (q[id]) delete q[id];
             else q[id] = true;
         },
-        // Marca o quita a todos los que se ven con la búsqueda (no solo la página).
-        marcarTodos(marcar) {
+        // Marca o quita a todos los que se ven en la tabla con su filtro y búsqueda (no solo la página).
+        marcarClientes({ ids, marcado }) {
             const q = this.activar.quitados;
-            for (const c of this.filtradosRevision) {
-                if (marcar) delete q[c.id];
-                else q[c.id] = true;
+            for (const id of ids) {
+                if (marcado) delete q[id];
+                else q[id] = true;
             }
         },
         verRevision(vista) {
             this.activar.vista = vista;
-            this.activar.pagina = 1;
         },
         async confirmarActivacion() {
             const a = this.activar;
@@ -1853,7 +1807,26 @@ th[aria-sort="ascending"] .cp-orden, th[aria-sort="descending"] .cp-orden { colo
 .cp-por-pagina .cp-campo { width: auto; min-height: 34px; padding: 4px 8px; }
 
 /* ── Alta ─────────────────────────────────────────────────────────────────── */
-.cp-form { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(300px, 1fr); gap: 28px; }
+/* El diálogo ocupa la pantalla (28-nov): mensaje · cuándo y límites · a quién, todo a la vista;
+   con menos ancho, a quién va a la derecha de las dos primeras; en celular, una debajo de otra. */
+.cp-form {
+    display: grid; gap: 28px; align-items: start;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(320px, 1fr);
+    grid-template-areas: "mensaje cuando lado";
+}
+.cp-form-col { min-width: 0; }
+.cp-form-col--mensaje { grid-area: mensaje; }
+.cp-form-col--cuando { grid-area: cuando; }
+.cp-form-col--lado { grid-area: lado; }
+@media (max-width: 1399px) {
+    .cp-form {
+        grid-template-columns: minmax(0, 1.45fr) minmax(320px, 1fr); grid-template-rows: auto 1fr;
+        grid-template-areas: "mensaje lado" "cuando lado";
+    }
+}
+@media (max-width: 899px) {
+    .cp-form { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "mensaje" "cuando" "lado"; gap: 20px; }
+}
 .cp-seccion { border: 0; margin: 0 0 20px; padding: 0; min-width: 0; }
 .cp-seccion:last-child { margin-bottom: 0; }
 .cp-seccion-titulo {
@@ -1884,16 +1857,15 @@ legend.cp-seccion-titulo + * { clear: both; }
 .cp-rango { width: 100%; height: 36px; accent-color: var(--cp-acento); cursor: pointer; }
 .cp-rango-extremos { display: flex; justify-content: space-between; font-size: 12px; color: var(--cp-tenue); margin-top: -6px; }
 
-.cp-mas { margin-top: 14px; }
-.cp-mas-resumen {
-    display: flex; justify-content: space-between; align-items: baseline; gap: 10px; cursor: pointer; list-style: none;
-    margin-bottom: 0; border-bottom: 0; padding-bottom: 0;
+/* A quién se le llama de una campaña ya activada: fijo, con candado. */
+.cp-fija { display: grid; gap: 10px; }
+.cp-fija-filtros {
+    display: flex; align-items: baseline; gap: 9px; margin: 0; padding: 10px 12px;
+    border: 1px dashed var(--cp-borde-campo); border-radius: 8px; background: var(--cp-superficie);
+    font-size: 13.5px; font-weight: 500; line-height: 1.45; color: var(--cp-tinta);
 }
-.cp-mas-resumen::-webkit-details-marker { display: none; }
-.cp-mas-resumen::after { content: '\f078'; font-family: 'Font Awesome 5 Free'; font-weight: 900; font-size: 11px; color: var(--cp-tenue); transition: transform .15s; }
-.cp-mas[open] .cp-mas-resumen { margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--cp-borde); }
-.cp-mas[open] .cp-mas-resumen::after { transform: rotate(180deg); }
-.cp-mas-dato { margin-left: auto; font-weight: 400; }
+.cp-fija-filtros .fa { flex: none; font-size: 12px; color: var(--cp-tenue); }
+.cp-fija .cp-cuenta-total, .cp-fija .cp-cuenta-nota { margin: 0; }
 
 /* ── Activar ──────────────────────────────────────────────────────────────── */
 .cp-zona { margin-bottom: 4px; }
@@ -1929,30 +1901,8 @@ legend.cp-seccion-titulo + * { clear: both; }
 .cp-revisar-quien-texto { flex: 1 1 260px; min-width: 0; font-size: 13.5px; font-weight: 500; color: var(--cp-tinta); }
 .cp-revisar-editor { margin-top: 12px; padding-top: 14px; border-top: 1px solid var(--cp-borde); }
 
-.cp-revisar-barra { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
-.cp-revisar-barra .cp-buscar { max-width: 420px; }
 
-.cp-tabla--revisar thead th, .cp-tabla--revisar tbody td { padding: 9px 10px; }
-.cp-tabla--revisar th:first-child, .cp-tabla--revisar td:first-child { padding-left: 12px; }
-.cp-tabla--revisar th:last-child, .cp-tabla--revisar td:last-child { padding-right: 12px; }
-.cp-tabla--revisar .cp-r-telefono, .cp-tabla--revisar .cp-r-caja { text-align: left; }
-.cp-r-marca { width: 1%; }
-.cp-r-todos { display: flex; align-items: center; gap: 10px; margin: 0; cursor: pointer; }
-.cp-r-todos-texto { display: none; font-size: 13px; font-weight: 600; color: var(--cp-tinta); }
-.cp-r-marca input { display: block; width: 15px; height: 15px; margin: 0; accent-color: var(--cp-acento); cursor: pointer; }
-.cp-r-cliente { min-width: 200px; }
-.cp-r-cliente-linea { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; }
-.cp-r-nombre { margin: 0; font-weight: 500; color: var(--cp-tinta); cursor: pointer; overflow-wrap: anywhere; }
-.cp-r-numero { font-size: 12px; color: var(--cp-tenue); text-decoration: none; }
-.cp-r-numero:hover { color: var(--cp-acento); text-decoration: underline; text-underline-offset: 3px; }
-.cp-r-estado .cp-estado { padding: 2px 9px; font-size: 12px; }
 /* Quitado: se queda en su lugar, en gris y dicho con palabras, para poder volver a marcarlo. */
-.cp-tabla--revisar tbody tr.cp-fila-quitada td { background: var(--cp-cabecera); }
-.cp-fila-quitada .cp-r-nombre { color: var(--cp-tenue); font-weight: 400; }
-.cp-fila-quitada :is(.cp-r-telefono, .cp-r-caja, .cp-r-saldo) { color: var(--cp-tenue); }
-.cp-r-quitado { display: block; margin-top: 2px; font-size: 12px; font-weight: 500; color: var(--cp-tenue); }
-.cp-r-quitado i { font-size: 10.5px; margin-right: 2px; }
-.cp-tabla--revisar .cp-vacio .cp-enlace { margin-top: 2px; }
 
 /* ── Detalle ──────────────────────────────────────────────────────────────── */
 .cp-detalle-cabeza { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
@@ -2034,7 +1984,6 @@ legend.cp-seccion-titulo + * { clear: both; }
 
 /* ── Diálogos (van en <body>, fuera de la página: miden la pantalla) ──────── */
 @media (max-width: 1199px) {
-    .cp-form { grid-template-columns: 1fr; gap: 20px; }
     /* Primero a cuántos se llama; la ficha en dos columnas */
     .cp-revisar { grid-template-columns: 1fr; gap: 16px; }
     .cp-revisar-lado { position: static; order: -1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 0 20px; }
@@ -2061,33 +2010,8 @@ legend.cp-seccion-titulo + * { clear: both; }
     .cp-ll-fecha { grid-area: fecha; }
     .cp-ll-saldo { grid-area: saldo; text-align: right; }
 
-    /* Revisar: una tarjeta por cliente con su casilla a la izquierda */
     .cp-revisar-lado { grid-template-columns: 1fr; }
     .cp-revisar-lado .cp-ficha { display: none; }
-    .cp-revisar-barra .cp-buscar { max-width: none; flex-basis: 100%; }
-    .cp-tabla--revisar, .cp-tabla--revisar tbody, .cp-tabla--revisar thead { display: block; }
-    .cp-tabla--revisar thead tr { display: block; padding: 8px 12px; border-bottom: 1px solid var(--cp-borde); }
-    .cp-tabla--revisar thead th { display: none; padding: 0 !important; border: 0; background: none; }
-    .cp-tabla--revisar thead th.cp-r-marca { display: block; width: auto; }
-    .cp-r-todos { min-height: 32px; }
-    .cp-r-todos input { width: 20px; height: 20px; }
-    .cp-r-todos-texto { display: inline; }
-    .cp-tabla--revisar tbody tr {
-        display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 4px 10px; padding: 12px;
-        grid-template-areas: "marca cliente estado" "marca telefono saldo" "marca caja caja"; border-bottom: 1px solid var(--cp-borde);
-    }
-    .cp-tabla--revisar tbody tr:last-child { border-bottom: 0; }
-    .cp-tabla--revisar tbody td { display: block; padding: 0 !important; border: 0; }
-    .cp-tabla--revisar tbody tr:hover td { background: transparent !important; }
-    .cp-tabla--revisar .cp-fila-vacia, .cp-tabla--revisar .cp-fila-esqueleto { display: block !important; padding: 12px; }
-    .cp-tabla--revisar .cp-fila-esqueleto td { margin-bottom: 6px; }
-    .cp-r-marca { grid-area: marca; width: auto; padding-top: 2px !important; }
-    .cp-r-marca input { width: 20px; height: 20px; }
-    .cp-r-cliente { grid-area: cliente; min-width: 0; }
-    .cp-r-estado { grid-area: estado; }
-    .cp-r-telefono { grid-area: telefono; color: var(--cp-tenue); text-align: left !important; }
-    .cp-r-saldo { grid-area: saldo; text-align: right; }
-    .cp-r-caja { grid-area: caja; color: var(--cp-tenue); text-align: left !important; }
 }
 
 /* ── Celular: todo a tamaño de dedo ───────────────────────────────────────── */

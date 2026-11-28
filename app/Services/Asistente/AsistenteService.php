@@ -3,6 +3,7 @@
 namespace App\Services\Asistente;
 
 use App\Models\Asistente\Accion;
+use App\Models\Asistente\Adjunto;
 use App\Models\Asistente\Conversacion;
 use App\Models\Asistente\Mensaje;
 use App\Models\User;
@@ -31,6 +32,7 @@ class AsistenteService
         private RegistroHerramientas $registro,
         private AccionesAsistente $acciones,
         private MemoriaAsistente $memoria,
+        private AdjuntosAsistente $adjuntos,
     ) {
     }
 
@@ -40,10 +42,11 @@ class AsistenteService
             ?? Conversacion::create(['user_id' => $user->id, 'activa' => true]);
     }
 
-    /** "Empezar tema nuevo": cierra el hilo actual. Los recuerdos del usuario se conservan. */
+    /** "Empezar tema nuevo": cierra el hilo actual y borra sus archivos. Los recuerdos del usuario se conservan. */
     public function nuevaConversacion(User $user): Conversacion
     {
         $actual = $this->conversacionActiva($user);
+        $this->adjuntos->borrarDeConversacion($actual);
         if (!$actual->mensajes()->exists()) {
             return $actual;
         }
@@ -59,22 +62,31 @@ class AsistenteService
     {
         $conversacion = $this->conversacionActiva($user);
         $mensajes = $conversacion->mensajes()->whereIn('rol', ['user', 'assistant'])
-            ->whereNotNull('contenido')->where('contenido', '!=', '')
+            ->where(fn ($q) => $q->where('contenido', '!=', '')
+                ->orWhereExists(fn ($e) => $e->selectRaw('1')->from('asistente_adjuntos')->whereColumn('asistente_adjuntos.mensaje_id', 'asistente_mensajes.id')))
             ->orderByDesc('id')->limit($this->conocimiento->memoria('mensajes_en_pantalla', 80))
-            ->get(['rol', 'contenido', 'created_at'])->reverse()->values()
-            ->map(fn ($m) => ['role' => $m->rol, 'content' => $m->contenido, 'timestamp' => $m->created_at?->toIso8601String()]);
+            ->get(['id', 'rol', 'contenido', 'created_at'])->reverse()->values();
+        $adjuntos = Adjunto::whereIn('mensaje_id', $mensajes->pluck('id'))->orderBy('id')->get()->groupBy('mensaje_id');
+        $mensajes = $mensajes->map(fn ($m) => [
+            'role'      => $m->rol,
+            'content'   => (string) $m->contenido,
+            'timestamp' => $m->created_at?->toIso8601String(),
+            'adjuntos'  => ($adjuntos[$m->id] ?? collect())->map(fn (Adjunto $a) => $a->paraPantalla())->values()->all(),
+        ]);
 
         return ['messages' => $mensajes->all(), 'accion_pendiente' => $this->accionParaPantalla($this->acciones->pendienteDe($user, $conversacion))];
     }
 
-    public function responder(User $user, string $texto, ?string $pantalla): array
+    /** @param array<int, int> $adjuntoIds archivos ya subidos que van con este mensaje */
+    public function responder(User $user, string $texto, ?string $pantalla, array $adjuntoIds = []): array
     {
         $conversacion = $this->conversacionActiva($user);
         $texto = trim($texto);
+        $adjuntos = $this->adjuntos->paraMensaje($user, $adjuntoIds);
 
         // El "sí" / "no" a un cambio pendiente lo resuelve el servidor, no la IA.
         $pendiente = $this->acciones->pendienteDe($user, $conversacion);
-        if ($pendiente && mb_strlen($texto) <= 40 && (preg_match(self::AFIRMACION, $texto) || preg_match(self::NEGACION, $texto))) {
+        if ($pendiente && $adjuntos->isEmpty() && mb_strlen($texto) <= 40 && (preg_match(self::AFIRMACION, $texto) || preg_match(self::NEGACION, $texto))) {
             $this->guardar($conversacion, 'user', $texto, ['pantalla' => $pantalla]);
 
             return preg_match(self::AFIRMACION, $texto)
@@ -82,15 +94,16 @@ class AsistenteService
                 : $this->resultadoDeCancelacion($user, $conversacion, $pendiente);
         }
 
-        $this->guardar($conversacion, 'user', $texto, ['pantalla' => $pantalla]);
+        $mensaje = $this->guardar($conversacion, 'user', $texto, ['pantalla' => $pantalla]);
+        $this->adjuntos->vincular($adjuntos, $mensaje);
         if (!$conversacion->titulo) {
-            $conversacion->update(['titulo' => mb_substr($texto, 0, 120)]);
+            $conversacion->update(['titulo' => mb_substr($texto !== '' ? $texto : 'Archivo: ' . $adjuntos->pluck('nombre')->implode(', '), 0, 120)]);
         }
 
         $disponibles = $this->registro->disponiblesPara($user);
         $esquemas = array_values(array_map(fn (Herramienta $h) => $h->esquema(), $disponibles));
         $system = $this->systemPrompt($user, $pantalla, $conversacion);
-        $turnos = $this->memoria->historial($conversacion);
+        $turnos = $this->memoria->historial($conversacion, $this->capacidades());
         $opciones = ['max_tokens' => $this->conocimiento->limite('max_tokens_respuesta', 1200)];
 
         $accionPendiente = null;
@@ -114,10 +127,11 @@ class AsistenteService
             foreach ($r['llamadas'] as $llamada) {
                 $resultado = $this->usarHerramienta($user, $conversacion, $disponibles, (string) $llamada['nombre'], (array) ($llamada['argumentos'] ?? []));
                 if (($resultado['estado'] ?? null) === 'pendiente_confirmacion') {
-                    $accionPendiente = ['id' => $resultado['accion_id'], 'resumen' => $resultado['resumen']];
+                    $accionPendiente = $this->accionParaPantalla(Accion::find($resultado['accion_id']));
                 }
-                $json = mb_substr(json_encode($resultado, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-                    0, $this->conocimiento->memoria('max_caracteres_resultado_herramienta', 4000));
+                $json = mb_substr(json_encode($resultado, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PARTIAL_OUTPUT_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE),
+                    0, ($disponibles[$llamada['nombre']] ?? null)?->maxCaracteresResultado()
+                        ?? $this->conocimiento->memoria('max_caracteres_resultado_herramienta', 4000));
 
                 $this->guardar($conversacion, 'herramienta', $json, ['herramienta_llamada_id' => $llamada['id'], 'herramienta' => $llamada['nombre']]);
                 $turnos[] = ['rol' => 'herramienta', 'id' => (string) $llamada['id'], 'nombre' => (string) $llamada['nombre'], 'resultado' => $json];
@@ -202,6 +216,18 @@ class AsistenteService
         }
     }
 
+    /** Lo que la IA asignada a JARVIS puede recibir además de texto. */
+    private function capacidades(): array
+    {
+        try {
+            $p = IA::proveedorPara(self::CLAVE_IA);
+
+            return ['imagenes' => (bool) $p->soporta_imagenes, 'pdf' => (bool) $p->soportaPdf()];
+        } catch (\Throwable) {
+            return ['imagenes' => false, 'pdf' => false];
+        }
+    }
+
     /** Parte fija primero (instrucciones + mapa, igual en cada mensaje) y luego lo de esta plática. */
     private function systemPrompt(User $user, ?string $pantalla, Conversacion $conversacion): string
     {
@@ -231,9 +257,27 @@ class AsistenteService
         return preg_replace('#\]\(\s*(?:https?:)?//[^/\s)]+(/[^)\s]*)?\s*\)#i', ']($1)', $texto) ?? $texto;
     }
 
+    /**
+     * El cambio por confirmar. Los de hacer_en_sistema llevan además la lista real de operaciones:
+     * el resumen lo escribe la IA, y el usuario debe poder ver qué se va a correr de verdad.
+     */
     private function accionParaPantalla(?Accion $accion): ?array
     {
-        return $accion ? ['id' => $accion->id, 'resumen' => $accion->resumen] : null;
+        if (!$accion) {
+            return null;
+        }
+        $detalle = [];
+        foreach (array_slice((array) data_get($accion->argumentos, 'operaciones', []), 0, 50) as $op) {
+            $detalle[] = trim(($op['etiqueta'] ?? '') . ' · ' . ($op['metodo'] ?? '') . ' ' . ($op['ruta'] ?? ''), ' ·');
+        }
+        $total = count((array) data_get($accion->argumentos, 'operaciones', []));
+
+        return array_filter([
+            'id'      => $accion->id,
+            'resumen' => $accion->resumen,
+            'detalle' => $detalle ?: null,
+            'total'   => $total ?: null,
+        ], fn ($v) => $v !== null);
     }
 
     private function guardar(Conversacion $conversacion, string $rol, string $contenido, array $extra = []): Mensaje
