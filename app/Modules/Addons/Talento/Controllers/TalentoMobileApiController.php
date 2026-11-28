@@ -16,6 +16,7 @@ use App\Modules\Addons\Talento\Services\GeocodingService;
 use App\Modules\Addons\Talento\Services\IncidenciasOrdenService;
 use App\Modules\Addons\Talento\Services\OrdenTrabajoUnifiedService;
 use App\Modules\Addons\Talento\Services\RevisionOrdenesAppService;
+use App\Modules\Addons\Talento\Services\TalentoColaboradorSyncService;
 use App\Services\Security\PasswordService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -84,13 +85,14 @@ class TalentoMobileApiController extends Controller
             return response()->json(['message' => 'Tu cuenta está inactiva.'], 403);
         }
 
-        $colaborador = TalentoColaborador::where('user_id', $user->id)
-            ->where('status', 'active')
-            ->first();
+        // 19-nov-2026: todo el personal activo entra; si no tiene ficha de colaborador se le crea aquí.
+        ['colaborador' => $colaborador, 'motivo' => $motivo] = app(TalentoColaboradorSyncService::class)->perfilParaApp($user);
 
         if (! $colaborador) {
             return response()->json([
-                'message' => 'Tu cuenta no tiene un perfil de colaborador activo.',
+                'message' => $motivo === 'inactivo'
+                    ? 'Tu ficha de colaborador está inactiva. Pide que la activen en Talento → Colaboradores.'
+                    : 'Esta app es solo para el personal de la empresa.',
             ], 403);
         }
 

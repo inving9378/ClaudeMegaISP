@@ -96,27 +96,27 @@ class SyncColaboradoresCommand extends Command
         $this->table($headers, $rows);
         $this->info("Fase 1 — Altas: {$totalAltas} | Actualizados: {$totalUpdates} | Omitidos/sin cambios: {$totalSkipped}");
 
-        // ── Fase 2: inactivar colaboradores sin rol de puesto ─────────────────
+        // ── Fase 2: inactivar colaboradores que ya no son personal ────────────
+        // 19-nov-2026: antes inactivaba a todo el que no tuviera rol de puesto (vendedores, administración)
+        // y con eso les cerraba la app. Ahora todo el personal entra; solo se inactiva a quien quedó como
+        // cliente o sin roles.
         $this->info('');
-        $this->info('Fase 2 — Buscando colaboradores sin rol de puesto…');
+        $this->info('Fase 2 — Buscando colaboradores que ya no son personal…');
 
-        $userIdsConPuesto = $usersWithPuestoRole->pluck('id')->all();
-
-        // Colaboradores activos cuyo user_id NO tiene ningún rol de puesto mapeado
-        $sinPuesto = TalentoColaborador::where('status', 'active')
+        $yaNoPersonal = TalentoColaborador::where('status', 'active')
             ->when($protectedId !== null, fn ($q) => $q->where('user_id', '!=', $protectedId))
-            ->whereNotIn('user_id', $userIdsConPuesto)
             ->with('user.roles')
-            ->get();
+            ->get()
+            ->reject(fn ($col) => $col->user && $this->syncService->esPersonal($col->user->roles->pluck('name')->all()));
 
         $totalInactivados = 0;
         $fase2Rows = [];
 
-        foreach ($sinPuesto as $col) {
+        foreach ($yaNoPersonal as $col) {
             $roles = $col->user?->roles->pluck('name')->implode(',') ?? '—';
             $col->update(['status' => 'inactive']);
             $totalInactivados++;
-            $fase2Rows[] = [$col->user_id, $col->user?->name ?? '—', $roles, 'inactive', $col->department ?? '—', 'Sin rol de puesto'];
+            $fase2Rows[] = [$col->user_id, $col->user?->name ?? '—', $roles, 'inactive', $col->department ?? '—', 'Ya no es personal'];
         }
 
         if ($fase2Rows) {

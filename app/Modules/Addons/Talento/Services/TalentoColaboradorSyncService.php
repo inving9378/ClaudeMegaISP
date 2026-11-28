@@ -37,6 +37,90 @@ class TalentoColaboradorSyncService
      */
     private const PROTECTED_TEST_LOGIN = 'Meganet6503bee0';
 
+    // Roles que no son personal de la empresa: con solo estos no se entra a la app de campo.
+    private const NO_PERSONAL = ['client', 'Solo lectura'];
+
+    // Departamento de la ficha que se crea al entrar a la app cuando no hay rol de puesto.
+    private const DEPARTAMENTO_SIN_PUESTO = [
+        'Vendedor'             => 'Ventas',
+        'SUPERVISOR_MOSTRADOR' => 'Mostrador',
+    ];
+
+    /**
+     * @param  string[]  $roleNames
+     */
+    public function esPersonal(array $roleNames): bool
+    {
+        return array_diff($roleNames, self::NO_PERSONAL) !== [];
+    }
+
+    /**
+     * Ficha con la que una cuenta entra a la app de campo (19-nov-2026, decisión de David: todo el personal
+     * activo entra y lo que ve depende de su rol). Si no tiene ficha se crea aquí, sin el alta de RH que hace
+     * TalentoColaboradorObserver (documentos, extensión, permisos del portal): eso sigue siendo manual mientras
+     * `talento.autosync_usuarios` esté apagado. Una ficha inactiva o dada de baja no se reactiva sola, porque
+     * la decisión fue de quien la dio de baja.
+     *
+     * @return array{colaborador: ?TalentoColaborador, motivo: ?string}  motivo: 'no_personal' | 'inactivo'
+     */
+    public function perfilParaApp(User $user): array
+    {
+        $activo = TalentoColaborador::where('user_id', $user->id)->where('status', 'active')->first();
+        if ($activo) {
+            return ['colaborador' => $activo, 'motivo' => null];
+        }
+
+        $user->unsetRelation('roles');
+        $roleNames = $user->roles()->pluck('name')->all();
+        if (! $this->esPersonal($roleNames)) {
+            return ['colaborador' => null, 'motivo' => 'no_personal'];
+        }
+
+        if (TalentoColaborador::withTrashed()->where('user_id', $user->id)->exists()) {
+            return ['colaborador' => null, 'motivo' => 'inactivo'];
+        }
+
+        $mappings = TalentoRoleDepartment::pluck('department', 'role_name')->all();
+        $department = $this->resolveDepartment($roleNames, $mappings);
+        foreach (self::DEPARTAMENTO_SIN_PUESTO as $rol => $sinPuesto) {
+            if ($department === null && in_array($rol, $roleNames, true)) {
+                $department = $sinPuesto;
+            }
+        }
+
+        $colaborador = TalentoColaborador::withoutEvents(fn () => TalentoColaborador::create([
+            'user_id'    => $user->id,
+            'type'       => 'interno',
+            'department' => $department,
+            'status'     => 'active',
+        ]));
+
+        return ['colaborador' => $colaborador, 'motivo' => null];
+    }
+
+    /**
+     * 28-nov-2026 (David): al crear o editar un usuario o admin en Administración ya sale como colaborador, sin esperar
+     * a que entre a la app; así aparece para asignarle órdenes. Misma regla que perfilParaApp(). Si su ficha no tenía
+     * departamento y ahora su rol lo dice (p. ej. le dieron el rol de planta externa), se lo pone; uno ya puesto no se
+     * cambia.
+     */
+    public function asegurarFicha(User $user): ?TalentoColaborador
+    {
+        if ($user->isNotActive()) {
+            return null;
+        }
+        $colaborador = $this->perfilParaApp($user)['colaborador'];
+        if ($colaborador && blank($colaborador->department)) {
+            $department = $this->resolveDepartment($user->roles()->pluck('name')->all(), TalentoRoleDepartment::pluck('department', 'role_name')->all());
+            if ($department !== null) {
+                $colaborador->department = $department;
+                $colaborador->saveQuietly();
+            }
+        }
+
+        return $colaborador;
+    }
+
     /**
      * @return array{action: string, reason: ?string, department: ?string, colaborador: ?TalentoColaborador}
      */

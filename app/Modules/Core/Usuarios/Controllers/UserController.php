@@ -329,6 +329,9 @@ class UserController extends Controller
                 if (config('talento.autosync_usuarios')) {
                     app(TalentoColaboradorSyncService::class)->sync($user);
                 }
+                // 28-nov-2026 (David): todo el personal sale como colaborador desde que se guarda (entra a la app y se
+                // le pueden asignar órdenes), con el interruptor apagado también; sin el alta de RH de arriba.
+                app(TalentoColaboradorSyncService::class)->asegurarFicha($user);
             } catch (\Throwable $e) {
                 \Log::warning('Talento: fallo al auto-sincronizar colaborador tras alta de usuario', [
                     'user_id' => $user->id,
@@ -521,7 +524,7 @@ class UserController extends Controller
             // Solo actualizar regla de comisión si llega un ID numérico válido y la persona sigue
             // como vendedor. isset($request->rule_id) era insuficiente: FormData convierte null →
             // string "null", que pasaba el isset y causaba FK violation → rollback silencioso de
-            // TODO (incluido el password). updateRule() no repite la regla si no cambió.
+            // todo (incluido el password). updateRule() no repite la regla si no cambió.
             $seller = Seller::where('user_id', $user->id)->first();
             if ($quiereVendedor && is_numeric($request->input('rule_id')) && $seller) {
                 $seller->updateRule($request->input('rule_id'));
@@ -536,6 +539,9 @@ class UserController extends Controller
                 if (config('talento.autosync_usuarios')) {
                     app(TalentoColaboradorSyncService::class)->sync($user);
                 }
+                // 28-nov-2026 (David): todo el personal sale como colaborador desde que se guarda (entra a la app y se
+                // le pueden asignar órdenes), con el interruptor apagado también; sin el alta de RH de arriba.
+                app(TalentoColaboradorSyncService::class)->asegurarFicha($user);
             } catch (\Throwable $e) {
                 \Log::warning('Talento: fallo al auto-sincronizar colaborador tras editar usuario', [
                     'user_id' => $user->id,
