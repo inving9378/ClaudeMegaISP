@@ -219,7 +219,7 @@ class CampanaController extends Controller
             'fecha_fin'     => 'nullable|date',
         ] + $this->reglasVoz());
 
-        $fecha = ! empty($data['fecha_fin']) ? date('d/m/Y', strtotime($data['fecha_fin'])) : 'la brevedad posible';
+        $fecha = CobranzaTtsService::fechaParaVoz($data['fecha_fin'] ?? null);
         $texto = $tts->textoDeEjemplo($data['notas'], (bool) ($data['solo_deudores'] ?? false), $fecha);
 
         $r = $tts->muestra($texto, [

@@ -8,17 +8,21 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * MegaVoz Fase 6 — transcripción de voz (Whisper, OpenAI). La llave, la URL y
- * el modelo salen de Integraciones → Módulos IA (clave "voip.transcripcion") y
- * se leen en CADA transcripción: el bot de voz corre como proceso de días y así
- * un cambio de llave aplica sin reiniciarlo.
+ * MegaVoz Fase 6 — transcripción de voz (OpenAI). La llave, la URL y el modelo salen de
+ * Integraciones → Módulos IA (clave "voip.transcripcion") y se leen en CADA transcripción:
+ * el bot de voz corre como proceso de días y así un cambio de llave aplica sin reiniciarlo.
+ *
+ * 27-nov: además de whisper-1 acepta gpt-4o-mini-transcribe y gpt-4o-transcribe. Con audio
+ * de llamada (8 kHz) entienden mejor («con gusto te ayudo» donde Whisper oyó «con
+ * gustayudo») y el mini cuesta la mitad. Esos no traen `no_speech_prob`: contra el silencio
+ * queda el detector de voz de AudioSocketServer y la lista de frases inventadas.
  */
 class VoiceSttService
 {
     private const CLAVE_IA = 'voip.transcripcion';
 
-    // Precio Whisper: $0.006 USD por minuto (tarifa pública de OpenAI).
-    private const COSTO_POR_MINUTO_USD = 0.006;
+    // Tarifa pública de OpenAI por minuto de audio.
+    private const COSTO_POR_MINUTO_USD = ['whisper-1' => 0.006, 'gpt-4o-transcribe' => 0.006, 'gpt-4o-mini-transcribe' => 0.003];
 
     // Frases que Whisper "alucina" (viene de sus datos de entrenamiento —
     // subtítulos de YouTube) cuando el audio que recibe NO tiene habla real
@@ -54,19 +58,18 @@ class VoiceSttService
             return ['success' => false, 'error' => "Archivo no existe: {$wavPath}"];
         }
 
+        $modelo = (string) $c['modelo'];
+
         try {
             $response = Http::withToken((string) $c['llave'])
-                ->timeout(30)
+                ->timeout(20)
                 ->attach('file', file_get_contents($wavPath), basename($wavPath))
                 ->post($c['base'] . '/audio/transcriptions', [
-                    'model'           => $c['modelo'],
-                    'language'        => $idioma,
-                    // verbose_json trae `segments[].no_speech_prob` — la
-                    // señal OFICIAL de Whisper para "esto probablemente no
-                    // era habla real" (silencio/ruido). Con solo 'json' no
-                    // hay forma de distinguir una transcripción real de una
-                    // alucinada más que a ojo.
-                    'response_format' => 'verbose_json',
+                    'model'           => $modelo,
+                    'language'        => self::idioma($idioma),
+                    // verbose_json trae `segments[].no_speech_prob`, la señal de Whisper para
+                    // «esto no era habla» (silencio/ruido). Los gpt-4o solo aceptan json.
+                    'response_format' => self::formatoPara($modelo),
                 ]);
 
             if ($response->status() !== 200) {
@@ -76,7 +79,7 @@ class VoiceSttService
             }
 
             $texto = trim((string) $response->json('text', ''));
-            $costo = round(self::COSTO_POR_MINUTO_USD * ($this->duracionSegundos($wavPath) / 60), 6);
+            $costo = round((self::COSTO_POR_MINUTO_USD[$modelo] ?? 0.006) * ($this->duracionSegundos($wavPath) / 60), 6);
             IA::registrarUsoIntegracion($c['integracion'], self::CLAVE_IA, $costo);
 
             if ($texto === '') {
@@ -93,12 +96,9 @@ class VoiceSttService
                 }
             }
 
-            $textoNormalizado = mb_strtolower($texto);
-            foreach (self::FRASES_ALUCINADAS as $frase) {
-                if (str_contains($textoNormalizado, $frase)) {
-                    Log::info("VoiceSttService: descartado por frase alucinada conocida — texto: \"{$texto}\"");
-                    return ['success' => true, 'texto' => '', 'costo_usd' => $costo];
-                }
+            if (self::esAlucinacion($texto)) {
+                Log::info("VoiceSttService: descartado por frase alucinada conocida — texto: \"{$texto}\"");
+                return ['success' => true, 'texto' => '', 'costo_usd' => $costo];
             }
 
             return [
@@ -110,6 +110,33 @@ class VoiceSttService
             Log::warning('VoiceSttService: excepción — ' . $e->getMessage());
             return ['success' => false, 'error' => $e->getMessage()];
         }
+    }
+
+    /** Los gpt-4o-*-transcribe no aceptan verbose_json. */
+    public static function formatoPara(string $modelo): string
+    {
+        return str_starts_with($modelo, 'gpt-4o') ? 'json' : 'verbose_json';
+    }
+
+    /** OpenAI quiere el código ISO de dos letras: «es-MX» → «es». */
+    public static function idioma(?string $idioma): string
+    {
+        $codigo = strtolower(substr(trim((string) $idioma), 0, 2));
+
+        return preg_match('/^[a-z]{2}$/', $codigo) ? $codigo : 'es';
+    }
+
+    /** ¿Es una de las frases que el modelo inventa con audio sin habla? */
+    public static function esAlucinacion(string $texto): bool
+    {
+        $normalizado = mb_strtolower($texto);
+        foreach (self::FRASES_ALUCINADAS as $frase) {
+            if (str_contains($normalizado, $frase)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function duracionSegundos(string $wavPath): float

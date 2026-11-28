@@ -71,6 +71,9 @@ Route::middleware(['web', 'auth'])->prefix('voip')->group(function () {
     // API
     Route::get('/ia-bot/config',                        [IaBotController::class, 'getConfig'])->name('voip.ia-bot.config.get');
     Route::put('/ia-bot/config',                        [IaBotController::class, 'saveConfig'])->name('voip.ia-bot.config.save');
+    Route::get('/ia-bot/estado',                        [IaBotController::class, 'estado'])->name('voip.ia-bot.estado');
+    Route::post('/ia-bot/probar',                       [IaBotController::class, 'probar'])->name('voip.ia-bot.probar');
+    Route::post('/ia-bot/escuchar',                     [IaBotController::class, 'escuchar'])->name('voip.ia-bot.escuchar');
     Route::get('/ia-bot/conversaciones',                [IaBotController::class, 'conversaciones'])->name('voip.ia-bot.conversaciones');
     Route::get('/ia-bot/leads',                         [IaBotController::class, 'leads'])->name('voip.ia-bot.leads');
     Route::put('/ia-bot/leads/{lead}',                  [IaBotController::class, 'updateLead'])->name('voip.ia-bot.leads.update');

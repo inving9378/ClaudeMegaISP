@@ -114,6 +114,9 @@ provision_bot_voz() {
     elif [[ "$cambiado" == 1 ]]; then
         log_info "Reiniciando ${BOT_VOZ_SERVICIO} con la unit nueva"
         systemctl restart "$BOT_VOZ_SERVICIO" || true
+    elif servicio_desactualizado "$BOT_VOZ_SERVICIO"; then
+        log_info "Reiniciando ${BOT_VOZ_SERVICIO}: corre con el código de antes de la última actualización"
+        systemctl restart "$BOT_VOZ_SERVICIO" || true
     else
         log_skip "${BOT_VOZ_SERVICIO} ya corre"
     fi

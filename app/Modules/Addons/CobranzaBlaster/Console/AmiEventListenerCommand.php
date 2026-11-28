@@ -5,6 +5,7 @@ namespace App\Modules\Addons\CobranzaBlaster\Console;
 use App\Modules\Addons\CobranzaBlaster\Jobs\ProcessCallResultJob;
 use App\Modules\Addons\CobranzaBlaster\Services\AmiConnectionService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -43,6 +44,11 @@ class AmiEventListenerCommand extends Command
 
         $seAcabo = fn () => $maxSeconds > 0 && (time() - $inicio) >= $maxSeconds;
 
+        // Tras una actualización (el deploy hace queue:restart) sale solo y systemd lo levanta con
+        // el código nuevo (27-nov). Antes seguía con el código viejo hasta un reinicio a mano.
+        $marca = $this->marcaReinicio();
+        $ultimaRevision = time();
+
         while (!$debeParar && !$seAcabo()) {
             if (!$ami->isConnected() && !$ami->connect()) {
                 Log::error('[cobranza:ami-listener] no se pudo conectar al AMI; reintento en 5s');
@@ -63,6 +69,14 @@ class AmiEventListenerCommand extends Command
                 if ($seAcabo()) {
                     $debeParar = true;
                 }
+
+                if (time() - $ultimaRevision >= 10) {
+                    $ultimaRevision = time();
+                    if ($this->marcaReinicio() !== $marca) {
+                        Log::info('[cobranza:ami-listener] llegó una versión nueva; se reinicia con el código nuevo.');
+                        $debeParar = true;
+                    }
+                }
             }
 
             if (!$debeParar) {
@@ -81,6 +95,18 @@ class AmiEventListenerCommand extends Command
     /**
      * Traduce un evento AMI crudo al evento abstracto del job y lo despacha.
      */
+    /** Lo que el deploy cambia con queue:restart (el mismo aviso que reinicia los workers). */
+    private function marcaReinicio(): ?string
+    {
+        try {
+            $valor = Cache::get('illuminate:queue:restart');
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $valor === null ? null : (string) $valor;
+    }
+
     private function procesarEvento(array $evento): void
     {
         $uniqueid = $evento['Uniqueid'] ?? null;

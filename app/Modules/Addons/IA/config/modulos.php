@@ -75,8 +75,11 @@ return [
     'circuito.jarvis_chat' => ['nombre' => 'Jarvis de la Torre: chat con herramientas de solo lectura', 'grupo' => 'Circuito', 'requiere' => ['herramientas'], 'modelos' => $circuito('jarvis_chat'), 'respaldo' => true, 'listo' => true],
 
     // Voz (API de audio de OpenAI). La llave se lee en cada llamada vía IA::credencialesPara().
-    'voip.transcripcion' => ['nombre' => 'Oído del bot «María» (voz a texto)', 'grupo' => 'VoIP', 'requiere' => ['voz'], 'modelos' => ['whisper-1'], 'listo' => true],
-    'voip.voz' => ['nombre' => 'Voz del bot «María» (texto a voz)', 'grupo' => 'VoIP', 'requiere' => ['voz'], 'modelos' => ['tts-1', 'tts-1-hd', 'gpt-4o-mini-tts'], 'listo' => true],
+    // El primero de `modelos` es el que usa la función si no se le eligió otro. 27-nov: para las
+    // llamadas van primero los gpt-4o: el de transcribir entiende mejor el audio de teléfono y
+    // cuesta la mitad que whisper-1; el de voz habla con acento de México y entiende el tono.
+    'voip.transcripcion' => ['nombre' => 'Oído del bot «María» (voz a texto)', 'grupo' => 'VoIP', 'requiere' => ['voz'], 'modelos' => ['gpt-4o-mini-transcribe', 'gpt-4o-transcribe', 'whisper-1'], 'listo' => true],
+    'voip.voz' => ['nombre' => 'Voz del bot «María» (texto a voz)', 'grupo' => 'VoIP', 'requiere' => ['voz'], 'modelos' => ['gpt-4o-mini-tts', 'tts-1', 'tts-1-hd'], 'listo' => true],
     'marketing.voz_videos' => ['nombre' => 'Voz de los videos (texto a voz)', 'grupo' => 'Marketing', 'requiere' => ['voz'], 'modelos' => ['tts-1', 'tts-1-hd', 'gpt-4o-mini-tts'], 'listo' => true],
-    'cobranza.voz' => ['nombre' => 'Voz de las llamadas de Campañas/Blaster (texto a voz)', 'grupo' => 'Cobranza', 'requiere' => ['voz'], 'modelos' => ['tts-1', 'tts-1-hd', 'gpt-4o-mini-tts'], 'listo' => true],
+    'cobranza.voz' => ['nombre' => 'Voz de las llamadas de Campañas/Blaster (texto a voz)', 'grupo' => 'Cobranza', 'requiere' => ['voz'], 'modelos' => ['gpt-4o-mini-tts', 'tts-1', 'tts-1-hd'], 'listo' => true],
 ];

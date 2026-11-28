@@ -20,6 +20,7 @@ cat > "$T/bin/systemctl" <<'SH'
 #!/usr/bin/env bash
 echo "systemctl $*" >> "$FAKE_LOG"
 if [ "$1" = is-active ]; then svc="${@: -1}"; [[ " ${FAKE_ACTIVE:-} " == *" $svc "* ]] && exit 0 || exit 3; fi
+if [ "$1" = show ]; then echo "${FAKE_DESDE:-}"; fi
 exit 0
 SH
 cat > "$T/bin/ss" <<'SH'
@@ -66,6 +67,20 @@ check '[[ $rc == 0 ]]' "termina bien"
 check 'ls "$T/backups/systemd/" 2>/dev/null | grep -q "megaisp-bot-voz.service."' "respalda la unit anterior"
 check 'grep -q "/srv/megaisp/artisan" "$UNIT"' "escribe la nueva"
 check 'grep -q "systemctl restart megaisp-bot-voz" "$FAKE_LOG"' "reinicia con la unit nueva"
+
+echo "3b) Unit igual pero el servicio arrancó antes de la última actualización → se reinicia"
+mkdir -p "$T/inst/app" "$T/inst/config"
+touch -d '2026-01-01 10:00' "$T/inst/config/viejo.php"
+touch "$T/inst/app/nuevo.php"
+ROOT="$T/inst" FAKE_DESDE="Thu 2026-01-01 12:00:00 CST" run 'servicio_desactualizado megaisp-bot-voz && echo VIEJO || echo ALDIA'
+check 'grep -q VIEJO "$T/out"' "detecta código más nuevo que el arranque"
+ROOT="$T/inst" FAKE_DESDE="$(date -d '+1 hour' '+%a %Y-%m-%d %H:%M:%S %Z')" run 'servicio_desactualizado megaisp-bot-voz && echo VIEJO || echo ALDIA'
+check 'grep -q ALDIA "$T/out"' "arrancado después del código: al día"
+ROOT="$T/inst" FAKE_ACTIVE="megaisp-bot-voz" run provision_bot_voz
+ROOT="$T/inst" FAKE_ACTIVE="megaisp-bot-voz" FAKE_DESDE="Thu 2026-01-01 12:00:00 CST" run provision_bot_voz
+check 'grep -q "systemctl restart megaisp-bot-voz" "$FAKE_LOG" && grep -q "código de antes" "$T/out"' "lo reinicia aunque la unit no cambie"
+ROOT="$T/inst" FAKE_ACTIVE="megaisp-bot-voz" run provision_bot_voz
+check '! grep -q "restart" "$FAKE_LOG"' "sin fecha de arranque no reinicia"
 
 echo "4) No queda escuchando en una instalación nueva → se deshace"
 rm -rf "$T/systemd" "$T/backups"

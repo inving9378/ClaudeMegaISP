@@ -9,16 +9,35 @@ class IaBotConfig extends Model
     protected $table = 'ia_bot_config';
 
     protected $fillable = [
-        'enabled', 'piloto_porcentaje', 'horario_inicio', 'horario_fin', 'voice', 'language', 'temperature',
-        'max_turns', 'max_duration_seconds', 'timeout_seconds',
+        'enabled', 'piloto_porcentaje', 'lineas', 'horario_inicio', 'horario_fin', 'voice', 'tono', 'velocidad',
+        'language', 'temperature', 'max_turns', 'max_duration_seconds', 'timeout_seconds',
         'grupo_timbrado_name', 'greeting_customer', 'greeting_lead', 'system_prompt',
     ];
 
     protected $casts = [
         'enabled'     => 'boolean',
         'temperature' => 'float',
+        'velocidad'   => 'float',
         'piloto_porcentaje' => 'integer',
+        'lineas'      => 'integer',
     ];
+
+    /** Tope de llamadas a la vez que se puede fijar desde la pantalla (cada una gasta IA). */
+    public const LINEAS_MAX = 10;
+
+    /** Cuántas llamadas atiende a la vez: lo de la pantalla o, si nunca se fijó, lo del .env. */
+    public function lineasEfectivas(): int
+    {
+        $lineas = $this->lineas ?: (int) config('voip.bot_voz.max_simultaneas', 1);
+
+        return max(1, min(self::LINEAS_MAX, $lineas));
+    }
+
+    /** Voz, velocidad y tono para VoiceTtsService. */
+    public function opcionesVoz(): array
+    {
+        return ['voz' => $this->voice, 'velocidad' => $this->velocidad, 'tono' => $this->tono];
+    }
 
     /**
      * Decide si ESTA llamada, ahora mismo, la debe atender María — el

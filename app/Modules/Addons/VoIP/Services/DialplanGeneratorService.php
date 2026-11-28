@@ -4,6 +4,7 @@ namespace App\Modules\Addons\VoIP\Services;
 
 use App\Modules\Addons\VoIP\Models\GrupoTimbrado;
 use App\Modules\Addons\VoIP\Models\IaBotConfig;
+use App\Modules\Addons\VoIP\Services\Voz\AudioSocketServer;
 use App\Modules\Addons\VoIP\Models\Troncal;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -260,7 +261,13 @@ class DialplanGeneratorService
             ...($botHabilitado ? [
                 " same = n,TrySystem(nc -z -w1 {$botHost} {$botPort})  ; Fase 6 — pre-vuelo: sin esto, un AudioSocket() a un daemon caído cuelga el canal en vez de seguir a la cola (ver nota arriba)",
                 " same = n,GotoIf(\$[\"\${SYSTEMSTATUS}\" != \"SUCCESS\"]?sigue_bot)",
-                " same = n,Set(BOT_UUID=\${UUID()})",
+                // AudioSocket solo manda el UUID: ahí va el número del que llama (27-nov) para que
+                // la asistente sepa si es cliente. xxxxxxxx-xxxx-ca11-NNNN-NNNNNNNNNNNN, el número
+                // rellenado con «f» a la izquierda (AudioSocketServer::numeroQueLlama). Solo dígitos
+                // y «f»: siempre es un UUID válido (uno inválido haría que AudioSocket colgara).
+                " same = n,Set(BOT_NUM=ffffffffffffffff\${FILTER(0-9,\${CALLERID(num)})})",
+                " same = n,Set(BOT_NUM=\${BOT_NUM:-16})",
+                " same = n,Set(BOT_UUID=\${UUID():0:14}" . AudioSocketServer::MARCA_NUMERO . "-\${BOT_NUM:0:4}-\${BOT_NUM:4:12})",
                 " same = n,AudioSocket(\${BOT_UUID},{$botHostPuerto})  ; el daemon decide en vivo si atiende (piloto/horario)",
                 " same = n(sigue_bot),NoOp(Fase 6 — fin del intento de bot)",
             ] : []),

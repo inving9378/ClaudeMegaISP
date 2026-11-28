@@ -1941,6 +1941,9 @@ return [
     'voip.ia-bot.view' => [
         '/voip/ia-bot',
         '/voip/ia-bot/config',
+        '/voip/ia-bot/estado',
+        '/voip/ia-bot/probar',
+        '/voip/ia-bot/escuchar',
         '/voip/ia-bot/conversaciones',
         '/voip/ia-bot/leads',
         '/voip/ia-bot/kb',

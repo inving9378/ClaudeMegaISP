@@ -160,6 +160,18 @@ voip_generados_dir() {
 # Grupo principal del usuario web (dueño de lo que crea artisan).
 megaisp_group() { id -gn "$MEGAISP_USER" 2>/dev/null || printf '%s' "$MEGAISP_USER"; }
 
+# ¿El servicio corre con código anterior a la última actualización? (hay archivos PHP de
+# app/ o config/ más nuevos que su arranque). Los servicios de larga vida (asistente de voz,
+# campañas) cargan el código al arrancar: sin reiniciarlos seguían con la versión vieja.
+# Sin fecha de arranque legible, se da por al día.
+servicio_desactualizado() {
+    local svc="$1" ts desde
+    ts="$(systemctl show -p ActiveEnterTimestamp --value "$svc" 2>/dev/null || true)"
+    [[ -n "$ts" && "$ts" != "n/a" ]] || return 1
+    desde="$(date -d "$ts" +%s 2>/dev/null)" || return 1
+    [[ -n "$(find "${MEGAISP_ROOT%/}/app" "${MEGAISP_ROOT%/}/config" -name '*.php' -newermt "@${desde}" -print -quit 2>/dev/null)" ]]
+}
+
 # es_identificador VALOR — nombres de base/usuario que van interpolados en SQL.
 es_identificador() { [[ "$1" =~ ^[A-Za-z0-9_]+$ ]]; }
 

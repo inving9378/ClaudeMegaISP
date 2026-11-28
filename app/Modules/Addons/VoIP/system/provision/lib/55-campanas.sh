@@ -137,6 +137,9 @@ _campanas_servicio() {
     elif [[ "$cambiado" == 1 ]]; then
         log_info "Reiniciando ${CAMPANAS_SERVICIO} con la unit nueva"
         systemctl restart "$CAMPANAS_SERVICIO" || true
+    elif servicio_desactualizado "$CAMPANAS_SERVICIO"; then
+        log_info "Reiniciando ${CAMPANAS_SERVICIO}: corre con el código de antes de la última actualización"
+        systemctl restart "$CAMPANAS_SERVICIO" || true
     else
         log_skip "${CAMPANAS_SERVICIO} ya corre"
     fi

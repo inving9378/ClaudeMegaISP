@@ -184,7 +184,7 @@ class BlastCampanaJob implements ShouldQueue
                         $nota,
                         $cmi->name,
                         $adeudo,
-                        $campana->fecha_fin?->format('d/m/Y') ?? 'la brevedad posible',
+                        CobranzaTtsService::fechaParaVoz($campana->fecha_fin),
                         (string) $llamada->client_id
                     ),
                     $voz

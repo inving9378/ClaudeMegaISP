@@ -14,6 +14,7 @@ class VozCampanasTest extends TestCase
     {
         $app = new Container();
         Container::setInstance($app);
+        \Illuminate\Support\Carbon::setTestNow('2026-11-27 10:00:00');
         $app->instance('config', new Repository([
             'cobranza' => ['blaster_tts_voice' => 'nova', 'blaster_audio_base_path' => '/tmp/'],
         ]));
@@ -21,28 +22,48 @@ class VozCampanasTest extends TestCase
 
     protected function tearDown(): void
     {
+        \Illuminate\Support\Carbon::setTestNow();
         Container::setInstance(null);
     }
 
     public function test_sin_nota_se_lee_el_mensaje_de_siempre(): void
     {
-        $texto = (new CobranzaTtsService())->textoCobranza(null, 'Ana Ruiz', 1234.5, '30/11/2026', 'C-987');
+        $texto = (new CobranzaTtsService())->textoCobranza(null, 'Ana Ruiz', 1234.5, CobranzaTtsService::fechaParaVoz('2026-11-30'), 'C-987');
 
         $this->assertSame(
-            'Estimado Ana Ruiz, le habla Meganet Telecomunicaciones. Su saldo vencido es de 1,234.50 pesos. '
-            . 'Le solicitamos realizar su pago antes del 30/11/2026. Su número de cliente es 9 8 7. Gracias por su atención.',
+            'Estimado Ana Ruiz, le habla Meganet Telecomunicaciones. Su saldo vencido es de 1,234 pesos con 50 centavos. '
+            . 'Le solicitamos realizar su pago antes del 30 de noviembre. Su número de cliente es 9 8 7. Gracias por su atención.',
             $texto
         );
+    }
+
+    public function test_sin_fecha_fin_se_pide_el_pago_a_la_brevedad(): void
+    {
+        $texto = (new CobranzaTtsService())->textoCobranza(null, 'Ana', 350, null, '1');
+
+        $this->assertStringContainsString('realizar su pago a la brevedad.', $texto);
+        $this->assertStringNotContainsString('{fecha}', $texto);
+        $this->assertStringContainsString('es de 350 pesos.', $texto);
+    }
+
+    public function test_saldo_y_fecha_como_se_dicen(): void
+    {
+        $this->assertSame('1 peso', CobranzaTtsService::montoParaVoz(1));
+        $this->assertSame('99 pesos con 1 centavo', CobranzaTtsService::montoParaVoz(99.01));
+        $this->assertSame('12,500 pesos', CobranzaTtsService::montoParaVoz(12500));
+        $this->assertSame('1 de diciembre', CobranzaTtsService::fechaParaVoz('2026-12-01'));
+        $this->assertSame('15 de enero de 2027', CobranzaTtsService::fechaParaVoz('2027-01-15'));
+        $this->assertNull(CobranzaTtsService::fechaParaVoz(null));
     }
 
     public function test_la_nota_se_lee_con_los_datos_del_cliente(): void
     {
         $texto = (new CobranzaTtsService())->textoCobranza(
             '  Hola {nombre}, debe {saldo} pesos; cliente {numero_cliente}, antes del {fecha}.  ',
-            'Ana Ruiz', 99, '01/12/2026', '42'
+            'Ana Ruiz', 99, CobranzaTtsService::fechaParaVoz('2026-12-01'), '42'
         );
 
-        $this->assertSame('Hola Ana Ruiz, debe 99.00 pesos; cliente 4 2, antes del 01/12/2026.', $texto);
+        $this->assertSame('Hola Ana Ruiz, debe 99 pesos; cliente 4 2, antes del 1 de diciembre.', $texto);
     }
 
     public function test_aviso_se_escucha_tal_cual(): void

@@ -70,6 +70,9 @@
 
         { "method": "GET",    "path": "/voip/ia-bot/config",       "description": "Obtiene la configuración del bot IA",     "scope": "voip.ia-bot.config", "permission": "voip.ia-bot.config" },
         { "method": "PUT",    "path": "/voip/ia-bot/config",       "description": "Guarda la configuración del bot IA",      "scope": "voip.ia-bot.config", "permission": "voip.ia-bot.config" },
+        { "method": "GET",    "path": "/voip/ia-bot/estado",       "description": "Si la asistente está lista: servicio, IA asignada, grupos y el día", "scope": "voip.ia-bot.view", "permission": "voip.ia-bot.view" },
+        { "method": "POST",   "path": "/voip/ia-bot/probar",       "description": "Prueba a la asistente sin llamar (gasta IA)", "scope": "voip.ia-bot.config", "permission": "voip.ia-bot.config" },
+        { "method": "POST",   "path": "/voip/ia-bot/escuchar",     "description": "Escuchar el saludo con la voz elegida (gasta IA)", "scope": "voip.ia-bot.config", "permission": "voip.ia-bot.config" },
         { "method": "GET",    "path": "/voip/ia-bot/leads",        "description": "Lista leads capturados por el bot IA",    "scope": "voip.ia-bot.leads",  "permission": "voip.ia-bot.leads" },
         { "method": "GET",    "path": "/voip/ia-bot/kb",           "description": "Lista la base de conocimiento del bot IA","scope": "voip.ia-bot.kb",     "permission": "voip.ia-bot.kb" },
 

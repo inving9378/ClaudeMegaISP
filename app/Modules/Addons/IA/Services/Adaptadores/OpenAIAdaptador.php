@@ -182,6 +182,13 @@ class OpenAIAdaptador extends AdaptadorHttpBase
         if ($temperature !== null && !$razonamiento) {
             $payload['temperature'] = (float) $temperature;
         }
+
+        // Cuánto «piensa» un gpt-5 en adelante. Solo si quien llama lo pide (el bot de voz pide
+        // 'low': en una llamada cada segundo cuenta); sin pedirlo, el default del modelo, como siempre.
+        $esfuerzo = $opciones['razonamiento'] ?? null;
+        if (is_string($esfuerzo) && $esfuerzo !== '' && preg_match('/^gpt-([5-9]|\d{2,})/i', (string) $payload['model'])) {
+            $payload['reasoning_effort'] = $esfuerzo;
+        }
     }
 
     private function esRazonamiento(string $modelo): bool

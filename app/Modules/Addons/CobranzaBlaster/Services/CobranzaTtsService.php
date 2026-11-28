@@ -4,6 +4,7 @@ namespace App\Modules\Addons\CobranzaBlaster\Services;
 
 use App\Modules\Addons\IA\Services\IA;
 use App\Modules\Addons\IA\Services\IANoConfigurada;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -59,6 +60,12 @@ class CobranzaTtsService
     /** Datos de ejemplo para escuchar la nota desde el alta (no son de ningún cliente). */
     public const EJEMPLO = ['nombre' => 'Juan Pérez', 'monto' => 350.0, 'numero_cliente' => '12345'];
 
+    /**
+     * Sube cuando cambia cómo se procesa el audio (27-nov: volumen normalizado): así las
+     * campañas en curso vuelven a generar su audio en vez de reusar el de antes.
+     */
+    private const VERSION_AUDIO = 2;
+
     protected string $audioBasePath;
     protected string $voice;
 
@@ -73,7 +80,7 @@ class CobranzaTtsService
     {
         // El nombre lleva el texto: si entre intentos cambia el saldo, se genera de nuevo
         // (antes se reusaba el primer audio con el saldo viejo).
-        $cacheKey   = "blaster_{$llamadaId}_" . substr(md5($texto . '|' . json_encode($voz)), 0, 10);
+        $cacheKey   = "blaster_{$llamadaId}_" . substr(md5(self::VERSION_AUDIO . '|' . $texto . '|' . json_encode($voz)), 0, 10);
         $outputPath = $this->audioBasePath . $cacheKey . '.wav';
 
         if (file_exists($outputPath)) {
@@ -101,7 +108,7 @@ class CobranzaTtsService
     public function generateAudioCached(string $slot, string $texto, array $voz = []): string
     {
         $voz        = $voz === [] ? [] : $this->normalizarVoz($voz);
-        $slug       = 'slot_' . md5($voz === [] ? $texto : $texto . '|' . json_encode($voz));
+        $slug       = 'slot_' . md5(self::VERSION_AUDIO . '|' . ($voz === [] ? $texto : $texto . '|' . json_encode($voz)));
         $outputPath = $this->audioBasePath . $slug . '.wav';
 
         if (file_exists($outputPath)) {
@@ -124,24 +131,67 @@ class CobranzaTtsService
     /**
      * Texto de una llamada de cobranza: la nota de la campaña (o el mensaje de siempre si no
      * hay nota) con {nombre}, {saldo}, {fecha} y {numero_cliente} del cliente.
+     *
+     * 27-nov: el saldo y la fecha van como se dicen («350 pesos con 50 centavos», «30 de
+     * noviembre»): antes se leía «350.00» y «30/11/2026». Sin fecha fin, «antes del {fecha}»
+     * queda «a la brevedad» (antes decía «antes del la brevedad posible»).
+     *
+     * @param ?string $fecha la fecha ya hablada (fechaParaVoz()); null = la campaña no tiene fecha fin
      */
-    public function textoCobranza(?string $nota, string $nombre, float $monto, string $fecha, string $numCliente): string
+    public function textoCobranza(?string $nota, string $nombre, float $monto, ?string $fecha, string $numCliente): string
     {
         $plantilla = trim((string) $nota) !== '' ? trim((string) $nota) : self::PLANTILLA_COBRANZA;
 
+        $fecha = trim((string) $fecha);
+        if ($fecha === '') {
+            $plantilla = preg_replace('/\s*\b(?:antes del?|a más tardar el|para el|el)\s+\{fecha\}/iu', ' a la brevedad', $plantilla);
+            $fecha = 'a la brevedad';
+        }
+
+        $plantilla = preg_replace('/\{saldo\}(\s+pesos\b)?/u', self::montoParaVoz($monto), $plantilla);
+
         return strtr($plantilla, [
             '{nombre}'         => $nombre,
-            '{saldo}'          => number_format($monto, 2),
             '{fecha}'          => $fecha,
             '{numero_cliente}' => $this->separarDigitos($numCliente),
         ]);
+    }
+
+    /** «1234.5» → «1,234 pesos con 50 centavos»; «350» → «350 pesos»; «1» → «1 peso». */
+    public static function montoParaVoz(float $monto): string
+    {
+        $centavos = (int) round(abs($monto) * 100);
+        $pesos = intdiv($centavos, 100);
+        $resto = $centavos % 100;
+
+        $texto = number_format($pesos) . ($pesos === 1 ? ' peso' : ' pesos');
+        if ($resto > 0) {
+            $texto .= ' con ' . $resto . ($resto === 1 ? ' centavo' : ' centavos');
+        }
+
+        return $texto;
+    }
+
+    /** «2026-11-30» → «30 de noviembre» (con el año si no es el actual); null sin fecha. */
+    public static function fechaParaVoz($fecha): ?string
+    {
+        if ($fecha === null || $fecha === '') {
+            return null;
+        }
+        try {
+            $f = Carbon::parse($fecha)->locale('es');
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $f->isoFormat($f->year === Carbon::now()->year ? 'D [de] MMMM' : 'D [de] MMMM [de] YYYY');
     }
 
     /**
      * La nota con los datos de ejemplo, para escucharla desde el alta. Las variables solo se llenan
      * cuando la campaña es «solo los que deben» (27-nov: antes, cuando el tipo era cobranza).
      */
-    public function textoDeEjemplo(string $nota, bool $soloDeudores, string $fecha): string
+    public function textoDeEjemplo(string $nota, bool $soloDeudores, ?string $fecha): string
     {
         if (! $soloDeudores) {
             return trim($nota);
@@ -292,7 +342,10 @@ class CobranzaTtsService
             return;
         }
 
-        exec('ffmpeg -y -i ' . escapeshellarg($mp3) . ' -ar 8000 -ac 1 -acodec pcm_s16le ' . escapeshellarg($wav) . ' 2>&1', $salida, $codigo);
+        // -af loudnorm (27-nov, igual que la voz de la asistente): el MP3 de OpenAI viene muy bajo
+        // y en una llamada (mu-law) lo bajo además suena con estática. Queda a -16 LUFS sin recortar.
+        exec('ffmpeg -y -hide_banner -loglevel error -i ' . escapeshellarg($mp3)
+            . ' -af loudnorm=I=-16:TP=-1.5:LRA=11 -ar 8000 -ac 1 -acodec pcm_s16le ' . escapeshellarg($wav) . ' 2>&1', $salida, $codigo);
         if ($codigo !== 0) {
             @unlink($wav);
             Log::error('CobranzaTtsService: ffmpeg no pudo convertir la voz a WAV (código ' . $codigo . ')', [
